@@ -15,7 +15,7 @@
     "encryptedInfo": "Your data is end-to-end encrypted. Only your devices can read it.",
     "morePreview": "+{{count}} more",
     "settingUp": "Setting up...",
-    "connectThisDevice": "Connect This Device",
+    "connectThisDevice": "Connect this device",
     "enableDeviceSync": "Enable Device Sync",
     "morePreview_one": "+{{count}} more",
     "morePreview_other": "+{{count}} more"
@@ -60,7 +60,7 @@
   "stale": {
     "keysNeedUpdating": "Keys need updating",
     "keysNeedUpdatingDescription": "Security settings changed on another device. Connect this device again to keep syncing.",
-    "updateThisDevice": "Update This Device"
+    "updateThisDevice": "Update this device"
   },
   "orphaned": {
     "restoreTitle": "Use This Device to Restore Sync",
@@ -73,12 +73,12 @@
     "enterCodeFromDevices_one": "Enter the code from one of your {{count}} other connected device.",
     "enterCodeFromDevices_other": "Enter the code from one of your {{count}} other connected devices.",
     "enterCodeGeneric": "Enter the code from your other connected device to sync your data.",
-    "connectThisDevice": "Connect This Device",
+    "connectThisDevice": "Connect this device",
     "connectToStartSyncing": "Connect this device to start syncing."
   },
   "connect": {
-    "connectAnotherDevice": "Connect Another Device",
-    "connectThisDevice": "Connect This Device",
+    "connectAnotherDevice": "Connect another device",
+    "connectThisDevice": "Connect this device",
     "pair": "Pair",
     "unpair": "Unpair",
     "revoke": "Revoke",
@@ -96,16 +96,7 @@
     "speedUpSetup": "Speed up setup"
   },
   "bootstrap": {
-    "inProgress": "Sync bootstrap in progress...",
-    "hasDataTitle": "This device already has data",
-    "hasDataDescription": "To finish syncing, the data on this device will be replaced with data from your other device.",
-    "continue": "Continue",
-    "waitingOtherDeviceTitle": "Waiting for your other device",
-    "waitingOtherDeviceDescription": "We'll finish syncing as soon as a fresh snapshot is available.",
-    "retryStartedTitle": "Sync retry started",
-    "retryStartedDescription": "Checking for an updated snapshot and applying pending sync changes.",
-    "couldNotRetryTitle": "Could not retry sync",
-    "unableToContinueTitle": "Unable to continue sync"
+    "couldNotRetryTitle": "Could not retry sync"
   },
   "snapshot": {
     "uploadedTitle": "Snapshot uploaded",
@@ -115,22 +106,6 @@
     "resultTitle": "Snapshot upload result",
     "failedTitle": "Snapshot upload failed"
   },
-  "backup": {
-    "savedTitle": "Backup saved",
-    "savedDescription": "A backup was saved as {{location}}.",
-    "failedTitle": "Backup failed",
-    "backingUp": "Backing up...",
-    "backUpFirst": "Back up first"
-  },
-  "overwrite": {
-    "replaceDataTitle": "Replace data on this device?",
-    "replaceDataDescription": "Your local data will be replaced with data from your other connected device.",
-    "localRowsReplaced_one": "{{count}} local row will be replaced.",
-    "localRowsReplaced_other": "{{count}} local rows will be replaced.",
-    "notNow": "Not now",
-    "syncing": "Syncing...",
-    "replaceAndSync": "Replace & Sync"
-  },
   "reinit": {
     "title": "Set up sync again from this device?",
     "description": "We'll keep the data on this device and use it to restart sync. Other connected devices may need to be connected again.",
@@ -138,11 +113,11 @@
     "continue": "Continue"
   },
   "recovery": {
-    "title": "Set Up This Device Again",
+    "title": "Set up this device again",
     "description": "Sync was turned off for this device. Set it up again to keep your data up to date across your devices.",
     "notNow": "Not now",
     "settingUp": "Setting up...",
-    "setUpAgain": "Set Up This Device Again"
+    "setUpAgain": "Set up this device again"
   },
   "disconnectDialog": {
     "title": "Disconnect this device?",
@@ -164,56 +139,148 @@
     "unpairFailed": "Failed to unpair device"
   },
   "pairing": {
-    "connectThisDeviceTitle": "Connect This Device",
-    "enterCodeDescription": "Enter the code from your other connected device",
-    "connectAnotherTitle": "Connect Another Device",
-    "scanOrEnterDescription": "Scan or enter this code on your other device",
-    "gettingReadyTitle": "Getting this device ready...",
+    "connectThisDeviceTitle": "Connect this device",
+    "enterCodeDescription": "Enter the code shown on your other device.",
+    "connectAnotherTitle": "Connect another device",
+    "scanOrEnterDescription": "Scan this code with your new device, or type it in there.",
+    "gettingReadyTitle": "Getting this device ready",
     "gettingReadyDescription": "This will only take a moment.",
     "prepareFailed": "We couldn't finish getting this device ready.",
-    "tryAgain": "Try Again",
-    "starting": "Starting...",
-    "generatingCode": "Generating code...",
-    "computingSecurityCode": "Computing security code...",
-    "finishingSetup": "Finishing setup...",
-    "finishingSetupDescription": "Preparing your data for the new device",
-    "sessionExpired": "Session expired",
-    "connecting": "Connecting...",
-    "verifySecurityCode": "Verify Security Code",
-    "syncingData": "Syncing your data...",
-    "syncingDataDescription": "This may take a few seconds"
+    "verifySecurityCode": "Check the security code",
+    "transferringData": "Transferring your data",
+    "transferringDataDescription": "Encrypting a copy of your data for your new device. This can take a minute.",
+    "securingConnection": "Securing the connection",
+    "securingConnectionDescription": "Exchanging encryption keys with your other device."
   },
   "displayCode": {
-    "expired": "Expired"
+    "generating": "Generating code",
+    "copyCode": "Copy code",
+    "copied": "Copied",
+    "expiresIn": "Expires in {{time}}",
+    "expiredTitle": "This code has expired",
+    "expiredDescription": "Codes work for a few minutes to keep pairing secure. Get a new one to continue.",
+    "newCode": "Get a new code"
   },
   "enterCode": {
-    "openingCamera": "Opening camera...",
-    "scanQrCode": "Scan QR Code",
+    "openingCamera": "Opening camera…",
+    "scanQrCode": "Scan QR code",
     "scanInstructions": "Align the QR code inside the frame.",
-    "quickAndEasy": "Quick and easy",
     "or": "Or",
-    "codePlaceholder": "ABC 123",
     "paste": "Paste",
-    "connecting": "Connecting...",
+    "connecting": "Connecting…",
     "connect": "Connect",
     "cameraOpenError": "Unable to open camera. Please try again.",
     "cameraCloseError": "Unable to close camera. Please try again.",
-    "cameraUnavailable": "No camera is available. Use a physical device to scan, or enter the pairing code below."
+    "cameraUnavailable": "No camera is available. Use a physical device to scan, or enter the pairing code below.",
+    "scanHint": "Point your camera at the code on your other device.",
+    "codeLabel": "Pairing code"
   },
   "sas": {
-    "sameCodeQuestion": "Same code on both devices?"
+    "description": "Make sure your other device shows the same code. This keeps anyone else from connecting.",
+    "codesMatch": "Codes match",
+    "codesDontMatch": "They don't match",
+    "waitingDescription": "Check that your other device shows this code, then confirm there.",
+    "mismatchTitle": "Pairing stopped",
+    "mismatchDescription": "The codes didn't match, so nothing was shared. Try again with a new code."
   },
   "waiting": {
-    "waitingForConfirmation": "Waiting for confirmation...",
-    "confirmCodeMatches": "Confirm this code matches on your other device",
-    "securelyConnecting": "Please wait while we securely connect your device"
+    "waitingForConfirmation": "Waiting for your other device to confirm…"
   },
   "result": {
     "allSet": "You're all set!",
     "connectedSuccessfully": "Device connected successfully",
     "done": "Done",
-    "connectionFailed": "Connection failed",
-    "tryAgain": "Try Again"
+    "connectionFailed": "Couldn't connect",
+    "tryAgain": "Try again",
+    "devicesConnected": "Devices connected",
+    "finishOnOtherDevice": "Finish setup on your other device. It shows Ready once your data is in place."
   },
-  "errors": {}
+  "restore": {
+    "dialogTitle": "Finish setting up this device",
+    "transferring": {
+      "title": "Transferring your data",
+      "description": "Downloading and checking the encrypted copy from your other device."
+    },
+    "waiting": {
+      "title": "Waiting for your other device",
+      "description": "Your other device is still uploading its data. Setup continues automatically."
+    },
+    "consent": {
+      "title": "Replace the data in this profile?",
+      "titleNamed": "Replace the data in \"{{profile}}\"?",
+      "description": "Data from your other device will replace the data on this device.",
+      "descriptionDated": "Data from your other device (copied {{date}}) will replace the data on this device.",
+      "replace": "Replace data",
+      "backupLabel": "Back up this profile first",
+      "backupAndReplace": "Back up and replace"
+    },
+    "backingUp": {
+      "title": "Backing up this profile",
+      "description": "Saving a copy of this profile before anything is replaced."
+    },
+    "replacing": {
+      "title": "Replacing data on this device",
+      "description": "Putting the data from your other device in place."
+    },
+    "ready": {
+      "title": "Ready",
+      "description": "This device is set up and in sync."
+    },
+    "cancelled": {
+      "title": "Setup was cancelled",
+      "description": "Nothing was replaced. You can finish setup at any time."
+    },
+    "cancelSetup": "Cancel setup",
+    "hide": "Hide",
+    "continueInBackground": "Continue in background",
+    "tryAgain": "Try again",
+    "startAgain": "Start again",
+    "finishSetup": "Finish setup",
+    "retryHint": {
+      "transfer": "Nothing was replaced. You can try the transfer again.",
+      "consent": "Nothing was replaced. Trying again asks for your approval again.",
+      "new_attempt": "Nothing was replaced. Start again to use the latest copy from your other device."
+    },
+    "errors": {
+      "SUBSCRIPTION_REQUIRED": "Device sync needs an active subscription",
+      "DEVICE_NOT_READY": "This device isn't ready to sync yet",
+      "SNAPSHOT_WAIT_TIMED_OUT": "Your other device hasn't finished uploading",
+      "SNAPSHOT_UNAVAILABLE": "The copy from your other device is no longer available",
+      "SNAPSHOT_SCHEMA_NEWER": "Update this app to finish setup",
+      "SNAPSHOT_INVALID": "The transferred data couldn't be verified",
+      "TRANSFER_FAILED": "The transfer didn't finish",
+      "BACKUP_FAILED": "The backup didn't finish",
+      "RESTORE_FAILED": "The data couldn't be replaced"
+    },
+    "banner": {
+      "title": "Setup isn't finished on this device",
+      "running": "Setup is continuing in the background.",
+      "needsApproval": "Your approval is needed to replace this profile's data.",
+      "failed": "Setup stopped before it finished.",
+      "cancelled": "Setup was cancelled. Finish setup when you're ready.",
+      "show": "Show progress"
+    }
+  },
+  "errors": {},
+  "wizard": {
+    "progressLabel": "Setup progress",
+    "steps": {
+      "connect": "Connect",
+      "transfer": "Transfer",
+      "download": "Download",
+      "apply": "Apply",
+      "done": "Done"
+    },
+    "encryptedNote": "End-to-end encrypted. Only your devices can read your data.",
+    "backgroundNote": "You can close this window. Setup continues in the background.",
+    "details": {
+      "encrypt": "Encrypt your data",
+      "upload": "Upload the encrypted copy",
+      "sendKeys": "Send the keys to your new device",
+      "waitForUpload": "Your other device uploads its data",
+      "downloadAndVerify": "Download and verify the encrypted copy",
+      "replace": "Replace the data on this device",
+      "backup": "Back up this profile"
+    }
+  }
 }

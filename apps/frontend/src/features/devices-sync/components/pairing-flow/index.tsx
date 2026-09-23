@@ -1,89 +1,34 @@
-// PairingFlow
-// Main component that orchestrates the pairing flow (issuer and claimer)
-// =====================================================================
+// Device setup wizards
+// AddDeviceWizard runs on the trusted device that shares its data;
+// JoinDeviceWizard runs on the new device that receives it.
+// ====================================================================
 
-import { backupDatabase, logger } from "@/adapters";
+import { logger } from "@/adapters";
 import { Icons } from "@wealthfolio/ui";
-import { Button } from "@wealthfolio/ui/components/ui/button";
-import { useEffect, useRef, useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { usePairingIssuer, usePairingClaimer, useSyncStatus } from "../../hooks";
-import type { PairingBootstrapState } from "../../hooks";
-import { logSyncError, userFacingSyncErrorMessage } from "../../utils/error-messages";
+import { usePairingClaimer, usePairingIssuer } from "../../hooks";
+import { DeviceLink } from "../device-link";
+import { EncryptedNote } from "../flow-notes";
+import { RestoreOperationView } from "../restore-operation-view";
+import { isRestoreFinished } from "../../hooks/use-restore-operation";
+import { restoreWizardProgress, type WizardProgress } from "../device-setup-steps";
+import { WizardLayout } from "../device-setup-wizard";
 import { DisplayCode } from "./display-code";
-import { SASVerification } from "./sas-verification";
-import { WaitingState } from "./waiting-state";
-import { PairingResult } from "./pairing-result";
 import { EnterCode } from "./enter-code";
+import { PairingResult } from "./pairing-result";
+import { SASVerification, SASWaiting } from "./sas-verification";
+import { WaitingState } from "./waiting-state";
 
-interface PairingFlowProps {
-  onComplete?: () => void;
-  onCancel?: () => void;
-  onBootstrapStateChange?: (state: PairingBootstrapState) => void;
-  /** Title shown during the initial step (display_code for issuer, enter_code for claimer) */
-  title?: string;
-  /** Description shown during the initial step */
-  description?: string;
-  /** Override auto-detected role (e.g. REGISTERED state always needs claimer) */
-  forceRole?: "issuer" | "claimer";
+interface DeviceWizardProps {
+  /** The wizard finished; the dialog can close. */
+  onComplete: () => void;
+  /** The user left the wizard. */
+  onCancel: () => void;
 }
 
-/** Inline title block rendered above the initial step content */
-function StepHeader({ title, description }: { title?: string; description?: string }) {
-  if (!title) return null;
-  return (
-    <div className="mb-5 text-center">
-      <p className="text-foreground text-base font-semibold leading-6">{title}</p>
-      {description && (
-        <p className="text-muted-foreground mt-1.5 text-sm leading-5">{description}</p>
-      )}
-    </div>
-  );
-}
-
-export function PairingFlow({
-  onComplete,
-  onCancel,
-  onBootstrapStateChange,
-  title,
-  description,
-  forceRole,
-}: PairingFlowProps) {
-  const { device } = useSyncStatus();
-  const initialRoleRef = useRef<"issuer" | "claimer" | null>(forceRole ?? null);
-  if (initialRoleRef.current == null && device) {
-    initialRoleRef.current = device.trustState === "trusted" ? "issuer" : "claimer";
-  }
-  const isTrusted =
-    initialRoleRef.current != null
-      ? initialRoleRef.current === "issuer"
-      : device?.trustState === "trusted";
-
-  if (isTrusted) {
-    return (
-      <IssuerFlow
-        onComplete={onComplete}
-        onCancel={onCancel}
-        onBootstrapStateChange={onBootstrapStateChange}
-        title={title}
-        description={description}
-      />
-    );
-  } else {
-    return (
-      <ClaimerFlow
-        onComplete={onComplete}
-        onCancel={onCancel}
-        onBootstrapStateChange={onBootstrapStateChange}
-        title={title}
-        description={description}
-      />
-    );
-  }
-}
-
-// Issuer Flow (trusted device - displays QR code)
-function IssuerFlow({ onComplete, onCancel, title, description }: PairingFlowProps) {
+/** Trusted device: share a code, verify it, send the data. */
+export function AddDeviceWizard({ onComplete, onCancel }: DeviceWizardProps) {
   const { t } = useTranslation();
   const {
     step,
@@ -97,265 +42,231 @@ function IssuerFlow({ onComplete, onCancel, title, description }: PairingFlowPro
     cancel,
     reset,
   } = usePairingIssuer();
+  // Whether this pairing reached the transfer, so a failure marks the right step.
+  // Derived from the step during render; starting over clears it.
+  const [transferStarted, setTransferStarted] = useState(false);
+  if (step === "transferring" && !transferStarted) setTransferStarted(true);
+  // Rejecting stops this pairing; the next one needs a new code.
+  const [rejected, setRejected] = useState(false);
 
-  // Auto-start pairing when component mounts
+  // Start pairing once, when the wizard opens.
   const hasAutoStarted = useRef(false);
   useEffect(() => {
     if (step === "idle" && !hasAutoStarted.current) {
       hasAutoStarted.current = true;
-      logger.info("[IssuerFlow] Starting pairing...");
-      startPairing();
+      logger.info("[AddDeviceWizard] Starting pairing...");
+      void startPairing();
     }
   }, [step, startPairing]);
 
   const handleDone = useCallback(() => {
-    reset();
-    onComplete?.();
+    void reset();
+    onComplete();
   }, [reset, onComplete]);
 
   const handleCancel = useCallback(() => {
-    cancel();
-    onCancel?.();
+    void cancel();
+    onCancel();
   }, [cancel, onCancel]);
 
+  const handleConfirm = useCallback(() => {
+    void confirmSAS();
+  }, [confirmSAS]);
+
+  const handleReject = useCallback(() => {
+    setRejected(true);
+    void rejectSAS();
+  }, [rejectSAS]);
+
+  // The hook transfers again if the new device is still connected; otherwise
+  // this starts a new pairing, and the transfer marker is set again only if
+  // it transfers.
   const handleRetry = useCallback(() => {
+    setTransferStarted(false);
     hasAutoStarted.current = false;
-    reset();
+    void reset();
   }, [reset]);
 
-  switch (step) {
-    case "idle":
-      return <WaitingState title={t("sync:pairing.starting")} onCancel={onCancel} />;
+  const handleNewCode = useCallback(() => {
+    setRejected(false);
+    setTransferStarted(false);
+    hasAutoStarted.current = false;
+    void reset();
+  }, [reset]);
 
-    case "display_code":
-      if (pairingCode && expiresAt) {
-        return (
-          <>
-            <StepHeader title={title} description={description} />
-            <DisplayCode code={pairingCode} expiresAt={expiresAt} onCancel={handleCancel} />
-          </>
-        );
-      }
-      return (
-        <WaitingState
-          title={t("sync:pairing.generatingCode")}
-          onCancel={handleCancel}
-          showQRSkeleton
-        />
-      );
+  const handleStartOver = useCallback(() => {
+    setRejected(false);
+    setTransferStarted(false);
+    hasAutoStarted.current = true;
+    void startPairing();
+  }, [startPairing]);
 
-    case "verify_sas":
-      if (sas) {
-        return <SASVerification sas={sas} onConfirm={confirmSAS} onReject={rejectSAS} />;
-      }
-      return (
-        <WaitingState title={t("sync:pairing.computingSecurityCode")} onCancel={handleCancel} />
-      );
+  const progress: WizardProgress = rejected
+    ? { step: "connect", failed: true }
+    : step === "transferring"
+      ? { step: "transfer" }
+      : step === "success"
+        ? { step: "done" }
+        : step === "error"
+          ? { step: transferStarted ? "transfer" : "connect", failed: true }
+          : { step: "connect" };
 
-    case "transferring":
-      return (
-        <WaitingState
-          title={t("sync:pairing.finishingSetup")}
-          description={t("sync:pairing.finishingSetupDescription")}
-        />
-      );
-
-    case "success":
-      return <PairingResult success onDone={handleDone} />;
-
-    case "error":
-      return (
-        <PairingResult success={false} error={error} onRetry={handleRetry} onDone={handleCancel} />
-      );
-
-    case "expired":
+  const screen = (() => {
+    if (rejected) {
       return (
         <PairingResult
           success={false}
-          error={t("sync:pairing.sessionExpired")}
-          onRetry={handleRetry}
-          onDone={handleCancel}
+          icon={<Icons.ShieldAlert className="size-8" aria-hidden />}
+          title={t("sync:sas.mismatchTitle")}
+          description={t("sync:sas.mismatchDescription")}
+          onRetry={handleStartOver}
+          retryLabel={t("sync:displayCode.newCode")}
+          onDone={onCancel}
+          doneLabel={t("common:close")}
         />
       );
+    }
+    switch (step) {
+      case "idle":
+      case "display_code":
+      case "expired":
+        // Same screen from generation to expiry, so nothing jumps around.
+        return (
+          <DisplayCode
+            title={t("sync:pairing.connectAnotherTitle")}
+            description={t("sync:pairing.scanOrEnterDescription")}
+            code={pairingCode}
+            expiresAt={expiresAt}
+            onCancel={handleCancel}
+            onRenew={handleNewCode}
+          />
+        );
+      case "verify_sas":
+        return <SASVerification sas={sas} onConfirm={handleConfirm} onReject={handleReject} />;
+      case "transferring":
+        // The transfer runs in this window, so it offers no way to close until it ends.
+        return (
+          <WaitingState
+            title={t("sync:pairing.transferringData")}
+            description={t("sync:pairing.transferringDataDescription")}
+            visual={<DeviceLink source="this" flowing />}
+            footnote={<EncryptedNote />}
+            // What this device does; the app cannot track these one by one.
+            details={[
+              { label: t("sync:wizard.details.encrypt"), icon: <Icons.Lock /> },
+              { label: t("sync:wizard.details.upload"), icon: <Icons.Upload /> },
+              { label: t("sync:wizard.details.sendKeys"), icon: <Icons.ShieldCheck /> },
+            ]}
+          />
+        );
+      case "success":
+        // This device only sent its data; the new device reports Ready.
+        return (
+          <PairingResult
+            success
+            title={t("sync:result.devicesConnected")}
+            description={t("sync:result.finishOnOtherDevice")}
+            onDone={handleDone}
+          />
+        );
+      case "error":
+        return (
+          <PairingResult
+            success={false}
+            error={error}
+            onRetry={handleRetry}
+            onDone={handleCancel}
+          />
+        );
+    }
+  })();
 
-    default:
-      return null;
-  }
+  return (
+    <WizardLayout mode="add" progress={progress}>
+      {screen}
+    </WizardLayout>
+  );
 }
 
-// Claimer Flow (untrusted device - enters code and receives keys)
-function ClaimerFlow({
+/** New device: enter the code, wait for verification, then receive the data. */
+export function JoinDeviceWizard({
   onComplete,
   onCancel,
-  onBootstrapStateChange,
   title,
-  description,
-}: PairingFlowProps) {
+}: DeviceWizardProps & {
+  /** Replaces "Connect this device", e.g. when updating a stale device. */
+  title?: string;
+}) {
   const { t } = useTranslation();
-  const {
-    step,
-    error,
-    sas,
-    overwriteInfo,
-    isApprovingOverwrite,
-    bootstrapFlowState,
-    submitCode,
-    approveOverwrite,
-    cancel,
-    retry,
-  } = usePairingClaimer();
-  const [isBackingUp, setIsBackingUp] = useState(false);
-  const [backupError, setBackupError] = useState<string | null>(null);
-
-  useEffect(() => {
-    onBootstrapStateChange?.(bootstrapFlowState);
-    return () => onBootstrapStateChange?.("idle");
-  }, [bootstrapFlowState, onBootstrapStateChange]);
+  const { step, error, sas, operation, restore, submitCode, cancel, retry } = usePairingClaimer();
 
   const handleCancel = useCallback(async () => {
     await cancel();
-    onCancel?.();
+    onCancel();
   }, [cancel, onCancel]);
 
-  const handleDone = useCallback(() => {
-    onComplete?.();
-  }, [onComplete]);
+  const progress: WizardProgress | null = operation
+    ? restoreWizardProgress(operation)
+    : { step: "connect", failed: step === "error" };
 
-  const handleBackupThenApprove = useCallback(async () => {
-    setIsBackingUp(true);
-    setBackupError(null);
-    try {
-      await backupDatabase();
-      await approveOverwrite();
-    } catch (err) {
-      logSyncError("Pairing overwrite backup failed", err);
-      setBackupError(userFacingSyncErrorMessage(err, t("sync:backup.failedTitle")));
-    } finally {
-      setIsBackingUp(false);
+  const screen = (() => {
+    switch (step) {
+      case "enter_code":
+      case "connecting":
+        // One screen while the code is checked, so a mistyped code can be fixed in place.
+        return (
+          <EnterCode
+            title={title ?? t("sync:pairing.connectThisDeviceTitle")}
+            description={t("sync:pairing.enterCodeDescription")}
+            onSubmit={submitCode}
+            onCancel={handleCancel}
+            isLoading={step === "connecting"}
+            error={error}
+          />
+        );
+      case "waiting_keys":
+        return <SASWaiting sas={sas} onCancel={handleCancel} />;
+      case "confirming":
+      case "restoring":
+        // The restore takes over once the runtime reports it.
+        return operation ? (
+          <RestoreOperationView
+            operation={operation}
+            controller={restore}
+            onClose={onCancel}
+            onDone={onComplete}
+          />
+        ) : (
+          <WaitingState
+            title={t("sync:pairing.securingConnection")}
+            description={t("sync:pairing.securingConnectionDescription")}
+            visual={<DeviceLink source="other" />}
+            footnote={<EncryptedNote />}
+            // Hides only: a confirmation still in flight finishes in the background.
+            onCancel={onCancel}
+          />
+        );
+      case "error":
+        return (
+          <PairingResult success={false} error={error} onRetry={retry} onDone={handleCancel} />
+        );
     }
-  }, [approveOverwrite, t]);
-
-  switch (step) {
-    case "enter_code":
-      return (
-        <>
-          <StepHeader title={title} description={description} />
-          <EnterCode onSubmit={submitCode} onCancel={handleCancel} error={error} />
-        </>
-      );
-
-    case "connecting":
-      return <WaitingState title={t("sync:pairing.connecting")} onCancel={handleCancel} />;
-
-    case "waiting_keys":
-      return (
-        <WaitingState
-          title={t("sync:pairing.verifySecurityCode")}
-          securityCode={sas}
-          onCancel={handleCancel}
-        />
-      );
-
-    case "syncing":
-      return (
-        <WaitingState
-          title={t("sync:pairing.syncingData")}
-          description={t("sync:pairing.syncingDataDescription")}
-        />
-      );
-
-    case "overwrite_required":
-      return (
-        <PairingOverwriteConsent
-          localRows={overwriteInfo?.localRows ?? 0}
-          error={backupError}
-          isBackingUp={isBackingUp}
-          isApproving={isApprovingOverwrite}
-          onCancel={handleCancel}
-          onBackupThenApprove={handleBackupThenApprove}
-          onApprove={approveOverwrite}
-        />
-      );
-
-    case "success":
-      return <PairingResult success onDone={handleDone} />;
-
-    case "error":
-      return <PairingResult success={false} error={error} onRetry={retry} onDone={handleCancel} />;
-
-    default:
-      return null;
-  }
-}
-
-function PairingOverwriteConsent({
-  localRows,
-  error,
-  isBackingUp,
-  isApproving,
-  onCancel,
-  onBackupThenApprove,
-  onApprove,
-}: {
-  localRows: number;
-  error: string | null;
-  isBackingUp: boolean;
-  isApproving: boolean;
-  onCancel: () => void;
-  onBackupThenApprove: () => void;
-  onApprove: () => void;
-}) {
-  const { t } = useTranslation();
-  const isBusy = isBackingUp || isApproving;
+  })();
 
   return (
-    <div className="flex min-w-0 flex-col items-center gap-6 px-4 py-2 text-center">
-      <div className="border-warning/30 bg-warning/10 dark:border-warning/20 dark:bg-warning/15 flex h-14 w-14 items-center justify-center rounded-full border">
-        <Icons.AlertTriangle className="h-6 w-6 text-amber-500" />
-      </div>
-      <div className="space-y-2">
-        <h2 className="text-xl font-semibold">{t("sync:overwrite.replaceDataTitle")}</h2>
-        <p className="text-muted-foreground text-sm">
-          {t("sync:overwrite.replaceDataDescription")}
-        </p>
-        {localRows > 0 && (
-          <p className="text-muted-foreground text-xs">
-            {t("sync:overwrite.localRowsReplaced", { count: localRows })}
-          </p>
-        )}
-        {error && <p className="text-destructive text-sm">{error}</p>}
-      </div>
-      <div className="flex w-full flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-center max-sm:[&>button]:h-auto max-sm:[&>button]:min-h-11 max-sm:[&>button]:max-w-full max-sm:[&>button]:whitespace-normal">
-        <Button variant="ghost" onClick={onCancel} disabled={isBusy}>
-          {t("sync:overwrite.notNow")}
-        </Button>
-        <Button variant="outline" onClick={onBackupThenApprove} disabled={isBusy}>
-          {isBackingUp ? (
-            <>
-              <Icons.Spinner className="mr-2 h-4 w-4 animate-spin" />
-              {t("sync:backup.backingUp")}
-            </>
-          ) : (
-            t("sync:backup.backUpFirst")
-          )}
-        </Button>
-        <Button onClick={onApprove} disabled={isBusy}>
-          {isApproving ? (
-            <>
-              <Icons.Spinner className="mr-2 h-4 w-4 animate-spin" />
-              {t("sync:overwrite.syncing")}
-            </>
-          ) : (
-            t("sync:overwrite.replaceAndSync")
-          )}
-        </Button>
-      </div>
-    </div>
+    <WizardLayout
+      mode="join"
+      progress={progress}
+      // Closing hides a running restore; the section banner reopens it.
+      onHide={operation && !isRestoreFinished(operation) ? onCancel : undefined}
+    >
+      {screen}
+    </WizardLayout>
   );
 }
 
 // Re-export sub-components for flexibility
 export { DisplayCode } from "./display-code";
-export { SASVerification } from "./sas-verification";
+export { SASVerification, SASWaiting } from "./sas-verification";
 export { WaitingState } from "./waiting-state";
 export { PairingResult } from "./pairing-result";

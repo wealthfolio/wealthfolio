@@ -15,7 +15,7 @@ import type { EventCallback, UnlistenFn } from "../types";
 // Helper to adapt Tauri's event callback to our unified type
 const adaptCallback = <T>(handler: EventCallback<T>): TauriEventCallback<T> => {
   return (event) => {
-    if (/^(portfolio:|market:|asset:|broker:)/.test(event.event)) {
+    if (/^(portfolio:|market:|asset:|broker:|device-sync:)/.test(event.event)) {
       const payload = event.payload as { scopeId?: string; data?: T };
       if (!payload?.scopeId || !matchesProfileScope(payload.scopeId)) return;
       handler({ event: event.event, payload: payload.data as T, id: event.id });
@@ -72,6 +72,14 @@ export const listenPortfolioUpdateComplete = async <T>(
 
 export const listenDatabaseRestored = async <T>(handler: EventCallback<T>): Promise<UnlistenFn> => {
   const unlisten = await listen<T>("database-restored", adaptCallback(handler));
+  return adaptUnlisten(unlisten);
+};
+
+/** Restore operation changes for the active profile, from any window. */
+export const listenDeviceSyncRestore = async <T>(
+  handler: EventCallback<T>,
+): Promise<UnlistenFn> => {
+  const unlisten = await listen<T>("device-sync:restore-operation", adaptCallback(handler));
   return adaptUnlisten(unlisten);
 };
 

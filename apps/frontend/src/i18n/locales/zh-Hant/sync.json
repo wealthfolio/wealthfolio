@@ -96,16 +96,7 @@
     "speedUpSetup": "加快設定"
   },
   "bootstrap": {
-    "inProgress": "同步設定進行中…",
-    "hasDataTitle": "此裝置已有資料",
-    "hasDataDescription": "若要完成同步，此裝置上的資料會由另一台裝置的資料取代。",
-    "continue": "繼續",
-    "waitingOtherDeviceTitle": "正在等待你的另一台裝置",
-    "waitingOtherDeviceDescription": "有新的快照可用後，系統就會完成同步。",
-    "retryStartedTitle": "已開始重試同步",
-    "retryStartedDescription": "正在檢查更新後的快照，並套用待處理的同步變更。",
-    "couldNotRetryTitle": "無法重試同步",
-    "unableToContinueTitle": "無法繼續同步"
+    "couldNotRetryTitle": "無法重試同步"
   },
   "snapshot": {
     "uploadedTitle": "快照已上傳",
@@ -114,22 +105,6 @@
     "cancelledTitle": "快照上傳已取消",
     "resultTitle": "快照上傳結果",
     "failedTitle": "快照上傳失敗"
-  },
-  "backup": {
-    "savedTitle": "備份已儲存",
-    "savedDescription": "備份已儲存為 {{location}}。",
-    "failedTitle": "備份失敗",
-    "backingUp": "正在備份…",
-    "backUpFirst": "先備份"
-  },
-  "overwrite": {
-    "replaceDataTitle": "要取代此裝置上的資料嗎？",
-    "replaceDataDescription": "此裝置的本機資料會由另一台已連線裝置的資料取代。",
-    "localRowsReplaced_one": "將取代 {{count}} 列本機資料。",
-    "localRowsReplaced_other": "將取代 {{count}} 列本機資料。",
-    "notNow": "暫不",
-    "syncing": "同步中…",
-    "replaceAndSync": "取代並同步"
   },
   "reinit": {
     "title": "要從此裝置重新設定同步嗎？",
@@ -171,49 +146,141 @@
     "gettingReadyTitle": "正在準備此裝置…",
     "gettingReadyDescription": "這只需片刻。",
     "prepareFailed": "我們無法完成此裝置的準備。",
-    "tryAgain": "重試",
-    "starting": "正在啟動…",
-    "generatingCode": "正在產生代碼…",
-    "computingSecurityCode": "正在計算安全碼…",
-    "finishingSetup": "正在完成設定…",
-    "finishingSetupDescription": "正在為新裝置準備你的資料",
-    "sessionExpired": "工作階段已過期",
-    "connecting": "正在連線…",
     "verifySecurityCode": "驗證安全碼",
-    "syncingData": "正在同步你的資料…",
-    "syncingDataDescription": "這可能需要幾秒鐘"
+    "transferringData": "正在傳輸您的資料",
+    "transferringDataDescription": "正在為新裝置加密您的資料副本。這可能需要一分鐘。",
+    "securingConnection": "正在保護連線",
+    "securingConnectionDescription": "正在與另一部裝置交換加密金鑰。"
   },
   "displayCode": {
-    "expired": "已過期"
+    "generating": "正在產生代碼",
+    "copyCode": "複製代碼",
+    "copied": "已複製",
+    "expiresIn": "{{time}} 後到期",
+    "expiredTitle": "此代碼已過期",
+    "expiredDescription": "為確保配對安全，代碼僅在幾分鐘內有效。請取得新代碼以繼續。",
+    "newCode": "取得新代碼"
   },
   "enterCode": {
     "openingCamera": "正在開啟相機…",
     "scanQrCode": "掃描 QR Code",
-    "quickAndEasy": "快速又簡單",
     "or": "或",
-    "codePlaceholder": "ABC 123",
     "paste": "貼上",
     "connecting": "正在連線…",
     "connect": "連線",
     "scanInstructions": "將 QR 碼對準框內。",
     "cameraOpenError": "無法開啟相機，請再試一次。",
     "cameraCloseError": "無法關閉相機，請再試一次。",
-    "cameraUnavailable": "沒有可用的相機。請使用實體裝置掃描，或在下方輸入配對碼。"
+    "cameraUnavailable": "沒有可用的相機。請使用實體裝置掃描，或在下方輸入配對碼。",
+    "scanHint": "將相機對準另一部裝置上的代碼。",
+    "codeLabel": "配對代碼"
   },
   "sas": {
-    "sameCodeQuestion": "兩台裝置上的代碼相同嗎？"
+    "description": "請確認另一部裝置顯示相同的代碼，以防他人連線。",
+    "codesMatch": "代碼相符",
+    "codesDontMatch": "不相符",
+    "waitingDescription": "請確認另一部裝置顯示此代碼，然後在該裝置上確認。",
+    "mismatchTitle": "配對已停止",
+    "mismatchDescription": "代碼不相符，因此未分享任何內容。請使用新代碼再試一次。"
   },
   "waiting": {
-    "waitingForConfirmation": "正在等待確認…",
-    "confirmCodeMatches": "確認此代碼與另一台裝置上的代碼相同",
-    "securelyConnecting": "請稍候，我們正在安全地連線你的裝置"
+    "waitingForConfirmation": "正在等待確認…"
   },
   "result": {
     "allSet": "全部就緒！",
     "connectedSuccessfully": "裝置連線成功",
     "done": "完成",
     "connectionFailed": "連線失敗",
-    "tryAgain": "重試"
+    "tryAgain": "重試",
+    "devicesConnected": "裝置已連線",
+    "finishOnOtherDevice": "請在另一部裝置上完成設定。資料就緒後，它會顯示「就緒」。"
   },
-  "errors": {}
+  "restore": {
+    "dialogTitle": "完成此裝置的設定",
+    "transferring": {
+      "title": "正在傳輸您的資料",
+      "description": "正在下載並檢查來自另一部裝置的加密副本。"
+    },
+    "waiting": {
+      "title": "正在等待另一部裝置",
+      "description": "另一部裝置仍在上傳資料。設定將自動繼續。"
+    },
+    "consent": {
+      "title": "要取代此設定檔中的資料嗎？",
+      "titleNamed": "要取代「{{profile}}」中的資料嗎？",
+      "description": "另一部裝置的資料將取代此裝置上的資料。",
+      "descriptionDated": "另一部裝置的資料（複製於 {{date}}）將取代此裝置上的資料。",
+      "replace": "取代資料",
+      "backupLabel": "先備份此設定檔",
+      "backupAndReplace": "備份並取代"
+    },
+    "backingUp": {
+      "title": "正在備份此設定檔",
+      "description": "正在取代前儲存此設定檔的副本。"
+    },
+    "replacing": {
+      "title": "正在取代此裝置上的資料",
+      "description": "正在套用另一部裝置的資料。"
+    },
+    "ready": {
+      "title": "就緒",
+      "description": "此裝置已完成設定並保持同步。"
+    },
+    "cancelled": {
+      "title": "設定已取消",
+      "description": "未取代任何內容。您可以隨時完成設定。"
+    },
+    "cancelSetup": "取消設定",
+    "hide": "隱藏",
+    "continueInBackground": "在背景繼續",
+    "tryAgain": "重試",
+    "startAgain": "重新開始",
+    "finishSetup": "完成設定",
+    "retryHint": {
+      "transfer": "未取代任何內容。您可以重試傳輸。",
+      "consent": "未取代任何內容。重試時會再次請求您的核准。",
+      "new_attempt": "未取代任何內容。請重新開始，以使用另一部裝置的最新副本。"
+    },
+    "errors": {
+      "SUBSCRIPTION_REQUIRED": "裝置同步需要有效的訂閱",
+      "DEVICE_NOT_READY": "此裝置尚未準備好同步",
+      "SNAPSHOT_WAIT_TIMED_OUT": "另一部裝置尚未完成上傳",
+      "SNAPSHOT_UNAVAILABLE": "另一部裝置的副本已無法使用",
+      "SNAPSHOT_SCHEMA_NEWER": "請更新應用程式以完成設定",
+      "SNAPSHOT_INVALID": "無法驗證傳輸的資料",
+      "TRANSFER_FAILED": "傳輸未完成",
+      "BACKUP_FAILED": "備份未完成",
+      "RESTORE_FAILED": "無法取代資料"
+    },
+    "banner": {
+      "title": "此裝置的設定尚未完成",
+      "running": "設定正在背景繼續。",
+      "needsApproval": "需要您的核准才能取代此設定檔的資料。",
+      "failed": "設定在完成前已停止。",
+      "cancelled": "設定已取消。準備好後請完成設定。",
+      "show": "顯示進度"
+    }
+  },
+  "errors": {},
+  "wizard": {
+    "progressLabel": "設定進度",
+    "steps": {
+      "connect": "連線",
+      "transfer": "傳輸",
+      "download": "下載",
+      "apply": "套用",
+      "done": "完成"
+    },
+    "encryptedNote": "端對端加密。只有您的裝置可以讀取您的資料。",
+    "backgroundNote": "您可以關閉此視窗，設定將在背景繼續。",
+    "details": {
+      "encrypt": "加密您的資料",
+      "upload": "上傳加密副本",
+      "sendKeys": "將金鑰傳送到新裝置",
+      "waitForUpload": "另一部裝置上傳其資料",
+      "downloadAndVerify": "下載並驗證加密副本",
+      "replace": "取代此裝置上的資料",
+      "backup": "備份此設定檔"
+    }
+  }
 }

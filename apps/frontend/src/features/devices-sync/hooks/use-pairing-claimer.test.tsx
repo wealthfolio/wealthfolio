@@ -13,10 +13,13 @@ const adapterMocks = vi.hoisted(() => ({
     debug: vi.fn(),
     trace: vi.fn(),
   },
-  beginPairingConfirm: vi.fn(),
-  getPairingFlowState: vi.fn(),
-  cancelPairingFlow: vi.fn(),
-  approvePairingOverwrite: vi.fn(),
+  beginPairingRestore: vi.fn(),
+  getDeviceSyncRestore: vi.fn(),
+  startDeviceSyncRestore: vi.fn(),
+  approveDeviceSyncRestore: vi.fn(),
+  retryDeviceSyncRestore: vi.fn(),
+  cancelDeviceSyncRestore: vi.fn(),
+  listenDeviceSyncRestore: vi.fn(),
 }));
 
 const serviceMocks = vi.hoisted(() => ({
@@ -56,6 +59,15 @@ function createWrapper() {
   };
 }
 
+const restoreOperation = {
+  operationId: "op-1",
+  revision: 2,
+  phase: "awaiting_consent",
+  snapshot: { snapshotId: "snap-1", oplogSeq: 42, createdAt: "2026-04-29T12:01:00Z" },
+  error: null,
+  replaced: false,
+};
+
 describe("usePairingClaimer", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -88,20 +100,12 @@ describe("usePairingClaimer", () => {
     storageMocks.syncStorage.setE2EECredentials.mockResolvedValue(undefined);
     cryptoMocks.computeSAS.mockResolvedValue("123456");
     cryptoMocks.hmacSha256.mockResolvedValue("proof");
-    adapterMocks.beginPairingConfirm.mockResolvedValue({
-      flowId: "flow-1",
-      phase: {
-        phase: "overwrite_required",
-        info: { localRows: 3, nonEmptyTables: [{ table: "accounts", rows: 1 }] },
-      },
-    });
-    adapterMocks.cancelPairingFlow.mockResolvedValue({
-      flowId: "flow-1",
-      phase: { phase: "success" },
-    });
+    adapterMocks.listenDeviceSyncRestore.mockResolvedValue(async () => {});
+    adapterMocks.getDeviceSyncRestore.mockResolvedValue(null);
+    adapterMocks.beginPairingRestore.mockResolvedValue(restoreOperation);
   });
 
-  it("clears local sync data when cancelling after overwrite consent is reached", async () => {
+  it("hands restoration to the runtime after key exchange instead of reporting success", async () => {
     const { result } = renderHook(() => usePairingClaimer(), {
       wrapper: createWrapper(),
     });
@@ -110,24 +114,62 @@ describe("usePairingClaimer", () => {
       await result.current.submitCode("ABC123");
     });
 
-    await waitFor(() => expect(result.current.step).toBe("overwrite_required"));
+    await waitFor(() => expect(result.current.step).toBe("restoring"));
+    expect(adapterMocks.beginPairingRestore).toHaveBeenCalledTimes(1);
+    expect(adapterMocks.beginPairingRestore).toHaveBeenCalledWith(
+      "pair-1",
+      "proof",
+      "2026-04-29T12:01:00Z",
+    );
+    expect(storageMocks.syncStorage.setE2EECredentials).toHaveBeenCalledTimes(1);
+    expect(result.current.operation?.operationId).toBe("op-1");
+    expect(result.current.operation?.phase).toBe("awaiting_consent");
+  });
+
+  it("leaves a handed-off restore running when the pairing window is dismissed", async () => {
+    const { result } = renderHook(() => usePairingClaimer(), {
+      wrapper: createWrapper(),
+    });
+
+    await act(async () => {
+      await result.current.submitCode("ABC123");
+    });
+    await waitFor(() => expect(result.current.step).toBe("restoring"));
 
     await act(async () => {
       await result.current.cancel();
     });
 
-    expect(adapterMocks.cancelPairingFlow).toHaveBeenCalledWith("flow-1");
-    expect(serviceMocks.syncService.clearSyncData).toHaveBeenCalledTimes(1);
     expect(serviceMocks.syncService.cancelPairing).not.toHaveBeenCalled();
+    expect(serviceMocks.syncService.clearSyncData).not.toHaveBeenCalled();
+    expect(adapterMocks.cancelDeviceSyncRestore).not.toHaveBeenCalled();
     expect(result.current.step).toBe("enter_code");
   });
 
-  it("marks bootstrap as failed when confirmed flow polling fails", async () => {
-    adapterMocks.beginPairingConfirm.mockResolvedValue({
-      flowId: "flow-1",
-      phase: { phase: "syncing" },
+  it("cancels the pairing session when dismissed before keys arrive", async () => {
+    serviceMocks.syncService.pollForKeyBundle.mockResolvedValue({
+      received: false,
+      status: "claimed",
     });
-    adapterMocks.getPairingFlowState.mockRejectedValue(new Error("poll failed"));
+    const { result } = renderHook(() => usePairingClaimer(), {
+      wrapper: createWrapper(),
+    });
+
+    await act(async () => {
+      await result.current.submitCode("ABC123");
+    });
+    await waitFor(() => expect(result.current.step).toBe("waiting_keys"));
+
+    await act(async () => {
+      await result.current.cancel();
+    });
+
+    expect(serviceMocks.syncService.cancelPairing).toHaveBeenCalledWith("pair-1");
+    expect(adapterMocks.beginPairingRestore).not.toHaveBeenCalled();
+  });
+
+  it("reports an error when pairing confirmation fails", async () => {
+    adapterMocks.beginPairingRestore.mockRejectedValue(new Error("confirm failed"));
 
     const { result } = renderHook(() => usePairingClaimer(), {
       wrapper: createWrapper(),
@@ -138,8 +180,24 @@ describe("usePairingClaimer", () => {
     });
 
     await waitFor(() => expect(result.current.step).toBe("error"));
+    expect(result.current.error).toBe("confirm failed");
+    expect(result.current.operation).toBeNull();
+  });
 
-    expect(result.current.error).toBe("poll failed");
-    expect(result.current.bootstrapFlowState).toBe("failed");
+  // A mistyped or expired code returns to code entry instead of a failure screen.
+  it("keeps the user on code entry when the code is rejected", async () => {
+    serviceMocks.syncService.claimPairingSession.mockRejectedValueOnce(
+      new Error("Invalid pairing code"),
+    );
+    const { result } = renderHook(() => usePairingClaimer(), {
+      wrapper: createWrapper(),
+    });
+
+    await act(async () => {
+      await result.current.submitCode("ABC123");
+    });
+
+    expect(result.current.step).toBe("enter_code");
+    expect(result.current.error).toBe("Invalid pairing code");
   });
 });

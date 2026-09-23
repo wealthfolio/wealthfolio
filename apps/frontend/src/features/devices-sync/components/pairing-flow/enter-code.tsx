@@ -12,20 +12,42 @@ import {
   DialogDescription,
   DialogTitle,
 } from "@wealthfolio/ui/components/ui/dialog";
-import { Input } from "@wealthfolio/ui/components/ui/input";
-import { useEffect, useRef, useState } from "react";
+import { InputOTP, InputOTPGroup, InputOTPSlot } from "@wealthfolio/ui/components/ui/input-otp";
+import { motion, useAnimate } from "motion/react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { cn } from "@/lib/utils";
+import { userFacingSyncErrorMessage } from "../../utils/error-messages";
+import { DeviceLink } from "../device-link";
+import { FlowScreen } from "../flow-layout";
+
+const CODE_LENGTH = 6;
+const CODE_PATTERN = "^[a-zA-Z0-9]+$";
+const SLOT_CLASS = "h-14 w-11 font-mono text-2xl font-semibold uppercase transition-colors sm:w-12";
 
 interface EnterCodeProps {
+  title: string;
+  description: string;
   onSubmit: (code: string) => void;
   onCancel: () => void;
   isLoading?: boolean;
+  /** Why the last submitted code was not accepted. */
   error?: string | null;
 }
 
-export function EnterCode({ onSubmit, onCancel, isLoading, error }: EnterCodeProps) {
+export function EnterCode({
+  title,
+  description,
+  onSubmit,
+  onCancel,
+  isLoading,
+  error,
+}: EnterCodeProps) {
   const { t } = useTranslation();
+  const errorId = useId();
   const [code, setCode] = useState("");
+  // The error belongs to this code; editing it clears the message.
+  const [submittedCode, setSubmittedCode] = useState<string | null>(null);
   const [isScanning, setIsScanning] = useState(false);
   const [isCameraActive, setIsCameraActive] = useState(false);
   const { isMobile } = usePlatform();
@@ -72,17 +94,25 @@ export function EnterCode({ onSubmit, onCancel, isLoading, error }: EnterCodePro
     return value
       .toUpperCase()
       .replace(/[^A-Z0-9]/g, "")
-      .slice(0, 6);
+      .slice(0, CODE_LENGTH);
   };
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setCode(normalizeCode(e.target.value));
+  const submit = (value: string) => {
+    setSubmittedCode(value);
+    onSubmit(value);
+  };
+
+  const handleChange = (value: string) => {
+    const normalized = normalizeCode(value);
+    setCode(normalized);
+    // A complete new code needs nothing else from the user.
+    if (normalized.length === CODE_LENGTH && normalized !== submittedCode) submit(normalized);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (code.length === 6) {
-      onSubmit(code);
+    if (code.length === CODE_LENGTH) {
+      submit(code);
     }
   };
 
@@ -93,6 +123,8 @@ export function EnterCode({ onSubmit, onCancel, isLoading, error }: EnterCodePro
       if (normalized.length > 0) {
         setCode(normalized);
       }
+      // A complete code needs nothing else from the user.
+      if (normalized.length === CODE_LENGTH) submit(normalized);
     } catch {
       // Clipboard access denied
     }
@@ -182,164 +214,211 @@ export function EnterCode({ onSubmit, onCancel, isLoading, error }: EnterCodePro
 
     if (scannedContent) {
       const normalized = normalizeCode(scannedContent);
-      if (normalized.length === 6) {
+      if (normalized.length === CODE_LENGTH) {
         setTimeout(() => {
           if (!mountedRef.current) return;
           setCode(normalized);
-          onSubmit(normalized);
+          submit(normalized);
         }, 100);
       }
     }
   };
 
-  // Format display: "ABC 123"
-  const displayCode = code.length > 3 ? `${code.slice(0, 3)} ${code.slice(3)}` : code;
   const isDisabled = isLoading || isScanning;
+  const visibleError = error && !isLoading && code === submittedCode ? error : null;
+
+  // A rejected code gives a short shake. The field stays mounted, so it keeps focus.
+  const [shakeScope, animateShake] = useAnimate<HTMLDivElement>();
+  useEffect(() => {
+    if (visibleError && shakeScope.current) {
+      void animateShake(shakeScope.current, { x: [0, -8, 8, -5, 5, 0] }, { duration: 0.4 });
+    }
+  }, [visibleError, submittedCode, animateShake, shakeScope]);
 
   return (
-    <div className="flex flex-col gap-5 pb-2 pt-4">
-      {/* Always use a fullscreen dialog, including above the mobile pairing sheet. */}
-      <Dialog
-        open={isCameraActive}
-        onOpenChange={(open) => {
-          if (!open) void closeScanner();
-        }}
-        useIsMobile={() => false}
+    <form onSubmit={handleSubmit} className="flex flex-1 flex-col">
+      <FlowScreen
+        title={title}
+        description={description}
+        visual={<DeviceLink source="other" />}
+        actions={
+          <>
+            <Button
+              type="submit"
+              className="w-full gap-2"
+              disabled={code.length !== CODE_LENGTH || isDisabled}
+            >
+              {isLoading && <Icons.Spinner className="size-4 animate-spin" aria-hidden />}
+              {isLoading ? t("sync:enterCode.connecting") : t("sync:enterCode.connect")}
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              className="w-full"
+              onClick={onCancel}
+              disabled={isDisabled}
+            >
+              {t("common:cancel")}
+            </Button>
+          </>
+        }
       >
-        <DialogContent
-          showCloseButton={false}
-          onInteractOutside={(event) => event.preventDefault()}
-          onCloseAutoFocus={(event) => {
-            event.preventDefault();
-            scanButtonRef.current?.focus();
-          }}
-          className="qr-overlay fixed inset-0 left-0 top-0 z-[10000] flex h-full w-full max-w-none translate-x-0 translate-y-0 flex-col items-center justify-end overflow-hidden rounded-none border-0 bg-transparent px-6 pb-[max(2rem,env(safe-area-inset-bottom))] pt-[max(2rem,env(safe-area-inset-top))] text-white shadow-none duration-0 data-[state=closed]:animate-none data-[state=open]:animate-none"
-        >
-          <div className="qr-scan-frame absolute left-1/2 top-1/2 aspect-square w-[min(68vw,34dvh,280px)] -translate-x-1/2 -translate-y-1/2 rounded-3xl border border-white/25">
-            <div className="absolute bottom-full left-1/2 mb-6 w-[min(85vw,340px)] -translate-x-1/2 text-center">
-              <div className="mb-2 inline-flex h-9 w-9 items-center justify-center rounded-xl border border-white/20 bg-white/10">
-                <Icons.QrCode className="h-5 w-5" aria-hidden="true" />
+        <div className="flex flex-col gap-5">
+          {/* Always use a fullscreen dialog, including above the mobile pairing sheet. */}
+          <Dialog
+            open={isCameraActive}
+            onOpenChange={(open) => {
+              if (!open) void closeScanner();
+            }}
+            useIsMobile={() => false}
+          >
+            <DialogContent
+              showCloseButton={false}
+              onInteractOutside={(event) => event.preventDefault()}
+              onCloseAutoFocus={(event) => {
+                event.preventDefault();
+                scanButtonRef.current?.focus();
+              }}
+              className="qr-overlay fixed inset-0 left-0 top-0 z-[10000] flex h-full w-full max-w-none translate-x-0 translate-y-0 flex-col items-center justify-end overflow-hidden rounded-none border-0 bg-transparent px-6 pb-[max(2rem,env(safe-area-inset-bottom))] pt-[max(2rem,env(safe-area-inset-top))] text-white shadow-none duration-0 data-[state=closed]:animate-none data-[state=open]:animate-none"
+            >
+              <div className="qr-scan-frame absolute left-1/2 top-1/2 aspect-square w-[min(68vw,34dvh,280px)] -translate-x-1/2 -translate-y-1/2 rounded-3xl border border-white/25">
+                <div className="absolute bottom-full left-1/2 mb-6 w-[min(85vw,340px)] -translate-x-1/2 text-center">
+                  <div className="mb-2 inline-flex h-9 w-9 items-center justify-center rounded-xl border border-white/20 bg-white/10">
+                    <Icons.QrCode className="h-5 w-5" aria-hidden="true" />
+                  </div>
+                  <DialogTitle className="text-xl font-semibold tracking-tight">
+                    {t("sync:enterCode.scanQrCode")}
+                  </DialogTitle>
+                  <DialogDescription className="mt-2 text-sm leading-relaxed text-white/75">
+                    {t("sync:enterCode.scanInstructions")}
+                  </DialogDescription>
+                </div>
+                <div aria-hidden="true">
+                  <span className="absolute -left-px -top-px h-10 w-10 rounded-tl-3xl border-l-[3px] border-t-[3px] border-white" />
+                  <span className="absolute -right-px -top-px h-10 w-10 rounded-tr-3xl border-r-[3px] border-t-[3px] border-white" />
+                  <span className="absolute -bottom-px -left-px h-10 w-10 rounded-bl-3xl border-b-[3px] border-l-[3px] border-white" />
+                  <span className="absolute -bottom-px -right-px h-10 w-10 rounded-br-3xl border-b-[3px] border-r-[3px] border-white" />
+                </div>
               </div>
-              <DialogTitle className="text-xl font-semibold tracking-tight">
-                {t("sync:enterCode.scanQrCode")}
-              </DialogTitle>
-              <DialogDescription className="mt-2 text-sm leading-relaxed text-white/75">
-                {t("sync:enterCode.scanInstructions")}
-              </DialogDescription>
-            </div>
-            <div aria-hidden="true">
-              <span className="absolute -left-px -top-px h-10 w-10 rounded-tl-3xl border-l-[3px] border-t-[3px] border-white" />
-              <span className="absolute -right-px -top-px h-10 w-10 rounded-tr-3xl border-r-[3px] border-t-[3px] border-white" />
-              <span className="absolute -bottom-px -left-px h-10 w-10 rounded-bl-3xl border-b-[3px] border-l-[3px] border-white" />
-              <span className="absolute -bottom-px -right-px h-10 w-10 rounded-br-3xl border-b-[3px] border-r-[3px] border-white" />
-            </div>
-          </div>
-          {scanError && (
-            <p role="alert" className="relative z-10 rounded bg-black/80 p-3 text-white">
+              {scanError && (
+                <p role="alert" className="relative z-10 rounded bg-black/80 p-3 text-white">
+                  {scanError}
+                </p>
+              )}
+              <Button
+                type="button"
+                className="relative z-10 mt-6 h-14 w-full max-w-sm shrink-0 rounded-2xl border border-white/25 bg-white/10 text-base font-medium text-white shadow-none hover:bg-white/20 active:bg-white/25"
+                onClick={() => void closeScanner()}
+              >
+                {t("common:cancel")}
+              </Button>
+            </DialogContent>
+          </Dialog>
+          {!isScanning && scanError && (
+            <p role="alert" className="text-destructive text-center text-sm">
               {scanError}
             </p>
           )}
-          <Button
-            type="button"
-            className="relative z-10 mt-6 h-14 w-full max-w-sm shrink-0 rounded-2xl border border-white/25 bg-white/10 text-base font-medium text-white shadow-none hover:bg-white/20 active:bg-white/25"
-            onClick={() => void closeScanner()}
-          >
-            {t("common:cancel")}
-          </Button>
-        </DialogContent>
-      </Dialog>
-      {!isScanning && scanError && (
-        <p role="alert" className="text-destructive text-center text-sm">
-          {scanError}
-        </p>
-      )}
-      {/* Scan QR Card - mobile only */}
-      {canScan && (
-        <button
-          type="button"
-          ref={scanButtonRef}
-          onClick={handleScanQR}
-          disabled={isDisabled}
-          className="bg-muted/50 hover:bg-muted active:bg-muted/80 flex w-full items-center gap-4 rounded-2xl border p-4 text-left transition-colors disabled:opacity-50"
-        >
-          <div className="bg-primary/10 flex h-12 w-12 shrink-0 items-center justify-center rounded-full">
-            {isScanning ? (
-              <Icons.Spinner className="text-primary h-6 w-6 animate-spin" />
-            ) : (
-              <Icons.QrCode className="text-primary h-6 w-6" />
-            )}
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="font-semibold">
-              {isScanning ? t("sync:enterCode.openingCamera") : t("sync:enterCode.scanQrCode")}
-            </p>
-            <p className="text-muted-foreground text-sm">{t("sync:enterCode.quickAndEasy")}</p>
-          </div>
-          <Icons.ChevronRight className="text-muted-foreground h-5 w-5 shrink-0" />
-        </button>
-      )}
-
-      {/* Divider */}
-      {canScan && (
-        <div className="flex items-center gap-4">
-          <div className="bg-border h-px flex-1" />
-          <span className="text-muted-foreground text-xs font-medium uppercase tracking-wider">
-            {t("sync:enterCode.or")}
-          </span>
-          <div className="bg-border h-px flex-1" />
-        </div>
-      )}
-
-      {/* Manual code entry */}
-      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-        {/* Code input with inline paste */}
-        <div className="relative">
-          <Input
-            value={displayCode}
-            onChange={handleChange}
-            placeholder={t("sync:enterCode.codePlaceholder")}
-            className="h-16 pr-20 text-center font-mono text-2xl tracking-[0.2em]"
-            autoFocus={!canScan}
-            disabled={isDisabled}
-          />
-          <button
-            type="button"
-            onClick={handlePaste}
-            disabled={isDisabled}
-            className="text-primary hover:text-primary/80 absolute right-3 top-1/2 -translate-y-1/2 px-2 py-1 text-sm font-medium transition-colors disabled:opacity-50"
-          >
-            {t("sync:enterCode.paste")}
-          </button>
-        </div>
-
-        {error && <p className="text-destructive text-center text-sm">{error}</p>}
-
-        {/* Connect button */}
-        <Button
-          type="submit"
-          className="h-12 w-full text-base"
-          disabled={code.length !== 6 || isDisabled}
-        >
-          {isLoading ? (
-            <>
-              <Icons.Spinner className="mr-2 h-4 w-4 animate-spin" />
-              {t("sync:enterCode.connecting")}
-            </>
-          ) : (
-            t("sync:enterCode.connect")
+          {/* Scan QR Card - mobile only */}
+          {canScan && (
+            <button
+              type="button"
+              ref={scanButtonRef}
+              onClick={handleScanQR}
+              disabled={isDisabled}
+              className="bg-muted/50 hover:bg-muted active:bg-muted/80 flex w-full items-center gap-4 rounded-2xl border p-4 text-left transition-colors disabled:opacity-50"
+            >
+              <div className="bg-primary/10 flex h-12 w-12 shrink-0 items-center justify-center rounded-full">
+                {isScanning ? (
+                  <Icons.Spinner className="text-primary h-6 w-6 animate-spin" />
+                ) : (
+                  <Icons.QrCode className="text-primary h-6 w-6" />
+                )}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="font-semibold">
+                  {isScanning ? t("sync:enterCode.openingCamera") : t("sync:enterCode.scanQrCode")}
+                </p>
+                <p className="text-muted-foreground text-sm">{t("sync:enterCode.scanHint")}</p>
+              </div>
+              <Icons.ChevronRight className="text-muted-foreground h-5 w-5 shrink-0" />
+            </button>
           )}
-        </Button>
 
-        {/* Cancel */}
-        <button
-          type="button"
-          onClick={onCancel}
-          disabled={isDisabled}
-          className="text-muted-foreground hover:text-foreground py-2 text-sm transition-colors disabled:opacity-50"
-        >
-          {t("common:cancel")}
-        </button>
-      </form>
-    </div>
+          {/* Divider */}
+          {canScan && (
+            <div className="flex items-center gap-4">
+              <div className="bg-border h-px flex-1" />
+              <span className="text-muted-foreground text-xs font-medium uppercase tracking-wider">
+                {t("sync:enterCode.or")}
+              </span>
+              <div className="bg-border h-px flex-1" />
+            </div>
+          )}
+
+          {/* Manual code entry */}
+          <div className="flex flex-col items-center gap-3">
+            <div ref={shakeScope}>
+              <InputOTP
+                maxLength={CODE_LENGTH}
+                value={code}
+                onChange={handleChange}
+                pattern={CODE_PATTERN}
+                pasteTransformer={normalizeCode}
+                inputMode="text"
+                autoComplete="one-time-code"
+                autoCapitalize="characters"
+                autoCorrect="off"
+                spellCheck={false}
+                autoFocus={!canScan}
+                // Read-only while the code is checked: a disabled field loses
+                // focus, and a rejected code should be fixable by typing.
+                disabled={isScanning}
+                readOnly={isLoading}
+                aria-label={t("sync:enterCode.codeLabel")}
+                aria-invalid={!!visibleError}
+                aria-describedby={visibleError ? errorId : undefined}
+                containerClassName={cn("gap-3 transition-opacity", isLoading && "opacity-60")}
+              >
+                {[0, 3].map((start) => (
+                  <InputOTPGroup key={start}>
+                    {[start, start + 1, start + 2].map((index) => (
+                      <InputOTPSlot
+                        key={index}
+                        index={index}
+                        className={cn(SLOT_CLASS, visibleError && "border-destructive")}
+                      />
+                    ))}
+                  </InputOTPGroup>
+                ))}
+              </InputOTP>
+            </div>
+            <div className="flex min-h-5 items-center justify-center">
+              {visibleError ? (
+                <motion.p
+                  id={errorId}
+                  role="alert"
+                  initial={{ opacity: 0, y: -4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="text-destructive text-center text-sm"
+                >
+                  {userFacingSyncErrorMessage(visibleError)}
+                </motion.p>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handlePaste}
+                  disabled={isDisabled}
+                  className="text-muted-foreground hover:text-foreground flex items-center gap-1.5 text-sm transition-colors disabled:opacity-50"
+                >
+                  <Icons.Copy className="size-3.5" aria-hidden />
+                  {t("sync:enterCode.paste")}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      </FlowScreen>
+    </form>
   );
 }

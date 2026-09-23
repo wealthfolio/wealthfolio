@@ -12,12 +12,9 @@ import {
   claimPairing as claimPairingApi,
   clearDeviceSyncData as clearDeviceSyncDataApi,
   completePairingWithTransfer as completePairingWithTransferApi,
-  confirmPairingWithBootstrap as confirmPairingWithBootstrapApi,
   createPairing as createPairingApi,
   deleteDevice as deleteDeviceApi,
-  deviceSyncBootstrapOverwriteCheck as deviceSyncBootstrapOverwriteCheckApi,
   deviceSyncGenerateSnapshotNow as deviceSyncGenerateSnapshotNowApi,
-  deviceSyncReconcileReadyState as deviceSyncReconcileReadyStateApi,
   deviceSyncStartBackgroundEngine as deviceSyncStartBackgroundEngineApi,
   deviceSyncStopBackgroundEngine as deviceSyncStopBackgroundEngineApi,
   enableDeviceSync as enableDeviceSyncApi,
@@ -32,11 +29,9 @@ import {
   reinitializeDeviceSync as reinitializeDeviceSyncApi,
   resetTeamSync as resetTeamSyncApi,
   revokeDevice as revokeDeviceApi,
-  syncBootstrapSnapshotIfNeeded as syncBootstrapSnapshotIfNeededApi,
   syncTriggerCycle as syncTriggerCycleApi,
   updateDevice as updateDeviceApi,
 } from "@/adapters";
-import type { ConfirmPairingWithBootstrapResult } from "@/adapters";
 import * as crypto from "../crypto";
 import { syncStorage } from "../storage/keyring";
 import type {
@@ -65,17 +60,6 @@ export interface EnableSyncResult {
   needsPairing: boolean;
   trustedDevices: TrustedDeviceSummary[];
 }
-
-export type BootstrapCheckResult =
-  | {
-      status: "overwrite_required";
-      localRows: number;
-      nonEmptyTables: { table: string; rows: number }[];
-    }
-  | { status: "not_ready"; message: string }
-  | { status: "waiting_snapshot"; message: string }
-  | { status: "applied"; message: string }
-  | { status: "error"; message: string };
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Sync Service Class
@@ -206,24 +190,6 @@ class SyncService {
     serverCursor: number;
   }> {
     return getPairingSourceStatusApi();
-  }
-
-  async getBootstrapOverwriteCheck(): Promise<{
-    bootstrapRequired: boolean;
-    hasLocalData: boolean;
-    localRows: number;
-    nonEmptyTables: { table: string; rows: number }[];
-  }> {
-    return deviceSyncBootstrapOverwriteCheckApi();
-  }
-
-  async bootstrapSnapshotIfNeeded(): Promise<{
-    status: string;
-    message: string;
-    snapshotId: string | null;
-    cursor: number | null;
-  }> {
-    return syncBootstrapSnapshotIfNeededApi();
   }
 
   async triggerSyncCycle(): Promise<{
@@ -375,63 +341,6 @@ class SyncService {
   }
 
   /**
-   * Confirm pairing with bootstrap — claimer side, single backend call.
-   * Returns result indicating if overwrite is needed.
-   */
-  async confirmPairingWithBootstrap(
-    session: ClaimerSession,
-    keyBundle: KeyBundlePayload,
-    minSnapshotCreatedAt?: string,
-    allowOverwrite?: boolean,
-  ): Promise<ConfirmPairingWithBootstrapResult> {
-    if (new Date() > session.expiresAt) {
-      throw new SyncError(SyncErrorCodes.PAIRING_EXPIRED, "Pairing session expired");
-    }
-
-    const proofData = `confirm:${session.pairingId}:${keyBundle.keyVersion}`;
-    const proof = await crypto.hmacSha256(session.sessionKey, proofData);
-    const freshnessGate = minSnapshotCreatedAt ?? session.keyBundleCreatedAt;
-
-    // Store credentials locally BEFORE confirming (so backend can use them for bootstrap)
-    await syncStorage.setE2EECredentials(
-      keyBundle.rootKey,
-      keyBundle.keyVersion,
-      session.deviceId,
-      {
-        secretKey: session.ephemeralSecretKey,
-        publicKey: session.ephemeralPublicKey,
-      },
-    );
-
-    const result = await confirmPairingWithBootstrapApi(
-      session.pairingId,
-      proof,
-      freshnessGate,
-      allowOverwrite,
-    );
-
-    logger.info(`[SyncService] confirmPairingWithBootstrap: status=${result.status}`);
-    return result;
-  }
-
-  /**
-   * Retry bootstrap with overwrite after user accepted the overwrite dialog.
-   * Uses the composite endpoint — proof is null because confirm is idempotent
-   * (already confirmed on the first call), freshness gate is already set in backend.
-   */
-  async retryBootstrapWithOverwrite(pairingId: string): Promise<ConfirmPairingWithBootstrapResult> {
-    return confirmPairingWithBootstrapApi(pairingId, undefined, undefined, true);
-  }
-
-  /**
-   * Retry claimer bootstrap without overwrite.
-   * Used when backend reports waiting_snapshot and the claimer should poll until ready.
-   */
-  async retryPairingBootstrap(pairingId: string): Promise<ConfirmPairingWithBootstrapResult> {
-    return confirmPairingWithBootstrapApi(pairingId, undefined, undefined, false);
-  }
-
-  /**
    * Cancel a pairing session.
    */
   async cancelPairing(pairingId: string): Promise<void> {
@@ -536,55 +445,6 @@ class SyncService {
     }
 
     return { received: false, status: result.sessionStatus };
-  }
-
-  // ═══════════════════════════════════════════════════════════════════════════
-  // NON-PAIRING BOOTSTRAP (stale_cursor / device rejoining)
-  // ═══════════════════════════════════════════════════════════════════════════
-
-  /**
-   * Bootstrap with overwrite check — combines overwrite check + reconcile.
-   * First call with allowOverwrite=false to check. If overwrite_required,
-   * show dialog, then call again with allowOverwrite=true.
-   */
-  async bootstrapWithOverwriteCheck(allowOverwrite: boolean): Promise<BootstrapCheckResult> {
-    if (!allowOverwrite) {
-      const check = await this.getBootstrapOverwriteCheck();
-      if (check.bootstrapRequired && check.hasLocalData) {
-        return {
-          status: "overwrite_required",
-          localRows: check.localRows,
-          nonEmptyTables: check.nonEmptyTables,
-        };
-      }
-    }
-
-    const result = await deviceSyncReconcileReadyStateApi(allowOverwrite);
-    if (result.status === "error") {
-      return { status: "error", message: result.message };
-    }
-    if (result.status === "skipped_not_ready" || result.bootstrapStatus === "skipped_not_ready") {
-      return { status: "not_ready", message: result.message };
-    }
-
-    const waitingForSnapshot =
-      result.bootstrapStatus === "requested" ||
-      result.cycleNeedsBootstrap ||
-      result.cycleStatus === "wait_snapshot" ||
-      result.cycleStatus === "stale_cursor" ||
-      result.retryCycleStatus === "wait_snapshot" ||
-      result.retryCycleStatus === "stale_cursor";
-    if (waitingForSnapshot) {
-      return {
-        status: "waiting_snapshot",
-        message: result.bootstrapMessage ?? result.message,
-      };
-    }
-
-    return {
-      status: "applied",
-      message: result.bootstrapMessage ?? result.message,
-    };
   }
 
   // ═══════════════════════════════════════════════════════════════════════════

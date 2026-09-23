@@ -289,64 +289,43 @@ export interface BackendSyncPairingSourceStatusResult {
   serverCursor: number;
 }
 
-export interface BackendSyncBootstrapOverwriteCheckTableResult {
-  table: string;
-  rows: number;
-}
+export type BackendRestorePhase =
+  | "transferring"
+  | "waiting_for_snapshot"
+  | "awaiting_consent"
+  | "backing_up"
+  | "replacing"
+  | "ready"
+  | "failed"
+  | "cancelled";
+
+export type BackendRestoreErrorCode =
+  | "SUBSCRIPTION_REQUIRED"
+  | "DEVICE_NOT_READY"
+  | "SNAPSHOT_WAIT_TIMED_OUT"
+  | "SNAPSHOT_UNAVAILABLE"
+  | "SNAPSHOT_SCHEMA_NEWER"
+  | "SNAPSHOT_INVALID"
+  | "TRANSFER_FAILED"
+  | "BACKUP_FAILED"
+  | "RESTORE_FAILED";
+
+/** What retrying a failed restore does; replacement always needs new consent. */
+export type BackendRestoreRetry = "transfer" | "consent" | "new_attempt";
 
 /**
- * Result from device_sync_bootstrap_overwrite_check command.
+ * The profile's single restore operation, owned by the backend runtime.
+ * Pairing, recurring sync and manual retries all read and drive this state.
  */
-export interface BackendSyncBootstrapOverwriteCheckResult {
-  bootstrapRequired: boolean;
-  hasLocalData: boolean;
-  localRows: number;
-  nonEmptyTables: BackendSyncBootstrapOverwriteCheckTableResult[];
-}
-
-export interface BackendSyncReconcileReadyResult {
-  action?: "PULL_TAIL" | "BOOTSTRAP_SNAPSHOT" | "WAIT_SNAPSHOT" | "NOOP";
-  bootstrapAction:
-    | "PULL_REMOTE_OVERWRITE"
-    | "NO_REMOTE_PULL"
-    | "WAIT_REMOTE_SNAPSHOT"
-    | "NO_BOOTSTRAP";
-  reason?: string;
-  reconcileReason?: string;
-  cursor?: number;
-  deviceCursor?: number;
-  gcWatermark?: number;
-  staleCursor?: boolean;
-  diagnostics?: {
-    remoteSnapshotExists?: boolean;
-    trustedDeviceCount?: number;
-    teamKeyVersion?: number;
-    latestSnapshot?: {
-      snapshotId: string;
-      schemaVersion: number;
-      oplogSeq: number;
-    } | null;
-  };
-  status: "ok" | "skipped_not_ready" | "error";
-  message: string;
-  bootstrapStatus: "applied" | "skipped" | "skipped_not_ready" | "requested" | "not_attempted";
-  bootstrapMessage: string | null;
-  bootstrapSnapshotId: string | null;
-  cycleStatus: string | null;
-  cycleNeedsBootstrap: boolean;
-  retryAttempted: boolean;
-  retryCycleStatus: string | null;
-  backgroundStatus: "started" | "skipped" | "failed";
-}
-
-/**
- * Result from sync_bootstrap_snapshot_if_needed command.
- */
-export interface BackendSyncBootstrapResult {
-  status: string;
-  message: string;
-  snapshotId: string | null;
-  cursor: number | null;
+export interface BackendRestoreOperation {
+  operationId: string;
+  /** Increases with every change; newer state wins across tabs and windows. */
+  revision: number;
+  phase: BackendRestorePhase;
+  snapshot: { snapshotId: string; oplogSeq: number; createdAt: string } | null;
+  error: { code: BackendRestoreErrorCode; message: string; retry: BackendRestoreRetry } | null;
+  /** The restore committed. */
+  replaced: boolean;
 }
 
 /**

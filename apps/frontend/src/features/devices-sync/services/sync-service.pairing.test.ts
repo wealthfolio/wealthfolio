@@ -13,10 +13,7 @@ const adapterMocks = vi.hoisted(() => ({
   clearDeviceSyncData: vi.fn(),
   reinitializeDeviceSync: vi.fn(),
   getSyncEngineStatus: vi.fn(),
-  deviceSyncBootstrapOverwriteCheck: vi.fn(),
   deviceSyncGenerateSnapshotNow: vi.fn(),
-  deviceSyncReconcileReadyState: vi.fn(),
-  syncBootstrapSnapshotIfNeeded: vi.fn(),
   syncTriggerCycle: vi.fn(),
   deviceSyncStartBackgroundEngine: vi.fn(),
   deviceSyncStopBackgroundEngine: vi.fn(),
@@ -33,7 +30,6 @@ const adapterMocks = vi.hoisted(() => ({
   cancelPairing: vi.fn(),
   claimPairing: vi.fn(),
   getPairingMessages: vi.fn(),
-  confirmPairingWithBootstrap: vi.fn(),
 }));
 
 const storageMocks = vi.hoisted(() => ({
@@ -65,12 +61,7 @@ vi.mock("@/adapters", () => adapterMocks);
 vi.mock("../storage/keyring", () => ({ syncStorage: storageMocks }));
 vi.mock("../crypto", () => cryptoMocks);
 
-import {
-  SyncErrorCodes,
-  type ClaimerSession,
-  type KeyBundlePayload,
-  type PairingSession,
-} from "../types";
+import { SyncErrorCodes, type PairingSession } from "../types";
 import { syncService } from "./sync-service";
 
 describe("syncService pairing", () => {
@@ -111,50 +102,6 @@ describe("syncService pairing", () => {
     expect(result.remoteSeedPresent).toBeNull();
   });
 
-  it("confirmPairingWithBootstrap stores credentials and calls backend", async () => {
-    const session: ClaimerSession = {
-      deviceId: "device-1",
-      pairingId: "pair_2",
-      code: "654321",
-      ephemeralSecretKey: "esk",
-      ephemeralPublicKey: "epk",
-      issuerPublicKey: "issuer_pub",
-      sessionKey: "session_key",
-      e2eeKeyVersion: 8,
-      requireSas: true,
-      expiresAt: new Date(Date.now() + 60_000),
-      status: "approved",
-    };
-    const keyBundle: KeyBundlePayload = {
-      version: 1,
-      rootKey: "root_key",
-      keyVersion: 8,
-    };
-
-    cryptoMocks.hmacSha256.mockResolvedValue("proof");
-    storageMocks.setE2EECredentials.mockResolvedValue(undefined);
-    adapterMocks.confirmPairingWithBootstrap.mockResolvedValue({
-      status: "applied",
-      message: "Bootstrap completed",
-      localRows: null,
-      nonEmptyTables: null,
-    });
-
-    const result = await syncService.confirmPairingWithBootstrap(session, keyBundle);
-
-    expect(storageMocks.setE2EECredentials).toHaveBeenCalledWith("root_key", 8, "device-1", {
-      secretKey: "esk",
-      publicKey: "epk",
-    });
-    expect(adapterMocks.confirmPairingWithBootstrap).toHaveBeenCalledWith(
-      "pair_2",
-      "proof",
-      undefined, // no keyBundleCreatedAt on session
-      undefined, // allowOverwrite
-    );
-    expect(result.status).toBe("applied");
-  });
-
   it("maps restore-required snapshot errors to a typed sync error", async () => {
     const session: PairingSession = {
       pairingId: "pair_restore",
@@ -183,54 +130,6 @@ describe("syncService pairing", () => {
 
     await expect(syncService.completePairingWithTransfer(session)).rejects.toMatchObject({
       code: SyncErrorCodes.SOURCE_RESTORE_REQUIRED,
-    });
-  });
-
-  it("keeps bootstrap in waiting state when reconcile is still waiting for a fresh snapshot", async () => {
-    adapterMocks.deviceSyncReconcileReadyState.mockResolvedValue({
-      status: "ok",
-      message: "Device sync reconcile completed",
-      bootstrapAction: "WAIT_REMOTE_SNAPSHOT",
-      bootstrapStatus: "requested",
-      bootstrapMessage: "Waiting for a fresh snapshot",
-      bootstrapSnapshotId: null,
-      cycleStatus: "wait_snapshot",
-      cycleNeedsBootstrap: true,
-      retryAttempted: false,
-      retryCycleStatus: null,
-      backgroundStatus: "started",
-    });
-
-    const result = await syncService.bootstrapWithOverwriteCheck(true);
-
-    expect(adapterMocks.deviceSyncReconcileReadyState).toHaveBeenCalledWith(true);
-    expect(result).toEqual({
-      status: "waiting_snapshot",
-      message: "Waiting for a fresh snapshot",
-    });
-  });
-
-  it("does not treat skipped_not_ready reconcile as applied", async () => {
-    adapterMocks.deviceSyncReconcileReadyState.mockResolvedValue({
-      status: "skipped_not_ready",
-      message: "Device is not in READY state",
-      bootstrapAction: "NO_BOOTSTRAP",
-      bootstrapStatus: "not_attempted",
-      bootstrapMessage: null,
-      bootstrapSnapshotId: null,
-      cycleStatus: null,
-      cycleNeedsBootstrap: false,
-      retryAttempted: false,
-      retryCycleStatus: null,
-      backgroundStatus: "skipped",
-    });
-
-    const result = await syncService.bootstrapWithOverwriteCheck(true);
-
-    expect(adapterMocks.deviceSyncReconcileReadyState).toHaveBeenCalledWith(true);
-    expect(result).toEqual({
-      status: "not_ready",
-      message: "Device is not in READY state",
     });
   });
 });

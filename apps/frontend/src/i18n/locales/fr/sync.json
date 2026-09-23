@@ -101,16 +101,7 @@
     "speedUpSetup": "Accélérer la configuration"
   },
   "bootstrap": {
-    "inProgress": "Initialisation de la synchronisation en cours...",
-    "hasDataTitle": "Cet appareil contient déjà des données",
-    "hasDataDescription": "Pour terminer la synchronisation, les données de cet appareil seront remplacées par celles de votre autre appareil.",
-    "continue": "Continuer",
-    "waitingOtherDeviceTitle": "En attente de votre autre appareil",
-    "waitingOtherDeviceDescription": "Nous terminerons la synchronisation dès qu'un nouvel instantané sera disponible.",
-    "retryStartedTitle": "Nouvelle tentative de synchronisation lancée",
-    "retryStartedDescription": "Recherche d'un instantané mis à jour et application des modifications de synchronisation en attente.",
-    "couldNotRetryTitle": "Impossible de relancer la synchronisation",
-    "unableToContinueTitle": "Impossible de poursuivre la synchronisation"
+    "couldNotRetryTitle": "Impossible de relancer la synchronisation"
   },
   "snapshot": {
     "uploadedTitle": "Instantané téléversé",
@@ -119,23 +110,6 @@
     "cancelledTitle": "Téléversement de l'instantané annulé",
     "resultTitle": "Résultat du téléversement de l'instantané",
     "failedTitle": "Échec du téléversement de l'instantané"
-  },
-  "backup": {
-    "savedTitle": "Sauvegarde enregistrée",
-    "savedDescription": "Une sauvegarde a été enregistrée sous {{location}}.",
-    "failedTitle": "Échec de la sauvegarde",
-    "backingUp": "Sauvegarde...",
-    "backUpFirst": "Sauvegarder d'abord"
-  },
-  "overwrite": {
-    "replaceDataTitle": "Remplacer les données de cet appareil ?",
-    "replaceDataDescription": "Vos données locales seront remplacées par celles de votre autre appareil connecté.",
-    "localRowsReplaced_one": "{{count}} ligne locale sera remplacée.",
-    "localRowsReplaced_other": "{{count}} lignes locales seront remplacées.",
-    "localRowsReplaced_many": "{{count}} lignes locales seront remplacées.",
-    "notNow": "Pas maintenant",
-    "syncing": "Synchronisation...",
-    "replaceAndSync": "Remplacer et synchroniser"
   },
   "reinit": {
     "title": "Reconfigurer la synchronisation depuis cet appareil ?",
@@ -177,49 +151,141 @@
     "gettingReadyTitle": "Préparation de cet appareil...",
     "gettingReadyDescription": "Cela ne prendra qu'un instant.",
     "prepareFailed": "Nous n'avons pas pu terminer la préparation de cet appareil.",
-    "tryAgain": "Réessayer",
-    "starting": "Démarrage...",
-    "generatingCode": "Génération du code...",
-    "computingSecurityCode": "Calcul du code de sécurité...",
-    "finishingSetup": "Finalisation de la configuration...",
-    "finishingSetupDescription": "Préparation de vos données pour le nouvel appareil",
-    "sessionExpired": "Session expirée",
-    "connecting": "Connexion...",
     "verifySecurityCode": "Vérifier le code de sécurité",
-    "syncingData": "Synchronisation de vos données...",
-    "syncingDataDescription": "Cela peut prendre quelques secondes"
+    "transferringData": "Transfert de vos données",
+    "transferringDataDescription": "Chiffrement d'une copie de vos données pour votre nouvel appareil. Cela peut prendre une minute.",
+    "securingConnection": "Sécurisation de la connexion",
+    "securingConnectionDescription": "Échange des clés de chiffrement avec votre autre appareil."
   },
   "displayCode": {
-    "expired": "Expiré"
+    "generating": "Génération du code",
+    "copyCode": "Copier le code",
+    "copied": "Copié",
+    "expiresIn": "Expire dans {{time}}",
+    "expiredTitle": "Ce code a expiré",
+    "expiredDescription": "Les codes ne sont valables que quelques minutes pour sécuriser l'association. Obtenez-en un nouveau pour continuer.",
+    "newCode": "Obtenir un nouveau code"
   },
   "enterCode": {
     "openingCamera": "Ouverture de la caméra...",
     "scanQrCode": "Scanner le code QR",
-    "quickAndEasy": "Rapide et simple",
     "or": "Ou",
-    "codePlaceholder": "ABC 123",
     "paste": "Coller",
     "connecting": "Connexion...",
     "connect": "Connecter",
     "scanInstructions": "Placez le code QR dans le cadre.",
     "cameraOpenError": "Impossible d’ouvrir la caméra. Veuillez réessayer.",
     "cameraCloseError": "Impossible de fermer la caméra. Veuillez réessayer.",
-    "cameraUnavailable": "Aucune caméra disponible. Utilisez un appareil physique pour scanner ou saisissez le code d’association ci-dessous."
+    "cameraUnavailable": "Aucune caméra disponible. Utilisez un appareil physique pour scanner ou saisissez le code d’association ci-dessous.",
+    "scanHint": "Pointez l'appareil photo vers le code affiché sur votre autre appareil.",
+    "codeLabel": "Code d'association"
   },
   "sas": {
-    "sameCodeQuestion": "Le même code sur les deux appareils ?"
+    "description": "Vérifiez que votre autre appareil affiche le même code. Personne d'autre ne peut ainsi se connecter.",
+    "codesMatch": "Les codes correspondent",
+    "codesDontMatch": "Ils ne correspondent pas",
+    "waitingDescription": "Vérifiez que votre autre appareil affiche ce code, puis confirmez sur celui-ci.",
+    "mismatchTitle": "Association interrompue",
+    "mismatchDescription": "Les codes ne correspondaient pas, rien n'a donc été partagé. Réessayez avec un nouveau code."
   },
   "waiting": {
-    "waitingForConfirmation": "En attente de confirmation...",
-    "confirmCodeMatches": "Confirmez que ce code correspond sur votre autre appareil",
-    "securelyConnecting": "Veuillez patienter pendant que nous connectons votre appareil en toute sécurité"
+    "waitingForConfirmation": "En attente de confirmation..."
   },
   "result": {
     "allSet": "Tout est prêt !",
     "connectedSuccessfully": "Appareil connecté avec succès",
     "done": "Terminé",
     "connectionFailed": "Échec de la connexion",
-    "tryAgain": "Réessayer"
+    "tryAgain": "Réessayer",
+    "devicesConnected": "Appareils connectés",
+    "finishOnOtherDevice": "Terminez la configuration sur votre autre appareil. Il affichera Prêt une fois vos données en place."
   },
-  "errors": {}
+  "restore": {
+    "dialogTitle": "Terminer la configuration de cet appareil",
+    "transferring": {
+      "title": "Transfert de vos données",
+      "description": "Téléchargement et vérification de la copie chiffrée de votre autre appareil."
+    },
+    "waiting": {
+      "title": "En attente de votre autre appareil",
+      "description": "Votre autre appareil envoie encore ses données. La configuration continue automatiquement."
+    },
+    "consent": {
+      "title": "Remplacer les données de ce profil ?",
+      "titleNamed": "Remplacer les données de « {{profile}} » ?",
+      "description": "Les données de votre autre appareil remplaceront celles de cet appareil.",
+      "descriptionDated": "Les données de votre autre appareil (copiées le {{date}}) remplaceront celles de cet appareil.",
+      "replace": "Remplacer les données",
+      "backupLabel": "Sauvegarder d'abord ce profil",
+      "backupAndReplace": "Sauvegarder et remplacer"
+    },
+    "backingUp": {
+      "title": "Sauvegarde de ce profil",
+      "description": "Enregistrement d'une copie de ce profil avant tout remplacement."
+    },
+    "replacing": {
+      "title": "Remplacement des données sur cet appareil",
+      "description": "Mise en place des données de votre autre appareil."
+    },
+    "ready": {
+      "title": "Prêt",
+      "description": "Cet appareil est configuré et synchronisé."
+    },
+    "cancelled": {
+      "title": "Configuration annulée",
+      "description": "Rien n'a été remplacé. Vous pouvez terminer la configuration à tout moment."
+    },
+    "cancelSetup": "Annuler la configuration",
+    "hide": "Masquer",
+    "continueInBackground": "Continuer en arrière-plan",
+    "tryAgain": "Réessayer",
+    "startAgain": "Recommencer",
+    "finishSetup": "Terminer la configuration",
+    "retryHint": {
+      "transfer": "Rien n'a été remplacé. Vous pouvez relancer le transfert.",
+      "consent": "Rien n'a été remplacé. Réessayer vous redemandera votre accord.",
+      "new_attempt": "Rien n'a été remplacé. Recommencez pour utiliser la copie la plus récente de votre autre appareil."
+    },
+    "errors": {
+      "SUBSCRIPTION_REQUIRED": "La synchronisation des appareils nécessite un abonnement actif",
+      "DEVICE_NOT_READY": "Cet appareil n'est pas encore prêt à se synchroniser",
+      "SNAPSHOT_WAIT_TIMED_OUT": "Votre autre appareil n'a pas fini son envoi",
+      "SNAPSHOT_UNAVAILABLE": "La copie de votre autre appareil n'est plus disponible",
+      "SNAPSHOT_SCHEMA_NEWER": "Mettez à jour l'application pour terminer la configuration",
+      "SNAPSHOT_INVALID": "Les données transférées n'ont pas pu être vérifiées",
+      "TRANSFER_FAILED": "Le transfert n'a pas abouti",
+      "BACKUP_FAILED": "La sauvegarde n'a pas abouti",
+      "RESTORE_FAILED": "Les données n'ont pas pu être remplacées"
+    },
+    "banner": {
+      "title": "La configuration de cet appareil n'est pas terminée",
+      "running": "La configuration se poursuit en arrière-plan.",
+      "needsApproval": "Votre accord est nécessaire pour remplacer les données de ce profil.",
+      "failed": "La configuration s'est arrêtée avant la fin.",
+      "cancelled": "La configuration a été annulée. Terminez-la quand vous êtes prêt.",
+      "show": "Afficher la progression"
+    }
+  },
+  "errors": {},
+  "wizard": {
+    "progressLabel": "Progression de la configuration",
+    "steps": {
+      "connect": "Connexion",
+      "transfer": "Transfert",
+      "download": "Téléchargement",
+      "apply": "Application",
+      "done": "Terminé"
+    },
+    "encryptedNote": "Chiffré de bout en bout. Seuls vos appareils peuvent lire vos données.",
+    "backgroundNote": "Vous pouvez fermer cette fenêtre. La configuration continue en arrière-plan.",
+    "details": {
+      "encrypt": "Chiffrer vos données",
+      "upload": "Envoyer la copie chiffrée",
+      "sendKeys": "Transmettre les clés à votre nouvel appareil",
+      "waitForUpload": "Votre autre appareil envoie ses données",
+      "downloadAndVerify": "Télécharger et vérifier la copie chiffrée",
+      "replace": "Remplacer les données de cet appareil",
+      "backup": "Sauvegarder ce profil"
+    }
+  }
 }

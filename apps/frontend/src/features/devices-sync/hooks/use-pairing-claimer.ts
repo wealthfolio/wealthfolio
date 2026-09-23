@@ -1,56 +1,33 @@
 // usePairingClaimer
 // Self-contained hook for the claimer (new device) pairing flow.
-// Uses backend-owned pairing flow coordinator for the post-SAS phase.
+// After key exchange, restoration belongs to the runtime's restore operation;
+// this hook only hands off to it and displays it in the pairing window.
 // ================================================================
 
-import {
-  logger,
-  beginPairingConfirm,
-  getPairingFlowState,
-  cancelPairingFlow,
-  approvePairingOverwrite,
-} from "@/adapters";
-import type { PairingFlowPhase } from "@/adapters";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { beginPairingRestore, logger } from "@/adapters";
+import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as crypto from "../crypto";
 import { syncService } from "../services/sync-service";
 import { syncStorage } from "../storage/keyring";
 import type { ClaimerSession, KeyBundlePayload } from "../types";
+import { useRestoreOperation } from "./use-restore-operation";
 
-type ClaimerPhase =
-  | "idle"
-  | "connecting"
-  | "claimed"
-  | "flow_active"
-  | "overwrite_required"
-  | "complete"
-  | "error";
-
-export interface PairingOverwriteInfo {
-  localRows: number;
-  nonEmptyTables: { table: string; rows: number }[];
-}
+type ClaimerPhase = "idle" | "connecting" | "claimed" | "confirming" | "restoring" | "error";
 
 export type ClaimerStep =
   | "enter_code"
   | "connecting"
   | "waiting_keys"
-  | "overwrite_required"
-  | "syncing"
-  | "success"
+  | "confirming"
+  | "restoring"
   | "error";
 
-export type PairingBootstrapState = "idle" | "active" | "failed";
-
 export function usePairingClaimer() {
-  const queryClient = useQueryClient();
+  const restore = useRestoreOperation();
   const [phase, setPhase] = useState<ClaimerPhase>("idle");
   const [session, setSession] = useState<ClaimerSession | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [flowId, setFlowId] = useState<string | null>(null);
-  const [overwriteInfo, setOverwriteInfo] = useState<PairingOverwriteInfo | null>(null);
-  const [isApprovingOverwrite, setIsApprovingOverwrite] = useState(false);
 
   // Guard against auto-proceed firing twice
   const autoProceedFired = useRef(false);
@@ -72,89 +49,32 @@ export function usePairingClaimer() {
     staleTime: Infinity,
   });
 
-  // Poll flow state when active
-  const flowPoll = useQuery({
-    queryKey: ["sync", "pairing", "flow-state", flowId],
-    queryFn: () => getPairingFlowState(flowId!),
-    enabled: phase === "flow_active" && !!flowId,
-    refetchInterval: (query) => {
-      const p = query.state.data?.phase?.phase;
-      if (p === "success" || p === "error") return false;
-      return 2000;
-    },
-    retry: false,
-  });
+  // One operation per profile: after handing off, the pairing window shows it,
+  // including a new attempt started from this window.
+  const operation = phase === "restoring" ? restore.operation : null;
 
-  // Derive step
   const step: ClaimerStep = useMemo(() => {
     if (phase === "error") return "error";
-    if (phase === "complete") return "success";
-    if (phase === "overwrite_required") return "overwrite_required";
-    if (phase === "flow_active") {
-      if (flowPoll.error) return "error";
-      return "syncing";
-    }
+    if (phase === "restoring") return operation ? "restoring" : "confirming";
+    if (phase === "confirming") return "confirming";
     if (phase === "connecting") return "connecting";
     if (phase === "claimed") {
       if (keyPoll.error) return "error";
       return "waiting_keys";
     }
     return "enter_code";
-  }, [phase, keyPoll.error, flowPoll.error]);
+  }, [phase, operation, keyPoll.error]);
 
-  // Derive error message
   const errorMessage = useMemo(() => {
     if (error) return error;
-    if (flowPoll.error) {
-      return flowPoll.error instanceof Error ? flowPoll.error.message : String(flowPoll.error);
-    }
     if (keyPoll.error) {
       return keyPoll.error instanceof Error ? keyPoll.error.message : String(keyPoll.error);
     }
     return null;
-  }, [error, keyPoll.error, flowPoll.error]);
+  }, [error, keyPoll.error]);
 
-  const bootstrapFlowState = useMemo<PairingBootstrapState>(() => {
-    if (flowId !== null && (phase === "error" || flowPoll.error)) {
-      return "failed";
-    }
-    if (
-      phase === "flow_active" ||
-      phase === "overwrite_required" ||
-      (flowId !== null && phase !== "idle")
-    ) {
-      return "active";
-    }
-    return "idle";
-  }, [flowId, phase, flowPoll.error]);
-
-  const processFlowPhase = useCallback(
-    (flowPhase: PairingFlowPhase) => {
-      switch (flowPhase.phase) {
-        case "overwrite_required":
-          setOverwriteInfo(flowPhase.info);
-          setPhase("overwrite_required");
-          break;
-        case "syncing":
-          setOverwriteInfo(null);
-          setPhase("flow_active");
-          break;
-        case "success":
-          setOverwriteInfo(null);
-          setPhase("complete");
-          queryClient.invalidateQueries({ queryKey: ["sync"] });
-          break;
-        case "error":
-          setOverwriteInfo(null);
-          setError(flowPhase.message);
-          setPhase("error");
-          break;
-      }
-    },
-    [queryClient],
-  );
-
-  // Auto-proceed: when key bundle received, store credentials + call beginPairingConfirm
+  // Auto-proceed: when the key bundle arrives, store credentials and hand
+  // restoration to the runtime. Key exchange alone never means data arrived.
   useEffect(() => {
     if (phase !== "claimed") return;
     if (!keyPoll.data?.received || !keyPoll.data.keyBundle || !session) return;
@@ -163,10 +83,10 @@ export function usePairingClaimer() {
 
     const keyBundle: KeyBundlePayload = keyPoll.data.keyBundle;
     const keyBundleCreatedAt = keyPoll.data.keyBundleCreatedAt;
+    setPhase("confirming");
 
     (async () => {
       try {
-        // Store E2EE credentials before confirming
         await syncStorage.setE2EECredentials(
           keyBundle.rootKey,
           keyBundle.keyVersion,
@@ -177,32 +97,21 @@ export function usePairingClaimer() {
           },
         );
 
-        // Compute proof
         const proofData = `confirm:${session.pairingId}:${keyBundle.keyVersion}`;
         const proof = await crypto.hmacSha256(session.sessionKey, proofData);
         const freshnessGate = keyBundleCreatedAt ?? session.keyBundleCreatedAt;
 
-        logger.info("[usePairingClaimer] Auto-proceeding to beginPairingConfirm");
-        const result = await beginPairingConfirm(session.pairingId, proof, freshnessGate);
-
-        setFlowId(result.flowId);
-        setPhase("flow_active");
-        processFlowPhase(result.phase);
+        logger.info("[usePairingClaimer] Keys received; starting restore");
+        const started = await beginPairingRestore(session.pairingId, proof, freshnessGate);
+        restore.settle(started);
+        setPhase("restoring");
       } catch (err) {
-        logger.error(`[usePairingClaimer] Auto-proceed error: ${err}`);
+        logger.error(`[usePairingClaimer] Pairing confirmation error: ${err}`);
         setError(err instanceof Error ? err.message : String(err));
         setPhase("error");
       }
     })();
-  }, [phase, keyPoll.data, session, processFlowPhase]);
-
-  // Process flow poll results
-  useEffect(() => {
-    if (phase !== "flow_active") return;
-    const data = flowPoll.data;
-    if (!data) return;
-    processFlowPhase(data.phase);
-  }, [phase, flowPoll.data, processFlowPhase]);
+  }, [phase, keyPoll.data, session, restore]);
 
   const submitCode = useCallback(async (code: string) => {
     logger.info(`[usePairingClaimer] Submitting code`);
@@ -213,60 +122,28 @@ export function usePairingClaimer() {
       const s = await syncService.claimPairingSession(code);
       logger.info(`[usePairingClaimer] Session claimed, pairingId=${s.pairingId}`);
       setSession(s);
-      setOverwriteInfo(null);
       setPhase("claimed");
     } catch (err) {
       logger.error(`[usePairingClaimer] Claim error: ${err}`);
+      // Usually a mistyped or expired code: keep it on screen to fix.
       setError(err instanceof Error ? err.message : String(err));
-      setPhase("error");
+      setPhase("idle");
     }
   }, []);
 
-  const approveOverwrite = useCallback(async () => {
-    if (!flowId || isApprovingOverwrite) return;
-    setError(null);
-    setIsApprovingOverwrite(true);
-    try {
-      const result = await approvePairingOverwrite(flowId);
-      setFlowId(result.flowId);
-      processFlowPhase(result.phase);
-    } catch (err) {
-      logger.error(`[usePairingClaimer] Overwrite approval error: ${err}`);
-      setError(err instanceof Error ? err.message : String(err));
-      setPhase("error");
-    } finally {
-      setIsApprovingOverwrite(false);
-    }
-  }, [flowId, isApprovingOverwrite, processFlowPhase]);
-
+  /** Before key exchange this abandons the pairing session. */
   const cancel = useCallback(async () => {
-    const hadConfirmedFlow = !!flowId;
-    if (flowId) {
-      await cancelPairingFlow(flowId).catch((err) => {
-        logger.warn(`[usePairingClaimer] Failed to cancel pairing flow: ${err}`);
-      });
-    } else if (session) {
+    if (phase !== "restoring" && session) {
       await syncService.cancelPairing(session.pairingId).catch(() => {});
     }
-    if (hadConfirmedFlow) {
-      await syncService.clearSyncData().catch((err) => {
-        logger.warn(
-          `[usePairingClaimer] Failed to clear local sync data after pairing cancel: ${err}`,
-        );
-      });
-    }
     setSession(null);
-    setFlowId(null);
-    setOverwriteInfo(null);
     setPhase("idle");
     setError(null);
     autoProceedFired.current = false;
-  }, [session, flowId]);
+  }, [session, phase]);
 
   const retry = useCallback(() => {
     setSession(null);
-    setFlowId(null);
-    setOverwriteInfo(null);
     setPhase("idle");
     setError(null);
     autoProceedFired.current = false;
@@ -276,11 +153,9 @@ export function usePairingClaimer() {
     step,
     error: errorMessage,
     sas: sasQuery.data ?? null,
-    overwriteInfo,
-    isApprovingOverwrite,
-    bootstrapFlowState,
+    operation,
+    restore,
     submitCode,
-    approveOverwrite,
     cancel,
     retry,
   };

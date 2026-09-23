@@ -21,13 +21,11 @@ import type {
 import type { Account, Platform } from "@/lib/types";
 import type {
   BackendEnableSyncResult,
+  BackendRestoreOperation,
   BackendSyncBackgroundEngineResult,
-  BackendSyncBootstrapOverwriteCheckResult,
-  BackendSyncBootstrapResult,
   BackendSyncCycleResult,
   BackendSyncEngineStatusResult,
   BackendSyncPairingSourceStatusResult,
-  BackendSyncReconcileReadyResult,
   BackendSyncSnapshotUploadResult,
   BackendSyncStateResult,
   ImportRunsRequest,
@@ -114,25 +112,6 @@ export const getSyncEngineStatus = async (): Promise<BackendSyncEngineStatusResu
 
 export const getPairingSourceStatus = async (): Promise<BackendSyncPairingSourceStatusResult> => {
   return invoke<BackendSyncPairingSourceStatusResult>("device_sync_pairing_source_status");
-};
-
-export const deviceSyncBootstrapOverwriteCheck =
-  async (): Promise<BackendSyncBootstrapOverwriteCheckResult> => {
-    return invoke<BackendSyncBootstrapOverwriteCheckResult>(
-      "device_sync_bootstrap_overwrite_check",
-    );
-  };
-
-export const deviceSyncReconcileReadyState = async (
-  allowOverwrite = false,
-): Promise<BackendSyncReconcileReadyResult> => {
-  return invoke<BackendSyncReconcileReadyResult>("device_sync_reconcile_ready_state", {
-    allowOverwrite,
-  });
-};
-
-export const syncBootstrapSnapshotIfNeeded = async (): Promise<BackendSyncBootstrapResult> => {
-  return invoke<BackendSyncBootstrapResult>("device_sync_bootstrap_snapshot_if_needed");
 };
 
 export const syncTriggerCycle = async (): Promise<BackendSyncCycleResult> => {
@@ -245,45 +224,54 @@ export const confirmPairing = async (
 };
 
 // ============================================================================
-// Pairing Flow Coordinator Commands
+// Restore Operation (receiving device)
 // ============================================================================
 
-export type PairingFlowPhase =
-  | {
-      phase: "overwrite_required";
-      info: { localRows: number; nonEmptyTables: { table: string; rows: number }[] };
-    }
-  | { phase: "syncing"; detail: string }
-  | { phase: "success" }
-  | { phase: "error"; message: string };
+/**
+ * Returns the existing operation when one already owns restoration.
+ * `newAttempt`: the user asked to finish setup; otherwise a recurring check.
+ */
+export const startDeviceSyncRestore = async (
+  newAttempt: boolean,
+): Promise<BackendRestoreOperation | null> => {
+  return invoke<BackendRestoreOperation | null>("device_sync_start_restore", { newAttempt });
+};
 
-export interface PairingFlowResponse {
-  flowId: string;
-  phase: PairingFlowPhase;
-}
+/** Read-only: never starts or advances restoration. */
+export const getDeviceSyncRestore = async (): Promise<BackendRestoreOperation | null> => {
+  return invoke<BackendRestoreOperation | null>("device_sync_get_restore");
+};
 
-export const beginPairingConfirm = async (
+export const approveDeviceSyncRestore = async (
+  operationId: string,
+  backup: boolean,
+): Promise<BackendRestoreOperation> => {
+  return invoke<BackendRestoreOperation>("device_sync_approve_restore", { operationId, backup });
+};
+
+export const retryDeviceSyncRestore = async (
+  operationId: string,
+): Promise<BackendRestoreOperation> => {
+  return invoke<BackendRestoreOperation>("device_sync_retry_restore", { operationId });
+};
+
+export const cancelDeviceSyncRestore = async (
+  operationId: string,
+): Promise<BackendRestoreOperation> => {
+  return invoke<BackendRestoreOperation>("device_sync_cancel_restore", { operationId });
+};
+
+/** Confirms pairing on the receiving device and hands restoration to the runtime. */
+export const beginPairingRestore = async (
   pairingId: string,
   proof: string,
   minSnapshotCreatedAt?: string,
-): Promise<PairingFlowResponse> => {
-  return invoke<PairingFlowResponse>("begin_pairing_confirm", {
+): Promise<BackendRestoreOperation> => {
+  return invoke<BackendRestoreOperation>("device_sync_begin_pairing_restore", {
     pairingId,
     proof,
     minSnapshotCreatedAt,
   });
-};
-
-export const getPairingFlowState = async (flowId: string): Promise<PairingFlowResponse> => {
-  return invoke<PairingFlowResponse>("get_pairing_flow_state", { flowId });
-};
-
-export const approvePairingOverwrite = async (flowId: string): Promise<PairingFlowResponse> => {
-  return invoke<PairingFlowResponse>("approve_pairing_overwrite", { flowId });
-};
-
-export const cancelPairingFlow = async (flowId: string): Promise<PairingFlowResponse> => {
-  return invoke<PairingFlowResponse>("cancel_pairing_flow", { flowId });
 };
 
 export const completePairingWithTransfer = async (
@@ -297,27 +285,6 @@ export const completePairingWithTransfer = async (
     encryptedKeyBundle,
     sasProof,
     signature,
-  });
-};
-
-export interface ConfirmPairingWithBootstrapResult {
-  status: "applied" | "overwrite_required" | "already_complete" | "waiting_snapshot";
-  message: string;
-  localRows: number | null;
-  nonEmptyTables: { table: string; rows: number }[] | null;
-}
-
-export const confirmPairingWithBootstrap = async (
-  pairingId: string,
-  proof?: string,
-  minSnapshotCreatedAt?: string,
-  allowOverwrite?: boolean,
-): Promise<ConfirmPairingWithBootstrapResult> => {
-  return invoke<ConfirmPairingWithBootstrapResult>("confirm_pairing_with_bootstrap", {
-    pairingId,
-    proof,
-    minSnapshotCreatedAt,
-    allowOverwrite: allowOverwrite ?? false,
   });
 };
 

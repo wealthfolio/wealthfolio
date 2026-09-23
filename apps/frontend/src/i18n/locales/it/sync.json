@@ -101,16 +101,7 @@
     "speedUpSetup": "Accelera la configurazione"
   },
   "bootstrap": {
-    "inProgress": "Inizializzazione della sincronizzazione in corso...",
-    "hasDataTitle": "Questo dispositivo ha già dei dati",
-    "hasDataDescription": "Per completare la sincronizzazione, i dati su questo dispositivo verranno sostituiti con i dati del tuo altro dispositivo.",
-    "continue": "Continua",
-    "waitingOtherDeviceTitle": "In attesa del tuo altro dispositivo",
-    "waitingOtherDeviceDescription": "Completeremo la sincronizzazione non appena sarà disponibile un'istantanea aggiornata.",
-    "retryStartedTitle": "Nuovo tentativo di sincronizzazione avviato",
-    "retryStartedDescription": "Verifica della presenza di un'istantanea aggiornata e applicazione delle modifiche di sincronizzazione in sospeso.",
-    "couldNotRetryTitle": "Impossibile riprovare la sincronizzazione",
-    "unableToContinueTitle": "Impossibile continuare la sincronizzazione"
+    "couldNotRetryTitle": "Impossibile riprovare la sincronizzazione"
   },
   "snapshot": {
     "uploadedTitle": "Istantanea caricata",
@@ -119,23 +110,6 @@
     "cancelledTitle": "Caricamento dell'istantanea annullato",
     "resultTitle": "Risultato del caricamento dell'istantanea",
     "failedTitle": "Caricamento dell'istantanea non riuscito"
-  },
-  "backup": {
-    "savedTitle": "Backup salvato",
-    "savedDescription": "È stato salvato un backup come {{location}}.",
-    "failedTitle": "Backup non riuscito",
-    "backingUp": "Backup in corso...",
-    "backUpFirst": "Esegui prima il backup"
-  },
-  "overwrite": {
-    "replaceDataTitle": "Sostituire i dati su questo dispositivo?",
-    "replaceDataDescription": "I tuoi dati locali verranno sostituiti con i dati del tuo altro dispositivo connesso.",
-    "localRowsReplaced_one": "{{count}} riga locale verrà sostituita.",
-    "localRowsReplaced_many": "{{count}} righe locali verranno sostituite.",
-    "localRowsReplaced_other": "{{count}} righe locali verranno sostituite.",
-    "notNow": "Non ora",
-    "syncing": "Sincronizzazione in corso...",
-    "replaceAndSync": "Sostituisci e sincronizza"
   },
   "reinit": {
     "title": "Configurare di nuovo la sincronizzazione da questo dispositivo?",
@@ -177,49 +151,141 @@
     "gettingReadyTitle": "Preparazione di questo dispositivo...",
     "gettingReadyDescription": "Ci vorrà solo un momento.",
     "prepareFailed": "Non siamo riusciti a completare la preparazione di questo dispositivo.",
-    "tryAgain": "Riprova",
-    "starting": "Avvio in corso...",
-    "generatingCode": "Generazione del codice...",
-    "computingSecurityCode": "Calcolo del codice di sicurezza...",
-    "finishingSetup": "Completamento della configurazione...",
-    "finishingSetupDescription": "Preparazione dei tuoi dati per il nuovo dispositivo",
-    "sessionExpired": "Sessione scaduta",
-    "connecting": "Connessione in corso...",
     "verifySecurityCode": "Verifica codice di sicurezza",
-    "syncingData": "Sincronizzazione dei tuoi dati...",
-    "syncingDataDescription": "Questo potrebbe richiedere alcuni secondi"
+    "transferringData": "Trasferimento dei tuoi dati",
+    "transferringDataDescription": "Crittografia di una copia dei tuoi dati per il nuovo dispositivo. Potrebbe richiedere un minuto.",
+    "securingConnection": "Protezione della connessione",
+    "securingConnectionDescription": "Scambio delle chiavi di crittografia con l'altro dispositivo."
   },
   "displayCode": {
-    "expired": "Scaduto"
+    "generating": "Generazione del codice",
+    "copyCode": "Copia codice",
+    "copied": "Copiato",
+    "expiresIn": "Scade tra {{time}}",
+    "expiredTitle": "Questo codice è scaduto",
+    "expiredDescription": "I codici valgono solo pochi minuti per mantenere sicuro l'abbinamento. Richiedine uno nuovo per continuare.",
+    "newCode": "Ottieni un nuovo codice"
   },
   "enterCode": {
     "openingCamera": "Apertura della fotocamera...",
     "scanQrCode": "Scansiona codice QR",
-    "quickAndEasy": "Rapido e semplice",
     "or": "Oppure",
-    "codePlaceholder": "ABC 123",
     "paste": "Incolla",
     "connecting": "Connessione in corso...",
     "connect": "Collega",
     "scanInstructions": "Allinea il codice QR all’interno della cornice.",
     "cameraOpenError": "Impossibile aprire la fotocamera. Riprova.",
     "cameraCloseError": "Impossibile chiudere la fotocamera. Riprova.",
-    "cameraUnavailable": "Nessuna fotocamera disponibile. Usa un dispositivo fisico per scansionare o inserisci il codice di abbinamento qui sotto."
+    "cameraUnavailable": "Nessuna fotocamera disponibile. Usa un dispositivo fisico per scansionare o inserisci il codice di abbinamento qui sotto.",
+    "scanHint": "Inquadra con la fotocamera il codice sull'altro dispositivo.",
+    "codeLabel": "Codice di abbinamento"
   },
   "sas": {
-    "sameCodeQuestion": "Stesso codice su entrambi i dispositivi?"
+    "description": "Assicurati che l'altro dispositivo mostri lo stesso codice. Così nessun altro può connettersi.",
+    "codesMatch": "I codici corrispondono",
+    "codesDontMatch": "Non corrispondono",
+    "waitingDescription": "Verifica che l'altro dispositivo mostri questo codice, poi conferma lì.",
+    "mismatchTitle": "Abbinamento interrotto",
+    "mismatchDescription": "I codici non corrispondevano, quindi non è stato condiviso nulla. Riprova con un nuovo codice."
   },
   "waiting": {
-    "waitingForConfirmation": "In attesa di conferma...",
-    "confirmCodeMatches": "Conferma che questo codice corrisponde sul tuo altro dispositivo",
-    "securelyConnecting": "Attendi mentre colleghiamo il tuo dispositivo in modo sicuro"
+    "waitingForConfirmation": "In attesa di conferma..."
   },
   "result": {
     "allSet": "Tutto pronto!",
     "connectedSuccessfully": "Dispositivo connesso correttamente",
     "done": "Fatto",
     "connectionFailed": "Connessione non riuscita",
-    "tryAgain": "Riprova"
+    "tryAgain": "Riprova",
+    "devicesConnected": "Dispositivi collegati",
+    "finishOnOtherDevice": "Completa la configurazione sull'altro dispositivo. Mostrerà Pronto quando i tuoi dati saranno disponibili."
   },
-  "errors": {}
+  "restore": {
+    "dialogTitle": "Completa la configurazione di questo dispositivo",
+    "transferring": {
+      "title": "Trasferimento dei tuoi dati",
+      "description": "Download e verifica della copia crittografata dall'altro dispositivo."
+    },
+    "waiting": {
+      "title": "In attesa dell'altro dispositivo",
+      "description": "L'altro dispositivo sta ancora caricando i suoi dati. La configurazione prosegue automaticamente."
+    },
+    "consent": {
+      "title": "Sostituire i dati di questo profilo?",
+      "titleNamed": "Sostituire i dati di «{{profile}}»?",
+      "description": "I dati dell'altro dispositivo sostituiranno quelli di questo dispositivo.",
+      "descriptionDated": "I dati dell'altro dispositivo (copiati il {{date}}) sostituiranno quelli di questo dispositivo.",
+      "replace": "Sostituisci dati",
+      "backupLabel": "Esegui prima il backup di questo profilo",
+      "backupAndReplace": "Esegui backup e sostituisci"
+    },
+    "backingUp": {
+      "title": "Backup di questo profilo in corso",
+      "description": "Salvataggio di una copia di questo profilo prima di sostituire qualcosa."
+    },
+    "replacing": {
+      "title": "Sostituzione dei dati su questo dispositivo",
+      "description": "Inserimento dei dati dell'altro dispositivo."
+    },
+    "ready": {
+      "title": "Pronto",
+      "description": "Questo dispositivo è configurato e sincronizzato."
+    },
+    "cancelled": {
+      "title": "Configurazione annullata",
+      "description": "Non è stato sostituito nulla. Puoi completare la configurazione in qualsiasi momento."
+    },
+    "cancelSetup": "Annulla configurazione",
+    "hide": "Nascondi",
+    "continueInBackground": "Continua in background",
+    "tryAgain": "Riprova",
+    "startAgain": "Ricomincia",
+    "finishSetup": "Completa configurazione",
+    "retryHint": {
+      "transfer": "Non è stato sostituito nulla. Puoi riprovare il trasferimento.",
+      "consent": "Non è stato sostituito nulla. Riprovando ti verrà chiesta di nuovo l'approvazione.",
+      "new_attempt": "Non è stato sostituito nulla. Ricomincia per usare la copia più recente dell'altro dispositivo."
+    },
+    "errors": {
+      "SUBSCRIPTION_REQUIRED": "La sincronizzazione dei dispositivi richiede un abbonamento attivo",
+      "DEVICE_NOT_READY": "Questo dispositivo non è ancora pronto per la sincronizzazione",
+      "SNAPSHOT_WAIT_TIMED_OUT": "L'altro dispositivo non ha completato il caricamento",
+      "SNAPSHOT_UNAVAILABLE": "La copia dell'altro dispositivo non è più disponibile",
+      "SNAPSHOT_SCHEMA_NEWER": "Aggiorna l'app per completare la configurazione",
+      "SNAPSHOT_INVALID": "Impossibile verificare i dati trasferiti",
+      "TRANSFER_FAILED": "Il trasferimento non è stato completato",
+      "BACKUP_FAILED": "Il backup non è stato completato",
+      "RESTORE_FAILED": "Impossibile sostituire i dati"
+    },
+    "banner": {
+      "title": "La configurazione di questo dispositivo non è completa",
+      "running": "La configurazione prosegue in background.",
+      "needsApproval": "È necessaria la tua approvazione per sostituire i dati di questo profilo.",
+      "failed": "La configurazione si è interrotta prima del termine.",
+      "cancelled": "La configurazione è stata annullata. Completala quando vuoi.",
+      "show": "Mostra avanzamento"
+    }
+  },
+  "errors": {},
+  "wizard": {
+    "progressLabel": "Avanzamento della configurazione",
+    "steps": {
+      "connect": "Collegamento",
+      "transfer": "Trasferimento",
+      "download": "Download",
+      "apply": "Applicazione",
+      "done": "Fatto"
+    },
+    "encryptedNote": "Crittografia end-to-end. Solo i tuoi dispositivi possono leggere i tuoi dati.",
+    "backgroundNote": "Puoi chiudere questa finestra. La configurazione continua in background.",
+    "details": {
+      "encrypt": "Crittografia dei dati",
+      "upload": "Caricamento della copia crittografata",
+      "sendKeys": "Invio delle chiavi al nuovo dispositivo",
+      "waitForUpload": "L'altro dispositivo carica i suoi dati",
+      "downloadAndVerify": "Download e verifica della copia crittografata",
+      "replace": "Sostituzione dei dati su questo dispositivo",
+      "backup": "Backup di questo profilo"
+    }
+  }
 }

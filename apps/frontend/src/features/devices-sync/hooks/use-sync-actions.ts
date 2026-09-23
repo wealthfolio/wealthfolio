@@ -62,12 +62,6 @@ export function useSyncActions() {
     onSuccess: invalidateSync,
   });
 
-  const bootstrapSync = useMutation({
-    mutationFn: (args: { allowOverwrite: boolean }) =>
-      syncService.bootstrapWithOverwriteCheck(args.allowOverwrite),
-    onSuccess: invalidateSync,
-  });
-
   return {
     enableSync,
     resetSync,
@@ -78,6 +72,5 @@ export function useSyncActions() {
     stopBgSync,
     generateSnapshot,
     triggerSyncCycle,
-    bootstrapSync,
   };
 }

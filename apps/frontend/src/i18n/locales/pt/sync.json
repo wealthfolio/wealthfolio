@@ -101,16 +101,7 @@
     "speedUpSetup": "Acelerar a configuração"
   },
   "bootstrap": {
-    "inProgress": "Inicialização da sincronização em andamento...",
-    "hasDataTitle": "Este dispositivo já tem dados",
-    "hasDataDescription": "Para concluir a sincronização, os dados deste dispositivo serão substituídos pelos dados do seu outro dispositivo.",
-    "continue": "Continuar",
-    "waitingOtherDeviceTitle": "Aguardando seu outro dispositivo",
-    "waitingOtherDeviceDescription": "Concluiremos a sincronização assim que um instantâneo recente estiver disponível.",
-    "retryStartedTitle": "Nova tentativa de sincronização iniciada",
-    "retryStartedDescription": "Verificando se há um instantâneo atualizado e aplicando as alterações de sincronização pendentes.",
-    "couldNotRetryTitle": "Não foi possível fazer nova tentativa de sincronização",
-    "unableToContinueTitle": "Não é possível continuar a sincronização"
+    "couldNotRetryTitle": "Não foi possível fazer nova tentativa de sincronização"
   },
   "snapshot": {
     "uploadedTitle": "Instantâneo enviado",
@@ -119,23 +110,6 @@
     "cancelledTitle": "Envio de instantâneo cancelado",
     "resultTitle": "Resultado do envio do instantâneo",
     "failedTitle": "Erro ao enviar o instantâneo"
-  },
-  "backup": {
-    "savedTitle": "Backup salvo",
-    "savedDescription": "Um backup foi salvo como {{location}}.",
-    "failedTitle": "Erro no backup",
-    "backingUp": "Fazendo backup...",
-    "backUpFirst": "Fazer backup primeiro"
-  },
-  "overwrite": {
-    "replaceDataTitle": "Substituir os dados deste dispositivo?",
-    "replaceDataDescription": "Seus dados locais serão substituídos pelos dados do seu outro dispositivo conectado.",
-    "localRowsReplaced_one": "{{count}} linha local será substituída.",
-    "localRowsReplaced_other": "{{count}} linhas locais serão substituídas.",
-    "localRowsReplaced_many": "{{count}} linhas locais serão substituídas.",
-    "notNow": "Agora não",
-    "syncing": "Sincronizando...",
-    "replaceAndSync": "Substituir e sincronizar"
   },
   "reinit": {
     "title": "Configurar a sincronização novamente a partir deste dispositivo?",
@@ -177,49 +151,141 @@
     "gettingReadyTitle": "Preparando este dispositivo...",
     "gettingReadyDescription": "Isso levará apenas um momento.",
     "prepareFailed": "Não conseguimos terminar de preparar este dispositivo.",
-    "tryAgain": "Tentar novamente",
-    "starting": "Iniciando...",
-    "generatingCode": "Gerando código...",
-    "computingSecurityCode": "Calculando o código de segurança...",
-    "finishingSetup": "Concluindo a configuração...",
-    "finishingSetupDescription": "Preparando seus dados para o novo dispositivo",
-    "sessionExpired": "Sessão expirada",
-    "connecting": "Conectando...",
     "verifySecurityCode": "Verificar código de segurança",
-    "syncingData": "Sincronizando seus dados...",
-    "syncingDataDescription": "Isso pode levar alguns segundos"
+    "transferringData": "Transferindo seus dados",
+    "transferringDataDescription": "Criptografando uma cópia dos seus dados para o novo dispositivo. Isso pode levar um minuto.",
+    "securingConnection": "Protegendo a conexão",
+    "securingConnectionDescription": "Trocando chaves de criptografia com o seu outro dispositivo."
   },
   "displayCode": {
-    "expired": "Expirado"
+    "generating": "Gerando código",
+    "copyCode": "Copiar código",
+    "copied": "Copiado",
+    "expiresIn": "Expira em {{time}}",
+    "expiredTitle": "Este código expirou",
+    "expiredDescription": "Os códigos valem só alguns minutos para manter o pareamento seguro. Gere um novo para continuar.",
+    "newCode": "Gerar novo código"
   },
   "enterCode": {
     "openingCamera": "Abrindo a câmera...",
     "scanQrCode": "Escanear código QR",
-    "quickAndEasy": "Rápido e fácil",
     "or": "Ou",
-    "codePlaceholder": "ABC 123",
     "paste": "Colar",
     "connecting": "Conectando...",
     "connect": "Conectar",
     "scanInstructions": "Alinhe o código QR dentro da moldura.",
     "cameraOpenError": "Não foi possível abrir a câmera. Tente novamente.",
     "cameraCloseError": "Não foi possível fechar a câmera. Tente novamente.",
-    "cameraUnavailable": "Nenhuma câmera disponível. Use um dispositivo físico para escanear ou insira o código de emparelhamento abaixo."
+    "cameraUnavailable": "Nenhuma câmera disponível. Use um dispositivo físico para escanear ou insira o código de emparelhamento abaixo.",
+    "scanHint": "Aponte a câmera para o código no seu outro dispositivo.",
+    "codeLabel": "Código de pareamento"
   },
   "sas": {
-    "sameCodeQuestion": "O mesmo código nos dois dispositivos?"
+    "description": "Confira se o seu outro dispositivo mostra o mesmo código. Assim ninguém mais consegue se conectar.",
+    "codesMatch": "Os códigos coincidem",
+    "codesDontMatch": "Não coincidem",
+    "waitingDescription": "Confira se o seu outro dispositivo mostra este código e confirme por lá.",
+    "mismatchTitle": "Pareamento interrompido",
+    "mismatchDescription": "Os códigos não coincidiam, então nada foi compartilhado. Tente novamente com um novo código."
   },
   "waiting": {
-    "waitingForConfirmation": "Aguardando confirmação...",
-    "confirmCodeMatches": "Confirme que este código coincide no seu outro dispositivo",
-    "securelyConnecting": "Aguarde enquanto conectamos seu dispositivo com segurança"
+    "waitingForConfirmation": "Aguardando confirmação..."
   },
   "result": {
     "allSet": "Tudo pronto!",
     "connectedSuccessfully": "Dispositivo conectado com sucesso",
     "done": "Concluído",
     "connectionFailed": "Erro de conexão",
-    "tryAgain": "Tentar novamente"
+    "tryAgain": "Tentar novamente",
+    "devicesConnected": "Dispositivos conectados",
+    "finishOnOtherDevice": "Conclua a configuração no seu outro dispositivo. Ele mostrará Pronto quando seus dados estiverem disponíveis."
   },
-  "errors": {}
+  "restore": {
+    "dialogTitle": "Concluir a configuração deste dispositivo",
+    "transferring": {
+      "title": "Transferindo seus dados",
+      "description": "Baixando e verificando a cópia criptografada do seu outro dispositivo."
+    },
+    "waiting": {
+      "title": "Aguardando seu outro dispositivo",
+      "description": "Seu outro dispositivo ainda está enviando os dados. A configuração continua automaticamente."
+    },
+    "consent": {
+      "title": "Substituir os dados deste perfil?",
+      "titleNamed": "Substituir os dados de \"{{profile}}\"?",
+      "description": "Os dados do seu outro dispositivo substituirão os deste dispositivo.",
+      "descriptionDated": "Os dados do seu outro dispositivo (copiados em {{date}}) substituirão os deste dispositivo.",
+      "replace": "Substituir dados",
+      "backupLabel": "Fazer backup deste perfil primeiro",
+      "backupAndReplace": "Fazer backup e substituir"
+    },
+    "backingUp": {
+      "title": "Fazendo backup deste perfil",
+      "description": "Salvando uma cópia deste perfil antes de substituir qualquer coisa."
+    },
+    "replacing": {
+      "title": "Substituindo os dados neste dispositivo",
+      "description": "Colocando os dados do seu outro dispositivo."
+    },
+    "ready": {
+      "title": "Pronto",
+      "description": "Este dispositivo está configurado e sincronizado."
+    },
+    "cancelled": {
+      "title": "A configuração foi cancelada",
+      "description": "Nada foi substituído. Você pode concluir a configuração a qualquer momento."
+    },
+    "cancelSetup": "Cancelar configuração",
+    "hide": "Ocultar",
+    "continueInBackground": "Continuar em segundo plano",
+    "tryAgain": "Tentar novamente",
+    "startAgain": "Recomeçar",
+    "finishSetup": "Concluir configuração",
+    "retryHint": {
+      "transfer": "Nada foi substituído. Você pode tentar a transferência novamente.",
+      "consent": "Nada foi substituído. Ao tentar novamente, sua aprovação será solicitada outra vez.",
+      "new_attempt": "Nada foi substituído. Recomece para usar a cópia mais recente do seu outro dispositivo."
+    },
+    "errors": {
+      "SUBSCRIPTION_REQUIRED": "A sincronização de dispositivos requer uma assinatura ativa",
+      "DEVICE_NOT_READY": "Este dispositivo ainda não está pronto para sincronizar",
+      "SNAPSHOT_WAIT_TIMED_OUT": "Seu outro dispositivo não terminou o envio",
+      "SNAPSHOT_UNAVAILABLE": "A cópia do seu outro dispositivo não está mais disponível",
+      "SNAPSHOT_SCHEMA_NEWER": "Atualize o app para concluir a configuração",
+      "SNAPSHOT_INVALID": "Não foi possível verificar os dados transferidos",
+      "TRANSFER_FAILED": "A transferência não foi concluída",
+      "BACKUP_FAILED": "O backup não foi concluído",
+      "RESTORE_FAILED": "Não foi possível substituir os dados"
+    },
+    "banner": {
+      "title": "A configuração deste dispositivo não foi concluída",
+      "running": "A configuração continua em segundo plano.",
+      "needsApproval": "Sua aprovação é necessária para substituir os dados deste perfil.",
+      "failed": "A configuração parou antes de terminar.",
+      "cancelled": "A configuração foi cancelada. Conclua quando quiser.",
+      "show": "Mostrar progresso"
+    }
+  },
+  "errors": {},
+  "wizard": {
+    "progressLabel": "Progresso da configuração",
+    "steps": {
+      "connect": "Conectar",
+      "transfer": "Transferir",
+      "download": "Download",
+      "apply": "Aplicar",
+      "done": "Concluído"
+    },
+    "encryptedNote": "Criptografia de ponta a ponta. Só seus dispositivos podem ler seus dados.",
+    "backgroundNote": "Você pode fechar esta janela. A configuração continua em segundo plano.",
+    "details": {
+      "encrypt": "Criptografar seus dados",
+      "upload": "Enviar a cópia criptografada",
+      "sendKeys": "Enviar as chaves para o novo dispositivo",
+      "waitForUpload": "Seu outro dispositivo envia os dados",
+      "downloadAndVerify": "Baixar e verificar a cópia criptografada",
+      "replace": "Substituir os dados deste dispositivo",
+      "backup": "Fazer backup deste perfil"
+    }
+  }
 }

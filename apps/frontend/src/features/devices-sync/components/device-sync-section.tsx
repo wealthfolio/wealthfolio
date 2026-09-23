@@ -3,7 +3,6 @@
 // State Machine: FRESH → REGISTERED → READY (+ STALE, RECOVERY)
 // ==================================================================
 
-import { backupDatabase } from "@/adapters";
 import { PortalLink } from "@/features/wealthfolio-connect/components/portal-link";
 import { useQueryClient } from "@tanstack/react-query";
 import { Icons, isKeyboardEventComposing, Skeleton } from "@wealthfolio/ui";
@@ -27,12 +26,6 @@ import {
   CardTitle,
 } from "@wealthfolio/ui/components/ui/card";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@wealthfolio/ui/components/ui/dialog";
-import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -46,7 +39,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@wealthfolio/ui/components/ui/tooltip";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { toast } from "sonner";
@@ -54,20 +47,45 @@ import {
   useDevices,
   useRenameDevice,
   useRevokeDevice,
+  useRestoreOperation,
   useSyncActions,
   useSyncStatus,
-  type PairingBootstrapState,
+  type RestoreOperation,
 } from "../hooks";
+import {
+  isRestoreFinished,
+  restoreVisibilityOf,
+  useRestoreVisibility,
+} from "../hooks/use-restore-operation";
 import { syncService } from "../services/sync-service";
 import { SyncStates, type Device } from "../types";
 import { logSyncError, userFacingSyncErrorMessage } from "../utils/error-messages";
 import { E2EESetupCard } from "./e2ee-setup-card";
-import { PairingFlow, WaitingState } from "./pairing-flow";
+import { AddDeviceWizard, JoinDeviceWizard, PairingResult, WaitingState } from "./pairing-flow";
 import { RecoveryDialog } from "./recovery-dialog";
+import { RestoreOperationView } from "./restore-operation-view";
+import { restoreWizardProgress, type DeviceSetupMode } from "./device-setup-steps";
+import { DeviceSetupDialog, WizardLayout } from "./device-setup-wizard";
 
 const PORTAL_DEVICES_URL = "https://connect.wealthfolio.app/settings/devices";
 
-type BootstrapOwner = "none" | "pairing" | "pairing_failed" | "ready_state";
+function engineNeedsBootstrap(engineStatus: ReturnType<typeof useSyncStatus>["engineStatus"]) {
+  return (
+    engineStatus?.lastCycleStatus === "wait_snapshot" ||
+    engineStatus?.lastCycleStatus === "stale_cursor" ||
+    engineStatus?.bootstrapRequired === true
+  );
+}
+
+/** Whether the recovery dialog should show this operation right now. */
+function wantsRestoreDialog(operation: RestoreOperation): boolean {
+  const wanted = restoreVisibilityOf(operation.operationId);
+  if (wanted === false || operation.phase === "cancelled") return false;
+  // It opens by itself only when it needs the user's approval; otherwise only
+  // for attempts the user started, asked to see or approved. The banner covers
+  // the rest.
+  return operation.phase === "awaiting_consent" || wanted === true;
+}
 
 const platformIcons: Record<string, typeof Icons.Monitor> = {
   macos: Icons.Monitor,
@@ -90,143 +108,49 @@ export function DeviceSyncSection() {
     (d) => d.trustState !== "revoked" && !d.isCurrent,
   ).length;
 
-  const [isPairingOpen, setIsPairingOpen] = useState(false);
+  // Chosen when pairing opens and kept for the whole flow, even if the device's
+  // trust changes underneath it (keys arrive while joining).
+  const [pairingMode, setPairingMode] = useState<"add" | "join" | null>(null);
+  const isPairingOpen = pairingMode !== null;
   const [isPreparing, setIsPreparing] = useState(false);
   const [prepareError, setPrepareError] = useState<string | null>(null);
   const [showReinitConfirmDialog, setShowReinitConfirmDialog] = useState(false);
   const [showRecoveryDialog, setShowRecoveryDialog] = useState(false);
-  const [showBootstrapOverwriteDialog, setShowBootstrapOverwriteDialog] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [isBackingUpBeforeBootstrap, setIsBackingUpBeforeBootstrap] = useState(false);
   const [isUploadingSnapshot, setIsUploadingSnapshot] = useState(false);
-  const [bootstrapOwner, setBootstrapOwner] = useState<BootstrapOwner>("none");
-  const [suppressReadyStateBootstrapPrompt, setSuppressReadyStateBootstrapPrompt] = useState(false);
 
-  // Bootstrap overwrite state — set when bootstrapSync returns overwrite_required
-  const [overwriteRisk, setOverwriteRisk] = useState<{
-    localRows: number;
-    nonEmptyTables: { table: string; rows: number }[];
-  } | null>(null);
+  // The runtime owns restoration; this section only displays it outside pairing.
+  const restore = useRestoreOperation({ enabled: status.syncState === SyncStates.READY });
+  const restoreOperation = restore.operation;
+  const restoreVisibility = useRestoreVisibility();
 
   const isBackgroundRunning = status.engineStatus?.backgroundRunning ?? false;
   const isCurrentDeviceTrusted = status.device?.trustState === "trusted";
-  const bootstrapOwnerRef = useRef<BootstrapOwner>(bootstrapOwner);
-  const isPairingOpenRef = useRef(isPairingOpen);
-  const isCurrentDeviceTrustedRef = useRef(isCurrentDeviceTrusted);
-  const suppressReadyStateBootstrapPromptRef = useRef(suppressReadyStateBootstrapPrompt);
 
-  useEffect(() => {
-    bootstrapOwnerRef.current = bootstrapOwner;
-  }, [bootstrapOwner]);
-
-  useEffect(() => {
-    isPairingOpenRef.current = isPairingOpen;
-  }, [isPairingOpen]);
-
-  useEffect(() => {
-    isCurrentDeviceTrustedRef.current = isCurrentDeviceTrusted;
-  }, [isCurrentDeviceTrusted]);
-
-  useEffect(() => {
-    suppressReadyStateBootstrapPromptRef.current = suppressReadyStateBootstrapPrompt;
-  }, [suppressReadyStateBootstrapPrompt]);
-
-  const releasePairingBootstrapOwner = useCallback(() => {
-    if (bootstrapOwnerRef.current === "pairing" || bootstrapOwnerRef.current === "pairing_failed") {
-      bootstrapOwnerRef.current = "none";
-    }
-    setBootstrapOwner((owner) =>
-      owner === "pairing" || owner === "pairing_failed" ? "none" : owner,
-    );
-  }, []);
-
-  const canRunReadyStateBootstrap = useCallback((ignorePromptSuppression = false) => {
-    return (
-      bootstrapOwnerRef.current === "none" &&
-      !isPairingOpenRef.current &&
-      isCurrentDeviceTrustedRef.current &&
-      (ignorePromptSuppression || !suppressReadyStateBootstrapPromptRef.current)
-    );
-  }, []);
-
-  const closeReadyStateBootstrapPrompt = useCallback(() => {
-    setShowBootstrapOverwriteDialog(false);
-    setOverwriteRisk(null);
-    setBootstrapOwner((owner) => (owner === "ready_state" ? "none" : owner));
-  }, []);
-
+  const pairingModeForDevice: "add" | "join" =
+    isCurrentDeviceTrusted && status.syncState === SyncStates.READY ? "add" : "join";
   const openPairingDialog = useCallback(() => {
-    isPairingOpenRef.current = true;
-    closeReadyStateBootstrapPrompt();
-    setIsPairingOpen(true);
-  }, [closeReadyStateBootstrapPrompt]);
-
-  const handlePairingDialogOpenChange = useCallback(
-    (open: boolean) => {
-      if (open) {
-        openPairingDialog();
-        return;
-      }
-      isPairingOpenRef.current = false;
-      setIsPairingOpen(false);
-    },
-    [openPairingDialog],
-  );
-
-  const handleReadyPairingDialogOpenChange = useCallback(
-    (open: boolean) => {
-      if (open) {
-        openPairingDialog();
-        return;
-      }
-      isPairingOpenRef.current = false;
-      setIsPairingOpen(false);
-      setIsPreparing(false);
-      setPrepareError(null);
-    },
-    [openPairingDialog],
-  );
+    setPairingMode(pairingModeForDevice);
+  }, [pairingModeForDevice]);
 
   const handlePairingComplete = useCallback(() => {
-    setSuppressReadyStateBootstrapPrompt(true);
-    setShowBootstrapOverwriteDialog(false);
-    setOverwriteRisk(null);
-    releasePairingBootstrapOwner();
-    isPairingOpenRef.current = false;
-    setIsPairingOpen(false);
+    // The pairing window already showed this restore finishing; the recovery
+    // dialog must not open with the same result as the window closes.
+    if (restoreOperation) restoreVisibility.hide(restoreOperation.operationId);
+    setPairingMode(null);
     setIsPreparing(false);
     setPrepareError(null);
     queryClient.invalidateQueries({ queryKey: ["sync", "device", "current"] });
     status.refetch();
-  }, [queryClient, releasePairingBootstrapOwner, status.refetch]);
+  }, [queryClient, status.refetch, restoreOperation, restoreVisibility]);
 
   const handlePairingCancel = useCallback(() => {
-    releasePairingBootstrapOwner();
-    isPairingOpenRef.current = false;
-    setIsPairingOpen(false);
+    // Leaving the pairing window keeps a running restore in the background.
+    if (restoreOperation) restoreVisibility.hide(restoreOperation.operationId);
+    setPairingMode(null);
     setIsPreparing(false);
     setPrepareError(null);
-  }, [releasePairingBootstrapOwner]);
-
-  const handlePairingBootstrapStateChange = useCallback(
-    (state: PairingBootstrapState) => {
-      if (state === "active" || state === "failed") {
-        setShowBootstrapOverwriteDialog(false);
-        setOverwriteRisk(null);
-      }
-      if (state === "idle") {
-        releasePairingBootstrapOwner();
-        return;
-      }
-      bootstrapOwnerRef.current = state === "active" ? "pairing" : "pairing_failed";
-      setBootstrapOwner((owner) => {
-        if (state === "active") return "pairing";
-        if (state === "failed") return "pairing_failed";
-        return owner === "pairing" ? "none" : owner;
-      });
-    },
-    [releasePairingBootstrapOwner],
-  );
+  }, [restoreOperation, restoreVisibility]);
 
   const handleRefresh = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ["sync", "device", "current"] });
@@ -256,129 +180,24 @@ export function DeviceSyncSection() {
     }
   }, [actions, isBackgroundRunning, t]);
 
-  const handleBackupBeforeBootstrap = useCallback(async (): Promise<boolean> => {
-    setIsBackingUpBeforeBootstrap(true);
-    try {
-      const { filename: backupLocation } = await backupDatabase();
-
-      toast.success(t("sync:backup.savedTitle"), {
-        description: t("sync:backup.savedDescription", { location: backupLocation }),
-      });
-      return true;
-    } catch (err) {
-      logSyncError("Backup before bootstrap failed", err);
-      toast.error(t("sync:backup.failedTitle"), {
-        description: userFacingSyncErrorMessage(err),
-      });
-      return false;
-    } finally {
-      setIsBackingUpBeforeBootstrap(false);
-    }
-  }, [t]);
-
-  const handleApplyBootstrapOverwrite = useCallback(async () => {
-    setBootstrapOwner("ready_state");
-    try {
-      const result = await actions.bootstrapSync.mutateAsync({ allowOverwrite: true });
-      if (result.status === "error") {
-        throw new Error(result.message);
-      }
-      if (result.status === "not_ready") {
-        throw new Error(result.message);
-      }
-      setOverwriteRisk(null);
-      setShowBootstrapOverwriteDialog(false);
-      setBootstrapOwner((owner) => (owner === "ready_state" ? "none" : owner));
-    } catch (err) {
-      logSyncError("Bootstrap overwrite failed", err);
-      toast.error(t("sync:bootstrap.unableToContinueTitle"), {
-        description: userFacingSyncErrorMessage(err),
-      });
-    }
-  }, [actions, t]);
-
-  const handleBackupThenApplyOverwrite = useCallback(async () => {
-    const saved = await handleBackupBeforeBootstrap();
-    if (!saved) {
-      return;
-    }
-    await handleApplyBootstrapOverwrite();
-  }, [handleApplyBootstrapOverwrite, handleBackupBeforeBootstrap]);
-
-  const handleBootstrapOverwriteDialogOpenChange = useCallback(
-    (open: boolean) => {
-      if (open && !canRunReadyStateBootstrap()) return;
-      setShowBootstrapOverwriteDialog(open);
-      setBootstrapOwner((owner) => {
-        if (open) return owner === "none" ? "ready_state" : owner;
-        return owner === "ready_state" ? "none" : owner;
-      });
-    },
-    [canRunReadyStateBootstrap],
-  );
-
-  const runBootstrapCheck = useCallback(
-    async (showToast: boolean, autoOpenDialog = false, ignorePromptSuppression = false) => {
-      if (!canRunReadyStateBootstrap(ignorePromptSuppression)) return;
-
-      try {
-        const result = await actions.bootstrapSync.mutateAsync({ allowOverwrite: false });
-        if (!canRunReadyStateBootstrap(ignorePromptSuppression)) return;
-        if (result.status === "overwrite_required") {
-          if (ignorePromptSuppression) {
-            setSuppressReadyStateBootstrapPrompt(false);
-          }
-          setOverwriteRisk({
-            localRows: result.localRows,
-            nonEmptyTables: result.nonEmptyTables,
-          });
-          if (autoOpenDialog) {
-            setBootstrapOwner("ready_state");
-            setShowBootstrapOverwriteDialog(true);
-          }
-          return;
-        }
-
-        if (result.status === "error") {
-          throw new Error(result.message);
-        }
-        if (result.status === "not_ready") {
-          throw new Error(result.message);
-        }
-
-        setOverwriteRisk(null);
-        setBootstrapOwner((owner) => (owner === "ready_state" ? "none" : owner));
-        if (showToast) {
-          if (result.status === "waiting_snapshot") {
-            toast.message(t("sync:bootstrap.waitingOtherDeviceTitle"), {
-              description: t("sync:bootstrap.waitingOtherDeviceDescription"),
-            });
-          } else {
-            toast.success(t("sync:bootstrap.retryStartedTitle"), {
-              description: t("sync:bootstrap.retryStartedDescription"),
+  const startRestore = restore.start.mutateAsync;
+  const startRecovery = useCallback(
+    (newAttempt: boolean) => {
+      startRestore({ newAttempt })
+        .then((operation) => {
+          if (operation && newAttempt) restoreVisibility.show(operation.operationId);
+        })
+        .catch((err) => {
+          logSyncError("Restore check failed", err);
+          if (newAttempt) {
+            toast.error(t("sync:bootstrap.couldNotRetryTitle"), {
+              description: userFacingSyncErrorMessage(err),
             });
           }
-        }
-      } catch (err) {
-        logSyncError("Bootstrap retry failed", err);
-        if (showToast) {
-          toast.error(t("sync:bootstrap.couldNotRetryTitle"), {
-            description: userFacingSyncErrorMessage(err),
-          });
-        }
-      }
+        });
     },
-    [actions, canRunReadyStateBootstrap, t],
+    [startRestore, restoreVisibility, t],
   );
-
-  const handleRetryBootstrap = useCallback(async () => {
-    setSuppressReadyStateBootstrapPrompt(false);
-    if (bootstrapOwnerRef.current === "pairing_failed") {
-      bootstrapOwnerRef.current = "none";
-    }
-    setBootstrapOwner((owner) => (owner === "pairing_failed" ? "none" : owner));
-    await runBootstrapCheck(true, true, true);
-  }, [runBootstrapCheck]);
 
   const handleUploadSnapshotNow = useCallback(async () => {
     setIsUploadingSnapshot(true);
@@ -416,7 +235,6 @@ export function DeviceSyncSection() {
   }, [actions, t]);
 
   const runReinitAndOpenPairing = useCallback(async () => {
-    setBootstrapOwner((owner) => (owner === "pairing_failed" ? "none" : owner));
     setIsPreparing(true);
     setPrepareError(null);
     openPairingDialog();
@@ -430,14 +248,12 @@ export function DeviceSyncSection() {
   }, [actions.reinitializeSync, openPairingDialog]);
 
   const openClaimerPairingFlow = useCallback(() => {
-    setBootstrapOwner((owner) => (owner === "pairing_failed" ? "none" : owner));
     setPrepareError(null);
     setIsPreparing(false);
     openPairingDialog();
   }, [openPairingDialog]);
 
   const beginPairingFlow = useCallback(async () => {
-    setBootstrapOwner((owner) => (owner === "pairing_failed" ? "none" : owner));
     setPrepareError(null);
     setIsPreparing(true);
 
@@ -478,575 +294,504 @@ export function DeviceSyncSection() {
     setShowRecoveryDialog(status.syncState === SyncStates.RECOVERY);
   }, [status.syncState]);
 
+  // Recurring check. The runtime reports the operation that already owns
+  // restoration (active, failed or cancelled) instead of starting another.
+  const needsBootstrap = engineNeedsBootstrap(status.engineStatus);
+  const restoreStartPending = restore.start.isPending;
+  const hasUnfinishedRestore = !!restoreOperation && restoreOperation.phase !== "ready";
+  // A Ready restore still answers the check until the committed state requires
+  // another; asking again would only get it back, every couple of seconds.
+  const restoreSettled =
+    restoreOperation?.phase === "ready" && !status.engineStatus?.bootstrapRequired;
   useEffect(() => {
-    if (status.syncState !== SyncStates.READY) return;
-    if (!isCurrentDeviceTrusted) return;
-    if (bootstrapOwner !== "none") return;
-    if (actions.bootstrapSync.isPending) return;
-    if (overwriteRisk) return;
-    if (isPairingOpen) return;
-    if (status.engineIsFetching) return;
+    if (status.syncState !== SyncStates.READY || !isCurrentDeviceTrusted) return;
+    if (isPairingOpen || status.engineIsFetching || !needsBootstrap) return;
+    if (hasUnfinishedRestore || restoreSettled || restoreStartPending) return;
 
-    const engineNeedsBootstrap =
-      status.engineStatus?.lastCycleStatus === "wait_snapshot" ||
-      status.engineStatus?.lastCycleStatus === "stale_cursor" ||
-      status.engineStatus?.bootstrapRequired === true;
-
-    if (!engineNeedsBootstrap) return;
-
-    const timer = window.setTimeout(() => {
-      void runBootstrapCheck(false, true);
-    }, 2000);
-
+    const timer = window.setTimeout(() => startRecovery(false), 2000);
     return () => {
       window.clearTimeout(timer);
     };
   }, [
     status.syncState,
-    status.engineStatus?.lastCycleStatus,
-    status.engineStatus?.bootstrapRequired,
     status.engineIsFetching,
     isCurrentDeviceTrusted,
-    bootstrapOwner,
-    actions.bootstrapSync.isPending,
-    overwriteRisk,
     isPairingOpen,
-    runBootstrapCheck,
+    needsBootstrap,
+    hasUnfinishedRestore,
+    restoreSettled,
+    restoreStartPending,
+    startRecovery,
   ]);
 
-  useEffect(() => {
-    if (!suppressReadyStateBootstrapPrompt) return;
-    if (status.engineIsFetching || !status.engineStatus) return;
+  const showRestoreDialog =
+    !!restoreOperation && !isPairingOpen && wantsRestoreDialog(restoreOperation);
+  // Outside the dialog, an unfinished attempt stays reachable without popping up again.
+  const showRestoreBanner =
+    !!restoreOperation &&
+    !isPairingOpen &&
+    !showRestoreDialog &&
+    restoreOperation.phase !== "ready";
 
-    const engineNeedsBootstrap =
-      status.engineStatus.lastCycleStatus === "wait_snapshot" ||
-      status.engineStatus.lastCycleStatus === "stale_cursor" ||
-      status.engineStatus.bootstrapRequired === true;
-
-    if (!engineNeedsBootstrap) {
-      setSuppressReadyStateBootstrapPrompt(false);
-    }
-  }, [
-    suppressReadyStateBootstrapPrompt,
-    status.engineIsFetching,
-    status.engineStatus?.lastCycleStatus,
-    status.engineStatus?.bootstrapRequired,
-    status.engineStatus,
-  ]);
-
-  // Loading state (detecting)
-  if (status.isLoading) {
-    return (
-      <Card>
-        <CardHeader>
-          <Skeleton className="h-5 w-32" />
-          <Skeleton className="mt-2 h-4 w-64" />
-        </CardHeader>
-        <CardContent>
-          <Skeleton className="h-20 w-full" />
-        </CardContent>
-      </Card>
-    );
-  }
-
-  // Error during state detection
-  if (status.error && status.syncState === SyncStates.FRESH) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base font-medium">{t("sync:section.deviceSync")}</CardTitle>
-          <CardDescription>{t("sync:errorState.failedToInitialize")}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-col items-center justify-center py-6 text-center">
-            <Icons.AlertCircle className="text-destructive mb-3 h-10 w-10 opacity-70" />
-            <p className="text-destructive text-sm font-medium">
-              {t("sync:errorState.initializationFailed")}
-            </p>
-            <p className="text-muted-foreground mt-1 max-w-sm text-xs">
-              {userFacingSyncErrorMessage(status.error)}
-            </p>
-            <Button variant="outline" className="mt-4" onClick={handleRefresh}>
-              <Icons.RefreshCw className="mr-2 h-4 w-4" />
-              {t("common:retry")}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  // FRESH state - Show enable sync card
-  if (status.syncState === SyncStates.FRESH) {
-    return <E2EESetupCard onPairingNeeded={openPairingDialog} />;
-  }
-
-  // ORPHANED state - Keys exist on server but no trusted devices to pair with
-  if (status.syncState === SyncStates.ORPHANED) {
-    return (
-      <Card>
-        <CardContent className="p-4">
-          {/* Header row - matches other cards pattern */}
-          <div className="flex items-center gap-2">
-            <div className="bg-muted flex h-8 w-8 shrink-0 items-center justify-center rounded-lg">
-              <Icons.Smartphone className="text-muted-foreground h-4 w-4" />
-            </div>
-            <h3 className="text-base font-semibold">{t("sync:section.deviceSync")}</h3>
-          </div>
-          <OrphanedKeysPrompt
-            onReinitialize={async () => {
-              await actions.reinitializeSync.mutateAsync();
-            }}
+  // The one setup dialog. An open pairing always owns it, so an automatic
+  // restore never stacks a second dialog or asks for approval twice.
+  const setupMode: DeviceSetupMode | null = pairingMode ?? (showRestoreDialog ? "recover" : null);
+  const canPair =
+    status.syncState === SyncStates.READY ||
+    status.syncState === SyncStates.REGISTERED ||
+    status.syncState === SyncStates.STALE;
+  const setupTitle =
+    setupMode === "recover"
+      ? t("sync:restore.dialogTitle")
+      : setupMode === "add"
+        ? t("sync:pairing.connectAnotherTitle")
+        : status.syncState === SyncStates.STALE
+          ? t("sync:stale.updateThisDevice")
+          : t("sync:pairing.connectThisDeviceTitle");
+  const hideRestore = () => {
+    if (restoreOperation) restoreVisibility.hide(restoreOperation.operationId);
+  };
+  const setupDialog = (
+    <DeviceSetupDialog
+      open={setupMode !== null}
+      onOpenChange={(open) => {
+        if (open) return;
+        if (isPairingOpen) handlePairingCancel();
+        else hideRestore();
+      }}
+      title={setupTitle}
+    >
+      {pairingMode && (isPreparing || !canPair) ? (
+        // Preparing this device is the start of the Connect step.
+        <WizardLayout mode={pairingMode} progress={{ step: "connect", failed: !!prepareError }}>
+          {prepareError ? (
+            <PairingResult
+              success={false}
+              title={t("sync:pairing.prepareFailed")}
+              error={prepareError}
+              onRetry={() => void beginPairingFlow()}
+              onDone={handlePairingCancel}
+            />
+          ) : (
+            <WaitingState
+              title={t("sync:pairing.gettingReadyTitle")}
+              description={t("sync:pairing.gettingReadyDescription")}
+              onCancel={handlePairingCancel}
+            />
+          )}
+        </WizardLayout>
+      ) : pairingMode === "add" ? (
+        <AddDeviceWizard onComplete={handlePairingComplete} onCancel={handlePairingCancel} />
+      ) : pairingMode === "join" ? (
+        <JoinDeviceWizard
+          onComplete={handlePairingComplete}
+          onCancel={handlePairingCancel}
+          title={status.syncState === SyncStates.STALE ? setupTitle : undefined}
+        />
+      ) : restoreOperation ? (
+        <WizardLayout
+          mode="recover"
+          progress={restoreWizardProgress(restoreOperation)}
+          onHide={isRestoreFinished(restoreOperation) ? undefined : hideRestore}
+        >
+          <RestoreOperationView
+            operation={restoreOperation}
+            controller={restore}
+            onClose={hideRestore}
           />
-        </CardContent>
-      </Card>
-    );
-  }
+        </WizardLayout>
+      ) : null}
+    </DeviceSetupDialog>
+  );
 
-  // REGISTERED state - Needs pairing with existing trusted device
-  if (status.syncState === SyncStates.REGISTERED) {
-    return (
-      <Card>
-        <CardContent className="p-4">
-          {/* Header row - matches other cards pattern */}
-          <div className="flex items-center gap-2">
-            <div className="bg-muted flex h-8 w-8 shrink-0 items-center justify-center rounded-lg">
-              <Icons.Smartphone className="text-muted-foreground h-4 w-4" />
+  const card = (() => {
+    // Loading state (detecting)
+    if (status.isLoading) {
+      return (
+        <Card>
+          <CardHeader>
+            <Skeleton className="h-5 w-32" />
+            <Skeleton className="mt-2 h-4 w-64" />
+          </CardHeader>
+          <CardContent>
+            <Skeleton className="h-20 w-full" />
+          </CardContent>
+        </Card>
+      );
+    }
+
+    // Error during state detection
+    if (status.error && status.syncState === SyncStates.FRESH) {
+      return (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base font-medium">{t("sync:section.deviceSync")}</CardTitle>
+            <CardDescription>{t("sync:errorState.failedToInitialize")}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-col items-center justify-center py-6 text-center">
+              <Icons.AlertCircle className="text-destructive mb-3 h-10 w-10 opacity-70" />
+              <p className="text-destructive text-sm font-medium">
+                {t("sync:errorState.initializationFailed")}
+              </p>
+              <p className="text-muted-foreground mt-1 max-w-sm text-xs">
+                {userFacingSyncErrorMessage(status.error)}
+              </p>
+              <Button variant="outline" className="mt-4" onClick={handleRefresh}>
+                <Icons.RefreshCw className="mr-2 h-4 w-4" />
+                {t("common:retry")}
+              </Button>
             </div>
-            <h3 className="text-base font-semibold">{t("sync:section.connectedDevices")}</h3>
-          </div>
+          </CardContent>
+        </Card>
+      );
+    }
 
-          <div className="mt-4">
-            <ConnectedDevicesList
-              onResetSync={() => actions.resetSync.mutateAsync()}
-              onLinkDevice={openPairingDialog}
-              mode="unpaired"
-              trustedDeviceCount={status.trustedDevices.length}
-            />
-          </div>
-        </CardContent>
+    // FRESH state - Show enable sync card
+    if (status.syncState === SyncStates.FRESH) {
+      return <E2EESetupCard onPairingNeeded={openPairingDialog} />;
+    }
 
-        {/* Pairing Dialog */}
-        <Dialog open={isPairingOpen} onOpenChange={handlePairingDialogOpenChange}>
-          <DialogContent
-            className="sm:max-w-[420px]"
-            mobileClassName="pb-8"
-            showCloseButton={false}
-            onEscapeKeyDown={(e) => e.preventDefault()}
-            onInteractOutside={(e) => e.preventDefault()}
-          >
-            <DialogHeader className="sr-only">
-              <DialogTitle>{t("sync:pairing.connectThisDeviceTitle")}</DialogTitle>
-            </DialogHeader>
-            <PairingFlow
-              onComplete={handlePairingComplete}
-              onCancel={handlePairingCancel}
-              onBootstrapStateChange={handlePairingBootstrapStateChange}
-              title={t("sync:pairing.connectThisDeviceTitle")}
-              description={t("sync:pairing.enterCodeDescription")}
-              forceRole="claimer"
-            />
-          </DialogContent>
-        </Dialog>
-      </Card>
-    );
-  }
-
-  // STALE state - Keys are out of date, needs re-pairing
-  if (status.syncState === SyncStates.STALE) {
-    return (
-      <Card>
-        <CardContent className="p-4">
-          {/* Header row - matches other cards pattern */}
-          <div className="flex items-center gap-2">
-            <div className="bg-muted flex h-8 w-8 shrink-0 items-center justify-center rounded-lg">
-              <Icons.Smartphone className="text-muted-foreground h-4 w-4" />
+    // ORPHANED state - Keys exist on server but no trusted devices to pair with
+    if (status.syncState === SyncStates.ORPHANED) {
+      return (
+        <Card>
+          <CardContent className="p-4">
+            {/* Header row - matches other cards pattern */}
+            <div className="flex items-center gap-2">
+              <div className="bg-muted flex h-8 w-8 shrink-0 items-center justify-center rounded-lg">
+                <Icons.Smartphone className="text-muted-foreground h-4 w-4" />
+              </div>
+              <h3 className="text-base font-semibold">{t("sync:section.deviceSync")}</h3>
             </div>
-            <h3 className="text-base font-semibold">{t("sync:section.deviceSync")}</h3>
-          </div>
-
-          <div className="flex flex-col items-center justify-center py-4 text-center sm:py-6">
-            <div className="mb-3 rounded-full bg-amber-100 p-2.5 sm:mb-4 sm:p-3 dark:bg-amber-900/30">
-              <Icons.RefreshCw className="h-5 w-5 text-amber-600 sm:h-6 sm:w-6 dark:text-amber-400" />
-            </div>
-            <p className="text-foreground text-sm font-medium">
-              {t("sync:stale.keysNeedUpdating")}
-            </p>
-            <p className="text-muted-foreground mt-1 max-w-xs text-xs">
-              {t("sync:stale.keysNeedUpdatingDescription")}
-            </p>
-            <Button className="mt-3 sm:mt-4" onClick={openPairingDialog}>
-              <Icons.Link className="mr-2 h-4 w-4" />
-              {t("sync:stale.updateThisDevice")}
-            </Button>
-          </div>
-        </CardContent>
-
-        {/* Pairing Dialog */}
-        <Dialog open={isPairingOpen} onOpenChange={handlePairingDialogOpenChange}>
-          <DialogContent
-            className="sm:max-w-[420px]"
-            mobileClassName="pb-8"
-            showCloseButton={false}
-            onEscapeKeyDown={(e) => e.preventDefault()}
-            onInteractOutside={(e) => e.preventDefault()}
-          >
-            <DialogHeader className="sr-only">
-              <DialogTitle>{t("sync:stale.updateThisDevice")}</DialogTitle>
-            </DialogHeader>
-            <PairingFlow
-              onComplete={handlePairingComplete}
-              onCancel={handlePairingCancel}
-              onBootstrapStateChange={handlePairingBootstrapStateChange}
-              title={t("sync:stale.updateThisDevice")}
-              description={t("sync:pairing.enterCodeDescription")}
-              forceRole="claimer"
+            <OrphanedKeysPrompt
+              onReinitialize={async () => {
+                await actions.reinitializeSync.mutateAsync();
+              }}
             />
-          </DialogContent>
-        </Dialog>
-      </Card>
-    );
-  }
+          </CardContent>
+        </Card>
+      );
+    }
 
-  // READY state - Show connected devices
-  const isTrusted = isCurrentDeviceTrusted;
-  // Show banner only when the engine actually reports it's stuck.
-  // Don't use bootstrapRequired alone — it's derived from last_bootstrap_at
-  // which can be NULL for devices bootstrapped before that column was added.
-  const isWaitingForRemoteSnapshot =
-    status.engineStatus?.lastCycleStatus === "wait_snapshot" ||
-    status.engineStatus?.lastCycleStatus === "stale_cursor";
-  const dialogTitle = isTrusted
-    ? t("sync:pairing.connectAnotherTitle")
-    : t("sync:pairing.connectThisDeviceTitle");
-  const dialogDescription = isTrusted
-    ? t("sync:pairing.scanOrEnterDescription")
-    : t("sync:pairing.enterCodeDescription");
-  const isTogglingEngine = actions.startBgSync.isPending || actions.stopBgSync.isPending;
-
-  return (
-    <>
-      <Card>
-        <CardContent className="p-4">
-          {/* Header row - matches Broker connections / Accounts pattern */}
-          <div className="flex flex-wrap items-center justify-between gap-2">
+    // REGISTERED state - Needs pairing with existing trusted device
+    if (status.syncState === SyncStates.REGISTERED) {
+      return (
+        <Card>
+          <CardContent className="p-4">
+            {/* Header row - matches other cards pattern */}
             <div className="flex items-center gap-2">
               <div className="bg-muted flex h-8 w-8 shrink-0 items-center justify-center rounded-lg">
                 <Icons.Smartphone className="text-muted-foreground h-4 w-4" />
               </div>
               <h3 className="text-base font-semibold">{t("sync:section.connectedDevices")}</h3>
-              <SyncStatusDot engineStatus={status.engineStatus} />
             </div>
-            <div className="flex items-center gap-1">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="text-muted-foreground hover:text-foreground size-11 sm:hidden"
-                aria-label={t(
-                  isBackgroundRunning ? "sync:engine.pauseSync" : "sync:engine.resumeSync",
-                )}
-                onClick={handleToggleEngine}
-                disabled={isTogglingEngine}
-              >
-                {isTogglingEngine ? (
-                  <Icons.Loader className="h-4 w-4 animate-spin" />
-                ) : isBackgroundRunning ? (
-                  <Icons.PauseCircle className="h-4 w-4" />
-                ) : (
-                  <Icons.PlayCircle className="h-4 w-4" />
-                )}
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-muted-foreground hover:text-foreground hidden sm:inline-flex"
-                onClick={handleToggleEngine}
-                disabled={isTogglingEngine}
-              >
-                {isTogglingEngine ? (
-                  <>
-                    <Icons.Loader className="h-4 w-4 animate-spin" />
-                    {t("sync:engine.updating")}
-                  </>
-                ) : isBackgroundRunning ? (
-                  <>
-                    <Icons.PauseCircle className="h-4 w-4" />
-                    {t("sync:engine.pauseSync")}
-                  </>
-                ) : (
-                  <>
-                    <Icons.PlayCircle className="h-4 w-4" />
-                    {t("sync:engine.resumeSync")}
-                  </>
-                )}
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="text-muted-foreground hover:text-foreground size-11 sm:size-8"
-                aria-label={t("common:refresh")}
-                onClick={handleRefreshDevices}
-                disabled={isRefreshing}
-              >
-                <Icons.RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
-              </Button>
-              <PortalLink href={PORTAL_DEVICES_URL} label={t("sync:section.manageDevices")} />
-            </div>
-          </div>
 
-          {/* Content */}
-          <div className="mt-4">
-            {actions.bootstrapSync.isPending && (
-              <div className="bg-muted/60 text-muted-foreground mb-3 flex items-center gap-2 rounded-md px-3 py-2 text-xs">
-                <Icons.Loader className="h-3.5 w-3.5 animate-spin" />
-                {t("sync:bootstrap.inProgress")}
-              </div>
-            )}
-            {actions.bootstrapSync.error && (
-              <div className="bg-destructive/10 text-destructive mb-3 flex items-center gap-2 rounded-md px-3 py-2 text-xs">
-                <Icons.AlertCircle className="h-3.5 w-3.5" />
-                {userFacingSyncErrorMessage(actions.bootstrapSync.error)}
-              </div>
-            )}
-            {isWaitingForRemoteSnapshot && (
-              <div className="bg-muted/60 text-muted-foreground mb-3 rounded-md px-3 py-3 text-xs">
-                <div className="flex items-start gap-2">
-                  <Icons.Cloud className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-foreground font-medium">
-                      {isTrusted
-                        ? t("sync:waitingSnapshot.otherDeviceFinishing")
-                        : t("sync:waitingSnapshot.setupAlmostDone")}
-                    </p>
-                    <p className="mt-1 leading-relaxed">
-                      {isTrusted
-                        ? t("sync:waitingSnapshot.trustedHint")
-                        : t("sync:waitingSnapshot.untrustedHint")}
-                    </p>
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={handleRetryBootstrap}
-                        disabled={actions.bootstrapSync.isPending}
-                      >
-                        {actions.bootstrapSync.isPending ? (
-                          <>
-                            <Icons.Spinner className="mr-2 h-3.5 w-3.5 animate-spin" />
-                            {t("sync:waitingSnapshot.checking")}
-                          </>
-                        ) : (
-                          <>
-                            <Icons.RefreshCw className="mr-2 h-3.5 w-3.5" />
-                            {t("sync:waitingSnapshot.checkAgain")}
-                          </>
-                        )}
-                      </Button>
-                      {isTrusted && (
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          onClick={handleUploadSnapshotNow}
-                          disabled={isUploadingSnapshot}
-                        >
-                          {isUploadingSnapshot ? (
-                            <>
-                              <Icons.Spinner className="mr-2 h-3.5 w-3.5 animate-spin" />
-                              {t("sync:waitingSnapshot.preparing")}
-                            </>
-                          ) : (
-                            <>
-                              <Icons.Upload className="mr-2 h-3.5 w-3.5" />
-                              {t("sync:waitingSnapshot.speedUpSetup")}
-                            </>
-                          )}
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-            {overwriteRisk && !isPairingOpen && (
-              <div className="mb-3 rounded-md border border-amber-200 bg-amber-50/80 px-3 py-3 text-xs text-amber-900 dark:border-amber-900/60 dark:bg-amber-900/20 dark:text-amber-200">
-                <div className="flex items-start gap-2">
-                  <Icons.AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                  <div className="min-w-0 flex-1">
-                    <p className="font-medium">{t("sync:bootstrap.hasDataTitle")}</p>
-                    <p className="mt-1 leading-relaxed">{t("sync:bootstrap.hasDataDescription")}</p>
-                    <div className="mt-2">
-                      <Button
-                        size="sm"
-                        onClick={() => handleBootstrapOverwriteDialogOpenChange(true)}
-                      >
-                        {t("sync:bootstrap.continue")}
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-            {!status.device ? (
-              <Skeleton className="h-16 w-full rounded-lg" />
-            ) : !isTrusted ? (
+            <div className="mt-4">
               <ConnectedDevicesList
                 onResetSync={() => actions.resetSync.mutateAsync()}
-                onLinkDevice={openClaimerPairingFlow}
+                onLinkDevice={openPairingDialog}
                 mode="unpaired"
                 trustedDeviceCount={status.trustedDevices.length}
               />
+            </div>
+          </CardContent>
+        </Card>
+      );
+    }
+
+    // STALE state - Keys are out of date, needs re-pairing
+    if (status.syncState === SyncStates.STALE) {
+      return (
+        <Card>
+          <CardContent className="p-4">
+            {/* Header row - matches other cards pattern */}
+            <div className="flex items-center gap-2">
+              <div className="bg-muted flex h-8 w-8 shrink-0 items-center justify-center rounded-lg">
+                <Icons.Smartphone className="text-muted-foreground h-4 w-4" />
+              </div>
+              <h3 className="text-base font-semibold">{t("sync:section.deviceSync")}</h3>
+            </div>
+
+            <div className="flex flex-col items-center justify-center py-4 text-center sm:py-6">
+              <div className="mb-3 rounded-full bg-amber-100 p-2.5 sm:mb-4 sm:p-3 dark:bg-amber-900/30">
+                <Icons.RefreshCw className="h-5 w-5 text-amber-600 sm:h-6 sm:w-6 dark:text-amber-400" />
+              </div>
+              <p className="text-foreground text-sm font-medium">
+                {t("sync:stale.keysNeedUpdating")}
+              </p>
+              <p className="text-muted-foreground mt-1 max-w-xs text-xs">
+                {t("sync:stale.keysNeedUpdatingDescription")}
+              </p>
+              <Button className="mt-3 sm:mt-4" onClick={openPairingDialog}>
+                <Icons.Link className="mr-2 h-4 w-4" />
+                {t("sync:stale.updateThisDevice")}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      );
+    }
+
+    // READY state - Show connected devices
+    const isTrusted = isCurrentDeviceTrusted;
+    // Show banner only when the engine actually reports it's stuck.
+    // Don't use bootstrapRequired alone — it's derived from last_bootstrap_at
+    // which can be NULL for devices bootstrapped before that column was added.
+    const isWaitingForRemoteSnapshot =
+      status.engineStatus?.lastCycleStatus === "wait_snapshot" ||
+      status.engineStatus?.lastCycleStatus === "stale_cursor";
+    const isTogglingEngine = actions.startBgSync.isPending || actions.stopBgSync.isPending;
+
+    return (
+      <>
+        <Card>
+          <CardContent className="p-4">
+            {/* Header row - matches Broker connections / Accounts pattern */}
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <div className="bg-muted flex h-8 w-8 shrink-0 items-center justify-center rounded-lg">
+                  <Icons.Smartphone className="text-muted-foreground h-4 w-4" />
+                </div>
+                <h3 className="text-base font-semibold">{t("sync:section.connectedDevices")}</h3>
+                <SyncStatusDot engineStatus={status.engineStatus} />
+              </div>
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="text-muted-foreground hover:text-foreground size-11 sm:hidden"
+                  aria-label={t(
+                    isBackgroundRunning ? "sync:engine.pauseSync" : "sync:engine.resumeSync",
+                  )}
+                  onClick={handleToggleEngine}
+                  disabled={isTogglingEngine}
+                >
+                  {isTogglingEngine ? (
+                    <Icons.Loader className="h-4 w-4 animate-spin" />
+                  ) : isBackgroundRunning ? (
+                    <Icons.PauseCircle className="h-4 w-4" />
+                  ) : (
+                    <Icons.PlayCircle className="h-4 w-4" />
+                  )}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-muted-foreground hover:text-foreground hidden sm:inline-flex"
+                  onClick={handleToggleEngine}
+                  disabled={isTogglingEngine}
+                >
+                  {isTogglingEngine ? (
+                    <>
+                      <Icons.Loader className="h-4 w-4 animate-spin" />
+                      {t("sync:engine.updating")}
+                    </>
+                  ) : isBackgroundRunning ? (
+                    <>
+                      <Icons.PauseCircle className="h-4 w-4" />
+                      {t("sync:engine.pauseSync")}
+                    </>
+                  ) : (
+                    <>
+                      <Icons.PlayCircle className="h-4 w-4" />
+                      {t("sync:engine.resumeSync")}
+                    </>
+                  )}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="text-muted-foreground hover:text-foreground size-11 sm:size-8"
+                  aria-label={t("common:refresh")}
+                  onClick={handleRefreshDevices}
+                  disabled={isRefreshing}
+                >
+                  <Icons.RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
+                </Button>
+                <PortalLink href={PORTAL_DEVICES_URL} label={t("sync:section.manageDevices")} />
+              </div>
+            </div>
+
+            {/* Content */}
+            <div className="mt-4">
+              {showRestoreBanner && restoreOperation && (
+                <RestoreBanner
+                  operation={restoreOperation}
+                  isStarting={restore.start.isPending}
+                  onShow={() => restoreVisibility.show(restoreOperation.operationId)}
+                  onFinishSetup={() => startRecovery(true)}
+                />
+              )}
+              {isWaitingForRemoteSnapshot && !hasUnfinishedRestore && (
+                <div className="bg-muted/60 text-muted-foreground mb-3 rounded-md px-3 py-3 text-xs">
+                  <div className="flex items-start gap-2">
+                    <Icons.Cloud className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-foreground font-medium">
+                        {isTrusted
+                          ? t("sync:waitingSnapshot.otherDeviceFinishing")
+                          : t("sync:waitingSnapshot.setupAlmostDone")}
+                      </p>
+                      <p className="mt-1 leading-relaxed">
+                        {isTrusted
+                          ? t("sync:waitingSnapshot.trustedHint")
+                          : t("sync:waitingSnapshot.untrustedHint")}
+                      </p>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => startRecovery(true)}
+                          disabled={restore.start.isPending}
+                        >
+                          {restore.start.isPending ? (
+                            <>
+                              <Icons.Spinner className="mr-2 h-3.5 w-3.5 animate-spin" />
+                              {t("sync:waitingSnapshot.checking")}
+                            </>
+                          ) : (
+                            <>
+                              <Icons.RefreshCw className="mr-2 h-3.5 w-3.5" />
+                              {t("sync:waitingSnapshot.checkAgain")}
+                            </>
+                          )}
+                        </Button>
+                        {isTrusted && (
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={handleUploadSnapshotNow}
+                            disabled={isUploadingSnapshot}
+                          >
+                            {isUploadingSnapshot ? (
+                              <>
+                                <Icons.Spinner className="mr-2 h-3.5 w-3.5 animate-spin" />
+                                {t("sync:waitingSnapshot.preparing")}
+                              </>
+                            ) : (
+                              <>
+                                <Icons.Upload className="mr-2 h-3.5 w-3.5" />
+                                {t("sync:waitingSnapshot.speedUpSetup")}
+                              </>
+                            )}
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+              {!status.device ? (
+                <Skeleton className="h-16 w-full rounded-lg" />
+              ) : !isTrusted ? (
+                <ConnectedDevicesList
+                  onResetSync={() => actions.resetSync.mutateAsync()}
+                  onLinkDevice={openClaimerPairingFlow}
+                  mode="unpaired"
+                  trustedDeviceCount={status.trustedDevices.length}
+                />
+              ) : (
+                <ConnectedDevicesList
+                  onResetSync={() => actions.resetSync.mutateAsync()}
+                  onLinkDevice={handleLinkAnotherDevice}
+                />
+              )}
+            </div>
+          </CardContent>
+
+          <AlertDialog open={showReinitConfirmDialog} onOpenChange={setShowReinitConfirmDialog}>
+            <AlertDialogContent className="max-sm:bg-background/90 gap-8 text-center max-sm:bottom-6 max-sm:left-4 max-sm:right-4 max-sm:top-auto max-sm:w-auto max-sm:translate-x-0 max-sm:translate-y-0 max-sm:rounded-3xl max-sm:shadow-2xl max-sm:backdrop-blur-2xl sm:max-w-lg">
+              <AlertDialogHeader className="items-center gap-4 px-8 text-center">
+                <div className="border-warning/30 bg-warning/10 dark:border-warning/20 dark:bg-warning/15 flex h-14 w-14 items-center justify-center rounded-full border">
+                  <Icons.AlertTriangle className="h-6 w-6 text-amber-500" />
+                </div>
+                <AlertDialogTitle className="text-center text-xl">
+                  {t("sync:reinit.title")}
+                </AlertDialogTitle>
+                <AlertDialogDescription className="text-center text-sm">
+                  {t("sync:reinit.description")}
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-center max-sm:[&>button]:h-auto max-sm:[&>button]:min-h-11 max-sm:[&>button]:max-w-full max-sm:[&>button]:whitespace-normal">
+                <Button variant="ghost" onClick={() => setShowReinitConfirmDialog(false)}>
+                  {t("sync:reinit.notNow")}
+                </Button>
+                <Button onClick={() => void handleReinitConfirm()}>
+                  {t("sync:reinit.continue")}
+                </Button>
+              </div>
+            </AlertDialogContent>
+          </AlertDialog>
+        </Card>
+
+        {/* Recovery Dialog */}
+        <RecoveryDialog open={showRecoveryDialog} onOpenChange={setShowRecoveryDialog} />
+      </>
+    );
+  })();
+
+  return (
+    <>
+      {card}
+      {setupDialog}
+    </>
+  );
+}
+
+// Keeps an unfinished restore reachable after its dialog was hidden or cancelled.
+function RestoreBanner({
+  operation,
+  isStarting,
+  onShow,
+  onFinishSetup,
+}: {
+  operation: RestoreOperation;
+  isStarting: boolean;
+  onShow: () => void;
+  onFinishSetup: () => void;
+}) {
+  const { t } = useTranslation();
+  const needsAction =
+    operation.phase === "awaiting_consent" ||
+    operation.phase === "failed" ||
+    operation.phase === "cancelled";
+  const description =
+    operation.phase === "awaiting_consent"
+      ? t("sync:restore.banner.needsApproval")
+      : operation.phase === "failed"
+        ? t("sync:restore.banner.failed")
+        : operation.phase === "cancelled"
+          ? t("sync:restore.banner.cancelled")
+          : t("sync:restore.banner.running");
+  return (
+    <div
+      className="bg-muted/60 text-muted-foreground mb-3 rounded-md px-3 py-3 text-xs"
+      data-testid="restore-banner"
+    >
+      <div className="flex items-start gap-2">
+        {needsAction ? (
+          <Icons.AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" />
+        ) : (
+          <Icons.Spinner className="mt-0.5 h-3.5 w-3.5 shrink-0 animate-spin" />
+        )}
+        <div className="min-w-0 flex-1">
+          <p className="text-foreground font-medium">{t("sync:restore.banner.title")}</p>
+          <p className="mt-1 leading-relaxed">{description}</p>
+          <div className="mt-2">
+            {operation.phase === "cancelled" ? (
+              <Button size="sm" onClick={onFinishSetup} disabled={isStarting}>
+                {t("sync:restore.finishSetup")}
+              </Button>
             ) : (
-              <ConnectedDevicesList
-                onResetSync={() => actions.resetSync.mutateAsync()}
-                onLinkDevice={handleLinkAnotherDevice}
-              />
+              <Button size="sm" variant="outline" onClick={onShow}>
+                {t("sync:restore.banner.show")}
+              </Button>
             )}
           </div>
-        </CardContent>
-
-        {/* Pairing Dialog */}
-        <Dialog open={isPairingOpen} onOpenChange={handleReadyPairingDialogOpenChange}>
-          <DialogContent
-            className="sm:max-w-[420px]"
-            mobileClassName="pb-8"
-            showCloseButton={false}
-            onEscapeKeyDown={(e) => e.preventDefault()}
-            onInteractOutside={(e) => e.preventDefault()}
-          >
-            <DialogHeader className="sr-only">
-              <DialogTitle>{dialogTitle}</DialogTitle>
-            </DialogHeader>
-            {isPreparing && !prepareError ? (
-              <WaitingState
-                title={t("sync:pairing.gettingReadyTitle")}
-                description={t("sync:pairing.gettingReadyDescription")}
-              />
-            ) : isPreparing && prepareError ? (
-              <div className="flex flex-col items-center px-4 py-6">
-                <div className="mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30">
-                  <Icons.XCircle className="h-10 w-10 text-red-600 dark:text-red-500" />
-                </div>
-                <div className="mb-6 text-center">
-                  <p className="text-foreground text-base font-semibold">
-                    {t("sync:pairing.prepareFailed")}
-                  </p>
-                  <p className="text-muted-foreground mt-2 max-w-[240px] text-sm">{prepareError}</p>
-                </div>
-                <div className="flex gap-3">
-                  <Button variant="outline" onClick={() => void beginPairingFlow()}>
-                    {t("sync:pairing.tryAgain")}
-                  </Button>
-                  <Button variant="ghost" onClick={handlePairingCancel}>
-                    {t("common:cancel")}
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <PairingFlow
-                onComplete={handlePairingComplete}
-                onCancel={handlePairingCancel}
-                onBootstrapStateChange={handlePairingBootstrapStateChange}
-                title={dialogTitle}
-                description={dialogDescription}
-              />
-            )}
-          </DialogContent>
-        </Dialog>
-
-        <AlertDialog
-          open={
-            showBootstrapOverwriteDialog &&
-            bootstrapOwner === "ready_state" &&
-            !isPairingOpen &&
-            !!overwriteRisk
-          }
-          onOpenChange={handleBootstrapOverwriteDialogOpenChange}
-        >
-          <AlertDialogContent className="max-sm:bg-background/90 gap-8 text-center max-sm:bottom-6 max-sm:left-4 max-sm:right-4 max-sm:top-auto max-sm:w-auto max-sm:translate-x-0 max-sm:translate-y-0 max-sm:rounded-3xl max-sm:shadow-2xl max-sm:backdrop-blur-2xl sm:max-w-lg">
-            <AlertDialogHeader className="items-center gap-4 px-8 text-center">
-              <div className="border-warning/30 bg-warning/10 dark:border-warning/20 dark:bg-warning/15 flex h-14 w-14 items-center justify-center rounded-full border">
-                <Icons.AlertTriangle className="h-6 w-6 text-amber-500" />
-              </div>
-              <AlertDialogTitle className="text-center text-xl">
-                {t("sync:overwrite.replaceDataTitle")}
-              </AlertDialogTitle>
-              <AlertDialogDescription className="text-center text-sm">
-                {t("sync:overwrite.replaceDataDescription")}
-              </AlertDialogDescription>
-              {overwriteRisk && overwriteRisk.localRows > 0 && (
-                <p className="text-muted-foreground text-center text-xs">
-                  {t("sync:overwrite.localRowsReplaced", { count: overwriteRisk.localRows })}
-                </p>
-              )}
-            </AlertDialogHeader>
-
-            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-center max-sm:[&>button]:h-auto max-sm:[&>button]:min-h-11 max-sm:[&>button]:max-w-full max-sm:[&>button]:whitespace-normal">
-              <Button
-                variant="ghost"
-                onClick={() => handleBootstrapOverwriteDialogOpenChange(false)}
-                disabled={isBackingUpBeforeBootstrap || actions.bootstrapSync.isPending}
-              >
-                {t("sync:overwrite.notNow")}
-              </Button>
-              <Button
-                variant="outline"
-                onClick={handleBackupThenApplyOverwrite}
-                disabled={isBackingUpBeforeBootstrap || actions.bootstrapSync.isPending}
-              >
-                {isBackingUpBeforeBootstrap ? (
-                  <>
-                    <Icons.Spinner className="mr-2 h-4 w-4 animate-spin" />
-                    {t("sync:backup.backingUp")}
-                  </>
-                ) : (
-                  t("sync:backup.backUpFirst")
-                )}
-              </Button>
-              <Button
-                onClick={handleApplyBootstrapOverwrite}
-                disabled={isBackingUpBeforeBootstrap || actions.bootstrapSync.isPending}
-              >
-                {actions.bootstrapSync.isPending ? (
-                  <>
-                    <Icons.Spinner className="mr-2 h-4 w-4 animate-spin" />
-                    {t("sync:overwrite.syncing")}
-                  </>
-                ) : (
-                  t("sync:overwrite.replaceAndSync")
-                )}
-              </Button>
-            </div>
-          </AlertDialogContent>
-        </AlertDialog>
-
-        <AlertDialog open={showReinitConfirmDialog} onOpenChange={setShowReinitConfirmDialog}>
-          <AlertDialogContent className="max-sm:bg-background/90 gap-8 text-center max-sm:bottom-6 max-sm:left-4 max-sm:right-4 max-sm:top-auto max-sm:w-auto max-sm:translate-x-0 max-sm:translate-y-0 max-sm:rounded-3xl max-sm:shadow-2xl max-sm:backdrop-blur-2xl sm:max-w-lg">
-            <AlertDialogHeader className="items-center gap-4 px-8 text-center">
-              <div className="border-warning/30 bg-warning/10 dark:border-warning/20 dark:bg-warning/15 flex h-14 w-14 items-center justify-center rounded-full border">
-                <Icons.AlertTriangle className="h-6 w-6 text-amber-500" />
-              </div>
-              <AlertDialogTitle className="text-center text-xl">
-                {t("sync:reinit.title")}
-              </AlertDialogTitle>
-              <AlertDialogDescription className="text-center text-sm">
-                {t("sync:reinit.description")}
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-center max-sm:[&>button]:h-auto max-sm:[&>button]:min-h-11 max-sm:[&>button]:max-w-full max-sm:[&>button]:whitespace-normal">
-              <Button variant="ghost" onClick={() => setShowReinitConfirmDialog(false)}>
-                {t("sync:reinit.notNow")}
-              </Button>
-              <Button onClick={() => void handleReinitConfirm()}>
-                {t("sync:reinit.continue")}
-              </Button>
-            </div>
-          </AlertDialogContent>
-        </AlertDialog>
-      </Card>
-
-      {/* Recovery Dialog */}
-      <RecoveryDialog open={showRecoveryDialog} onOpenChange={setShowRecoveryDialog} />
-    </>
+        </div>
+      </div>
+    </div>
   );
 }
 

@@ -1,20 +1,30 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactElement } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { RestoreOperation } from "../hooks/use-restore-operation";
 import { DeviceSyncSection } from "./device-sync-section";
 
 const hookMocks = vi.hoisted(() => ({
-  backupDatabase: vi.fn(),
   useSyncStatus: vi.fn(),
   useDevices: vi.fn(),
   useSyncActions: vi.fn(),
   useRenameDevice: vi.fn(),
   useRevokeDevice: vi.fn(),
   getPairingSourceStatus: vi.fn(),
-  pairingBootstrapActive: false,
-  pairingCompletes: false,
-  pairingFails: false,
+}));
+
+type RestoreHandler = (event: { payload: RestoreOperation }) => void;
+
+const adapterMocks = vi.hoisted(() => ({
+  logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn(), trace: vi.fn() },
+  getDeviceSyncRestore: vi.fn(),
+  startDeviceSyncRestore: vi.fn(),
+  approveDeviceSyncRestore: vi.fn(),
+  retryDeviceSyncRestore: vi.fn(),
+  cancelDeviceSyncRestore: vi.fn(),
+  listenDeviceSyncRestore: vi.fn(),
+  handlers: [] as RestoreHandler[],
 }));
 
 interface MutationMock {
@@ -26,19 +36,25 @@ interface MutationMock {
 interface SyncActionsMock {
   stopBgSync: MutationMock;
   startBgSync: MutationMock;
-  bootstrapSync: MutationMock;
   generateSnapshot: MutationMock;
   reinitializeSync: MutationMock;
   resetSync: MutationMock;
 }
 
-vi.mock("../hooks", () => ({
-  useSyncStatus: hookMocks.useSyncStatus,
-  useDevices: hookMocks.useDevices,
-  useSyncActions: hookMocks.useSyncActions,
-  useRenameDevice: hookMocks.useRenameDevice,
-  useRevokeDevice: hookMocks.useRevokeDevice,
-}));
+// The section uses the real restore controller; only transport is mocked.
+vi.mock("../hooks", async () => {
+  const restore = await vi.importActual<typeof import("../hooks/use-restore-operation")>(
+    "../hooks/use-restore-operation",
+  );
+  return {
+    useSyncStatus: hookMocks.useSyncStatus,
+    useDevices: hookMocks.useDevices,
+    useSyncActions: hookMocks.useSyncActions,
+    useRenameDevice: hookMocks.useRenameDevice,
+    useRevokeDevice: hookMocks.useRevokeDevice,
+    useRestoreOperation: restore.useRestoreOperation,
+  };
+});
 
 vi.mock("../services/sync-service", () => ({
   syncService: {
@@ -46,54 +62,23 @@ vi.mock("../services/sync-service", () => ({
   },
 }));
 
-vi.mock("@/adapters", () => ({
-  logger: {
-    info: vi.fn(),
-    error: vi.fn(),
-    warn: vi.fn(),
-    debug: vi.fn(),
-    trace: vi.fn(),
-  },
-  backupDatabase: hookMocks.backupDatabase,
-}));
+vi.mock("@/adapters", () => adapterMocks);
+
+const pairingMounts = vi.hoisted(() => ({ count: 0 }));
 
 vi.mock("./pairing-flow", async () => {
-  const React = await vi.importActual<typeof import("react")>("react");
+  const { useEffect } = await vi.importActual<typeof import("react")>("react");
+  function WizardStub({ title }: { title?: string }) {
+    useEffect(() => {
+      pairingMounts.count += 1;
+    }, []);
+    return <div>{title ?? "Setup wizard"}</div>;
+  }
   return {
-    PairingFlow: ({
-      title,
-      onBootstrapStateChange,
-      onComplete,
-      onCancel,
-    }: {
-      title?: string;
-      onBootstrapStateChange?: (state: "idle" | "active" | "failed") => void;
-      onComplete?: () => void;
-      onCancel?: () => void;
-    }) => {
-      React.useEffect(() => {
-        if (hookMocks.pairingFails) {
-          onBootstrapStateChange?.("failed");
-          return () => onBootstrapStateChange?.("idle");
-        }
-        if (hookMocks.pairingCompletes) {
-          onBootstrapStateChange?.("active");
-          onComplete?.();
-          return () => onBootstrapStateChange?.("idle");
-        }
-        if (!hookMocks.pairingBootstrapActive) return;
-        onBootstrapStateChange?.("active");
-        return () => onBootstrapStateChange?.("idle");
-      }, [onBootstrapStateChange, onComplete]);
-
-      return (
-        <div>
-          {title ?? "Pairing Flow"}
-          {hookMocks.pairingFails && <button onClick={onCancel}>Done</button>}
-        </div>
-      );
-    },
+    AddDeviceWizard: WizardStub,
+    JoinDeviceWizard: WizardStub,
     WaitingState: ({ title }: { title: string }) => <div>{title}</div>,
+    PairingResult: ({ title }: { title?: string }) => <div>{title}</div>,
   };
 });
 
@@ -101,12 +86,60 @@ vi.mock("./recovery-dialog", () => ({
   RecoveryDialog: () => null,
 }));
 
+let revision = 0;
+
+function restoreOp(overrides: Partial<RestoreOperation> = {}): RestoreOperation {
+  revision += 1;
+  return {
+    operationId: "op-1",
+    revision,
+    phase: "awaiting_consent",
+    snapshot: { snapshotId: "snap-1", oplogSeq: 42, createdAt: "2026-09-21T10:00:00Z" },
+    error: null,
+    replaced: false,
+    ...overrides,
+  };
+}
+
+/** Delivers a runtime event, as another tab, window or the pairing flow would. */
+async function emit(operation: RestoreOperation) {
+  await act(async () => {
+    adapterMocks.handlers.forEach((handler) => handler({ payload: operation }));
+    await Promise.resolve();
+  });
+}
+
+function readyStatus(overrides: Record<string, unknown> = {}) {
+  return {
+    isLoading: false,
+    error: null,
+    syncState: "READY",
+    trustedDevices: [{ id: "trusted-1", name: "Laptop", platform: "mac", lastSeenAt: null }],
+    device: { trustState: "trusted" },
+    engineStatus: {
+      lastCycleStatus: "stale_cursor",
+      bootstrapRequired: true,
+      backgroundRunning: false,
+    },
+    engineIsFetching: false,
+    refetch: vi.fn(),
+    ...overrides,
+  };
+}
+
 describe("DeviceSyncSection", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    hookMocks.pairingBootstrapActive = false;
-    hookMocks.pairingCompletes = false;
-    hookMocks.pairingFails = false;
+    revision = 0;
+    adapterMocks.handlers = [];
+    adapterMocks.listenDeviceSyncRestore.mockImplementation((handler: RestoreHandler) => {
+      adapterMocks.handlers.push(handler);
+      return Promise.resolve(() => {
+        adapterMocks.handlers = adapterMocks.handlers.filter((h) => h !== handler);
+        return Promise.resolve();
+      });
+    });
+    adapterMocks.getDeviceSyncRestore.mockResolvedValue(null);
 
     hookMocks.useRenameDevice.mockReturnValue({
       mutateAsync: vi.fn(),
@@ -116,6 +149,18 @@ describe("DeviceSyncSection", () => {
       mutateAsync: vi.fn(),
       isPending: false,
     });
+    hookMocks.useDevices.mockReturnValue({ data: [], isLoading: false, error: null });
+    hookMocks.useSyncActions.mockReturnValue(createActions());
+    hookMocks.getPairingSourceStatus.mockResolvedValue({
+      status: "ready",
+      message: "Ready",
+      localCursor: 1,
+      serverCursor: 1,
+    });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("opens the claimer flow directly for an untrusted READY device", async () => {
@@ -137,77 +182,12 @@ describe("DeviceSyncSection", () => {
 
     renderWithQueryClient(<DeviceSyncSection />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Connect This Device" }));
+    fireEvent.click(screen.getByRole("button", { name: "Connect this device" }));
 
     expect(hookMocks.getPairingSourceStatus).not.toHaveBeenCalled();
     await waitFor(() => {
-      expect(screen.getAllByText("Connect This Device").length).toBeGreaterThan(1);
+      expect(screen.getAllByText("Connect this device").length).toBeGreaterThan(1);
     });
-  });
-
-  it("keeps ready-state overwrite actions responsive", async () => {
-    vi.useFakeTimers();
-    try {
-      const bootstrapSync = {
-        mutateAsync: vi.fn().mockResolvedValue({
-          status: "overwrite_required",
-          localRows: 12,
-          nonEmptyTables: [{ table: "accounts", rows: 1 }],
-        }),
-        isPending: false,
-        error: null,
-      };
-
-      hookMocks.useSyncStatus.mockReturnValue({
-        isLoading: false,
-        error: null,
-        syncState: "READY",
-        trustedDevices: [{ id: "trusted-1", name: "Laptop", platform: "mac", lastSeenAt: null }],
-        device: { trustState: "trusted" },
-        engineStatus: {
-          lastCycleStatus: "stale_cursor",
-          bootstrapRequired: true,
-          backgroundRunning: false,
-        },
-        engineIsFetching: false,
-        refetch: vi.fn(),
-      });
-      hookMocks.useDevices.mockReturnValue({
-        data: [],
-        isLoading: false,
-        error: null,
-      });
-      hookMocks.useSyncActions.mockReturnValue(createActions({ bootstrapSync }));
-
-      renderWithQueryClient(<DeviceSyncSection />);
-
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(2000);
-      });
-      await flushAsyncWork();
-
-      expect(screen.getByRole("button", { name: "Back up first" }).parentElement).toHaveClass(
-        "max-sm:[&>button]:whitespace-normal",
-        "sm:flex-wrap",
-      );
-      let finishBackup!: (value: { filename: string }) => void;
-      hookMocks.backupDatabase.mockImplementationOnce(
-        () =>
-          new Promise((resolve) => {
-            finishBackup = resolve;
-          }),
-      );
-      fireEvent.click(screen.getByRole("button", { name: "Back up first" }));
-      expect(hookMocks.backupDatabase).toHaveBeenCalledTimes(1);
-      expect(bootstrapSync.mutateAsync).not.toHaveBeenCalledWith({ allowOverwrite: true });
-      await act(async () => {
-        finishBackup({ filename: "managed.db" });
-      });
-      await flushAsyncWork();
-      expect(bootstrapSync.mutateAsync).toHaveBeenCalledWith({ allowOverwrite: true });
-    } finally {
-      vi.useRealTimers();
-    }
   });
 
   it("requires confirmation when any other non-revoked device exists", async () => {
@@ -244,7 +224,7 @@ describe("DeviceSyncSection", () => {
 
     renderWithQueryClient(<DeviceSyncSection />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Connect Another Device" }));
+    fireEvent.click(screen.getByRole("button", { name: "Connect another device" }));
 
     await waitFor(() => {
       expect(hookMocks.getPairingSourceStatus).toHaveBeenCalledTimes(1);
@@ -253,388 +233,290 @@ describe("DeviceSyncSection", () => {
     expect(await screen.findByRole("button", { name: "Continue" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Not now" })).toBeInTheDocument();
   });
-  it("does not auto-open the ready-state bootstrap prompt while pairing bootstrap owns restore", async () => {
+  it("routes the recurring check through the runtime and approves its consent once", async () => {
     vi.useFakeTimers();
-    try {
-      hookMocks.pairingBootstrapActive = true;
+    // Like the runtime, reads return whatever the last command produced.
+    let current: RestoreOperation | null = null;
+    adapterMocks.getDeviceSyncRestore.mockImplementation(() => Promise.resolve(current));
+    adapterMocks.startDeviceSyncRestore.mockImplementation(() => {
+      current ??= restoreOp();
+      return Promise.resolve(current);
+    });
+    adapterMocks.approveDeviceSyncRestore.mockImplementation(() => {
+      current = restoreOp({ phase: "replacing" });
+      return Promise.resolve(current);
+    });
+    hookMocks.useSyncStatus.mockReturnValue(readyStatus());
 
-      const bootstrapSync = {
-        mutateAsync: vi.fn().mockResolvedValue({
-          status: "overwrite_required",
-          localRows: 12,
-          nonEmptyTables: [{ table: "accounts", rows: 1 }],
-        }),
-        isPending: false,
-        error: null,
-      };
+    renderWithQueryClient(<DeviceSyncSection />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2000);
+    });
+    await flushAsyncWork();
 
-      hookMocks.useSyncStatus.mockReturnValue({
-        isLoading: false,
-        error: null,
-        syncState: "READY",
-        trustedDevices: [{ id: "trusted-1", name: "Laptop", platform: "mac", lastSeenAt: null }],
-        device: { trustState: "trusted" },
-        engineStatus: {
-          lastCycleStatus: "stale_cursor",
-          bootstrapRequired: true,
-          backgroundRunning: false,
-        },
-        engineIsFetching: false,
-        refetch: vi.fn(),
-      });
-      hookMocks.useDevices.mockReturnValue({
-        data: [],
-        isLoading: false,
-        error: null,
-      });
-      hookMocks.useSyncActions.mockReturnValue(createActions({ bootstrapSync }));
-      hookMocks.getPairingSourceStatus.mockResolvedValue({
-        status: "ready",
-        message: "Ready",
-        localCursor: 0,
-        serverCursor: 0,
-      });
+    expect(adapterMocks.startDeviceSyncRestore).toHaveBeenCalledTimes(1);
+    expect(adapterMocks.startDeviceSyncRestore).toHaveBeenCalledWith(false);
+    await flushAsyncWork();
+    expect(screen.getByText("Replace the data in this profile?")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("checkbox", { name: /Back up this profile first/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Replace data" }));
+    await flushAsyncWork();
+    expect(adapterMocks.approveDeviceSyncRestore).toHaveBeenCalledTimes(1);
+    expect(adapterMocks.approveDeviceSyncRestore).toHaveBeenCalledWith("op-1", false);
+    await flushAsyncWork();
+    expect(screen.getByText("Replacing data on this device")).toBeInTheDocument();
 
-      renderWithQueryClient(<DeviceSyncSection />);
-
-      await act(async () => {
-        fireEvent.click(screen.getByRole("button", { name: "Connect Another Device" }));
-        await Promise.resolve();
-      });
-      expect(screen.getAllByText("Connect Another Device").length).toBeGreaterThan(1);
-
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(2500);
-      });
-
-      expect(bootstrapSync.mutateAsync).not.toHaveBeenCalled();
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-  it("discards a ready-state bootstrap result if pairing opens while the check is in flight", async () => {
-    vi.useFakeTimers();
-    try {
-      hookMocks.pairingBootstrapActive = true;
-
-      let resolveBootstrap!: (value: unknown) => void;
-      const bootstrapPromise = new Promise((resolve) => {
-        resolveBootstrap = resolve;
-      });
-      const bootstrapSync = {
-        mutateAsync: vi.fn(() => bootstrapPromise),
-        isPending: false,
-        error: null,
-      };
-
-      hookMocks.useSyncStatus.mockReturnValue({
-        isLoading: false,
-        error: null,
-        syncState: "READY",
-        trustedDevices: [{ id: "trusted-1", name: "Laptop", platform: "mac", lastSeenAt: null }],
-        device: { trustState: "trusted" },
-        engineStatus: {
-          lastCycleStatus: "stale_cursor",
-          bootstrapRequired: true,
-          backgroundRunning: false,
-        },
-        engineIsFetching: false,
-        refetch: vi.fn(),
-      });
-      hookMocks.useDevices.mockReturnValue({
-        data: [],
-        isLoading: false,
-        error: null,
-      });
-      hookMocks.useSyncActions.mockReturnValue(createActions({ bootstrapSync }));
-      hookMocks.getPairingSourceStatus.mockResolvedValue({
-        status: "ready",
-        message: "Ready",
-        localCursor: 0,
-        serverCursor: 0,
-      });
-
-      renderWithQueryClient(<DeviceSyncSection />);
-
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(2500);
-      });
-      expect(bootstrapSync.mutateAsync).toHaveBeenCalledTimes(1);
-
-      await act(async () => {
-        fireEvent.click(screen.getByRole("button", { name: "Connect Another Device" }));
-        await Promise.resolve();
-      });
-
-      await act(async () => {
-        resolveBootstrap({
-          status: "overwrite_required",
-          localRows: 12,
-          nonEmptyTables: [{ table: "accounts", rows: 1 }],
-        });
-        await bootstrapPromise;
-      });
-
-      expect(screen.queryByText("Replace data on this device?")).not.toBeInTheDocument();
-      expect(screen.queryByText("This device already has data")).not.toBeInTheDocument();
-    } finally {
-      vi.useRealTimers();
-    }
+    // The recurring check does not start or prompt again while the runtime owns it.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10_000);
+    });
+    expect(adapterMocks.startDeviceSyncRestore).toHaveBeenCalledTimes(1);
   });
 
-  it("hides an already-open ready-state bootstrap prompt when pairing opens", async () => {
-    vi.useFakeTimers();
-    try {
-      const bootstrapSync = {
-        mutateAsync: vi.fn().mockResolvedValue({
-          status: "overwrite_required",
-          localRows: 86,
-          nonEmptyTables: [{ table: "accounts", rows: 1 }],
-        }),
-        isPending: false,
-        error: null,
-      };
+  it("delegates the backup to the runtime", async () => {
+    adapterMocks.getDeviceSyncRestore.mockResolvedValue(restoreOp());
+    adapterMocks.approveDeviceSyncRestore.mockResolvedValue(restoreOp({ phase: "backing_up" }));
+    hookMocks.useSyncStatus.mockReturnValue(readyStatus());
 
-      hookMocks.useSyncStatus.mockReturnValue({
-        isLoading: false,
-        error: null,
-        syncState: "READY",
-        trustedDevices: [{ id: "trusted-1", name: "Laptop", platform: "mac", lastSeenAt: null }],
-        device: { trustState: "trusted" },
-        engineStatus: {
-          lastCycleStatus: "stale_cursor",
-          bootstrapRequired: true,
-          backgroundRunning: false,
-        },
-        engineIsFetching: false,
-        refetch: vi.fn(),
-      });
-      hookMocks.useDevices.mockReturnValue({
-        data: [],
-        isLoading: false,
-        error: null,
-      });
-      hookMocks.useSyncActions.mockReturnValue(createActions({ bootstrapSync }));
-      hookMocks.getPairingSourceStatus.mockResolvedValue({
-        status: "ready",
-        message: "Ready",
-        localCursor: 0,
-        serverCursor: 0,
-      });
+    renderWithQueryClient(<DeviceSyncSection />);
+    fireEvent.click(await screen.findByRole("button", { name: "Back up and replace" }));
 
-      renderWithQueryClient(<DeviceSyncSection />);
-
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(2500);
-      });
-
-      expect(screen.getByText("Replace data on this device?")).toBeInTheDocument();
-
-      await act(async () => {
-        fireEvent.click(screen.getByText("Connect Another Device"));
-        await Promise.resolve();
-      });
-
-      expect(hookMocks.getPairingSourceStatus).toHaveBeenCalledTimes(1);
-      expect(screen.queryByText("Replace data on this device?")).not.toBeInTheDocument();
-      expect(screen.queryByText("This device already has data")).not.toBeInTheDocument();
-    } finally {
-      vi.useRealTimers();
-    }
+    await waitFor(() =>
+      expect(adapterMocks.approveDeviceSyncRestore).toHaveBeenCalledWith("op-1", true),
+    );
+    expect(await screen.findByText("Backing up this profile")).toBeInTheDocument();
   });
 
-  it("does not reopen the ready-state replace prompt after pairing overwrite completes", async () => {
-    vi.useFakeTimers();
-    try {
-      hookMocks.pairingCompletes = true;
+  // Regression: pairing and the recurring check used to own restoration
+  // separately, so each could show its own replacement prompt.
+  // Regression: each sync state rendered its own pairing dialog, so when keys
+  // arrived (REGISTERED -> READY) the window closed and reopened mid-pairing.
+  it("keeps the pairing window open while the sync state changes", async () => {
+    pairingMounts.count = 0;
+    const registered = {
+      ...readyStatus(),
+      syncState: "REGISTERED",
+      device: { trustState: "untrusted" },
+    };
+    hookMocks.useSyncStatus.mockReturnValue(registered);
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const view = render(
+      <QueryClientProvider client={queryClient}>
+        <DeviceSyncSection />
+      </QueryClientProvider>,
+    );
 
-      const refetch = vi.fn();
-      const bootstrapSync = {
-        mutateAsync: vi.fn().mockResolvedValue({
-          status: "overwrite_required",
-          localRows: 12,
-          nonEmptyTables: [{ table: "accounts", rows: 1 }],
-        }),
-        isPending: false,
-        error: null,
-      };
+    fireEvent.click(screen.getByRole("button", { name: "Connect this device" }));
+    await flushAsyncWork();
+    const dialog = screen.getByRole("dialog");
+    expect(pairingMounts.count).toBe(1);
 
-      hookMocks.useSyncStatus.mockReturnValue({
-        isLoading: false,
-        error: null,
-        syncState: "READY",
-        trustedDevices: [{ id: "trusted-1", name: "Laptop", platform: "mac", lastSeenAt: null }],
-        device: { trustState: "trusted" },
-        engineStatus: {
-          lastCycleStatus: "stale_cursor",
-          bootstrapRequired: true,
-          backgroundRunning: false,
-        },
-        engineIsFetching: false,
-        refetch,
-      });
-      hookMocks.useDevices.mockReturnValue({
-        data: [],
-        isLoading: false,
-        error: null,
-      });
-      hookMocks.useSyncActions.mockReturnValue(createActions({ bootstrapSync }));
-      hookMocks.getPairingSourceStatus.mockResolvedValue({
-        status: "ready",
-        message: "Ready",
-        localCursor: 0,
-        serverCursor: 0,
-      });
+    hookMocks.useSyncStatus.mockReturnValue(readyStatus({ device: { trustState: "trusted" } }));
+    view.rerender(
+      <QueryClientProvider client={queryClient}>
+        <DeviceSyncSection />
+      </QueryClientProvider>,
+    );
+    await flushAsyncWork();
 
-      renderWithQueryClient(<DeviceSyncSection />);
-
-      await act(async () => {
-        fireEvent.click(screen.getByRole("button", { name: "Connect Another Device" }));
-      });
-      await flushAsyncWork();
-
-      expect(refetch).toHaveBeenCalled();
-
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(2500);
-      });
-
-      expect(bootstrapSync.mutateAsync).not.toHaveBeenCalled();
-      expect(screen.queryByText("Replace data on this device?")).not.toBeInTheDocument();
-      expect(screen.queryByText("This device already has data")).not.toBeInTheDocument();
-    } finally {
-      vi.useRealTimers();
-    }
+    expect(screen.getByRole("dialog")).toBe(dialog);
+    expect(pairingMounts.count).toBe(1);
   });
 
-  it("allows manual bootstrap retry after pairing prompt suppression", async () => {
-    vi.useFakeTimers();
-    try {
-      hookMocks.pairingCompletes = true;
+  // An automatic restore that needs approval opens the one setup dialog, on the
+  // recovery steps only: nothing was paired, so there is no Connect step.
+  it("asks for approval in the setup wizard's recovery steps", async () => {
+    adapterMocks.getDeviceSyncRestore.mockResolvedValue(
+      restoreOp({ operationId: "op-recover-steps" }),
+    );
+    hookMocks.useSyncStatus.mockReturnValue(readyStatus());
+    renderWithQueryClient(<DeviceSyncSection />);
 
-      const refetch = vi.fn();
-      const bootstrapSync = {
-        mutateAsync: vi.fn().mockResolvedValue({
-          status: "overwrite_required",
-          localRows: 12,
-          nonEmptyTables: [{ table: "accounts", rows: 1 }],
-        }),
-        isPending: false,
-        error: null,
-      };
-
-      hookMocks.useSyncStatus.mockReturnValue({
-        isLoading: false,
-        error: null,
-        syncState: "READY",
-        trustedDevices: [{ id: "trusted-1", name: "Laptop", platform: "mac", lastSeenAt: null }],
-        device: { trustState: "trusted" },
-        engineStatus: {
-          lastCycleStatus: "stale_cursor",
-          bootstrapRequired: true,
-          backgroundRunning: false,
-        },
-        engineIsFetching: false,
-        refetch,
-      });
-      hookMocks.useDevices.mockReturnValue({
-        data: [],
-        isLoading: false,
-        error: null,
-      });
-      hookMocks.useSyncActions.mockReturnValue(createActions({ bootstrapSync }));
-      hookMocks.getPairingSourceStatus.mockResolvedValue({
-        status: "ready",
-        message: "Ready",
-        localCursor: 0,
-        serverCursor: 0,
-      });
-
-      renderWithQueryClient(<DeviceSyncSection />);
-
-      await act(async () => {
-        fireEvent.click(screen.getByRole("button", { name: "Connect Another Device" }));
-      });
-      await flushAsyncWork();
-
-      expect(refetch).toHaveBeenCalled();
-
-      await act(async () => {
-        fireEvent.click(screen.getByRole("button", { name: "Check again" }));
-        await Promise.resolve();
-      });
-
-      expect(bootstrapSync.mutateAsync).toHaveBeenCalledWith({ allowOverwrite: false });
-      expect(screen.getByText("Replace data on this device?")).toBeInTheDocument();
-    } finally {
-      vi.useRealTimers();
-    }
+    expect(await screen.findByRole("button", { name: "Back up and replace" })).toBeInTheDocument();
+    expect(screen.getAllByRole("dialog")).toHaveLength(1);
+    expect(screen.queryByTestId("wizard-step-connect")).not.toBeInTheDocument();
+    expect(screen.getByTestId("wizard-step-download")).toHaveAttribute("data-state", "done");
+    expect(screen.getByTestId("wizard-step-apply")).toHaveAttribute("aria-current", "step");
   });
 
-  it("allows manual bootstrap retry after failed pairing bootstrap is dismissed", async () => {
+  // Preparing this device is part of the wizard's Connect step, not a separate popup.
+  it("shows a failed preparation on the wizard's Connect step", async () => {
+    hookMocks.useSyncStatus.mockReturnValue(readyStatus());
+    hookMocks.getPairingSourceStatus.mockRejectedValue(new Error("offline"));
+    renderWithQueryClient(<DeviceSyncSection />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Connect another device" }));
+    await flushAsyncWork();
+
+    expect(screen.getByText("We couldn't finish getting this device ready.")).toBeInTheDocument();
+    expect(screen.getByTestId("wizard-step-connect")).toHaveAttribute("data-state", "failed");
+  });
+
+  // The pairing window stays mounted and shows its own restore, so the section
+  // must neither prompt a second time nor start a recurring check alongside it.
+  it("leaves a pairing restore to the pairing window", async () => {
     vi.useFakeTimers();
-    try {
-      hookMocks.pairingFails = true;
+    hookMocks.useSyncStatus.mockReturnValue(readyStatus());
+    renderWithQueryClient(<DeviceSyncSection />);
 
-      const bootstrapSync = {
-        mutateAsync: vi.fn().mockResolvedValue({
-          status: "overwrite_required",
-          localRows: 12,
-          nonEmptyTables: [{ table: "accounts", rows: 1 }],
-        }),
-        isPending: false,
-        error: null,
-      };
+    fireEvent.click(screen.getByRole("button", { name: "Connect another device" }));
+    await flushAsyncWork();
+    expect(screen.getAllByText("Connect another device").length).toBeGreaterThan(1);
 
-      hookMocks.useSyncStatus.mockReturnValue({
-        isLoading: false,
-        error: null,
-        syncState: "READY",
-        trustedDevices: [{ id: "trusted-1", name: "Laptop", platform: "mac", lastSeenAt: null }],
-        device: { trustState: "trusted" },
+    // Pairing hands off to the runtime while the engine still reports stale_cursor.
+    await emit(restoreOp());
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5_000);
+    });
+    await flushAsyncWork();
+
+    expect(adapterMocks.startDeviceSyncRestore).not.toHaveBeenCalled();
+    expect(screen.queryByRole("button", { name: "Back up and replace" })).not.toBeInTheDocument();
+    expect(screen.getAllByText("Connect another device").length).toBeGreaterThan(1);
+  });
+
+  it("follows approval from another tab instead of prompting again", async () => {
+    adapterMocks.getDeviceSyncRestore.mockResolvedValue(restoreOp());
+    hookMocks.useSyncStatus.mockReturnValue(readyStatus());
+    renderWithQueryClient(<DeviceSyncSection />);
+    expect(await screen.findByRole("button", { name: "Back up and replace" })).toBeInTheDocument();
+    await waitFor(() => expect(adapterMocks.handlers.length).toBeGreaterThan(0));
+
+    await emit(restoreOp({ phase: "replacing" }));
+
+    expect(await screen.findByText("Replacing data on this device")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Back up and replace" })).not.toBeInTheDocument();
+    expect(adapterMocks.approveDeviceSyncRestore).not.toHaveBeenCalled();
+  });
+
+  it("offers Finish setup after cancellation instead of reopening the prompt", async () => {
+    vi.useFakeTimers();
+    adapterMocks.getDeviceSyncRestore.mockResolvedValue(restoreOp({ phase: "cancelled" }));
+    adapterMocks.startDeviceSyncRestore.mockResolvedValue(restoreOp({ operationId: "op-2" }));
+    hookMocks.useSyncStatus.mockReturnValue(readyStatus());
+
+    renderWithQueryClient(<DeviceSyncSection />);
+    await flushAsyncWork();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10_000);
+    });
+    await flushAsyncWork();
+
+    expect(adapterMocks.startDeviceSyncRestore).not.toHaveBeenCalled();
+    expect(screen.queryByRole("button", { name: "Back up and replace" })).not.toBeInTheDocument();
+    const finish = screen.getByRole("button", { name: "Finish setup" });
+
+    fireEvent.click(finish);
+    await flushAsyncWork();
+    expect(adapterMocks.startDeviceSyncRestore).toHaveBeenCalledWith(true);
+    await flushAsyncWork();
+    expect(screen.getByRole("button", { name: "Back up and replace" })).toBeInTheDocument();
+  });
+
+  it("keeps an automatic check in the background until it needs the user", async () => {
+    adapterMocks.getDeviceSyncRestore.mockResolvedValue(
+      restoreOp({ operationId: "op-background-transfer", phase: "transferring" }),
+    );
+    hookMocks.useSyncStatus.mockReturnValue(readyStatus());
+
+    renderWithQueryClient(<DeviceSyncSection />);
+    fireEvent.click(await screen.findByRole("button", { name: "Show progress" }));
+    expect(await screen.findByText("Transferring your data")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Hide" }));
+    await waitFor(() =>
+      expect(screen.queryByText("Transferring your data")).not.toBeInTheDocument(),
+    );
+    expect(adapterMocks.cancelDeviceSyncRestore).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Show progress" })).toBeInTheDocument();
+  });
+
+  // Review finding: a transient failure of an automatic check opened a modal
+  // the user never asked for.
+  it("keeps a failed automatic check in the banner", async () => {
+    adapterMocks.getDeviceSyncRestore.mockResolvedValue(
+      restoreOp({
+        operationId: "op-background-failed",
+        phase: "failed",
+        error: { code: "TRANSFER_FAILED", message: "connection reset", retry: "transfer" },
+      }),
+    );
+    hookMocks.useSyncStatus.mockReturnValue(readyStatus());
+
+    renderWithQueryClient(<DeviceSyncSection />);
+    expect(await screen.findByText("Setup stopped before it finished.")).toBeInTheDocument();
+    expect(screen.queryByText("The transfer didn't finish")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Show progress" }));
+    expect(await screen.findByText("The transfer didn't finish")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Try again" })).toBeInTheDocument();
+  });
+
+  // Review finding: "Start again" in the recovery dialog started an attempt the
+  // dialog then hid as an automatic check.
+  it("keeps showing an attempt started again from the dialog", async () => {
+    adapterMocks.getDeviceSyncRestore.mockResolvedValue(
+      restoreOp({
+        operationId: "op-unavailable",
+        phase: "failed",
+        error: { code: "SNAPSHOT_UNAVAILABLE", message: "gone", retry: "new_attempt" },
+      }),
+    );
+    adapterMocks.startDeviceSyncRestore.mockResolvedValue(
+      restoreOp({ operationId: "op-started-again", phase: "transferring" }),
+    );
+    hookMocks.useSyncStatus.mockReturnValue(readyStatus());
+
+    renderWithQueryClient(<DeviceSyncSection />);
+    fireEvent.click(await screen.findByRole("button", { name: "Show progress" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Start again" }));
+    await flushAsyncWork();
+
+    expect(adapterMocks.startDeviceSyncRestore).toHaveBeenCalledWith(true);
+    expect(await screen.findByText("Transferring your data")).toBeInTheDocument();
+    expect(screen.queryByTestId("restore-banner")).not.toBeInTheDocument();
+  });
+
+  // Review finding: with a Ready restore and a lingering "waiting for snapshot"
+  // engine status, the background check asked again every couple of seconds.
+  it("does not keep asking once a restore is Ready and nothing requires another", async () => {
+    vi.useFakeTimers();
+    adapterMocks.getDeviceSyncRestore.mockResolvedValue(
+      restoreOp({ operationId: "op-settled", phase: "ready", replaced: true }),
+    );
+    hookMocks.useSyncStatus.mockReturnValue(
+      readyStatus({
         engineStatus: {
-          lastCycleStatus: "stale_cursor",
-          bootstrapRequired: true,
-          backgroundRunning: false,
+          lastCycleStatus: "wait_snapshot",
+          bootstrapRequired: false,
+          backgroundRunning: true,
         },
-        engineIsFetching: false,
-        refetch: vi.fn(),
-      });
-      hookMocks.useDevices.mockReturnValue({
-        data: [],
-        isLoading: false,
-        error: null,
-      });
-      hookMocks.useSyncActions.mockReturnValue(createActions({ bootstrapSync }));
-      hookMocks.getPairingSourceStatus.mockResolvedValue({
-        status: "ready",
-        message: "Ready",
-        localCursor: 0,
-        serverCursor: 0,
-      });
+      }),
+    );
 
-      renderWithQueryClient(<DeviceSyncSection />);
+    renderWithQueryClient(<DeviceSyncSection />);
+    await flushAsyncWork();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10_000);
+    });
 
-      await act(async () => {
-        fireEvent.click(screen.getByRole("button", { name: "Connect Another Device" }));
-      });
-      await flushAsyncWork();
+    expect(adapterMocks.startDeviceSyncRestore).not.toHaveBeenCalled();
+  });
 
-      await act(async () => {
-        fireEvent.click(screen.getByRole("button", { name: "Done" }));
-      });
-      await flushAsyncWork();
+  // Regression: a check that finished without restoring anything popped up
+  // "Ready" again right after the user closed the real restore.
+  it("never pops up a check that found nothing to restore", async () => {
+    adapterMocks.getDeviceSyncRestore.mockResolvedValue(
+      restoreOp({ operationId: "op-noop", phase: "ready", replaced: false }),
+    );
+    hookMocks.useSyncStatus.mockReturnValue(readyStatus());
 
-      await act(async () => {
-        fireEvent.click(screen.getByRole("button", { name: "Check again" }));
-        await Promise.resolve();
-      });
+    renderWithQueryClient(<DeviceSyncSection />);
+    await waitFor(() => expect(adapterMocks.getDeviceSyncRestore).toHaveBeenCalled());
+    await flushAsyncWork();
 
-      expect(bootstrapSync.mutateAsync).toHaveBeenCalledWith({ allowOverwrite: false });
-      expect(screen.getByText("Replace data on this device?")).toBeInTheDocument();
-    } finally {
-      vi.useRealTimers();
-    }
+    expect(screen.queryByText("Ready")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("restore-banner")).not.toBeInTheDocument();
   });
 });
 
@@ -647,11 +529,6 @@ function createActions(overrides?: Partial<SyncActionsMock>): SyncActionsMock {
     startBgSync: {
       mutateAsync: vi.fn(),
       isPending: false,
-    },
-    bootstrapSync: {
-      mutateAsync: vi.fn(),
-      isPending: false,
-      error: null,
     },
     generateSnapshot: {
       mutateAsync: vi.fn(),
@@ -684,7 +561,13 @@ function renderWithQueryClient(ui: ReactElement) {
 
 async function flushAsyncWork() {
   await act(async () => {
-    await Promise.resolve();
-    await Promise.resolve();
+    for (let i = 0; i < 5; i += 1) {
+      await Promise.resolve();
+    }
+    if (vi.isFakeTimers()) {
+      await vi.advanceTimersByTimeAsync(50);
+    } else {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
   });
 }

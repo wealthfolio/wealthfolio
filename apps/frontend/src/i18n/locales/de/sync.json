@@ -96,16 +96,7 @@
     "speedUpSetup": "Einrichtung beschleunigen"
   },
   "bootstrap": {
-    "inProgress": "Synchronisierungsinitialisierung läuft...",
-    "hasDataTitle": "Dieses Gerät enthält bereits Daten",
-    "hasDataDescription": "Um die Synchronisierung abzuschließen, werden die Daten auf diesem Gerät durch die Daten Ihres anderen Geräts ersetzt.",
-    "continue": "Fortfahren",
-    "waitingOtherDeviceTitle": "Warten auf Ihr anderes Gerät",
-    "waitingOtherDeviceDescription": "Wir schließen die Synchronisierung ab, sobald eine neue Momentaufnahme verfügbar ist.",
-    "retryStartedTitle": "Synchronisierungswiederholung gestartet",
-    "retryStartedDescription": "Es wird nach einer aktualisierten Momentaufnahme gesucht und ausstehende Synchronisierungsänderungen werden angewendet.",
-    "couldNotRetryTitle": "Synchronisierung konnte nicht wiederholt werden",
-    "unableToContinueTitle": "Synchronisierung kann nicht fortgesetzt werden"
+    "couldNotRetryTitle": "Synchronisierung konnte nicht wiederholt werden"
   },
   "snapshot": {
     "uploadedTitle": "Momentaufnahme hochgeladen",
@@ -114,22 +105,6 @@
     "cancelledTitle": "Hochladen der Momentaufnahme abgebrochen",
     "resultTitle": "Ergebnis des Hochladens der Momentaufnahme",
     "failedTitle": "Hochladen der Momentaufnahme fehlgeschlagen"
-  },
-  "backup": {
-    "savedTitle": "Sicherung gespeichert",
-    "savedDescription": "Eine Sicherung wurde als {{location}} gespeichert.",
-    "failedTitle": "Sicherung fehlgeschlagen",
-    "backingUp": "Wird gesichert...",
-    "backUpFirst": "Zuerst sichern"
-  },
-  "overwrite": {
-    "replaceDataTitle": "Daten auf diesem Gerät ersetzen?",
-    "replaceDataDescription": "Ihre lokalen Daten werden durch die Daten Ihres anderen verbundenen Geräts ersetzt.",
-    "localRowsReplaced_one": "{{count}} lokale Zeile wird ersetzt.",
-    "localRowsReplaced_other": "{{count}} lokale Zeilen werden ersetzt.",
-    "notNow": "Nicht jetzt",
-    "syncing": "Synchronisierung läuft...",
-    "replaceAndSync": "Ersetzen und synchronisieren"
   },
   "reinit": {
     "title": "Synchronisierung von diesem Gerät aus neu einrichten?",
@@ -171,49 +146,141 @@
     "gettingReadyTitle": "Dieses Gerät wird vorbereitet...",
     "gettingReadyDescription": "Dies dauert nur einen Moment.",
     "prepareFailed": "Die Vorbereitung dieses Geräts konnte nicht abgeschlossen werden.",
-    "tryAgain": "Erneut versuchen",
-    "starting": "Wird gestartet...",
-    "generatingCode": "Code wird generiert...",
-    "computingSecurityCode": "Sicherheitscode wird berechnet...",
-    "finishingSetup": "Einrichtung wird abgeschlossen...",
-    "finishingSetupDescription": "Ihre Daten werden für das neue Gerät vorbereitet",
-    "sessionExpired": "Sitzung abgelaufen",
-    "connecting": "Verbindung wird hergestellt...",
     "verifySecurityCode": "Sicherheitscode überprüfen",
-    "syncingData": "Ihre Daten werden synchronisiert...",
-    "syncingDataDescription": "Dies kann einige Sekunden dauern"
+    "transferringData": "Ihre Daten werden übertragen",
+    "transferringDataDescription": "Eine Kopie Ihrer Daten wird für Ihr neues Gerät verschlüsselt. Das kann einen Moment dauern.",
+    "securingConnection": "Verbindung wird gesichert",
+    "securingConnectionDescription": "Verschlüsselungsschlüssel werden mit Ihrem anderen Gerät ausgetauscht."
   },
   "displayCode": {
-    "expired": "Abgelaufen"
+    "generating": "Code wird erstellt",
+    "copyCode": "Code kopieren",
+    "copied": "Kopiert",
+    "expiresIn": "Läuft ab in {{time}}",
+    "expiredTitle": "Dieser Code ist abgelaufen",
+    "expiredDescription": "Codes gelten nur wenige Minuten, damit die Verbindung sicher bleibt. Fordern Sie einen neuen an, um fortzufahren.",
+    "newCode": "Neuen Code anfordern"
   },
   "enterCode": {
     "openingCamera": "Kamera wird geöffnet...",
     "scanQrCode": "QR-Code scannen",
-    "quickAndEasy": "Schnell und einfach",
     "or": "Oder",
-    "codePlaceholder": "ABC 123",
     "paste": "Einfügen",
     "connecting": "Verbindung wird hergestellt...",
     "connect": "Verbinden",
     "scanInstructions": "Richte den QR-Code innerhalb des Rahmens aus.",
     "cameraOpenError": "Die Kamera konnte nicht geöffnet werden. Bitte versuche es erneut.",
     "cameraCloseError": "Die Kamera konnte nicht geschlossen werden. Bitte versuche es erneut.",
-    "cameraUnavailable": "Keine Kamera verfügbar. Verwende zum Scannen ein physisches Gerät oder gib unten den Kopplungscode ein."
+    "cameraUnavailable": "Keine Kamera verfügbar. Verwende zum Scannen ein physisches Gerät oder gib unten den Kopplungscode ein.",
+    "scanHint": "Richten Sie die Kamera auf den Code auf Ihrem anderen Gerät.",
+    "codeLabel": "Verbindungscode"
   },
   "sas": {
-    "sameCodeQuestion": "Derselbe Code auf beiden Geräten?"
+    "description": "Prüfen Sie, ob Ihr anderes Gerät denselben Code anzeigt. So kann sich niemand sonst verbinden.",
+    "codesMatch": "Codes stimmen überein",
+    "codesDontMatch": "Stimmen nicht überein",
+    "waitingDescription": "Prüfen Sie, ob Ihr anderes Gerät diesen Code anzeigt, und bestätigen Sie ihn dort.",
+    "mismatchTitle": "Verbindung abgebrochen",
+    "mismatchDescription": "Die Codes stimmten nicht überein, daher wurde nichts geteilt. Versuchen Sie es mit einem neuen Code erneut."
   },
   "waiting": {
-    "waitingForConfirmation": "Warten auf Bestätigung...",
-    "confirmCodeMatches": "Bestätigen Sie, dass dieser Code mit dem auf Ihrem anderen Gerät übereinstimmt",
-    "securelyConnecting": "Bitte warten Sie, während wir Ihr Gerät sicher verbinden"
+    "waitingForConfirmation": "Warten auf Bestätigung..."
   },
   "result": {
     "allSet": "Alles bereit!",
     "connectedSuccessfully": "Gerät erfolgreich verbunden",
     "done": "Fertig",
     "connectionFailed": "Verbindung fehlgeschlagen",
-    "tryAgain": "Erneut versuchen"
+    "tryAgain": "Erneut versuchen",
+    "devicesConnected": "Geräte verbunden",
+    "finishOnOtherDevice": "Schließen Sie die Einrichtung auf Ihrem anderen Gerät ab. Dort wird „Bereit“ angezeigt, sobald Ihre Daten übernommen sind."
   },
-  "errors": {}
+  "restore": {
+    "dialogTitle": "Einrichtung dieses Geräts abschließen",
+    "transferring": {
+      "title": "Ihre Daten werden übertragen",
+      "description": "Die verschlüsselte Kopie Ihres anderen Geräts wird heruntergeladen und geprüft."
+    },
+    "waiting": {
+      "title": "Warten auf Ihr anderes Gerät",
+      "description": "Ihr anderes Gerät lädt seine Daten noch hoch. Die Einrichtung wird automatisch fortgesetzt."
+    },
+    "consent": {
+      "title": "Daten in diesem Profil ersetzen?",
+      "titleNamed": "Daten in „{{profile}}“ ersetzen?",
+      "description": "Die Daten Ihres anderen Geräts ersetzen die Daten auf diesem Gerät.",
+      "descriptionDated": "Die Daten Ihres anderen Geräts (kopiert am {{date}}) ersetzen die Daten auf diesem Gerät.",
+      "replace": "Daten ersetzen",
+      "backupLabel": "Dieses Profil zuerst sichern",
+      "backupAndReplace": "Sichern und ersetzen"
+    },
+    "backingUp": {
+      "title": "Dieses Profil wird gesichert",
+      "description": "Eine Kopie dieses Profils wird gesichert, bevor etwas ersetzt wird."
+    },
+    "replacing": {
+      "title": "Daten auf diesem Gerät werden ersetzt",
+      "description": "Die Daten Ihres anderen Geräts werden übernommen."
+    },
+    "ready": {
+      "title": "Bereit",
+      "description": "Dieses Gerät ist eingerichtet und synchronisiert."
+    },
+    "cancelled": {
+      "title": "Einrichtung abgebrochen",
+      "description": "Es wurde nichts ersetzt. Sie können die Einrichtung jederzeit abschließen."
+    },
+    "cancelSetup": "Einrichtung abbrechen",
+    "hide": "Ausblenden",
+    "continueInBackground": "Im Hintergrund fortsetzen",
+    "tryAgain": "Erneut versuchen",
+    "startAgain": "Neu starten",
+    "finishSetup": "Einrichtung abschließen",
+    "retryHint": {
+      "transfer": "Es wurde nichts ersetzt. Sie können die Übertragung erneut versuchen.",
+      "consent": "Es wurde nichts ersetzt. Beim erneuten Versuch werden Sie erneut um Zustimmung gebeten.",
+      "new_attempt": "Es wurde nichts ersetzt. Starten Sie neu, um die aktuelle Kopie Ihres anderen Geräts zu verwenden."
+    },
+    "errors": {
+      "SUBSCRIPTION_REQUIRED": "Die Gerätesynchronisierung erfordert ein aktives Abonnement",
+      "DEVICE_NOT_READY": "Dieses Gerät ist noch nicht bereit für die Synchronisierung",
+      "SNAPSHOT_WAIT_TIMED_OUT": "Ihr anderes Gerät hat den Upload noch nicht abgeschlossen",
+      "SNAPSHOT_UNAVAILABLE": "Die Kopie Ihres anderen Geräts ist nicht mehr verfügbar",
+      "SNAPSHOT_SCHEMA_NEWER": "Aktualisieren Sie die App, um die Einrichtung abzuschließen",
+      "SNAPSHOT_INVALID": "Die übertragenen Daten konnten nicht überprüft werden",
+      "TRANSFER_FAILED": "Die Übertragung wurde nicht abgeschlossen",
+      "BACKUP_FAILED": "Die Sicherung wurde nicht abgeschlossen",
+      "RESTORE_FAILED": "Die Daten konnten nicht ersetzt werden"
+    },
+    "banner": {
+      "title": "Die Einrichtung dieses Geräts ist nicht abgeschlossen",
+      "running": "Die Einrichtung läuft im Hintergrund weiter.",
+      "needsApproval": "Zum Ersetzen der Daten dieses Profils ist Ihre Zustimmung erforderlich.",
+      "failed": "Die Einrichtung wurde vor dem Abschluss beendet.",
+      "cancelled": "Die Einrichtung wurde abgebrochen. Schließen Sie sie ab, wenn Sie bereit sind.",
+      "show": "Fortschritt anzeigen"
+    }
+  },
+  "errors": {},
+  "wizard": {
+    "progressLabel": "Fortschritt der Einrichtung",
+    "steps": {
+      "connect": "Verbinden",
+      "transfer": "Übertragen",
+      "download": "Herunterladen",
+      "apply": "Übernehmen",
+      "done": "Fertig"
+    },
+    "encryptedNote": "Ende-zu-Ende-verschlüsselt. Nur Ihre Geräte können Ihre Daten lesen.",
+    "backgroundNote": "Sie können dieses Fenster schließen. Die Einrichtung läuft im Hintergrund weiter.",
+    "details": {
+      "encrypt": "Ihre Daten verschlüsseln",
+      "upload": "Die verschlüsselte Kopie hochladen",
+      "sendKeys": "Die Schlüssel an Ihr neues Gerät senden",
+      "waitForUpload": "Ihr anderes Gerät lädt seine Daten hoch",
+      "downloadAndVerify": "Die verschlüsselte Kopie herunterladen und prüfen",
+      "replace": "Die Daten auf diesem Gerät ersetzen",
+      "backup": "Dieses Profil sichern"
+    }
+  }
 }

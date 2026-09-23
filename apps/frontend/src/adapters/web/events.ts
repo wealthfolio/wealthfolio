@@ -159,6 +159,11 @@ export const listenMarketSyncError = <T>(handler: EventCallback<T>): Promise<Unl
   return portfolioEventBridge.listen("market:sync-error", handler);
 };
 
+/** Restore operation changes for this profile, including from other tabs. */
+export const listenDeviceSyncRestore = <T>(handler: EventCallback<T>): Promise<UnlistenFn> => {
+  return portfolioEventBridge.listen("device-sync:restore-operation", handler);
+};
+
 export const listenAssetClassificationsChanged = <T>(
   handler: EventCallback<T>,
 ): Promise<UnlistenFn> => {
