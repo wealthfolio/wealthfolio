@@ -97,6 +97,11 @@ jobs:
           ")
           echo "args=$ARGS" >> "$GITHUB_OUTPUT"
 
+      - name: Materialize App Store Connect API key (macOS notarization)
+        if: contains(matrix.platform, 'macos')
+        shell: bash
+        run: printf '%s' "${{ secrets.APPLE_API_KEY_P8 }}" > "$RUNNER_TEMP/asc.p8"
+
       - name: Build the app
         uses: tauri-apps/tauri-action@v0
 
@@ -110,8 +115,9 @@ jobs:
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_KEY_PATH: ${{ runner.temp }}/asc.p8
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
@@ -122,6 +128,40 @@ jobs:
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }} ${{ steps.win-bundles.outputs.args }} -- --locked
+
+      # Tauri only notarizes the .app (tauri-bundler macos/app.rs calls notarize()
+      # on the app bundle; macos/dmg/mod.rs just codesigns the disk image), so the
+      # DMG ships without a stapled ticket unless we submit it ourselves here.
+      - name: Notarize and staple macOS DMGs (disk-image ticket)
+        if: contains(matrix.platform, 'macos')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          TAG="${{ github.ref_name }}"
+          found=0
+          # CI always passes --target <triple> → target/<triple>/release/…;
+          # keep target/release/… as a safety net if the matrix args ever change.
+          for dmg in target/*/release/bundle/dmg/*.dmg target/release/bundle/dmg/*.dmg; do
+            found=1
+            xcrun notarytool submit "$dmg" \
+              --key "$RUNNER_TEMP/asc.p8" \
+              --key-id "$APPLE_API_KEY" \
+              --issuer "$APPLE_API_ISSUER" \
+              --wait
+            xcrun stapler staple "$dmg"
+            xcrun stapler validate "$dmg"
+            # tauri-action already uploaded the unstapled copy; replace it in place
+            gh release upload "$TAG" "$dmg" --clobber
+          done
+          if [ "$found" -eq 0 ]; then
+            echo "::error::No DMG found under target/*/release/bundle/dmg/"
+            exit 1
+          fi
 
   prebuild-server-linux:
     # Standalone server tarball for self-hosters (Proxmox LXC, bare metal, systemd).
