@@ -409,6 +409,14 @@ impl AssetService {
             return Some(serde_json::json!({ "preferred_provider": "BOERSE_FRANKFURT" }));
         }
 
+        // Yahoo no longer serves MOEX listings, and a bare ticker there resolves
+        // to whatever other venue shares it (AFLT -> an Amundi ETF on XPAR).
+        if matches!(instrument_type, Some(InstrumentType::Equity))
+            && exchange_mic.is_some_and(|mic| mic.trim().eq_ignore_ascii_case("MISX"))
+        {
+            return Some(serde_json::json!({ "preferred_provider": "MOEX" }));
+        }
+
         None
     }
 
@@ -4399,6 +4407,30 @@ mod tests {
             Some(serde_json::json!({ "preferred_provider": "BOERSE_FRANKFURT" })),
             "ISIN-backed XETR/XFRA equities should prefer Boerse Frankfurt"
         );
+    }
+
+    #[test]
+    fn test_moex_equity_prefers_moex() {
+        let provider_config = AssetService::inferred_provider_config(
+            QuoteMode::Market,
+            Some(&InstrumentType::Equity),
+            Some("AFLT"),
+            Some("MISX"),
+        );
+
+        assert_eq!(
+            provider_config,
+            Some(serde_json::json!({ "preferred_provider": "MOEX" })),
+            "MISX equities should prefer MOEX"
+        );
+
+        let manual = AssetService::inferred_provider_config(
+            QuoteMode::Manual,
+            Some(&InstrumentType::Equity),
+            Some("AFLT"),
+            Some("MISX"),
+        );
+        assert!(manual.is_none(), "manual assets keep no provider config");
     }
 
     #[test]

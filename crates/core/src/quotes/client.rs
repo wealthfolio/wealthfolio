@@ -41,8 +41,8 @@ use wealthfolio_market_data::{
     yahoo_exchange_to_mic, yahoo_suffix_to_mic, AlphaVantageProvider,
     AssetProfile as MarketAssetProfile, BoerseFrankfurtProvider, BondQuoteMetadata, DividendEvent,
     ExchangeMap, FinnhubProvider, FixtureProvider, MarketDataAppProvider, MetalPriceApiProvider,
-    OpenFigiProvider, ProviderId, ProviderRegistry, Quote as MarketQuote, QuoteContext,
-    QuoteIdentifiers, ResolverChain, SearchResult as MarketSearchResult, SplitEvent,
+    MoexProvider, OpenFigiProvider, ProviderId, ProviderRegistry, Quote as MarketQuote,
+    QuoteContext, QuoteIdentifiers, ResolverChain, SearchResult as MarketSearchResult, SplitEvent,
     UsTreasuryCalcProvider, YahooProvider,
 };
 
@@ -232,6 +232,7 @@ impl MarketDataClient {
             | DATA_SOURCE_FINNHUB
             | DATA_SOURCE_OPENFIGI
             | DATA_SOURCE_US_TREASURY_CALC
+            | DATA_SOURCE_MOEX
             | DATA_SOURCE_CUSTOM_SCRAPER => {
                 warn!(
                     "Provider {} is disabled because WEALTHFOLIO_E2E=1; add fixture support before using it in e2e",
@@ -311,6 +312,10 @@ impl MarketDataClient {
             DATA_SOURCE_BOERSE_FRANKFURT => {
                 // European bond pricing via Börse Frankfurt (no API key)
                 Ok(Some(Arc::new(BoerseFrankfurtProvider::new())))
+            }
+            DATA_SOURCE_MOEX => {
+                // Moscow Exchange shares, DRs and ETFs via the public ISS API (no API key)
+                Ok(Some(Arc::new(MoexProvider::new())))
             }
             _ => {
                 warn!("Unknown provider ID: {}", provider_id);
