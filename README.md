@@ -193,21 +193,49 @@ Ensure you have the following installed on your machine:
    cp .env.example .env
    ```
 
-   Update the `.env` file with your database path and other configuration as
-   needed:
+   Desktop development uses a separate application identity and profile
+   directory. On macOS, the default layout is:
 
-   ```bash
-   # Database location
-   DATABASE_URL=../db/wealthfolio.db
+   ```text
+   ~/Library/Application Support/com.teymz.wealthfolio.dev/
+   ├── profiles.json
+   └── profiles/<uuid>/app.db
    ```
 
-4. **Run in Development Mode**:
+   You do not need to set `DATABASE_URL`: the development identity ignores it,
+   including values inherited from `.env` or the shell. The root-level `app.db`
+   is only used when adopting an existing legacy database. To select another
+   profile directory during desktop development, set `WF_DATA_DIR` to an
+   absolute path as described in `.env.example`. Use a dedicated development
+   directory.
 
-Build and run the desktop application using Tauri:
+4. **Run in Development Mode**:
 
 ```bash
 pnpm tauri dev
 ```
+
+The command automatically applies `apps/tauri/tauri.dev.conf.json`, which sets
+`com.teymz.wealthfolio.dev` and `Wealthfolio (Development)`. This identity
+remains in effect when additional `--config` overrides are supplied, including
+when running `pnpm tauri dev --release`. Production builds (`pnpm tauri build`)
+retain the production identity. For an isolated packaged debug build, select the
+same configuration explicitly:
+
+```bash
+pnpm tauri build --debug --config apps/tauri/tauri.dev.conf.json
+```
+
+Credentials follow the selected application identity, not debug/release mode.
+Production Keychain names are unchanged. Development has separate credentials,
+so sign in and enroll it as a separate sync device if needed; later development
+runs reuse those credentials. Profiles and add-ons retain their existing scopes
+within each environment. Mobile commands retain their configured identity.
+
+To populate development with existing data, use the supported backup/export and
+restore flow. A raw copy of an encrypted production database still requires its
+original encryption key; development does not copy or fall back to production
+credentials. Never point development at the live production profile directory.
 
 #### Addon Development Mode
 

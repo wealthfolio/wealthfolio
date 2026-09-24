@@ -239,9 +239,10 @@ pub fn run() {
 
             // Registry failures are recoverable. Platform setup opens profiles
             // asynchronously while this state serves the startup recovery UI.
-            handle.manage(profile_startup::ProfileStartup::new(get_app_data_dir(
-                &handle,
-            )?));
+            handle.manage(profile_startup::ProfileStartup::new(
+                get_app_data_dir(&handle)?,
+                handle.config().identifier.clone(),
+            ));
 
             // Platform-specific plugin initialization
             #[cfg(desktop)]

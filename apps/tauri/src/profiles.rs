@@ -108,30 +108,21 @@ fn portfolio_history_backfill_needed(context: &Arc<ServiceContext>) -> bool {
 }
 
 impl NativeProfiles {
-    pub fn new(root: String) -> Result<Self, String> {
-        Self::open(root, false)
+    pub fn new(root: String, identifier: &str) -> Result<Self, String> {
+        Self::open(root, identifier, false)
     }
 
-    pub fn start_new(root: String) -> Result<Self, String> {
-        Self::open(root, true)
+    pub fn start_new(root: String, identifier: &str) -> Result<Self, String> {
+        Self::open(root, identifier, true)
     }
 
-    fn open(root: String, start_new: bool) -> Result<Self, String> {
+    fn open(root: String, identifier: &str, start_new: bool) -> Result<Self, String> {
         let (root, legacy) =
-            match crate::data_dir::development_override(std::env::var_os("WF_DATA_DIR"))? {
-                Some(root) => {
-                    let database = root.join("app.db");
-                    (root, database)
-                }
-                None => {
-                    let database = wealthfolio_storage_sqlite::db::get_db_path(&root);
-                    (root.into(), database.into())
-                }
-            };
+            crate::data_dir::profile_paths(root, identifier, std::env::var_os("WF_DATA_DIR"))?;
         let registry = if start_new {
-            ProfileRegistry::start_new(root, legacy, shared_secret_store())
+            ProfileRegistry::start_new(root, legacy, shared_secret_store(identifier))
         } else {
-            ProfileRegistry::open(root, legacy, shared_secret_store())
+            ProfileRegistry::open(root, legacy, shared_secret_store(identifier))
         }
         .map_err(|e| e.to_string())?;
         for id in registry.pending_deletions().map_err(|e| e.to_string())? {

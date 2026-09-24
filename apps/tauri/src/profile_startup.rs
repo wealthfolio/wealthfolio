@@ -5,14 +5,16 @@ use tauri::{AppHandle, Manager};
 
 pub struct ProfileStartup {
     app_data_dir: String,
+    identifier: String,
     error: Mutex<Option<String>>,
     initialization: tokio::sync::Mutex<()>,
 }
 
 impl ProfileStartup {
-    pub fn new(app_data_dir: String) -> Self {
+    pub fn new(app_data_dir: String, identifier: String) -> Self {
         Self {
             app_data_dir,
+            identifier,
             error: Mutex::new(None),
             initialization: tokio::sync::Mutex::new(()),
         }
@@ -45,11 +47,12 @@ impl ProfileStartup {
             return Ok(profiles.try_context());
         }
         let root = self.app_data_dir.clone();
+        let identifier = self.identifier.clone();
         let result = tauri::async_runtime::spawn_blocking(move || {
             if start_new {
-                NativeProfiles::start_new(root)
+                NativeProfiles::start_new(root, &identifier)
             } else {
-                NativeProfiles::new(root)
+                NativeProfiles::new(root, &identifier)
             }
         })
         .await

@@ -244,7 +244,7 @@ impl DatabaseRuntime {
                 root: app_data_dir.into(),
                 database,
             },
-            shared_secret_store(),
+            shared_secret_store(crate::data_dir::PRODUCTION_APP_IDENTIFIER),
             Arc::default(),
         )
     }

@@ -827,7 +827,7 @@ mod initialization_tests {
             directory.path().to_str().unwrap(),
             pool,
             uuid::Uuid::nil(),
-            crate::secret_store::shared_secret_store(),
+            crate::secret_store::shared_secret_store(crate::data_dir::PRODUCTION_APP_IDENTIFIER),
             Arc::default(),
         )
         .await
