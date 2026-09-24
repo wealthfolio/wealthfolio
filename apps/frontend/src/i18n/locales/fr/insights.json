@@ -124,7 +124,8 @@
       "over_months_many": "sur {{count}} mois",
       "trailing_pace": " · {{multiple}}× rythme sur 12 mois glissants",
       "drivers_of_change": "Facteurs d'évolution",
-      "market_returns": "Rendements du marché",
+      "portfolio_gains": "Gains/pertes du portefeuille",
+      "other_asset_changes": "Variations de valeur des autres actifs",
       "contributions": "Contributions",
       "equity_built": "Capital constitué",
       "per_month": "/mois"

@@ -124,7 +124,8 @@
       "over_months_many": "en {{count}} meses",
       "trailing_pace": " · {{multiple}}× del ritmo de los últimos 12 meses",
       "drivers_of_change": "Factores del cambio",
-      "market_returns": "Rentabilidades del mercado",
+      "portfolio_gains": "Ganancias/pérdidas de la cartera",
+      "other_asset_changes": "Cambios de valor de otros activos",
       "contributions": "Aportaciones",
       "equity_built": "Capital acumulado",
       "per_month": "/mes"

@@ -119,7 +119,8 @@
       "over_months_other": "在 {{count}} 個月內",
       "trailing_pace": " · 過去 12 個月月均變化的 {{multiple}} 倍",
       "drivers_of_change": "變化主要因素",
-      "market_returns": "市場報酬",
+      "portfolio_gains": "投資組合損益",
+      "other_asset_changes": "其他資產價值變動",
       "contributions": "投入",
       "equity_built": "累積權益",
       "per_month": "/月"

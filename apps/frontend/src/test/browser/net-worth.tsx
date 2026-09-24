@@ -4,6 +4,9 @@ import i18next from "i18next";
 import { initReactI18next } from "react-i18next";
 import { FormattingProvider } from "@wealthfolio/ui";
 import { PrivacyContext } from "@/context/privacy-context";
+import en from "@/i18n/locales/en/insights.json";
+import { VelocityCard } from "@/pages/net-worth/components/velocity-card";
+import { computeVelocity } from "@/pages/net-worth/components/utils";
 import de from "@/i18n/locales/de/insights.json";
 import { BreakdownTable } from "@/pages/net-worth/components/breakdown-table";
 import type { ParsedHistoryPoint, ParsedNetWorth } from "@/pages/net-worth/components/utils";
@@ -180,6 +183,33 @@ function Fixture() {
             onSelect={() => undefined}
           />
         </main>
+        <section aria-label="Monthly pace card" style={{ padding: 16, maxWidth: 384 }}>
+          <VelocityCard
+            velocity={
+              computeVelocity([
+                {
+                  ...history[0],
+                  netWorth: 10000,
+                  totalAssets: 10000,
+                  portfolioValue: 5000,
+                  alternativeAssetsValue: 5000,
+                  netContribution: 5000,
+                },
+                {
+                  ...history[0],
+                  date: "2020-07-01",
+                  netWorth: 11100,
+                  totalAssets: 11100,
+                  portfolioValue: 7300,
+                  alternativeAssetsValue: 3800,
+                  netContribution: 7000,
+                },
+              ])!
+            }
+            currency="EUR"
+            periodLabel="YTD"
+          />
+        </section>
       </PrivacyContext.Provider>
     </FormattingProvider>
   );
@@ -187,8 +217,8 @@ function Fixture() {
 
 async function renderFixture() {
   await i18next.use(initReactI18next).init({
-    lng: "de",
-    resources: { de: { insights: de } },
+    lng: new URLSearchParams(location.search).get("language") ?? "de",
+    resources: { de: { insights: de }, en: { insights: en } },
     interpolation: { escapeValue: false },
   });
   createRoot(document.getElementById("root")!).render(<Fixture />);

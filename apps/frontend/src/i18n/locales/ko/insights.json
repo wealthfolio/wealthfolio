@@ -118,7 +118,8 @@
       "over_months_other": "{{count}}개월 동안",
       "trailing_pace": " · 최근 12개월 평균 대비 {{multiple}}배",
       "drivers_of_change": "변화 요인",
-      "market_returns": "시장 수익률",
+      "portfolio_gains": "포트폴리오 손익",
+      "other_asset_changes": "기타 자산 가치 변동",
       "contributions": "납입금",
       "equity_built": "축적된 자본",
       "per_month": "/월"

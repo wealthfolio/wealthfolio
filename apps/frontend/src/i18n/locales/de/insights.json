@@ -119,7 +119,8 @@
       "over_months_other": "über {{count}} Monate",
       "trailing_pace": " · {{multiple}}× Tempo der letzten 12 Monate",
       "drivers_of_change": "Treiber der Veränderung",
-      "market_returns": "Marktrenditen",
+      "portfolio_gains": "Portfoliogewinne/-verluste",
+      "other_asset_changes": "Wertänderungen sonstiger Vermögenswerte",
       "contributions": "Einzahlungen",
       "equity_built": "Aufgebautes Eigenkapital",
       "per_month": "/Mon."

@@ -63,8 +63,20 @@ export function VelocityCard({
   periodLabel,
 }: VelocityCardProps) {
   const { t } = useTranslation();
-  const { perMonth, netChange, months, marketGains, contributions, equityBuilt } = velocity;
-  const total = Math.abs(marketGains) + Math.abs(contributions) + Math.abs(equityBuilt);
+  const {
+    perMonth,
+    netChange,
+    months,
+    portfolioGains,
+    otherAssetChanges,
+    contributions,
+    equityBuilt,
+  } = velocity;
+  const total =
+    Math.abs(portfolioGains) +
+    Math.abs(otherAssetChanges) +
+    Math.abs(contributions) +
+    Math.abs(equityBuilt);
   const multiple =
     trailingYearMonthly && Math.abs(trailingYearMonthly) > 0.005
       ? perMonth / trailingYearMonthly
@@ -97,8 +109,15 @@ export function VelocityCard({
       </p>
       <div className="space-y-3.5">
         <DriverRow
-          label={t("insights:networth.velocity.market_returns")}
-          value={marketGains}
+          label={t("insights:networth.velocity.portfolio_gains")}
+          value={portfolioGains}
+          months={months}
+          total={total}
+          currency={currency}
+        />
+        <DriverRow
+          label={t("insights:networth.velocity.other_asset_changes")}
+          value={otherAssetChanges}
           months={months}
           total={total}
           currency={currency}

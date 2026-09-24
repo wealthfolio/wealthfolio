@@ -138,7 +138,7 @@ describe("net worth utils", () => {
     expect(isPlainPercent(null)).toBe(false);
   });
 
-  it("decomposes monthly velocity into market gains, contributions, and equity built", () => {
+  it("decomposes monthly velocity into portfolio gains, other asset changes, contributions, and equity built", () => {
     const history = [
       point({
         date: "2024-01-01",
@@ -165,7 +165,8 @@ describe("net worth utils", () => {
 
     expect(velocity).toMatchObject({
       netChange: 220,
-      marketGains: 150,
+      portfolioGains: 70,
+      otherAssetChanges: 80,
       contributions: 50,
       equityBuilt: 20,
     });
@@ -173,6 +174,48 @@ describe("net worth utils", () => {
     expect(velocity?.perMonth).toBeCloseTo(220 / expectedMonths);
     expect(averageMonthlyChange(history)).toBeCloseTo(220 / expectedMonths);
     expect(averageMonthlyChange([history[0]])).toBe(0);
+  });
+
+  it("keeps portfolio gains separate from vehicle depreciation", () => {
+    const velocity = computeVelocity([
+      point({
+        date: "2024-01-01",
+        netWorth: 10000,
+        totalAssets: 10000,
+        portfolioValue: 5000,
+        alternativeAssetsValue: 5000,
+        netContribution: 5000,
+      }),
+      point({
+        date: "2024-07-01",
+        netWorth: 11100,
+        totalAssets: 11100,
+        portfolioValue: 7300,
+        alternativeAssetsValue: 3800,
+        netContribution: 7000,
+      }),
+    ]);
+    expect(velocity).toMatchObject({
+      netChange: 1100,
+      portfolioGains: 300,
+      otherAssetChanges: -1200,
+      contributions: 2000,
+      equityBuilt: 0,
+    });
+  });
+
+  it("includes newly recorded assets in other asset changes", () => {
+    expect(
+      computeVelocity([
+        point({ date: "2024-01-01" }),
+        point({
+          date: "2024-02-01",
+          netWorth: 5000,
+          totalAssets: 5000,
+          alternativeAssetsValue: 5000,
+        }),
+      ]),
+    ).toMatchObject({ portfolioGains: 0, otherAssetChanges: 5000 });
   });
 
   it("compares current momentum against an equal prior window", () => {

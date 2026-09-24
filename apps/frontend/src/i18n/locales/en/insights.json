@@ -119,7 +119,8 @@
       "over_months_other": "over {{count}} months",
       "trailing_pace": " · {{multiple}}× trailing-12mo pace",
       "drivers_of_change": "Drivers of change",
-      "market_returns": "Market returns",
+      "portfolio_gains": "Portfolio gains/losses",
+      "other_asset_changes": "Other asset value changes",
       "contributions": "Contributions",
       "equity_built": "Equity built",
       "per_month": "/mo"

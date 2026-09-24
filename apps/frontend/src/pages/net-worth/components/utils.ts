@@ -219,7 +219,8 @@ function netWorthAsOf(history: ParsedHistoryPoint[], iso: string): number {
 
 export interface Velocity {
   netChange: number;
-  marketGains: number;
+  portfolioGains: number;
+  otherAssetChanges: number;
   contributions: number;
   equityBuilt: number;
   perMonth: number;
@@ -228,9 +229,9 @@ export interface Velocity {
 }
 
 /**
- * Decompose net worth change over the range into market gains (portfolio price +
- * alternative-asset appreciation), contributions, and equity built (liability
- * reduction). These three sum to the net worth change.
+ * Separate contribution-adjusted portfolio gains from other asset balance
+ * changes, contributions, and equity built (liability reduction). Other asset
+ * changes include newly recorded assets as well as appreciation/depreciation.
  */
 export function computeVelocity(history: ParsedHistoryPoint[]): Velocity | null {
   if (history.length < 2) return null;
@@ -249,7 +250,8 @@ export function computeVelocity(history: ParsedHistoryPoint[]): Velocity | null 
 
   return {
     netChange,
-    marketGains: portfolioGain + altGain,
+    portfolioGains: portfolioGain,
+    otherAssetChanges: altGain,
     contributions,
     equityBuilt,
     perMonth,

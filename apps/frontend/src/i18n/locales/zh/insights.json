@@ -118,7 +118,8 @@
       "over_months_other": "在 {{count}} 个月内",
       "trailing_pace": " · 过去 12 个月节奏的 {{multiple}} 倍",
       "drivers_of_change": "变化驱动因素",
-      "market_returns": "市场回报",
+      "portfolio_gains": "投资组合损益",
+      "other_asset_changes": "其他资产价值变动",
       "contributions": "投入",
       "equity_built": "累积权益",
       "per_month": "/月"

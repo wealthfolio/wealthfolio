@@ -118,7 +118,8 @@
       "over_months_other": "{{count}}か月間",
       "trailing_pace": " · 直近12か月ペースの{{multiple}}倍",
       "drivers_of_change": "変動要因",
-      "market_returns": "市場リターン",
+      "portfolio_gains": "ポートフォリオの損益",
+      "other_asset_changes": "その他の資産の価値変動",
       "contributions": "入金",
       "equity_built": "エクイティ増加",
       "per_month": "/月"
