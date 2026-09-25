@@ -54,6 +54,11 @@ export function DashboardActions({ onAddAsset, onAddLiability }: DashboardAction
               label: t("dashboard:actions.add_liability"),
               onClick: onAddLiability,
             },
+            {
+              icon: Icons.Wallet,
+              label: t("asset:profile.manage"),
+              onClick: () => navigate("/holdings?tab=assets"),
+            },
           ]
         : [
             {
@@ -90,11 +95,15 @@ export function DashboardActions({ onAddAsset, onAddLiability }: DashboardAction
             label: t("dashboard:actions.update_prices"),
             onClick: () => updatePortfolioMutation.mutate(),
           },
-          {
-            icon: Icons.History,
-            label: t("dashboard:actions.rebuild_full_history"),
-            onClick: () => recalculatePortfolioMutation.mutate(),
-          },
+          ...(!(onAddAsset && onAddLiability)
+            ? [
+                {
+                  icon: Icons.History,
+                  label: t("dashboard:actions.rebuild_full_history"),
+                  onClick: () => recalculatePortfolioMutation.mutate(),
+                },
+              ]
+            : []),
           {
             icon: Icons.ShieldCheck,
             label: t("dashboard:actions.verify_data"),
