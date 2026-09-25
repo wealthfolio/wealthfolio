@@ -621,19 +621,20 @@ impl AlternativeAssetServiceTrait for AlternativeAssetService {
                     }
                 };
 
-                // Extract purchase_price from metadata
+                // Liabilities store their original amount separately from the
+                // purchase price used by other alternative assets.
                 let purchase_price = asset
                     .metadata
                     .as_ref()
-                    .and_then(|m| m.get("purchase_price"))
+                    .and_then(|m| m.get("purchase_price").or_else(|| m.get("original_amount")))
                     .and_then(|v| v.as_str())
                     .and_then(|s| s.parse::<Decimal>().ok());
 
-                // Extract purchase_date from metadata
+                // Liabilities use origination_date instead of purchase_date.
                 let purchase_date = asset
                     .metadata
                     .as_ref()
-                    .and_then(|m| m.get("purchase_date"))
+                    .and_then(|m| m.get("purchase_date").or_else(|| m.get("origination_date")))
                     .and_then(|v| v.as_str())
                     .and_then(|s| chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d").ok());
 

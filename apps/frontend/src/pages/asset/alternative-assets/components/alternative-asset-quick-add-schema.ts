@@ -37,6 +37,32 @@ export const ASSET_KIND_OPTIONS = [
   { value: AlternativeAssetKind.OTHER, label: "Other" },
 ] as const;
 
+export const liabilityQuickAddSchema = z
+  .object({
+    originalAmount: z.coerce.number().finite().positive().optional(),
+    currentBalance: z.coerce.number().finite().min(0).optional(),
+    originationDate: z.date().optional(),
+    balanceDate: z.date(),
+    loanTerm: z.coerce.number().finite().int().positive().max(100).optional(),
+    interestRate: z.coerce.number().finite().min(0).max(100).optional(),
+  })
+  .superRefine((values, context) => {
+    if (!values.originalAmount && values.currentBalance === undefined) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["currentBalance"],
+        message: "asset:quickAdd.validation.invalid",
+      });
+    }
+    if (values.originationDate && values.balanceDate < values.originationDate) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["balanceDate"],
+        message: "asset:quickAdd.validation.balance_date_before_origination",
+      });
+    }
+  });
+
 // Zod schema for the quick add form
 export const alternativeAssetQuickAddSchema = z
   .object({
@@ -89,6 +115,7 @@ export const alternativeAssetQuickAddSchema = z
       ])
       .optional(),
     linkedAssetId: z.string().optional(),
+    endDate: z.date().optional(),
   })
   .refine(
     (data) => {
@@ -119,4 +146,5 @@ export const getDefaultFormValues = (): AlternativeAssetQuickAddFormValues => ({
   weightUnit: "oz",
   liabilityType: undefined,
   linkedAssetId: undefined,
+  endDate: undefined,
 });

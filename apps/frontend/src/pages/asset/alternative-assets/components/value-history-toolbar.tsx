@@ -12,6 +12,10 @@ interface ValueHistoryToolbarProps {
   onCancel: () => void;
   isSaving?: boolean;
   isLiability?: boolean;
+  onCloseLoan?: () => void;
+  onRecalculateSchedule?: () => void;
+  onBalanceCorrection?: () => void;
+  onExtraRepayment?: () => void;
 }
 
 export function ValueHistoryToolbar({
@@ -25,16 +29,48 @@ export function ValueHistoryToolbar({
   onCancel,
   isSaving = false,
   isLiability = false,
+  onCloseLoan,
+  onRecalculateSchedule,
+  onBalanceCorrection,
+  onExtraRepayment,
 }: ValueHistoryToolbarProps) {
   const { t } = useTranslation();
 
   return (
-    <div className="flex items-center justify-between">
-      <div className="flex items-center gap-2">
+    <div className="flex flex-wrap items-center justify-between gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <Button variant="default" size="sm" onClick={onAddRow} disabled={isSaving}>
           <Icons.Plus className="mr-2 h-4 w-4" />
           {isLiability ? t("asset:valueToolbar.add_balance") : t("asset:valueToolbar.add_value")}
         </Button>
+
+        {isLiability && onRecalculateSchedule && (
+          <Button variant="outline" size="sm" onClick={onRecalculateSchedule} disabled={isSaving}>
+            <Icons.RefreshCw className="mr-2 h-4 w-4" />
+            {t("asset:loanActions.recalculate_schedule")}
+          </Button>
+        )}
+
+        {isLiability && onExtraRepayment && (
+          <Button variant="outline" size="sm" onClick={onExtraRepayment} disabled={isSaving}>
+            <Icons.HandCoins className="mr-2 h-4 w-4" />
+            {t("asset:loanActions.extra_repayment")}
+          </Button>
+        )}
+
+        {isLiability && onBalanceCorrection && (
+          <Button variant="outline" size="sm" onClick={onBalanceCorrection} disabled={isSaving}>
+            <Icons.Pencil className="mr-2 h-4 w-4" />
+            {t("asset:loanActions.balance_correction")}
+          </Button>
+        )}
+
+        {isLiability && onCloseLoan && (
+          <Button variant="outline" size="sm" onClick={onCloseLoan} disabled={isSaving}>
+            <Icons.Lock className="mr-2 h-4 w-4" />
+            {t("asset:loanActions.close_loan")}
+          </Button>
+        )}
 
         {selectedRowCount > 0 && (
           <Button variant="outline" size="sm" onClick={onDeleteSelected} disabled={isSaving}>

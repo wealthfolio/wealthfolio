@@ -19,8 +19,9 @@ import {
   useAmountFormatting,
   useDataGrid,
   useDateFormatting,
+  useNumberFormatting,
 } from "@wealthfolio/ui";
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { createColumnHelper } from "@tanstack/react-table";
 import type { Quote } from "@/lib/types";
@@ -28,7 +29,8 @@ import { parseLocalDate } from "@/lib/utils";
 import { useIsMobileViewport } from "@/hooks/use-platform";
 import { toast } from "@wealthfolio/ui/components/ui/use-toast";
 import { ValueHistoryToolbar } from "./value-history-toolbar";
-import { format } from "date-fns";
+import { differenceInCalendarDays, format, isLastDayOfMonth } from "date-fns";
+import { getLoanFrequencyAtDate } from "../lib/loan-events";
 
 const MOBILE_PAGE_SIZE = 20;
 
@@ -65,12 +67,26 @@ interface ValueHistoryDataGridProps {
   currency: string;
   /** Whether this is a liability (changes "Value" to "Balance" label) */
   isLiability?: boolean;
+  /** Annual interest rate (%) used to compute per-row capital/interest split */
+  interestRate?: number;
+  /** Original loan amount (before any payments) — enables capital/interest display for the first entry */
+  loanOriginalAmount?: number;
+  /** Contractual first payment date; used to distinguish balance snapshots from payments */
+  loanOriginationDate?: Date;
+  /** Loan metadata used to determine the periodic interest rate. */
+  loanMetadata?: Record<string, unknown>;
   /** Callback to save a quote */
   onSaveQuote: (quote: Quote) => Promise<void>;
   /** Callback to delete a quote */
   onDeleteQuote: (quoteId: string) => Promise<void>;
   /** Refresh quote-dependent queries after a complete persistence operation */
   onPersistComplete: () => Promise<void>;
+  /** Content displayed between the action toolbar and the value history. */
+  contentAfterToolbar?: ReactNode;
+  onCloseLoan?: () => void;
+  onRecalculateSchedule?: () => void;
+  onBalanceCorrection?: () => void;
+  onExtraRepayment?: () => void;
 }
 
 // Generate a temporary ID for new entries
@@ -138,13 +154,23 @@ export function ValueHistoryDataGrid({
   assetId,
   currency,
   isLiability = false,
+  interestRate,
+  loanOriginalAmount,
+  loanOriginationDate,
+  loanMetadata,
   onSaveQuote,
   onDeleteQuote,
   onPersistComplete,
+  contentAfterToolbar,
+  onCloseLoan,
+  onRecalculateSchedule,
+  onBalanceCorrection,
+  onExtraRepayment,
 }: ValueHistoryDataGridProps) {
   const { t } = useTranslation();
   const isMobile = useIsMobileViewport();
   const amountFormatting = useAmountFormatting();
+  const numberFormatting = useNumberFormatting();
   const dateFormatting = useDateFormatting();
   // Convert quotes to local entries
   const initialEntries = useMemo(
@@ -175,6 +201,65 @@ export function ValueHistoryDataGrid({
     lastSyncedEntriesRef.current = initialEntries;
   }, [hasPendingEdits, initialEntries, isPersisting]);
 
+  // Per-row capital / interest breakdown (liabilities only, requires interest rate)
+  const loanPaymentDetails = useMemo(() => {
+    if (!isLiability || interestRate === undefined || interestRate <= 0) {
+      return new Map<string, { capital: number; interest: number }>();
+    }
+    const sortedAsc = [...localEntries].sort((a, b) => a.date.getTime() - b.date.getTime());
+    const result = new Map<string, { capital: number; interest: number }>();
+    // The origination entry represents the first paid instalment. Use the
+    // original amount as its preceding balance so both principal and interest
+    // are shown for that first payment.
+    const hasOrigin = loanOriginalAmount !== undefined && loanOriginalAmount > 0;
+    const startIndex = hasOrigin ? 0 : 1;
+    for (let i = startIndex; i < sortedAsc.length; i++) {
+      const prevValue = i === 0 ? loanOriginalAmount! : sortedAsc[i - 1].value;
+      const curr = sortedAsc[i];
+      const isEarlyRepayment = curr.notes?.startsWith("early_repayment:");
+      const isScheduledPayment = curr.notes?.startsWith("loan_schedule|");
+      const frequency = getLoanFrequencyAtDate(loanMetadata, format(curr.date, "yyyy-MM-dd"));
+      const daysFromOrigination = loanOriginationDate
+        ? differenceInCalendarDays(curr.date, loanOriginationDate)
+        : -1;
+      const isContractualPaymentDate =
+        loanOriginationDate !== undefined &&
+        (frequency !== "monthly"
+          ? daysFromOrigination >= 0 && daysFromOrigination % 14 === 0
+          : isLastDayOfMonth(loanOriginationDate)
+            ? isLastDayOfMonth(curr.date)
+            : curr.date.getDate() === loanOriginationDate.getDate());
+      // A manually recorded balance between payment dates is a snapshot, not
+      // an instalment. Keep it out of the capital/interest calculation.
+      if (!isScheduledPayment && !isEarlyRepayment && !isContractualPaymentDate) continue;
+      const scheduleRate = /(?:^|\|)rate=([\d.]+)/.exec(curr.notes ?? "")?.[1];
+      const rowPeriodsPerYear = frequency === "monthly" ? 12 : 26;
+      const effectiveMonthlyRate = scheduleRate
+        ? Number.parseFloat(scheduleRate) / 100 / rowPeriodsPerYear
+        : interestRate / 100 / rowPeriodsPerYear;
+      const repaymentAmount = isEarlyRepayment
+        ? Number.parseFloat(curr.notes?.split(":")[1] ?? "")
+        : Number.NaN;
+      const capital = roundToDecimals(
+        isEarlyRepayment && Number.isFinite(repaymentAmount)
+          ? repaymentAmount
+          : Math.max(0, prevValue - curr.value),
+      );
+      const interest = isEarlyRepayment
+        ? 0
+        : roundToDecimals(Math.max(0, prevValue * effectiveMonthlyRate));
+      result.set(curr.id, { capital, interest });
+    }
+    return result;
+  }, [
+    isLiability,
+    interestRate,
+    loanMetadata,
+    loanOriginalAmount,
+    loanOriginationDate,
+    localEntries,
+  ]);
+
   // Column definitions
   const columnHelper = createColumnHelper<ValueHistoryEntry>();
 
@@ -200,6 +285,8 @@ export function ValueHistoryDataGrid({
     [isPersisting],
   );
 
+  const showLoanColumns = isLiability && interestRate !== undefined && interestRate > 0;
+
   const columns = useMemo(
     () => [
       columnHelper.accessor("date", {
@@ -212,6 +299,68 @@ export function ValueHistoryDataGrid({
         size: 180,
         meta: { cell: { variant: "number", min: 0 } },
       }),
+      ...(showLoanColumns
+        ? [
+            columnHelper.display({
+              id: "capital",
+              header: () => (
+                <div className="flex items-center gap-1.5 text-sm">
+                  <Icons.Hash className="text-muted-foreground size-3.5 shrink-0" />
+                  <span className="truncate">{t("asset:valueHistory.capital")}</span>
+                </div>
+              ),
+              size: 130,
+              enableSorting: false,
+              enableResizing: true,
+              cell: ({ row }) => {
+                const d = loanPaymentDetails.get(row.original.id);
+                if (!d)
+                  return (
+                    <div className="text-muted-foreground flex size-full items-center justify-end px-2 text-sm">
+                      —
+                    </div>
+                  );
+                return (
+                  <div className="flex size-full items-center justify-end px-2 text-sm tabular-nums">
+                    {numberFormatting.formatDecimal(d.capital, {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}
+                  </div>
+                );
+              },
+            }),
+            columnHelper.display({
+              id: "interest",
+              header: () => (
+                <div className="flex items-center gap-1.5 text-sm">
+                  <Icons.Hash className="text-muted-foreground size-3.5 shrink-0" />
+                  <span className="truncate">{t("asset:valueHistory.interest")}</span>
+                </div>
+              ),
+              size: 130,
+              enableSorting: false,
+              enableResizing: true,
+              cell: ({ row }) => {
+                const d = loanPaymentDetails.get(row.original.id);
+                if (!d)
+                  return (
+                    <div className="text-muted-foreground flex size-full items-center justify-end px-2 text-sm">
+                      —
+                    </div>
+                  );
+                return (
+                  <div className="flex size-full items-center justify-end px-2 text-sm tabular-nums">
+                    {numberFormatting.formatDecimal(d.interest, {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}
+                  </div>
+                );
+              },
+            }),
+          ]
+        : []),
       columnHelper.accessor("notes", {
         header: t("asset:valueHistory.notes"),
         size: 300,
@@ -240,7 +389,16 @@ export function ValueHistoryDataGrid({
         ),
       }),
     ],
-    [columnHelper, isLiability, handleDeleteRow, isPersisting, t],
+    [
+      columnHelper,
+      isLiability,
+      showLoanColumns,
+      loanPaymentDetails,
+      numberFormatting,
+      handleDeleteRow,
+      isPersisting,
+      t,
+    ],
   );
 
   // Handle data changes from the grid
@@ -548,6 +706,8 @@ export function ValueHistoryDataGrid({
           </Button>
         </div>
 
+        {contentAfterToolbar}
+
         <div className="bg-background isolate divide-y overflow-hidden rounded-xl border">
           {mobileEntries.length === 0 ? (
             <p className="text-muted-foreground p-6 text-center text-sm">
@@ -760,7 +920,13 @@ export function ValueHistoryDataGrid({
         onCancel={handleCancel}
         isSaving={isPersisting}
         isLiability={isLiability}
+        onCloseLoan={onCloseLoan}
+        onRecalculateSchedule={onRecalculateSchedule}
+        onBalanceCorrection={onBalanceCorrection}
+        onExtraRepayment={onExtraRepayment}
       />
+
+      {contentAfterToolbar}
 
       <div className="min-h-0 flex-1 overflow-hidden rounded-md border">
         <DataGrid {...dataGrid} stretchColumns height="calc(100vh - 340px)" />

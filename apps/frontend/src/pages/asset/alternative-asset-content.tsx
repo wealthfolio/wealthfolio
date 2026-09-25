@@ -1,6 +1,8 @@
 import HistoryChart from "@/components/history-chart-symbol";
+import { getQuoteHistory } from "@/adapters";
 import { useAlternativeHoldings, useLinkedLiabilities } from "@/hooks/use-alternative-assets";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
+import { QueryKeys } from "@/lib/query-keys";
 import type { AlternativeAssetHolding, Asset, DateRange, Quote, TimePeriod } from "@/lib/types";
 import { AlternativeAssetKind } from "@/lib/types";
 import {
@@ -26,8 +28,12 @@ import { Badge } from "@wealthfolio/ui/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@wealthfolio/ui/components/ui/card";
 import { Separator } from "@wealthfolio/ui/components/ui/separator";
 import type { TFunction } from "i18next";
+import { addDays, addMonths, differenceInMonths, format, parseISO } from "date-fns";
+import { Area, AreaChart, ReferenceLine, ResponsiveContainer, XAxis } from "recharts";
 import React, { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useQueries } from "@tanstack/react-query";
+import { formatDateISO } from "@/lib/utils";
 import {
   AlternativeAssetQuickAddModal,
   AssetDetailsSheet,
@@ -35,9 +41,47 @@ import {
   UpdateValuationModal,
   ValueHistoryDataGrid,
 } from "./alternative-assets";
+import {
+  CloseLoanDialog,
+  RecalculateScheduleDialog,
+  RenewLoanDialog,
+  LoanBalanceEventDialog,
+} from "./alternative-assets/components/loan-action-dialogs";
+import { LoanAmortizationSchedule } from "./alternative-assets/components/loan-amortization-schedule";
+import { LoanProgressSummary } from "./alternative-assets/components/loan-progress-summary";
+import { getLoanValuationSnapshot } from "./alternative-assets/lib/loan-valuation";
 import { useAlternativeAssetMutations } from "./alternative-assets/hooks/use-alternative-asset-mutations";
+import {
+  buildLoanSchedule,
+  calculateMonthlyPayment,
+  calculateRemainingPaymentCount,
+  getRemainingScheduleWindow,
+} from "./alternative-assets/lib/loan-schedule";
+import { calculatePaymentCountThroughDate } from "./alternative-assets/lib/loan-calculator";
 import { useQuoteMutations } from "./hooks/use-quote-mutations";
 import { LinkedAssetSection, LinkedLiabilitiesSection } from "./linked-liabilities-card";
+import {
+  appendLoanEvent,
+  getLoanFrequencyAtDate,
+  type LoanEvent,
+  type LoanMetadata,
+  type LoanPaymentFrequency,
+} from "./alternative-assets/lib/loan-events";
+import {
+  getLatestCurrentLoanBalance,
+  loanEventProvenance,
+} from "./alternative-assets/lib/loan-balance";
+import {
+  buildLoanChartData,
+  getRemainingLoanProjection,
+} from "./alternative-assets/lib/loan-projection";
+import type { DatedLoanProjectionRow } from "./alternative-assets/lib/loan-calculator";
+
+function serializeLoanMetadataValue(value: unknown): string {
+  if (value === undefined || value === null) return "";
+  if (typeof value === "string") return value;
+  return JSON.stringify(value) ?? "";
+}
 
 interface AlternativeAssetContentProps {
   assetId: string;
@@ -75,6 +119,23 @@ export const AlternativeAssetContent: React.FC<AlternativeAssetContentProps> = (
     assetId,
     enabled: isLinkableAsset,
   });
+  const linkedLiabilityQuoteResults = useQueries({
+    queries: linkedLiabilities.map((liability) => ({
+      queryKey: [QueryKeys.QUOTE_HISTORY, liability.id],
+      queryFn: () => getQuoteHistory(liability.id),
+      enabled: isLinkableAsset,
+    })),
+  });
+  const valuedLinkedLiabilities = linkedLiabilities.map((liability, index) => ({
+    ...liability,
+    marketValue: String(
+      getLoanValuationSnapshot(
+        liability.marketValue,
+        liability.metadata,
+        linkedLiabilityQuoteResults[index]?.data ?? [],
+      ).currentBalance,
+    ),
+  }));
 
   // Fetch all alternative holdings to find linked asset for liabilities
   const { data: allHoldings = [] } = useAlternativeHoldings({ enabled: !!holding.linkedAssetId });
@@ -88,6 +149,231 @@ export const AlternativeAssetContent: React.FC<AlternativeAssetContentProps> = (
     assetId,
     { invalidateOnSuccess: false },
   );
+
+  const { updateMetadataMutation } = useAlternativeAssetMutations();
+
+  const [closeLoanOpen, setCloseLoanOpen] = useState(false);
+  const [recalculateScheduleOpen, setRecalculateScheduleOpen] = useState(false);
+  const [renewLoanOpen, setRenewLoanOpen] = useState(false);
+  const [balanceCorrectionOpen, setBalanceCorrectionOpen] = useState(false);
+  const [extraRepaymentOpen, setExtraRepaymentOpen] = useState(false);
+
+  // Loan-specific computations (used in history tab and handlers)
+  const metadata = useMemo(() => holding.metadata || {}, [holding.metadata]);
+  const isLiability = holding.kind.toLowerCase() === "liability";
+  const loanValuation = useMemo(
+    () => getLoanValuationSnapshot(holding.marketValue, metadata, quoteHistory),
+    [holding.marketValue, metadata, quoteHistory],
+  );
+  const currentBalance =
+    holding.kind.toLowerCase() === "liability"
+      ? loanValuation.currentBalance
+      : Math.abs(parseFloat(holding.marketValue));
+  const interestRate = metadata.interest_rate ? parseFloat(metadata.interest_rate as string) : 0;
+  const storedFrequency: LoanPaymentFrequency =
+    metadata.payment_frequency === "biweekly" ? "biweekly" : "monthly";
+  const remainingLoanProjection = useMemo(
+    () => (isLiability ? getRemainingLoanProjection(metadata, quoteHistory) : null),
+    [isLiability, metadata, quoteHistory],
+  );
+  const loanFrequency = remainingLoanProjection?.frequency ?? storedFrequency;
+  const activeInterestRate = remainingLoanProjection?.annualRate ?? interestRate;
+  const endDate = (metadata.end_date as string | undefined)
+    ? parseISO(metadata.end_date as string)
+    : estimateEndDate(
+        (metadata.origination_date ?? metadata.purchase_date) as string | undefined,
+        (metadata.original_amount ?? metadata.purchase_price) as string | undefined,
+        holding.marketValue,
+        interestRate,
+        metadata.current_monthly_payment
+          ? parseFloat(metadata.current_monthly_payment as string)
+          : null,
+        loanFrequency,
+      );
+  const remainingMonths = endDate ? Math.max(1, differenceInMonths(endDate, new Date())) : 0;
+  // Monthly payment uses original amount + total term (French amortization constant installment)
+  const loanOriginationDate = (metadata.origination_date ?? metadata.purchase_date) as
+    | string
+    | undefined;
+  const loanOriginalAmount = loanValuation.originalAmount ?? 0;
+  const totalPaymentCount =
+    endDate && loanOriginationDate
+      ? calculatePaymentCountThroughDate(parseISO(loanOriginationDate), endDate, loanFrequency)
+      : remainingMonths;
+  const storedMonthlyPayment = metadata.current_monthly_payment
+    ? parseFloat(metadata.current_monthly_payment as string)
+    : null;
+  const monthlyPayment =
+    storedMonthlyPayment !== null &&
+    Number.isFinite(storedMonthlyPayment) &&
+    storedMonthlyPayment >= 0
+      ? storedMonthlyPayment
+      : calculateMonthlyPayment(loanOriginalAmount, interestRate, totalPaymentCount, loanFrequency);
+
+  // Future instalments are projections, not market observations. They are
+  // recalculated from loan metadata and events and are deliberately not
+  // persisted as quotes. Existing generated quotes remain untouched for the
+  // compatibility/migration work planned in the next commit.
+  const replaceGeneratedLoanSchedule = (
+    _schedule: ReturnType<typeof buildLoanSchedule>,
+    _effectiveDate: Date,
+  ) => undefined;
+
+  const handleCloseLoan = async (date: Date) => {
+    const cappedDate = date;
+    const quote: Quote = {
+      id: "",
+      createdAt: new Date().toISOString(),
+      dataSource: "MANUAL",
+      timestamp: `${formatDateISO(cappedDate)}T00:00:00Z`,
+      assetId,
+      open: 0,
+      high: 0,
+      low: 0,
+      close: 0,
+      adjclose: 0,
+      volume: 0,
+      currency: holding.currency,
+      notes: "loan_closed",
+    };
+    await saveQuoteMutation.mutateAsync(quote);
+    const existingMetadata = Object.fromEntries(
+      Object.entries(holding.metadata || {}).map(([k, v]) => [k, serializeLoanMetadataValue(v)]),
+    );
+    await updateMetadataMutation.mutateAsync({
+      assetId,
+      metadata: {
+        ...existingMetadata,
+        end_date: formatDateISO(cappedDate),
+        current_monthly_payment: "0",
+      },
+    });
+    await invalidateQuoteQueries();
+    setCloseLoanOpen(false);
+  };
+
+  const handleRecalculateSchedule = async (newRate: number) => {
+    if (!endDate || !loanOriginationDate) return;
+    const originationDate = parseISO(loanOriginationDate);
+    const today = new Date();
+    const scheduleWindow = getRemainingScheduleWindow(
+      originationDate,
+      today,
+      endDate,
+      loanFrequency,
+    );
+    if (!scheduleWindow) return;
+    // Latest balance: last quote at or before today, sorted chronologically.
+    const sortedPast = [...quoteHistory]
+      .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
+      .filter((q) => new Date(q.timestamp) <= today);
+    const latestQuote = sortedPast.at(-1);
+    const latestBalance = latestQuote ? Math.abs(latestQuote.close) : currentBalance;
+
+    const remainingN = scheduleWindow.paymentCount;
+    const P = calculateMonthlyPayment(latestBalance, newRate, remainingN, loanFrequency);
+    if (P === null) return;
+
+    const quotes = buildLoanSchedule({
+      assetId,
+      currency: holding.currency,
+      startingBalance: latestBalance,
+      annualRate: newRate,
+      paymentCount: remainingN,
+      firstPaymentDate: scheduleWindow.firstPaymentDate,
+      frequency: loanFrequency,
+    });
+
+    if (quotes.length > 0) replaceGeneratedLoanSchedule(quotes, today);
+
+    // Always persist the new effective payment; also update rate if it changed
+    const existingMetadata = Object.fromEntries(
+      Object.entries(holding.metadata || {}).map(([k, v]) => [k, serializeLoanMetadataValue(v)]),
+    );
+    const metaUpdates: Record<string, string> = {
+      ...existingMetadata,
+      current_monthly_payment: String(Math.round(P * 100) / 100),
+      payment_frequency: loanFrequency,
+    };
+    if (newRate !== interestRate) {
+      metaUpdates.interest_rate = String(newRate);
+    }
+    await updateMetadataMutation.mutateAsync({ assetId, metadata: metaUpdates });
+
+    await invalidateQuoteQueries();
+    setRecalculateScheduleOpen(false);
+  };
+
+  const handleRenewLoan = async (
+    effectiveDate: Date,
+    newRate: number,
+    paymentAmount?: number,
+    termEndDate?: Date,
+  ) => {
+    const metadata = { ...(holding.metadata || {}) } as LoanMetadata;
+    const nextMetadata = appendLoanEvent(metadata, {
+      type: "renewal",
+      effectiveDate: formatDateISO(effectiveDate),
+      annualRate: newRate,
+      frequency: loanFrequency,
+      ...(paymentAmount !== undefined ? { paymentAmount } : {}),
+      ...(termEndDate ? { termEndDate: formatDateISO(termEndDate) } : {}),
+    });
+    const updates: Record<string, string> = Object.fromEntries(
+      Object.entries(nextMetadata).map(([key, value]) => [key, serializeLoanMetadataValue(value)]),
+    );
+    updates.interest_rate = String(newRate);
+    updates.payment_frequency = loanFrequency;
+    if (paymentAmount !== undefined) updates.current_monthly_payment = String(paymentAmount);
+    if (termEndDate) updates.end_date = formatDateISO(termEndDate);
+    await updateMetadataMutation.mutateAsync({ assetId, metadata: updates });
+    await invalidateQuoteQueries();
+    setRenewLoanOpen(false);
+  };
+
+  const handleBalanceEvent = async (
+    mode: "balance_correction" | "extra_repayment",
+    effectiveDate: Date,
+    amount: number,
+  ) => {
+    const effectiveDay = formatDateISO(effectiveDate);
+    const balanceAtDate = Math.abs(
+      getLatestCurrentLoanBalance(quoteHistory, new Date(`${effectiveDay}T23:59:59.999Z`))?.close ??
+        currentBalance,
+    );
+    const appliedAmount = mode === "extra_repayment" ? Math.min(amount, balanceAtDate) : amount;
+    const newBalance =
+      mode === "balance_correction" ? appliedAmount : Math.max(0, balanceAtDate - appliedAmount);
+    const metadata = { ...(holding.metadata || {}) } as LoanMetadata;
+    const event: LoanEvent =
+      mode === "balance_correction"
+        ? { type: mode, effectiveDate: effectiveDay, balance: newBalance }
+        : { type: mode, effectiveDate: effectiveDay, amount: appliedAmount };
+    const nextMetadata = appendLoanEvent(metadata, event);
+    const updates: Record<string, string> = Object.fromEntries(
+      Object.entries(nextMetadata).map(([key, value]) => [key, serializeLoanMetadataValue(value)]),
+    );
+
+    await saveQuoteMutation.mutateAsync({
+      id: "",
+      createdAt: new Date().toISOString(),
+      dataSource: "MANUAL",
+      timestamp: `${effectiveDay}T00:00:00Z`,
+      assetId,
+      open: newBalance,
+      high: newBalance,
+      low: newBalance,
+      close: newBalance,
+      adjclose: newBalance,
+      volume: 0,
+      currency: holding.currency,
+      notes: loanEventProvenance(mode),
+    });
+    await updateMetadataMutation.mutateAsync({ assetId, metadata: updates });
+    await invalidateQuoteQueries();
+    setBalanceCorrectionOpen(false);
+    setExtraRepaymentOpen(false);
+  };
 
   // Filter chart data by date range
   const filteredChartData = useMemo(() => {
@@ -128,6 +414,16 @@ export const AlternativeAssetContent: React.FC<AlternativeAssetContentProps> = (
       : null;
 
     if (selectedIntervalCode === "ALL") {
+      // For liabilities: derive from original_amount vs current balance so cost-basis
+      // errors in the portfolio engine don't pollute the header display.
+      if (holding.kind.toLowerCase() === "liability") {
+        const originalAmount = loanValuation.originalAmount ?? 0;
+        const currentBal = currentBalance;
+        if (originalAmount > 0) {
+          const ga = currentBal - originalAmount; // negative = paid down (good)
+          return { gainAmount: ga, gainPercent: ga / originalAmount };
+        }
+      }
       return {
         gainAmount: unrealizedGain,
         gainPercent: unrealizedGainPct,
@@ -149,7 +445,17 @@ export const AlternativeAssetContent: React.FC<AlternativeAssetContentProps> = (
           ? (endValue - startValue) / startValue
           : null,
     };
-  }, [filteredChartData, selectedIntervalCode, holding.unrealizedGain, holding.unrealizedGainPct]);
+  }, [
+    filteredChartData,
+    selectedIntervalCode,
+    holding.unrealizedGain,
+    holding.unrealizedGainPct,
+    holding.kind,
+    holding.metadata,
+    holding.marketValue,
+    currentBalance,
+    loanValuation.originalAmount,
+  ]);
 
   const handleIntervalSelect = (
     code: TimePeriod,
@@ -161,23 +467,88 @@ export const AlternativeAssetContent: React.FC<AlternativeAssetContentProps> = (
     setDateRange(range);
   };
 
-  const isLiability = holding.kind.toLowerCase() === "liability";
-  const marketValue = parseFloat(holding.marketValue);
+  const marketValue = isLiability ? -currentBalance : parseFloat(holding.marketValue);
 
   // Calculate net equity for linkable assets
   const netEquity = useMemo(() => {
-    if (linkedLiabilities.length === 0) {
+    if (valuedLinkedLiabilities.length === 0) {
       return null;
     }
-    const liabilityTotal = linkedLiabilities.reduce((sum, liability) => {
+    const liabilityTotal = valuedLinkedLiabilities.reduce((sum, liability) => {
       return sum + Math.abs(parseFloat(liability.marketValue));
     }, 0);
     return marketValue - liabilityTotal;
-  }, [marketValue, linkedLiabilities]);
+  }, [marketValue, valuedLinkedLiabilities]);
+
+  // Total interest paid: base formula corrected for early lump-sum repayments.
+  // Early repayments are pure capital (zero interest) but inflate amountPaid;
+  // we add them back so they don't reduce the interest count.
+  const totalInterestPaid = useMemo(() => {
+    if (
+      !isLiability ||
+      !loanOriginationDate ||
+      monthlyPayment === null ||
+      !Number.isFinite(monthlyPayment) ||
+      totalPaymentCount <= 0
+    )
+      return null;
+    const now = new Date();
+    // The origination-date quote is the first paid instalment, so include it
+    // in the number of payments represented by the current balance.
+    const paymentsMade = Math.min(
+      calculatePaymentCountThroughDate(parseISO(loanOriginationDate), now, loanFrequency),
+      totalPaymentCount,
+    );
+    const scheduledQuotes = [...quoteHistory]
+      .filter(
+        (q) =>
+          new Date(q.timestamp) <= now &&
+          (q.notes?.startsWith("loan_schedule") || q.notes?.startsWith("early_repayment:")),
+      )
+      .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+
+    if (scheduledQuotes.length > 0) {
+      let previousBalance = loanOriginalAmount;
+      return scheduledQuotes.reduce((sum, quote) => {
+        const isEarlyRepayment = quote.notes?.startsWith("early_repayment:");
+        const rateText = quote.notes?.match(/(?:^|\|)rate=([\d.]+)/)?.[1];
+        const rate = rateText ? Number.parseFloat(rateText) : interestRate;
+        const periodsPerYear =
+          getLoanFrequencyAtDate(metadata, quote.timestamp.slice(0, 10)) === "monthly" ? 12 : 26;
+        const interest = isEarlyRepayment ? 0 : previousBalance * (rate / 100 / periodsPerYear);
+        previousBalance = Math.abs(quote.close);
+        return sum + Math.max(0, interest);
+      }, 0);
+    }
+
+    // Legacy quotes do not contain historical rate/payment metadata.
+    const amountPaid = loanOriginalAmount - currentBalance;
+    return Math.max(0, paymentsMade * monthlyPayment - amountPaid);
+  }, [
+    isLiability,
+    loanOriginationDate,
+    monthlyPayment,
+    totalPaymentCount,
+    loanFrequency,
+    interestRate,
+    loanOriginalAmount,
+    currentBalance,
+    quoteHistory,
+  ]);
 
   if (activeTab === "overview") {
     return (
       <div className="space-y-4">
+        {isLiability && (
+          <LoanProgressSummary
+            originalAmount={loanOriginalAmount}
+            currentBalance={currentBalance}
+            totalInterestPaid={totalInterestPaid}
+            quoteHistory={quoteHistory}
+            metadata={metadata}
+            currency={holding.currency}
+          />
+        )}
         {/* Main grid: Chart on left, Details on right */}
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           {/* Left: Value history chart with value/gain/equity in header */}
@@ -234,7 +605,14 @@ export const AlternativeAssetContent: React.FC<AlternativeAssetContentProps> = (
             <CardContent className="relative p-0">
               {filteredChartData.length > 0 ? (
                 <>
-                  <HistoryChart data={filteredChartData} />
+                  {isLiability ? (
+                    <LiabilityHistoryChart
+                      data={filteredChartData}
+                      projectedRows={remainingLoanProjection?.projection.rows}
+                    />
+                  ) : (
+                    <HistoryChart data={filteredChartData} />
+                  )}
                   <IntervalSelector
                     onIntervalSelect={handleIntervalSelect}
                     className="absolute bottom-2 left-1/2 -translate-x-1/2 transform"
@@ -258,9 +636,13 @@ export const AlternativeAssetContent: React.FC<AlternativeAssetContentProps> = (
             holding={holding}
             linkedAsset={linkedAsset}
             netEquity={isLinkableAsset ? (netEquity ?? marketValue) : null}
-            hasLinkedLiabilities={linkedLiabilities.length > 0}
-            linkedLiabilities={isLinkableAsset ? linkedLiabilities : []}
+            hasLinkedLiabilities={valuedLinkedLiabilities.length > 0}
+            linkedLiabilities={isLinkableAsset ? valuedLinkedLiabilities : []}
             isLiability={isLiability}
+            totalInterestPaid={isLiability ? totalInterestPaid : null}
+            monthlyPayment={isLiability ? monthlyPayment : null}
+            interestRate={isLiability ? activeInterestRate : undefined}
+            currentBalance={isLiability ? currentBalance : undefined}
             className="col-span-1"
           />
         </div>
@@ -320,16 +702,81 @@ export const AlternativeAssetContent: React.FC<AlternativeAssetContentProps> = (
 
   // History tab
   return (
-    <ValueHistoryDataGrid
-      key={assetId}
-      data={quoteHistory}
-      assetId={assetId}
-      currency={holding.currency}
-      isLiability={isLiability}
-      onSaveQuote={(quote: Quote) => saveQuoteMutation.mutateAsync(quote)}
-      onDeleteQuote={(id: string) => deleteQuoteMutation.mutateAsync(id)}
-      onPersistComplete={invalidateQuoteQueries}
-    />
+    <>
+      <ValueHistoryDataGrid
+        key={assetId}
+        data={quoteHistory}
+        assetId={assetId}
+        currency={holding.currency}
+        isLiability={isLiability}
+        interestRate={isLiability ? interestRate : undefined}
+        loanOriginalAmount={isLiability ? loanOriginalAmount : undefined}
+        loanOriginationDate={
+          isLiability && loanOriginationDate ? parseISO(loanOriginationDate) : undefined
+        }
+        loanMetadata={isLiability ? metadata : undefined}
+        onSaveQuote={(quote: Quote) => saveQuoteMutation.mutateAsync(quote)}
+        onDeleteQuote={(id: string) => deleteQuoteMutation.mutateAsync(id)}
+        onPersistComplete={invalidateQuoteQueries}
+        contentAfterToolbar={
+          isLiability ? (
+            <LoanAmortizationSchedule
+              quoteHistory={quoteHistory}
+              metadata={holding.metadata || {}}
+              currency={holding.currency}
+            />
+          ) : undefined
+        }
+        onCloseLoan={isLiability ? () => setCloseLoanOpen(true) : undefined}
+        onRecalculateSchedule={isLiability ? () => setRecalculateScheduleOpen(true) : undefined}
+        onBalanceCorrection={isLiability ? () => setBalanceCorrectionOpen(true) : undefined}
+        onExtraRepayment={isLiability ? () => setExtraRepaymentOpen(true) : undefined}
+      />
+      {isLiability && (
+        <>
+          <CloseLoanDialog
+            open={closeLoanOpen}
+            onOpenChange={setCloseLoanOpen}
+            onSubmit={handleCloseLoan}
+            originationDate={loanOriginationDate ? parseISO(loanOriginationDate) : null}
+          />
+          <RecalculateScheduleDialog
+            open={recalculateScheduleOpen}
+            onOpenChange={setRecalculateScheduleOpen}
+            currentBalance={currentBalance}
+            currency={holding.currency}
+            interestRate={interestRate}
+            endDate={endDate}
+            frequency={loanFrequency}
+            remainingPayments={remainingLoanProjection?.projection.remainingPayments ?? 0}
+            onSubmit={handleRecalculateSchedule}
+          />
+          <RenewLoanDialog
+            open={renewLoanOpen}
+            onOpenChange={setRenewLoanOpen}
+            currentBalance={currentBalance}
+            currency={holding.currency}
+            interestRate={interestRate}
+            endDate={endDate}
+            onSubmit={handleRenewLoan}
+          />
+          <LoanBalanceEventDialog
+            open={balanceCorrectionOpen}
+            onOpenChange={setBalanceCorrectionOpen}
+            mode="balance_correction"
+            currentBalance={currentBalance}
+            onSubmit={(date, amount) => handleBalanceEvent("balance_correction", date, amount)}
+          />
+          <LoanBalanceEventDialog
+            open={extraRepaymentOpen}
+            onOpenChange={setExtraRepaymentOpen}
+            mode="extra_repayment"
+            currentBalance={currentBalance}
+            onSubmit={(date, amount) => handleBalanceEvent("extra_repayment", date, amount)}
+          />
+        </>
+      )}
+    </>
   );
 };
 
@@ -382,6 +829,7 @@ const LIABILITY_TYPE_LABEL_KEYS: Record<string, string> = {
   credit_card: "asset:altContent.liabilityType.credit_card",
   personal_loan: "asset:altContent.liabilityType.personal_loan",
   heloc: "asset:altContent.liabilityType.heloc",
+  other: "asset:altContent.liabilityType.other",
 };
 
 const WEIGHT_UNIT_LABEL_KEYS: Record<string, string> = {
@@ -398,6 +846,10 @@ interface AlternativeAssetDetailCardProps {
   linkedLiabilities: AlternativeAssetHolding[];
   className?: string;
   isLiability?: boolean;
+  totalInterestPaid?: number | null;
+  monthlyPayment?: number | null;
+  interestRate?: number;
+  currentBalance?: number;
 }
 
 /**
@@ -459,6 +911,10 @@ const AlternativeAssetDetailCard: React.FC<AlternativeAssetDetailCardProps> = ({
   hasLinkedLiabilities,
   linkedLiabilities,
   isLiability,
+  totalInterestPaid = null,
+  monthlyPayment = null,
+  interestRate,
+  currentBalance,
   className,
 }) => {
   const numberFormatting = useNumberFormatting();
@@ -467,17 +923,14 @@ const AlternativeAssetDetailCard: React.FC<AlternativeAssetDetailCardProps> = ({
   const { t } = useTranslation();
   const { isBalanceHidden } = useBalancePrivacy();
 
-  const metadata = holding.metadata || {};
+  const metadata = useMemo(() => holding.metadata || {}, [holding.metadata]);
   const kind = holding.kind.toLowerCase();
 
-  // Build detail rows based on asset type
-  const detailRows = getDetailRows(kind, metadata, holding, isBalanceHidden, t, dateFormatting);
-
-  // Calculate liability progress
+  // Calculate liability progress (amountPaid + percentPaid for header display)
   const liabilityProgress = useMemo(() => {
     if (!isLiability) return null;
 
-    const currentBalance = Math.abs(parseFloat(holding.marketValue));
+    const balance = currentBalance ?? Math.abs(parseFloat(holding.marketValue));
     // Check both new field (original_amount) and legacy field (purchase_price) for backwards compatibility
     const origAmountStr = (metadata.original_amount ?? metadata.purchase_price) as
       | string
@@ -485,14 +938,43 @@ const AlternativeAssetDetailCard: React.FC<AlternativeAssetDetailCardProps> = ({
     const originalAmount = origAmountStr ? parseFloat(origAmountStr) : null;
 
     if (!originalAmount || originalAmount <= 0) {
-      return { amountPaid: null, percentPaid: null, originalAmount: null, currentBalance };
+      return { amountPaid: null, percentPaid: null, originalAmount: null, currentBalance: balance };
     }
 
-    const amountPaid = originalAmount - currentBalance;
+    const amountPaid = originalAmount - balance;
     const percentPaid = amountPaid / originalAmount;
 
-    return { amountPaid, percentPaid, originalAmount, currentBalance };
-  }, [isLiability, holding.marketValue, metadata.original_amount, metadata.purchase_price]);
+    return { amountPaid, percentPaid, originalAmount, currentBalance: balance };
+  }, [currentBalance, isLiability, metadata.original_amount, metadata.purchase_price]);
+
+  // Build detail rows based on asset type
+  const detailRows = useMemo(
+    () =>
+      getDetailRows(
+        kind,
+        metadata,
+        holding,
+        isBalanceHidden,
+        t,
+        dateFormatting,
+        monthlyPayment,
+        totalInterestPaid,
+        interestRate,
+        currentBalance,
+      ),
+    [
+      kind,
+      metadata,
+      holding,
+      isBalanceHidden,
+      t,
+      dateFormatting,
+      monthlyPayment,
+      totalInterestPaid,
+      interestRate,
+      currentBalance,
+    ],
+  );
 
   // Determine if we should show a header with value info
   const showNetEquityHeader = netEquity !== null;
@@ -659,6 +1141,10 @@ function getDetailRows(
   isBalanceHidden: boolean,
   t: TFunction,
   formatting: Pick<FormattingApi, "formatCalendarDate">,
+  monthlyPayment: number | null = null,
+  totalInterestPaid: number | null = null,
+  interestRate: number | undefined = undefined,
+  currentBalance: number | null = null,
 ): DetailRow[] {
   const rows: DetailRow[] = [];
 
@@ -726,15 +1212,11 @@ function getDetailRows(
 
     case "liability": {
       // Current balance (shown prominently for liabilities)
-      const currentBalance = Math.abs(parseFloat(holding.marketValue));
+      const balance = currentBalance ?? Math.abs(parseFloat(holding.marketValue));
       rows.push({
         label: t("asset:altContent.current_balance"),
         value: (
-          <AmountDisplay
-            value={currentBalance}
-            currency={holding.currency}
-            isHidden={isBalanceHidden}
-          />
+          <AmountDisplay value={balance} currency={holding.currency} isHidden={isBalanceHidden} />
         ),
       });
 
@@ -756,9 +1238,39 @@ function getDetailRows(
       }
 
       // Interest rate
-      const interestRate = metadata.interest_rate as string | undefined;
-      if (interestRate) {
-        rows.push({ label: t("asset:altContent.interest_rate"), value: `${interestRate}%` });
+      if (interestRate !== undefined && Number.isFinite(interestRate)) {
+        rows.push({
+          label: t("asset:altContent.interest_rate"),
+          value: `${interestRate}%`,
+        });
+      }
+
+      // Monthly payment
+      if (monthlyPayment !== null) {
+        rows.push({
+          label: t("asset:valueHistory.payment"),
+          value: (
+            <AmountDisplay
+              value={monthlyPayment}
+              currency={holding.currency}
+              isHidden={isBalanceHidden}
+            />
+          ),
+        });
+      }
+
+      // Total interest paid to date
+      if (totalInterestPaid !== null) {
+        rows.push({
+          label: t("asset:altContent.total_interest_paid"),
+          value: (
+            <AmountDisplay
+              value={totalInterestPaid}
+              currency={holding.currency}
+              isHidden={isBalanceHidden}
+            />
+          ),
+        });
       }
 
       // Note: Linked asset is shown in its own section with LinkedAssetSection
@@ -771,6 +1283,40 @@ function getDetailRows(
         rows.push({
           label: t("asset:altContent.origination_date"),
           value: formatting.formatCalendarDate(originationDate),
+        });
+      }
+
+      // End date: explicit or estimated
+      const endDateStr = metadata.end_date as string | undefined;
+      const originalAmountForEst = (metadata.original_amount ?? metadata.purchase_price) as
+        | string
+        | undefined;
+      const annualRateForEst = metadata.interest_rate
+        ? parseFloat(metadata.interest_rate as string)
+        : 0;
+      const storedPaymentForEst = metadata.current_monthly_payment
+        ? parseFloat(metadata.current_monthly_payment as string)
+        : null;
+      const estimatedEnd = !endDateStr
+        ? estimateEndDate(
+            originationDate,
+            originalAmountForEst,
+            holding.marketValue,
+            annualRateForEst,
+            storedPaymentForEst,
+            metadata.payment_frequency === "biweekly" ? "biweekly" : "monthly",
+          )
+        : null;
+
+      if (endDateStr) {
+        rows.push({
+          label: t("asset:altContent.end_date"),
+          value: formatting.formatCalendarDate(endDateStr),
+        });
+      } else if (estimatedEnd) {
+        rows.push({
+          label: t("asset:altContent.end_date_estimated"),
+          value: format(estimatedEnd, "MMM yyyy"),
         });
       }
       break;
@@ -983,6 +1529,109 @@ export function useAlternativeAssetActions({
     modals,
     isLinkableAsset,
   };
+}
+
+function LiabilityHistoryChart({
+  data,
+  projectedRows = [],
+}: {
+  data: { timestamp: string; totalValue: number; currency: string }[];
+  projectedRows?: DatedLoanProjectionRow[];
+}) {
+  const {
+    data: chartData,
+    splitPercent,
+    todayTimestamp,
+  } = useMemo(() => buildLoanChartData(data, projectedRows), [data, projectedRows]);
+
+  const split = `${splitPercent.toFixed(2)}%`;
+
+  return (
+    <div className="relative flex h-full flex-col" data-no-swipe-drag>
+      <div className="grow">
+        <ResponsiveContainer width="100%" height="100%" minHeight={350}>
+          <AreaChart data={chartData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
+            <defs>
+              <linearGradient id="liabilityStroke" x1="0" x2="1" y1="0" y2="0">
+                <stop offset={split} stopColor="var(--muted-foreground)" stopOpacity={1} />
+                <stop offset={split} stopColor="var(--success)" stopOpacity={1} />
+              </linearGradient>
+              <linearGradient id="liabilityFill" x1="0" x2="1" y1="0" y2="0">
+                <stop offset={split} stopColor="var(--muted-foreground)" stopOpacity={0.18} />
+                <stop offset={split} stopColor="var(--success)" stopOpacity={0.15} />
+              </linearGradient>
+            </defs>
+            <XAxis hide dataKey="timestamp" type="category" />
+            <Area
+              isAnimationActive={false}
+              connectNulls
+              type="monotone"
+              dataKey="totalValue"
+              stroke="url(#liabilityStroke)"
+              strokeWidth={1.5}
+              fillOpacity={1}
+              fill="url(#liabilityFill)"
+              dot={false}
+            />
+            {todayTimestamp && splitPercent < 100 && (
+              <ReferenceLine
+                x={todayTimestamp}
+                stroke="var(--muted-foreground)"
+                strokeDasharray="4 3"
+                strokeWidth={1}
+              />
+            )}
+          </AreaChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+}
+
+function estimateEndDate(
+  originationDateStr: string | undefined,
+  originalAmountStr: string | undefined,
+  currentMarketValue: string,
+  annualRate?: number,
+  storedMonthlyPayment?: number | null,
+  frequency: LoanPaymentFrequency = "monthly",
+): Date | null {
+  if (!originationDateStr || !originalAmountStr) return null;
+
+  const originationDate = parseISO(originationDateStr);
+  const originalAmount = parseFloat(originalAmountStr);
+  const currentBalance = Math.abs(parseFloat(currentMarketValue));
+
+  if (!originalAmount || originalAmount <= 0 || currentBalance >= originalAmount) return null;
+
+  if (
+    annualRate !== undefined &&
+    annualRate >= 0 &&
+    storedMonthlyPayment &&
+    storedMonthlyPayment > 0
+  ) {
+    const remainingCount = calculateRemainingPaymentCount(
+      currentBalance,
+      annualRate,
+      storedMonthlyPayment,
+      frequency,
+    );
+    if (remainingCount !== null && remainingCount > 0) {
+      return frequency === "monthly"
+        ? addMonths(new Date(), remainingCount)
+        : addDays(new Date(), remainingCount * 14);
+    }
+  }
+
+  const amountPaid = originalAmount - currentBalance;
+  const percentPaid = amountPaid / originalAmount;
+  if (percentPaid <= 0) return null;
+
+  const monthsElapsed = differenceInMonths(new Date(), originationDate);
+  if (monthsElapsed <= 0) return null;
+
+  const estimatedTotalMonths = Math.round(monthsElapsed / percentPaid);
+  return addMonths(originationDate, estimatedTotalMonths);
 }
 
 export default AlternativeAssetContent;
