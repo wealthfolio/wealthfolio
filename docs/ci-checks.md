@@ -20,6 +20,12 @@ Docs and ordinary frontend changes skip mobile checks. Server-only Rust changes
 also skip them. Platform-specific files select their platform; mixed changes
 combine requirements. CI workflow/script changes select all PR checks.
 
+CI helper tests include a real HTTP check that the smoke client retains the
+browser cookie between backup export and download. The independent **Docker**
+workflow also builds and smoke-tests AMD64 and ARM64 images on PRs touching the
+server, storage, profile/secret handling, Rust dependency inputs, Docker build
+files, or CI scripts. PR runs never publish images.
+
 The frontend job builds package declarations once and checks frontend types in
 the production build. Existing HTTP/TLS and native/server secret-store workflows
 remain independent, with their existing path filters and platform coverage.
@@ -31,15 +37,56 @@ coverage is needed.
 
 ## Full mobile builds
 
-**Build Mobile** runs on `v*` release tags or manually from Actions. It runs the
+**Build Mobile** runs only when manually launched from Actions. It runs the
 reusable Android release APK build, plus iOS device compilation and a full
 unsigned debug simulator archive. It uploads test artifacts for seven days and
 creates no GitHub release. These are build validations, not store publication.
 The simulator archive does not run on physical iPhones.
 
-Existing desktop/server release and Docker workflows remain unchanged. The
-existing cache-warming workflow runs on selected `main` pushes, weekly, or
-manually; there is no general nightly test suite added here.
+The cache-warming workflow runs on selected `main` pushes, weekly, or manually.
+
+## Validate a release without publishing
+
+Push the changes to a branch, then manually run both **Release** and **Docker**
+from **Actions → Run workflow**, selecting that branch. You can also use the CLI
+(replace `your-branch` with the branch containing these workflow changes):
+
+```sh
+gh workflow run release.yml --ref your-branch
+gh workflow run docker-publish.yml --ref your-branch
+gh run list --workflow release.yml --branch your-branch --limit 5
+gh run list --workflow docker-publish.yml --branch your-branch --limit 5
+gh run watch RUN_ID --exit-status
+```
+
+Watch each run ID. **Release** validates all six desktop targets plus the Linux
+server tarball, including the Debian 13 smoke test. Signing and macOS
+notarization still run, so the repository's usual release secrets are required.
+Successful manual runs retain desktop packages and the server tarball/checksum
+as Actions artifacts for seven days. **Docker** builds and smoke-tests both
+architectures; its publish job is expected to be skipped.
+
+Manual runs never create a tag or GitHub release and never push registry images,
+even if an existing tag is selected. Only matching tag **pushes** publish. These
+validation runs exercise builds, signing, packaging, and smoke tests; they do
+not verify GitHub release uploads or Docker registry publication permissions.
+For PR validation, also check **PR Check** and any selected compatibility
+workflows. Mobile packages can be validated separately using **Build Mobile**.
+
+To run the focused regression checks locally:
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s .github/scripts -p 'test_*.py'
+docker build -t wealthfolio-smoke:local .
+python3 .github/scripts/encryption_smoke.py --image wealthfolio-smoke:local
+```
+
+For an extracted Linux AMD64 server package, use
+`python3 .github/scripts/encryption_smoke.py --package /absolute/path/to/package`.
+Both smoke modes require Docker and use disposable containers and data volumes.
+They check portable export/restore, persistence, encryption conversion, and
+wrong-key rejection when a profile database is opened. A healthy HTTP listener
+alone does not prove a database key is valid because profiles open lazily.
 
 ## Downloadable test packages
 

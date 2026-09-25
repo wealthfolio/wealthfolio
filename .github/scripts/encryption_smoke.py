@@ -3,6 +3,7 @@
 import argparse
 import base64
 import http.client
+import http.cookiejar
 import json
 import pathlib
 import subprocess
@@ -11,6 +12,27 @@ import tempfile
 import urllib.error
 import urllib.request
 import uuid
+
+
+def make_request(origin):
+    # Export tickets belong to the browser session that created them.
+    opener = urllib.request.build_opener(
+        urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar())
+    )
+
+    def request(path, data=None, method=None, *, content_type="application/json",
+                timeout=3, expected=200):
+        req = urllib.request.Request(
+            origin + path,
+            data=data if isinstance(data, bytes) or data is None else json.dumps(data).encode(),
+            headers={"Content-Type": content_type, "X-Wealthfolio-Backup": "1"},
+            method=method or ("GET" if data is None else "PUT"),
+        )
+        with opener.open(req, timeout=timeout) as response:
+            assert response.status == expected, (path, response.status)
+            return response.read()
+
+    return request
 
 
 def portable_export(request, encrypted):
@@ -75,23 +97,12 @@ def main():
     def remove():
         docker("rm", "-f", name, check=False)
 
-    def boot(encrypted, seed=False):
-        docker("run", "-d", *command(encrypted), "-p", "127.0.0.1::8088", image, binary)
+    def boot(encrypted, seed=False, wrong_key=False):
+        secret = base64.b64encode(b"b" * 32).decode() if wrong_key else key
+        docker("run", "-d", *command(encrypted, secret), "-p", "127.0.0.1::8088", image, binary)
         try:
             port = json.loads(docker("inspect", name))[0]["NetworkSettings"]["Ports"]["8088/tcp"][0]["HostPort"]
-            origin = f"http://127.0.0.1:{port}"
-
-            def request(path, data=None, method=None, *, content_type="application/json",
-                        timeout=3, expected=200):
-                req = urllib.request.Request(
-                    origin + path,
-                    data=data if isinstance(data, bytes) or data is None else json.dumps(data).encode(),
-                    headers={"Content-Type": content_type, "X-Wealthfolio-Backup": "1"},
-                    method=method or ("GET" if data is None else "PUT"),
-                )
-                with urllib.request.urlopen(req, timeout=timeout) as response:
-                    assert response.status == expected, (path, response.status)
-                    return response.read()
+            request = make_request(f"http://127.0.0.1:{port}")
 
             deadline = time.monotonic() + 60
             while time.monotonic() < deadline:
@@ -104,6 +115,17 @@ def main():
                     time.sleep(0.5)
             else:
                 raise RuntimeError("Server health timeout")
+            if wrong_key:
+                # Profiles open lazily: health can succeed before the database is read.
+                try:
+                    request("/api/v1/settings")
+                except urllib.error.HTTPError as error:
+                    with error:
+                        assert error.code == 423, ("Wrong-key response", error.code)
+                        assert b"key did not open it" in error.read(), "Expected database key rejection"
+                    print("PASS wrong key rejected on profile access", flush=True)
+                    return
+                raise AssertionError("Wrong key unexpectedly allowed database access")
             assert b"<html" in request("/").lower(), "Packaged frontend missing"
             status = json.loads(request("/api/v1/utilities/database/encryption"))
             assert status["enabled"] == encrypted, status
@@ -163,14 +185,7 @@ def main():
             ))
         restore(boot(True, seed=True), True)
         boot(True)
-        # A wrong key must cause an actual startup failure, not a health timeout.
-        docker("run", "-d", *command(True, base64.b64encode(b"b" * 32).decode()), image, binary)
-        try:
-            code = docker("wait", name)
-            assert code != "0", "Wrong key unexpectedly accepted"
-            print("PASS wrong key rejected", flush=True)
-        finally:
-            remove()
+        boot(True, wrong_key=True)
         convert("decrypt")
         restore(boot(False), False)
         convert("encrypt")
