@@ -60,6 +60,7 @@ const AppLayoutContent = () => {
     <ErrorBoundary>
       <ApplicationShell
         className="app-shell h-screen overflow-x-hidden"
+        data-mobile-navigation={shouldUseMobileNavigation ? "true" : undefined}
         style={{
           ...(launchBarHeight ? { ["--mobile-nav-ui-height" as string]: launchBarHeight } : {}),
           ...(titleBarNudge ? { ["--titlebar-nudge" as string]: titleBarNudge } : {}),

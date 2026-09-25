@@ -8,7 +8,7 @@ import { useHapticFeedback } from "@/hooks/use-haptic-feedback";
 import { cn } from "@/lib/utils";
 import { Icons, Sheet, SheetContent, SheetTitle } from "@wealthfolio/ui";
 import { motion } from "motion/react";
-import { useCallback, useId, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { type NavLink, type NavigationProps, isPathActive } from "./app-navigation";
@@ -24,6 +24,18 @@ export function MobileNavBar({ navigation }: MobileNavBarProps) {
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [profileView, setProfileView] = useState(false);
+  const [isLandscape, setIsLandscape] = useState(
+    () => typeof window !== "undefined" && window.matchMedia("(orientation: landscape)").matches,
+  );
+
+  useEffect(() => {
+    const query = window.matchMedia("(orientation: landscape)");
+    const onOrientationChange = () => setIsLandscape(query.matches);
+    onOrientationChange();
+    query.addEventListener("change", onOrientationChange);
+    return () => query.removeEventListener("change", onOrientationChange);
+  }, []);
+
   const profileContext = useProfile();
   const backButtonRef = useRef<HTMLButtonElement>(null);
   const profileButtonRef = useRef<HTMLButtonElement>(null);
@@ -39,6 +51,8 @@ export function MobileNavBar({ navigation }: MobileNavBarProps) {
   const { status: syncStatus } = useAggregatedSyncStatus();
 
   const containerClassName = "pointer-events-none fixed inset-x-0 bottom-0 z-50";
+  const buttonClassName =
+    "text-foreground relative z-10 flex h-14 w-full items-center justify-center rounded-full transition-colors landscape:size-11";
 
   const handleNavigation = useCallback(
     (href: string, isActive: boolean) => {
@@ -64,16 +78,17 @@ export function MobileNavBar({ navigation }: MobileNavBarProps) {
     icon: <Icons.Search2 className="size-6" />,
   };
 
+  // Landscape has room to keep Holdings directly accessible alongside Dashboard and Insights.
+  const visiblePrimaryCount = isLandscape ? 3 : 2;
   const visibleItems = [
-    primaryItems[0],
-    primaryItems[1],
+    ...primaryItems.slice(0, visiblePrimaryCount),
     ...directPinnedAddonItems,
     searchItem,
   ].filter(Boolean);
 
   const addonItems = [...overflowPinnedAddonItems, ...addonMenuItems];
   const standardMenuItems: NavLink[] = [
-    ...primaryItems.slice(2),
+    ...primaryItems.slice(visiblePrimaryCount),
     ...secondaryItems,
     {
       title: t("common:connect"),
@@ -83,7 +98,6 @@ export function MobileNavBar({ navigation }: MobileNavBarProps) {
   ];
   const moreItems = [...standardMenuItems, ...addonItems];
   const hasMenu = moreItems.length > 0;
-  const columnCount = visibleItems.length + (hasMenu ? 1 : 0);
 
   return (
     <div className={containerClassName}>
@@ -92,12 +106,14 @@ export function MobileNavBar({ navigation }: MobileNavBarProps) {
         <LiquidGlass
           variant="floating"
           intensity="subtle"
-          className={cn("pointer-events-auto w-full px-1 py-1", "h-[var(--mobile-nav-ui-height)]")}
+          className={cn(
+            "pointer-events-auto w-full px-1 py-1 landscape:w-fit landscape:py-1.5",
+            "h-[var(--mobile-nav-ui-height)]",
+          )}
         >
           <nav
             aria-label={t("common:layout.primary_navigation")}
-            className={cn("grid place-items-center gap-2")}
-            style={{ gridTemplateColumns: `repeat(${columnCount}, minmax(0, 1fr))` }}
+            className="grid auto-cols-fr grid-flow-col place-items-center gap-2 landscape:auto-cols-[2.75rem]"
           >
             {visibleItems.map((item) => {
               const isActive = isPathActive(location.pathname, item.href);
@@ -126,7 +142,7 @@ export function MobileNavBar({ navigation }: MobileNavBarProps) {
                     }
                   }}
                   aria-label={item.title}
-                  className="text-foreground relative z-10 flex h-14 w-full items-center justify-center rounded-full transition-colors"
+                  className={buttonClassName}
                   key={item.href}
                   aria-current={isActive ? "page" : undefined}
                 >
@@ -160,7 +176,7 @@ export function MobileNavBar({ navigation }: MobileNavBarProps) {
                   setMobileMenuOpen(true);
                 }}
                 aria-label={t("common:layout.more_options")}
-                className="text-foreground relative z-10 flex h-14 w-full items-center justify-center rounded-full transition-colors"
+                className={buttonClassName}
               >
                 {moreItems.some((item) => isPathActive(location.pathname, item.href)) && (
                   <motion.div

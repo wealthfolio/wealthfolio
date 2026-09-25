@@ -663,6 +663,15 @@ body.qr-scan-active > .qr-overlay {
   pointer-events: auto;
 }
 
+/* Match the desktop floating bar's compact height on mobile in landscape.
+   Recompute clearance here so page content inherits the reduced height too. */
+@media (orientation: landscape) {
+  .app-shell[data-mobile-navigation="true"] {
+    --mobile-nav-ui-height: 56px;
+    --mobile-nav-total-offset: calc(var(--mobile-nav-ui-height) + var(--mobile-nav-bottom-offset));
+  }
+}
+
 /* Mobile optimizations for native feel */
 @layer utilities {
   .scroll-touch {
