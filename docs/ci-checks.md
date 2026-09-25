@@ -66,9 +66,9 @@ Successful manual runs retain desktop packages and the server tarball/checksum
 as Actions artifacts for seven days. **Docker** builds and smoke-tests both
 architectures; its publish job is expected to be skipped.
 
-For refs containing these updated workflows, manual runs never
-create a tag or GitHub release and never push registry images. Only matching
-tag **pushes** publish with these workflow versions.
+For refs containing these updated workflows, manual runs never create a tag or
+GitHub release and never push registry images. Only matching tag **pushes**
+publish with these workflow versions.
 
 **Do not select an older release tag for validation.** GitHub runs the workflow
 version stored at the selected ref. Tags created before these guards retain the
