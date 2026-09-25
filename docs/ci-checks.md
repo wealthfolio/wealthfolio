@@ -66,10 +66,18 @@ Successful manual runs retain desktop packages and the server tarball/checksum
 as Actions artifacts for seven days. **Docker** builds and smoke-tests both
 architectures; its publish job is expected to be skipped.
 
-Manual runs never create a tag or GitHub release and never push registry images,
-even if an existing tag is selected. Only matching tag **pushes** publish. These
-validation runs exercise builds, signing, packaging, and smoke tests; they do
-not verify GitHub release uploads or Docker registry publication permissions.
+For refs containing these updated workflows, manual runs never
+create a tag or GitHub release and never push registry images. Only matching
+tag **pushes** publish with these workflow versions.
+
+**Do not select an older release tag for validation.** GitHub runs the workflow
+version stored at the selected ref. Tags created before these guards retain the
+old workflows, which can publish Docker images or upload and replace release
+assets even when launched manually. Use the updated branch, or `main` after
+these changes are merged.
+
+These validation runs exercise builds, signing, packaging, and smoke tests; they
+do not verify GitHub release uploads or Docker registry publication permissions.
 For PR validation, also check **PR Check** and any selected compatibility
 workflows. Mobile packages can be validated separately using **Build Mobile**.
 
