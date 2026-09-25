@@ -193,6 +193,9 @@ Ensure you have the following installed on your machine:
    cp .env.example .env
    ```
 
+   For optional Connect setup, see
+   [Wealthfolio Connect in source builds](docs/connect-source-builds.md#desktop).
+
    Desktop development uses a separate application identity and profile
    directory. On macOS, the default layout is:
 

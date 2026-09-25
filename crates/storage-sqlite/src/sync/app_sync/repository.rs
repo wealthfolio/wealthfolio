@@ -178,7 +178,6 @@ const ROWS_WITH_USER_SYNCABLE_ACTIVITY_FILTER_SQL: &str = "\
 enum SyncRowFilter {
     UserSyncableHoldingsSnapshots,
     UserSyncableSnapshotPositions,
-    ManualQuotes,
     UserImportRuns,
     UserSyncableActivities,
     SyncableSettings,
@@ -207,7 +206,6 @@ impl SyncRowFilter {
                       AND source IN ('MANUAL_ENTRY', 'CSV_IMPORT')
                 )"
             }
-            Self::ManualQuotes => "source = 'MANUAL'",
             Self::UserImportRuns => {
                 "UPPER(run_type) = 'IMPORT' AND UPPER(source_system) IN ('CSV', 'MANUAL')"
             }
@@ -641,7 +639,8 @@ fn normalize_outbox_payload(payload: serde_json::Value) -> Result<serde_json::Va
 /// During export: only rows matching the filter are copied to the snapshot.
 /// During restore: only rows matching the filter are deleted before importing snapshot data,
 /// so that unfiltered rows (e.g. system taxonomies) are preserved.
-/// Tables not listed here are exported/restored unfiltered.
+/// Tables not listed here are exported/restored unfiltered. Quotes include every
+/// source so pairing preserves price history; incremental sync remains manual-only.
 const SYNC_TABLE_SNAPSHOT_COPY_FILTERS: &[SyncTableFilterSpec] = &[
     SyncTableFilterSpec {
         table: "holdings_snapshots",
@@ -650,10 +649,6 @@ const SYNC_TABLE_SNAPSHOT_COPY_FILTERS: &[SyncTableFilterSpec] = &[
     SyncTableFilterSpec {
         table: "snapshot_positions",
         filter: SyncRowFilter::UserSyncableSnapshotPositions,
-    },
-    SyncTableFilterSpec {
-        table: "quotes",
-        filter: SyncRowFilter::ManualQuotes,
     },
     // Taxonomy rows are all seeded by migrations — no user-created taxonomies yet.
     // Export nothing; the table is in APP_SYNC_TABLES for future custom taxonomy support.
@@ -718,10 +713,6 @@ const SYNC_TABLE_SNAPSHOT_CLEAR_FILTERS: &[SyncTableFilterSpec] = &[
     SyncTableFilterSpec {
         table: "snapshot_positions",
         filter: SyncRowFilter::UserSyncableSnapshotPositions,
-    },
-    SyncTableFilterSpec {
-        table: "quotes",
-        filter: SyncRowFilter::ManualQuotes,
     },
     SyncTableFilterSpec {
         table: "taxonomies",
@@ -7188,7 +7179,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn snapshot_export_filters_broker_snapshots_and_manual_quotes() {
+    async fn snapshot_round_trip_preserves_all_quotes_and_filters_holdings() {
         #[derive(diesel::QueryableByName)]
         struct CountRow {
             #[diesel(sql_type = diesel::sql_types::BigInt)]
@@ -7230,6 +7221,8 @@ mod tests {
 
         let payload = repo
             .export_snapshot_sqlite_image(vec![
+                "accounts".to_string(),
+                "assets".to_string(),
                 "holdings_snapshots".to_string(),
                 "quotes".to_string(),
             ])
@@ -7272,16 +7265,81 @@ mod tests {
         let quote_count: CountRow = diesel::sql_query("SELECT COUNT(*) AS c FROM quotes")
             .get_result(&mut exported_conn)
             .expect("count quote rows");
-        assert_eq!(quote_count.c, 1, "manual quotes only should export");
+        assert_eq!(quote_count.c, 2, "all quotes should export");
 
         let provider_quote_count: CountRow =
             diesel::sql_query("SELECT COUNT(*) AS c FROM quotes WHERE source != 'MANUAL'")
                 .get_result(&mut exported_conn)
                 .expect("count provider quote rows");
-        assert_eq!(
-            provider_quote_count.c, 0,
-            "provider quotes should not export"
-        );
+        assert_eq!(provider_quote_count.c, 1, "provider quotes should export");
+        drop(exported_conn);
+
+        use crate::market_data::QuoteDB;
+        use crate::schema::quotes;
+
+        let expected_quotes = quotes::table
+            .order(quotes::id)
+            .load::<QuoteDB>(&mut conn)
+            .expect("source quotes");
+        let (target_pool, target_writer) = setup_db();
+        let target_repo = AppSyncRepository::new(target_pool.clone(), target_writer);
+        target_repo
+            .restore_snapshot_tables_from_file(
+                exported_path.to_string_lossy().to_string(),
+                vec![
+                    "accounts".to_string(),
+                    "assets".to_string(),
+                    "holdings_snapshots".to_string(),
+                    "quotes".to_string(),
+                ],
+                0,
+                "quote-restore-device".to_string(),
+                Some(1),
+            )
+            .await
+            .expect("restore into fresh database");
+        let mut target_conn = get_connection(&target_pool).expect("target conn");
+        let restored_quotes = quotes::table
+            .order(quotes::id)
+            .load::<QuoteDB>(&mut target_conn)
+            .expect("restored quotes");
+        assert_eq!(restored_quotes, expected_quotes);
+
+        // Restoring over existing provider quotes must replace them without
+        // duplicate-key failures or retaining locally changed prices.
+        diesel::update(quotes::table.filter(quotes::source.eq("YAHOO")))
+            .set(quotes::close.eq("999"))
+            .execute(&mut target_conn)
+            .expect("change target provider quote");
+        drop(target_conn);
+        // Each download is staged in its own file by the restore runtime.
+        let next_snapshot_path = exported_dir.path().join("next-snapshot.db");
+        std::fs::copy(&exported_path, &next_snapshot_path).expect("stage next snapshot");
+        target_repo
+            .restore_snapshot_tables_from_file(
+                next_snapshot_path.to_string_lossy().to_string(),
+                vec!["quotes".to_string()],
+                0,
+                "quote-restore-device".to_string(),
+                Some(1),
+            )
+            .await
+            .expect("restore over existing quotes");
+        let mut target_conn = get_connection(&target_pool).expect("target conn");
+        let restored_quotes = quotes::table
+            .order(quotes::id)
+            .load::<QuoteDB>(&mut target_conn)
+            .expect("replaced quotes");
+        assert_eq!(restored_quotes, expected_quotes);
+
+        // Snapshot inclusion must not expand the incremental quote policy.
+        use crate::sync::SyncOutboxModel;
+        for quote in restored_quotes {
+            assert_eq!(
+                quote.should_sync_outbox(SyncOperation::Update),
+                quote.source == "MANUAL"
+            );
+        }
     }
 
     #[tokio::test]

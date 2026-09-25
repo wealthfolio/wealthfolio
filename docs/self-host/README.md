@@ -427,3 +427,8 @@ that backup. Do not discard keys still needed by retained backups.
   [`wealthfolio/wealthfolio-unraid`](https://github.com/wealthfolio/wealthfolio-unraid).
 - [**Proxmox VE**](./proxmox/): LXC via community-scripts, Docker-in-LXC, or
   Docker VM.
+
+## Building a Docker image with Connect
+
+For optional Connect configuration in your own Docker image, see
+[Wealthfolio Connect in source builds](../connect-source-builds.md#docker).
