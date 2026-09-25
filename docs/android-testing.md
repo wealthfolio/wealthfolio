@@ -12,22 +12,42 @@ image, and NDK `28.2.13676358` (the version pinned by the Android project).
 export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
 export ANDROID_HOME="$HOME/Library/Android/sdk"
 export NDK_HOME="$ANDROID_HOME/ndk/28.2.13676358"
-# Vendored OpenSSL needs the NDK LLVM indexer; GNU-prefixed ranlib is absent.
-export RANLIB_aarch64_linux_android="$NDK_HOME/toolchains/llvm/prebuilt/darwin-x86_64/bin/llvm-ranlib"
-export RANLIB_armv7_linux_androideabi="$RANLIB_aarch64_linux_android"
-export RANLIB_i686_linux_android="$RANLIB_aarch64_linux_android"
-export RANLIB_x86_64_linux_android="$RANLIB_aarch64_linux_android"
 export PATH="$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$PATH"
 rustup target add aarch64-linux-android
 pnpm install --frozen-lockfile
 ```
 
-SQLCipher builds vendored OpenSSL, which requires Perl and the NDK toolchain.
-The target-specific `RANLIB_*` variables above are required for CLI builds with
-this NDK; its old GNU-prefixed `ranlib` binaries are absent. On Linux, use the
-`linux-x86_64` prebuilt directory; on Windows, use
-`windows-x86_64/bin/llvm-ranlib.exe`. The tracked Gradle build task configures
-LLVM ranlib automatically for Android Studio builds.
+### Why the launcher configures ranlib
+
+[Tauri's Android prerequisites](https://v2.tauri.app/start/prerequisites/#android)
+cover the SDK, NDK, Java, Rust targets, and their environment variables; they do
+not prescribe a custom ranlib launcher. Wealthfolio has an additional native
+build requirement: [the workspace Cargo manifest](../Cargo.toml) enables
+`bundled-sqlcipher-vendored-openssl` on `libsqlite3-sys` for database
+encryption. This builds OpenSSL from source and requires Perl and the NDK
+toolchain.
+
+Without an explicit ranlib setting, our OpenSSL build can select
+`aarch64-linux-android-ranlib`, which modern NDKs no longer provide, and fail
+during `make install_dev` with `command not found`.
+[Android's guidance for other build systems](https://developer.android.com/ndk/guides/other_build_systems)
+configures `RANLIB` to use the NDK's `llvm-ranlib` for native dependency builds.
+
+Our existing [pnpm Tauri launcher](../scripts/tauri.mjs) supplies that setting
+through `TARGET_RANLIB` for Android commands, selecting the tool from `NDK_HOME`
+on macOS, Linux, and Windows. This project-specific workaround makes
+`pnpm tauri android dev` and `build` work without requiring each developer or CI
+environment to export a separate ranlib variable. It applies only to Android
+commands and preserves existing `RANLIB`, `TARGET_RANLIB`, and target-specific
+`RANLIB_*` overrides.
+
+The tracked Gradle build task also configures LLVM ranlib for Android Studio
+builds. Direct Cargo or Tauri CLI invocations that bypass the pnpm launcher
+still need an explicit ranlib setting, for example on macOS:
+
+```sh
+export RANLIB_aarch64_linux_android="$NDK_HOME/toolchains/llvm/prebuilt/darwin-x86_64/bin/llvm-ranlib"
+```
 
 ## Run with live reload
 
