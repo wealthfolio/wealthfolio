@@ -69,6 +69,14 @@
     }
   },
   "networth": {
+    "attention": {
+      "title": "確認が必要な項目",
+      "update_value": "評価額を更新",
+      "update_balance": "残高を更新",
+      "link_property": "{{name}}に不動産を関連付ける",
+      "add_property": "{{name}}の不動産を追加",
+      "link_explanation": "既存の不動産への関連付けでは純資産額は変わりません。"
+    },
     "failed_to_load": "純資産の読み込みに失敗しました",
     "stale_valuations_tooltip": "評価額が古い資産(90日以上):",
     "days_ago": "{{count}}日前",
@@ -76,9 +84,6 @@
     "breakdown": "内訳",
     "no_assets_found": "資産が見つかりません。",
     "add_first_asset": "最初の資産を追加",
-    "update_valuations": "評価額を更新",
-    "assets_count_one": "{{count}}件の資産",
-    "assets_count_other": "{{count}}件の資産",
     "not_updated_over_90_days": "90日以上更新されていません。",
     "chart": {
       "net_worth": "純資産",

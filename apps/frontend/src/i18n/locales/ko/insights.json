@@ -69,6 +69,14 @@
     }
   },
   "networth": {
+    "attention": {
+      "title": "확인이 필요한 항목",
+      "update_value": "평가액 업데이트",
+      "update_balance": "잔액 업데이트",
+      "link_property": "{{name}}에 부동산 연결",
+      "add_property": "{{name}}의 부동산 추가",
+      "link_explanation": "기존 부동산을 연결해도 순자산은 바뀌지 않습니다."
+    },
     "failed_to_load": "순자산을 불러오지 못했습니다",
     "stale_valuations_tooltip": "오래된 평가 (90일 이상):",
     "days_ago": "{{count}}일 전",
@@ -76,9 +84,6 @@
     "breakdown": "세부 내역",
     "no_assets_found": "자산을 찾을 수 없습니다.",
     "add_first_asset": "첫 자산을 추가하세요",
-    "update_valuations": "평가를 업데이트하세요",
-    "assets_count_one": "자산 {{count}}개",
-    "assets_count_other": "자산 {{count}}개",
     "not_updated_over_90_days": "90일 넘게 업데이트되지 않았습니다.",
     "chart": {
       "net_worth": "순자산",

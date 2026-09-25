@@ -70,6 +70,14 @@
     }
   },
   "networth": {
+    "attention": {
+      "title": "Handlungsbedarf",
+      "update_value": "Wert aktualisieren",
+      "update_balance": "Restschuld aktualisieren",
+      "link_property": "Immobilie mit {{name}} verknüpfen",
+      "add_property": "Immobilie für {{name}} hinzufügen",
+      "link_explanation": "Das Verknüpfen einer vorhandenen Immobilie ändert dein Nettovermögen nicht."
+    },
     "failed_to_load": "Nettovermögen konnte nicht geladen werden",
     "stale_valuations_tooltip": "Veraltete Bewertungen (90+ Tage):",
     "days_ago": "vor {{count}} T",
@@ -77,9 +85,6 @@
     "breakdown": "Aufschlüsselung",
     "no_assets_found": "Keine Vermögenswerte gefunden.",
     "add_first_asset": "Fügen Sie Ihren ersten Vermögenswert hinzu",
-    "update_valuations": "Aktualisieren Sie Ihre Bewertungen",
-    "assets_count_one": "{{count}} Vermögenswert",
-    "assets_count_other": "{{count}} Vermögenswerte",
     "not_updated_over_90_days": "Seit über 90 Tagen nicht aktualisiert.",
     "chart": {
       "net_worth": "Nettovermögen",

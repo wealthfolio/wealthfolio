@@ -73,6 +73,14 @@
     }
   },
   "networth": {
+    "attention": {
+      "title": "Da verificare",
+      "update_value": "Aggiorna valore",
+      "update_balance": "Aggiorna saldo",
+      "link_property": "Collega un immobile a {{name}}",
+      "add_property": "Aggiungi un immobile per {{name}}",
+      "link_explanation": "Collegare un immobile esistente non modifica il patrimonio netto."
+    },
     "failed_to_load": "Impossibile caricare il patrimonio netto",
     "stale_valuations_tooltip": "Valutazioni obsolete (oltre 90 giorni):",
     "days_ago": "{{count}}g fa",
@@ -80,10 +88,6 @@
     "breakdown": "Ripartizione",
     "no_assets_found": "Nessun asset trovato.",
     "add_first_asset": "Aggiungi il tuo primo asset",
-    "update_valuations": "Aggiorna le tue valutazioni",
-    "assets_count_one": "{{count}} asset",
-    "assets_count_many": "{{count}} asset",
-    "assets_count_other": "{{count}} asset",
     "not_updated_over_90_days": "Non aggiornato da oltre 90 giorni.",
     "chart": {
       "net_worth": "Patrimonio netto",

@@ -32,6 +32,7 @@ vi.mock("@/pages/holdings/components/allocation-detail-sheet", () => ({
 }));
 vi.mock("./components/breakdown-table", () => ({ BreakdownTable: () => <div /> }));
 vi.mock("./components/category-detail-sheet", () => ({ CategoryDetailSheet: () => null }));
+vi.mock("./components/net-worth-attention", () => ({ NetWorthAttention: () => null }));
 vi.mock("./components/momentum-card", () => ({ MomentumCard: () => null }));
 vi.mock("./components/velocity-card", () => ({
   VelocityCard: ({ trailingYearMonthly }: { trailingYearMonthly?: number }) => (

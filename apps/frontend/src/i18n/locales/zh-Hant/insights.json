@@ -70,6 +70,14 @@
     }
   },
   "networth": {
+    "attention": {
+      "title": "需要關注",
+      "update_value": "更新估值",
+      "update_balance": "更新餘額",
+      "link_property": "為{{name}}關聯房產",
+      "add_property": "為{{name}}新增房產",
+      "link_explanation": "關聯現有房產不會改變您的淨資產。"
+    },
     "failed_to_load": "載入淨資產失敗",
     "stale_valuations_tooltip": "過期估值（90 天以上）：",
     "days_ago": "{{count}} 天前",
@@ -77,9 +85,6 @@
     "breakdown": "明細",
     "no_assets_found": "找不到資產。",
     "add_first_asset": "新增你的第一項資產",
-    "update_valuations": "更新你的估值",
-    "assets_count_one": "{{count}} 項資產",
-    "assets_count_other": "{{count}} 項資產",
     "not_updated_over_90_days": "超過 90 天未更新。",
     "chart": {
       "net_worth": "淨資產",

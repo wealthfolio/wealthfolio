@@ -73,6 +73,14 @@
     }
   },
   "networth": {
+    "attention": {
+      "title": "À vérifier",
+      "update_value": "Actualiser la valeur",
+      "update_balance": "Actualiser le solde",
+      "link_property": "Associer un bien à {{name}}",
+      "add_property": "Ajouter un bien pour {{name}}",
+      "link_explanation": "Associer un bien existant ne modifie pas votre patrimoine net."
+    },
     "failed_to_load": "Échec du chargement de la valeur nette",
     "stale_valuations_tooltip": "Valorisations obsolètes (90+ jours) :",
     "days_ago": "il y a {{count}}j",
@@ -80,10 +88,6 @@
     "breakdown": "Répartition",
     "no_assets_found": "Aucun actif trouvé.",
     "add_first_asset": "Ajoutez votre premier actif",
-    "update_valuations": "Mettez à jour vos valorisations",
-    "assets_count_one": "{{count}} actif",
-    "assets_count_other": "{{count}} actifs",
-    "assets_count_many": "{{count}} actifs",
     "not_updated_over_90_days": "Non mis à jour depuis plus de 90 jours.",
     "chart": {
       "net_worth": "Valeur nette",

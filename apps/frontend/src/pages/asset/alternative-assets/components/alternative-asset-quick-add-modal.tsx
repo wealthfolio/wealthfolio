@@ -124,6 +124,8 @@ interface AlternativeAssetQuickAddModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   defaultKind?: AlternativeAssetKind;
+  /** Keep creation scoped to the preset kind in contextual flows. */
+  allowKindChange?: boolean;
   linkableAssets?: LinkableAsset[];
   linkedAssetId?: string;
   /** Default liability type (e.g., "mortgage" when chained from property) */
@@ -145,6 +147,7 @@ export function AlternativeAssetQuickAddModal({
   open,
   onOpenChange,
   defaultKind,
+  allowKindChange = true,
   linkableAssets = [],
   linkedAssetId: initialLinkedAssetId,
   defaultLiabilityType,
@@ -168,6 +171,7 @@ export function AlternativeAssetQuickAddModal({
     currentValue: "",
     valueDate: new Date(),
     linkedAssetId: initialLinkedAssetId,
+    liabilityType: defaultLiabilityType ?? "mortgage",
   });
 
   const { createMutation } = useAlternativeAssetMutations({
@@ -203,7 +207,7 @@ export function AlternativeAssetQuickAddModal({
         currentValue: "",
         valueDate: defaultOriginationDate || new Date(),
         linkedAssetId: initialLinkedAssetId,
-        liabilityType: defaultLiabilityType,
+        liabilityType: defaultLiabilityType ?? "mortgage",
       });
     }
   }, [
@@ -588,7 +592,7 @@ export function AlternativeAssetQuickAddModal({
                 </div>
 
                 {/* Mortgage checkbox for property */}
-                {formData.kind === AlternativeAssetKind.PROPERTY && (
+                {formData.kind === AlternativeAssetKind.PROPERTY && onOpenLiabilityQuickAdd && (
                   <div className="flex items-center space-x-3 pt-2">
                     <Checkbox
                       id="hasMortgage"
@@ -629,7 +633,7 @@ export function AlternativeAssetQuickAddModal({
         {/* Footer with navigation */}
         <div className="mt-auto border-t px-6 py-4">
           <div className="flex w-full gap-3">
-            {step === 2 && (
+            {step === 2 && allowKindChange && (
               <Button
                 type="button"
                 variant="outline"

@@ -69,6 +69,14 @@
     }
   },
   "networth": {
+    "attention": {
+      "title": "需要关注",
+      "update_value": "更新估值",
+      "update_balance": "更新余额",
+      "link_property": "为{{name}}关联房产",
+      "add_property": "为{{name}}添加房产",
+      "link_explanation": "关联现有房产不会改变您的净资产。"
+    },
     "failed_to_load": "加载净资产失败",
     "stale_valuations_tooltip": "陈旧估值（90 天以上）：",
     "days_ago": "{{count}} 天前",
@@ -76,9 +84,6 @@
     "breakdown": "明细",
     "no_assets_found": "未找到资产。",
     "add_first_asset": "添加您的第一项资产",
-    "update_valuations": "更新您的估值",
-    "assets_count_one": "{{count}} 项资产",
-    "assets_count_other": "{{count}} 项资产",
     "not_updated_over_90_days": "超过 90 天未更新。",
     "chart": {
       "net_worth": "净资产",

@@ -73,6 +73,14 @@
     }
   },
   "networth": {
+    "attention": {
+      "title": "Precisa de atenção",
+      "update_value": "Atualizar valor",
+      "update_balance": "Atualizar saldo",
+      "link_property": "Vincular um imóvel a {{name}}",
+      "add_property": "Adicionar um imóvel para {{name}}",
+      "link_explanation": "Vincular um imóvel existente não altera seu patrimônio líquido."
+    },
     "failed_to_load": "Não foi possível carregar o patrimônio líquido",
     "stale_valuations_tooltip": "Valorações desatualizadas (mais de 90 dias):",
     "days_ago": "há {{count}} d",
@@ -80,10 +88,6 @@
     "breakdown": "Detalhamento",
     "no_assets_found": "Nenhum ativo encontrado.",
     "add_first_asset": "Adicione seu primeiro ativo",
-    "update_valuations": "Atualize suas valorações",
-    "assets_count_one": "{{count}} ativo",
-    "assets_count_other": "{{count}} ativos",
-    "assets_count_many": "{{count}} ativos",
     "not_updated_over_90_days": "Não atualizado há mais de 90 dias.",
     "chart": {
       "net_worth": "Patrimônio líquido",

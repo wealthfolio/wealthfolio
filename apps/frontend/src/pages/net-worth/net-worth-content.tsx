@@ -29,6 +29,7 @@ import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import { BreakdownTable } from "./components/breakdown-table";
 import { CategoryDetailSheet } from "./components/category-detail-sheet";
+import { NetWorthAttention } from "./components/net-worth-attention";
 import { MomentumCard } from "./components/momentum-card";
 import {
   THEME_COLOR,
@@ -401,41 +402,7 @@ export function NetWorthContent() {
                 <MomentumCard momentum={momentum} currency={currency} periodLabel={periodLabel} />
               )}
 
-              {/* Stale valuations warning */}
-              {hasStaleValuations && (
-                <div className="border-warning/10 bg-warning/10 rounded-xl border p-4 backdrop-blur-xl md:p-5">
-                  <div className="mb-2 flex items-center gap-2">
-                    <Icons.AlertCircle className="text-warning h-4 w-4 shrink-0" />
-                    <h3 className="text-foreground text-sm font-semibold">
-                      {t("insights:networth.update_valuations")}
-                    </h3>
-                    <span className="text-muted-foreground/70 ml-auto text-xs">
-                      {t("insights:networth.assets_count", {
-                        count: netWorthData?.staleAssets.length ?? 0,
-                      })}
-                    </span>
-                  </div>
-                  <p className="text-muted-foreground ml-6 text-xs">
-                    {t("insights:networth.not_updated_over_90_days")}
-                  </p>
-                  <div className="ml-6 mt-3 space-y-1.5">
-                    {netWorthData?.staleAssets.map((asset) => (
-                      <Link
-                        key={asset.assetId}
-                        to={`/holdings/${encodeURIComponent(asset.assetId)}?tab=history`}
-                        className="hover:bg-warning/10 -mx-2 flex items-center justify-between rounded-md px-2 py-1.5 transition-colors"
-                      >
-                        <span className="truncate text-xs font-medium">
-                          {asset.name ?? asset.assetId}
-                        </span>
-                        <span className="text-muted-foreground ml-2 shrink-0 text-xs">
-                          {t("insights:networth.days_ago", { count: asset.daysStale })}
-                        </span>
-                      </Link>
-                    ))}
-                  </div>
-                </div>
-              )}
+              <NetWorthAttention staleAssets={netWorthData?.staleAssets ?? []} />
             </div>
           </div>
         </div>

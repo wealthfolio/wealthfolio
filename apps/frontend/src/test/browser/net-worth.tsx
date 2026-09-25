@@ -1,3 +1,5 @@
+import { MemoryRouter } from "react-router-dom";
+import { NetWorthAttentionCard } from "@/pages/net-worth/components/net-worth-attention";
 import { useState } from "react";
 import { createRoot } from "react-dom/client";
 import i18next from "i18next";
@@ -57,6 +59,8 @@ function Fixture() {
   const [scenario, setScenario] = useState(params.get("scenario") ?? "growth");
   const [locale, setLocale] = useState(params.get("locale") ?? "de-DE");
   const [hidden, setHidden] = useState(false);
+  const [attentionLinked, setAttentionLinked] = useState(false);
+  const [attentionAdd, setAttentionAdd] = useState(false);
   const current = structuredClone(data);
   const points = structuredClone(history);
   if (scenario === "extreme") {
@@ -201,6 +205,52 @@ function Fixture() {
             onSelect={() => undefined}
           />
         </main>
+        {params.has("attention") && (
+          <MemoryRouter>
+            <div style={{ padding: 16, maxWidth: 384 }}>
+              <NetWorthAttentionCard
+                staleAssets={[
+                  { assetId: "home", name: "Home", valuationDate: "2025-01-01", daysStale: 195 },
+                  {
+                    assetId: "mortgage",
+                    name: "Home Mortgage",
+                    valuationDate: "2020-01-01",
+                    daysStale: 1928,
+                  },
+                ]}
+                holdings={[
+                  {
+                    id: "mortgage",
+                    kind: "liability",
+                    name: "Home Mortgage",
+                    symbol: "Mortgage",
+                    currency: "USD",
+                    marketValue: "500000",
+                    valuationDate: "2020-01-01",
+                    metadata: params.get("untyped") === "1" ? {} : { sub_type: "mortgage" },
+                    linkedAssetId: attentionLinked ? "home" : undefined,
+                  },
+                  ...(params.get("property") === "0"
+                    ? []
+                    : [
+                        {
+                          id: "home",
+                          kind: "property",
+                          name: "Home",
+                          symbol: "Property",
+                          currency: "USD",
+                          marketValue: "235000",
+                          valuationDate: "2025-01-01",
+                        },
+                      ]),
+                ]}
+                onLink={() => setAttentionLinked(true)}
+                onAddProperty={() => setAttentionAdd(true)}
+              />
+              {attentionAdd && <p>Property creation requested</p>}
+            </div>
+          </MemoryRouter>
+        )}
         <section aria-label="Monthly pace card" style={{ padding: 16, maxWidth: 384 }}>
           <VelocityCard
             velocity={

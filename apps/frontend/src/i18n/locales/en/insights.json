@@ -70,6 +70,14 @@
     }
   },
   "networth": {
+    "attention": {
+      "title": "Needs attention",
+      "update_value": "Update value",
+      "update_balance": "Update balance",
+      "link_property": "Link a property to {{name}}",
+      "add_property": "Add a property for {{name}}",
+      "link_explanation": "Linking an existing property does not change your net worth."
+    },
     "failed_to_load": "Failed to load net worth",
     "stale_valuations_tooltip": "Stale valuations (90+ days):",
     "days_ago": "{{count}}d ago",
@@ -77,9 +85,6 @@
     "breakdown": "Breakdown",
     "no_assets_found": "No assets found.",
     "add_first_asset": "Add your first asset",
-    "update_valuations": "Update your valuations",
-    "assets_count_one": "{{count}} asset",
-    "assets_count_other": "{{count}} assets",
     "not_updated_over_90_days": "Not updated in over 90 days.",
     "chart": {
       "net_worth": "Net Worth",
