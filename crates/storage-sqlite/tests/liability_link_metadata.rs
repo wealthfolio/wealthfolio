@@ -1,12 +1,13 @@
 use std::sync::Arc;
 
 use diesel::RunQueryDsl;
+use rust_decimal::Decimal;
 use serde_json::json;
 use wealthfolio_core::assets::{
     AlternativeAssetService, AlternativeAssetServiceTrait, AssetKind, AssetRepositoryTrait,
     LinkLiabilityRequest, NewAsset, QuoteMode,
 };
-use wealthfolio_core::quotes::QuoteService;
+use wealthfolio_core::quotes::{Quote, QuoteService, QuoteServiceTrait};
 use wealthfolio_core::secrets::SecretStore;
 use wealthfolio_core::Result;
 use wealthfolio_storage_sqlite::{
@@ -31,7 +32,7 @@ impl SecretStore for NoSecrets {
 }
 
 #[tokio::test]
-async fn linking_and_relinking_preserve_persisted_mortgage_metadata() {
+async fn property_link_lifecycle_preserves_persisted_mortgage() {
     let dir = tempfile::tempdir().unwrap();
     let access = db::DbAccess::plaintext(dir.path().join("app.db").to_str().unwrap());
     access.prepare().unwrap();
@@ -59,13 +60,14 @@ async fn linking_and_relinking_preserve_persisted_mortgage_metadata() {
     )
     .await
     .unwrap();
+    let quotes = Arc::new(quotes);
     let service = AlternativeAssetService::new(
         Arc::new(AlternativeAssetRepository::new(
             pool.clone(),
             writer.clone(),
         )),
         assets.clone(),
-        Arc::new(quotes),
+        quotes.clone(),
     );
     let original = json!({
         "sub_type": "mortgage",
@@ -110,4 +112,53 @@ async fn linking_and_relinking_preserve_persisted_mortgage_metadata() {
         expected["linked_asset_id"] = json!(target);
         assert_eq!(persisted.metadata, Some(expected));
     }
+
+    // Deleting a linked property must only unlink the mortgage, preserving its
+    // identity, details, balance, and valuation history.
+    for (id, amount) in [("mortgage", 450000), ("other-home", 600000)] {
+        for day in ["2026-01-01T12:00:00Z", "2026-02-01T12:00:00Z"] {
+            let value = Decimal::new(amount, 0);
+            quotes
+                .add_quote(&Quote {
+                    id: format!("{id}-{day}"),
+                    asset_id: id.into(),
+                    timestamp: day.parse().unwrap(),
+                    open: value,
+                    high: value,
+                    low: value,
+                    close: value,
+                    adjclose: value,
+                    currency: "USD".into(),
+                    data_source: "MANUAL".into(),
+                    created_at: chrono::Utc::now(),
+                    ..Default::default()
+                })
+                .await
+                .unwrap();
+        }
+    }
+    let mortgage_before = assets.get_by_id("mortgage").unwrap();
+    let history_before = quotes.get_historical_quotes("mortgage").unwrap();
+    assert_eq!(history_before.len(), 2);
+    service
+        .delete_alternative_asset("other-home")
+        .await
+        .unwrap();
+
+    let mortgage_after = assets.get_by_id("mortgage").unwrap();
+    assert_eq!(mortgage_after.kind, AssetKind::Liability);
+    assert_eq!(mortgage_after.name, mortgage_before.name);
+    assert_eq!(mortgage_after.quote_ccy, mortgage_before.quote_ccy);
+    assert_eq!(mortgage_after.is_active, mortgage_before.is_active);
+    assert_eq!(mortgage_after.metadata, Some(original));
+    assert_eq!(
+        quotes.get_historical_quotes("mortgage").unwrap(),
+        history_before
+    );
+    assert!(assets.get_by_id("other-home").is_err());
+    assert!(quotes
+        .get_historical_quotes("other-home")
+        .unwrap()
+        .is_empty());
+    assert!(assets.get_by_id("home").is_ok());
 }
