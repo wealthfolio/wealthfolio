@@ -408,7 +408,7 @@ impl AlternativeAssetServiceTrait for AlternativeAssetService {
         }
 
         // Update liability metadata with linked_asset_id
-        let new_metadata = Self::set_linked_asset_id(None, &request.target_asset_id);
+        let new_metadata = Self::set_linked_asset_id(liability.metadata, &request.target_asset_id);
         self.alternative_asset_repository
             .update_asset_metadata(&request.liability_id, Some(new_metadata))
             .await?;
@@ -1054,22 +1054,29 @@ mod tests {
     }
 
     // ---------------------------------------------------------------------------
-    // Minimal mock: AlternativeAssetRepository — not called by get_alternative_holdings
+    // Minimal mock: AlternativeAssetRepository — records metadata writes
     // ---------------------------------------------------------------------------
-    struct NoOpAltAssetRepository;
+    #[derive(Default)]
+    struct MockAltAssetRepository {
+        metadata_writes: std::sync::Mutex<Vec<(String, Option<Value>)>>,
+    }
 
     #[async_trait]
-    impl AlternativeAssetRepositoryTrait for NoOpAltAssetRepository {
+    impl AlternativeAssetRepositoryTrait for MockAltAssetRepository {
         async fn delete_alternative_asset(&self, _asset_id: &str) -> Result<()> {
             unimplemented!("not used in this test")
         }
 
         async fn update_asset_metadata(
             &self,
-            _asset_id: &str,
-            _metadata: Option<serde_json::Value>,
+            asset_id: &str,
+            metadata: Option<serde_json::Value>,
         ) -> Result<()> {
-            unimplemented!("not used in this test")
+            self.metadata_writes
+                .lock()
+                .unwrap()
+                .push((asset_id.to_string(), metadata));
+            Ok(())
         }
 
         fn find_liabilities_linked_to(&self, _linked_asset_id: &str) -> Result<Vec<String>> {
@@ -1163,6 +1170,63 @@ mod tests {
         assert!(meta.get("purchase_date").is_some());
     }
 
+    #[tokio::test]
+    async fn link_liability_preserves_existing_metadata() {
+        let original = json!({
+            "sub_type": "mortgage",
+            "original_amount": "500000",
+            "origination_date": "2020-01-01",
+            "purchase_price": "500000",
+            "purchase_date": "2020-01-01",
+            "custom": { "label": "keep me" },
+        });
+        let mut previously_linked = original.clone();
+        previously_linked["linked_asset_id"] = json!("old-property");
+
+        for metadata in [None, Some(original), Some(previously_linked)] {
+            let alt_repo = Arc::new(MockAltAssetRepository::default());
+            let asset_repo = MockAssetRepository {
+                assets: vec![
+                    super::super::Asset {
+                        id: "mortgage".into(),
+                        kind: AssetKind::Liability,
+                        metadata: metadata.clone(),
+                        ..Default::default()
+                    },
+                    super::super::Asset {
+                        id: "property".into(),
+                        kind: AssetKind::Property,
+                        ..Default::default()
+                    },
+                ],
+            };
+            let service = AlternativeAssetService::new(
+                alt_repo.clone(),
+                Arc::new(asset_repo),
+                Arc::new(MockQuoteService {
+                    cutoff: Arc::default(),
+                    as_of_quotes: HashMap::new(),
+                    latest_quotes: HashMap::new(),
+                }),
+            );
+            let response = service
+                .link_liability(LinkLiabilityRequest {
+                    liability_id: "mortgage".into(),
+                    target_asset_id: "property".into(),
+                })
+                .await
+                .unwrap();
+
+            let mut expected = metadata.unwrap_or_else(|| json!({}));
+            expected["linked_asset_id"] = json!("property");
+            assert_eq!(response.linked_asset_id.as_deref(), Some("property"));
+            assert_eq!(
+                *alt_repo.metadata_writes.lock().unwrap(),
+                vec![("mortgage".into(), Some(expected))],
+            );
+        }
+    }
+
     #[test]
     fn test_set_and_remove_linked_asset_id() {
         let metadata = AlternativeAssetService::set_linked_asset_id(None, "some-uuid-for-property");
@@ -1222,7 +1286,7 @@ mod tests {
         let asset_repo = MockAssetRepository {
             assets: vec![liability],
         };
-        let alt_repo = NoOpAltAssetRepository;
+        let alt_repo = MockAltAssetRepository::default();
 
         let timezone = Arc::new(RwLock::new("Pacific/Kiritimati".to_string()));
         let service = AlternativeAssetService::new(
