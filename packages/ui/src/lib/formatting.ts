@@ -173,6 +173,8 @@ export interface FormattingApi {
     value: number | string | null | undefined,
     currency: string,
     displayCurrency?: boolean,
+    /** "narrowSymbol" drops locale disambiguation (US$ -> $) for single-currency views. */
+    currencyDisplay?: "symbol" | "narrowSymbol",
   ) => string;
   formatPrice: (
     value: number | string | null | undefined,
@@ -833,7 +835,7 @@ export function createAmountFormatting(
     currencyFractionDigits(currency) {
       return getCurrencyFractionDigits(currency);
     },
-    formatCompactAmount(value, currency, displayCurrency = true) {
+    formatCompactAmount(value, currency, displayCurrency = true, currencyDisplay = "symbol") {
       const amount = numeric(value);
       if (amount == null) return "-";
       const max =
@@ -849,12 +851,13 @@ export function createAmountFormatting(
       if (quoteUnit) return `${compactDecimalFormatter(max).format(amount)}${quoteUnit.symbol}`;
       try {
         const normalizedCurrency = currency?.toUpperCase?.() || "USD";
-        const key = `${normalizedCurrency}:${max}`;
+        const key = `${normalizedCurrency}:${max}:${currencyDisplay}`;
         let formatter = compactFormatters.get(key);
         if (!formatter) {
           formatter = new Intl.NumberFormat(resolvedLocale, {
             style: "currency",
             currency: normalizedCurrency,
+            currencyDisplay,
             notation: "compact",
             maximumFractionDigits: max,
           });

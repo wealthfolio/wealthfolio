@@ -297,6 +297,9 @@ describe("locale formatting", () => {
     expect(fr.formatAmount(1234.56, "EUR")).toMatch(/^1[\u00a0\u202f ]234,56\s*€/);
     expect(us.formatCompactAmount(1_250_000, "USD")).toBe("$1.25M");
     expect(fr.formatCompactAmount(1_250_000, "EUR")).toMatch(/^1,25\s*M\s*€/);
+    const ca = createFormatter("en-CA");
+    expect(ca.formatCompactAmount(47_000, "USD")).toBe("US$47K");
+    expect(ca.formatCompactAmount(47_000, "USD", true, "narrowSymbol")).toBe("$47K");
     expect(us.formatPercent(-0.125)).toBe("-12.50%");
     expect(fr.formatPercent(0.125)).toMatch(/^12,50[\u00a0\u202f ]%$/);
     expect(us.formatQuantity(1234.56789)).toBe("1,234.56789");
