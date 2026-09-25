@@ -32,16 +32,31 @@ Different devices can use different local UUIDs for the same Connect user.
 
 ## Storage and legacy adoption
 
-Desktop development can set `WF_DATA_DIR` in the root `.env` to an absolute
-path. It takes precedence over `DATABASE_URL` for registry creation and legacy
+`pnpm tauri dev` uses the development application identity and ignores
+`DATABASE_URL` from `.env` or the shell, including on first launch. Remove this
+obsolete desktop development setting from older `.env` files and use
+`WF_DATA_DIR` to select a profile directory. This changes the pre-profile
+workflow of selecting an individual database through `.env`.
+
+Desktop development can set `WF_DATA_DIR` in the root `.env` to an absolute path
+for the profile registry and databases. When active, it also overrides legacy
 database discovery. New databases remain under `profiles/<id>/app.db`; an
-existing `app.db` in that directory is adopted using the usual migration rules.
-An empty/unset value keeps normal path resolution. Invalid or unwritable paths
-fail startup rather than falling back to production data. Release, packaged
-(`custom-protocol`), and mobile builds ignore `WF_DATA_DIR` and retain their
-normal Tauri app-data root and existing legacy database behavior. This does not
-move existing data or change OS keychain storage; use a fresh development folder
-rather than copying a production registry with its profile IDs and saved paths.
+existing `app.db` directly under `WF_DATA_DIR` is adopted on first profile
+initialization using the usual migration rules. An empty/unset value keeps
+normal path resolution. Invalid or unwritable paths fail startup rather than
+falling back to production data. Release, packaged (`custom-protocol`), and
+mobile builds ignore `WF_DATA_DIR` and retain their normal Tauri app-data root
+and existing legacy database behavior. This does not move existing data or
+change OS keychain storage; use a fresh development folder rather than copying a
+production registry with its profile IDs and saved paths.
+
+Packaged desktop apps do not ship with an `.env` file and normally use their
+app-data directory. For legacy compatibility, the production desktop identity
+still consults `DATABASE_URL` if manually supplied through the process
+environment or a runtime-discovered `.env`, provided `WF_DATA_DIR` is not
+active. It is used only to locate an existing database during first profile
+initialization. Once a registry exists, saved profile paths take precedence;
+changing `DATABASE_URL` does not switch databases.
 
 New profiles use this layout:
 

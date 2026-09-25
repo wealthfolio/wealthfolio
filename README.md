@@ -202,12 +202,16 @@ Ensure you have the following installed on your machine:
    └── profiles/<uuid>/app.db
    ```
 
-   You do not need to set `DATABASE_URL`: the development identity ignores it,
-   including values inherited from `.env` or the shell. The root-level `app.db`
-   is only used when adopting an existing legacy database. To select another
-   profile directory during desktop development, set `WF_DATA_DIR` to an
-   absolute path as described in `.env.example`. Use a dedicated development
-   directory.
+   To select another profile directory during desktop development, set
+   `WF_DATA_DIR` in `.env` to an absolute path as described in `.env.example`.
+   Leave it unset to use the default development app-data directory. Use a
+   dedicated development directory; this setting selects the registry and its
+   profiles, not an individual database file. An existing root-level `app.db` is
+   only adopted on first profile initialization.
+
+   If your older `.env` contains `DATABASE_URL`, remove it: `pnpm tauri dev`
+   ignores it, including on first launch. Use `WF_DATA_DIR` for development
+   directory selection. Packaged desktop apps do not ship with an `.env` file.
 
 4. **Run in Development Mode**:
 
