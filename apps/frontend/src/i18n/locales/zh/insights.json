@@ -114,14 +114,16 @@
     },
     "velocity": {
       "monthly_pace": "月度节奏",
-      "over_months_one": "在 {{count}} 个月内",
-      "over_months_other": "在 {{count}} 个月内",
-      "trailing_pace": " · 过去 12 个月节奏的 {{multiple}} 倍",
+      "since": "自 {{date}} 起",
+      "trailing_pace": " · 12 个月平均值的 {{multiple}} 倍",
       "drivers_of_change": "变化驱动因素",
-      "portfolio_gains": "投资组合损益",
-      "other_asset_changes": "其他资产价值变动",
+      "investment_gains": "投资收益",
+      "investment_losses": "投资亏损",
+      "other_assets": "其他资产",
       "contributions": "投入",
-      "equity_built": "累积权益",
+      "withdrawals": "取出",
+      "debt_paid_down": "偿还债务",
+      "debt_added": "新增债务",
       "per_month": "/月"
     },
     "days_ago_other": "{{count}} 天前"

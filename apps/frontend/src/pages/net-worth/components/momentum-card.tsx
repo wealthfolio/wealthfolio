@@ -50,7 +50,7 @@ export function MomentumCard({ momentum, currency, periodLabel }: MomentumCardPr
           : t("insights:networth.momentum.vs_prior", { period: periodLabel })
       }
     >
-      <div className={`text-lg font-bold tabular-nums ${toneClass(currentChange)}`}>
+      <div className={`text-2xl font-bold tabular-nums ${toneClass(currentChange)}`}>
         {changeSign}
         <CompactAmount value={Math.abs(currentChange)} currency={currency} />
       </div>

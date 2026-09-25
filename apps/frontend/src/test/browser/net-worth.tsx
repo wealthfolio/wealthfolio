@@ -5,6 +5,7 @@ import { initReactI18next } from "react-i18next";
 import { FormattingProvider } from "@wealthfolio/ui";
 import { PrivacyContext } from "@/context/privacy-context";
 import en from "@/i18n/locales/en/insights.json";
+import { NetWorthChart } from "@/pages/net-worth/net-worth-chart";
 import { VelocityCard } from "@/pages/net-worth/components/velocity-card";
 import { computeVelocity } from "@/pages/net-worth/components/utils";
 import de from "@/i18n/locales/de/insights.json";
@@ -170,6 +171,23 @@ function Fixture() {
         </p>
         {fallback && (
           <style>{`main [class*="supports-[grid-template-columns:subgrid]"] { grid-template-columns: var(--breakdown-fallback-columns) !important; }`}</style>
+        )}
+        {params.has("chart") && (
+          <section aria-label="Net worth history" style={{ height: 280, margin: 16 }}>
+            <NetWorthChart
+              data={(params.get("chart") ?? "").split(",").map((value, index) => ({
+                date: `2026-09-${10 + index}`,
+                netWorth: value,
+                totalAssets: "100000",
+                totalLiabilities: String(100000 - Number(value)),
+                portfolioValue: "100000",
+                alternativeAssetsValue: "0",
+                netContribution: "0",
+                currency: "USD",
+                breakdown: {},
+              }))}
+            />
+          </section>
         )}
         <main
           aria-label="Net worth card"

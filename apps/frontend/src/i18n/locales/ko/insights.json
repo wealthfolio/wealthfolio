@@ -114,14 +114,16 @@
     },
     "velocity": {
       "monthly_pace": "월간 속도",
-      "over_months_one": "{{count}}개월 동안",
-      "over_months_other": "{{count}}개월 동안",
-      "trailing_pace": " · 최근 12개월 평균 대비 {{multiple}}배",
+      "since": "{{date}} 이후",
+      "trailing_pace": " · 12개월 평균의 {{multiple}}배",
       "drivers_of_change": "변화 요인",
-      "portfolio_gains": "포트폴리오 손익",
-      "other_asset_changes": "기타 자산 가치 변동",
+      "investment_gains": "투자 수익",
+      "investment_losses": "투자 손실",
+      "other_assets": "기타 자산",
       "contributions": "납입금",
-      "equity_built": "축적된 자본",
+      "withdrawals": "출금",
+      "debt_paid_down": "부채 상환",
+      "debt_added": "신규 부채",
       "per_month": "/월"
     },
     "days_ago_other": "{{count}}일 전"

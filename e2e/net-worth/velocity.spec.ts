@@ -6,18 +6,12 @@ for (const width of [320, 1280]) {
       await page.setViewportSize({ width, height: 1100 });
       await page.goto(`/e2e/net-worth/?language=${language}`);
       const card = page.getByRole("region", { name: "Monthly pace card" });
-      await expect(
-        card.getByText(language === "en" ? "Portfolio gains/losses" : "Portfoliogewinne/-verluste"),
-      ).toBeVisible();
-      await expect(
-        card.getByText(
-          language === "en"
-            ? "Other asset value changes"
-            : "Wertänderungen sonstiger Vermögenswerte",
-        ),
-      ).toBeVisible();
-      await expect(card).toContainText("9% · +");
-      await expect(card).toContainText("34% · -");
+      const labels =
+        language === "en"
+          ? ["Contributions", "Other assets", "Investment gains"]
+          : ["Einzahlungen", "Sonstige Vermögenswerte", "Anlagegewinne"];
+      for (const label of labels) await expect(card.getByText(label)).toBeVisible();
+      await expect(card).toContainText(language === "en" ? "since" : "seit");
       await page.evaluate(() => document.fonts.ready);
       expect(
         await card.evaluate((root) => {

@@ -3,17 +3,15 @@ import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import { useIsMobileViewport } from "@/hooks/use-platform";
 import type { NetWorthHistoryPoint } from "@/lib/types";
 import { formatDate } from "@/lib/utils";
-import { AmountDisplay, useDateFormatting } from "@wealthfolio/ui";
+import { AmountDisplay, useAmountFormatting, useDateFormatting } from "@wealthfolio/ui";
 import { ChartConfig, ChartContainer } from "@wealthfolio/ui/components/ui/chart";
 import type { TFunction } from "i18next";
-import { useId, useMemo, useRef } from "react";
+import { useId, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import { Area, AreaChart, Tooltip, YAxis } from "recharts";
+import { Area, AreaChart, ReferenceLine, Tooltip, YAxis } from "recharts";
 import type { MouseHandlerDataParam } from "recharts/types/synchronisation/types";
+import { THEME_COLOR } from "./components/utils";
 
-// Goldish orange for net worth chart (consistent across light/dark modes)
-const CHART_COLOR = "hsl(38, 75%, 50%)";
-const NEGATIVE_COLOR = "var(--destructive)";
 const CHART_SCRUB_HAPTIC_INTERVAL_MS = 80;
 
 interface ChartDataPoint {
@@ -52,7 +50,6 @@ const CustomTooltip = ({ active, payload, isBalanceHidden, t }: CustomTooltipPro
   }
 
   const hasLiabilities = entry.totalLiabilities > 0;
-  const tooltipColor = entry.netWorth >= 0 ? CHART_COLOR : NEGATIVE_COLOR;
 
   return (
     <div className="bg-popover grid grid-cols-1 gap-1.5 rounded-md border p-2 shadow-md">
@@ -61,7 +58,7 @@ const CustomTooltip = ({ active, payload, isBalanceHidden, t }: CustomTooltipPro
       {/* Net Worth - primary value */}
       <div className="flex items-center justify-between space-x-4">
         <div className="flex items-center space-x-1.5">
-          <span className="block h-0.5 w-3" style={{ backgroundColor: tooltipColor }} />
+          <span className="block h-0.5 w-3" style={{ backgroundColor: THEME_COLOR }} />
           <span className="text-muted-foreground text-xs">
             {t("insights:networth.chart.net_worth_label")}
           </span>
@@ -129,6 +126,7 @@ interface NetWorthChartProps {
 export function NetWorthChart({ data, isLoading }: NetWorthChartProps) {
   const { t } = useTranslation();
   const { triggerHaptic } = useHapticFeedback();
+  const { formatAmount } = useAmountFormatting();
   const { isBalanceHidden } = useBalancePrivacy();
   const isMobile = useIsMobileViewport();
   const isTouchScrubbingRef = useRef(false);
@@ -136,7 +134,6 @@ export function NetWorthChart({ data, isLoading }: NetWorthChartProps) {
   const lastHapticAtRef = useRef(0);
   const id = useId();
   const fillGradientId = `nwFill-${id}`;
-  const strokeGradientId = `nwStroke-${id}`;
 
   const chartData = transformData(data);
 
@@ -146,28 +143,16 @@ export function NetWorthChart({ data, isLoading }: NetWorthChartProps) {
     },
   } satisfies ChartConfig;
 
-  // Compute where y=0 falls in the gradient (0=top, 1=bottom)
-  const { zeroOffset, allPositive, allNegative } = useMemo(() => {
-    if (chartData.length === 0) return { zeroOffset: 0, allPositive: true, allNegative: false };
-    let min = Infinity;
-    let max = -Infinity;
-    for (const d of chartData) {
-      if (d.netWorth < min) min = d.netWorth;
-      if (d.netWorth > max) max = d.netWorth;
-    }
-    if (min >= 0) return { zeroOffset: 1, allPositive: true, allNegative: false };
-    if (max <= 0) return { zeroOffset: 0, allPositive: false, allNegative: true };
-    // Account for the 2% padding on the Y domain minimum
-    const adjustedMin = min - Math.abs(min) * 0.02;
-    const offset = max / (max - adjustedMin);
-    return { zeroOffset: offset, allPositive: false, allNegative: false };
-  }, [chartData]);
+  const crossesZero =
+    chartData.some((point) => point.netWorth < 0) && chartData.some((point) => point.netWorth > 0);
 
   if (isLoading || chartData.length === 0) {
     return null;
   }
 
-  const zeroPercent = `${(zeroOffset * 100).toFixed(1)}%`;
+  const firstValue = chartData[0].netWorth;
+  const isFlat = chartData.every((point) => point.netWorth === firstValue);
+  const flatPadding = Math.max(Math.abs(firstValue) * 0.02, 1);
 
   const maybeTriggerScrubHaptic = (chartState: MouseHandlerDataParam) => {
     if (!isMobile || !isTouchScrubbingRef.current || !chartState.isTooltipActive) {
@@ -214,38 +199,9 @@ export function NetWorthChart({ data, isLoading }: NetWorthChartProps) {
       >
         <defs>
           <linearGradient id={fillGradientId} x1="0" y1="0" x2="0" y2="1">
-            {allNegative ? (
-              <>
-                <stop offset="5%" stopColor={NEGATIVE_COLOR} stopOpacity={0.2} />
-                <stop offset="70%" stopColor={NEGATIVE_COLOR} stopOpacity={0.12} />
-                <stop offset="100%" stopColor={NEGATIVE_COLOR} stopOpacity={0} />
-              </>
-            ) : allPositive ? (
-              <>
-                <stop offset="5%" stopColor={CHART_COLOR} stopOpacity={0.2} />
-                <stop offset="70%" stopColor={CHART_COLOR} stopOpacity={0.12} />
-                <stop offset="100%" stopColor={CHART_COLOR} stopOpacity={0} />
-              </>
-            ) : (
-              <>
-                <stop offset="0%" stopColor={CHART_COLOR} stopOpacity={0.2} />
-                <stop offset={zeroPercent} stopColor={CHART_COLOR} stopOpacity={0.05} />
-                <stop offset={zeroPercent} stopColor={NEGATIVE_COLOR} stopOpacity={0.05} />
-                <stop offset="100%" stopColor={NEGATIVE_COLOR} stopOpacity={0.2} />
-              </>
-            )}
-          </linearGradient>
-          <linearGradient id={strokeGradientId} x1="0" y1="0" x2="0" y2="1">
-            {allNegative ? (
-              <stop offset="0%" stopColor={NEGATIVE_COLOR} />
-            ) : allPositive ? (
-              <stop offset="0%" stopColor={CHART_COLOR} />
-            ) : (
-              <>
-                <stop offset={zeroPercent} stopColor={CHART_COLOR} />
-                <stop offset={zeroPercent} stopColor={NEGATIVE_COLOR} />
-              </>
-            )}
+            <stop offset="5%" stopColor={THEME_COLOR} stopOpacity={0.2} />
+            <stop offset="70%" stopColor={THEME_COLOR} stopOpacity={0.12} />
+            <stop offset="100%" stopColor={THEME_COLOR} stopOpacity={0} />
           </linearGradient>
         </defs>
         <Tooltip
@@ -261,7 +217,11 @@ export function NetWorthChart({ data, isLoading }: NetWorthChartProps) {
         <YAxis
           hide
           type="number"
-          domain={[(dataMin: number) => dataMin - Math.abs(dataMin) * 0.02, "auto"]}
+          domain={
+            isFlat
+              ? [firstValue - flatPadding, firstValue + flatPadding]
+              : [(dataMin: number) => dataMin - Math.abs(dataMin) * 0.02, "auto"]
+          }
         />
 
         {/* Net Worth (main filled area) */}
@@ -272,10 +232,25 @@ export function NetWorthChart({ data, isLoading }: NetWorthChartProps) {
           connectNulls={true}
           type="monotone"
           dataKey="netWorth"
-          stroke={`url(#${strokeGradientId})`}
+          baseValue="dataMin"
+          stroke={THEME_COLOR}
           fillOpacity={1}
           fill={`url(#${fillGradientId})`}
         />
+        {crossesZero && (
+          <ReferenceLine
+            y={0}
+            stroke="var(--muted-foreground)"
+            strokeOpacity={0.4}
+            strokeDasharray="4 4"
+            label={{
+              value: formatAmount(0, chartData[0].currency),
+              position: "insideTopLeft",
+              fill: "var(--muted-foreground)",
+              fontSize: 11,
+            }}
+          />
+        )}
       </AreaChart>
     </ChartContainer>
   );

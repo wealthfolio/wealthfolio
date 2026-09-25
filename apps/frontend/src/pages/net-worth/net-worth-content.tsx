@@ -33,7 +33,6 @@ import { MomentumCard } from "./components/momentum-card";
 import {
   THEME_COLOR,
   THEME_COLOR_LIGHT,
-  averageMonthlyChange,
   computeMomentum,
   computeVelocity,
   deriveChange,
@@ -152,10 +151,16 @@ export function NetWorthContent() {
 
   const velocity = useMemo(() => computeVelocity(parsedHistory), [parsedHistory]);
   const trailingYearMonthly = useMemo(() => {
-    if (periodCode === "ALL") return undefined;
+    if (periodCode === "ALL" || !velocity) return undefined;
     const cutoff = formatDateISO(new Date(currentDate.getTime() - 366 * MS_PER_DAY));
-    return averageMonthlyChange(longHistory.filter((point) => point.date >= cutoff));
-  }, [longHistory, periodCode, currentDate]);
+    const trailing = computeVelocity(longHistory.filter((point) => point.date >= cutoff));
+    const yearAgo = formatDateISO(new Date(currentDate.getTime() - 365 * MS_PER_DAY));
+    // Do not label a partial history as a 12-month average.
+    if (!trailing || trailing.startDate > yearAgo) return undefined;
+    // A range spanning (nearly) the whole trailing year always compares at ~1×.
+    if (trailing.months - velocity.months < 1) return undefined;
+    return trailing.perMonth;
+  }, [longHistory, periodCode, currentDate, velocity]);
   const momentum = useMemo(() => {
     if (!historyDates || periodCode === "ALL") return null;
     return computeMomentum(longHistory, historyDates.startDate, historyDates.endDate);
@@ -171,6 +176,13 @@ export function NetWorthContent() {
       ),
     [parsedHistory],
   );
+
+  // Show percentages and multiples for positive starts and nonnegative ends.
+  // Keep the shared change calculation unchanged for the breakdown rows.
+  const showChangeRatio =
+    parsedHistory.length >= 2 &&
+    parsedHistory[0].netWorth > 0 &&
+    parsedHistory[parsedHistory.length - 1].netWorth >= 0;
 
   const currency = netWorthData?.currency || settings?.baseCurrency || "USD";
   const hasStaleValuations = netWorthData && netWorthData.staleAssets.length > 0;
@@ -264,23 +276,27 @@ export function NetWorthContent() {
                     currency={currency}
                     displayCurrency={false}
                   />
-                  <div className="border-secondary my-1 border-r pr-2" />
-                  {isPlainPercent(netWorthChange.percent) ? (
-                    <GainPercent
-                      className="lg:text-md text-sm font-light"
-                      value={netWorthChange.percent}
-                      animated={true}
-                    />
-                  ) : (
-                    <span
-                      className={`lg:text-md text-sm font-light ${toneClass(netWorthChange.amount)}`}
-                    >
-                      {formatChangePercent(
-                        netWorthChange,
-                        t("insights:networth.breakdown_table.new"),
-                        formatting,
+                  {showChangeRatio && (
+                    <>
+                      <div className="border-secondary my-1 border-r pr-2" />
+                      {isPlainPercent(netWorthChange.percent) ? (
+                        <GainPercent
+                          className="lg:text-md text-sm font-light"
+                          value={netWorthChange.percent}
+                          animated={true}
+                        />
+                      ) : (
+                        <span
+                          className={`lg:text-md text-sm font-light ${toneClass(netWorthChange.amount)}`}
+                        >
+                          {formatChangePercent(
+                            netWorthChange,
+                            t("insights:networth.breakdown_table.new"),
+                            formatting,
+                          )}
+                        </span>
                       )}
-                    </span>
+                    </>
                   )}
                 </>
               )}
@@ -298,10 +314,7 @@ export function NetWorthContent() {
       <div
         className="flex grow flex-col"
         style={{
-          backgroundImage:
-            (parsedData?.netWorth ?? 0) < 0
-              ? `linear-gradient(to top, color-mix(in srgb, var(--destructive) 30%, transparent), color-mix(in srgb, var(--destructive) 15%, transparent) 50%, transparent 100%)`
-              : `linear-gradient(to top, ${THEME_COLOR.replace(")", " / 0.30)")}, ${THEME_COLOR.replace(")", " / 0.15)")} 50%, transparent 100%)`,
+          backgroundImage: `linear-gradient(to top, ${THEME_COLOR.replace(")", " / 0.30)")}, ${THEME_COLOR.replace(")", " / 0.15)")} 50%, transparent 100%)`,
         }}
       >
         {/* Chart section */}

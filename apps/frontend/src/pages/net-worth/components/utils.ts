@@ -226,6 +226,8 @@ export interface Velocity {
   perMonth: number;
   /** Number of months in the range (for per-month vs total displays). */
   months: number;
+  /** First date of the range, as an ISO calendar date. */
+  startDate: string;
 }
 
 /**
@@ -256,12 +258,8 @@ export function computeVelocity(history: ParsedHistoryPoint[]): Velocity | null 
     equityBuilt,
     perMonth,
     months,
+    startDate: first.date,
   };
-}
-
-/** Average monthly net worth change across a history span (for the trailing-year baseline). */
-export function averageMonthlyChange(history: ParsedHistoryPoint[]): number {
-  return computeVelocity(history)?.perMonth ?? 0;
 }
 
 export interface Momentum {

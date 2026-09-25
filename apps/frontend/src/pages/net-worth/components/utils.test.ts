@@ -3,7 +3,6 @@ import { describe, expect, it } from "vitest";
 
 import type { NetWorthHistoryPoint, TaxonomyAllocation } from "@/lib/types";
 import {
-  averageMonthlyChange,
   computeMomentum,
   computeVelocity,
   deriveChange,
@@ -172,8 +171,6 @@ describe("net worth utils", () => {
     });
     expect(velocity?.months).toBeCloseTo(expectedMonths);
     expect(velocity?.perMonth).toBeCloseTo(220 / expectedMonths);
-    expect(averageMonthlyChange(history)).toBeCloseTo(220 / expectedMonths);
-    expect(averageMonthlyChange([history[0]])).toBe(0);
   });
 
   it("keeps portfolio gains separate from vehicle depreciation", () => {
