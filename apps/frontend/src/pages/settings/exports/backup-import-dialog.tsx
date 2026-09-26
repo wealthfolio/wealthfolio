@@ -216,7 +216,7 @@ export function BackupImportDialog({
             >
               <motion.div
                 key={preview ? "review" : "open"}
-                initial={reduceMotion ? false : { opacity: 0, y: 8 }}
+                initial={false}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.2 }}
                 className="space-y-5"
