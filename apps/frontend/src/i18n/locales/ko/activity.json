@@ -241,6 +241,7 @@
   "table_type": "유형",
   "table_date": "날짜",
   "table_symbol": "종목 코드",
+  "table_name": "이름",
   "table_quantity": "수량",
   "table_price_amount": "가격/금액",
   "table_fee": "수수료",

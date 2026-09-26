@@ -243,6 +243,7 @@
   "table_type": "Tipo",
   "table_date": "Data",
   "table_symbol": "Símbolo",
+  "table_name": "Nome",
   "table_quantity": "Quantidade",
   "table_price_amount": "Preço/Valor",
   "table_fee": "Taxa",

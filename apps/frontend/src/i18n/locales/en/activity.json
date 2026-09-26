@@ -242,6 +242,7 @@
   "table_type": "Type",
   "table_date": "Date",
   "table_symbol": "Symbol",
+  "table_name": "Name",
   "table_quantity": "Quantity",
   "table_price_amount": "Price/Amount",
   "table_fee": "Fee",

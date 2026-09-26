@@ -242,6 +242,7 @@
   "table_type": "類型",
   "table_date": "日期",
   "table_symbol": "代號",
+  "table_name": "名稱",
   "table_quantity": "數量",
   "table_price_amount": "價格／金額",
   "table_fee": "手續費",

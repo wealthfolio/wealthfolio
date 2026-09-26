@@ -471,6 +471,24 @@ export function SidebarConfigurator({
       },
     }));
 
+  const setTaxableCostBasis = (val: number) =>
+    update((d) => ({
+      ...d,
+      tax: {
+        taxableWithdrawalRate: 0,
+        taxDeferredWithdrawalRate: 0,
+        taxFreeWithdrawalRate: 0,
+        ...d.tax,
+        withdrawalBuckets: {
+          taxable: 0,
+          taxDeferred: 0,
+          taxFree: 0,
+          ...d.tax?.withdrawalBuckets,
+          taxableCostBasis: val,
+        },
+      },
+    }));
+
   const updateExpenseItem = (id: string, patch: Partial<ExpenseItem>) =>
     update((d) => ({
       ...d,
@@ -538,9 +556,19 @@ export function SidebarConfigurator({
   const taxBucketTotal = taxBucketBalances
     ? taxBucketBalances.taxable + taxBucketBalances.taxDeferred + taxBucketBalances.taxFree
     : 0;
+  const taxableCostBasis = draft.tax?.withdrawalBuckets?.taxableCostBasis ?? 0;
+  // Mirror of the engine's `TaxBucketBalances::taxable_gain_fraction`: only the
+  // unrealized-gain share of the taxable bucket is taxed on withdrawal.
+  const taxableGainFraction =
+    taxBucketBalances && taxBucketBalances.taxable > 0
+      ? Math.min(
+          1,
+          Math.max(0, (taxBucketBalances.taxable - taxableCostBasis) / taxBucketBalances.taxable),
+        )
+      : 0;
   const averageWithdrawalTaxRate =
     taxBucketBalances && taxBucketTotal > 0
-      ? (taxBucketBalances.taxable * (draft.tax?.taxableWithdrawalRate ?? 0) +
+      ? (taxBucketBalances.taxable * (draft.tax?.taxableWithdrawalRate ?? 0) * taxableGainFraction +
           taxBucketBalances.taxDeferred * (draft.tax?.taxDeferredWithdrawalRate ?? 0) +
           taxBucketBalances.taxFree * (draft.tax?.taxFreeWithdrawalRate ?? 0)) /
         taxBucketTotal
@@ -1736,6 +1764,20 @@ export function SidebarConfigurator({
                       {pctOfTotal(taxBucketBalances.taxable, taxBucketTotal, numberFormatting)}
                     </span>
                   </ConfigRow>
+                  {taxBucketBalances.taxable > 0 && (
+                    <ConfigRow
+                      label={
+                        <InfoLabel label={t("goals:sidebar.taxes.taxable_cost_basis")}>
+                          {t("goals:sidebar.taxes.taxable_cost_basis_tip")}
+                        </InfoLabel>
+                      }
+                    >
+                      {amountFormatting.formatAmount(taxableCostBasis, currency)}{" "}
+                      <span className="text-muted-foreground ml-1 font-normal">
+                        {numberFormatting.formatPercent(1 - taxableGainFraction, { digits: 0 })}
+                      </span>
+                    </ConfigRow>
+                  )}
                   <ConfigRow
                     label={
                       <InfoLabel label={t("goals:sidebar.taxes.tax_deferred_bucket")}>
@@ -1786,6 +1828,21 @@ export function SidebarConfigurator({
               step={0.005}
               suffix="%"
               format={(v) => (v * 100).toFixed(1)}
+            />
+            <LeverRow
+              label={
+                <InfoLabel label={t("goals:sidebar.taxes.taxable_cost_basis")}>
+                  {t("goals:sidebar.taxes.taxable_cost_basis_edit_tip")}
+                </InfoLabel>
+              }
+              kind="money"
+              value={taxableCostBasis}
+              onChange={setTaxableCostBasis}
+              min={0}
+              max={sliderMaxFor(taxableCostBasis, taxBucketBalances?.taxable ?? 100_000, 5_000)}
+              step={1_000}
+              prefix={moneyPrefix}
+              format={(v) => String(Math.round(v))}
             />
             <LeverRow
               label={

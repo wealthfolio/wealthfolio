@@ -2278,7 +2278,14 @@ mod tests {
             early_withdrawal_penalty_rate: Some(0.10),
             early_withdrawal_penalty_age: Some(59),
             country_code: None,
-            withdrawal_buckets: TaxBucketBalances::default(),
+            // An all-zero mix falls back to "all taxable" (see
+            // `TaxBucketBalances::scale_to_total`), which never exercises the
+            // tax-deferred early-withdrawal penalty this test is named for. Route
+            // everything to tax_deferred by weight instead.
+            withdrawal_buckets: TaxBucketBalances {
+                tax_deferred: 1.0,
+                ..TaxBucketBalances::default()
+            },
         });
         let proj = project_retirement(&plan, 1_500_000.0, AS_OF);
         let at_55 = proj

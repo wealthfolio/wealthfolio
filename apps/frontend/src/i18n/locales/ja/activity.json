@@ -241,6 +241,7 @@
   "table_type": "タイプ",
   "table_date": "日付",
   "table_symbol": "銘柄",
+  "table_name": "名称",
   "table_quantity": "数量",
   "table_price_amount": "価格/金額",
   "table_fee": "手数料",
