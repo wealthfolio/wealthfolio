@@ -404,6 +404,13 @@ pub struct TaxBucketBalances {
     pub taxable: f64,
     pub tax_deferred: f64,
     pub tax_free: f64,
+    /// Aggregate cost basis (already-taxed principal) within the taxable bucket.
+    /// Withdrawals from a taxable brokerage account only owe tax on the gain
+    /// portion; this lets the engine exclude the already-taxed share instead of
+    /// taxing every dollar withdrawn. Defaults to 0.0 ("fully gain"), which
+    /// matches the model's original all-taxable behavior when unset.
+    #[serde(default)]
+    pub taxable_cost_basis: f64,
 }
 
 impl TaxBucketBalances {
@@ -419,8 +426,7 @@ impl TaxBucketBalances {
         if source_total <= 0.0 {
             return Self {
                 taxable: total,
-                tax_deferred: 0.0,
-                tax_free: 0.0,
+                ..Self::default()
             };
         }
         let scale = total / source_total;
@@ -428,7 +434,18 @@ impl TaxBucketBalances {
             taxable: self.taxable * scale,
             tax_deferred: self.tax_deferred * scale,
             tax_free: self.tax_free * scale,
+            taxable_cost_basis: self.taxable_cost_basis * scale,
         }
+    }
+
+    /// Fraction of the taxable bucket that represents unrealized gain rather than
+    /// already-taxed cost basis, clamped to [0, 1] so a position underwater
+    /// relative to its basis is a full return of capital, not a taxable loss.
+    pub fn taxable_gain_fraction(&self) -> f64 {
+        if self.taxable <= 0.0 {
+            return 0.0;
+        }
+        ((self.taxable - self.taxable_cost_basis) / self.taxable).clamp(0.0, 1.0)
     }
 }
 

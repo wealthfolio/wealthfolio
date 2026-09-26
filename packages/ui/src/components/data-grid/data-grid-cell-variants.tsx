@@ -56,6 +56,11 @@ export function ShortTextCell<TData>({
   const cellRef = React.useRef<HTMLDivElement>(null);
   const containerRef = React.useRef<HTMLDivElement>(null);
 
+  // Get readOnly flag from cell meta options
+  const cellOpts = cell.column.columnDef.meta?.cell;
+  const isReadOnlyColumn = cellOpts?.variant === "short-text" && cellOpts.readOnly === true;
+  const effectiveReadOnly = readOnly || isReadOnlyColumn;
+
   const prevInitialValueRef = React.useRef(initialValue);
   if (initialValue !== prevInitialValueRef.current) {
     prevInitialValueRef.current = initialValue;
@@ -68,11 +73,11 @@ export function ShortTextCell<TData>({
   const onBlur = React.useCallback(() => {
     // Read the current value directly from the DOM to avoid stale state
     const currentValue = cellRef.current?.textContent ?? "";
-    if (!readOnly && currentValue !== initialValue) {
+    if (!effectiveReadOnly && currentValue !== initialValue) {
       tableMeta?.onDataUpdate?.({ rowIndex, columnId, value: currentValue });
     }
     tableMeta?.onCellEditingStop?.();
-  }, [tableMeta, rowIndex, columnId, initialValue, readOnly]);
+  }, [tableMeta, rowIndex, columnId, initialValue, effectiveReadOnly]);
 
   const onInput = React.useCallback((event: React.FormEvent<HTMLDivElement>) => {
     const currentValue = event.currentTarget.textContent ?? "";
@@ -167,7 +172,7 @@ export function ShortTextCell<TData>({
       isSelected={isSelected}
       isSearchMatch={isSearchMatch}
       isActiveSearchMatch={isActiveSearchMatch}
-      readOnly={readOnly}
+      readOnly={effectiveReadOnly}
       cellState={cellState}
       onKeyDown={onWrapperKeyDown}
     >

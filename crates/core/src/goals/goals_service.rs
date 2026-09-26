@@ -494,7 +494,7 @@ impl<T: GoalRepositoryTrait> GoalService<T> {
         validate_retirement_plan(&retirement_plan)?;
 
         let current_portfolio = compute_goal_value_from_shares(&funding_rules, valuation_map);
-        let bucket_balances = compute_tax_bucket_balances(&funding_rules, valuation_map);
+        let mut bucket_balances = compute_tax_bucket_balances(&funding_rules, valuation_map);
 
         let tax = retirement_plan.tax.get_or_insert(TaxProfile {
             taxable_withdrawal_rate: 0.0,
@@ -505,6 +505,10 @@ impl<T: GoalRepositoryTrait> GoalService<T> {
             country_code: None,
             withdrawal_buckets: TaxBucketBalances::default(),
         });
+        // Account totals are live-synced from current valuations, but the taxable
+        // cost basis is a user-entered estimate with no live source yet; keep it
+        // across the refresh instead of resetting it to "fully taxable".
+        bucket_balances.taxable_cost_basis = tax.withdrawal_buckets.taxable_cost_basis;
         tax.withdrawal_buckets = bucket_balances;
 
         Ok(PreparedRetirementSimulationInput {

@@ -124,7 +124,6 @@ export const ActivityTable = ({
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({
     accountId: false,
     accountCurrency: false,
-    assetName: false,
     currency: false,
   });
   const symbolExchangeCountMap = React.useMemo(() => {
@@ -559,7 +558,15 @@ export const ActivityTable = ({
       {
         id: "assetName",
         accessorKey: "assetName",
-        enableHiding: false,
+        enableSorting: false,
+        enableHiding: true,
+        meta: {
+          label: t("activity:table_name"),
+        },
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title={t("activity:table_name")} />
+        ),
+        cell: ({ row }) => <div>{row.getValue("assetName") ?? "—"}</div>,
       },
       {
         id: "accountCurrency",

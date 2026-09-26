@@ -27,8 +27,7 @@ pub(crate) fn initial_withdrawal_buckets(
         Some(profile) => profile.withdrawal_buckets.scale_to_total(total_portfolio),
         None => TaxBucketBalances {
             taxable: total_portfolio.max(0.0),
-            tax_deferred: 0.0,
-            tax_free: 0.0,
+            ..TaxBucketBalances::default()
         },
     }
 }
@@ -42,6 +41,9 @@ pub(crate) fn apply_growth(buckets: TaxBucketBalances, annual_return: f64) -> Ta
         taxable: buckets.taxable * growth,
         tax_deferred: buckets.tax_deferred * growth,
         tax_free: buckets.tax_free * growth,
+        // Unrealized growth, not basis: leaving this flat while the balance grows
+        // is what widens the taxable gain fraction over the accumulation phase.
+        taxable_cost_basis: buckets.taxable_cost_basis,
     }
 }
 
@@ -57,14 +59,15 @@ pub(crate) fn add_contribution(
         Some(profile) => profile.withdrawal_buckets.scale_to_total(contribution),
         None => TaxBucketBalances {
             taxable: contribution,
-            tax_deferred: 0.0,
-            tax_free: 0.0,
+            ..TaxBucketBalances::default()
         },
     };
     TaxBucketBalances {
         taxable: buckets.taxable + allocation.taxable,
         tax_deferred: buckets.tax_deferred + allocation.tax_deferred,
         tax_free: buckets.tax_free + allocation.tax_free,
+        // Freshly contributed cash is already-taxed principal, not gain yet.
+        taxable_cost_basis: buckets.taxable_cost_basis + allocation.taxable,
     }
 }
 
@@ -91,10 +94,14 @@ pub(crate) fn compute_gross_withdrawal(
         let taxable = buckets.taxable / total;
         let deferred = buckets.tax_deferred / total;
         let tax_free = buckets.tax_free / total;
-        taxable * effective_tax_rate(profile, TaxBucketKind::Taxable, age)
+        taxable
+            * effective_tax_rate(profile, TaxBucketKind::Taxable, age)
+            * buckets.taxable_gain_fraction()
             + deferred * effective_tax_rate(profile, TaxBucketKind::TaxDeferred, age)
             + tax_free * effective_tax_rate(profile, TaxBucketKind::TaxFree, age)
     } else {
+        // No bucket breakdown at all: fall back to the flat configured rate,
+        // same as before this bucket carried a cost-basis estimate.
         effective_tax_rate(profile, TaxBucketKind::Taxable, age)
     }
     .clamp(0.0, 0.99);
@@ -148,13 +155,26 @@ fn withdraw_for_net_target(
         if available_gross <= 0.0 {
             continue;
         }
-        let rate = effective_tax_rate_for_kind(tax, kind, age);
+        let rate = match kind {
+            // Only the unrealized-gain share of a taxable-bucket withdrawal is
+            // taxed; the rest is already-taxed principal coming back out.
+            TaxBucketKind::Taxable => {
+                effective_tax_rate_for_kind(tax, kind, age) * remaining.taxable_gain_fraction()
+            }
+            _ => effective_tax_rate_for_kind(tax, kind, age),
+        };
         let net_per_gross = (1.0 - rate).max(0.01);
         let needed_gross = remaining_net / net_per_gross;
         let gross_from_bucket = available_gross.min(needed_gross);
         let net_from_bucket = gross_from_bucket * net_per_gross;
 
         set_bucket_balance(&mut remaining, kind, available_gross - gross_from_bucket);
+        if kind == TaxBucketKind::Taxable {
+            // Average-cost method: withdrawing X% of the taxable balance also
+            // realizes X% of its remaining cost basis, so the gain fraction stays
+            // consistent for the next growth/withdrawal step.
+            remaining.taxable_cost_basis *= 1.0 - (gross_from_bucket / available_gross);
+        }
         gross_withdrawal += gross_from_bucket;
         spending_funded += net_from_bucket;
         tax_amount += gross_from_bucket - net_from_bucket;
@@ -227,6 +247,7 @@ mod tests {
                 taxable: 50_000.0,
                 tax_deferred: 50_000.0,
                 tax_free: 0.0,
+                ..TaxBucketBalances::default()
             },
         })
     }
@@ -238,8 +259,7 @@ mod tests {
             buckets,
             TaxBucketBalances {
                 taxable: 100_000.0,
-                tax_deferred: 0.0,
-                tax_free: 0.0,
+                ..TaxBucketBalances::default()
             }
         );
     }
@@ -259,6 +279,7 @@ mod tests {
             taxable: 100.0,
             tax_deferred: 200.0,
             tax_free: 300.0,
+            ..TaxBucketBalances::default()
         };
 
         assert_eq!(apply_growth(buckets, -1.0), TaxBucketBalances::default());
@@ -282,6 +303,7 @@ mod tests {
                 taxable: 0.0,
                 tax_deferred: 100_000.0,
                 tax_free: 0.0,
+                ..TaxBucketBalances::default()
             },
         });
         let (gross_early, _) = compute_gross_withdrawal(40_000.0, &tax, 50);
@@ -301,6 +323,7 @@ mod tests {
                 taxable: 50_000.0,
                 tax_deferred: 50_000.0,
                 tax_free: 0.0,
+                ..TaxBucketBalances::default()
             },
             70_000.0,
             10_000.0,
@@ -333,5 +356,91 @@ mod tests {
         assert!((buckets.taxable - 50.0).abs() < 0.01);
         assert!((buckets.tax_deferred - 50.0).abs() < 0.01);
         assert!((buckets.tax_free - 0.0).abs() < 0.01);
+        // Fresh cash is already-taxed principal, so it becomes cost basis immediately.
+        assert!((buckets.taxable_cost_basis - 50.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn taxable_gain_fraction_reflects_cost_basis() {
+        let buckets = TaxBucketBalances {
+            taxable: 100_000.0,
+            taxable_cost_basis: 40_000.0,
+            ..TaxBucketBalances::default()
+        };
+        assert!((buckets.taxable_gain_fraction() - 0.6).abs() < 1e-9);
+
+        let underwater = TaxBucketBalances {
+            taxable: 50_000.0,
+            taxable_cost_basis: 80_000.0,
+            ..TaxBucketBalances::default()
+        };
+        assert_eq!(underwater.taxable_gain_fraction(), 0.0);
+
+        assert_eq!(TaxBucketBalances::default().taxable_gain_fraction(), 0.0);
+    }
+
+    #[test]
+    fn apply_growth_leaves_cost_basis_unchanged() {
+        let buckets = TaxBucketBalances {
+            taxable: 100_000.0,
+            taxable_cost_basis: 60_000.0,
+            ..TaxBucketBalances::default()
+        };
+        let grown = apply_growth(buckets, 0.10);
+        assert!((grown.taxable - 110_000.0).abs() < 0.1);
+        assert!((grown.taxable_cost_basis - 60_000.0).abs() < 0.1);
+        // Same basis on a larger balance: gain fraction widens as it compounds.
+        assert!(grown.taxable_gain_fraction() > buckets.taxable_gain_fraction());
+    }
+
+    #[test]
+    fn compute_gross_withdrawal_taxes_only_unrealized_gain() {
+        let tax = Some(TaxProfile {
+            taxable_withdrawal_rate: 0.20,
+            tax_deferred_withdrawal_rate: 0.0,
+            tax_free_withdrawal_rate: 0.0,
+            early_withdrawal_penalty_rate: None,
+            early_withdrawal_penalty_age: None,
+            country_code: None,
+            withdrawal_buckets: TaxBucketBalances {
+                taxable: 100_000.0,
+                taxable_cost_basis: 60_000.0, // 40% of the bucket is unrealized gain
+                ..TaxBucketBalances::default()
+            },
+        });
+        let (gross, tax_amt) = compute_gross_withdrawal(92_000.0, &tax, 60);
+        // Effective rate = 20% * 40% gain fraction = 8%, not the full 20%.
+        assert!((gross - 100_000.0).abs() < 0.1, "gross = {}", gross);
+        assert!((tax_amt - 8_000.0).abs() < 0.1, "tax = {}", tax_amt);
+    }
+
+    #[test]
+    fn taxable_withdrawal_reduces_cost_basis_pro_rata() {
+        let tax = Some(TaxProfile {
+            taxable_withdrawal_rate: 0.20,
+            tax_deferred_withdrawal_rate: 0.0,
+            tax_free_withdrawal_rate: 0.0,
+            early_withdrawal_penalty_rate: None,
+            early_withdrawal_penalty_age: None,
+            country_code: None,
+            withdrawal_buckets: TaxBucketBalances::default(),
+        });
+        let buckets = TaxBucketBalances {
+            taxable: 100_000.0,
+            taxable_cost_basis: 60_000.0,
+            ..TaxBucketBalances::default()
+        };
+        // Net target 46,000 at an 8% effective rate (20% * 40% gain) needs 50,000 gross.
+        let outcome = apply_planned_spending_withdrawal(&buckets, 46_000.0, 0.0, &tax, 60);
+        assert!((outcome.gross_withdrawal - 50_000.0).abs() < 0.1);
+        assert!((outcome.spending_funded - 46_000.0).abs() < 0.1);
+        assert!((outcome.tax_amount - 4_000.0).abs() < 0.1);
+        // Half the balance withdrawn realizes half the remaining cost basis too.
+        assert!(
+            (outcome.remaining_buckets.taxable_cost_basis - 30_000.0).abs() < 0.1,
+            "remaining basis = {}",
+            outcome.remaining_buckets.taxable_cost_basis
+        );
+        assert!((outcome.remaining_buckets.taxable - 50_000.0).abs() < 0.1);
     }
 }

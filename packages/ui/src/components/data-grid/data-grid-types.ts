@@ -46,6 +46,8 @@ export interface SymbolSearchResult {
 export type CellOpts =
   | {
       variant: "short-text";
+      /** Marks this column's cells as always read-only, regardless of the grid-wide readOnly flag. */
+      readOnly?: boolean;
     }
   | {
       variant: "long-text";

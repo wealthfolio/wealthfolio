@@ -239,7 +239,7 @@ export function TopHoldings({ holdings, isLoading, baseCurrency }: TopHoldingsPr
   );
   const [displayMode, setDisplayMode] = usePersistentState<"symbol" | "name">(
     "holdings-widget-display-mode",
-    "symbol",
+    "name",
   );
 
   // Filter out cash holdings and alternative assets, then sort by market value
