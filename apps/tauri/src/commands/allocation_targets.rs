@@ -1,13 +1,14 @@
 use crate::profiles::ProfileAccess;
 use std::sync::Arc;
 
-use rust_decimal::Decimal;
 use wealthfolio_core::{
     accounts::AccountPurpose,
     portfolio::allocation_targets::{
-        AllocationTarget, AllocationTargetConstraint, AllocationTargetWeight,
-        CalculateRebalancePlanInput, DriftReport, NewAllocationTarget, NewAllocationTargetWeight,
-        RebalancePlan, SaveAllocationTargetResult, ScenarioMode, ScopeType,
+        AllocationRule, AllocationTarget, AllocationTargetConstraint, AllocationTargetWeight,
+        AllocationWorksheetLineInput, AllocationWorksheetResult, CalculateAllocationWorksheetInput,
+        CalculatedAdjustments, DriftReport, GenerateCalculatedAdjustmentsInput,
+        NewAllocationTarget, NewAllocationTargetWeight, SaveAllocationTargetResult, ScopeType,
+        WorksheetCashInput, WorksheetMode,
     },
     portfolios::AccountScope,
 };
@@ -240,19 +241,26 @@ pub async fn get_allocation_target_drift(
     }
 }
 
-// ── Rebalance ─────────────────────────────────────────────────────────────────
+// ── Allocation worksheet ──────────────────────────────────────────────────────
 
-fn resolve_rebalance_input(
+/// The accounts a worksheet runs on, resolved from the target itself.
+struct WorksheetScope {
+    account_ids: Vec<String>,
+    base_currency: String,
+    aggregated_account_id: String,
+}
+
+/// A worksheet is built against the page's accounts and calculated against the
+/// target's. The two must agree, or the adjustments on screen would be
+/// validated against accounts the user never saw.
+fn resolve_worksheet_scope(
     state: &Arc<ServiceContext>,
-    target_id: String,
-    available_cash: Decimal,
-    scenario_mode: ScenarioMode,
+    target_id: &str,
     filter: AccountScopeInput,
-    eligible_asset_ids: Option<Vec<String>>,
-) -> Result<CalculateRebalancePlanInput, String> {
+) -> Result<WorksheetScope, String> {
     let filter = filter.into_account_filter()?;
     let base_currency = state.get_base_currency();
-    let resolved =
+    let requested =
         wealthfolio_core::portfolios::PortfolioServiceTrait::resolve_account_scope_for_purpose(
             state.portfolio_service.as_ref(),
             &filter,
@@ -260,38 +268,88 @@ fn resolve_rebalance_input(
             AccountPurpose::Holdings,
         )
         .map_err(|e| e.to_string())?;
-    Ok(CalculateRebalancePlanInput {
-        target_id,
-        available_cash,
+    let target = state
+        .allocation_target_service()
+        .get_target(target_id)
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| format!("AllocationTarget {target_id} not found"))?;
+    let resolved =
+        wealthfolio_core::portfolios::PortfolioServiceTrait::resolve_account_scope_for_purpose(
+            state.portfolio_service.as_ref(),
+            &account_scope_for_target(&target)?,
+            &base_currency,
+            AccountPurpose::Holdings,
+        )
+        .map_err(|e| e.to_string())?;
+
+    let mut requested_ids = requested.account_ids;
+    let mut target_ids = resolved.account_ids.clone();
+    requested_ids.sort();
+    target_ids.sort();
+    if requested_ids != target_ids {
+        return Err("Worksheet page scope does not match the selected target scope".to_string());
+    }
+
+    Ok(WorksheetScope {
         account_ids: resolved.account_ids,
         base_currency,
         aggregated_account_id: resolved.scope_id,
-        scenario_mode,
-        eligible_asset_ids,
     })
 }
 
 #[tauri::command]
-pub async fn calculate_rebalance_plan(
+#[allow(clippy::too_many_arguments)]
+pub async fn generate_calculated_adjustments(
     state: ProfileAccess,
     target_id: String,
-    available_cash: Decimal,
-    scenario_mode: Option<ScenarioMode>,
-    filter: AccountScopeInput,
+    mode: WorksheetMode,
+    rule: AllocationRule,
+    cash: WorksheetCashInput,
     eligible_asset_ids: Option<Vec<String>>,
-) -> Result<RebalancePlan, String> {
+    selected_account_ids: Vec<String>,
+    filter: AccountScopeInput,
+) -> Result<CalculatedAdjustments, String> {
     let context = state.context()?;
-    let input = resolve_rebalance_input(
-        &context,
-        target_id,
-        available_cash,
-        scenario_mode.unwrap_or_default(),
-        filter,
-        eligible_asset_ids,
-    )?;
+    let scope = resolve_worksheet_scope(&context, &target_id, filter)?;
     context
-        .rebalance_service()
-        .calculate_plan(input)
+        .allocation_worksheet_service()
+        .generate_adjustments(GenerateCalculatedAdjustmentsInput {
+            target_id,
+            account_ids: scope.account_ids,
+            base_currency: scope.base_currency,
+            aggregated_account_id: scope.aggregated_account_id,
+            selected_account_ids,
+            mode,
+            rule,
+            cash,
+            eligible_asset_ids,
+        })
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn calculate_allocation_worksheet(
+    state: ProfileAccess,
+    target_id: String,
+    cash: WorksheetCashInput,
+    lines: Vec<AllocationWorksheetLineInput>,
+    selected_account_ids: Vec<String>,
+    filter: AccountScopeInput,
+) -> Result<AllocationWorksheetResult, String> {
+    let context = state.context()?;
+    let scope = resolve_worksheet_scope(&context, &target_id, filter)?;
+    context
+        .allocation_worksheet_service()
+        .calculate_worksheet(CalculateAllocationWorksheetInput {
+            target_id,
+            cash,
+            lines,
+            account_ids: scope.account_ids,
+            base_currency: scope.base_currency,
+            aggregated_account_id: scope.aggregated_account_id,
+            selected_account_ids,
+        })
         .await
         .map_err(|e| e.to_string())
 }

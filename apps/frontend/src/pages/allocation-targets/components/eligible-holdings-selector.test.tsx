@@ -1,11 +1,10 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { HoldingType } from "@/lib/constants";
 import type { Holding } from "@/lib/types";
-import { PlannerInput } from "./rebalance-tab";
 import { EligibleHoldingsSelector } from "./eligible-holdings-selector";
 import { getEligibleHoldings, groupEligibleHoldings } from "./eligible-holdings";
 
@@ -34,10 +33,11 @@ function holding(
   holdingType: Holding["holdingType"] = HoldingType.SECURITY,
   currency = "USD",
   exchangeMic?: string,
+  accountId = "account-1",
 ): Holding {
   return {
-    id: `${assetId}-${symbol}`,
-    accountId: "account-1",
+    id: `${assetId}-${symbol}-${accountId}`,
+    accountId,
     holdingType,
     instrument: {
       id: assetId,
@@ -50,6 +50,11 @@ function holding(
     },
   } as Holding;
 }
+
+const ACCOUNT_NAMES = new Map([
+  ["account-1", "Brokerage"],
+  ["account-2", "Retirement"],
+]);
 
 function Harness({ holdings }: { holdings: Holding[] }) {
   const [excludedAssetIds, setExcludedAssetIds] = useState<Set<string>>(new Set());
@@ -69,6 +74,7 @@ function Harness({ holdings }: { holdings: Holding[] }) {
       onClear={() =>
         setExcludedAssetIds(new Set(getEligibleHoldings(holdings).map((row) => row.assetId)))
       }
+      accountNames={ACCOUNT_NAMES}
     />
   );
 }
@@ -77,7 +83,16 @@ describe("EligibleHoldingsSelector", () => {
   const holdings = [
     holding("asset-bond", "BND", "Bond fund", "BOND"),
     holding("asset-vti", "VTI", "Vanguard Total Stock", "EQUITY"),
-    holding("asset-vti", "VTI", "Vanguard Total Stock", "EQUITY", HoldingType.SECURITY),
+    holding(
+      "asset-vti",
+      "VTI",
+      "Vanguard Total Stock",
+      "EQUITY",
+      HoldingType.SECURITY,
+      "USD",
+      undefined,
+      "account-2",
+    ),
     holding("asset-unknown", "MYST", "Mystery asset"),
     holding("cash-usd", "USD", "Cash", undefined, HoldingType.CASH),
   ];
@@ -96,6 +111,18 @@ describe("EligibleHoldingsSelector", () => {
     ]);
 
     expect(screen.queryByText("Equity")).not.toBeInTheDocument();
+  });
+
+  it("says which accounts hold a security, merging its rows into one choice", async () => {
+    const user = userEvent.setup();
+    render(<Harness holdings={holdings} />);
+    await user.click(screen.getByRole("button", { name: /Eligible holdings/ }));
+
+    expect(
+      getEligibleHoldings(holdings).find((row) => row.assetId === "asset-vti")?.accountIds,
+    ).toEqual(["account-1", "account-2"]);
+    expect(screen.getByText("In Brokerage · Retirement")).toBeInTheDocument();
+    expect(screen.getAllByRole("option", { name: /VTI/ })).toHaveLength(1);
   });
 
   it("announces selection state on the trigger and rows", async () => {
@@ -183,40 +210,14 @@ describe("EligibleHoldingsSelector", () => {
       "0 of 3 selected",
     );
     expect(
-      screen.getByText("Select at least one holding to calculate a plan."),
+      screen.getByText(
+        "No security selected. Increases that cannot be placed will show as unresolved amounts.",
+      ),
     ).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Select all" }));
     expect(screen.getByRole("button", { name: /Eligible holdings/ })).toHaveTextContent(
       "All holdings selected",
     );
-  });
-
-  it("disables Calculate and Enter when no holding is eligible", () => {
-    const onCalculate = vi.fn();
-    render(
-      <PlannerInput
-        description=""
-        cashValue="100"
-        availableCash={100}
-        currency="USD"
-        onCashChange={vi.fn()}
-        onCalculate={onCalculate}
-        hasPlan={false}
-        isCalculating={false}
-        isSourceLoading={false}
-        hasEligibleHoldings={false}
-        eligibleHoldingsSelector={<p>Select at least one holding to calculate a plan.</p>}
-      />,
-    );
-
-    const calculate = screen.getByRole("button", { name: "Calculate plan" });
-    expect(calculate).toBeDisabled();
-    expect(
-      screen.getByText("Select at least one holding to calculate a plan."),
-    ).toBeInTheDocument();
-
-    fireEvent.keyDown(screen.getByRole("textbox"), { key: "Enter" });
-    expect(onCalculate).not.toHaveBeenCalled();
   });
 });

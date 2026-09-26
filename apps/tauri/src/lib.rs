@@ -746,7 +746,8 @@ pub fn run() {
             commands::allocation_targets::list_target_constraints,
             commands::allocation_targets::save_target_constraints,
             commands::allocation_targets::get_allocation_target_drift,
-            commands::allocation_targets::calculate_rebalance_plan,
+            commands::allocation_targets::generate_calculated_adjustments,
+            commands::allocation_targets::calculate_allocation_worksheet,
             // RetirementPlan-based FIRE commands
             commands::fire::calculate_retirement_projection,
             commands::fire::run_retirement_decision_sensitivity_map,

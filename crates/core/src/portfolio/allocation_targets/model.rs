@@ -62,15 +62,6 @@ impl TryFrom<&str> for TriggerType {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub enum ScenarioMode {
-    #[default]
-    CashFlowOnly,
-    SellToRebalance,
-    Hybrid,
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
 pub enum BandType {
     #[default]
     Absolute,
@@ -400,81 +391,356 @@ pub struct AllocationTargetConstraint {
     pub updated_at: String,
 }
 
-// ── Rebalance types ──────────────────────────────────────────────────────────
+// ── Calculated worksheet types ───────────────────────────────────────────────
+//
+// Shapes for the calculated rebalancing worksheet described in
+// `docs/features/allocations/self-directed-rebalancing-design.md`. The
+// arithmetic that produces them lives in `worksheet_calculator`.
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CalculateRebalancePlanInput {
-    pub target_id: String,
-    pub available_cash: Decimal,
-    pub account_ids: Vec<String>,
-    pub base_currency: String,
-    pub aggregated_account_id: String,
-    #[serde(default)]
-    pub scenario_mode: ScenarioMode,
-    /// Optional instrument-level allowlist for buy candidates in CashFlowOnly mode.
-    /// `None` preserves the legacy behavior; an empty list is invalid in that mode.
-    #[serde(default)]
-    pub eligible_asset_ids: Option<Vec<String>>,
+/// Which directions the calculation is allowed to produce (design §4).
+///
+/// Replaces the former three-way scenario mode: cash-flow-only and
+/// sell-to-rebalance were the two ends of the same cash-first sequence, and
+/// hybrid was that sequence with both inputs present.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum WorksheetMode {
+    /// Cash increases positions and nothing is reduced.
+    #[default]
+    InvestCash,
+    /// Cash is used first, then reductions cover what is left. Offered only
+    /// when the target allows sells.
+    Rebalance,
+}
+
+/// How a category's gap is spread across the securities that carry it
+/// (design §4.2). One rule ships first, and the user selects it explicitly.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AllocationRule {
+    #[default]
+    CurrentHoldingProportions,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub enum RebalanceWarningKind {
-    MissingQuote,
-    NoBuyCandidate,
-    TaggedCash,
-    /// Asset has no taxonomy assignments for the active taxonomy — skipped as buy candidate.
-    UnclassifiedAsset,
-    /// Asset has partial taxonomy weights (<100%) — known exposure used, remainder ignored.
-    PartialClassification,
-    /// A sell candidate was skipped due to a do-not-sell or avoid-selling constraint.
-    ConstraintSkippedSell,
-    /// The sell phase stopped because the turnover cap was reached.
-    TurnoverCapReached,
+pub enum WorksheetDirection {
+    Increase,
+    Reduce,
 }
 
+/// A category amount that no eligible security can carry (design §4.4).
+///
+/// Nothing is recorded, everything is excluded, or no price is usable. The
+/// amount is surfaced against its category rather than forced onto an
+/// unrelated security, and is excluded from the projected figures.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct RebalanceWarning {
-    pub kind: RebalanceWarningKind,
-    pub category_id: String,
-    pub message: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SuggestedManualTrade {
-    pub action: String,
+pub struct UnresolvedCategoryAmount {
     pub category_id: String,
     pub category_name: String,
-    pub asset_id: Option<String>,
+    pub amount: Decimal,
+    pub reason: UnresolvedReason,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum UnresolvedReason {
+    /// No security in the category is recorded in scope.
+    NoRecordedSecurity,
+    /// Every security carrying the category was left out of the eligible set.
+    NoEligibleSecurity,
+    /// Securities exist and are eligible, but none has a usable price.
+    NoUsablePrice,
+}
+
+/// Proportional scaling applied before the worksheet is prefilled (§4.6).
+///
+/// Both factors are reported so a scaled figure is never mistaken for the full
+/// amount. `None` means that limit did not bind.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AdjustmentScaling {
+    /// Step 2 — reductions scaled to fit the target's turnover cap.
+    pub reduction_factor: Option<Decimal>,
+    /// Step 4 — increases that depend on reduction proceeds, scaled to the
+    /// funding those proceeds actually raised.
+    pub increase_factor: Option<Decimal>,
+}
+
+/// One prefilled worksheet line.
+///
+/// Amounts are primary and quantities are estimates (§7).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CalculatedAdjustment {
+    pub line_id: String,
+    pub direction: WorksheetDirection,
+    pub asset_id: String,
+    pub symbol: String,
+    /// `None` when several accounts are eligible and the user has to place the
+    /// line (§6). Reductions always carry the account they are drawn from.
     pub account_id: Option<String>,
-    pub holding_id: Option<String>,
-    pub symbol: Option<String>,
-    pub name: Option<String>,
-    pub quantity: Option<Decimal>,
-    pub estimated_price: Option<Decimal>,
-    pub estimated_amount: Decimal,
-    pub reason: String,
+    /// Signed, in base currency. Negative for a reduction.
+    pub amount: Decimal,
+    pub quantity: Decimal,
+    pub unit_price: Decimal,
+    /// Below the target's minimum line size — reported, never dropped (§4.6).
+    pub is_below_minimum: bool,
+}
+
+/// An increase placed in an account that account cannot fund on its own (§6).
+///
+/// No transfer between accounts is assumed, so this is reported rather than
+/// resolved by moving cash.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AccountFundingShortfall {
+    pub account_id: String,
+    pub required: Decimal,
+    pub available: Decimal,
+}
+
+/// The calculated adjustments the worksheet is prefilled with (§4, §5).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CalculatedAdjustments {
+    pub mode: WorksheetMode,
+    pub rule: AllocationRule,
+    pub adjustments: Vec<CalculatedAdjustment>,
+    pub unresolved: Vec<UnresolvedCategoryAmount>,
+    pub scaling: AdjustmentScaling,
+    /// Left over after rounding and minimum-line reporting. Never
+    /// redistributed — that would be another round of construction (§4.6).
+    pub remaining_cash: Decimal,
+    /// Accounts whose increases exceed what they can fund on their own (§6).
+    pub funding_shortfalls: Vec<AccountFundingShortfall>,
+}
+
+/// What the worksheet is prefilled from (§4).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GenerateCalculatedAdjustmentsInput {
+    pub target_id: String,
+    pub account_ids: Vec<String>,
+    pub base_currency: String,
+    pub aggregated_account_id: String,
+    /// Accounts the worksheet may change: where positions are reduced,
+    /// increases are placed and cash is deployed. The target's weights are
+    /// still measured against every account in `account_ids`.
+    pub selected_account_ids: Vec<String>,
+    pub mode: WorksheetMode,
+    pub rule: AllocationRule,
+    pub cash: WorksheetCashInput,
+    /// Securities the user marked as able to receive increases (§4.1). `None`
+    /// is every recorded security, which is a fact rather than a selection.
+    ///
+    /// An empty list is a valid state and not a validation error: the increases
+    /// that cannot be placed become unresolved category amounts (§4.4).
+    #[serde(default)]
+    pub eligible_asset_ids: Option<Vec<String>>,
+}
+
+// ── Worksheet request and preview types ──────────────────────────────────────
+//
+// The worksheet the user edits and the result that validates it. Ported from
+// `feature/allocation-worksheet-refactor`, where the worksheet started empty.
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum WorksheetInputMode {
+    Amount,
+    Quantity,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorksheetCashInput {
+    pub tracked_cash_to_use: Decimal,
+    /// Hypothetical cash not recorded anywhere, keyed by the account it would
+    /// arrive in (§6). A single-account scope has one entry, so the user is
+    /// asked for nothing beyond the amount; a multi-account scope is where the
+    /// split has to be stated, since no transfer between accounts is assumed.
+    #[serde(default)]
+    pub external_contribution: std::collections::HashMap<String, Decimal>,
+}
+
+impl WorksheetCashInput {
+    pub fn external_total(&self) -> Decimal {
+        self.external_contribution.values().sum()
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct RebalancePlan {
+pub struct AllocationWorksheetLineInput {
+    pub line_id: String,
+    pub direction: WorksheetDirection,
+    pub asset_id: String,
+    pub account_id: String,
+    pub input_mode: WorksheetInputMode,
+    pub value: Decimal,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CalculateAllocationWorksheetInput {
     pub target_id: String,
+    pub cash: WorksheetCashInput,
+    pub lines: Vec<AllocationWorksheetLineInput>,
+    pub account_ids: Vec<String>,
+    pub base_currency: String,
+    pub aggregated_account_id: String,
+    /// Accounts the worksheet may change: where positions are reduced,
+    /// increases are placed and cash is deployed. The target's weights are
+    /// still measured against every account in `account_ids`.
+    pub selected_account_ids: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum WorksheetWarningKind {
+    StaleQuote,
+    StaleFx,
+    PartialClassification,
+    UnclassifiedAsset,
+    ExternalContribution,
+    BelowMinimumLine,
+    TurnoverExceeded,
+    AvoidConstraint,
+    /// The increases exceed the selected cash and the reduction proceeds.
+    /// Reported rather than corrected, because after prefill the worksheet is
+    /// the source of truth (§5).
+    InsufficientFunding,
+    /// An account's increases exceed what that account can fund on its own
+    /// (§6).
+    AccountFunding,
+    /// The cash to deploy exceeded what the chosen accounts record, so the
+    /// worksheet deployed what exists. Cash that is not recorded yet belongs in
+    /// the contribution input (§6).
+    CashUnavailable,
+    /// The amount buys less than one whole unit under the target's whole-unit
+    /// policy, so the line places nothing. Reported rather than refused, since
+    /// the worksheet is the source of truth once prefilled (§5).
+    BelowOneUnit,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorksheetWarning {
+    pub id: String,
+    pub kind: WorksheetWarningKind,
+    pub line_id: Option<String>,
+    pub message: String,
+    pub acknowledgement_required: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorksheetPricingSource {
+    pub id: String,
+    pub source_type: String,
+    pub value: Decimal,
+    pub from_currency: String,
+    pub to_currency: String,
+    pub timestamp: String,
+    pub is_stale: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorksheetCategoryExposure {
+    pub category_id: String,
+    pub category_name: String,
+    pub weight_bps: i32,
+    pub value_delta: Decimal,
+    pub is_unclassified: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AllocationWorksheetLineResult {
+    pub line_id: String,
+    pub direction: WorksheetDirection,
+    pub asset_id: String,
+    pub account_id: String,
+    pub symbol: String,
+    pub name: String,
+    pub input_mode: WorksheetInputMode,
+    pub input_value: Decimal,
+    pub quantity: Decimal,
+    pub unit_price: Decimal,
+    pub estimated_amount: Decimal,
+    pub contract_multiplier: Decimal,
+    pub quote_source: WorksheetPricingSource,
+    pub fx_source: Option<WorksheetPricingSource>,
+    pub category_exposures: Vec<WorksheetCategoryExposure>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorksheetCategoryResult {
+    pub category_id: String,
+    pub category_name: String,
+    pub color: String,
+    pub target_bps: i32,
+    pub current_value: Decimal,
+    pub projected_value: Decimal,
+    pub current_bps: i32,
+    pub projected_bps: i32,
+    pub current_difference_bps: i32,
+    pub projected_difference_bps: i32,
+    pub is_cash: bool,
+    pub is_unclassified: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorksheetSourceRecord {
+    pub source_type: String,
+    pub id: String,
+    pub version: String,
+    pub details: String,
+}
+
+/// Where one account stands once the worksheet is applied (§6).
+///
+/// An account spends its own cash, the cash not yet recorded that the user put
+/// there, and what its own reductions raise. A negative `remaining` is funding
+/// the account needs and does not have; it is reported, never corrected.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorksheetAccountFunding {
+    pub account_id: String,
     pub available_cash: Decimal,
-    pub cash_used: Decimal,
+    pub external_cash: Decimal,
+    pub reduction_proceeds: Decimal,
+    pub increases: Decimal,
+    pub remaining: Decimal,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AllocationWorksheetResult {
+    pub target_id: String,
+    pub target_name: String,
+    pub base_currency: String,
+    pub calculated_at: String,
+    pub source_fingerprint: String,
+    pub resolved_account_ids: Vec<String>,
+    pub observed_tracked_cash: Decimal,
+    pub tracked_cash_to_use: Decimal,
+    pub external_contribution: Decimal,
+    pub increase_total: Decimal,
+    pub reduction_total: Decimal,
     pub cash_remaining: Decimal,
-    pub max_drift_bps_before: i32,
-    pub max_drift_bps_after: i32,
-    pub trades: Vec<SuggestedManualTrade>,
-    pub warnings: Vec<RebalanceWarning>,
-    /// After-trade allocation in bps per category_id.
-    /// Accounts for multi-category ETF exposure; use this for BeforeAfterStack
-    /// instead of re-deriving from trades (which only carry the primary category).
-    #[serde(default)]
-    pub after_bps_by_category: std::collections::HashMap<String, i32>,
+    pub max_difference_bps_before: i32,
+    pub max_difference_bps_after: i32,
+    pub lines: Vec<AllocationWorksheetLineResult>,
+    pub categories: Vec<WorksheetCategoryResult>,
+    pub account_funding: Vec<WorksheetAccountFunding>,
+    pub warnings: Vec<WorksheetWarning>,
+    pub source_records: Vec<WorksheetSourceRecord>,
 }
 
 #[cfg(test)]

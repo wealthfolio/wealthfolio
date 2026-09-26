@@ -398,7 +398,14 @@ export const COMMANDS: CommandMap = {
   get_allocation_target_drift: { method: "POST", path: "/allocation-targets" },
   list_target_constraints: { method: "GET", path: "/allocation-targets" },
   save_target_constraints: { method: "POST", path: "/allocation-targets" },
-  calculate_rebalance_plan: { method: "POST", path: "/allocation-targets/rebalance/calculate" },
+  generate_calculated_adjustments: {
+    method: "POST",
+    path: "/allocation-targets/worksheet/generate",
+  },
+  calculate_allocation_worksheet: {
+    method: "POST",
+    path: "/allocation-targets/worksheet/calculate",
+  },
   // Alternative Assets
   create_alternative_asset: { method: "POST", path: "/alternative-assets" },
   update_alternative_asset_valuation: { method: "PUT", path: "/alternative-assets" },
@@ -1973,21 +1980,37 @@ export const invoke = async <T>(command: string, payload?: Record<string, unknow
       body = JSON.stringify(constraints);
       break;
     }
-    case "calculate_rebalance_plan": {
-      const { targetId, availableCash, filter, scenarioMode, eligibleAssetIds } = payload as {
-        targetId: string;
-        availableCash: number;
-        filter: unknown;
-        scenarioMode: string;
-        eligibleAssetIds?: string[];
-      };
+    case "generate_calculated_adjustments": {
+      const { targetId, mode, rule, cash, selectedAccountIds, filter, eligibleAssetIds } =
+        payload as {
+          targetId: string;
+          mode: string;
+          rule: string;
+          cash: unknown;
+          selectedAccountIds: string[];
+          filter: unknown;
+          eligibleAssetIds?: string[];
+        };
       body = JSON.stringify({
         targetId,
-        availableCash,
+        mode,
+        rule,
+        cash,
+        selectedAccountIds,
         filter,
-        scenarioMode,
         ...(eligibleAssetIds === undefined ? {} : { eligibleAssetIds }),
       });
+      break;
+    }
+    case "calculate_allocation_worksheet": {
+      const { targetId, cash, lines, selectedAccountIds, filter } = payload as {
+        targetId: string;
+        cash: unknown;
+        lines: unknown[];
+        selectedAccountIds: string[];
+        filter: unknown;
+      };
+      body = JSON.stringify({ targetId, cash, lines, selectedAccountIds, filter });
       break;
     }
     // AI Providers

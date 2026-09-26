@@ -6,9 +6,13 @@ import type {
   AllocationTargetWeight,
   AllocationTarget,
   SaveAllocationTargetResult,
-  RebalancePlan,
   AllocationTargetConstraint,
-  ScenarioMode,
+  AllocationRule,
+  AllocationWorksheetLineInput,
+  AllocationWorksheetResult,
+  CalculatedAdjustments,
+  WorksheetCashInput,
+  WorksheetMode,
 } from "@/lib/types";
 
 import { invoke } from "./platform";
@@ -103,7 +107,7 @@ export const saveTargetConstraints = async (
   });
 };
 
-// ── Rebalance ─────────────────────────────────────────────────────────────────
+// ── Calculated worksheet ──────────────────────────────────────────────────────
 
 export function canonicalizeEligibleAssetIds(
   eligibleAssetIds?: readonly string[],
@@ -112,26 +116,46 @@ export function canonicalizeEligibleAssetIds(
   return [...new Set(eligibleAssetIds)].sort();
 }
 
-export const calculateRebalancePlan = async (
+/**
+ * Prefills the worksheet from the target. `eligibleAssetIds` omitted means every
+ * recorded security; an empty list is a valid selection and is sent as such.
+ */
+export const generateCalculatedAdjustments = async (
   targetId: string,
-  availableCash: number,
+  mode: WorksheetMode,
+  rule: AllocationRule,
+  cash: WorksheetCashInput,
+  selectedAccountIds: readonly string[],
   filter: AccountScope,
-  scenarioMode: ScenarioMode = "cash_flow_only",
   eligibleAssetIds?: readonly string[],
-): Promise<RebalancePlan> => {
+): Promise<CalculatedAdjustments> => {
   const payload: {
     targetId: string;
-    availableCash: number;
+    mode: WorksheetMode;
+    rule: AllocationRule;
+    cash: WorksheetCashInput;
+    selectedAccountIds: string[];
     filter: AccountScope;
-    scenarioMode: ScenarioMode;
     eligibleAssetIds?: string[];
-  } = {
-    targetId,
-    availableCash,
-    filter,
-    scenarioMode,
-  };
+  } = { targetId, mode, rule, cash, selectedAccountIds: [...selectedAccountIds], filter };
   const canonicalIds = canonicalizeEligibleAssetIds(eligibleAssetIds);
   if (canonicalIds !== undefined) payload.eligibleAssetIds = canonicalIds;
-  return invoke<RebalancePlan>("calculate_rebalance_plan", payload);
+  return invoke<CalculatedAdjustments>("generate_calculated_adjustments", payload);
+};
+
+/** Validates the worksheet as the user has it and projects it. Never re-derives it. */
+export const calculateAllocationWorksheet = async (
+  targetId: string,
+  cash: WorksheetCashInput,
+  lines: AllocationWorksheetLineInput[],
+  selectedAccountIds: readonly string[],
+  filter: AccountScope,
+): Promise<AllocationWorksheetResult> => {
+  return invoke<AllocationWorksheetResult>("calculate_allocation_worksheet", {
+    targetId,
+    cash,
+    lines,
+    selectedAccountIds: [...selectedAccountIds],
+    filter,
+  });
 };

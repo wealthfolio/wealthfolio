@@ -7,6 +7,8 @@ export interface EligibleHolding {
   currency: string;
   exchangeMic?: string | null;
   instrumentType?: string | null;
+  /** Accounts that hold this security. */
+  accountIds: string[];
 }
 
 const GROUP_ORDER = ["EQUITY", "BOND", "CRYPTO", "OPTION", "METAL", "FX"];
@@ -31,6 +33,7 @@ export function getEligibleHoldings(holdings: Holding[]): EligibleHolding[] {
           currency: instrument.currency,
           exchangeMic: instrument.exchangeMic,
           instrumentType: instrument.instrumentType,
+          accountIds: [holding.accountId],
         },
       ];
     })
@@ -41,9 +44,18 @@ export function getEligibleHoldings(holdings: Holding[]): EligibleHolding[] {
         compareText(a.assetId, b.assetId),
     );
 
+  // The same security can sit in several accounts. It is one choice, so the
+  // rows merge and keep every account it is held in.
   const unique = new Map<string, EligibleHolding>();
   for (const row of rows) {
-    if (!unique.has(row.assetId)) unique.set(row.assetId, row);
+    const existing = unique.get(row.assetId);
+    if (!existing) {
+      unique.set(row.assetId, row);
+      continue;
+    }
+    for (const accountId of row.accountIds) {
+      if (!existing.accountIds.includes(accountId)) existing.accountIds.push(accountId);
+    }
   }
   return [...unique.values()];
 }

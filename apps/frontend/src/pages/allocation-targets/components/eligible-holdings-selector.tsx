@@ -48,6 +48,8 @@ export interface EligibleHoldingsSelectorProps {
   onToggle: (assetId: string) => void;
   onSelectAll: () => void;
   onClear: () => void;
+  /** Account names, so each row says where the security is held. */
+  accountNames?: ReadonlyMap<string, string>;
 }
 
 export function EligibleHoldingsSelector({
@@ -56,6 +58,7 @@ export function EligibleHoldingsSelector({
   onToggle,
   onSelectAll,
   onClear,
+  accountNames,
 }: EligibleHoldingsSelectorProps) {
   const { t } = useTranslation();
   const eligibleHoldings = useMemo(() => getEligibleHoldings(holdings), [holdings]);
@@ -106,6 +109,9 @@ export function EligibleHoldingsSelector({
                     const details = [holding.exchangeMic, holding.currency]
                       .filter((value): value is string => Boolean(value))
                       .join(" · ");
+                    const accounts = accountNames
+                      ? holding.accountIds.map((id) => accountNames.get(id) ?? id)
+                      : [];
                     return (
                       <CommandItem
                         key={holding.assetId}
@@ -115,6 +121,7 @@ export function EligibleHoldingsSelector({
                           holding.name ?? "",
                           holding.exchangeMic ?? "",
                           holding.currency,
+                          ...accounts,
                         ]}
                         onSelect={() => onToggle(holding.assetId)}
                         aria-label={t("allocation:eligibleHoldings.rowLabel", {
@@ -142,6 +149,13 @@ export function EligibleHoldingsSelector({
                           <span className="text-muted-foreground/80 block truncate font-mono text-[11px]">
                             {details}
                           </span>
+                          {accounts.length > 0 && (
+                            <span className="text-muted-foreground/80 block truncate text-[11px]">
+                              {t("allocation:eligibleHoldings.inAccounts", {
+                                accounts: accounts.join(" · "),
+                              })}
+                            </span>
+                          )}
                         </span>
                       </CommandItem>
                     );
@@ -178,8 +192,8 @@ export function EligibleHoldingsSelector({
         </PopoverContent>
       </Popover>
       {selectedCount === 0 && (
-        <p className="text-destructive mt-2 font-mono text-xs">
-          {t("allocation:eligibleHoldings.emptyGuidance")}
+        <p className="text-muted-foreground mt-2 font-mono text-xs">
+          {t("allocation:eligibleHoldings.emptyAllowed")}
         </p>
       )}
     </div>
