@@ -116,6 +116,7 @@
   "accounts_empty_title": "추가된 계좌가 없습니다!",
   "accounts_empty_description": "아직 계좌가 없습니다. 투자 계좌를 추가해 보세요.",
   "accounts_add_first": "계좌 추가",
+  "accounts_connect_account": "계좌 연결",
   "accounts_disabled_badge": "비활성화됨",
   "accounts_operations_open": "열기",
   "accounts_operations_edit": "수정",

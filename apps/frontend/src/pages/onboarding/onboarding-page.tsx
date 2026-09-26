@@ -3,7 +3,7 @@ import { StartupError } from "@/components/startup-error";
 import { StartupScreen } from "@/components/startup-screen";
 import { usePlatform } from "@/hooks/use-platform";
 import { useSettings } from "@/hooks/use-settings";
-import { WEALTHFOLIO_CONNECT_PORTAL_URL } from "@/lib/constants";
+import { useConnectUrl } from "@/features/wealthfolio-connect/hooks/use-connect-url";
 import { useSettingsContext } from "@/lib/settings-provider";
 import { cn } from "@/lib/utils";
 import { Button } from "@wealthfolio/ui/components/ui/button";
@@ -22,6 +22,7 @@ const MOBILE_MAX_STEPS = 3;
 
 const OnboardingPage = () => {
   const { t } = useTranslation();
+  const connectLink = useConnectUrl("app_onboarding");
   const {
     data: settings,
     error: settingsError,
@@ -156,7 +157,7 @@ const OnboardingPage = () => {
               <div className="order-1 flex flex-col gap-2 sm:order-2 sm:flex-row sm:gap-3">
                 {!isMobile && (
                   <Button asChild variant="outline" className="order-2 sm:order-1">
-                    <ExternalLink href={WEALTHFOLIO_CONNECT_PORTAL_URL}>
+                    <ExternalLink href={connectLink}>
                       {t("onboarding:buttons.subscribeConnect")}
                       <Icons.ExternalLink className="ml-1.5 h-4 w-4" />
                     </ExternalLink>

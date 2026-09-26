@@ -116,6 +116,7 @@
   "accounts_empty_title": "尚未新增帳戶",
   "accounts_empty_description": "新增第一個投資帳戶，開始追蹤資產。",
   "accounts_add_first": "新增帳戶",
+  "accounts_connect_account": "連結帳戶",
   "accounts_disabled_badge": "已停用",
   "accounts_operations_open": "開啟",
   "accounts_operations_edit": "編輯",

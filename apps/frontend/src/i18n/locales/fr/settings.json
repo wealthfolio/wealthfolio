@@ -116,6 +116,7 @@
   "accounts_empty_title": "Aucun compte ajouté !",
   "accounts_empty_description": "Vous n'avez encore aucun compte. Commencez par ajouter vos comptes d'investissement.",
   "accounts_add_first": "Ajouter un compte",
+  "accounts_connect_account": "Connecter un compte",
   "accounts_disabled_badge": "Désactivé",
   "accounts_operations_open": "Ouvrir",
   "accounts_operations_edit": "Modifier",
