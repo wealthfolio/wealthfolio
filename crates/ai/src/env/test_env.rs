@@ -1424,6 +1424,7 @@ fn mock_performance_result(id: &str) -> PerformanceResult {
             annualized_irr: Some(rust_decimal::Decimal::ZERO),
             value_return: Some(rust_decimal::Decimal::ZERO),
             annualized_value_return: Some(rust_decimal::Decimal::ZERO),
+            return_to_break_even: Some(rust_decimal::Decimal::ZERO),
         },
         attribution: PerformanceAttribution::default(),
         risk: PerformanceRisk {
