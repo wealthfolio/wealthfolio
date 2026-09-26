@@ -139,6 +139,7 @@
   "asset_currency": "Valuta dell'asset",
   "base_currency": "Valuta base",
   "manual": "Manuale",
+  "discontinued": "Interrotto",
   "open": "Aperta",
   "closed": "Chiusa",
   "cost_basis": "Costo di carico",

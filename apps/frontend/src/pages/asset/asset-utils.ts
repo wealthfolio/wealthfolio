@@ -56,6 +56,7 @@ export const isStaleQuote = (snapshot?: LatestQuoteSnapshot, asset?: ParsedAsset
 export const getNoQuoteReasonText = (
   snapshot?: LatestQuoteSnapshot,
   asset?: ParsedAsset,
+  translate: ((key: string) => string) | undefined = undefined,
 ): string => {
   if (snapshot?.noQuoteReason?.message) {
     return snapshot.noQuoteReason.message;
@@ -63,6 +64,10 @@ export const getNoQuoteReasonText = (
 
   if (asset?.quoteMode === "MANUAL") {
     return "Quote mode is Manual";
+  }
+
+  if (asset?.quoteMode === "DISCONTINUED") {
+    return translate?.("asset:table.discontinued") ?? "Asset is discontinued";
   }
 
   if (asset?.isActive === false) {

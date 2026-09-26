@@ -177,6 +177,9 @@ fn format_sync_failure_message(error: &Error, provider_id: Option<&str>) -> Stri
 
 pub(super) fn asset_skip_reason(asset: &Asset, allow_inactive: bool) -> Option<AssetSkipReason> {
     // Only sync market-priced assets (including FX rates for currency conversion)
+    if asset.quote_mode == QuoteMode::Discontinued {
+        return Some(AssetSkipReason::Discontinued);
+    }
     if asset.quote_mode != QuoteMode::Market {
         return Some(AssetSkipReason::ManualPricing);
     }
@@ -394,6 +397,8 @@ pub enum AssetSkipReason {
     MaturedBond,
     /// Option has expired — no further quotes available.
     ExpiredOption,
+    /// Asset is marked as discontinued by the user — skip silently.
+    Discontinued,
 }
 
 impl std::fmt::Display for AssetSkipReason {
@@ -412,6 +417,7 @@ impl std::fmt::Display for AssetSkipReason {
             }
             AssetSkipReason::MaturedBond => write!(f, "Bond has matured (price is par)"),
             AssetSkipReason::ExpiredOption => write!(f, "Option has expired"),
+            AssetSkipReason::Discontinued => write!(f, "Asset marked as discontinued"),
         }
     }
 }

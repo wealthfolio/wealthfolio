@@ -2,8 +2,10 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { updateAssetProfile, updateQuoteMode, logger } from "@/adapters";
 import { toast } from "@wealthfolio/ui/components/ui/use-toast";
 import { QueryKeys } from "@/lib/query-keys";
+import { useTranslation } from "react-i18next";
 
 export const useAssetProfileMutations = () => {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
 
   const handleSuccess = (message: string, assetId: string) => {
@@ -29,7 +31,7 @@ export const useAssetProfileMutations = () => {
     mutationFn: updateAssetProfile,
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: [QueryKeys.ASSET_LOGO_INDEX] });
-      handleSuccess("Asset profile updated successfully.", result.id);
+      handleSuccess(t("asset:detailsSheet.details_saved"), result.id);
     },
     onError: (error) => {
       logger.error(`Error updating asset profile: ${error}`);
@@ -40,12 +42,20 @@ export const useAssetProfileMutations = () => {
   const updateQuoteModeMutation = useMutation({
     mutationFn: ({ assetId, quoteMode }: { assetId: string; quoteMode: string }) =>
       updateQuoteMode(assetId, quoteMode),
-    onSuccess: (result) => {
-      handleSuccess("Asset quote mode updated successfully.", result.id);
+    onSuccess: (result, { quoteMode }) => {
+      const message =
+        quoteMode === "DISCONTINUED"
+          ? t("asset:profile.discontinued_success")
+          : quoteMode === "MARKET"
+            ? result.quoteMode === "MANUAL"
+              ? t("asset:detailsSheet.details_saved")
+              : t("asset:profile.restored_success")
+            : t("asset:profile.quote_mode_updated_success");
+      handleSuccess(message, result.id);
     },
     onError: (error) => {
       logger.error(`Error updating asset quote mode: ${error}`);
-      handleError("updating the asset quote mode");
+      handleError(t("asset:profile.updating_quote_mode"));
     },
   });
 

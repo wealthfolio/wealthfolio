@@ -139,6 +139,7 @@
   "asset_currency": "资产货币",
   "base_currency": "基准货币",
   "manual": "手动",
+  "discontinued": "已停止",
   "open": "持仓中",
   "closed": "已平仓",
   "cost_basis": "投资成本",

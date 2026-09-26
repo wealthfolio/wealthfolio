@@ -139,6 +139,7 @@
   "asset_currency": "資産通貨",
   "base_currency": "基準通貨",
   "manual": "手動",
+  "discontinued": "廃止済み",
   "open": "保有中",
   "closed": "決済済み",
   "cost_basis": "取得価額",

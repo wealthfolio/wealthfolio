@@ -24,7 +24,7 @@ const COMMON_CRYPTO_SYMBOLS = new Set([
 
 export function quoteModeFromSearchResult(
   searchResult: Pick<SymbolSearchResult, "quoteMode" | "dataSource"> | undefined,
-): QuoteMode {
+): "MARKET" | "MANUAL" {
   const explicitMode = searchResult?.quoteMode?.trim().toUpperCase();
   if (explicitMode === QuoteMode.MANUAL) return QuoteMode.MANUAL;
   if (explicitMode === QuoteMode.MARKET) return QuoteMode.MARKET;

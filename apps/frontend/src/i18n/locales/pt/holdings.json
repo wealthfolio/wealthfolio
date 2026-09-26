@@ -139,6 +139,7 @@
   "asset_currency": "Moeda do ativo",
   "base_currency": "Moeda base",
   "manual": "Manual",
+  "discontinued": "Descontinuado",
   "open": "Aberta",
   "closed": "Fechada",
   "cost_basis": "Custo de aquisição",

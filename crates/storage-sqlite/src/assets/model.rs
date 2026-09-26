@@ -97,6 +97,7 @@ impl From<AssetDB> for Asset {
         let kind = AssetKind::from_db_str(&db.kind).unwrap_or_default();
         let quote_mode = match db.quote_mode.as_str() {
             "MANUAL" => QuoteMode::Manual,
+            "DISCONTINUED" => QuoteMode::Discontinued,
             _ => QuoteMode::Market,
         };
         let instrument_type = db

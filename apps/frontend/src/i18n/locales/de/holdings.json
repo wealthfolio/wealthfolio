@@ -139,6 +139,7 @@
   "asset_currency": "Vermögenswährung",
   "base_currency": "Basiswährung",
   "manual": "Manuell",
+  "discontinued": "Eingestellt",
   "open": "Offen",
   "closed": "Geschlossen",
   "cost_basis": "Anschaffungskosten",

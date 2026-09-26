@@ -297,7 +297,7 @@ export function AssetsTableMobile({
                       );
                     }
 
-                    const noQuoteReason = getNoQuoteReasonText(snapshot, asset);
+                    const noQuoteReason = getNoQuoteReasonText(snapshot, asset, t);
 
                     return (
                       <div className="flex items-center justify-end gap-1">

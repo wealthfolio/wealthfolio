@@ -1135,7 +1135,7 @@ impl AssetService {
                     resolved_mic.as_deref(),
                 )
             }),
-            QuoteMode::Manual => None,
+            QuoteMode::Manual | QuoteMode::Discontinued => None,
         });
 
         let resolved_symbol = canonical
@@ -1737,7 +1737,7 @@ impl AssetServiceTrait for AssetService {
                         exchange_mic.as_deref(),
                     )
                 }),
-                QuoteMode::Manual => None,
+                QuoteMode::Manual | QuoteMode::Discontinued => None,
             };
             let review_symbol = Self::import_asset_review_symbol(
                 &canonical_symbol,
@@ -2209,7 +2209,7 @@ impl AssetServiceTrait for AssetService {
                         .or(exchange_mic.as_deref()),
                 )
             }),
-            QuoteMode::Manual => None,
+            QuoteMode::Manual | QuoteMode::Discontinued => None,
         });
 
         let new_asset = NewAsset {
@@ -2264,12 +2264,51 @@ impl AssetServiceTrait for AssetService {
     /// Switching to Manual means providers will no longer sync this asset,
     /// so clear any stale error state to keep the health panel clean.
     async fn update_quote_mode_silent(&self, asset_id: &str, quote_mode: &str) -> Result<Asset> {
+        let existing_asset = self.asset_repository.get_by_id(asset_id)?;
+        let requested_mode = quote_mode.trim().to_uppercase();
+        let mut target_mode = requested_mode.clone();
+        let mut metadata_changed = false;
+        let mut metadata = existing_asset
+            .metadata
+            .clone()
+            .unwrap_or_else(|| serde_json::json!({}));
+
+        if requested_mode == "DISCONTINUED" && existing_asset.quote_mode != QuoteMode::Discontinued
+        {
+            if let Some(metadata_object) = metadata.as_object_mut() {
+                metadata_object.insert(
+                    "previous_quote_mode".to_string(),
+                    serde_json::Value::String(existing_asset.quote_mode.as_db_str().to_string()),
+                );
+                metadata_changed = true;
+            }
+        } else if requested_mode == "MARKET" && existing_asset.quote_mode == QuoteMode::Discontinued
+        {
+            if let Some(metadata_object) = metadata.as_object_mut() {
+                if let Some(previous_mode) = metadata_object
+                    .remove("previous_quote_mode")
+                    .and_then(|value| value.as_str().map(str::to_string))
+                {
+                    if matches!(previous_mode.as_str(), "MARKET" | "MANUAL") {
+                        target_mode = previous_mode;
+                    }
+                    metadata_changed = true;
+                }
+            }
+        }
+
+        if metadata_changed {
+            self.asset_repository
+                .update_metadata(asset_id, metadata)
+                .await?;
+        }
+
         let asset = self
             .asset_repository
-            .update_quote_mode(asset_id, quote_mode)
+            .update_quote_mode(asset_id, &target_mode)
             .await?;
 
-        if asset.quote_mode == QuoteMode::Manual {
+        if asset.quote_mode == QuoteMode::Manual || asset.quote_mode == QuoteMode::Discontinued {
             if let Err(e) = self.quote_service.delete_sync_state(asset_id).await {
                 warn!("Failed to clear sync state for {}: {:?}", asset_id, e);
             }
