@@ -26,6 +26,7 @@ import {
 } from "@/lib/constants";
 import {
   AccountScope,
+  Holding,
   HoldingType,
   AlternativeAssetHolding,
   AlternativeAssetKind,
@@ -211,6 +212,17 @@ export const HoldingsPage = () => {
       metadata: holding.metadata,
     };
     setEditAsset(assetForSheet);
+  }, []);
+
+  // Stable so HoldingsTable keeps its memoized columns across page re-renders.
+  const handleClassify = useCallback((holding: Holding) => {
+    setClassifyAsset({
+      id: holding.instrument?.id ?? holding.id,
+      symbol: holding.instrument?.symbol ?? holding.id,
+      name: holding.instrument?.name ?? undefined,
+      exchangeMic: holding.instrument?.exchangeMic,
+      instrumentType: holding.instrument?.instrumentType,
+    });
   }, []);
 
   // Handler to save asset details
@@ -528,15 +540,7 @@ export const HoldingsPage = () => {
               visibilityFilters={effectiveVisibilityFilters}
               setVisibilityFilters={handleVisibilityFiltersChange}
               showClosedPositions={showClosedPositions}
-              onClassify={(holding) =>
-                setClassifyAsset({
-                  id: holding.instrument?.id ?? holding.id,
-                  symbol: holding.instrument?.symbol ?? holding.id,
-                  name: holding.instrument?.name ?? undefined,
-                  exchangeMic: holding.instrument?.exchangeMic,
-                  instrumentType: holding.instrument?.instrumentType,
-                })
-              }
+              onClassify={handleClassify}
             />
           </div>
 
