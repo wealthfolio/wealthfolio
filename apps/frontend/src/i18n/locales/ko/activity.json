@@ -1314,5 +1314,52 @@
       "importing": "가져오는 중...",
       "issuesTitle_other": "활동 항목 {{count}}건에 문제가 있습니다."
     }
+  },
+  "issue_report": {
+    "open": "가져오기 문제 신고",
+    "title": "증권사 가져오기 문제 신고",
+    "description": "증권사 데이터 가져오기 개선에 도움을 주세요.",
+    "issue": "어떤 문제가 있었나요?",
+    "expected_type": "올바른 유형은 무엇인가요?",
+    "select_type": "유형 선택",
+    "asset_class": "자산 유형",
+    "preview_title": "전송할 정보",
+    "preview_features": "금액 부호: {{amount}} · 수량 부호: {{units}} · 자산: {{asset}}",
+    "preview_raw_type": "제공업체 유형: {{type}}",
+    "preview_terms": "인식된 용어: {{terms}}",
+    "preview_private": "정확한 금액, 날짜, 종목 코드 또는 전체 설명은 전송하지 않습니다.",
+    "consent": "계좌 식별자를 포함한 이 진단 보고서를 Wealthfolio에 보내는 데 동의합니다.",
+    "send": "보고서 보내기",
+    "success": "보고서를 보냈습니다. 개선에 도움을 주셔서 감사합니다.",
+    "error": "보고서를 보내지 못했습니다. 다시 시도하세요.",
+    "kinds": {
+      "wrong_type": "활동 유형 오류",
+      "missing_activity": "누락된 활동",
+      "duplicate_activity": "중복 활동",
+      "wrong_amount": "금액 오류",
+      "wrong_date": "날짜 오류",
+      "missing_history": "거래 내역 누락",
+      "other": "기타 가져오기 문제"
+    },
+    "asset_classes": {
+      "bond": "채권",
+      "stock": "주식",
+      "fund": "펀드",
+      "crypto": "암호화폐",
+      "option": "옵션",
+      "cash": "현금",
+      "other": "기타",
+      "unknown": "알 수 없음"
+    },
+    "signs": {
+      "positive": "양수",
+      "negative": "음수",
+      "zero": "0",
+      "missing": "누락"
+    },
+    "preview_account_id": "계좌 식별자: {{id}}",
+    "preview_provider": "제공업체: SnapTrade",
+    "preview_symbol": "종목 코드 있음: {{value}}",
+    "account_unavailable": "이 계좌를 사용할 수 없거나 계좌 소유자가 문제를 신고해야 합니다."
   }
 }

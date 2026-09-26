@@ -1314,5 +1314,52 @@
       "importing": "正在导入……",
       "issuesTitle_other": "{{count}} 条活动条目存在问题。"
     }
+  },
+  "issue_report": {
+    "open": "报告导入问题",
+    "title": "报告券商导入问题",
+    "description": "帮助我们改进券商数据导入。",
+    "issue": "出现了什么问题？",
+    "expected_type": "正确的类型是什么？",
+    "select_type": "选择类型",
+    "asset_class": "资产类别",
+    "preview_title": "将发送的信息",
+    "preview_features": "金额符号：{{amount}} · 数量符号：{{units}} · 资产：{{asset}}",
+    "preview_raw_type": "提供方类型：{{type}}",
+    "preview_terms": "识别到的词语：{{terms}}",
+    "preview_private": "不会发送具体金额、日期、代码或完整描述。",
+    "consent": "我同意将此诊断报告（包括我的账户标识符）发送给 Wealthfolio。",
+    "send": "发送报告",
+    "success": "报告已发送。感谢您帮助我们改进。",
+    "error": "无法发送报告，请重试。",
+    "kinds": {
+      "wrong_type": "活动类型错误",
+      "missing_activity": "缺少活动",
+      "duplicate_activity": "重复活动",
+      "wrong_amount": "金额错误",
+      "wrong_date": "日期错误",
+      "missing_history": "缺少交易历史",
+      "other": "其他导入问题"
+    },
+    "asset_classes": {
+      "bond": "债券",
+      "stock": "股票",
+      "fund": "基金",
+      "crypto": "加密资产",
+      "option": "期权",
+      "cash": "现金",
+      "other": "其他",
+      "unknown": "未知"
+    },
+    "signs": {
+      "positive": "正",
+      "negative": "负",
+      "zero": "零",
+      "missing": "缺失"
+    },
+    "preview_account_id": "账户标识符：{{id}}",
+    "preview_provider": "提供方：SnapTrade",
+    "preview_symbol": "是否有代码：{{value}}",
+    "account_unavailable": "此账户不可用，或需由账户所有者报告该问题。"
   }
 }

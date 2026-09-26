@@ -226,6 +226,30 @@ describe("adapter command parity", () => {
     });
   });
 
+  it("posts the consented brokerage report without its command wrapper", async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(JSON.stringify({ id: "report-id", expiresAt: "2026-12-01" }), {
+        status: 201,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const report = {
+      consent: true,
+      provider: "snaptrade",
+      accountId: "provider-account-id",
+      issueKind: "missing_activity",
+      features: { assetClass: "unknown" },
+    };
+
+    await invoke("report_broker_activity_issue", { report });
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("/api/v1/connect/activity-issues");
+    expect(init.method).toBe("POST");
+    expect(JSON.parse(init.body as string)).toEqual(report);
+  });
+
   it("routes allocation drilldown requests with all required filters", async () => {
     const response = new Response(JSON.stringify({ holdings: [] }), {
       status: 200,

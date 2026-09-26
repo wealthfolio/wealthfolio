@@ -839,6 +839,19 @@ mod tests {
         assert_eq!(meta["broker_raw_type"], "registered_account");
         assert_eq!(meta["raw_type"], "registered_account");
     }
+
+    #[test]
+    fn preserves_shared_owner_flag_for_local_account_metadata() {
+        let account: BrokerAccount = serde_json::from_value(serde_json::json!({
+            "id": "broker-account-id",
+            "owner": { "user_id": "other-user", "is_own_account": false }
+        }))
+        .unwrap();
+        let meta: serde_json::Value =
+            serde_json::from_str(&account.to_meta_json().unwrap()).unwrap();
+        assert_eq!(meta["owner"]["is_own_account"], false);
+        assert_eq!(meta["owner"]["user_id"], "other-user");
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

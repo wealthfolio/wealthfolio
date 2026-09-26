@@ -30,11 +30,11 @@ use wealthfolio_connect::{
         BrokerApiClient, PlansResponse, SyncAccountsResponse, SyncActivitiesResponse,
         SyncConnectionsResponse, UserInfo,
     },
-    ensure_valid_access_token, fetch_subscription_plans_public, BrokerSyncRunGuard,
-    ConnectApiClient, PostLoginBootstrapReason, PostLoginBootstrapResult,
-    PostLoginBootstrapSyncResult, PostLoginBrokerBootstrapDecision, SyncConfig, SyncOrchestrator,
-    SyncProgressPayload, SyncProgressReporter, SyncResult, TokenLifecycleConfig,
-    TokenLifecycleError, CLOUD_REFRESH_TOKEN_KEY,
+    ensure_valid_access_token, fetch_subscription_plans_public, ActivityIssueReport,
+    ActivityIssueReportResponse, BrokerSyncRunGuard, ConnectApiClient, PostLoginBootstrapReason,
+    PostLoginBootstrapResult, PostLoginBootstrapSyncResult, PostLoginBrokerBootstrapDecision,
+    SyncConfig, SyncOrchestrator, SyncProgressPayload, SyncProgressReporter, SyncResult,
+    TokenLifecycleConfig, TokenLifecycleError, CLOUD_REFRESH_TOKEN_KEY,
 };
 #[cfg(feature = "device-sync")]
 use wealthfolio_device_sync::{EnableSyncResult, SyncState, SyncStateResult};
@@ -891,6 +891,19 @@ async fn list_broker_accounts(
     Ok(Json(accounts))
 }
 
+async fn report_broker_activity_issue(
+    axum::Extension(state): axum::Extension<Arc<AppState>>,
+    Json(report): Json<ActivityIssueReport>,
+) -> ApiResult<Json<ActivityIssueReportResponse>> {
+    ensure_connect_sync_enabled()?;
+    let client = create_connect_client(&state).await?;
+    let result = client
+        .report_activity_issue(&report)
+        .await
+        .map_err(|e| ApiError::Internal(e.to_string()))?;
+    Ok(Json(result))
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Local Data Queries (from local database, not cloud)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1276,6 +1289,10 @@ pub fn router<S: Clone + Send + Sync + 'static>() -> Router<S> {
         // List operations (fetch from cloud without syncing)
         .route("/connect/connections", get(list_broker_connections))
         .route("/connect/accounts", get(list_broker_accounts))
+        .route(
+            "/connect/activity-issues",
+            post(report_broker_activity_issue),
+        )
         // Unified sync (non-blocking, emits SSE events)
         .route("/connect/sync", post(sync_broker_data))
         // Individual sync operations (kept for backwards compatibility)

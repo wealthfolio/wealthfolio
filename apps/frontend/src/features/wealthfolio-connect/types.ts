@@ -1,3 +1,5 @@
+import type { ActivityType } from "@/lib/constants";
+
 // Wealthfolio Connect Types
 // =========================
 
@@ -99,6 +101,44 @@ export interface BrokerAccount {
   is_paper: boolean;
   sync_enabled: boolean;
   shared_with_household: boolean;
+}
+
+export type ActivityIssueKind =
+  | "wrong_type"
+  | "missing_activity"
+  | "duplicate_activity"
+  | "wrong_amount"
+  | "wrong_date"
+  | "missing_history"
+  | "other";
+
+export type ActivitySign = "positive" | "negative" | "zero" | "missing";
+export type ActivityAssetClass =
+  | "bond"
+  | "stock"
+  | "fund"
+  | "crypto"
+  | "option"
+  | "cash"
+  | "other"
+  | "unknown";
+
+/** Explicitly selected diagnostics, never an exact financial transaction. */
+export interface ActivityIssueReport {
+  consent: true;
+  provider: "snaptrade";
+  accountId: string;
+  issueKind: ActivityIssueKind;
+  observedType?: ActivityType;
+  expectedType?: ActivityType;
+  rawType?: string;
+  features: {
+    amountSign?: ActivitySign;
+    unitsSign?: ActivitySign;
+    assetClass?: ActivityAssetClass;
+    hasSymbol?: boolean;
+    descriptionTerms?: string[];
+  };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

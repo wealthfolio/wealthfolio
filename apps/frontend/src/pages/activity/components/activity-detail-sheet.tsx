@@ -19,7 +19,10 @@ import {
 import { AmountDisplay } from "@wealthfolio/ui/components/financial/amount-display";
 import { useTranslation } from "react-i18next";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
+import { useAccounts } from "@/hooks/use-accounts";
 import { getProviderMappingReasons } from "./activity-data-grid/types";
+import { ReportBrokerIssue } from "./report-broker-issue";
+import { isSharedBrokerAccount } from "./activity-issue-report";
 
 /** An activity with no stored amount booked no cash; rendering `Number(null)`
  * would claim it moved exactly zero. */
@@ -86,6 +89,25 @@ function DetailSection({ title, icon, children }: DetailSectionProps) {
       </div>
       <div className="bg-muted/30 rounded-lg border p-3">{children}</div>
     </div>
+  );
+}
+
+function ActivityReportSection({ activity }: { activity: ActivityDetails }) {
+  const { accounts } = useAccounts({ filterActive: false, includeArchived: true });
+  if (activity.sourceSystem?.toUpperCase() !== "SNAPTRADE") return null;
+  const account = accounts.find((item) => item.id === activity.accountId);
+  if (
+    !account?.providerAccountId ||
+    account.provider?.toUpperCase() !== "SNAPTRADE" ||
+    isSharedBrokerAccount(account.meta)
+  )
+    return null;
+  return (
+    <ReportBrokerIssue
+      providerAccountId={account.providerAccountId}
+      accountName={account.name}
+      activity={activity}
+    />
   );
 }
 
@@ -370,6 +392,7 @@ export function ActivityDetailSheet({ activity, open, onOpenChange }: ActivityDe
               value={formatDate(activity.updatedAt)}
             />
           </DetailSection>
+          {open && <ActivityReportSection activity={activity} />}
         </div>
 
         {/* Mobile close button */}

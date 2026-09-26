@@ -27,6 +27,7 @@ import {
 import type { BrokerAccount, BrokerConnection } from "../types";
 import { PortalLink } from "./portal-link";
 import { SubscriptionPlans } from "./subscription-plans";
+import { ReportBrokerIssue } from "@/pages/activity/components/report-broker-issue";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Custom Hooks
@@ -217,6 +218,14 @@ function BrokerAccountCard({ account, connections }: BrokerAccountCardProps) {
           </div>
           {/* Row 3: Sync time on its own line on mobile */}
           <p className="text-muted-foreground mt-0.5 text-[11px] sm:hidden">{lastSyncedText}</p>
+          {account.id && account.owner?.is_own_account !== false && (
+            <div className="mt-2">
+              <ReportBrokerIssue
+                providerAccountId={account.id}
+                accountName={account.name || t("connect:accounts.accountFallback")}
+              />
+            </div>
+          )}
         </div>
       </div>
     </div>

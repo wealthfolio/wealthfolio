@@ -9,9 +9,23 @@ use crate::context::ServiceContext;
 use crate::events::{BROKER_SYNC_COMPLETE, BROKER_SYNC_ERROR, BROKER_SYNC_START};
 use wealthfolio_connect::{
     acquire_broker_sync_guard, broker::BrokerApiClient, fetch_subscription_plans_public,
-    BrokerAccount, BrokerConnection, BrokerSyncRunGuard, PlansResponse, Platform, SyncConfig,
-    SyncOrchestrator, SyncProgressPayload, SyncProgressReporter, SyncResult, UserInfo,
+    ActivityIssueReport, ActivityIssueReportResponse, BrokerAccount, BrokerConnection,
+    BrokerSyncRunGuard, PlansResponse, Platform, SyncConfig, SyncOrchestrator, SyncProgressPayload,
+    SyncProgressReporter, SyncResult, UserInfo,
 };
+
+#[tauri::command]
+pub async fn report_broker_activity_issue(
+    state: ConnectAccess,
+    report: ActivityIssueReport,
+) -> Result<ActivityIssueReportResponse, String> {
+    let context = state.context()?;
+    let client = context.connect_service().get_api_client().await?;
+    client
+        .report_activity_issue(&report)
+        .await
+        .map_err(|e| e.to_string())
+}
 
 pub(crate) fn try_acquire_broker_sync_guard(
     context: &ServiceContext,

@@ -320,6 +320,7 @@ export const COMMANDS: CommandMap = {
   restore_sync_session: { method: "GET", path: "/connect/session/restore" },
   list_broker_connections: { method: "GET", path: "/connect/connections" },
   list_broker_accounts: { method: "GET", path: "/connect/accounts" },
+  report_broker_activity_issue: { method: "POST", path: "/connect/activity-issues" },
   sync_broker_data: { method: "POST", path: "/connect/sync" },
   broker_ingest_run: { method: "POST", path: "/connect/sync" },
   sync_broker_connections: { method: "POST", path: "/connect/sync/connections" },
@@ -1836,6 +1837,11 @@ export const invoke = async <T>(command: string, payload?: Record<string, unknow
     case "save_broker_sync_profile_rules": {
       const { request } = payload as { request: Record<string, unknown> };
       body = JSON.stringify(request);
+      break;
+    }
+    case "report_broker_activity_issue": {
+      const { report } = payload as { report: Record<string, unknown> };
+      body = JSON.stringify(report);
       break;
     }
     // Net Worth commands

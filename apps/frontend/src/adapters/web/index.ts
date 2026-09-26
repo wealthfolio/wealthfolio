@@ -329,6 +329,7 @@ export {
   getUserInfo,
   listBrokerAccounts,
   listBrokerConnections,
+  reportBrokerActivityIssue,
   postLoginBootstrap,
   listDevices,
   reinitializeDeviceSync,

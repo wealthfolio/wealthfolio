@@ -1314,5 +1314,52 @@
       "importing": "インポート中...",
       "issuesTitle_other": "{{count}}件の取引エントリに問題があります。"
     }
+  },
+  "issue_report": {
+    "open": "インポートの問題を報告",
+    "title": "証券会社のインポート問題を報告",
+    "description": "証券会社データのインポート改善にご協力ください。",
+    "issue": "どのような問題ですか？",
+    "expected_type": "正しい種類は何ですか？",
+    "select_type": "種類を選択",
+    "asset_class": "資産クラス",
+    "preview_title": "送信される情報",
+    "preview_features": "金額の符号：{{amount}} · 数量の符号：{{units}} · 資産：{{asset}}",
+    "preview_raw_type": "提供元の種類：{{type}}",
+    "preview_terms": "認識された語句：{{terms}}",
+    "preview_private": "正確な金額、日付、銘柄コード、説明文全体は送信しません。",
+    "consent": "口座識別子を含むこの診断レポートを Wealthfolio に送信することに同意します。",
+    "send": "レポートを送信",
+    "success": "送信しました。改善へのご協力ありがとうございます。",
+    "error": "送信できませんでした。もう一度お試しください。",
+    "kinds": {
+      "wrong_type": "取引種類が違う",
+      "missing_activity": "取引がない",
+      "duplicate_activity": "取引が重複",
+      "wrong_amount": "金額が違う",
+      "wrong_date": "日付が違う",
+      "missing_history": "取引履歴がない",
+      "other": "その他のインポート問題"
+    },
+    "asset_classes": {
+      "bond": "債券",
+      "stock": "株式",
+      "fund": "ファンド",
+      "crypto": "暗号資産",
+      "option": "オプション",
+      "cash": "現金",
+      "other": "その他",
+      "unknown": "不明"
+    },
+    "signs": {
+      "positive": "正",
+      "negative": "負",
+      "zero": "ゼロ",
+      "missing": "なし"
+    },
+    "preview_account_id": "口座識別子：{{id}}",
+    "preview_provider": "提供元：SnapTrade",
+    "preview_symbol": "銘柄コードの有無：{{value}}",
+    "account_unavailable": "この口座は利用できないか、口座所有者による報告が必要です。"
   }
 }

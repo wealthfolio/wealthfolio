@@ -1333,5 +1333,52 @@
       "issuesTitle_other": "{{count}} 筆交易紀錄有問題。",
       "issuesTitle_one": "{{count}} 筆交易紀錄有問題。"
     }
+  },
+  "issue_report": {
+    "open": "回報匯入問題",
+    "title": "回報券商匯入問題",
+    "description": "協助我們改善券商資料匯入。",
+    "issue": "發生什麼問題？",
+    "expected_type": "正確類型應為何？",
+    "select_type": "選擇類型",
+    "asset_class": "資產類別",
+    "preview_title": "將傳送的資訊",
+    "preview_features": "金額符號：{{amount}} · 數量符號：{{units}} · 資產：{{asset}}",
+    "preview_raw_type": "提供者類型：{{type}}",
+    "preview_terms": "辨識到的詞語：{{terms}}",
+    "preview_private": "不會傳送確切金額、日期、代號或完整描述。",
+    "consent": "我同意將此診斷報告（包含我的帳戶識別碼）傳送給 Wealthfolio。",
+    "send": "傳送報告",
+    "success": "報告已傳送。感謝您協助我們改進。",
+    "error": "無法傳送報告，請再試一次。",
+    "kinds": {
+      "wrong_type": "活動類型錯誤",
+      "missing_activity": "缺少活動",
+      "duplicate_activity": "重複活動",
+      "wrong_amount": "金額錯誤",
+      "wrong_date": "日期錯誤",
+      "missing_history": "缺少交易紀錄",
+      "other": "其他匯入問題"
+    },
+    "asset_classes": {
+      "bond": "債券",
+      "stock": "股票",
+      "fund": "基金",
+      "crypto": "加密資產",
+      "option": "選擇權",
+      "cash": "現金",
+      "other": "其他",
+      "unknown": "未知"
+    },
+    "signs": {
+      "positive": "正",
+      "negative": "負",
+      "zero": "零",
+      "missing": "缺失"
+    },
+    "preview_account_id": "帳戶識別碼：{{id}}",
+    "preview_provider": "提供者：SnapTrade",
+    "preview_symbol": "是否有代號：{{value}}",
+    "account_unavailable": "此帳戶無法使用，或需由帳戶擁有者回報此問題。"
   }
 }

@@ -1380,5 +1380,52 @@
       "issuesTitle_many": "Sono presenti problemi con {{count}} voci di movimento.",
       "issuesTitle_other": "Sono presenti problemi con {{count}} voci di movimento."
     }
+  },
+  "issue_report": {
+    "open": "Segnala un problema di importazione",
+    "title": "Segnala un problema di importazione",
+    "description": "Aiutaci a migliorare l'importazione dei dati del broker.",
+    "issue": "Che cosa non ha funzionato?",
+    "expected_type": "Quale dovrebbe essere il tipo?",
+    "select_type": "Seleziona un tipo",
+    "asset_class": "Classe di attività",
+    "preview_title": "Informazioni da inviare",
+    "preview_features": "Segno importo: {{amount}} · Segno unità: {{units}} · Attività: {{asset}}",
+    "preview_raw_type": "Tipo del fornitore: {{type}}",
+    "preview_terms": "Termini riconosciuti: {{terms}}",
+    "preview_private": "Non vengono inviati importi esatti, date, simboli o descrizioni complete.",
+    "consent": "Acconsento a inviare questo rapporto diagnostico, incluso l'identificativo del mio conto, a Wealthfolio.",
+    "send": "Invia rapporto",
+    "success": "Rapporto inviato. Grazie per aiutarci a migliorare.",
+    "error": "Impossibile inviare il rapporto. Riprova.",
+    "kinds": {
+      "wrong_type": "Tipo di attività errato",
+      "missing_activity": "Attività mancante",
+      "duplicate_activity": "Attività duplicata",
+      "wrong_amount": "Importo errato",
+      "wrong_date": "Data errata",
+      "missing_history": "Cronologia transazioni mancante",
+      "other": "Altro problema di importazione"
+    },
+    "asset_classes": {
+      "bond": "Obbligazione",
+      "stock": "Azione",
+      "fund": "Fondo",
+      "crypto": "Cripto",
+      "option": "Opzione",
+      "cash": "Contante",
+      "other": "Altro",
+      "unknown": "Sconosciuto"
+    },
+    "signs": {
+      "positive": "positivo",
+      "negative": "negativo",
+      "zero": "zero",
+      "missing": "mancante"
+    },
+    "preview_account_id": "Identificativo conto: {{id}}",
+    "preview_provider": "Fornitore: SnapTrade",
+    "preview_symbol": "Simbolo presente: {{value}}",
+    "account_unavailable": "Questo conto non è disponibile oppure il proprietario deve segnalare il problema."
   }
 }

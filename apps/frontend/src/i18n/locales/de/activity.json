@@ -1333,5 +1333,52 @@
       "issuesTitle_one": "Es gibt Probleme mit {{count}} Aktivitätseintrag.",
       "issuesTitle_other": "Es gibt Probleme mit {{count}} Aktivitätseinträgen."
     }
+  },
+  "issue_report": {
+    "open": "Importproblem melden",
+    "title": "Problem beim Brokerimport melden",
+    "description": "Helfen Sie uns, den Import Ihrer Brokerdaten zu verbessern.",
+    "issue": "Was ist schiefgelaufen?",
+    "expected_type": "Welcher Typ wäre richtig?",
+    "select_type": "Typ auswählen",
+    "asset_class": "Anlageklasse",
+    "preview_title": "Gesendete Informationen",
+    "preview_features": "Betragsvorzeichen: {{amount}} · Stückzahlvorzeichen: {{units}} · Anlage: {{asset}}",
+    "preview_raw_type": "Anbietertyp: {{type}}",
+    "preview_terms": "Erkannte Begriffe: {{terms}}",
+    "preview_private": "Keine genauen Beträge, Daten, Symbole oder vollständigen Beschreibungen werden gesendet.",
+    "consent": "Ich stimme zu, diesen Diagnosebericht einschließlich meiner Konto-ID an Wealthfolio zu senden.",
+    "send": "Bericht senden",
+    "success": "Bericht gesendet. Vielen Dank für Ihre Hilfe.",
+    "error": "Der Bericht konnte nicht gesendet werden. Bitte erneut versuchen.",
+    "kinds": {
+      "wrong_type": "Falscher Aktivitätstyp",
+      "missing_activity": "Aktivität fehlt",
+      "duplicate_activity": "Doppelte Aktivität",
+      "wrong_amount": "Falscher Betrag",
+      "wrong_date": "Falsches Datum",
+      "missing_history": "Transaktionsverlauf fehlt",
+      "other": "Anderes Importproblem"
+    },
+    "asset_classes": {
+      "bond": "Anleihe",
+      "stock": "Aktie",
+      "fund": "Fonds",
+      "crypto": "Krypto",
+      "option": "Option",
+      "cash": "Bargeld",
+      "other": "Sonstiges",
+      "unknown": "Unbekannt"
+    },
+    "signs": {
+      "positive": "positiv",
+      "negative": "negativ",
+      "zero": "null",
+      "missing": "fehlt"
+    },
+    "preview_account_id": "Konto-ID: {{id}}",
+    "preview_provider": "Anbieter: SnapTrade",
+    "preview_symbol": "Symbol vorhanden: {{value}}",
+    "account_unavailable": "Dieses Konto ist nicht verfügbar oder der Eigentümer muss das Problem melden."
   }
 }

@@ -1333,5 +1333,52 @@
       "issuesTitle_one": "There are issues with {{count}} activity entry.",
       "issuesTitle_other": "There are issues with {{count}} activity entries."
     }
+  },
+  "issue_report": {
+    "open": "Report import issue",
+    "title": "Report a brokerage import issue",
+    "description": "Help us improve how your brokerage data is imported.",
+    "issue": "What went wrong?",
+    "expected_type": "What type should it be?",
+    "select_type": "Select a type",
+    "asset_class": "Asset class",
+    "preview_title": "Information to be sent",
+    "preview_features": "Amount sign: {{amount}} · Units sign: {{units}} · Asset: {{asset}}",
+    "preview_raw_type": "Provider type: {{type}}",
+    "preview_terms": "Recognized terms: {{terms}}",
+    "preview_private": "No exact amounts, dates, symbols, or full descriptions are sent.",
+    "consent": "I agree to send this diagnostic report, including my account identifier, to Wealthfolio.",
+    "send": "Send report",
+    "success": "Report sent. Thank you for helping us improve.",
+    "error": "Could not send the report. Please try again.",
+    "kinds": {
+      "wrong_type": "Wrong activity type",
+      "missing_activity": "Missing activity",
+      "duplicate_activity": "Duplicate activity",
+      "wrong_amount": "Wrong amount",
+      "wrong_date": "Wrong date",
+      "missing_history": "Missing transaction history",
+      "other": "Other import issue"
+    },
+    "asset_classes": {
+      "bond": "Bond",
+      "stock": "Stock",
+      "fund": "Fund",
+      "crypto": "Crypto",
+      "option": "Option",
+      "cash": "Cash",
+      "other": "Other",
+      "unknown": "Unknown"
+    },
+    "signs": {
+      "positive": "positive",
+      "negative": "negative",
+      "zero": "zero",
+      "missing": "missing"
+    },
+    "preview_account_id": "Account identifier: {{id}}",
+    "preview_provider": "Provider: SnapTrade",
+    "preview_symbol": "Symbol present: {{value}}",
+    "account_unavailable": "This account is unavailable or its owner needs to report the issue."
   }
 }

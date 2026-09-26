@@ -13,6 +13,7 @@ import type {
 import type {
   BrokerAccount,
   BrokerConnection,
+  ActivityIssueReport,
   BrokerSyncState,
   ImportRun,
   PlansResponse,
@@ -60,6 +61,10 @@ export async function listBrokerConnections(): Promise<BrokerConnection[]> {
 
 export async function listBrokerAccounts(): Promise<BrokerAccount[]> {
   return invoke<BrokerAccount[]>("list_broker_accounts");
+}
+
+export async function reportBrokerActivityIssue(report: ActivityIssueReport): Promise<void> {
+  await invoke<{ id: string; expiresAt: string }>("report_broker_activity_issue", { report });
 }
 
 export async function getSubscriptionPlans(): Promise<PlansResponse> {

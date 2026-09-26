@@ -112,11 +112,30 @@ fn normalize_source_system(value: Option<&str>) -> Option<String> {
         .map(|value| value.to_ascii_uppercase())
 }
 
+fn provider_sign(value: Option<f64>) -> &'static str {
+    match value {
+        Some(value) if value.is_finite() && value > 0.0 => "positive",
+        Some(value) if value.is_finite() && value < 0.0 => "negative",
+        Some(value) if value.is_finite() => "zero",
+        _ => "missing",
+    }
+}
+
 /// Build metadata JSON for storing in the activity record.
 ///
 /// Extracts relevant fields from the API metadata and formats them for storage.
 pub fn build_activity_metadata(activity: &AccountUniversalActivity) -> Option<String> {
     let mut metadata = serde_json::Map::new();
+
+    // Keep only the signs from the original provider row. Normalized local
+    // quantities and amounts are absolute values, so cannot diagnose sign rules.
+    metadata.insert(
+        "provider_signs".to_string(),
+        serde_json::json!({
+            "amount": provider_sign(activity.amount),
+            "units": provider_sign(activity.units),
+        }),
+    );
 
     // Mini options represent 10 underlying units rather than the standard
     // 100. Carry the exact multiplier through the existing asset-creation
@@ -692,6 +711,39 @@ mod tests {
     }
 
     #[test]
+    fn preserves_provider_signs_without_exact_values_before_normalization() {
+        let activity = AccountUniversalActivity {
+            id: Some("provider-activity".to_string()),
+            activity_type: Some(activities::ACTIVITY_TYPE_BUY.to_string()),
+            amount: Some(-4210.5),
+            units: Some(7.0),
+            ..Default::default()
+        };
+        let mapped = map_test_activity(&activity);
+        let metadata: serde_json::Value =
+            serde_json::from_str(mapped.metadata.as_deref().unwrap()).unwrap();
+
+        assert_eq!(
+            metadata["provider_signs"],
+            serde_json::json!({
+                "amount": "negative",
+                "units": "positive",
+            })
+        );
+        assert_eq!(mapped.amount.unwrap().to_string(), "4210.5");
+        assert!(!mapped.metadata.unwrap().contains("4210"));
+
+        let missing = build_activity_metadata(&AccountUniversalActivity::default()).unwrap();
+        let metadata: serde_json::Value = serde_json::from_str(&missing).unwrap();
+        assert_eq!(
+            metadata["provider_signs"],
+            serde_json::json!({
+                "amount": "missing", "units": "missing"
+            })
+        );
+    }
+
+    #[test]
     fn test_needs_review_unknown_type() {
         let activity = AccountUniversalActivity {
             activity_type: Some("UNKNOWN".to_string()),
@@ -722,7 +774,11 @@ mod tests {
                         serde_json::from_str(mapped.metadata.as_deref().unwrap()).unwrap();
                     assert_eq!(metadata["flow"]["is_external"], expected);
                 }
-                None => assert_eq!(mapped.metadata, None),
+                None => {
+                    let metadata: serde_json::Value =
+                        serde_json::from_str(mapped.metadata.as_deref().unwrap()).unwrap();
+                    assert!(metadata.get("flow").is_none());
+                }
             }
         }
     }

@@ -8,6 +8,7 @@ use async_trait::async_trait;
 use log::{debug, info};
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue, AUTHORIZATION, CONTENT_TYPE};
 use serde::de::DeserializeOwned;
+use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
 use crate::broker::{
@@ -147,11 +148,74 @@ pub struct ConnectApiClient {
     auth_header: HeaderValue,
 }
 
+/// A user-approved mapping report. The shape deliberately has no exact financial
+/// values, dates, symbols, provider record IDs, or free-text description.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ActivityIssueReport {
+    pub consent: bool,
+    pub provider: String,
+    pub account_id: String,
+    pub issue_kind: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub observed_type: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub expected_type: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub raw_type: Option<String>,
+    pub features: ActivityIssueFeatures,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ActivityIssueFeatures {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub amount_sign: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub units_sign: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub asset_class: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub has_symbol: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description_terms: Option<Vec<String>>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ActivityIssueReportResponse {
+    pub id: String,
+    pub expires_at: String,
+}
+
 fn subscription_allows_sync(status: Option<&str>) -> bool {
     matches!(status, Some("active" | "trialing" | "past_due"))
 }
 
 impl ConnectApiClient {
+    /// Submit a diagnostic report only after the user explicitly consents.
+    pub async fn report_activity_issue(
+        &self,
+        report: &ActivityIssueReport,
+    ) -> Result<ActivityIssueReportResponse> {
+        if !report.consent {
+            return Err(Error::Unexpected(
+                "Activity issue report requires consent".to_string(),
+            ));
+        }
+        let path = "/api/v1/sync/brokerage/activity-issues";
+        let context = CloudRequestContext::new("POST", path, None);
+        let response = self
+            .client
+            .post(format!("{}{}", self.base_url, path))
+            .headers(self.headers(&context.client_request_id)?)
+            .json(report)
+            .send()
+            .await
+            .map_err(|e| self.request_transport_error(&context, e))?;
+        self.parse_response(response, &context).await
+    }
+
     /// Create a new Connect API client.
     ///
     /// # Arguments
@@ -670,6 +734,47 @@ mod tests {
     fn test_client_url_normalization() {
         let client = ConnectApiClient::new("https://api.wealthfolio.app/", "test-token").unwrap();
         assert_eq!(client.base_url, "https://api.wealthfolio.app");
+    }
+
+    #[test]
+    fn activity_issue_report_rejects_transaction_details() {
+        let report = serde_json::json!({
+            "consent": true,
+            "provider": "snaptrade",
+            "accountId": "provider-account-id",
+            "issueKind": "wrong_type",
+            "observedType": "DIVIDEND",
+            "expectedType": "INTEREST",
+            "features": { "amountSign": "positive", "assetClass": "bond" },
+            "amount": "4210.50"
+        });
+        assert!(serde_json::from_value::<ActivityIssueReport>(report).is_err());
+    }
+
+    #[tokio::test]
+    async fn activity_issue_report_requires_consent_before_network_request() {
+        let client = ConnectApiClient::new("https://api.wealthfolio.app", "test-token").unwrap();
+        let report = ActivityIssueReport {
+            consent: false,
+            provider: "snaptrade".to_string(),
+            account_id: "provider-account-id".to_string(),
+            issue_kind: "missing_activity".to_string(),
+            observed_type: None,
+            expected_type: None,
+            raw_type: None,
+            features: ActivityIssueFeatures {
+                amount_sign: None,
+                units_sign: None,
+                asset_class: None,
+                has_symbol: None,
+                description_terms: None,
+            },
+        };
+        let serialized = serde_json::to_value(&report).unwrap();
+        assert!(serialized.get("observedType").is_none());
+        assert!(serialized.get("rawType").is_none());
+        assert_eq!(serialized["features"], serde_json::json!({}));
+        assert!(client.report_activity_issue(&report).await.is_err());
     }
 
     #[test]
