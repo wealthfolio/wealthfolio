@@ -32,7 +32,7 @@ import { AmountDisplay, PriceDisplay, QuantityDisplay } from "@wealthfolio/ui";
 import { Skeleton } from "@wealthfolio/ui/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@wealthfolio/ui/components/ui/tooltip";
 import type { TFunction } from "i18next";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, type NavigateFunction } from "react-router-dom";
 import { HoldingsStatusSegmentedControl } from "./holdings-status-control";
@@ -158,6 +158,35 @@ export const HoldingsTable = ({
     return holding.localCurrency.toUpperCase() !== baseCurrency.toUpperCase();
   });
 
+  // DataTable renders each `cell` as a component, so a new column array remounts every cell.
+  const columns = useMemo(
+    () =>
+      getColumns(
+        t,
+        isBalanceHidden,
+        showConvertedValues,
+        formatting,
+        dateFormatting,
+        navigate,
+        onClassify,
+      ).filter((column) => {
+        if (!("id" in column) || column.id == null) return false;
+        return isClosedView
+          ? CLOSED_POSITION_COLUMN_IDS.has(column.id)
+          : !CLOSED_ONLY_COLUMN_IDS.has(column.id);
+      }),
+    [
+      t,
+      isBalanceHidden,
+      showConvertedValues,
+      formatting,
+      dateFormatting,
+      navigate,
+      onClassify,
+      isClosedView,
+    ],
+  );
+
   if (isLoading) {
     return (
       <div className="space-y-4 pt-6">
@@ -194,21 +223,6 @@ export const HoldingsTable = ({
       options: assetsTypes,
     },
   ];
-
-  const columns = getColumns(
-    t,
-    isBalanceHidden,
-    showConvertedValues,
-    formatting,
-    dateFormatting,
-    navigate,
-    onClassify,
-  ).filter((column) => {
-    if (!("id" in column) || column.id == null) return false;
-    return isClosedView
-      ? CLOSED_POSITION_COLUMN_IDS.has(column.id)
-      : !CLOSED_ONLY_COLUMN_IDS.has(column.id);
-  });
 
   return (
     <div className="flex h-full flex-col">
