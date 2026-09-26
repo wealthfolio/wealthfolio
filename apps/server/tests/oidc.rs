@@ -61,6 +61,7 @@ async fn spawn_mock_idp() -> String {
 }
 
 fn set_oidc_env(issuer: &str, db_path: std::path::PathBuf) {
+    std::env::set_var("WF_DATA_DIR", "");
     std::env::set_var("WF_DB_PATH", db_path);
     std::env::remove_var("WF_AUTH_PASSWORD_HASH");
 

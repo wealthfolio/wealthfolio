@@ -362,7 +362,7 @@ pub fn run_profile_database_maintenance(
         std::env::var_os("WF_SECRET_KEY"),
         std::env::var_os("WF_SECRET_KEY_FILE"),
     )?;
-    let db_path = std::env::var("WF_DB_PATH").unwrap_or_else(|_| DEFAULT_DB_PATH.to_string());
+    let db_path = crate::config::database_path_from_env()?;
 
     let (db_path, database_key, _registry) =
         crate::profiles::offline_database(db_path, &raw_secret_key, profile)?;

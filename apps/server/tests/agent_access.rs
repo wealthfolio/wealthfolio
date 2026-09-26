@@ -41,6 +41,7 @@ async fn spawn_server(mcp_enabled: bool, audit_enabled: bool) -> TestServer {
     let tmp = tempfile::tempdir().unwrap();
     let router = {
         let _guard = ENV_LOCK.lock().await;
+        std::env::set_var("WF_DATA_DIR", "");
         std::env::set_var("WF_DB_PATH", tmp.path().join("test.db"));
         std::env::set_var("WF_SECRET_FILE", tmp.path().join("secrets.json"));
         let salt = SaltString::generate(&mut OsRng);

@@ -28,6 +28,8 @@ function loadDotenvFile(file) {
 
 // Load .env.web if present
 loadDotenvFile(".env.web");
+// Mask the desktop .env value when Rust loads dotenv; shell/.env.web values win.
+process.env.WF_DATA_DIR ??= "";
 
 // Set build target for web mode
 process.env.BUILD_TARGET = "web";

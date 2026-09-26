@@ -5,6 +5,7 @@ import { prepareE2eEnvContent } from "./prep-e2e.mjs";
 
 test("isolates the database, profile registry, vault, and addons between runs", () => {
   const original = [
+    "WF_DATA_DIR=./old-data",
     "WF_DB_PATH=./db/old.db",
     "WF_SECRET_FILE=./db/vault.bin",
     "WF_ADDONS_DIR=./addons",
@@ -21,6 +22,7 @@ test("isolates the database, profile registry, vault, and addons between runs", 
       .map((line) => line.split("=")),
   );
   assert.equal(values.WF_DB_PATH, join("/tmp/e2e-second", "app.db"));
+  assert.equal(values.WF_DATA_DIR, "/tmp/e2e-second");
   assert.equal(values.WF_SECRET_FILE, join("/tmp/e2e-second", "vault.bin"));
   assert.equal(values.WF_ADDONS_DIR, join("/tmp/e2e-second", "addons"));
   assert.equal(values.WF_LISTEN_ADDR, "127.0.0.1:8088");
@@ -28,4 +30,5 @@ test("isolates the database, profile registry, vault, and addons between runs", 
   assert.equal(values.WF_AUTH_PASSWORD_HASH, "");
   assert.ok(!second.includes("e2e-first"));
   assert.equal(second.match(/^WF_DB_PATH=/gm).length, 1);
+  assert.equal(second.match(/^WF_DATA_DIR=/gm).length, 1);
 });
