@@ -32,11 +32,11 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="wealthfolio" />
-
-
-
-
-
+                
+                
+                
+                
+                
             </intent-filter>
             <intent-filter android:autoVerify="true" >
                 <action android:name="android.intent.action.VIEW" />
@@ -46,10 +46,10 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="https" />
                 <data android:host="connect.wealthfolio.app" />
-
-
+                
+                
                 <data android:pathPrefix="/deeplink" />
-
+                
             </intent-filter>
             <intent-filter android:autoVerify="true" >
                 <action android:name="android.intent.action.VIEW" />
@@ -59,10 +59,10 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="https" />
                 <data android:host="connect-staging.wealthfolio.app" />
-
-
+                
+                
                 <data android:pathPrefix="/deeplink" />
-
+                
             </intent-filter>
             <!-- DEEP LINK PLUGIN. AUTO-GENERATED. DO NOT REMOVE. -->
         </activity>
