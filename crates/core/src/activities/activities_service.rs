@@ -765,11 +765,31 @@ impl ActivityService {
         Ok(())
     }
 
+    /// A create whose asset only names the account's cash books cash: drop the
+    /// asset, keeping the symbol's currency when the row states none.
+    fn drop_cash_symbol_asset(activity: &mut NewActivity) {
+        if !Self::asset_is_only_a_cash_symbol(
+            activity.asset.as_ref(),
+            &activity.activity_type,
+            activity.subtype.as_deref(),
+        ) {
+            return;
+        }
+        if activity.currency.trim().is_empty() {
+            if let Some(symbol) = activity.get_symbol_code().map(str::trim) {
+                // is_cash_symbol guarantees a trailing 3-letter ASCII code.
+                activity.currency = symbol[symbol.len() - 3..].to_uppercase();
+            }
+        }
+        activity.asset = None;
+    }
+
     fn normalize_activity_for_preparation(mut activity: NewActivity) -> NewActivity {
         activity.subtype = NewActivity::canonicalize_subtype_for_activity(
             &activity.activity_type,
             activity.subtype.as_deref(),
         );
+        Self::drop_cash_symbol_asset(&mut activity);
         Self::normalize_new_activity_economic_signs(&mut activity);
         activity
     }
@@ -820,6 +840,27 @@ impl ActivityService {
         } else {
             classify_import_activity(activity_type, symbol, quantity, unit_price)
         }
+    }
+
+    /// Whether a submitted asset merely names the account's cash: a reserved
+    /// cash symbol (`$CASH-USD`, `CASH:USD`, …) on an activity type that needs
+    /// no security. Such a row books cash; resolving the symbol as a ticker
+    /// minted a "$CASH" security for it instead, which a quote provider then
+    /// tried to price and which made a transfer leg book no cash (#1335).
+    fn asset_is_only_a_cash_symbol(
+        asset: Option<&AssetResolutionInput>,
+        activity_type: &str,
+        subtype: Option<&str>,
+    ) -> bool {
+        let Some(asset) = asset else {
+            return false;
+        };
+        fn non_empty(value: Option<&str>) -> Option<&str> {
+            value.map(str::trim).filter(|v| !v.is_empty())
+        }
+        let names_cash = non_empty(asset.symbol.as_deref()).is_some_and(is_cash_symbol)
+            && non_empty(asset.id.as_deref()).is_none_or(is_cash_symbol);
+        names_cash && !Self::requires_asset_identity(activity_type, subtype)
     }
 
     fn requires_asset_identity(activity_type: &str, subtype: Option<&str>) -> bool {
@@ -2560,6 +2601,7 @@ impl ActivityService {
         Self::normalize_new_activity_economic_signs(&mut activity);
         let account: Account = self.account_service.get_account(&activity.account_id)?;
         Self::validate_activity_allowed_for_account(&activity.activity_type, &account)?;
+        Self::drop_cash_symbol_asset(&mut activity);
         let base_ccy = self.account_service.get_base_currency().unwrap_or_default();
         let account_currency = resolve_currency(&[&account.currency, &base_ccy]);
 
@@ -3027,6 +3069,16 @@ impl ActivityService {
         let base_ccy = self.account_service.get_base_currency().unwrap_or_default();
         let account_currency = resolve_currency(&[&account.currency, &base_ccy]);
         let currency = resolve_currency(&[&activity.currency, &account_currency]);
+
+        // On an update, "no asset" has to be said explicitly: an omitted asset
+        // keeps the stored one, which may be the minted "$CASH" security.
+        if Self::asset_is_only_a_cash_symbol(
+            activity.asset.as_ref(),
+            &activity.activity_type,
+            activity.subtype.as_deref(),
+        ) {
+            activity.asset = Some(AssetResolutionInput::default());
+        }
 
         if activity.asset.as_ref().is_some_and(|asset| {
             !asset.is_empty()

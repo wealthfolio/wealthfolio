@@ -4781,6 +4781,124 @@ mod tests {
             .contains("BUY activities are not supported for credit card accounts"));
     }
 
+    /// The reserved cash symbol names the account's cash, not a security
+    /// (#1335). Sent through the bulk endpoint as `{ symbol: "$CASH-USD" }`, it
+    /// used to be parsed as a ticker: every row got a minted "$CASH" asset,
+    /// which a quote provider then tried to price, and a TRANSFER leg carrying
+    /// it booked no cash and could not be paired.
+    #[tokio::test]
+    async fn bulk_create_treats_the_cash_symbol_as_cash_for_every_cash_type() {
+        let account_service = Arc::new(MockAccountService::new());
+        let mut bank = create_test_account("bank-1", "USD");
+        bank.account_type = "CASH".to_string();
+        account_service.add_account(bank);
+        let asset_service = Arc::new(MockAssetService::new());
+        let activity_service = ActivityService::new(
+            Arc::new(MockActivityRepository::new()),
+            account_service,
+            asset_service.clone(),
+            Arc::new(MockFxService::new()),
+            Arc::new(MockQuoteService),
+        );
+
+        let types = [
+            "DEPOSIT",
+            "WITHDRAWAL",
+            "TRANSFER_IN",
+            "TRANSFER_OUT",
+            "CREDIT",
+            "FEE",
+            "INTEREST",
+        ];
+        let creates = types
+            .iter()
+            .map(|t| {
+                let mut create = create_test_cash_create(&format!("row-{t}"), "bank-1", t, "USD");
+                create.asset = Some(AssetResolutionInput {
+                    symbol: Some("$CASH-USD".to_string()),
+                    ..Default::default()
+                });
+                create
+            })
+            .collect();
+        let result = activity_service
+            .bulk_mutate_activities(ActivityBulkMutationRequest {
+                creates,
+                updates: vec![],
+                delete_ids: vec![],
+            })
+            .await
+            .expect("bulk create should succeed");
+
+        assert!(
+            result.errors.is_empty(),
+            "unexpected errors: {:?}",
+            result.errors
+        );
+        assert_eq!(result.created.len(), types.len());
+        for activity in &result.created {
+            assert_eq!(
+                activity.asset_id, None,
+                "{} should book cash, not a security",
+                activity.activity_type
+            );
+        }
+        assert!(
+            asset_service.get_assets().unwrap().is_empty(),
+            "no asset should be minted for the cash symbol"
+        );
+    }
+
+    /// The reported case (#1335): a transfer pair sent with the cash symbol
+    /// and a shared group keeps the group, because both legs are cash.
+    #[tokio::test]
+    async fn bulk_create_keeps_the_group_on_a_cash_symbol_transfer_pair() {
+        let account_service = Arc::new(MockAccountService::new());
+        for id in ["bank-a", "bank-b"] {
+            let mut account = create_test_account(id, "USD");
+            account.account_type = "CASH".to_string();
+            account_service.add_account(account);
+        }
+        let activity_service = ActivityService::new(
+            Arc::new(MockActivityRepository::new()),
+            account_service,
+            Arc::new(MockAssetService::new()),
+            Arc::new(MockFxService::new()),
+            Arc::new(MockQuoteService),
+        );
+        let leg = |id: &str, account: &str, activity_type: &str| {
+            let mut create = create_test_cash_create(id, account, activity_type, "USD");
+            create.asset = Some(AssetResolutionInput {
+                symbol: Some("$CASH-USD".to_string()),
+                ..Default::default()
+            });
+            create.source_group_id = Some("grp-1".to_string());
+            create
+        };
+
+        let result = activity_service
+            .bulk_mutate_activities(ActivityBulkMutationRequest {
+                creates: vec![
+                    leg("out", "bank-a", "TRANSFER_OUT"),
+                    leg("in", "bank-b", "TRANSFER_IN"),
+                ],
+                updates: vec![],
+                delete_ids: vec![],
+            })
+            .await
+            .expect("bulk create should succeed");
+
+        assert!(
+            result.errors.is_empty(),
+            "unexpected errors: {:?}",
+            result.errors
+        );
+        for activity in &result.created {
+            assert_eq!(activity.asset_id, None);
+            assert_eq!(activity.source_group_id.as_deref(), Some("grp-1"));
+        }
+    }
+
     /// Cash-only create for the mixed-account bulk tests below. `currency` is
     /// passed through verbatim so a test can leave it empty and observe which
     /// account currency preparation falls back to.
@@ -5695,6 +5813,51 @@ mod tests {
             .await
             .expect_err("BUY must reject an explicit asset clear");
         assert!(error.to_string().contains("asset_id or symbol"));
+    }
+
+    /// An update that names the cash symbol clears a stored security rather
+    /// than keeping it: the repair path for rows already written with a minted
+    /// "$CASH" asset (#1335), and the reason an omitted asset is not enough.
+    #[tokio::test]
+    async fn test_update_with_cash_symbol_clears_a_stored_cash_security() {
+        let account_service = Arc::new(MockAccountService::new());
+        let activity_repository = Arc::new(MockActivityRepository::new());
+        account_service.add_account(create_test_account("acc-1", "USD"));
+
+        let mut existing = create_stored_activity("withdrawal-1", "acc-1", Some("minted-cash"));
+        existing.activity_type = "WITHDRAWAL".to_string();
+        existing.quantity = None;
+        existing.unit_price = None;
+        existing.amount = Some(dec!(25));
+        activity_repository.add_activity(existing);
+
+        let activity_service = ActivityService::new(
+            activity_repository,
+            account_service,
+            Arc::new(MockAssetService::new()),
+            Arc::new(MockFxService::new()),
+            Arc::new(MockQuoteService),
+        );
+
+        let mut update = create_test_activity_update(
+            "withdrawal-1",
+            "acc-1",
+            Some(AssetResolutionInput {
+                symbol: Some("$CASH-USD".to_string()),
+                ..Default::default()
+            }),
+            "USD",
+        );
+        update.activity_type = "WITHDRAWAL".to_string();
+        update.quantity = Some(None);
+        update.unit_price = Some(None);
+        update.amount = Some(Some(dec!(25)));
+
+        let updated = activity_service
+            .update_activity(update)
+            .await
+            .expect("a cash-symbol update should succeed");
+        assert_eq!(updated.asset_id, None);
     }
 
     #[tokio::test]
