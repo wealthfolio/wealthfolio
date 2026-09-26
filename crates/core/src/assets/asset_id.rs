@@ -224,7 +224,7 @@ mod tests {
 
         let (symbol, mic) = parse_symbol_with_exchange_suffix("vwrpl.xc");
         assert_eq!(symbol, "vwrpl");
-        assert_eq!(mic, Some("CXE"));
+        assert_eq!(mic, Some("BCXE"));
 
         let (symbol, mic) = parse_symbol_with_exchange_suffix("AAPL");
         assert_eq!(symbol, "AAPL");
