@@ -8,6 +8,10 @@ and this project adheres to
 
 ### Added
 
+- `PortfolioAPI.getNetWorth(date?)` returns net worth as a balance sheet. It
+  covers every account type, so it is where addons read credit card balances
+  (`getLatestValuations()` covers holdings accounts only).
+
 - `NetworkRequest.timeoutSecs` for longer-running addon HTTP requests. Defaults
   to 10 seconds; positive integer values are capped server-side at 120 seconds.
 
@@ -34,6 +38,12 @@ and this project adheres to
   [Addon Localization guide](../../docs/addons/addon-localization.md).
 - Optional `status` and `needsReview` fields on `ActivityCreate` and
   `ActivityUpdate`.
+
+### Deprecated
+
+- `Account.balance` is now optional and deprecated. The backend never populated
+  it, so it was always `undefined` at runtime despite being typed `number`. Use
+  `getLatestValuations()` or `getNetWorth()`.
 
 ### Changed
 

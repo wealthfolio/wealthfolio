@@ -715,6 +715,28 @@ to see these APIs in action.
 
 ---
 
+## Portfolio API: net worth
+
+#### `getNetWorth(date?: string): Promise<NetWorthResponse>`
+
+Net worth as a balance sheet, as of `date` (YYYY-MM-DD, default today). It
+covers every account type, which makes it the place to read a credit card's
+balance: `getLatestValuations()` covers holdings accounts only.
+
+Every amount is a decimal string in the response's base `currency`. An
+account-level item carries `assetId` `CASH:<accountId>`,
+`INVESTMENTS:<accountId>`, or `CREDIT_CARD:<accountId>` for what a card owes. A
+card in credit appears as `CASH:<accountId>` instead. Requires the `portfolio`
+permission.
+
+```typescript
+const sheet = await ctx.api.portfolio.getNetWorth();
+const owed = sheet.liabilities.breakdown.find(
+  (item) => item.assetId === `CREDIT_CARD:${cardAccountId}`,
+);
+console.log(owed?.value ?? "0", sheet.currency);
+```
+
 ## Performance API
 
 Calculate portfolio and account performance metrics with historical analysis.
