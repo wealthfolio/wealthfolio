@@ -18,6 +18,7 @@ Key environment variables
 - `WF_CORS_ALLOW_ORIGINS`: Comma-separated list of allowed origins for CORS. Example: `http://localhost:1420`.
 - `WF_REQUEST_TIMEOUT_MS`: Request timeout in milliseconds. Default `300000`.
 - `WF_STATIC_DIR`: Directory to serve static assets from (the web build output). Default `dist`.
+- `WF_WEB_PUSH_CONTACT`: Contact sent to push services with each notification (the VAPID `sub` claim), as a `mailto:` or `https:` URL. Default `https://github.com/wealthfolio/wealthfolio`. Push notifications require HTTPS (or `localhost`).
 - `WF_SECRET_KEY`: 32-byte key (required unless `WF_SECRET_KEY_FILE` is set) used to encrypt secrets at rest and sign JWTs. Must decode to exactly 32 bytes.
   Can be provided as:
   - Base64-encoded string (recommended): Generate with `openssl rand -base64 32` or `head -c 32 /dev/urandom | base64`

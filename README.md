@@ -310,6 +310,9 @@ All configuration is done via environment variables in `.env.web`.
   (default: `*`). **Required when auth is enabled** — wildcard `*` is rejected.
   - Example: `https://wealthfolio.example.com`
 - `WF_REQUEST_TIMEOUT_MS` - Request timeout in milliseconds (default: `300000`)
+- `WF_WEB_PUSH_CONTACT` - Contact sent to push services with notifications, as a
+  `mailto:` or `https:` URL (default:
+  `https://github.com/wealthfolio/wealthfolio`)
 - `WF_STATIC_DIR` - Directory for serving static frontend assets (default:
   `dist`)
 - `WF_SECRET_KEY` - 32-byte key used for secrets encryption and JWT signing

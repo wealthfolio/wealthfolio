@@ -414,6 +414,11 @@ export const COMMANDS: CommandMap = {
   delete_agent_access_token: { method: "DELETE", path: "/agent-access/tokens" },
   list_agent_audit_log: { method: "GET", path: "/agent-access/audit" },
   purge_agent_audit_log: { method: "POST", path: "/agent-access/audit/purge" },
+  // Web Push notifications (self-hosted server only)
+  get_web_push_public_key: { method: "GET", path: "/notifications/push/public-key" },
+  subscribe_web_push: { method: "POST", path: "/notifications/push/subscriptions" },
+  unsubscribe_web_push: { method: "POST", path: "/notifications/push/unsubscribe" },
+  send_notification: { method: "POST", path: "/notifications/send" },
 };
 
 /**
@@ -1764,6 +1769,12 @@ export const invoke = async <T>(command: string, payload?: Record<string, unknow
       break;
     }
     case "complete_pairing_with_transfer": {
+      body = JSON.stringify(payload);
+      break;
+    }
+    case "subscribe_web_push":
+    case "unsubscribe_web_push":
+    case "send_notification": {
       body = JSON.stringify(payload);
       break;
     }

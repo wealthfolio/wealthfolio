@@ -52,6 +52,7 @@ mod holdings;
 mod limits;
 mod market_data;
 mod net_worth;
+mod notifications;
 mod performance;
 pub(crate) mod portable_backups;
 mod portfolio;
@@ -167,6 +168,7 @@ fn app_router_with_profiles(
         .merge(accounts::router())
         .merge(portfolios::router())
         .merge(settings::router())
+        .merge(notifications::router())
         .merge(data_exports::router())
         .merge(database_backups::router())
         .merge(portfolio::router())

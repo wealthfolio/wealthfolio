@@ -14,6 +14,7 @@ pub mod oidc;
 pub mod scheduler;
 mod secrets;
 pub mod static_files;
+pub mod web_push;
 
 pub use ai_environment::ServerAiEnvironment;
 pub use main_lib::{

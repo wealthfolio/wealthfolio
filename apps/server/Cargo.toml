@@ -45,6 +45,9 @@ utoipa = { version = "4", features = ["axum_extras", "uuid", "chrono"] }
 serde_with = "3"
 serde_urlencoded = "0.7"
 base64 = "0.21"
+# No default features: VAPID signing uses the p256 crate directly (see web_push.rs).
+web-push-native = { version = "0.5", default-features = false }
+p256 = { version = "0.13", features = ["ecdsa"] }
 argon2 = { version = "0.5", features = ["std"] }
 jsonwebtoken = { version = "10", features = ["aws_lc_rs"] }
 chacha20poly1305 = { version = "0.10", features = ["std"] }
