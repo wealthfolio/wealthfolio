@@ -18,6 +18,9 @@ vi.mock("@wealthfolio/ui/components/ui/data-table", () => ({
       id?: string;
       accessorFn?: (row: Holding, index: number) => unknown;
       cell?: (context: { row: { original: Holding } }) => ReactNode;
+      footer?: (context: {
+        table: { getFilteredRowModel: () => { rows: { original: Holding }[] } };
+      }) => ReactNode;
       meta?: { label?: string };
       filterFn?: (
         row: { getValue: (id: string) => unknown },
@@ -51,6 +54,13 @@ vi.mock("@wealthfolio/ui/components/ui/data-table", () => ({
       holdingTypeColumn?.filterFn?.({ getValue: () => getValue("holdingType") }, "holdingType", [
         value,
       ]) ?? false;
+    const renderFooter = (id: string) => {
+      const footer = columns.find((column) => column.id === id)?.footer;
+      if (!footer) return null;
+      return footer({
+        table: { getFilteredRowModel: () => ({ rows: data.map((original) => ({ original })) }) },
+      });
+    };
 
     return (
       <div>
@@ -70,6 +80,9 @@ vi.mock("@wealthfolio/ui/components/ui/data-table", () => ({
           {matchesHoldingType("FUND_MUTUAL") ? "true" : "false"}
         </div>
         <div data-testid="cash-pinning">{String(data[0] && pinRowsToTop?.(data[0]))}</div>
+        <div data-testid="market-value-total">{renderFooter("marketValue")}</div>
+        <div data-testid="total-pnl-total">{renderFooter("totalPnl")}</div>
+        <div data-testid="symbol-footer">{renderFooter("symbol")}</div>
       </div>
     );
   },
@@ -206,6 +219,87 @@ describe("HoldingsTable columns", () => {
     expect(screen.getByTestId("holding-type-cell")).toHaveTextContent("Mutual Fund");
     expect(screen.getByTestId("parent-type-match")).toHaveTextContent("false");
     expect(screen.getByTestId("exact-type-match")).toHaveTextContent("true");
+  });
+
+  it("totals market value and P&L in base currency across mixed-currency holdings", () => {
+    const usHolding: Holding = {
+      id: "us-stock",
+      accountId: "account-1",
+      holdingType: HoldingType.SECURITY,
+      quantity: 10,
+      localCurrency: "USD",
+      baseCurrency: "USD",
+      marketValue: { local: 100, base: 100 },
+      totalGain: { local: 20, base: 20 },
+      weight: 0.25,
+      asOfDate: "2026-08-20",
+    };
+    const euHolding: Holding = {
+      id: "eu-stock",
+      accountId: "account-1",
+      holdingType: HoldingType.SECURITY,
+      quantity: 5,
+      localCurrency: "EUR",
+      baseCurrency: "USD",
+      fxRate: 1.1,
+      // Foreign holding: local is EUR, base is the already-converted USD value.
+      marketValue: { local: 200, base: 220 },
+      totalGain: { local: 30, base: 33 },
+      weight: 0.55,
+      asOfDate: "2026-08-20",
+    };
+
+    render(
+      <HoldingsTable
+        holdings={[usHolding, euHolding]}
+        isLoading={false}
+        visibilityFilters={["open"]}
+      />,
+    );
+
+    // 100 + 220: the EUR holding counts at its base value, not its local 200.
+    expect(screen.getByTestId("market-value-total")).toHaveTextContent("320");
+    expect(screen.getByTestId("total-pnl-total")).toHaveTextContent("53");
+    expect(screen.getByTestId("symbol-footer")).toHaveTextContent("Total");
+  });
+
+  it("excludes closed positions from the market value total", () => {
+    const openHolding: Holding = {
+      id: "open-stock",
+      accountId: "account-1",
+      holdingType: HoldingType.SECURITY,
+      quantity: 10,
+      localCurrency: "USD",
+      baseCurrency: "USD",
+      marketValue: { local: 100, base: 100 },
+      weight: 1,
+      asOfDate: "2026-08-20",
+    };
+    const closedHolding: Holding = {
+      id: "closed-stock",
+      accountId: "account-1",
+      holdingType: HoldingType.SECURITY,
+      isClosed: true,
+      quantity: 0,
+      localCurrency: "USD",
+      baseCurrency: "USD",
+      marketValue: { local: 999, base: 999 },
+      weight: 0,
+      asOfDate: "2026-08-20",
+    };
+
+    render(
+      <HoldingsTable
+        holdings={[openHolding, closedHolding]}
+        isLoading={false}
+        visibilityFilters={["open"]}
+      />,
+    );
+
+    const total = screen.getByTestId("market-value-total").textContent ?? "";
+    expect(total).toContain("100");
+    expect(total).not.toContain("999");
+    expect(total).not.toContain("1,099");
   });
 
   it("does not pin cash rows above an explicit column sort", () => {
