@@ -113,7 +113,7 @@ impl ExchangeMap {
     /// resolution.
     ///
     /// Currency is the discriminator because it is the only signal the catalog
-    /// carries, and it is exact for all 75 venues: the six that write bare
+    /// carries, and it is exact for all 76 venues: the six that write bare
     /// tickers (`XNYS`, `XNAS`, `XASE`, `ARCX`, `BATS`, `OTCM`) are precisely
     /// the six the registry prices in USD.
     fn empty_suffix_is_conventional(&self, mic: &Mic, provider: &ProviderId) -> bool {

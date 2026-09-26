@@ -383,6 +383,14 @@
       "yahoo": { "suffix": ".WA", "codes": ["WSE"] }
     },
     {
+      "mic": "MISX",
+      "name": "MOEX",
+      "long_name": "Moscow Exchange",
+      "currency": "RUB",
+      "timezone": "Europe/Moscow",
+      "close": [18, 50]
+    },
+    {
       "mic": "XPRA",
       "name": "Prague",
       "long_name": "Prague Stock Exchange",
@@ -727,6 +735,7 @@
     "DKK": ["XCSE"],
     "NOK": ["XOSL"],
     "PLN": ["XWAR"],
+    "RUB": ["MISX"],
     "ILS": ["XTAE"],
     "ILA": ["XTAE"],
     "ZAR": ["XJSE"],
