@@ -15,9 +15,9 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  MoneyInput,
   useDateFormatting,
 } from "@wealthfolio/ui";
-import { Input } from "@wealthfolio/ui/components/ui/input";
 import { motion } from "motion/react";
 import { useEffect, useId, useRef, useState } from "react";
 import { useFormContext, type FieldPath, type FieldValues } from "react-hook-form";
@@ -279,14 +279,10 @@ export function OptionContractFields<TFieldValues extends FieldValues = FieldVal
             <FormItem>
               <FormLabel>{t("activity:form.strike_price")}</FormLabel>
               <FormControl>
-                <Input
-                  type="number"
-                  step="0.01"
+                <MoneyInput
                   {...field}
-                  value={(field.value as number) ?? ""}
-                  onChange={(e) =>
-                    field.onChange(e.target.value ? Number(e.target.value) : undefined)
-                  }
+                  value={field.value as number | undefined}
+                  maxDecimalPlaces={2}
                   className="h-10"
                   aria-label={t("activity:form.strike_price")}
                 />
