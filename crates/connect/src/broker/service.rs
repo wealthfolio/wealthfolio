@@ -739,12 +739,13 @@ impl BrokerSyncServiceTrait for BrokerSyncService {
         }
 
         debug!(
-            "Upserted {} activities for account {} ({} assets created, {} new asset IDs, {} need review)",
+            "Upserted {} activities for account {} ({} assets created, {} new asset IDs, {} need review, {} suppressed as user-deleted)",
             activities_count,
             account_id,
             assets_created,
             new_asset_ids.len(),
-            needs_review_count
+            needs_review_count,
+            bulk_result.suppressed
         );
 
         Ok((

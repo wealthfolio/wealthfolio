@@ -200,6 +200,17 @@ export function getActivityDisplayName(activity: Activity): string {
   return (ACTIVITY_TYPE_DISPLAY_NAMES as Record<string, string>)[effectiveType] || effectiveType;
 }
 
+/**
+ * A broker-sourced activity the user deleted. The next sync suppresses it
+ * instead of bringing it back, until it is restored.
+ */
+export interface SuppressedActivity {
+  /** Id of the deletion record, not of the activity — the activity is gone. */
+  id: string;
+  deletedAt: string;
+  activity: Activity;
+}
+
 export interface ActivityDetails {
   id: string;
   activityType: ActivityType;
