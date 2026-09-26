@@ -298,6 +298,148 @@ fn is_broker_bond(code: Option<&str>) -> bool {
     )
 }
 
+/// Metadata key marking which leg of a paired reverse split an activity is.
+/// Set here at mapping time, read later by `resolve_reverse_split_pairs`
+/// (`crates/connect/src/broker/corporate_actions.rs`) once both legs' real
+/// quantities are known, so the real ratio can be derived without redoing
+/// the resolved/unresolved-symbol heuristic from scratch.
+pub(crate) const METADATA_CORPORATE_ACTION_LEG: &str = "corporate_action_leg";
+pub(crate) const CORPORATE_ACTION_LEG_FROM: &str = "reverse_split_from";
+pub(crate) const CORPORATE_ACTION_LEG_TO: &str = "reverse_split_to";
+
+/// Outcome of recovering a real classification from `description` for a
+/// broker row the API only reported generically (see
+/// `reclassify_unknown_corporate_action`).
+struct ReclassifiedCorporateAction {
+    activity_type: &'static str,
+    /// Set only when the real value can be determined (or safely faked as a
+    /// no-op) from this single activity alone.
+    amount_override: Option<Decimal>,
+    /// Set only for reverse-split legs, so a later batch pass can pair them.
+    corporate_action_leg: Option<&'static str>,
+}
+
+/// Recovers a real classification from `description` when the broker's own
+/// `activity_type` is `"UNKNOWN"` and `raw_type` is one of the generic
+/// values known to carry no real classification (`XFER`, `CASH`). Gated on
+/// both so this can't misfire on activity types the broker already
+/// classified correctly.
+///
+/// Mergers and stock splits are reported this way by at least one broker
+/// (SnapTrade, via Edward Jones) with a fixed, recognizable `description`
+/// wording even though the machine-readable type is missing. A departing
+/// leg (security being retired/merged away) is reported without a resolved
+/// symbol type; the arriving leg resolves normally -- this is the only
+/// signal available to tell the two apart, and is reused for both merger
+/// direction and reverse-split leg role.
+fn reclassify_unknown_corporate_action(
+    activity_type: &str,
+    raw_type: Option<&str>,
+    description: Option<&str>,
+    symbol_type_code: Option<&str>,
+) -> Option<ReclassifiedCorporateAction> {
+    if activity_type != "UNKNOWN" {
+        return None;
+    }
+    let raw_type = raw_type.map(str::trim).map(str::to_uppercase);
+    if !matches!(raw_type.as_deref(), Some("XFER") | Some("CASH")) {
+        return None;
+    }
+    let description = description?.trim().to_uppercase();
+    let is_unresolved_leg = symbol_type_code.map(str::trim).unwrap_or("").is_empty();
+
+    if description.ends_with("RESULT OF MERGER")
+        || description.ends_with("RESULT OF REORGANIZATION")
+    {
+        let activity_type = if is_unresolved_leg {
+            activities::ACTIVITY_TYPE_TRANSFER_OUT
+        } else {
+            activities::ACTIVITY_TYPE_TRANSFER_IN
+        };
+        return Some(ReclassifiedCorporateAction {
+            activity_type,
+            amount_override: None,
+            corporate_action_leg: None,
+        });
+    }
+
+    if description.ends_with("RESULT OF REVERSE SPLIT") {
+        return Some(if is_unresolved_leg {
+            ReclassifiedCorporateAction {
+                activity_type: activities::ACTIVITY_TYPE_SPLIT,
+                // The real ratio can only be recovered by comparing this
+                // leg's quantity to its TO-leg partner's, which happens
+                // later in resolve_reverse_split_pairs once both legs'
+                // assets are resolved. Giving this leg the same real ratio
+                // here would double-apply the split if both legs are ever
+                // SPLIT-typed (apply_split has no idempotency/pairing
+                // check) -- 1.0 is a deliberate no-op: it satisfies
+                // has_valid_split_ratio() and leaves apply_split's
+                // cumulative ratio unchanged if ever applied to this leg.
+                amount_override: Some(Decimal::ONE),
+                corporate_action_leg: Some(CORPORATE_ACTION_LEG_FROM),
+            }
+        } else {
+            ReclassifiedCorporateAction {
+                activity_type: activities::ACTIVITY_TYPE_SPLIT,
+                // Left for resolve_reverse_split_pairs to fill in once the
+                // FROM leg's quantity is known.
+                amount_override: None,
+                corporate_action_leg: Some(CORPORATE_ACTION_LEG_TO),
+            }
+        });
+    }
+
+    if let Some(ratio) = parse_forward_split_ratio(&description) {
+        return Some(ReclassifiedCorporateAction {
+            activity_type: activities::ACTIVITY_TYPE_SPLIT,
+            // Forward splits are single-leg (no FROM/TO pairing, no
+            // double-apply risk), and the real ratio is embedded directly
+            // in the description, so it can be applied immediately.
+            amount_override: Some(ratio),
+            corporate_action_leg: None,
+        });
+    }
+
+    None
+}
+
+/// Parses the real split ratio out of `"...STOCK SPLIT ON <N> SHARES AT <X>
+/// PER SHARE"` (`<N>` is not used; `<X>` is the ratio, e.g. `1` or `.6`).
+fn parse_forward_split_ratio(description: &str) -> Option<Decimal> {
+    if !description.contains("STOCK SPLIT ON") {
+        return None;
+    }
+    let after_at = description.split("SHARES AT").last()?.trim();
+    let ratio_text = after_at.strip_suffix("PER SHARE")?.trim();
+    let normalized = match ratio_text.strip_prefix('.') {
+        Some(rest) => format!("0.{rest}"),
+        None => ratio_text.to_string(),
+    };
+    Decimal::from_str_exact(&normalized)
+        .ok()
+        .filter(|ratio| ratio.is_sign_positive() && !ratio.is_zero())
+}
+
+/// Merges a single top-level marker key into a `metadata` JSON blob,
+/// following the same parse-or-default-to-object idiom as
+/// `set_transfer_metadata` in `activities_service.rs`.
+fn merge_corporate_action_leg_metadata(metadata: Option<String>, leg: &str) -> Option<String> {
+    let mut value = metadata
+        .and_then(|m| serde_json::from_str::<serde_json::Value>(&m).ok())
+        .unwrap_or_else(|| serde_json::json!({}));
+    if !value.is_object() {
+        value = serde_json::json!({});
+    }
+    if let Some(object) = value.as_object_mut() {
+        object.insert(
+            METADATA_CORPORATE_ACTION_LEG.to_string(),
+            serde_json::json!(leg),
+        );
+    }
+    Some(value.to_string())
+}
+
 /// The instrument identity a broker payload names: its ticker and its venue.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NormalizedBrokerSymbol {
@@ -420,6 +562,24 @@ pub fn map_broker_activity(
     let (activity_type, activity_type_position_intent) =
         fold_position_intent_activity_type(raw_activity_type);
 
+    // Extract symbol reference early: the description-based reclassification
+    // below needs the resolved/unresolved distinction before
+    // is_never_asset_type/is_cash_like gate on activity_type further down.
+    let symbol_ref = activity.symbol.as_ref();
+    let symbol_type_ref = symbol_ref.and_then(|s| s.symbol_type.as_ref());
+    let symbol_type_code = symbol_type_ref.and_then(|t| t.code.as_deref());
+
+    let reclassified_corporate_action = reclassify_unknown_corporate_action(
+        &activity_type,
+        activity.raw_type.as_deref(),
+        activity.description.as_deref(),
+        symbol_type_code,
+    );
+    let activity_type = reclassified_corporate_action
+        .as_ref()
+        .map(|r| r.activity_type.to_string())
+        .unwrap_or(activity_type);
+
     let option_leg_type = activity
         .option_type
         .as_ref()
@@ -439,6 +599,13 @@ pub fn map_broker_activity(
 
     // Build metadata JSON
     let metadata = build_activity_metadata(activity);
+    let metadata = match reclassified_corporate_action
+        .as_ref()
+        .and_then(|r| r.corporate_action_leg)
+    {
+        Some(leg) => merge_corporate_action_leg_metadata(metadata, leg),
+        None => metadata,
+    };
 
     let is_never_asset_type = activities::NEVER_ASSET_TYPES.contains(&activity_type.as_str());
 
@@ -454,10 +621,6 @@ pub fn map_broker_activity(
             | activities::ACTIVITY_TYPE_CREDIT
     );
 
-    // Extract symbol reference for convenience
-    let symbol_ref = activity.symbol.as_ref();
-    let symbol_type_ref = symbol_ref.and_then(|s| s.symbol_type.as_ref());
-    let symbol_type_code = symbol_type_ref.and_then(|t| t.code.as_deref());
     let is_crypto = is_broker_crypto(symbol_type_code);
     let is_bond = is_broker_bond(symbol_type_code);
 
@@ -579,6 +742,10 @@ pub fn map_broker_activity(
     // Preserve provider provenance: preparation derives a missing total only
     // after resolving the asset's multiplier and quote currency.
     let amount = activity.amount.and_then(Decimal::from_f64).map(|d| d.abs());
+    let amount = reclassified_corporate_action
+        .as_ref()
+        .and_then(|r| r.amount_override)
+        .or(amount);
     let is_trade = matches!(
         activity_type.as_str(),
         activities::ACTIVITY_TYPE_BUY | activities::ACTIVITY_TYPE_SELL
@@ -602,7 +769,14 @@ pub fn map_broker_activity(
         if get_normalization_rule(&currency_code).is_some() {
             let norm_price = unit_price.map(|p| normalize_amount(p, &currency_code).0);
             let norm_fee = fee.map(|f| normalize_amount(f, &currency_code).0);
-            let norm_amount = amount.map(|a| normalize_amount(a, &currency_code).0);
+            // A SPLIT's amount is a ratio, not a currency amount -- never
+            // rescale it. This matters now that reclassify_unknown_corporate_action
+            // can route rows through here as SPLIT for the first time.
+            let norm_amount = if activity_type == activities::ACTIVITY_TYPE_SPLIT {
+                amount
+            } else {
+                amount.map(|a| normalize_amount(a, &currency_code).0)
+            };
             let (_, norm_currency) = normalize_amount(Decimal::ZERO, &currency_code);
             (
                 norm_price,
@@ -1348,6 +1522,250 @@ mod tests {
         assert_eq!(
             mapped.asset.and_then(|s| s.symbol),
             Some("AAPL".to_string())
+        );
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // MERGER / reverse SPLIT / forward SPLIT events all arrive from the
+    // broker with a generic raw_type ("XFER" or "CASH") and get mapped to
+    // activity_type="UNKNOWN" upstream, even though `description`
+    // unambiguously identifies the real event ("RESULT OF MERGER", "RESULT
+    // OF REVERSE SPLIT", "STOCK SPLIT ON N SHARES AT X PER SHARE" -- public,
+    // standard corporate-action wording, not specific to any one account).
+    // reclassify_unknown_corporate_action() (above) is the description-based
+    // fallback that recovers the real classification for these.
+    //
+    // Each fixture's `description`, `units`, and `symbol` are preserved
+    // verbatim from a real UNKNOWN row seen from a live SnapTrade sync --
+    // that's public security-level/corporate-action data (company name,
+    // ticker, share count, split ratio), not account-identifying. The
+    // activity `id` and originating account are NOT reproduced (internal,
+    // non-public identifiers) -- fixtures below use synthetic ids instead.
+    // These tests assert the CORRECT classification/amount, which
+    // map_broker_activity() now produces.
+    // ─────────────────────────────────────────────────────────────────────
+
+    fn unknown_xfer_activity(
+        id: &str,
+        description: &str,
+        units: f64,
+        symbol: &str,
+        raw_symbol: &str,
+        symbol_type_code: &str,
+    ) -> AccountUniversalActivity {
+        AccountUniversalActivity {
+            id: Some(id.to_string()),
+            activity_type: Some("UNKNOWN".to_string()),
+            raw_type: Some("XFER".to_string()),
+            description: Some(description.to_string()),
+            units: Some(units),
+            amount: Some(0.0),
+            symbol: Some(AccountUniversalActivitySymbol {
+                symbol: Some(symbol.to_string()),
+                raw_symbol: Some(raw_symbol.to_string()),
+                symbol_type: Some(AccountUniversalActivitySymbolType {
+                    code: Some(symbol_type_code.to_string()),
+                    ..Default::default()
+                }),
+                currency: Some(AccountUniversalActivityCurrency {
+                    code: Some("USD".to_string()),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            }),
+            mapping_metadata: Some(MappingMetadata {
+                confidence: Some(0.5),
+                reasons: vec![
+                    "Unknown 'XFER' with units only — might be TRANSFER_OUT but needs user classification"
+                        .to_string(),
+                ],
+                ..Default::default()
+            }),
+            needs_review: true,
+            ..Default::default()
+        }
+    }
+
+    /// Based on a real UNKNOWN row (description/units/symbol preserved verbatim; account
+    /// and internal id are not, since those aren't public information). AvalonBay's own
+    /// OUT leg of an AvalonBay -> Vivmark Residential merger, still carrying the
+    /// unresolved bare CUSIP "053484101" as its raw symbol. Should map to TRANSFER_OUT
+    /// (matching Wealthfolio's own mapping_reasons guess, "might be TRANSFER_OUT") --
+    /// instead stays UNKNOWN today.
+    #[test]
+    fn test_map_broker_activity_merger_out_leg_should_map_to_transfer_out() {
+        let activity = unknown_xfer_activity(
+            "test-merger-out",
+            "AVALONBAY COMMUNITIES INC RESULT OF MERGER",
+            4.0,
+            "053484101",
+            "053484101",
+            "",
+        );
+
+        let mapped = map_test_activity(&activity);
+
+        assert_eq!(
+            mapped.activity_type,
+            activities::ACTIVITY_TYPE_TRANSFER_OUT,
+            "a 'RESULT OF MERGER' row should be classified TRANSFER_OUT, not left UNKNOWN"
+        );
+    }
+
+    /// Based on a real UNKNOWN row. The IN leg of the same merger, already resolved to
+    /// ticker VMRK (11 units). Should map to TRANSFER_IN -- instead stays UNKNOWN today.
+    #[test]
+    fn test_map_broker_activity_merger_in_leg_should_map_to_transfer_in() {
+        let activity = unknown_xfer_activity(
+            "test-merger-in",
+            "EQUITY RESIDENTIAL RESULT OF MERGER",
+            11.0,
+            "VMRK",
+            "VMRK",
+            "cs",
+        );
+
+        let mapped = map_test_activity(&activity);
+
+        assert_eq!(
+            mapped.activity_type,
+            activities::ACTIVITY_TYPE_TRANSFER_IN,
+            "a 'RESULT OF MERGER' row should be classified TRANSFER_IN, not left UNKNOWN"
+        );
+    }
+
+    /// Based on a real UNKNOWN row. Honeywell's own reverse-split FROM leg, still
+    /// carrying the unresolved bare CUSIP "438516106". Should map to SPLIT -- instead
+    /// stays UNKNOWN today.
+    ///
+    /// Also covers the "double SPLIT" corruption risk: `apply_split()`
+    /// (`crates/core/src/portfolio/snapshot/positions_model.rs`) is single-row and
+    /// non-idempotent (`lot.split_ratio = prior * split_ratio`), applied once per
+    /// SPLIT-typed activity with no matching/pairing concept at all. A reverse split's
+    /// two broker legs (FROM and TO, mirroring the two lines a statement prints) must
+    /// therefore never both end up SPLIT-typed with the real nonzero ratio -- that would
+    /// apply the ratio TWICE, compounding e.g. a real 1-for-2 reverse split into an
+    /// effective 1-for-4. So the FROM leg's own `amount` must be the deliberate no-op
+    /// `1.0` -- never the real ratio, and never the raw broker `amount` (`0.0` for this
+    /// row, which also fails Wealthfolio's own `has_valid_split_ratio()` outright).
+    #[test]
+    fn test_map_broker_activity_reverse_split_from_leg_should_map_to_split() {
+        let activity = unknown_xfer_activity(
+            "test-reverse-split-from",
+            "HONEYWELL INTL INC RESULT OF REVERSE SPLIT",
+            10.0,
+            "438516106",
+            "438516106",
+            "",
+        );
+
+        let mapped = map_test_activity(&activity);
+
+        assert_eq!(
+            mapped.activity_type,
+            activities::ACTIVITY_TYPE_SPLIT,
+            "a 'RESULT OF REVERSE SPLIT' row should be classified SPLIT, not left UNKNOWN"
+        );
+        assert_eq!(
+            mapped.amount,
+            Some(decimal("1")),
+            "the FROM leg of a reverse split must carry the deliberate no-op amount 1.0 \
+             -- never the raw broker amount (0.0, rejected outright by Wealthfolio's own \
+             SPLIT validation) and never the real nonzero ratio (which would double-apply \
+             the split if both legs are ever typed SPLIT)"
+        );
+    }
+
+    /// Based on a real UNKNOWN row. The same Honeywell reverse split's own TO leg,
+    /// already resolved to ticker HON (5 units -- a real 2-for-1 reverse split of the
+    /// FROM leg's 10). Should map to SPLIT with the real ratio (0.5) -- instead stays
+    /// UNKNOWN today, with no ratio derived at all (a second, deeper gap: even a fixed
+    /// activity_type still wouldn't derive `amount` from `description`, since
+    /// map_broker_activity() never parses it).
+    #[test]
+    fn test_map_broker_activity_reverse_split_to_leg_should_map_to_split() {
+        let activity = unknown_xfer_activity(
+            "test-reverse-split-to",
+            "HONEYWELL INTERNATIONAL INC COMMON STOCK RESULT OF REVERSE SPLIT",
+            5.0,
+            "HON",
+            "HON",
+            "cs",
+        );
+
+        let mapped = map_test_activity(&activity);
+
+        assert_eq!(
+            mapped.activity_type,
+            activities::ACTIVITY_TYPE_SPLIT,
+            "a 'RESULT OF REVERSE SPLIT' row should be classified SPLIT, not left UNKNOWN"
+        );
+    }
+
+    /// Based on a real UNKNOWN row. A forward stock split (Amphenol), reported with
+    /// raw_type "CASH" rather than "XFER" -- a different raw broker type from the
+    /// merger/reverse-split rows above, same end-state bug. "...STOCK SPLIT ON 6 SHARES
+    /// AT 1 PER SHARE" prints the real ratio (1) directly in the description. Should map
+    /// to SPLIT -- instead stays UNKNOWN today.
+    #[test]
+    fn test_map_broker_activity_forward_stock_split_should_map_to_split() {
+        let mut activity = unknown_xfer_activity(
+            "test-forward-split",
+            "AMPHENOL CORPORATION CLASS A COM STOCK SPLIT ON 6 SHARES AT 1 PER SHARE",
+            6.0,
+            "APH",
+            "APH",
+            "cs",
+        );
+        activity.raw_type = Some("CASH".to_string());
+        activity.mapping_metadata = Some(MappingMetadata {
+            confidence: Some(0.5),
+            reasons: vec![
+                "Unknown 'CASH' with units only — might be TRANSFER_IN but needs user classification"
+                    .to_string(),
+            ],
+            ..Default::default()
+        });
+
+        let mapped = map_test_activity(&activity);
+
+        assert_eq!(
+            mapped.activity_type,
+            activities::ACTIVITY_TYPE_SPLIT,
+            "a 'STOCK SPLIT ON N SHARES AT X PER SHARE' row should be classified SPLIT, not left UNKNOWN"
+        );
+    }
+
+    /// Based on a real UNKNOWN row. A forward stock split with a fractional ratio below 1
+    /// (Sumitomo Mitsui Trust ADR, ".6 PER SHARE") -- confirms the description-parsing
+    /// gap isn't limited to whole-number ratios. Should map to SPLIT -- instead stays
+    /// UNKNOWN today.
+    #[test]
+    fn test_map_broker_activity_forward_stock_split_with_fractional_ratio_should_map_to_split() {
+        let mut activity = unknown_xfer_activity(
+            "test-forward-split-fractional",
+            "***SUMITOMO MITSUI TRUST GROUP INC AMERICAN DEPOSITARY RECEIPTS SPONSORED STOCK SPLIT ON 68 SHARES AT .6 PER SHARE",
+            40.0,
+            "SUTNY",
+            "SUTNY",
+            "ad",
+        );
+        activity.raw_type = Some("CASH".to_string());
+        activity.mapping_metadata = Some(MappingMetadata {
+            confidence: Some(0.5),
+            reasons: vec![
+                "Unknown 'CASH' with units only — might be TRANSFER_IN but needs user classification"
+                    .to_string(),
+            ],
+            ..Default::default()
+        });
+
+        let mapped = map_test_activity(&activity);
+
+        assert_eq!(
+            mapped.activity_type,
+            activities::ACTIVITY_TYPE_SPLIT,
+            "a 'STOCK SPLIT ON N SHARES AT X PER SHARE' row should be classified SPLIT, not left UNKNOWN"
         );
     }
 }

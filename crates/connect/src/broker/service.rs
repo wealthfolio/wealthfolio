@@ -4,6 +4,7 @@ use async_trait::async_trait;
 use log::{debug, info, warn};
 use std::sync::{Arc, RwLock};
 
+use super::corporate_actions;
 use super::mapping;
 use super::models::{
     AccountUniversalActivity, BrokerAccount, BrokerConnection, HoldingsBalance, HoldingsDiff,
@@ -589,10 +590,17 @@ impl BrokerSyncServiceTrait for BrokerSyncService {
         }
 
         // 2. Use sync preparation for asset creation + FX registration
-        let prepare_result = self
+        let mut prepare_result = self
             .activity_service
             .prepare_activities_for_sync(new_activities, &account)
             .await?;
+
+        // 2b. A reverse split arrives as two separate activities (departing
+        // and arriving legs, tagged by mapping::reclassify_unknown_corporate_action);
+        // now that both are asset-resolved, pair them up and derive the real
+        // ratio from their quantities.
+        corporate_actions::resolve_reverse_split_pairs(&mut prepare_result);
+
         let new_asset_ids = prepare_result.created_asset_ids.clone();
 
         let assets_created = prepare_result.assets_created as usize;
