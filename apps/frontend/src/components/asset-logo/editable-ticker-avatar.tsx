@@ -1,5 +1,6 @@
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { useTranslation } from "react-i18next";
+import type { ReactNode } from "react";
 
 import { TickerAvatar } from "@/components/ticker-avatar";
 import { cn } from "@/lib/utils";
@@ -10,6 +11,8 @@ interface EditableTickerAvatarProps {
   exchangeMic?: string | null;
   instrumentType?: string | null;
   className?: string;
+  fallback?: ReactNode;
+  fallbackClassName?: string;
   onEdit: () => void;
 }
 
@@ -23,6 +26,8 @@ export function EditableTickerAvatar({
   exchangeMic,
   instrumentType,
   className = "size-9",
+  fallback,
+  fallbackClassName,
   onEdit,
 }: EditableTickerAvatarProps) {
   const { t } = useTranslation("asset");
@@ -35,6 +40,8 @@ export function EditableTickerAvatar({
         instrumentType={instrumentType}
         assetId={assetId}
         className="size-full"
+        fallback={fallback}
+        fallbackClassName={fallbackClassName}
       />
       <button
         type="button"

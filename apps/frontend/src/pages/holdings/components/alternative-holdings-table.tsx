@@ -1,6 +1,8 @@
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import type { AlternativeAssetHolding } from "@/lib/types";
 import { ALTERNATIVE_ASSET_KIND_DISPLAY_NAMES } from "@/lib/types";
+import { AssetLogoDialog } from "@/components/asset-logo/asset-logo-dialog";
+import { EditableTickerAvatar } from "@/components/asset-logo/editable-ticker-avatar";
 import type { ColumnDef } from "@tanstack/react-table";
 import { AmountDisplay, EmptyPlaceholder, GainPercent, useDateFormatting } from "@wealthfolio/ui";
 import {
@@ -58,6 +60,7 @@ export function AlternativeHoldingsTable({
   const resolvedEmptyDescription = emptyDescription ?? t("holdings:empty_add_first_asset_button");
   const { isBalanceHidden } = useBalancePrivacy();
   const [assetToDelete, setAssetToDelete] = useState<AlternativeAssetHolding | null>(null);
+  const [assetForLogo, setAssetForLogo] = useState<AlternativeAssetHolding | null>(null);
 
   const handleConfirmDelete = () => {
     if (assetToDelete && onDelete) {
@@ -104,8 +107,15 @@ export function AlternativeHoldingsTable({
                   : undefined
               }
             >
-              <div className="bg-muted flex h-10 w-10 items-center justify-center rounded-full">
-                <AssetKindIcon kind={holding.kind} size={20} />
+              <div onClick={(event) => event.stopPropagation()}>
+                <EditableTickerAvatar
+                  symbol={holding.symbol || holding.id}
+                  assetId={holding.id}
+                  className="size-10"
+                  fallback={<AssetKindIcon kind={holding.kind} size={20} />}
+                  fallbackClassName="bg-muted text-muted-foreground"
+                  onEdit={() => setAssetForLogo(holding)}
+                />
               </div>
               <div className="flex flex-col">
                 <span className="text-sm font-medium">{holding.name}</span>
@@ -253,6 +263,10 @@ export function AlternativeHoldingsTable({
                       {t("holdings:edit_details")}
                     </DropdownMenuItem>
                   )}
+                  <DropdownMenuItem onClick={() => setAssetForLogo(holding)}>
+                    <Icons.ImageUp className="mr-2 h-4 w-4" />
+                    {t("asset:logo.change")}
+                  </DropdownMenuItem>
                   {onDelete && (
                     <>
                       <DropdownMenuSeparator />
@@ -306,6 +320,16 @@ export function AlternativeHoldingsTable({
         defaultSorting={[{ id: "marketValue", desc: true }]}
       />
 
+      {assetForLogo && (
+        <AssetLogoDialog
+          open
+          onOpenChange={(open) => !open && setAssetForLogo(null)}
+          assetId={assetForLogo.id}
+          symbol={assetForLogo.symbol || assetForLogo.id}
+          name={assetForLogo.name}
+        />
+      )}
+
       {/* Delete Confirmation Dialog */}
       <AlertDialog
         open={assetToDelete !== null}
@@ -345,9 +369,7 @@ export function AlternativeHoldingsTable({
   );
 }
 
-/**
- * Icon component for alternative asset kinds (duotone style)
- */
+/** Icon component for alternative asset kinds (duotone style). */
 function AssetKindIcon({ kind, size = 20 }: { kind: string; size?: number }) {
   switch (kind.toLowerCase()) {
     case "property":

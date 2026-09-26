@@ -1343,6 +1343,11 @@ export const AssetProfilePage = () => {
                             label: t("asset:profile.edit_details"),
                             onClick: () => altAssetActions.openEditDetails(),
                           },
+                          {
+                            icon: Icons.ImageUp,
+                            label: t("asset:logo.change"),
+                            onClick: () => setLogoDialogOpen(true),
+                          },
                           ...(altAssetActions.isLinkableAsset
                             ? [
                                 {
@@ -1453,9 +1458,14 @@ export const AssetProfilePage = () => {
       >
         <div className="group/asset-header flex items-center gap-2" data-tauri-drag-region="true">
           {isAltAsset && altHolding ? (
-            <div className="bg-muted flex h-9 w-9 items-center justify-center rounded-full">
-              <AlternativeAssetIcon kind={altHolding.kind} size={20} />
-            </div>
+            <EditableTickerAvatar
+              symbol={assetProfile?.displayCode ?? assetId}
+              assetId={assetProfile?.id ?? assetId}
+              className="size-9"
+              fallback={<AlternativeAssetIcon kind={altHolding.kind} size={20} />}
+              fallbackClassName="bg-muted text-muted-foreground"
+              onEdit={() => setLogoDialogOpen(true)}
+            />
           ) : (
             (profile?.symbol ?? holding?.instrument?.symbol ?? assetProfile?.displayCode) && (
               <EditableTickerAvatar
@@ -1757,7 +1767,6 @@ export const AssetProfilePage = () => {
   );
 };
 
-// Helper component for alternative asset icons
 function AlternativeAssetIcon({ kind, size = 20 }: { kind: string; size?: number }) {
   switch (kind.toLowerCase()) {
     case "property":
