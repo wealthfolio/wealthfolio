@@ -882,9 +882,13 @@ impl ActivityService {
             return None;
         }
 
+        // Charges, payments, refunds, fees and interest, plus TRANSFER_OUT for
+        // money a card sends elsewhere: a balance transfer, a cash advance, a
+        // wallet top-up. It books as more owed, like a charge, but is not one.
         match activity_type {
             ACTIVITY_TYPE_WITHDRAWAL
             | ACTIVITY_TYPE_TRANSFER_IN
+            | ACTIVITY_TYPE_TRANSFER_OUT
             | ACTIVITY_TYPE_CREDIT
             | ACTIVITY_TYPE_FEE
             | ACTIVITY_TYPE_INTEREST => None,

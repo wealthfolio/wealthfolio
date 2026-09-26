@@ -441,13 +441,15 @@ export function TransferForm({
   const quantity = watch("quantity");
   const isManualAsset = quoteMode === QuoteMode.MANUAL;
   const isCashMode = transferMode === "cash";
-  const sourceAccountOptions = useMemo(
+  const nonLiabilityAccountOptions = useMemo(
     () => accounts.filter((account) => !isLiabilityAccountType(account.accountType)),
     [accounts],
   );
-  const destinationAccountOptions = isCashMode ? accounts : sourceAccountOptions;
-  const externalAccountOptions =
-    direction === "out" ? sourceAccountOptions : destinationAccountOptions;
+  // Cash can leave a credit card as well as arrive on one: a balance transfer,
+  // a cash advance, a wallet top-up (#1227). Securities never involve a card.
+  const sourceAccountOptions = isCashMode ? accounts : nonLiabilityAccountOptions;
+  const destinationAccountOptions = sourceAccountOptions;
+  const externalAccountOptions = sourceAccountOptions;
 
   // Get account currency from selected account (internal: fromAccount, external: accountId)
   const selectedAccount = useMemo(
@@ -540,15 +542,13 @@ export function TransferForm({
       setValue("toAccountId", "", { shouldDirty: true, shouldValidate: false });
     }
 
-    if (
-      isExternal &&
-      direction === "in" &&
-      selectedAccount &&
-      isLiabilityAccountType(selectedAccount.accountType)
-    ) {
-      setValue("accountId", "", { shouldDirty: true, shouldValidate: false });
+    if (selectedAccount && isLiabilityAccountType(selectedAccount.accountType)) {
+      setValue(isExternal ? "accountId" : "fromAccountId", "", {
+        shouldDirty: true,
+        shouldValidate: false,
+      });
     }
-  }, [destinationAccount, direction, isCashMode, isExternal, selectedAccount, setValue]);
+  }, [destinationAccount, isCashMode, isExternal, selectedAccount, setValue]);
 
   useEffect(() => {
     if (!isInternalCashTransfer || isCrossCurrencyInternalCash) return;
@@ -584,13 +584,8 @@ export function TransferForm({
       if (destinationAccount && isLiabilityAccountType(destinationAccount.accountType)) {
         setValue("toAccountId", "");
       }
-      if (
-        isExternal &&
-        direction === "in" &&
-        selectedAccount &&
-        isLiabilityAccountType(selectedAccount.accountType)
-      ) {
-        setValue("accountId", "");
+      if (selectedAccount && isLiabilityAccountType(selectedAccount.accountType)) {
+        setValue(isExternal ? "accountId" : "fromAccountId", "");
       }
     }
   };

@@ -4781,6 +4781,44 @@ mod tests {
             .contains("BUY activities are not supported for credit card accounts"));
     }
 
+    /// A credit card can send money out as a transfer: a balance transfer to
+    /// another card, a cash advance into a bank account, or funding a wallet
+    /// such as PayPal (#1227). The card's cash math already books TRANSFER_OUT
+    /// as more owed, and an unlinked one is neither spending nor income.
+    #[tokio::test]
+    async fn credit_card_accounts_accept_transfer_out() {
+        let account_service = Arc::new(MockAccountService::new());
+        let mut account = create_test_account("card-1", "USD");
+        account.account_type = "CREDIT_CARD".to_string();
+        account_service.add_account(account);
+
+        let activity_service = ActivityService::new(
+            Arc::new(MockActivityRepository::new()),
+            account_service,
+            Arc::new(MockAssetService::new()),
+            Arc::new(MockFxService::new()),
+            Arc::new(MockQuoteService),
+        );
+
+        activity_service
+            .create_activity(create_test_cash_create(
+                "balance-transfer",
+                "card-1",
+                "TRANSFER_OUT",
+                "USD",
+            ))
+            .await
+            .expect("credit cards should accept TRANSFER_OUT");
+
+        let err = activity_service
+            .create_activity(create_test_cash_create("gift", "card-1", "DEPOSIT", "USD"))
+            .await
+            .expect_err("credit cards should still reject DEPOSIT");
+        assert!(err
+            .to_string()
+            .contains("DEPOSIT activities are not supported for credit card accounts"));
+    }
+
     /// Cash-only create for the mixed-account bulk tests below. `currency` is
     /// passed through verbatim so a test can leave it empty and observe which
     /// account currency preparation falls back to.

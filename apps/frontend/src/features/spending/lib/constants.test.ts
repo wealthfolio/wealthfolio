@@ -27,6 +27,7 @@ describe("spending constants", () => {
         "FEE",
         "INTEREST",
         "TRANSFER_IN",
+        "TRANSFER_OUT",
         "CREDIT",
       ]);
     });
