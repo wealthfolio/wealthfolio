@@ -4450,6 +4450,164 @@ mod tests {
     // ==================== EDGE CASE TESTS ====================
 
     #[test]
+    fn holdings_full_and_partial_history_have_identical_valuations_and_returns() {
+        use crate::accounts::TrackingMode;
+        use crate::portfolio::performance::PerformanceService;
+        use crate::portfolio::valuation::calculate_valuation;
+        use crate::quotes::Quote;
+
+        let requested_start = NaiveDate::from_ymd_opt(2026, 3, 6).unwrap();
+        let first_date = NaiveDate::from_ymd_opt(2026, 6, 1).unwrap();
+        let end = NaiveDate::from_ymd_opt(2026, 6, 3).unwrap();
+        for source in [
+            SnapshotSource::BrokerImported,
+            SnapshotSource::ManualEntry,
+            SnapshotSource::CsvImport,
+        ] {
+            let mut account_repo = MockAccountRepository::new();
+            let mut account = create_test_account("acc1", "USD", "Holdings");
+            account.tracking_mode = TrackingMode::Holdings;
+            account_repo.add_account(account);
+            let snapshot_repo = Arc::new(MockSnapshotRepository::new());
+            let mut snapshot = create_blank_snapshot("acc1", "USD", "2026-06-01");
+            snapshot.source = source;
+            snapshot.positions.insert(
+                "ASSET".to_string(),
+                carried_position_empty_lots(
+                    "acc1",
+                    "ASSET",
+                    dec!(1),
+                    "USD",
+                    dec!(100),
+                    dec!(100),
+                    dec!(100),
+                ),
+            );
+            snapshot_repo.add_snapshots(vec![snapshot]);
+            let svc = SnapshotService::new(
+                Arc::new(RwLock::new("USD".to_string())),
+                Arc::new(account_repo),
+                Arc::new(MockActivityRepositoryWithData::new(vec![])),
+                snapshot_repo,
+                Arc::new(MockAssetRepository::new()),
+                Arc::new(MockFxService::new()),
+            );
+            let history = |start| {
+                svc.get_holdings_timeline("acc1", start, Some(end))
+                    .unwrap()
+                    .iter()
+                    .map(|day| {
+                        let timestamp = day.date.and_hms_opt(12, 0, 0).unwrap().and_utc();
+                        let price = if day.date == end {
+                            dec!(110)
+                        } else {
+                            dec!(100)
+                        };
+                        let quote = Quote {
+                            id: format!("quote-{}", day.date),
+                            asset_id: "ASSET".to_string(),
+                            timestamp,
+                            open: price,
+                            high: price,
+                            low: price,
+                            close: price,
+                            adjclose: price,
+                            volume: Decimal::ZERO,
+                            currency: "USD".to_string(),
+                            data_source: "TEST".to_string(),
+                            created_at: timestamp,
+                            notes: None,
+                        };
+                        let mut valuation = calculate_valuation(
+                            day.snapshot,
+                            &HashMap::from([("ASSET".to_string(), quote)]),
+                            &HashMap::new(),
+                            &HashMap::new(),
+                            day.date,
+                            "USD",
+                        )
+                        .unwrap();
+                        // One unchanged holdings snapshot: there are no external flows.
+                        valuation.external_flow_source =
+                            crate::portfolio::valuation::ExternalFlowSource::NoFlow;
+                        valuation.calculated_at =
+                            first_date.and_hms_opt(0, 0, 0).unwrap().and_utc();
+                        valuation
+                    })
+                    .collect::<Vec<_>>()
+            };
+            let full = history(None);
+            assert_eq!(full.len(), 3);
+            let full_return = PerformanceService::compute_account_performance(
+                &full,
+                Some(TrackingMode::Holdings),
+                Some(requested_start),
+                true,
+            )
+            .unwrap();
+            assert_eq!(full_return.summary.amount, Some(dec!(10)));
+            assert_eq!(full_return.summary.percent, Some(dec!(0.1)));
+            // Includes the day-before anchor used by a partial valuation rebuild.
+            for start in [requested_start, first_date.pred_opt().unwrap(), first_date] {
+                let partial = history(Some(start));
+                assert_eq!(
+                    partial, full,
+                    "partial rebuild must not prepend unknown history as zeros"
+                );
+                let partial_return = PerformanceService::compute_account_performance(
+                    &partial,
+                    Some(TrackingMode::Holdings),
+                    Some(requested_start),
+                    true,
+                )
+                .unwrap();
+                assert_eq!(partial_return.summary.amount, full_return.summary.amount);
+                assert_eq!(partial_return.summary.percent, full_return.summary.percent);
+                assert_eq!(partial_return.series, full_return.series);
+            }
+            let later = history(Some(end));
+            assert_eq!(later, full[2..]);
+        }
+    }
+
+    #[test]
+    fn transaction_timeline_preserves_empty_state_before_first_snapshot() {
+        let mut account_repo = MockAccountRepository::new();
+        let mut account = create_test_account("acc1", "USD", "Transactions");
+        account.tracking_mode = crate::accounts::TrackingMode::Transactions;
+        account_repo.add_account(account);
+        let snapshot_repo = Arc::new(MockSnapshotRepository::new());
+        let mut first = create_blank_snapshot("acc1", "USD", "2026-06-03");
+        first.cash_balances.insert("USD".to_string(), dec!(100));
+        snapshot_repo.add_snapshots(vec![first]);
+        let svc = SnapshotService::new(
+            Arc::new(RwLock::new("USD".to_string())),
+            Arc::new(account_repo),
+            Arc::new(MockActivityRepositoryWithData::new(vec![])),
+            snapshot_repo,
+            Arc::new(MockAssetRepository::new()),
+            Arc::new(MockFxService::new()),
+        );
+        let start = NaiveDate::from_ymd_opt(2026, 6, 1).unwrap();
+        let end = NaiveDate::from_ymd_opt(2026, 6, 3).unwrap();
+        let timeline = svc
+            .get_holdings_timeline("acc1", Some(start), Some(end))
+            .unwrap();
+        assert_eq!(timeline.start_date(), Some(start));
+        let values: Vec<_> = timeline
+            .iter()
+            .map(|day| {
+                day.snapshot
+                    .cash_balances
+                    .get("USD")
+                    .copied()
+                    .unwrap_or_default()
+            })
+            .collect();
+        assert_eq!(values, vec![Decimal::ZERO, Decimal::ZERO, dec!(100)]);
+    }
+
+    #[test]
     fn holdings_timeline_rejects_keyframe_below_supported_floor() {
         let snapshot_repo = Arc::new(MockSnapshotRepository::new());
         let mut invalid = create_blank_snapshot("acc1", "USD", "1969-12-31");
