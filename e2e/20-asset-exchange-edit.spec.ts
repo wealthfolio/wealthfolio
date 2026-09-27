@@ -41,20 +41,20 @@ test("asset exchange edits preserve identity or report conflicts explicitly", as
     await expect(row).toBeVisible();
     // Initial query refreshes can remount the row and close its menu.
     await expect(async () => {
-      if (await page.getByRole("dialog").isVisible()) return;
+      if (await page.getByRole("dialog", { name: "TESTMIC20", exact: true }).isVisible()) return;
       const edit = page.getByRole("menuitem", { name: "Edit", exact: true });
       if (!(await edit.isVisible())) {
         await row.getByRole("button", { name: "Open actions" }).click();
       }
       await edit.click({ timeout: 2000 });
     }).toPass({ timeout: 15000 });
-    await expect(page.getByRole("dialog")).toBeVisible();
+    await expect(page.getByRole("dialog", { name: "TESTMIC20", exact: true })).toBeVisible();
   };
 
   await openEditor();
   await page.getByPlaceholder("Add any context or links").fill("Saved notes");
   await page.getByRole("button", { name: "Save changes", exact: true }).click();
-  await expect(page.getByRole("dialog")).not.toBeVisible();
+  await expect(page.getByRole("dialog", { name: "TESTMIC20", exact: true })).not.toBeVisible();
   expect(await readOriginal()).toMatchObject({
     id: original.id,
     notes: "Saved notes",
@@ -64,12 +64,16 @@ test("asset exchange edits preserve identity or report conflicts explicitly", as
 
   await openEditor();
   await page.getByPlaceholder("Add any context or links").fill("Unsaved conflict notes");
-  await page.getByRole("combobox", { name: /\(XNYS\)/ }).click();
+  await page
+    .getByRole("dialog", { name: "TESTMIC20", exact: true })
+    .getByRole("combobox")
+    .filter({ hasText: "(XNYS)" })
+    .click();
   await page.getByPlaceholder("Search exchanges...").fill("XNAS");
   await page.getByRole("option", { name: /\(XNAS\)$/ }).click();
   await page.getByRole("button", { name: "Save changes", exact: true }).click();
   await expect(page.getByText(/Another asset already has this identity/)).toBeVisible();
-  await expect(page.getByRole("dialog")).toBeVisible();
+  await expect(page.getByRole("dialog", { name: "TESTMIC20", exact: true })).toBeVisible();
   expect(await readOriginal()).toMatchObject({
     notes: "Saved notes",
     instrumentKey: "EQUITY:TESTMIC20@XNYS",
@@ -77,11 +81,15 @@ test("asset exchange edits preserve identity or report conflicts explicitly", as
   });
 
   // An ISO-only venue needs no provider catalog entry to be selected and saved.
-  await page.getByRole("combobox", { name: /\(XNAS\)/ }).click();
+  await page
+    .getByRole("dialog", { name: "TESTMIC20", exact: true })
+    .getByRole("combobox")
+    .filter({ hasText: "(XNAS)" })
+    .click();
   await page.getByPlaceholder("Search exchanges...").fill("21XX");
   await page.getByRole("option", { name: /\(21XX\)$/ }).click();
   await page.getByRole("button", { name: "Save changes", exact: true }).click();
-  await expect(page.getByRole("dialog")).not.toBeVisible();
+  await expect(page.getByRole("dialog", { name: "TESTMIC20", exact: true })).not.toBeVisible();
   expect(await readOriginal()).toMatchObject({
     id: original.id,
     instrumentKey: "EQUITY:TESTMIC20@21XX",
