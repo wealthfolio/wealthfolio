@@ -51,8 +51,8 @@ targets:
           - UIInterfaceOrientationPortraitUpsideDown
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
-        CFBundleShortVersionString: 3.9.0
-        CFBundleVersion: "5"
+        CFBundleShortVersionString: 3.9.1
+        CFBundleVersion: "1"
     entitlements:
       path: wealthfolio-app_iOS/wealthfolio-app_iOS.entitlements
     scheme:
@@ -82,7 +82,15 @@ targets:
       - sdk: UIKit.framework
       - sdk: WebKit.framework
     preBuildScripts:
-      - script: cp "${SRCROOT}/wealthfolio-app_iOS/wealthfolio-app_iOS.entitlements" "${TARGET_TEMP_DIR}/wealthfolio-app_iOS.entitlements" && pnpm tauri ios xcode-script -v --platform ${PLATFORM_DISPLAY_NAME:?} --sdk-root ${SDKROOT:?} --framework-search-paths "${FRAMEWORK_SEARCH_PATHS:?}" --header-search-paths "${HEADER_SEARCH_PATHS:?}" --gcc-preprocessor-definitions "${GCC_PREPROCESSOR_DEFINITIONS:-}" --configuration ${CONFIGURATION:?} ${ARCHS:?}
+      - script: |
+          set -e
+          # Xcode does not load the interactive shell setup for Node or Rust.
+          export PATH="$PATH:$HOME/.cargo/bin:/opt/homebrew/bin:/usr/local/bin"
+          if command -v fnm >/dev/null 2>&1; then
+            eval "$(fnm env --shell bash)"
+            fnm use "$(cat "${SRCROOT}/../../../../.node-version")"
+          fi
+          cp "${SRCROOT}/wealthfolio-app_iOS/wealthfolio-app_iOS.entitlements" "${TARGET_TEMP_DIR}/wealthfolio-app_iOS.entitlements" && pnpm tauri ios xcode-script -v --platform ${PLATFORM_DISPLAY_NAME:?} --sdk-root ${SDKROOT:?} --framework-search-paths "${FRAMEWORK_SEARCH_PATHS:?}" --header-search-paths "${HEADER_SEARCH_PATHS:?}" --gcc-preprocessor-definitions "${GCC_PREPROCESSOR_DEFINITIONS:-}" --configuration ${CONFIGURATION:?} ${ARCHS:?}
         name: Build Rust Code
         basedOnDependencyAnalysis: false
         outputFiles:

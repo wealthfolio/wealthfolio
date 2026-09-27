@@ -1,0 +1,9 @@
+{
+  "id" : "05a6ddb4-b897-4823-9ab2-837e40f4a218",
+  "targets" : [
+    {
+      "id" : "e28c0b0a-f157-4972-b92f-c64fc5bd8142",
+      "name" : "wealthfolio-app_iOS"
+    }
+  ]
+}
