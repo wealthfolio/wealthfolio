@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useDeleteAlternativeAsset } from "@/hooks/use-alternative-assets";
+import { toast } from "@wealthfolio/ui/components/ui/use-toast";
 import { QueryKeys } from "@/lib/query-keys";
 
 import { useAssetManagement } from "./use-asset-management";
@@ -104,5 +105,39 @@ describe("asset logo index invalidation", () => {
     expect(invalidateQueries).toHaveBeenCalledWith({
       queryKey: [QueryKeys.ASSET_LOGO_INDEX],
     });
+  });
+});
+
+describe("asset profile identity conflicts", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it.each([
+    new Error("Constraint violation: ASSET_IDENTITY_CONFLICT: Duplicate asset"),
+    "Constraint violation: ASSET_IDENTITY_CONFLICT: Duplicate asset",
+  ])("explains the conflict for web and desktop errors", async (error) => {
+    adapterMocks.updateAssetProfile.mockRejectedValueOnce(error);
+    const { queryClient, wrapper } = createHarness();
+    const invalidateQueries = vi.spyOn(queryClient, "invalidateQueries");
+    const { result } = renderHook(useAssetProfileMutations, { wrapper });
+
+    await act(async () => {
+      await expect(
+        result.current.updateAssetProfileMutation.mutateAsync({
+          id: assetId,
+          instrumentExchangeMic: "BCXE",
+        }),
+      ).rejects.toBe(error);
+    });
+
+    expect(toast).toHaveBeenCalledWith(
+      expect.objectContaining({
+        variant: "destructive",
+        description:
+          "Another asset already has this identity. Your changes were not saved. Use the existing asset or choose a different exchange.",
+      }),
+    );
+    expect(invalidateQueries).not.toHaveBeenCalled();
   });
 });

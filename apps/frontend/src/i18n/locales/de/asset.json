@@ -235,6 +235,7 @@
     }
   },
   "editSheet": {
+    "identity_conflict": "Ein anderer Vermögenswert hat bereits diese Identität. Ihre Änderungen wurden nicht gespeichert. Verwenden Sie den vorhandenen Vermögenswert oder wählen Sie einen anderen Handelsplatz.",
     "general": "Allgemein",
     "classification": "Klassifizierung",
     "market_data": "Marktdaten",

@@ -235,6 +235,7 @@
     }
   },
   "editSheet": {
+    "identity_conflict": "Un altro asset ha già questa identità. Le modifiche non sono state salvate. Usa l’asset esistente o scegli un’altra borsa.",
     "general": "Generale",
     "classification": "Classificazione",
     "market_data": "Dati di mercato",

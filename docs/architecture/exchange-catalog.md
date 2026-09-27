@@ -10,6 +10,19 @@ Wealthfolio keeps two exchange datasets with separate responsibilities:
   selected or stored. It only prevents an automatic provider request until
   search supplies an exact `providerId` and `providerSymbol` override.
 
+The provider catalog is curated, not exhaustive. Expand it when a provider's
+symbol convention is verified; one exchange can have rules for several
+providers. Use an exact per-asset provider symbol override when a listing needs
+a different symbol. Neither a missing catalog entry nor an unknown suffix
+justifies guessing a venue: `ABC.ZZ` without an explicit MIC keeps the key
+`EQUITY:ABC.ZZ`.
+
+One guarded data migration corrects known legacy MIC aliases without changing
+asset IDs. It skips collisions instead of combining financial histories. Profile
+edits preserve the stored identity unless the user changes an identity field. An
+explicit exchange correction normalizes the MIC and fails clearly if another
+asset already owns the resulting key; it never silently keeps the old exchange.
+
 Refresh the ISO snapshot from a saved release file or the official URL and pin
 the source bytes by SHA-256. For the snapshot checked in on 2026-09-24, the
 exact command is:

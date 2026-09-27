@@ -235,6 +235,7 @@
     }
   },
   "editSheet": {
+    "identity_conflict": "同じ識別情報の資産がすでに存在します。変更は保存されませんでした。既存の資産を使用するか、別の取引所を選択してください。",
     "general": "基本情報",
     "classification": "分類",
     "market_data": "市場データ",

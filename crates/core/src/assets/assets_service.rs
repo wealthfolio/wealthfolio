@@ -1875,12 +1875,10 @@ impl AssetServiceTrait for AssetService {
         let existing_asset = self.asset_repository.get_by_id(asset_id)?;
         let effective_quote_mode = payload.quote_mode.unwrap_or(existing_asset.quote_mode);
 
-        if let Some(raw_mic) = payload.instrument_exchange_mic.as_ref() {
-            let normalized_mic = raw_mic.trim().to_uppercase();
-            if !normalized_mic.is_empty() {
-                payload.instrument_exchange_mic = Some(normalized_mic.clone());
-            }
-        }
+        payload.instrument_exchange_mic = payload
+            .instrument_exchange_mic
+            .as_deref()
+            .and_then(normalized_lookup_key);
 
         let effective_instrument_type = payload
             .instrument_type
@@ -1917,33 +1915,58 @@ impl AssetServiceTrait for AssetService {
                 },
             );
 
-            // The exchange migration deliberately leaves a legacy-MIC row in
-            // place when its canonical twin already exists. Preserve that
-            // legacy MIC on profile edits so a name/notes save cannot collide
-            // with the twin's generated instrument_key. Reconciliation of the
-            // two financial histories remains an explicit user operation.
-            if let (Some(existing_mic), Some(canonical_mic), Some(canonical_symbol)) = (
-                existing_asset.instrument_exchange_mic.as_deref(),
-                canonical.instrument_exchange_mic.as_deref(),
-                canonical.instrument_symbol.as_deref(),
-            ) {
-                let normalized_existing_mic = existing_mic.trim().to_uppercase();
-                let is_legacy_alias = !normalized_existing_mic.eq_ignore_ascii_case(canonical_mic)
-                    && canonicalize_exchange_mic(&normalized_existing_mic)
-                        .eq_ignore_ascii_case(canonical_mic);
-                let canonical_key = instrument_key_for_identity(
-                    canonical_symbol,
-                    Some(canonical_mic),
-                    effective_instrument_type.as_ref(),
-                    canonical.quote_ccy.as_deref(),
-                );
-                let canonical_key_owned_by_twin = canonical_key
-                    .as_deref()
-                    .and_then(|key| self.asset_repository.find_by_instrument_key(key).ok())
-                    .flatten()
-                    .is_some_and(|asset| asset.id != existing_asset.id);
-                if is_legacy_alias && canonical_key_owned_by_twin {
-                    canonical.instrument_exchange_mic = Some(normalized_existing_mic);
+            let requested_symbol = payload.instrument_symbol.as_deref().or_else(|| {
+                payload.display_code.as_deref().filter(|code| {
+                    normalized_lookup_key(code)
+                        != existing_asset
+                            .display_code
+                            .as_deref()
+                            .and_then(normalized_lookup_key)
+                })
+            });
+            let symbol_changed = requested_symbol.is_some_and(|symbol| {
+                normalized_lookup_key(symbol)
+                    != existing_asset
+                        .instrument_symbol
+                        .as_deref()
+                        .or(existing_asset.display_code.as_deref())
+                        .and_then(normalized_lookup_key)
+            });
+            let exchange_changed = payload
+                .instrument_exchange_mic
+                .as_deref()
+                .is_some_and(|mic| {
+                    normalized_lookup_key(mic)
+                        != existing_asset
+                            .instrument_exchange_mic
+                            .as_deref()
+                            .and_then(normalized_lookup_key)
+                });
+            let identity_changed = symbol_changed
+                || exchange_changed
+                || effective_instrument_type != existing_asset.instrument_type
+                || (matches!(
+                    effective_instrument_type,
+                    Some(InstrumentType::Crypto | InstrumentType::Fx)
+                ) && payload.quote_ccy.as_deref().is_some_and(|ccy| {
+                    normalized_lookup_key(ccy) != normalized_lookup_key(&existing_asset.quote_ccy)
+                }));
+
+            if !identity_changed {
+                // Name, notes, and provider edits must not silently rekey a
+                // legacy asset, including rows the migration skipped on collision.
+                canonical.instrument_symbol = existing_asset.instrument_symbol.clone();
+                canonical.display_code = payload
+                    .display_code
+                    .clone()
+                    .or(existing_asset.display_code.clone());
+                canonical.instrument_exchange_mic = existing_asset.instrument_exchange_mic.clone();
+                if matches!(
+                    effective_instrument_type,
+                    Some(InstrumentType::Crypto | InstrumentType::Fx)
+                ) {
+                    canonical.quote_ccy = Some(existing_asset.quote_ccy.clone());
+                    payload.quote_ccy = Some(existing_asset.quote_ccy.clone());
                 }
             }
 
@@ -1956,6 +1979,47 @@ impl AssetServiceTrait for AssetService {
                 .or(payload.instrument_exchange_mic.clone());
             if effective_quote_mode == QuoteMode::Market {
                 payload.quote_ccy = canonical.quote_ccy.or(payload.quote_ccy.clone());
+            }
+
+            if identity_changed {
+                if let (Some(symbol), Some(instrument_type)) = (
+                    payload.instrument_symbol.as_ref(),
+                    effective_instrument_type.as_ref(),
+                ) {
+                    // Match SQLite's generated key from the exact values that
+                    // update_profile will store; manual quote currencies are not normalized.
+                    let prefix = format!("{}:{}", instrument_type.as_db_str(), symbol);
+                    let key = match instrument_type {
+                        InstrumentType::Crypto | InstrumentType::Fx => format!(
+                            "{}/{}",
+                            prefix,
+                            payload
+                                .quote_ccy
+                                .as_deref()
+                                .unwrap_or(&existing_asset.quote_ccy)
+                        ),
+                        _ => match payload
+                            .instrument_exchange_mic
+                            .as_deref()
+                            .or(existing_asset.instrument_exchange_mic.as_deref())
+                        {
+                            Some(mic) => format!("{prefix}@{mic}"),
+                            None => prefix,
+                        },
+                    };
+                    if self
+                        .asset_repository
+                        .find_by_instrument_key(&key)?
+                        .is_some_and(|asset| asset.id != existing_asset.id)
+                    {
+                        return Err(Error::ConstraintViolation(
+                            concat!(
+                                "ASSET_IDENTITY_CONFLICT: An asset with this identity already exists. ",
+                                "Your changes were not saved."
+                            ).to_string(),
+                        ));
+                    }
+                }
             }
         }
 
@@ -3418,7 +3482,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn update_asset_profile_normalizes_legacy_mic_before_persistence() {
+    async fn update_asset_profile_normalizes_explicit_exchange_correction() {
         let existing = Asset {
             id: "legacy-cboe-asset".to_string(),
             kind: AssetKind::Investment,
@@ -3448,7 +3512,7 @@ mod tests {
                     quote_ccy: Some("GBP".to_string()),
                     instrument_type: Some(InstrumentType::Equity),
                     instrument_symbol: Some("VWRPL.XC".to_string()),
-                    instrument_exchange_mic: Some(" cxe ".to_string()),
+                    instrument_exchange_mic: Some(" bcxe ".to_string()),
                     provider_config: None,
                     metadata: None,
                 },
@@ -3521,6 +3585,192 @@ mod tests {
         assert_eq!(asset.name.as_deref(), Some("Renamed legacy asset"));
         assert_eq!(asset.notes.as_deref(), Some("edited notes"));
         assert_eq!(asset.instrument_exchange_mic.as_deref(), Some("CXE"));
+    }
+
+    #[tokio::test]
+    async fn update_asset_profile_preserves_unedited_legacy_identity_without_twin() {
+        for mic in [None, Some("CXE"), Some(" cxe "), Some(" ")] {
+            let existing = Asset {
+                id: "legacy".to_string(),
+                display_code: Some("VWRPL.XC".to_string()),
+                instrument_symbol: Some("VWRPL.XC".to_string()),
+                instrument_exchange_mic: Some("CXE".to_string()),
+                instrument_type: Some(InstrumentType::Equity),
+                instrument_key: Some("EQUITY:VWRPL.XC@CXE".to_string()),
+                quote_ccy: "GBP".to_string(),
+                ..Default::default()
+            };
+            let service = test_asset_service(vec![existing], TestQuoteService::default());
+            let asset = service
+                .update_asset_profile(
+                    "legacy",
+                    UpdateAssetProfile {
+                        name: Some("Renamed".to_string()),
+                        notes: "New notes".to_string(),
+                        display_code: Some("VWRPL.XC".to_string()),
+                        instrument_exchange_mic: mic.map(str::to_string),
+                        instrument_symbol: None,
+                        kind: None,
+                        quote_mode: None,
+                        quote_ccy: None,
+                        instrument_type: None,
+                        provider_config: None,
+                        metadata: None,
+                    },
+                )
+                .await
+                .unwrap();
+            assert_eq!(asset.name.as_deref(), Some("Renamed"));
+            assert_eq!(asset.notes.as_deref(), Some("New notes"));
+            assert_eq!(asset.instrument_symbol.as_deref(), Some("VWRPL.XC"));
+            assert_eq!(asset.instrument_exchange_mic.as_deref(), Some("CXE"));
+        }
+    }
+
+    #[tokio::test]
+    async fn update_asset_profile_rejects_exchange_collision_without_changing_either_asset() {
+        for (old_mic, target_mic) in [
+            (Some("CXE"), "BCXE"),
+            (Some("XNYS"), "XNAS"),
+            (None, "XTSE"),
+        ] {
+            let existing = Asset {
+                id: "original".to_string(),
+                name: Some("Original".to_string()),
+                display_code: Some("ABC".to_string()),
+                instrument_symbol: Some("ABC".to_string()),
+                instrument_exchange_mic: old_mic.map(str::to_string),
+                instrument_type: Some(InstrumentType::Equity),
+                quote_ccy: "USD".to_string(),
+                ..Default::default()
+            };
+            let twin = Asset {
+                id: "twin".to_string(),
+                instrument_exchange_mic: Some(target_mic.to_string()),
+                instrument_key: Some(format!("EQUITY:ABC@{target_mic}")),
+                ..existing.clone()
+            };
+            let service = test_asset_service(vec![existing, twin], TestQuoteService::default());
+            let error = service
+                .update_asset_profile(
+                    "original",
+                    UpdateAssetProfile {
+                        name: Some("Should not save".to_string()),
+                        notes: "Should not save".to_string(),
+                        instrument_exchange_mic: Some(target_mic.to_string()),
+                        display_code: None,
+                        instrument_symbol: None,
+                        kind: None,
+                        quote_mode: None,
+                        quote_ccy: None,
+                        instrument_type: None,
+                        provider_config: None,
+                        metadata: None,
+                    },
+                )
+                .await
+                .unwrap_err();
+            assert!(matches!(error, Error::ConstraintViolation(_)));
+            assert!(error.to_string().contains("ASSET_IDENTITY_CONFLICT"));
+            let unchanged = service.asset_repository.get_by_id("original").unwrap();
+            assert_eq!(unchanged.name.as_deref(), Some("Original"));
+            assert_eq!(unchanged.notes, None);
+            assert_eq!(unchanged.instrument_exchange_mic.as_deref(), old_mic);
+            let twin = service.asset_repository.get_by_id("twin").unwrap();
+            assert_eq!(twin.name.as_deref(), Some("Original"));
+            assert_eq!(
+                twin.instrument_key,
+                Some(format!("EQUITY:ABC@{target_mic}"))
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn update_asset_profile_preserves_pair_key_on_unrelated_edit() {
+        for instrument_type in [InstrumentType::Crypto, InstrumentType::Fx] {
+            let existing = Asset {
+                id: "original".to_string(),
+                display_code: Some("USD/eur".to_string()),
+                instrument_symbol: Some("USD".to_string()),
+                instrument_type: Some(instrument_type.clone()),
+                quote_mode: QuoteMode::Market,
+                quote_ccy: "eur".to_string(),
+                ..Default::default()
+            };
+            let twin = Asset {
+                id: "twin".to_string(),
+                quote_ccy: "EUR".to_string(),
+                instrument_key: Some(format!("{}:USD/EUR", instrument_type.as_db_str())),
+                ..existing.clone()
+            };
+            let service = test_asset_service(vec![existing, twin], TestQuoteService::default());
+            let payload = serde_json::from_value(serde_json::json!({
+                "name": "Renamed",
+                "notes": "Edited",
+                "displayCode": "USD/eur",
+                "quoteCcy": "EUR"
+            }))
+            .unwrap();
+            let asset = service
+                .update_asset_profile("original", payload)
+                .await
+                .unwrap();
+            assert_eq!(asset.name.as_deref(), Some("Renamed"));
+            assert_eq!(asset.instrument_symbol.as_deref(), Some("USD"));
+            assert_eq!(asset.quote_ccy, "eur");
+        }
+    }
+
+    #[tokio::test]
+    async fn update_asset_profile_checks_exact_persisted_pair_currency() {
+        for instrument_type in [InstrumentType::Crypto, InstrumentType::Fx] {
+            for quote_mode in [QuoteMode::Manual, QuoteMode::Market] {
+                for twin_ccy in ["eur", "EUR"] {
+                    let existing = Asset {
+                        id: "original".to_string(),
+                        instrument_symbol: Some("USD".to_string()),
+                        instrument_type: Some(instrument_type.clone()),
+                        quote_mode,
+                        quote_ccy: "JPY".to_string(),
+                        ..Default::default()
+                    };
+                    let twin = Asset {
+                        id: "twin".to_string(),
+                        quote_ccy: twin_ccy.to_string(),
+                        instrument_key: Some(format!(
+                            "{}:USD/{twin_ccy}",
+                            instrument_type.as_db_str()
+                        )),
+                        ..existing.clone()
+                    };
+                    let service =
+                        test_asset_service(vec![existing, twin], TestQuoteService::default());
+                    let payload = serde_json::from_value(serde_json::json!({
+                        "notes": "Edited", "quoteCcy": "eur"
+                    }))
+                    .unwrap();
+                    let result = service.update_asset_profile("original", payload).await;
+                    let persisted_ccy = if quote_mode == QuoteMode::Market {
+                        "EUR"
+                    } else {
+                        "eur"
+                    };
+                    if twin_ccy == persisted_ccy {
+                        assert!(matches!(result, Err(Error::ConstraintViolation(_))));
+                        assert_eq!(
+                            service
+                                .asset_repository
+                                .get_by_id("original")
+                                .unwrap()
+                                .quote_ccy,
+                            "JPY"
+                        );
+                    } else {
+                        assert_eq!(result.unwrap().quote_ccy, persisted_ccy);
+                    }
+                }
+            }
+        }
     }
 
     #[tokio::test]

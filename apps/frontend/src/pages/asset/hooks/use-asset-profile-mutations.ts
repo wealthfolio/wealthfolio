@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { updateAssetProfile, updateQuoteMode, logger } from "@/adapters";
 import { toast } from "@wealthfolio/ui/components/ui/use-toast";
@@ -5,6 +6,7 @@ import { QueryKeys } from "@/lib/query-keys";
 
 export const useAssetProfileMutations = () => {
   const queryClient = useQueryClient();
+  const { t } = useTranslation("asset");
 
   const handleSuccess = (message: string, assetId: string) => {
     queryClient.invalidateQueries({ queryKey: [QueryKeys.HOLDINGS] });
@@ -17,10 +19,10 @@ export const useAssetProfileMutations = () => {
     });
   };
 
-  const handleError = (action: string) => {
+  const handleError = (action: string, description?: string) => {
     toast({
       title: "Uh oh! Something went wrong.",
-      description: `There was a problem ${action}.`,
+      description: description ?? `There was a problem ${action}.`,
       variant: "destructive",
     });
   };
@@ -33,7 +35,11 @@ export const useAssetProfileMutations = () => {
     },
     onError: (error) => {
       logger.error(`Error updating asset profile: ${error}`);
-      handleError("updating the asset profile");
+      const message = error instanceof Error ? error.message : String(error);
+      handleError(
+        "updating the asset profile",
+        message.includes("ASSET_IDENTITY_CONFLICT:") ? t("editSheet.identity_conflict") : undefined,
+      );
     },
   });
 
