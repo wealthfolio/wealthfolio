@@ -801,3 +801,109 @@ async fn admitted_ndjson_stream_delivers_incrementally_and_closes_on_lock() {
         .unwrap()
         .is_none());
 }
+
+#[tokio::test]
+async fn runtime_startup_failure_is_retryable_without_revoking_the_profile() {
+    use wealthfolio_storage_sqlite::db::DbAccess;
+    let dir = tempfile::tempdir().unwrap();
+    let config = test_config(dir.path());
+    let database = DbAccess::plaintext(&config.db_path);
+    database.prepare().unwrap();
+    database.run_migrations().unwrap();
+    // A deterministic failure after opening SQLite, independent of locking.
+    database
+        .connect_rusqlite()
+        .unwrap()
+        .execute(
+            "DELETE FROM app_settings WHERE setting_key = 'instance_id'",
+            [],
+        )
+        .unwrap();
+    let router = wealthfolio_server::api::app_router_from_config(&config)
+        .await
+        .unwrap();
+    let (status, error, cookie) = send(
+        &router,
+        "/api/v1/profiles/get_profile_state",
+        json!({}),
+        None,
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::INTERNAL_SERVER_ERROR, "{error}");
+    assert!(error.as_str().unwrap().contains("PROFILE_STARTUP_FAILED"));
+    assert!(error
+        .as_str()
+        .unwrap()
+        .contains("Missing internal instance ID"));
+    let response = router
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/api/v1/accounts")
+                .header("cookie", cookie.as_deref().unwrap())
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    let response = router
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/api/v1/healthz")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    database.connect_rusqlite().unwrap().execute(
+        "INSERT INTO app_settings (setting_key, setting_value) VALUES ('instance_id', 'repaired-test-instance')", [],
+    ).unwrap();
+    let (status, state, _) = send(
+        &router,
+        "/api/v1/profiles/get_profile_state",
+        json!({}),
+        cookie.as_deref(),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{state}");
+    assert_eq!(state["profiles"][0]["lockEnabled"], false);
+    let scope = state["session"]["scopeId"].as_str().unwrap();
+    let response = router
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/api/v1/accounts")
+                .header("cookie", cookie.as_deref().unwrap())
+                .header("x-wf-profile-scope", scope)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    send(
+        &router,
+        "/api/v1/profiles/lock_profile",
+        json!({}),
+        cookie.as_deref(),
+        None,
+    )
+    .await;
+    let response = router
+        .oneshot(
+            Request::builder()
+                .uri("/api/v1/accounts")
+                .header("cookie", cookie.as_deref().unwrap())
+                .header("x-wf-profile-scope", scope)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::LOCKED);
+}

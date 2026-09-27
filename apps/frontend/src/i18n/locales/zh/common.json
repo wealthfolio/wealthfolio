@@ -471,6 +471,8 @@
       "cooldown_one": "尝试次数过多。请在 {{count}} 秒后重试。",
       "cooldown_other": "尝试次数过多。请在 {{count}} 秒后重试。",
       "cooldownUnknown": "尝试次数过多。请稍候再试。",
+      "startupFailed": "服务器无法打开此配置文件。请重试，或请服务器管理员检查启动错误。",
+      "sessionInterrupted": "您的配置文件会话已中断。请重试以重新打开。",
       "unavailable": "无法打开此个人资料。请重启 Wealthfolio 后重试。",
       "inUse": "此档案已在另一个 Wealthfolio 窗口中打开。请在该窗口中关闭后重试。",
       "credentials": "无法访问已保存的登录信息。请解锁设备后重试。",

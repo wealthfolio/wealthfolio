@@ -32,6 +32,11 @@ it.each([
     "PROFILE_UNAVAILABLE: /private/secret/database",
     "We couldn’t open this profile. Restart Wealthfolio and try again.",
   ],
+  [
+    "PROFILE_STARTUP_FAILED: private database details",
+    "The server couldn’t open this profile. Retry, or ask the server administrator to check the startup error.",
+  ],
+  ["PROFILE_SESSION_INTERRUPTED", "Your profile session was interrupted. Retry to reopen it."],
   ["database /private/secret/database", "Something went wrong. Please try again."],
 ])("renders safe copy for %s", (diagnostic, message) => {
   expect(profileErrorMessage(new Error(diagnostic), i18n.getFixedT("en", "common"))).toBe(message);

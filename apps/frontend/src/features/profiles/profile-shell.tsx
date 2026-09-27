@@ -154,7 +154,17 @@ export function ProfileShell({ children }: { children: ReactNode }) {
         } else if (next.session) {
           const profile = next.profiles.find((p) => p.id === next.session?.profileId);
           if (profile) rememberOpeningProfile(profile);
-          if (!installProfileSession(next.session, profile?.isLegacy)) return;
+          if (!installProfileSession(next.session, profile?.isLegacy)) {
+            if (isWeb) {
+              // A 423 can revoke this document while the server retains its grant.
+              // Keep financial content closed; only an explicit retry opens a new document.
+              setCovered(true);
+              setPhase("loading");
+              setError("PROFILE_SESSION_INTERRUPTED");
+            }
+            return;
+          }
+          setError("");
           if (isWeb) void listenPortfolioUpdateStart(keepEventStreamOpen).catch(() => undefined);
           currentProfile.current = profile;
           setState(next);
@@ -584,7 +594,8 @@ export function ProfileShell({ children }: { children: ReactNode }) {
           <Button
             onClick={() => {
               setError("");
-              if (closeFailed) void lock(false, intent.current);
+              if (isWeb && error === "PROFILE_SESSION_INTERRUPTED") reloadApplication();
+              else if (closeFailed) void lock(false, intent.current);
               else refreshRef.current?.();
             }}
           >

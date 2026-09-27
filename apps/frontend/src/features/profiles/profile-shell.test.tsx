@@ -1193,3 +1193,37 @@ it.each([true, false])(
     }
   },
 );
+
+it("shows a retryable web runtime failure without mounting financial content", async () => {
+  mocks.command.mockRejectedValue(new Error("PROFILE_STARTUP_FAILED: private database detail"));
+  mount();
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "The server couldn’t open this profile. Retry, or ask the server administrator to check the startup error.",
+  );
+  expect(screen.queryByText("Private portfolio")).not.toBeInTheDocument();
+  expect(screen.queryByText(/private database detail/)).not.toBeInTheDocument();
+  mocks.command.mockResolvedValue(unlocked);
+  fireEvent.click(screen.getByRole("button", { name: /^Retry$/ }));
+  expect(await screen.findByText("Private portfolio")).toBeInTheDocument();
+  expect(mocks.command).not.toHaveBeenCalledWith("lock_profile", expect.anything());
+});
+
+it("offers a fresh-page retry when a revoked web session is still returned by the server", async () => {
+  mount();
+  await screen.findByText("Private portfolio");
+  mocks.admitted.mockReturnValue(false);
+  try {
+    await act(async () => window.dispatchEvent(new Event("wealthfolio:profile-locked")));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Your profile session was interrupted. Retry to reopen it.",
+    );
+    expect(screen.queryByText("Private portfolio")).not.toBeInTheDocument();
+    expect(mocks.reload).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: /^Retry$/ }));
+    expect(mocks.reload).toHaveBeenCalledOnce();
+    expect(screen.queryByText("Private portfolio")).not.toBeInTheDocument();
+    expect(mocks.command).not.toHaveBeenCalledWith("unlock_profile", expect.anything());
+  } finally {
+    mocks.admitted.mockReturnValue(true);
+  }
+});

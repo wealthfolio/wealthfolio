@@ -480,6 +480,8 @@
       "cooldown_one": "Zu viele Versuche. Versuche es in {{count}} Sekunde erneut.",
       "cooldown_other": "Zu viele Versuche. Versuche es in {{count}} Sekunden erneut.",
       "cooldownUnknown": "Zu viele Versuche. Warte einen Moment, bevor du es erneut versuchst.",
+      "startupFailed": "Der Server konnte dieses Profil nicht öffnen. Versuche es erneut oder bitte den Serveradministrator, den Startfehler zu prüfen.",
+      "sessionInterrupted": "Deine Profilsitzung wurde unterbrochen. Versuche es erneut, um sie wieder zu öffnen.",
       "unavailable": "Dieses Profil konnte nicht geöffnet werden. Starte Wealthfolio neu und versuche es erneut.",
       "inUse": "Dieses Profil ist in einem anderen Wealthfolio-Fenster geöffnet. Schließe es dort und versuche es erneut.",
       "credentials": "Auf deine gespeicherten Anmeldedaten konnte nicht zugegriffen werden. Entsperre dein Gerät und versuche es erneut.",

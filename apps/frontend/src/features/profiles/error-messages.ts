@@ -18,6 +18,10 @@ export function profileErrorMessage(error: unknown, t: TFunction<"common">): str
       return t("profiles.errors.originRejected");
     case "PROFILE_LOCKED":
       return t("profiles.errors.locked");
+    case "PROFILE_STARTUP_FAILED":
+      return t("profiles.errors.startupFailed");
+    case "PROFILE_SESSION_INTERRUPTED":
+      return t("profiles.errors.sessionInterrupted");
     case "PROFILE_STALE":
       return t("profiles.errors.stale");
     case "PROFILE_NOT_FOUND":

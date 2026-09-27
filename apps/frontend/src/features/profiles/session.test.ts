@@ -32,6 +32,20 @@ describe("profile request authority", () => {
       vi.unstubAllGlobals();
     }
   });
+  it("preserves the grant and diagnostic response when runtime startup fails", async () => {
+    const session = await import("./session");
+    session.installProfileSession({ profileId: "a", scopeId: "scope-a" });
+    const diagnostic = "PROFILE_STARTUP_FAILED: Missing internal instance ID";
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(diagnostic, { status: 500 })));
+    try {
+      const response = await session.profileFetch("/api/v1/accounts");
+      expect(response.status).toBe(500);
+      expect(await response.text()).toBe(diagnostic);
+      expect(session.profileScope()).toBe("scope-a");
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
   it("discards a response that arrives after lock", async () => {
     const session = await import("./session");
     session.installProfileSession({ profileId: "a", scopeId: "scope-a" });

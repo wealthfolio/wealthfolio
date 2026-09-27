@@ -480,6 +480,8 @@
       "cooldown_one": "嘗試次數過多。請在 {{count}} 秒後重試。",
       "cooldown_other": "嘗試次數過多。請在 {{count}} 秒後重試。",
       "cooldownUnknown": "嘗試次數過多。請稍候再試。",
+      "startupFailed": "伺服器無法開啟此設定檔。請重試，或請伺服器管理員檢查啟動錯誤。",
+      "sessionInterrupted": "您的設定檔工作階段已中斷。請重試以重新開啟。",
       "unavailable": "無法開啟此個人資料。請重新啟動 Wealthfolio 後重試。",
       "inUse": "此設定檔已在另一個 Wealthfolio 視窗中開啟。請在該視窗中關閉後再試。",
       "credentials": "無法存取已儲存的登入資訊。請解鎖裝置後再試。",

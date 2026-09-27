@@ -27,6 +27,20 @@ fn failure(error: impl ToString) -> (StatusCode, String) {
     (StatusCode::LOCKED, error.to_string())
 }
 
+/// Runtime failures are not revoked grants. Keep details in the authenticated
+/// response: arbitrary service errors can contain financial data or credentials.
+fn startup_failure(stage: &'static str, error: impl std::fmt::Display) -> (StatusCode, String) {
+    tracing::error!(
+        code = "PROFILE_STARTUP_FAILED",
+        stage,
+        "Profile startup failed; diagnostic details are in the authenticated response"
+    );
+    (
+        StatusCode::INTERNAL_SERVER_ERROR,
+        format!("PROFILE_STARTUP_FAILED: {error:#}"),
+    )
+}
+
 /// Original browser grant, retained so a waiting login can revalidate before mutation.
 #[derive(Clone)]
 pub(crate) struct ProfileAccess {
@@ -275,7 +289,7 @@ impl WebProfiles {
         }
         let paths = self.registry.paths(&profile);
         if profile.legacy_database.is_some() && !paths.database.is_file() {
-            return Err(failure("The legacy profile database is missing. Restore its file before opening this profile; existing credentials were preserved."));
+            return Err(startup_failure("legacy_database", "The legacy profile database is missing. Restore its file before opening this profile; existing credentials were preserved."));
         }
         let mut config = self.config.clone();
         config.db_path = paths.database.to_string_lossy().into_owned();
@@ -286,7 +300,7 @@ impl WebProfiles {
         }
         let runtime = build_profile_state(&config, self.registry.secret_store(&profile))
             .await
-            .map_err(failure)?;
+            .map_err(|error| startup_failure("runtime_initialization", error))?;
         let _ = runtime.profile_binding.set((self.registry.clone(), id));
         runtimes.insert(id, runtime.clone());
         crate::scheduler::start_background_workers(runtime.clone());
@@ -310,8 +324,8 @@ impl WebProfiles {
                         })
                         .is_some()
                     {
-                        if let Err((_, error)) = root.runtime(profile.id).await {
-                            tracing::warn!("Profile sync startup deferred: {error}");
+                        if let Err((status, _)) = root.runtime(profile.id).await {
+                            tracing::warn!(%status, "Profile sync startup deferred");
                         }
                     }
                 }
@@ -419,6 +433,15 @@ async fn command(
             let mut session = registry.sessions.current(&owner.0).map_err(failure)?;
             if session.is_none() {
                 session = root.auto_open(&owner.0)?;
+            }
+            if let Some(session) = &session {
+                // Gate financial UI startup on the runtime, not just the grant.
+                // Failed initialization remains retryable with the same session.
+                root.runtime(session.profile_id).await?;
+                registry
+                    .sessions
+                    .admit(&owner.0, session.scope_id)
+                    .map_err(failure)?;
             }
             Ok(Json(
                 json!({"profiles":profiles,"pendingDeletions":registry.pending_profiles().map_err(failure)?,"session":session,"starting":false}),
