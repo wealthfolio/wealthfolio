@@ -1602,6 +1602,10 @@ mod tests {
             yahoo_equity_search_queries("AAPL"),
             vec!["AAPL".to_string()]
         );
+        assert_eq!(
+            yahoo_equity_search_queries("BAC.PB"),
+            vec!["BAC.PB".to_string()]
+        );
     }
 
     #[test]

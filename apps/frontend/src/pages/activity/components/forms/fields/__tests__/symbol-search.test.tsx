@@ -25,7 +25,7 @@ vi.mock("@/components/ticker-search", () => ({
           onSelectResult("VWRPL.XC", {
             symbol: "VWRPL.XC",
             canonicalSymbol: "VWRPL",
-            canonicalExchangeMic: "CXE",
+            canonicalExchangeMic: "BCXE",
             longName: "Vanguard FTSE All-World UCITS ETF",
             shortName: "VWRP",
             exchange: "CXE",
@@ -44,19 +44,19 @@ vi.mock("@/components/ticker-search", () => ({
         type="button"
         data-testid="select-provider-ref"
         onClick={() =>
-          onSelectResult("SHOP.TO", {
-            symbol: "SHOP.TO",
-            canonicalSymbol: "SHOP",
-            canonicalExchangeMic: "XTSE",
-            longName: "Shopify Inc.",
-            shortName: "Shopify",
-            exchange: "TOR",
-            exchangeMic: "XTSE",
+          onSelectResult("ABC.ZZ", {
+            symbol: "ABC.ZZ",
+            canonicalSymbol: "ABC",
+            canonicalExchangeMic: "XNAS",
+            longName: "Provider-confirmed security",
+            shortName: "ABC",
+            exchange: "NASDAQ",
+            exchangeMic: "XNAS",
             quoteType: "EQUITY",
             currency: "CAD",
             dataSource: "YAHOO",
             providerId: "YAHOO",
-            providerSymbol: "SHOP.TO",
+            providerSymbol: "ABC.ZZ",
           })
         }
       >
@@ -184,9 +184,16 @@ describe("SymbolSearch", () => {
     });
 
     expect(screen.getByTestId("asset-id")).toHaveTextContent("VWRPL");
-    expect(screen.getByTestId("exchange-mic")).toHaveTextContent("CXE");
+    expect(screen.getByTestId("exchange-mic")).toHaveTextContent("BCXE");
     expect(screen.getByTestId("asset-name")).toHaveTextContent("Vanguard FTSE All-World UCITS ETF");
-    expect(resolveSymbolQuoteMock).toHaveBeenCalledWith("VWRPL", "CXE", "EQUITY", undefined, "GBp");
+    expect(resolveSymbolQuoteMock).toHaveBeenCalledWith(
+      "VWRPL",
+      "BCXE",
+      "EQUITY",
+      undefined,
+      "GBp",
+      undefined,
+    );
   });
 
   it("does not overwrite an existing asset quote currency with resolver output", async () => {
@@ -207,6 +214,7 @@ describe("SymbolSearch", () => {
         "CRYPTOCURRENCY",
         undefined,
         "EUR",
+        undefined,
       );
     });
 
@@ -226,13 +234,20 @@ describe("SymbolSearch", () => {
     await user.click(screen.getByTestId("select-provider-ref"));
 
     await waitFor(() => {
-      expect(screen.getByTestId("asset-id")).toHaveTextContent("SHOP");
+      expect(screen.getByTestId("asset-id")).toHaveTextContent("ABC");
     });
 
-    expect(screen.getByTestId("exchange-mic")).toHaveTextContent("XTSE");
-    expect(resolveSymbolQuoteMock).toHaveBeenCalledWith("SHOP", "XTSE", "EQUITY", "YAHOO", "CAD");
+    expect(screen.getByTestId("exchange-mic")).toHaveTextContent("XNAS");
+    expect(resolveSymbolQuoteMock).toHaveBeenCalledWith(
+      "ABC",
+      "XNAS",
+      "EQUITY",
+      "YAHOO",
+      "CAD",
+      "ABC.ZZ",
+    );
     expect(screen.getByTestId("provider-ref")).toHaveTextContent(
-      JSON.stringify({ providerId: "YAHOO", providerSymbol: "SHOP.TO" }),
+      JSON.stringify({ providerId: "YAHOO", providerSymbol: "ABC.ZZ" }),
     );
   });
 
@@ -283,7 +298,7 @@ describe("SymbolSearch", () => {
     await user.click(screen.getByTestId("select-provider-ref"));
     await waitFor(() => {
       expect(screen.getByTestId("provider-ref")).toHaveTextContent(
-        JSON.stringify({ providerId: "YAHOO", providerSymbol: "SHOP.TO" }),
+        JSON.stringify({ providerId: "YAHOO", providerSymbol: "ABC.ZZ" }),
       );
     });
 

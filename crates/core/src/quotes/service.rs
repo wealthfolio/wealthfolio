@@ -37,7 +37,8 @@ use crate::secrets::SecretStore;
 
 use wealthfolio_market_data::{
     exchanges_for_currency, mic_to_currency, mic_to_exchange_name,
-    yahoo_equity_provider_symbol_to_canonical, DividendEvent, ExchangeMap,
+    yahoo_equity_provider_symbol_to_canonical, DividendEvent, ExchangeMap, ProviderInstrument,
+    ProviderOverrides,
 };
 
 /// Provider information combining static info with settings.
@@ -239,6 +240,9 @@ fn has_open_position_quantity(quantity: &rust_decimal::Decimal) -> bool {
 
 fn provider_config_for_symbol_resolution(
     preferred_provider: Option<&str>,
+    provider_symbol: Option<&str>,
+    instrument_type: Option<&InstrumentType>,
+    quote_ccy: Option<&str>,
 ) -> Option<serde_json::Value> {
     let provider = preferred_provider
         .map(str::trim)
@@ -255,7 +259,36 @@ fn provider_config_for_symbol_resolution(
         }));
     }
 
-    Some(serde_json::json!({ "preferred_provider": provider }))
+    let mut config = serde_json::json!({ "preferred_provider": provider });
+    let Some(provider_symbol) = provider_symbol
+        .map(str::trim)
+        .filter(|symbol| !symbol.is_empty())
+    else {
+        return Some(config);
+    };
+    let symbol = Arc::from(provider_symbol);
+    let provider_instrument = match instrument_type {
+        Some(InstrumentType::Crypto) => ProviderInstrument::CryptoSymbol { symbol },
+        Some(InstrumentType::Fx) => ProviderInstrument::FxSymbol { symbol },
+        Some(InstrumentType::Metal) => ProviderInstrument::MetalSymbol {
+            symbol,
+            quote: std::borrow::Cow::Owned(quote_ccy.unwrap_or("USD").to_string()),
+        },
+        Some(InstrumentType::Bond) => ProviderInstrument::BondIsin { isin: symbol },
+        Some(InstrumentType::Equity | InstrumentType::Option) | None => {
+            ProviderInstrument::EquitySymbol { symbol }
+        }
+    };
+    let mut overrides = ProviderOverrides::new();
+    overrides.insert(provider.to_string(), provider_instrument);
+    config
+        .as_object_mut()
+        .expect("provider config is an object")
+        .insert(
+            "overrides".to_string(),
+            serde_json::to_value(overrides).expect("provider overrides serialize"),
+        );
+    Some(config)
 }
 
 fn resolved_provider_matches_requested(
@@ -490,6 +523,7 @@ pub trait QuoteServiceTrait: Send + Sync {
         instrument_type: Option<&InstrumentType>,
         quote_ccy: Option<&str>,
         preferred_provider: Option<&str>,
+        provider_symbol: Option<&str>,
     ) -> Result<ResolvedQuote> {
         let _ = (
             symbol,
@@ -497,6 +531,7 @@ pub trait QuoteServiceTrait: Send + Sync {
             instrument_type,
             quote_ccy,
             preferred_provider,
+            provider_symbol,
         );
         Ok(ResolvedQuote::default())
     }
@@ -1633,6 +1668,7 @@ where
         instrument_type: Option<&InstrumentType>,
         quote_ccy: Option<&str>,
         preferred_provider: Option<&str>,
+        provider_symbol: Option<&str>,
     ) -> Result<ResolvedQuote> {
         let trimmed_symbol = symbol.trim();
         if trimmed_symbol.is_empty() {
@@ -1657,7 +1693,12 @@ where
         };
 
         let requested_quote_ccy = normalize_quote_ccy_code(quote_ccy);
-        let provider_config = provider_config_for_symbol_resolution(preferred_provider);
+        let provider_config = provider_config_for_symbol_resolution(
+            preferred_provider,
+            provider_symbol,
+            instrument_type,
+            quote_ccy,
+        );
 
         for attempt_symbol in symbol_resolution_candidates(clean_symbol) {
             // For bonds, populate metadata with TreasuryDirect details so
@@ -2783,6 +2824,29 @@ mod tests {
         assert_eq!(
             local_search_identity("BRK-B"),
             Some(("BRK.B".to_string(), None))
+        );
+    }
+
+    #[test]
+    fn symbol_quote_provider_config_preserves_exact_provider_symbol() {
+        let config = provider_config_for_symbol_resolution(
+            Some("YAHOO"),
+            Some("ABC.ZZ"),
+            Some(&InstrumentType::Equity),
+            Some("USD"),
+        )
+        .expect("provider config");
+        let overrides = ProviderOverrides::from_json(
+            config.get("overrides").expect("exact override is present"),
+        )
+        .expect("valid overrides");
+
+        assert_eq!(
+            overrides
+                .get("YAHOO")
+                .map(ProviderInstrument::to_symbol_string)
+                .as_deref(),
+            Some("ABC.ZZ")
         );
     }
 

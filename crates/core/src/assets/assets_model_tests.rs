@@ -4,7 +4,7 @@
 mod tests {
     use crate::assets::{
         canonicalize_market_identity, resolve_import_quote_ccy_precedence,
-        resolve_quote_ccy_precedence, Asset, AssetKind, InstrumentType, OptionSpec,
+        resolve_quote_ccy_precedence, Asset, AssetKind, AssetSpec, InstrumentType, OptionSpec,
         QuoteCcyResolutionSource, QuoteMode,
     };
     use chrono::NaiveDateTime;
@@ -326,6 +326,73 @@ mod tests {
         assert_eq!(canonical.display_code.as_deref(), Some("SHOP"));
         assert_eq!(canonical.instrument_exchange_mic.as_deref(), Some("XTSE"));
         assert_eq!(canonical.quote_ccy.as_deref(), Some("CAD"));
+    }
+
+    #[test]
+    fn unknown_suffix_stays_in_the_unresolved_asset_key() {
+        let canonical = canonicalize_market_identity(
+            Some(InstrumentType::Equity),
+            Some("abc.zz"),
+            None,
+            Some("usd"),
+        );
+
+        assert_eq!(canonical.instrument_symbol.as_deref(), Some("ABC.ZZ"));
+        assert_eq!(canonical.display_code.as_deref(), Some("ABC.ZZ"));
+        assert_eq!(canonical.instrument_exchange_mic, None);
+
+        let spec = AssetSpec::market_instrument(
+            canonical.display_code.unwrap(),
+            canonical.instrument_symbol.unwrap(),
+            canonical.instrument_exchange_mic,
+            InstrumentType::Equity,
+            canonical.quote_ccy.unwrap(),
+        );
+        assert_eq!(spec.instrument_key().as_deref(), Some("EQUITY:ABC.ZZ"));
+    }
+
+    #[test]
+    fn ambiguous_provider_suffix_needs_an_explicit_mic() {
+        let unresolved = canonicalize_market_identity(
+            Some(InstrumentType::Equity),
+            Some("foo.ae"),
+            None,
+            Some("aed"),
+        );
+        assert_eq!(unresolved.instrument_symbol.as_deref(), Some("FOO.AE"));
+        assert_eq!(unresolved.instrument_exchange_mic, None);
+
+        for mic in ["XDFM", "XADS"] {
+            let resolved = canonicalize_market_identity(
+                Some(InstrumentType::Equity),
+                Some("foo.ae"),
+                Some(mic),
+                Some("aed"),
+            );
+            assert_eq!(resolved.instrument_symbol.as_deref(), Some("FOO"));
+            assert_eq!(resolved.instrument_exchange_mic.as_deref(), Some(mic));
+        }
+    }
+
+    #[test]
+    fn legacy_exchange_value_normalizes_before_key_construction() {
+        let canonical = canonicalize_market_identity(
+            Some(InstrumentType::Equity),
+            Some("VWRPL.XC"),
+            Some("CXE"),
+            Some("GBP"),
+        );
+
+        assert_eq!(canonical.instrument_symbol.as_deref(), Some("VWRPL"));
+        assert_eq!(canonical.instrument_exchange_mic.as_deref(), Some("BCXE"));
+        let spec = AssetSpec::market_instrument(
+            canonical.display_code.unwrap(),
+            canonical.instrument_symbol.unwrap(),
+            canonical.instrument_exchange_mic,
+            InstrumentType::Equity,
+            canonical.quote_ccy.unwrap(),
+        );
+        assert_eq!(spec.instrument_key().as_deref(), Some("EQUITY:VWRPL@BCXE"));
     }
 
     #[test]

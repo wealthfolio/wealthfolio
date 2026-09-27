@@ -400,6 +400,15 @@ export const ACTIVITY_FORM_CONFIG: Record<
         exchangeMic: d.exchangeMic ?? undefined,
         symbolQuoteCcy: d.symbolQuoteCcy ?? undefined,
         symbolInstrumentType: d.symbolInstrumentType ?? undefined,
+        assetMetadata: d.assetMetadata
+          ? {
+              name: d.assetMetadata.name ?? undefined,
+              kind: d.assetMetadata.kind ?? undefined,
+              exchangeMic: d.assetMetadata.exchangeMic ?? undefined,
+              providerId: d.assetMetadata.providerId ?? undefined,
+              providerSymbol: d.assetMetadata.providerSymbol ?? undefined,
+            }
+          : undefined,
       };
     },
   },
@@ -532,6 +541,15 @@ export const ACTIVITY_FORM_CONFIG: Record<
         exchangeMic: d.exchangeMic ?? undefined,
         symbolQuoteCcy: d.symbolQuoteCcy ?? undefined,
         symbolInstrumentType: d.symbolInstrumentType ?? undefined,
+        assetMetadata: d.assetMetadata
+          ? {
+              name: d.assetMetadata.name ?? undefined,
+              kind: d.assetMetadata.kind ?? undefined,
+              exchangeMic: d.assetMetadata.exchangeMic ?? undefined,
+              providerId: d.assetMetadata.providerId ?? undefined,
+              providerSymbol: d.assetMetadata.providerSymbol ?? undefined,
+            }
+          : undefined,
       };
     },
   },
@@ -601,6 +619,15 @@ export const ACTIVITY_FORM_CONFIG: Record<
         exchangeMic: d.exchangeMic ?? undefined,
         symbolQuoteCcy: d.symbolQuoteCcy ?? undefined,
         symbolInstrumentType: d.symbolInstrumentType ?? undefined,
+        assetMetadata: d.assetMetadata
+          ? {
+              name: d.assetMetadata.name ?? undefined,
+              kind: d.assetMetadata.kind ?? undefined,
+              exchangeMic: d.assetMetadata.exchangeMic ?? undefined,
+              providerId: d.assetMetadata.providerId ?? undefined,
+              providerSymbol: d.assetMetadata.providerSymbol ?? undefined,
+            }
+          : undefined,
       };
     },
   },

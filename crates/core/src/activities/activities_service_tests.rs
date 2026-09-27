@@ -481,7 +481,7 @@ mod tests {
                                 "XETR" => Some(".DE"),
                                 "XTSE" => Some(".TO"),
                                 "XLON" => Some(".L"),
-                                "CXE" => Some(".XC"),
+                                "BCXE" => Some(".XC"),
                                 _ => None,
                             })
                             .filter(|suffix| !suffix.is_empty())
@@ -880,8 +880,9 @@ mod tests {
             _instrument_type: Option<&InstrumentType>,
             _quote_ccy: Option<&str>,
             _preferred_provider: Option<&str>,
+            _provider_symbol: Option<&str>,
         ) -> Result<ResolvedQuote> {
-            let is_uk_vwrp = (exchange_mic == Some("XLON") || exchange_mic == Some("CXE"))
+            let is_uk_vwrp = (exchange_mic == Some("XLON") || exchange_mic == Some("BCXE"))
                 && (symbol.eq_ignore_ascii_case("VWRPL")
                     || symbol.eq_ignore_ascii_case("VWRPL.XC"));
             if is_uk_vwrp {
@@ -1161,6 +1162,7 @@ mod tests {
             _instrument_type: Option<&InstrumentType>,
             _quote_ccy: Option<&str>,
             _preferred_provider: Option<&str>,
+            _provider_symbol: Option<&str>,
         ) -> Result<ResolvedQuote> {
             unimplemented!()
         }
@@ -9586,7 +9588,7 @@ mod tests {
 
         assert_eq!(result.len(), 1);
         let checked = &result[0];
-        assert_eq!(checked.exchange_mic.as_deref(), Some("CXE"));
+        assert_eq!(checked.exchange_mic.as_deref(), Some("BCXE"));
         assert_eq!(checked.quote_ccy.as_deref(), Some("GBP"));
         assert!(
             checked

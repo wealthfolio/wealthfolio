@@ -42,6 +42,8 @@ export interface BulkHoldingRow {
   exchangeMic?: string;
   symbolQuoteCcy?: string;
   symbolInstrumentType?: string;
+  providerId?: string;
+  providerSymbol?: string;
 }
 
 interface BulkHoldingsFormProps {
@@ -182,6 +184,12 @@ const HoldingRow = memo(
           shouldDirty: true,
         });
         setValue(`holdings.${index}.symbolInstrumentType`, searchResult?.quoteType ?? "", {
+          shouldDirty: true,
+        });
+        setValue(`holdings.${index}.providerId`, searchResult?.providerId ?? "", {
+          shouldDirty: true,
+        });
+        setValue(`holdings.${index}.providerSymbol`, searchResult?.providerSymbol ?? "", {
           shouldDirty: true,
         });
 

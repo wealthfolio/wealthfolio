@@ -11,7 +11,7 @@ use log::warn;
 use crate::errors::MarketDataError;
 use crate::models::{Currency, InstrumentId, ProviderId, ProviderInstrument, QuoteContext};
 
-use super::exchange_suffixes::ExchangeMap;
+use super::exchange_suffixes::{has_unrecognized_dotted_suffix, ExchangeMap};
 use super::traits::{ResolutionSource, ResolvedInstrument, Resolver};
 use super::yahoo_equity_base_to_provider;
 
@@ -30,6 +30,17 @@ use super::yahoo_equity_base_to_provider;
 /// - `METAL_PRICE_API`: Metal Price API format
 pub struct RulesResolver {
     exchange_map: ExchangeMap,
+}
+
+fn looks_like_isin(value: &str) -> bool {
+    let bytes = value.trim().as_bytes();
+    bytes.len() == 12
+        && bytes[0].is_ascii_alphabetic()
+        && bytes[1].is_ascii_alphabetic()
+        && bytes[2..11]
+            .iter()
+            .all(|character| character.is_ascii_alphanumeric())
+        && bytes[11].is_ascii_digit()
 }
 
 impl RulesResolver {
@@ -66,25 +77,52 @@ impl RulesResolver {
         &self,
         ticker: &Arc<str>,
         mic: &Option<std::borrow::Cow<'static, str>>,
+        isin: Option<&str>,
         provider: &ProviderId,
     ) -> Option<(ProviderInstrument, ResolutionSource)> {
+        // A multi-character dotted tail without a MIC may be an exchange suffix
+        // that this snapshot/provider map does not recognize. Treating it as a
+        // Yahoo share-class separator (`ABC.ZZ` -> `ABC-ZZ`) both changes the
+        // caller's identity and makes the result look verified. A one-character
+        // tail remains the established share-class convention (`BRK.B`). Exact
+        // provider symbols selected by search use the explicit-config resolver
+        // before reaching these generic rules.
+        let has_unverified_dotted_suffix = mic.is_none() && has_unrecognized_dotted_suffix(ticker);
+
         if provider.as_ref() == "BOERSE_FRANKFURT" {
+            let has_mic = mic.is_some();
+            let provider_symbol = if !has_mic {
+                isin.map(str::trim)
+                    .filter(|value| looks_like_isin(value))
+                    .unwrap_or(ticker)
+            } else {
+                ticker
+            };
             let mic = mic.as_deref().unwrap_or("XETR");
+            let source = if !has_mic && !looks_like_isin(provider_symbol) {
+                ResolutionSource::RulesFallback
+            } else {
+                ResolutionSource::Rules
+            };
             return Some((
                 ProviderInstrument::EquitySymbol {
-                    symbol: Arc::from(format!("{}:{}", mic, ticker)),
+                    symbol: Arc::from(format!("{}:{}", mic, provider_symbol)),
                 },
-                ResolutionSource::Rules,
+                source,
             ));
         }
 
-        let provider_ticker = if provider.as_ref() == "YAHOO" {
+        let provider_ticker = if provider.as_ref() == "YAHOO" && !has_unverified_dotted_suffix {
             yahoo_equity_base_to_provider(ticker)
         } else {
             ticker.to_string()
         };
 
-        let mut source = ResolutionSource::Rules;
+        let mut source = if has_unverified_dotted_suffix {
+            ResolutionSource::RulesFallback
+        } else {
+            ResolutionSource::Rules
+        };
         let symbol = match mic {
             Some(mic) => {
                 // Look up suffix for this MIC and provider, fallback to ticker only if not found
@@ -257,7 +295,9 @@ impl Resolver for RulesResolver {
         }
 
         let (instrument, source) = match &context.instrument {
-            InstrumentId::Equity { ticker, mic } => self.resolve_equity(ticker, mic, provider)?,
+            InstrumentId::Equity { ticker, mic } => {
+                self.resolve_equity(ticker, mic, context.identifiers.isin.as_deref(), provider)?
+            }
 
             InstrumentId::Crypto { base, quote } => (
                 self.resolve_crypto(base, quote, provider)?,
@@ -654,6 +694,26 @@ mod tests {
         assert_eq!(resolved.source, ResolutionSource::Rules);
     }
 
+    #[test]
+    fn test_verified_us_bare_rules_cover_non_yahoo_quote_providers() {
+        let resolver = RulesResolver::new();
+        let context = make_equity_context("AAPL", Some("XNAS"));
+
+        for provider in ["FINNHUB", "MARKETDATA_APP"] {
+            let resolved = resolver
+                .resolve(&provider.into(), &context)
+                .unwrap()
+                .unwrap();
+            assert_eq!(resolved.source, ResolutionSource::Rules, "{provider}");
+            match resolved.instrument {
+                ProviderInstrument::EquitySymbol { symbol } => {
+                    assert_eq!(symbol.as_ref(), "AAPL", "{provider}");
+                }
+                _ => panic!("Expected EquitySymbol"),
+            }
+        }
+    }
+
     /// No MIC means no venue was claimed, so the bare ticker is the whole
     /// answer rather than a degraded one.
     #[test]
@@ -669,13 +729,36 @@ mod tests {
         assert_eq!(resolved.source, ResolutionSource::Rules);
     }
 
-    /// Euronext Amsterdam carries `alpha_vantage.suffix = ""`, which appends
-    /// nothing and lands on whatever Alpha Vantage indexes under the bare
-    /// ticker - the US listing. An empty suffix on a venue that does not write
-    /// its tickers bare is a hole in the registry, not a resolution, so it must
-    /// reach `check_profile` the same way an absent one does.
     #[test]
-    fn test_resolve_empty_suffix_on_non_us_venue_is_a_fallback() {
+    fn test_unknown_dotted_suffix_without_mic_is_an_exact_unverified_fallback() {
+        let resolver = RulesResolver::new();
+        let context = make_equity_context("ABC.ZZ", None);
+
+        let resolved = resolver
+            .resolve(&"YAHOO".into(), &context)
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(resolved.source, ResolutionSource::RulesFallback);
+        match resolved.instrument {
+            ProviderInstrument::EquitySymbol { symbol } => {
+                assert_eq!(symbol.as_ref(), "ABC.ZZ");
+            }
+            _ => panic!("Expected EquitySymbol"),
+        }
+
+        let resolved = resolver
+            .resolve(&"BOERSE_FRANKFURT".into(), &context)
+            .unwrap()
+            .unwrap();
+        assert_eq!(resolved.source, ResolutionSource::RulesFallback);
+    }
+
+    /// Euronext Amsterdam has no verified Alpha Vantage symbol rule. Falling
+    /// back to the bare ticker can land on the US listing, so it is marked as
+    /// unverified rather than treated as a deterministic resolution.
+    #[test]
+    fn test_resolve_missing_provider_rule_is_a_fallback() {
         let resolver = RulesResolver::new();
         let context = make_equity_context("ASML", Some("XAMS"));
 
@@ -745,6 +828,47 @@ mod tests {
             }
             _ => panic!("Expected EquitySymbol"),
         }
+        assert_eq!(resolved.source, ResolutionSource::Rules);
+    }
+
+    #[test]
+    fn test_boerse_frankfurt_requires_a_venue_or_isin() {
+        let resolver = RulesResolver::new();
+
+        let unresolved = resolver
+            .resolve(
+                &"BOERSE_FRANKFURT".into(),
+                &make_equity_context("AAPL", None),
+            )
+            .unwrap()
+            .unwrap();
+        assert_eq!(unresolved.source, ResolutionSource::RulesFallback);
+        assert_eq!(unresolved.instrument.to_symbol_string(), "XETR:AAPL");
+
+        let isin_ticker = resolver
+            .resolve(
+                &"BOERSE_FRANKFURT".into(),
+                &make_equity_context("US0378331005", None),
+            )
+            .unwrap()
+            .unwrap();
+        assert_eq!(isin_ticker.source, ResolutionSource::Rules);
+        assert_eq!(
+            isin_ticker.instrument.to_symbol_string(),
+            "XETR:US0378331005"
+        );
+
+        let mut identified = make_equity_context("AAPL", None);
+        identified.identifiers.isin = Some("US0378331005".into());
+        let identified = resolver
+            .resolve(&"BOERSE_FRANKFURT".into(), &identified)
+            .unwrap()
+            .unwrap();
+        assert_eq!(identified.source, ResolutionSource::Rules);
+        assert_eq!(
+            identified.instrument.to_symbol_string(),
+            "XETR:US0378331005"
+        );
     }
 
     #[test]

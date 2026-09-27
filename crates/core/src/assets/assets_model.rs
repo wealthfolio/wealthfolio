@@ -14,7 +14,7 @@ use crate::errors::Result;
 use crate::errors::ValidationError;
 use crate::fx::currency::normalize_currency_code;
 use crate::Error;
-use wealthfolio_market_data::mic_to_currency;
+use wealthfolio_market_data::{canonicalize_exchange_mic, mic_to_currency};
 
 // Re-export InstrumentId from market-data crate for convenience
 pub use wealthfolio_market_data::InstrumentId;
@@ -1084,7 +1084,8 @@ pub fn canonicalize_market_identity(
     quote_ccy: Option<&str>,
 ) -> CanonicalMarketIdentity {
     let mut instrument_symbol = normalize_opt(symbol);
-    let mut instrument_exchange_mic = normalize_opt(exchange_mic);
+    let mut instrument_exchange_mic =
+        normalize_opt(exchange_mic).map(|mic| canonicalize_exchange_mic(&mic));
     let mut normalized_quote = normalize_quote_ccy(quote_ccy);
 
     match instrument_type {
@@ -1313,7 +1314,7 @@ impl AssetSpec {
                     "{}:{}@{}",
                     instrument_type.as_db_str(),
                     instrument_symbol.to_uppercase(),
-                    mic.to_uppercase()
+                    canonicalize_exchange_mic(mic)
                 )),
                 None => Some(format!(
                     "{}:{}",

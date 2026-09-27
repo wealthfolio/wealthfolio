@@ -5,7 +5,7 @@
 //! The typed prefix ID system (SEC:AAPL:XNAS) is removed.
 
 use wealthfolio_market_data::{
-    mic_to_currency, strip_yahoo_suffix, yahoo_exchange_suffixes, yahoo_suffix_to_mic,
+    mic_to_currency, strip_yahoo_suffix, strip_yahoo_suffix_for_mic, yahoo_suffix_to_mic,
 };
 
 /// Parse crypto pair symbols like "BTC-USD" or "BTC-USDT" into (base, quote).
@@ -91,6 +91,17 @@ pub fn parse_symbol_with_known_exchange<'a>(
     symbol: &'a str,
     known_mic: Option<&str>,
 ) -> (&'a str, Option<&'static str>) {
+    if let Some(known) = known_mic.map(str::trim).filter(|mic| !mic.is_empty()) {
+        if let Some(base_symbol) = strip_yahoo_suffix_for_mic(symbol, known) {
+            let suffix_mic = symbol
+                .trim()
+                .get(base_symbol.len()..)
+                .and_then(|suffix| suffix.strip_prefix('.'))
+                .and_then(yahoo_suffix_to_mic);
+            return (base_symbol, suffix_mic);
+        }
+    }
+
     let (base_symbol, suffix_mic) = parse_symbol_with_exchange_suffix(symbol);
 
     let Some(parsed_mic) = suffix_mic else {
@@ -121,57 +132,16 @@ pub fn parse_symbol_with_known_exchange<'a>(
     }
 }
 
-/// Returns a best-effort fallback base symbol for unknown dotted suffixes.
-///
-/// Examples:
-/// - "VWRPL.XC" -> Some("VWRPL")
-/// - "SHOP.TO" -> None (known exchange suffix, handled elsewhere)
-/// - "BRK.B" -> None (share class suffix should be preserved)
-pub fn unknown_dotted_suffix_fallback(symbol: &str) -> Option<&str> {
-    let trimmed = symbol.trim();
-    let (base, suffix) = trimmed.rsplit_once('.')?;
-    if base.is_empty() || suffix.is_empty() {
-        return None;
-    }
-
-    // Keep single-letter share class suffixes (e.g., BRK.B) intact.
-    if suffix.len() == 1 {
-        return None;
-    }
-
-    // Only consider alphabetic suffixes with plausible exchange-like lengths.
-    if !(2..=5).contains(&suffix.len()) || !suffix.chars().all(|c| c.is_ascii_alphabetic()) {
-        return None;
-    }
-
-    // Known Yahoo exchange suffixes are already handled by parse_symbol_with_exchange_suffix.
-    let is_known_suffix = yahoo_exchange_suffixes().iter().any(|known| {
-        let known_without_dot = known.strip_prefix('.').unwrap_or(known);
-        known_without_dot.eq_ignore_ascii_case(suffix)
-    });
-    if is_known_suffix || yahoo_suffix_to_mic(&suffix.to_uppercase()).is_some() {
-        return None;
-    }
-
-    Some(base)
-}
-
-/// Returns symbol resolution candidates in precedence order:
-/// 1) Raw symbol as provided
-/// 2) Unknown dotted-suffix fallback (e.g. VWRPL.XC -> VWRPL), when applicable
+/// Returns the exact symbol supplied by the caller as the only resolution candidate.
+/// Unknown dotted suffixes may identify a venue or a share class, so stripping one
+/// without a verified provider rule can silently quote a different security.
 pub fn symbol_resolution_candidates(symbol: &str) -> Vec<String> {
     let trimmed = symbol.trim();
     if trimmed.is_empty() {
         return vec![];
     }
 
-    let mut candidates = vec![trimmed.to_string()];
-    if let Some(fallback) = unknown_dotted_suffix_fallback(trimmed) {
-        if !fallback.eq_ignore_ascii_case(trimmed) {
-            candidates.push(fallback.to_string());
-        }
-    }
-    candidates
+    vec![trimmed.to_string()]
 }
 
 #[cfg(test)]
@@ -224,7 +194,7 @@ mod tests {
 
         let (symbol, mic) = parse_symbol_with_exchange_suffix("vwrpl.xc");
         assert_eq!(symbol, "vwrpl");
-        assert_eq!(mic, Some("CXE"));
+        assert_eq!(mic, Some("BCXE"));
 
         let (symbol, mic) = parse_symbol_with_exchange_suffix("AAPL");
         assert_eq!(symbol, "AAPL");
@@ -277,6 +247,22 @@ mod tests {
                 ("SHOP", Some("XTSE"))
             );
         }
+    }
+
+    #[test]
+    fn test_ambiguous_suffix_requires_an_explicit_matching_mic() {
+        assert_eq!(
+            parse_symbol_with_known_exchange("FOO.AE", None),
+            ("FOO.AE", None)
+        );
+        assert_eq!(
+            parse_symbol_with_known_exchange("FOO.AE", Some("XDFM")),
+            ("FOO", None)
+        );
+        assert_eq!(
+            parse_symbol_with_known_exchange("FOO.AE", Some("XADS")),
+            ("FOO", None)
+        );
     }
 
     #[test]
@@ -343,20 +329,14 @@ mod tests {
     }
 
     #[test]
-    fn test_unknown_dotted_suffix_fallback() {
-        // .XC is now a known Yahoo exchange suffix (Cboe UK), so no unknown fallback.
-        assert_eq!(unknown_dotted_suffix_fallback("VWRPL.XC"), None);
-        assert_eq!(unknown_dotted_suffix_fallback("foo.ae"), None);
-        assert_eq!(unknown_dotted_suffix_fallback("SHOP.TO"), None);
-        assert_eq!(unknown_dotted_suffix_fallback("BRK.B"), None);
-        assert_eq!(unknown_dotted_suffix_fallback("AAPL"), None);
-    }
-
-    #[test]
     fn test_symbol_resolution_candidates() {
         assert_eq!(
             symbol_resolution_candidates("VWRPL.XC"),
             vec!["VWRPL.XC".to_string()]
+        );
+        assert_eq!(
+            symbol_resolution_candidates("ABC.ZZ"),
+            vec!["ABC.ZZ".to_string()]
         );
         assert_eq!(
             symbol_resolution_candidates("SHOP.TO"),

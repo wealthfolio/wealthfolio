@@ -23,7 +23,11 @@ use crate::models::{
     SplitEvent,
 };
 use crate::provider::{MarketDataProvider, DATA_SOURCE_CUSTOM_SCRAPER};
-use crate::resolver::{check_profile, SymbolResolver};
+use crate::resolver::{check_profile, ResolutionSource, SymbolResolver};
+
+fn is_unverified_fallback(source: ResolutionSource) -> bool {
+    source == ResolutionSource::RulesFallback
+}
 
 /// Provider registry for orchestrating market data fetching.
 pub struct ProviderRegistry {
@@ -143,6 +147,11 @@ impl ProviderRegistry {
             }
             let result = async {
                 let resolved = self.resolver.resolve(&provider_id, context)?;
+                if is_unverified_fallback(resolved.source) {
+                    return Err(MarketDataError::ResolutionFailed {
+                        provider: provider_id.to_string(),
+                    });
+                }
                 self.rate_limiter.acquire(&provider_id).await;
                 let quotes = provider
                     .get_historical_quotes(context, resolved.instrument, start, end)
@@ -239,6 +248,17 @@ impl ProviderRegistry {
                     continue;
                 }
             };
+
+            if is_unverified_fallback(resolved.source) {
+                debug!(
+                    "Skipping unverified bare-symbol fallback for provider '{}'",
+                    provider_id
+                );
+                last_error = Some(MarketDataError::ResolutionFailed {
+                    provider: provider_id.to_string(),
+                });
+                continue;
+            }
 
             debug!(
                 "Fetching quotes from provider '{}' with {:?} (source: {:?})",
@@ -355,6 +375,13 @@ impl ProviderRegistry {
                 Err(_) => continue,
             };
 
+            if is_unverified_fallback(resolved.source) {
+                last_error = Some(MarketDataError::ResolutionFailed {
+                    provider: provider_id.to_string(),
+                });
+                continue;
+            }
+
             self.rate_limiter.acquire(&provider_id).await;
 
             match provider
@@ -416,6 +443,10 @@ impl ProviderRegistry {
                 Ok(r) => r,
                 Err(_) => continue,
             };
+
+            if is_unverified_fallback(resolved.source) {
+                continue;
+            }
 
             self.rate_limiter.acquire(&provider_id).await;
 
@@ -479,6 +510,13 @@ impl ProviderRegistry {
                     continue;
                 }
             };
+
+            if is_unverified_fallback(resolved.source) {
+                last_error = Some(MarketDataError::ResolutionFailed {
+                    provider: provider_id.to_string(),
+                });
+                continue;
+            }
 
             self.rate_limiter.acquire(&provider_id).await;
 
@@ -806,6 +844,10 @@ impl ProviderRegistry {
                 Err(_) => continue, // Provider can't handle this instrument
             };
 
+            if is_unverified_fallback(resolved.source) {
+                continue;
+            }
+
             let symbol = resolved.instrument.to_symbol_string();
 
             self.rate_limiter.acquire(&provider_id).await;
@@ -899,6 +941,16 @@ impl ProviderRegistry {
                     continue;
                 }
             };
+
+            if is_unverified_fallback(resolved.source) {
+                diagnostics.record_skip(
+                    provider_id.clone(),
+                    SkipReason::ResolutionFailed {
+                        message: "unverified bare-symbol fallback".to_string(),
+                    },
+                );
+                continue;
+            }
 
             debug!(
                 "Fetching quotes from provider '{}' with {:?} (source: {:?})",
@@ -1025,6 +1077,16 @@ impl ProviderRegistry {
                 }
             };
 
+            if is_unverified_fallback(resolved.source) {
+                diagnostics.record_skip(
+                    provider_id.clone(),
+                    SkipReason::ResolutionFailed {
+                        message: "unverified bare-symbol fallback".to_string(),
+                    },
+                );
+                continue;
+            }
+
             self.rate_limiter.acquire(&provider_id).await;
 
             match provider
@@ -1079,7 +1141,7 @@ mod tests {
     use super::*;
     use crate::models::{Coverage, Currency, InstrumentKind, ProviderInstrument};
     use crate::provider::{ProviderCapabilities, RateLimit};
-    use crate::resolver::{ResolutionSource, ResolvedInstrument};
+    use crate::resolver::{ResolutionSource, ResolvedInstrument, ResolverChain};
     use rust_decimal_macros::dec;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::time::Duration;
@@ -1209,6 +1271,248 @@ mod tests {
             _context: &QuoteContext,
         ) -> Option<Currency> {
             Some(Cow::Borrowed("USD"))
+        }
+    }
+
+    struct FallbackResolver;
+
+    impl SymbolResolver for FallbackResolver {
+        fn resolve(
+            &self,
+            _provider: &ProviderId,
+            _context: &QuoteContext,
+        ) -> Result<ResolvedInstrument, MarketDataError> {
+            Ok(ResolvedInstrument {
+                instrument: ProviderInstrument::EquitySymbol {
+                    symbol: Arc::from("COLLISION"),
+                },
+                source: ResolutionSource::RulesFallback,
+            })
+        }
+
+        fn get_currency(
+            &self,
+            _provider: &ProviderId,
+            _context: &QuoteContext,
+        ) -> Option<Currency> {
+            None
+        }
+    }
+
+    #[derive(Default)]
+    struct OperationCounts {
+        latest: AtomicUsize,
+        historical: AtomicUsize,
+        splits: AtomicUsize,
+        dividends: AtomicUsize,
+        profile: AtomicUsize,
+    }
+
+    struct AllOperationsProvider {
+        id: &'static str,
+        counts: Arc<OperationCounts>,
+    }
+
+    #[async_trait::async_trait]
+    impl MarketDataProvider for AllOperationsProvider {
+        fn id(&self) -> &'static str {
+            self.id
+        }
+
+        fn priority(&self) -> u8 {
+            1
+        }
+
+        fn capabilities(&self) -> ProviderCapabilities {
+            ProviderCapabilities {
+                instrument_kinds: &[InstrumentKind::Equity],
+                coverage: Coverage::global_best_effort(),
+                supports_latest: true,
+                supports_historical: true,
+                supports_search: false,
+                supports_profile: true,
+                supports_dividends: true,
+            }
+        }
+
+        fn rate_limit(&self) -> RateLimit {
+            RateLimit::default()
+        }
+
+        async fn get_latest_quote(
+            &self,
+            _context: &QuoteContext,
+            _instrument: ProviderInstrument,
+        ) -> Result<Quote, MarketDataError> {
+            self.counts.latest.fetch_add(1, Ordering::SeqCst);
+            unreachable!("unverified resolutions must not reach the provider")
+        }
+
+        async fn get_historical_quotes(
+            &self,
+            _context: &QuoteContext,
+            _instrument: ProviderInstrument,
+            _start: DateTime<Utc>,
+            _end: DateTime<Utc>,
+        ) -> Result<Vec<Quote>, MarketDataError> {
+            self.counts.historical.fetch_add(1, Ordering::SeqCst);
+            unreachable!("unverified resolutions must not reach the provider")
+        }
+
+        async fn get_splits(
+            &self,
+            _context: &QuoteContext,
+            _instrument: ProviderInstrument,
+            _start: DateTime<Utc>,
+            _end: DateTime<Utc>,
+        ) -> Result<Vec<SplitEvent>, MarketDataError> {
+            self.counts.splits.fetch_add(1, Ordering::SeqCst);
+            unreachable!("unverified resolutions must not reach the provider")
+        }
+
+        async fn get_dividends(
+            &self,
+            _context: &QuoteContext,
+            _instrument: ProviderInstrument,
+            _start: DateTime<Utc>,
+            _end: DateTime<Utc>,
+        ) -> Result<Vec<DividendEvent>, MarketDataError> {
+            self.counts.dividends.fetch_add(1, Ordering::SeqCst);
+            unreachable!("unverified resolutions must not reach the provider")
+        }
+
+        async fn get_profile(&self, _symbol: &str) -> Result<AssetProfile, MarketDataError> {
+            self.counts.profile.fetch_add(1, Ordering::SeqCst);
+            unreachable!("unverified resolutions must not reach the provider")
+        }
+    }
+
+    #[tokio::test]
+    async fn unverified_fallback_never_reaches_market_data_operations() {
+        let counts = Arc::new(OperationCounts::default());
+        let provider: Arc<dyn MarketDataProvider> = Arc::new(AllOperationsProvider {
+            id: "ALL_OPERATIONS",
+            counts: Arc::clone(&counts),
+        });
+        let registry = ProviderRegistry::new(vec![provider], Arc::new(FallbackResolver));
+        let context = QuoteContext {
+            instrument: InstrumentId::Equity {
+                ticker: Arc::from("COLLISION"),
+                mic: Some(Cow::Borrowed("21XX")),
+            },
+            identifiers: Default::default(),
+            overrides: None,
+            currency_hint: None,
+            preferred_provider: None,
+            bond_metadata: None,
+            custom_provider_code: None,
+        };
+        let now = Utc::now();
+
+        assert!(registry.fetch_latest_quote(&context).await.is_err());
+        assert!(registry.fetch_quotes(&context, now, now).await.is_err());
+        assert!(registry
+            .fetch_quotes_for_reset(&context, now, now)
+            .await
+            .is_err());
+        assert!(registry.fetch_splits(&context, now, now).await.is_empty());
+        assert!(registry.fetch_dividends(&context, now, now).await.is_err());
+        assert!(registry.get_profile(&context).await.is_err());
+        assert!(registry
+            .fetch_latest_quote_with_diagnostics(&context)
+            .await
+            .0
+            .is_err());
+        assert!(registry
+            .fetch_quotes_with_diagnostics(&context, now, now)
+            .await
+            .0
+            .is_err());
+
+        assert_eq!(counts.latest.load(Ordering::SeqCst), 0);
+        assert_eq!(counts.historical.load(Ordering::SeqCst), 0);
+        assert_eq!(counts.splits.load(Ordering::SeqCst), 0);
+        assert_eq!(counts.dividends.load(Ordering::SeqCst), 0);
+        assert_eq!(counts.profile.load(Ordering::SeqCst), 0);
+    }
+
+    #[tokio::test]
+    async fn unknown_dotted_suffix_without_mic_never_reaches_a_provider() {
+        let counts = Arc::new(OperationCounts::default());
+        let provider: Arc<dyn MarketDataProvider> = Arc::new(AllOperationsProvider {
+            id: "BOERSE_FRANKFURT",
+            counts: Arc::clone(&counts),
+        });
+        let registry = ProviderRegistry::new(vec![provider], Arc::new(ResolverChain::new()));
+        let now = Utc::now();
+
+        for ticker in ["ABC.ZZ", "AAPL"] {
+            let context = QuoteContext {
+                instrument: InstrumentId::Equity {
+                    ticker: Arc::from(ticker),
+                    mic: None,
+                },
+                identifiers: Default::default(),
+                overrides: None,
+                currency_hint: None,
+                preferred_provider: None,
+                bond_metadata: None,
+                custom_provider_code: None,
+            };
+
+            assert!(registry.fetch_latest_quote(&context).await.is_err());
+            assert!(registry.fetch_quotes(&context, now, now).await.is_err());
+            assert!(registry
+                .fetch_quotes_for_reset(&context, now, now)
+                .await
+                .is_err());
+            assert!(registry.fetch_splits(&context, now, now).await.is_empty());
+            assert!(registry.fetch_dividends(&context, now, now).await.is_err());
+            assert!(registry.get_profile(&context).await.is_err());
+            assert!(registry
+                .fetch_latest_quote_with_diagnostics(&context)
+                .await
+                .0
+                .is_err());
+            assert!(registry
+                .fetch_quotes_with_diagnostics(&context, now, now)
+                .await
+                .0
+                .is_err());
+        }
+
+        assert_eq!(counts.latest.load(Ordering::SeqCst), 0);
+        assert_eq!(counts.historical.load(Ordering::SeqCst), 0);
+        assert_eq!(counts.splits.load(Ordering::SeqCst), 0);
+        assert_eq!(counts.dividends.load(Ordering::SeqCst), 0);
+        assert_eq!(counts.profile.load(Ordering::SeqCst), 0);
+    }
+
+    #[tokio::test]
+    async fn verified_us_bare_rules_reach_supported_quote_providers() {
+        for provider_id in ["FINNHUB", "MARKETDATA_APP"] {
+            let provider = Arc::new(MockProvider::new(provider_id, 1, false));
+            let providers: Vec<Arc<dyn MarketDataProvider>> = vec![provider.clone()];
+            let registry = ProviderRegistry::new(providers, Arc::new(ResolverChain::new()));
+            let context = QuoteContext {
+                instrument: InstrumentId::Equity {
+                    ticker: Arc::from("AAPL"),
+                    mic: Some(Cow::Borrowed("XNAS")),
+                },
+                identifiers: Default::default(),
+                overrides: None,
+                currency_hint: Some(Cow::Borrowed("USD")),
+                preferred_provider: None,
+                bond_metadata: None,
+                custom_provider_code: None,
+            };
+
+            registry.fetch_latest_quote(&context).await.unwrap();
+            assert_eq!(
+                provider.call_count.load(Ordering::SeqCst),
+                1,
+                "{provider_id}"
+            );
         }
     }
 
@@ -1900,12 +2204,13 @@ mod tests {
         );
     }
 
-    /// The measured P10C case, end to end: an unknown MIC resolves to the bare
-    /// ticker, the provider answers for a US listing, and the registry must
-    /// throw that answer away instead of handing it to the classifier.
+    /// An unknown venue must not be sent to a profile provider because a bare
+    /// ticker can identify a different listing.
     #[tokio::test]
-    async fn test_get_profile_discards_an_unconfirmed_fallback_match() {
-        struct WrongListingProvider;
+    async fn test_get_profile_skips_an_unconfirmed_fallback() {
+        struct WrongListingProvider {
+            calls: Arc<AtomicUsize>,
+        }
 
         #[async_trait::async_trait]
         impl MarketDataProvider for WrongListingProvider {
@@ -1952,12 +2257,8 @@ mod tests {
             }
 
             async fn get_profile(&self, _: &str) -> Result<AssetProfile, MarketDataError> {
-                Ok(AssetProfile {
-                    name: Some("First Equities Corp".to_string()),
-                    quote_type: Some("MUTUALFUND".to_string()),
-                    currency: Some("USD".to_string()),
-                    ..Default::default()
-                })
+                self.calls.fetch_add(1, Ordering::SeqCst);
+                unreachable!("unverified resolutions must not reach the provider")
             }
         }
 
@@ -1986,7 +2287,10 @@ mod tests {
             }
         }
 
-        let providers: Vec<Arc<dyn MarketDataProvider>> = vec![Arc::new(WrongListingProvider)];
+        let calls = Arc::new(AtomicUsize::new(0));
+        let providers: Vec<Arc<dyn MarketDataProvider>> = vec![Arc::new(WrongListingProvider {
+            calls: Arc::clone(&calls),
+        })];
         let registry = ProviderRegistry::new(providers, Arc::new(FallbackResolver));
 
         let context = QuoteContext {
@@ -2004,10 +2308,8 @@ mod tests {
 
         let error = registry.get_profile(&context).await.unwrap_err();
 
-        assert!(
-            matches!(error, MarketDataError::ValidationFailed { .. }),
-            "expected a validation failure, got {error:?}"
-        );
+        assert!(matches!(error, MarketDataError::SymbolNotFound(_)));
+        assert_eq!(calls.load(Ordering::SeqCst), 0);
     }
     struct ResetProvider {
         base: MockProvider,

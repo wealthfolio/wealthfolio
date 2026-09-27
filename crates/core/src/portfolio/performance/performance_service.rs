@@ -5815,6 +5815,7 @@ mod tests {
             _instrument_type: Option<&crate::assets::InstrumentType>,
             _quote_ccy: Option<&str>,
             _preferred_provider: Option<&str>,
+            _provider_symbol: Option<&str>,
         ) -> Result<ResolvedQuote> {
             Ok(ResolvedQuote::default())
         }

@@ -544,9 +544,14 @@ export interface ResolvedQuote {
 
 export interface ExchangeInfo {
   mic: string;
+  operatingMic: string;
+  micType: "OPRT" | "SGMT";
   name: string;
   longName: string;
-  currency: string;
+  countryCode: string;
+  status: "ACTIVE" | "UPDATED";
+  currency?: string | null;
+  configured: boolean;
 }
 
 export interface MarketDataProviderInfo {

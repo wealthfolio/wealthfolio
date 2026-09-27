@@ -302,6 +302,7 @@ export function ActivityDataGrid({
           result.quoteType,
           result.providerId,
           result.currency,
+          result.providerSymbol,
         ).then((resolved) => {
           if (requestId !== latestResolveRequestId.current) return;
           if (!resolved) return;

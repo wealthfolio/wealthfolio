@@ -93,9 +93,12 @@ pub use exchange_metadata::{
     exchanges_for_currency, mic_to_currency, mic_to_exchange_name, mic_to_market_close,
     mic_to_timezone,
 };
-pub use exchange_registry::{get_exchange_list, ExchangeInfo};
+pub use exchange_registry::{
+    canonicalize_exchange_mic, get_exchange_list, is_known_mic, ExchangeInfo,
+};
 pub use exchange_suffixes::{
-    strip_yahoo_suffix, yahoo_equity_base_to_provider, yahoo_equity_provider_symbol_to_canonical,
+    has_unrecognized_dotted_suffix, strip_yahoo_suffix, strip_yahoo_suffix_for_mic,
+    yahoo_equity_base_to_provider, yahoo_equity_provider_symbol_to_canonical,
     yahoo_equity_search_queries, yahoo_exchange_suffixes, yahoo_exchange_to_mic,
     yahoo_suffix_to_mic, ExchangeMap, ExchangeSuffix,
 };

@@ -344,6 +344,7 @@ struct ResolveSymbolQuoteQuery {
     instrument_type: Option<String>,
     quote_ccy: Option<String>,
     provider_id: Option<String>,
+    provider_symbol: Option<String>,
 }
 
 async fn resolve_symbol_quote(
@@ -362,6 +363,7 @@ async fn resolve_symbol_quote(
             inst_type.as_ref(),
             q.quote_ccy.as_deref(),
             q.provider_id.as_deref(),
+            q.provider_symbol.as_deref(),
         )
         .await?;
     Ok(Json(res))

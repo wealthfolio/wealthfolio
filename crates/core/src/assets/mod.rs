@@ -30,7 +30,7 @@ pub use alternative_assets_traits::{
 };
 pub use asset_id::{
     parse_crypto_pair_symbol, parse_symbol_with_exchange_suffix, parse_symbol_with_known_exchange,
-    symbol_resolution_candidates, unknown_dotted_suffix_fallback,
+    symbol_resolution_candidates,
 };
 pub use asset_logo_model::{
     decode_and_validate as decode_and_validate_asset_logo, AssetLogo, AssetLogoSummary,

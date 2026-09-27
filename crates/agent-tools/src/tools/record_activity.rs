@@ -97,6 +97,16 @@ pub struct ActivityDraft {
     pub asset_id: Option<String>,
     /// Display name for the asset.
     pub asset_name: Option<String>,
+    /// Canonical exchange MIC selected by symbol resolution.
+    pub exchange_mic: Option<String>,
+    /// Quote currency selected by symbol resolution.
+    pub quote_ccy: Option<String>,
+    /// Canonical instrument type selected by symbol resolution.
+    pub instrument_type: Option<String>,
+    /// Provider that returned the selected symbol result.
+    pub provider_id: Option<String>,
+    /// Exact provider-native symbol selected by the user.
+    pub provider_symbol: Option<String>,
     pub quantity: Option<f64>,
     pub unit_price: Option<f64>,
     /// Computed or provided amount.
@@ -171,6 +181,10 @@ pub struct ResolvedAsset {
     pub exchange_mic: Option<String>,
     /// Instrument type from the search provider (e.g., "EQUITY", "ETF", "BOND").
     pub instrument_type: Option<String>,
+    /// Provider that returned the selected result.
+    pub provider_id: Option<String>,
+    /// Exact provider-native symbol returned by the provider.
+    pub provider_symbol: Option<String>,
 }
 
 /// A subtype option for the dropdown.
@@ -204,6 +218,47 @@ const ACTIVITY_TYPES: &[&str] = &[
     ACTIVITY_TYPE_ADJUSTMENT,
     ACTIVITY_TYPE_UNKNOWN,
 ];
+
+fn resolved_asset_from_search_result(
+    result: &wealthfolio_core::quotes::SymbolSearchResult,
+    fallback_currency: &str,
+) -> ResolvedAsset {
+    let canonical_symbol = result
+        .canonical_symbol
+        .clone()
+        .unwrap_or_else(|| result.symbol.clone());
+    let canonical_exchange_mic = result
+        .canonical_exchange_mic
+        .clone()
+        .or_else(|| result.exchange_mic.clone());
+
+    ResolvedAsset {
+        asset_id: result.existing_asset_id.clone().unwrap_or_else(|| {
+            format!(
+                "{}:{}",
+                canonical_symbol,
+                canonical_exchange_mic.as_deref().unwrap_or("UNKNOWN")
+            )
+        }),
+        symbol: canonical_symbol,
+        name: result.long_name.clone(),
+        currency: result
+            .currency
+            .clone()
+            .unwrap_or_else(|| fallback_currency.to_string()),
+        exchange: result.exchange_name.clone(),
+        exchange_mic: canonical_exchange_mic,
+        instrument_type: (!result.quote_type.trim().is_empty()).then(|| result.quote_type.clone()),
+        provider_id: result
+            .provider_id
+            .clone()
+            .or_else(|| result.data_source.clone()),
+        provider_symbol: result
+            .provider_symbol
+            .clone()
+            .or_else(|| Some(result.symbol.clone())),
+    }
+}
 
 // ============================================================================
 // Subtype Mappings
@@ -406,26 +461,7 @@ impl RecordActivity {
 
                 if let Some(top_result) = search_results.first() {
                     // Found a match - use the top result
-                    let asset = ResolvedAsset {
-                        asset_id: top_result.existing_asset_id.clone().unwrap_or_else(|| {
-                            // Construct asset ID from symbol and exchange
-                            format!(
-                                "{}:{}",
-                                top_result.symbol,
-                                top_result.exchange_mic.as_deref().unwrap_or("UNKNOWN")
-                            )
-                        }),
-                        symbol: top_result.symbol.clone(),
-                        name: top_result.long_name.clone(),
-                        currency: top_result
-                            .currency
-                            .clone()
-                            .unwrap_or_else(|| currency.clone()),
-                        exchange: top_result.exchange_name.clone(),
-                        exchange_mic: top_result.exchange_mic.clone(),
-                        instrument_type: (!top_result.quote_type.trim().is_empty())
-                            .then(|| top_result.quote_type.clone()),
-                    };
+                    let asset = resolved_asset_from_search_result(top_result, &currency);
                     (
                         Some(asset.clone()),
                         Some(asset.asset_id.clone()),
@@ -472,9 +508,25 @@ impl RecordActivity {
         let draft = ActivityDraft {
             activity_type: activity_type.clone(),
             activity_date: args.activity_date,
-            symbol: args.symbol.clone(),
+            symbol: resolved_asset
+                .as_ref()
+                .map(|asset| asset.symbol.clone())
+                .or_else(|| args.symbol.clone()),
             asset_id,
             asset_name,
+            exchange_mic: resolved_asset
+                .as_ref()
+                .and_then(|asset| asset.exchange_mic.clone()),
+            quote_ccy: resolved_asset.as_ref().map(|asset| asset.currency.clone()),
+            instrument_type: resolved_asset
+                .as_ref()
+                .and_then(|asset| asset.instrument_type.clone()),
+            provider_id: resolved_asset
+                .as_ref()
+                .and_then(|asset| asset.provider_id.clone()),
+            provider_symbol: resolved_asset
+                .as_ref()
+                .and_then(|asset| asset.provider_symbol.clone()),
             quantity: args.quantity,
             unit_price: args.unit_price,
             amount,
@@ -726,6 +778,31 @@ mod tests {
     }
 
     #[test]
+    fn selected_provider_result_keeps_canonical_and_provider_identity() {
+        let result = wealthfolio_core::quotes::SymbolSearchResult {
+            symbol: "ABC.ZZ".to_string(),
+            canonical_symbol: Some("ABC".to_string()),
+            canonical_exchange_mic: Some("XNAS".to_string()),
+            provider_id: Some("YAHOO".to_string()),
+            provider_symbol: Some("ABC.ZZ".to_string()),
+            long_name: "Example".to_string(),
+            quote_type: "EQUITY".to_string(),
+            currency: Some("USD".to_string()),
+            ..Default::default()
+        };
+
+        let asset = resolved_asset_from_search_result(&result, "CAD");
+
+        assert_eq!(asset.asset_id, "ABC:XNAS");
+        assert_eq!(asset.symbol, "ABC");
+        assert_eq!(asset.exchange_mic.as_deref(), Some("XNAS"));
+        assert_eq!(asset.currency, "USD");
+        assert_eq!(asset.instrument_type.as_deref(), Some("EQUITY"));
+        assert_eq!(asset.provider_id.as_deref(), Some("YAHOO"));
+        assert_eq!(asset.provider_symbol.as_deref(), Some("ABC.ZZ"));
+    }
+
+    #[test]
     fn test_get_subtypes_for_activity_type() {
         let subtypes = get_subtypes_for_activity_type("DIVIDEND");
         assert!(subtypes.iter().any(|s| s.value == "DRIP"));
@@ -751,6 +828,11 @@ mod tests {
             symbol: Some("AAPL".to_string()),
             asset_id: None,
             asset_name: None,
+            exchange_mic: None,
+            quote_ccy: None,
+            instrument_type: None,
+            provider_id: None,
+            provider_symbol: None,
             quantity: Some(10.0),
             unit_price: Some(100.0),
             amount: None,
