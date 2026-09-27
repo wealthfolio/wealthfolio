@@ -82,9 +82,6 @@ function FinancialData() {
 // Import components
 import { Button, Card, CardContent, AmountDisplay } from "@wealthfolio/ui";
 
-// Import styles (once in your main file)
-import "@wealthfolio/ui/styles";
-
 function MyAddon() {
   return (
     <Card>
@@ -107,17 +104,11 @@ function MyAddon() {
 
 ### Styling
 
-Import the CSS file in your addon:
-
-```tsx
-import "@wealthfolio/ui/styles";
-```
-
-Or in your CSS:
-
-```css
-@import "@wealthfolio/ui/styles";
-```
+Wealthfolio loads its stylesheet into the addon sandbox. Addons using
+`@wealthfolio/ui` do not need to import `@wealthfolio/ui/styles`; doing so can
+bundle Tailwind CSS a second time. The package CSS export is not used by the
+addon runtime, so do not add a CSS copy step to the package build solely for
+addon styling.
 
 ## Components
 
@@ -153,11 +144,8 @@ All standard shadcn/ui components with Wealthfolio's Flexoki theme applied:
 The components use CSS variables for theming. The main app provides the theme
 context, so addons automatically inherit the current theme (light/dark mode).
 
-The Flexoki theme is defined in `packages/ui/src/styles.css`. Updates here
-automatically apply to:
-
-- Main application
-- All addons using `@wealthfolio/ui`
+The host theme is defined in `apps/frontend/src/globals.css` and is loaded into
+the addon sandbox by `apps/frontend/src/addons/iframe/addon-sandbox-entry.tsx`.
 
 ## Development
 
