@@ -137,4 +137,7 @@ features = ["Win32_System_RemoteDesktop", "Win32_System_Power", "Win32_UI_Window
 [target.'cfg(all(unix, not(any(target_os = "macos", target_os = "ios", target_os = "android"))))'.dependencies.zbus]
 version = "5"
 default-features = false
-features = ["tokio"]
+# Shared with the synchronous Secret Service store. Enabling `tokio` makes its
+# blocking calls nest Tokio runtimes and panic during async desktop startup.
+# The async logind API also works with this runtime-independent backend.
+features = ["async-io"]

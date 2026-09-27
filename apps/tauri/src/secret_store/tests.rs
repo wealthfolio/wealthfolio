@@ -147,7 +147,11 @@ impl TestSecret {
 
 impl Drop for TestSecret {
     fn drop(&mut self) {
-        let _ = production_store().delete_secret(&self.0);
+        // A keyring panic can poison its internal mutex. Preserve the original
+        // test failure instead of aborting on a second panic during cleanup.
+        if !std::thread::panicking() {
+            let _ = production_store().delete_secret(&self.0);
+        }
     }
 }
 
@@ -157,19 +161,55 @@ impl Drop for TestSecret {
 #[ignore = "requires an unlocked native credential store"]
 fn native_store_round_trip() {
     let fixture = TestSecret::new();
+    assert_native_store_round_trip(&fixture.0);
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+#[ignore = "requires an unlocked native credential store"]
+fn native_store_round_trip_on_tokio_worker() {
+    // Keep cleanup outside the runtime so a regression cannot panic a second
+    // time in TestSecret::drop while unwinding the original keyring panic.
+    let fixture = TestSecret::new();
+    let key = fixture.0.clone();
+    let runtime = tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(2)
+        .enable_all()
+        .build()
+        .unwrap();
+    runtime
+        .block_on(async move {
+            // Match desktop startup and async commands: call the synchronous
+            // store directly on a worker, without spawn_blocking.
+            tokio::spawn(async move { assert_native_store_round_trip(&key) }).await
+        })
+        .expect("native credential operations must not panic on a Tokio worker");
+}
+
+fn assert_native_store_round_trip(key: &str) {
     let store = production_store();
-    assert!(store.get_secret(&fixture.0).unwrap().is_none());
-    store.delete_secret(&fixture.0).unwrap();
+    assert!(store.get_secret(key).unwrap().is_none());
+    store.delete_secret(key).unwrap();
 
-    store.set_secret(&fixture.0, "fixture-α-🔑").unwrap();
+    store.set_secret(key, "fixture-α-🔑").unwrap();
     // Every operation constructs a new entry, catching Android's old mock fallback.
-    assert!(store.get_secret(&fixture.0).unwrap().as_deref() == Some("fixture-α-🔑"));
-    store.set_secret(&fixture.0, "updated-fixture").unwrap();
-    assert!(store.get_secret(&fixture.0).unwrap().as_deref() == Some("updated-fixture"));
+    assert!(store.get_secret(key).unwrap().as_deref() == Some("fixture-α-🔑"));
+    assert!(store
+        .list_secrets()
+        .unwrap()
+        .iter()
+        .any(|entry| entry == key));
+    store.set_secret(key, "updated-fixture").unwrap();
+    assert!(store.get_secret(key).unwrap().as_deref() == Some("updated-fixture"));
 
-    store.delete_secret(&fixture.0).unwrap();
-    assert!(store.get_secret(&fixture.0).unwrap().is_none());
-    store.delete_secret(&fixture.0).unwrap();
+    store.delete_secret(key).unwrap();
+    assert!(store.get_secret(key).unwrap().is_none());
+    assert!(!store
+        .list_secrets()
+        .unwrap()
+        .iter()
+        .any(|entry| entry == key));
+    store.delete_secret(key).unwrap();
 }
 
 #[cfg(not(target_os = "android"))]
