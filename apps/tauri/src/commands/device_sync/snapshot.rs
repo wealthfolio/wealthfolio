@@ -1,6 +1,5 @@
 //! Snapshot generation and upload. Restoration is owned by the restore operation.
 
-use base64::{engine::general_purpose::STANDARD as BASE64_STANDARD, Engine};
 use chrono::Utc;
 use log::{debug, info};
 use std::sync::atomic::Ordering;
@@ -9,9 +8,7 @@ use tauri::AppHandle;
 use uuid::Uuid;
 
 use crate::context::ServiceContext;
-use wealthfolio_core::sync::{
-    snapshot_covers_cursor_and_schema, APP_SYNC_TABLES, SNAPSHOT_SCHEMA_VERSION,
-};
+use wealthfolio_core::sync::{APP_SYNC_TABLES, SNAPSHOT_SCHEMA_VERSION};
 
 use super::{
     create_client, encrypt_sync_payload, get_access_token, get_sync_identity_from_store,
@@ -28,11 +25,6 @@ struct SnapshotUploadProgressEvent {
 }
 
 const DEVICE_SYNC_SNAPSHOT_UPLOAD_PROGRESS_EVENT: &str = "device-sync:snapshot-upload-progress";
-
-fn is_snapshot_index_conflict(message: &str) -> bool {
-    let message = message.to_ascii_lowercase();
-    message.contains("sync_transaction_failed") && message.contains("snapshot index conflict")
-}
 
 fn sync_source_restore_required_error() -> String {
     format!(
@@ -183,38 +175,8 @@ pub async fn generate_snapshot_now_internal(
     if local_cursor.is_some_and(|cursor| cursor > server_cursor) {
         return Err(sync_source_restore_required_error());
     }
-    if let Some(cursor) = local_cursor {
-        if let Ok(Some(latest_snapshot)) = create_client()?
-            .get_latest_snapshot_with_cursor_fallback(&token, &device_id)
-            .await
-        {
-            if snapshot_covers_cursor_and_schema(
-                latest_snapshot.oplog_seq,
-                latest_snapshot.schema_version,
-                cursor,
-                SNAPSHOT_SCHEMA_VERSION,
-            ) {
-                info!(
-                    "[DeviceSync] Reusing latest remote snapshot id={} oplog_seq={} for cursor={}",
-                    latest_snapshot.snapshot_id, latest_snapshot.oplog_seq, cursor
-                );
-                emit_snapshot_upload_progress(
-                    &context,
-                    handle,
-                    "completed",
-                    100,
-                    "Latest remote snapshot already covers current data",
-                );
-                return Ok(SyncSnapshotUploadResult {
-                    status: "uploaded".to_string(),
-                    snapshot_id: Some(latest_snapshot.snapshot_id),
-                    oplog_seq: Some(latest_snapshot.oplog_seq),
-                    message: "Latest remote snapshot already covers current cursor".to_string(),
-                });
-            }
-        }
-    }
-
+    // Broker holdings and provider quotes can change without an outbox event.
+    // A matching event cursor cannot prove that a remote snapshot is current.
     let sync_tables = APP_SYNC_TABLES
         .iter()
         .map(|value| value.to_string())
@@ -248,13 +210,15 @@ pub async fn generate_snapshot_now_internal(
         ));
     }
 
-    // Base64-encode the raw SQLite bytes before encryption because the crypto
-    // module operates on UTF-8 strings (encrypt/decrypt take &str). Binary-mode
-    // encryption would avoid this overhead but isn't supported by the current API.
-    let encoded_snapshot = BASE64_STANDARD.encode(sqlite_bytes);
-    let encrypted_snapshot_payload =
-        encrypt_sync_payload(&encoded_snapshot, &identity, key_version)?;
-    let payload = encrypted_snapshot_payload.into_bytes();
+    let payload = wealthfolio_device_sync::snapshot::encode(
+        &sqlite_bytes,
+        identity
+            .root_key
+            .as_deref()
+            .ok_or("Missing sync root key")?,
+        key_version,
+    )?;
+    drop(sqlite_bytes);
     let checksum = sha256_checksum(&payload);
     let metadata_payload = encrypt_sync_payload(
         &serde_json::json!({
@@ -322,43 +286,7 @@ pub async fn generate_snapshot_now_internal(
                     "Snapshot upload cancelled during transfer",
                 ));
             }
-            if is_snapshot_index_conflict(&message) {
-                let latest = match create_client() {
-                    Ok(client) => client
-                        .get_latest_snapshot_with_cursor_fallback(&token, &device_id)
-                        .await
-                        .ok()
-                        .flatten(),
-                    Err(_) => None,
-                };
-                if let (Some(cursor), Some(snapshot)) = (local_cursor, latest) {
-                    if snapshot_covers_cursor_and_schema(
-                        snapshot.oplog_seq,
-                        snapshot.schema_version,
-                        cursor,
-                        SNAPSHOT_SCHEMA_VERSION,
-                    ) {
-                        info!(
-                            "[DeviceSync] Snapshot conflict resolved by existing remote snapshot id={} oplog_seq={} cursor={}",
-                            snapshot.snapshot_id, snapshot.oplog_seq, cursor
-                        );
-                        emit_snapshot_upload_progress(
-                            &context,
-                            handle,
-                            "complete",
-                            100,
-                            "Snapshot already available",
-                        );
-                        return Ok(SyncSnapshotUploadResult {
-                            status: "uploaded".to_string(),
-                            snapshot_id: Some(snapshot.snapshot_id),
-                            oplog_seq: Some(snapshot.oplog_seq),
-                            message: "Latest remote snapshot already covers current cursor"
-                                .to_string(),
-                        });
-                    }
-                }
-            }
+
             return Err(message);
         }
     };

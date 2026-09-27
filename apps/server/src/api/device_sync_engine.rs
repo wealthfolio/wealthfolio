@@ -5,15 +5,12 @@ use wealthfolio_core::secrets::SYNC_IDENTITY_KEY;
 use wealthfolio_core::settings::SettingsServiceTrait;
 
 use async_trait::async_trait;
-use base64::{engine::general_purpose::STANDARD as BASE64_STANDARD, Engine};
 use chrono::{Duration, Utc};
 use uuid::Uuid;
 
 use crate::main_lib::AppState;
 use wealthfolio_core::events::DomainEvent;
-use wealthfolio_core::sync::{
-    snapshot_covers_cursor_and_schema, APP_SYNC_TABLES, SNAPSHOT_SCHEMA_VERSION,
-};
+use wealthfolio_core::sync::{APP_SYNC_TABLES, SNAPSHOT_SCHEMA_VERSION};
 use wealthfolio_device_sync::engine::{
     self, CredentialStore, OutboxStore, ReplayEvent, ReplayStore, RestoreFile, RestoreOperation,
     RestorePorts, StartRestore, SyncIdentity, SyncTransport, TransportError,
@@ -52,11 +49,6 @@ impl SyncApprovals {
 }
 
 const SYNC_SOURCE_RESTORE_REQUIRED_CODE: &str = "SYNC_SOURCE_RESTORE_REQUIRED";
-
-fn is_snapshot_index_conflict(message: &str) -> bool {
-    let message = message.to_ascii_lowercase();
-    message.contains("sync_transaction_failed") && message.contains("snapshot index conflict")
-}
 
 fn is_pairing_already_confirmed_error(err: &wealthfolio_device_sync::DeviceSyncError) -> bool {
     match err {
@@ -696,27 +688,8 @@ pub async fn generate_snapshot_now(
     if local_cursor.is_some_and(|cursor| cursor > server_cursor) {
         return Err(sync_source_restore_required_error());
     }
-    if let Some(cursor) = local_cursor {
-        if let Ok(Some(latest_snapshot)) = create_client()
-            .get_latest_snapshot_with_cursor_fallback(&token, &device_id)
-            .await
-        {
-            if snapshot_covers_cursor_and_schema(
-                latest_snapshot.oplog_seq,
-                latest_snapshot.schema_version,
-                cursor,
-                SNAPSHOT_SCHEMA_VERSION,
-            ) {
-                return Ok(SyncSnapshotUploadResult {
-                    status: "uploaded".to_string(),
-                    snapshot_id: Some(latest_snapshot.snapshot_id),
-                    oplog_seq: Some(latest_snapshot.oplog_seq),
-                    message: "Latest remote snapshot already covers current cursor".to_string(),
-                });
-            }
-        }
-    }
-
+    // Broker holdings and provider quotes can change without an outbox event.
+    // A matching event cursor cannot prove that a remote snapshot is current.
     let sync_tables = APP_SYNC_TABLES
         .iter()
         .map(|value| value.to_string())
@@ -742,10 +715,15 @@ pub async fn generate_snapshot_now(
         ));
     }
 
-    let encoded_snapshot = BASE64_STANDARD.encode(sqlite_bytes);
-    let encrypted_snapshot_payload =
-        encrypt_sync_payload(&encoded_snapshot, &identity, key_version)?;
-    let payload = encrypted_snapshot_payload.into_bytes();
+    let payload = wealthfolio_device_sync::snapshot::encode(
+        &sqlite_bytes,
+        identity
+            .root_key
+            .as_deref()
+            .ok_or("Missing sync root key")?,
+        key_version,
+    )?;
+    drop(sqlite_bytes);
     let checksum = sha256_checksum(&payload);
     let metadata_payload = encrypt_sync_payload(
         &serde_json::json!({
@@ -794,35 +772,7 @@ pub async fn generate_snapshot_now(
                     "Snapshot upload cancelled during transfer",
                 ));
             }
-            if is_snapshot_index_conflict(&message) {
-                let latest = create_client()
-                    .get_latest_snapshot_with_cursor_fallback(&token, &device_id)
-                    .await
-                    .ok()
-                    .flatten();
-                if let (Some(cursor), Some(snapshot)) = (local_cursor, latest) {
-                    if snapshot_covers_cursor_and_schema(
-                        snapshot.oplog_seq,
-                        snapshot.schema_version,
-                        cursor,
-                        SNAPSHOT_SCHEMA_VERSION,
-                    ) {
-                        tracing::info!(
-                            "[DeviceSync] Snapshot conflict resolved by existing remote snapshot id={} oplog_seq={} cursor={}",
-                            snapshot.snapshot_id,
-                            snapshot.oplog_seq,
-                            cursor
-                        );
-                        return Ok(SyncSnapshotUploadResult {
-                            status: "uploaded".to_string(),
-                            snapshot_id: Some(snapshot.snapshot_id),
-                            oplog_seq: Some(snapshot.oplog_seq),
-                            message: "Latest remote snapshot already covers current cursor"
-                                .to_string(),
-                        });
-                    }
-                }
-            }
+
             return Err(message);
         }
     };
@@ -1061,6 +1011,10 @@ impl RestorePorts for ServerEnginePorts {
     }
 
     fn refresh_portfolio(&self) {
+        let state = Arc::clone(&self.state);
+        tokio::spawn(async move {
+            super::connect::run_broker_bootstrap(state).await;
+        });
         // The same signal a sync pull sends: the portfolio pipeline recalculates
         // and reports its own progress and errors.
         self.state

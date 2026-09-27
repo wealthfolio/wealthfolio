@@ -13,7 +13,6 @@ use std::sync::{Arc, MutexGuard};
 use std::time::Duration;
 
 use async_trait::async_trait;
-use base64::{engine::general_purpose::STANDARD as BASE64_STANDARD, Engine};
 use log::{debug, info, warn};
 use serde::{Deserialize, Serialize};
 use tokio::task::JoinHandle;
@@ -1072,7 +1071,12 @@ async fn satisfies_freshness_gate<P: RestorePorts>(
     if created_at + chrono::Duration::seconds(SNAPSHOT_FRESHNESS_CLOCK_SKEW_LEEWAY_SECS) > gate {
         return Ok(true);
     }
-    // An older snapshot is still usable when it already covers every event.
+    // Schema 4 also contains broker data which never enters the event stream.
+    // Event coverage cannot make a pre-pairing snapshot fresh for that data.
+    if latest.schema_version >= 4 {
+        return Ok(false);
+    }
+    // Legacy senders reuse snapshots when they cover every event.
     Ok(matches!(
         ports.get_events_cursor(&session.token, &session.device_id).await,
         Ok(cursor) if latest.oplog_seq >= cursor.cursor
@@ -1181,17 +1185,5 @@ fn decode_snapshot_image(blob: &[u8], identity: &SyncIdentity) -> Result<Vec<u8>
         .key_version
         .filter(|version| *version > 0)
         .ok_or("Invalid key version in sync identity")?;
-    let ciphertext = std::str::from_utf8(blob)
-        .map_err(|_| "Snapshot payload is not valid UTF-8 (expected encrypted ciphertext)")?;
-    let dek = crate::crypto::derive_dek(root_key, key_version as u32)
-        .map_err(|e| format!("Failed to derive snapshot DEK: {e}"))?;
-    let decrypted = crate::crypto::decrypt(&dek, ciphertext.trim())
-        .map_err(|e| format!("Failed to decrypt snapshot payload: {e}"))?;
-    let image = BASE64_STANDARD
-        .decode(decrypted.trim())
-        .map_err(|e| format!("Failed to base64-decode decrypted snapshot: {e}"))?;
-    if !image.starts_with(b"SQLite format 3\0") {
-        return Err("Decrypted snapshot is not a valid SQLite image".to_string());
-    }
-    Ok(image)
+    crate::snapshot::decode(blob, root_key, key_version)
 }

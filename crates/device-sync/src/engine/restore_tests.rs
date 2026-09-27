@@ -1,6 +1,5 @@
 use super::*;
 use async_trait::async_trait;
-use base64::{engine::general_purpose::STANDARD as BASE64_STANDARD, Engine};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicI64, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex as StdMutex};
@@ -22,10 +21,7 @@ struct FakeSnapshot {
 fn fake_snapshot(root_key: &str, id: &str, oplog_seq: i64) -> FakeSnapshot {
     let mut image = b"SQLite format 3\0".to_vec();
     image.extend_from_slice(id.as_bytes());
-    let dek = crate::crypto::derive_dek(root_key, 1).unwrap();
-    let blob = crate::crypto::encrypt(&dek, &BASE64_STANDARD.encode(image))
-        .unwrap()
-        .into_bytes();
+    let blob = crate::snapshot::encode(&image, root_key, 1).unwrap();
     FakeSnapshot {
         meta: SnapshotLatestResponse {
             snapshot_id: id.to_string(),
@@ -48,6 +44,7 @@ struct FakePorts {
     sync_state: StdMutex<SyncState>,
     snapshots: StdMutex<Vec<FakeSnapshot>>,
     latest: StdMutex<Option<String>>,
+    freshness_gate: Option<String>,
     download_gate: Option<Arc<Semaphore>>,
     backup_gate: Option<Arc<Semaphore>>,
     download_failures: AtomicUsize,
@@ -81,6 +78,7 @@ impl FakePorts {
             sync_state: StdMutex::new(SyncState::Ready),
             snapshots: StdMutex::new(vec![snapshot]),
             latest: StdMutex::new(Some("snap-1".to_string())),
+            freshness_gate: None,
             download_gate: None,
             backup_gate: None,
             download_failures: AtomicUsize::new(0),
@@ -314,7 +312,7 @@ impl RestorePorts for FakePorts {
     }
 
     fn freshness_gate(&self, _device_id: &str) -> Option<String> {
-        None
+        self.freshness_gate.clone()
     }
 
     async fn clear_freshness_gate(&self, _device_id: &str) {}
@@ -994,4 +992,21 @@ async fn finished_restore_is_not_restarted_by_a_transient_cycle_status() {
     ports.needs_bootstrap.store(true, Ordering::SeqCst);
     let next = start(&runtime, &ports, StartRestore::Recurring).await;
     assert_ne!(next.operation_id, ready.operation_id);
+}
+
+#[tokio::test]
+async fn pairing_waits_for_fresh_broker_data_even_when_the_cursor_is_unchanged() {
+    let mut ports = FakePorts::new(0);
+    ports.freshness_gate = Some(chrono::Utc::now().to_rfc3339());
+    ports.snapshots.lock().unwrap()[0].meta.created_at =
+        (chrono::Utc::now() - chrono::Duration::hours(1)).to_rfc3339();
+    let ports = Arc::new(ports);
+    let runtime = runtime();
+    start(&runtime, &ports, StartRestore::Pairing).await;
+    wait_for_phase(&runtime, RestorePhase::WaitingForSnapshot).await;
+    assert!(ports.downloads().is_empty());
+    ports.add_snapshot("fresh-broker-data", 42);
+    wait_for_phase(&runtime, RestorePhase::Ready).await;
+    assert_eq!(ports.downloads(), vec!["fresh-broker-data"]);
+    assert_eq!(ports.replacements()[0].1, 42);
 }

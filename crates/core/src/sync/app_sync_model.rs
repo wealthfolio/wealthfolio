@@ -80,10 +80,10 @@ pub const APP_SYNC_TABLES: &[&str] = &[
     "allocation_target_constraints",
 ];
 
-/// Schema version stamped on uploaded snapshots. Version 3 includes all quote
-/// sources. This prevents reuse of older manual-only snapshots and keeps older
-/// clients, whose restore filters discard provider quotes, from restoring them.
-pub const SNAPSHOT_SCHEMA_VERSION: i32 = 3;
+/// Schema version stamped on uploaded snapshots. Version 4 uses compressed binary
+/// encryption and includes broker holdings, activities and their import records.
+/// Older clients must not restore it with their manual-only import filters.
+pub const SNAPSHOT_SCHEMA_VERSION: i32 = 4;
 
 /// A remote snapshot is reusable only when it covers the required event cursor
 /// and contains at least the schema required by the local client.
@@ -327,10 +327,10 @@ mod tests {
         assert!(snapshot_covers_cursor_and_schema(11, 3, 10, 2));
         assert!(!snapshot_covers_cursor_and_schema(9, 2, 10, 2));
         assert!(!snapshot_covers_cursor_and_schema(11, 1, 10, 2));
-        // A snapshot predating provider quote inclusion must not be reused.
+        // A snapshot predating broker data inclusion must not be reused.
         assert!(!snapshot_covers_cursor_and_schema(
             11,
-            2,
+            3,
             10,
             SNAPSHOT_SCHEMA_VERSION
         ));

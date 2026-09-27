@@ -21,6 +21,9 @@ use crate::types::*;
 
 /// Default timeout for API requests.
 const DEFAULT_TIMEOUT_SECS: u64 = 30;
+// Pairing snapshots include price history and can be tens of megabytes. Give
+// their bodies time to upload/download without relaxing ordinary API deadlines.
+const SNAPSHOT_TRANSFER_TIMEOUT_SECS: u64 = 300;
 const SNAPSHOT_UPLOAD_MAX_ATTEMPTS: usize = 5;
 const SNAPSHOT_UPLOAD_BASE_BACKOFF_MS: u64 = 250;
 const SNAPSHOT_UPLOAD_MAX_BACKOFF_MS: u64 = 8_000;
@@ -346,6 +349,7 @@ impl DeviceSyncClient {
     pub fn new(base_url: &str) -> Self {
         let client = wealthfolio_http::client_builder()
             .timeout(Duration::from_secs(DEFAULT_TIMEOUT_SECS))
+            .connect_timeout(Duration::from_secs(DEFAULT_TIMEOUT_SECS))
             .build()
             .expect("Failed to build HTTP client");
 
@@ -879,6 +883,7 @@ impl DeviceSyncClient {
         let response = self
             .client
             .get(url)
+            .timeout(Duration::from_secs(SNAPSHOT_TRANSFER_TIMEOUT_SECS))
             .headers(headers)
             .send()
             .await
@@ -1079,6 +1084,7 @@ impl DeviceSyncClient {
             let send_result = self
                 .client
                 .post(&url)
+                .timeout(Duration::from_secs(SNAPSHOT_TRANSFER_TIMEOUT_SECS))
                 .headers(headers)
                 .body(payload.clone())
                 .send()
@@ -1646,6 +1652,79 @@ mod tests {
         );
 
         assert!(err.is_snapshot_id_validation_error());
+    }
+
+    // Shorten the client's ordinary deadline so these tests exercise the real
+    // transport without waiting 30 seconds. Snapshot requests must override it.
+    fn client_with_short_timeout(base_url: &str) -> DeviceSyncClient {
+        DeviceSyncClient {
+            client: wealthfolio_http::client_builder()
+                .no_proxy()
+                .timeout(Duration::from_millis(50))
+                .build()
+                .unwrap(),
+            base_url: base_url.to_string(),
+        }
+    }
+
+    #[tokio::test]
+    async fn snapshot_upload_outlives_api_timeout_without_retry() {
+        let (base_url, captured, server) =
+            start_mock_upload_server(vec![MockUploadOutcome::Respond {
+                status: 200,
+                body: success_upload_body("slow-snapshot"),
+                delay_ms: 200,
+            }])
+            .await;
+        let client = client_with_short_timeout(&base_url);
+        let payload = b"encrypted snapshot".to_vec();
+        let result = client
+            .upload_snapshot(
+                "token",
+                "device",
+                build_upload_headers(None, &payload),
+                payload,
+            )
+            .await;
+        server.abort();
+        assert!(result.is_ok(), "slow upload failed: {result:?}");
+        assert_eq!(captured.lock().await.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn snapshot_download_body_outlives_api_timeout() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let base_url = format!("http://{}", listener.local_addr().unwrap());
+        let server = tokio::spawn(async move {
+            let (mut stream, _) = listener.accept().await.unwrap();
+            read_http_request(&mut stream).await.unwrap();
+            stream.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 4\r\nx-snapshot-schema-version: 3\r\nx-snapshot-covers-tables: accounts\r\nx-snapshot-checksum: test\r\nConnection: close\r\n\r\n").await.unwrap();
+            stream.flush().await.unwrap();
+            tokio::time::sleep(Duration::from_millis(200)).await;
+            let _ = stream.write_all(b"data").await;
+        });
+        let result = client_with_short_timeout(&base_url)
+            .download_snapshot("token", "device", "snapshot")
+            .await;
+        server.await.unwrap();
+        let (headers, body) = result.expect("slow download must finish reading its body");
+        assert_eq!(headers.schema_version, 3);
+        assert_eq!(body, b"data");
+    }
+
+    #[tokio::test]
+    async fn ordinary_api_request_keeps_client_timeout() {
+        let (base_url, _, server) = start_mock_upload_server(vec![MockUploadOutcome::Respond {
+            status: 200,
+            body: r#"{"cursor":0}"#.to_string(),
+            delay_ms: 200,
+        }])
+        .await;
+        let result = client_with_short_timeout(&base_url)
+            .get_events_cursor("token", "device")
+            .await;
+        server.abort();
+        assert!(matches!(result, Err(DeviceSyncError::Http(err)) if err.is_timeout()));
     }
 
     #[tokio::test]

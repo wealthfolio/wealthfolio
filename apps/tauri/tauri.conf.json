@@ -21,7 +21,7 @@
     "category": "public.app-category.finance",
     "createUpdaterArtifacts": "v1Compatible",
     "iOS": {
-      "bundleVersion": "5",
+      "bundleVersion": "1",
       "developmentTeam": "DYDJ2RNL5H",
       "infoPlist": "Info.ios.plist"
     },
@@ -41,7 +41,7 @@
   },
   "productName": "Wealthfolio",
   "mainBinaryName": "Wealthfolio",
-  "version": "3.9.0",
+  "version": "3.9.1",
   "identifier": "com.teymz.wealthfolio",
   "plugins": {
     "updater": {
