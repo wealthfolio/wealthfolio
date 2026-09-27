@@ -121,8 +121,10 @@ def main():
                     request("/api/v1/settings")
                 except urllib.error.HTTPError as error:
                     with error:
-                        assert error.code == 423, ("Wrong-key response", error.code)
-                        assert b"key did not open it" in error.read(), "Expected database key rejection"
+                        assert error.code == 500, ("Wrong-key response", error.code)
+                        body = error.read()
+                        assert b"PROFILE_STARTUP_FAILED" in body, "Expected profile startup failure"
+                        assert b"key did not open it" in body, "Expected database key rejection"
                     print("PASS wrong key rejected on profile access", flush=True)
                     return
                 raise AssertionError("Wrong key unexpectedly allowed database access")
