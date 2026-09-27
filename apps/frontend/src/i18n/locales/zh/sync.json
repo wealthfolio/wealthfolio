@@ -146,7 +146,7 @@
     "transferringData": "正在传输您的数据",
     "transferringDataDescription": "正在为新设备加密您的数据副本。这可能需要一分钟。",
     "preparingData": "正在准备数据",
-    "preparingDataDescription": "另一台设备正在准备并发送加密副本。请在两台设备上保持 Wealthfolio 打开。",
+    "preparingDataDescription": "连接已确认。数据准备期间，请在两台设备上保持 Wealthfolio 打开。",
     "securingConnection": "正在保护连接",
     "securingConnectionDescription": "正在与另一台设备交换加密密钥。"
   },
@@ -200,8 +200,8 @@
       "description": "正在下载并检查来自另一台设备的加密副本。"
     },
     "waiting": {
-      "title": "正在等待另一台设备",
-      "description": "另一台设备仍在上传数据。设置将自动继续。"
+      "title": "正在等待最新副本",
+      "description": "最新的加密副本尚不可用。准备就绪后，设置将自动继续。"
     },
     "consent": {
       "title": "要替换此配置文件中的数据吗？",
@@ -242,7 +242,7 @@
     "errors": {
       "SUBSCRIPTION_REQUIRED": "设备同步需要有效的订阅",
       "DEVICE_NOT_READY": "此设备尚未准备好同步",
-      "SNAPSHOT_WAIT_TIMED_OUT": "另一台设备尚未完成上传",
+      "SNAPSHOT_WAIT_TIMED_OUT": "未能在规定时间内获取最新副本",
       "SNAPSHOT_UNAVAILABLE": "另一台设备的副本已不可用",
       "SNAPSHOT_SCHEMA_NEWER": "请更新应用以完成设置",
       "SNAPSHOT_INVALID": "无法验证传输的数据",
@@ -275,7 +275,7 @@
       "encrypt": "加密您的数据",
       "upload": "上传加密副本",
       "sendKeys": "将密钥发送到新设备",
-      "waitForUpload": "另一台设备上传其数据",
+      "waitForUpload": "等待最新副本",
       "downloadAndVerify": "下载并验证加密副本",
       "replace": "替换此设备上的数据",
       "backup": "备份此配置文件"

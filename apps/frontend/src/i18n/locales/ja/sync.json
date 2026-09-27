@@ -146,7 +146,7 @@
     "transferringData": "データを転送しています",
     "transferringDataDescription": "新しいデバイス用にデータのコピーを暗号化しています。1分ほどかかる場合があります。",
     "preparingData": "データを準備しています",
-    "preparingDataDescription": "もう一方のデバイスが暗号化されたコピーを準備して送信しています。両方のデバイスでWealthfolioを開いたままにしてください。",
+    "preparingDataDescription": "接続が確認されました。データの準備中は、両方のデバイスでWealthfolioを開いたままにしてください。",
     "securingConnection": "接続を保護しています",
     "securingConnectionDescription": "もう一方のデバイスと暗号化キーを交換しています。"
   },
@@ -200,8 +200,8 @@
       "description": "もう一方のデバイスの暗号化されたコピーをダウンロードして確認しています。"
     },
     "waiting": {
-      "title": "もう一方のデバイスを待っています",
-      "description": "もう一方のデバイスがまだデータをアップロードしています。セットアップは自動的に続行されます。"
+      "title": "最新のコピーを待っています",
+      "description": "最新の暗号化されたコピーはまだ利用できません。準備ができると設定が自動的に続行されます。"
     },
     "consent": {
       "title": "このプロファイルのデータを置き換えますか？",
@@ -242,7 +242,7 @@
     "errors": {
       "SUBSCRIPTION_REQUIRED": "デバイス同期には有効なサブスクリプションが必要です",
       "DEVICE_NOT_READY": "このデバイスはまだ同期の準備ができていません",
-      "SNAPSHOT_WAIT_TIMED_OUT": "もう一方のデバイスのアップロードが完了していません",
+      "SNAPSHOT_WAIT_TIMED_OUT": "制限時間内に最新のコピーを取得できませんでした",
       "SNAPSHOT_UNAVAILABLE": "もう一方のデバイスのコピーは利用できなくなりました",
       "SNAPSHOT_SCHEMA_NEWER": "セットアップを完了するにはアプリを更新してください",
       "SNAPSHOT_INVALID": "転送されたデータを検証できませんでした",
@@ -275,7 +275,7 @@
       "encrypt": "データを暗号化",
       "upload": "暗号化したコピーをアップロード",
       "sendKeys": "新しいデバイスにキーを送信",
-      "waitForUpload": "もう一方のデバイスがデータをアップロード",
+      "waitForUpload": "最新のコピーを待つ",
       "downloadAndVerify": "暗号化されたコピーをダウンロードして検証",
       "replace": "このデバイスのデータを置き換え",
       "backup": "このプロファイルをバックアップ"

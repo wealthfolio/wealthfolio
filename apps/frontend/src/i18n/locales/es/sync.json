@@ -155,7 +155,7 @@
     "transferringData": "Transfiriendo tus datos",
     "transferringDataDescription": "Cifrando una copia de tus datos para tu nuevo dispositivo. Puede tardar un minuto.",
     "preparingData": "Preparando tus datos",
-    "preparingDataDescription": "Tu otro dispositivo está preparando y enviando una copia cifrada. Mantén Wealthfolio abierto en ambos dispositivos.",
+    "preparingDataDescription": "Conexión confirmada. Mantén Wealthfolio abierto en ambos dispositivos mientras se preparan tus datos.",
     "securingConnection": "Protegiendo la conexión",
     "securingConnectionDescription": "Intercambiando claves de cifrado con tu otro dispositivo."
   },
@@ -209,8 +209,8 @@
       "description": "Descargando y comprobando la copia cifrada de tu otro dispositivo."
     },
     "waiting": {
-      "title": "Esperando a tu otro dispositivo",
-      "description": "Tu otro dispositivo todavía está subiendo sus datos. La configuración continúa automáticamente."
+      "title": "Esperando una copia actualizada",
+      "description": "Todavía no hay una copia cifrada actualizada disponible. La configuración continuará automáticamente cuando esté lista."
     },
     "consent": {
       "title": "¿Reemplazar los datos de este perfil?",
@@ -251,7 +251,7 @@
     "errors": {
       "SUBSCRIPTION_REQUIRED": "La sincronización de dispositivos requiere una suscripción activa",
       "DEVICE_NOT_READY": "Este dispositivo aún no está listo para sincronizar",
-      "SNAPSHOT_WAIT_TIMED_OUT": "Tu otro dispositivo no ha terminado de subir los datos",
+      "SNAPSHOT_WAIT_TIMED_OUT": "No hubo una copia actualizada disponible a tiempo",
       "SNAPSHOT_UNAVAILABLE": "La copia de tu otro dispositivo ya no está disponible",
       "SNAPSHOT_SCHEMA_NEWER": "Actualiza la aplicación para terminar la configuración",
       "SNAPSHOT_INVALID": "No se pudieron verificar los datos transferidos",
@@ -284,7 +284,7 @@
       "encrypt": "Cifrar tus datos",
       "upload": "Subir la copia cifrada",
       "sendKeys": "Enviar las claves a tu nuevo dispositivo",
-      "waitForUpload": "Tu otro dispositivo sube sus datos",
+      "waitForUpload": "Esperar una copia actualizada",
       "downloadAndVerify": "Descargar y verificar la copia cifrada",
       "replace": "Reemplazar los datos de este dispositivo",
       "backup": "Hacer una copia de seguridad de este perfil"

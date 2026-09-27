@@ -155,7 +155,7 @@
     "transferringData": "Transfert de vos données",
     "transferringDataDescription": "Chiffrement d'une copie de vos données pour votre nouvel appareil. Cela peut prendre une minute.",
     "preparingData": "Préparation de vos données",
-    "preparingDataDescription": "Votre autre appareil prépare et envoie une copie chiffrée. Gardez Wealthfolio ouvert sur les deux appareils.",
+    "preparingDataDescription": "Connexion confirmée. Gardez Wealthfolio ouvert sur les deux appareils pendant la préparation de vos données.",
     "securingConnection": "Sécurisation de la connexion",
     "securingConnectionDescription": "Échange des clés de chiffrement avec votre autre appareil."
   },
@@ -209,8 +209,8 @@
       "description": "Téléchargement et vérification de la copie chiffrée de votre autre appareil."
     },
     "waiting": {
-      "title": "En attente de votre autre appareil",
-      "description": "Votre autre appareil envoie encore ses données. La configuration continue automatiquement."
+      "title": "En attente d’une copie à jour",
+      "description": "Une copie chiffrée à jour n’est pas encore disponible. La configuration reprendra automatiquement lorsqu’elle sera prête."
     },
     "consent": {
       "title": "Remplacer les données de ce profil ?",
@@ -251,7 +251,7 @@
     "errors": {
       "SUBSCRIPTION_REQUIRED": "La synchronisation des appareils nécessite un abonnement actif",
       "DEVICE_NOT_READY": "Cet appareil n'est pas encore prêt à se synchroniser",
-      "SNAPSHOT_WAIT_TIMED_OUT": "Votre autre appareil n'a pas fini son envoi",
+      "SNAPSHOT_WAIT_TIMED_OUT": "Une copie à jour n’a pas été disponible dans le délai prévu",
       "SNAPSHOT_UNAVAILABLE": "La copie de votre autre appareil n'est plus disponible",
       "SNAPSHOT_SCHEMA_NEWER": "Mettez à jour l'application pour terminer la configuration",
       "SNAPSHOT_INVALID": "Les données transférées n'ont pas pu être vérifiées",
@@ -284,7 +284,7 @@
       "encrypt": "Chiffrer vos données",
       "upload": "Envoyer la copie chiffrée",
       "sendKeys": "Transmettre les clés à votre nouvel appareil",
-      "waitForUpload": "Votre autre appareil envoie ses données",
+      "waitForUpload": "Attendre une copie à jour",
       "downloadAndVerify": "Télécharger et vérifier la copie chiffrée",
       "replace": "Remplacer les données de cet appareil",
       "backup": "Sauvegarder ce profil"
