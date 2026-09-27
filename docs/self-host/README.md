@@ -214,6 +214,15 @@ database using a key derived from the master key supplied through
 `WF_SECRET_KEY` or `WF_SECRET_KEY_FILE`. Keep that same key when converting or
 restarting.
 
+> **Existing databases must be encrypted before enabling
+> `WF_DB_REQUIRE_ENCRYPTION`.** The variable enforces the database state; it
+> does not convert a plaintext database. If startup reports a mismatch, the
+> database is not damaged. Either unset the variable to remain plaintext, or
+> stop the service, back up the full data directory, run
+> `wealthfolio-server db encrypt` with the same volume, service user, and master
+> key, then restart with the flag set. Releases before 3.9 ignored the variable,
+> so upgraded databases can be plaintext even when it was already configured.
+
 **Changing `WF_DB_REQUIRE_ENCRYPTION` does not convert an existing database.**
 It controls creation of a new database and checks the encryption state at
 startup:
