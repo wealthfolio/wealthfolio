@@ -180,7 +180,10 @@ async fn export_snapshot(
         })
     })
     .await
-    .map_err(|_| ApiError::Internal("Backup export task failed".into()))?
+    .map_err(|error| {
+        tracing::error!(panic = error.is_panic(), "Backup export task failed");
+        ApiError::Internal("Backup export task failed".into())
+    })?
     .map_err(ApiError::backup)?;
     let filename = output.file.filename.clone();
     state.backup_exports.jobs()?.push(output);

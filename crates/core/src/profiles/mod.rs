@@ -79,6 +79,11 @@ pub enum ProfileError {
     Cooldown(u64),
     #[error("PROFILE_UNAVAILABLE: {0}")]
     Unavailable(String),
+    #[error("PROFILE_UNAVAILABLE: Profile storage failed ({kind:?}, OS error {os_code:?}).")]
+    StorageIo {
+        kind: std::io::ErrorKind,
+        os_code: Option<i32>,
+    },
     #[error("CONNECT_PROFILE_EXISTS: This Connect account belongs to profile {0}.")]
     DuplicateIdentity(Uuid),
     #[error("CONNECT_IDENTITY_MISMATCH: Reconnect the original Connect account.")]

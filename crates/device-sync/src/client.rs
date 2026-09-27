@@ -199,22 +199,51 @@ fn log_failed_cloud_request(
     context: &CloudRequestContext,
     status: Option<StatusCode>,
     server_request_id: Option<&str>,
+    cause: &'static str,
+    api_code: Option<&str>,
 ) {
     let status = status
         .map(|status| status.as_u16().to_string())
         .unwrap_or_else(|| "no_response".to_string());
     let request_id = server_request_id.unwrap_or("none");
     let device_id = context.device_id.as_deref().unwrap_or("none");
+    let api_code = api_code
+        .filter(|code| {
+            !code.is_empty()
+                && code.len() <= 64
+                && code
+                    .bytes()
+                    .all(|byte| byte.is_ascii_uppercase() || byte.is_ascii_digit() || byte == b'_')
+        })
+        .unwrap_or("none");
 
     log::warn!(
-        "[DeviceSync] Cloud request failed method={} path={} status={} clientRequestId={} requestId={} deviceId={}",
+        "[DeviceSync] Cloud request failed method={} path={} status={} cause={} apiCode={} clientRequestId={} requestId={} deviceId={}",
         context.method,
         context.path,
         status,
+        cause,
+        api_code,
         context.client_request_id,
         request_id,
         device_id
     );
+}
+
+fn transport_error_kind(error: &reqwest::Error) -> &'static str {
+    if error.is_timeout() {
+        "timeout"
+    } else if error.is_connect() {
+        "connection"
+    } else if error.is_request() {
+        "request"
+    } else if error.is_body() {
+        "body"
+    } else if error.is_decode() {
+        "decode"
+    } else {
+        "transport"
+    }
 }
 
 /// Client for the Wealthfolio device sync cloud API.
@@ -432,7 +461,7 @@ impl DeviceSyncClient {
         request: RequestBuilder,
     ) -> Result<reqwest::Response> {
         request.send().await.map_err(|err| {
-            log_failed_cloud_request(context, None, None);
+            log_failed_cloud_request(context, None, None, transport_error_kind(&err), None);
             DeviceSyncError::Http(err)
         })
     }
@@ -445,18 +474,30 @@ impl DeviceSyncClient {
         let status = response.status();
         let request_id = server_request_id(response.headers());
         let body = response.text().await.map_err(|err| {
-            log_failed_cloud_request(context, Some(status), request_id.as_deref());
+            log_failed_cloud_request(
+                context,
+                Some(status),
+                request_id.as_deref(),
+                transport_error_kind(&err),
+                None,
+            );
             DeviceSyncError::Http(err)
         })?;
 
         if !status.is_success() {
-            log_failed_cloud_request(context, Some(status), request_id.as_deref());
             if let Ok(error) = serde_json::from_str::<ApiErrorResponse>(&body) {
                 let code = if error.code.is_empty() {
                     error.error
                 } else {
                     error.code
                 };
+                log_failed_cloud_request(
+                    context,
+                    Some(status),
+                    request_id.as_deref(),
+                    "http",
+                    Some(&code),
+                );
                 return Err(DeviceSyncError::api_structured(
                     status.as_u16(),
                     code,
@@ -464,6 +505,7 @@ impl DeviceSyncClient {
                     details_with_request_metadata(error.details, context, request_id.as_deref()),
                 ));
             }
+            log_failed_cloud_request(context, Some(status), request_id.as_deref(), "http", None);
             return Err(DeviceSyncError::api(
                 status.as_u16(),
                 with_request_metadata(
@@ -475,7 +517,13 @@ impl DeviceSyncClient {
         }
 
         serde_json::from_str(&body).map_err(|e| {
-            log_failed_cloud_request(context, Some(status), request_id.as_deref());
+            log_failed_cloud_request(
+                context,
+                Some(status),
+                request_id.as_deref(),
+                "invalid_json",
+                None,
+            );
             log::error!(
                 "Failed to deserialize cloud response: {} ({})",
                 e,
@@ -504,16 +552,28 @@ impl DeviceSyncClient {
 
         let request_id = server_request_id(response.headers());
         let body = response.text().await.map_err(|err| {
-            log_failed_cloud_request(context, Some(status), request_id.as_deref());
+            log_failed_cloud_request(
+                context,
+                Some(status),
+                request_id.as_deref(),
+                transport_error_kind(&err),
+                None,
+            );
             DeviceSyncError::Http(err)
         })?;
-        log_failed_cloud_request(context, Some(status), request_id.as_deref());
         if let Ok(error) = serde_json::from_str::<ApiErrorResponse>(&body) {
             let code = if error.code.is_empty() {
                 error.error
             } else {
                 error.code
             };
+            log_failed_cloud_request(
+                context,
+                Some(status),
+                request_id.as_deref(),
+                "http",
+                Some(&code),
+            );
             return Err(DeviceSyncError::api_structured(
                 status.as_u16(),
                 code,
@@ -521,6 +581,7 @@ impl DeviceSyncClient {
                 details_with_request_metadata(error.details, context, request_id.as_deref()),
             ));
         }
+        log_failed_cloud_request(context, Some(status), request_id.as_deref(), "http", None);
 
         Err(DeviceSyncError::api(
             status.as_u16(),
@@ -888,7 +949,7 @@ impl DeviceSyncClient {
             .send()
             .await
             .map_err(|err| {
-                log_failed_cloud_request(&context, None, None);
+                log_failed_cloud_request(&context, None, None, transport_error_kind(&err), None);
                 DeviceSyncError::Http(err)
             })?;
         let response = Self::parse_binary_response(response, &context).await?;
@@ -1099,10 +1160,15 @@ impl DeviceSyncClient {
 
                     let request_id = server_request_id(response.headers());
                     let body = response.text().await.map_err(|err| {
-                        log_failed_cloud_request(&context, Some(status), request_id.as_deref());
+                        log_failed_cloud_request(
+                            &context,
+                            Some(status),
+                            request_id.as_deref(),
+                            transport_error_kind(&err),
+                            None,
+                        );
                         DeviceSyncError::Http(err)
                     })?;
-                    log_failed_cloud_request(&context, Some(status), request_id.as_deref());
                     let mut parsed_error_code: Option<String> = None;
                     let mut parsed_error_message: Option<String> = None;
                     let error =
@@ -1115,6 +1181,13 @@ impl DeviceSyncClient {
                             };
                             parsed_error_code = Some(code.clone());
                             parsed_error_message = Some(message.clone());
+                            log_failed_cloud_request(
+                                &context,
+                                Some(status),
+                                request_id.as_deref(),
+                                "http",
+                                Some(&code),
+                            );
                             DeviceSyncError::api_structured(
                                 status.as_u16(),
                                 code,
@@ -1126,6 +1199,13 @@ impl DeviceSyncClient {
                                 ),
                             )
                         } else {
+                            log_failed_cloud_request(
+                                &context,
+                                Some(status),
+                                request_id.as_deref(),
+                                "http",
+                                None,
+                            );
                             DeviceSyncError::api(
                                 status.as_u16(),
                                 with_request_metadata(
@@ -1157,7 +1237,13 @@ impl DeviceSyncClient {
                     return Err(error);
                 }
                 Err(err) => {
-                    log_failed_cloud_request(&context, None, None);
+                    log_failed_cloud_request(
+                        &context,
+                        None,
+                        None,
+                        transport_error_kind(&err),
+                        None,
+                    );
                     if is_retryable_transport_error(&err) && attempt < SNAPSHOT_UPLOAD_MAX_ATTEMPTS
                     {
                         let backoff = snapshot_backoff_with_jitter(attempt);

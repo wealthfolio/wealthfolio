@@ -56,6 +56,13 @@ fn storage_error(error: impl std::fmt::Display) -> ProfileError {
     ProfileError::Unavailable(error.to_string())
 }
 
+fn storage_io_error(error: std::io::Error) -> ProfileError {
+    ProfileError::StorageIo {
+        kind: error.kind(),
+        os_code: error.raw_os_error(),
+    }
+}
+
 fn credential_error(_: crate::Error) -> ProfileError {
     ProfileError::Unavailable("The profile credential store could not be accessed.".into())
 }
@@ -152,14 +159,14 @@ fn atomic_write(path: &Path, bytes: &[u8]) -> ProfileResult<()> {
             .write(true)
             .create_new(true)
             .open(&temporary)
-            .map_err(storage_error)?;
-        file.write_all(bytes).map_err(storage_error)?;
-        file.sync_all().map_err(storage_error)?;
-        fs::rename(&temporary, path).map_err(storage_error)?;
+            .map_err(storage_io_error)?;
+        file.write_all(bytes).map_err(storage_io_error)?;
+        file.sync_all().map_err(storage_io_error)?;
+        fs::rename(&temporary, path).map_err(storage_io_error)?;
         #[cfg(unix)]
         File::open(path.parent().unwrap())
             .and_then(|f| f.sync_all())
-            .map_err(storage_error)?;
+            .map_err(storage_io_error)?;
         Ok(())
     })();
     if result.is_err() {
@@ -330,7 +337,7 @@ impl ProfileRegistry {
     pub fn deletion_paths(&self, id: Uuid) -> ProfileResult<ProfilePaths> {
         let profile: Profile = serde_json::from_slice(
             &fs::read(self.root.join(DELETIONS_DIR).join(format!("{id}.json")))
-                .map_err(storage_error)?,
+                .map_err(storage_io_error)?,
         )
         .map_err(storage_error)?;
         if profile.id != id {
@@ -402,7 +409,7 @@ impl ProfileRegistry {
         }
         let profile: Profile = serde_json::from_slice(
             &fs::read(self.root.join(DELETIONS_DIR).join(format!("{id}.json")))
-                .map_err(storage_error)?,
+                .map_err(storage_io_error)?,
         )
         .map_err(storage_error)?;
         if profile.id != id {
@@ -895,11 +902,11 @@ fn recovery_hash(code: &str) -> String {
 fn remove_owned_path(path: &Path) -> ProfileResult<()> {
     match fs::symlink_metadata(path) {
         Ok(meta) if meta.is_dir() && !meta.file_type().is_symlink() => {
-            fs::remove_dir_all(path).map_err(storage_error)
+            fs::remove_dir_all(path).map_err(storage_io_error)
         }
-        Ok(_) => fs::remove_file(path).map_err(storage_error),
+        Ok(_) => fs::remove_file(path).map_err(storage_io_error),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
-        Err(error) => Err(storage_error(error)),
+        Err(error) => Err(storage_io_error(error)),
     }
 }
 

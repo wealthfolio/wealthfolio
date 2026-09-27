@@ -687,7 +687,13 @@ pub async fn export_database_backup(
         })
     })
     .await
-    .map_err(|_| "Backup export task failed".to_string())?
+    .map_err(|error| {
+        log::error!(
+            "Backup export task failed (panic={})",
+            matches!(error, tauri::Error::JoinError(ref join) if join.is_panic())
+        );
+        "Backup export task failed".to_string()
+    })?
 }
 
 /// Inspect a private immutable candidate without changing the live database.

@@ -29,11 +29,15 @@ fn failure(error: impl ToString) -> (StatusCode, String) {
 
 /// Runtime failures are not revoked grants. Keep details in the authenticated
 /// response: arbitrary service errors can contain financial data or credentials.
-fn startup_failure(stage: &'static str, error: impl std::fmt::Display) -> (StatusCode, String) {
+fn startup_failure(stage: &'static str, error: anyhow::Error) -> (StatusCode, String) {
+    let (kind, io_kind, os_code) = crate::error::safe_error_diagnostic(error.as_ref());
     tracing::error!(
         code = "PROFILE_STARTUP_FAILED",
         stage,
-        "Profile startup failed; diagnostic details are in the authenticated response"
+        kind,
+        ?io_kind,
+        ?os_code,
+        "Profile startup failed"
     );
     (
         StatusCode::INTERNAL_SERVER_ERROR,
@@ -126,8 +130,9 @@ impl WebProfiles {
         );
         registry.set_legacy_addons_root(std::path::PathBuf::from(&config.addons_root))?;
         for id in registry.pending_deletions()? {
-            if registry.finish_delete(id).is_err() {
-                tracing::warn!("Profile deletion cleanup needs a retry.");
+            if let Err(error) = registry.finish_delete(id) {
+                let (kind, io_kind, os_code) = crate::error::safe_error_diagnostic(&error);
+                tracing::warn!(%id, kind, ?io_kind, ?os_code, "Profile deletion cleanup needs a retry");
             }
         }
         let auth = crate::auth::AuthState::from_config(config).await?;
@@ -289,7 +294,7 @@ impl WebProfiles {
         }
         let paths = self.registry.paths(&profile);
         if profile.legacy_database.is_some() && !paths.database.is_file() {
-            return Err(startup_failure("legacy_database", "The legacy profile database is missing. Restore its file before opening this profile; existing credentials were preserved."));
+            return Err(startup_failure("legacy_database", anyhow::anyhow!("The legacy profile database is missing. Restore its file before opening this profile; existing credentials were preserved.")));
         }
         let mut config = self.config.clone();
         config.db_path = paths.database.to_string_lossy().into_owned();
