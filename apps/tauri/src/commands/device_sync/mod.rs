@@ -727,20 +727,7 @@ pub async fn complete_pairing_with_transfer(
         .clone()
         .ok_or_else(|| "No device ID configured".to_string())?;
 
-    // 1. Run sync cycle to flush any pending outbox events
-    info!("[DeviceSync] complete_pairing_with_transfer: running sync cycle");
-    let _cycle_result = engine::run_sync_cycle(Arc::clone(&cloned_context), false).await?;
-
-    // 2. Generate snapshot (full local SQLite export — always contains all local data)
-    info!("[DeviceSync] complete_pairing_with_transfer: generating snapshot");
-    let snapshot =
-        snapshot::generate_snapshot_now_internal(Some(&handle), Arc::clone(&cloned_context))
-            .await?;
-    if snapshot.status != "uploaded" {
-        return Err(format!("Snapshot upload failed: {}", snapshot.message));
-    }
-
-    // 3. Approve pairing
+    // 1. Approve pairing
     let token = get_access_token(&context).await?;
     let client = create_client()?;
     info!("[DeviceSync] complete_pairing_with_transfer: approving pairing");
@@ -750,7 +737,13 @@ pub async fn complete_pairing_with_transfer(
     {
         Ok(_) => {}
         Err(e) => {
-            if is_pairing_already_approved_error(&e) {
+            // A retry after a failed upload may already have approved this session.
+            if is_pairing_already_approved_error(&e)
+                || matches!(
+                    client.get_pairing(&token, &device_id, &pairing_id).await,
+                    Ok(session) if session.status == wealthfolio_device_sync::PairingStatus::Approved
+                )
+            {
                 info!(
                     "[DeviceSync] approve_pairing already done, continuing: {}",
                     e
@@ -761,7 +754,21 @@ pub async fn complete_pairing_with_transfer(
         }
     }
 
+    // 2. Run sync cycle to flush any pending outbox events
+    info!("[DeviceSync] complete_pairing_with_transfer: running sync cycle");
+    let _cycle_result = engine::run_sync_cycle(Arc::clone(&cloned_context), false).await?;
+
+    // 3. Generate snapshot (full local SQLite export — always contains all local data)
+    info!("[DeviceSync] complete_pairing_with_transfer: generating snapshot");
+    let snapshot =
+        snapshot::generate_snapshot_now_internal(Some(&handle), Arc::clone(&cloned_context))
+            .await?;
+    if snapshot.status != "uploaded" {
+        return Err(format!("Snapshot upload failed: {}", snapshot.message));
+    }
+
     // 4. Complete pairing
+    let token = get_access_token(&context).await?;
     info!("[DeviceSync] complete_pairing_with_transfer: completing pairing");
     client
         .complete_pairing(

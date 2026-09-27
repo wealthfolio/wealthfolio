@@ -806,18 +806,7 @@ pub async fn complete_pairing_with_transfer(
         .clone()
         .ok_or_else(|| "No device ID configured".to_string())?;
 
-    // 1. Run sync cycle to flush any pending outbox events
-    tracing::info!("[DeviceSync] complete_pairing_with_transfer: running sync cycle");
-    let _cycle_result = run_sync_cycle(Arc::clone(&state), false).await?;
-
-    // 2. Generate snapshot (full local SQLite export — always contains all local data)
-    tracing::info!("[DeviceSync] complete_pairing_with_transfer: generating snapshot");
-    let snapshot = generate_snapshot_now(Arc::clone(&state)).await?;
-    if snapshot.status != "uploaded" {
-        return Err(format!("Snapshot upload failed: {}", snapshot.message));
-    }
-
-    // 3. Approve pairing (idempotent if already approved)
+    // 1. Approve pairing (idempotent if already approved)
     let token = crate::api::connect::mint_access_token(&state)
         .await
         .map_err(|e| e.to_string())?;
@@ -829,7 +818,13 @@ pub async fn complete_pairing_with_transfer(
     {
         Ok(_) => {}
         Err(e) => {
-            if is_pairing_already_approved_error(&e) {
+            // A retry after a failed upload may already have approved this session.
+            if is_pairing_already_approved_error(&e)
+                || matches!(
+                    client.get_pairing(&token, &device_id, &pairing_id).await,
+                    Ok(session) if session.status == wealthfolio_device_sync::PairingStatus::Approved
+                )
+            {
                 tracing::info!(
                     "[DeviceSync] approve_pairing already done, continuing: {}",
                     e
@@ -840,7 +835,21 @@ pub async fn complete_pairing_with_transfer(
         }
     }
 
+    // 2. Run sync cycle to flush any pending outbox events
+    tracing::info!("[DeviceSync] complete_pairing_with_transfer: running sync cycle");
+    let _cycle_result = run_sync_cycle(Arc::clone(&state), false).await?;
+
+    // 3. Generate snapshot (full local SQLite export — always contains all local data)
+    tracing::info!("[DeviceSync] complete_pairing_with_transfer: generating snapshot");
+    let snapshot = generate_snapshot_now(Arc::clone(&state)).await?;
+    if snapshot.status != "uploaded" {
+        return Err(format!("Snapshot upload failed: {}", snapshot.message));
+    }
+
     // 4. Complete pairing (send encrypted key bundle)
+    let token = crate::api::connect::mint_access_token(&state)
+        .await
+        .map_err(|e| e.to_string())?;
     tracing::info!("[DeviceSync] complete_pairing_with_transfer: completing pairing");
     client
         .complete_pairing(

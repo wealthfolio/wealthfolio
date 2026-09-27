@@ -226,6 +226,16 @@ export function JoinDeviceWizard({
         );
       case "waiting_keys":
         return <SASWaiting sas={sas} onCancel={handleCancel} />;
+      case "preparing":
+        return (
+          <WaitingState
+            title={t("sync:pairing.preparingData")}
+            description={t("sync:pairing.preparingDataDescription")}
+            visual={<DeviceLink source="other" flowing />}
+            footnote={<EncryptedNote />}
+            onCancel={handleCancel}
+          />
+        );
       case "confirming":
       case "restoring":
         // The restore takes over once the runtime reports it.

@@ -149,6 +149,8 @@
     "verifySecurityCode": "Sicherheitscode überprüfen",
     "transferringData": "Ihre Daten werden übertragen",
     "transferringDataDescription": "Eine Kopie Ihrer Daten wird für Ihr neues Gerät verschlüsselt. Das kann einen Moment dauern.",
+    "preparingData": "Ihre Daten werden vorbereitet",
+    "preparingDataDescription": "Ihr anderes Gerät bereitet eine verschlüsselte Kopie vor und sendet sie. Lassen Sie Wealthfolio auf beiden Geräten geöffnet.",
     "securingConnection": "Verbindung wird gesichert",
     "securingConnectionDescription": "Verschlüsselungsschlüssel werden mit Ihrem anderen Gerät ausgetauscht."
   },

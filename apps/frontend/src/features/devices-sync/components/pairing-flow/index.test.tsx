@@ -61,6 +61,24 @@ describe("Device setup wizards", () => {
     vi.clearAllMocks();
   });
 
+  it("replaces the security code with preparation while keeping the connect step", () => {
+    claimerRestoring("transferring");
+    hookMocks.usePairingClaimer.mockReturnValue({
+      ...hookMocks.usePairingClaimer(),
+      step: "preparing",
+      sas: "123456",
+      operation: null,
+    });
+    render(<JoinDeviceWizard onComplete={vi.fn()} onCancel={vi.fn()} />);
+
+    expect(screen.getByText("Preparing your data")).toBeInTheDocument();
+    expect(screen.getByTestId("wizard-step-connect")).toHaveAttribute("aria-current", "step");
+    expect(screen.getByText(/Keep Wealthfolio open on both devices/)).toBeInTheDocument();
+    expect(screen.queryByText("123456")).not.toBeInTheDocument();
+    expect(screen.queryByText("Check the security code")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeInTheDocument();
+  });
+
   it("tells the source device to finish on the receiving device", () => {
     hookMocks.useSyncStatus.mockReturnValue({ device: { trustState: "trusted" } });
     hookMocks.usePairingIssuer.mockReturnValue({

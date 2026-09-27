@@ -154,6 +154,8 @@
     "verifySecurityCode": "Vérifier le code de sécurité",
     "transferringData": "Transfert de vos données",
     "transferringDataDescription": "Chiffrement d'une copie de vos données pour votre nouvel appareil. Cela peut prendre une minute.",
+    "preparingData": "Préparation de vos données",
+    "preparingDataDescription": "Votre autre appareil prépare et envoie une copie chiffrée. Gardez Wealthfolio ouvert sur les deux appareils.",
     "securingConnection": "Sécurisation de la connexion",
     "securingConnectionDescription": "Échange des clés de chiffrement avec votre autre appareil."
   },

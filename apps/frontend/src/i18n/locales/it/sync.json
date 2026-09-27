@@ -154,6 +154,8 @@
     "verifySecurityCode": "Verifica codice di sicurezza",
     "transferringData": "Trasferimento dei tuoi dati",
     "transferringDataDescription": "Crittografia di una copia dei tuoi dati per il nuovo dispositivo. Potrebbe richiedere un minuto.",
+    "preparingData": "Preparazione dei tuoi dati",
+    "preparingDataDescription": "L’altro dispositivo sta preparando e inviando una copia crittografata. Tieni Wealthfolio aperto su entrambi i dispositivi.",
     "securingConnection": "Protezione della connessione",
     "securingConnectionDescription": "Scambio delle chiavi di crittografia con l'altro dispositivo."
   },

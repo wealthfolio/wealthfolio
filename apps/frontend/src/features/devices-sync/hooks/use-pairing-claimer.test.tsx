@@ -105,6 +105,37 @@ describe("usePairingClaimer", () => {
     adapterMocks.beginPairingRestore.mockResolvedValue(restoreOperation);
   });
 
+  it("shows preparation after approval but waits for keys before restoring", async () => {
+    serviceMocks.syncService.pollForKeyBundle.mockResolvedValue({
+      received: false,
+      status: "approved",
+    });
+    const { result } = renderHook(() => usePairingClaimer(), {
+      wrapper: createWrapper(),
+    });
+
+    await act(async () => {
+      await result.current.submitCode("ABC123");
+    });
+    await waitFor(() => expect(result.current.step).toBe("preparing"));
+    expect(storageMocks.syncStorage.setE2EECredentials).not.toHaveBeenCalled();
+    expect(adapterMocks.beginPairingRestore).not.toHaveBeenCalled();
+
+    serviceMocks.syncService.pollForKeyBundle.mockResolvedValue({
+      received: true,
+      status: "completed",
+      keyBundle: { version: 1, rootKey: "root-key", keyVersion: 2 },
+      keyBundleCreatedAt: "2026-04-29T12:01:00Z",
+    });
+    await waitFor(() => expect(result.current.step).toBe("restoring"), { timeout: 4000 });
+    expect(adapterMocks.beginPairingRestore).toHaveBeenCalledTimes(1);
+    expect(adapterMocks.beginPairingRestore).toHaveBeenCalledWith(
+      "pair-1",
+      "proof",
+      "2026-04-29T12:01:00Z",
+    );
+  });
+
   it("hands restoration to the runtime after key exchange instead of reporting success", async () => {
     const { result } = renderHook(() => usePairingClaimer(), {
       wrapper: createWrapper(),

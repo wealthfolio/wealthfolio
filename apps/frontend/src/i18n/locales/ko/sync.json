@@ -145,6 +145,8 @@
     "verifySecurityCode": "보안 코드 확인",
     "transferringData": "데이터를 전송하는 중",
     "transferringDataDescription": "새 기기를 위해 데이터 사본을 암호화하고 있습니다. 1분 정도 걸릴 수 있습니다.",
+    "preparingData": "데이터 준비 중",
+    "preparingDataDescription": "다른 기기에서 암호화된 사본을 준비하고 보내고 있습니다. 두 기기 모두에서 Wealthfolio를 열어 두세요.",
     "securingConnection": "연결을 보호하는 중",
     "securingConnectionDescription": "다른 기기와 암호화 키를 교환하고 있습니다."
   },

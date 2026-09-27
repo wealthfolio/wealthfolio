@@ -145,6 +145,8 @@
     "verifySecurityCode": "セキュリティコードを確認",
     "transferringData": "データを転送しています",
     "transferringDataDescription": "新しいデバイス用にデータのコピーを暗号化しています。1分ほどかかる場合があります。",
+    "preparingData": "データを準備しています",
+    "preparingDataDescription": "もう一方のデバイスが暗号化されたコピーを準備して送信しています。両方のデバイスでWealthfolioを開いたままにしてください。",
     "securingConnection": "接続を保護しています",
     "securingConnectionDescription": "もう一方のデバイスと暗号化キーを交換しています。"
   },

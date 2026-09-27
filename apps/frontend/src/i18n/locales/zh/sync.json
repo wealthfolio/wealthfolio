@@ -145,6 +145,8 @@
     "verifySecurityCode": "验证安全码",
     "transferringData": "正在传输您的数据",
     "transferringDataDescription": "正在为新设备加密您的数据副本。这可能需要一分钟。",
+    "preparingData": "正在准备数据",
+    "preparingDataDescription": "另一台设备正在准备并发送加密副本。请在两台设备上保持 Wealthfolio 打开。",
     "securingConnection": "正在保护连接",
     "securingConnectionDescription": "正在与另一台设备交换加密密钥。"
   },
