@@ -231,8 +231,8 @@ pub fn yahoo_equity_provider_symbol_to_canonical(symbol: &str) -> String {
     yahoo_equity_provider_base_to_canonical(trimmed)
 }
 
-/// Whether a dotted symbol ends in an exchange-like suffix that is not in the
-/// Yahoo mapping catalog.
+/// Whether a dotted symbol ends in an exchange-like suffix that cannot identify
+/// one Yahoo venue without an explicit MIC.
 ///
 /// A one-letter tail remains the established share-class convention
 /// (`BRK.B`). Longer alphanumeric tails must be preserved until an exact
@@ -240,8 +240,8 @@ pub fn yahoo_equity_provider_symbol_to_canonical(symbol: &str) -> String {
 /// silently select a different security (`BAC.PB` -> `BAC-PB`).
 pub fn has_unrecognized_dotted_suffix(symbol: &str) -> bool {
     let trimmed = symbol.trim();
-    let (_, _, known_suffix) = split_known_yahoo_suffix(trimmed);
-    known_suffix.is_none()
+    let (_, suffix_mic, _) = split_known_yahoo_suffix(trimmed);
+    suffix_mic.is_none()
         && trimmed.rsplit_once('.').is_some_and(|(base, suffix)| {
             !base.is_empty()
                 && suffix.len() > 1
@@ -552,6 +552,8 @@ mod tests {
         assert_eq!(yahoo_equity_search_queries("VOD.L"), vec!["VOD.L"]);
         assert_eq!(yahoo_equity_search_queries("BAC.PB"), vec!["BAC.PB"]);
         assert!(has_unrecognized_dotted_suffix("BAC.PB"));
+        assert!(has_unrecognized_dotted_suffix("FOO.AE"));
+        assert_eq!(yahoo_equity_search_queries("FOO.AE"), vec!["FOO.AE"]);
         assert!(!has_unrecognized_dotted_suffix("BRK.B"));
         assert!(!has_unrecognized_dotted_suffix("SHOP.TO"));
         assert_eq!(yahoo_equity_provider_symbol_to_canonical("BRK-B"), "BRK.B");

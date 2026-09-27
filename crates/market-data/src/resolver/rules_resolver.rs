@@ -81,7 +81,7 @@ impl RulesResolver {
         provider: &ProviderId,
     ) -> Option<(ProviderInstrument, ResolutionSource)> {
         // A multi-character dotted tail without a MIC may be an exchange suffix
-        // that this snapshot/provider map does not recognize. Treating it as a
+        // that this snapshot/provider map cannot uniquely identify. Treating it as a
         // Yahoo share-class separator (`ABC.ZZ` -> `ABC-ZZ`) both changes the
         // caller's identity and makes the result look verified. A one-character
         // tail remains the established share-class convention (`BRK.B`). Exact
@@ -730,28 +730,30 @@ mod tests {
     }
 
     #[test]
-    fn test_unknown_dotted_suffix_without_mic_is_an_exact_unverified_fallback() {
+    fn test_unverified_dotted_suffix_without_mic_is_an_exact_fallback() {
         let resolver = RulesResolver::new();
-        let context = make_equity_context("ABC.ZZ", None);
+        for ticker in ["ABC.ZZ", "FOO.AE"] {
+            let context = make_equity_context(ticker, None);
 
-        let resolved = resolver
-            .resolve(&"YAHOO".into(), &context)
-            .unwrap()
-            .unwrap();
+            let resolved = resolver
+                .resolve(&"YAHOO".into(), &context)
+                .unwrap()
+                .unwrap();
 
-        assert_eq!(resolved.source, ResolutionSource::RulesFallback);
-        match resolved.instrument {
-            ProviderInstrument::EquitySymbol { symbol } => {
-                assert_eq!(symbol.as_ref(), "ABC.ZZ");
+            assert_eq!(resolved.source, ResolutionSource::RulesFallback);
+            match resolved.instrument {
+                ProviderInstrument::EquitySymbol { symbol } => {
+                    assert_eq!(symbol.as_ref(), ticker);
+                }
+                _ => panic!("Expected EquitySymbol"),
             }
-            _ => panic!("Expected EquitySymbol"),
-        }
 
-        let resolved = resolver
-            .resolve(&"BOERSE_FRANKFURT".into(), &context)
-            .unwrap()
-            .unwrap();
-        assert_eq!(resolved.source, ResolutionSource::RulesFallback);
+            let resolved = resolver
+                .resolve(&"BOERSE_FRANKFURT".into(), &context)
+                .unwrap()
+                .unwrap();
+            assert_eq!(resolved.source, ResolutionSource::RulesFallback);
+        }
     }
 
     /// Euronext Amsterdam has no verified Alpha Vantage symbol rule. Falling

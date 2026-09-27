@@ -3557,44 +3557,46 @@ mod tests {
 
     #[tokio::test]
     async fn resolve_import_rejects_a_rewritten_unknown_suffix_result() {
-        let service = test_asset_service(
-            Vec::new(),
-            TestQuoteService::default().with_result(
-                "BAC.PB",
-                vec![yahoo_search_result(
-                    "BAC-PB",
-                    "BAC-PB",
-                    "XNYS",
-                    "Different preferred share",
-                    "USD",
-                    "BAC-PB",
-                )],
-            ),
-        );
+        for (input, provider_symbol) in [("BAC.PB", "BAC-PB"), ("FOO.AE", "FOO-AE")] {
+            let service = test_asset_service(
+                Vec::new(),
+                TestQuoteService::default().with_result(
+                    input,
+                    vec![yahoo_search_result(
+                        provider_symbol,
+                        provider_symbol,
+                        "XNYS",
+                        "Different security",
+                        "USD",
+                        provider_symbol,
+                    )],
+                ),
+            );
 
-        let output = service
-            .resolve_import_asset_inputs(vec![import_input("BAC.PB", "USD")])
-            .await
-            .unwrap()
-            .pop()
-            .unwrap();
+            let output = service
+                .resolve_import_asset_inputs(vec![import_input(input, "USD")])
+                .await
+                .unwrap()
+                .pop()
+                .unwrap();
 
-        assert_eq!(output.canonical_symbol.as_deref(), Some("BAC.PB"));
-        assert_eq!(output.exchange_mic, None);
-        assert_eq!(output.provider_symbol, None);
-        let draft = output
-            .draft
-            .expect("unresolved input remains a local draft");
-        assert_eq!(draft.instrument_symbol.as_deref(), Some("BAC.PB"));
-        assert_eq!(draft.instrument_exchange_mic, None);
-        let spec = AssetSpec::market_instrument(
-            draft.display_code.unwrap(),
-            draft.instrument_symbol.unwrap(),
-            draft.instrument_exchange_mic,
-            draft.instrument_type.unwrap(),
-            draft.quote_ccy,
-        );
-        assert_eq!(spec.instrument_key().as_deref(), Some("EQUITY:BAC.PB"));
+            assert_eq!(output.canonical_symbol.as_deref(), Some(input));
+            assert_eq!(output.exchange_mic, None);
+            assert_eq!(output.provider_symbol, None);
+            let draft = output
+                .draft
+                .expect("unresolved input remains a local draft");
+            assert_eq!(draft.instrument_symbol.as_deref(), Some(input));
+            assert_eq!(draft.instrument_exchange_mic, None);
+            let spec = AssetSpec::market_instrument(
+                draft.display_code.unwrap(),
+                draft.instrument_symbol.unwrap(),
+                draft.instrument_exchange_mic,
+                draft.instrument_type.unwrap(),
+                draft.quote_ccy,
+            );
+            assert_eq!(spec.instrument_key(), Some(format!("EQUITY:{input}")));
+        }
     }
 
     #[tokio::test]

@@ -1489,6 +1489,31 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn ambiguous_yahoo_suffix_without_mic_never_reaches_quote_provider() {
+        let counts = Arc::new(OperationCounts::default());
+        let provider: Arc<dyn MarketDataProvider> = Arc::new(AllOperationsProvider {
+            id: "YAHOO",
+            counts: Arc::clone(&counts),
+        });
+        let registry = ProviderRegistry::new(vec![provider], Arc::new(ResolverChain::new()));
+        let context = QuoteContext {
+            instrument: InstrumentId::Equity {
+                ticker: Arc::from("FOO.AE"),
+                mic: None,
+            },
+            identifiers: Default::default(),
+            overrides: None,
+            currency_hint: None,
+            preferred_provider: None,
+            bond_metadata: None,
+            custom_provider_code: None,
+        };
+
+        assert!(registry.fetch_latest_quote(&context).await.is_err());
+        assert_eq!(counts.latest.load(Ordering::SeqCst), 0);
+    }
+
+    #[tokio::test]
     async fn verified_us_bare_rules_reach_supported_quote_providers() {
         for provider_id in ["FINNHUB", "MARKETDATA_APP"] {
             let provider = Arc::new(MockProvider::new(provider_id, 1, false));
