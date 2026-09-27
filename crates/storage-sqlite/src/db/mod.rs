@@ -997,6 +997,68 @@ mod migration_tests {
     }
 
     #[test]
+    fn exchange_mic_migration_rekeys_legacy_assets_without_merging_twins() {
+        let mut conn = SqliteConnection::establish(":memory:").unwrap();
+        conn.batch_execute(
+            "CREATE TABLE assets (
+                id TEXT PRIMARY KEY,
+                instrument_type TEXT NOT NULL,
+                instrument_symbol TEXT NOT NULL,
+                instrument_exchange_mic TEXT,
+                instrument_key TEXT GENERATED ALWAYS AS (
+                    instrument_type || ':' || instrument_symbol || '@' || instrument_exchange_mic
+                ) STORED
+            );
+            CREATE UNIQUE INDEX idx_assets_instrument_key ON assets(instrument_key);
+            INSERT INTO assets (id, instrument_type, instrument_symbol, instrument_exchange_mic)
+            VALUES
+                ('cxe', 'EQUITY', 'VWRP', 'CXE'),
+                ('dxe', 'EQUITY', 'ETF', 'DXE'),
+                ('taipei', 'EQUITY', '1234', 'XTAI_OTC'),
+                ('aquis', 'EQUITY', 'AQS', 'XAQE'),
+                ('legacy_twin', 'EQUITY', 'DUAL', 'CXE'),
+                ('canonical_twin', 'EQUITY', 'DUAL', 'BCXE');",
+        )
+        .unwrap();
+
+        conn.batch_execute(include_str!(
+            "../../migrations/2026-09-27-000001_exchange_registry_iso_mics/up.sql"
+        ))
+        .unwrap();
+
+        for key in [
+            "EQUITY:VWRP@BCXE",
+            "EQUITY:ETF@CCXE",
+            "EQUITY:1234@ROCO",
+            "EQUITY:AQS@AQSE",
+            "EQUITY:DUAL@CXE",
+            "EQUITY:DUAL@BCXE",
+        ] {
+            assert_eq!(
+                count(
+                    &mut conn,
+                    &format!("SELECT COUNT(*) AS count FROM assets WHERE instrument_key = '{key}'")
+                ),
+                1,
+                "missing asset key {key}"
+            );
+        }
+
+        conn.batch_execute(include_str!(
+            "../../migrations/2026-09-27-000001_exchange_registry_iso_mics/down.sql"
+        ))
+        .unwrap();
+        assert_eq!(
+            count(
+                &mut conn,
+                "SELECT COUNT(*) AS count FROM assets WHERE instrument_key = 'EQUITY:VWRP@BCXE'"
+            ),
+            1,
+            "rollback must not rewrite valid canonical identities"
+        );
+    }
+
+    #[test]
     fn asset_multiplier_rebuild_clears_only_derived_valuations() {
         let mut conn = SqliteConnection::establish(":memory:").unwrap();
         conn.batch_execute(

@@ -1,4 +1,4 @@
--- Three exchange-registry keys were never ISO 10383 MICs. The registry invented
+-- Four exchange-registry keys were never ISO 10383 MICs. The registry invented
 -- them, so rows stored under them match no registry entry once the catalog is
 -- keyed correctly: no exchange name, no trading currency, no provider suffix for
 -- quote lookups. Worse, the next broker sync resolves the same instrument to the
@@ -7,6 +7,7 @@
 --   CXE      -> BCXE  Cboe Europe Equities (GB)
 --   DXE      -> CCXE  Cboe Europe Equities - European Equities (NL)
 --   XTAI_OTC -> ROCO  Taipei Exchange (TW)
+--   XAQE     -> AQSE  Aquis Stock Exchange (GB)
 --
 -- All three confirmed ACTIVE operating MICs in the published ISO 10383 list.
 --
@@ -51,4 +52,14 @@ WHERE UPPER(instrument_exchange_mic) = 'XTAI_OTC'
     FROM assets twin
     WHERE twin.instrument_key =
         assets.instrument_type || ':' || assets.instrument_symbol || '@ROCO'
+  );
+
+UPDATE assets
+SET instrument_exchange_mic = 'AQSE'
+WHERE UPPER(instrument_exchange_mic) = 'XAQE'
+  AND NOT EXISTS (
+    SELECT 1
+    FROM assets twin
+    WHERE twin.instrument_key =
+        assets.instrument_type || ':' || assets.instrument_symbol || '@AQSE'
   );
