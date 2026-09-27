@@ -42,6 +42,15 @@ export const getAssetProfile = async (assetId: string): Promise<Asset> => {
   }
 };
 
+export const enrichAssetProfile = async (assetId: string): Promise<Asset> => {
+  try {
+    return await invoke<Asset>("enrich_asset_profile", { assetId });
+  } catch (error) {
+    logger.error("Error refreshing asset provider profile.");
+    throw error;
+  }
+};
+
 export const getAssets = async (): Promise<Asset[]> => {
   try {
     return await invoke<Asset[]>("get_assets");

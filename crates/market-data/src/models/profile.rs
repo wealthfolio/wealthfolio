@@ -84,6 +84,10 @@ pub struct AssetProfile {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub dividend_yield: Option<f64>,
 
+    /// Fund annual expense ratio as a percentage (e.g. 0.30 for 0.30%).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub annual_expense_ratio_pct: Option<f64>,
+
     /// 52-week high price
     #[serde(skip_serializing_if = "Option::is_none")]
     pub week_52_high: Option<f64>,

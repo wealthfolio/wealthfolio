@@ -165,7 +165,8 @@
     "type": "유형",
     "strike": "행사가",
     "expiry": "만료",
-    "multiplier": "승수"
+    "multiplier": "승수",
+    "estimated_annual_fund_fees": "연간 수수료"
   },
   "profile": {
     "overview": "개요",
@@ -311,7 +312,14 @@
       "bond": "채권",
       "option": "옵션",
       "metal": "귀금속 (원자재)"
-    }
+    },
+    "annual_fee_rate": "연간 비용 비율(%)",
+    "annual_fee_rate_hint": "펀드의 연간 TER/OCF를 백분율로 입력하세요(예: 0.20은 0.20%). 사용 가능한 경우 ‘비용 비율 가져오기’로 입력하고 수정할 수 있습니다.",
+    "fetching_fee": "가져오는 중…",
+    "yahoo_source": "Yahoo Finance",
+    "fee_fetch_empty": "이 자산의 비용 비율을 제공하는 데이터 공급자가 없습니다.",
+    "fee_fetch_error": "비용 비율을 가져오지 못했습니다.",
+    "fetch_fee_rate": "비용 비율 가져오기"
   },
   "assetForm": {
     "symbol": "심볼",

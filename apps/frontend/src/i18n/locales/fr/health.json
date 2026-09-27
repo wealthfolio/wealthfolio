@@ -157,6 +157,30 @@
       "title_other": "{{count}} transferts incomplets détectés",
       "title_many": "{{count}} transferts incomplets détectés",
       "message": "Un transfert n'est pas apparié ou sa contrepartie est manquante, de sorte que son flux a été traité comme externe et peut fausser les rendements. Appariez-le avec le transfert correspondant, ou marquez-le comme externe si cela est intentionnel."
+    },
+    "fund_fee_stale_data": {
+      "title_one": "{{count}} taux de frais date de plus de 90 jours ou n’a pas de date",
+      "title_other": "{{count}} taux de frais datent de plus de 90 jours ou n’ont pas de date",
+      "title_many": "{{count}} taux de frais datent de plus de 90 jours ou n’ont pas de date",
+      "message": "Certains produits détenus ont des frais sans date de mise à jour ou mis à jour il y a plus de 90 jours. Vérifiez les frais des produits concernés."
+    },
+    "fund_fee_missing": {
+      "title_one": "Taux de frais annuel manquant pour {{count}} fonds",
+      "title_many": "Taux de frais annuel manquant pour {{count}} fonds",
+      "title_other": "Taux de frais annuel manquant pour {{count}} fonds",
+      "message": "Certains ETF ou fonds détenus n’ont pas de taux de frais annuel enregistré. Vérifiez leur classification et ajoutez ou confirmez leurs frais."
+    },
+    "fund_fee_unusual_rate": {
+      "title_one": "Taux de frais inhabituel à vérifier pour {{count}} fonds",
+      "title_many": "Taux de frais inhabituels à vérifier pour {{count}} fonds",
+      "title_other": "Taux de frais inhabituels à vérifier pour {{count}} fonds",
+      "message": "Les taux inférieurs à 0 % ou supérieurs à 5 % sont signalés. Des frais plus élevés peuvent être valides : vérifiez la source avant de modifier un taux."
+    },
+    "fund_fee_currency_mismatch": {
+      "title_one": "Devise de cotation potentiellement incohérente pour {{count}} fonds",
+      "title_many": "Devises de cotation potentiellement incohérentes pour {{count}} fonds",
+      "title_other": "Devises de cotation potentiellement incohérentes pour {{count}} fonds",
+      "message": "La devise de cotation d’un fonds diffère de la devise connue de sa place de cotation. Vérifiez le ticker, la place et la devise ; certaines cotations dans une autre devise sont intentionnelles."
     }
   },
   "page": {

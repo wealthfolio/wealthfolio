@@ -435,7 +435,7 @@ async fn run_portfolio_job(
         let asset_ids = config.market_sync_mode.asset_ids().cloned();
 
         let sync_result = match config.market_sync_mode.to_sync_mode() {
-            Some(sync_mode) => deps.quote_service.sync(sync_mode, asset_ids).await,
+            Some(sync_mode) => deps.quote_service.sync(sync_mode, asset_ids.clone()).await,
             None => {
                 tracing::warn!("MarketSyncMode requires sync but returned None for SyncMode");
                 Ok(wealthfolio_core::quotes::SyncResult::default())
@@ -444,6 +444,23 @@ async fn run_portfolio_job(
 
         match sync_result {
             Ok(result) => {
+                let assets_to_enrich = asset_ids.unwrap_or_else(|| {
+                    deps.asset_service
+                        .get_assets()
+                        .unwrap_or_default()
+                        .into_iter()
+                        .filter(|asset| {
+                            asset.is_active
+                                && asset.kind == wealthfolio_core::assets::AssetKind::Investment
+                                && asset.instrument_type
+                                    == Some(wealthfolio_core::assets::InstrumentType::Equity)
+                        })
+                        .map(|asset| asset.id)
+                        .collect()
+                });
+                if let Err(err) = deps.asset_service.enrich_assets(assets_to_enrich).await {
+                    tracing::warn!("Failed to enrich asset profiles after market sync: {}", err);
+                }
                 let skipped_reasons: Vec<(String, String)> = result
                     .skipped_reasons
                     .into_iter()

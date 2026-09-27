@@ -157,6 +157,30 @@
       "title_other": "{{count}} transferências incompletas foram detectadas",
       "title_many": "{{count}} transferências incompletas foram detectadas",
       "message": "Uma transferência não está emparelhada ou está sem a sua contrapartida, portanto seu fluxo foi tratado como externo e pode distorcer os retornos. Emparelhe-a com a transferência correspondente ou marque-a como externa se for o pretendido."
+    },
+    "fund_fee_stale_data": {
+      "title_one": "{{count}} taxa de encargos tem mais de 90 dias ou não tem data",
+      "title_other": "{{count}} taxas de encargos têm mais de 90 dias ou não têm data",
+      "title_many": "{{count}} taxas de encargos têm mais de 90 dias ou não têm data",
+      "message": "Alguns produtos detidos não têm data de atualização dos encargos ou foram atualizados há mais de 90 dias. Reveja os encargos dos produtos afetados."
+    },
+    "fund_fee_missing": {
+      "title_one": "Falta a taxa anual de custos de {{count}} fundo",
+      "title_many": "Faltam as taxas anuais de custos de {{count}} fundos",
+      "title_other": "Faltam as taxas anuais de custos de {{count}} fundos",
+      "message": "Alguns ETFs ou fundos de investimento detidos não têm uma taxa anual registada. Confirme a classificação do produto e adicione ou valide a taxa."
+    },
+    "fund_fee_unusual_rate": {
+      "title_one": "Taxa de custos invulgar para verificar em {{count}} fundo",
+      "title_many": "Taxas de custos invulgares para verificar em {{count}} fundos",
+      "title_other": "Taxas de custos invulgares para verificar em {{count}} fundos",
+      "message": "As taxas abaixo de 0% ou acima de 5% são assinaladas. Custos superiores podem ser válidos; confirme a origem antes de alterar uma taxa."
+    },
+    "fund_fee_currency_mismatch": {
+      "title_one": "A moeda de cotação pode ser incoerente em {{count}} fundo",
+      "title_many": "As moedas de cotação podem ser incoerentes em {{count}} fundos",
+      "title_other": "As moedas de cotação podem ser incoerentes em {{count}} fundos",
+      "message": "A moeda de cotação de um fundo difere da moeda conhecida do mercado onde está cotado. Verifique o ticker, o mercado e a moeda; algumas cotações noutra moeda são intencionais."
     }
   },
   "page": {

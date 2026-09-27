@@ -649,7 +649,7 @@ impl YahooProvider {
         let crumb = self.ensure_crumb().await?;
 
         let url = format!(
-            "https://query1.finance.yahoo.com/v10/finance/quoteSummary/{}?modules=price,summaryProfile,summaryDetail,topHoldings&crumb={}",
+            "https://query1.finance.yahoo.com/v10/finance/quoteSummary/{}?modules=price,summaryProfile,summaryDetail,topHoldings,fundProfile&crumb={}",
             encode(symbol),
             encode(&crumb.crumb)
         );
@@ -753,6 +753,7 @@ impl YahooProvider {
         let summary = result.summary_profile.as_ref();
         let detail = result.summary_detail.as_ref();
         let top_holdings = result.top_holdings.as_ref();
+        let fund_profile = result.fund_profile.as_ref();
 
         // Get quote type for name formatting and classification
         let quote_type = price
@@ -842,6 +843,16 @@ impl YahooProvider {
             market_cap: detail.and_then(|d| d.market_cap.as_ref().and_then(|v| v.raw)),
             pe_ratio: detail.and_then(|d| d.trailing_pe.as_ref().and_then(|v| v.raw)),
             dividend_yield: detail.and_then(|d| d.dividend_yield.as_ref().and_then(|v| v.raw)),
+            annual_expense_ratio_pct: if matches!(quote_type_upper.as_str(), "ETF" | "MUTUALFUND") {
+                fund_profile
+                    .and_then(|profile| profile.fees_expenses_investment.as_ref())
+                    .and_then(|fees| fees.annual_report_expense_ratio.as_ref())
+                    .and_then(|ratio| ratio.raw)
+                    .filter(|ratio| ratio.is_finite() && *ratio >= 0.0)
+                    .map(|ratio| ratio * 100.0)
+            } else {
+                None
+            },
             week_52_high: detail.and_then(|d| d.fifty_two_week_high.as_ref().and_then(|v| v.raw)),
             week_52_low: detail.and_then(|d| d.fifty_two_week_low.as_ref().and_then(|v| v.raw)),
             ..Default::default()

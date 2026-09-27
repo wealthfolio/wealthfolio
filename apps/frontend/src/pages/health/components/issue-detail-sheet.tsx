@@ -208,12 +208,13 @@ function groupDiagnostics(diagnostics: HealthDiagnostic[]): DiagnosticGroup[] {
 }
 
 function getPrimaryDiagnosticAction(diagnostic: HealthDiagnostic): DiagnosticAction | undefined {
-  return diagnostic.actions.find((action) => action.primary) ?? diagnostic.actions[0];
+  return (diagnostic.actions ?? []).find((action) => action.primary) ?? diagnostic.actions?.[0];
 }
 
 function getOrderedDiagnosticActions(diagnostic: HealthDiagnostic): DiagnosticAction[] {
-  const primary = diagnostic.actions.filter((action) => action.primary);
-  const secondary = diagnostic.actions.filter((action) => !action.primary);
+  const actions = diagnostic.actions ?? [];
+  const primary = actions.filter((action) => action.primary);
+  const secondary = actions.filter((action) => !action.primary);
   return [...primary, ...secondary];
 }
 
@@ -424,7 +425,9 @@ export function IssueDetailSheet({
   const hasDiagnostics = diagnostics.length > 0;
   const diagnosticGroups = groupDiagnostics(diagnostics);
   const isGroupedPrice = isGroupedPriceIssue(diagnosticGroups);
-  const hasDiagnosticActions = diagnostics.some((diagnostic) => diagnostic.actions.length > 0);
+  const hasDiagnosticActions = diagnostics.some(
+    (diagnostic) => (diagnostic.actions?.length ?? 0) > 0,
+  );
   const shouldRenderDetails = !hasDiagnostics || isFallbackDiagnosticIssue(issue, diagnostics);
   const detailItems =
     issue.details

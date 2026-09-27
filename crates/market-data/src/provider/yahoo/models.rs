@@ -27,6 +27,7 @@ pub struct YahooQuoteSummaryResult {
     pub summary_profile: Option<YahooSummaryProfile>,
     pub summary_detail: Option<YahooSummaryDetail>,
     pub top_holdings: Option<YahooTopHoldings>,
+    pub fund_profile: Option<YahooFundProfile>,
 }
 
 /// Price data from quoteSummary API
@@ -100,6 +101,20 @@ pub struct YahooTopHoldings {
     pub other_position: Option<YahooPriceDetail>,
     pub preferred_position: Option<YahooPriceDetail>,
     pub convertible_position: Option<YahooPriceDetail>,
+}
+
+/// Fund-specific fees and expense data returned for ETFs and mutual funds.
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct YahooFundProfile {
+    pub fees_expenses_investment: Option<YahooFeesExpensesInvestment>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct YahooFeesExpensesInvestment {
+    /// Yahoo reports this as a fractional ratio (for example, 0.003 = 0.30%).
+    pub annual_report_expense_ratio: Option<YahooPriceDetail>,
 }
 
 #[cfg(test)]

@@ -165,7 +165,8 @@
     "type": "Typ",
     "strike": "Ausübungspreis",
     "expiry": "Verfall",
-    "multiplier": "Multiplikator"
+    "multiplier": "Multiplikator",
+    "estimated_annual_fund_fees": "Jahresgebühren"
   },
   "profile": {
     "overview": "Übersicht",
@@ -311,7 +312,14 @@
       "bond": "Anleihe",
       "option": "Option",
       "metal": "Metall (Rohstoff)"
-    }
+    },
+    "annual_fee_rate": "Jährliche Gebührenquote (%)",
+    "annual_fee_rate_hint": "Geben Sie die jährliche TER/OCF des Fonds als Prozentwert ein (z. B. 0,20 für 0,20 %). Mit „Gebührensatz abrufen“ wird der Wert, sofern verfügbar, vorausgefüllt und kann bearbeitet werden.",
+    "fetching_fee": "Wird abgerufen…",
+    "yahoo_source": "Yahoo Finance",
+    "fee_fetch_empty": "Kein Anbieter stellt für dieses Asset eine Gebührenquote bereit.",
+    "fee_fetch_error": "Die Gebührenquote konnte nicht abgerufen werden.",
+    "fetch_fee_rate": "Gebührensatz abrufen"
   },
   "assetForm": {
     "symbol": "Symbol",

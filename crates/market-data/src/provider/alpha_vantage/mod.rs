@@ -444,6 +444,7 @@ impl EtfProfileResponse {
                 .dividend_yield
                 .as_ref()
                 .and_then(|s| Self::parse_weight(s)),
+            annual_expense_ratio_pct: None,
             week_52_high: None,
             week_52_low: None,
             isin: None,
@@ -505,6 +506,7 @@ impl CompanyOverviewResponse {
             pe_ratio: Self::parse_f64(&self.pe_ratio)
                 .or_else(|| Self::parse_f64(&self.trailing_pe)),
             dividend_yield: Self::parse_f64(&self.dividend_yield),
+            annual_expense_ratio_pct: None,
             week_52_high: Self::parse_f64(&self.week_52_high),
             week_52_low: Self::parse_f64(&self.week_52_low),
             isin: None,

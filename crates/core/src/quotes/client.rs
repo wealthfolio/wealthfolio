@@ -906,6 +906,7 @@ impl MarketDataClient {
             market_cap: profile.market_cap,
             pe_ratio: profile.pe_ratio,
             dividend_yield: profile.dividend_yield,
+            annual_expense_ratio_pct: profile.annual_expense_ratio_pct,
             week_52_high: profile.week_52_high,
             week_52_low: profile.week_52_low,
         }

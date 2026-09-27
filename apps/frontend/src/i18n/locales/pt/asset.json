@@ -165,7 +165,8 @@
     "type": "Tipo",
     "strike": "Preço de exercício",
     "expiry": "Vencimento",
-    "multiplier": "Multiplicador"
+    "multiplier": "Multiplicador",
+    "estimated_annual_fund_fees": "Custos anuais"
   },
   "profile": {
     "overview": "Resumo",
@@ -311,7 +312,14 @@
       "bond": "Título",
       "option": "Opção",
       "metal": "Metal (Commodity)"
-    }
+    },
+    "annual_fee_rate": "Taxa anual de custos (%)",
+    "annual_fee_rate_hint": "Introduza a TER/OCF anual do fundo em percentagem (por exemplo, 0,20 para 0,20%). Use «Obter taxa» para preencher o valor se estiver disponível; pode editá-lo.",
+    "fetching_fee": "A obter…",
+    "yahoo_source": "Yahoo Finance",
+    "fee_fetch_empty": "Nenhum fornecedor disponibilizou uma taxa de custos para este ativo.",
+    "fee_fetch_error": "Não foi possível obter a taxa de custos.",
+    "fetch_fee_rate": "Obter taxa"
   },
   "assetForm": {
     "symbol": "Símbolo",

@@ -165,7 +165,8 @@
     "type": "Type",
     "strike": "Strike",
     "expiry": "Expiry",
-    "multiplier": "Multiplier"
+    "multiplier": "Multiplier",
+    "estimated_annual_fund_fees": "Annual fees"
   },
   "profile": {
     "overview": "Overview",
@@ -311,7 +312,14 @@
       "bond": "Bond",
       "option": "Option",
       "metal": "Metal (Commodity)"
-    }
+    },
+    "annual_fee_rate": "Annual fee rate (%)",
+    "annual_fee_rate_hint": "Enter the fund’s annual TER/OCF as a percent (for example, 0.20 for 0.20%). Use Fetch provider fee to prefill it when available; you can edit the value.",
+    "fetching_fee": "Fetching…",
+    "yahoo_source": "Yahoo Finance",
+    "fee_fetch_empty": "No provider supplied an expense ratio for this asset.",
+    "fee_fetch_error": "Could not fetch the expense ratio.",
+    "fetch_fee_rate": "Fetch provider fee"
   },
   "assetForm": {
     "symbol": "Symbol",

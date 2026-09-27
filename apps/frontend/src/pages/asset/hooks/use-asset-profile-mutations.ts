@@ -7,6 +7,7 @@ export const useAssetProfileMutations = () => {
   const queryClient = useQueryClient();
 
   const handleSuccess = (message: string, assetId: string) => {
+    queryClient.invalidateQueries({ queryKey: [QueryKeys.ASSETS] });
     queryClient.invalidateQueries({ queryKey: [QueryKeys.HOLDINGS] });
     queryClient.invalidateQueries({ queryKey: [QueryKeys.ASSET_DATA, assetId] });
     queryClient.invalidateQueries({ queryKey: [QueryKeys.ACTIVITY_DATA] });

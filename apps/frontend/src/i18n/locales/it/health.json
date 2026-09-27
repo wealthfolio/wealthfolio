@@ -157,6 +157,30 @@
       "title_many": "Rilevati {{count}} trasferimenti incompleti",
       "title_other": "Rilevati {{count}} trasferimenti incompleti",
       "message": "Un trasferimento non è abbinato o manca della sua parte corrispondente, quindi il suo flusso è stato trattato come esterno e potrebbe distorcere i rendimenti. Abbinalo al trasferimento corrispondente, oppure contrassegnalo come esterno se è quello previsto."
+    },
+    "fund_fee_stale_data": {
+      "title_one": "{{count}} dato sui costi ha più di 90 giorni o non ha una data",
+      "title_other": "{{count}} dati sui costi hanno più di 90 giorni o non hanno una data",
+      "title_many": "{{count}} dati sui costi hanno più di 90 giorni o non hanno una data",
+      "message": "Alcuni prodotti in portafoglio non hanno una data di aggiornamento dei costi oppure risale a oltre 90 giorni fa. Controlla i costi dei prodotti interessati."
+    },
+    "fund_fee_missing": {
+      "title_one": "Commissione annua mancante per {{count}} fondo",
+      "title_many": "Commissioni annuali mancanti per {{count}} fondi",
+      "title_other": "Commissioni annuali mancanti per {{count}} fondi",
+      "message": "Alcuni ETF o fondi comuni detenuti non hanno una commissione annua registrata. Verifica la classificazione del prodotto e aggiungi o conferma la commissione."
+    },
+    "fund_fee_unusual_rate": {
+      "title_one": "Commissione insolita da verificare per {{count}} fondo",
+      "title_many": "Commissioni insolite da verificare per {{count}} fondi",
+      "title_other": "Commissioni insolite da verificare per {{count}} fondi",
+      "message": "Le aliquote inferiori allo 0% o superiori al 5% vengono segnalate. Costi più elevati possono essere validi: verifica la fonte prima di modificare un’aliquota."
+    },
+    "fund_fee_currency_mismatch": {
+      "title_one": "Valuta di quotazione potenzialmente incoerente per {{count}} fondo",
+      "title_many": "Valute di quotazione potenzialmente incoerenti per {{count}} fondi",
+      "title_other": "Valute di quotazione potenzialmente incoerenti per {{count}} fondi",
+      "message": "La valuta di quotazione di un fondo differisce dalla valuta nota della sua sede di negoziazione. Controlla ticker, sede e valuta; alcune quotazioni in valuta diversa sono intenzionali."
     }
   },
   "page": {

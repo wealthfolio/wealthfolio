@@ -132,6 +132,26 @@
       "title_one": "Incomplete transfer detected",
       "title_other": "{{count}} incomplete transfers detected",
       "message": "A transfer is unpaired or missing its matching leg, so its flow was treated as external and may distort returns. Pair it with the matching transfer, or mark it external if that is intended."
+    },
+    "fund_fee_stale_data": {
+      "title_one": "{{count}} fee entry is over 90 days old or missing a date",
+      "title_other": "{{count}} fee entries are over 90 days old or missing a date",
+      "message": "Some held products have fee data with no update date or last updated over 90 days ago. Review the fee details for the affected products."
+    },
+    "fund_fee_missing": {
+      "title_one": "{{count}} fund is missing an annual fee rate",
+      "title_other": "{{count}} funds are missing an annual fee rate",
+      "message": "Some held ETFs or mutual funds have no annual fee rate recorded. Verify that each product is classified correctly and add or confirm its annual fee."
+    },
+    "fund_fee_unusual_rate": {
+      "title_one": "An unusual fee rate needs review for {{count}} fund",
+      "title_other": "Unusual fee rates need review for {{count}} funds",
+      "message": "Rates below 0% or above 5% are flagged for review. Higher costs may be valid, so verify the source before changing a rate."
+    },
+    "fund_fee_currency_mismatch": {
+      "title_one": "Quote currency may be inconsistent for {{count}} fund",
+      "title_other": "Quote currencies may be inconsistent for {{count}} funds",
+      "message": "A fund's quote currency differs from the known currency of its listing venue. Check the ticker, exchange, and quote currency; cross-currency listings may be intentional."
     }
   },
   "page": {

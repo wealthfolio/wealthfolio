@@ -6,6 +6,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime};
 use tauri::AppHandle;
 use tokio::task::JoinSet;
+use wealthfolio_core::assets::{AssetKind, InstrumentType};
 use wealthfolio_core::health::HealthServiceTrait;
 use wealthfolio_core::portfolio::snapshot::{
     reconcile_quote_sync_from_latest_account_snapshots, snapshot_date_requires_remediation,
@@ -259,7 +260,7 @@ fn dispatch_portfolio_request(
                 // Convert MarketSyncMode to SyncMode for the quote service
                 let sync_result = match market_sync_mode.to_sync_mode() {
                     Some(sync_mode) => {
-                        run_market_sync(market_data_service.sync(sync_mode, asset_ids)).await
+                        run_market_sync(market_data_service.sync(sync_mode, asset_ids.clone())).await
                     }
                     None => {
                         // This shouldn't happen since we checked requires_sync()
@@ -274,6 +275,27 @@ fn dispatch_portfolio_request(
                 match sync_result {
                     Ok(result) => {
                         successful &= market_sync_is_complete(&result);
+                        let assets_to_enrich = asset_ids.unwrap_or_else(|| {
+                            context
+                                .asset_service()
+                                .get_assets()
+                                .unwrap_or_default()
+                                .into_iter()
+                                .filter(|asset| {
+                                    asset.is_active
+                                        && asset.kind == AssetKind::Investment
+                                        && asset.instrument_type == Some(InstrumentType::Equity)
+                                })
+                                .map(|asset| asset.id)
+                                .collect()
+                        });
+                        if let Err(err) = context
+                            .asset_service()
+                            .enrich_assets(assets_to_enrich)
+                            .await
+                        {
+                            warn!("Failed to enrich asset profiles after market sync: {}", err);
+                        }
                         // Convert SyncResult to legacy format for backwards compatibility
                         let failed_syncs = result.failures;
                         let skipped_reasons = result

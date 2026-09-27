@@ -157,6 +157,30 @@
       "title_other": "Se detectaron {{count}} transferencias incompletas",
       "title_many": "Se detectaron {{count}} transferencias incompletas",
       "message": "Una transferencia no está emparejada o le falta su contrapartida, por lo que su flujo se trató como externo y puede distorsionar las rentabilidades. Emparéjala con la transferencia correspondiente o márcala como externa si eso es lo previsto."
+    },
+    "fund_fee_stale_data": {
+      "title_one": "{{count}} tasa de gastos tiene más de 90 días o no tiene fecha",
+      "title_other": "{{count}} tasas de gastos tienen más de 90 días o no tienen fecha",
+      "title_many": "{{count}} tasas de gastos tienen más de 90 días o no tienen fecha",
+      "message": "Algunos productos de la cartera no tienen fecha de actualización de sus gastos o esta es de hace más de 90 días. Revisa los gastos de los productos afectados."
+    },
+    "fund_fee_missing": {
+      "title_one": "Falta la comisión anual de {{count}} fondo",
+      "title_many": "Faltan las comisiones anuales de {{count}} fondos",
+      "title_other": "Faltan las comisiones anuales de {{count}} fondos",
+      "message": "Algunos ETF o fondos de inversión de la cartera no tienen registrada una comisión anual. Comprueba la clasificación del producto y añade o confirma la comisión."
+    },
+    "fund_fee_unusual_rate": {
+      "title_one": "Revisa la comisión inusual de {{count}} fondo",
+      "title_many": "Revisa las comisiones inusuales de {{count}} fondos",
+      "title_other": "Revisa las comisiones inusuales de {{count}} fondos",
+      "message": "Se señalan las tasas inferiores al 0 % o superiores al 5 %. Los costes más altos pueden ser válidos; comprueba la fuente antes de cambiar una tasa."
+    },
+    "fund_fee_currency_mismatch": {
+      "title_one": "La divisa de cotización de {{count}} fondo podría ser incoherente",
+      "title_many": "La divisa de cotización de {{count}} fondos podría ser incoherente",
+      "title_other": "La divisa de cotización de {{count}} fondos podría ser incoherente",
+      "message": "La divisa de cotización de un fondo difiere de la divisa conocida de su mercado. Comprueba el ticker, el mercado y la divisa; algunas cotizaciones en otra divisa son intencionadas."
     }
   },
   "page": {

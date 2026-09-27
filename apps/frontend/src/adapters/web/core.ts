@@ -152,6 +152,7 @@ export const COMMANDS: CommandMap = {
   create_asset: { method: "POST", path: "/assets" },
   delete_asset: { method: "DELETE", path: "/assets" },
   get_asset_profile: { method: "GET", path: "/assets/profile" },
+  enrich_asset_profile: { method: "PUT", path: "/assets/profile" },
   update_asset_profile: { method: "PUT", path: "/assets/profile" },
   update_quote_mode: { method: "PUT", path: "/assets/pricing-mode" },
   // Asset logos
@@ -1017,6 +1018,11 @@ export const invoke = async <T>(command: string, payload?: Record<string, unknow
       };
       url += `/${encodeURIComponent(id)}`;
       body = JSON.stringify(bodyPayload);
+      break;
+    }
+    case "enrich_asset_profile": {
+      const { assetId } = payload as { assetId: string };
+      url += `/${encodeURIComponent(assetId)}/enrich`;
       break;
     }
     case "get_asset_logo":

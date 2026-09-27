@@ -15,6 +15,16 @@ pub async fn get_asset_profile(
 }
 
 #[tauri::command]
+pub async fn enrich_asset_profile(asset_id: String, state: ProfileAccess) -> Result<Asset, String> {
+    let context = state.context()?;
+    context
+        .asset_service()
+        .enrich_asset_profile(&asset_id)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 pub async fn get_assets(state: ProfileAccess) -> Result<Vec<Asset>, String> {
     let context = state.context()?;
     context

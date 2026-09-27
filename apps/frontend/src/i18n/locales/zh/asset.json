@@ -165,7 +165,8 @@
     "type": "类型",
     "strike": "行权价",
     "expiry": "到期日",
-    "multiplier": "乘数"
+    "multiplier": "乘数",
+    "estimated_annual_fund_fees": "年度费用"
   },
   "profile": {
     "overview": "概览",
@@ -311,7 +312,14 @@
       "bond": "债券",
       "option": "期权",
       "metal": "金属（商品）"
-    }
+    },
+    "annual_fee_rate": "年度费用率（%）",
+    "annual_fee_rate_hint": "以百分比输入基金的年度 TER/OCF（例如，0.20 表示 0.20%）。如有数据，可使用“获取费用率”预填并编辑数值。",
+    "fetching_fee": "正在获取…",
+    "yahoo_source": "Yahoo Finance",
+    "fee_fetch_empty": "没有数据提供方提供此资产的费用率。",
+    "fee_fetch_error": "无法获取费用率。",
+    "fetch_fee_rate": "获取费用率"
   },
   "assetForm": {
     "symbol": "代码",

@@ -165,7 +165,8 @@
     "maturity": "到期",
     "type": "類型",
     "strike": "履約價",
-    "expiry": "到期日"
+    "expiry": "到期日",
+    "estimated_annual_fund_fees": "年度費用"
   },
   "profile": {
     "overview": "概覽",
@@ -311,7 +312,14 @@
       "bond": "債券",
       "option": "選擇權",
       "metal": "金屬（商品）"
-    }
+    },
+    "annual_fee_rate": "年度費用率（%）",
+    "annual_fee_rate_hint": "以百分比輸入基金的年度 TER/OCF（例如，0.20 代表 0.20%）。如有資料，可使用「取得費用率」預填並編輯數值。",
+    "fetching_fee": "取得中…",
+    "yahoo_source": "Yahoo Finance",
+    "fee_fetch_empty": "沒有資料提供者提供此資產的費用率。",
+    "fee_fetch_error": "無法取得費用率。",
+    "fetch_fee_rate": "取得費用率"
   },
   "assetForm": {
     "symbol": "代號",

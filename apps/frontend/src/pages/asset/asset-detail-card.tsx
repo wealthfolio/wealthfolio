@@ -19,6 +19,9 @@ interface AssetDetail {
   costBasis: number;
   averagePrice: number;
   portfolioPercent: number;
+  annualFeeRatePct?: number | null;
+  annualFeeCost?: number | null;
+  annualFeeCurrency?: string;
   todaysReturn: number | null;
   todaysReturnPercent: number | null;
   unrealizedPnl: number | null;
@@ -69,6 +72,13 @@ const SectionHeader: React.FC<{ children: React.ReactNode }> = ({ children }) =>
   </div>
 );
 
+const feeRateTone = (rate: number) =>
+  rate <= 0.3
+    ? "bg-success/10 text-success"
+    : rate <= 0.75
+      ? "bg-amber-500/10 text-amber-700 dark:text-amber-400"
+      : "bg-destructive/10 text-destructive";
+
 const AssetDetailCard: React.FC<AssetDetailProps> = ({ assetData, className }) => {
   const numberFormatting = useNumberFormatting();
   const dateFormatting = useDateFormatting();
@@ -82,6 +92,9 @@ const AssetDetailCard: React.FC<AssetDetailProps> = ({ assetData, className }) =
     costBasis,
     averagePrice,
     portfolioPercent,
+    annualFeeRatePct,
+    annualFeeCost,
+    annualFeeCurrency,
     todaysReturn,
     todaysReturnPercent,
     unrealizedPnl,
@@ -130,6 +143,29 @@ const AssetDetailCard: React.FC<AssetDetailProps> = ({ assetData, className }) =
       label: t("asset:detailCard.percent_of_portfolio"),
       value: numberFormatting.formatPercent(portfolioPercent),
     },
+    ...(annualFeeRatePct != null
+      ? [
+          {
+            label: t("asset:detailCard.estimated_annual_fund_fees"),
+            value: (
+              <span className="flex items-center gap-1.5">
+                {annualFeeCost != null && (
+                  <AmountDisplay
+                    value={annualFeeCost}
+                    currency={annualFeeCurrency ?? baseCurrency}
+                    isHidden={isBalanceHidden}
+                  />
+                )}
+                <span
+                  className={`rounded px-1.5 py-0.5 text-xs font-medium tabular-nums ${feeRateTone(annualFeeRatePct)}`}
+                >
+                  {numberFormatting.formatPercent(annualFeeRatePct / 100)}
+                </span>
+              </span>
+            ),
+          },
+        ]
+      : []),
   ];
 
   const performanceRows: {

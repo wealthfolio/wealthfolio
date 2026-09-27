@@ -10,6 +10,7 @@ import { Skeleton } from "@wealthfolio/ui/components/ui/skeleton";
 import { Suspense, useMemo, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { OverviewPage } from "./overview/overview-page";
+import FundFeesPage from "./fees/fund-fees-page";
 
 // Loading skeleton to show while the dashboard is loading
 const DashboardLoader = () => {
@@ -96,6 +97,12 @@ export default function PortfolioInsightsPage() {
             <IncomePage />
           </Suspense>
         ),
+      },
+      {
+        value: "fees",
+        label: t("insights:insights.tab_fees"),
+        icon: Icons.Receipt,
+        content: <FundFeesPage accountFilter={accountFilter} />,
       },
     ],
     [accountFilter, holdingsActions, setAccountScope, t],

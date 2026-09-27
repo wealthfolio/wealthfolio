@@ -165,7 +165,8 @@
     "type": "タイプ",
     "strike": "権利行使価格",
     "expiry": "満期日",
-    "multiplier": "乗数"
+    "multiplier": "乗数",
+    "estimated_annual_fund_fees": "年間手数料"
   },
   "profile": {
     "overview": "概要",
@@ -311,7 +312,14 @@
       "bond": "債券",
       "option": "オプション",
       "metal": "金属(コモディティ)"
-    }
+    },
+    "annual_fee_rate": "年間経費率（%）",
+    "annual_fee_rate_hint": "ファンドの年間TER/OCFをパーセントで入力してください（例：0.20は0.20%）。「費用率を取得」で値を入力できる場合は取得し、編集もできます。",
+    "fetching_fee": "取得中…",
+    "yahoo_source": "Yahoo Finance",
+    "fee_fetch_empty": "この資産の経費率を提供するデータプロバイダーがありません。",
+    "fee_fetch_error": "経費率を取得できませんでした。",
+    "fetch_fee_rate": "費用率を取得"
   },
   "assetForm": {
     "symbol": "銘柄コード",

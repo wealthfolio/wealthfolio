@@ -460,6 +460,7 @@ pub fn run() {
             commands::database::set_database_encryption_enabled,
             // Asset commands
             commands::asset::get_asset_profile,
+            commands::asset::enrich_asset_profile,
             commands::asset::get_assets,
             commands::asset::update_asset_profile,
             commands::asset::update_quote_mode,

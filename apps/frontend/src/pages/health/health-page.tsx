@@ -108,7 +108,7 @@ function HealthIssueRow({
   const CategoryIcon = Icons[categoryConfig.icon];
   const categoryLabel = t(`health:${CATEGORY_LABEL_KEYS[issue.category]}`);
   const hasDiagnosticActions =
-    issue.diagnostics?.some((diagnostic) => diagnostic.actions.length > 0) ?? false;
+    issue.diagnostics?.some((diagnostic) => (diagnostic.actions?.length ?? 0) > 0) ?? false;
   const showQuickFix = Boolean(issue.fixAction && !hasDiagnosticActions);
 
   return (

@@ -641,6 +641,8 @@ pub struct ProviderProfile {
     pub market_cap: Option<f64>,
     pub pe_ratio: Option<f64>,
     pub dividend_yield: Option<f64>,
+    /// Fund annual expense ratio as a percentage (e.g. 0.30 for 0.30%).
+    pub annual_expense_ratio_pct: Option<f64>,
     pub week_52_high: Option<f64>,
     pub week_52_low: Option<f64>,
 }

@@ -165,7 +165,8 @@
     "type": "Type",
     "strike": "Prix d'exercice",
     "expiry": "Expiration",
-    "multiplier": "Multiplicateur"
+    "multiplier": "Multiplicateur",
+    "estimated_annual_fund_fees": "Frais annuels"
   },
   "profile": {
     "overview": "Aperçu",
@@ -311,7 +312,14 @@
       "bond": "Obligation",
       "option": "Option",
       "metal": "Métal (matière première)"
-    }
+    },
+    "annual_fee_rate": "Taux de frais annuel (%)",
+    "annual_fee_rate_hint": "Saisissez le TER/OCF annuel du fonds en pourcentage (par exemple, 0,20 pour 0,20 %). Utilisez « Récupérer le taux » pour préremplir la valeur si disponible, puis modifiez-la si besoin.",
+    "fetching_fee": "Récupération…",
+    "yahoo_source": "Yahoo Finance",
+    "fee_fetch_empty": "Aucun fournisseur ne propose de ratio de frais pour cet actif.",
+    "fee_fetch_error": "Impossible de récupérer le ratio de frais.",
+    "fetch_fee_rate": "Récupérer le taux"
   },
   "assetForm": {
     "symbol": "Symbole",

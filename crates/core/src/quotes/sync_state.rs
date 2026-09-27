@@ -392,9 +392,11 @@ impl QuoteSyncState {
         }
     }
 
-    /// Returns true if the asset profile needs enrichment (profile_enriched_at is None).
+    /// Returns true if the asset profile has never been enriched or is stale.
     pub fn needs_profile_enrichment(&self) -> bool {
-        self.profile_enriched_at.is_none()
+        self.profile_enriched_at
+            .map(|enriched_at| enriched_at < Utc::now() - Duration::days(30))
+            .unwrap_or(true)
     }
 
     /// Mark profile as enriched.

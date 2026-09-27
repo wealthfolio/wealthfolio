@@ -1,14 +1,15 @@
-import { getExchanges, resolveSymbolQuote } from "@/adapters";
+import { enrichAssetProfile, getExchanges, resolveSymbolQuote } from "@/adapters";
 import { MultiSelectTaxonomy } from "@/components/classification/multi-select-taxonomy";
 import { SingleSelectTaxonomy } from "@/components/classification/single-select-taxonomy";
 import { AssetLogoDialog } from "@/components/asset-logo/asset-logo-dialog";
 import { EditableTickerAvatar } from "@/components/asset-logo/editable-ticker-avatar";
 import { useCustomProviders } from "@/hooks/use-custom-providers";
 import { useMarketDataProviders } from "@/hooks/use-market-data-providers";
+import { QueryKeys } from "@/lib/query-keys";
 import { useTaxonomies } from "@/hooks/use-taxonomies";
 import type { Asset, Quote } from "@/lib/types";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Alert,
   AlertDescription,
@@ -104,6 +105,7 @@ const assetFormSchema = (t: TFunction) =>
     // form, and a blocking error here would fail that save with no visible
     // FormMessage on that tab.
     contractMultiplier: z.coerce.number().positive().optional().nullable(),
+    annualExpenseRatioPct: z.coerce.number().min(0).max(100).optional().nullable(),
     maturityDate: z.date().optional().nullable(),
     // min(0), not positive(): zero-coupon T-bills are valid and common.
     couponRate: z.coerce.number().min(0).optional().nullable(),
@@ -146,6 +148,29 @@ function extractIsin(metadata: unknown): string {
   const identifiers = (metadata as Record<string, unknown>).identifiers;
   if (!identifiers || typeof identifiers !== "object") return "";
   return ((identifiers as Record<string, unknown>).isin as string) ?? "";
+}
+
+function extractProviderExpenseRatioPct(metadata: unknown): number | null {
+  if (!metadata || typeof metadata !== "object") return null;
+  const profile = (metadata as Record<string, unknown>).profile;
+  if (!profile || typeof profile !== "object") return null;
+  const ratio = (profile as Record<string, unknown>).annualExpenseRatioPct;
+  return typeof ratio === "number" && Number.isFinite(ratio) && ratio >= 0 ? ratio : null;
+}
+
+function initialExpenseRatioPct(asset: Asset | null): number | null {
+  const manualRate = asset?.metadata?.annualExpenseRatioPct;
+  return typeof manualRate === "number" && Number.isFinite(manualRate)
+    ? manualRate
+    : extractProviderExpenseRatioPct(asset?.metadata);
+}
+
+function expenseRatioProvider(asset: Asset | null): string | null {
+  if (typeof asset?.metadata?.annualExpenseRatioPct === "number") return null;
+  const profile = asset?.metadata?.profile;
+  if (!profile || typeof profile !== "object") return null;
+  const source = (profile as Record<string, unknown>).annualExpenseRatioSource;
+  return typeof source === "string" ? source : null;
 }
 
 // Parse provider overrides from config JSON (supports nested and flat formats)
@@ -474,9 +499,14 @@ export function AssetEditSheet({
   );
   const [activeTab, setActiveTab] = useState<EditTab>(defaultTab);
   const [logoDialogOpen, setLogoDialogOpen] = useState(false);
+  const [expenseRatioSource, setExpenseRatioSource] = useState<string | null>(
+    expenseRatioProvider(asset),
+  );
+  const fetchedAssetMetadata = useRef<Record<string, unknown> | null>(null);
   const [symbolValidations, setSymbolValidations] = useState<
     Record<string, SymbolValidationStatus>
   >({});
+  const [isFetchingExpenseRatio, setIsFetchingExpenseRatio] = useState(false);
 
   const handleSymbolValidationChange = useCallback(
     (fieldId: string, status: SymbolValidationStatus) => {
@@ -488,6 +518,7 @@ export function AssetEditSheet({
     scope: "asset",
   });
   const { updateAssetProfileMutation } = useAssetProfileMutations();
+  const queryClient = useQueryClient();
   const { data: marketDataProviders = [] } = useMarketDataProviders();
   const { data: customProviders = [] } = useCustomProviders();
 
@@ -571,6 +602,7 @@ export function AssetEditSheet({
         asset?.providerConfig as Record<string, unknown> | null,
       ),
       contractMultiplier: explicitContractMultiplier(asset?.metadata, asset?.instrumentType),
+      annualExpenseRatioPct: initialExpenseRatioPct(asset),
       ...extractBondSpec(asset?.metadata),
     },
   });
@@ -592,6 +624,8 @@ export function AssetEditSheet({
   // Reset form when asset changes
   useEffect(() => {
     if (asset) {
+      fetchedAssetMetadata.current = null;
+      setExpenseRatioSource(expenseRatioProvider(asset));
       form.reset({
         name: asset.name ?? "",
         notes: asset.notes ?? "",
@@ -607,10 +641,35 @@ export function AssetEditSheet({
           asset.providerConfig as Record<string, unknown> | null,
         ),
         contractMultiplier: explicitContractMultiplier(asset.metadata, asset.instrumentType),
+        annualExpenseRatioPct: initialExpenseRatioPct(asset),
         ...extractBondSpec(asset.metadata),
       });
     }
   }, [asset, form]);
+
+  const handleFetchExpenseRatio = useCallback(async () => {
+    if (!asset || isFetchingExpenseRatio) return;
+    setIsFetchingExpenseRatio(true);
+    try {
+      const enrichedAsset = await enrichAssetProfile(asset.id);
+      const rate = extractProviderExpenseRatioPct(enrichedAsset.metadata);
+      queryClient.setQueryData<Asset[]>([QueryKeys.ASSETS], (current) =>
+        current?.map((item) => (item.id === enrichedAsset.id ? enrichedAsset : item)),
+      );
+      queryClient.setQueryData([QueryKeys.ASSET_DATA, enrichedAsset.id], enrichedAsset);
+      fetchedAssetMetadata.current = enrichedAsset.metadata ?? {};
+      if (rate === null) {
+        toast({ title: t("asset:editSheet.fee_fetch_empty") });
+        return;
+      }
+      form.setValue("annualExpenseRatioPct", rate, { shouldDirty: false });
+      setExpenseRatioSource(expenseRatioProvider(enrichedAsset));
+    } catch {
+      toast({ title: t("asset:editSheet.fee_fetch_error"), variant: "destructive" });
+    } finally {
+      setIsFetchingExpenseRatio(false);
+    }
+  }, [asset, form, isFetchingExpenseRatio, queryClient, t]);
 
   // Reset tab and validation state when sheet opens
   useEffect(() => {
@@ -639,7 +698,8 @@ export function AssetEditSheet({
 
       try {
         // Merge ISIN into existing metadata without clobbering other fields
-        const existingMeta: Record<string, unknown> = asset.metadata ?? {};
+        const existingMeta: Record<string, unknown> =
+          fetchedAssetMetadata.current ?? asset.metadata ?? {};
         const existingIdentifiers: Record<string, unknown> =
           typeof existingMeta.identifiers === "object" && existingMeta.identifiers !== null
             ? (existingMeta.identifiers as Record<string, unknown>)
@@ -665,15 +725,30 @@ export function AssetEditSheet({
           effectiveInstrumentType,
           values.contractMultiplier,
         );
+        const expenseRatioWasEdited = form.getFieldState("annualExpenseRatioPct").isDirty;
+        const withExpenseRatio = {
+          ...withMultiplier,
+          ...(expenseRatioWasEdited
+            ? values.annualExpenseRatioPct == null
+              ? {
+                  annualExpenseRatioPct: undefined,
+                  annualExpenseRatioUpdatedAt: undefined,
+                }
+              : {
+                  annualExpenseRatioPct: values.annualExpenseRatioPct,
+                  annualExpenseRatioUpdatedAt: new Date().toISOString(),
+                }
+            : {}),
+        };
 
         const newMetadata =
           effectiveInstrumentType === BOND_INSTRUMENT_TYPE
-            ? applyBondSpec(withMultiplier, {
+            ? applyBondSpec(withExpenseRatio, {
                 maturityDate: values.maturityDate ?? null,
                 couponRate: values.couponRate ?? null,
                 couponFrequency: values.couponFrequency ?? "",
               })
-            : withMultiplier;
+            : withExpenseRatio;
 
         // Update profile with all fields including quote mode
         await updateAssetProfileMutation.mutateAsync({
@@ -695,7 +770,7 @@ export function AssetEditSheet({
         // Keep sheet open so user can retry
       }
     },
-    [asset, updateAssetProfileMutation, onOpenChange, symbolValidations, t],
+    [asset, form, updateAssetProfileMutation, onOpenChange, symbolValidations, t],
   );
 
   const isManualMode = form.watch("quoteMode") === QuoteMode.MANUAL;
@@ -1022,6 +1097,55 @@ export function AssetEditSheet({
                           </FormItem>
                         )}
                       />
+
+                      {watchedInstrumentType === "EQUITY" && (
+                        <FormField
+                          control={form.control}
+                          name="annualExpenseRatioPct"
+                          render={({ field }) => (
+                            <FormItem>
+                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                <div className="flex items-center gap-2">
+                                  <FormLabel>{t("asset:editSheet.annual_fee_rate")}</FormLabel>
+                                  {expenseRatioSource === "YAHOO" && (
+                                    <Badge variant="secondary">
+                                      {t("asset:editSheet.yahoo_source")}
+                                    </Badge>
+                                  )}
+                                </div>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  disabled={isFetchingExpenseRatio}
+                                  onClick={handleFetchExpenseRatio}
+                                >
+                                  {isFetchingExpenseRatio
+                                    ? t("asset:editSheet.fetching_fee")
+                                    : t("asset:editSheet.fetch_fee_rate")}
+                                </Button>
+                              </div>
+                              <FormControl>
+                                <QuantityInput
+                                  ref={field.ref}
+                                  name={field.name}
+                                  value={field.value ?? ""}
+                                  onValueChange={(value) => {
+                                    field.onChange(value ?? null);
+                                    setExpenseRatioSource(null);
+                                  }}
+                                  placeholder="0.20"
+                                  data-testid="asset-annual-expense-ratio"
+                                />
+                              </FormControl>
+                              <p className="text-muted-foreground text-xs">
+                                {t("asset:editSheet.annual_fee_rate_hint")}
+                              </p>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      )}
 
                       {watchedInstrumentType === BOND_INSTRUMENT_TYPE && (
                         <div className="grid gap-4 md:grid-cols-2">

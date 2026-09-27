@@ -31,6 +31,7 @@ vi.mock("@/adapters", () => ({
 vi.mock("@tanstack/react-query", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@tanstack/react-query")>()),
   useQuery: () => ({ data: [], isLoading: false }),
+  useQueryClient: () => ({ setQueryData: vi.fn() }),
 }));
 
 vi.mock("@/hooks/use-custom-providers", () => ({ useCustomProviders: () => ({ data: [] }) }));

@@ -547,6 +547,7 @@ impl FinnhubProvider {
             market_cap: response.market_capitalization.map(|mc| mc * 1_000_000.0), // Finnhub returns in millions
             pe_ratio: None, // Not available in profile endpoint
             dividend_yield: None,
+            annual_expense_ratio_pct: None,
             week_52_high: None,
             week_52_low: None,
             isin: None,

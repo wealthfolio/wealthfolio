@@ -25,6 +25,13 @@ async fn get_asset_profile(
     Ok(Json(state.asset_service.get_asset_profile(&q.asset_id)?))
 }
 
+async fn enrich_asset_profile(
+    Path(id): Path<String>,
+    axum::Extension(state): axum::Extension<Arc<AppState>>,
+) -> ApiResult<Json<CoreAsset>> {
+    Ok(Json(state.asset_service.enrich_asset_profile(&id).await?))
+}
+
 async fn list_assets(
     axum::Extension(state): axum::Extension<Arc<AppState>>,
 ) -> ApiResult<Json<Vec<CoreAsset>>> {
@@ -117,6 +124,7 @@ pub fn router<S: Clone + Send + Sync + 'static>() -> Router<S> {
         .route("/assets", get(list_assets).post(create_asset))
         .route("/assets/{id}", delete(delete_asset))
         .route("/assets/profile", get(get_asset_profile))
+        .route("/assets/profile/{id}/enrich", put(enrich_asset_profile))
         .route("/assets/profile/{id}", put(update_asset_profile))
         .route("/assets/pricing-mode/{id}", put(update_quote_mode))
         .route("/assets/logos", get(list_asset_logos))

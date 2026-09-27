@@ -165,7 +165,8 @@
     "type": "Tipo",
     "strike": "Prezzo di esercizio",
     "expiry": "Scadenza",
-    "multiplier": "Moltiplicatore"
+    "multiplier": "Moltiplicatore",
+    "estimated_annual_fund_fees": "Costi annui"
   },
   "profile": {
     "overview": "Panoramica",
@@ -311,7 +312,14 @@
       "bond": "Obbligazione",
       "option": "Opzione",
       "metal": "Metallo (Materia prima)"
-    }
+    },
+    "annual_fee_rate": "Aliquota di costo annua (%)",
+    "annual_fee_rate_hint": "Inserisci la TER/OCF annua del fondo in percentuale (ad esempio, 0,20 per 0,20%). Usa «Recupera aliquota» per precompilarla se disponibile; puoi modificarla.",
+    "fetching_fee": "Recupero…",
+    "yahoo_source": "Yahoo Finance",
+    "fee_fetch_empty": "Nessun provider fornisce un’aliquota di costo per questo asset.",
+    "fee_fetch_error": "Impossibile recuperare l’aliquota di costo.",
+    "fetch_fee_rate": "Recupera aliquota"
   },
   "assetForm": {
     "symbol": "Simbolo",
