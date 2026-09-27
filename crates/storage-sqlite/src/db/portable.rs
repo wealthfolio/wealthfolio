@@ -110,7 +110,7 @@ fn encrypted_access(path: &Path) -> anyhow::Result<DbAccess> {
     ))
 }
 
-fn validate_database(conn: &Connection, encrypted: bool, file_len: u64) -> anyhow::Result<()> {
+fn validate_integrity(conn: &Connection, encrypted: bool, file_len: u64) -> anyhow::Result<()> {
     conn.execute_batch("PRAGMA trusted_schema = OFF; PRAGMA temp_store = MEMORY;")?;
     super::maintenance::integrity_check(conn)
         .map_err(|_| anyhow::anyhow!("The backup is damaged or the password is incorrect"))?;
@@ -131,6 +131,11 @@ fn validate_database(conn: &Connection, encrypted: bool, file_len: u64) -> anyho
         u64::from(pages).checked_mul(u64::from(size)) == Some(file_len),
         "The backup has an invalid length"
     );
+    Ok(())
+}
+
+fn validate_database(conn: &Connection, encrypted: bool, file_len: u64) -> anyhow::Result<()> {
+    validate_integrity(conn, encrypted, file_len)?;
     for table in ["accounts", "activities", "__diesel_schema_migrations"] {
         let exists: bool = conn.query_row(
             "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name=?1)",
@@ -254,6 +259,8 @@ fn summary(conn: &Connection) -> anyhow::Result<BackupSummary> {
 
 /// Creates a faithful portable copy. All intermediate databases are encrypted,
 /// including when the final output is explicitly requested as plaintext.
+/// Preserve the snapshot schema and migration history; compatibility checks and
+/// pending migrations belong to restore, not export.
 pub fn export(
     source: &DbAccess,
     root: &Path,
@@ -265,14 +272,12 @@ pub fn export(
     let work = workspace(root)?;
     let clean = encrypted_access(&work.path().join("clean.db"))?;
     copy_database(source, clean.path(), clean.key().map(Arc::as_ref))?;
-    validate_database(
+    validate_integrity(
         &clean.connect_rusqlite()?,
         true,
         fs::metadata(clean.path())?.len(),
     )?;
-    migrate_and_validate(&clean, work.path())?;
     let conn = clean.connect_rusqlite()?;
-    validate_foreign_keys(&conn)?;
     conn.execute_batch("DROP TABLE IF EXISTS wealthfolio_portable_backup;
         CREATE TABLE wealthfolio_portable_backup(id INTEGER PRIMARY KEY CHECK(id=1), profile INTEGER NOT NULL, created_at TEXT NOT NULL, app_version TEXT NOT NULL);")?;
     conn.execute(
@@ -290,7 +295,7 @@ pub fn export(
         copy_with_key(&conn, &payload, &password_key(password))?;
         check_export_size(fs::metadata(&payload)?.len(), HEADER.len() as u64)?;
         let verified = password_connection(&payload, password)?;
-        validate_database(&verified, true, fs::metadata(&payload)?.len())?;
+        validate_integrity(&verified, true, fs::metadata(&payload)?.len())?;
         drop(verified);
         let mut out = fs::OpenOptions::new()
             .write(true)
@@ -461,6 +466,104 @@ mod tests {
             INSERT INTO app_settings(setting_key,setting_value) VALUES ('sync_enabled','true') ON CONFLICT(setting_key) DO UPDATE SET setting_value='true';
             INSERT INTO personal_access_tokens(id,name,token_prefix,token_hash) VALUES ('test','Synthetic token','wf','SYNTHETIC_TOKEN_HASH');").unwrap();
         access
+    }
+
+    fn assert_export_preserves_snapshot(
+        source: &DbAccess,
+        root: &Path,
+        password: Option<&str>,
+    ) -> PortableExport {
+        let original = source.connect_rusqlite().unwrap();
+        let schema = |conn: &Connection| {
+            conn.prepare("SELECT type, name, sql FROM sqlite_master WHERE name NOT GLOB 'sqlite_*' AND name != 'wealthfolio_portable_backup' ORDER BY type, name")
+                .unwrap()
+                .query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, Option<String>>(2)?)))
+                .unwrap()
+                .collect::<rusqlite::Result<Vec<_>>>()
+                .unwrap()
+        };
+        let before = schema(&original);
+        let rows = before
+            .iter()
+            .filter(|(kind, _, _)| kind == "table")
+            .map(|(_, name, _)| (name.clone(), table_rows(&original, name)))
+            .collect::<Vec<_>>();
+        let output = export(source, root, password).unwrap();
+        let exported = if let Some(password) = password {
+            let payload = root.join("exported-payload.db");
+            let bytes = fs::read(&output.path).unwrap();
+            assert_eq!(&bytes[..HEADER.len()], HEADER);
+            fs::write(&payload, &bytes[HEADER.len()..]).unwrap();
+            password_connection(&payload, password).unwrap()
+        } else {
+            Connection::open(&output.path).unwrap()
+        };
+        assert_eq!(schema(&exported), before);
+        assert_eq!(schema(&original), before);
+        for (table, expected) in rows {
+            assert_eq!(table_rows(&exported, &table), expected, "exported {table}");
+            assert_eq!(table_rows(&original, &table), expected, "source {table}");
+        }
+        output
+    }
+
+    #[test]
+    fn export_preserves_unknown_migrations_while_restore_rejects_them() {
+        for version in ["20260704000002", "20990101000001"] {
+            for encrypted in [false, true] {
+                for password in [None, Some("portable backup password")] {
+                    let dir = tempfile::tempdir().unwrap();
+                    let source = seeded(dir.path(), encrypted);
+                    source
+                        .connect_rusqlite()
+                        .unwrap()
+                        .execute(
+                            "INSERT INTO __diesel_schema_migrations(version) VALUES (?1)",
+                            [version],
+                        )
+                        .unwrap();
+                    let output = assert_export_preserves_snapshot(&source, dir.path(), password);
+                    let error = prepare_import(&output.path, dir.path(), password, None)
+                        .err()
+                        .unwrap();
+                    assert_eq!(error.to_string(), "The backup is invalid, damaged, from a newer version, or the password is incorrect");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn export_preserves_older_schema_without_applying_pending_migrations() {
+        use diesel::migration::{MigrationConnection, MigrationSource};
+        use diesel_migrations::MigrationHarness;
+        for encrypted in [false, true] {
+            for password in [None, Some("portable backup password")] {
+                let dir = tempfile::tempdir().unwrap();
+                let source = DbAccess::new(
+                    dir.path().join("source.db").to_str().unwrap(),
+                    encrypted.then(|| Arc::new(DbEncryptionKey::generate())),
+                );
+                source.prepare().unwrap();
+                {
+                    let mut conn = source.connect().unwrap();
+                    conn.setup().unwrap();
+                    let mut migrations =
+                        <diesel_migrations::EmbeddedMigrations as MigrationSource<
+                            diesel::sqlite::Sqlite,
+                        >>::migrations(&super::super::MIGRATIONS)
+                        .unwrap();
+                    migrations.sort_by(|a, b| a.name().version().cmp(&b.name().version()));
+                    conn.run_migrations(&migrations[..2]).unwrap();
+                }
+                source.connect_rusqlite().unwrap().execute_batch(
+                    "INSERT INTO settings(theme,font,base_currency) VALUES('dark','font-mono','USD');
+                     INSERT INTO accounts(id,name,currency) VALUES('legacy-account','Legacy','USD');"
+                ).unwrap();
+                let output = assert_export_preserves_snapshot(&source, dir.path(), password);
+                let restored = prepare_import(&output.path, dir.path(), password, None).unwrap();
+                assert_eq!(restored.summary.account_count, 1);
+            }
+        }
     }
 
     #[test]

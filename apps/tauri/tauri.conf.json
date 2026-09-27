@@ -41,7 +41,7 @@
   },
   "productName": "Wealthfolio",
   "mainBinaryName": "Wealthfolio",
-  "version": "3.9.1",
+  "version": "3.9.2",
   "identifier": "com.teymz.wealthfolio",
   "plugins": {
     "updater": {

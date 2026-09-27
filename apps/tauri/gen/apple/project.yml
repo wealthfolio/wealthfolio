@@ -51,7 +51,7 @@ targets:
           - UIInterfaceOrientationPortraitUpsideDown
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
-        CFBundleShortVersionString: 3.9.1
+        CFBundleShortVersionString: 3.9.2
         CFBundleVersion: "1"
     entitlements:
       path: wealthfolio-app_iOS/wealthfolio-app_iOS.entitlements
