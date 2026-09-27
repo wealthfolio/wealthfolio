@@ -9,7 +9,10 @@
 --   XTAI_OTC -> ROCO  Taipei Exchange (TW)
 --   XAQE     -> AQSE  Aquis Stock Exchange (GB)
 --
--- All three confirmed ACTIVE operating MICs in the published ISO 10383 list.
+-- All four replacements are ACTIVE operating MICs in the published ISO 10383
+-- list. Yahoo's exchange list identifies `.AQ` as Aquis Exchange AQSE, which
+-- distinguishes this legacy Yahoo-backed key from Aquis's AQXE MTF:
+-- https://help.yahoo.com/kb/SLN2310.html
 --
 -- `instrument_key` embeds the MIC (`EQUITY:VWRP@CXE`) but is a STORED generated
 -- column, so SQLite recomputes it from the MIC written here.

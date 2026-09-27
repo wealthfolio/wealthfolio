@@ -595,6 +595,7 @@ mod tests {
         assert_eq!(yahoo_suffix_to_mic("XC"), Some("BCXE"));
         assert_eq!(yahoo_suffix_to_mic("xc"), Some("BCXE"));
         assert_eq!(yahoo_suffix_to_mic("XD"), Some("CCXE")); // Cboe Europe EUR
+        assert_eq!(yahoo_suffix_to_mic("AQ"), Some("AQSE")); // Yahoo lists .AQ as AQSE
         assert_eq!(yahoo_suffix_to_mic("DE"), Some("XETR"));
         assert_eq!(yahoo_suffix_to_mic("PA"), Some("XPAR"));
         assert_eq!(yahoo_suffix_to_mic("AE"), None); // Ambiguous between XDFM and XADS
