@@ -1,5 +1,6 @@
 import { Badge, Button, Card, CardContent, Icons, useAmountFormatting } from "@wealthfolio/ui";
 import { useTranslation } from "react-i18next";
+import { useSettingsContext } from "@/lib/settings-provider";
 import type { ProjectedContributionLimit } from "../contribution-limit-projection";
 
 interface ContributionLimitProjectedItemProps {
@@ -13,6 +14,8 @@ export function ContributionLimitProjectedItem({
 }: ContributionLimitProjectedItemProps) {
   const { t } = useTranslation();
   const amountFormatting = useAmountFormatting();
+  const { settings } = useSettingsContext();
+  const baseCurrency = settings?.baseCurrency ?? "USD";
 
   return (
     <Card className="border-border/60 w-full border-dashed">
@@ -23,10 +26,12 @@ export function ContributionLimitProjectedItem({
             <Badge variant="outline">{t("settings:limits_projected_badge")}</Badge>
           </div>
           <p className="text-muted-foreground text-sm">
-            {amountFormatting.formatAmount(limit.limitAmount, "USD")}
+            {amountFormatting.formatAmount(limit.limitAmount, baseCurrency)}
           </p>
           <p className="text-muted-foreground text-xs">
-            {t("settings:limits_projected_description", { year: limit.contributionYear - 1 })}
+            {t("settings:limits_projected_description", {
+              year: limit.sourceYear ?? limit.contributionYear - 1,
+            })}
           </p>
         </div>
         <Button variant="outline" size="sm" className="shrink-0" onClick={() => onAdd(limit)}>
