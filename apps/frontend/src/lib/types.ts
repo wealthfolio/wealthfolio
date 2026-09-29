@@ -1277,6 +1277,7 @@ export interface ContributionLimit {
   accountIds?: string | null;
   startDate?: string | null;
   endDate?: string | null;
+  isRecurring?: boolean;
   createdAt?: string;
   updatedAt?: string;
 }

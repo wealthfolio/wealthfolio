@@ -24,6 +24,7 @@ export function ContributionLimitEditModal({
               accountIds: "",
               startDate: new Date(new Date().getFullYear(), 0, 1),
               endDate: new Date(new Date().getFullYear(), 11, 31),
+              isRecurring: false,
             }
           }
           onSuccess={() => {
