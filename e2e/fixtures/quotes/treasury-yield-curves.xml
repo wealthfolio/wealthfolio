@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Synthetic flat 4% curve: a 4% nominal note prices at par. -->
+<feed xmlns="http://www.w3.org/2005/Atom"
+      xmlns:d="http://schemas.microsoft.com/ado/2007/08/dataservices">
+  <entry>
+    <content type="application/xml">
+      <d:NEW_DATE>2026-05-11T00:00:00</d:NEW_DATE>
+      <d:BC_1MONTH>4.00</d:BC_1MONTH>
+      <d:BC_1YEAR>4.00</d:BC_1YEAR>
+      <d:BC_10YEAR>4.00</d:BC_10YEAR>
+      <d:BC_30YEAR>4.00</d:BC_30YEAR>
+    </content>
+  </entry>
+  <entry>
+    <content type="application/xml">
+      <d:NEW_DATE>2026-05-12T00:00:00</d:NEW_DATE>
+      <d:BC_1MONTH>4.00</d:BC_1MONTH>
+      <d:BC_1YEAR>4.00</d:BC_1YEAR>
+      <d:BC_10YEAR>4.00</d:BC_10YEAR>
+      <d:BC_30YEAR>4.00</d:BC_30YEAR>
+    </content>
+  </entry>
+</feed>

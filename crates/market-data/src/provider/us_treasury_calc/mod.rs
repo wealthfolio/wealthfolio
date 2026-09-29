@@ -17,6 +17,7 @@ use chrono::{DateTime, Datelike, NaiveDate, Utc};
 use log::{debug, warn};
 use rust_decimal::Decimal;
 use std::collections::HashMap;
+use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::RwLock;
@@ -86,7 +87,7 @@ struct TreasuryBondDetails {
 }
 
 /// Response item from TreasuryDirect securities search.
-#[derive(Debug, serde::Deserialize)]
+#[derive(Clone, Debug, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct TdSecurityItem {
     cusip: String,
@@ -108,6 +109,12 @@ pub struct UsTreasuryCalcProvider {
     client: reqwest::Client,
     /// Cached yield curves keyed by calendar year.
     curve_cache: Arc<RwLock<HashMap<i32, YearCurves>>>,
+    fixtures: Option<TreasuryFixtures>,
+}
+
+struct TreasuryFixtures {
+    securities: Vec<TdSecurityItem>,
+    as_of: NaiveDate,
 }
 
 impl Default for UsTreasuryCalcProvider {
@@ -126,23 +133,57 @@ impl UsTreasuryCalcProvider {
         Self {
             client,
             curve_cache: Arc::new(RwLock::new(HashMap::new())),
+            fixtures: None,
         }
     }
 
+    /// Use synthetic upstream responses with the production parser and calculator.
+    /// Missing securities or years fail closed; this instance never makes HTTP requests.
+    pub fn with_fixtures(fixture_dir: impl AsRef<Path>) -> Result<Self, MarketDataError> {
+        let read = |filename: &str| {
+            std::fs::read_to_string(fixture_dir.as_ref().join(filename)).map_err(|_| {
+                treasury_details_error(&format!("Cannot read Treasury fixture {filename}"))
+            })
+        };
+        let securities = serde_json::from_str(&read("treasury-securities.json")?)
+            .map_err(|_| treasury_details_error("Invalid Treasury securities fixture"))?;
+        let curves = parse_yield_curve_xml(&read("treasury-yield-curves.xml")?)?;
+        let as_of = curves
+            .iter()
+            .map(|(date, _)| *date)
+            .max()
+            .ok_or(MarketDataError::NoDataForRange)?;
+        let mut cache: HashMap<i32, YearCurves> = HashMap::new();
+        for (date, curve) in curves {
+            cache.entry(date.year()).or_default().push((date, curve));
+        }
+        Ok(Self {
+            curve_cache: Arc::new(RwLock::new(cache)),
+            fixtures: Some(TreasuryFixtures { securities, as_of }),
+            ..Self::new()
+        })
+    }
+
     /// Fetch authoritative terms for profiles and calculated quotes.
-    async fn fetch_bond_details(
-        client: &reqwest::Client,
-        isin: &str,
-    ) -> Result<TreasuryBondDetails, MarketDataError> {
+    async fn fetch_bond_details(&self, isin: &str) -> Result<TreasuryBondDetails, MarketDataError> {
         guard_us_treasury(isin)?;
         let cusip = isin
             .get(2..11)
             .ok_or_else(|| treasury_details_error("Invalid Treasury identifier"))?;
+        if let Some(fixtures) = &self.fixtures {
+            let item = fixtures
+                .securities
+                .iter()
+                .find(|item| item.cusip == cusip)
+                .ok_or_else(|| treasury_details_error("Treasury security absent from fixtures"))?;
+            return parse_bond_details(item.clone());
+        }
         let url = format!(
             "https://www.treasurydirect.gov/TA_WS/securities/search?cusip={}&format=json",
             cusip
         );
-        let resp = client
+        let resp = self
+            .client
             .get(&url)
             .timeout(REQUEST_TIMEOUT)
             .send()
@@ -184,6 +225,9 @@ impl UsTreasuryCalcProvider {
 
     /// Fetch and parse one year of yield curve data from Treasury.gov XML.
     async fn fetch_year_curves(&self, year: i32) -> Result<YearCurves, MarketDataError> {
+        if self.fixtures.is_some() {
+            return Err(MarketDataError::NoDataForRange);
+        }
         let url = format!(
             "https://home.treasury.gov/resource-center/data-chart-center/interest-rates/pages/xml?data=daily_treasury_yield_curve&field_tdr_date_value={}",
             year
@@ -366,7 +410,7 @@ impl MarketDataProvider for UsTreasuryCalcProvider {
 
     async fn get_profile(&self, symbol: &str) -> Result<AssetProfile, MarketDataError> {
         guard_us_treasury(symbol)?;
-        let details = Self::fetch_bond_details(&self.client, symbol).await?;
+        let details = self.fetch_bond_details(symbol).await?;
         Ok(details.into_profile(symbol))
     }
 
@@ -380,11 +424,14 @@ impl MarketDataProvider for UsTreasuryCalcProvider {
 
         let bond = resolve_calculated_terms(
             context.bond_metadata.as_ref(),
-            Self::fetch_bond_details(&self.client, &isin),
+            self.fetch_bond_details(&isin),
         )
         .await?;
 
-        let today = Utc::now().date_naive();
+        let today = match &self.fixtures {
+            Some(fixtures) => super::fixture::fixture_as_of_date(fixtures.as_of, PROVIDER_ID)?,
+            None => Utc::now().date_naive(),
+        };
         let curve = match self.get_curve_for_date(today).await {
             Ok(c) => c,
             Err(e) => {
@@ -439,12 +486,21 @@ impl MarketDataProvider for UsTreasuryCalcProvider {
 
         let bond = resolve_calculated_terms(
             context.bond_metadata.as_ref(),
-            Self::fetch_bond_details(&self.client, &isin),
+            self.fetch_bond_details(&isin),
         )
         .await?;
 
         let start_date = start.date_naive();
-        let end_date = end.date_naive();
+        let end_date = match &self.fixtures {
+            Some(fixtures) => end.date_naive().min(super::fixture::fixture_as_of_date(
+                fixtures.as_of,
+                PROVIDER_ID,
+            )?),
+            None => end.date_naive(),
+        };
+        if self.fixtures.is_some() && start_date > end_date {
+            return Err(MarketDataError::NoDataForRange);
+        }
         let currency = context.currency_hint.as_deref().unwrap_or("USD");
 
         let coupon_rate: f64 = bond.coupon_rate.try_into().unwrap_or(0.0);
@@ -768,7 +824,108 @@ fn extract_xml_value(xml: &str, tag: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use chrono::TimeZone;
     use rust_decimal_macros::dec;
+
+    fn fixture_provider() -> UsTreasuryCalcProvider {
+        UsTreasuryCalcProvider::with_fixtures(
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("../../e2e/fixtures/quotes"),
+        )
+        .unwrap()
+    }
+
+    fn fixture_context(isin: &str) -> QuoteContext {
+        QuoteContext {
+            instrument: crate::models::InstrumentId::Bond { isin: isin.into() },
+            currency_hint: Some("USD".into()),
+            overrides: None,
+            preferred_provider: None,
+            identifiers: Default::default(),
+            bond_metadata: None,
+            custom_provider_code: None,
+        }
+    }
+
+    #[tokio::test]
+    async fn fixtures_use_validated_terms_and_real_treasury_calculator() {
+        let provider = fixture_provider();
+        let profile = provider.get_profile("US91282CRF04").await.unwrap();
+        let bond = profile.bond.unwrap();
+        assert_eq!(profile.isin.as_deref(), Some("US91282CRF04"));
+        assert_eq!(bond.treasury_type.as_deref(), Some("Note"));
+        assert_eq!(bond.coupon_rate, Some(dec!(0.04)));
+        assert_eq!(bond.coupon_frequency.as_deref(), Some("SEMI_ANNUAL"));
+
+        for (isin, expected) in [
+            ("US91282CRF04", 1.0),
+            // 365-day bill at 4%: 1 / (1 + 0.04 * 365 / 360).
+            ("US912797VR56", 0.961025093433),
+            // 60 semiannual payments of 2.5% discounted at 2% per period.
+            ("US912810UW61", 1.173804433385),
+        ] {
+            let quotes = provider
+                .get_historical_quotes(
+                    &fixture_context(isin),
+                    ProviderInstrument::BondIsin { isin: isin.into() },
+                    Utc.with_ymd_and_hms(2026, 5, 12, 0, 0, 0).unwrap(),
+                    Utc.with_ymd_and_hms(2026, 5, 12, 23, 59, 59).unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(quotes.len(), 1);
+            assert_eq!(quotes[0].source, PROVIDER_ID);
+            assert_eq!(quotes[0].currency, "USD");
+            let close: f64 = quotes[0].close.try_into().unwrap();
+            assert!((close - expected).abs() < 1e-10);
+        }
+    }
+
+    #[tokio::test]
+    async fn treasury_fixtures_reject_unsupported_or_missing_inputs_without_live_fallback() {
+        let provider = fixture_provider();
+        for isin in ["US91282CRE39", "US91282CRD55"] {
+            assert!(provider.get_profile(isin).await.unwrap().bond.is_some());
+            assert!(provider
+                .get_historical_quotes(
+                    &fixture_context(isin),
+                    ProviderInstrument::BondIsin { isin: isin.into() },
+                    Utc.with_ymd_and_hms(2026, 5, 12, 0, 0, 0).unwrap(),
+                    Utc.with_ymd_and_hms(2026, 5, 12, 23, 59, 59).unwrap(),
+                )
+                .await
+                .is_err());
+        }
+        let missing = provider.get_profile("US912810TH14").await.unwrap_err();
+        assert!(missing.to_string().contains("absent from fixtures"));
+        assert!(matches!(
+            provider.ensure_curves(2025).await,
+            Err(MarketDataError::NoDataForRange)
+        ));
+        assert!(UsTreasuryCalcProvider::with_fixtures(
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("missing-fixtures"),
+        )
+        .is_err());
+    }
+
+    #[tokio::test]
+    async fn treasury_fixture_history_stops_at_as_of_without_fetching_future_years() {
+        let quotes = fixture_provider()
+            .get_historical_quotes(
+                &fixture_context("US91282CRF04"),
+                ProviderInstrument::BondIsin {
+                    isin: "US91282CRF04".into(),
+                },
+                Utc.with_ymd_and_hms(2026, 5, 11, 0, 0, 0).unwrap(),
+                Utc.with_ymd_and_hms(2027, 6, 1, 23, 59, 59).unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(quotes.len(), 2);
+        assert_eq!(
+            quotes[1].timestamp.date_naive(),
+            NaiveDate::from_ymd_opt(2026, 5, 12).unwrap()
+        );
+    }
 
     #[test]
     fn test_is_us_treasury_isin() {

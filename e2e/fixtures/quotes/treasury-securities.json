@@ -1,0 +1,37 @@
+[
+  {
+    "cusip": "912797VR5",
+    "type": "Bill",
+    "interestRate": "",
+    "maturityDate": "2027-05-12T00:00:00",
+    "interestPaymentFrequency": "None"
+  },
+  {
+    "cusip": "91282CRF0",
+    "type": "Note",
+    "interestRate": "4.000",
+    "maturityDate": "2036-05-12T00:00:00",
+    "interestPaymentFrequency": "Semi-Annual"
+  },
+  {
+    "cusip": "912810UW6",
+    "type": "Bond",
+    "interestRate": "5.000",
+    "maturityDate": "2056-05-11T00:00:00",
+    "interestPaymentFrequency": "Semi-Annual"
+  },
+  {
+    "cusip": "91282CRE3",
+    "type": "TIPS",
+    "interestRate": "2.000",
+    "maturityDate": "2036-05-12T00:00:00",
+    "interestPaymentFrequency": "Semi-Annual"
+  },
+  {
+    "cusip": "91282CRD5",
+    "type": "FRN",
+    "interestRate": "",
+    "maturityDate": "2028-05-12T00:00:00",
+    "interestPaymentFrequency": "Quarterly"
+  }
+]

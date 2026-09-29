@@ -226,12 +226,15 @@ impl MarketDataClient {
                 fixture_dir,
                 DATA_SOURCE_BOERSE_FRANKFURT,
             )))),
+            DATA_SOURCE_US_TREASURY_CALC => Ok(Some(Arc::new(
+                UsTreasuryCalcProvider::with_fixtures(fixture_dir)
+                    .map_err(MarketDataClientError::from)?,
+            ))),
             DATA_SOURCE_MARKET_DATA_APP
             | DATA_SOURCE_ALPHA_VANTAGE
             | DATA_SOURCE_METAL_PRICE_API
             | DATA_SOURCE_FINNHUB
             | DATA_SOURCE_OPENFIGI
-            | DATA_SOURCE_US_TREASURY_CALC
             | DATA_SOURCE_CUSTOM_SCRAPER => {
                 warn!(
                     "Provider {} is disabled because WEALTHFOLIO_E2E=1; add fixture support before using it in e2e",

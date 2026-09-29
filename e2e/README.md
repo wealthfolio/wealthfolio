@@ -1,8 +1,9 @@
 # E2E Tests
 
 Wealthfolio E2E tests use [Playwright](https://playwright.dev/) and run against
-the **web app** (not the Tauri desktop app). There are **no mocks** — both
-frontend and backend must be running against a fresh database.
+the **web app** (not the Tauri desktop app). The frontend and Rust backend run
+against a fresh SQLite database. The automated runner uses synthetic market-data
+fixtures; application APIs and persistence are not mocked.
 
 ---
 
@@ -24,6 +25,17 @@ Playwright, and shuts everything down.
 
 ```bash
 pnpm test:e2e
+```
+
+The runner replaces supported market-data providers with fixtures and disables
+other providers. Treasury fixtures supply security terms and yield curves to the
+real Treasury parser and calculator. See
+[the fixture contract](fixtures/quotes/README.md).
+
+Run the regular bond regression with the same setup:
+
+```bash
+pnpm test:e2e e2e/22-bond-fixtures.spec.ts
 ```
 
 To open the Playwright UI instead:
@@ -57,8 +69,11 @@ profiles.
 **Option A — watch the terminal output directly:**
 
 ```bash
-pnpm run dev:web
+WEALTHFOLIO_E2E=1 WEALTHFOLIO_FIXTURE_DIR="$PWD/e2e/fixtures/quotes" pnpm run dev:web
 ```
+
+Leave those fixture variables unset only when running the opt-in live-provider
+spec.
 
 Wait until you see Vite's "ready in Xms" and the Rust server binding messages,
 then move on to Step 3 in a separate terminal.
@@ -66,7 +81,7 @@ then move on to Step 3 in a separate terminal.
 **Option B — redirect output to a log file and use the wait script:**
 
 ```bash
-pnpm run dev:web > /tmp/wealthfolio-dev2.log 2>&1 &
+WEALTHFOLIO_E2E=1 WEALTHFOLIO_FIXTURE_DIR="$PWD/e2e/fixtures/quotes" pnpm run dev:web > /tmp/wealthfolio-dev2.log 2>&1 &
 ./scripts/wait-for-both-servers-to-be-ready.sh
 ```
 
@@ -129,6 +144,8 @@ npx playwright test && npx playwright show-report
 | `13-multi-exchange-import.spec.ts`     | Multi-exchange CSV import: XETRA/LSE/TSX/NASDAQ resolution, region & instrument-type classification (issue #855)            |
 | `16-final-cash-policy.spec.ts`         | Final-cash writer policy through CSV import: persisted amounts + review flags per policy row, fixture-computed ledger total |
 | `20-asset-exchange-edit.spec.ts`       | Asset exchange edits: unchanged keys, duplicate-identity errors, and ISO-only venues                                        |
+| `21-bond-live.spec.ts`                 | Opt-in real-provider bond checks; requires `WF_BOND_LIVE_E2E=1` and a server started without fixture mode                   |
+| `22-bond-fixtures.spec.ts`             | UI bond creation/buy, CUSIP/ISIN reuse, provider terms, numerical Treasury prices, holdings valuation, and type filters     |
 
 ---
 
