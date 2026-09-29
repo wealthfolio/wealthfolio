@@ -17,7 +17,10 @@ services:
       - wealthfolio-data:/data
     environment:
       WF_LISTEN_ADDR: "0.0.0.0:8088"
-      WF_DB_PATH: "/data/wealthfolio.db"
+      # Optional installation root; empty uses the database's parent directory.
+      WF_DATA_DIR: "${WF_DATA_DIR:-}"
+      # Preserve the legacy filename by default and honor an explicitly empty path.
+      WF_DB_PATH: "${WF_DB_PATH-/data/wealthfolio.db}"
       # Required — generate with: openssl rand -base64 32
       WF_SECRET_KEY: "${WF_SECRET_KEY:-}"
       # Alternative: path inside the container to a separately mounted secret.
