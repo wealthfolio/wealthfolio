@@ -2798,28 +2798,26 @@ mod service_tests {
         std::fs::remove_dir_all(&temp_dir).ok();
     }
 
-    fn dev_network_manifest(with_secrets_use: bool) -> AddonManifest {
+    /// A manifest as a dev server serves it: source form, with permission
+    /// functions as plain strings.
+    fn dev_network_manifest(id: &str, with_secrets_use: bool) -> String {
         let secrets_permission = if with_secrets_use {
-            r#",{"category":"secrets","purpose":"Secrets access","functions":[{"name":"use","isDeclared":true,"isDetected":false}]}"#
+            r#",{"category":"secrets","purpose":"Secrets access","functions":["use"]}"#
         } else {
             ""
         };
-        serde_json::from_str(&format!(
+        format!(
             r#"{{
-                "id":"network-addon",
+                "id":"{id}",
                 "name":"Network Addon",
                 "version":"1.0.0",
+                "main":"dist/addon.js",
                 "permissions": [
-                    {{
-                        "category":"network",
-                        "purpose":"Network access",
-                        "functions":[{{"name":"request","isDeclared":true,"isDetected":false}}]
-                    }}{secrets_permission}
+                    {{"category":"network","purpose":"Network access","functions":["request"]}}{secrets_permission}
                 ],
                 "network": {{ "allowedHosts": ["api.example.com"] }}
             }}"#
-        ))
-        .expect("dev manifest should parse")
+        )
     }
 
     fn network_request(url: &str, with_auth: bool) -> AddonNetworkRequest {
@@ -2866,7 +2864,7 @@ mod service_tests {
 
         let service = test_addon_service(&temp_dir);
         service
-            .register_dev_addon_manifest(dev_network_manifest(false))
+            .register_dev_addon_manifest(&dev_network_manifest("network-addon", false))
             .expect("dev manifest should register");
         let result = service
             .addon_network_request(
@@ -2892,7 +2890,7 @@ mod service_tests {
 
         let service = test_addon_service(&temp_dir);
         service
-            .register_dev_addon_manifest(dev_network_manifest(false))
+            .register_dev_addon_manifest(&dev_network_manifest("network-addon", false))
             .expect("dev manifest should register");
         let result = service
             .addon_network_request(
@@ -2905,6 +2903,34 @@ mod service_tests {
             .err()
             .unwrap_or_default()
             .contains("not allowed to use network auth"));
+
+        std::fs::remove_dir_all(&temp_dir).ok();
+    }
+
+    #[tokio::test]
+    async fn test_dev_manifest_accepts_source_form_secrets_use_permission() {
+        let temp_dir = env::temp_dir().join("wealthfolio_test_dev_network_source_form");
+        if temp_dir.exists() {
+            std::fs::remove_dir_all(&temp_dir).ok();
+        }
+
+        let service = test_addon_service(&temp_dir);
+        service
+            .register_dev_addon_manifest(&dev_network_manifest("network-addon", true))
+            .expect("dev manifest should register");
+        // Passing the auth check means `"functions": ["use"]` was honored; the
+        // undeclared host then stops the request before any network I/O.
+        let result = service
+            .addon_network_request(
+                "network-addon",
+                network_request("https://other.example.com/v1", true),
+            )
+            .await;
+
+        assert!(result
+            .err()
+            .unwrap_or_default()
+            .contains("'other.example.com' is not approved"));
 
         std::fs::remove_dir_all(&temp_dir).ok();
     }
@@ -2950,7 +2976,7 @@ mod service_tests {
 
         let service = test_addon_service(&temp_dir);
         service
-            .register_dev_addon_manifest(dev_network_manifest(false))
+            .register_dev_addon_manifest(&dev_network_manifest("network-addon", false))
             .expect("dev manifest should register");
         let result = service
             .addon_network_request(
@@ -2971,9 +2997,9 @@ mod service_tests {
     fn test_register_dev_addon_manifest_rejects_invalid_id() {
         let temp_dir = env::temp_dir().join("wealthfolio_test_dev_network_invalid_id");
         let service = test_addon_service(&temp_dir);
-        let mut manifest = dev_network_manifest(false);
-        manifest.id = "../escape".to_string();
 
-        assert!(service.register_dev_addon_manifest(manifest).is_err());
+        assert!(service
+            .register_dev_addon_manifest(&dev_network_manifest("../escape", false))
+            .is_err());
     }
 }

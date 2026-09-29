@@ -2279,8 +2279,8 @@ impl AddonService {
     /// network requests can be authorized without installing the addon. The
     /// declared hosts are treated as approved, and a registered dev manifest
     /// takes precedence over an installed addon with the same id.
-    pub fn register_dev_addon_manifest(&self, mut manifest: AddonManifest) -> Result<(), String> {
-        validate_addon_id(&manifest.id)?;
+    pub fn register_dev_addon_manifest(&self, manifest_json: &str) -> Result<(), String> {
+        let mut manifest = parse_manifest_json_metadata(manifest_json)?;
         if let Some(network) = manifest.network.as_mut() {
             network.approved_hosts = network.allowed_hosts.clone();
         }

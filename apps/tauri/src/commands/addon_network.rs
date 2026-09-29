@@ -4,7 +4,7 @@ use tauri::AppHandle;
 use wealthfolio_core::addons::network::{
     resolve_addon_network_auth_header, AddonNetworkRequest, AddonNetworkResponse,
 };
-use wealthfolio_core::addons::{AddonManifest, AddonServiceTrait};
+use wealthfolio_core::addons::AddonServiceTrait;
 
 #[tauri::command]
 pub async fn addon_network_request(
@@ -32,7 +32,7 @@ pub async fn addon_network_request(
 #[tauri::command]
 pub async fn register_dev_addon_manifest(
     state: ProfileAccess,
-    manifest: AddonManifest,
+    manifest: serde_json::Value,
 ) -> Result<(), String> {
     if !cfg!(debug_assertions) {
         return Err("Dev addon registration is only available in debug builds".to_string());
@@ -40,5 +40,5 @@ pub async fn register_dev_addon_manifest(
     state
         .context()?
         .addon_service
-        .register_dev_addon_manifest(manifest)
+        .register_dev_addon_manifest(&manifest.to_string())
 }

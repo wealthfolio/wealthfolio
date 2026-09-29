@@ -1273,8 +1273,11 @@ if (apiKey) {
 ```
 
 Prefer brokered `ctx.api.network.request()` over reading a secret into addon
-JavaScript. The request host must be declared in `network.allowedHosts` and its
-response body is text, not a binary transport.
+JavaScript. The request host must be declared in `network.allowedHosts` and
+approved by the user at install time, and its response body is text, not a
+binary transport. An addon loaded from a dev server into a debug build of
+Wealthfolio uses its dev `manifest.json` instead: every declared host counts as
+approved, and it takes precedence over an installed copy of the same addon.
 
 #### `delete(key: string): Promise<void>`
 
