@@ -3,6 +3,8 @@ import type { ContributionLimit } from "@/lib/types";
 export interface ProjectedContributionLimit extends ContributionLimit {
   isProjected: boolean;
   sourceLimitId?: string;
+  /** The year of the real limit this projection was derived from. */
+  sourceYear?: number;
 }
 
 /** How many years past the reference year to project a recurring limit forward. */
@@ -39,7 +41,11 @@ export function withProjectedRecurringLimits(
   const projected: ProjectedContributionLimit[] = [];
 
   for (const groupLimits of byGroup.values()) {
-    const latest = [...groupLimits].sort((a, b) => b.contributionYear - a.contributionYear)[0];
+    const maxYear = Math.max(...groupLimits.map((limit) => limit.contributionYear));
+    const latestYearLimits = groupLimits.filter((limit) => limit.contributionYear === maxYear);
+    // Prefer a recurring row when several limits share the same group name and year
+    // (e.g. one per account) so recurrence isn't lost to arbitrary ordering.
+    const latest = latestYearLimits.find((limit) => limit.isRecurring) ?? latestYearLimits[0];
     if (!latest?.isRecurring) continue;
 
     const existingYears = new Set(groupLimits.map((limit) => limit.contributionYear));
@@ -60,6 +66,7 @@ export function withProjectedRecurringLimits(
         updatedAt: undefined,
         isProjected: true,
         sourceLimitId: latest.id,
+        sourceYear: latest.contributionYear,
       });
     }
   }
