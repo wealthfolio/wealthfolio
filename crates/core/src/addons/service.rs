@@ -2254,6 +2254,9 @@ pub struct AddonService {
     storage_repo: Arc<dyn AddonStorageRepositoryTrait>,
     package_access: RwLock<()>,
     asset_indexes: Mutex<HashMap<PathBuf, CachedAddonAssets>>,
+    /// Manifests of addons served by a local dev server, keyed by addon id.
+    /// Only populated in debug builds; never persisted.
+    dev_manifests: RwLock<HashMap<String, AddonManifest>>,
 }
 
 impl AddonService {
@@ -2268,7 +2271,41 @@ impl AddonService {
             storage_repo,
             package_access: RwLock::new(()),
             asset_indexes: Mutex::new(HashMap::new()),
+            dev_manifests: RwLock::new(HashMap::new()),
         }
+    }
+
+    /// Registers the manifest of an addon loaded from a dev server so brokered
+    /// network requests can be authorized without installing the addon. The
+    /// declared hosts are treated as approved, and a registered dev manifest
+    /// takes precedence over an installed addon with the same id.
+    pub fn register_dev_addon_manifest(&self, mut manifest: AddonManifest) -> Result<(), String> {
+        validate_addon_id(&manifest.id)?;
+        if let Some(network) = manifest.network.as_mut() {
+            network.approved_hosts = network.allowed_hosts.clone();
+        }
+        log::info!(
+            "Registered dev addon manifest for '{}' (approved hosts: {:?})",
+            manifest.id,
+            manifest
+                .network
+                .as_ref()
+                .map(|network| network.approved_hosts.as_slice())
+                .unwrap_or_default()
+        );
+        self.dev_manifests
+            .write()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .insert(manifest.id.clone(), manifest);
+        Ok(())
+    }
+
+    fn dev_manifest(&self, addon_id: &str) -> Option<AddonManifest> {
+        self.dev_manifests
+            .read()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .get(addon_id)
+            .cloned()
     }
 
     fn package_read_guard(
@@ -3188,7 +3225,11 @@ impl AddonServiceTrait for AddonService {
         addon_id: &str,
         request: AddonNetworkRequest,
     ) -> Result<AddonNetworkResponse, String> {
-        let result = match self.enabled_manifest_for_addon(addon_id) {
+        let manifest = match self.dev_manifest(addon_id) {
+            Some(manifest) => Ok(manifest),
+            None => self.enabled_manifest_for_addon(addon_id),
+        };
+        let result = match manifest {
             Ok(manifest) => {
                 if (request.auth.is_some() || request.injected_authorization.is_some())
                     && !Self::manifest_allows_function(&manifest, "secrets", "use")
