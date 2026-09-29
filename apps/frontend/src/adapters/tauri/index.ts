@@ -198,6 +198,7 @@ export {
   downloadAddonForReview,
   installFromStaging,
   updateAddonNetworkApprovals,
+  registerDevAddonManifest,
   clearAddonStaging,
   getAddonRatings,
   submitAddonRating,

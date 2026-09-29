@@ -176,3 +176,7 @@ export const setAddonStorageItem = async (
 export const deleteAddonStorageItem = async (addonId: string, key: string): Promise<void> => {
   return tauriInvoke<void>("delete_addon_storage_item", { addonId, key });
 };
+
+export const registerDevAddonManifest = async (manifest: AddonManifest): Promise<void> => {
+  return tauriInvoke<void>("register_dev_addon_manifest", { manifest });
+};

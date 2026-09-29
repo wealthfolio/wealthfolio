@@ -506,6 +506,7 @@ export {
   uninstallAddon,
   updateAddon,
   updateAddonNetworkApprovals,
+  registerDevAddonManifest,
 } from "./addons";
 
 // FIRE Planner (desktop-only — stubs throw at runtime)

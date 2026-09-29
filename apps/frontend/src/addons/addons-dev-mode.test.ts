@@ -1,11 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { registerDevAddonManifest } from "@/adapters";
+
 vi.mock("@/adapters", () => ({
   logger: {
     error: vi.fn(),
     info: vi.fn(),
     warn: vi.fn(),
   },
+  registerDevAddonManifest: vi.fn(),
 }));
 
 import {
@@ -83,5 +86,32 @@ describe("development addon reloads", () => {
 
     fetchRuntimePackage.mockRestore();
     manager.devServers.delete(addonId);
+  });
+
+  it("registers the manifest before running the addon and fails the load if that fails", async () => {
+    const manager = addonDevManager as unknown as {
+      activateRuntimePackage: (server: unknown, runtimePackage: unknown) => Promise<void>;
+      executeAddonCode: (...args: unknown[]) => Promise<void>;
+    };
+    const manifest = { id: "dev-network-test", name: "Dev network test", version: "1.0.0" };
+    const runtimePackage = {
+      generation: 1,
+      manifest,
+      files: [{ name: "addon.js", content: "", isMain: true }],
+      assets: [],
+    };
+    const executeAddonCode = vi.spyOn(manager, "executeAddonCode").mockResolvedValue();
+    vi.mocked(registerDevAddonManifest).mockRejectedValueOnce(new Error("Invalid addon id"));
+
+    await expect(
+      manager.activateRuntimePackage(
+        { id: manifest.id, url: "http://localhost:3001", status: "running" },
+        runtimePackage,
+      ),
+    ).rejects.toThrow("Invalid addon id");
+    expect(registerDevAddonManifest).toHaveBeenCalledWith(manifest);
+    expect(executeAddonCode).not.toHaveBeenCalled();
+
+    executeAddonCode.mockRestore();
   });
 });

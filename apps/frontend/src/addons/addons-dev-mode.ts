@@ -1,4 +1,4 @@
-import { logger } from "@/adapters";
+import { logger, registerDevAddonManifest } from "@/adapters";
 import { reloadAllAddons } from "@/addons/addons-core";
 import type { AddonManifest } from "@wealthfolio/addon-sdk";
 import type { AddonAsset, AddonFile } from "@/adapters/types";
@@ -245,6 +245,11 @@ class AddonDevManager {
     // Record the attempted generation before execution so a broken build is
     // retried only after the dev server publishes another generation.
     devServer.generation = runtimePackage.generation;
+    // The backend needs the manifest to authorize this addon's brokered
+    // network requests, since dev addons are never installed.
+    if (runtimePackage.manifest) {
+      await registerDevAddonManifest(runtimePackage.manifest as AddonManifest);
+    }
     await this.executeAddonCode(
       mainFile.content,
       runtimePackage.manifest,
