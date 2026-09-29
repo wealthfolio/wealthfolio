@@ -4126,6 +4126,90 @@ pub(crate) mod tests {
     }
 
     #[tokio::test]
+    async fn batch_prepare_bond_broker_symbols_preserve_venues() {
+        for import in [false, true] {
+            let account_service = Arc::new(MockAccountService::new());
+            let asset_service = Arc::new(MockAssetService::new());
+            let account = create_test_account("acc-bonds", "CAD");
+            account_service.add_account(account.clone());
+            for (mic, currency) in [(None, "USD"), (Some("XTSE"), "CAD"), (Some("XNYS"), "USD")] {
+                let key = mic.map_or_else(|| "BOND:ABC".into(), |mic| format!("BOND:ABC@{mic}"));
+                let mut asset = create_test_asset_with_instrument(
+                    &format!("bond-{}", mic.unwrap_or("unqualified")),
+                    "ABC",
+                    mic,
+                    Some(InstrumentType::Bond),
+                    currency,
+                );
+                asset.instrument_key = Some(key);
+                asset_service.add_asset(asset);
+            }
+            let service = ActivityService::new(
+                Arc::new(MockActivityRepository::new()),
+                account_service,
+                asset_service.clone(),
+                Arc::new(MockFxService::new()),
+                Arc::new(MockQuoteService),
+            );
+            let activities = [("XTSE", "CAD"), ("XNYS", "USD")]
+                .into_iter()
+                .map(|(mic, currency)| NewActivity {
+                    id: Some(format!("buy-{mic}")),
+                    account_id: account.id.clone(),
+                    asset: Some(AssetResolutionInput {
+                        symbol: Some("ABC".into()),
+                        exchange_mic: Some(mic.into()),
+                        instrument_type: Some("BOND".into()),
+                        quote_ccy: Some(currency.into()),
+                        ..Default::default()
+                    }),
+                    activity_type: "BUY".into(),
+                    subtype: None,
+                    activity_date: "2024-01-15".into(),
+                    quantity: Some(dec!(100)),
+                    unit_price: Some(dec!(1)),
+                    amount: Some(dec!(100)),
+                    currency: currency.into(),
+                    fee: None,
+                    tax: None,
+                    status: Some(ActivityStatus::Posted),
+                    notes: None,
+                    fx_rate: None,
+                    metadata: None,
+                    needs_review: None,
+                    source_system: Some("SNAPTRADE".into()),
+                    source_record_id: Some(format!("buy-{mic}")),
+                    source_group_id: None,
+                    idempotency_key: None,
+                    import_run_id: None,
+                })
+                .collect();
+            let result = if import {
+                service
+                    .prepare_activities_for_import(activities, &account)
+                    .await
+            } else {
+                service
+                    .prepare_activities_for_sync(activities, &account)
+                    .await
+            }
+            .unwrap();
+
+            assert!(result.errors.is_empty());
+            assert_eq!(result.assets_created, 0);
+            assert_eq!(result.prepared.len(), 2);
+            for (prepared, mic) in result.prepared.iter().zip(["XTSE", "XNYS"]) {
+                let expected_id = format!("bond-{mic}");
+                assert_eq!(
+                    prepared.activity.get_symbol_id(),
+                    Some(expected_id.as_str())
+                );
+            }
+            assert_eq!(asset_service.get_assets().unwrap().len(), 3);
+        }
+    }
+
+    #[tokio::test]
     async fn sync_prepare_bond_cusip_reuses_holdings_isin_identity() {
         let canadian_isin = crate::utils::cusip::cusip_to_isin("135087D27", "CA");
         for (holding_exists, account_ccy, cusip, isin) in [

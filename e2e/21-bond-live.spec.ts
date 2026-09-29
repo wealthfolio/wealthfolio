@@ -248,18 +248,37 @@ test("real bonds enter holdings with correct identity, terms, and quote eligibil
   expect(recalc.status()).toBe(202);
   await page.goto(`${BASE_URL}/holdings`, { waitUntil: "domcontentloaded" });
   await expect(page.locator("table").first()).toBeVisible({ timeout: 30_000 });
-  for (const security of securities) {
-    const assets = await getAssets();
+  const assets = await getAssets();
+  const bondRows = securities.map((security) => {
     const asset = assets.find((item) => item.id === assetIds[security.label]);
     expect(asset?.instrumentType).toBe("BOND");
     const symbol = asset?.instrumentSymbol;
     expect(symbol).toBeTruthy();
-    await expect(page.getByRole("row").filter({ hasText: symbol! }).first()).toBeVisible({
-      timeout: 60_000,
-    });
+    return {
+      label: security.label,
+      row: page.getByRole("row").filter({ hasText: symbol! }).first(),
+    };
+  });
+  for (const { row } of bondRows) {
+    await expect(row).toBeVisible({ timeout: 60_000 });
   }
   await page.getByRole("button", { name: "Type" }).click();
-  await expect(page.getByRole("option", { name: "BONDS 6" })).toBeVisible();
+  await expect(page.getByRole("option", { name: "BONDS 1", exact: true })).toBeVisible();
+  await expect(page.getByRole("option", { name: "GOVERNMENT BOND 5", exact: true })).toBeVisible();
+  await page.getByRole("option", { name: "BONDS 1", exact: true }).click();
+  await page.keyboard.press("Escape");
+  for (const { label, row } of bondRows) {
+    if (label === "apple") await expect(row).toBeVisible();
+    else await expect(row).not.toBeVisible();
+  }
+  await page.getByRole("button", { name: "Type" }).click();
+  await page.getByRole("option", { name: "BONDS 1", exact: true }).click();
+  await page.getByRole("option", { name: "GOVERNMENT BOND 5", exact: true }).click();
+  await page.keyboard.press("Escape");
+  for (const { label, row } of bondRows) {
+    if (label === "apple") await expect(row).not.toBeVisible();
+    else await expect(row).toBeVisible();
+  }
   const holdings = await page.request.get(
     `${api}/holdings/item?accountId=${accountId}&assetId=${assetIds.apple}`,
   );

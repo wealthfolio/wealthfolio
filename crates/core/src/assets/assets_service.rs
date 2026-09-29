@@ -3256,6 +3256,80 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn ensure_bond_broker_symbols_preserve_venues() {
+        use crate::activities::activities_service_tests::tests::MockActivityRepository;
+        for existing in [false, true] {
+            let mut assets = vec![Asset {
+                id: "unqualified-bond".into(),
+                is_active: true,
+                instrument_type: Some(InstrumentType::Bond),
+                instrument_symbol: Some("ABC".into()),
+                instrument_key: Some("BOND:ABC".into()),
+                quote_ccy: "USD".into(),
+                ..Default::default()
+            }];
+            let venues = [("XTSE", "CAD"), ("XNYS", "USD")];
+            if existing {
+                for (mic, currency) in venues {
+                    assets.push(Asset {
+                        id: format!("bond-{mic}"),
+                        is_active: true,
+                        instrument_type: Some(InstrumentType::Bond),
+                        instrument_symbol: Some("ABC".into()),
+                        instrument_exchange_mic: Some(mic.into()),
+                        instrument_key: Some(format!("BOND:ABC@{mic}")),
+                        quote_ccy: currency.into(),
+                        ..Default::default()
+                    });
+                }
+            }
+            let quotes = Arc::new(TestQuoteService {
+                reject_provider_calls: true,
+                ..Default::default()
+            });
+            let service = AssetService::new(
+                Arc::new(TestAssetRepository::with_assets(assets)),
+                quotes.clone(),
+            )
+            .unwrap();
+            let specs = venues
+                .into_iter()
+                .map(|(mic, currency)| {
+                    AssetSpec::market_instrument(
+                        "ABC".into(),
+                        "ABC".into(),
+                        Some(mic.into()),
+                        InstrumentType::Bond,
+                        currency.into(),
+                    )
+                })
+                .collect();
+            let result = service
+                .ensure_assets(specs, &MockActivityRepository::default())
+                .await
+                .unwrap();
+
+            assert_eq!(result.assets.len(), 2);
+            assert_eq!(result.created_ids.len(), if existing { 0 } else { 2 });
+            assert_eq!(service.get_assets().unwrap().len(), 3);
+            for (mic, currency) in venues {
+                let key = format!("BOND:ABC@{mic}");
+                let id = result.input_to_asset_id.get(&key).unwrap();
+                let asset = &result.assets[id];
+                assert_ne!(id, "unqualified-bond");
+                if existing {
+                    assert_eq!(id, &format!("bond-{mic}"));
+                }
+                assert_eq!(asset.instrument_key.as_deref(), Some(key.as_str()));
+                assert_eq!(asset.instrument_exchange_mic.as_deref(), Some(mic));
+                assert_eq!(asset.quote_ccy, currency);
+            }
+            assert!(quotes.search_calls.lock().unwrap().is_empty());
+            assert!(quotes.profile_calls.lock().unwrap().is_empty());
+        }
+    }
+
+    #[tokio::test]
     async fn ensure_bonds_uses_local_resolution_and_creation_events() {
         use crate::activities::activities_service_tests::tests::MockActivityRepository;
         for existing in [false, true] {
@@ -3435,7 +3509,7 @@ mod tests {
             let asset = Asset {
                 id: new_asset
                     .id
-                    .unwrap_or_else(|| "test-created-asset".to_string()),
+                    .unwrap_or_else(|| uuid::Uuid::new_v4().to_string()),
                 kind: new_asset.kind,
                 name: new_asset.name,
                 display_code: new_asset.display_code,

@@ -1089,6 +1089,7 @@ fn parse_fx_symbol_parts(symbol: &str) -> Option<(String, String)> {
 /// - EQUITY/OPTION/METAL: strip known Yahoo exchange suffixes from symbol, keep MIC separately.
 /// - CRYPTO: collapse pair symbols (e.g., BTC-USD) to base symbol (BTC), clear MIC.
 /// - FX: normalize to base symbol + quote currency, display as BASE/QUOTE.
+/// - BOND: normalize identifiers and clear their MIC; preserve MICs for broker symbols.
 pub fn canonicalize_market_identity(
     instrument_type: Option<InstrumentType>,
     symbol: Option<&str>,
@@ -1172,10 +1173,16 @@ pub fn canonicalize_market_identity(
             instrument_symbol = instrument_symbol
                 .as_deref()
                 .map(crate::utils::cusip::normalize_bond_identifier);
+            if instrument_symbol.as_deref().is_some_and(|symbol| {
+                crate::utils::cusip::parse_cusip(symbol).is_ok()
+                    || crate::utils::isin::parse_isin(symbol).is_ok()
+            }) {
+                instrument_exchange_mic = None;
+            }
             CanonicalMarketIdentity {
                 display_code: instrument_symbol.clone(),
                 instrument_symbol,
-                instrument_exchange_mic: None,
+                instrument_exchange_mic,
                 quote_ccy: normalized_quote,
             }
         }
