@@ -423,6 +423,7 @@ export const createContributionLimitSchema = (t?: TFunction) => {
     accountIds: z.string().nullable().optional(),
     startDate: z.union([z.date(), isoDateTimeSchema, z.null()]).optional(),
     endDate: z.union([z.date(), isoDateTimeSchema, z.null()]).optional(),
+    isRecurring: z.boolean().optional(),
   });
 };
 
