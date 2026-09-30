@@ -1,4 +1,4 @@
-import { logger, registerDevAddonManifest } from "@/adapters";
+import { logger, registerDevAddonManifest, unregisterDevAddonManifest } from "@/adapters";
 import { reloadAllAddons } from "@/addons/addons-core";
 import type { AddonManifest } from "@wealthfolio/addon-sdk";
 import type { AddonAsset, AddonFile } from "@/adapters/types";
@@ -60,7 +60,7 @@ class AddonDevManager {
   private config: DevModeConfig;
   private devServers = new Map<string, AddonDevServer>();
   private devAddons = new Map<string, AddonRuntimeHandle>();
-  private reloadsInProgress = new Set<string>();
+  private reloadsInProgress = new Map<string, Promise<boolean>>();
   private watchInterval: number | null = null;
   private eventSource: EventSource | null = null;
 
@@ -166,6 +166,14 @@ class AddonDevManager {
    * Register a development server for an addon
    */
   registerDevServer(addon: { id: string; name: string; port: number }): void {
+    const existing = this.devServers.get(addon.id);
+    if (existing) {
+      existing.name = addon.name;
+      existing.port = addon.port;
+      existing.url = `http://localhost:${addon.port}`;
+      return;
+    }
+
     const devServer: AddonDevServer = {
       id: addon.id,
       name: addon.name,
@@ -178,33 +186,53 @@ class AddonDevManager {
     logger.info(`📝 Registered dev server for ${addon.name} at port ${addon.port}`);
   }
 
-  /**
-   * Load addon from development server
-   */
-  async loadAddonFromDevServer(addonId: string): Promise<boolean> {
-    const devServer = this.devServers.get(addonId);
-    if (!devServer) {
-      logger.error(`No dev server registered for addon: ${addonId}`);
-      return false;
-    }
+  private runAddonLoad(addonId: string, load: () => Promise<boolean>): Promise<boolean> {
+    const pending = this.reloadsInProgress.get(addonId);
+    if (pending) return pending;
 
-    try {
-      // Check if dev server is running
-      const response = await fetch(`${devServer.url}/health`);
-      if (!response.ok) {
-        throw new Error(`Dev server not responding: ${response.status}`);
+    // Initial loads and hot reloads must share the stop/register/start transaction:
+    // a superseded runtime's cleanup must not unregister its replacement's manifest.
+    const loading = Promise.resolve()
+      .then(load)
+      .finally(() => this.reloadsInProgress.delete(addonId));
+    this.reloadsInProgress.set(addonId, loading);
+    return loading;
+  }
+
+  /** Load an addon from its development server. */
+  async loadAddonFromDevServer(addonId: string): Promise<boolean> {
+    const pending = this.reloadsInProgress.get(addonId);
+    if (pending) {
+      const loaded = await pending;
+      if (loaded && addonIframeManager.hasRuntime(addonId)) return true;
+      // A global reload can stop the runtime while a hot reload fetch is pending.
+      // An unchanged generation then needs a fresh boot rather than a false success.
+    }
+    return this.runAddonLoad(addonId, async () => {
+      const devServer = this.devServers.get(addonId);
+      if (!devServer) {
+        logger.error(`No dev server registered for addon: ${addonId}`);
+        return false;
       }
 
-      const runtimePackage = await this.fetchRuntimePackage(devServer);
-      await this.activateRuntimePackage(devServer, runtimePackage);
+      try {
+        // Check if dev server is running
+        const response = await fetch(`${devServer.url}/health`);
+        if (!response.ok) {
+          throw new Error(`Dev server not responding: ${response.status}`);
+        }
 
-      logger.info(`🚀 Loaded addon ${devServer.name} from dev server`);
-      return true;
-    } catch (error) {
-      devServer.status = "error";
-      logger.error(`❌ Failed to load addon from dev server: ${String(error)}`);
-      return false;
-    }
+        const runtimePackage = await this.fetchRuntimePackage(devServer);
+        await this.activateRuntimePackage(devServer, runtimePackage);
+
+        logger.info(`🚀 Loaded addon ${devServer.name} from dev server`);
+        return true;
+      } catch (error) {
+        devServer.status = "error";
+        logger.error(`❌ Failed to load addon from dev server: ${String(error)}`);
+        return false;
+      }
+    });
   }
 
   private async fetchRuntimePackage(devServer: AddonDevServer): Promise<DevRuntimePackage> {
@@ -245,20 +273,30 @@ class AddonDevManager {
     // Record the attempted generation before execution so a broken build is
     // retried only after the dev server publishes another generation.
     devServer.generation = runtimePackage.generation;
+    if (runtimePackage.manifest && runtimePackage.manifest.id !== devServer.id) {
+      throw new Error("Development runtime manifest id does not match the registered server");
+    }
+    // Finish the old runtime's authorization cleanup before registering its replacement.
+    await addonIframeManager.stopAddon(devServer.id);
     // The backend needs the manifest to authorize this addon's brokered
     // network requests, since dev addons are never installed.
     if (runtimePackage.manifest) {
       await registerDevAddonManifest(runtimePackage.manifest as AddonManifest);
     }
-    await this.executeAddonCode(
-      mainFile.content,
-      runtimePackage.manifest,
-      devServer.id,
-      runtimePackage.files,
-      runtimePackage.assets,
-      devServer.url,
-      runtimePackage.generation,
-    );
+    try {
+      await this.executeAddonCode(
+        mainFile.content,
+        runtimePackage.manifest,
+        devServer.id,
+        runtimePackage.files,
+        runtimePackage.assets,
+        devServer.url,
+        runtimePackage.generation,
+      );
+    } catch (error) {
+      await unregisterDevAddonManifest(devServer.id);
+      throw error;
+    }
 
     // Dev addons don't flow through loadInstalledAddons, so ingest their
     // manifest contributions here. Clear-then-ingest keeps this idempotent.
@@ -304,6 +342,11 @@ class AddonDevManager {
           ...manifest,
         },
         permissions: manifest?.permissions,
+        onStopped: async () => {
+          await unregisterDevAddonManifest(addonId);
+          this.devAddons.delete(addonId);
+          clearAddonContributions(addonId);
+        },
       });
       this.devAddons.set(addonId, handle);
     } catch (error) {
@@ -360,55 +403,54 @@ class AddonDevManager {
    * Reload a specific addon
    */
   private async reloadAddon(addonId: string): Promise<void> {
-    if (this.reloadsInProgress.has(addonId)) return;
-    this.reloadsInProgress.add(addonId);
-
-    let unloaded = false;
-    try {
-      const devServer = this.devServers.get(addonId);
-      if (!devServer) {
-        throw new Error(`No dev server registered for addon: ${addonId}`);
-      }
-      const runtimePackage = await this.fetchRuntimePackage(devServer);
-      if (runtimePackage.generation <= (devServer.generation ?? 0)) {
-        return;
-      }
-
-      // Clean up existing instance
-      if (this.devAddons.has(addonId)) {
-        const instance = this.devAddons.get(addonId);
-        if (instance) {
-          logger.info(`🧹 Cleaning up old instance of ${addonId}`);
-          await instance.disable();
+    await this.runAddonLoad(addonId, async () => {
+      let unloaded = false;
+      try {
+        const devServer = this.devServers.get(addonId);
+        if (!devServer) {
+          throw new Error(`No dev server registered for addon: ${addonId}`);
         }
-        this.devAddons.delete(addonId);
+        const runtimePackage = await this.fetchRuntimePackage(devServer);
+        if (runtimePackage.generation <= (devServer.generation ?? 0)) {
+          return devServer.status === "running";
+        }
+
+        // Clean up existing instance
+        if (this.devAddons.has(addonId)) {
+          const instance = this.devAddons.get(addonId);
+          if (instance) {
+            logger.info(`🧹 Cleaning up old instance of ${addonId}`);
+            await instance.disable();
+          }
+          this.devAddons.delete(addonId);
+        }
+
+        // Also clean up from the main addon loader
+        const { unloadAddon } = await import("./addons-core");
+        if (unloadAddon) {
+          unloadAddon(addonId);
+        }
+        unloaded = true;
+
+        // Small delay to ensure cleanup is complete
+        await new Promise((resolve) => setTimeout(resolve, 100));
+
+        await this.activateRuntimePackage(devServer, runtimePackage);
+        logger.info(`✅ Successfully hot-reloaded ${addonId}`);
+
+        // Trigger navigation update to refresh the UI
+        const { triggerNavigationUpdate } = await import("./addons-runtime-context");
+        if (triggerNavigationUpdate) {
+          triggerNavigationUpdate();
+        }
+        return true;
+      } catch (error) {
+        const devServer = this.devServers.get(addonId);
+        if (devServer && unloaded) devServer.status = "error";
+        logger.error(`❌ Error during hot reload of ${addonId}: ${String(error)}`);
+        return false;
       }
-
-      // Also clean up from the main addon loader
-      const { unloadAddon } = await import("./addons-core");
-      if (unloadAddon) {
-        unloadAddon(addonId);
-      }
-      unloaded = true;
-
-      // Small delay to ensure cleanup is complete
-      await new Promise((resolve) => setTimeout(resolve, 100));
-
-      await this.activateRuntimePackage(devServer, runtimePackage);
-      logger.info(`✅ Successfully hot-reloaded ${addonId}`);
-
-      // Trigger navigation update to refresh the UI
-      const { triggerNavigationUpdate } = await import("./addons-runtime-context");
-      if (triggerNavigationUpdate) {
-        triggerNavigationUpdate();
-      }
-    } catch (error) {
-      const devServer = this.devServers.get(addonId);
-      if (devServer && unloaded) devServer.status = "error";
-      logger.error(`❌ Error during hot reload of ${addonId}: ${String(error)}`);
-    } finally {
-      this.reloadsInProgress.delete(addonId);
-    }
+    });
   }
 
   /**

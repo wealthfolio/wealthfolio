@@ -2308,6 +2308,15 @@ impl AddonService {
             .cloned()
     }
 
+    pub fn unregister_dev_addon_manifest(&self, addon_id: &str) -> Result<(), String> {
+        validate_addon_id(addon_id)?;
+        self.dev_manifests
+            .write()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .remove(addon_id);
+        Ok(())
+    }
+
     fn package_read_guard(
         &self,
         addon_id: &str,

@@ -207,3 +207,5 @@ export const deleteAddonStorageItem = async (addonId: string, key: string): Prom
 // The web server has no addon dev mode, so dev addons have nothing to register.
 export const registerDevAddonManifest = (_manifest: AddonManifest): Promise<void> =>
   Promise.resolve();
+
+export const unregisterDevAddonManifest = (_addonId: string): Promise<void> => Promise.resolve();

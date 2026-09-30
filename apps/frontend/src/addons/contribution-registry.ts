@@ -230,12 +230,23 @@ export function clearAddonContributions(addonId: string): void {
 /**
  * Drop the entire durable registry. Used before a full re-ingest on reload so a
  * disabled/uninstalled addon that is no longer discovered leaves no stale nav.
+ * Active dev addons can retain their contributions while installed addons reload.
  */
-export function clearAllContributions(): void {
-  const hadEntries = durableNavItems.size > 0 || durableRoutes.size > 0;
-  durableNavItems.clear();
-  durableRoutes.clear();
-  if (hadEntries) {
+export function clearAllContributions(preservedAddonIds?: ReadonlySet<string>): void {
+  let changed = false;
+  for (const [key, item] of durableNavItems) {
+    if (!preservedAddonIds?.has(item.addonId)) {
+      durableNavItems.delete(key);
+      changed = true;
+    }
+  }
+  for (const [key, route] of durableRoutes) {
+    if (!preservedAddonIds?.has(route.addonId)) {
+      durableRoutes.delete(key);
+      changed = true;
+    }
+  }
+  if (changed) {
     triggerNavigationUpdate();
   }
 }

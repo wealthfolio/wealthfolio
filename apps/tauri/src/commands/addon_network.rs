@@ -42,3 +42,17 @@ pub async fn register_dev_addon_manifest(
         .addon_service
         .register_dev_addon_manifest(&manifest.to_string())
 }
+
+#[tauri::command]
+pub async fn unregister_dev_addon_manifest(
+    state: ProfileAccess,
+    addon_id: String,
+) -> Result<(), String> {
+    if !cfg!(debug_assertions) {
+        return Err("Dev addon registration is only available in debug builds".to_string());
+    }
+    state
+        .context()?
+        .addon_service
+        .unregister_dev_addon_manifest(&addon_id)
+}

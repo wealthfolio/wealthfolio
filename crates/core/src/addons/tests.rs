@@ -2990,6 +2990,54 @@ mod service_tests {
             .unwrap_or_default()
             .contains("not allowed to use network auth"));
 
+        service
+            .unregister_dev_addon_manifest("network-addon")
+            .expect("dev manifest should unregister");
+        // The installed copy permits secrets.use; its host approval now applies again.
+        let result = service
+            .addon_network_request(
+                "network-addon",
+                network_request("https://other.example.com/v1", true),
+            )
+            .await;
+        assert!(result
+            .err()
+            .unwrap_or_default()
+            .contains("'other.example.com' is not approved"));
+
+        service.toggle_addon("network-addon", false).unwrap();
+        let result = service
+            .addon_network_request(
+                "network-addon",
+                network_request("https://api.example.com/v1", false),
+            )
+            .await;
+        assert_eq!(result.err().as_deref(), Some("Addon is disabled"));
+
+        std::fs::remove_dir_all(&temp_dir).ok();
+    }
+
+    #[tokio::test]
+    async fn test_unregister_dev_manifest_restores_unknown_addon_rejection() {
+        let temp_dir = env::temp_dir().join("wealthfolio_test_dev_network_unregister");
+        let service = test_addon_service(&temp_dir);
+        service
+            .register_dev_addon_manifest(&dev_network_manifest("network-addon", false))
+            .unwrap();
+        service
+            .unregister_dev_addon_manifest("network-addon")
+            .unwrap();
+        service
+            .unregister_dev_addon_manifest("network-addon")
+            .unwrap();
+        assert!(service.unregister_dev_addon_manifest("../escape").is_err());
+        let result = service
+            .addon_network_request(
+                "network-addon",
+                network_request("https://api.example.com/v1", false),
+            )
+            .await;
+        assert_eq!(result.err().as_deref(), Some("Addon not found"));
         std::fs::remove_dir_all(&temp_dir).ok();
     }
 

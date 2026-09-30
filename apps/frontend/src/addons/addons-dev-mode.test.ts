@@ -9,6 +9,7 @@ vi.mock("@/adapters", () => ({
     warn: vi.fn(),
   },
   registerDevAddonManifest: vi.fn(),
+  unregisterDevAddonManifest: vi.fn(),
 }));
 
 import {
@@ -76,6 +77,7 @@ describe("development addon reloads", () => {
 
     const firstReload = manager.reloadAddon(addonId);
     const overlappingReload = manager.reloadAddon(addonId);
+    await Promise.resolve();
     expect(fetchRuntimePackage).toHaveBeenCalledTimes(1);
 
     rejectPackage(new Error("test reload failure"));

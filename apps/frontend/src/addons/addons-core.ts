@@ -192,7 +192,7 @@ async function loadAddon(addonFile: AddonFile, activationEpoch: number): Promise
 /**
  * Load installed addons (production mode)
  */
-export async function loadInstalledAddons(): Promise<void> {
+export async function loadInstalledAddons(devLoadedIds?: ReadonlySet<string>): Promise<void> {
   const addonFiles = await discoverAddons();
 
   // Reserve every installed add-on's route namespace up front (before any load)
@@ -202,7 +202,7 @@ export async function loadInstalledAddons(): Promise<void> {
   setInstalledAddonIds(addonFiles.map((addonFile) => addonFile.manifest.id));
 
   if (addonFiles.length === 0) {
-    clearAllContributions();
+    clearAllContributions(devLoadedIds);
     resetActivations();
     publishActivationEpoch();
     logger.info("⚠️  No addons found to load - check AppData/addons directory");
@@ -210,7 +210,10 @@ export async function loadInstalledAddons(): Promise<void> {
   }
 
   // Filter only enabled addons
-  const enabledAddonFiles = addonFiles.filter((addonFile) => addonFile.manifest.enabled !== false);
+  const enabledAddonFiles = addonFiles.filter(
+    (addonFile) =>
+      addonFile.manifest.enabled !== false && !devLoadedIds?.has(addonFile.manifest.id),
+  );
 
   // Rebuild the durable contribution layer from scratch on every (re)load so a
   // disabled/uninstalled addon (no longer in enabledAddonFiles) leaves no stale
@@ -218,7 +221,7 @@ export async function loadInstalledAddons(): Promise<void> {
   // executing addon code or booting an iframe — it only populates the durable
   // nav/route layer. A disabled addon shows no nav, so ingest only the enabled
   // ones.
-  clearAllContributions();
+  clearAllContributions(devLoadedIds);
   // Reset lazy-activation state so a (re)load re-registers every addon cleanly.
   resetActivations();
 

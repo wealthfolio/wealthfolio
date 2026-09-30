@@ -24,18 +24,18 @@ export async function loadAllAddons(): Promise<void> {
       if (devStatus.enabled && devStatus.servers.length > 0) {
         logger.info(`� Found ${devStatus.servers.length} development server(s), loading addons...`);
 
-        let devLoadedCount = 0;
+        const devLoadedIds = new Set<string>();
         for (const server of devStatus.servers) {
           const success = await addonDevManager.loadAddonFromDevServer(server.id);
           if (success) {
-            devLoadedCount++;
+            devLoadedIds.add(server.id);
           }
         }
 
-        logger.info(`✅ Loaded ${devLoadedCount} addon(s) from development servers`);
+        logger.info(`✅ Loaded ${devLoadedIds.size} addon(s) from development servers`);
 
         // Also load installed addons that aren't in dev mode
-        await loadInstalledAddons();
+        await loadInstalledAddons(devLoadedIds);
         return;
       } else {
         logger.info("🔍 No development servers found, falling back to installed addons");
