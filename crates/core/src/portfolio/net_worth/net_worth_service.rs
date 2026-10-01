@@ -356,11 +356,6 @@ impl NetWorthServiceTrait for NetWorthService {
         // Get all non-archived accounts (includes closed accounts for historical net worth)
         let accounts = self.account_repository.list(None, Some(false), None)?;
 
-        if accounts.is_empty() {
-            debug!("No non-archived accounts found. Returning empty net worth.");
-            return Ok(NetWorthResponse::empty(date, base_currency));
-        }
-
         // Get account IDs
         let account_ids: Vec<String> = accounts.iter().map(|a| a.id.clone()).collect();
 
@@ -631,18 +626,25 @@ impl NetWorthServiceTrait for NetWorthService {
                 continue;
             }
 
-            // Get the latest quote for this alternative asset
-            let (price, quote_currency, valuation_date) =
-                match self.get_latest_quote_as_of(&asset.id, date) {
-                    Some((p, c, d)) => (p, c, d),
-                    None => {
-                        debug!(
-                            "No quote found for alternative asset {}, skipping",
-                            asset.id
-                        );
-                        continue;
-                    }
-                };
+            // Automatic loans can have historical estimates before their first
+            // recorded closing quote. Use the same dated calculation as history.
+            let calculated = if asset.kind == AssetKind::Liability
+                && asset
+                    .metadata
+                    .as_ref()
+                    .is_some_and(|m| m.get(crate::assets::loan::LOAN_PROJECTION_KEY).is_some())
+            {
+                let quotes = self.quote_service.get_historical_quotes(&asset.id)?;
+                crate::assets::loan::loan_value(asset.metadata.as_ref(), &quotes, date)
+                    .map(|value| (value, asset.quote_ccy.clone(), date))
+            } else {
+                None
+            };
+            let Some((price, quote_currency, valuation_date)) =
+                calculated.or_else(|| self.get_latest_quote_as_of(&asset.id, date))
+            else {
+                continue;
+            };
 
             // For alternative assets, quantity is always 1 (value-based model)
             let quantity = Decimal::ONE;
@@ -812,6 +814,30 @@ impl NetWorthServiceTrait for NetWorthService {
             end_date,
         )?;
 
+        let mut loan_histories = Vec::new();
+        for asset in &alternative_assets {
+            if asset.kind == AssetKind::Liability
+                && asset
+                    .metadata
+                    .as_ref()
+                    .is_some_and(|m| m.get(crate::assets::loan::LOAN_PROJECTION_KEY).is_some())
+            {
+                let quotes = self.quote_service.get_historical_quotes(&asset.id)?;
+                if let Some(calculation) = crate::assets::loan::calculate_loan(
+                    &crate::assets::loan::LoanCalculationRequest {
+                        metadata: asset.metadata.clone().unwrap_or_default(),
+                        balances: quotes
+                            .iter()
+                            .map(crate::assets::loan::LoanBalance::from)
+                            .collect(),
+                        as_of: end_date,
+                    },
+                ) {
+                    loan_histories.push((*asset, calculation));
+                }
+            }
+        }
+
         // Organize quotes by date -> asset_id -> value (converted to base currency)
         let mut quotes_by_date: BTreeMap<NaiveDate, HashMap<String, Decimal>> = BTreeMap::new();
         for quote in &quotes_vec {
@@ -963,6 +989,17 @@ impl NetWorthServiceTrait for NetWorthService {
             }
         }
 
+        for (_, calculation) in &loan_histories {
+            all_dates.extend(
+                calculation
+                    .rows
+                    .iter()
+                    .map(|r| r.date)
+                    .filter(|d| *d >= history_seed_date && *d <= end_date),
+            );
+            all_dates.push(end_date);
+        }
+
         all_dates.sort();
         all_dates.dedup();
 
@@ -1020,6 +1057,27 @@ impl NetWorthServiceTrait for NetWorthService {
             // Exception: if there's no portfolio data at all, include dates with alt assets
             if !portfolio_initialized && first_portfolio_date.is_some() {
                 continue;
+            }
+
+            for (asset, calculation) in &loan_histories {
+                if let Some(value) = calculation
+                    .rows
+                    .iter()
+                    .rev()
+                    .find(|r| r.date <= date)
+                    .and_then(|r| Decimal::from_f64_retain(r.balance))
+                    .map(|v| v.round_dp(2))
+                {
+                    let (value, currency) = normalize_amount(value, &asset.quote_ccy);
+                    let converted = if currency == base_currency {
+                        value
+                    } else {
+                        self.fx_service
+                            .convert_currency_for_date(value, currency, &base_currency, date)
+                            .unwrap_or(value)
+                    };
+                    current_asset_values.insert(asset.id.clone(), converted);
+                }
             }
 
             // Calculate totals

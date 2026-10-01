@@ -858,7 +858,7 @@ where
             adjclose: import.close,
             volume: import.volume_or_zero(),
             currency: import.currency.clone(),
-            notes: None,
+            notes: import.notes.clone(),
         })
     }
 
@@ -2370,6 +2370,7 @@ where
                 close,
                 volume: parse_decimal(volume_idx),
                 currency,
+                notes: None,
                 validation_status: ImportValidationStatus::Valid,
                 error_message: None,
             });

@@ -15,6 +15,7 @@ mod assets_traits;
 mod auto_classification;
 mod bond_identity;
 mod classification_service;
+pub mod loan;
 
 #[cfg(test)]
 mod assets_model_tests;
