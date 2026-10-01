@@ -8477,6 +8477,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: None,
+            source_group_id: None,
         };
 
         let result = activity_service
@@ -8553,6 +8554,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: None,
+            source_group_id: None,
         };
 
         let result = activity_service
@@ -8628,6 +8630,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: None,
+            source_group_id: None,
         };
 
         let result = activity_service
@@ -8694,6 +8697,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: None,
+            source_group_id: None,
         };
 
         let result = activity_service
@@ -8767,6 +8771,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: None,
+            source_group_id: None,
         };
 
         let result = activity_service
@@ -8840,6 +8845,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: None,
+            source_group_id: None,
         };
 
         let result = activity_service
@@ -8923,6 +8929,7 @@ pub(crate) mod tests {
                 isin: None,
                 force_import: false,
                 is_external: None,
+                source_group_id: None,
             }])
             .await
             .expect("import check should succeed");
@@ -9023,6 +9030,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: None,
+            source_group_id: None,
         };
 
         let result = activity_service
@@ -9119,6 +9127,7 @@ pub(crate) mod tests {
                 isin: Some("ca82509l1076".to_string()),
                 force_import: false,
                 is_external: None,
+                source_group_id: None,
             },
             ActivityImport {
                 id: None,
@@ -9154,6 +9163,7 @@ pub(crate) mod tests {
                 isin: Some("CA82509L1077".to_string()),
                 force_import: false,
                 is_external: None,
+                source_group_id: None,
             },
         ];
 
@@ -9237,6 +9247,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: None,
+            source_group_id: None,
         };
         let mut tsx = nyse.clone();
         tsx.exchange_mic = Some("XTSE".to_string());
@@ -9307,6 +9318,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: None,
+            source_group_id: None,
         };
         let mut second = first.clone();
         second.provider_symbol = Some("XAU-OZ".to_string());
@@ -9555,6 +9567,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: None,
+            source_group_id: None,
         };
 
         let result = activity_service
@@ -9629,6 +9642,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: None,
+            source_group_id: None,
         };
 
         let result = activity_service
@@ -9696,6 +9710,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: None,
+            source_group_id: None,
         };
 
         let result = activity_service
@@ -9770,6 +9785,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: None,
+            source_group_id: None,
         };
 
         let result = activity_service
@@ -9841,6 +9857,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: None,
+            source_group_id: None,
         };
 
         let result = activity_service
@@ -9909,6 +9926,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: None,
+            source_group_id: None,
         };
 
         let result = activity_service
@@ -9983,6 +10001,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: None,
+            source_group_id: None,
         };
 
         let result = activity_service
@@ -10065,6 +10084,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: None,
+            source_group_id: None,
         };
 
         let result = activity_service
@@ -10137,6 +10157,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: None,
+            source_group_id: None,
         };
 
         let result = activity_service
@@ -10205,6 +10226,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: None,
+            source_group_id: None,
         };
 
         let result = activity_service
@@ -10279,6 +10301,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: None,
+            source_group_id: None,
         };
 
         let result = activity_service
@@ -10349,6 +10372,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: None,
+            source_group_id: None,
         };
 
         let result = activity_service
@@ -10419,6 +10443,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: None,
+            source_group_id: None,
         };
 
         let result = activity_service
@@ -10489,6 +10514,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: None,
+            source_group_id: None,
         };
 
         let result = activity_service
@@ -10556,6 +10582,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: None,
+            source_group_id: None,
         };
 
         let result = activity_service
@@ -10624,6 +10651,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: None,
+            source_group_id: None,
         };
 
         let result = activity_service
@@ -10694,6 +10722,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: None,
+            source_group_id: None,
         };
 
         let result = activity_service
@@ -10773,6 +10802,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: None,
+            source_group_id: None,
         };
 
         let result = activity_service
@@ -10848,6 +10878,7 @@ pub(crate) mod tests {
                     isin: None,
                     force_import: false,
                     is_external: None,
+                    source_group_id: None,
                 },
                 ActivityImport {
                     id: None,
@@ -10883,6 +10914,7 @@ pub(crate) mod tests {
                     isin: None,
                     force_import: false,
                     is_external: None,
+                    source_group_id: None,
                 },
             ])
             .await
@@ -11602,6 +11634,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: None,
+            source_group_id: None,
         };
 
         let result = activity_service
@@ -11685,6 +11718,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: None,
+            source_group_id: None,
         };
 
         let result = activity_service
@@ -11760,6 +11794,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: None,
+            source_group_id: None,
         };
 
         let result = activity_service
@@ -11831,6 +11866,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: None,
+            source_group_id: None,
         };
 
         let result = activity_service
@@ -11910,6 +11946,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: Some(true),
+            source_group_id: None,
         };
 
         let transfer_in = ActivityImport {
@@ -11946,6 +11983,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: Some(true),
+            source_group_id: None,
         };
 
         let result = activity_service
@@ -11997,6 +12035,290 @@ pub(crate) mod tests {
                 .and_then(|value| value.as_bool()),
             Some(false),
             "auto-linked transfer in should be marked internal"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_import_preserves_explicit_source_group_id_for_exchange_pair() {
+        // Addons bulk-importing an in-kind asset exchange (ADJUSTMENT with
+        // EXCHANGE_OUT/EXCHANGE_IN subtypes) supply their own source_group_id
+        // per pair — link_imported_transfer_pairs only auto-links
+        // TRANSFER_IN/TRANSFER_OUT rows, so this must survive untouched.
+        let account_service = Arc::new(MockAccountService::new());
+        let asset_service = Arc::new(MockAssetService::new());
+        let fx_service = Arc::new(MockFxService::new());
+        let activity_repository = Arc::new(MockActivityRepository::new());
+
+        let account = create_test_account("acc-1", "USD");
+        account_service.add_account(account);
+        asset_service.add_asset(create_test_asset("FUND_A", "USD"));
+        asset_service.add_asset(create_test_asset("FUND_B", "USD"));
+
+        let quote_service = Arc::new(MockQuoteService);
+        let activity_service = ActivityService::new(
+            activity_repository.clone(),
+            account_service,
+            asset_service,
+            fx_service,
+            quote_service,
+        );
+
+        let exchange_out = ActivityImport {
+            id: None,
+            date: "2025-12-31".to_string(),
+            symbol: "FUND_A".to_string(),
+            activity_type: "ADJUSTMENT".to_string(),
+            quantity: Some(dec!(10)),
+            unit_price: None,
+            currency: "USD".to_string(),
+            fee: None,
+            tax: None,
+            amount: None,
+            comment: Some("Fund switch out".to_string()),
+            account_id: Some("acc-1".to_string()),
+            account_name: None,
+            symbol_name: None,
+            exchange_mic: None,
+            quote_ccy: Some("USD".to_string()),
+            instrument_type: Some("EQUITY".to_string()),
+            quote_mode: None,
+            provider_id: None,
+            provider_symbol: None,
+            errors: None,
+            warnings: None,
+            duplicate_of_id: None,
+            duplicate_of_line_number: None,
+            is_draft: false,
+            is_valid: true,
+            line_number: Some(1),
+            fx_rate: None,
+            subtype: Some("EXCHANGE_OUT".to_string()),
+            asset_id: None,
+            isin: None,
+            force_import: false,
+            is_external: None,
+            source_group_id: Some("addon-exchange-group-1".to_string()),
+        };
+
+        let exchange_in = ActivityImport {
+            id: None,
+            date: "2025-12-31".to_string(),
+            symbol: "FUND_B".to_string(),
+            activity_type: "ADJUSTMENT".to_string(),
+            quantity: Some(dec!(5)),
+            unit_price: None,
+            currency: "USD".to_string(),
+            fee: None,
+            tax: None,
+            amount: None,
+            comment: Some("Fund switch in".to_string()),
+            account_id: Some("acc-1".to_string()),
+            account_name: None,
+            symbol_name: None,
+            exchange_mic: None,
+            quote_ccy: Some("USD".to_string()),
+            instrument_type: Some("EQUITY".to_string()),
+            quote_mode: None,
+            provider_id: None,
+            provider_symbol: None,
+            errors: None,
+            warnings: None,
+            duplicate_of_id: None,
+            duplicate_of_line_number: None,
+            is_draft: false,
+            is_valid: true,
+            line_number: Some(2),
+            fx_rate: None,
+            subtype: Some("EXCHANGE_IN".to_string()),
+            asset_id: None,
+            isin: None,
+            force_import: false,
+            is_external: None,
+            source_group_id: Some("addon-exchange-group-1".to_string()),
+        };
+
+        let result = activity_service
+            .import_activities(vec![exchange_out, exchange_in])
+            .await
+            .expect("exchange import should succeed");
+
+        assert!(result.summary.success);
+        assert_eq!(result.summary.imported, 2);
+
+        let stored = activity_repository
+            .get_activities()
+            .expect("stored activities should be readable");
+        assert_eq!(stored.len(), 2);
+
+        // MockActivityRepository's bulk-import path doesn't roundtrip `subtype`
+        // (a pre-existing test-double simplification, not exercised here), so
+        // distinguish legs by their notes instead. subtype passthrough itself is
+        // covered by test_activity_import_to_new_activity_preserves_source_group_id
+        // and NewActivity::from's field mapping; ExchangePairResolution's own
+        // pairing logic is covered directly in activities/exchange_pairs.rs.
+        let exchange_out_stored = stored
+            .iter()
+            .find(|activity| activity.notes.as_deref() == Some("Fund switch out"))
+            .unwrap_or_else(|| panic!("EXCHANGE_OUT should exist, got: {:?}", stored));
+        let exchange_in_stored = stored
+            .iter()
+            .find(|activity| activity.notes.as_deref() == Some("Fund switch in"))
+            .expect("EXCHANGE_IN should exist");
+
+        assert_eq!(
+            exchange_out_stored.source_group_id.as_deref(),
+            Some("addon-exchange-group-1"),
+            "explicit source_group_id must be preserved through import, not overwritten"
+        );
+        assert_eq!(
+            exchange_out_stored.source_group_id, exchange_in_stored.source_group_id,
+            "paired exchange legs should share the same source_group_id"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_get_exchange_pair_for_activity_returns_both_legs() {
+        let account_service = Arc::new(MockAccountService::new());
+        let asset_service = Arc::new(MockAssetService::new());
+        let fx_service = Arc::new(MockFxService::new());
+        let activity_repository = Arc::new(MockActivityRepository::new());
+
+        account_service.add_account(create_test_account("acc-1", "USD"));
+        asset_service.add_asset(create_test_asset("FUND_A", "USD"));
+        asset_service.add_asset(create_test_asset("FUND_B", "USD"));
+
+        let quote_service = Arc::new(MockQuoteService);
+        let activity_service = ActivityService::new(
+            activity_repository,
+            account_service,
+            asset_service,
+            fx_service,
+            quote_service,
+        );
+
+        let group_id = "exchange-group-1".to_string();
+        let request = ActivityBulkMutationRequest {
+            creates: vec![
+                NewActivity {
+                    id: None,
+                    account_id: "acc-1".to_string(),
+                    asset: Some(AssetResolutionInput {
+                        id: Some("FUND_A".to_string()),
+                        ..Default::default()
+                    }),
+                    activity_type: "ADJUSTMENT".to_string(),
+                    subtype: Some("EXCHANGE_OUT".to_string()),
+                    activity_date: "2026-02-27T21:32:00Z".to_string(),
+                    quantity: Some(dec!(10)),
+                    unit_price: None,
+                    currency: "USD".to_string(),
+                    fee: None,
+                    tax: None,
+                    amount: None,
+                    status: None,
+                    notes: Some("Fund switch out".to_string()),
+                    fx_rate: None,
+                    metadata: None,
+                    needs_review: None,
+                    source_system: None,
+                    source_record_id: None,
+                    source_group_id: Some(group_id.clone()),
+                    idempotency_key: None,
+                    import_run_id: None,
+                },
+                NewActivity {
+                    id: None,
+                    account_id: "acc-1".to_string(),
+                    asset: Some(AssetResolutionInput {
+                        id: Some("FUND_B".to_string()),
+                        ..Default::default()
+                    }),
+                    activity_type: "ADJUSTMENT".to_string(),
+                    subtype: Some("EXCHANGE_IN".to_string()),
+                    activity_date: "2026-02-27T21:32:00Z".to_string(),
+                    quantity: Some(dec!(5)),
+                    unit_price: None,
+                    currency: "USD".to_string(),
+                    fee: None,
+                    tax: None,
+                    amount: None,
+                    status: None,
+                    notes: Some("Fund switch in".to_string()),
+                    fx_rate: None,
+                    metadata: None,
+                    needs_review: None,
+                    source_system: None,
+                    source_record_id: None,
+                    source_group_id: Some(group_id.clone()),
+                    idempotency_key: None,
+                    import_run_id: None,
+                },
+            ],
+            updates: vec![],
+            delete_ids: vec![],
+        };
+
+        let result = activity_service
+            .bulk_mutate_activities(request)
+            .await
+            .expect("bulk create should succeed");
+        assert_eq!(result.created.len(), 2);
+
+        let out_id = result
+            .created
+            .iter()
+            .find(|activity| activity.subtype.as_deref() == Some("EXCHANGE_OUT"))
+            .expect("EXCHANGE_OUT should exist")
+            .id
+            .clone();
+
+        let pair = activity_service
+            .get_exchange_pair_for_activity(out_id)
+            .expect("exchange pair should resolve");
+
+        assert_eq!(pair.exchange_out.asset_id.as_deref(), Some("FUND_A"));
+        assert_eq!(pair.exchange_in.asset_id.as_deref(), Some("FUND_B"));
+        assert_eq!(pair.exchange_out.quantity, Some(dec!(10)));
+        assert_eq!(pair.exchange_in.quantity, Some(dec!(5)));
+        assert_eq!(
+            pair.exchange_out.source_group_id.as_deref(),
+            Some(group_id.as_str())
+        );
+        assert_eq!(
+            pair.exchange_in.source_group_id.as_deref(),
+            Some(group_id.as_str())
+        );
+    }
+
+    #[tokio::test]
+    async fn test_get_exchange_pair_for_activity_errors_when_leg_missing() {
+        let account_service = Arc::new(MockAccountService::new());
+        let asset_service = Arc::new(MockAssetService::new());
+        let fx_service = Arc::new(MockFxService::new());
+        let activity_repository = Arc::new(MockActivityRepository::new());
+
+        account_service.add_account(create_test_account("acc-1", "USD"));
+        asset_service.add_asset(create_test_asset("FUND_A", "USD"));
+
+        let mut orphan = create_stored_activity("exg-out-orphan", "acc-1", Some("FUND_A"));
+        orphan.activity_type = "ADJUSTMENT".to_string();
+        orphan.subtype = Some("EXCHANGE_OUT".to_string());
+        orphan.source_group_id = Some("orphan-group".to_string());
+        activity_repository.add_activity(orphan);
+
+        let quote_service = Arc::new(MockQuoteService);
+        let activity_service = ActivityService::new(
+            activity_repository,
+            account_service,
+            asset_service,
+            fx_service,
+            quote_service,
+        );
+
+        let result = activity_service.get_exchange_pair_for_activity("exg-out-orphan".to_string());
+        assert!(
+            result.is_err(),
+            "an unpaired leg should not resolve as a valid exchange pair"
         );
     }
 
@@ -12053,6 +12375,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: Some(true),
+            source_group_id: None,
         };
 
         let transfer_in = ActivityImport {
@@ -12089,6 +12412,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: Some(true),
+            source_group_id: None,
         };
 
         let result = activity_service
@@ -12175,6 +12499,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: Some(false),
+            source_group_id: None,
         };
 
         let transfer_out = ActivityImport {
@@ -12211,6 +12536,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: Some(false),
+            source_group_id: None,
         };
 
         let result = activity_service
@@ -12333,6 +12659,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: Some(false),
+            source_group_id: None,
         };
 
         let result = activity_service
@@ -12466,6 +12793,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: Some(true),
+            source_group_id: None,
         };
 
         let transfer_in_duplicate = ActivityImport {
@@ -12502,6 +12830,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: Some(true),
+            source_group_id: None,
         };
 
         let result = activity_service
@@ -13439,6 +13768,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: None,
+            source_group_id: None,
         };
         (activity_service, activity_repository, import)
     }
@@ -13690,6 +14020,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: None,
+            source_group_id: None,
         };
 
         let result = activity_service
@@ -13765,6 +14096,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: None,
+            source_group_id: None,
         };
 
         let result = activity_service
@@ -13904,6 +14236,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: true,
             is_external: None,
+            source_group_id: None,
         };
 
         let result = activity_service
@@ -13996,6 +14329,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: None,
+            source_group_id: None,
         };
 
         // First row: normal import. Second row: identical but force_import=true.
@@ -14006,6 +14340,7 @@ pub(crate) mod tests {
                     line_number: Some(2),
                     force_import: true,
                     is_external: None,
+                    source_group_id: None,
                     ..base
                 },
             ])
@@ -14094,6 +14429,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: true, // flag set but no duplicate exists
             is_external: None,
+            source_group_id: None,
         };
 
         let result = activity_service
@@ -14473,6 +14809,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: None,
+            source_group_id: None,
         };
 
         let result = activity_service
@@ -14542,6 +14879,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: None,
+            source_group_id: None,
         };
 
         let result = activity_service
@@ -14611,6 +14949,7 @@ pub(crate) mod tests {
                 isin: None,
                 force_import: false,
                 is_external: None,
+                source_group_id: None,
             };
 
             let result = activity_service
@@ -14692,6 +15031,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: None,
+            source_group_id: None,
         };
 
         let result = activity_service
@@ -14774,6 +15114,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: None,
+            source_group_id: None,
         };
 
         let result = activity_service
@@ -14844,6 +15185,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: None,
+            source_group_id: None,
         };
 
         let result = activity_service
@@ -14923,6 +15265,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: None,
+            source_group_id: None,
         };
 
         let result = activity_service
@@ -15453,6 +15796,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: None,
+            source_group_id: None,
         }
     }
 

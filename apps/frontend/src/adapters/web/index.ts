@@ -104,6 +104,7 @@ export {
   getBrokerSyncProfile,
   findTransferMatchCandidates,
   getTransferPairForActivity,
+  getExchangePairForActivity,
   getAccountImportMapping,
   linkAccountTemplate,
   linkTransferActivities,

@@ -42,10 +42,11 @@ use crate::accounts::{account_types, Account, AccountServiceTrait};
 use crate::activities::activities_constants::{
     classify_import_activity, is_cash_symbol, is_garbage_symbol, is_securities_transfer,
     requires_final_cash_amount, requires_symbol, ImportSymbolDisposition,
-    ACTIVITY_SUBTYPE_OPTION_EXPIRY, ACTIVITY_TYPE_ADJUSTMENT, ACTIVITY_TYPE_BUY,
-    ACTIVITY_TYPE_CREDIT, ACTIVITY_TYPE_FEE, ACTIVITY_TYPE_INTEREST, ACTIVITY_TYPE_SELL,
-    ACTIVITY_TYPE_SPLIT, ACTIVITY_TYPE_TAX, ACTIVITY_TYPE_TRANSFER_IN, ACTIVITY_TYPE_TRANSFER_OUT,
-    ACTIVITY_TYPE_WITHDRAWAL, PRICE_BEARING_ACTIVITY_TYPES,
+    ACTIVITY_SUBTYPE_EXCHANGE_IN, ACTIVITY_SUBTYPE_EXCHANGE_OUT, ACTIVITY_SUBTYPE_OPTION_EXPIRY,
+    ACTIVITY_TYPE_ADJUSTMENT, ACTIVITY_TYPE_BUY, ACTIVITY_TYPE_CREDIT, ACTIVITY_TYPE_FEE,
+    ACTIVITY_TYPE_INTEREST, ACTIVITY_TYPE_SELL, ACTIVITY_TYPE_SPLIT, ACTIVITY_TYPE_TAX,
+    ACTIVITY_TYPE_TRANSFER_IN, ACTIVITY_TYPE_TRANSFER_OUT, ACTIVITY_TYPE_WITHDRAWAL,
+    PRICE_BEARING_ACTIVITY_TYPES,
 };
 use crate::activities::activities_errors::ActivityError;
 use crate::activities::activities_model::*;
@@ -826,6 +827,8 @@ impl ActivityService {
         if activity_type.eq_ignore_ascii_case(ACTIVITY_TYPE_ADJUSTMENT) {
             return subtype.is_some_and(|subtype| {
                 subtype.eq_ignore_ascii_case(ACTIVITY_SUBTYPE_OPTION_EXPIRY)
+                    || subtype.eq_ignore_ascii_case(ACTIVITY_SUBTYPE_EXCHANGE_OUT)
+                    || subtype.eq_ignore_ascii_case(ACTIVITY_SUBTYPE_EXCHANGE_IN)
             });
         }
         requires_symbol(activity_type)
@@ -1303,6 +1306,15 @@ impl ActivityService {
         }
     }
 
+    fn exchange_pair_response(
+        pair: crate::activities::ExchangePair,
+    ) -> crate::activities::InternalExchangePairResponse {
+        crate::activities::InternalExchangePairResponse {
+            exchange_out: pair.exchange_out,
+            exchange_in: pair.exchange_in,
+        }
+    }
+
     fn transfer_match_tolerance() -> Decimal {
         Decimal::new(1, 6)
     }
@@ -1513,6 +1525,43 @@ impl ActivityService {
         self.load_internal_transfer_pair_for_activity(activity_id)?
             .ok_or_else(|| {
                 Self::invalid_activity_data("Activity is not a valid internal transfer pair")
+            })
+    }
+
+    fn load_internal_exchange_pair_for_activity(
+        &self,
+        activity_id: &str,
+    ) -> Result<Option<crate::activities::ExchangePair>> {
+        let activity = self.activity_repository.get_activity(activity_id)?;
+        let Some(group_id) = activity
+            .source_group_id
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+        else {
+            return Ok(None);
+        };
+
+        let group_activities = self
+            .activity_repository
+            .get_activities_by_source_group_id(group_id)?;
+
+        if group_activities.len() != 2 {
+            return Ok(None);
+        }
+
+        let resolution =
+            crate::activities::ExchangePairResolution::from_activities(&group_activities);
+        Ok(resolution.pair_for_activity(activity_id).cloned())
+    }
+
+    fn require_internal_exchange_pair_for_activity(
+        &self,
+        activity_id: &str,
+    ) -> Result<crate::activities::ExchangePair> {
+        self.load_internal_exchange_pair_for_activity(activity_id)?
+            .ok_or_else(|| {
+                Self::invalid_activity_data("Activity is not a valid internal exchange pair")
             })
     }
 
@@ -4738,6 +4787,14 @@ impl ActivityServiceTrait for ActivityService {
             .map(Self::transfer_pair_response))
     }
 
+    fn get_exchange_pair_for_activity(
+        &self,
+        activity_id: String,
+    ) -> Result<InternalExchangePairResponse> {
+        let pair = self.require_internal_exchange_pair_for_activity(&activity_id)?;
+        Ok(Self::exchange_pair_response(pair))
+    }
+
     fn find_transfer_match_candidates(
         &self,
         request: TransferMatchCandidateRequest,
@@ -7270,6 +7327,7 @@ mod reviewed_import_metadata_tests {
             isin: None,
             force_import: false,
             is_external: None,
+            source_group_id: None,
         }
     }
 

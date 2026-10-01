@@ -409,6 +409,10 @@ pub trait ActivityServiceTrait: Send + Sync {
         &self,
         activity_id: String,
     ) -> Result<Option<InternalTransferPairResponse>>;
+    fn get_exchange_pair_for_activity(
+        &self,
+        activity_id: String,
+    ) -> Result<InternalExchangePairResponse>;
     fn find_transfer_match_candidates(
         &self,
         request: TransferMatchCandidateRequest,

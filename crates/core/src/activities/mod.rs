@@ -8,6 +8,7 @@ mod activities_traits;
 mod activity_cash_migration;
 mod compiler;
 mod csv_parser;
+mod exchange_pairs;
 mod idempotency;
 mod import_run_model;
 mod transfer_pairs;
@@ -32,8 +33,8 @@ pub use activities_model::{
     BulkUpsertResult, FieldMappingValue, ImportActivitiesResult, ImportActivitiesSummary,
     ImportAssetCandidate, ImportAssetPreviewItem, ImportAssetPreviewStatus, ImportMapping,
     ImportMappingData, ImportTemplate, ImportTemplateData, ImportTemplateScope, IncomeData,
-    InternalTransferPairRequest, InternalTransferPairResponse, NewActivity,
-    PrepareActivitiesResult, SaveBrokerSyncProfileRulesRequest, Sort, TemplateKind,
+    InternalExchangePairResponse, InternalTransferPairRequest, InternalTransferPairResponse,
+    NewActivity, PrepareActivitiesResult, SaveBrokerSyncProfileRulesRequest, Sort, TemplateKind,
     TransferMatchCandidate, TransferMatchCandidateRequest,
 };
 pub use activities_service::ActivityService;
@@ -44,6 +45,7 @@ pub use activity_cash_migration::{
 };
 pub use compiler::{ActivityCompiler, DefaultActivityCompiler};
 pub use csv_parser::{parse_csv, ParseConfig, ParseError, ParsedCsvResult};
+pub use exchange_pairs::{ExchangePair, ExchangePairResolution, InvalidExchangeGroup};
 pub use idempotency::{
     compute_activity_idempotency_key, compute_idempotency_key, generate_manual_idempotency_key,
 };

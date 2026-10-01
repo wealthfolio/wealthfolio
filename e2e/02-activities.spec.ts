@@ -115,6 +115,15 @@ test.describe("Activity Creation Tests", () => {
         costBasis: 400,
         notes: "External securities transfer in",
       },
+      exchange: {
+        account: "Test USD Account",
+        currency: "USD",
+        fromSymbol: "AAPL",
+        fromQuantity: 2,
+        toSymbol: "GOOGL",
+        toQuantity: 1,
+        notes: "In-kind fund switch",
+      },
       fee: {
         account: "Test USD Account",
         currency: "USD",
@@ -189,6 +198,7 @@ test.describe("Activity Creation Tests", () => {
     Withdrawal: "activity-type-withdrawal",
     Dividend: "activity-type-dividend",
     Transfer: "activity-type-transfer",
+    Exchange: "activity-type-exchange",
     Split: "activity-type-split",
     Fee: "activity-type-fee",
     Interest: "activity-type-interest",
@@ -323,6 +333,38 @@ test.describe("Activity Creation Tests", () => {
     await symbolOption.click();
   }
 
+  // Like searchAndSelectSymbol, but scoped to a specific combobox by its
+  // accessible name — needed for forms with more than one symbol picker
+  // (e.g. Exchange's "Closing Asset" / "Opening Asset").
+  async function searchAndSelectSymbolIn(comboboxLabel: string, symbol: string) {
+    const escapedSymbol = symbol.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const exactSymbolPattern = new RegExp(`^${escapedSymbol}$`, "i");
+    const activityDialog = page.getByRole("dialog", { name: "Add Activity" });
+    const symbolCombobox = activityDialog.getByRole("combobox", { name: comboboxLabel });
+    await symbolCombobox.click();
+
+    const searchInput = page.getByPlaceholder("Search for symbol");
+    await expect(searchInput).toBeVisible({ timeout: 5000 });
+    await searchInput.fill(symbol);
+
+    const suggestions = page.getByRole("listbox", { name: /Suggestions/i });
+    await expect(suggestions).toBeVisible({ timeout: 10000 });
+    const symbolOption = suggestions
+      .getByRole("option")
+      .filter({
+        has: page.locator("span.font-mono").filter({ hasText: exactSymbolPattern }),
+        hasNotText: /Create custom|manual/i,
+      })
+      .first();
+    await expect(symbolOption).toBeVisible({ timeout: 30000 });
+    await symbolOption.click();
+
+    // Wait for this popover to fully close before returning — otherwise a
+    // second call targeting a different combobox in the same form can hit a
+    // strict-mode violation against a lingering "Search for symbol" input.
+    await expect(searchInput).toBeHidden({ timeout: 5000 });
+  }
+
   async function fillAmount(value: number, testId = "amount-input") {
     const amountInput = page.getByRole("dialog", { name: "Add Activity" }).getByTestId(testId);
     await expect(amountInput).toBeVisible({ timeout: 5000 });
@@ -445,6 +487,7 @@ test.describe("Activity Creation Tests", () => {
     DIVIDEND: "Dividend",
     TRANSFER_OUT: "Transfer Out",
     TRANSFER_IN: "Transfer In",
+    ADJUSTMENT: "Adjustment",
     FEE: "Fee",
     INTEREST: "Interest",
     TAX: "Tax",
@@ -861,6 +904,33 @@ test.describe("Activity Creation Tests", () => {
 
     await submitActivity("Transfer In");
     await verifyActivityInTable("TRANSFER_IN", transfer.symbol, { quantity: transfer.quantity });
+  });
+
+  test("10f. Create EXCHANGE activity", async () => {
+    await gotoActivities(page);
+
+    await openAddActivitySheet();
+    await selectActivityType("Exchange");
+
+    const exchange = TEST_DATA.activities.exchange;
+
+    await selectAccount(exchange.account, exchange.currency);
+
+    await searchAndSelectSymbolIn("Closing Asset", exchange.fromSymbol);
+    await fillAmount(exchange.fromQuantity, "from-quantity-input");
+
+    await searchAndSelectSymbolIn("Opening Asset", exchange.toSymbol);
+    await fillAmount(exchange.toQuantity, "to-quantity-input");
+
+    await selectDate();
+    await fillNotes(exchange.notes);
+
+    await submitActivity("Exchange");
+    // Exchange creates a paired ADJUSTMENT activity (EXCHANGE_OUT/EXCHANGE_IN)
+    await verifyActivityInTable("ADJUSTMENT", exchange.fromSymbol, {
+      quantity: exchange.fromQuantity,
+    });
+    await verifyActivityInTable("ADJUSTMENT", exchange.toSymbol, { quantity: exchange.toQuantity });
   });
 
   test("11. Create FEE activity", async () => {

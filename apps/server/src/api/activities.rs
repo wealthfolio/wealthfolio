@@ -10,9 +10,9 @@ use axum::{
 use wealthfolio_core::activities::{
     import_type, Activity, ActivityBulkMutationRequest, ActivityBulkMutationResult, ActivityImport,
     ActivitySearchResponse, ActivityUpdate, ImportActivitiesResult, ImportAssetCandidate,
-    ImportAssetPreviewItem, ImportMappingData, ImportTemplateData, InternalTransferPairRequest,
-    InternalTransferPairResponse, NewActivity, ParseConfig, ParsedCsvResult,
-    TransferMatchCandidate, TransferMatchCandidateRequest,
+    ImportAssetPreviewItem, ImportMappingData, ImportTemplateData, InternalExchangePairResponse,
+    InternalTransferPairRequest, InternalTransferPairResponse, NewActivity, ParseConfig,
+    ParsedCsvResult, TransferMatchCandidate, TransferMatchCandidateRequest,
 };
 use wealthfolio_core::utils::time_utils::{
     local_date_range_utc_bounds, parse_user_timezone_or_default,
@@ -162,6 +162,14 @@ async fn get_transfer_pair_for_activity(
     axum::Extension(state): axum::Extension<Arc<AppState>>,
 ) -> ApiResult<Json<Option<InternalTransferPairResponse>>> {
     let pair = state.activity_service.get_transfer_pair_for_activity(id)?;
+    Ok(Json(pair))
+}
+
+async fn get_exchange_pair_for_activity(
+    Path(id): Path<String>,
+    axum::Extension(state): axum::Extension<Arc<AppState>>,
+) -> ApiResult<Json<InternalExchangePairResponse>> {
+    let pair = state.activity_service.get_exchange_pair_for_activity(id)?;
     Ok(Json(pair))
 }
 
@@ -447,6 +455,10 @@ pub fn router<S: Clone + Send + Sync + 'static>() -> Router<S> {
         .route(
             "/activities/{id}/transfer-pair",
             get(get_transfer_pair_for_activity),
+        )
+        .route(
+            "/activities/{id}/exchange-pair",
+            get(get_exchange_pair_for_activity),
         )
         .route(
             "/activities/transfer-pair",

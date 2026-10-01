@@ -6,6 +6,7 @@ import type { AccountSelectOption } from "../components/forms/fields/account-sel
 interface ActivityCurrencyOptions<T extends FieldValues> {
   isEditing?: boolean;
   accountField?: FieldPath<T>;
+  currencyField?: FieldPath<T>;
   // Internal transfers manage their own source/destination currencies and transfer rate.
   trackCurrencyChanges?: boolean;
 }
@@ -16,11 +17,11 @@ export function useActivityCurrency<T extends FieldValues>(
   {
     isEditing = false,
     accountField = "accountId" as FieldPath<T>,
+    currencyField = "currency" as FieldPath<T>,
     trackCurrencyChanges = true,
   }: ActivityCurrencyOptions<T> = {},
 ) {
   const { getValues, getFieldState, setValue, watch } = form;
-  const currencyField = "currency" as FieldPath<T>;
   const fxRateField = "fxRate" as FieldPath<T>;
 
   useEffect(() => {

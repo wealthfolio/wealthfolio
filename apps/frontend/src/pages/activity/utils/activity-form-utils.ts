@@ -1,4 +1,4 @@
-import { ActivityType } from "@/lib/constants";
+import { ACTIVITY_SUBTYPES, ActivityType } from "@/lib/constants";
 import type { PickerActivityType } from "../config/activity-form-config";
 
 const PURE_CASH_ACTIVITY_TYPES: readonly string[] = [
@@ -16,10 +16,17 @@ const PURE_CASH_ACTIVITY_TYPES: readonly string[] = [
  */
 export function mapActivityTypeToPicker(
   activityType?: string | null,
+  subtype?: string | null,
 ): PickerActivityType | undefined {
   if (!activityType) return undefined;
   if (activityType === ActivityType.TRANSFER_IN || activityType === ActivityType.TRANSFER_OUT) {
     return "TRANSFER";
+  }
+  if (
+    activityType === ActivityType.ADJUSTMENT &&
+    (subtype === ACTIVITY_SUBTYPES.EXCHANGE_OUT || subtype === ACTIVITY_SUBTYPES.EXCHANGE_IN)
+  ) {
+    return "EXCHANGE";
   }
   return activityType as PickerActivityType;
 }

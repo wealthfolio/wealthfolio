@@ -907,6 +907,7 @@ mod tests {
             isin: None,
             force_import: false,
             is_external: None,
+            source_group_id: None,
         };
 
         let converted = NewActivity::from(import);
@@ -917,6 +918,52 @@ mod tests {
         assert_eq!(asset.quote_mode.as_deref(), Some("MANUAL"));
         assert_eq!(asset.provider_id.as_deref(), Some("YAHOO"));
         assert_eq!(asset.provider_symbol.as_deref(), Some("AZN.L"));
+    }
+
+    #[test]
+    fn test_activity_import_to_new_activity_preserves_source_group_id() {
+        // An addon bulk-importing a paired EXCHANGE_OUT/EXCHANGE_IN (or
+        // TRANSFER_OUT/TRANSFER_IN) row set needs its explicit source_group_id
+        // to survive the ActivityImport -> NewActivity conversion.
+        let import = ActivityImport {
+            id: None,
+            date: "2024-01-15".to_string(),
+            symbol: "FUND_A".to_string(),
+            activity_type: "ADJUSTMENT".to_string(),
+            quantity: Some(dec!(10)),
+            unit_price: None,
+            currency: "EUR".to_string(),
+            fee: None,
+            tax: None,
+            amount: None,
+            comment: None,
+            account_id: Some("acc-1".to_string()),
+            account_name: None,
+            symbol_name: None,
+            exchange_mic: None,
+            quote_ccy: None,
+            instrument_type: None,
+            quote_mode: None,
+            provider_id: None,
+            provider_symbol: None,
+            errors: None,
+            warnings: None,
+            duplicate_of_id: None,
+            duplicate_of_line_number: None,
+            is_draft: false,
+            is_valid: true,
+            line_number: Some(1),
+            fx_rate: None,
+            subtype: Some("EXCHANGE_OUT".to_string()),
+            asset_id: None,
+            isin: None,
+            force_import: false,
+            is_external: None,
+            source_group_id: Some("addon-group-1".to_string()),
+        };
+
+        let converted = NewActivity::from(import);
+        assert_eq!(converted.source_group_id.as_deref(), Some("addon-group-1"));
     }
 
     #[test]
@@ -957,6 +1004,7 @@ mod tests {
             isin: None,
             force_import: false,
             is_external: Some(true),
+            source_group_id: None,
         };
 
         let converted = NewActivity::from(import);
@@ -1002,6 +1050,7 @@ mod tests {
                 isin: None,
                 force_import: false,
                 is_external: Some(is_external),
+                source_group_id: None,
             };
 
             let converted = NewActivity::from(import);
@@ -1051,6 +1100,7 @@ mod tests {
             isin: None,
             force_import: false,
             is_external: Some(false),
+            source_group_id: None,
         };
 
         assert!(NewActivity::from(import).metadata.is_none());
@@ -1092,6 +1142,7 @@ mod tests {
             isin: None,
             force_import: false,
             is_external: Some(true),
+            source_group_id: None,
         };
 
         assert!(NewActivity::from(import).metadata.is_none());

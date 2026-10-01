@@ -266,6 +266,21 @@ pub const ACTIVITY_SUBTYPE_POSITION_OPEN: &str = "POSITION_OPEN";
 /// Examples: sell-to-close for long options, buy-to-close for short options.
 pub const ACTIVITY_SUBTYPE_POSITION_CLOSE: &str = "POSITION_CLOSE";
 
+/// Exchange out: closing leg of an in-kind asset-for-asset exchange
+/// (e.g. Spain's tax-deferred fund "traspaso", a share-class conversion,
+/// or a fund merger). Paired via `source_group_id` with an ACTIVITY_SUBTYPE_EXCHANGE_IN
+/// leg in the same account. Removes lots via FIFO with no cash effect, no
+/// realized gain/loss, and no net_contribution change; cost basis is carried
+/// to the paired EXCHANGE_IN leg.
+pub const ACTIVITY_SUBTYPE_EXCHANGE_OUT: &str = "EXCHANGE_OUT";
+
+/// Exchange in: opening leg of an in-kind asset-for-asset exchange. Paired via
+/// `source_group_id` with an ACTIVITY_SUBTYPE_EXCHANGE_OUT leg in the same
+/// account. Adds lots carrying over the paired leg's cost basis (converted to
+/// this asset's currency) and original acquisition dates; no net_contribution
+/// change.
+pub const ACTIVITY_SUBTYPE_EXCHANGE_IN: &str = "EXCHANGE_IN";
+
 /// A TRANSFER_IN/TRANSFER_OUT that moves a security rather than cash. The one
 /// definition: `ActivityEconomicsResolver::is_security_transfer` and the
 /// activity writer boundary both delegate here, so the rule cannot drift.
