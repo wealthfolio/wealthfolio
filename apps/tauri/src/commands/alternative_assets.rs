@@ -534,3 +534,21 @@ pub fn get_net_worth_history(
 
     Ok(response)
 }
+
+#[tauri::command]
+pub async fn calculate_loan(
+    state: ProfileAccess,
+    request: wealthfolio_core::assets::loan::LoanCalculationRequest,
+) -> Result<Option<wealthfolio_core::assets::loan::LoanCalculation>, String> {
+    let _context = state.context()?;
+    Ok(wealthfolio_core::assets::loan::calculate_loan(&request))
+}
+
+#[tauri::command]
+pub async fn recalculate_loan(
+    state: ProfileAccess,
+    request: wealthfolio_core::assets::loan::LoanRecalculationRequest,
+) -> Result<Option<wealthfolio_core::assets::loan::LoanRecalculation>, String> {
+    let _context = state.context()?;
+    Ok(wealthfolio_core::assets::loan::recalculate_loan(&request))
+}

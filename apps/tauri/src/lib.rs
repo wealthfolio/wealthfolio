@@ -481,6 +481,8 @@ pub fn run() {
             commands::alternative_assets::get_net_worth,
             commands::alternative_assets::get_net_worth_history,
             commands::alternative_assets::get_alternative_holdings,
+            commands::alternative_assets::calculate_loan,
+            commands::alternative_assets::recalculate_loan,
             // Market data commands
             commands::market_data::search_symbol,
             commands::market_data::resolve_symbol_quote,

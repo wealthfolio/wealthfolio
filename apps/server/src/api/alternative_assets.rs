@@ -399,4 +399,22 @@ pub fn router<S: Clone + Send + Sync + 'static>() -> Router<S> {
             put(update_alternative_asset_metadata),
         )
         .route("/alternative-holdings", get(get_alternative_holdings))
+        .route("/loans/calculate", post(calculate_loan))
+        .route("/loans/recalculate", post(recalculate_loan))
+}
+
+async fn calculate_loan(
+    Json(request): Json<wealthfolio_core::assets::loan::LoanCalculationRequest>,
+) -> ApiResult<Json<Option<wealthfolio_core::assets::loan::LoanCalculation>>> {
+    Ok(Json(wealthfolio_core::assets::loan::calculate_loan(
+        &request,
+    )))
+}
+
+async fn recalculate_loan(
+    Json(request): Json<wealthfolio_core::assets::loan::LoanRecalculationRequest>,
+) -> ApiResult<Json<Option<wealthfolio_core::assets::loan::LoanRecalculation>>> {
+    Ok(Json(wealthfolio_core::assets::loan::recalculate_loan(
+        &request,
+    )))
 }

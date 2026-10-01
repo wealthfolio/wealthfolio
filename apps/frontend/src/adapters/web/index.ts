@@ -276,6 +276,8 @@ export {
   createAlternativeAsset,
   deleteAlternativeAsset,
   getAlternativeHoldings,
+  calculateLoan,
+  recalculateLoan,
   getNetWorth,
   getNetWorthHistory,
   linkLiability,
