@@ -150,6 +150,7 @@
     "irr": "TRI",
     "cumulative_twr": "TWR cumulé",
     "period_irr": "TRI de la période",
+    "return_to_break_even": "Retour au seuil de rentabilité",
     "twr_hover_hint": " Survolez la valeur pour voir le TWR cumulé.",
     "irr_hover_hint": " Survolez la valeur pour voir le TRI de la période sélectionnée."
   },
