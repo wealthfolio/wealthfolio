@@ -12,7 +12,6 @@ import {
   formatDriftBps,
   hasVisibleAllocation,
   isOutOfBand,
-  rebalanceMove,
 } from "@/pages/allocation-targets/components/drift-row-utils";
 import { Button, Card, Icons, Skeleton, useAmountFormatting } from "@wealthfolio/ui";
 import { useTranslation } from "react-i18next";
@@ -93,8 +92,8 @@ export function TargetRailsCard({
     largestGapRow?.driftBps ?? resolvedDriftReport?.maxDriftBps ?? 0,
   );
 
-  // Suggested rebalance moves for the out-of-range categories, largest first.
-  const moves = rows
+  // How far each out-of-range category sits from its target, largest first.
+  const differences = rows
     .map((row, index) => ({
       row,
       color: allocationTargetColorForRow(row, colorByCategory, index),
@@ -188,52 +187,40 @@ export function TargetRailsCard({
             })}
           </div>
 
-          {/* Suggested moves — fills the remaining height */}
+          {/* Differences from target — fills the remaining height */}
           <div className="flex flex-col pt-5 xl:flex-1">
             <div className="text-muted-foreground mb-2 text-[10px] font-semibold uppercase tracking-wider">
-              {t("insights:insights.rails.suggested_moves")}
+              {t("insights:insights.rails.target_differences")}
             </div>
-            {moves.length === 0 ? (
+            {differences.length === 0 ? (
               <div className="text-muted-foreground flex flex-col items-center justify-center gap-1.5 py-4 text-center xl:flex-1">
                 <Icons.CheckCircle className="text-success h-6 w-6" />
                 <span className="text-[12px]">{t("insights:insights.rails.all_in_range")}</span>
               </div>
             ) : (
               <div className="flex flex-col gap-2.5">
-                {moves.slice(0, 6).map(({ row, color }) => {
-                  const move = rebalanceMove(row);
-                  const add = move.action === "Add";
-                  return (
-                    <div
-                      key={row.categoryId}
-                      className="flex items-center justify-between gap-2 text-[12px]"
-                    >
-                      <span className="flex min-w-0 items-center gap-2">
-                        <span
-                          className="h-2 w-2 shrink-0 rounded-sm"
-                          style={{ background: color }}
-                        />
-                        <span className="text-muted-foreground">
-                          {add
-                            ? t("insights:insights.rails.add")
-                            : t("insights:insights.rails.trim")}
-                        </span>
-                        <span className="text-foreground truncate font-medium">
-                          {row.categoryName}
-                        </span>
+                {differences.slice(0, 6).map(({ row, color }) => (
+                  <div
+                    key={row.categoryId}
+                    className="flex items-center justify-between gap-2 text-[12px]"
+                  >
+                    <span className="flex min-w-0 items-center gap-2">
+                      <span className="h-2 w-2 shrink-0 rounded-sm" style={{ background: color }} />
+                      <span className="text-foreground truncate font-medium">
+                        {row.categoryName}
                       </span>
-                      <span
-                        className={cn(
-                          "shrink-0 font-bold tabular-nums",
-                          add ? "text-success" : "text-destructive",
-                        )}
-                      >
-                        {add ? "+" : "−"}
-                        {money(move.amount)}
-                      </span>
-                    </div>
-                  );
-                })}
+                    </span>
+                    <span className="text-muted-foreground shrink-0 tabular-nums">
+                      {row.valueDelta > 0
+                        ? t("insights:insights.rails.above_target_by", {
+                            amount: money(row.valueDelta),
+                          })
+                        : t("insights:insights.rails.below_target_by", {
+                            amount: money(row.valueDelta),
+                          })}
+                    </span>
+                  </div>
+                ))}
               </div>
             )}
           </div>

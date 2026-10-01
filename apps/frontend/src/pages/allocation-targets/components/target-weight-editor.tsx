@@ -370,14 +370,14 @@ export function TargetWeightEditor({
         </div>
         {biggestMove && (
           <p className="text-muted-foreground border-t px-1 pt-3 text-[12px]">
-            {t("allocation:editor.biggestMovePrefix")}{" "}
+            {t("allocation:editor.largestGapPrefix")}{" "}
             <span className="text-foreground font-medium">
               {biggestMove.drift > 0
-                ? t("allocation:editor.biggestMoveTrim", {
+                ? t("allocation:editor.largestGapAbove", {
                     category: biggestMove.cat.name,
                     value: Math.abs(biggestMove.drift).toFixed(1),
                   })
-                : t("allocation:editor.biggestMoveAdd", {
+                : t("allocation:editor.largestGapBelow", {
                     category: biggestMove.cat.name,
                     value: Math.abs(biggestMove.drift).toFixed(1),
                   })}
