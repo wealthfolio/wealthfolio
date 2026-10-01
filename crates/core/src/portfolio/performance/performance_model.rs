@@ -200,14 +200,7 @@ pub fn unavailable_performance_metrics(
             annualized_value_return: None,
         },
         attribution: PerformanceAttribution::default(),
-        risk: PerformanceRisk {
-            volatility: None,
-            max_drawdown: None,
-            peak_date: None,
-            trough_date: None,
-            recovery_date: None,
-            drawdown_duration_days: None,
-        },
+        risk: PerformanceRisk::default(),
         data_quality: PerformanceDataQuality {
             status: DataQualityStatus::NoData,
             warnings: Vec::new(),
@@ -295,7 +288,17 @@ impl Default for PerformanceAttribution {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+/// How a reported Value at Risk figure was estimated. Historical and parametric
+/// VaR disagree materially on fat-tailed series, so the figure is only auditable
+/// alongside the method that produced it.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum VarMethod {
+    /// Empirical quantile of the realised return series. Assumes no distribution.
+    Historical,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct PerformanceRisk {
     pub volatility: Option<Decimal>,
@@ -304,6 +307,28 @@ pub struct PerformanceRisk {
     pub trough_date: Option<NaiveDate>,
     pub recovery_date: Option<NaiveDate>,
     pub drawdown_duration_days: Option<i64>,
+    /// Root-mean-square drawdown across the whole window, as a positive
+    /// fraction. Weights a decline by how long it lasted as well as how deep it
+    /// went, which volatility cannot express.
+    pub ulcer_index: Option<Decimal>,
+    /// Annualised return divided by the depth of the maximum drawdown.
+    pub calmar_ratio: Option<Decimal>,
+    /// Calmar with the classic Sterling adjustment added to the drawdown.
+    pub sterling_ratio: Option<Decimal>,
+    /// Loss thresholds as negative returns, matching the sign of `max_drawdown`.
+    pub var_95: Option<Decimal>,
+    pub var_99: Option<Decimal>,
+    /// Mean loss beyond the corresponding VaR threshold, also negative.
+    pub cvar_95: Option<Decimal>,
+    pub cvar_99: Option<Decimal>,
+    /// Set whenever any VaR figure is present; names how it was estimated.
+    pub var_method: Option<VarMethod>,
+    /// Shape of the realised return distribution. Read beside the VaR figures:
+    /// a skewed, fat-tailed series is what makes a normal assumption optimistic.
+    pub skewness: Option<Decimal>,
+    pub excess_kurtosis: Option<Decimal>,
+    /// Number of return observations every figure above was computed from.
+    pub period_count: Option<usize>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -459,14 +484,7 @@ mod tests {
                 annualized_value_return: None,
             },
             attribution: PerformanceAttribution::default(),
-            risk: PerformanceRisk {
-                volatility: None,
-                max_drawdown: None,
-                peak_date: None,
-                trough_date: None,
-                recovery_date: None,
-                drawdown_duration_days: None,
-            },
+            risk: PerformanceRisk::default(),
             data_quality: PerformanceDataQuality {
                 status: DataQualityStatus::Partial,
                 warnings: vec!["display warning".to_string()],
