@@ -2,6 +2,7 @@
   "title": "儀表板",
   "welcome_message": "歡迎使用 Wealthfolio",
   "total_value": "總價值",
+  "book_cost": "帳面成本",
   "total_gain": "總損益",
   "total_gain_percent": "總損益率",
   "today_gain": "今日損益",

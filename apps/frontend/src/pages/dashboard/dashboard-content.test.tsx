@@ -25,6 +25,10 @@ vi.mock("@/hooks", () => ({
   useHapticFeedback: () => ({ triggerHaptic: vi.fn() }),
 }));
 
+vi.mock("@/hooks/use-balance-privacy", () => ({
+  useBalancePrivacy: () => ({ isBalanceHidden: false }),
+}));
+
 vi.mock("@/hooks/use-holdings", () => ({
   useHoldings: vi.fn(),
 }));
@@ -50,6 +54,7 @@ vi.mock("@wealthfolio/ui", async () => {
   const { getInitialIntervalData } =
     await import("@wealthfolio/ui/components/financial/interval-selector");
   return {
+    AmountDisplay: ({ value }: { value: number }) => <span>{`book-cost:${value}`}</span>,
     GainAmount: ({ value }: { value: number }) => <span>{`gain-amount:${value}`}</span>,
     GainPercent: ({ value }: { value: number }) => <span>{`gain-percent:${value}`}</span>,
     getInitialIntervalData: (code?: "ALL" | "3M", asOf?: Date) =>
@@ -229,6 +234,7 @@ describe("DashboardContent", () => {
         {
           holdingType: "security",
           marketValue: { base: 100, local: 100 },
+          costBasis: { base: 80, local: 80 },
         },
       ],
       isLoading: false,
@@ -250,6 +256,7 @@ describe("DashboardContent", () => {
     render(<DashboardContent />);
 
     expect(screen.getByText("balance:125")).toBeInTheDocument();
+    expect(screen.getByText("book-cost:80")).toBeInTheDocument();
     expect(screen.queryByText("balance:100")).not.toBeInTheDocument();
     expect(screen.getByTestId("portfolio-as-of")).toHaveTextContent("2026-06-01T12:30:00Z");
     expect(screen.getByTestId("portfolio-as-of")).not.toHaveTextContent("2026-06-01T13:00:00Z");

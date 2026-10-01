@@ -2,6 +2,7 @@
   "title": "Dashboard",
   "welcome_message": "Welcome to Wealthfolio",
   "total_value": "Total Value",
+  "book_cost": "Book Cost",
   "total_gain": "Total Gain",
   "total_gain_percent": "Total Gain %",
   "today_gain": "Today's Gain",
