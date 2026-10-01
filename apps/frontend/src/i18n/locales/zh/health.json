@@ -55,6 +55,11 @@
       "title_other": "{{count}} 笔交易引用了缺失的资产",
       "message": "部分交易指向已不存在的资产。这可能导致计算错误。"
     },
+    "data_split_asset_identity": {
+      "title_one": "{{symbol}} 分散在两条资产记录中",
+      "title_other": "{{count}} 项投资分散在两条资产记录中",
+      "message": "某个交易所代码已更名，但这些投资在新代码下已有记录。它们的交易和价格历史分散在两条记录中。请将每一对合并为一条记录。"
+    },
     "data_negative_position": {
       "title_one": "持仓数量为负",
       "title_other": "{{count}} 项持仓数量为负",
@@ -242,6 +247,9 @@
       "title": "忽略此问题？",
       "message": "这将在您的健康中心隐藏该问题。如果底层数据发生变化，它将重新出现。",
       "pendingText": "正在忽略……"
+    },
+    "fixConfirm": {
+      "pendingText": "正在应用……"
     },
     "affectedItems_other": "受影响的项目（{{count}}）"
   }

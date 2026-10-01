@@ -55,6 +55,11 @@
       "title_other": "{{count}} Transaktionen verweisen auf fehlende Anlagen",
       "message": "Einige Transaktionen verweisen auf Anlagen, die nicht mehr existieren. Dies kann zu Berechnungsfehlern führen."
     },
+    "data_split_asset_identity": {
+      "title_one": "{{symbol}} ist auf zwei Anlagedatensätze verteilt",
+      "title_other": "{{count}} Anlagen sind auf je zwei Anlagedatensätze verteilt",
+      "message": "Ein Börsencode wurde umbenannt, aber diese Anlagen hatten bereits einen Datensatz unter dem neuen Code. Ihre Transaktionen und Kursverläufe sind auf beide Datensätze verteilt. Führen Sie jedes Paar zu einem Datensatz zusammen."
+    },
     "data_negative_position": {
       "title_one": "Bestand hat negative Menge",
       "title_other": "{{count}} Bestände haben negative Mengen",
@@ -242,6 +247,9 @@
       "title": "Dieses Problem ausblenden?",
       "message": "Dadurch wird das Problem in Ihrem Zustandscenter ausgeblendet. Es erscheint erneut, wenn sich die zugrunde liegenden Daten ändern.",
       "pendingText": "Wird ausgeblendet..."
+    },
+    "fixConfirm": {
+      "pendingText": "Wird angewendet..."
     },
     "affectedItems_one": "Betroffenes Element ({{count}})",
     "affectedItems_other": "Betroffene Elemente ({{count}})"

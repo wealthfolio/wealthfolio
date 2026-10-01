@@ -37,8 +37,8 @@ use super::checks::{
     AccountConfigurationCheck, AssetHoldingInfo, ClassificationCheck, ConsistencyIssueInfo,
     DataConsistencyCheck, FxIntegrityCheck, FxPairInfo, InvalidTransferGroupInfo,
     LegacyMigrationInfo, PriceStalenessCheck, QuoteSyncCheck, QuoteSyncErrorInfo,
-    TransferIntegrityCheck, TransferLegDetail, UnclassifiedAssetInfo, UnconfiguredAccountInfo,
-    ValuationIssueReason,
+    SplitAssetIdentityCheck, SplitAssetPair, TransferIntegrityCheck, TransferLegDetail,
+    UnclassifiedAssetInfo, UnconfiguredAccountInfo, ValuationIssueReason,
 };
 use super::errors::HealthError;
 use super::model::{FixAction, HealthConfig, HealthIssue, HealthStatus, IssueDismissal};
@@ -69,6 +69,7 @@ pub struct HealthService {
     consistency_check: DataConsistencyCheck,
     account_config_check: AccountConfigurationCheck,
     transfer_integrity_check: TransferIntegrityCheck,
+    split_asset_identity_check: SplitAssetIdentityCheck,
 }
 
 fn is_price_staleness_candidate(
@@ -92,6 +93,7 @@ impl HealthService {
             consistency_check: DataConsistencyCheck::new(),
             account_config_check: AccountConfigurationCheck::new(),
             transfer_integrity_check: TransferIntegrityCheck::new(),
+            split_asset_identity_check: SplitAssetIdentityCheck::new(),
         }
     }
 
@@ -111,6 +113,7 @@ impl HealthService {
             consistency_check: DataConsistencyCheck::new(),
             account_config_check: AccountConfigurationCheck::new(),
             transfer_integrity_check: TransferIntegrityCheck::new(),
+            split_asset_identity_check: SplitAssetIdentityCheck::new(),
         }
     }
 
@@ -134,6 +137,7 @@ impl HealthService {
         configured_timezone: Option<&str>,
         client_timezone: Option<&str>,
         invalid_transfer_groups: &[InvalidTransferGroupInfo],
+        split_asset_pairs: &[SplitAssetPair],
     ) -> Result<HealthStatus> {
         let config = self.config.read().await.clone();
         let ctx = HealthContext::new(config, base_currency, total_portfolio_value);
@@ -231,6 +235,20 @@ impl HealthService {
             transfer_issues.len()
         );
         all_issues.extend(transfer_issues);
+
+        // Run split asset identity check (one instrument under two asset rows)
+        debug!(
+            "Running split asset identity check on {} pairs",
+            split_asset_pairs.len()
+        );
+        let split_asset_issues = self
+            .split_asset_identity_check
+            .analyze(split_asset_pairs, &ctx);
+        debug!(
+            "Split asset identity check found {} issues",
+            split_asset_issues.len()
+        );
+        all_issues.extend(split_asset_issues);
 
         // Filter out dismissed issues (unless data has changed)
         let filtered_issues = self.filter_dismissed_issues(all_issues).await?;
@@ -608,6 +626,13 @@ impl HealthService {
             &health_activities,
             effective_timezone,
         ));
+        let split_asset_pairs = gather_split_asset_pairs(
+            asset_service.as_ref(),
+            quote_service.as_ref(),
+            account_service.as_ref(),
+            &health_activities,
+            effective_timezone,
+        );
 
         // Run checks with gathered data
         self.run_checks_with_data(
@@ -624,6 +649,7 @@ impl HealthService {
             configured_timezone,
             client_timezone,
             &invalid_transfer_groups,
+            &split_asset_pairs,
         )
         .await
     }
@@ -754,6 +780,71 @@ fn gather_invalid_activity_date_issues(
             })
         })
         .collect()
+}
+
+/// Finds instruments split across a legacy-MIC asset row and its canonical
+/// twin, with their price-history ranges and a read-only merge preview.
+fn gather_split_asset_pairs(
+    asset_service: &dyn AssetServiceTrait,
+    quote_service: &dyn QuoteServiceTrait,
+    account_service: &dyn AccountServiceTrait,
+    activities: &[Activity],
+    timezone: Option<&str>,
+) -> Vec<SplitAssetPair> {
+    let assets = match asset_service.get_assets() {
+        Ok(assets) => assets,
+        Err(e) => {
+            warn!("Failed to load assets for the split asset check: {}", e);
+            return Vec::new();
+        }
+    };
+    let account_names: HashMap<String, String> = account_service
+        .get_all_accounts()
+        .unwrap_or_default()
+        .into_iter()
+        .map(|account| (account.id, account.name))
+        .collect();
+    let mut pairs =
+        super::checks::find_split_asset_pairs(&assets, activities, &account_names, timezone);
+    if pairs.is_empty() {
+        return pairs;
+    }
+
+    let asset_ids: Vec<String> = pairs
+        .iter()
+        .flat_map(|pair| {
+            [
+                pair.survivor.asset_id.clone(),
+                pair.duplicate.asset_id.clone(),
+            ]
+        })
+        .collect();
+    let bounds = quote_service
+        .get_quote_bounds_for_assets(&asset_ids)
+        .unwrap_or_else(|e| {
+            warn!(
+                "Failed to load quote ranges for the split asset check: {}",
+                e
+            );
+            HashMap::new()
+        });
+    for pair in &mut pairs {
+        pair.survivor.quote_range = bounds.get(&pair.survivor.asset_id).copied();
+        pair.duplicate.quote_range = bounds.get(&pair.duplicate.asset_id).copied();
+        if pair.currency_mismatch {
+            continue;
+        }
+        match asset_service
+            .preview_split_asset_merge(&pair.survivor.asset_id, &pair.duplicate.asset_id)
+        {
+            Ok(preview) => pair.merge_preview = Some(preview),
+            Err(e) => warn!(
+                "Failed to preview merging {} into {}: {}",
+                pair.duplicate.asset_id, pair.survivor.asset_id, e
+            ),
+        }
+    }
+    pairs
 }
 
 fn effective_timezone<'a>(
@@ -1847,6 +1938,7 @@ impl HealthServiceTrait for HealthService {
         configured_timezone: Option<&str>,
         client_timezone: Option<&str>,
         invalid_transfer_groups: &[InvalidTransferGroupInfo],
+        split_asset_pairs: &[SplitAssetPair],
     ) -> Result<HealthStatus> {
         // Call the inherent method
         HealthService::run_checks_with_data(
@@ -1864,6 +1956,7 @@ impl HealthServiceTrait for HealthService {
             configured_timezone,
             client_timezone,
             invalid_transfer_groups,
+            split_asset_pairs,
         )
         .await
     }
@@ -3086,6 +3179,7 @@ mod tests {
                 Some("UTC"),
                 None,
                 &[],
+                &[],
             )
             .await
             .unwrap();
@@ -3164,6 +3258,7 @@ mod tests {
                 Some("UTC"),
                 None,
                 &[],
+                &[],
             )
             .await
             .unwrap();
@@ -3203,6 +3298,7 @@ mod tests {
                 Some("UTC"),
                 None,
                 &[],
+                &[],
             )
             .await
             .unwrap();
@@ -3231,6 +3327,7 @@ mod tests {
                 &[],
                 Some("UTC"),
                 None,
+                &[],
                 &[],
             )
             .await

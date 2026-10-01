@@ -66,6 +66,12 @@
       "title_many": "{{count}} transactions référencent des actifs manquants",
       "message": "Certaines transactions pointent vers des actifs qui n'existent plus. Cela peut entraîner des erreurs de calcul."
     },
+    "data_split_asset_identity": {
+      "title_one": "{{symbol}} est réparti sur deux fiches d'actif",
+      "title_other": "{{count}} investissements sont répartis sur deux fiches d'actif",
+      "title_many": "{{count}} investissements sont répartis sur deux fiches d'actif",
+      "message": "Un code de bourse a été renommé, mais ces investissements avaient déjà une fiche sous le nouveau code. Leurs transactions et leur historique de prix sont répartis entre les deux fiches. Fusionnez chaque paire en une seule fiche."
+    },
     "data_negative_position": {
       "title_one": "Une position a une quantité négative",
       "title_other": "{{count}} positions ont des quantités négatives",
@@ -270,6 +276,9 @@
       "title": "Ignorer ce problème ?",
       "message": "Cela masquera le problème de votre centre de santé. Il réapparaîtra si les données sous-jacentes changent.",
       "pendingText": "Masquage en cours..."
+    },
+    "fixConfirm": {
+      "pendingText": "Application en cours..."
     },
     "affectedItems_one": "Élément concerné ({{count}})",
     "affectedItems_other": "Éléments concernés ({{count}})",

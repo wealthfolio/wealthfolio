@@ -2224,6 +2224,8 @@ export interface FixAction {
   label: string;
   /** Arbitrary JSON payload (e.g. an array of asset IDs); shape varies by action id. */
   payload: unknown;
+  /** When set, ask the user to confirm this message before running the action. */
+  confirm?: string;
 }
 
 /**

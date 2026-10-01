@@ -55,6 +55,11 @@
       "title_other": "거래 {{count}}건이 존재하지 않는 자산을 참조함",
       "message": "일부 거래가 더 이상 존재하지 않는 자산을 가리키고 있습니다. 계산 오류가 발생할 수 있습니다."
     },
+    "data_split_asset_identity": {
+      "title_one": "{{symbol}} 종목이 두 개의 자산 레코드로 나뉘어 있음",
+      "title_other": "종목 {{count}}개가 두 개의 자산 레코드로 나뉘어 있음",
+      "message": "거래소 코드가 변경되었지만 이 종목들에는 이미 새 코드의 레코드가 있었습니다. 거래와 가격 기록이 두 레코드에 나뉘어 있습니다. 각 쌍을 하나의 레코드로 병합하세요."
+    },
     "data_negative_position": {
       "title_one": "보유 종목의 수량이 음수임",
       "title_other": "보유 종목 {{count}}개의 수량이 음수임",
@@ -242,6 +247,9 @@
       "title": "이 문제를 무시할까요?",
       "message": "건강 센터에서 이 문제가 숨겨집니다. 근본 데이터가 변경되면 다시 나타납니다.",
       "pendingText": "무시하는 중..."
+    },
+    "fixConfirm": {
+      "pendingText": "적용하는 중..."
     },
     "affectedItems_other": "영향받은 항목 ({{count}}개)"
   }

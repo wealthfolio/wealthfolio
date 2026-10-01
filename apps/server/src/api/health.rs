@@ -221,6 +221,19 @@ async fn execute_health_fix(
         return Ok(());
     }
 
+    // Handle merge_split_asset. The core fix re-validates every requested pair
+    // against a fresh detection run, so arbitrary merges are rejected (400).
+    if action.id == "merge_split_asset" {
+        wealthfolio_core::health::merge_split_assets(
+            state.asset_service.as_ref(),
+            state.activity_service.as_ref(),
+            &action.payload,
+        )
+        .await?;
+        state.health_service.clear_cache().await;
+        return Ok(());
+    }
+
     state.health_service.execute_fix(&action).await?;
     Ok(())
 }
