@@ -226,11 +226,17 @@ an unavailable result cannot be saved.
 
 ### Editing, deletion, and reconciliation
 
-Correct original terms updates original projection parameters and corresponding
+Edit loan details updates original projection parameters and corresponding
 scalar metadata together. It preserves dated events and confirmed quotes. A
 confirmation remains authoritative even if original principal or origination is
 corrected; changing an incorrect observation is a separate balance edit. Opening
 confirmations must remain independently editable and deletable.
+
+Forms take amortization (mortgages) or loan term (other loans) as years and
+months, as loan agreements state it, and store it as `amortizationEndDate`: the
+last payment counted from the first payment at the selected frequency. A stored
+date that still matches the entered duration is kept, so saving other details
+never moves an end date that is off the payment cadence.
 
 Confirm balance writes a closing quote. Close loan writes a confirmed zero.
 Extra repayment for an automatic loan writes an event only. Editing a

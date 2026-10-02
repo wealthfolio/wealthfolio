@@ -1384,7 +1384,7 @@ export const AssetProfilePage = () => {
                             : []),
                           {
                             icon: Icons.Pencil,
-                            label: t("asset:loanActions.correct_terms"),
+                            label: t("asset:loanActions.edit_details"),
                             onClick: () => altAssetActions.openEditDetails(),
                           },
                         ],

@@ -1,4 +1,11 @@
-import { addDays, addMonths, endOfMonth, isLastDayOfMonth } from "date-fns";
+import {
+  addDays,
+  addMonths,
+  differenceInCalendarDays,
+  differenceInCalendarMonths,
+  endOfMonth,
+  isLastDayOfMonth,
+} from "date-fns";
 import type { LoanInterestMethod, LoanPaymentFrequency } from "./loan-events";
 
 export const LOAN_PERIODS_PER_YEAR: Record<LoanPaymentFrequency, number> = {
@@ -89,6 +96,45 @@ export function calculateLoanEndDate(
   if (!Number.isInteger(paymentCount) || paymentCount <= 0) return null;
 
   return calculateLoanPaymentDate(firstPaymentDate, paymentCount - 1, frequency);
+}
+
+/** Payments and last payment date of an amortization period given in months. */
+export function calculateAmortizationSchedule(
+  firstPaymentDate: Date | null | undefined,
+  months: number,
+  frequency: LoanPaymentFrequency = "monthly",
+): { paymentCount: number; lastPaymentDate: Date } | null {
+  if (!firstPaymentDate) return null;
+  const paymentCount = calculatePaymentCount(months / 12, frequency);
+  const lastPaymentDate =
+    paymentCount && calculateLoanEndDate(firstPaymentDate, paymentCount, frequency);
+  return paymentCount && lastPaymentDate ? { paymentCount, lastPaymentDate } : null;
+}
+
+/** Contractual payments due from the first payment through a date, inclusive. */
+export function countLoanPayments(
+  firstPaymentDate: Date,
+  throughDate: Date,
+  frequency: LoanPaymentFrequency = "monthly",
+): number {
+  if (throughDate < firstPaymentDate) return 0;
+  if (frequency !== "monthly")
+    return Math.floor(differenceInCalendarDays(throughDate, firstPaymentDate) / 14) + 1;
+  const count = differenceInCalendarMonths(throughDate, firstPaymentDate) + 1;
+  const last = calculateLoanPaymentDate(firstPaymentDate, count - 1, frequency);
+  return last && last > throughDate ? count - 1 : count;
+}
+
+/** Whole months of amortization between the first and last contractual payments. */
+export function calculateAmortizationMonths(
+  firstPaymentDate: Date,
+  lastPaymentDate: Date,
+  frequency: LoanPaymentFrequency = "monthly",
+): number | null {
+  const paymentCount = countLoanPayments(firstPaymentDate, lastPaymentDate, frequency);
+  return paymentCount > 0
+    ? Math.round((paymentCount * 12) / getLoanPeriodsPerYear(frequency))
+    : null;
 }
 
 /** Return a contractual payment date using a zero-based payment index. */

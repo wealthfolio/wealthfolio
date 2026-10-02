@@ -6,7 +6,7 @@ const validLoan = {
   currentBalance: "240000",
   originationDate: new Date(2025, 0, 1),
   balanceDate: new Date(2025, 1, 1),
-  loanTerm: "20",
+  loanTermMonths: 240,
   interestRate: "3.5",
 };
 
@@ -17,8 +17,9 @@ describe("liability quick-add validation", () => {
 
   it.each([
     { originalAmount: "-1" },
-    { loanTerm: "1.5" },
-    { loanTerm: "0" },
+    { loanTermMonths: 1.5 },
+    { loanTermMonths: 0 },
+    { loanTermMonths: 1201 },
     { interestRate: "101" },
     { interestRate: "-0.1" },
   ])("rejects invalid numeric data: %o", (override) => {

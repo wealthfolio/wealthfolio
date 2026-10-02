@@ -65,7 +65,7 @@ test("loan lifecycle matches the independent fixture in the page and net worth",
     .fill(fixture.metadata.original_amount);
   await sheet.locator('input[type="date"]').first().fill(fixture.metadata.origination_date);
   await sheet.getByPlaceholder("0", { exact: true }).first().fill("12");
-  await sheet.getByPlaceholder("0", { exact: true }).last().fill("1");
+  await sheet.getByLabel("Years", { exact: true }).fill("1");
   await sheet.getByRole("button", { name: "Add Liability", exact: true }).click();
   await expect(sheet).toHaveCount(0);
   const allHoldings = async () => (await page.request.get(`${api}/alternative-holdings`)).json();
@@ -419,17 +419,21 @@ test("loan estimates, dated actions and net worth stay consistent", async ({ pag
   const confirmedBeforeEdit = await quotes();
   const eventsBeforeEdit = (await holdings()).metadata.loan_events;
   await openActions();
-  await page.getByRole("button", { name: "Correct original terms", exact: true }).click();
+  await page.getByRole("button", { name: "Edit loan details", exact: true }).click();
   const details = page.getByRole("dialog");
-  await expect(details.getByLabel("Original Amount", { exact: true })).toBeEnabled();
-  await details.getByLabel("Original Amount", { exact: true }).fill("1300");
-  await details.getByLabel("Interest Rate (%)", { exact: true }).fill("6");
+  await expect(details.getByLabel("Original amount", { exact: true })).toBeEnabled();
+  await details.getByLabel("Original amount", { exact: true }).fill("1300");
+  await details.getByLabel("Interest rate", { exact: true }).fill("6");
   await details.getByLabel("Payment", { exact: true }).fill("110");
-  await expect(details.locator('input[type="date"]')).toHaveCount(4);
+  // Origination, first payment and renewal maturity; amortization is years and months.
+  await expect(details.locator('input[type="date"]')).toHaveCount(3);
   const dates = details.locator('input[type="date"]');
   await expect(dates.nth(0)).toBeEnabled();
-  await dates.nth(1).fill(day(new Date(now.getFullYear(), now.getMonth() + 12, 1)));
   await expect(dates.nth(2)).toBeEnabled();
+  // First payment last month through the first of the month a year from now.
+  await details.getByLabel("Years", { exact: true }).fill("1");
+  await details.getByLabel("Months", { exact: true }).fill("2");
+  await expect(details).toContainText("14 payments");
   await details.getByRole("button", { name: "Save Details", exact: true }).click();
   await expect(details).not.toBeVisible();
   const correctedTerms = await calculate();
@@ -478,7 +482,7 @@ test("loan estimates, dated actions and net worth stay consistent", async ({ pag
     .getByPlaceholder("0.00")
     .fill("1200");
   await dialog.locator('input[type="date"]').first().fill(origin);
-  await dialog.getByPlaceholder("0", { exact: true }).last().fill("1");
+  await dialog.getByLabel("Years", { exact: true }).fill("1");
   await dialog.getByRole("combobox").filter({ hasText: "Monthly" }).click();
   await page.getByRole("option", { name: "Accelerated biweekly", exact: true }).click();
   await expect(dialog.getByText("First payment date", { exact: true })).toBeVisible();

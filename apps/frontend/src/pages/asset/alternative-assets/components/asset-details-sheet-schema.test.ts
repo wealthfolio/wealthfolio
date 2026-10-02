@@ -27,16 +27,36 @@ const defaults = () =>
 
 describe("correcting original loan terms", () => {
   it("loads actual base terms, including zero interest and a count-only horizon", () => {
-    const values = defaults();
-    expect(values).toMatchObject({
+    expect(defaults()).toMatchObject({
       interestRate: 0,
       paymentAmount: 100,
       paymentFrequency: "monthly",
       interestMethod: "nominal_periodic",
       automaticLoan: true,
+      amortizationYears: 1,
+      amortizationMonths: null,
     });
-    if (values.kind !== AlternativeAssetKind.LIABILITY) throw new Error("Expected liability");
-    expect(values.endDate).toEqual(new Date(2027, 0, 31));
+  });
+
+  it("keeps an off-cadence stored end until the amortization is changed", () => {
+    const stored = {
+      ...metadata,
+      loan_projection: JSON.stringify({
+        ...projection,
+        frequency: "biweekly",
+        firstPaymentDate: "2021-07-15",
+        paymentCount: undefined,
+        amortizationEndDate: "2046-06-15",
+      }),
+    };
+    const values = getDefaultDetailsFormValues(AlternativeAssetKind.LIABILITY, "Mortgage", stored);
+    expect(values).toMatchObject({ amortizationYears: 25, amortizationMonths: null });
+    const saved = (changes: object) =>
+      readLoanProjectionMetadata(formValuesToMetadata({ ...values, ...changes } as typeof values))
+        ?.amortizationEndDate;
+    // 2046-06-15 is not on the biweekly cadence; re-saving must not move it.
+    expect(saved({})).toBe("2046-06-15");
+    expect(saved({ amortizationYears: 24 })).toBe("2045-06-01");
   });
 
   it("saves corrected calculation inputs without replacing dated events", () => {
@@ -47,7 +67,8 @@ describe("correcting original loan terms", () => {
       paymentFrequency: "biweekly",
       interestMethod: "semiannual",
       firstPaymentDate: new Date(2026, 0, 15),
-      endDate: new Date(2028, 0, 15),
+      amortizationYears: 2,
+      amortizationMonths: null,
       originalAmount: 1500,
     });
     const updates = formValuesToMetadata(values);
@@ -59,7 +80,7 @@ describe("correcting original loan terms", () => {
       frequency: "biweekly",
       interestMethod: "semiannual",
       firstPaymentDate: "2026-01-15",
-      amortizationEndDate: "2028-01-15",
+      amortizationEndDate: "2027-12-30",
     });
     expect(merged.original_amount).toBe("1500");
     expect(merged.loan_events).toBe(metadata.loan_events);
@@ -71,7 +92,8 @@ describe("correcting original loan terms", () => {
       { paymentAmount: null },
       { paymentAmount: 0 },
       { firstPaymentDate: new Date(2025, 0, 1) },
-      { endDate: new Date(2026, 0, 1) },
+      { amortizationYears: null, amortizationMonths: null },
+      { amortizationYears: 0, amortizationMonths: 0 },
     ]) {
       expect(assetDetailsSchema.safeParse({ ...defaults(), ...changes }).success).toBe(false);
     }
@@ -116,7 +138,11 @@ it("lets a loan created before payment schedules opt into calculated payments", 
   // Released versions stored only these fields, sometimes under the older names.
   const released = { sub_type: "mortgage", purchase_price: "1200", purchase_date: "2026-01-01" };
   const values = getDefaultDetailsFormValues(AlternativeAssetKind.LIABILITY, "Mortgage", released);
-  expect(values).toMatchObject({ automaticLoan: false, originalAmount: 1200 });
+  expect(values).toMatchObject({
+    automaticLoan: false,
+    originalAmount: 1200,
+    paymentFrequency: "monthly",
+  });
   expect(formValuesToMetadata(values)).toMatchObject({ tracking_mode: "manual" });
 
   const scheduled = formValuesToMetadata(
@@ -125,9 +151,8 @@ it("lets a loan created before payment schedules opt into calculated payments", 
       automaticLoan: true,
       interestRate: 0,
       paymentAmount: 100,
-      paymentFrequency: "monthly",
       firstPaymentDate: new Date(2026, 1, 1),
-      endDate: new Date(2027, 0, 1),
+      amortizationYears: 1,
     }),
   );
   expect(scheduled.tracking_mode).toBe("");

@@ -13,6 +13,7 @@ import { Button } from "@wealthfolio/ui/components/ui/button";
 import { Input } from "@wealthfolio/ui/components/ui/input";
 import { Label } from "@wealthfolio/ui/components/ui/label";
 import { Checkbox } from "@wealthfolio/ui/components/ui/checkbox";
+import { Switch } from "@wealthfolio/ui/components/ui/switch";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import {
   CurrencyInput,
@@ -20,6 +21,7 @@ import {
   ResponsiveSelect,
   MoneyInput,
   QuantityInput,
+  useDateFormatting,
 } from "@wealthfolio/ui";
 import { cn } from "@/lib/utils";
 import { useSettingsContext } from "@/lib/settings-provider";
@@ -34,10 +36,13 @@ import { useAlternativeAssetMutations } from "../hooks/use-alternative-asset-mut
 import { addDays, addMonths } from "date-fns";
 import { LOAN_PROJECTION_METADATA_KEY, serializeLoanProjectionMetadata } from "../lib/loan-events";
 import {
+  calculateAmortizationSchedule,
   calculateLoanEndDate,
   calculateLoanPayment,
   calculatePaymentCount,
 } from "../lib/loan-calculator";
+import { LoanFieldInfo } from "./loan-field-info";
+import { LoanDurationInput } from "./loan-duration-input";
 import type { LoanInterestMethod, LoanPaymentFrequency } from "../lib/loan-events";
 import {
   AlternativeAssetKind,
@@ -133,7 +138,9 @@ interface FormData {
   liabilityType?: string;
   hasMortgage?: boolean;
   linkedAssetId?: string;
+  /** Amortization or loan term, entered as years plus months. */
   loanTerm?: string;
+  loanTermMonths?: string;
   interestRate?: string;
   paymentFrequency?: LoanPaymentFrequency;
   interestMethod?: LoanInterestMethod;
@@ -247,6 +254,28 @@ export function AlternativeAssetQuickAddModal({
     [],
   );
 
+  const dates = useDateFormatting();
+  const automaticSchedule = formData.automaticSchedule !== false;
+  const isMortgage = (formData.liabilityType || "mortgage") === "mortgage";
+  const durationLabel = t(
+    isMortgage ? "asset:loanActions.amortization" : "asset:loanActions.loan_term",
+  );
+  const loanTermMonths =
+    (Number(formData.loanTerm) || 0) * 12 + (Number(formData.loanTermMonths) || 0);
+  const paymentFrequency = formData.paymentFrequency ?? "monthly";
+  const firstPaymentDate =
+    formData.firstPaymentDate ??
+    (formData.purchaseDate
+      ? paymentFrequency === "monthly"
+        ? addMonths(formData.purchaseDate, 1)
+        : addDays(formData.purchaseDate, 14)
+      : undefined);
+  const amortizationSchedule = calculateAmortizationSchedule(
+    firstPaymentDate,
+    loanTermMonths,
+    paymentFrequency,
+  );
+
   const canProceed = useMemo(() => {
     if (step === 1) return true;
     const isLiability = formData.kind === AlternativeAssetKind.LIABILITY;
@@ -255,7 +284,7 @@ export function AlternativeAssetQuickAddModal({
       const hasRequiredDates = Boolean(formData.purchaseDate || formData.valueDate);
       const hasAutomaticTerms =
         !formData.automaticSchedule ||
-        Boolean(formData.purchasePrice && formData.purchaseDate && formData.loanTerm);
+        Boolean(formData.purchasePrice && formData.purchaseDate && loanTermMonths > 0);
       return formData.name.trim() && hasBalance && hasRequiredDates && hasAutomaticTerms;
     }
     return formData.name.trim() && formData.currentValue;
@@ -267,7 +296,7 @@ export function AlternativeAssetQuickAddModal({
     formData.purchasePrice,
     formData.purchaseDate,
     formData.valueDate,
-    formData.loanTerm,
+    loanTermMonths,
     formData.automaticSchedule,
   ]);
 
@@ -293,7 +322,7 @@ export function AlternativeAssetQuickAddModal({
         currentBalance: formData.currentValue || undefined,
         originationDate: formData.purchaseDate || formData.valueDate,
         balanceDate: formData.valueDate,
-        loanTerm: formData.loanTerm || undefined,
+        loanTermMonths: loanTermMonths || undefined,
         interestRate: formData.interestRate || undefined,
       });
       if (!validation.success) {
@@ -305,7 +334,7 @@ export function AlternativeAssetQuickAddModal({
       }
       if (
         formData.automaticSchedule &&
-        (!formData.purchasePrice || !formData.purchaseDate || !formData.loanTerm)
+        (!formData.purchasePrice || !formData.purchaseDate || loanTermMonths <= 0)
       ) {
         setValidationError("asset:quickAdd.validation.invalid");
         return;
@@ -328,19 +357,13 @@ export function AlternativeAssetQuickAddModal({
         metadata.origination_date = formatDateToISO(formData.purchaseDate);
       }
       if (formData.interestRate) metadata.interest_rate = formData.interestRate;
-      if (formData.automaticSchedule && formData.loanTerm && formData.purchaseDate) {
-        const frequency = formData.paymentFrequency ?? "monthly";
-        const termYears = parseFloat(formData.loanTerm);
-        totalPaymentCount = calculatePaymentCount(termYears, frequency) ?? 0;
-        if (totalPaymentCount === 0) {
+      if (formData.automaticSchedule && loanTermMonths > 0 && formData.purchaseDate) {
+        const frequency = paymentFrequency;
+        totalPaymentCount = calculatePaymentCount(loanTermMonths / 12, frequency) ?? 0;
+        if (totalPaymentCount === 0 || !firstPaymentDate) {
           setValidationError("asset:quickAdd.validation.invalid");
           return;
         }
-        const firstPaymentDate =
-          formData.firstPaymentDate ??
-          (frequency === "monthly"
-            ? addMonths(formData.purchaseDate, 1)
-            : addDays(formData.purchaseDate, 14));
         if (firstPaymentDate <= formData.purchaseDate) {
           setValidationError("asset:quickAdd.validation.invalid");
           return;
@@ -658,18 +681,11 @@ export function AlternativeAssetQuickAddModal({
                   />
                 </div>
 
-                {/* For liabilities: Original Amount + Origination Date are required and come first */}
+                {/* For liabilities: how the balance is tracked, then the original terms */}
                 {formData.kind === AlternativeAssetKind.LIABILITY && (
                   <>
-                    <div className="flex items-center gap-3 rounded-md border p-3">
-                      <Checkbox
-                        id="automaticSchedule"
-                        checked={formData.automaticSchedule !== false}
-                        onCheckedChange={(checked) =>
-                          updateFormData("automaticSchedule", checked === true)
-                        }
-                      />
-                      <div>
+                    <div className="flex items-center justify-between gap-4 rounded-lg border p-3">
+                      <div className="space-y-1">
                         <Label
                           htmlFor="automaticSchedule"
                           className="text-foreground cursor-pointer text-sm font-medium"
@@ -680,6 +696,11 @@ export function AlternativeAssetQuickAddModal({
                           {t("asset:loanActions.automatic_schedule_description")}
                         </p>
                       </div>
+                      <Switch
+                        id="automaticSchedule"
+                        checked={automaticSchedule}
+                        onCheckedChange={(checked) => updateFormData("automaticSchedule", checked)}
+                      />
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
@@ -693,9 +714,14 @@ export function AlternativeAssetQuickAddModal({
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label className="text-foreground text-sm font-medium">
-                          {t("asset:quickAdd.origination_date")}
-                        </Label>
+                        <div className="flex items-center gap-1.5">
+                          <Label className="text-foreground text-sm font-medium">
+                            {t("asset:quickAdd.origination_date")}
+                          </Label>
+                          <LoanFieldInfo label={t("asset:quickAdd.origination_date")}>
+                            {t("asset:loanActions.origination_hint")}
+                          </LoanFieldInfo>
+                        </div>
                         <DatePickerInput
                           value={formData.purchaseDate}
                           onChange={(date) => date && updateFormData("purchaseDate", date)}
@@ -722,76 +748,87 @@ export function AlternativeAssetQuickAddModal({
                           </span>
                         </div>
                       </div>
-                      <div className="space-y-2">
-                        <Label className="text-foreground text-sm font-medium">
-                          {t("asset:quickAdd.loan_term")}
-                          <span className="text-muted-foreground ml-1 text-xs font-normal">
-                            {t("asset:quickAdd.optional")}
-                          </span>
-                        </Label>
-                        <div className="relative">
-                          <QuantityInput
-                            value={formData.loanTerm || ""}
-                            onValueChange={(v) => updateFormData("loanTerm", v)}
-                            placeholder="0"
-                            className="h-11 pr-12"
+                      {automaticSchedule && (
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-1.5">
+                            <Label className="text-foreground text-sm font-medium">
+                              {t("asset:loanInterest.method")}
+                            </Label>
+                            <LoanFieldInfo label={t("asset:loanInterest.method")}>
+                              {t("asset:loanInterest.hint")}
+                            </LoanFieldInfo>
+                          </div>
+                          <LoanInterestMethodSelect
+                            value={formData.interestMethod}
+                            onChange={(value) => updateFormData("interestMethod", value)}
                           />
-                          <span className="text-muted-foreground pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm">
-                            {t("asset:quickAdd.years")}
-                          </span>
                         </div>
-                      </div>
+                      )}
                     </div>
-                    <div className="space-y-2">
-                      <Label>{t("asset:loanInterest.method")}</Label>
-                      <LoanInterestMethodSelect
-                        value={formData.interestMethod}
-                        onChange={(value) => updateFormData("interestMethod", value)}
-                      />
-                      <p className="text-muted-foreground text-xs">
-                        {t("asset:loanInterest.help")}
-                      </p>
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-foreground text-sm font-medium">
-                        {t("asset:loanActions.payment_frequency")}
-                      </Label>
-                      <ResponsiveSelect
-                        value={formData.paymentFrequency || "monthly"}
-                        onValueChange={(value) =>
-                          updateFormData("paymentFrequency", value as LoanPaymentFrequency)
-                        }
-                        options={[
-                          {
-                            value: "monthly",
-                            label: t("asset:loanActions.monthly"),
-                          },
-                          {
-                            value: "biweekly",
-                            label: t("asset:loanActions.biweekly"),
-                          },
-                          {
-                            value: "accelerated_biweekly",
-                            label: t("asset:loanActions.accelerated_biweekly"),
-                          },
-                        ]}
-                        sheetTitle={t("asset:loanActions.payment_frequency")}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>{t("asset:loanActions.first_payment_date")}</Label>
-                      <DatePickerInput
-                        value={
-                          formData.firstPaymentDate ??
-                          (formData.purchaseDate
-                            ? formData.paymentFrequency === "monthly" || !formData.paymentFrequency
-                              ? addMonths(formData.purchaseDate, 1)
-                              : addDays(formData.purchaseDate, 14)
-                            : undefined)
-                        }
-                        onChange={(date) => updateFormData("firstPaymentDate", date)}
-                      />
-                    </div>
+                    {automaticSchedule && (
+                      <>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-1.5">
+                              <Label className="text-foreground text-sm font-medium">
+                                {durationLabel}
+                              </Label>
+                              <LoanFieldInfo label={durationLabel}>
+                                {t(
+                                  isMortgage
+                                    ? "asset:loanActions.amortization_hint"
+                                    : "asset:loanActions.loan_term_hint",
+                                )}
+                              </LoanFieldInfo>
+                            </div>
+                            <LoanDurationInput
+                              label={durationLabel}
+                              years={formData.loanTerm}
+                              months={formData.loanTermMonths}
+                              onYearsChange={(value) => updateFormData("loanTerm", value)}
+                              onMonthsChange={(value) => updateFormData("loanTermMonths", value)}
+                              className="h-11"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label className="text-foreground text-sm font-medium">
+                              {t("asset:loanActions.payment_frequency")}
+                            </Label>
+                            <ResponsiveSelect
+                              value={paymentFrequency}
+                              onValueChange={(value) =>
+                                updateFormData("paymentFrequency", value as LoanPaymentFrequency)
+                              }
+                              options={(
+                                ["monthly", "biweekly", "accelerated_biweekly"] as const
+                              ).map((value) => ({
+                                value,
+                                label: t(`asset:loanActions.${value}`),
+                              }))}
+                              sheetTitle={t("asset:loanActions.payment_frequency")}
+                            />
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <Label>{t("asset:loanActions.first_payment_date")}</Label>
+                          <DatePickerInput
+                            value={firstPaymentDate}
+                            onChange={(date) => updateFormData("firstPaymentDate", date)}
+                          />
+                          {amortizationSchedule && (
+                            <p className="text-muted-foreground text-xs">
+                              {t("asset:loanActions.last_payment", {
+                                count: amortizationSchedule.paymentCount,
+                                date: dates.formatCalendarDate(
+                                  formatDateToISO(amortizationSchedule.lastPaymentDate),
+                                  { day: "numeric", month: "short", year: "numeric" },
+                                ),
+                              })}
+                            </p>
+                          )}
+                        </div>
+                      </>
+                    )}
                   </>
                 )}
 

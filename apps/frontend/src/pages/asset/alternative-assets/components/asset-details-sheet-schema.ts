@@ -5,7 +5,12 @@ import {
   readLoanProjectionMetadata,
   serializeLoanProjectionMetadata,
 } from "../lib/loan-events";
-import { calculateLoanPaymentDate } from "../lib/loan-calculator";
+import {
+  calculateAmortizationMonths,
+  calculateAmortizationSchedule,
+  calculateLoanPaymentDate,
+  countLoanPayments,
+} from "../lib/loan-calculator";
 import { AlternativeAssetKind } from "@/lib/types";
 import { parseLocalDate } from "@/lib/utils";
 
@@ -137,7 +142,10 @@ export const liabilityDetailsSchema = baseSchema.extend({
     .optional()
     .nullable(),
   originationDate: z.date().optional().nullable(),
-  endDate: z.date().optional().nullable(),
+  amortizationYears: z.number().int().min(0).max(100).optional().nullable(),
+  amortizationMonths: z.number().int().min(0).max(1200).optional().nullable(),
+  /** Stored horizon, kept unless the entered amortization no longer matches it. */
+  amortizationEndDate: z.date().optional().nullable(),
   interestRate: z.coerce
     .number()
     .min(0, "Interest rate must be 0 or greater")
@@ -178,7 +186,6 @@ export const assetDetailsSchema = z
     for (const field of [
       "originalAmount",
       "originationDate",
-      "endDate",
       "interestRate",
       "paymentAmount",
       "paymentFrequency",
@@ -198,17 +205,54 @@ export const assetDetailsSchema = z
         message: "First payment must be after origination",
       });
     }
-    if (values.endDate && values.firstPaymentDate && values.endDate < values.firstPaymentDate) {
+    if (totalAmortizationMonths(values) <= 0) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        path: ["endDate"],
-        message: "End date must be on or after the first payment",
+        path: ["amortizationYears"],
+        message: "Required",
       });
     }
   });
 
 // Type for the combined form values
 export type AssetDetailsFormValues = z.infer<typeof assetDetailsSchema>;
+
+/** Total amortization entered as years plus months. */
+export function totalAmortizationMonths(
+  values: Pick<LiabilityDetailsFormValues, "amortizationYears" | "amortizationMonths">,
+): number {
+  return (values.amortizationYears ?? 0) * 12 + (values.amortizationMonths ?? 0);
+}
+
+/**
+ * Last contractual payment for the entered amortization. A stored date that still
+ * matches the entered years and months is kept, so saving other details never
+ * moves an off-cadence contractual end.
+ */
+export function loanAmortizationEnd(
+  values: Pick<
+    LiabilityDetailsFormValues,
+    | "amortizationYears"
+    | "amortizationMonths"
+    | "amortizationEndDate"
+    | "firstPaymentDate"
+    | "paymentFrequency"
+  >,
+): { lastPaymentDate: Date; paymentCount: number } | null {
+  const months = totalAmortizationMonths(values);
+  const { firstPaymentDate, amortizationEndDate, paymentFrequency } = values;
+  if (!firstPaymentDate || months <= 0) return null;
+  if (
+    amortizationEndDate &&
+    calculateAmortizationMonths(firstPaymentDate, amortizationEndDate, paymentFrequency) === months
+  ) {
+    return {
+      lastPaymentDate: amortizationEndDate,
+      paymentCount: countLoanPayments(firstPaymentDate, amortizationEndDate, paymentFrequency),
+    };
+  }
+  return calculateAmortizationSchedule(firstPaymentDate, months, paymentFrequency);
+}
 
 // Type-specific form value types for convenience
 export type PropertyDetailsFormValues = z.infer<typeof propertyDetailsSchema>;
@@ -290,13 +334,19 @@ export function getDefaultDetailsFormValues(
               projection.frequency,
             )
           : null;
+      const amortization =
+        firstPaymentDate && endDate
+          ? calculateAmortizationMonths(firstPaymentDate, endDate, projection?.frequency)
+          : null;
       return {
         ...base,
         kind: AlternativeAssetKind.LIABILITY,
         liabilityType: subType as LiabilityDetailsFormValues["liabilityType"],
         originalAmount: origAmount ? parseFloat(origAmount as string) : null,
         originationDate: origDate ? parseLocalDate(origDate as string) : null,
-        endDate: endDate ? parseLocalDate(formatDateToISO(endDate)) : null,
+        amortizationYears: amortization == null ? null : Math.floor(amortization / 12),
+        amortizationMonths: amortization == null ? null : amortization % 12 || null,
+        amortizationEndDate: endDate,
         interestRate:
           projection?.annualRate ??
           (typeof metadata?.interest_rate === "number"
@@ -311,7 +361,7 @@ export function getDefaultDetailsFormValues(
             : null,
         firstPaymentDate,
         paymentAmount: projection?.paymentAmount ?? null,
-        paymentFrequency: projection?.frequency,
+        paymentFrequency: projection?.frequency ?? "monthly",
         interestMethod: projection?.interestMethod ?? "nominal_periodic",
         linkedAssetId: (metadata?.linked_asset_id as string) ?? null,
       };
@@ -381,10 +431,11 @@ export function formValuesToMetadata(values: AssetDetailsFormValues): Record<str
       if (values.linkedAssetId) metadata.linked_asset_id = values.linkedAssetId;
       // An empty value removes the key, switching a manual loan to calculated payments.
       metadata.tracking_mode = values.automaticLoan ? "" : "manual";
+      const schedule = loanAmortizationEnd(values);
       if (
         values.automaticLoan &&
         values.firstPaymentDate &&
-        values.endDate &&
+        schedule &&
         values.paymentFrequency &&
         values.paymentAmount != null &&
         values.interestRate != null
@@ -399,7 +450,7 @@ export function formValuesToMetadata(values: AssetDetailsFormValues): Record<str
           frequency: values.paymentFrequency,
           interestMethod: values.interestMethod ?? "nominal_periodic",
           firstPaymentDate: formatDateToISO(values.firstPaymentDate),
-          amortizationEndDate: formatDateToISO(values.endDate),
+          amortizationEndDate: formatDateToISO(schedule.lastPaymentDate),
         });
       }
       break;

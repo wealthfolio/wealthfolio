@@ -42,7 +42,7 @@ export const liabilityQuickAddSchema = z
     currentBalance: z.coerce.number().finite().min(0).optional(),
     originationDate: z.date().optional(),
     balanceDate: z.date(),
-    loanTerm: z.coerce.number().finite().int().positive().max(100).optional(),
+    loanTermMonths: z.coerce.number().finite().int().positive().max(1200).optional(),
     interestRate: z.coerce.number().finite().min(0).max(100).optional(),
   })
   .superRefine((values, context) => {

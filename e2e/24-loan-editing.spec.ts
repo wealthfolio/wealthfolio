@@ -172,7 +172,7 @@ test("active mortgage terms, previous terms and event editing stay consistent", 
     "Extra Repayment",
     "Renew mortgage",
     "Recalculate Schedule",
-    "Correct original terms",
+    "Edit loan details",
     "Close Loan",
   ]) {
     await page.locator('button.h-9.w-9[aria-haspopup="dialog"]').click();

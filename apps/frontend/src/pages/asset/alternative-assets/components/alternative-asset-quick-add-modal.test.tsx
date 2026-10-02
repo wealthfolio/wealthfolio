@@ -16,6 +16,7 @@ vi.mock("@wealthfolio/ui", () => ({
   CurrencyInput: () => null,
   DatePickerInput: () => null,
   QuantityInput: () => null,
+  useDateFormatting: () => ({ formatCalendarDate: (value: string) => value }),
   MoneyInput: ({
     value,
     onValueChange,
@@ -72,7 +73,7 @@ it.each([undefined, "auto_loan"])(
       defaultLiabilityType ?? "mortgage",
     );
     // Track the balance manually so the loan terms stay optional.
-    fireEvent.click(screen.getByRole("checkbox", { name: "Calculate balance from loan terms" }));
+    fireEvent.click(screen.getByRole("switch", { name: "Estimate balance from payments" }));
     fireEvent.change(screen.getAllByLabelText("Amount")[0], { target: { value: "500000" } });
     fireEvent.click(screen.getByRole("button", { name: "Add Liability" }));
     await waitFor(() =>
