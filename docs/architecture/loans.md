@@ -306,7 +306,13 @@ Schedule open the same forms.
   cash-payment total.
 - This term, Payoff, and Loan details cards separate renewal outlook, estimated
   versus contractual amortization end, and original facts/last confirmation.
-  Current terms reflect dated renewals rather than the original rate.
+  They stay quiet label/value lists below the strip and chart, and do not repeat
+  the strip's figures. Both estimated cards carry one Estimated label whose hint
+  states the calculation start date. Current terms reflect dated renewals rather
+  than the original rate.
+- A linked asset sits at the end of the details card. For a property it shows
+  equity after every loan on the property, and loan-to-value, when they share a
+  currency.
 - Renewal balance is the last closing balance on or before maturity. Payments
   until renewal count scheduled instalments after today through maturity,
   excluding extras. Remaining amortization runs from renewal to projected

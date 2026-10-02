@@ -19,13 +19,12 @@ import {
 } from "@wealthfolio/ui";
 import { Badge } from "@wealthfolio/ui/components/ui/badge";
 import { Card, CardContent, CardHeader } from "@wealthfolio/ui/components/ui/card";
-import { Separator } from "@wealthfolio/ui/components/ui/separator";
+import { useNavigate } from "react-router-dom";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import { useLinkedLiabilities } from "@/hooks/use-alternative-assets";
 import type { AlternativeAssetHolding, Quote } from "@/lib/types";
 import type { LoanCalculation } from "@/adapters/shared/alternative-assets";
 import { cn, formatDateISO } from "@/lib/utils";
-import { LinkedAssetSection } from "../../linked-liabilities-card";
 import { LoanTimeline } from "./loan-timeline";
 import { lastLoanConfirmation, loanMilestones } from "../lib/loan-presentation";
 import { readLoanEvents, readLoanProjectionMetadata } from "../lib/loan-events";
@@ -238,11 +237,16 @@ function LoanSummaryStrip({
               {t("asset:loanEvents.current_term")}
               {Number.isFinite(annualRate) && <> · {rate(annualRate)}</>}
             </p>
-            <p className="mt-1 font-semibold tabular-nums">
-              {month(termStart)}
-              {termEnd && <> – {month(termEnd)}</>}
-            </p>
-            {termEnd && <TermRuler start={termStart} end={termEnd} today={today} />}
+            {termEnd ? (
+              <TermRuler
+                start={termStart}
+                end={termEnd}
+                renews={!!milestones.maturity}
+                today={today}
+              />
+            ) : (
+              <p className="mt-1 font-semibold tabular-nums">{month(termStart)}</p>
+            )}
           </div>
         )}
 
@@ -250,7 +254,10 @@ function LoanSummaryStrip({
           <div className={cell}>
             <p className="text-muted-foreground text-xs">
               {next
-                ? `${t("asset:loanOverview.next_payment")} · ${shortDate(next.date)}`
+                ? `${t("asset:loanOverview.next_payment")} · ${shortDate(next.date)} · ${t(
+                    "asset:loanOverview.in_days",
+                    { count: differenceInCalendarDays(parseISO(next.date), parseISO(today)) },
+                  )}`
                 : t("asset:loanOverview.regular_payment")}
             </p>
             <p className="mt-1 font-semibold tabular-nums">
@@ -261,12 +268,11 @@ function LoanSummaryStrip({
               </span>
             </p>
             {next && (
-              <p className="text-muted-foreground mt-0.5 text-xs">
-                {t("asset:loanOverview.payment_split_estimated", {
-                  principal: moneyText(next.principal),
-                  interest: moneyText(next.interest),
-                })}
-              </p>
+              <PaymentSplit
+                principal={next.principal}
+                interest={next.interest}
+                currency={currency}
+              />
             )}
           </div>
         )}
@@ -275,9 +281,70 @@ function LoanSummaryStrip({
   );
 }
 
-/** A continuous timeline of the term with year ticks and today's position; not a progress bar. */
-function TermRuler({ start, end, today }: { start: string; end: string; today: string }) {
-  const { t, duration } = useLoanFormat("");
+/**
+ * How the next payment divides between principal and interest. Principal is green,
+ * as in the repaid ring beside it; the split is an estimate.
+ */
+function PaymentSplit({
+  principal,
+  interest,
+  currency,
+}: {
+  principal: number;
+  interest: number;
+  currency: string;
+}) {
+  const { t, numbers, moneyText } = useLoanFormat(currency);
+  const total = principal + interest;
+  if (!(total > 0)) return null;
+  const share = Math.max(0, Math.min(1, principal / total));
+  const hint = t("asset:loanOverview.payment_split_hint", {
+    percent: numbers.formatPercent(share, { digits: 0 }),
+  });
+  return (
+    <>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <div
+            role="img"
+            aria-label={hint}
+            tabIndex={0}
+            className="mt-3 flex h-2.5 cursor-help items-center gap-0.5 outline-none"
+          >
+            <span className="bg-success h-1 rounded-full" style={{ width: `${share * 100}%` }} />
+            <span className="bg-muted-foreground/30 h-1 flex-1 rounded-full" />
+          </div>
+        </TooltipTrigger>
+        <TooltipContent className="max-w-64">{hint}</TooltipContent>
+      </Tooltip>
+      <div className="text-muted-foreground mt-1.5 flex flex-wrap justify-between gap-x-3 text-xs tabular-nums">
+        <span>{t("asset:loanOverview.principal_amount", { amount: moneyText(principal) })}</span>
+        <span>{t("asset:loanOverview.interest_amount", { amount: moneyText(interest) })}</span>
+      </div>
+    </>
+  );
+}
+
+/** Renewal prompts turn to warnings this many days before maturity. */
+const RENEWAL_SOON_DAYS = 90;
+
+/**
+ * Time left in the term, then a timeline with the elapsed part shaded and today
+ * marked. Neutral on purpose: green in this strip means principal repaid.
+ */
+function TermRuler({
+  start,
+  end,
+  renews,
+  today,
+}: {
+  start: string;
+  end: string;
+  /** The end is a renewal maturity rather than the amortization end. */
+  renews: boolean;
+  today: string;
+}) {
+  const { t, duration, date } = useLoanFormat("");
   const startDate = parseISO(start);
   const endDate = parseISO(end);
   const todayDate = parseISO(today);
@@ -294,43 +361,63 @@ function TermRuler({ start, end, today }: { start: string; end: string; today: s
     termMonths % 12 === 0
       ? t("asset:loanOverview.term_elapsed_years", { count: termMonths / 12, elapsed })
       : t("asset:loanOverview.term_elapsed_months", { count: termMonths, elapsed });
-  const ended = today > end;
+  const daysLeft = differenceInCalendarDays(endDate, todayDate);
+  const ended = daysLeft < 0;
+  const warn = renews && daysLeft <= RENEWAL_SOON_DAYS;
+  const headline =
+    ended && renews
+      ? t("asset:loanOverview.renewal_due")
+      : renews && daysLeft <= RENEWAL_SOON_DAYS
+        ? t("asset:loanOverview.renews_in_days", { count: daysLeft })
+        : t("asset:loanOverview.term_left", {
+            duration: duration(Math.max(0, differenceInMonths(endDate, todayDate))),
+          });
   return (
     <>
+      <p className={cn("mt-1 font-semibold tabular-nums", warn && "text-warning")}>{headline}</p>
       <Tooltip>
         <TooltipTrigger asChild>
           <div
             role="img"
             aria-label={summary}
             tabIndex={0}
-            className="relative mt-2.5 h-2.5 cursor-help outline-none"
+            className="relative mt-3 h-2.5 cursor-help outline-none"
           >
-            <span className="bg-border absolute inset-x-0 top-1/2 h-0.5 -translate-y-1/2 rounded-full" />
-            {[0, ...yearTicks, 1].map((tick) => (
+            <span className="bg-muted absolute inset-x-0 top-1/2 h-1 -translate-y-1/2 rounded-full" />
+            <span
+              className="bg-muted-foreground/60 absolute left-0 top-1/2 h-1 -translate-y-1/2 rounded-full"
+              style={{ width: `${position * 100}%` }}
+            />
+            {yearTicks.map((tick) => (
               <span
                 key={tick}
-                className={cn(
-                  "absolute top-1/2 w-px -translate-x-1/2 -translate-y-1/2",
-                  tick === 0 || tick === 1 ? "bg-muted-foreground/50 h-2.5" : "bg-border h-1.5",
-                )}
+                className="bg-card absolute top-1/2 h-1.5 w-0.5 -translate-x-1/2 -translate-y-1/2"
                 style={{ left: `${tick * 100}%` }}
               />
             ))}
-            <span
-              className="bg-success ring-card absolute top-1/2 size-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full ring-2"
-              style={{ left: `${position * 100}%` }}
-            />
+            {!ended && (
+              <span
+                className="bg-foreground absolute top-1/2 h-2.5 w-0.5 -translate-x-1/2 -translate-y-1/2 rounded-full"
+                style={{ left: `${position * 100}%` }}
+              />
+            )}
           </div>
         </TooltipTrigger>
         <TooltipContent>{summary}</TooltipContent>
       </Tooltip>
-      <p className={cn("mt-1.5 text-xs", ended ? "text-warning" : "text-muted-foreground")}>
-        {ended
-          ? t("asset:loanOverview.renewal_due")
-          : t("asset:loanOverview.term_left", {
-              duration: duration(Math.max(0, differenceInMonths(endDate, todayDate))),
-            })}
-      </p>
+      <div className="text-muted-foreground mt-1.5 flex flex-wrap justify-between gap-x-3 text-xs">
+        <span>{t("asset:loanOverview.started_on", { date: date(start) })}</span>
+        <span className={cn(warn && "text-warning")}>
+          {t(
+            ended
+              ? "asset:loanOverview.ended_on"
+              : renews
+                ? "asset:loanOverview.renews_on"
+                : "asset:loanOverview.ends_on",
+            { date: date(end) },
+          )}
+        </span>
+      </div>
     </>
   );
 }
@@ -350,32 +437,22 @@ function ThisTermCard({
   onRenew: () => void;
   onEdit: () => void;
 }) {
-  const { t, numbers, money, date, duration } = useLoanFormat(currency);
+  const { t, numbers, money, duration } = useLoanFormat(currency);
   const today = formatDateISO(new Date());
   const { maturity } = loanMilestones(calculation, metadata, today);
   const renewal = maturity ? getLoanRenewalSummary(calculation, maturity, today) : null;
   const renewalDue =
-    !!maturity && differenceInCalendarDays(parseISO(maturity), parseISO(today)) <= 90;
+    !!maturity &&
+    differenceInCalendarDays(parseISO(maturity), parseISO(today)) <= RENEWAL_SOON_DAYS;
   return (
     <OverviewCard
       testId="loan-term-card"
       title={t("asset:loanOverview.this_term")}
-      aside={
-        <>
-          <Badge variant="secondary" className="text-xs font-normal normal-case tracking-normal">
-            {t("asset:loanOverview.projected")}
-          </Badge>
-          <InfoTip text={t("asset:loanOverview.term_estimate_hint")} />
-        </>
-      }
+      aside={<EstimatedLabel hint={t("asset:loanOverview.term_estimate_hint")} />}
     >
       {maturity ? (
         <Rows
           rows={[
-            {
-              label: t("asset:loanOverview.renews"),
-              value: <span className={cn(renewalDue && "text-warning")}>{date(maturity)}</span>,
-            },
             {
               label: t("asset:loanOverview.payments_left"),
               value: renewal ? numbers.formatDecimal(renewal.payments) : "—",
@@ -426,12 +503,26 @@ function PayoffCard({
 }) {
   const { t, numbers, money, date, duration } = useLoanFormat(currency);
   const milestones = loanMilestones(calculation, metadata, formatDateISO(new Date()));
+  const extraPaid = readLoanEvents(metadata).reduce(
+    (sum, event) => (event.type === "extra_repayment" ? sum + event.amount : sum),
+    0,
+  );
   return (
-    <OverviewCard testId="loan-payoff-card" title={t("asset:loanOverview.payoff")}>
+    <OverviewCard
+      testId="loan-payoff-card"
+      title={t("asset:loanOverview.payoff")}
+      aside={
+        <EstimatedLabel
+          hint={t("asset:loanOverview.payoff_estimate_hint", {
+            date: date(calculation.calculationStartDate),
+          })}
+        />
+      }
+    >
       <Rows
         rows={[
           {
-            label: t("asset:loanOverview.projected"),
+            label: t("asset:loanOverview.payoff_date"),
             value: milestones.payoff ? (
               date(milestones.payoff)
             ) : (
@@ -446,6 +537,9 @@ function PayoffCard({
                 </span>
               ) : undefined,
           },
+          ...(extraPaid > 0
+            ? [{ label: t("asset:loanOverview.extra_paid"), value: money(extraPaid) }]
+            : []),
           ...(milestones.horizon
             ? [
                 {
@@ -464,14 +558,11 @@ function PayoffCard({
             value: numbers.formatDecimal(calculation.remainingPayments),
           },
           {
-            label: t("asset:loanOverview.interest_paid_estimated"),
+            label: t("asset:loanOverview.interest_paid"),
             value: money(calculation.interestToDate),
-            note: t("asset:loanInterest.calculated_since", {
-              date: date(calculation.calculationStartDate),
-            }),
           },
           {
-            label: t("asset:loanOverview.interest_left_estimated"),
+            label: t("asset:loanOverview.interest_left"),
             value: money(calculation.projectedInterest),
           },
           ...(calculation.residualBalance + calculation.residualInterest > 0
@@ -503,24 +594,20 @@ function LoanFactsCard({
   linkedAsset?: AlternativeAssetHolding;
   mortgage: boolean;
 }) {
-  const { t, isBalanceHidden, money, date, rate } = useLoanFormat(currency);
+  const { t, money, date, rate } = useLoanFormat(currency);
   const startRate =
     readLoanProjectionMetadata(metadata)?.annualRate ?? Number(metadata.interest_rate);
-  const extraPaid = readLoanEvents(metadata).reduce(
-    (sum, event) => (event.type === "extra_repayment" ? sum + event.amount : sum),
-    0,
-  );
   const property = linkedAsset?.kind.toLowerCase() === "property" ? linkedAsset : undefined;
   const { data: linkedLoans = [] } = useLinkedLiabilities({
     assetId: property?.id ?? "",
     enabled: !!property,
   });
-  const homeEquity =
+  // Every loan on the property counts against its equity, as on the property page.
+  const securedDebt =
     property &&
     linkedLoans.length &&
     linkedLoans.every((loan) => loan.currency === property.currency)
-      ? Number(property.marketValue) -
-        linkedLoans.reduce((sum, loan) => sum + Math.abs(Number(loan.marketValue)), 0)
+      ? linkedLoans.reduce((sum, loan) => sum + Math.abs(Number(loan.marketValue)), 0)
       : null;
   return (
     <OverviewCard
@@ -535,47 +622,94 @@ function LoanFactsCard({
             ? [{ label: t("asset:loanOverview.started"), value: date(metadata.origination_date) }]
             : []),
           ...(originalAmount != null
-            ? [{ label: t("asset:loanOverview.original"), value: money(originalAmount) }]
+            ? [{ label: t("asset:loanOverview.original_amount"), value: money(originalAmount) }]
             : []),
           ...(Number.isFinite(startRate)
             ? [{ label: t("asset:loanOverview.start_rate"), value: rate(startRate) }]
-            : []),
-          ...(extraPaid > 0
-            ? [{ label: t("asset:loanOverview.extra_paid"), value: money(extraPaid) }]
             : []),
           {
             label: t("asset:loanOverview.last_confirmed"),
             value: lastConfirmed ? date(lastConfirmed) : "—",
           },
-          ...(property && homeEquity != null
-            ? [
-                {
-                  label: t("asset:loanOverview.home_equity"),
-                  value: (
-                    <AmountDisplay
-                      value={homeEquity}
-                      currency={property.currency}
-                      isHidden={isBalanceHidden}
-                    />
-                  ),
-                },
-              ]
-            : []),
         ]}
       />
-      {linkedAsset && (
+      {linkedAsset && <LinkedAssetBlock asset={linkedAsset} securedDebt={securedDebt} />}
+    </OverviewCard>
+  );
+}
+
+/** The linked asset, its value and, for a property, the equity left after its loans. */
+function LinkedAssetBlock({
+  asset,
+  securedDebt,
+}: {
+  asset: AlternativeAssetHolding;
+  securedDebt: number | null;
+}) {
+  const { t, numbers, moneyText } = useLoanFormat(asset.currency);
+  const navigate = useNavigate();
+  const value = Number(asset.marketValue);
+  const vehicle = asset.kind.toLowerCase() === "vehicle";
+  const AssetIcon = vehicle ? Icons.VehicleDuotone : Icons.RealEstateDuotone;
+  const equity = securedDebt != null && value > 0 ? value - securedDebt : null;
+  return (
+    <button
+      type="button"
+      onClick={() => navigate(`/holdings/${encodeURIComponent(asset.id)}`)}
+      className="bg-muted/50 hover:bg-muted mt-4 w-full rounded-lg p-3 text-left transition-colors"
+    >
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <div className="bg-muted flex size-8 shrink-0 items-center justify-center rounded-full">
+            <AssetIcon size={16} />
+          </div>
+          <div className="min-w-0">
+            <p className="truncate text-sm font-medium">{asset.name}</p>
+            <p className="text-muted-foreground text-xs">
+              {t(vehicle ? "asset:linkedLiabilities.vehicle" : "asset:linkedLiabilities.property")}
+            </p>
+          </div>
+        </div>
+        <div className="flex shrink-0 items-center gap-1.5 text-sm font-medium tabular-nums">
+          {moneyText(value)}
+          <Icons.ChevronRight className="text-muted-foreground size-4" />
+        </div>
+      </div>
+      {equity != null && securedDebt != null && (
         <>
-          <Separator className="my-4" />
-          <LinkedAssetSection
-            assetId={linkedAsset.id}
-            assetName={linkedAsset.name}
-            assetKind={linkedAsset.kind}
-            assetValue={linkedAsset.marketValue}
-            currency={linkedAsset.currency}
-          />
+          <div className="mt-3 flex h-1 gap-0.5" aria-hidden="true">
+            <span
+              className="bg-success rounded-full"
+              style={{ width: `${Math.max(0, Math.min(1, equity / value)) * 100}%` }}
+            />
+            <span className="bg-muted-foreground/30 flex-1 rounded-full" />
+          </div>
+          <div className="text-muted-foreground mt-1.5 flex flex-wrap justify-between gap-x-3 text-xs tabular-nums">
+            <span className={cn(equity < 0 && "text-destructive")}>
+              {t("asset:loanOverview.equity_amount", { amount: moneyText(equity) })}
+            </span>
+            <span>
+              {t("asset:loanOverview.loan_to_value", {
+                percent: numbers.formatPercent(securedDebt / value, { digits: 0 }),
+              })}
+            </span>
+          </div>
         </>
       )}
-    </OverviewCard>
+    </button>
+  );
+}
+
+/** One way to mark a card whose figures are all estimates. */
+function EstimatedLabel({ hint }: { hint: string }) {
+  const { t } = useTranslation();
+  return (
+    <>
+      <Badge variant="secondary" className="text-xs font-normal normal-case tracking-normal">
+        {t("asset:loanOverview.projected")}
+      </Badge>
+      <InfoTip text={hint} />
+    </>
   );
 }
 

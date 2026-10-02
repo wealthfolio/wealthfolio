@@ -362,7 +362,9 @@ test("interest convention reaches the shared engine and survives a renewal", asy
     })
     .toBe("monthly");
   await page.reload();
-  await expect(page.getByTestId("loan-payoff-card")).toContainText("Calculated since");
+  await expect(
+    page.getByTestId("loan-payoff-card").getByRole("button", { name: /calculated since/i }),
+  ).toBeVisible();
 });
 
 test("balance edits preserve notes, reject collisions and delete legacy corrections", async ({
