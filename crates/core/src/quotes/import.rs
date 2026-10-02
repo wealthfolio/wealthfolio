@@ -139,9 +139,6 @@ pub struct QuoteImport {
     pub volume: Option<Decimal>,
     /// Currency code (e.g., "USD", "EUR").
     pub currency: String,
-    /// Optional provenance or user note to preserve on the imported quote.
-    #[serde(default)]
-    pub notes: Option<String>,
     /// Validation status after processing.
     #[serde(default)]
     pub validation_status: ImportValidationStatus,
@@ -162,7 +159,6 @@ impl QuoteImport {
             close,
             volume: None,
             currency,
-            notes: None,
             validation_status: ImportValidationStatus::Valid,
             error_message: None,
         }
@@ -190,7 +186,6 @@ impl QuoteImport {
             close,
             volume: Some(volume),
             currency,
-            notes: None,
             validation_status: ImportValidationStatus::Valid,
             error_message: None,
         }

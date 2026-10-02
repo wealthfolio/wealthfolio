@@ -1,5 +1,4 @@
 import type { Quote } from "@/lib/types";
-import type { QuoteImport } from "@/lib/types/quote-import";
 
 export const LOAN_EVENT_PROVENANCE = "loan_event";
 
@@ -8,8 +7,6 @@ export type LoanBalanceKind = "confirmed_balance" | "balance_correction" | "extr
 export type LoanBalanceEntry = Pick<Quote, "close" | "notes" | "timestamp"> & {
   id?: string;
 };
-
-export type LoanBalanceImportEntry = Pick<QuoteImport, "close" | "notes" | "date">;
 
 function hasProvenance(notes: string | null | undefined, provenance: string): boolean {
   return notes === provenance || notes?.startsWith(`${provenance}|`) === true;
