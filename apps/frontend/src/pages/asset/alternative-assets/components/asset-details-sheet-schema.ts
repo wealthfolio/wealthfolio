@@ -1,4 +1,11 @@
 import * as z from "zod";
+import {
+  LOAN_PROJECTION_METADATA_KEY,
+  LOAN_RENEWAL_MATURITY_METADATA_KEY,
+  readLoanProjectionMetadata,
+  serializeLoanProjectionMetadata,
+} from "../lib/loan-events";
+import { calculateLoanPaymentDate } from "../lib/loan-calculator";
 import { AlternativeAssetKind } from "@/lib/types";
 import { parseLocalDate } from "@/lib/utils";
 
@@ -42,6 +49,7 @@ export const LIABILITY_TYPES = [
   { value: "credit_card", label: "Credit Card" },
   { value: "personal_loan", label: "Personal Loan" },
   { value: "heloc", label: "HELOC" },
+  { value: "other", label: "Other" },
 ] as const;
 
 // Vehicle types (optional, for future use)
@@ -112,7 +120,15 @@ export const preciousMetalDetailsSchema = baseSchema.extend({
 export const liabilityDetailsSchema = baseSchema.extend({
   kind: z.literal(AlternativeAssetKind.LIABILITY),
   liabilityType: z
-    .enum(["mortgage", "auto_loan", "student_loan", "credit_card", "personal_loan", "heloc"])
+    .enum([
+      "mortgage",
+      "auto_loan",
+      "student_loan",
+      "credit_card",
+      "personal_loan",
+      "heloc",
+      "other",
+    ])
     .optional()
     .nullable(),
   originalAmount: z.coerce
@@ -121,12 +137,19 @@ export const liabilityDetailsSchema = baseSchema.extend({
     .optional()
     .nullable(),
   originationDate: z.date().optional().nullable(),
+  endDate: z.date().optional().nullable(),
   interestRate: z.coerce
     .number()
     .min(0, "Interest rate must be 0 or greater")
     .max(100, "Interest rate must be 100 or less")
     .optional()
     .nullable(),
+  automaticLoan: z.boolean().optional(),
+  renewalMaturity: z.date().optional().nullable(),
+  paymentAmount: z.number().finite().positive().optional().nullable(),
+  paymentFrequency: z.enum(["monthly", "biweekly", "accelerated_biweekly"]).optional(),
+  interestMethod: z.enum(["nominal_periodic", "monthly", "semiannual"]).optional(),
+  firstPaymentDate: z.date().optional().nullable(),
   linkedAssetId: z.string().optional().nullable(),
 });
 
@@ -141,14 +164,48 @@ export const otherDetailsSchema = baseSchema.extend({
 });
 
 // Discriminated union of all asset type schemas
-export const assetDetailsSchema = z.discriminatedUnion("kind", [
-  propertyDetailsSchema,
-  vehicleDetailsSchema,
-  collectibleDetailsSchema,
-  preciousMetalDetailsSchema,
-  liabilityDetailsSchema,
-  otherDetailsSchema,
-]);
+export const assetDetailsSchema = z
+  .discriminatedUnion("kind", [
+    propertyDetailsSchema,
+    vehicleDetailsSchema,
+    collectibleDetailsSchema,
+    preciousMetalDetailsSchema,
+    liabilityDetailsSchema,
+    otherDetailsSchema,
+  ])
+  .superRefine((values, ctx) => {
+    if (values.kind !== AlternativeAssetKind.LIABILITY || !values.automaticLoan) return;
+    for (const field of [
+      "originalAmount",
+      "originationDate",
+      "endDate",
+      "interestRate",
+      "paymentAmount",
+      "paymentFrequency",
+      "firstPaymentDate",
+    ] as const) {
+      if (values[field] == null)
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: [field], message: "Required" });
+    }
+    if (
+      values.firstPaymentDate &&
+      values.originationDate &&
+      values.firstPaymentDate <= values.originationDate
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["firstPaymentDate"],
+        message: "First payment must be after origination",
+      });
+    }
+    if (values.endDate && values.firstPaymentDate && values.endDate < values.firstPaymentDate) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["endDate"],
+        message: "End date must be on or after the first payment",
+      });
+    }
+  });
 
 // Type for the combined form values
 export type AssetDetailsFormValues = z.infer<typeof assetDetailsSchema>;
@@ -176,7 +233,7 @@ export function getDefaultDetailsFormValues(
   };
 
   // Read sub_type from metadata (unified field for all asset types)
-  const subType = (metadata?.sub_type as string) ?? null;
+  const subType = (metadata?.sub_type ?? metadata?.liability_type) as string | null;
 
   switch (kind) {
     case AlternativeAssetKind.PROPERTY:
@@ -216,20 +273,49 @@ export function getDefaultDetailsFormValues(
         description: (metadata?.description as string) ?? null,
       };
 
-    case AlternativeAssetKind.LIABILITY:
+    case AlternativeAssetKind.LIABILITY: {
       // For original amount, check both new field (original_amount) and legacy field (purchase_price)
       const origAmount = metadata?.original_amount ?? metadata?.purchase_price;
       // For origination date, check both new field (origination_date) and legacy field (purchase_date)
       const origDate = metadata?.origination_date ?? metadata?.purchase_date;
+      const projection =
+        metadata?.tracking_mode === "manual" ? null : readLoanProjectionMetadata(metadata);
+      const firstPaymentDate = projection ? parseLocalDate(projection.firstPaymentDate) : null;
+      const endDate = projection?.amortizationEndDate
+        ? parseLocalDate(projection.amortizationEndDate)
+        : projection?.paymentCount && firstPaymentDate
+          ? calculateLoanPaymentDate(
+              firstPaymentDate,
+              projection.paymentCount - 1,
+              projection.frequency,
+            )
+          : null;
       return {
         ...base,
         kind: AlternativeAssetKind.LIABILITY,
         liabilityType: subType as LiabilityDetailsFormValues["liabilityType"],
         originalAmount: origAmount ? parseFloat(origAmount as string) : null,
         originationDate: origDate ? parseLocalDate(origDate as string) : null,
-        interestRate: metadata?.interest_rate ? parseFloat(metadata.interest_rate as string) : null,
+        endDate: endDate ? parseLocalDate(formatDateToISO(endDate)) : null,
+        interestRate:
+          projection?.annualRate ??
+          (typeof metadata?.interest_rate === "number"
+            ? metadata.interest_rate
+            : typeof metadata?.interest_rate === "string"
+              ? parseFloat(metadata.interest_rate)
+              : null),
+        automaticLoan: !!projection,
+        renewalMaturity:
+          typeof metadata?.[LOAN_RENEWAL_MATURITY_METADATA_KEY] === "string"
+            ? parseLocalDate(metadata[LOAN_RENEWAL_MATURITY_METADATA_KEY])
+            : null,
+        firstPaymentDate,
+        paymentAmount: projection?.paymentAmount ?? null,
+        paymentFrequency: projection?.frequency,
+        interestMethod: projection?.interestMethod ?? "nominal_periodic",
         linkedAssetId: (metadata?.linked_asset_id as string) ?? null,
       };
+    }
 
     case AlternativeAssetKind.OTHER:
     default:
@@ -293,6 +379,29 @@ export function formValuesToMetadata(values: AssetDetailsFormValues): Record<str
         metadata.origination_date = formatDateToISO(values.originationDate);
       if (values.interestRate != null) metadata.interest_rate = values.interestRate.toString();
       if (values.linkedAssetId) metadata.linked_asset_id = values.linkedAssetId;
+      // An empty value removes the key, switching a manual loan to calculated payments.
+      metadata.tracking_mode = values.automaticLoan ? "" : "manual";
+      if (
+        values.automaticLoan &&
+        values.firstPaymentDate &&
+        values.endDate &&
+        values.paymentFrequency &&
+        values.paymentAmount != null &&
+        values.interestRate != null
+      ) {
+        metadata[LOAN_RENEWAL_MATURITY_METADATA_KEY] = values.renewalMaturity
+          ? formatDateToISO(values.renewalMaturity)
+          : "";
+        metadata[LOAN_PROJECTION_METADATA_KEY] = serializeLoanProjectionMetadata({
+          version: 1,
+          annualRate: values.interestRate,
+          paymentAmount: values.paymentAmount,
+          frequency: values.paymentFrequency,
+          interestMethod: values.interestMethod ?? "nominal_periodic",
+          firstPaymentDate: formatDateToISO(values.firstPaymentDate),
+          amortizationEndDate: formatDateToISO(values.endDate),
+        });
+      }
       break;
 
     case AlternativeAssetKind.OTHER:

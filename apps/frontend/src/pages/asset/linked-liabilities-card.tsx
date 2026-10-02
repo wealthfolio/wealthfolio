@@ -114,7 +114,7 @@ function getLiabilityTypeLabel(
   t: TFunction,
 ): string {
   if (!metadata) return t("asset:linkedLiabilities.liability");
-  const liabilityType = metadata.liability_type as string | undefined;
+  const liabilityType = (metadata.sub_type ?? metadata.liability_type) as string | undefined;
   if (!liabilityType) return t("asset:linkedLiabilities.liability");
   const key = LIABILITY_TYPE_LABEL_KEYS[liabilityType];
   return key ? t(key) : liabilityType;

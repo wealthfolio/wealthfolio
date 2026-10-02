@@ -22,6 +22,9 @@ export const useQuoteMutations = (
       queryClient.invalidateQueries({ queryKey: [QueryKeys.ASSET_DATA, assetId] }),
       queryClient.invalidateQueries({ queryKey: [QueryKeys.QUOTE_HISTORY, assetId] }),
       queryClient.invalidateQueries({ queryKey: [QueryKeys.LATEST_QUOTES] }),
+      queryClient.invalidateQueries({ queryKey: [QueryKeys.ALTERNATIVE_HOLDINGS] }),
+      queryClient.invalidateQueries({ queryKey: [QueryKeys.NET_WORTH] }),
+      queryClient.invalidateQueries({ queryKey: [QueryKeys.NET_WORTH_HISTORY] }),
     ]);
   }, [assetId, queryClient]);
 

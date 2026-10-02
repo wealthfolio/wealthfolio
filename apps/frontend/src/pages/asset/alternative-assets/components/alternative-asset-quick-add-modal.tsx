@@ -1,3 +1,5 @@
+import { initialLoanProjection } from "../lib/loan-schedule";
+import { LoanInterestMethodSelect } from "./loan-interest-method-select";
 import { useState, useMemo, useCallback, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { motion, AnimatePresence } from "motion/react";
@@ -22,8 +24,21 @@ import {
 import { cn } from "@/lib/utils";
 import { useSettingsContext } from "@/lib/settings-provider";
 
-import { METAL_TYPES, LIABILITY_TYPES, WEIGHT_UNITS } from "./alternative-asset-quick-add-schema";
+import {
+  METAL_TYPES,
+  LIABILITY_TYPES,
+  WEIGHT_UNITS,
+  liabilityQuickAddSchema,
+} from "./alternative-asset-quick-add-schema";
 import { useAlternativeAssetMutations } from "../hooks/use-alternative-asset-mutations";
+import { addDays, addMonths } from "date-fns";
+import { LOAN_PROJECTION_METADATA_KEY, serializeLoanProjectionMetadata } from "../lib/loan-events";
+import {
+  calculateLoanEndDate,
+  calculateLoanPayment,
+  calculatePaymentCount,
+} from "../lib/loan-calculator";
+import type { LoanInterestMethod, LoanPaymentFrequency } from "../lib/loan-events";
 import {
   AlternativeAssetKind,
   type CreateAlternativeAssetRequest,
@@ -118,6 +133,12 @@ interface FormData {
   liabilityType?: string;
   hasMortgage?: boolean;
   linkedAssetId?: string;
+  loanTerm?: string;
+  interestRate?: string;
+  paymentFrequency?: LoanPaymentFrequency;
+  interestMethod?: LoanInterestMethod;
+  automaticSchedule?: boolean;
+  firstPaymentDate?: Date;
 }
 
 interface AlternativeAssetQuickAddModalProps {
@@ -161,9 +182,7 @@ export function AlternativeAssetQuickAddModal({
   const baseCurrency = settings?.baseCurrency ?? "USD";
 
   const [step, setStep] = useState<1 | 2>(1);
-  const [hasMortgageChecked, setHasMortgageChecked] = useState(false);
-  const [savedPurchaseDate, setSavedPurchaseDate] = useState<Date | undefined>(undefined);
-  const [savedPropertyName, setSavedPropertyName] = useState<string | undefined>(undefined);
+  const [validationError, setValidationError] = useState<string | null>(null);
   const [formData, setFormData] = useState<FormData>({
     kind: defaultKind || AlternativeAssetKind.PROPERTY,
     name: "",
@@ -172,34 +191,18 @@ export function AlternativeAssetQuickAddModal({
     valueDate: new Date(),
     linkedAssetId: initialLinkedAssetId,
     liabilityType: defaultLiabilityType ?? "mortgage",
+    automaticSchedule: true,
+    paymentFrequency: "monthly",
   });
 
-  const { createMutation } = useAlternativeAssetMutations({
-    onCreateSuccess: (response) => {
-      onAssetCreated?.(response);
-
-      // If mortgage checkbox was checked, chain to liability creation
-      // Don't close the modal - the callback will reopen it for liability
-      if (hasMortgageChecked && onOpenLiabilityQuickAdd) {
-        onOpenChange(false);
-        // Use setTimeout to ensure modal closes before reopening
-        setTimeout(() => {
-          onOpenLiabilityQuickAdd(response.assetId, savedPurchaseDate, savedPropertyName);
-        }, 100);
-      } else {
-        onOpenChange(false);
-      }
-    },
-  });
+  const { createMutation } = useAlternativeAssetMutations();
 
   // Reset form when modal opens
   useEffect(() => {
     if (open) {
       // Skip step 1 if a defaultKind is provided
       setStep(defaultKind ? 2 : 1);
-      setHasMortgageChecked(false);
-      setSavedPurchaseDate(undefined);
-      setSavedPropertyName(undefined);
+      setValidationError(null);
       setFormData({
         kind: defaultKind || AlternativeAssetKind.PROPERTY,
         name: defaultName || "",
@@ -208,6 +211,8 @@ export function AlternativeAssetQuickAddModal({
         valueDate: defaultOriginationDate || new Date(),
         linkedAssetId: initialLinkedAssetId,
         liabilityType: defaultLiabilityType ?? "mortgage",
+        automaticSchedule: true,
+        paymentFrequency: "monthly",
       });
     }
   }, [
@@ -244,14 +249,69 @@ export function AlternativeAssetQuickAddModal({
 
   const canProceed = useMemo(() => {
     if (step === 1) return true;
+    const isLiability = formData.kind === AlternativeAssetKind.LIABILITY;
+    if (isLiability) {
+      const hasBalance = Boolean(formData.currentValue || formData.purchasePrice);
+      const hasRequiredDates = Boolean(formData.purchaseDate || formData.valueDate);
+      const hasAutomaticTerms =
+        !formData.automaticSchedule ||
+        Boolean(formData.purchasePrice && formData.purchaseDate && formData.loanTerm);
+      return formData.name.trim() && hasBalance && hasRequiredDates && hasAutomaticTerms;
+    }
     return formData.name.trim() && formData.currentValue;
-  }, [step, formData.name, formData.currentValue]);
+  }, [
+    step,
+    formData.name,
+    formData.currentValue,
+    formData.kind,
+    formData.purchasePrice,
+    formData.purchaseDate,
+    formData.valueDate,
+    formData.loanTerm,
+    formData.automaticSchedule,
+  ]);
 
+  const [resolvingPayment, setResolvingPayment] = useState(false);
   const handleSubmit = async () => {
-    if (!canProceed) return;
+    if (!canProceed || resolvingPayment || createMutation.isPending) return;
 
     const metadata: Record<string, string> = {};
     const isLiability = formData.kind === AlternativeAssetKind.LIABILITY;
+    const annualRate = formData.interestRate ? parseFloat(formData.interestRate) : 0;
+    let currentValue =
+      isLiability && !formData.currentValue
+        ? (formData.purchasePrice ?? formData.currentValue)
+        : formData.currentValue;
+    let totalPaymentCount = 0;
+    let balanceQuoteDate = formData.valueDate;
+
+    if (isLiability) {
+      const validation = liabilityQuickAddSchema.safeParse({
+        originalAmount: formData.automaticSchedule
+          ? formData.purchasePrice
+          : formData.purchasePrice || formData.currentValue,
+        currentBalance: formData.currentValue || undefined,
+        originationDate: formData.purchaseDate || formData.valueDate,
+        balanceDate: formData.valueDate,
+        loanTerm: formData.loanTerm || undefined,
+        interestRate: formData.interestRate || undefined,
+      });
+      if (!validation.success) {
+        const issue = validation.error.issues[0]?.message;
+        setValidationError(
+          issue?.startsWith("asset:") ? issue : "asset:quickAdd.validation.invalid",
+        );
+        return;
+      }
+      if (
+        formData.automaticSchedule &&
+        (!formData.purchasePrice || !formData.purchaseDate || !formData.loanTerm)
+      ) {
+        setValidationError("asset:quickAdd.validation.invalid");
+        return;
+      }
+    }
+    setValidationError(null);
 
     // Use unified 'sub_type' field for all asset types
     if (formData.kind === AlternativeAssetKind.PRECIOUS_METAL) {
@@ -261,31 +321,99 @@ export function AlternativeAssetQuickAddModal({
     }
 
     if (isLiability) {
-      if (formData.liabilityType) metadata.sub_type = formData.liabilityType;
-      // For liabilities, store "Original Amount" as original_amount in metadata
+      if (!formData.automaticSchedule) metadata.tracking_mode = "manual";
+      metadata.sub_type = formData.liabilityType ?? "mortgage";
       if (formData.purchasePrice) metadata.original_amount = formData.purchasePrice;
-      // Store "Origination Date" as origination_date in metadata
-      if (formData.purchaseDate) metadata.origination_date = formatDateToISO(formData.purchaseDate);
+      if (formData.purchaseDate && formData.automaticSchedule) {
+        metadata.origination_date = formatDateToISO(formData.purchaseDate);
+      }
+      if (formData.interestRate) metadata.interest_rate = formData.interestRate;
+      if (formData.automaticSchedule && formData.loanTerm && formData.purchaseDate) {
+        const frequency = formData.paymentFrequency ?? "monthly";
+        const termYears = parseFloat(formData.loanTerm);
+        totalPaymentCount = calculatePaymentCount(termYears, frequency) ?? 0;
+        if (totalPaymentCount === 0) {
+          setValidationError("asset:quickAdd.validation.invalid");
+          return;
+        }
+        const firstPaymentDate =
+          formData.firstPaymentDate ??
+          (frequency === "monthly"
+            ? addMonths(formData.purchaseDate, 1)
+            : addDays(formData.purchaseDate, 14));
+        if (firstPaymentDate <= formData.purchaseDate) {
+          setValidationError("asset:quickAdd.validation.invalid");
+          return;
+        }
+        const computedEndDate = calculateLoanEndDate(
+          firstPaymentDate,
+          totalPaymentCount,
+          frequency,
+        );
+        if (!computedEndDate) return;
+        // An omitted balance is not a confirmed estimate. Anchor at the original
+        // principal; shared core derives today's balance without storing payments.
+        if (!formData.currentValue.trim()) {
+          currentValue = formData.purchasePrice!;
+          balanceQuoteDate = formData.purchaseDate;
+        }
+        const effectivePayment = calculateLoanPayment({
+          principal: parseFloat(formData.purchasePrice!),
+          annualRate,
+          paymentCount: totalPaymentCount,
+          frequency,
+          interestMethod: formData.interestMethod,
+        });
+        if (effectivePayment === null) {
+          setValidationError("asset:quickAdd.validation.invalid");
+          return;
+        }
+        setResolvingPayment(true);
+        try {
+          const projection = await initialLoanProjection(metadata, {
+            version: 1,
+            annualRate,
+            paymentAmount: effectivePayment,
+            frequency,
+            interestMethod: formData.interestMethod ?? "nominal_periodic",
+            firstPaymentDate: formatDateToISO(firstPaymentDate),
+            paymentCount: totalPaymentCount,
+            amortizationEndDate: formatDateToISO(computedEndDate),
+          });
+          metadata[LOAN_PROJECTION_METADATA_KEY] = serializeLoanProjectionMetadata(projection);
+        } catch {
+          setValidationError("asset:quickAdd.validation.invalid");
+          return;
+        } finally {
+          setResolvingPayment(false);
+        }
+      }
     }
 
     const request: CreateAlternativeAssetRequest = {
       kind: kindToApiKind[formData.kind],
       name: formData.name,
       currency: formData.currency,
-      currentValue: formData.currentValue,
-      valueDate: formatDateToISO(formData.valueDate),
-      // Pass purchasePrice/purchaseDate for all asset types (including liabilities) to create historical quotes
-      purchasePrice: formData.purchasePrice || undefined,
-      purchaseDate: formData.purchaseDate ? formatDateToISO(formData.purchaseDate) : undefined,
+      currentValue,
+      valueDate: formatDateToISO(balanceQuoteDate),
+      // Only entered opening/current balances create liability quotes.
+      // Historical and future instalments are calculated from metadata.
+      purchasePrice: !isLiability ? formData.purchasePrice || undefined : undefined,
+      purchaseDate:
+        !isLiability && formData.purchaseDate ? formatDateToISO(formData.purchaseDate) : undefined,
       metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
       linkedAssetId: formData.linkedAssetId || undefined,
     };
 
-    setHasMortgageChecked(formData.hasMortgage ?? false);
-    setSavedPurchaseDate(formData.purchaseDate);
-    setSavedPropertyName(formData.name);
+    const response = await createMutation.mutateAsync(request);
 
-    await createMutation.mutateAsync(request);
+    onAssetCreated?.(response);
+    onOpenChange(false);
+    if (formData.hasMortgage && onOpenLiabilityQuickAdd) {
+      setTimeout(() => {
+        onOpenLiabilityQuickAdd(response.assetId, formData.purchaseDate, formData.name);
+      }, 100);
+    }
   };
 
   // Build linkable assets options for liability form (only actual assets, no "none" option)
@@ -319,16 +447,16 @@ export function AlternativeAssetQuickAddModal({
     }
   };
 
-  const isSubmitting = createMutation.isPending;
+  const isSubmitting = createMutation.isPending || resolvingPayment;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="flex flex-col gap-0 overflow-hidden p-0 sm:max-w-[560px]"
+        className="flex max-h-[90dvh] flex-col gap-0 overflow-hidden p-0 sm:max-w-[560px]"
         mobileClassName="flex h-[90vh] flex-col"
       >
         {/* Header with progress indicator */}
-        <DialogHeader className="border-b px-6 py-4">
+        <DialogHeader className="shrink-0 border-b px-6 py-4">
           <div className="flex flex-col items-center space-y-2 sm:flex-row sm:items-center sm:justify-between sm:space-y-0">
             <DialogTitle className="text-foreground text-lg font-semibold">
               {step === 1
@@ -362,7 +490,7 @@ export function AlternativeAssetQuickAddModal({
         </DialogHeader>
 
         {/* Content area with animations */}
-        <div className="relative flex-1 overflow-y-auto">
+        <div className="relative min-h-0 flex-1 overflow-y-auto">
           <AnimatePresence mode="wait">
             {step === 1 ? (
               <motion.div
@@ -530,10 +658,154 @@ export function AlternativeAssetQuickAddModal({
                   />
                 </div>
 
+                {/* For liabilities: Original Amount + Origination Date are required and come first */}
+                {formData.kind === AlternativeAssetKind.LIABILITY && (
+                  <>
+                    <div className="flex items-center gap-3 rounded-md border p-3">
+                      <Checkbox
+                        id="automaticSchedule"
+                        checked={formData.automaticSchedule !== false}
+                        onCheckedChange={(checked) =>
+                          updateFormData("automaticSchedule", checked === true)
+                        }
+                      />
+                      <div>
+                        <Label
+                          htmlFor="automaticSchedule"
+                          className="text-foreground cursor-pointer text-sm font-medium"
+                        >
+                          {t("asset:loanActions.automatic_schedule")}
+                        </Label>
+                        <p className="text-muted-foreground text-xs">
+                          {t("asset:loanActions.automatic_schedule_description")}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label className="text-foreground text-sm font-medium">
+                          {t("asset:quickAdd.original_amount")}
+                        </Label>
+                        <MoneyInput
+                          value={formData.purchasePrice || ""}
+                          onValueChange={(value) => updateFormData("purchasePrice", value)}
+                          className="h-11"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-foreground text-sm font-medium">
+                          {t("asset:quickAdd.origination_date")}
+                        </Label>
+                        <DatePickerInput
+                          value={formData.purchaseDate}
+                          onChange={(date) => date && updateFormData("purchaseDate", date)}
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label className="text-foreground text-sm font-medium">
+                          {t("asset:quickAdd.interest_rate")}
+                          <span className="text-muted-foreground ml-1 text-xs font-normal">
+                            {t("asset:quickAdd.optional")}
+                          </span>
+                        </Label>
+                        <div className="relative">
+                          <QuantityInput
+                            value={formData.interestRate || ""}
+                            onValueChange={(v) => updateFormData("interestRate", v)}
+                            placeholder="0"
+                            className="h-11 pr-8"
+                          />
+                          <span className="text-muted-foreground pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm">
+                            %
+                          </span>
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-foreground text-sm font-medium">
+                          {t("asset:quickAdd.loan_term")}
+                          <span className="text-muted-foreground ml-1 text-xs font-normal">
+                            {t("asset:quickAdd.optional")}
+                          </span>
+                        </Label>
+                        <div className="relative">
+                          <QuantityInput
+                            value={formData.loanTerm || ""}
+                            onValueChange={(v) => updateFormData("loanTerm", v)}
+                            placeholder="0"
+                            className="h-11 pr-12"
+                          />
+                          <span className="text-muted-foreground pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm">
+                            {t("asset:quickAdd.years")}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>{t("asset:loanInterest.method")}</Label>
+                      <LoanInterestMethodSelect
+                        value={formData.interestMethod}
+                        onChange={(value) => updateFormData("interestMethod", value)}
+                      />
+                      <p className="text-muted-foreground text-xs">
+                        {t("asset:loanInterest.help")}
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-foreground text-sm font-medium">
+                        {t("asset:loanActions.payment_frequency")}
+                      </Label>
+                      <ResponsiveSelect
+                        value={formData.paymentFrequency || "monthly"}
+                        onValueChange={(value) =>
+                          updateFormData("paymentFrequency", value as LoanPaymentFrequency)
+                        }
+                        options={[
+                          {
+                            value: "monthly",
+                            label: t("asset:loanActions.monthly"),
+                          },
+                          {
+                            value: "biweekly",
+                            label: t("asset:loanActions.biweekly"),
+                          },
+                          {
+                            value: "accelerated_biweekly",
+                            label: t("asset:loanActions.accelerated_biweekly"),
+                          },
+                        ]}
+                        sheetTitle={t("asset:loanActions.payment_frequency")}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>{t("asset:loanActions.first_payment_date")}</Label>
+                      <DatePickerInput
+                        value={
+                          formData.firstPaymentDate ??
+                          (formData.purchaseDate
+                            ? formData.paymentFrequency === "monthly" || !formData.paymentFrequency
+                              ? addMonths(formData.purchaseDate, 1)
+                              : addDays(formData.purchaseDate, 14)
+                            : undefined)
+                        }
+                        onChange={(date) => updateFormData("firstPaymentDate", date)}
+                      />
+                    </div>
+                  </>
+                )}
+
                 {/* Value and Date row */}
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label className="text-foreground text-sm font-medium">{getValueLabel()}</Label>
+                    <Label className="text-foreground text-sm font-medium">
+                      {getValueLabel()}
+                      {formData.kind === AlternativeAssetKind.LIABILITY && (
+                        <span className="text-muted-foreground ml-1 text-xs font-normal">
+                          {t("asset:quickAdd.optional")}
+                        </span>
+                      )}
+                    </Label>
                     <MoneyInput
                       value={formData.currentValue}
                       onValueChange={(value) => updateFormData("currentValue", value)}
@@ -545,6 +817,11 @@ export function AlternativeAssetQuickAddModal({
                       {formData.kind === AlternativeAssetKind.LIABILITY
                         ? t("asset:quickAdd.balance_date")
                         : t("asset:quickAdd.value_date")}
+                      {formData.kind === AlternativeAssetKind.LIABILITY && (
+                        <span className="text-muted-foreground ml-1 text-xs font-normal">
+                          {t("asset:quickAdd.optional")}
+                        </span>
+                      )}
                     </Label>
                     <DatePickerInput
                       value={formData.valueDate}
@@ -553,43 +830,45 @@ export function AlternativeAssetQuickAddModal({
                   </div>
                 </div>
 
-                {/* Purchase/Original Amount and Date (optional, for gain/paydown calculation) */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label className="text-foreground text-sm font-medium">
-                      {formData.kind === AlternativeAssetKind.LIABILITY
-                        ? t("asset:quickAdd.original_amount")
-                        : t("asset:quickAdd.purchase_price")}
-                      <span className="text-muted-foreground ml-1 text-xs font-normal">
-                        {t("asset:quickAdd.optional")}
-                      </span>
-                    </Label>
-                    <MoneyInput
-                      value={formData.purchasePrice || ""}
-                      onValueChange={(value) => updateFormData("purchasePrice", value)}
-                      className="h-11"
-                    />
-                    <p className="text-muted-foreground text-xs">
-                      {formData.kind === AlternativeAssetKind.LIABILITY
-                        ? t("asset:quickAdd.track_debt_paydown")
-                        : t("asset:quickAdd.calculate_gain")}
-                    </p>
+                {/* Purchase/Original Amount and Date — non-liabilities only (optional) */}
+                {formData.kind !== AlternativeAssetKind.LIABILITY && (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label className="text-foreground text-sm font-medium">
+                        {t("asset:quickAdd.purchase_price")}
+                        <span className="text-muted-foreground ml-1 text-xs font-normal">
+                          {t("asset:quickAdd.optional")}
+                        </span>
+                      </Label>
+                      <MoneyInput
+                        value={formData.purchasePrice || ""}
+                        onValueChange={(value) => updateFormData("purchasePrice", value)}
+                        className="h-11"
+                      />
+                      <p className="text-muted-foreground text-xs">
+                        {t("asset:quickAdd.calculate_gain")}
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-foreground text-sm font-medium">
+                        {t("asset:quickAdd.purchase_date")}
+                        <span className="text-muted-foreground ml-1 text-xs font-normal">
+                          {t("asset:quickAdd.optional")}
+                        </span>
+                      </Label>
+                      <DatePickerInput
+                        value={formData.purchaseDate}
+                        onChange={(date) => date && updateFormData("purchaseDate", date)}
+                      />
+                    </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label className="text-foreground text-sm font-medium">
-                      {formData.kind === AlternativeAssetKind.LIABILITY
-                        ? t("asset:quickAdd.origination_date")
-                        : t("asset:quickAdd.purchase_date")}
-                      <span className="text-muted-foreground ml-1 text-xs font-normal">
-                        {t("asset:quickAdd.optional")}
-                      </span>
-                    </Label>
-                    <DatePickerInput
-                      value={formData.purchaseDate}
-                      onChange={(date) => date && updateFormData("purchaseDate", date)}
-                    />
-                  </div>
-                </div>
+                )}
+
+                {validationError && (
+                  <p className="text-destructive text-sm" role="alert">
+                    {t(validationError)}
+                  </p>
+                )}
 
                 {/* Mortgage checkbox for property */}
                 {formData.kind === AlternativeAssetKind.PROPERTY && onOpenLiabilityQuickAdd && (
@@ -631,7 +910,7 @@ export function AlternativeAssetQuickAddModal({
         </div>
 
         {/* Footer with navigation */}
-        <div className="mt-auto border-t px-6 py-4">
+        <div className="mt-auto shrink-0 border-t px-6 py-4">
           <div className="flex w-full gap-3">
             {step === 2 && allowKindChange && (
               <Button

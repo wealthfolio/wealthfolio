@@ -884,9 +884,16 @@ export const AssetProfilePage = () => {
   const altToggleItems = useMemo(
     () => [
       { value: "overview" as AssetTab, label: t("asset:profile.overview") },
-      { value: "history" as AssetTab, label: t("asset:profile.history") },
+      {
+        value: "history" as AssetTab,
+        label: t(
+          altHolding?.kind.toLowerCase() === "liability"
+            ? "asset:loanOverview.history"
+            : "asset:profile.history",
+        ),
+      },
     ],
-    [t],
+    [t, altHolding?.kind],
   );
 
   // Content for each sub-tab. Shared between desktop and mobile renderers.
@@ -1107,6 +1114,7 @@ export const AssetProfilePage = () => {
     assetProfile: assetProfile,
     allHoldings: allAltHoldings,
     onNavigateBack: handleBack,
+    quoteHistory: quoteHistory ?? [],
   });
 
   if (isLoading)
@@ -1181,7 +1189,12 @@ export const AssetProfilePage = () => {
                   ] satisfies ActionPaletteGroup[]
                 }
                 trigger={
-                  <Button variant="outline" size="icon" className="h-9 w-9">
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-9 w-9"
+                    aria-label={t("common:actions")}
+                  >
                     <Icons.DotsThreeVertical className="h-5 w-5" weight="fill" />
                   </Button>
                 }
@@ -1323,15 +1336,56 @@ export const AssetProfilePage = () => {
                   : (assetProfile?.displayCode ?? assetProfile?.name ?? assetId)
               }
               groups={
-                isAltAsset && altHolding
+                isAltAsset && altHolding?.kind.toLowerCase() === "liability"
                   ? ([
                       {
-                        title: t("asset:profile.valuation"),
+                        title: t("asset:valueHistory.balance"),
                         items: [
                           {
-                            icon: Icons.DollarSign,
-                            label: t("asset:profile.update_value"),
-                            onClick: () => altAssetActions.openUpdateValuation(),
+                            icon: Icons.Check,
+                            label: t("asset:loanActions.confirm_balance"),
+                            onClick: altAssetActions.loanActions.confirmBalance,
+                          },
+                          {
+                            icon: Icons.HandCoins,
+                            label: t("asset:loanActions.extra_repayment"),
+                            onClick: altAssetActions.loanActions.extraPayment,
+                          },
+                        ],
+                      },
+                      {
+                        title: t(
+                          altAssetActions.loanAvailability.mortgage
+                            ? "asset:loanOverview.mortgage_details"
+                            : "asset:loanOverview.loan_details",
+                        ),
+                        items: [
+                          ...(altAssetActions.loanAvailability.renew
+                            ? [
+                                {
+                                  icon: Icons.RefreshCw,
+                                  label: t(
+                                    altAssetActions.loanAvailability.mortgage
+                                      ? "asset:loanOverview.renew_mortgage"
+                                      : "asset:loanActions.renew_loan",
+                                  ),
+                                  onClick: altAssetActions.loanActions.renew,
+                                },
+                              ]
+                            : []),
+                          ...(altAssetActions.loanAvailability.recalculate
+                            ? [
+                                {
+                                  icon: Icons.Percent,
+                                  label: t("asset:loanActions.recalculate_schedule"),
+                                  onClick: altAssetActions.loanActions.recalculate,
+                                },
+                              ]
+                            : []),
+                          {
+                            icon: Icons.Pencil,
+                            label: t("asset:loanActions.correct_terms"),
+                            onClick: () => altAssetActions.openEditDetails(),
                           },
                         ],
                       },
@@ -1339,19 +1393,10 @@ export const AssetProfilePage = () => {
                         title: t("asset:profile.manage"),
                         items: [
                           {
-                            icon: Icons.Pencil,
-                            label: t("asset:profile.edit_details"),
-                            onClick: () => altAssetActions.openEditDetails(),
+                            icon: Icons.Lock,
+                            label: t("asset:loanActions.close_loan"),
+                            onClick: altAssetActions.loanActions.close,
                           },
-                          ...(altAssetActions.isLinkableAsset
-                            ? [
-                                {
-                                  icon: Icons.Link,
-                                  label: t("asset:profile.add_liability"),
-                                  onClick: () => altAssetActions.openAddLiability(),
-                                },
-                              ]
-                            : []),
                           {
                             icon: Icons.Trash,
                             label: t("asset:profile.delete"),
@@ -1360,90 +1405,134 @@ export const AssetProfilePage = () => {
                         ],
                       },
                     ] satisfies ActionPaletteGroup[])
-                  : ([
-                      {
-                        title: t("asset:profile.record_transaction"),
-                        items: [
-                          {
-                            icon: Icons.TrendingUp,
-                            label: t("asset:profile.buy"),
-                            onClick: () =>
-                              navigate(
-                                `/activities/manage?assetId=${encodeURIComponent(assetId)}&type=BUY`,
-                              ),
-                          },
-                          {
-                            icon: Icons.TrendingDown,
-                            label: t("asset:profile.sell"),
-                            onClick: () =>
-                              navigate(
-                                `/activities/manage?assetId=${encodeURIComponent(assetId)}&type=SELL`,
-                              ),
-                          },
-                          {
-                            icon: Icons.Coins,
-                            label: t("asset:profile.dividend"),
-                            onClick: () =>
-                              navigate(
-                                `/activities/manage?assetId=${encodeURIComponent(assetId)}&type=DIVIDEND`,
-                              ),
-                          },
-                          {
-                            icon: Icons.Ellipsis,
-                            label: t("asset:profile.other"),
-                            onClick: () =>
-                              navigate(`/activities/manage?assetId=${encodeURIComponent(assetId)}`),
-                          },
-                          ...(isExpiredOption
-                            ? [
-                                {
-                                  icon: Icons.XCircle,
-                                  label: t("asset:profile.confirm_expiry"),
-                                  onClick: () => setConfirmExpiryOpen(true),
-                                },
-                              ]
-                            : []),
-                        ],
-                      },
-                      {
-                        title: t("asset:profile.manage"),
-                        items: [
-                          {
-                            icon: Icons.Download,
-                            label: t("common:component.update_quotes"),
-                            onClick: handleUpdateQuotes,
-                          },
-                          {
-                            icon: Icons.Refresh,
-                            label: t("asset:profile.refresh_history"),
-                            onClick: handleRefreshQuotesWithConfirm,
-                          },
-                          ...(!isManualPricingMode
-                            ? [
-                                {
-                                  icon: Icons.Refresh,
-                                  label: t("asset:resetDialog.title"),
-                                  onClick: () => setResetConfirmOpen(true),
-                                  variant: "destructive" as const,
-                                },
-                              ]
-                            : []),
-                          {
-                            icon: Icons.Pencil,
-                            label: t("asset:profile.edit"),
-                            onClick: () => setEditSheetOpen(true),
-                          },
-                          {
-                            icon: Icons.ImageUp,
-                            label: t("asset:logo.change"),
-                            onClick: () => setLogoDialogOpen(true),
-                          },
-                        ],
-                      },
-                    ] satisfies ActionPaletteGroup[])
+                  : isAltAsset && altHolding
+                    ? ([
+                        {
+                          title: t("asset:profile.valuation"),
+                          items: [
+                            {
+                              icon: Icons.DollarSign,
+                              label: t("asset:profile.update_value"),
+                              onClick: () => altAssetActions.openUpdateValuation(),
+                            },
+                          ],
+                        },
+                        {
+                          title: t("asset:profile.manage"),
+                          items: [
+                            {
+                              icon: Icons.Pencil,
+                              label: t("asset:profile.edit_details"),
+                              onClick: () => altAssetActions.openEditDetails(),
+                            },
+                            ...(altAssetActions.isLinkableAsset
+                              ? [
+                                  {
+                                    icon: Icons.Link,
+                                    label: t("asset:profile.add_liability"),
+                                    onClick: () => altAssetActions.openAddLiability(),
+                                  },
+                                ]
+                              : []),
+                            {
+                              icon: Icons.Trash,
+                              label: t("asset:profile.delete"),
+                              onClick: () => altAssetActions.openDeleteConfirm(),
+                            },
+                          ],
+                        },
+                      ] satisfies ActionPaletteGroup[])
+                    : ([
+                        {
+                          title: t("asset:profile.record_transaction"),
+                          items: [
+                            {
+                              icon: Icons.TrendingUp,
+                              label: t("asset:profile.buy"),
+                              onClick: () =>
+                                navigate(
+                                  `/activities/manage?assetId=${encodeURIComponent(assetId)}&type=BUY`,
+                                ),
+                            },
+                            {
+                              icon: Icons.TrendingDown,
+                              label: t("asset:profile.sell"),
+                              onClick: () =>
+                                navigate(
+                                  `/activities/manage?assetId=${encodeURIComponent(assetId)}&type=SELL`,
+                                ),
+                            },
+                            {
+                              icon: Icons.Coins,
+                              label: t("asset:profile.dividend"),
+                              onClick: () =>
+                                navigate(
+                                  `/activities/manage?assetId=${encodeURIComponent(assetId)}&type=DIVIDEND`,
+                                ),
+                            },
+                            {
+                              icon: Icons.Ellipsis,
+                              label: t("asset:profile.other"),
+                              onClick: () =>
+                                navigate(
+                                  `/activities/manage?assetId=${encodeURIComponent(assetId)}`,
+                                ),
+                            },
+                            ...(isExpiredOption
+                              ? [
+                                  {
+                                    icon: Icons.XCircle,
+                                    label: t("asset:profile.confirm_expiry"),
+                                    onClick: () => setConfirmExpiryOpen(true),
+                                  },
+                                ]
+                              : []),
+                          ],
+                        },
+                        {
+                          title: t("asset:profile.manage"),
+                          items: [
+                            {
+                              icon: Icons.Download,
+                              label: t("common:component.update_quotes"),
+                              onClick: handleUpdateQuotes,
+                            },
+                            {
+                              icon: Icons.Refresh,
+                              label: t("asset:profile.refresh_history"),
+                              onClick: handleRefreshQuotesWithConfirm,
+                            },
+                            ...(!isManualPricingMode
+                              ? [
+                                  {
+                                    icon: Icons.Refresh,
+                                    label: t("asset:resetDialog.title"),
+                                    onClick: () => setResetConfirmOpen(true),
+                                    variant: "destructive" as const,
+                                  },
+                                ]
+                              : []),
+                            {
+                              icon: Icons.Pencil,
+                              label: t("asset:profile.edit"),
+                              onClick: () => setEditSheetOpen(true),
+                            },
+                            {
+                              icon: Icons.ImageUp,
+                              label: t("asset:logo.change"),
+                              onClick: () => setLogoDialogOpen(true),
+                            },
+                          ],
+                        },
+                      ] satisfies ActionPaletteGroup[])
               }
               trigger={
-                <Button variant="outline" size="icon" className="h-9 w-9">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-9 w-9"
+                  aria-label={t("common:actions")}
+                >
                   <Icons.DotsThreeVertical className="h-5 w-5" weight="fill" />
                 </Button>
               }
@@ -1481,7 +1570,12 @@ export const AssetProfilePage = () => {
             </h1>
             <p className="text-muted-foreground flex items-center gap-1.5 text-xs leading-tight md:text-sm">
               {isAltAsset && altHolding ? (
-                getAlternativeAssetKindLabel(altHolding.kind, t)
+                (altHolding.metadata?.sub_type ?? altHolding.metadata?.liability_type) ===
+                "mortgage" ? (
+                  t("asset:altContent.liabilityType.mortgage")
+                ) : (
+                  getAlternativeAssetKindLabel(altHolding.kind, t)
+                )
               ) : (
                 <>
                   <span className="flex items-center">
@@ -1543,6 +1637,8 @@ export const AssetProfilePage = () => {
                   name: t("asset:profile.overview"),
                   content: (
                     <AlternativeAssetContent
+                      loanActions={altAssetActions.loanActions}
+                      onEditDetails={altAssetActions.openEditDetails}
                       assetId={assetId}
                       assetProfile={assetProfile}
                       holding={altHolding}
@@ -1553,9 +1649,15 @@ export const AssetProfilePage = () => {
                   ),
                 },
                 {
-                  name: t("asset:profile.history"),
+                  name: t(
+                    altHolding?.kind.toLowerCase() === "liability"
+                      ? "asset:loanOverview.history"
+                      : "asset:profile.history",
+                  ),
                   content: (
                     <AlternativeAssetContent
+                      loanActions={altAssetActions.loanActions}
+                      onEditDetails={altAssetActions.openEditDetails}
                       assetId={assetId}
                       assetProfile={assetProfile}
                       holding={altHolding}
@@ -1579,6 +1681,8 @@ export const AssetProfilePage = () => {
             <Tabs value={activeTab} className="space-y-4">
               <TabsContent value="overview" className="space-y-4">
                 <AlternativeAssetContent
+                  loanActions={altAssetActions.loanActions}
+                  onEditDetails={altAssetActions.openEditDetails}
                   assetId={assetId}
                   assetProfile={assetProfile}
                   holding={altHolding}
@@ -1589,6 +1693,8 @@ export const AssetProfilePage = () => {
               </TabsContent>
               <TabsContent value="history" className="pt-6">
                 <AlternativeAssetContent
+                  loanActions={altAssetActions.loanActions}
+                  onEditDetails={altAssetActions.openEditDetails}
                   assetId={assetId}
                   assetProfile={assetProfile}
                   holding={altHolding}

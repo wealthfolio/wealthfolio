@@ -190,6 +190,7 @@ import { EyeIcon } from "@phosphor-icons/react/dist/csr/Eye";
 import { EyeSlashIcon } from "@phosphor-icons/react/dist/csr/EyeSlash";
 import { GarageIcon } from "@phosphor-icons/react/dist/csr/Garage";
 import { HouseIcon } from "@phosphor-icons/react/dist/csr/House";
+import { LightningIcon } from "@phosphor-icons/react/dist/csr/Lightning";
 import { PuzzlePieceIcon } from "@phosphor-icons/react/dist/csr/PuzzlePiece";
 import { ReceiptIcon } from "@phosphor-icons/react/dist/csr/Receipt";
 import { SketchLogoIcon } from "@phosphor-icons/react/dist/csr/SketchLogo";
@@ -777,6 +778,9 @@ const IconsInternal = {
   OtherAssetDuotone: ({ size, className, style, color }: IconProps) => (
     <CubeIcon size={size} weight="duotone" className={className} style={style} color={color} />
   ),
+  LightningDuotone: ({ size, className, style, color }: IconProps) => (
+    <LightningIcon size={size} weight="duotone" className={className} style={style} color={color} />
+  ),
   // Spending taxonomy icons (referenced by category seed data; keys must match
   // the strings stored in `taxonomy_categories.icon`).
   Award: Award,
@@ -1004,6 +1008,7 @@ export type IconName =
   | "PreciousDuotone"
   | "LiabilityDuotone"
   | "OtherAssetDuotone"
+  | "LightningDuotone"
   // Spending taxonomy icons
   | "Award"
   | "Banknote"
