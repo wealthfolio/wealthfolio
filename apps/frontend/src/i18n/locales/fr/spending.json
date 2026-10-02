@@ -51,6 +51,12 @@
     "noCategoriesFound": "Aucune catégorie trouvée.",
     "clearCategory": "Effacer la catégorie"
   },
+  "activityTypes": {
+    "charge": "Dépense",
+    "interestCharge": "Intérêts débiteurs",
+    "refundCredit": "Remboursement / Crédit",
+    "reimbursementRefund": "Remboursement"
+  },
   "rules": {
     "editTitle": "Modifier la règle",
     "addTitle": "Ajouter une règle",

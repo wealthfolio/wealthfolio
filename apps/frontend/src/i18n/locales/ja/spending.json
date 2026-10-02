@@ -50,6 +50,12 @@
     "noCategoriesFound": "カテゴリが見つかりません。",
     "clearCategory": "カテゴリをクリア"
   },
+  "activityTypes": {
+    "charge": "カード利用",
+    "interestCharge": "支払利息",
+    "refundCredit": "返金 / クレジット",
+    "reimbursementRefund": "払い戻し / 返金"
+  },
   "rules": {
     "editTitle": "ルールを編集",
     "addTitle": "ルールを追加",

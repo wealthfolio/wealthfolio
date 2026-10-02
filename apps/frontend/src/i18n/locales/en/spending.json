@@ -50,6 +50,12 @@
     "noCategoriesFound": "No categories found.",
     "clearCategory": "Clear category"
   },
+  "activityTypes": {
+    "charge": "Charge",
+    "interestCharge": "Interest Charge",
+    "refundCredit": "Refund / Credit",
+    "reimbursementRefund": "Reimbursement / refund"
+  },
   "rules": {
     "editTitle": "Edit Rule",
     "addTitle": "Add Rule",

@@ -50,6 +50,12 @@
     "noCategoriesFound": "Keine Kategorien gefunden.",
     "clearCategory": "Kategorie entfernen"
   },
+  "activityTypes": {
+    "charge": "Belastung",
+    "interestCharge": "Sollzinsen",
+    "refundCredit": "Erstattung / Gutschrift",
+    "reimbursementRefund": "Kostenerstattung / Rückerstattung"
+  },
   "rules": {
     "editTitle": "Regel bearbeiten",
     "addTitle": "Regel hinzufügen",

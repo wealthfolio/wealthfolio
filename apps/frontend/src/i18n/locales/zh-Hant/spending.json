@@ -50,6 +50,12 @@
     "noCategoriesFound": "找不到類別。",
     "clearCategory": "清除類別"
   },
+  "activityTypes": {
+    "charge": "消費",
+    "interestCharge": "利息費用",
+    "refundCredit": "退款／回饋",
+    "reimbursementRefund": "費用補償／退款"
+  },
   "rules": {
     "editTitle": "編輯規則",
     "addTitle": "新增規則",

@@ -51,6 +51,12 @@
     "noCategoriesFound": "Nenhuma categoria encontrada.",
     "clearCategory": "Remover categoria"
   },
+  "activityTypes": {
+    "charge": "Cobrança",
+    "interestCharge": "Juros cobrados",
+    "refundCredit": "Estorno / Crédito",
+    "reimbursementRefund": "Reembolso / devolução"
+  },
   "rules": {
     "editTitle": "Editar regra",
     "addTitle": "Adicionar regra",

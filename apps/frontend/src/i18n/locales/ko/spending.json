@@ -50,6 +50,12 @@
     "noCategoriesFound": "카테고리를 찾을 수 없습니다.",
     "clearCategory": "카테고리 지우기"
   },
+  "activityTypes": {
+    "charge": "카드 사용",
+    "interestCharge": "이자 비용",
+    "refundCredit": "환급 / 크레딧",
+    "reimbursementRefund": "환급 / 환불"
+  },
   "rules": {
     "editTitle": "규칙 수정",
     "addTitle": "규칙 추가",

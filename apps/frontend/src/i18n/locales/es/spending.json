@@ -51,6 +51,12 @@
     "noCategoriesFound": "No se encontraron categorías.",
     "clearCategory": "Quitar categoría"
   },
+  "activityTypes": {
+    "charge": "Cargo",
+    "interestCharge": "Cargo por intereses",
+    "refundCredit": "Reembolso / Abono",
+    "reimbursementRefund": "Reembolso / devolución"
+  },
   "rules": {
     "editTitle": "Editar regla",
     "addTitle": "Añadir regla",

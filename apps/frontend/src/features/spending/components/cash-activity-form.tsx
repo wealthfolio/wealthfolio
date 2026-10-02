@@ -292,6 +292,7 @@ export function CashActivityForm({
       activityTypeOptions.map((type) => ({
         type,
         label: getCashActivityLabel(
+          t,
           type,
           selectedAccount?.accountType,
           type === "CREDIT" && !isCreditCardAccountType(selectedAccount?.accountType)
@@ -586,12 +587,13 @@ export function CashActivityForm({
                                   </SelectTrigger>
                                 </FormControl>
                                 <SelectContent>
-                                  {activityTypeOptions.map((t) => (
-                                    <SelectItem key={t} value={t}>
+                                  {activityTypeOptions.map((type) => (
+                                    <SelectItem key={type} value={type}>
                                       {getCashActivityLabel(
                                         t,
+                                        type,
                                         selectedAccount?.accountType,
-                                        t === "CREDIT" &&
+                                        type === "CREDIT" &&
                                           !isCreditCardAccountType(selectedAccount?.accountType)
                                           ? "REIMBURSEMENT"
                                           : undefined,

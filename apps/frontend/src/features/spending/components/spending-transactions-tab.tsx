@@ -15,6 +15,7 @@ import { useTranslation } from "react-i18next";
 import type { DateRange } from "react-day-picker";
 
 import { createActivity, deleteActivity, updateActivity } from "@/adapters";
+import { localizeActivityTypeName } from "@/lib/activity-utils";
 import { generateId } from "@/lib/id";
 import { useAccounts } from "@/hooks/use-accounts";
 import { useIsMobileViewport } from "@/hooks/use-platform";
@@ -59,7 +60,6 @@ import { TransactionsFilterBar, type FilterOption } from "./transactions-filter-
 import type { QuickCategorizeScope } from "./quick-categorize-popover";
 import {
   CASH_ACTIVITY_TYPES,
-  CASH_ACTIVITY_TYPE_LABELS,
   getEffectiveCashActivityType,
   isCreditCardAccountType,
   isSpendingAccountType,
@@ -867,11 +867,11 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
 
     const typeOptions = useMemo<FilterOption[]>(
       () =>
-        CASH_ACTIVITY_TYPES.map((t) => ({
-          value: t,
-          label: CASH_ACTIVITY_TYPE_LABELS[t],
+        CASH_ACTIVITY_TYPES.map((type) => ({
+          value: type,
+          label: localizeActivityTypeName(t, type),
         })),
-      [],
+      [t],
     );
     const accountOptions = useMemo<FilterOption[]>(
       () => spendingAccounts.map((a) => ({ value: a.id, label: a.name })),

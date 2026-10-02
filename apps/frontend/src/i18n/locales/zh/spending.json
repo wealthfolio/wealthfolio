@@ -50,6 +50,12 @@
     "noCategoriesFound": "未找到类别。",
     "clearCategory": "清除类别"
   },
+  "activityTypes": {
+    "charge": "消费",
+    "interestCharge": "利息费用",
+    "refundCredit": "退款 / 入账",
+    "reimbursementRefund": "补偿 / 退款"
+  },
   "rules": {
     "editTitle": "编辑规则",
     "addTitle": "添加规则",

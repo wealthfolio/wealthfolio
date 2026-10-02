@@ -1,3 +1,6 @@
+import type { TFunction } from "i18next";
+
+import { localizeActivityTypeName } from "@/lib/activity-utils";
 import { AccountPurpose, accountSupportsPurpose, isLiabilityAccountType } from "@/lib/constants";
 
 /** Cash/card activity types tracked by the spending module. */
@@ -22,23 +25,12 @@ export const CREDIT_CARD_ACTIVITY_TYPES: CashActivityType[] = [
   "CREDIT",
 ];
 
-export const CASH_ACTIVITY_TYPE_LABELS: Record<CashActivityType, string> = {
-  DEPOSIT: "Deposit",
-  WITHDRAWAL: "Withdrawal",
-  TRANSFER_IN: "Transfer In",
-  TRANSFER_OUT: "Transfer Out",
-  FEE: "Fee",
-  TAX: "Tax",
-  INTEREST: "Interest",
-  CREDIT: "Credit",
-};
-
-const CREDIT_CARD_ACTIVITY_TYPE_LABELS: Partial<Record<CashActivityType, string>> = {
-  WITHDRAWAL: "Charge",
-  FEE: "Fee",
-  INTEREST: "Interest Charge",
-  TRANSFER_IN: "Payment",
-  CREDIT: "Refund / Credit",
+/** Card wording for the types that read differently on a credit card. */
+const CREDIT_CARD_ACTIVITY_TYPE_LABEL_KEYS: Partial<Record<CashActivityType, string>> = {
+  WITHDRAWAL: "spending:activityTypes.charge",
+  INTEREST: "spending:activityTypes.interestCharge",
+  TRANSFER_IN: "spending:cashForm.payment",
+  CREDIT: "spending:activityTypes.refundCredit",
 };
 
 /** Activity types that count as outflow (red, negative direction). */
@@ -62,23 +54,19 @@ export function getActivityTypesForAccount(accountType: string | undefined): Cas
 }
 
 export function getCashActivityLabel(
+  t: TFunction,
   activityType: string,
   accountType?: string,
   subtype?: string | null,
 ): string {
   if (isCreditCardAccountType(accountType)) {
-    return (
-      CREDIT_CARD_ACTIVITY_TYPE_LABELS[activityType as CashActivityType] ??
-      CASH_ACTIVITY_TYPE_LABELS[activityType as CashActivityType] ??
-      activityType
-    );
+    const cardKey = CREDIT_CARD_ACTIVITY_TYPE_LABEL_KEYS[activityType as CashActivityType];
+    if (cardKey) return t(cardKey);
+  } else if (activityType === "CREDIT" && subtype === "REIMBURSEMENT") {
+    return t("spending:activityTypes.reimbursementRefund");
   }
 
-  if (activityType === "CREDIT" && subtype === "REIMBURSEMENT") {
-    return "Reimbursement / refund";
-  }
-
-  return CASH_ACTIVITY_TYPE_LABELS[activityType as CashActivityType] ?? activityType;
+  return localizeActivityTypeName(t, activityType);
 }
 
 export function getEffectiveCashActivityType(activity: {

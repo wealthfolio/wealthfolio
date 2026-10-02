@@ -51,6 +51,12 @@
     "noCategoriesFound": "Nessuna categoria trovata.",
     "clearCategory": "Rimuovi categoria"
   },
+  "activityTypes": {
+    "charge": "Addebito",
+    "interestCharge": "Interessi passivi",
+    "refundCredit": "Rimborso / Accredito",
+    "reimbursementRefund": "Rimborso / restituzione"
+  },
   "rules": {
     "editTitle": "Modifica regola",
     "addTitle": "Aggiungi regola",
