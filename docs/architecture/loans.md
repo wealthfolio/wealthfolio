@@ -98,7 +98,7 @@ Paths below are relative to the repository root.
 | Desktop commands                                 | `apps/tauri/src/commands/alternative_assets.rs`                |
 | Web handlers                                     | `apps/server/src/api/alternative_assets.rs`                    |
 | Overview, timeline, schedule, and sheets         | `apps/frontend/src/pages/asset/alternative-assets/components/` |
-| Actions and calculation queries                  | `apps/frontend/src/pages/asset/alternative-assets/hooks/`      |
+| Actions, calculation queries, and formatting     | `apps/frontend/src/pages/asset/alternative-assets/hooks/`      |
 | Presentation, event editing, and ledger assembly | `apps/frontend/src/pages/asset/alternative-assets/lib/`        |
 
 Runtime commands stay thin. Any API change must preserve frontend adapter, Tauri

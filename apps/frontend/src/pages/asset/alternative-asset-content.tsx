@@ -40,7 +40,7 @@ import {
   ValueHistoryDataGrid,
 } from "./alternative-assets";
 import { LoanHistory } from "./alternative-assets/components/loan-history";
-import { MortgageOverview, LoanOverview } from "./alternative-assets/components/mortgage-overview";
+import { MortgageOverview, LoanOverview } from "./alternative-assets/components/loan-overview";
 import { useAlternativeAssetMutations } from "./alternative-assets/hooks/use-alternative-asset-mutations";
 import { useQuoteMutations } from "./hooks/use-quote-mutations";
 import { LinkedLiabilitiesSection } from "./linked-liabilities-card";

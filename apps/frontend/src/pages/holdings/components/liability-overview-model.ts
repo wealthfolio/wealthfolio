@@ -8,9 +8,8 @@ import {
   type LoanPaymentFrequency,
 } from "@/pages/asset/alternative-assets/lib/loan-events";
 import { getLoanPeriodsPerYear } from "@/pages/asset/alternative-assets/lib/loan-calculator";
+import { RENEWAL_SOON_DAYS } from "@/pages/asset/alternative-assets/lib/loan-presentation";
 
-/** Renewal prompts turn on this many days before maturity, as on the loan page. */
-const RENEWAL_SOON_DAYS = 90;
 /** A manually tracked balance older than this asks for an update. */
 const STALE_MANUAL_DAYS = 180;
 

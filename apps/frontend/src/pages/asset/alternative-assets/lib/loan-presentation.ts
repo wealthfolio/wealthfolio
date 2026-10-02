@@ -10,6 +10,9 @@ import {
   LOAN_RENEWAL_MATURITY_METADATA_KEY,
 } from "./loan-events";
 
+/** Renewal prompts turn on this many days before maturity. */
+export const RENEWAL_SOON_DAYS = 90;
+
 export interface BalancePoint {
   date: string;
   balance: number;
