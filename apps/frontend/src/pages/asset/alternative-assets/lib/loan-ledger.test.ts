@@ -100,6 +100,25 @@ describe("loan ledger", () => {
   });
 });
 
+it("lists a same-day extra repayment after the payment, as the engine applies it", () => {
+  const entries = buildLoanLedger(
+    { ...calculation, rows: [row("2026-03-01", 850)] },
+    [],
+    {
+      loan_events: [
+        { type: "extra_repayment", effectiveDate: "2026-03-01", amount: 50 },
+        { type: "rate_change", effectiveDate: "2026-03-01", annualRate: 5 },
+      ],
+    },
+    "2026-06-01",
+  ).filter((entry) => entry.date === "2026-03-01");
+  expect(entries.map((entry) => (entry.kind === "event" ? entry.event.type : entry.kind))).toEqual([
+    "rate_change",
+    "payment",
+    "extra_repayment",
+  ]);
+});
+
 it("keeps a same-day extra repayment out of the scheduled payment totals", () => {
   const schedule = {
     ...calculation,

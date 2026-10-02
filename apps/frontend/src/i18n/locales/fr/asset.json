@@ -818,7 +818,9 @@
     "renewal_maturity_hint": "Date de fin de votre terme actuel. Ce n’est pas la fin de l’amortissement.",
     "validation": {
       "amount_exceeds_balance": "Le remboursement ne peut pas dépasser le solde actuel.",
-      "closure_date_invalid": "La clôture doit être comprise entre l'octroi et aujourd'hui."
+      "closure_date_invalid": "La clôture doit être comprise entre l'octroi et aujourd'hui.",
+      "required": "Obligatoire",
+      "first_payment_after_origination": "Le premier paiement doit suivre la date d’octroi."
     },
     "accelerated_biweekly": "Aux deux semaines accéléré",
     "first_payment_date": "Date du premier paiement",
@@ -843,7 +845,8 @@
     "duration_year_many": "{{count}} ans",
     "duration_month_many": "{{count}} mois",
     "confirm_balance": "Confirmer le solde",
-    "edit_details": "Modifier les détails du prêt"
+    "edit_details": "Modifier les détails du prêt",
+    "payment_required_for_frequency": "Saisissez le paiement pour la nouvelle fréquence."
   },
   "loanOverview": {
     "regular_payment": "Versement régulier",
@@ -944,7 +947,9 @@
     "more_payments_many": "{{count}} autres paiements",
     "more_payments_other": "{{count}} autres paiements",
     "add_event": "Ajouter un événement",
-    "amount": "Montant"
+    "amount": "Montant",
+    "changed": "Cet événement a été modifié ailleurs. Rouvrez-le et réessayez.",
+    "no_longer_exists": "Cet événement n’existe plus."
   },
   "loanInterest": {
     "method": "Calcul des intérêts",

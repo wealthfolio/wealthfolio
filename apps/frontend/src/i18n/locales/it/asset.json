@@ -818,7 +818,9 @@
     "renewal_maturity_hint": "Quando termina il periodo del tasso attuale. Non è la fine dell’ammortamento.",
     "validation": {
       "amount_exceeds_balance": "Il rimborso non può superare il saldo corrente.",
-      "closure_date_invalid": "La data di chiusura deve essere compresa tra l'erogazione e oggi."
+      "closure_date_invalid": "La data di chiusura deve essere compresa tra l'erogazione e oggi.",
+      "required": "Obbligatorio",
+      "first_payment_after_origination": "Il primo pagamento deve essere successivo alla data di erogazione."
     },
     "accelerated_biweekly": "Ogni due settimane accelerato",
     "first_payment_date": "Data del primo pagamento",
@@ -843,7 +845,8 @@
     "duration_year_many": "{{count}} anni",
     "duration_month_many": "{{count}} mesi",
     "confirm_balance": "Conferma saldo",
-    "edit_details": "Modifica dettagli del prestito"
+    "edit_details": "Modifica dettagli del prestito",
+    "payment_required_for_frequency": "Inserisci il pagamento per la nuova frequenza."
   },
   "loanOverview": {
     "regular_payment": "Pagamento periodico",
@@ -944,7 +947,9 @@
     "more_payments_many": "{{count}} altri pagamenti",
     "more_payments_other": "{{count}} altri pagamenti",
     "add_event": "Aggiungi evento",
-    "amount": "Importo"
+    "amount": "Importo",
+    "changed": "Questo evento è stato modificato altrove. Riaprilo e riprova.",
+    "no_longer_exists": "Questo evento non esiste più."
   },
   "loanInterest": {
     "method": "Calcolo degli interessi",

@@ -34,8 +34,9 @@ import type { AlternativeAssetHolding, Quote } from "@/lib/types";
 import type { LoanCalculation } from "@/adapters/shared/alternative-assets";
 import { cn, formatDateISO } from "@/lib/utils";
 import {
+  readActiveLoanProjection,
+  canRenewLoan,
   readLoanEvents,
-  readLoanProjectionMetadata,
   type LoanPaymentFrequency,
 } from "../lib/loan-events";
 import {
@@ -116,7 +117,7 @@ function LoanTermsStrip({
   const numbers = useNumberFormatting();
   const { isBalanceHidden } = useBalancePrivacy();
   const metadata = holding.metadata ?? {};
-  const projection = readLoanProjectionMetadata(metadata);
+  const projection = readActiveLoanProjection(metadata);
   const origination =
     typeof metadata.origination_date === "string" ? metadata.origination_date : undefined;
   if (!projection || !origination) return null;
@@ -609,17 +610,15 @@ function LoanLedger({ holding, calculation, quotes, actions, onEditDetails }: Lo
               <DropdownMenuItem onSelect={actions.extraPayment}>
                 {t("asset:loanActions.extra_repayment")}
               </DropdownMenuItem>
-              {readLoanProjectionMetadata(metadata) &&
-                ((metadata.sub_type ?? metadata.liability_type) === "mortgage" ||
-                  typeof metadata.renewal_maturity_date === "string") && (
-                  <DropdownMenuItem onSelect={actions.renew}>
-                    {t(
-                      (metadata.sub_type ?? metadata.liability_type) === "mortgage"
-                        ? "asset:loanOverview.renew_mortgage"
-                        : "asset:loanActions.renew_loan",
-                    )}
-                  </DropdownMenuItem>
-                )}
+              {canRenewLoan(metadata) && (
+                <DropdownMenuItem onSelect={actions.renew}>
+                  {t(
+                    (metadata.sub_type ?? metadata.liability_type) === "mortgage"
+                      ? "asset:loanOverview.renew_mortgage"
+                      : "asset:loanActions.renew_loan",
+                  )}
+                </DropdownMenuItem>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>

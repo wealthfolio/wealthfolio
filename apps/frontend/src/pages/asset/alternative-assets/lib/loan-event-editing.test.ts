@@ -53,10 +53,10 @@ describe("editing recorded loan events", () => {
 it("rejects edited terms the valuation engine would discard", () => {
   const metadata = { loan_events: [renewal] };
   expect(() => changeLoanEvent(metadata, 0, renewal, { ...renewal, annualRate: 101 })).toThrow(
-    "Invalid loan event",
+    "asset:loanEvents.invalid",
   );
   expect(() => changeLoanEvent(metadata, 0, renewal, { ...renewal, paymentAmount: 0.001 })).toThrow(
-    "Invalid loan event",
+    "asset:loanEvents.invalid",
   );
 });
 

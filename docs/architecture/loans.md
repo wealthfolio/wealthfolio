@@ -211,10 +211,11 @@ payment solving is unavailable, creation cannot save an undated fallback.
 
 Renewal records dated terms and optional maturity. Omitted settings inherit the
 terms at the renewal's effective date: an empty payment keeps the current
-payment, and frequency or interest method are stored only when changed. Adding
-an older renewal must not overwrite a later renewal's maturity. Future rates
-remain unknown: projections assume the recorded rates and payments continue
-beyond renewal maturity.
+payment, and frequency or interest method are stored only when changed. A
+payment is an amount per period, so a renewal that changes the frequency must
+state its payment. Adding an older renewal must not overwrite a later renewal's
+maturity. Future rates remain unknown: projections assume the recorded rates and
+payments continue beyond renewal maturity.
 
 The renewal form defaults to the current term's maturity once it has passed. It
 previews the payment that keeps the original amortization through

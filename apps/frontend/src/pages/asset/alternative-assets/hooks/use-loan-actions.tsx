@@ -8,9 +8,10 @@ import { useQuoteMutations } from "../../hooks/use-quote-mutations";
 import { useAlternativeAssetMutations } from "./use-alternative-asset-mutations";
 import { loanCalculationRequest, useLoanCalculation } from "./use-loan-calculation";
 import {
+  readActiveLoanProjection,
+  canRenewLoan,
   appendLoanEvent,
   readLoanEvents,
-  readLoanProjectionMetadata,
   LOAN_RENEWAL_MATURITY_METADATA_KEY,
   type LoanEvent,
   type LoanMetadata,
@@ -58,7 +59,7 @@ export function useLoanActions(
   const assetId = holding?.id ?? "";
   const isLiability = holding?.kind.toLowerCase() === "liability";
   const metadata = useMemo(() => holding?.metadata ?? {}, [holding?.metadata]);
-  const storedProjection = readLoanProjectionMetadata(metadata);
+  const storedProjection = readActiveLoanProjection(metadata);
   const { data: calculation } = useLoanCalculation(assetId, metadata, quoteHistory, isLiability);
   const currentBalance = calculation?.currentBalance ?? Math.abs(Number(holding?.marketValue ?? 0));
   const activeInterestRate = calculation?.annualRate ?? Number(metadata.interest_rate ?? 0);
@@ -85,7 +86,7 @@ export function useLoanActions(
         loanCalculationRequest(without, quoteHistory, replacement.effectiveDate),
       );
       if (!available || replacement.amount > available.currentBalance)
-        throw new Error("Repayment exceeds balance");
+        throw new Error(t("asset:loanActions.validation.amount_exceeds_balance"));
     }
     await updateMetadataMutation.mutateAsync({
       assetId,
@@ -135,12 +136,11 @@ export function useLoanActions(
 
   const handleCloseLoan = async (date: Date) => {
     if (!holding) return;
-    const cappedDate = date;
     const quote: Quote = {
       id: "",
       createdAt: new Date().toISOString(),
       dataSource: "MANUAL",
-      timestamp: `${formatDateISO(cappedDate)}T00:00:00Z`,
+      timestamp: `${formatDateISO(date)}T00:00:00Z`,
       assetId,
       open: 0,
       high: 0,
@@ -307,9 +307,7 @@ export function useLoanActions(
   const availability = {
     mortgage: isMortgage,
     recalculate: !!storedProjection,
-    renew:
-      !!storedProjection &&
-      (isMortgage || typeof metadata[LOAN_RENEWAL_MATURITY_METADATA_KEY] === "string"),
+    renew: canRenewLoan(metadata),
   };
   const actions: LoanActionCallbacks = {
     editEvent: (index) => {

@@ -810,7 +810,9 @@
     "renewal_maturity_hint": "現在の金利期間が終了する日です。返済期間の終了日ではありません。",
     "validation": {
       "amount_exceeds_balance": "返済額は現在残高を超えることができません。",
-      "closure_date_invalid": "完済日は借入日から今日までの範囲にしてください。"
+      "closure_date_invalid": "完済日は借入日から今日までの範囲にしてください。",
+      "required": "必須",
+      "first_payment_after_origination": "初回支払日は融資実行日より後にしてください。"
     },
     "accelerated_biweekly": "加速型隔週払い",
     "first_payment_date": "初回支払日",
@@ -833,7 +835,8 @@
     "duration_month_one": "{{count}}か月",
     "duration_month_other": "{{count}}か月",
     "confirm_balance": "残高を確認",
-    "edit_details": "ローンの詳細を編集"
+    "edit_details": "ローンの詳細を編集",
+    "payment_required_for_frequency": "新しい頻度での支払額を入力してください。"
   },
   "loanOverview": {
     "regular_payment": "定期返済額",
@@ -929,7 +932,9 @@
     "more_payments_one": "他{{count}}件の支払い",
     "more_payments_other": "他{{count}}件の支払い",
     "add_event": "イベントを追加",
-    "amount": "金額"
+    "amount": "金額",
+    "changed": "このイベントは別の場所で変更されました。開き直してもう一度お試しください。",
+    "no_longer_exists": "このイベントはもう存在しません。"
   },
   "loanInterest": {
     "method": "利息の計算方法",

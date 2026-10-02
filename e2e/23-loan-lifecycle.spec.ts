@@ -358,7 +358,6 @@ test("loan estimates, dated actions and net worth stay consistent", async ({ pag
       .locator("..")
       .locator("dd"),
   ).toHaveText(String(paymentsUntilRenewal));
-  await expect(outlook.getByRole("group", { name: "Chart view" })).toHaveCount(0);
   await expect(outlook.locator("details")).toHaveCount(0);
   const extraMarker = outlook.getByTestId("loan-extra-repayment-marker");
   await expect(extraMarker).toHaveCount(1);
@@ -381,7 +380,6 @@ test("loan estimates, dated actions and net worth stay consistent", async ({ pag
   expect(
     await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
   ).toBeTruthy();
-  await expect(outlook.getByRole("group", { name: "Chart view" })).toHaveCount(0);
   await expect(outlook.locator("details")).toHaveCount(0);
 
   await expect(extraMarker).toHaveCount(1);
@@ -542,9 +540,7 @@ test("mortgage presentation stays separate from other assets and manual liabilit
   });
   await page.goto(`${BASE_URL}/holdings/${car}`);
   await expect(page.getByTestId("loan-overview")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Full term", exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Renew mortgage", exact: true })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Until renewal", exact: true })).toHaveCount(0);
 
   await page.goto(`${BASE_URL}/holdings/${car}?tab=history`);
   const terms = page.getByTestId("loan-terms-history");
@@ -571,7 +567,6 @@ test("mortgage presentation stays separate from other assets and manual liabilit
   });
   await page.goto(`${BASE_URL}/holdings/${card}`);
   await expect(page.getByTestId("loan-overview")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Full term", exact: true })).toHaveCount(0);
   await expect(page.getByText("Estimated payoff", { exact: true })).toHaveCount(0);
   await page.locator('button.h-9.w-9[aria-haspopup="dialog"]').click();
   await page.getByRole("button", { name: "Confirm balance", exact: true }).click();
@@ -599,7 +594,5 @@ test("mortgage presentation stays separate from other assets and manual liabilit
   });
   await page.goto(`${BASE_URL}/holdings/${mortgage}`);
   await expect(page.getByTestId("mortgage-overview")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Full mortgage", exact: true })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Until renewal", exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Renew mortgage", exact: true })).toBeVisible();
 });

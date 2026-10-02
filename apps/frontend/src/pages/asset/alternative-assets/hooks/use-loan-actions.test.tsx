@@ -122,9 +122,11 @@ const holding = {
   },
 } as unknown as AlternativeAssetHolding;
 let actions: LoanActionCallbacks;
+let availability: ReturnType<typeof useLoanActions>["availability"];
 function Harness({ quotes = [quote] }: { quotes?: Quote[] }) {
   const result = useLoanActions(holding, quotes);
   actions = result.actions;
+  availability = result.availability;
   return result.dialogs;
 }
 const edit = () => act(() => actions.editBalance(quote));
@@ -258,6 +260,25 @@ it("adding an older renewal preserves the latest term's maturity", async () => {
 describe("new balance event date boundaries", () => {
   const submit = (mode: "extra_repayment" | "balance_correction") =>
     mocks.balanceSheet.mock.calls.filter(([props]) => props.mode === mode).at(-1)![0].onSubmit;
+
+  it("treats a loan switched back to manual as manual despite its stored terms", async () => {
+    const previous = holding.metadata;
+    holding.metadata = { ...previous, sub_type: "mortgage", tracking_mode: "manual" };
+    try {
+      vi.mocked(calculateLoan).mockResolvedValue(null);
+      render(<Harness />);
+      expect(availability).toMatchObject({ renew: false, recalculate: false });
+      await act(async () => {
+        await submit("extra_repayment")(new Date(2026, 3, 2), 100);
+      });
+      expect(mocks.save).toHaveBeenCalledWith(
+        expect.objectContaining({ close: 400, notes: "loan_event|type=extra_repayment" }),
+      );
+      expect(mocks.metadata).not.toHaveBeenCalled();
+    } finally {
+      holding.metadata = previous;
+    }
+  });
 
   it.each(["extra_repayment", "balance_correction"] as const)(
     "rejects %s before origination without writing anything",

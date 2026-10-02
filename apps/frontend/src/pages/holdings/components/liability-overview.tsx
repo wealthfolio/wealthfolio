@@ -61,7 +61,6 @@ interface LiabilityOverviewProps {
   holdings: AlternativeAssetHolding[];
   isLoading: boolean;
   onEdit: (holding: AlternativeAssetHolding) => void;
-  onUpdateValue: (holding: AlternativeAssetHolding) => void;
   onViewHistory: (holding: AlternativeAssetHolding) => void;
   onDelete: (holding: AlternativeAssetHolding) => void;
   isDeleting?: boolean;
@@ -72,7 +71,6 @@ export function LiabilityOverview({
   holdings,
   isLoading,
   onEdit,
-  onUpdateValue,
   onViewHistory,
   onDelete,
   isDeleting = false,
@@ -108,7 +106,6 @@ export function LiabilityOverview({
             holding={holding}
             model={model}
             onEdit={onEdit}
-            onUpdateValue={onUpdateValue}
             onViewHistory={onViewHistory}
             onDelete={setToDelete}
           />
@@ -193,14 +190,12 @@ function LiabilityCard({
   holding,
   model,
   onEdit,
-  onUpdateValue,
   onViewHistory,
   onDelete,
 }: {
   holding: AlternativeAssetHolding;
   model: LiabilityCardModel;
   onEdit: (holding: AlternativeAssetHolding) => void;
-  onUpdateValue: (holding: AlternativeAssetHolding) => void;
   onViewHistory: (holding: AlternativeAssetHolding) => void;
   onDelete: (holding: AlternativeAssetHolding) => void;
 }) {
@@ -273,9 +268,12 @@ function LiabilityCard({
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => onUpdateValue(holding)}>
-                <Icons.DollarSign className="mr-2 size-4" />
-                {t("holdings:liability_cards.update_balance")}
+              {/* Confirming on the loan page keeps its validation and balance provenance. */}
+              <DropdownMenuItem asChild>
+                <Link to={`/holdings/${encodeURIComponent(holding.id)}?action=confirm-balance`}>
+                  <Icons.DollarSign className="mr-2 size-4" />
+                  {t("holdings:liability_cards.update_balance")}
+                </Link>
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => onViewHistory(holding)}>
                 <Icons.History className="mr-2 size-4" />

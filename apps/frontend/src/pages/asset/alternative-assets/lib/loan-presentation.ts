@@ -5,8 +5,8 @@ import type { Quote } from "@/lib/types";
 import { formatDateISO } from "@/lib/utils";
 import { classifyLoanBalance } from "./loan-balance";
 import {
+  readActiveLoanProjection,
   readLoanEvents,
-  readLoanProjectionMetadata,
   LOAN_RENEWAL_MATURITY_METADATA_KEY,
 } from "./loan-events";
 
@@ -29,6 +29,16 @@ export function confirmedLoanBalances(quotes: Quote[], today: string) {
   return quotes
     .filter((q) => q.timestamp.slice(0, 10) <= today)
     .sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+}
+/**
+ * The balance a loan page leads with: the engine's for calculated loans, otherwise
+ * the latest recorded balance (extra repayments included), as holdings and net worth use.
+ */
+export function loanDisplayBalance(
+  calculation: LoanCalculation | null | undefined,
+  marketValue: string | number,
+): number {
+  return calculation?.currentBalance ?? Math.abs(Number(marketValue) || 0);
 }
 export function lastLoanConfirmation(quotes: Quote[], today: string) {
   return confirmedLoanBalances(quotes, today)
@@ -76,7 +86,7 @@ export function loanMilestones(
   metadata: Record<string, unknown>,
   today: string,
 ) {
-  const projection = readLoanProjectionMetadata(metadata);
+  const projection = readActiveLoanProjection(metadata);
   const horizon = projection?.amortizationEndDate;
   const maturity = metadata[LOAN_RENEWAL_MATURITY_METADATA_KEY];
   const payoff = loanPayoffDate(calculation);

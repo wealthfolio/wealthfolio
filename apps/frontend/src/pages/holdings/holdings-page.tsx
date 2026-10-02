@@ -666,7 +666,6 @@ export const HoldingsPage = () => {
           holdings={liabilitiesHoldings}
           isLoading={isDataLoading}
           onEdit={handleEditAsset}
-          onUpdateValue={setUpdateValueAsset}
           onViewHistory={handleViewHistory}
           onDelete={handleDeleteAsset}
           isDeleting={isDeleting}

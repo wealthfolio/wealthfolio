@@ -810,7 +810,9 @@
     "renewal_maturity_hint": "현재 금리 적용 기간이 끝나는 날입니다. 상환 기간의 종료일이 아닙니다.",
     "validation": {
       "amount_exceeds_balance": "상환액은 현재 잔액을 초과할 수 없습니다.",
-      "closure_date_invalid": "완제일은 대출 실행일부터 오늘 사이여야 합니다."
+      "closure_date_invalid": "완제일은 대출 실행일부터 오늘 사이여야 합니다.",
+      "required": "필수",
+      "first_payment_after_origination": "첫 납부일은 대출 실행일 이후여야 합니다."
     },
     "accelerated_biweekly": "가속 격주 납부",
     "first_payment_date": "첫 납부일",
@@ -833,7 +835,8 @@
     "duration_month_one": "{{count}}개월",
     "duration_month_other": "{{count}}개월",
     "confirm_balance": "잔액 확인",
-    "edit_details": "대출 세부 정보 편집"
+    "edit_details": "대출 세부 정보 편집",
+    "payment_required_for_frequency": "새 납부 주기의 납입액을 입력하세요."
   },
   "loanOverview": {
     "regular_payment": "정기 상환액",
@@ -929,7 +932,9 @@
     "more_payments_one": "지불 {{count}}건 더 보기",
     "more_payments_other": "지불 {{count}}건 더 보기",
     "add_event": "이벤트 추가",
-    "amount": "금액"
+    "amount": "금액",
+    "changed": "이 이벤트가 다른 곳에서 변경되었습니다. 다시 열고 시도하세요.",
+    "no_longer_exists": "이 이벤트는 더 이상 존재하지 않습니다."
   },
   "loanInterest": {
     "method": "이자 계산 방식",

@@ -1,8 +1,8 @@
 import * as z from "zod";
 import {
+  readActiveLoanProjection,
   LOAN_PROJECTION_METADATA_KEY,
   LOAN_RENEWAL_MATURITY_METADATA_KEY,
-  readLoanProjectionMetadata,
   serializeLoanProjectionMetadata,
 } from "../lib/loan-events";
 import {
@@ -171,6 +171,9 @@ export const otherDetailsSchema = baseSchema.extend({
     .nullable(),
 });
 
+/** Loan messages are translation keys; the sheet translates them. */
+const REQUIRED = "asset:loanActions.validation.required";
+
 // Discriminated union of all asset type schemas
 export const assetDetailsSchema = z
   .discriminatedUnion("kind", [
@@ -192,7 +195,7 @@ export const assetDetailsSchema = z
       "firstPaymentDate",
     ] as const) {
       if (values[field] == null)
-        ctx.addIssue({ code: z.ZodIssueCode.custom, path: [field], message: "Required" });
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: [field], message: REQUIRED });
     }
     if (
       values.firstPaymentDate &&
@@ -202,15 +205,11 @@ export const assetDetailsSchema = z
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["firstPaymentDate"],
-        message: "First payment must be after origination",
+        message: "asset:loanActions.validation.first_payment_after_origination",
       });
     }
     if (totalAmortizationMonths(values) <= 0) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["amortizationYears"],
-        message: "Required",
-      });
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["amortizationYears"], message: REQUIRED });
     }
   });
 
@@ -322,8 +321,7 @@ export function getDefaultDetailsFormValues(
       const origAmount = metadata?.original_amount ?? metadata?.purchase_price;
       // For origination date, check both new field (origination_date) and legacy field (purchase_date)
       const origDate = metadata?.origination_date ?? metadata?.purchase_date;
-      const projection =
-        metadata?.tracking_mode === "manual" ? null : readLoanProjectionMetadata(metadata);
+      const projection = readActiveLoanProjection(metadata);
       const firstPaymentDate = projection ? parseLocalDate(projection.firstPaymentDate) : null;
       const endDate = projection?.amortizationEndDate
         ? parseLocalDate(projection.amortizationEndDate)

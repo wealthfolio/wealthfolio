@@ -28,6 +28,7 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  useFormField,
 } from "@wealthfolio/ui/components/ui/form";
 import { Button } from "@wealthfolio/ui/components/ui/button";
 import { Switch } from "@wealthfolio/ui/components/ui/switch";
@@ -760,7 +761,7 @@ function LiabilityFields({
                   sheetTitle={t("asset:detailsSheet.liability_type")}
                 />
               </FormControl>
-              <FormMessage />
+              <LoanFormMessage />
             </FormItem>
           )}
         />
@@ -791,7 +792,7 @@ function LiabilityFields({
                   {t("asset:detailsSheet.no_assets_to_link")}
                 </p>
               )}
-              <FormMessage />
+              <LoanFormMessage />
             </FormItem>
           )}
         />
@@ -819,7 +820,7 @@ function LiabilityFields({
                     onValueChange={(value) => field.onChange(value ?? null)}
                   />
                 </FormControl>
-                <FormMessage />
+                <LoanFormMessage />
               </FormItem>
             )}
           />
@@ -838,7 +839,7 @@ function LiabilityFields({
                     onChange={(date) => field.onChange(date ?? null)}
                   />
                 </FormControl>
-                <FormMessage />
+                <LoanFormMessage />
               </FormItem>
             )}
           />
@@ -863,7 +864,7 @@ function LiabilityFields({
                     %
                   </span>
                 </div>
-                <FormMessage />
+                <LoanFormMessage />
               </FormItem>
             )}
           />
@@ -875,7 +876,7 @@ function LiabilityFields({
                 <FormItem>
                   {fieldLabel(t("asset:loanInterest.method"), t("asset:loanInterest.hint"))}
                   <LoanInterestMethodSelect value={field.value} onChange={field.onChange} />
-                  <FormMessage />
+                  <LoanFormMessage />
                 </FormItem>
               )}
             />
@@ -924,7 +925,7 @@ function LiabilityFields({
                       onValueChange={(value) => field.onChange(value ?? null)}
                     />
                   </FormControl>
-                  <FormMessage />
+                  <LoanFormMessage />
                 </FormItem>
               )}
             />
@@ -945,7 +946,7 @@ function LiabilityFields({
                       sheetTitle={t("asset:loanActions.payment_frequency")}
                     />
                   </FormControl>
-                  <FormMessage />
+                  <LoanFormMessage />
                 </FormItem>
               )}
             />
@@ -961,7 +962,7 @@ function LiabilityFields({
                       onChange={(date) => field.onChange(date ?? null)}
                     />
                   </FormControl>
-                  <FormMessage />
+                  <LoanFormMessage />
                 </FormItem>
               )}
             />
@@ -1003,7 +1004,7 @@ function LiabilityFields({
                       })}
                     </FormDescription>
                   )}
-                  <FormMessage />
+                  <LoanFormMessage />
                 </FormItem>
               )}
             />
@@ -1023,7 +1024,7 @@ function LiabilityFields({
                         onChange={(date) => field.onChange(date ?? null)}
                       />
                     </FormControl>
-                    <FormMessage />
+                    <LoanFormMessage />
                   </FormItem>
                 )}
               />
@@ -1032,6 +1033,19 @@ function LiabilityFields({
         )}
       </div>
     </>
+  );
+}
+
+/** Shows a field error, translating the loan schema's message keys. */
+function LoanFormMessage() {
+  const { t } = useTranslation();
+  const { error, formMessageId } = useFormField();
+  const message = error?.message;
+  if (!message) return null;
+  return (
+    <p id={formMessageId} className="text-destructive text-xs font-light">
+      {message.startsWith("asset:") ? t(message) : message}
+    </p>
   );
 }
 

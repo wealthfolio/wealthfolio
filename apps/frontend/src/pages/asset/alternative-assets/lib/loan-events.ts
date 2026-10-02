@@ -149,7 +149,7 @@ export function getLoanFrequencyAtDate(
 /** Return metadata with a validated event appended without mutating the input. */
 export function appendLoanEvent(metadata: LoanMetadata, event: LoanEvent): LoanMetadata {
   if (!isLoanEvent(event)) {
-    throw new Error("Invalid loan event");
+    throw new Error("asset:loanEvents.invalid");
   }
 
   return {
@@ -167,6 +167,25 @@ export function appendLoanEvent(metadata: LoanMetadata, event: LoanEvent): LoanM
  */
 export function serializeLoanProjectionMetadata(projection: LoanProjectionMetadata): string {
   return JSON.stringify(projection);
+}
+
+/**
+ * Terms that drive calculation. A loan switched back to manual keeps its stored
+ * terms for later, but nothing should calculate or act on them.
+ */
+export function readActiveLoanProjection(
+  metadata: LoanMetadata | null | undefined,
+): LoanProjectionMetadata | null {
+  return metadata?.tracking_mode === "manual" ? null : readLoanProjectionMetadata(metadata);
+}
+
+/** Renewal applies to calculated mortgages and to loans that already have a renewal date. */
+export function canRenewLoan(metadata: LoanMetadata): boolean {
+  return (
+    !!readActiveLoanProjection(metadata) &&
+    ((metadata.sub_type ?? metadata.liability_type) === "mortgage" ||
+      typeof metadata[LOAN_RENEWAL_MATURITY_METADATA_KEY] === "string")
+  );
 }
 
 export function readLoanProjectionMetadata(

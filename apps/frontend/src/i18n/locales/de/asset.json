@@ -810,7 +810,9 @@
     "renewal_maturity_hint": "Wann Ihre aktuelle Zinsbindung endet. Das ist nicht das Ende der Tilgungsdauer.",
     "validation": {
       "amount_exceeds_balance": "Die Rückzahlung darf den aktuellen Saldo nicht überschreiten.",
-      "closure_date_invalid": "Das Abschlussdatum muss zwischen Auszahlung und heute liegen."
+      "closure_date_invalid": "Das Abschlussdatum muss zwischen Auszahlung und heute liegen.",
+      "required": "Erforderlich",
+      "first_payment_after_origination": "Die erste Zahlung muss nach dem Auszahlungsdatum liegen."
     },
     "accelerated_biweekly": "Beschleunigt zweiwöchentlich",
     "first_payment_date": "Erster Zahlungstermin",
@@ -833,7 +835,8 @@
     "duration_month_one": "{{count}} Monat",
     "duration_month_other": "{{count}} Monate",
     "confirm_balance": "Saldo bestätigen",
-    "edit_details": "Darlehensdetails bearbeiten"
+    "edit_details": "Darlehensdetails bearbeiten",
+    "payment_required_for_frequency": "Geben Sie die Zahlung für die neue Häufigkeit ein."
   },
   "loanOverview": {
     "regular_payment": "Regelmäßige Zahlung",
@@ -929,7 +932,9 @@
     "more_payments_one": "{{count}} weitere Zahlung",
     "more_payments_other": "{{count}} weitere Zahlungen",
     "add_event": "Ereignis hinzufügen",
-    "amount": "Betrag"
+    "amount": "Betrag",
+    "changed": "Dieses Ereignis wurde an anderer Stelle geändert. Öffnen Sie es erneut und versuchen Sie es noch einmal.",
+    "no_longer_exists": "Dieses Ereignis existiert nicht mehr."
   },
   "loanInterest": {
     "method": "Zinsberechnung",

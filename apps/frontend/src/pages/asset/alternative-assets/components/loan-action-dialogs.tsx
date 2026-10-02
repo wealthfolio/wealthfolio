@@ -1,6 +1,7 @@
 import { addYears } from "date-fns";
 import { LoanInterestMethodSelect } from "./loan-interest-method-select";
 import { LoanFieldInfo } from "./loan-field-info";
+import { loanErrorText } from "./loan-error-text";
 import {
   appendLoanEvent,
   type LoanInterestMethod,
@@ -168,9 +169,11 @@ export function RecalculateScheduleDialog({
     queryFn: () => recalculateLoan(request),
     enabled: open && !isRateInvalid,
   });
-  const currentBalance = calculation?.currentBalance ?? 0;
   const remainingPayments = calculation?.remainingPayments ?? 0;
   const newPayment = calculation?.paymentAmount ?? null;
+  const unavailable = (
+    <span className="text-muted-foreground font-normal">{t("asset:loanOverview.unavailable")}</span>
+  );
   const [submitError, setSubmitError] = useState(false);
 
   const handleSubmit = async () => {
@@ -207,12 +210,18 @@ export function RecalculateScheduleDialog({
               {t("asset:loanActions.recalculate_current_balance")}
             </span>
             <span className="text-right font-medium">
-              <AmountDisplay value={currentBalance} currency={currency} />
+              {calculation ? (
+                <AmountDisplay value={calculation.currentBalance} currency={currency} />
+              ) : (
+                unavailable
+              )}
             </span>
             <span className="text-muted-foreground">
               {t("asset:loanActions.remaining_payments")}
             </span>
-            <span className="text-right font-medium">{remainingPayments}</span>
+            <span className="text-right font-medium">
+              {calculation ? calculation.remainingPayments : unavailable}
+            </span>
             {endDate && (
               <>
                 <span className="text-muted-foreground">{t("asset:altContent.end_date")}</span>
@@ -362,6 +371,9 @@ export function RenewLoanDialog({
   const day = Number.isFinite(effectiveDate.getTime()) ? formatDateISO(effectiveDate) : "";
   const inherited = inheritedLoanSettings(metadata, -1, day);
   const changedFrequency = frequency && frequency !== inherited.frequency ? frequency : undefined;
+  const changedMethod = method && method !== inherited.interestMethod ? method : undefined;
+  // The current payment is an amount per period, so a new frequency needs its own payment.
+  const paymentMissing = changedFrequency !== undefined && payment === undefined;
   const parsedRate = newRate === "" ? Number.NaN : Number(newRate);
   const rateInvalid = !Number.isFinite(parsedRate) || parsedRate < 0 || parsedRate > 100;
   const dateInvalid = !day || effectiveDate > new Date();
@@ -373,6 +385,7 @@ export function RenewLoanDialog({
     (termEndDate !== undefined && termEndDate <= effectiveDate) ||
     (payment !== undefined && (!Number.isFinite(payment) || payment <= 0)) ||
     (balance !== undefined && (!Number.isFinite(balance) || balance < 0));
+  const blocked = isInvalid || paymentMissing;
 
   // Preview the renewal as drafted: the backend solves the payment that keeps the
   // original amortization end, from the balance on the renewal date.
@@ -385,7 +398,7 @@ export function RenewLoanDialog({
               effectiveDate: day,
               annualRate: parsedRate,
               ...(changedFrequency ? { frequency: changedFrequency } : {}),
-              ...(method ? { interestMethod: method } : {}),
+              ...(changedMethod ? { interestMethod: changedMethod } : {}),
             }),
             balance === undefined
               ? quoteHistory
@@ -418,7 +431,7 @@ export function RenewLoanDialog({
   const title = t(mortgage ? "asset:loanOverview.renew_mortgage" : "asset:loanActions.renew_loan");
 
   const handleSubmit = async () => {
-    if (isSubmitting || isInvalid) return;
+    if (isSubmitting || blocked) return;
     setIsSubmitting(true);
     setSubmitError(null);
     try {
@@ -427,15 +440,13 @@ export function RenewLoanDialog({
         annualRate: parsedRate,
         paymentAmount: payment,
         frequency: changedFrequency,
-        interestMethod: method,
+        interestMethod: changedMethod,
         termEndDate,
         balance,
       });
       onOpenChange(false);
     } catch (error) {
-      setSubmitError(
-        error instanceof Error ? error.message : t("asset:quickAdd.validation.invalid"),
-      );
+      setSubmitError(loanErrorText(t, error, "asset:quickAdd.validation.invalid"));
     } finally {
       setIsSubmitting(false);
     }
@@ -556,6 +567,11 @@ export function RenewLoanDialog({
                 value={payment ?? null}
                 onValueChange={(value) => setPayment(value || undefined)}
               />
+              {paymentMissing && (
+                <p className="text-warning text-xs">
+                  {t("asset:loanActions.payment_required_for_frequency")}
+                </p>
+              )}
               {estimate && estimate.paymentAmount > 0 && (
                 <p className="text-muted-foreground text-xs">
                   {t("asset:loanActions.payment_estimate", {
@@ -624,7 +640,7 @@ export function RenewLoanDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting}>
             {t("common:cancel")}
           </Button>
-          <Button onClick={handleSubmit} disabled={isSubmitting || isInvalid}>
+          <Button onClick={handleSubmit} disabled={isSubmitting || blocked}>
             {isSubmitting && <Icons.Spinner className="mr-2 h-4 w-4 animate-spin" />}
             {title}
           </Button>
@@ -690,7 +706,7 @@ export function LoanBalanceEventDialog({
       await onSubmit(date, amount);
       onOpenChange(false);
     } catch (error) {
-      setError(error instanceof Error ? error.message : t("asset:quickAdd.validation.invalid"));
+      setError(loanErrorText(t, error, "asset:quickAdd.validation.invalid"));
     } finally {
       setIsSubmitting(false);
     }

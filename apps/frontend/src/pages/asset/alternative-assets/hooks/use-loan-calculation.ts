@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { calculateLoan } from "@/adapters";
 import { QueryKeys } from "@/lib/query-keys";
 import type { Quote } from "@/lib/types";
-import { LOAN_PROJECTION_METADATA_KEY } from "../lib/loan-events";
+import { readActiveLoanProjection } from "../lib/loan-events";
 import { formatDateISO } from "@/lib/utils";
 
 export function loanCalculationRequest(
@@ -32,6 +32,6 @@ export function useLoanCalculation(
   return useQuery({
     queryKey: [QueryKeys.ASSET_DATA, assetId, "loan-calculation", request],
     queryFn: () => calculateLoan(request),
-    enabled: enabled && !!metadata[LOAN_PROJECTION_METADATA_KEY],
+    enabled: enabled && !!readActiveLoanProjection(metadata),
   });
 }

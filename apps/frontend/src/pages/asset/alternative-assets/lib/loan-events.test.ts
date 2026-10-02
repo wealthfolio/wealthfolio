@@ -3,7 +3,9 @@ import {
   LOAN_EVENTS_METADATA_KEY,
   LOAN_PROJECTION_METADATA_KEY,
   appendLoanEvent,
+  canRenewLoan,
   isLoanEvent,
+  readActiveLoanProjection,
   readLoanEvents,
   readLoanProjectionMetadata,
   serializeLoanProjectionMetadata,
@@ -89,6 +91,25 @@ describe("loan events", () => {
     expect(next[LOAN_EVENTS_METADATA_KEY]).toEqual([
       { type: "extra_repayment", effectiveDate: "2026-05-01", amount: 2_000 },
     ]);
+  });
+
+  it("ignores stored terms once a loan is switched back to manual", () => {
+    const metadata: LoanMetadata = {
+      sub_type: "mortgage",
+      [LOAN_PROJECTION_METADATA_KEY]: {
+        version: 1,
+        annualRate: 3,
+        paymentAmount: 100,
+        frequency: "monthly",
+        firstPaymentDate: "2026-02-01",
+      },
+    };
+    expect(readActiveLoanProjection(metadata)).not.toBeNull();
+    expect(canRenewLoan(metadata)).toBe(true);
+    const manual = { ...metadata, tracking_mode: "manual" };
+    expect(readActiveLoanProjection(manual)).toBeNull();
+    expect(readLoanProjectionMetadata(manual)).not.toBeNull();
+    expect(canRenewLoan(manual)).toBe(false);
   });
 
   it("round-trips projection parameters without persisting future quotes", () => {

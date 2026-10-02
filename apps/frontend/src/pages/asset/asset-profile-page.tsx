@@ -51,7 +51,7 @@ import { Skeleton } from "@wealthfolio/ui/components/ui/skeleton";
 import { Tabs, TabsContent } from "@wealthfolio/ui/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@wealthfolio/ui/components/ui/tooltip";
 import type { TFunction } from "i18next";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
@@ -1116,6 +1116,25 @@ export const AssetProfilePage = () => {
     onNavigateBack: handleBack,
     quoteHistory: quoteHistory ?? [],
   });
+
+  // The liabilities list links here to confirm a balance with the loan's own sheet.
+  const confirmBalanceRequested = queryParams.get("action") === "confirm-balance";
+  const openConfirmBalance = altAssetActions.loanActions.confirmBalance;
+  useEffect(() => {
+    if (!confirmBalanceRequested || !altHolding) return;
+    openConfirmBalance();
+    const next = new URLSearchParams(location.search);
+    next.delete("action");
+    const query = next.toString();
+    navigate(`${location.pathname}${query ? `?${query}` : ""}`, { replace: true });
+  }, [
+    confirmBalanceRequested,
+    altHolding,
+    openConfirmBalance,
+    location.pathname,
+    location.search,
+    navigate,
+  ]);
 
   if (isLoading)
     return (

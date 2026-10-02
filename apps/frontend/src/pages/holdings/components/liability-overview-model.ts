@@ -1,10 +1,10 @@
 import { differenceInCalendarDays, parseISO } from "date-fns";
 import type { AlternativeAssetHolding } from "@/lib/types";
 import {
+  readActiveLoanProjection,
   LOAN_RENEWAL_MATURITY_METADATA_KEY,
   getLoanFrequencyAtDate,
   readLoanEvents,
-  readLoanProjectionMetadata,
   type LoanPaymentFrequency,
 } from "@/pages/asset/alternative-assets/lib/loan-events";
 import { getLoanPeriodsPerYear } from "@/pages/asset/alternative-assets/lib/loan-calculator";
@@ -41,8 +41,7 @@ export function liabilityCardModel(
   today: string,
 ): LiabilityCardModel {
   const metadata = holding.metadata ?? {};
-  const projection =
-    metadata.tracking_mode === "manual" ? null : readLoanProjectionMetadata(metadata);
+  const projection = readActiveLoanProjection(metadata);
   const subType = metadata.sub_type ?? metadata.liability_type;
   const balance = Math.abs(Number(holding.marketValue) || 0);
   const original = positive(metadata.original_amount ?? metadata.purchase_price);

@@ -26,7 +26,7 @@ import type { AlternativeAssetHolding, Quote } from "@/lib/types";
 import type { LoanCalculation } from "@/adapters/shared/alternative-assets";
 import { cn, formatDateISO } from "@/lib/utils";
 import { LoanTimeline } from "./loan-timeline";
-import { lastLoanConfirmation, loanMilestones } from "../lib/loan-presentation";
+import { lastLoanConfirmation, loanDisplayBalance, loanMilestones } from "../lib/loan-presentation";
 import { readLoanEvents, readLoanProjectionMetadata } from "../lib/loan-events";
 import { getLoanRenewalSummary } from "../lib/loan-renewal-summary";
 import type { LoanActionCallbacks } from "../hooks/use-loan-actions";
@@ -59,8 +59,7 @@ export function LoanOverview({
   const today = formatDateISO(new Date());
   const metadata = holding.metadata ?? {};
   const confirmed = lastLoanConfirmation(quotes, today);
-  const balance =
-    calculation?.currentBalance ?? Math.abs(Number(confirmed?.close ?? holding.marketValue));
+  const balance = loanDisplayBalance(calculation, holding.marketValue);
   const original = Number(metadata.original_amount ?? metadata.purchase_price);
   const originalAmount = Number.isFinite(original) && original > 0 ? original : null;
   const lastConfirmed = confirmed?.timestamp.slice(0, 10);

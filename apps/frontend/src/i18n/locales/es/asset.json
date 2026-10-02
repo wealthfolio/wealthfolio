@@ -818,7 +818,9 @@
     "renewal_maturity_hint": "Cuándo termina el plazo de su tasa actual. No es el fin de la amortización.",
     "validation": {
       "amount_exceeds_balance": "El reembolso no puede superar el saldo actual.",
-      "closure_date_invalid": "La fecha de cierre debe estar entre el origen y hoy."
+      "closure_date_invalid": "La fecha de cierre debe estar entre el origen y hoy.",
+      "required": "Obligatorio",
+      "first_payment_after_origination": "El primer pago debe ser posterior a la fecha de originación."
     },
     "accelerated_biweekly": "Quincenal acelerado",
     "first_payment_date": "Fecha del primer pago",
@@ -843,7 +845,8 @@
     "duration_year_many": "{{count}} años",
     "duration_month_many": "{{count}} meses",
     "confirm_balance": "Confirmar saldo",
-    "edit_details": "Editar detalles del préstamo"
+    "edit_details": "Editar detalles del préstamo",
+    "payment_required_for_frequency": "Introduzca el pago para la nueva frecuencia."
   },
   "loanOverview": {
     "regular_payment": "Pago periódico",
@@ -944,7 +947,9 @@
     "more_payments_many": "{{count}} pagos más",
     "more_payments_other": "{{count}} pagos más",
     "add_event": "Añadir evento",
-    "amount": "Importe"
+    "amount": "Importe",
+    "changed": "Este evento cambió en otro lugar. Vuelva a abrirlo e inténtelo de nuevo.",
+    "no_longer_exists": "Este evento ya no existe."
   },
   "loanInterest": {
     "method": "Cálculo de intereses",

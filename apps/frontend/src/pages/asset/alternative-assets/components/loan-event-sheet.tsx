@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { loanErrorText } from "./loan-error-text";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -149,7 +150,7 @@ export function LoanEventSheet({
       await onSave(replacement);
       onClose();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : t("asset:loanEvents.failed"));
+      setError(loanErrorText(t, cause, "asset:loanEvents.failed"));
     }
   };
   return (

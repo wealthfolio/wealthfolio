@@ -4,6 +4,7 @@ import type { Quote } from "@/lib/types";
 import {
   confirmedLoanBalances,
   loanBalanceTimeline,
+  loanDisplayBalance,
   loanMarkers,
   loanMilestones,
   loanPeriod,
@@ -67,6 +68,10 @@ describe("loan overview presentation", () => {
       "2026-03-15",
     );
     expect(loanPeriod(points, "2026-01-01", "2026-03-15").reduction).toBe(300);
+  });
+  it("leads a manual loan with its latest recorded balance, extra repayments included", () => {
+    expect(loanDisplayBalance(null, "-800")).toBe(800);
+    expect(loanDisplayBalance(calculation, "-800")).toBe(calculation.currentBalance);
   });
   it("excludes future quotes from confirmed balances", () => {
     expect(

@@ -810,7 +810,9 @@
     "renewal_maturity_hint": "目前利率期限結束的日期，並非攤還期限的結束日。",
     "validation": {
       "amount_exceeds_balance": "還款金額不能超過目前餘額。",
-      "closure_date_invalid": "結清日期必須在貸款發放日至今天之間。"
+      "closure_date_invalid": "結清日期必須在貸款發放日至今天之間。",
+      "required": "必填",
+      "first_payment_after_origination": "首次還款日期必須晚於撥款日期。"
     },
     "accelerated_biweekly": "加速雙週還款",
     "first_payment_date": "首次還款日期",
@@ -833,7 +835,8 @@
     "duration_month_one": "{{count}}個月",
     "duration_month_other": "{{count}}個月",
     "confirm_balance": "確認餘額",
-    "edit_details": "編輯貸款詳細資料"
+    "edit_details": "編輯貸款詳細資料",
+    "payment_required_for_frequency": "請輸入新頻率的還款額。"
   },
   "loanOverview": {
     "regular_payment": "定期還款額",
@@ -929,7 +932,9 @@
     "more_payments_one": "另外 {{count}} 筆付款",
     "more_payments_other": "另外 {{count}} 筆付款",
     "add_event": "新增事件",
-    "amount": "金額"
+    "amount": "金額",
+    "changed": "此事件已在其他地方變更。請重新開啟後再試一次。",
+    "no_longer_exists": "此事件已不存在。"
   },
   "loanInterest": {
     "method": "利息計算方式",

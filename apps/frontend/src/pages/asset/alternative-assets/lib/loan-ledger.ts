@@ -3,8 +3,8 @@ import type { LoanCalculation } from "@/adapters/shared/alternative-assets";
 import type { Quote } from "@/lib/types";
 import { classifyLoanBalance } from "./loan-balance";
 import {
+  readActiveLoanProjection,
   readLoanEvents,
-  readLoanProjectionMetadata,
   type LoanEvent,
   type LoanPaymentFrequency,
 } from "./loan-events";
@@ -64,7 +64,8 @@ export interface LoanLedgerYear {
   endBalance: number | null;
 }
 
-// Same-day order: terms change first, then the payment, then the confirmed closing balance.
+// Same-day order follows the engine: term changes, the payment, extra repayments,
+// then the confirmed closing balance.
 const KIND_ORDER: Record<LoanLedgerEntry["kind"], number> = {
   start: 0,
   event: 1,
@@ -72,8 +73,10 @@ const KIND_ORDER: Record<LoanLedgerEntry["kind"], number> = {
   balance: 3,
   maturity: 4,
 };
+const rank = (entry: LoanLedgerEntry) =>
+  entry.kind === "event" && entry.event.type === "extra_repayment" ? 2.5 : KIND_ORDER[entry.kind];
 const chronological = (a: LoanLedgerEntry, b: LoanLedgerEntry) =>
-  a.date.localeCompare(b.date) || KIND_ORDER[a.kind] - KIND_ORDER[b.kind];
+  a.date.localeCompare(b.date) || rank(a) - rank(b);
 
 /** One chronological ledger of scheduled payments, recorded events and confirmed balances. */
 export function buildLoanLedger(
@@ -91,7 +94,7 @@ export function buildLoanLedger(
 
   if (origination) {
     const original = Number(metadata.original_amount ?? metadata.purchase_price);
-    const projection = readLoanProjectionMetadata(metadata);
+    const projection = readActiveLoanProjection(metadata);
     const rate = projection?.annualRate ?? Number(metadata.interest_rate);
     entries.push({
       kind: "start",

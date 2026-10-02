@@ -766,7 +766,9 @@
     "renewal_maturity_hint": "When your current rate term ends. This is not the end of the amortization.",
     "validation": {
       "amount_exceeds_balance": "The repayment cannot exceed the current balance.",
-      "closure_date_invalid": "The closure date must be between origination and today."
+      "closure_date_invalid": "The closure date must be between origination and today.",
+      "required": "Required",
+      "first_payment_after_origination": "The first payment must be after the origination date."
     },
     "accelerated_biweekly": "Accelerated biweekly",
     "first_payment_date": "First payment date",
@@ -789,7 +791,8 @@
     "duration_month_one": "{{count}} month",
     "duration_month_other": "{{count}} months",
     "confirm_balance": "Confirm balance",
-    "edit_details": "Edit loan details"
+    "edit_details": "Edit loan details",
+    "payment_required_for_frequency": "Enter the payment for the new frequency."
   },
   "valueToolbar": {
     "add_balance": "Add Balance",
@@ -929,7 +932,9 @@
     "more_payments_one": "{{count}} more payment",
     "more_payments_other": "{{count}} more payments",
     "add_event": "Add event",
-    "amount": "Amount"
+    "amount": "Amount",
+    "changed": "This event changed elsewhere. Reopen it and try again.",
+    "no_longer_exists": "This event no longer exists."
   },
   "loanInterest": {
     "method": "Interest calculation",

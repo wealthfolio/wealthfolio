@@ -16,17 +16,17 @@ export function changeLoanEvent(
   original: LoanEvent,
   replacement: LoanEvent | null,
 ): LoanMetadata {
-  if (replacement && !isLoanEvent(replacement)) throw new Error("Invalid loan event");
+  if (replacement && !isLoanEvent(replacement)) throw new Error("asset:loanEvents.invalid");
   const raw = metadata[LOAN_EVENTS_METADATA_KEY];
   const parsed: unknown = typeof raw === "string" ? JSON.parse(raw) : raw;
-  if (!Array.isArray(parsed)) throw new Error("Loan event no longer exists");
+  if (!Array.isArray(parsed)) throw new Error("asset:loanEvents.no_longer_exists");
   const entries = (parsed as unknown[])
     .map((event, rawIndex) => ({ event, rawIndex }))
     .filter((entry): entry is { event: LoanEvent; rawIndex: number } => isLoanEvent(entry.event))
     .sort((a, b) => a.event.effectiveDate.localeCompare(b.event.effectiveDate));
   const target = entries[index];
   if (!target || JSON.stringify(target.event) !== JSON.stringify(original))
-    throw new Error("Loan event changed");
+    throw new Error("asset:loanEvents.changed");
   const next = [...(parsed as unknown[])];
   if (replacement) next[target.rawIndex] = replacement;
   else next.splice(target.rawIndex, 1);
