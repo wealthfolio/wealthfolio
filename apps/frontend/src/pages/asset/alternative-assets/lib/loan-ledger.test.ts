@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
 import type { LoanCalculation, LoanCalculationRow } from "@/adapters/shared/alternative-assets";
 import type { Quote } from "@/lib/types";
-import { buildLoanLedger, groupLoanLedger, loanLedgerView } from "./loan-ledger";
+import {
+  buildLoanLedger,
+  collapsePaymentRuns,
+  groupLoanLedger,
+  loanLedgerView,
+  type LoanLedgerEntry,
+} from "./loan-ledger";
 
 const row = (date: string, balance: number, scheduledPayment = true): LoanCalculationRow => ({
   date,
@@ -185,5 +191,39 @@ it("keeps the authoritative opening confirmation editable separately from origin
   expect(entries.find((entry) => entry.kind === "balance")).toMatchObject({
     balance: 1200,
     quote: opening,
+  });
+});
+
+describe("payment runs", () => {
+  const payment = (date: string): LoanLedgerEntry => ({
+    kind: "payment",
+    date,
+    balance: 100,
+    payment: 10,
+    principal: 8,
+    interest: 2,
+  });
+  const maturity: LoanLedgerEntry = { kind: "maturity", date: "2026-04-15", balance: 90 };
+  const entries = [
+    payment("2026-01-01"),
+    payment("2026-02-01"),
+    payment("2026-03-01"),
+    maturity,
+    payment("2026-05-01"),
+    payment("2026-06-01"),
+  ];
+
+  it("collapses runs longer than two payments behind a count", () => {
+    expect(collapsePaymentRuns("2026", entries, new Set())).toEqual([
+      entries[0],
+      { more: "2026:2026-01-01", count: 2 },
+      maturity,
+      entries[4],
+      entries[5],
+    ]);
+  });
+
+  it("shows an opened run in full", () => {
+    expect(collapsePaymentRuns("2026", entries, new Set(["2026:2026-01-01"]))).toEqual(entries);
   });
 });

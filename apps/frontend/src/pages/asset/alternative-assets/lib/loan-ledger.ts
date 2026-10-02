@@ -178,6 +178,40 @@ export function loanLedgerView(
 }
 
 /** Group entries by calendar year, keeping their order, with totals for the shown entries. */
+// Runs of plain payments longer than this collapse behind a "more payments" row.
+const PAYMENT_RUN_LIMIT = 2;
+
+/** A ledger entry, or the row standing in for the rest of a collapsed payment run. */
+export type LoanLedgerItem = LoanLedgerEntry | { more: string; count: number };
+
+/**
+ * Collapse each run of consecutive payments longer than the limit to its first payment and
+ * a "more" row, unless the run is open. A run's key is `${group}:${first payment date}`.
+ */
+export function collapsePaymentRuns(
+  group: string,
+  entries: LoanLedgerEntry[],
+  openRuns: ReadonlySet<string>,
+): LoanLedgerItem[] {
+  const items: LoanLedgerItem[] = [];
+  let run: LoanLedgerEntry[] = [];
+  const flush = () => {
+    const key = `${group}:${run[0]?.date}`;
+    if (run.length <= PAYMENT_RUN_LIMIT || openRuns.has(key)) items.push(...run);
+    else items.push(run[0], { more: key, count: run.length - 1 });
+    run = [];
+  };
+  for (const entry of entries) {
+    if (entry.kind === "payment") run.push(entry);
+    else {
+      flush();
+      items.push(entry);
+    }
+  }
+  flush();
+  return items;
+}
+
 export function groupLoanLedger(entries: LoanLedgerEntry[]): LoanLedgerYear[] {
   const years: LoanLedgerYear[] = [];
   const countedExtraDates = new Set<string>();
