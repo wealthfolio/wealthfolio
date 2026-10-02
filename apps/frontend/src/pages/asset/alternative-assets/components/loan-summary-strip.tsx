@@ -92,7 +92,12 @@ export function LoanSummaryStrip({
         {termStart && (
           <div className={cell}>
             <p className="text-muted-foreground text-xs">
-              {t("asset:loanEvents.current_term")}
+              {/* With no renewal before or ahead, the term is the whole loan. */}
+              {t(
+                currentRenewal || milestones.maturity
+                  ? "asset:loanEvents.current_term"
+                  : "asset:loanActions.loan_term",
+              )}
               {Number.isFinite(annualRate) && <> · {rate(annualRate)}</>}
             </p>
             {termEnd ? (

@@ -16,25 +16,22 @@ import { useLoanFormat } from "../hooks/use-loan-format";
 
 export function ThisTermCard({
   calculation,
-  metadata,
+  maturity,
   currency,
   mortgage,
   onRenew,
-  onEdit,
 }: {
   calculation: LoanCalculation;
-  metadata: Record<string, unknown>;
+  /** Renewal date ending the current term. */
+  maturity: string;
   currency: string;
   mortgage: boolean;
   onRenew: () => void;
-  onEdit: () => void;
 }) {
   const { t, numbers, money, duration } = useLoanFormat(currency);
   const today = formatDateISO(new Date());
-  const { maturity } = loanMilestones(calculation, metadata, today);
-  const renewal = maturity ? getLoanRenewalSummary(calculation, maturity, today) : null;
+  const renewal = getLoanRenewalSummary(calculation, maturity, today);
   const renewalDue =
-    !!maturity &&
     differenceInCalendarDays(parseISO(maturity), parseISO(today)) <= RENEWAL_SOON_DAYS;
   return (
     <OverviewCard
@@ -42,39 +39,30 @@ export function ThisTermCard({
       title={t("asset:loanOverview.this_term")}
       aside={<EstimatedLabel hint={t("asset:loanOverview.term_estimate_hint")} />}
     >
-      {maturity ? (
-        <Rows
-          rows={[
-            {
-              label: t("asset:loanOverview.payments_left"),
-              value: renewal ? numbers.formatDecimal(renewal.payments) : "—",
-            },
-            {
-              label: t("asset:loanOverview.principal_to_repay"),
-              value: renewal ? money(renewal.principal) : "—",
-            },
-            {
-              label: t("asset:loanOverview.interest_to_pay"),
-              value: renewal ? money(renewal.interest) : "—",
-            },
-            { label: t("asset:loanActions.balance_at_renewal"), value: money(renewal?.balance) },
-            {
-              label: t("asset:loanOverview.amortization_at_renewal"),
-              value:
-                renewal?.years != null && renewal.months != null
-                  ? duration(renewal.years * 12 + renewal.months)
-                  : "—",
-            },
-          ]}
-        />
-      ) : (
-        <div className="flex items-center justify-between text-sm">
-          <span className="text-muted-foreground">{t("asset:loanOverview.next_renewal")}</span>
-          <Button variant="link" size="xs" className="h-auto p-0" onClick={onEdit}>
-            {t("asset:loanOverview.add_renewal")}
-          </Button>
-        </div>
-      )}
+      <Rows
+        rows={[
+          {
+            label: t("asset:loanOverview.payments_left"),
+            value: renewal ? numbers.formatDecimal(renewal.payments) : "—",
+          },
+          {
+            label: t("asset:loanOverview.principal_to_repay"),
+            value: renewal ? money(renewal.principal) : "—",
+          },
+          {
+            label: t("asset:loanOverview.interest_to_pay"),
+            value: renewal ? money(renewal.interest) : "—",
+          },
+          { label: t("asset:loanActions.balance_at_renewal"), value: money(renewal?.balance) },
+          {
+            label: t("asset:loanOverview.amortization_at_renewal"),
+            value:
+              renewal?.years != null && renewal.months != null
+                ? duration(renewal.years * 12 + renewal.months)
+                : "—",
+          },
+        ]}
+      />
       {renewalDue && (
         <Button variant="outline" size="sm" className="mt-4 w-full rounded-full" onClick={onRenew}>
           {t(mortgage ? "asset:loanOverview.renew_mortgage" : "asset:loanActions.renew_loan")}
@@ -132,7 +120,8 @@ export function PayoffCard({
           ...(extraPaid > 0
             ? [{ label: t("asset:loanOverview.extra_paid"), value: money(extraPaid) }]
             : []),
-          ...(milestones.horizon
+          // Only worth a row once the estimate has moved away from the original date.
+          ...(milestones.horizon && milestones.horizon !== milestones.payoff
             ? [
                 {
                   label: (
@@ -178,6 +167,7 @@ export function LoanFactsCard({
   lastConfirmed,
   linkedAsset,
   mortgage,
+  onAddRenewal,
 }: {
   metadata: Record<string, unknown>;
   currency: string;
@@ -185,6 +175,8 @@ export function LoanFactsCard({
   lastConfirmed?: string;
   linkedAsset?: AlternativeAssetHolding;
   mortgage: boolean;
+  /** Offered while a tracked mortgage has no renewal date. */
+  onAddRenewal?: () => void;
 }) {
   const { t, money, date, rate } = useLoanFormat(currency);
   const startRate =
@@ -223,6 +215,18 @@ export function LoanFactsCard({
             label: t("asset:loanOverview.last_confirmed"),
             value: lastConfirmed ? date(lastConfirmed) : "—",
           },
+          ...(onAddRenewal
+            ? [
+                {
+                  label: t("asset:loanOverview.next_renewal"),
+                  value: (
+                    <Button variant="link" size="xs" className="h-auto p-0" onClick={onAddRenewal}>
+                      {t("asset:loanOverview.add_renewal")}
+                    </Button>
+                  ),
+                },
+              ]
+            : []),
         ]}
       />
       {linkedAsset && <LinkedAssetBlock asset={linkedAsset} securedDebt={securedDebt} />}

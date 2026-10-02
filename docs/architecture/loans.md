@@ -300,6 +300,8 @@ Schedule open the same forms.
 - A summary strip shows principal-repaid progress, current term progress with a
   today marker, and the next payment with its estimated principal/interest
   split. The term indicator represents elapsed time, not principal repayment.
+  With no renewal before or ahead it is labelled Loan term, since the term is
+  the whole loan.
 - One full-width balance chart combines reconstructed history, confirmations,
   and future projections. Use the success color and gradient fill, a dashed
   future line, and labelled today, renewal, and estimated-payoff references.
@@ -316,6 +318,9 @@ Schedule open the same forms.
   the strip's figures. Both estimated cards carry one Estimated label whose hint
   states the calculation start date. Current terms reflect dated renewals rather
   than the original rate.
+- This term appears only with a renewal date; without one, its figures would
+  repeat Payoff and the strip. Payoff lists the original payoff only when the
+  estimate differs from it.
 - A linked asset sits at the end of the details card. For a property it shows
   equity after every loan on the property, and loan-to-value, when they share a
   currency.
@@ -346,12 +351,12 @@ edit access. Other alternative assets keep the value-history grid.
 
 Header actions group balance operations, term changes, and management. Schedule
 also offers Add event. Renew is highlighted near maturity (within 90 days) or
-when overdue; a mortgage without maturity offers Add renewal date. A row, term
-entry, or recorded chart marker opens the same edit sheet. Deletion requires
-confirmation. Inputs and mobile sheet behavior follow the application's shared
-form patterns. Cadence/status text supports all ten locales, including
-accelerated biweekly. Use localized month names rather than ambiguous numeric
-dates.
+when overdue; a tracked mortgage without maturity offers Add renewal date in its
+details card. A row, term entry, or recorded chart marker opens the same edit
+sheet. Deletion requires confirmation. Inputs and mobile sheet behavior follow
+the application's shared form patterns. Cadence/status text supports all ten
+locales, including accelerated biweekly. Use localized month names rather than
+ambiguous numeric dates.
 
 ## Verification and fixtures
 

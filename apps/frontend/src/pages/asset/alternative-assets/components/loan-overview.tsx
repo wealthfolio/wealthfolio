@@ -40,8 +40,9 @@ export function LoanOverview({
   const originalAmount = Number.isFinite(original) && original > 0 ? original : null;
   const lastConfirmed = confirmed?.timestamp.slice(0, 10);
   const milestones = loanMilestones(calculation, metadata, today);
-  const showTerm = !!calculation && (mortgage || !!milestones.maturity);
-  const cards = 1 + (showTerm ? 1 : 0) + (calculation ? 1 : 0);
+  // Without a renewal date the term is the whole loan, which the strip already shows.
+  const maturity = calculation ? milestones.maturity : undefined;
+  const cards = 1 + (maturity ? 1 : 0) + (calculation ? 1 : 0);
   return (
     <div className="space-y-4" data-testid={mortgage ? "mortgage-overview" : "loan-overview"}>
       <LoanSummaryStrip
@@ -66,14 +67,13 @@ export function LoanOverview({
         onEditTerms={onEdit}
       />
       <div className={cn("grid grid-cols-1 gap-4", CARD_COLUMNS[cards])}>
-        {showTerm && calculation && (
+        {calculation && maturity && (
           <ThisTermCard
             calculation={calculation}
-            metadata={metadata}
+            maturity={maturity}
             currency={holding.currency}
             mortgage={mortgage}
             onRenew={actions.renew}
-            onEdit={onEdit}
           />
         )}
         {calculation && (
@@ -86,6 +86,7 @@ export function LoanOverview({
           lastConfirmed={lastConfirmed}
           linkedAsset={linkedAsset}
           mortgage={mortgage}
+          onAddRenewal={mortgage && calculation && !milestones.maturity ? onEdit : undefined}
         />
       </div>
     </div>
