@@ -283,8 +283,9 @@ worth. Reopening resets payoff; trailing term changes or repeated zero
 confirmations do not move an already settled payoff date.
 
 Net-worth snapshots and history must use the same dated principal as holdings
-and the loan page. Confirmation adjustments are not cash payments. Passing time
-does not turn a projected payment into a confirmation.
+and the loan page. Alternative assets and loans count even when there are no
+accounts. Confirmation adjustments are not cash payments. Passing time does not
+turn a projected payment into a confirmation.
 
 ## Page and interaction design
 

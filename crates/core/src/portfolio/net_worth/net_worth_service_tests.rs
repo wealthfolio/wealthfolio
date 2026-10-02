@@ -1082,6 +1082,25 @@ async fn test_empty_accounts_returns_zero_net_worth() {
 }
 
 #[tokio::test]
+async fn test_alternative_assets_count_without_accounts() {
+    // A household that only tracks a home and its mortgage has no accounts.
+    let property = create_test_asset("PROP-home", AssetKind::Property, "USD");
+    let mortgage = create_test_asset("LIAB-mortgage", AssetKind::Liability, "USD");
+    let date = NaiveDate::from_ymd_opt(2024, 1, 15).unwrap();
+    let quotes = vec![
+        create_test_quote("PROP-home", dec!(450000), date, "USD"),
+        create_test_quote("LIAB-mortgage", dec!(300000), date, "USD"),
+    ];
+    let service = create_net_worth_service(vec![], vec![property, mortgage], vec![], quotes);
+
+    let result = service.get_net_worth(date).await.unwrap();
+
+    assert_eq!(get_category_value(&result, "properties"), dec!(450000));
+    assert_eq!(result.liabilities.total, dec!(300000));
+    assert_eq!(result.net_worth, dec!(150000));
+}
+
+#[tokio::test]
 async fn test_single_investment_account() {
     let account = create_test_account("acc1", "SECURITIES", "USD");
     let asset = create_test_asset("AAPL", AssetKind::Investment, "USD");
