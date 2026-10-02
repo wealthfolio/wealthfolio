@@ -1,11 +1,4 @@
-import {
-  addDays,
-  addMonths,
-  differenceInCalendarDays,
-  differenceInCalendarMonths,
-  endOfMonth,
-  isLastDayOfMonth,
-} from "date-fns";
+import { addDays, addMonths, differenceInCalendarDays, differenceInCalendarMonths } from "date-fns";
 import type { LoanInterestMethod, LoanPaymentFrequency } from "./loan-events";
 
 export const LOAN_PERIODS_PER_YEAR: Record<LoanPaymentFrequency, number> = {
@@ -147,6 +140,6 @@ export function calculateLoanPaymentDate(
   if (!Number.isInteger(paymentIndex) || paymentIndex < 0) return null;
 
   if (frequency !== "monthly") return addDays(firstPaymentDate, paymentIndex * 14);
-  const nominalDate = addMonths(firstPaymentDate, paymentIndex);
-  return isLastDayOfMonth(firstPaymentDate) ? endOfMonth(nominalDate) : nominalDate;
+  // Keep the first payment's day, clamped in shorter months, as the shared engine does.
+  return addMonths(firstPaymentDate, paymentIndex);
 }

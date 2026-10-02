@@ -106,7 +106,7 @@ describe("correcting original loan terms", () => {
     });
     const updates = formValuesToMetadata(values);
     expect(updates.renewal_maturity_date).toBe("2026-06-15");
-    expect(readLoanProjectionMetadata(updates)?.amortizationEndDate).toBe("2027-01-31");
+    expect(readLoanProjectionMetadata(updates)?.amortizationEndDate).toBe("2027-01-28");
     expect(
       formValuesToMetadata({ ...values, renewalMaturity: null } as typeof values)
         .renewal_maturity_date,

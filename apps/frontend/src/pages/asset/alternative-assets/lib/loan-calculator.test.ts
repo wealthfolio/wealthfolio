@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { format } from "date-fns";
+import { parseLocalDate } from "@/lib/utils";
 import {
   calculateAmortizationMonths,
   calculateAmortizationSchedule,
@@ -39,6 +40,14 @@ describe("loan calculator", () => {
     const biweekly = calculateAmortizationSchedule(first, 300, "biweekly")!;
     expect(biweekly.paymentCount).toBe(650);
     expect(calculateAmortizationMonths(first, biweekly.lastPaymentDate, "biweekly")).toBe(300);
+  });
+
+  it("counts a stored month-end horizon as whole months and keeps a 30th payment day", () => {
+    const first = parseLocalDate("2026-01-31");
+    expect(calculateAmortizationMonths(first, parseLocalDate("2050-12-31"), "monthly")).toBe(300);
+    expect(format(calculateLoanEndDate(parseLocalDate("2026-06-30"), 2)!, "yyyy-MM-dd")).toBe(
+      "2026-07-30",
+    );
   });
 
   it("round-trips partial years for every cadence", () => {

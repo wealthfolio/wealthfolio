@@ -1,6 +1,6 @@
 //! Calendar-date loan valuation shared by holdings, net worth and both UI runtimes.
 //! Quotes are closing observations: on the same day they override payments and events.
-use chrono::{Datelike, Days, Months, NaiveDate};
+use chrono::{Days, Months, NaiveDate};
 use rust_decimal::{
     prelude::{FromPrimitive, ToPrimitive},
     Decimal, RoundingStrategy,
@@ -114,6 +114,17 @@ impl Event {
             Self::PaymentFrequencyChange { .. } => true,
         }
     }
+    /// Whether the event replaces the regular payment amount.
+    fn sets_payment(&self) -> bool {
+        matches!(
+            self,
+            Self::PaymentChange { .. }
+                | Self::Renewal {
+                    payment_amount: Some(_),
+                    ..
+                }
+        )
+    }
 }
 fn valid_amount(value: f64) -> bool {
     value.is_finite() && (0.0..=1e15).contains(&value)
@@ -204,34 +215,20 @@ fn money(n: f64) -> f64 {
         .and_then(|value| value.to_f64())
         .unwrap_or(n)
 }
+/// Monthly payments keep the first payment's day, clamped to the end of shorter
+/// months: the 31st falls on each month's last day, the 30th stays the 30th.
 fn payment_date(anchor: NaiveDate, index: usize, frequency: LoanFrequency) -> Option<NaiveDate> {
     if frequency != LoanFrequency::Monthly {
         return anchor.checked_add_days(Days::new(index as u64 * 14));
     }
-    let date = anchor.checked_add_months(Months::new(index as u32))?;
-    let next = anchor.succ_opt()?;
-    if next.month() != anchor.month() {
-        date.with_day(1)?
-            .checked_add_months(Months::new(1))?
-            .pred_opt()
-    } else {
-        Some(date)
-    }
+    anchor.checked_add_months(Months::new(index as u32))
 }
 
 fn previous_payment_date(date: NaiveDate, frequency: LoanFrequency) -> Option<NaiveDate> {
     if frequency != LoanFrequency::Monthly {
         return date.checked_sub_days(Days::new(14));
     }
-    let previous = date.checked_sub_months(Months::new(1))?;
-    if date.succ_opt()?.month() != date.month() {
-        previous
-            .with_day(1)?
-            .checked_add_months(Months::new(1))?
-            .pred_opt()
-    } else {
-        Some(previous)
-    }
+    date.checked_sub_months(Months::new(1))
 }
 
 fn amortization_horizon(t: &Terms) -> Option<NaiveDate> {
@@ -252,10 +249,15 @@ pub fn calculate_loan(request: &LoanCalculationRequest) -> Option<LoanCalculatio
         return None;
     }
     let mut t = terms(&request.metadata)?;
+    // Observations past the longest schedule the engine can walk (a mistyped year)
+    // are ignored rather than invalidating the whole calculation.
+    let limit = t
+        .first_payment_date
+        .checked_add_days(Days::new((MAX_PAYMENTS as u64 - 1) * 14))?;
     let mut balances: Vec<_> = request
         .balances
         .iter()
-        .filter(|b| valid_amount(b.balance))
+        .filter(|b| valid_amount(b.balance) && b.date <= limit)
         .collect();
     balances.sort_by_key(|b| b.date);
     let origin = request
@@ -296,7 +298,7 @@ pub fn calculate_loan(request: &LoanCalculationRequest) -> Option<LoanCalculatio
         .unwrap_or_default()
         .into_iter()
         .filter_map(|v| serde_json::from_value(v).ok())
-        .filter(Event::valid)
+        .filter(|event: &Event| event.valid() && event.date() <= limit)
         .collect();
     if events.len() > 10_000 {
         return None;
@@ -796,6 +798,21 @@ mod tests {
     }
 
     #[test]
+    fn a_mistyped_far_future_balance_is_ignored() {
+        let q = request();
+        let mut typo = q.clone();
+        typo.balances.push(LoanBalance {
+            date: date("2926-03-01"),
+            balance: 1.0,
+            notes: None,
+        });
+        assert_eq!(
+            calculate_loan(&typo).unwrap().current_balance,
+            calculate_loan(&q).unwrap().current_balance
+        );
+    }
+
+    #[test]
     fn month_end_and_leap_day_keep_the_schedule_anchor() {
         let anchor = date("2024-01-31");
         assert_eq!(
@@ -809,6 +826,15 @@ mod tests {
         assert_eq!(
             payment_date(date("2024-01-30"), 2, LoanFrequency::Monthly),
             Some(date("2024-03-30"))
+        );
+        // A first payment on the last day of a short month keeps its day.
+        assert_eq!(
+            payment_date(date("2026-06-30"), 1, LoanFrequency::Monthly),
+            Some(date("2026-07-30"))
+        );
+        assert_eq!(
+            payment_date(date("2026-02-28"), 1, LoanFrequency::Monthly),
+            Some(date("2026-03-28"))
         );
     }
 

@@ -159,9 +159,10 @@ automatic calculation off; enabling it and entering payment terms writes a
 ### Dates, accrual, and posting
 
 Contractual dates are `YYYY-MM-DD` calendar dates, not UTC instants. Monthly
-payments preserve the original day, clamping only the affected month; an
-explicit month-end anchor stays at month-end. Biweekly payments advance by 14
-days.
+payments keep the first payment's day, clamped to the end of shorter months: a
+first payment on the 31st falls on each month's last day, while the 30th stays
+the 30th even when the first payment is in a 30-day month. Biweekly payments
+advance by 14 days.
 
 For annual decimal rate `r` and payments per year `p`:
 
@@ -223,7 +224,10 @@ balance on the renewal date; manual quotes are keyed by day, so a retry replaces
 it instead of duplicating it.
 
 `recalculate_loan` searches for the smallest cent payment that clears principal
-and accrued interest by the existing horizon. It preserves frequency resets and
+and accrued interest by the existing horizon. An accelerated biweekly loan pays
+half the monthly payment that clears it, rounded up, as at creation, so it still
+finishes early. A payment recorded after the effective date would replace the
+solved one, so the result is unavailable then. It preserves frequency resets and
 recorded payment, rate, and extra-repayment events through that horizon. Trial
 projections use confirmations only through the recalculation's effective date;
 later confirmations or corrections cannot prove a candidate payment sufficient.

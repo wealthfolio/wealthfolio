@@ -19,7 +19,10 @@ pub struct LoanRecalculation {
 }
 
 /// `as_of` is the effective date. Return the smallest cent payment that settles
-/// principal and accrued interest by the existing amortization horizon.
+/// principal and accrued interest by the existing amortization horizon. An
+/// accelerated biweekly loan pays half the monthly payment that settles it, as at
+/// creation. A payment recorded after the effective date would replace the solved
+/// one, so the result is unavailable then.
 pub fn recalculate_loan(request: &LoanRecalculationRequest) -> Option<LoanRecalculation> {
     if !request.annual_rate.is_finite() || !(0.0..=100.0).contains(&request.annual_rate) {
         return None;
@@ -39,6 +42,12 @@ pub fn recalculate_loan(request: &LoanRecalculationRequest) -> Option<LoanRecalc
     events.retain(|value| {
         serde_json::from_value::<Event>(value.clone()).map_or(true, |event| event.date() <= horizon)
     });
+    if events.iter().any(|value| {
+        serde_json::from_value::<Event>(value.clone())
+            .is_ok_and(|event| event.date() > date && event.sets_payment())
+    }) {
+        return None;
+    }
     loan.metadata[LOAN_EVENTS_KEY] = Value::Array(events.clone());
     let original = calculate_loan(&loan)?;
     let confirmed_at_date = original
@@ -57,17 +66,19 @@ pub fn recalculate_loan(request: &LoanRecalculationRequest) -> Option<LoanRecalc
     if current_balance <= 0.0 {
         return None;
     }
-    events.push(serde_json::json!({"type":"rate_change", "effectiveDate":date, "annualRate":request.annual_rate}));
-    events.push(
-        serde_json::json!({"type":"payment_change", "effectiveDate":date, "paymentAmount":0.01}),
-    );
-    let payment_index = events.len() - 1;
-    loan.metadata[LOAN_EVENTS_KEY] = Value::Array(events);
-    let mut evaluate = |cents: u64| {
-        loan.metadata[LOAN_EVENTS_KEY][payment_index]["paymentAmount"] =
-            serde_json::json!(cents as f64 / 100.0);
-        calculate_loan(&loan)
+    let accelerated = original.frequency == LoanFrequency::AcceleratedBiweekly;
+    let with_new_terms = |cents: u64, monthly: bool| {
+        let mut events = events.clone();
+        if monthly {
+            events.push(serde_json::json!({"type":"payment_frequency_change", "effectiveDate":date, "frequency":"monthly"}));
+        }
+        events.push(serde_json::json!({"type":"rate_change", "effectiveDate":date, "annualRate":request.annual_rate}));
+        events.push(serde_json::json!({"type":"payment_change", "effectiveDate":date, "paymentAmount":cents as f64 / 100.0}));
+        let mut trial = loan.clone();
+        trial.metadata[LOAN_EVENTS_KEY] = Value::Array(events);
+        calculate_loan(&trial)
     };
+    let evaluate = |cents: u64| with_new_terms(cents, accelerated);
     let settled = |result: &LoanCalculation| {
         result.residual_balance == 0.0
             && result.residual_interest == 0.0
@@ -95,7 +106,8 @@ pub fn recalculate_loan(request: &LoanRecalculationRequest) -> Option<LoanRecalc
             low = middle + 1;
         }
     }
-    let result = evaluate(low)?;
+    let cents = if accelerated { low.div_ceil(2) } else { low };
+    let result = with_new_terms(cents, false)?;
     let remaining_payments = result
         .rows
         .iter()
@@ -105,7 +117,7 @@ pub fn recalculate_loan(request: &LoanRecalculationRequest) -> Option<LoanRecalc
         return None;
     }
     Some(LoanRecalculation {
-        payment_amount: low as f64 / 100.0,
+        payment_amount: cents as f64 / 100.0,
         remaining_payments,
         current_balance,
     })
@@ -208,6 +220,49 @@ mod tests {
         q.annual_rate = 0.0;
         q.loan.as_of = "2026-06-01".parse().unwrap();
         assert!(recalculate_loan(&q).is_none());
+    }
+
+    #[test]
+    fn later_recorded_payments_make_a_backdated_solve_unavailable() {
+        for later in [
+            json!({"type":"payment_change","effectiveDate":"2026-04-01","paymentAmount":300}),
+            json!({"type":"renewal","effectiveDate":"2026-04-01","annualRate":0,"paymentAmount":300}),
+        ] {
+            let mut q = request();
+            q.loan.metadata[LOAN_EVENTS_KEY] = json!([later]);
+            assert!(recalculate_loan(&q).is_none());
+        }
+        // A later rate change alone does not replace the payment.
+        let mut q = request();
+        q.loan.metadata[LOAN_EVENTS_KEY] =
+            json!([{"type":"rate_change","effectiveDate":"2026-04-01","annualRate":5}]);
+        assert!(recalculate_loan(&q).is_some());
+    }
+
+    #[test]
+    fn accelerated_biweekly_keeps_half_the_monthly_payment() {
+        // FCAC: 100,000 at 5% compounded semiannually over 25 years, 290.80 accelerated.
+        let first: NaiveDate = "2026-01-15".parse().unwrap();
+        let end = first + chrono::Duration::days(649 * 14);
+        let loan = |frequency: &str, payment: f64| -> LoanRecalculationRequest {
+            serde_json::from_value(json!({
+                "metadata": {"loan_projection": {"version": 1, "annualRate": 5, "paymentAmount": payment,
+                    "frequency": frequency, "interestMethod": "semiannual",
+                    "firstPaymentDate": first, "amortizationEndDate": end}},
+                "balances": [{"date": "2026-01-01", "balance": 100000}],
+                "asOf": "2026-01-01", "annualRate": 5
+            }))
+            .unwrap()
+        };
+        let accelerated = recalculate_loan(&loan("accelerated_biweekly", 290.8)).unwrap();
+        let ordinary = recalculate_loan(&loan("biweekly", 266.49)).unwrap();
+        assert!(
+            (290.8..292.0).contains(&accelerated.payment_amount),
+            "{accelerated:?}"
+        );
+        assert!(ordinary.payment_amount < 270.0, "{ordinary:?}");
+        // Paying half the monthly amount every two weeks finishes years early.
+        assert!(accelerated.remaining_payments < ordinary.remaining_payments - 52);
     }
 }
 
