@@ -36,6 +36,7 @@ import { useIsMobileViewport } from "@/hooks/use-platform";
 import { HoldingsTable } from "./components/holdings-table";
 import { HoldingsTableMobile } from "./components/holdings-table-mobile";
 import { AlternativeHoldingsTable } from "./components/alternative-holdings-table";
+import { LiabilityOverview } from "./components/liability-overview";
 import { AlternativeHoldingsListMobile } from "./components/alternative-holdings-list-mobile";
 import { HoldingsEditMode } from "./components/holdings-edit-mode";
 import {
@@ -661,31 +662,15 @@ export const HoldingsPage = () => {
           </EmptyPlaceholder>
         </div>
       ) : (
-        <>
-          {/* Desktop View */}
-          <div className="hidden md:block">
-            <AlternativeHoldingsTable
-              holdings={liabilitiesHoldings}
-              isLoading={isDataLoading}
-              emptyTitle={t("holdings:empty_no_liabilities")}
-              emptyDescription={t("holdings:empty_add_first_liability_button")}
-              onEdit={handleEditAsset}
-              onUpdateValue={setUpdateValueAsset}
-              onViewHistory={handleViewHistory}
-              onDelete={handleDeleteAsset}
-              onRowClick={handleRowClick}
-              isDeleting={isDeleting}
-            />
-          </div>
-          {/* Mobile View */}
-          <div className="block md:hidden">
-            <AlternativeHoldingsListMobile
-              holdings={liabilitiesHoldings}
-              isLoading={isDataLoading}
-              onRowClick={handleRowClick}
-            />
-          </div>
-        </>
+        <LiabilityOverview
+          holdings={liabilitiesHoldings}
+          isLoading={isDataLoading}
+          onEdit={handleEditAsset}
+          onUpdateValue={setUpdateValueAsset}
+          onViewHistory={handleViewHistory}
+          onDelete={handleDeleteAsset}
+          isDeleting={isDeleting}
+        />
       )}
     </>
   );

@@ -63,7 +63,7 @@ function formatTargetDate(
   return formatted === "-" ? null : formatted.toUpperCase();
 }
 
-function ProgressBar({ progress, fillClass }: { progress: number; fillClass: string }) {
+export function ProgressBar({ progress, fillClass }: { progress: number; fillClass: string }) {
   const pct = Math.max(0, Math.min(1, progress));
   return (
     <div className="bg-muted/60 relative h-[5px] w-full overflow-hidden">

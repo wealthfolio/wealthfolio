@@ -234,5 +234,24 @@
   "category_breakdown": "类别明细",
   "personal_assets": "个人资产",
   "health_filter_active": "正在显示健康中心标记的持仓",
-  "closing_cash_flow": "平仓现金流"
+  "closing_cash_flow": "平仓现金流",
+  "liability_cards": {
+    "owed": "未偿还",
+    "paid_down": "已偿还",
+    "overall": "整体",
+    "monthly": "每月",
+    "paid_off": "已还清",
+    "owed_of": "共 {{amount}} 中未还",
+    "owed_now": "未还",
+    "manual": "手动",
+    "manual_hint": "手动更新余额",
+    "debt_free": "{{date}} 还清",
+    "updated": "更新于 {{date}}",
+    "status_paid_off": "已还清",
+    "status_renewal_due": "需要续期",
+    "status_renew_soon": "即将续期",
+    "status_update_balance": "更新余额",
+    "update_balance": "更新余额",
+    "schedule": "还款计划"
+  }
 }

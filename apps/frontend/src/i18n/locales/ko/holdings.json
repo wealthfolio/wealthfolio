@@ -234,5 +234,24 @@
   "category_breakdown": "카테고리별 세부 내역",
   "personal_assets": "개인 자산",
   "health_filter_active": "건강 센터가 표시한 보유 자산을 표시하고 있습니다",
-  "closing_cash_flow": "포지션 청산 현금 흐름"
+  "closing_cash_flow": "포지션 청산 현금 흐름",
+  "liability_cards": {
+    "owed": "잔액",
+    "paid_down": "상환액",
+    "overall": "전체",
+    "monthly": "월 납부",
+    "paid_off": "상환",
+    "owed_of": "{{amount}} 중 잔액",
+    "owed_now": "잔액",
+    "manual": "수동",
+    "manual_hint": "잔액을 직접 업데이트",
+    "debt_free": "{{date}} 완납",
+    "updated": "{{date}} 업데이트",
+    "status_paid_off": "완납",
+    "status_renewal_due": "갱신 필요",
+    "status_renew_soon": "곧 갱신",
+    "status_update_balance": "잔액 업데이트",
+    "update_balance": "잔액 업데이트",
+    "schedule": "상환 일정"
+  }
 }

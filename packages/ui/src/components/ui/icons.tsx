@@ -189,7 +189,10 @@ import { DotsThreeOutlineVerticalIcon } from "@phosphor-icons/react/dist/csr/Dot
 import { EyeIcon } from "@phosphor-icons/react/dist/csr/Eye";
 import { EyeSlashIcon } from "@phosphor-icons/react/dist/csr/EyeSlash";
 import { GarageIcon } from "@phosphor-icons/react/dist/csr/Garage";
+import { GraduationCapIcon } from "@phosphor-icons/react/dist/csr/GraduationCap";
+import { HandCoinsIcon } from "@phosphor-icons/react/dist/csr/HandCoins";
 import { HouseIcon } from "@phosphor-icons/react/dist/csr/House";
+import { HouseLineIcon } from "@phosphor-icons/react/dist/csr/HouseLine";
 import { LightningIcon } from "@phosphor-icons/react/dist/csr/Lightning";
 import { PuzzlePieceIcon } from "@phosphor-icons/react/dist/csr/PuzzlePiece";
 import { ReceiptIcon } from "@phosphor-icons/react/dist/csr/Receipt";
@@ -781,6 +784,16 @@ const IconsInternal = {
   LightningDuotone: ({ size, className, style, color }: IconProps) => (
     <LightningIcon size={size} weight="duotone" className={className} style={style} color={color} />
   ),
+  // Liability type icons (duotone)
+  GraduationCapDuotone: ({ size, className, style, color }: IconProps) => (
+    <GraduationCapIcon size={size} weight="duotone" className={className} style={style} color={color} />
+  ),
+  HandCoinsDuotone: ({ size, className, style, color }: IconProps) => (
+    <HandCoinsIcon size={size} weight="duotone" className={className} style={style} color={color} />
+  ),
+  HouseLineDuotone: ({ size, className, style, color }: IconProps) => (
+    <HouseLineIcon size={size} weight="duotone" className={className} style={style} color={color} />
+  ),
   // Spending taxonomy icons (referenced by category seed data; keys must match
   // the strings stored in `taxonomy_categories.icon`).
   Award: Award,
@@ -1009,6 +1022,9 @@ export type IconName =
   | "LiabilityDuotone"
   | "OtherAssetDuotone"
   | "LightningDuotone"
+  | "GraduationCapDuotone"
+  | "HandCoinsDuotone"
+  | "HouseLineDuotone"
   // Spending taxonomy icons
   | "Award"
   | "Banknote"
