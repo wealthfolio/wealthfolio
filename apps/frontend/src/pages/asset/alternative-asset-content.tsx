@@ -85,7 +85,6 @@ export const AlternativeAssetContent: React.FC<AlternativeAssetContentProps> = (
     assetId,
     enabled: isLinkableAsset,
   });
-  const valuedLinkedLiabilities = linkedLiabilities;
 
   // Fetch all alternative holdings to find linked asset for liabilities
   const { data: allHoldings = [] } = useAlternativeHoldings({ enabled: !!holding.linkedAssetId });
@@ -114,9 +113,9 @@ export const AlternativeAssetContent: React.FC<AlternativeAssetContentProps> = (
     if (!quoteHistory || quoteHistory.length === 0) return [];
 
     // Sort quotes chronologically (oldest first)
-    const sortedQuotes = quoteHistory
-      .slice()
-      .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+    const sortedQuotes = [...quoteHistory].sort(
+      (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
+    );
 
     if (!dateRange?.from || !dateRange?.to || selectedIntervalCode === "ALL") {
       return sortedQuotes.map((quote) => ({
@@ -126,28 +125,18 @@ export const AlternativeAssetContent: React.FC<AlternativeAssetContentProps> = (
       }));
     }
 
-    const start = dateRange.from;
-    const finish = dateRange.to;
-    const previous = sortedQuotes.filter((quote) => new Date(quote.timestamp) < start).at(-1);
-    const inRange = sortedQuotes.filter(
-      (quote) => new Date(quote.timestamp) >= start && new Date(quote.timestamp) <= finish,
-    );
-    return [
-      ...(previous
-        ? [
-            {
-              timestamp: start.toISOString(),
-              totalValue: previous.close,
-              currency: holding.currency,
-            },
-          ]
-        : []),
-      ...inRange.map((quote) => ({
+    return sortedQuotes
+      .filter((quote) => {
+        const quoteDate = new Date(quote.timestamp);
+        return (
+          dateRange.from && dateRange.to && quoteDate >= dateRange.from && quoteDate <= dateRange.to
+        );
+      })
+      .map((quote) => ({
         timestamp: quote.timestamp,
         totalValue: quote.close,
         currency: holding.currency,
-      })),
-    ];
+      }));
   }, [dateRange, quoteHistory, holding.currency, selectedIntervalCode]);
 
   // Calculate gain for displayed interval
@@ -167,10 +156,6 @@ export const AlternativeAssetContent: React.FC<AlternativeAssetContentProps> = (
     // Calculate gain for filtered period
     const startValue = filteredChartData[0]?.totalValue;
     const endValue = filteredChartData.at(-1)?.totalValue;
-    const hasOpening =
-      !!dateRange?.from &&
-      quoteHistory.some((quote) => new Date(quote.timestamp) < dateRange.from!);
-    if (!hasOpening) return { gainAmount: null, gainPercent: null };
     const isValidStartValue = typeof startValue === "number" && startValue !== 0;
 
     return {
@@ -183,14 +168,7 @@ export const AlternativeAssetContent: React.FC<AlternativeAssetContentProps> = (
           ? (endValue - startValue) / startValue
           : null,
     };
-  }, [
-    filteredChartData,
-    dateRange,
-    quoteHistory,
-    selectedIntervalCode,
-    holding.unrealizedGain,
-    holding.unrealizedGainPct,
-  ]);
+  }, [filteredChartData, selectedIntervalCode, holding.unrealizedGain, holding.unrealizedGainPct]);
 
   const handleIntervalSelect = (
     code: TimePeriod,
@@ -206,14 +184,14 @@ export const AlternativeAssetContent: React.FC<AlternativeAssetContentProps> = (
 
   // Calculate net equity for linkable assets
   const netEquity = useMemo(() => {
-    if (valuedLinkedLiabilities.length === 0) {
+    if (linkedLiabilities.length === 0) {
       return null;
     }
-    const liabilityTotal = valuedLinkedLiabilities.reduce((sum, liability) => {
+    const liabilityTotal = linkedLiabilities.reduce((sum, liability) => {
       return sum + Math.abs(parseFloat(liability.marketValue));
     }, 0);
     return marketValue - liabilityTotal;
-  }, [marketValue, valuedLinkedLiabilities]);
+  }, [marketValue, linkedLiabilities]);
 
   if (activeTab === "overview") {
     const LiabilityOverview =
@@ -287,8 +265,8 @@ export const AlternativeAssetContent: React.FC<AlternativeAssetContentProps> = (
             <AlternativeAssetDetailCard
               holding={holding}
               netEquity={isLinkableAsset ? (netEquity ?? marketValue) : null}
-              hasLinkedLiabilities={valuedLinkedLiabilities.length > 0}
-              linkedLiabilities={isLinkableAsset ? valuedLinkedLiabilities : []}
+              hasLinkedLiabilities={linkedLiabilities.length > 0}
+              linkedLiabilities={isLinkableAsset ? linkedLiabilities : []}
               className="col-span-1"
             />
           </div>
