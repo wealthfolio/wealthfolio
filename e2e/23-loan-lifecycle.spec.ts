@@ -156,7 +156,7 @@ test("loan lifecycle matches the independent fixture in the page and net worth",
     ["renewed", fixture.events.renewal],
     ["backdated", fixture.events.olderRenewal],
   ] as const) {
-    await addEvent("Renew loan");
+    await addEvent("Renew mortgage");
     await sheet.locator('input[type="date"]').first().fill(event.effectiveDate);
     await sheet.getByLabel("Interest rate", { exact: true }).fill(String(event.annualRate));
     if ("paymentAmount" in event)

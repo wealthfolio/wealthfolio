@@ -613,7 +613,11 @@ function LoanLedger({ holding, calculation, quotes, actions, onEditDetails }: Lo
                 ((metadata.sub_type ?? metadata.liability_type) === "mortgage" ||
                   typeof metadata.renewal_maturity_date === "string") && (
                   <DropdownMenuItem onSelect={actions.renew}>
-                    {t("asset:loanActions.renew_loan")}
+                    {t(
+                      (metadata.sub_type ?? metadata.liability_type) === "mortgage"
+                        ? "asset:loanOverview.renew_mortgage"
+                        : "asset:loanActions.renew_loan",
+                    )}
                   </DropdownMenuItem>
                 )}
             </DropdownMenuContent>

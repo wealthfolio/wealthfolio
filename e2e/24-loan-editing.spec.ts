@@ -77,7 +77,7 @@ test("active mortgage terms, previous terms and event editing stay consistent", 
   const rows = ledger.getByTestId("loan-ledger-row");
   await ledger.getByRole("button", { name: "Add event", exact: true }).click();
   await expect(page.getByRole("menuitem", { name: "Confirm balance", exact: true })).toBeVisible();
-  await expect(page.getByRole("menuitem", { name: "Renew loan", exact: true })).toBeVisible();
+  await expect(page.getByRole("menuitem", { name: "Renew mortgage", exact: true })).toBeVisible();
   await page.getByRole("menuitem", { name: "Extra Repayment", exact: true }).click();
   await expect(page.getByRole("dialog")).toBeVisible();
   await page.getByRole("dialog").getByRole("button", { name: "Cancel", exact: true }).click();
@@ -527,7 +527,7 @@ test("backdated renewal inherits historical frequency and interest convention", 
   const { assetId } = await response.json();
   await page.goto(`${BASE_URL}/holdings/${assetId}?tab=history`);
   await page.getByRole("button", { name: "Add event", exact: true }).click();
-  await page.getByRole("menuitem", { name: "Renew loan", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Renew mortgage", exact: true }).click();
   const sheet = page.getByRole("dialog");
   await expect(sheet.getByRole("combobox", { name: "Interest calculation" })).toContainText(
     "Compounded monthly",
