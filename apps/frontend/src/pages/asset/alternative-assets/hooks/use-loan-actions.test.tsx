@@ -31,7 +31,7 @@ const mocks = vi.hoisted(() => ({
   renewal:
     vi.fn<
       (
-        props: ComponentProps<typeof import("../components/loan-action-dialogs").RenewLoanDialog>,
+        props: ComponentProps<typeof import("../components/renew-loan-dialog").RenewLoanDialog>,
       ) => void
     >(),
   recalcSheet:
@@ -78,18 +78,20 @@ vi.mock("../components/loan-action-dialogs", () => ({
     mocks.balanceSheet(props);
     return null;
   },
-  RenewLoanDialog: (
-    props: ComponentProps<typeof import("../components/loan-action-dialogs").RenewLoanDialog>,
-  ) => {
-    mocks.renewal(props);
-    return null;
-  },
   RecalculateScheduleDialog: (
     props: ComponentProps<
       typeof import("../components/loan-action-dialogs").RecalculateScheduleDialog
     >,
   ) => {
     mocks.recalcSheet(props);
+    return null;
+  },
+}));
+vi.mock("../components/renew-loan-dialog", () => ({
+  RenewLoanDialog: (
+    props: ComponentProps<typeof import("../components/renew-loan-dialog").RenewLoanDialog>,
+  ) => {
+    mocks.renewal(props);
     return null;
   },
 }));

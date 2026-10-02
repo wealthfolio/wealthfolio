@@ -27,10 +27,9 @@ import { confirmedLoanBalances } from "../lib/loan-presentation";
 import {
   CloseLoanDialog,
   RecalculateScheduleDialog,
-  RenewLoanDialog,
   LoanBalanceEventDialog,
-  type LoanRenewalInput,
 } from "../components/loan-action-dialogs";
+import { RenewLoanDialog, type LoanRenewalInput } from "../components/renew-loan-dialog";
 
 import { LoanEventSheet, type LoanSheetEntry } from "../components/loan-event-sheet";
 import { changeLoanEvent } from "../lib/loan-event-editing";
