@@ -1,11 +1,14 @@
 import { fireEvent, render, screen, waitFor } from "@/test/render";
 import { describe, expect, it, vi } from "vitest";
+import type { Quote } from "@/lib/types";
+import { formatDateISO } from "@/lib/utils";
 import { LoanBalanceEventDialog } from "./loan-action-dialogs";
 
 const props = {
   open: true,
   mode: "extra_repayment" as const,
   currentBalance: 1000,
+  currency: "USD",
   onOpenChange: vi.fn(),
   onSubmit: vi.fn().mockResolvedValue(undefined),
 };
@@ -51,5 +54,18 @@ describe("extra repayment validation", () => {
     await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Balance changed"));
     fireEvent.change(input, { target: { value: "50" } });
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("warns when a recorded balance on or after the date will override the repayment", () => {
+    const balance = (date: string) =>
+      ({ id: date, timestamp: `${date}T00:00:00Z`, close: 500_000 }) as Quote;
+    const { rerender } = render(
+      <LoanBalanceEventDialog {...props} confirmations={[balance("2020-01-01")]} />,
+    );
+    expect(screen.queryByText(/takes priority/)).not.toBeInTheDocument();
+    rerender(
+      <LoanBalanceEventDialog {...props} confirmations={[balance(formatDateISO(new Date()))]} />,
+    );
+    expect(screen.getByText(/takes priority/)).toHaveTextContent("500,000");
   });
 });

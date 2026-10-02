@@ -8,11 +8,13 @@ import { useCallback } from "react";
 
 interface UseQuoteMutationsOptions {
   invalidateOnSuccess?: boolean;
+  /** Show the generic "Quote saved" toasts; errors are always reported. */
+  notifyOnSuccess?: boolean;
 }
 
 export const useQuoteMutations = (
   assetId: string,
-  { invalidateOnSuccess = true }: UseQuoteMutationsOptions = {},
+  { invalidateOnSuccess = true, notifyOnSuccess = true }: UseQuoteMutationsOptions = {},
 ) => {
   const queryClient = useQueryClient();
 
@@ -32,6 +34,7 @@ export const useQuoteMutations = (
     if (invalidateOnSuccess) {
       void invalidateQuoteQueries();
     }
+    if (!notifyOnSuccess) return;
     toast({
       title: message,
       variant: "success",

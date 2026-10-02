@@ -348,7 +348,7 @@ test("interest convention reaches the shared engine and survives a renewal", asy
   const dialog = page.getByRole("dialog");
   await dialog.getByRole("combobox").filter({ hasText: "Compounded semiannually" }).click();
   await page.getByRole("option", { name: "Compounded monthly", exact: true }).click();
-  await dialog.getByRole("button", { name: "Renew loan", exact: true }).click();
+  await dialog.getByRole("button", { name: "Renew mortgage", exact: true }).click();
   await expect(dialog).not.toBeVisible();
   await expect
     .poll(async () => {
@@ -534,7 +534,7 @@ test("backdated renewal inherits historical frequency and interest convention", 
   await expect(sheet.getByRole("combobox", { name: "Interest calculation" })).toContainText(
     "Compounded semiannually",
   );
-  await sheet.getByRole("button", { name: "Renew loan", exact: true }).click();
+  await sheet.getByRole("button", { name: "Renew mortgage", exact: true }).click();
   await expect(sheet).toHaveCount(0);
   const holdings = await (await page.request.get(`${api}/alternative-holdings`)).json();
   const metadata = holdings.find((holding: { id: string }) => holding.id === assetId).metadata;

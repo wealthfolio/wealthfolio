@@ -1,6 +1,25 @@
+import { addYears } from "date-fns";
 import { LoanInterestMethodSelect } from "./loan-interest-method-select";
-import type { LoanInterestMethod } from "../lib/loan-events";
-import { AmountDisplay, Button, DatePickerInput, Icons, MoneyInput } from "@wealthfolio/ui";
+import { LoanFieldInfo } from "./loan-field-info";
+import {
+  appendLoanEvent,
+  type LoanInterestMethod,
+  type LoanPaymentFrequency,
+} from "../lib/loan-events";
+import {
+  AmountDisplay,
+  Button,
+  DatePickerInput,
+  Icons,
+  MoneyInput,
+  QuantityInput,
+  ResponsiveSelect,
+  useAmountFormatting,
+  useDateFormatting,
+} from "@wealthfolio/ui";
+import { Separator } from "@wealthfolio/ui/components/ui/separator";
+import { buttonVariants } from "@wealthfolio/ui/components/ui/button-variants";
+import { Alert, AlertDescription } from "@wealthfolio/ui/components/ui/alert";
 import { Sheet, SheetDescription, SheetTitle } from "@wealthfolio/ui/components/ui/sheet";
 import {
   LoanSheetContent,
@@ -12,7 +31,7 @@ import { Label } from "@wealthfolio/ui/components/ui/label";
 import { useEffect, useId, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { Quote } from "@/lib/types";
-import { formatDateISO } from "@/lib/utils";
+import { cn, formatDateISO } from "@/lib/utils";
 import { loanCalculationRequest } from "../hooks/use-loan-calculation";
 import { inheritedLoanSettings } from "../lib/loan-event-editing";
 import { recalculateLoan } from "@/adapters";
@@ -255,69 +274,168 @@ export function RecalculateScheduleDialog({
   );
 }
 
+export interface LoanRenewalInput {
+  effectiveDate: Date;
+  annualRate: number;
+  /** Omitted: the current payment continues. */
+  paymentAmount?: number;
+  /** Omitted: the frequency in effect on the renewal date continues. */
+  frequency?: LoanPaymentFrequency;
+  interestMethod?: LoanInterestMethod;
+  termEndDate?: Date;
+  /** Balance stated on the renewal letter, recorded as a confirmation. */
+  balance?: number;
+}
+
 interface RenewLoanDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  currentBalance: number;
+  assetId: string;
   currency: string;
   interestRate: number;
   metadata: Record<string, unknown>;
-  endDate: Date | null;
-  onSubmit: (
-    effectiveDate: Date,
-    newRate: number,
-    paymentAmount?: number,
-    termEndDate?: Date,
-    interestMethod?: LoanInterestMethod,
-  ) => Promise<void>;
+  quoteHistory: Quote[];
+  /** Maturity of the current term; a passed maturity is the default renewal date. */
+  maturity: Date | null;
+  mortgage: boolean;
+  onSubmit: (renewal: LoanRenewalInput) => Promise<void>;
+}
+
+/** Common fixed terms; any other length goes in the custom field. */
+const RENEWAL_TERM_YEARS = [3, 5];
+
+/** A renewal usually starts when the current term matures; never in the future. */
+function defaultRenewalDate(maturityTime: number | undefined) {
+  const today = new Date();
+  return maturityTime !== undefined && maturityTime <= today.getTime()
+    ? new Date(maturityTime)
+    : today;
 }
 
 /** Record a dated renewal without rewriting any historical quote. */
 export function RenewLoanDialog({
   open,
   onOpenChange,
-  currentBalance,
+  assetId,
   currency,
   interestRate,
   metadata,
-  endDate,
+  quoteHistory,
+  maturity,
+  mortgage,
   onSubmit,
 }: RenewLoanDialogProps) {
   const { t } = useTranslation();
-  const [effectiveDate, setEffectiveDate] = useState<Date>(() => new Date());
-  const [method, setMethod] = useState<LoanInterestMethod | undefined>();
-  const inherited = inheritedLoanSettings(metadata, -1, formatDateISO(effectiveDate));
-  const endDateTime = endDate?.getTime();
+  const { formatAmount } = useAmountFormatting();
+  const dates = useDateFormatting();
   const rateInputId = useId();
+  const paymentInputId = useId();
+  const balanceInputId = useId();
+  const maturityTime = maturity?.getTime();
+  const [effectiveDate, setEffectiveDate] = useState<Date>(() => defaultRenewalDate(maturityTime));
   const [newRate, setNewRate] = useState(String(interestRate));
+  const [method, setMethod] = useState<LoanInterestMethod | undefined>();
+  const [frequency, setFrequency] = useState<LoanPaymentFrequency | undefined>();
   const [payment, setPayment] = useState<number | undefined>();
-  const [termEndDate, setTermEndDate] = useState<Date | undefined>(endDate ?? undefined);
+  // A term in years follows the renewal date; a picked date stays as picked.
+  const [termYears, setTermYears] = useState<number | undefined>();
+  const [customTerm, setCustomTerm] = useState("");
+  const [pickedTermEnd, setPickedTermEnd] = useState<Date | undefined>();
+  const [balance, setBalance] = useState<number | undefined>();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) return;
-    setEffectiveDate(new Date());
+    setEffectiveDate(defaultRenewalDate(maturityTime));
     setNewRate(String(interestRate));
     setMethod(undefined);
+    setFrequency(undefined);
     setPayment(undefined);
-    setTermEndDate(endDateTime === undefined ? undefined : new Date(endDateTime));
-  }, [endDateTime, interestRate, open]);
+    setTermYears(undefined);
+    setCustomTerm("");
+    setPickedTermEnd(undefined);
+    setBalance(undefined);
+    setSubmitError(null);
+  }, [interestRate, maturityTime, open]);
 
-  const parsedRate = Number(newRate);
+  const day = Number.isFinite(effectiveDate.getTime()) ? formatDateISO(effectiveDate) : "";
+  const inherited = inheritedLoanSettings(metadata, -1, day);
+  const changedFrequency = frequency && frequency !== inherited.frequency ? frequency : undefined;
+  const parsedRate = newRate === "" ? Number.NaN : Number(newRate);
+  const rateInvalid = !Number.isFinite(parsedRate) || parsedRate < 0 || parsedRate > 100;
+  const dateInvalid = !day || effectiveDate > new Date();
+  const termEndDate =
+    termYears !== undefined && !dateInvalid ? addYears(effectiveDate, termYears) : pickedTermEnd;
   const isInvalid =
-    !Number.isFinite(parsedRate) ||
-    parsedRate < 0 ||
-    parsedRate > 100 ||
-    effectiveDate > new Date() ||
+    rateInvalid ||
+    dateInvalid ||
     (termEndDate !== undefined && termEndDate <= effectiveDate) ||
-    (payment !== undefined && (!Number.isFinite(payment) || payment <= 0));
+    (payment !== undefined && (!Number.isFinite(payment) || payment <= 0)) ||
+    (balance !== undefined && (!Number.isFinite(balance) || balance < 0));
+
+  // Preview the renewal as drafted: the backend solves the payment that keeps the
+  // original amortization end, from the balance on the renewal date.
+  const estimateRequest =
+    open && !rateInvalid && !dateInvalid
+      ? {
+          ...loanCalculationRequest(
+            appendLoanEvent(metadata, {
+              type: "renewal",
+              effectiveDate: day,
+              annualRate: parsedRate,
+              ...(changedFrequency ? { frequency: changedFrequency } : {}),
+              ...(method ? { interestMethod: method } : {}),
+            }),
+            balance === undefined
+              ? quoteHistory
+              : [
+                  ...quoteHistory.filter((quote) => quote.timestamp.slice(0, 10) !== day),
+                  { timestamp: `${day}T00:00:00Z`, close: balance } as Quote,
+                ],
+            day,
+          ),
+          annualRate: parsedRate,
+        }
+      : null;
+  const { data: estimate } = useQuery({
+    queryKey: [QueryKeys.ASSET_DATA, assetId, "loan-renewal", estimateRequest],
+    queryFn: () => recalculateLoan(estimateRequest!),
+    enabled: estimateRequest !== null,
+  });
+  const date = (value: Date) =>
+    dates.formatCalendarDate(formatDateISO(value), {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
+  const label = (text: string, htmlFor?: string, info?: string) => (
+    <div className="flex items-center gap-1.5">
+      <Label htmlFor={htmlFor}>{text}</Label>
+      {info && <LoanFieldInfo label={text}>{info}</LoanFieldInfo>}
+    </div>
+  );
+  const title = t(mortgage ? "asset:loanOverview.renew_mortgage" : "asset:loanActions.renew_loan");
 
   const handleSubmit = async () => {
     if (isSubmitting || isInvalid) return;
     setIsSubmitting(true);
+    setSubmitError(null);
     try {
-      await onSubmit(effectiveDate, parsedRate, payment, termEndDate, method);
+      await onSubmit({
+        effectiveDate,
+        annualRate: parsedRate,
+        paymentAmount: payment,
+        frequency: changedFrequency,
+        interestMethod: method,
+        termEndDate,
+        balance,
+      });
       onOpenChange(false);
+    } catch (error) {
+      setSubmitError(
+        error instanceof Error ? error.message : t("asset:quickAdd.validation.invalid"),
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -327,60 +445,178 @@ export function RenewLoanDialog({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <LoanSheetContent>
         <LoanSheetHeader>
-          <SheetTitle>{t("asset:loanActions.renew_loan")}</SheetTitle>
+          <SheetTitle>{title}</SheetTitle>
           <SheetDescription>{t("asset:loanActions.renew_description")}</SheetDescription>
         </LoanSheetHeader>
         <LoanSheetBody>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              {label(t("asset:loanActions.renewal_date"))}
+              <DatePickerInput
+                aria-label={t("asset:loanActions.renewal_date")}
+                value={effectiveDate}
+                onChange={(value) => value && setEffectiveDate(value)}
+              />
+            </div>
+            <div className="space-y-2">
+              {label(
+                t("asset:loanActions.renewal_maturity"),
+                undefined,
+                t("asset:loanActions.renewal_maturity_hint"),
+              )}
+              <DatePickerInput
+                aria-label={t("asset:loanActions.renewal_maturity")}
+                value={termEndDate}
+                onChange={(value) => {
+                  setTermYears(undefined);
+                  setCustomTerm("");
+                  setPickedTermEnd(value ?? undefined);
+                }}
+              />
+              <div className="flex flex-wrap items-center gap-1.5">
+                {RENEWAL_TERM_YEARS.map((years) => {
+                  const selected = !customTerm && termYears === years;
+                  return (
+                    <Button
+                      key={years}
+                      type="button"
+                      size="xs"
+                      variant={selected ? "secondary" : "outline"}
+                      aria-pressed={selected}
+                      onClick={() => {
+                        setCustomTerm("");
+                        setTermYears(years);
+                      }}
+                      disabled={dateInvalid}
+                    >
+                      {t("asset:loanActions.duration_year", { count: years })}
+                    </Button>
+                  );
+                })}
+                {/* Styled as a third term button; typing a length selects it. */}
+                <label
+                  className={cn(
+                    buttonVariants({ variant: customTerm ? "secondary" : "outline", size: "xs" }),
+                    "focus-within:ring-ring/50 cursor-text px-3 focus-within:ring-[3px]",
+                    dateInvalid && "pointer-events-none opacity-50",
+                  )}
+                >
+                  <input
+                    aria-label={t("asset:loanActions.custom_term_years")}
+                    inputMode="numeric"
+                    value={customTerm}
+                    onChange={(event) => {
+                      const text = event.target.value.replace(/\D/g, "").slice(0, 2);
+                      const years = Number(text);
+                      setCustomTerm(text);
+                      setTermYears(text && years >= 1 && years <= 30 ? years : undefined);
+                    }}
+                    placeholder={t("asset:loanActions.custom_term")}
+                    disabled={dateInvalid}
+                    className="placeholder:text-muted-foreground w-12 bg-transparent text-center outline-none"
+                  />
+                  <span aria-hidden="true" className="text-muted-foreground text-xs">
+                    {t("asset:loanActions.years_short")}
+                  </span>
+                </label>
+              </div>
+            </div>
+            <div className="space-y-2">
+              {label(t("asset:detailsSheet.interest_rate"), rateInputId)}
+              <div className="relative">
+                <QuantityInput
+                  id={rateInputId}
+                  value={newRate}
+                  onValueChange={(value) => setNewRate(value == null ? "" : String(value))}
+                  maxDecimalPlaces={3}
+                  className="pr-8"
+                />
+                <span className="text-muted-foreground pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm">
+                  %
+                </span>
+              </div>
+            </div>
+            <div className="space-y-2">
+              {label(t("asset:loanInterest.method"), undefined, t("asset:loanInterest.hint"))}
+              <LoanInterestMethodSelect
+                value={method ?? inherited.interestMethod}
+                onChange={setMethod}
+              />
+            </div>
+            <div className="space-y-2">
+              {label(
+                t("asset:valueHistory.payment"),
+                paymentInputId,
+                t("asset:loanActions.payment_hint"),
+              )}
+              <MoneyInput
+                id={paymentInputId}
+                maxDecimalPlaces={2}
+                placeholder={t("asset:loanActions.payment_unchanged")}
+                value={payment ?? null}
+                onValueChange={(value) => setPayment(value || undefined)}
+              />
+              {estimate && estimate.paymentAmount > 0 && (
+                <p className="text-muted-foreground text-xs">
+                  {t("asset:loanActions.payment_estimate", {
+                    amount: formatAmount(estimate.paymentAmount, currency),
+                  })}{" "}
+                  {payment !== estimate.paymentAmount && (
+                    <button
+                      type="button"
+                      className="text-foreground font-medium underline underline-offset-2"
+                      onClick={() => setPayment(estimate.paymentAmount)}
+                    >
+                      {t("asset:loanActions.use_estimate")}
+                    </button>
+                  )}
+                </p>
+              )}
+            </div>
+            <div className="space-y-2">
+              {label(t("asset:loanActions.payment_frequency"))}
+              <ResponsiveSelect
+                aria-label={t("asset:loanActions.payment_frequency")}
+                value={frequency ?? inherited.frequency}
+                onValueChange={(value) => setFrequency(value as LoanPaymentFrequency)}
+                options={(["monthly", "biweekly", "accelerated_biweekly"] as const).map(
+                  (value) => ({ value, label: t(`asset:loanActions.${value}`) }),
+                )}
+                sheetTitle={t("asset:loanActions.payment_frequency")}
+              />
+            </div>
+          </div>
+
+          <Separator />
+
           <div className="space-y-2">
-            <Label>{t("asset:loanInterest.method")}</Label>
-            <LoanInterestMethodSelect
-              value={method ?? inherited.interestMethod}
-              onChange={setMethod}
-            />
-          </div>
-          <div className="bg-muted rounded-md px-3 py-2 text-sm">
-            <span className="text-muted-foreground">
-              {t("asset:loanActions.recalculate_current_balance")}:{" "}
-            </span>
-            <AmountDisplay value={currentBalance} currency={currency} />
-          </div>
-          <div className="space-y-1.5">
-            <Label>{t("asset:loanOverview.effective_date")}</Label>
-            <DatePickerInput
-              aria-label={t("asset:loanOverview.effective_date")}
-              value={effectiveDate}
-              onChange={(date) => date && setEffectiveDate(date)}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor={rateInputId}>{t("asset:loanActions.recalculate_new_rate")}</Label>
+            <div className="flex items-center gap-1.5">
+              <Label htmlFor={balanceInputId}>{t("asset:loanActions.balance_at_renewal")}</Label>
+              <span className="text-muted-foreground text-xs">{t("asset:quickAdd.optional")}</span>
+              <LoanFieldInfo label={t("asset:loanActions.balance_at_renewal")}>
+                {t("asset:loanActions.balance_at_renewal_hint")}
+              </LoanFieldInfo>
+            </div>
             <MoneyInput
-              id={rateInputId}
-              maxDecimalPlaces={8}
-              value={newRate}
-              onValueChange={(value) => setNewRate(value == null ? "" : String(value))}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label>{t("asset:valueHistory.payment")}</Label>
-            <MoneyInput
-              aria-label={t("asset:valueHistory.payment")}
+              id={balanceInputId}
               maxDecimalPlaces={2}
-              value={payment ?? 0}
-              onValueChange={(value) => setPayment(value || undefined)}
+              placeholder=""
+              value={balance ?? null}
+              onValueChange={(value) => setBalance(value ?? undefined)}
             />
+            {estimate && balance === undefined && (
+              <p className="text-muted-foreground text-xs">
+                {t("asset:loanActions.balance_estimate", {
+                  amount: formatAmount(estimate.currentBalance, currency),
+                  date: date(effectiveDate),
+                })}
+              </p>
+            )}
           </div>
-          <div className="space-y-1.5">
-            <Label>{t("asset:loanActions.renewal_maturity")}</Label>
-            <DatePickerInput
-              aria-label={t("asset:loanActions.renewal_maturity")}
-              value={termEndDate}
-              onChange={(date) => setTermEndDate(date ?? undefined)}
-            />
-          </div>
-          {isInvalid && (
+
+          {(isInvalid || submitError) && (
             <p className="text-destructive text-sm" role="alert">
-              {t("asset:quickAdd.validation.invalid")}
+              {submitError ?? t("asset:quickAdd.validation.invalid")}
             </p>
           )}
         </LoanSheetBody>
@@ -390,7 +626,7 @@ export function RenewLoanDialog({
           </Button>
           <Button onClick={handleSubmit} disabled={isSubmitting || isInvalid}>
             {isSubmitting && <Icons.Spinner className="mr-2 h-4 w-4 animate-spin" />}
-            {t("asset:loanActions.renew_loan")}
+            {title}
           </Button>
         </LoanSheetFooter>
       </LoanSheetContent>
@@ -403,6 +639,9 @@ interface LoanBalanceEventDialogProps {
   onOpenChange: (open: boolean) => void;
   mode: "balance_correction" | "extra_repayment";
   currentBalance: number;
+  currency: string;
+  /** Recorded balances, oldest first; a later one overrides a repayment. */
+  confirmations?: Quote[];
   onSubmit: (date: Date, amount: number) => Promise<void>;
 }
 
@@ -410,9 +649,13 @@ export function LoanBalanceEventDialog({
   open,
   onOpenChange,
   mode,
+  currency,
+  confirmations = [],
   onSubmit,
 }: LoanBalanceEventDialogProps) {
   const { t } = useTranslation();
+  const { formatAmount } = useAmountFormatting();
+  const dates = useDateFormatting();
   const amountId = useId();
   const [amountTouched, setAmountTouched] = useState(false);
   const [dateTouched, setDateTouched] = useState(false);
@@ -425,6 +668,11 @@ export function LoanBalanceEventDialog({
   const dateInvalid = !Number.isFinite(date.getTime()) || date > new Date();
   const invalid = amountInvalid || dateInvalid;
   const showValidation = (amountTouched && amountInvalid) || (dateTouched && dateInvalid);
+  // A recorded balance on or after the repayment date already sets the balance from then on.
+  const overridingBalance =
+    !isCorrection && !dateInvalid
+      ? confirmations.find((quote) => quote.timestamp.slice(0, 10) >= formatDateISO(date))
+      : undefined;
 
   useEffect(() => {
     if (!open) return;
@@ -500,6 +748,21 @@ export function LoanBalanceEventDialog({
               aria-invalid={amountTouched && amountInvalid}
             />
           </div>
+          {overridingBalance && (
+            <Alert variant="warning">
+              <Icons.AlertTriangle className="h-4 w-4" />
+              <AlertDescription className="text-sm">
+                {t("asset:loanActions.repayment_before_confirmation", {
+                  amount: formatAmount(Math.abs(overridingBalance.close), currency),
+                  date: dates.formatCalendarDate(overridingBalance.timestamp.slice(0, 10), {
+                    day: "numeric",
+                    month: "short",
+                    year: "numeric",
+                  }),
+                })}
+              </AlertDescription>
+            </Alert>
+          )}
           {error && (
             <p className="text-destructive text-sm" role="alert">
               {error}

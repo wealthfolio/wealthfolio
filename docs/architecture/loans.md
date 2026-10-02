@@ -209,9 +209,18 @@ accelerated payment remains at least the rounded half-monthly preview amount. If
 payment solving is unavailable, creation cannot save an undated fallback.
 
 Renewal records dated terms and optional maturity. Omitted settings inherit the
-terms at the renewal's effective date. Adding an older renewal must not
-overwrite a later renewal's maturity. Future rates remain unknown: projections
-assume the recorded rates and payments continue beyond renewal maturity.
+terms at the renewal's effective date: an empty payment keeps the current
+payment, and frequency or interest method are stored only when changed. Adding
+an older renewal must not overwrite a later renewal's maturity. Future rates
+remain unknown: projections assume the recorded rates and payments continue
+beyond renewal maturity.
+
+The renewal form defaults to the current term's maturity once it has passed. It
+previews the payment that keeps the original amortization through
+`recalculate_loan` with the draft renewal applied, and offers it without saving
+it. An optional balance from the renewal letter is saved first as a confirmed
+balance on the renewal date; manual quotes are keyed by day, so a retry replaces
+it instead of duplicating it.
 
 `recalculate_loan` searches for the smallest cent payment that clears principal
 and accrued interest by the existing horizon. It preserves frequency resets and
@@ -239,8 +248,10 @@ date that still matches the entered duration is kept, so saving other details
 never moves an end date that is off the payment cadence.
 
 Confirm balance writes a closing quote. Close loan writes a confirmed zero.
-Extra repayment for an automatic loan writes an event only. Editing a
-confirmation preserves its user notes and rejects collisions with another
+Extra repayment for an automatic loan writes an event only. A recorded balance
+on or after the repayment date still takes priority, so the repayment form warns
+that the repayment will not lower the balance from that confirmation on. Editing
+a confirmation preserves its user notes and rejects collisions with another
 confirmed date. Deleting an event preserves same-day siblings. Linking or
 unlinking a property changes only `linked_asset_id`, preserving terms, events,
 and confirmations. Deleting the property unlinks its mortgages; it does not

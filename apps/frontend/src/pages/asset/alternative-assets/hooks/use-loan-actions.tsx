@@ -13,7 +13,6 @@ import {
   readLoanProjectionMetadata,
   LOAN_RENEWAL_MATURITY_METADATA_KEY,
   type LoanEvent,
-  type LoanInterestMethod,
   type LoanMetadata,
 } from "../lib/loan-events";
 import {
@@ -23,11 +22,13 @@ import {
   editedLoanBalanceNotes,
 } from "../lib/loan-balance";
 import { hasBalanceDateConflict } from "../lib/loan-balance-editing";
+import { confirmedLoanBalances } from "../lib/loan-presentation";
 import {
   CloseLoanDialog,
   RecalculateScheduleDialog,
   RenewLoanDialog,
   LoanBalanceEventDialog,
+  type LoanRenewalInput,
 } from "../components/loan-action-dialogs";
 
 import { LoanEventSheet, type LoanSheetEntry } from "../components/loan-event-sheet";
@@ -66,9 +67,10 @@ export function useLoanActions(
     : null;
   const loanOriginationDate =
     typeof metadata.origination_date === "string" ? metadata.origination_date : undefined;
+  // Loan sheets close on success, like event edits, so the generic quote toasts stay off.
   const { saveQuoteMutation, deleteQuoteMutation, invalidateQuoteQueries } = useQuoteMutations(
     assetId,
-    { invalidateOnSuccess: false },
+    { invalidateOnSuccess: false, notifyOnSuccess: false },
   );
   const { updateMetadataMutation } = useAlternativeAssetMutations();
   const [editingEvent, setEditingEvent] = useState<{ index: number; event: LoanEvent } | null>(
@@ -183,20 +185,45 @@ export function useLoanActions(
     setRecalculateScheduleOpen(false);
   };
 
-  const handleRenewLoan = async (
-    effectiveDate: Date,
-    newRate: number,
-    paymentAmount?: number,
-    termEndDate?: Date,
-    interestMethod?: LoanInterestMethod,
-  ) => {
+  const handleRenewLoan = async ({
+    effectiveDate,
+    annualRate,
+    paymentAmount,
+    frequency,
+    interestMethod,
+    termEndDate,
+    balance,
+  }: LoanRenewalInput) => {
     if (!holding) return;
+    const day = formatDateISO(effectiveDate);
+    // The statement balance goes first: manual quotes are keyed by day, so a retry
+    // after a failed renewal replaces it rather than duplicating it.
+    if (balance !== undefined) {
+      const existing = quoteHistory.find((quote) => quote.timestamp.slice(0, 10) === day);
+      const provenance = { close: balance, notes: loanEventProvenance("balance_correction") };
+      await saveQuoteMutation.mutateAsync({
+        id: "",
+        createdAt: new Date().toISOString(),
+        dataSource: "MANUAL",
+        timestamp: `${day}T00:00:00Z`,
+        assetId,
+        open: balance,
+        high: balance,
+        low: balance,
+        close: balance,
+        adjclose: balance,
+        volume: 0,
+        currency: holding.currency,
+        notes: editedLoanBalanceNotes(provenance, balance, loanBalanceUserNote(existing?.notes)),
+      });
+    }
     const metadata = { ...(holding.metadata || {}) } as LoanMetadata;
     const nextMetadata = appendLoanEvent(metadata, {
       type: "renewal",
-      effectiveDate: formatDateISO(effectiveDate),
-      annualRate: newRate,
+      effectiveDate: day,
+      annualRate,
       ...(interestMethod ? { interestMethod } : {}),
+      ...(frequency ? { frequency } : {}),
       ...(paymentAmount !== undefined ? { paymentAmount } : {}),
       ...(termEndDate ? { termEndDate: formatDateISO(termEndDate) } : {}),
     });
@@ -207,7 +234,7 @@ export function useLoanActions(
     const latestRenewal = readLoanEvents(nextMetadata)
       .filter((event) => event.type === "renewal")
       .at(-1);
-    if (termEndDate && latestRenewal?.effectiveDate === formatDateISO(effectiveDate)) {
+    if (termEndDate && latestRenewal?.effectiveDate === day) {
       updates[LOAN_RENEWAL_MATURITY_METADATA_KEY] = formatDateISO(termEndDate);
     }
     await updateMetadataMutation.mutateAsync({ assetId, metadata: updates });
@@ -347,15 +374,17 @@ export function useLoanActions(
           <RenewLoanDialog
             open={renewLoanOpen}
             onOpenChange={setRenewLoanOpen}
-            currentBalance={currentBalance}
+            assetId={assetId}
             currency={holding.currency}
             interestRate={activeInterestRate}
             metadata={metadata}
-            endDate={
+            quoteHistory={quoteHistory}
+            maturity={
               typeof metadata[LOAN_RENEWAL_MATURITY_METADATA_KEY] === "string"
                 ? parseISO(metadata[LOAN_RENEWAL_MATURITY_METADATA_KEY])
                 : null
             }
+            mortgage={isMortgage}
             onSubmit={handleRenewLoan}
           />
           <LoanBalanceEventDialog
@@ -363,6 +392,7 @@ export function useLoanActions(
             onOpenChange={setBalanceCorrectionOpen}
             mode="balance_correction"
             currentBalance={currentBalance}
+            currency={holding.currency}
             onSubmit={(date, amount) => handleBalanceEvent("balance_correction", date, amount)}
           />
           <LoanBalanceEventDialog
@@ -370,6 +400,8 @@ export function useLoanActions(
             onOpenChange={setExtraRepaymentOpen}
             mode="extra_repayment"
             currentBalance={currentBalance}
+            currency={holding.currency}
+            confirmations={confirmedLoanBalances(quoteHistory, formatDateISO(new Date()))}
             onSubmit={(date, amount) => handleBalanceEvent("extra_repayment", date, amount)}
           />
         </>

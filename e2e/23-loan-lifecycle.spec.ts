@@ -158,11 +158,11 @@ test("loan lifecycle matches the independent fixture in the page and net worth",
   ] as const) {
     await addEvent("Renew loan");
     await sheet.locator('input[type="date"]').first().fill(event.effectiveDate);
-    await sheet.getByLabel("New Annual Rate (%)", { exact: true }).fill(String(event.annualRate));
+    await sheet.getByLabel("Interest rate", { exact: true }).fill(String(event.annualRate));
     if ("paymentAmount" in event)
       await sheet.getByLabel("Payment", { exact: true }).fill(String(event.paymentAmount));
     await sheet.locator('input[type="date"]').last().fill(event.termEndDate);
-    await saveSheet("Renew loan");
+    await saveSheet("Renew mortgage");
     expect((await holding()).metadata.renewal_maturity_date).toBe(
       fixture.events.renewal.termEndDate,
     );
@@ -313,11 +313,11 @@ test("loan estimates, dated actions and net worth stay consistent", async ({ pag
 
   await openActions();
   await page.getByRole("button", { name: "Renew mortgage", exact: true }).click();
-  await dialog.getByLabel("New Annual Rate (%)", { exact: true }).fill("24");
+  await dialog.getByLabel("Interest rate", { exact: true }).fill("24");
   await dialog.getByLabel("Payment", { exact: true }).fill("150");
   const maturity = day(new Date(now.getFullYear(), now.getMonth() + 1, 1));
   await dialog.locator('input[type="date"]').last().fill(maturity);
-  await dialog.getByRole("button", { name: "Renew loan", exact: true }).click();
+  await dialog.getByRole("button", { name: "Renew mortgage", exact: true }).click();
   await expect(dialog).not.toBeVisible();
   const renewed = await calculate();
   expect(renewed.annualRate).toBe(24);

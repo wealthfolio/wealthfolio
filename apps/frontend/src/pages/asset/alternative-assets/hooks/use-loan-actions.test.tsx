@@ -171,11 +171,43 @@ describe("loan action persistence", () => {
   it("does not inject today's cadence or interest method into a backdated renewal", async () => {
     render(<Harness />);
     await act(async () => {
-      await mocks.renewal.mock.lastCall![0].onSubmit(new Date(2026, 2, 10), 3);
+      await mocks.renewal.mock.lastCall![0].onSubmit({
+        effectiveDate: new Date(2026, 2, 10),
+        annualRate: 3,
+      });
     });
     const events = JSON.parse(mocks.metadata.mock.lastCall![0].metadata.loan_events) as LoanEvent[];
     const renewal = events.find((event: LoanEvent) => event.type === "renewal");
     expect(renewal).toEqual({ type: "renewal", effectiveDate: "2026-03-10", annualRate: 3 });
+    expect(mocks.save).not.toHaveBeenCalled();
+  });
+  it("records the renewal letter's balance as a confirmation before the new term", async () => {
+    render(<Harness />);
+    await act(async () => {
+      await mocks.renewal.mock.lastCall![0].onSubmit({
+        effectiveDate: new Date(2026, 2, 10),
+        annualRate: 3,
+        frequency: "biweekly",
+        balance: 640,
+      });
+    });
+    expect(mocks.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        timestamp: "2026-03-10T00:00:00Z",
+        close: 640,
+        notes: "loan_event|type=balance_correction",
+      }),
+    );
+    expect(mocks.save.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.metadata.mock.invocationCallOrder[0],
+    );
+    const events = JSON.parse(mocks.metadata.mock.lastCall![0].metadata.loan_events) as LoanEvent[];
+    expect(events).toContainEqual({
+      type: "renewal",
+      effectiveDate: "2026-03-10",
+      annualRate: 3,
+      frequency: "biweekly",
+    });
   });
   it("persists the backend recalculation result instead of recalculating on the frontend", async () => {
     mocks.recalculate.mockResolvedValue({
@@ -211,12 +243,11 @@ it("adding an older renewal preserves the latest term's maturity", async () => {
   try {
     render(<Harness />);
     await act(async () => {
-      await mocks.renewal.mock.lastCall![0].onSubmit(
-        new Date(2025, 0, 1),
-        3,
-        undefined,
-        new Date(2026, 5, 1),
-      );
+      await mocks.renewal.mock.lastCall![0].onSubmit({
+        effectiveDate: new Date(2025, 0, 1),
+        annualRate: 3,
+        termEndDate: new Date(2026, 5, 1),
+      });
     });
     expect(mocks.metadata.mock.lastCall![0].metadata.renewal_maturity_date).toBe("2029-06-01");
   } finally {
