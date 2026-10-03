@@ -482,6 +482,7 @@ pub fn run() {
             commands::alternative_assets::get_alternative_holdings,
             commands::alternative_assets::calculate_loan,
             commands::alternative_assets::recalculate_loan,
+            commands::alternative_assets::apply_loan_action,
             // Market data commands
             commands::market_data::search_symbol,
             commands::market_data::resolve_symbol_quote,

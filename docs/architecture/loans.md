@@ -83,6 +83,17 @@ Saving a solved payment updates the original projection during creation or adds
 dated term events during recalculation. After a saved edit, affected queries
 refresh and consumers recompute from the recorded inputs.
 
+Loan actions are written by the backend alone. `apply_loan_action` takes a
+confirmation, extra repayment, renewal, recalculation, closure, or event or
+balance edit; it reads the loan's metadata and manual quotes, checks the action
+against them, and writes both in one transaction through the sync outbox. A
+refused action writes nothing. Actions that change recorded balances start the
+same portfolio recalculation as a manual quote. Dates are checked against today
+in the settings timezone, allowing one day for a device ahead of it. The
+decision, including the engine calculation that checks a repayment or solves a
+payment, runs inside the write transaction on the database writer. Creation and
+Edit loan details still write terms through the alternative-asset metadata API.
+
 ### Implementation map
 
 Paths below are relative to the repository root.
@@ -92,6 +103,9 @@ Paths below are relative to the repository root.
 | Dated valuation and calendar rules               | `crates/core/src/assets/loan.rs`                               |
 | Interest conversion and posting precision        | `crates/core/src/assets/loan/interest.rs`                      |
 | Payment solving                                  | `crates/core/src/assets/loan/recalculation.rs`                 |
+| Stored format and balance provenance             | `crates/core/src/assets/loan/model.rs`                         |
+| Loan actions and their rules                     | `crates/core/src/assets/loan/actions.rs`                       |
+| Atomic loan writes                               | `crates/storage-sqlite/src/assets/alternative_repository.rs`   |
 | Holdings integration                             | `crates/core/src/assets/alternative_assets_service.rs`         |
 | Net worth and history                            | `crates/core/src/portfolio/net_worth/net_worth_service.rs`     |
 | Shared frontend calls                            | `apps/frontend/src/adapters/shared/alternative-assets.ts`      |
@@ -251,6 +265,9 @@ months, as loan agreements state it, and store it as `amortizationEndDate`: the
 last payment counted from the first payment at the selected frequency. A stored
 date that still matches the entered duration is kept, so saving other details
 never moves an end date that is off the payment cadence.
+
+Each action below is one backend call. Refusals are stable codes, such as
+`LOAN_EVENT_CHANGED` or `LOAN_PAYMENT_REQUIRED`, that the UI translates.
 
 Confirm balance writes a closing quote. Close loan writes a confirmed zero.
 Extra repayment for an automatic loan writes an event only. A recorded balance
@@ -428,10 +445,18 @@ lender equivalence. Reference observations were captured September 24, 2026.
   beside the calculator. Boundary tests cover pre-origination dates, UTC
   observation dates, deleted opening confirmations, maturity edits, closure, and
   oversized repayments. Net-worth service tests verify integration.
-- Frontend tests cover preview conventions, input construction, editing, period
-  boundaries, privacy-related presentation, and opening confirmations. They also
-  verify that rejected repayments write nothing, manual balances use UTC
-  calendar days, and liabilities from earlier releases can opt into calculation.
+- Rust action tests (`loan/actions_tests.rs`) cover each action's rules: date
+  limits, repayments within the balance on their date, occupied balance dates,
+  stale event edits, renewal settings and maturity, and manual balances on their
+  own calendar day. Storage tests
+  (`crates/storage-sqlite/tests/loan_actions.rs`) verify that a write failing
+  after the metadata change leaves the loan untouched, that a refused action
+  writes nothing, that a renewal's balance and terms are written together, and
+  that confirming a day replaces its creation quote.
+- Frontend tests cover preview conventions, input construction, the action each
+  dialog sends, period boundaries, privacy-related presentation, and opening
+  confirmations, and that liabilities from earlier releases can opt into
+  calculation.
 - [`e2e/23-loan-lifecycle.spec.ts`](../../e2e/23-loan-lifecycle.spec.ts) covers
   the complete fixture, shared actions, net worth with unrelated holdings
   already present, creation, and cross-asset UI.

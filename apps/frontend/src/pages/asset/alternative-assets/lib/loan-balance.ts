@@ -23,27 +23,6 @@ export function classifyLoanBalance(entry: LoanBalanceEntry): LoanBalanceKind {
   return "confirmed_balance";
 }
 
-/** The latest recorded balance on or before `now`. */
-export function getLatestCurrentLoanBalance<T extends LoanBalanceEntry>(
-  entries: T[],
-  now = new Date(),
-): T | null {
-  const cutoff = now.getTime();
-  return (
-    entries
-      .filter((entry) => new Date(entry.timestamp).getTime() <= cutoff)
-      .sort(
-        (left, right) => new Date(right.timestamp).getTime() - new Date(left.timestamp).getTime(),
-      )
-      .at(0) ?? null
-  );
-}
-
-/** Create stable provenance for a persisted dated loan event. */
-export function loanEventProvenance(type: "balance_correction" | "extra_repayment"): string {
-  return `${LOAN_EVENT_PROVENANCE}|type=${type}`;
-}
-
 /** User text follows the provenance as an escaped suffix. */
 export function loanBalanceUserNote(notes: string | null | undefined): string {
   if (!notes) return "";
@@ -65,21 +44,4 @@ export function loanBalanceUserNote(notes: string | null | undefined): string {
 
 export function isClosedLoanBalance(entry: Pick<Quote, "close" | "notes">): boolean {
   return entry.close === 0 && hasProvenance(entry.notes, "loan_closed");
-}
-
-export function editedLoanBalanceNotes(
-  original: Pick<Quote, "close" | "notes">,
-  balance: number,
-  note = "",
-): string | null {
-  const wasClosed = hasProvenance(original.notes, "loan_closed");
-  const provenance =
-    wasClosed && balance === 0
-      ? "loan_closed"
-      : wasClosed
-        ? loanEventProvenance("balance_correction")
-        : original.notes?.startsWith("loan_event|")
-          ? original.notes.split("|note=")[0]
-          : null;
-  return provenance ? provenance + (note ? `|note=${encodeURIComponent(note)}` : "") : note || null;
 }

@@ -159,3 +159,40 @@ export interface LoanRecalculation {
 export const recalculateLoan = (
   request: Parameters<typeof calculateLoan>[0] & { annualRate: number },
 ): Promise<LoanRecalculation | null> => invoke("recalculate_loan", { request });
+
+/** A recorded loan event as stored; the backend validates every write. */
+export interface StoredLoanEvent {
+  type: string;
+  effectiveDate: string;
+}
+
+/** A change to a loan, checked and applied by the backend in one transaction. */
+export type LoanAction =
+  | { type: "confirm_balance"; date: string; balance: number }
+  | { type: "extra_repayment"; date: string; amount: number }
+  | { type: "close"; date: string }
+  | { type: "recalculate"; date: string; annualRate: number }
+  | {
+      type: "renew";
+      date: string;
+      annualRate: number;
+      paymentAmount?: number;
+      frequency?: "monthly" | "biweekly" | "accelerated_biweekly";
+      interestMethod?: "nominal_periodic" | "monthly" | "semiannual";
+      termEndDate?: string;
+      balance?: number;
+    }
+  | {
+      type: "edit_event";
+      index: number;
+      original: StoredLoanEvent;
+      replacement: StoredLoanEvent | null;
+    }
+  | {
+      type: "edit_balance";
+      quoteId: string;
+      replacement: { date: string; balance: number; note: string } | null;
+    };
+
+export const applyLoanAction = (assetId: string, action: LoanAction): Promise<void> =>
+  invoke("apply_loan_action", { assetId, action });

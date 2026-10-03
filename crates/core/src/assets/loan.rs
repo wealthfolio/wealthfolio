@@ -10,13 +10,21 @@ use serde_json::Value;
 
 use crate::quotes::Quote;
 
+mod actions;
 mod interest;
+mod model;
 mod recalculation;
+pub use actions::{
+    apply_loan_action, BalanceEdit, LoanAction, LoanActionResult, LoanError, LoanRecord, LoanUpdate,
+};
 pub use interest::{payment_amount, InterestMethod};
+pub use model::{
+    balance_notes, balance_user_note, edited_balance_notes, event_entries, LoanBalanceKind,
+    LoanEvent, LoanTerms, LOAN_CLOSED_NOTE, LOAN_EVENTS_KEY, LOAN_PROJECTION_KEY,
+    RENEWAL_MATURITY_KEY, TRACKING_MODE_KEY,
+};
 pub use recalculation::{recalculate_loan, LoanRecalculation, LoanRecalculationRequest};
 
-pub const LOAN_PROJECTION_KEY: &str = "loan_projection";
-pub const LOAN_EVENTS_KEY: &str = "loan_events";
 const MAX_PAYMENTS: usize = 2600;
 
 #[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Default)]
@@ -37,118 +45,9 @@ impl LoanFrequency {
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct Terms {
-    version: u8,
-    annual_rate: f64,
-    payment_amount: f64,
-    frequency: LoanFrequency,
-    #[serde(default)]
-    interest_method: InterestMethod,
-    first_payment_date: NaiveDate,
-    payment_count: Option<usize>,
-    amortization_end_date: Option<NaiveDate>,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-#[serde(tag = "type", rename_all = "snake_case")]
-enum Event {
-    #[serde(rename_all = "camelCase")]
-    ExtraRepayment {
-        effective_date: NaiveDate,
-        amount: f64,
-    },
-    #[serde(rename_all = "camelCase")]
-    RateChange {
-        effective_date: NaiveDate,
-        annual_rate: f64,
-    },
-    #[serde(rename_all = "camelCase")]
-    PaymentChange {
-        effective_date: NaiveDate,
-        payment_amount: f64,
-    },
-    #[serde(rename_all = "camelCase")]
-    PaymentFrequencyChange {
-        effective_date: NaiveDate,
-        frequency: LoanFrequency,
-    },
-    #[serde(rename_all = "camelCase")]
-    Renewal {
-        effective_date: NaiveDate,
-        annual_rate: f64,
-        payment_amount: Option<f64>,
-        frequency: Option<LoanFrequency>,
-        interest_method: Option<InterestMethod>,
-    },
-}
-impl Event {
-    fn date(&self) -> NaiveDate {
-        match self {
-            Self::ExtraRepayment { effective_date, .. }
-            | Self::RateChange { effective_date, .. }
-            | Self::PaymentChange { effective_date, .. }
-            | Self::PaymentFrequencyChange { effective_date, .. }
-            | Self::Renewal { effective_date, .. } => *effective_date,
-        }
-    }
-    fn valid(&self) -> bool {
-        match self {
-            Self::ExtraRepayment { amount, .. } => valid_amount(*amount) && money(*amount) > 0.0,
-            Self::RateChange { annual_rate, .. } => {
-                valid_amount(*annual_rate) && *annual_rate <= 100.0
-            }
-            Self::PaymentChange { payment_amount, .. } => {
-                valid_amount(*payment_amount) && money(*payment_amount) > 0.0
-            }
-            Self::Renewal {
-                annual_rate,
-                payment_amount,
-                ..
-            } => {
-                valid_amount(*annual_rate)
-                    && *annual_rate <= 100.0
-                    && payment_amount.is_none_or(|p| valid_amount(p) && money(p) > 0.0)
-            }
-            Self::PaymentFrequencyChange { .. } => true,
-        }
-    }
-    /// Whether the event replaces the regular payment amount.
-    fn sets_payment(&self) -> bool {
-        matches!(
-            self,
-            Self::PaymentChange { .. }
-                | Self::Renewal {
-                    payment_amount: Some(_),
-                    ..
-                }
-        )
-    }
-}
 fn valid_amount(value: f64) -> bool {
     value.is_finite() && (0.0..=1e15).contains(&value)
 }
-fn decoded(value: Option<&Value>) -> Option<Value> {
-    value.and_then(|v| match v {
-        Value::String(s) => serde_json::from_str(s).ok(),
-        _ => Some(v.clone()),
-    })
-}
-fn terms(metadata: &Value) -> Option<Terms> {
-    if metadata.get("tracking_mode").and_then(Value::as_str) == Some("manual") {
-        return None;
-    }
-    let t: Terms = serde_json::from_value(decoded(metadata.get(LOAN_PROJECTION_KEY))?).ok()?;
-    (t.version == 1
-        && valid_amount(t.annual_rate)
-        && t.annual_rate <= 100.0
-        && valid_amount(t.payment_amount)
-        && money(t.payment_amount) > 0.0
-        && t.payment_count.is_none_or(|n| n > 0 && n <= MAX_PAYMENTS))
-    .then_some(t)
-}
-
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LoanBalance {
@@ -231,7 +130,7 @@ fn previous_payment_date(date: NaiveDate, frequency: LoanFrequency) -> Option<Na
     date.checked_sub_months(Months::new(1))
 }
 
-fn amortization_horizon(t: &Terms) -> Option<NaiveDate> {
+fn amortization_horizon(t: &LoanTerms) -> Option<NaiveDate> {
     t.amortization_end_date.or_else(|| {
         payment_date(
             t.first_payment_date,
@@ -248,7 +147,7 @@ pub fn calculate_loan(request: &LoanCalculationRequest) -> Option<LoanCalculatio
     if request.balances.len() > 10_000 {
         return None;
     }
-    let mut t = terms(&request.metadata)?;
+    let mut t = LoanTerms::active(&request.metadata)?;
     // Observations past the longest schedule the engine can walk (a mistyped year)
     // are ignored rather than invalidating the whole calculation.
     let limit = t
@@ -293,17 +192,15 @@ pub fn calculate_loan(request: &LoanCalculationRequest) -> Option<LoanCalculatio
     if horizon > payment_date(t.first_payment_date, MAX_PAYMENTS - 1, t.frequency)? {
         return None;
     }
-    let mut events: Vec<Event> = decoded(request.metadata.get(LOAN_EVENTS_KEY))
-        .and_then(|v| v.as_array().cloned())
-        .unwrap_or_default()
-        .into_iter()
-        .filter_map(|v| serde_json::from_value(v).ok())
-        .filter(|event: &Event| event.valid() && event.date() <= limit)
+    let mut events: Vec<LoanEvent> = event_entries(&request.metadata)
+        .iter()
+        .filter_map(LoanEvent::parse)
+        .filter(|event| event.date() <= limit)
         .collect();
     if events.len() > 10_000 {
         return None;
     }
-    events.sort_by_key(Event::date);
+    events.sort_by_key(LoanEvent::date);
     let mut balance = money(initial.balance);
     let mut current = balance;
     let mut rate_now = t.annual_rate;
@@ -348,16 +245,19 @@ pub fn calculate_loan(request: &LoanCalculationRequest) -> Option<LoanCalculatio
         let start_event = event_index;
         while event_index < events.len() && events[event_index].date() <= day {
             match events[event_index] {
-                Event::RateChange { annual_rate, .. } => t.annual_rate = annual_rate,
-                Event::PaymentChange { payment_amount, .. } => t.payment_amount = payment_amount,
-                Event::PaymentFrequencyChange {
+                LoanEvent::RateChange { annual_rate, .. } => t.annual_rate = annual_rate,
+                LoanEvent::PaymentChange { payment_amount, .. } => {
+                    t.payment_amount = payment_amount
+                }
+                LoanEvent::PaymentFrequencyChange {
                     frequency,
                     effective_date,
+                    ..
                 } if frequency != t.frequency => {
                     frequency_reset = Some(effective_date);
                     t.frequency = frequency;
                 }
-                Event::Renewal {
+                LoanEvent::Renewal {
                     annual_rate,
                     payment_amount,
                     frequency,
@@ -408,7 +308,7 @@ pub fn calculate_loan(request: &LoanCalculationRequest) -> Option<LoanCalculatio
             {
                 continue;
             }
-            if let Event::ExtraRepayment { amount, .. } = event {
+            if let LoanEvent::ExtraRepayment { amount, .. } = event {
                 let extra = money(*amount).min(balance);
                 balance = money(balance - extra);
                 payment += extra;
@@ -477,7 +377,7 @@ pub fn calculate_loan(request: &LoanCalculationRequest) -> Option<LoanCalculatio
         let next = [
             (next_payment <= horizon && (balance > 0.005 || accrued_interest > 0.005))
                 .then_some(next_payment),
-            events.get(event_index).map(Event::date),
+            events.get(event_index).map(LoanEvent::date),
             balances.get(balance_index).map(|b| b.date),
         ]
         .into_iter()

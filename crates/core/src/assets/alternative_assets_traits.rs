@@ -15,7 +15,11 @@ use super::alternative_assets_model::{
     LinkLiabilityRequest, LinkLiabilityResponse, UpdateAssetDetailsRequest,
     UpdateAssetDetailsResponse, UpdateValuationRequest, UpdateValuationResponse,
 };
+use super::loan::{LoanAction, LoanActionResult, LoanRecord, LoanUpdate};
 use crate::errors::Result;
+
+/// Decides a loan's writes from what is stored, inside the write transaction.
+pub type LoanChange = Box<dyn FnOnce(&LoanRecord) -> Result<LoanUpdate> + Send>;
 
 /// Trait defining the contract for Alternative Asset service operations.
 ///
@@ -123,6 +127,13 @@ pub trait AlternativeAssetServiceTrait: Send + Sync {
     /// # Returns
     /// A list of alternative holdings with current valuations and gain calculations
     fn get_alternative_holdings(&self) -> Result<Vec<AlternativeHolding>>;
+
+    /// Applies a loan action against what is stored, in one transaction.
+    async fn apply_loan_action(
+        &self,
+        asset_id: &str,
+        action: LoanAction,
+    ) -> Result<LoanActionResult>;
 }
 
 /// Trait for alternative asset repository operations.
@@ -183,4 +194,8 @@ pub trait AlternativeAssetRepositoryTrait: Send + Sync {
         metadata: Option<serde_json::Value>,
         notes: Option<&str>,
     ) -> Result<()>;
+
+    /// Reads a loan, decides its writes from what is stored and applies them in
+    /// one transaction, so a concurrent edit cannot be overwritten.
+    async fn update_loan(&self, asset_id: &str, change: LoanChange) -> Result<LoanUpdate>;
 }

@@ -408,6 +408,32 @@ pub fn router<S: Clone + Send + Sync + 'static>() -> Router<S> {
         .route("/alternative-holdings", get(get_alternative_holdings))
         .route("/loans/calculate", post(calculate_loan))
         .route("/loans/recalculate", post(recalculate_loan))
+        .route("/loans/{id}/actions", post(apply_loan_action))
+}
+
+async fn apply_loan_action(
+    Path(asset_id): Path<String>,
+    axum::Extension(state): axum::Extension<Arc<AppState>>,
+    Json(action): Json<wealthfolio_core::assets::loan::LoanAction>,
+) -> ApiResult<StatusCode> {
+    let result = state
+        .alternative_asset_service
+        .apply_loan_action(&asset_id, action)
+        .await?;
+    // Recorded balances change valuations, as a manual quote save does.
+    if result.balances_changed {
+        enqueue_portfolio_job(
+            state.clone(),
+            PortfolioJobConfig {
+                account_ids: None,
+                market_sync_mode: MarketSyncMode::None,
+                snapshot_mode: SnapshotRecalcMode::Full,
+                valuation_mode: ValuationRecalcMode::Full,
+                since_date: None,
+            },
+        );
+    }
+    Ok(StatusCode::NO_CONTENT)
 }
 
 async fn calculate_loan(
