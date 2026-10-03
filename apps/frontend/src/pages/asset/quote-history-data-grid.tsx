@@ -8,7 +8,7 @@ import {
   DataGrid,
   DatePickerInput,
   Icons,
-  Input,
+  MoneyInput,
   useAmountFormatting,
   useDataGrid,
   useDateFormatting,
@@ -473,89 +473,70 @@ export function QuoteHistoryDataGrid({
                           <label className="text-muted-foreground mb-1 block text-xs">
                             {t("asset:quoteGrid.close")}
                           </label>
-                          <Input
-                            type="number"
+                          <MoneyInput
                             value={entry.close || ""}
-                            step={stepValue}
+                            maxDecimalPlaces={QUOTE_DECIMAL_PRECISION}
                             placeholder="0"
-                            onChange={(e) =>
-                              handleMobileFieldChange(
-                                entry.id,
-                                "close",
-                                parseFloat(e.target.value) || 0,
-                              )
-                            }
+                            onValueChange={(value, isUserEdit) => {
+                              if (!isUserEdit) return;
+                              handleMobileFieldChange(entry.id, "close", value ?? 0);
+                            }}
                           />
                         </div>
                         <div>
                           <label className="text-muted-foreground mb-1 block text-xs">
                             {t("asset:quoteGrid.open")}
                           </label>
-                          <Input
-                            type="number"
+                          <MoneyInput
                             value={entry.open || ""}
-                            step={stepValue}
+                            maxDecimalPlaces={QUOTE_DECIMAL_PRECISION}
                             placeholder="0"
-                            onChange={(e) =>
-                              handleMobileFieldChange(
-                                entry.id,
-                                "open",
-                                parseFloat(e.target.value) || 0,
-                              )
-                            }
+                            onValueChange={(value, isUserEdit) => {
+                              if (!isUserEdit) return;
+                              handleMobileFieldChange(entry.id, "open", value ?? 0);
+                            }}
                           />
                         </div>
                         <div>
                           <label className="text-muted-foreground mb-1 block text-xs">
                             {t("asset:quoteGrid.high")}
                           </label>
-                          <Input
-                            type="number"
+                          <MoneyInput
                             value={entry.high || ""}
-                            step={stepValue}
+                            maxDecimalPlaces={QUOTE_DECIMAL_PRECISION}
                             placeholder="0"
-                            onChange={(e) =>
-                              handleMobileFieldChange(
-                                entry.id,
-                                "high",
-                                parseFloat(e.target.value) || 0,
-                              )
-                            }
+                            onValueChange={(value, isUserEdit) => {
+                              if (!isUserEdit) return;
+                              handleMobileFieldChange(entry.id, "high", value ?? 0);
+                            }}
                           />
                         </div>
                         <div>
                           <label className="text-muted-foreground mb-1 block text-xs">
                             {t("asset:quoteGrid.low")}
                           </label>
-                          <Input
-                            type="number"
+                          <MoneyInput
                             value={entry.low || ""}
-                            step={stepValue}
+                            maxDecimalPlaces={QUOTE_DECIMAL_PRECISION}
                             placeholder="0"
-                            onChange={(e) =>
-                              handleMobileFieldChange(
-                                entry.id,
-                                "low",
-                                parseFloat(e.target.value) || 0,
-                              )
-                            }
+                            onValueChange={(value, isUserEdit) => {
+                              if (!isUserEdit) return;
+                              handleMobileFieldChange(entry.id, "low", value ?? 0);
+                            }}
                           />
                         </div>
                         <div>
                           <label className="text-muted-foreground mb-1 block text-xs">
                             {t("asset:quoteGrid.volume")}
                           </label>
-                          <Input
-                            type="number"
+                          <MoneyInput
                             value={entry.volume || ""}
+                            maxDecimalPlaces={0}
                             placeholder="0"
-                            onChange={(e) =>
-                              handleMobileFieldChange(
-                                entry.id,
-                                "volume",
-                                parseInt(e.target.value) || 0,
-                              )
-                            }
+                            onValueChange={(value, isUserEdit) => {
+                              if (!isUserEdit) return;
+                              handleMobileFieldChange(entry.id, "volume", value ?? 0);
+                            }}
                           />
                         </div>
                       </div>
