@@ -7,6 +7,7 @@ import {
   DropdownMenuItem,
 } from "@wealthfolio/ui/components/ui/dropdown-menu";
 import { AnimatedToggleGroup, Badge, Button, Checkbox, Icons } from "@wealthfolio/ui";
+import { Alert, AlertDescription } from "@wealthfolio/ui/components/ui/alert";
 import {
   Card,
   CardContent,
@@ -349,6 +350,35 @@ function LoanLedger({ holding, calculation, quotes, actions, onEditDetails }: Lo
         </div>
       </CardHeader>
       <CardContent className="p-0 text-sm">
+        {calculation?.paymentSuggestion && (
+          <Alert variant="warning" className="mx-4 mb-3 w-auto sm:mx-6">
+            <Icons.AlertTriangle className="h-4 w-4" />
+            <AlertDescription className="space-y-2 text-sm">
+              <p>
+                {t("asset:loanPayments.suggestion", {
+                  amount: moneyText(calculation.paymentSuggestion.paymentAmount),
+                  date: date(calculation.paymentSuggestion.effectiveDate),
+                })}
+              </p>
+              <span className="flex flex-wrap gap-2">
+                <Button
+                  size="xs"
+                  onClick={() =>
+                    actions.changePayment(
+                      calculation.paymentSuggestion!.effectiveDate,
+                      calculation.paymentSuggestion!.paymentAmount,
+                    )
+                  }
+                >
+                  {t("asset:loanPayments.record_change")}
+                </Button>
+                <Button size="xs" variant="outline" onClick={onEditDetails}>
+                  {t("asset:loanPayments.edit_escrow")}
+                </Button>
+              </span>
+            </AlertDescription>
+          </Alert>
+        )}
         <div className={cn(ROW_GRID, "text-muted-foreground border-t py-2 text-xs")}>
           <span />
           <span />

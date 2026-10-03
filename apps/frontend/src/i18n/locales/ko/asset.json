@@ -969,6 +969,9 @@
     "no_candidates_one": "이 날짜 전후 {{count}}일 이내에 {{account}}의 연결되지 않은 출금이 없습니다.",
     "no_candidates_other": "이 날짜 전후 {{count}}일 이내에 {{account}}의 연결되지 않은 출금이 없습니다.",
     "not_eligible": "대출과 같은 통화의 현금 계좌에서 처리된 출금만 이 대출을 상환할 수 있습니다.",
-    "account_invalid": "대출과 같은 통화의 현금 계좌를 선택하세요."
+    "account_invalid": "대출과 같은 통화의 현금 계좌를 선택하세요.",
+    "suggestion": "최근 세 번의 상환액이 모두 예정 상환액과 같은 금액만큼 다릅니다. {{date}}부터 상환액이 {{amount}}일 수 있습니다.",
+    "record_change": "상환액 변경 기록",
+    "edit_escrow": "세금·보험료 차이입니다"
   }
 }

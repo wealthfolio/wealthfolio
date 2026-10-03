@@ -969,6 +969,9 @@
     "no_candidates_one": "No unlinked withdrawals in {{account}} within {{count}} day of this date.",
     "no_candidates_other": "No unlinked withdrawals in {{account}} within {{count}} days of this date.",
     "not_eligible": "Only a posted withdrawal from a cash account in the loan's currency can pay this loan.",
-    "account_invalid": "Choose a cash account in the loan's currency."
+    "account_invalid": "Choose a cash account in the loan's currency.",
+    "suggestion": "Your last three payments each differ from the scheduled payment by the same amount. From {{date}}, the payment may be {{amount}}.",
+    "record_change": "Record payment change",
+    "edit_escrow": "It's taxes and insurance"
   }
 }

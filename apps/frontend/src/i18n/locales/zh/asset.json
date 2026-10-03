@@ -969,6 +969,9 @@
     "no_candidates_one": "该日期前后 {{count}} 天内，{{account}} 中没有未关联的取款。",
     "no_candidates_other": "该日期前后 {{count}} 天内，{{account}} 中没有未关联的取款。",
     "not_eligible": "只有贷款币种现金账户中的已入账取款才能支付此贷款。",
-    "account_invalid": "请选择与贷款币种相同的现金账户。"
+    "account_invalid": "请选择与贷款币种相同的现金账户。",
+    "suggestion": "您最近三次还款都与计划还款相差相同金额。自 {{date}} 起，还款额可能为 {{amount}}。",
+    "record_change": "记录还款额变更",
+    "edit_escrow": "是税费和保险"
   }
 }

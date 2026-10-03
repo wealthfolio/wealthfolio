@@ -258,10 +258,14 @@ fn a_repeated_difference_suggests_a_payment_change() {
     let mut uneven = three(110.0);
     uneven[2].amount = 120.0;
     assert_eq!(suggestion(uneven), None);
-    // Payments the user directed are not evidence of a new payment amount.
+    // A payment directed to its instalment shows what was paid as well as a matched one.
     let mut directed = three(110.0);
     directed[0].applies_to = Some(PaymentTarget::Instalment(date("2026-03-01")));
-    assert_eq!(suggestion(directed), None);
+    assert_eq!(suggestion(directed).map(|s| s.payment_amount), Some(110.0));
+    // Extra principal settles no instalment, so it says nothing about the payment.
+    let mut extra = three(110.0);
+    extra[0].applies_to = Some(PaymentTarget::Extra);
+    assert_eq!(suggestion(extra), None);
 }
 
 #[test]

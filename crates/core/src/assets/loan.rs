@@ -173,7 +173,7 @@ pub fn calculate_loan(request: &LoanCalculationRequest) -> Option<LoanCalculatio
         calculate(request, &extras)?
     };
     result.instalments = payments::instalment_statuses(&plan, &result, request.as_of);
-    result.payment_suggestion = payments::payment_suggestion(&plan, &request.payments);
+    result.payment_suggestion = payments::payment_suggestion(&plan);
     result.allocations = plan.allocations;
     Some(result)
 }

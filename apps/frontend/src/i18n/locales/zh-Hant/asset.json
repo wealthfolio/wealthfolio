@@ -969,6 +969,9 @@
     "no_candidates_one": "該日期前後 {{count}} 天內，{{account}} 中沒有未連結的提款。",
     "no_candidates_other": "該日期前後 {{count}} 天內，{{account}} 中沒有未連結的提款。",
     "not_eligible": "只有貸款幣別現金帳戶中的已入帳提款才能支付此貸款。",
-    "account_invalid": "請選擇與貸款幣別相同的現金帳戶。"
+    "account_invalid": "請選擇與貸款幣別相同的現金帳戶。",
+    "suggestion": "您最近三次還款都與計畫還款相差相同金額。自 {{date}} 起，還款額可能為 {{amount}}。",
+    "record_change": "記錄還款額變更",
+    "edit_escrow": "是稅費和保險"
   }
 }

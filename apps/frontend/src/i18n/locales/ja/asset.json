@@ -969,6 +969,9 @@
     "no_candidates_one": "この日付の前後{{count}}日以内に、{{account}}の未紐付けの出金はありません。",
     "no_candidates_other": "この日付の前後{{count}}日以内に、{{account}}の未紐付けの出金はありません。",
     "not_eligible": "このローンを返済できるのは、ローンと同じ通貨の現金口座からの確定済み出金だけです。",
-    "account_invalid": "ローンと同じ通貨の現金口座を選択してください。"
+    "account_invalid": "ローンと同じ通貨の現金口座を選択してください。",
+    "suggestion": "直近3回の返済が、いずれも予定額と同じ金額だけ異なります。{{date}}以降の返済額は{{amount}}かもしれません。",
+    "record_change": "返済額の変更を記録",
+    "edit_escrow": "税金・保険料の差です"
   }
 }

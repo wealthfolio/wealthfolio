@@ -985,6 +985,9 @@
     "no_candidates_other": "No hay retiros sin vincular en {{account}} a {{count}} días de esta fecha.",
     "no_candidates_many": "No hay retiros sin vincular en {{account}} a {{count}} días de esta fecha.",
     "not_eligible": "Solo un retiro contabilizado de una cuenta de efectivo en la moneda del préstamo puede pagar este préstamo.",
-    "account_invalid": "Elige una cuenta de efectivo en la moneda del préstamo."
+    "account_invalid": "Elige una cuenta de efectivo en la moneda del préstamo.",
+    "suggestion": "Tus tres últimos pagos difieren del pago previsto en la misma cantidad. Desde el {{date}}, el pago podría ser de {{amount}}.",
+    "record_change": "Registrar cambio de pago",
+    "edit_escrow": "Son impuestos y seguro"
   }
 }

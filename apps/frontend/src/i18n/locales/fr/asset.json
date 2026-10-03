@@ -985,6 +985,9 @@
     "no_candidates_other": "Aucun retrait non lié dans {{account}} à {{count}} jours de cette date.",
     "no_candidates_many": "Aucun retrait non lié dans {{account}} à {{count}} jours de cette date.",
     "not_eligible": "Seul un retrait comptabilisé d'un compte courant dans la devise du prêt peut payer ce prêt.",
-    "account_invalid": "Choisissez un compte courant dans la devise du prêt."
+    "account_invalid": "Choisissez un compte courant dans la devise du prêt.",
+    "suggestion": "Vos trois derniers paiements diffèrent chacun du montant prévu de la même somme. À partir du {{date}}, le paiement est peut-être de {{amount}}.",
+    "record_change": "Enregistrer le changement",
+    "edit_escrow": "Ce sont les taxes et l'assurance"
   }
 }

@@ -332,20 +332,12 @@ pub(super) fn instalment_statuses(
         .collect()
 }
 
-/// Rule 10: the last payments matched without an explicit target each differ
-/// from their instalment by the same amount.
-pub(super) fn payment_suggestion(
-    plan: &PaymentPlan,
-    payments: &[LoanPayment],
-) -> Option<PaymentChangeSuggestion> {
+/// Rule 10: the last payments that settled an instalment, whether matched or
+/// directed to it, each differ from their instalment by the same amount.
+pub(super) fn payment_suggestion(plan: &PaymentPlan) -> Option<PaymentChangeSuggestion> {
     let matched: Vec<(NaiveDate, f64, f64)> = plan
         .allocations
         .iter()
-        .filter(|a| {
-            payments
-                .iter()
-                .any(|p| p.activity_id == a.activity_id && p.applies_to.is_none())
-        })
         .filter_map(|a| {
             let due = a.instalment?;
             let scheduled = plan.instalments.iter().find(|i| i.date == due)?.scheduled;

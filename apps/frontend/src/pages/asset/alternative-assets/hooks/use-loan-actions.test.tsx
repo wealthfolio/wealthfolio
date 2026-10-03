@@ -257,3 +257,14 @@ it("treats a loan switched back to manual as manual despite its stored terms", (
   show(holding({ sub_type: "mortgage", tracking_mode: "manual" }));
   expect(availability).toMatchObject({ renew: false, recalculate: false });
 });
+
+it("records a suggested payment change as one action", async () => {
+  show();
+  await act(async () => {
+    await actions.changePayment("2026-03-01", 110);
+  });
+  expect(sent()).toEqual([
+    "loan",
+    { type: "change_payment", date: "2026-03-01", paymentAmount: 110 },
+  ]);
+});

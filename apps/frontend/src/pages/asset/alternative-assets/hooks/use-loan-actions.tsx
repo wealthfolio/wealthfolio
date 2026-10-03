@@ -40,6 +40,8 @@ export interface LoanActionCallbacks {
   renew: () => void;
   recalculate: () => void;
   close: () => void;
+  /** Record a dated payment change, as repeated payment differences suggest. */
+  changePayment: (date: string, paymentAmount: number) => Promise<void>;
 }
 
 /** One owner at the asset page level, shared by the header and both tabs. */
@@ -191,6 +193,16 @@ export function useLoanActions(
     renew: () => setRenewLoanOpen(true),
     recalculate: () => setRecalculateScheduleOpen(true),
     close: () => setCloseLoanOpen(true),
+    changePayment: async (date, paymentAmount) => {
+      try {
+        await run({ type: "change_payment", date, paymentAmount });
+      } catch (cause) {
+        toast({
+          title: loanErrorText(t, cause, "asset:loanEvents.failed"),
+          variant: "destructive",
+        });
+      }
+    },
   };
   return {
     actions,

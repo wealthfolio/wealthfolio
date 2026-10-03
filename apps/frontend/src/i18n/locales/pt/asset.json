@@ -985,6 +985,9 @@
     "no_candidates_other": "Nenhum levantamento não associado em {{account}} a {{count}} dias desta data.",
     "no_candidates_many": "Nenhum levantamento não associado em {{account}} a {{count}} dias desta data.",
     "not_eligible": "Apenas um levantamento lançado de uma conta à ordem na moeda do empréstimo pode pagar este empréstimo.",
-    "account_invalid": "Escolha uma conta à ordem na moeda do empréstimo."
+    "account_invalid": "Escolha uma conta à ordem na moeda do empréstimo.",
+    "suggestion": "Os seus três últimos pagamentos diferem do pagamento previsto no mesmo valor. A partir de {{date}}, o pagamento pode ser de {{amount}}.",
+    "record_change": "Registar alteração do pagamento",
+    "edit_escrow": "São impostos e seguro"
   }
 }
