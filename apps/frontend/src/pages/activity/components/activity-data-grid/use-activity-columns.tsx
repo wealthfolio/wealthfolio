@@ -331,7 +331,7 @@ export function useActivityColumns({
               if (parsed) {
                 return formatOptionSubtitle(parsed, formatting);
               }
-              return getExchangeDisplayName(row.exchangeMic);
+              return row.assetName?.trim() || getExchangeDisplayName(row.exchangeMic);
             },
             isClearable: (rowData: unknown) => {
               const row = rowData as LocalTransaction;
@@ -347,6 +347,18 @@ export function useActivityColumns({
               : undefined,
             onCreateCustomAsset,
           },
+        },
+      },
+
+      // 8.5. Name (read-only; derived from the linked asset)
+      {
+        accessorKey: "assetName",
+        header: t("activity:datagrid.column.name"),
+        size: 160,
+        enableSorting: false,
+        enableHiding: true,
+        meta: {
+          cell: { variant: "short-text", readOnly: true },
         },
       },
 

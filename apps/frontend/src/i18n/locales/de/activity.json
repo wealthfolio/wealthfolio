@@ -617,6 +617,7 @@
       "status": "Status",
       "date_time": "Datum & Uhrzeit",
       "symbol": "Symbol",
+      "name": "Name",
       "quantity": "Menge",
       "price": "Kurs",
       "amount": "Betrag",
@@ -688,6 +689,7 @@
     "update_details": "Transaktionsdetails aktualisieren"
   },
   "table_symbol": "Symbol",
+  "table_name": "Name",
   "datagrid_changes_discarded": "Änderungen verworfen",
   "datagrid_unsaved_cleared": "Nicht gespeicherte Bearbeitungen und Entwürfe wurden gelöscht.",
   "export_activities": "Aktivitäten exportieren",
