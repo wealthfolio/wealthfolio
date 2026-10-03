@@ -304,6 +304,82 @@ and the loan page. Alternative assets and loans count even when there are no
 accounts. Confirmation adjustments are not cash payments. Passing time does not
 turn a projected payment into a confirmation.
 
+## Payments from an account
+
+A calculated loan can name the cash account its payments leave from. Each
+payment is then an ordinary withdrawal in that account, tagged with the loan, so
+cash and debt move together and net worth changes only by interest and escrow.
+This follows how budgeting and accounting tools treat a loan payment: principal
+is a transfer to the loan, interest and escrow are costs, and the lender's
+statement remains the truth.
+
+### Stored data
+
+- Loan metadata `payment_account_id` names the "Paid from" account, and
+  `escrow_amount` is the escrow usually included in a payment. Both are optional
+  and written by loan actions only.
+- A payment is tagged in its activity metadata under `loan_payment`: `loan_id`,
+  optional `escrow` (included in this payment) and optional `applies_to` (an
+  instalment due date, or `extra`). Only the payment actions write this key;
+  ordinary activity edits and imports keep it unchanged.
+
+### Rules
+
+1. **One record per payment.** The withdrawal is the payment; the loan stores no
+   copy. Regular and extra payments are both tagged withdrawals.
+2. **Eligible payments.** A tag counts only on a posted withdrawal (after any
+   type override) in a cash account in the loan's currency. Linking checks this;
+   anything that later stops qualifying is ignored, not converted.
+3. **Calculated loans only.** Payments are linked to calculated loans. A loan
+   switched to manual keeps its tags but ignores them; its balance comes from
+   confirmations. Loans without tagged payments behave exactly as before.
+4. **The tag decides, not the account.** Changing the "Paid from" account only
+   changes where new payments are recorded and where untagged withdrawals are
+   suggested; payments already tagged keep counting.
+5. **Payment date.** A payment is dated by its activity date, the calendar day
+   Wealthfolio shows for that withdrawal.
+6. **Escrow first.** The tag's escrow, at most the payment amount, is never
+   principal or interest. Linking fills it from the loan's `escrow_amount`, so a
+   later change to that amount does not rewrite earlier payments.
+7. **Matching an instalment.** Unless the tag names a target, a payment settles
+   the unpaid instalment whose due date is nearest, within 10 days for monthly
+   loans and 6 days for biweekly ones. A tag naming an instalment due date, or
+   `extra`, overrides matching.
+8. **Allocation.** Applied to an instalment, the payment covers what remains of
+   that instalment's scheduled payment, its interest and principal. Whatever is
+   left is extra principal on the payment date, applied like a recorded extra
+   repayment. A payment that settles no instalment is entirely extra principal.
+9. **Shortfalls and missed payments are flagged, not guessed.** From the first
+   counted payment onward, an instalment more than its matching window overdue
+   with less than its scheduled payment applied is marked short or missing. The
+   balance still assumes the scheduled payment until a confirmed balance
+   corrects it, because an import that is late or incomplete must not lower
+   debt.
+10. **A repeated difference suggests a payment change.** When the last three
+    instalments settled by payments, matched or directed, each differ from the
+    scheduled payment by the same amount of at least 1.00, the loan suggests a
+    dated payment change instead of counting the difference every time. Until
+    the user acts, rule 8 applies.
+11. **Confirmed balances still win.** A confirmation on or after a payment's
+    date overrides the estimate from that date, as before; a payment on the same
+    day is already included in it.
+12. **Recording from the loan.** With a "Paid from" account, Extra repayment
+    records a withdrawal there tagged `extra` instead of a loan event; the
+    withdrawal is created first, so a failed link leaves an untagged withdrawal
+    that is offered for linking. Without one, it records an event as before.
+13. **Edits flow through.** Editing, voiding or deleting a tagged withdrawal
+    changes the loan; unlinking keeps the withdrawal and removes the tag.
+    Deleting the loan removes its tags and keeps the withdrawals.
+14. **One valuation.** The loan page, holdings, net worth and net-worth history
+    count the same payments, so they show the same dated principal.
+
+Matching and allocation run in the shared engine. The engine first builds the
+schedule without derived payments, allocates payments in date order against its
+instalments, then calculates again with the derived extra principal. It returns
+each instalment's status and each payment's allocation for display. Spending's
+split of a payment into principal and interest, and creating payments for loans
+whose account is not imported, are later changes.
+
 ## Page and interaction design
 
 The existing asset route remains the entry point. `MortgageOverview` and shared
