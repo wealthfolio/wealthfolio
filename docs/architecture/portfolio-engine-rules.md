@@ -50,7 +50,7 @@ and the next snapshot is compared with them that way. Prices from before a split
 that the provider adjusted are read back at their unadjusted level. A
 transactions account's lots split on the split day of a split it records itself
 (as before): brokers record a split on each account, not always on the same day,
-so another account's row would split its lots twice (§7). Fixtures:
+so another account's row would split its lots twice (§8). Fixtures:
 EDGE-SPLIT-01, EDGE-SPLIT-02, EDGE-SPLIT-03, EDGE-QT-05.
 
 ## 2. Transfers
@@ -83,7 +83,7 @@ netted as a pair. The transactions side is money (or shares) leaving or entering
 the scope on its day, as a transfer to or from outside: the fold does not wait
 for the holdings side. The holdings side counts when its next snapshot shows it
 (R1.2), at that snapshot's prices, so a price move in between reads as money in
-or out (§7). Fixtures: EDGE-MIX-03, EDGE-MIX-05, EDGE-MIX-06.
+or out (§8). Fixtures: EDGE-MIX-03, EDGE-MIX-05, EDGE-MIX-06.
 
 **R2.4 A transfer without a quote** is valued at cost.
 
@@ -135,7 +135,7 @@ first day carries no flow.
 
 **R4.2** Units in transit between the legs of a transfer spread over several
 days belong to neither account. A window starting between the legs reads their
-return as gain; a window spanning both legs is unaffected (§7).
+return as gain; a window spanning both legs is unaffected (§8).
 
 ## 5. What invalidates what
 
@@ -163,7 +163,7 @@ not blank (blank: empty or only whitespace, as Rust's `str::trim` strips it),
 else its stored type. That covers the engine's facts, core's
 `effective_activity_type`, the triggers and the split query; the activity
 repository's queries and the frontend read it the same way. Other parts of the
-app keep their own type reads until blank overrides are no longer stored (§7). A
+app keep their own type reads until blank overrides are no longer stored (§8). A
 run consumes a marker only after writing what it covers. An account or asset
 that arrives after facts naming it marks itself on insert (rows above), so a run
 that could not project it yet projects it once it exists.
@@ -183,7 +183,43 @@ sync could have written inconsistent ones.
 **R6.2** Sync may move a quote to another asset or a snapshot to another
 account; both owners are invalidated (§5).
 
-## 7. Known limits
+## 7. Cost basis methods
+
+**R7.1 What a method decides.** An account's cost basis method decides only
+which of its lots a disposal relieves, and how much of each lot's units and cost
+leave with them: a sale, a cover, a transfer out, an option expiry. It also
+decides which delivered units cover a short when a transfer arrives into one. It
+never changes the units held, cash or prices. What it moves is cost: the cost a
+transfer carries (R2.4), and the flows and net contribution valued at that cost,
+follow the lots it relieves. Each lot keeps its acquisition date, its historical
+rates and its source, so realized P&L in base follows from the lots relieved
+(R3.3).
+
+**R7.2 The methods the engine computes.** FIFO: lots are relieved oldest first,
+and delivered units cover a short in the order the sender gave them. An
+account's settings name its method, and the engine alone says which methods it
+computes: an account set to another is refused (`UNSUPPORTED_COST_BASIS`) and
+its results are not written; where another account needs it folded (a transfer
+partner), it is folded FIFO. Changing an account's method refolds it (§5).
+Fixtures: every fixture is FIFO.
+
+**R7.3 What a new method must respect.**
+
+- Within the account: its results depend only on its own facts and the transfers
+  it takes part in (architecture §4.8). Pooling lots across accounts is not
+  supported.
+- Forward only: a disposal's relief depends only on the account's lots when it
+  happens, never on later activities. Rules that look ahead (Canada's
+  superficial loss rule) are not supported.
+- Cost is conserved: the cost relieved plus the cost that remains equals the
+  cost before, in the position's currency and in base.
+- Chosen from the account's lots alone: choosing specific lots for each disposal
+  needs disposals to name their lots, which the facts do not carry, so it needs
+  its own design first, as pooling and look-ahead rules do.
+- A method is added with its entry here, hand-worked fixtures, and every
+  property law passing under it (§9).
+
+## 8. Known limits
 
 - Holdings mode assumes trades and transfers happen at snapshot prices: a price
   move between a trade (or a transfer, R2.3) and the next snapshot reads as
@@ -205,14 +241,20 @@ account; both owners are invalidated (§5).
   the addon SDK's `getEffectiveType` and `hasUserOverride`) still treat a blank
   type override as a type. A follow-up stores a blank override as none on every
   write path and clears the ones already stored, so no reader sees one.
+- Accounting settings this version cannot read do not fail their account alone:
+  a method code it does not know (one a newer version wrote) fails the whole
+  job, and a malformed entry reads as the defaults (FIFO). Users cannot set
+  these settings yet; reading them per account and strictly comes with the first
+  method they can choose.
 
-## 8. How tests use these rules
+## 9. How tests use these rules
 
 - Each rule's fixtures carry expected values worked out by hand in their
   `expected_notes`, and the goldens pin them.
-- Property laws state rules over every scenario. Where a law compares the engine
-  with itself (determinism, windows, renaming), it proves consistency, not these
-  rules; the fixtures above prove the rules.
+- Property laws state rules over every scenario, under every cost basis method
+  the engine computes (R7.3). Where a law compares the engine with itself
+  (determinism, windows, renaming), it proves consistency, not these rules; the
+  fixtures above prove the rules.
 - §5 is checked mechanically: a storage test changes every column the engine
   reads, one at a time, and fails unless the change leaves the marker scope and
   earliest day the table states.
