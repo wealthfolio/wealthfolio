@@ -18,6 +18,7 @@ pub struct ContributionLimit {
     pub updated_at: NaiveDateTime,
     pub start_date: Option<String>,
     pub end_date: Option<String>,
+    pub is_recurring: bool,
 }
 
 /// Input model for creating a new contribution limit
@@ -31,6 +32,8 @@ pub struct NewContributionLimit {
     pub account_ids: Option<String>,
     pub start_date: Option<String>,
     pub end_date: Option<String>,
+    #[serde(default)]
+    pub is_recurring: bool,
 }
 
 #[derive(Serialize, Debug)]

@@ -9,6 +9,11 @@ import { useTranslation } from "react-i18next";
 import { SettingsHeader } from "../settings-header";
 import { ContributionLimitEditModal } from "./components/contribution-limit-edit-modal";
 import { ContributionLimitItem } from "./components/contribution-limit-item";
+import { ContributionLimitProjectedItem } from "./components/contribution-limit-projected-item";
+import {
+  withProjectedRecurringLimits,
+  type ProjectedContributionLimit,
+} from "./contribution-limit-projection";
 import { useContributionLimitMutations } from "./use-contribution-limit-mutations";
 
 const SettingsContributionLimitPage = () => {
@@ -36,6 +41,13 @@ const SettingsContributionLimitPage = () => {
     setVisibleModal(true);
   };
 
+  const handleAddProjectedLimit = (projected: ProjectedContributionLimit) => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { isProjected, sourceLimitId, ...rest } = projected;
+    setSelectedLimit({ ...rest, id: "" });
+    setVisibleModal(true);
+  };
+
   const handleDeleteLimit = (limit: ContributionLimit) => {
     deleteContributionLimitMutation.mutate(limit.id);
   };
@@ -50,8 +62,16 @@ const SettingsContributionLimitPage = () => {
   }
 
   const currentYear = new Date().getFullYear();
-  const currentYearLimits = limits?.filter((limit) => limit.contributionYear === currentYear) || [];
-  const previousYearsLimits = limits?.filter((limit) => limit.contributionYear < currentYear) || [];
+  const projectedLimits = withProjectedRecurringLimits(limits ?? [], currentYear);
+  const currentYearLimits = projectedLimits.filter(
+    (limit) => limit.contributionYear === currentYear,
+  );
+  const futureYearsLimits = projectedLimits
+    .filter((limit) => limit.contributionYear > currentYear)
+    .sort((a, b) => a.contributionYear - b.contributionYear);
+  const previousYearsLimits = projectedLimits
+    .filter((limit) => limit.contributionYear < currentYear)
+    .sort((a, b) => b.contributionYear - a.contributionYear);
 
   return (
     <>
@@ -83,15 +103,23 @@ const SettingsContributionLimitPage = () => {
           </h2>
           {currentYearLimits.length ? (
             <div className="w-full space-y-4">
-              {currentYearLimits.map((limit: ContributionLimit) => (
-                <ContributionLimitItem
-                  key={limit.id}
-                  limit={limit}
-                  accounts={accounts || []}
-                  onEdit={handleEditLimit}
-                  onDelete={handleDeleteLimit}
-                />
-              ))}
+              {currentYearLimits.map((limit) =>
+                limit.isProjected ? (
+                  <ContributionLimitProjectedItem
+                    key={limit.id}
+                    limit={limit}
+                    onAdd={handleAddProjectedLimit}
+                  />
+                ) : (
+                  <ContributionLimitItem
+                    key={limit.id}
+                    limit={limit}
+                    accounts={accounts || []}
+                    onEdit={handleEditLimit}
+                    onDelete={handleDeleteLimit}
+                  />
+                ),
+              )}
             </div>
           ) : (
             <EmptyPlaceholder>
@@ -107,6 +135,33 @@ const SettingsContributionLimitPage = () => {
                 {t("settings:limits_add_first")}
               </Button>
             </EmptyPlaceholder>
+          )}
+
+          {futureYearsLimits.length > 0 && (
+            <div className="mt-8">
+              <h2 className="text-md text-muted-foreground mb-3 font-semibold">
+                {t("settings:limits_future_years")}
+              </h2>
+              <div className="w-full space-y-4">
+                {futureYearsLimits.map((limit) =>
+                  limit.isProjected ? (
+                    <ContributionLimitProjectedItem
+                      key={limit.id}
+                      limit={limit}
+                      onAdd={handleAddProjectedLimit}
+                    />
+                  ) : (
+                    <ContributionLimitItem
+                      key={limit.id}
+                      limit={limit}
+                      accounts={accounts || []}
+                      onEdit={handleEditLimit}
+                      onDelete={handleDeleteLimit}
+                    />
+                  ),
+                )}
+              </div>
+            </div>
           )}
 
           {previousYearsLimits.length > 0 && (
