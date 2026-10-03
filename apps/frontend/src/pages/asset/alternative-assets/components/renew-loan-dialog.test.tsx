@@ -7,6 +7,7 @@ import { RenewLoanDialog } from "./renew-loan-dialog";
 vi.mock("@/adapters", () => ({
   recalculateLoan: vi.fn().mockResolvedValue(null),
   calculateLoan: vi.fn(),
+  getLoanPayments: vi.fn().mockResolvedValue([]),
 }));
 vi.mock("@wealthfolio/ui", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@wealthfolio/ui")>()),

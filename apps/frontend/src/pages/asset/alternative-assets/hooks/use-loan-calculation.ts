@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
-import { calculateLoan } from "@/adapters";
+import { calculateLoan, getLoanPayments } from "@/adapters";
+import type { LoanPayment } from "@/adapters/shared/alternative-assets";
 import { formatZonedDateKey } from "@/features/spending/lib/timezone";
 import { QueryKeys } from "@/lib/query-keys";
 import { useSettingsContext } from "@/lib/settings-provider";
@@ -21,6 +22,7 @@ export function loanCalculationRequest(
   metadata: Record<string, unknown>,
   quotes: Quote[],
   asOf: string,
+  payments: LoanPayment[] = [],
 ) {
   return {
     metadata,
@@ -30,6 +32,7 @@ export function loanCalculationRequest(
       notes: quote.notes,
     })),
     asOf,
+    payments,
   };
 }
 
@@ -47,6 +50,7 @@ export function loanRenewalEstimateRequest(
     interestMethod?: LoanInterestMethod;
     balance?: number;
   },
+  payments: LoanPayment[] = [],
 ) {
   const { effectiveDate: day, annualRate, frequency, interestMethod, balance } = renewal;
   return {
@@ -65,9 +69,19 @@ export function loanRenewalEstimateRequest(
             { timestamp: `${day}T00:00:00Z`, close: balance } as Quote,
           ],
       day,
+      payments,
     ),
     annualRate,
   };
+}
+
+/** Withdrawals tagged as payments on this loan, as the backend counts them. */
+export function useLoanPayments(assetId: string, enabled = true) {
+  return useQuery({
+    queryKey: [QueryKeys.ASSET_DATA, assetId, "loan-payments"],
+    queryFn: () => getLoanPayments(assetId),
+    enabled: enabled && !!assetId,
+  });
 }
 
 export function useLoanCalculation(
@@ -78,10 +92,13 @@ export function useLoanCalculation(
   asOf?: string,
 ) {
   const today = useLoanToday();
-  const request = loanCalculationRequest(metadata, quotes, asOf ?? today);
+  const calculated = enabled && !!readActiveLoanProjection(metadata);
+  const payments = useLoanPayments(assetId, calculated);
+  const request = loanCalculationRequest(metadata, quotes, asOf ?? today, payments.data ?? []);
   return useQuery({
     queryKey: [QueryKeys.ASSET_DATA, assetId, "loan-calculation", request],
     queryFn: () => calculateLoan(request),
-    enabled: enabled && !!readActiveLoanProjection(metadata),
+    // Wait for payments so the balance is never shown without them first.
+    enabled: calculated && payments.isFetched,
   });
 }

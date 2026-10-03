@@ -27,7 +27,7 @@ import { useEffect, useId, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { Quote } from "@/lib/types";
 import { cn, formatDateISO } from "@/lib/utils";
-import { loanRenewalEstimateRequest } from "../hooks/use-loan-calculation";
+import { loanRenewalEstimateRequest, useLoanPayments } from "../hooks/use-loan-calculation";
 import { inheritedLoanSettings } from "../lib/loan-event-editing";
 import { recalculateLoan } from "@/adapters";
 import { useQuery } from "@tanstack/react-query";
@@ -139,15 +139,21 @@ export function RenewLoanDialog({
 
   // Preview the renewal as drafted: the backend solves the payment that keeps the
   // original amortization end, from the balance on the renewal date.
+  const { data: payments = [] } = useLoanPayments(assetId, open);
   const estimateRequest =
     open && !rateInvalid && !dateInvalid
-      ? loanRenewalEstimateRequest(metadata, quoteHistory, {
-          effectiveDate: day,
-          annualRate: parsedRate,
-          frequency: changedFrequency,
-          interestMethod: changedMethod,
-          balance,
-        })
+      ? loanRenewalEstimateRequest(
+          metadata,
+          quoteHistory,
+          {
+            effectiveDate: day,
+            annualRate: parsedRate,
+            frequency: changedFrequency,
+            interestMethod: changedMethod,
+            balance,
+          },
+          payments,
+        )
       : null;
   const { data: estimate } = useQuery({
     queryKey: [QueryKeys.ASSET_DATA, assetId, "loan-renewal", estimateRequest],

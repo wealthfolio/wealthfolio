@@ -21,7 +21,7 @@ import { useEffect, useId, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { Quote } from "@/lib/types";
 import { formatDateISO } from "@/lib/utils";
-import { loanCalculationRequest } from "../hooks/use-loan-calculation";
+import { loanCalculationRequest, useLoanPayments } from "../hooks/use-loan-calculation";
 import { recalculateLoan } from "@/adapters";
 import { useQuery } from "@tanstack/react-query";
 import { QueryKeys } from "@/lib/query-keys";
@@ -143,8 +143,9 @@ export function RecalculateScheduleDialog({
     parsedRate < 0 ||
     parsedRate > 100 ||
     effectiveDate > new Date();
+  const { data: payments = [] } = useLoanPayments(assetId, open);
   const request = {
-    ...loanCalculationRequest(metadata, quoteHistory, formatDateISO(effectiveDate)),
+    ...loanCalculationRequest(metadata, quoteHistory, formatDateISO(effectiveDate), payments),
     annualRate: parsedRate,
   };
   const {
