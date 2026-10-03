@@ -73,11 +73,10 @@ rebuilds safe to run by default.
   projection (`relieve`, `split_for_cover`), so a new method is a variant of
   `CostBasisMethod` with its branches, rules entry, fixtures, and every property
   law passing under it (a code core does not know yet, beyond FIFO, LIFO and
-  WAC, is also added to core's settings). Settings the engine does not compute
-  fail loudly per account rather than being silently computed as FIFO; settings
-  this version cannot read are a known limit (rules §8). Pooling across
-  accounts, rules that look ahead and choosing specific lots per disposal are
-  outside this design (rules R7.3).
+  WAC, is also added to core's settings). Settings the engine does not compute,
+  or that this version cannot read, fail loudly per account rather than being
+  silently computed as FIFO. Pooling across accounts, rules that look ahead and
+  choosing specific lots per disposal are outside this design (rules R7.3).
 
 ## 3. System architecture
 

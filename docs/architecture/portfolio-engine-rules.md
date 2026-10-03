@@ -202,8 +202,13 @@ and delivered units cover a short in the order the sender gave them. An
 account's settings name its method, and the engine alone says which methods it
 computes: an account set to another is refused (`UNSUPPORTED_COST_BASIS`) and
 its results are not written; where another account needs it folded (a transfer
-partner), it is folded FIFO. Changing an account's method refolds it (§5).
-Fixtures: every fixture is FIFO.
+partner), it is folded FIFO. Each account's settings are read on their own. An
+account with none (no meta, or no `accounting` entry in it) takes the defaults,
+FIFO. Settings this version cannot read are refused the same way and never read
+as the defaults: meta that is not JSON, an `accounting` entry that is not an
+object, or a code it does not know, such as one a newer version wrote. Only a
+failed database read fails the whole job. Changing an account's method refolds
+it (§5). Fixtures: every fixture is FIFO.
 
 **R7.3 What a new method must respect.**
 
@@ -243,11 +248,10 @@ Fixtures: every fixture is FIFO.
   the addon SDK's `getEffectiveType` and `hasUserOverride`) still treat a blank
   type override as a type. A follow-up stores a blank override as none on every
   write path and clears the ones already stored, so no reader sees one.
-- Accounting settings this version cannot read do not fail their account alone:
-  a method code it does not know (one a newer version wrote) fails the whole
-  job, and a malformed entry reads as the defaults (FIFO). Users cannot set
-  these settings yet; reading them per account and strictly comes with the first
-  method they can choose.
+- Settings that become unreadable (R7.2) while every setting §5 watches stays
+  the same, such as meta that stops being JSON, leave no marker: the account
+  keeps its last results until a later run, for another change or a new day,
+  refuses it.
 
 ## 9. How tests use these rules
 
