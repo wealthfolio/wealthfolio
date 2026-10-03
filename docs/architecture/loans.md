@@ -105,6 +105,8 @@ Paths below are relative to the repository root.
 | Payment solving                                  | `crates/core/src/assets/loan/recalculation.rs`                 |
 | Stored format and balance provenance             | `crates/core/src/assets/loan/model.rs`                         |
 | Loan actions and their rules                     | `crates/core/src/assets/loan/actions.rs`                       |
+| Payment allocation, statuses, and suggestions    | `crates/core/src/assets/loan/payments.rs`                      |
+| Linking a withdrawal to a loan                   | `crates/core/src/assets/loan/linking.rs`                       |
 | Atomic loan writes                               | `crates/storage-sqlite/src/assets/alternative_repository.rs`   |
 | Holdings integration                             | `crates/core/src/assets/alternative_assets_service.rs`         |
 | Net worth and history                            | `crates/core/src/portfolio/net_worth/net_worth_service.rs`     |
@@ -114,6 +116,7 @@ Paths below are relative to the repository root.
 | Overview, timeline, schedule, and sheets         | `apps/frontend/src/pages/asset/alternative-assets/components/` |
 | Actions, calculation queries, and formatting     | `apps/frontend/src/pages/asset/alternative-assets/hooks/`      |
 | Presentation, event editing, and ledger assembly | `apps/frontend/src/pages/asset/alternative-assets/lib/`        |
+| Linking from Spending rows                       | `apps/frontend/src/features/spending/components/`              |
 
 Runtime commands stay thin. Any API change must preserve frontend adapter, Tauri
 registration, web command mapping, and Axum route parity.
@@ -529,6 +532,13 @@ lender equivalence. Reference observations were captured September 24, 2026.
   after the metadata change leaves the loan untouched, that a refused action
   writes nothing, that a renewal's balance and terms are written together, and
   that confirming a day replaces its creation quote.
+- Payment tests (`loan/payments_tests.rs`, `loan/linking_tests.rs`) cover
+  eligibility, escrow, matching windows, directed targets, short and missing
+  instalments, suggestions, and confirmations winning. Storage tests verify that
+  tagged payments value the loan in holdings, that linking refuses ineligible
+  withdrawals and accounts, and that deleting a loan untags its payments. The
+  net-worth service test checks that the same payments count in net worth and
+  its history.
 - Frontend tests cover preview conventions, input construction, the action each
   dialog sends, period boundaries, privacy-related presentation, and opening
   confirmations, and that liabilities from earlier releases can opt into
@@ -539,13 +549,17 @@ lender equivalence. Reference observations were captured September 24, 2026.
 - [`e2e/24-loan-editing.spec.ts`](../../e2e/24-loan-editing.spec.ts) covers
   event management, form validation, conventions, confirmation edits, and
   recalculation.
+- [`e2e/25-loan-payments.spec.ts`](../../e2e/25-loan-payments.spec.ts) covers
+  Paid from, linking from Spending and from the loan, the payment change
+  suggestion, extra repayments recorded as withdrawals, unlinking, and deleting
+  a loan with tagged payments.
 
 Verify accounting conservation, rounding, calendar boundaries, stub periods,
 dated ordering, cadence resets, closure/reopening, residuals, invalid inputs,
 and bounded projections. Preserve parity across both runtime adapters. Display
 unavailable projections honestly rather than converting them into zero.
 
-Run focused Rust and frontend tests for the change; run both loan E2E files for
+Run focused Rust and frontend tests for the change; run the loan E2E files for
 changes to these flows. Follow [`e2e/README.md`](../../e2e/README.md) for a
 fresh installation and real web backend. App E2E tests are currently a local
 gate, not part of PR CI. Passing the covered cases is not proof of every
