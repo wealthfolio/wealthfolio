@@ -2743,3 +2743,80 @@ async fn loan_history_before_first_confirmation_matches_point_in_time() {
         dec!(1100)
     );
 }
+
+/// Loan payments for net worth, as the account repository would read them.
+struct TaggedPayments(HashMap<String, Vec<crate::assets::loan::LoanPayment>>);
+
+#[async_trait]
+impl crate::assets::AlternativeAssetRepositoryTrait for TaggedPayments {
+    async fn delete_alternative_asset(&self, _: &str) -> Result<()> {
+        unimplemented!("not used by net worth")
+    }
+    async fn update_asset_metadata(&self, _: &str, _: Option<serde_json::Value>) -> Result<()> {
+        unimplemented!("not used by net worth")
+    }
+    fn find_liabilities_linked_to(&self, _: &str) -> Result<Vec<String>> {
+        unimplemented!("not used by net worth")
+    }
+    async fn update_asset_details(
+        &self,
+        _: &str,
+        _: Option<&str>,
+        _: Option<&str>,
+        _: Option<serde_json::Value>,
+        _: Option<&str>,
+    ) -> Result<()> {
+        unimplemented!("not used by net worth")
+    }
+    fn loan_payments(
+        &self,
+        loan_ids: &[String],
+    ) -> Result<HashMap<String, Vec<crate::assets::loan::LoanPayment>>> {
+        Ok(self
+            .0
+            .iter()
+            .filter(|(id, _)| loan_ids.contains(id))
+            .map(|(id, payments)| (id.clone(), payments.clone()))
+            .collect())
+    }
+    async fn update_loan(
+        &self,
+        _: &str,
+        _: crate::assets::LoanChange,
+    ) -> Result<crate::assets::loan::LoanUpdate> {
+        unimplemented!("not used by net worth")
+    }
+}
+
+#[tokio::test]
+async fn tagged_loan_payments_count_in_net_worth_and_its_history() {
+    let start = NaiveDate::from_ymd_opt(2026, 1, 1).unwrap();
+    let end = NaiveDate::from_ymd_opt(2026, 4, 15).unwrap();
+    let mut asset = create_test_asset("LIAB-paid", AssetKind::Liability, "USD");
+    asset.metadata = Some(serde_json::json!({
+        "loan_projection": {"version": 1,"annualRate":0,"paymentAmount":100,"frequency":"monthly","firstPaymentDate":"2026-02-01","amortizationEndDate":"2027-01-01"}
+    }));
+    let payment = crate::assets::loan::LoanPayment {
+        activity_id: "extra".into(),
+        account_id: "chequing".into(),
+        date: NaiveDate::from_ymd_opt(2026, 4, 10).unwrap(),
+        amount: 200.0,
+        escrow: 0.0,
+        applies_to: Some(crate::assets::loan::PaymentTarget::Extra),
+    };
+    let service = create_net_worth_service(
+        vec![],
+        vec![asset],
+        vec![],
+        vec![create_test_quote("LIAB-paid", dec!(1200), start, "USD")],
+    )
+    .with_loan_payments(Arc::new(TaggedPayments(HashMap::from([(
+        "LIAB-paid".to_string(),
+        vec![payment],
+    )]))));
+    // The same figures as a recorded extra repayment of 200 on April 10.
+    let current = service.get_net_worth(end).await.unwrap();
+    let history = service.get_net_worth_history(start, end).unwrap();
+    assert_eq!(current.liabilities.total, dec!(700));
+    assert_eq!(history.last().unwrap().total_liabilities, dec!(700));
+}

@@ -25,8 +25,8 @@ pub use model::{
     RENEWAL_MATURITY_KEY, TRACKING_MODE_KEY,
 };
 pub use payments::{
-    InstalmentStatus, LoanInstalment, LoanPayment, PaymentAllocation, PaymentChangeSuggestion,
-    PaymentTarget,
+    InstalmentStatus, LoanInstalment, LoanPayment, LoanPaymentTag, PaymentAllocation,
+    PaymentChangeSuggestion, PaymentTarget, LOAN_PAYMENT_TAG_KEY,
 };
 pub use recalculation::{recalculate_loan, LoanRecalculation, LoanRecalculationRequest};
 

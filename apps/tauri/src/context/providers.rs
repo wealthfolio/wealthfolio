@@ -598,20 +598,23 @@ async fn build_context(
         holdings_service.clone(),
     ));
 
-    let net_worth_service = Arc::new(NetWorthService::new(
-        base_currency.clone(),
-        account_repository.clone(),
-        asset_repository.clone(),
-        snapshot_service.clone(),
-        quote_service.clone(),
-        valuation_repository.clone(),
-        fx_service.clone(),
-    ));
-
     let alternative_asset_repository = Arc::new(AlternativeAssetRepository::new(
         pool.clone(),
         writer.clone(),
     ));
+
+    let net_worth_service = Arc::new(
+        NetWorthService::new(
+            base_currency.clone(),
+            account_repository.clone(),
+            asset_repository.clone(),
+            snapshot_service.clone(),
+            quote_service.clone(),
+            valuation_repository.clone(),
+            fx_service.clone(),
+        )
+        .with_loan_payments(alternative_asset_repository.clone()),
+    );
 
     let alternative_asset_service = Arc::new(
         AlternativeAssetService::new(

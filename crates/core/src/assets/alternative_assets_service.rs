@@ -654,6 +654,12 @@ impl AlternativeAssetServiceTrait for AlternativeAssetService {
             .quote_service
             .get_latest_quotes_as_of(&asset_ids, as_of)?;
 
+        let loan_ids: Vec<String> = alternative_assets
+            .iter()
+            .filter(|asset| asset.kind == AssetKind::Liability)
+            .map(|asset| asset.id.clone())
+            .collect();
+        let mut payments = self.alternative_asset_repository.loan_payments(&loan_ids)?;
         let mut loan_values = std::collections::HashMap::new();
         for asset in &alternative_assets {
             if asset.kind == AssetKind::Liability
@@ -663,9 +669,12 @@ impl AlternativeAssetServiceTrait for AlternativeAssetService {
                     .is_some_and(|m| m.get(super::loan::LOAN_PROJECTION_KEY).is_some())
             {
                 let history = self.quote_service.get_historical_quotes(&asset.id)?;
-                if let Some(value) =
-                    super::loan::loan_value(asset.metadata.as_ref(), &history, &[], as_of)
-                {
+                if let Some(value) = super::loan::loan_value(
+                    asset.metadata.as_ref(),
+                    &history,
+                    &payments.remove(&asset.id).unwrap_or_default(),
+                    as_of,
+                ) {
                     loan_values.insert(asset.id.clone(), value);
                 }
             }
@@ -1171,6 +1180,13 @@ mod tests {
             _change: crate::assets::LoanChange,
         ) -> Result<crate::assets::loan::LoanUpdate> {
             unimplemented!("not used in this test")
+        }
+
+        fn loan_payments(
+            &self,
+            _loan_ids: &[String],
+        ) -> Result<HashMap<String, Vec<crate::assets::loan::LoanPayment>>> {
+            Ok(HashMap::new())
         }
     }
 

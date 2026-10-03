@@ -1,7 +1,7 @@
 //! Payments from an account, rule by rule (docs/architecture/loans.md).
 use super::super::{calculate_loan, recalculate_loan, LoanBalance, LoanCalculationRequest};
 use super::*;
-use serde_json::json;
+use serde_json::{json, Value};
 
 fn date(s: &str) -> NaiveDate {
     s.parse().unwrap()
@@ -24,6 +24,7 @@ fn monthly(payments: Vec<LoanPayment>) -> LoanCalculationRequest {
 fn pay(id: &str, day: &str, amount: f64) -> LoanPayment {
     LoanPayment {
         activity_id: id.into(),
+        account_id: "chequing".into(),
         date: date(day),
         amount,
         escrow: 0.0,
@@ -335,4 +336,96 @@ fn tags_read_the_stored_target_shapes() {
         Some(PaymentTarget::Instalment(date("2026-03-01")))
     );
     assert_eq!(String::from(PaymentTarget::Extra), "extra");
+}
+
+fn withdrawal(tag: Option<Value>) -> Activity {
+    use crate::activities::ActivityStatus;
+    use rust_decimal::Decimal;
+    let now = chrono::Utc::now();
+    Activity {
+        id: "act".into(),
+        account_id: "chequing".into(),
+        asset_id: None,
+        activity_type: ACTIVITY_TYPE_WITHDRAWAL.into(),
+        activity_type_override: None,
+        source_type: None,
+        subtype: None,
+        status: ActivityStatus::Posted,
+        activity_date: "2026-03-01T15:00:00Z".parse().unwrap(),
+        settlement_date: None,
+        quantity: None,
+        unit_price: None,
+        amount: Some(Decimal::new(13_000, 2)),
+        fee: None,
+        tax: None,
+        currency: "CAD".into(),
+        fx_rate: None,
+        notes: None,
+        metadata: tag
+            .map(|tag| json!({ "flow": {"is_external": true}, LOAN_PAYMENT_TAG_KEY: tag })),
+        source_system: None,
+        source_record_id: None,
+        source_group_id: None,
+        idempotency_key: None,
+        import_run_id: None,
+        is_user_modified: false,
+        needs_review: false,
+        created_at: now,
+        updated_at: now,
+    }
+}
+
+#[test]
+fn a_tagged_posted_cash_withdrawal_in_the_loans_currency_is_a_payment() {
+    let activity = withdrawal(Some(
+        json!({"loan_id": "loan", "escrow": 30, "applies_to": "extra"}),
+    ));
+    let (loan, payment) = LoanPayment::from_activity(&activity, "CASH", "CAD").unwrap();
+    assert_eq!(loan, "loan");
+    assert_eq!(
+        payment,
+        LoanPayment {
+            activity_id: "act".into(),
+            account_id: "chequing".into(),
+            date: date("2026-03-01"),
+            amount: 130.0,
+            escrow: 30.0,
+            applies_to: Some(PaymentTarget::Extra),
+        }
+    );
+}
+
+#[test]
+fn anything_that_stops_qualifying_is_ignored() {
+    use crate::activities::ActivityStatus;
+    let tag = || Some(json!({"loan_id": "loan"}));
+    let counts = |activity: &Activity, account: &str, currency: &str| {
+        LoanPayment::from_activity(activity, account, currency).is_some()
+    };
+    assert!(counts(&withdrawal(tag()), "CASH", "CAD"));
+    assert!(!counts(&withdrawal(None), "CASH", "CAD"));
+    assert!(!counts(&withdrawal(tag()), "CREDIT_CARD", "CAD"));
+    assert!(!counts(&withdrawal(tag()), "CASH", "USD"));
+    let mut pending = withdrawal(tag());
+    pending.status = ActivityStatus::Pending;
+    assert!(!counts(&pending, "CASH", "CAD"));
+    let mut deposit = withdrawal(tag());
+    deposit.activity_type_override = Some("DEPOSIT".into());
+    assert!(!counts(&deposit, "CASH", "CAD"));
+    let mut empty = withdrawal(tag());
+    empty.amount = None;
+    assert!(!counts(&empty, "CASH", "CAD"));
+}
+
+#[test]
+fn tags_serialize_only_what_they_say() {
+    let tag = LoanPaymentTag {
+        loan_id: "loan".into(),
+        escrow: 0.0,
+        applies_to: None,
+    };
+    assert_eq!(
+        serde_json::to_value(&tag).unwrap(),
+        json!({"loan_id": "loan"})
+    );
 }

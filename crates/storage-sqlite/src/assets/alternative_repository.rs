@@ -7,21 +7,67 @@
 //! just asset records + valuation quotes.
 
 use async_trait::async_trait;
+use diesel::dsl::sql;
 use diesel::prelude::*;
 use diesel::r2d2::{self, Pool};
+use diesel::sql_types::{Nullable, Text};
 use diesel::sqlite::SqliteConnection;
+use std::collections::HashMap;
 use std::sync::Arc;
 
-use wealthfolio_core::assets::loan::{LoanRecord, LoanUpdate};
+use wealthfolio_core::activities::Activity;
+use wealthfolio_core::assets::loan::{LoanPayment, LoanPaymentTag, LoanRecord, LoanUpdate};
 use wealthfolio_core::assets::{AlternativeAssetRepositoryTrait, LoanChange};
 use wealthfolio_core::errors::DatabaseError;
 use wealthfolio_core::quotes::Quote;
 use wealthfolio_core::{Error, Result};
 
+use crate::activities::ActivityDB;
 use crate::db::{get_connection, WriteHandle};
 use crate::errors::StorageError;
 use crate::market_data::QuoteDB;
-use crate::schema::{assets, quotes};
+use crate::schema::{accounts, activities, assets, quotes};
+
+/// Tagged withdrawals counted as payments, by loan. The core rule decides
+/// which tagged activities count; this only finds them.
+fn read_loan_payments(
+    conn: &mut SqliteConnection,
+    loan_ids: &[String],
+) -> Result<HashMap<String, Vec<LoanPayment>>> {
+    let mut payments: HashMap<String, Vec<LoanPayment>> = HashMap::new();
+    if loan_ids.is_empty() {
+        return Ok(payments);
+    }
+    let currencies: HashMap<String, String> = assets::table
+        .filter(assets::id.eq_any(loan_ids))
+        .select((assets::id, assets::quote_ccy))
+        .load::<(String, String)>(conn)
+        .map_err(StorageError::from)?
+        .into_iter()
+        .collect();
+    let tagged_loan =
+        sql::<Nullable<Text>>("json_extract(activities.metadata, '$.loan_payment.loan_id')");
+    let rows = activities::table
+        .inner_join(accounts::table)
+        .filter(tagged_loan.eq_any(loan_ids))
+        .select((ActivityDB::as_select(), accounts::account_type))
+        .load::<(ActivityDB, String)>(conn)
+        .map_err(StorageError::from)?;
+    for (row, account_type) in rows {
+        let activity = Activity::from(row);
+        let Some(currency) = LoanPaymentTag::read(activity.metadata.as_ref())
+            .and_then(|tag| currencies.get(&tag.loan_id))
+        else {
+            continue;
+        };
+        if let Some((loan_id, payment)) =
+            LoanPayment::from_activity(&activity, &account_type, currency)
+        {
+            payments.entry(loan_id).or_default().push(payment);
+        }
+    }
+    Ok(payments)
+}
 
 /// A loan's metadata and its manual balance quotes, oldest first.
 fn read_loan(conn: &mut SqliteConnection, asset_id: &str) -> Result<LoanRecord> {
@@ -50,12 +96,15 @@ fn read_loan(conn: &mut SqliteConnection, asset_id: &str) -> Result<LoanRecord> 
         .into_iter()
         .map(Quote::from)
         .collect();
+    let payments = read_loan_payments(conn, std::slice::from_ref(&asset.id))?
+        .remove(&asset.id)
+        .unwrap_or_default();
     Ok(LoanRecord {
         asset_id: asset.id,
         currency: asset.quote_ccy,
         metadata,
         balances,
-        payments: Vec::new(),
+        payments,
     })
 }
 
@@ -246,6 +295,11 @@ impl AlternativeAssetRepositoryTrait for AlternativeAssetRepository {
                 Ok(())
             })
             .await
+    }
+
+    fn loan_payments(&self, loan_ids: &[String]) -> Result<HashMap<String, Vec<LoanPayment>>> {
+        let mut conn = get_connection(&self.pool)?;
+        read_loan_payments(&mut conn, loan_ids)
     }
 
     async fn update_loan(&self, asset_id: &str, change: LoanChange) -> Result<LoanUpdate> {

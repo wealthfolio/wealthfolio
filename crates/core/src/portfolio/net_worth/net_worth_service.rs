@@ -13,7 +13,8 @@ use super::net_worth_model::{
 };
 use super::net_worth_traits::NetWorthServiceTrait;
 use crate::accounts::{account_types, is_liability_account_type, AccountRepositoryTrait};
-use crate::assets::{Asset, AssetKind, AssetRepositoryTrait};
+use crate::assets::loan::LoanPayment;
+use crate::assets::{AlternativeAssetRepositoryTrait, Asset, AssetKind, AssetRepositoryTrait};
 use crate::constants::DECIMAL_PRECISION;
 use crate::errors::Result;
 use crate::fx::currency::normalize_amount;
@@ -34,6 +35,8 @@ pub struct NetWorthService {
     quote_service: Arc<dyn QuoteServiceTrait>,
     valuation_repository: Arc<dyn ValuationRepositoryTrait>,
     fx_service: Arc<dyn FxServiceTrait>,
+    /// Source of loan payments from accounts; without one, loans count no payments.
+    loan_payments: Option<Arc<dyn AlternativeAssetRepositoryTrait>>,
 }
 
 impl NetWorthService {
@@ -56,7 +59,27 @@ impl NetWorthService {
             quote_service,
             valuation_repository,
             fx_service,
+            loan_payments: None,
         }
+    }
+
+    /// Counts loan payments tagged on account withdrawals, as holdings and the
+    /// loan page do.
+    pub fn with_loan_payments(mut self, source: Arc<dyn AlternativeAssetRepositoryTrait>) -> Self {
+        self.loan_payments = Some(source);
+        self
+    }
+
+    fn loan_payments(&self, assets: &[&Asset]) -> Result<HashMap<String, Vec<LoanPayment>>> {
+        let Some(source) = &self.loan_payments else {
+            return Ok(HashMap::new());
+        };
+        let loan_ids: Vec<String> = assets
+            .iter()
+            .filter(|asset| asset.kind == AssetKind::Liability)
+            .map(|asset| asset.id.clone())
+            .collect();
+        source.loan_payments(&loan_ids)
     }
 
     /// Determine the asset category based on account type.
@@ -619,6 +642,7 @@ impl NetWorthServiceTrait for NetWorthService {
             .filter(|a| a.kind.is_alternative())
             .collect();
 
+        let mut loan_payments = self.loan_payments(&alternative_assets)?;
         for asset in alternative_assets {
             // Skip if this asset was already processed via a snapshot position
             // (in case there's overlap)
@@ -635,8 +659,13 @@ impl NetWorthServiceTrait for NetWorthService {
                     .is_some_and(|m| m.get(crate::assets::loan::LOAN_PROJECTION_KEY).is_some())
             {
                 let quotes = self.quote_service.get_historical_quotes(&asset.id)?;
-                crate::assets::loan::loan_value(asset.metadata.as_ref(), &quotes, &[], date)
-                    .map(|value| (value, asset.quote_ccy.clone(), date))
+                crate::assets::loan::loan_value(
+                    asset.metadata.as_ref(),
+                    &quotes,
+                    &loan_payments.remove(&asset.id).unwrap_or_default(),
+                    date,
+                )
+                .map(|value| (value, asset.quote_ccy.clone(), date))
             } else {
                 None
             };
@@ -814,6 +843,7 @@ impl NetWorthServiceTrait for NetWorthService {
             end_date,
         )?;
 
+        let mut loan_payments = self.loan_payments(&alternative_assets)?;
         let mut loan_histories = Vec::new();
         for asset in &alternative_assets {
             if asset.kind == AssetKind::Liability
@@ -831,7 +861,7 @@ impl NetWorthServiceTrait for NetWorthService {
                             .map(crate::assets::loan::LoanBalance::from)
                             .collect(),
                         as_of: end_date,
-                        payments: Vec::new(),
+                        payments: loan_payments.remove(&asset.id).unwrap_or_default(),
                     },
                 ) {
                     loan_histories.push((*asset, calculation));

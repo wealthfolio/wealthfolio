@@ -2,9 +2,16 @@
 //! split into the scheduled payment and extra principal (docs/architecture/loans.md,
 //! "Payments from an account").
 use chrono::NaiveDate;
+use rust_decimal::prelude::ToPrimitive;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 use super::{money, LoanCalculation};
+use crate::accounts::account_types;
+use crate::activities::{Activity, ACTIVITY_TYPE_WITHDRAWAL};
+
+/// Activity metadata key holding a withdrawal's loan payment tag.
+pub const LOAN_PAYMENT_TAG_KEY: &str = "loan_payment";
 
 /// What a payment's tag says it is for.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
@@ -39,11 +46,35 @@ impl From<PaymentTarget> for String {
     }
 }
 
+/// The tag stored in a withdrawal's metadata under [`LOAN_PAYMENT_TAG_KEY`].
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+pub struct LoanPaymentTag {
+    pub loan_id: String,
+    /// Escrow included in this payment.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub escrow: f64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub applies_to: Option<PaymentTarget>,
+}
+
+fn is_zero(value: &f64) -> bool {
+    *value == 0.0
+}
+
+impl LoanPaymentTag {
+    pub fn read(metadata: Option<&Value>) -> Option<Self> {
+        serde_json::from_value(metadata?.get(LOAN_PAYMENT_TAG_KEY)?.clone()).ok()
+    }
+}
+
 /// A tagged withdrawal, as the engine counts it.
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LoanPayment {
     pub activity_id: String,
+    /// The account it was paid from; for display only.
+    #[serde(default)]
+    pub account_id: String,
     pub date: NaiveDate,
     /// Total withdrawn, escrow included.
     pub amount: f64,
@@ -51,6 +82,36 @@ pub struct LoanPayment {
     pub escrow: f64,
     #[serde(default)]
     pub applies_to: Option<PaymentTarget>,
+}
+
+impl LoanPayment {
+    /// Rule 2: a tag counts only on a posted withdrawal, after any type override,
+    /// in a cash account in the loan's currency. Returns the tagged loan's id.
+    pub fn from_activity(
+        activity: &Activity,
+        account_type: &str,
+        loan_currency: &str,
+    ) -> Option<(String, Self)> {
+        let tag = LoanPaymentTag::read(activity.metadata.as_ref())?;
+        let amount = activity.amount?.abs().to_f64()?;
+        let eligible = activity.is_posted()
+            && activity.effective_type() == ACTIVITY_TYPE_WITHDRAWAL
+            && account_type == account_types::CASH
+            && activity.currency == loan_currency
+            && amount > 0.0
+            && tag.escrow.is_finite();
+        eligible.then(|| {
+            let payment = Self {
+                activity_id: activity.id.clone(),
+                account_id: activity.account_id.clone(),
+                date: activity.effective_date(),
+                amount,
+                escrow: tag.escrow,
+                applies_to: tag.applies_to,
+            };
+            (tag.loan_id, payment)
+        })
+    }
 }
 
 /// How one payment was applied.

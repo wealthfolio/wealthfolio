@@ -15,8 +15,9 @@ use super::alternative_assets_model::{
     LinkLiabilityRequest, LinkLiabilityResponse, UpdateAssetDetailsRequest,
     UpdateAssetDetailsResponse, UpdateValuationRequest, UpdateValuationResponse,
 };
-use super::loan::{LoanAction, LoanActionResult, LoanRecord, LoanUpdate};
+use super::loan::{LoanAction, LoanActionResult, LoanPayment, LoanRecord, LoanUpdate};
 use crate::errors::Result;
+use std::collections::HashMap;
 
 /// Decides a loan's writes from what is stored, inside the write transaction.
 pub type LoanChange = Box<dyn FnOnce(&LoanRecord) -> Result<LoanUpdate> + Send>;
@@ -194,6 +195,9 @@ pub trait AlternativeAssetRepositoryTrait: Send + Sync {
         metadata: Option<serde_json::Value>,
         notes: Option<&str>,
     ) -> Result<()>;
+
+    /// Tagged withdrawals counted as payments, by loan id.
+    fn loan_payments(&self, loan_ids: &[String]) -> Result<HashMap<String, Vec<LoanPayment>>>;
 
     /// Reads a loan, decides its writes from what is stored and applies them in
     /// one transaction, so a concurrent edit cannot be overwritten.

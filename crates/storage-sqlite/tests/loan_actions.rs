@@ -37,6 +37,7 @@ impl SecretStore for NoSecrets {
 }
 
 struct Fixture {
+    pool: Arc<db::DbPool>,
     service: AlternativeAssetService,
     repository: Arc<AlternativeAssetRepository>,
     assets: Arc<AssetRepository>,
@@ -45,6 +46,42 @@ struct Fixture {
 }
 
 impl Fixture {
+    fn execute(&self, statement: &str) {
+        diesel::sql_query(statement)
+            .execute(&mut db::get_connection(&self.pool).unwrap())
+            .unwrap();
+    }
+
+    fn add_account(&self, id: &str, account_type: &str) {
+        self.execute(&format!(
+            "INSERT INTO accounts (id, name, account_type, currency, is_default, is_active, \
+             created_at, updated_at, is_archived, tracking_mode) VALUES ('{id}', '{id}', \
+             '{account_type}', 'CAD', 0, 1, '2026-01-01 00:00:00', '2026-01-01 00:00:00', 0, \
+             'NOT_SET')"
+        ));
+    }
+
+    fn add_withdrawal(&self, id: &str, account: &str, day: &str, amount: &str, tag: &str) {
+        let metadata = json!({ "loan_payment": { "loan_id": tag } });
+        self.execute(&format!(
+            "INSERT INTO activities (id, account_id, activity_type, status, activity_date, \
+             amount, currency, metadata, is_user_modified, needs_review, created_at, updated_at) \
+             VALUES ('{id}', '{account}', 'WITHDRAWAL', 'POSTED', '{day}T12:00:00Z', '{amount}', \
+             'CAD', '{metadata}', 0, 0, '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')"
+        ));
+    }
+
+    fn holding_balance(&self) -> Decimal {
+        self.service
+            .get_alternative_holdings()
+            .unwrap()
+            .into_iter()
+            .find(|holding| holding.id == "mortgage")
+            .unwrap()
+            .market_value
+            .abs()
+    }
+
     fn metadata(&self) -> serde_json::Value {
         self.assets.get_by_id("mortgage").unwrap().metadata.unwrap()
     }
@@ -129,6 +166,7 @@ async fn fixture() -> Fixture {
         .await
         .unwrap();
     Fixture {
+        pool,
         service,
         repository,
         assets,
@@ -344,4 +382,37 @@ async fn confirming_a_day_with_a_creation_quote_replaces_it() {
         .collect();
     assert_eq!(on_day.len(), 1);
     assert_eq!(on_day[0].1, Decimal::new(4750, 0));
+}
+
+#[tokio::test]
+async fn a_tagged_withdrawal_lowers_the_loan_in_holdings_and_in_actions() {
+    use rust_decimal::prelude::ToPrimitive;
+    let loan = fixture().await;
+    loan.add_account("chequing", "CASH");
+    let before = loan.holding_balance();
+    // March's instalment of 100 plus 500 of extra principal.
+    loan.add_withdrawal("pay", "chequing", "2026-03-01", "600", "mortgage");
+    assert_eq!(before - loan.holding_balance(), Decimal::new(500, 0));
+    // Loan actions check repayments against the same lowered balance.
+    let refused = loan
+        .service
+        .apply_loan_action(
+            "mortgage",
+            LoanAction::ExtraRepayment {
+                date: chrono::Utc::now().date_naive(),
+                amount: (before - Decimal::new(400, 0)).to_f64().unwrap(),
+            },
+        )
+        .await
+        .unwrap_err();
+    assert_eq!(refused.to_string(), "LOAN_AMOUNT_EXCEEDS_BALANCE");
+}
+
+#[tokio::test]
+async fn a_tag_on_a_withdrawal_that_does_not_qualify_is_ignored() {
+    let loan = fixture().await;
+    loan.add_account("card", "CREDIT_CARD");
+    let before = loan.holding_balance();
+    loan.add_withdrawal("card-pay", "card", "2026-03-01", "600", "mortgage");
+    assert_eq!(loan.holding_balance(), before);
 }
