@@ -62,6 +62,9 @@ const calculation = (payoffDate = "2045-01-01"): LoanCalculation => ({
   residualBalance: 0,
   residualInterest: 0,
   payoffDate,
+  allocations: [],
+  instalments: [],
+  paymentSuggestion: null,
 });
 const actions = {
   renew: vi.fn(),

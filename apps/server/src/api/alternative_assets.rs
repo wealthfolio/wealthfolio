@@ -402,6 +402,31 @@ pub fn router<S: Clone + Send + Sync + 'static>() -> Router<S> {
         .route("/loans/calculate", post(calculate_loan))
         .route("/loans/recalculate", post(recalculate_loan))
         .route("/loans/{id}/actions", post(apply_loan_action))
+        .route("/loans/{id}/payments", get(get_loan_payments))
+        .route("/loans/payments/{activity_id}", post(link_loan_payment))
+}
+
+async fn get_loan_payments(
+    Path(asset_id): Path<String>,
+    axum::Extension(state): axum::Extension<Arc<AppState>>,
+) -> ApiResult<Json<Vec<wealthfolio_core::assets::loan::LoanPayment>>> {
+    Ok(Json(
+        state
+            .alternative_asset_service
+            .get_loan_payments(&asset_id)?,
+    ))
+}
+
+async fn link_loan_payment(
+    Path(activity_id): Path<String>,
+    axum::Extension(state): axum::Extension<Arc<AppState>>,
+    Json(link): Json<wealthfolio_core::assets::loan::PaymentLink>,
+) -> ApiResult<StatusCode> {
+    state
+        .alternative_asset_service
+        .link_loan_payment(&activity_id, link)
+        .await?;
+    Ok(StatusCode::NO_CONTENT)
 }
 
 async fn apply_loan_action(

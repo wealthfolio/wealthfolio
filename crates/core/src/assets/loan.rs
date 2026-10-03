@@ -12,6 +12,7 @@ use crate::quotes::Quote;
 
 mod actions;
 mod interest;
+mod linking;
 mod model;
 mod payments;
 mod recalculation;
@@ -19,10 +20,11 @@ pub use actions::{
     apply_loan_action, BalanceEdit, LoanAction, LoanActionResult, LoanError, LoanRecord, LoanUpdate,
 };
 pub use interest::{payment_amount, InterestMethod};
+pub use linking::{link_payment, PaymentLink};
 pub use model::{
-    balance_notes, balance_user_note, edited_balance_notes, event_entries, LoanBalanceKind,
-    LoanEvent, LoanTerms, LOAN_CLOSED_NOTE, LOAN_EVENTS_KEY, LOAN_PROJECTION_KEY,
-    RENEWAL_MATURITY_KEY, TRACKING_MODE_KEY,
+    balance_notes, balance_user_note, edited_balance_notes, escrow_amount, event_entries,
+    LoanBalanceKind, LoanEvent, LoanTerms, ESCROW_AMOUNT_KEY, LOAN_CLOSED_NOTE, LOAN_EVENTS_KEY,
+    LOAN_PROJECTION_KEY, PAYMENT_ACCOUNT_KEY, RENEWAL_MATURITY_KEY, TRACKING_MODE_KEY,
 };
 pub use payments::{
     InstalmentStatus, LoanInstalment, LoanPayment, LoanPaymentTag, PaymentAllocation,
@@ -501,6 +503,9 @@ pub fn loan_value(
     })?;
     Decimal::from_f64_retain(result.current_balance).map(|v| v.round_dp(2))
 }
+
+#[cfg(test)]
+mod test_support;
 
 #[cfg(test)]
 mod tests;

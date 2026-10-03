@@ -25,7 +25,9 @@ use super::alternative_assets_model::{
 use super::alternative_assets_traits::{
     AlternativeAssetRepositoryTrait, AlternativeAssetServiceTrait,
 };
-use super::loan::{apply_loan_action, LoanAction, LoanActionResult};
+use super::loan::{
+    apply_loan_action, link_payment, LoanAction, LoanActionResult, LoanPayment, PaymentLink,
+};
 use super::{AssetKind, AssetRepositoryTrait, NewAsset, QuoteMode};
 use crate::errors::{Error, Result, ValidationError};
 use crate::events::{DomainEvent, DomainEventSink, NoOpDomainEventSink};
@@ -627,6 +629,27 @@ impl AlternativeAssetServiceTrait for AlternativeAssetService {
         })
     }
 
+    async fn link_loan_payment(&self, activity_id: &str, link: PaymentLink) -> Result<()> {
+        let loan_id = link.loan_id().map(str::to_string);
+        self.alternative_asset_repository
+            .update_payment_tag(
+                activity_id,
+                loan_id.as_deref(),
+                Box::new(move |activity, account_type, loan| {
+                    Ok(link_payment(activity, account_type, loan, &link)?)
+                }),
+            )
+            .await
+    }
+
+    fn get_loan_payments(&self, asset_id: &str) -> Result<Vec<LoanPayment>> {
+        Ok(self
+            .alternative_asset_repository
+            .loan_payments(&[asset_id.to_string()])?
+            .remove(asset_id)
+            .unwrap_or_default())
+    }
+
     fn get_alternative_holdings(&self) -> Result<Vec<AlternativeHolding>> {
         debug!("Fetching alternative holdings");
 
@@ -1187,6 +1210,15 @@ mod tests {
             _loan_ids: &[String],
         ) -> Result<HashMap<String, Vec<crate::assets::loan::LoanPayment>>> {
             Ok(HashMap::new())
+        }
+
+        async fn update_payment_tag(
+            &self,
+            _activity_id: &str,
+            _loan_id: Option<&str>,
+            _change: crate::assets::PaymentTagChange,
+        ) -> Result<()> {
+            unimplemented!("not used in this test")
         }
     }
 

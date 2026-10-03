@@ -57,6 +57,7 @@ use crate::activities::{
 use crate::activities::{
     ImportRun, ImportRunMode, ImportRunRepositoryTrait, ImportRunSummary, ImportRunType, ReviewMode,
 };
+use crate::assets::loan::LOAN_PAYMENT_TAG_KEY;
 use crate::assets::{
     canonicalize_market_identity, normalize_quote_ccy_code, parse_crypto_pair_symbol,
     parse_symbol_with_known_exchange, resolve_bond_aliases, resolve_import_quote_ccy_precedence,
@@ -2242,17 +2243,32 @@ impl ActivityService {
     /// keys winning. Non-object payloads (either side) fall back to plain
     /// replacement - there is nothing meaningful to merge into.
     fn merge_metadata_patch(existing: Option<&serde_json::Value>, patch: &str) -> String {
-        let Ok(serde_json::Value::Object(patch_map)) =
+        let Ok(serde_json::Value::Object(mut patch_map)) =
             serde_json::from_str::<serde_json::Value>(patch)
         else {
             return patch.to_string();
         };
-        let Some(serde_json::Value::Object(existing_map)) = existing else {
-            return patch.to_string();
+        // Only the loan payment actions write a withdrawal's loan tag; an edit
+        // carrying a stale or new copy of it never changes the stored one.
+        patch_map.remove(LOAN_PAYMENT_TAG_KEY);
+        let mut merged = match existing {
+            Some(serde_json::Value::Object(existing_map)) => existing_map.clone(),
+            _ => serde_json::Map::new(),
         };
-        let mut merged = existing_map.clone();
         merged.extend(patch_map);
         serde_json::Value::Object(merged).to_string()
+    }
+
+    /// New activities never start as loan payments; linking tags them afterwards.
+    fn without_loan_payment_tag(metadata: Option<String>) -> Option<String> {
+        let text = metadata?;
+        match serde_json::from_str::<serde_json::Value>(&text) {
+            Ok(serde_json::Value::Object(mut map)) if map.contains_key(LOAN_PAYMENT_TAG_KEY) => {
+                map.remove(LOAN_PAYMENT_TAG_KEY);
+                Some(serde_json::Value::Object(map).to_string())
+            }
+            _ => Some(text),
+        }
     }
 
     /// Infers the asset kind and instrument type from symbol, exchange, and input values.
@@ -2577,6 +2593,7 @@ impl ActivityService {
     async fn prepare_new_activity(&self, mut activity: NewActivity) -> Result<NewActivity> {
         activity.activity_date =
             self.validate_and_normalize_activity_date(&activity.activity_date)?;
+        activity.metadata = Self::without_loan_payment_tag(activity.metadata.take());
         activity.subtype = NewActivity::canonicalize_subtype_for_activity(
             &activity.activity_type,
             activity.subtype.as_deref(),

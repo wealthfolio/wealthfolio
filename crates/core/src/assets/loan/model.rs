@@ -10,6 +10,19 @@ pub const LOAN_PROJECTION_KEY: &str = "loan_projection";
 pub const LOAN_EVENTS_KEY: &str = "loan_events";
 pub const RENEWAL_MATURITY_KEY: &str = "renewal_maturity_date";
 pub const TRACKING_MODE_KEY: &str = "tracking_mode";
+/// The cash account payments leave from.
+pub const PAYMENT_ACCOUNT_KEY: &str = "payment_account_id";
+/// Escrow usually included in a payment; linking uses it as the default.
+pub const ESCROW_AMOUNT_KEY: &str = "escrow_amount";
+
+/// The loan's usual escrow per payment, stored as a number or numeric text.
+pub fn escrow_amount(metadata: &Value) -> f64 {
+    metadata
+        .get(ESCROW_AMOUNT_KEY)
+        .and_then(|v| v.as_f64().or_else(|| v.as_str()?.parse().ok()))
+        .filter(|amount| valid_amount(*amount))
+        .unwrap_or(0.0)
+}
 
 /// Contractual terms as originally agreed; later changes are dated events.
 #[derive(Debug, Clone, PartialEq, Deserialize)]

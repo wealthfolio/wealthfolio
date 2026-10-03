@@ -21,6 +21,7 @@ fn record(metadata: Value, balances: &[(&str, f64, Option<&str>)]) -> LoanRecord
         metadata,
         balances: vec![],
         payments: vec![],
+        payment_accounts: vec!["chequing".into()],
     };
     record.balances = balances
         .iter()
@@ -752,4 +753,64 @@ fn an_unreadable_event_list_is_refused_rather_than_replaced() {
         amount: 100.0,
     };
     assert_eq!(apply(&loan, repay).unwrap_err(), LoanError::Invalid);
+}
+
+#[test]
+fn a_payment_account_must_be_one_that_can_pay_the_loan() {
+    let loan = record(json!({ "loan_projection": terms() }), &[]);
+    let set = |account: Option<&str>, escrow: Option<f64>| LoanAction::SetPaymentAccount {
+        account_id: account.map(str::to_string),
+        escrow_amount: escrow,
+    };
+    let linked = apply(&loan, set(Some("chequing"), Some(250.0)))
+        .unwrap()
+        .metadata
+        .unwrap();
+    assert_eq!(linked[PAYMENT_ACCOUNT_KEY], "chequing");
+    assert_eq!(linked[ESCROW_AMOUNT_KEY], "250");
+    assert_eq!(
+        apply(&loan, set(Some("brokerage"), None)).unwrap_err(),
+        LoanError::PaymentAccountInvalid
+    );
+    assert_eq!(
+        apply(&loan, set(Some("chequing"), Some(-1.0))).unwrap_err(),
+        LoanError::Invalid
+    );
+    // Clearing both removes the keys.
+    let cleared = apply(&record(linked, &[]), set(None, Some(0.0)))
+        .unwrap()
+        .metadata
+        .unwrap();
+    assert!(cleared.get(PAYMENT_ACCOUNT_KEY).is_none());
+    assert!(cleared.get(ESCROW_AMOUNT_KEY).is_none());
+    // Manual loans take no payments from an account.
+    let manual = record(
+        json!({ "loan_projection": terms(), "tracking_mode": "manual" }),
+        &[],
+    );
+    assert_eq!(
+        apply(&manual, set(Some("chequing"), None)).unwrap_err(),
+        LoanError::Invalid
+    );
+}
+
+#[test]
+fn a_payment_change_is_a_dated_event() {
+    let loan = record(json!({ "loan_projection": terms() }), &[]);
+    let update = apply(
+        &loan,
+        LoanAction::ChangePayment {
+            date: date("2026-03-01"),
+            payment_amount: 110.0,
+        },
+    )
+    .unwrap();
+    assert_eq!(
+        events(update.metadata.as_ref().unwrap()),
+        vec![LoanEvent::PaymentChange {
+            effective_date: date("2026-03-01"),
+            payment_amount: 110.0,
+            note: None,
+        }]
+    );
 }

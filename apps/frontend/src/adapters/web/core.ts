@@ -409,6 +409,8 @@ export const COMMANDS: CommandMap = {
   calculate_loan: { method: "POST", path: "/loans/calculate" },
   recalculate_loan: { method: "POST", path: "/loans/recalculate" },
   apply_loan_action: { method: "POST", path: "/loans" },
+  get_loan_payments: { method: "GET", path: "/loans" },
+  link_loan_payment: { method: "POST", path: "/loans/payments" },
   get_alternative_holdings: { method: "GET", path: "/alternative-holdings" },
   // Agent Access (PATs + audit log)
   get_agent_access_status: { method: "GET", path: "/agent-access/status" },
@@ -1863,6 +1865,17 @@ export const invoke = async <T>(command: string, payload?: Record<string, unknow
       break;
     }
     // Alternative Assets commands
+    case "get_loan_payments": {
+      const { assetId } = payload as { assetId: string };
+      url += `/${encodeURIComponent(assetId)}/payments`;
+      break;
+    }
+    case "link_loan_payment": {
+      const { activityId, link } = payload as { activityId: string; link: Record<string, unknown> };
+      url += `/${encodeURIComponent(activityId)}`;
+      body = JSON.stringify(link);
+      break;
+    }
     case "apply_loan_action": {
       const { assetId, action } = payload as { assetId: string; action: Record<string, unknown> };
       url += `/${encodeURIComponent(assetId)}/actions`;

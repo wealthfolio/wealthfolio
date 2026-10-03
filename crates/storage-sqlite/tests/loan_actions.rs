@@ -4,9 +4,10 @@ use std::sync::Arc;
 use diesel::RunQueryDsl;
 use rust_decimal::Decimal;
 use serde_json::json;
+use wealthfolio_core::activities::ActivityRepositoryTrait;
 use wealthfolio_core::assets::loan::{
     event_entries, BalanceEdit, LoanAction, LoanEvent, LoanFrequency, LoanRecord, LoanUpdate,
-    RENEWAL_MATURITY_KEY,
+    PaymentLink, PaymentTarget, PAYMENT_ACCOUNT_KEY, RENEWAL_MATURITY_KEY,
 };
 use wealthfolio_core::assets::{
     AlternativeAssetRepositoryTrait, AlternativeAssetService, AlternativeAssetServiceTrait,
@@ -38,6 +39,7 @@ impl SecretStore for NoSecrets {
 
 struct Fixture {
     pool: Arc<db::DbPool>,
+    activities: ActivityRepository,
     service: AlternativeAssetService,
     repository: Arc<AlternativeAssetRepository>,
     assets: Arc<AssetRepository>,
@@ -61,8 +63,11 @@ impl Fixture {
         ));
     }
 
-    fn add_withdrawal(&self, id: &str, account: &str, day: &str, amount: &str, tag: &str) {
-        let metadata = json!({ "loan_payment": { "loan_id": tag } });
+    fn add_withdrawal(&self, id: &str, account: &str, day: &str, amount: &str, tag: Option<&str>) {
+        let mut metadata = json!({ "flow": { "is_external": true } });
+        if let Some(loan) = tag {
+            metadata["loan_payment"] = json!({ "loan_id": loan });
+        }
         self.execute(&format!(
             "INSERT INTO activities (id, account_id, activity_type, status, activity_date, \
              amount, currency, metadata, is_user_modified, needs_review, created_at, updated_at) \
@@ -80,6 +85,10 @@ impl Fixture {
             .unwrap()
             .market_value
             .abs()
+    }
+
+    fn activity_metadata(&self, id: &str) -> serde_json::Value {
+        self.activities.get_activity(id).unwrap().metadata.unwrap()
     }
 
     fn metadata(&self) -> serde_json::Value {
@@ -166,6 +175,7 @@ async fn fixture() -> Fixture {
         .await
         .unwrap();
     Fixture {
+        activities: ActivityRepository::new(pool.clone(), writer.clone()),
         pool,
         service,
         repository,
@@ -391,7 +401,7 @@ async fn a_tagged_withdrawal_lowers_the_loan_in_holdings_and_in_actions() {
     loan.add_account("chequing", "CASH");
     let before = loan.holding_balance();
     // March's instalment of 100 plus 500 of extra principal.
-    loan.add_withdrawal("pay", "chequing", "2026-03-01", "600", "mortgage");
+    loan.add_withdrawal("pay", "chequing", "2026-03-01", "600", Some("mortgage"));
     assert_eq!(before - loan.holding_balance(), Decimal::new(500, 0));
     // Loan actions check repayments against the same lowered balance.
     let refused = loan
@@ -413,6 +423,97 @@ async fn a_tag_on_a_withdrawal_that_does_not_qualify_is_ignored() {
     let loan = fixture().await;
     loan.add_account("card", "CREDIT_CARD");
     let before = loan.holding_balance();
-    loan.add_withdrawal("card-pay", "card", "2026-03-01", "600", "mortgage");
+    loan.add_withdrawal("card-pay", "card", "2026-03-01", "600", Some("mortgage"));
     assert_eq!(loan.holding_balance(), before);
+}
+
+#[tokio::test]
+async fn linking_a_withdrawal_makes_it_a_payment_and_unlinking_undoes_it() {
+    let loan = fixture().await;
+    loan.add_account("chequing", "CASH");
+    loan.add_withdrawal("pay", "chequing", "2026-03-01", "600", None);
+    let before = loan.holding_balance();
+    loan.service
+        .link_loan_payment(
+            "pay",
+            PaymentLink::Link {
+                loan_id: "mortgage".into(),
+                escrow: None,
+                applies_to: Some(PaymentTarget::Extra),
+            },
+        )
+        .await
+        .unwrap();
+    assert_eq!(before - loan.holding_balance(), Decimal::new(600, 0));
+    let metadata = loan.activity_metadata("pay");
+    assert_eq!(metadata["flow"]["is_external"], true);
+    assert_eq!(metadata["loan_payment"]["applies_to"], "extra");
+    assert_eq!(loan.service.get_loan_payments("mortgage").unwrap().len(), 1);
+
+    loan.service
+        .link_loan_payment("pay", PaymentLink::Unlink)
+        .await
+        .unwrap();
+    assert_eq!(loan.holding_balance(), before);
+    assert!(loan.activity_metadata("pay").get("loan_payment").is_none());
+}
+
+#[tokio::test]
+async fn a_withdrawal_that_cannot_pay_the_loan_is_not_linked() {
+    let loan = fixture().await;
+    loan.add_account("card", "CREDIT_CARD");
+    loan.add_withdrawal("card-pay", "card", "2026-03-01", "600", None);
+    let refused = loan
+        .service
+        .link_loan_payment(
+            "card-pay",
+            PaymentLink::Link {
+                loan_id: "mortgage".into(),
+                escrow: None,
+                applies_to: None,
+            },
+        )
+        .await
+        .unwrap_err();
+    assert_eq!(refused.to_string(), "LOAN_PAYMENT_NOT_ELIGIBLE");
+    assert!(loan
+        .activity_metadata("card-pay")
+        .get("loan_payment")
+        .is_none());
+}
+
+#[tokio::test]
+async fn only_a_cash_account_in_the_loans_currency_can_be_paid_from() {
+    let loan = fixture().await;
+    loan.add_account("chequing", "CASH");
+    loan.add_account("card", "CREDIT_CARD");
+    let set = |account: &str| LoanAction::SetPaymentAccount {
+        account_id: Some(account.into()),
+        escrow_amount: None,
+    };
+    loan.service
+        .apply_loan_action("mortgage", set("chequing"))
+        .await
+        .unwrap();
+    assert_eq!(loan.metadata()[PAYMENT_ACCOUNT_KEY], "chequing");
+    let refused = loan
+        .service
+        .apply_loan_action("mortgage", set("card"))
+        .await
+        .unwrap_err();
+    assert_eq!(refused.to_string(), "LOAN_PAYMENT_ACCOUNT_INVALID");
+}
+
+#[tokio::test]
+async fn deleting_the_loan_untags_its_payments_and_keeps_the_withdrawals() {
+    let loan = fixture().await;
+    loan.add_account("chequing", "CASH");
+    loan.add_withdrawal("pay", "chequing", "2026-03-01", "600", Some("mortgage"));
+    loan.service
+        .delete_alternative_asset("mortgage")
+        .await
+        .unwrap();
+    let metadata = loan.activity_metadata("pay");
+    assert!(metadata.get("loan_payment").is_none());
+    assert_eq!(metadata["flow"]["is_external"], true);
 }

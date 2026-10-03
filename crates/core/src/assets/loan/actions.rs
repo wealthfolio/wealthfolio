@@ -9,7 +9,7 @@ use serde::Deserialize;
 use serde_json::Value;
 use thiserror::Error;
 
-use super::model::decoded;
+use super::model::{decoded, ESCROW_AMOUNT_KEY, PAYMENT_ACCOUNT_KEY};
 use super::{
     balance_notes, balance_user_note, calculate_loan, edited_balance_notes, event_entries, money,
     recalculate_loan, valid_amount, InterestMethod, LoanBalance, LoanBalanceKind, LoanCalculation,
@@ -36,6 +36,10 @@ pub enum LoanError {
     PaymentRequired,
     #[error("LOAN_CLOSURE_DATE_INVALID")]
     ClosureDateInvalid,
+    #[error("LOAN_PAYMENT_ACCOUNT_INVALID")]
+    PaymentAccountInvalid,
+    #[error("LOAN_PAYMENT_NOT_ELIGIBLE")]
+    PaymentNotEligible,
 }
 
 impl From<LoanError> for crate::errors::Error {
@@ -60,6 +64,8 @@ pub struct LoanRecord {
     pub balances: Vec<Quote>,
     /// Tagged withdrawals counted as payments on this loan.
     pub payments: Vec<LoanPayment>,
+    /// Cash accounts in the loan's currency that can pay it.
+    pub payment_accounts: Vec<String>,
 }
 
 /// The writes for one action, applied together or not at all.
@@ -128,6 +134,19 @@ pub enum LoanAction {
     EditBalance {
         quote_id: String,
         replacement: Option<BalanceEdit>,
+    },
+    /// Where payments are recorded and suggested, and the escrow usually in them.
+    #[serde(rename_all = "camelCase")]
+    SetPaymentAccount {
+        account_id: Option<String>,
+        #[serde(default)]
+        escrow_amount: Option<f64>,
+    },
+    /// A dated change to the regular payment, as payments suggest.
+    #[serde(rename_all = "camelCase")]
+    ChangePayment {
+        date: NaiveDate,
+        payment_amount: f64,
     },
 }
 
@@ -574,8 +593,65 @@ pub fn apply_loan_action(
                 update.delete_balances.push(original.id.clone());
             }
         }
+        LoanAction::SetPaymentAccount {
+            account_id,
+            escrow_amount,
+        } => {
+            if LoanTerms::active(metadata).is_none() {
+                return Err(LoanError::Invalid);
+            }
+            if account_id
+                .as_ref()
+                .is_some_and(|id| !record.payment_accounts.contains(id))
+            {
+                return Err(LoanError::PaymentAccountInvalid);
+            }
+            if escrow_amount.is_some_and(|escrow| !valid_amount(escrow)) {
+                return Err(LoanError::Invalid);
+            }
+            let mut next = metadata.clone();
+            set_or_remove(
+                &mut next,
+                PAYMENT_ACCOUNT_KEY,
+                account_id.clone().map(Value::String),
+            );
+            set_or_remove(
+                &mut next,
+                ESCROW_AMOUNT_KEY,
+                escrow_amount
+                    .filter(|escrow| money(*escrow) > 0.0)
+                    .map(|escrow| Value::String(money(escrow).to_string())),
+            );
+            update.metadata = Some(next);
+        }
+        LoanAction::ChangePayment {
+            date,
+            payment_amount,
+        } => {
+            check_date(metadata, *date, today)?;
+            if LoanTerms::active(metadata).is_none() {
+                return Err(LoanError::Invalid);
+            }
+            let event = checked(LoanEvent::PaymentChange {
+                effective_date: *date,
+                payment_amount: *payment_amount,
+                note: None,
+            })?;
+            update.metadata = Some(with_event(metadata, &event)?);
+        }
     }
     Ok(update)
+}
+
+fn set_or_remove(metadata: &mut Value, key: &str, value: Option<Value>) {
+    match value {
+        Some(value) => metadata[key] = value,
+        None => {
+            if let Some(object) = metadata.as_object_mut() {
+                object.remove(key);
+            }
+        }
+    }
 }
 
 #[cfg(test)]

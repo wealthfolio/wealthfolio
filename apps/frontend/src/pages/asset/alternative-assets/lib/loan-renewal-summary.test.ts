@@ -26,6 +26,9 @@ const calculation: LoanCalculation = {
   residualBalance: 0,
   residualInterest: 0,
   payoffDate: "2027-04-01",
+  allocations: [],
+  instalments: [],
+  paymentSuggestion: null,
   rows: [
     row("2026-01-01", 500),
     row("2026-02-01", 400),

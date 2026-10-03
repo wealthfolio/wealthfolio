@@ -2545,6 +2545,66 @@ pub(crate) mod tests {
     }
 
     #[tokio::test]
+    async fn test_update_never_changes_a_loan_payment_tag() {
+        // An edit form sends back the metadata it loaded; a stale copy of the
+        // loan tag must not undo a link made in the meantime.
+        let account_service = Arc::new(MockAccountService::new());
+        let asset_service = Arc::new(MockAssetService::new());
+        let activity_repository = Arc::new(MockActivityRepository::new());
+        account_service.add_account(create_test_account("acc-usd", "USD"));
+        asset_service.add_asset(create_test_asset_with_instrument(
+            "asset-opt",
+            "XSP240119C00500000",
+            Some("XCBO"),
+            Some(InstrumentType::Option),
+            "USD",
+        ));
+        let mut existing = create_stored_activity("activity-tag", "acc-usd", Some("asset-opt"));
+        existing.metadata = Some(serde_json::json!({ "loan_payment": { "loan_id": "current" } }));
+        activity_repository.add_activity(existing);
+        let activity_service = ActivityService::new(
+            activity_repository,
+            account_service,
+            asset_service,
+            Arc::new(MockFxService::new()),
+            Arc::new(MockQuoteService),
+        );
+
+        let updated = activity_service
+            .update_activity(ActivityUpdate {
+                id: "activity-tag".to_string(),
+                account_id: "acc-usd".to_string(),
+                asset: Some(AssetResolutionInput {
+                    id: Some("asset-opt".to_string()),
+                    ..Default::default()
+                }),
+                activity_type: "BUY".to_string(),
+                subtype: None,
+                activity_date: "2024-01-15".to_string(),
+                quantity: Some(Some(dec!(1))),
+                unit_price: Some(Some(dec!(100))),
+                currency: "USD".to_string(),
+                fee: None,
+                tax: None,
+                amount: None,
+                status: None,
+                needs_review: None,
+                notes: None,
+                fx_rate: None,
+                metadata: Some(
+                    r#"{"loan_payment": {"loan_id": "stale"}, "contract_multiplier": 10}"#
+                        .to_string(),
+                ),
+            })
+            .await
+            .expect("update should succeed");
+
+        let metadata = updated.metadata.expect("metadata should be stored");
+        assert_eq!(metadata["loan_payment"]["loan_id"], "current");
+        assert_eq!(metadata["contract_multiplier"], 10);
+    }
+
+    #[tokio::test]
     async fn test_update_metadata_patch_merges_into_existing_metadata() {
         // A legacy client may still send the creation-time multiplier key;
         // the migration breadcrumb stored beside it must survive the patch.

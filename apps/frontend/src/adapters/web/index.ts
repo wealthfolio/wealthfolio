@@ -278,6 +278,8 @@ export {
   getAlternativeHoldings,
   applyLoanAction,
   calculateLoan,
+  getLoanPayments,
+  linkLoanPayment,
   recalculateLoan,
   getNetWorth,
   getNetWorthHistory,

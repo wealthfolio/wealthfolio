@@ -15,12 +15,19 @@ use super::alternative_assets_model::{
     LinkLiabilityRequest, LinkLiabilityResponse, UpdateAssetDetailsRequest,
     UpdateAssetDetailsResponse, UpdateValuationRequest, UpdateValuationResponse,
 };
-use super::loan::{LoanAction, LoanActionResult, LoanPayment, LoanRecord, LoanUpdate};
+use super::loan::{LoanAction, LoanActionResult, LoanPayment, LoanRecord, LoanUpdate, PaymentLink};
+use crate::activities::Activity;
 use crate::errors::Result;
+use serde_json::Value;
 use std::collections::HashMap;
 
 /// Decides a loan's writes from what is stored, inside the write transaction.
 pub type LoanChange = Box<dyn FnOnce(&LoanRecord) -> Result<LoanUpdate> + Send>;
+
+/// Decides a withdrawal's new metadata from the withdrawal, its account type and
+/// the loan it would pay, read inside the write transaction.
+pub type PaymentTagChange =
+    Box<dyn FnOnce(&Activity, &str, Option<&LoanRecord>) -> Result<Option<Value>> + Send>;
 
 /// Trait defining the contract for Alternative Asset service operations.
 ///
@@ -135,6 +142,12 @@ pub trait AlternativeAssetServiceTrait: Send + Sync {
         asset_id: &str,
         action: LoanAction,
     ) -> Result<LoanActionResult>;
+
+    /// Links or unlinks a withdrawal as a loan payment, checked against what is stored.
+    async fn link_loan_payment(&self, activity_id: &str, link: PaymentLink) -> Result<()>;
+
+    /// The tagged withdrawals counted as payments on a loan.
+    fn get_loan_payments(&self, asset_id: &str) -> Result<Vec<LoanPayment>>;
 }
 
 /// Trait for alternative asset repository operations.
@@ -202,4 +215,13 @@ pub trait AlternativeAssetRepositoryTrait: Send + Sync {
     /// Reads a loan, decides its writes from what is stored and applies them in
     /// one transaction, so a concurrent edit cannot be overwritten.
     async fn update_loan(&self, asset_id: &str, change: LoanChange) -> Result<LoanUpdate>;
+
+    /// Reads a withdrawal, its account type and the loan to link, decides the
+    /// withdrawal's metadata and writes it in one transaction.
+    async fn update_payment_tag(
+        &self,
+        activity_id: &str,
+        loan_id: Option<&str>,
+        change: PaymentTagChange,
+    ) -> Result<()>;
 }

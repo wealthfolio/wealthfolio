@@ -573,6 +573,32 @@ pub async fn apply_loan_action(
 }
 
 #[tauri::command]
+pub async fn get_loan_payments(
+    asset_id: String,
+    state: ProfileAccess,
+) -> Result<Vec<wealthfolio_core::assets::loan::LoanPayment>, String> {
+    let context = state.context()?;
+    context
+        .alternative_asset_service()
+        .get_loan_payments(&asset_id)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn link_loan_payment(
+    activity_id: String,
+    link: wealthfolio_core::assets::loan::PaymentLink,
+    state: ProfileAccess,
+) -> Result<(), String> {
+    let context = state.context()?;
+    context
+        .alternative_asset_service()
+        .link_loan_payment(&activity_id, link)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 pub async fn recalculate_loan(
     state: ProfileAccess,
     request: wealthfolio_core::assets::loan::LoanRecalculationRequest,

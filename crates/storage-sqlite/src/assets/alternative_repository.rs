@@ -16,14 +16,16 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use wealthfolio_core::activities::Activity;
-use wealthfolio_core::assets::loan::{LoanPayment, LoanPaymentTag, LoanRecord, LoanUpdate};
-use wealthfolio_core::assets::{AlternativeAssetRepositoryTrait, LoanChange};
+use wealthfolio_core::assets::loan::{
+    link_payment, LoanPayment, LoanPaymentTag, LoanRecord, LoanUpdate, PaymentLink,
+};
+use wealthfolio_core::assets::{AlternativeAssetRepositoryTrait, LoanChange, PaymentTagChange};
 use wealthfolio_core::errors::DatabaseError;
 use wealthfolio_core::quotes::Quote;
 use wealthfolio_core::{Error, Result};
 
 use crate::activities::ActivityDB;
-use crate::db::{get_connection, WriteHandle};
+use crate::db::{get_connection, write_actor::DbWriteTx, WriteHandle};
 use crate::errors::StorageError;
 use crate::market_data::QuoteDB;
 use crate::schema::{accounts, activities, assets, quotes};
@@ -99,13 +101,43 @@ fn read_loan(conn: &mut SqliteConnection, asset_id: &str) -> Result<LoanRecord> 
     let payments = read_loan_payments(conn, std::slice::from_ref(&asset.id))?
         .remove(&asset.id)
         .unwrap_or_default();
+    let payment_accounts = accounts::table
+        .filter(accounts::account_type.eq("CASH"))
+        .filter(accounts::currency.eq(&asset.quote_ccy))
+        .filter(accounts::is_archived.eq(false))
+        .select(accounts::id)
+        .load::<String>(conn)
+        .map_err(StorageError::from)?;
     Ok(LoanRecord {
         asset_id: asset.id,
         currency: asset.quote_ccy,
         metadata,
         balances,
         payments,
+        payment_accounts,
     })
+}
+
+/// Writes an activity's metadata and records the change for sync.
+fn write_activity_metadata(
+    tx: &mut DbWriteTx<'_>,
+    activity_id: &str,
+    metadata: Option<&serde_json::Value>,
+) -> Result<()> {
+    diesel::update(activities::table.filter(activities::id.eq(activity_id)))
+        .set((
+            activities::metadata.eq(metadata.map(|m| m.to_string())),
+            activities::updated_at.eq(chrono::Utc::now().to_rfc3339()),
+        ))
+        .execute(tx.conn())
+        .map_err(StorageError::from)?;
+    let row = activities::table
+        .filter(activities::id.eq(activity_id))
+        .select(ActivityDB::as_select())
+        .first::<ActivityDB>(tx.conn())
+        .map_err(StorageError::from)?;
+    tx.update(&row)?;
+    Ok(())
 }
 
 /// Repository for managing alternative asset data in the database.
@@ -175,6 +207,23 @@ impl AlternativeAssetRepositoryTrait for AlternativeAssetRepository {
                             tx.update(&liability_row)?;
                         }
                     }
+                }
+
+                // Step 1b: Untag withdrawals paid toward this loan; they stay in their accounts.
+                let tagged = activities::table
+                    .filter(
+                        sql::<Nullable<Text>>(
+                            "json_extract(activities.metadata, '$.loan_payment.loan_id')",
+                        )
+                        .eq(&asset_id_owned),
+                    )
+                    .select(ActivityDB::as_select())
+                    .load::<ActivityDB>(tx.conn())
+                    .map_err(StorageError::from)?;
+                for row in tagged {
+                    let activity = Activity::from(row);
+                    let metadata = link_payment(&activity, "", None, &PaymentLink::Unlink)?;
+                    write_activity_metadata(tx, &activity.id, metadata.as_ref())?;
                 }
 
                 // Step 2: Delete all quotes for this asset with source = 'MANUAL'
@@ -292,6 +341,46 @@ impl AlternativeAssetRepositoryTrait for AlternativeAssetRepository {
                     .map_err(StorageError::from)?;
                 tx.update(&updated_row)?;
 
+                Ok(())
+            })
+            .await
+    }
+
+    async fn update_payment_tag(
+        &self,
+        activity_id: &str,
+        loan_id: Option<&str>,
+        change: PaymentTagChange,
+    ) -> Result<()> {
+        let activity_id = activity_id.to_string();
+        let loan_id = loan_id.map(str::to_string);
+        self.writer
+            .exec_tx(move |tx| -> Result<()> {
+                let (row, account_type) = activities::table
+                    .inner_join(accounts::table)
+                    .filter(activities::id.eq(&activity_id))
+                    .select((ActivityDB::as_select(), accounts::account_type))
+                    .first::<(ActivityDB, String)>(tx.conn())
+                    .optional()
+                    .map_err(StorageError::from)?
+                    .ok_or_else(|| {
+                        Error::Database(DatabaseError::NotFound(format!(
+                            "Activity not found: {activity_id}"
+                        )))
+                    })?;
+                let loan = match &loan_id {
+                    Some(id) => match read_loan(tx.conn(), id) {
+                        Ok(record) => Some(record),
+                        Err(Error::Database(DatabaseError::NotFound(_))) => None,
+                        Err(error) => return Err(error),
+                    },
+                    None => None,
+                };
+                let activity = Activity::from(row);
+                let metadata = change(&activity, &account_type, loan.as_ref())?;
+                if metadata != activity.metadata {
+                    write_activity_metadata(tx, &activity_id, metadata.as_ref())?;
+                }
                 Ok(())
             })
             .await

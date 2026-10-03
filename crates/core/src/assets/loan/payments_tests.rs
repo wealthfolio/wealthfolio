@@ -338,41 +338,11 @@ fn tags_read_the_stored_target_shapes() {
     assert_eq!(String::from(PaymentTarget::Extra), "extra");
 }
 
+/// A withdrawal with external-flow metadata and an optional loan tag.
 fn withdrawal(tag: Option<Value>) -> Activity {
-    use crate::activities::ActivityStatus;
-    use rust_decimal::Decimal;
-    let now = chrono::Utc::now();
-    Activity {
-        id: "act".into(),
-        account_id: "chequing".into(),
-        asset_id: None,
-        activity_type: ACTIVITY_TYPE_WITHDRAWAL.into(),
-        activity_type_override: None,
-        source_type: None,
-        subtype: None,
-        status: ActivityStatus::Posted,
-        activity_date: "2026-03-01T15:00:00Z".parse().unwrap(),
-        settlement_date: None,
-        quantity: None,
-        unit_price: None,
-        amount: Some(Decimal::new(13_000, 2)),
-        fee: None,
-        tax: None,
-        currency: "CAD".into(),
-        fx_rate: None,
-        notes: None,
-        metadata: tag
-            .map(|tag| json!({ "flow": {"is_external": true}, LOAN_PAYMENT_TAG_KEY: tag })),
-        source_system: None,
-        source_record_id: None,
-        source_group_id: None,
-        idempotency_key: None,
-        import_run_id: None,
-        is_user_modified: false,
-        needs_review: false,
-        created_at: now,
-        updated_at: now,
-    }
+    super::super::test_support::withdrawal(
+        tag.map(|tag| json!({ "flow": {"is_external": true}, LOAN_PAYMENT_TAG_KEY: tag })),
+    )
 }
 
 #[test]

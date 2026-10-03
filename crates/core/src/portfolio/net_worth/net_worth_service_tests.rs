@@ -2786,6 +2786,14 @@ impl crate::assets::AlternativeAssetRepositoryTrait for TaggedPayments {
     ) -> Result<crate::assets::loan::LoanUpdate> {
         unimplemented!("not used by net worth")
     }
+    async fn update_payment_tag(
+        &self,
+        _: &str,
+        _: Option<&str>,
+        _: crate::assets::PaymentTagChange,
+    ) -> Result<()> {
+        unimplemented!("not used by net worth")
+    }
 }
 
 #[tokio::test]

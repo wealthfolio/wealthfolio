@@ -84,23 +84,32 @@ pub struct LoanPayment {
     pub applies_to: Option<PaymentTarget>,
 }
 
+/// Rule 2: the amount of a posted withdrawal, after any type override, in a
+/// cash account in the loan's currency; anything else cannot be a payment.
+pub(super) fn payment_amount_of(
+    activity: &Activity,
+    account_type: &str,
+    loan_currency: &str,
+) -> Option<f64> {
+    let amount = activity.amount?.abs().to_f64()?;
+    (activity.is_posted()
+        && activity.effective_type() == ACTIVITY_TYPE_WITHDRAWAL
+        && account_type == account_types::CASH
+        && activity.currency == loan_currency
+        && amount > 0.0)
+        .then_some(amount)
+}
+
 impl LoanPayment {
-    /// Rule 2: a tag counts only on a posted withdrawal, after any type override,
-    /// in a cash account in the loan's currency. Returns the tagged loan's id.
+    /// A tagged withdrawal that still qualifies, with the id of the loan it pays.
     pub fn from_activity(
         activity: &Activity,
         account_type: &str,
         loan_currency: &str,
     ) -> Option<(String, Self)> {
         let tag = LoanPaymentTag::read(activity.metadata.as_ref())?;
-        let amount = activity.amount?.abs().to_f64()?;
-        let eligible = activity.is_posted()
-            && activity.effective_type() == ACTIVITY_TYPE_WITHDRAWAL
-            && account_type == account_types::CASH
-            && activity.currency == loan_currency
-            && amount > 0.0
-            && tag.escrow.is_finite();
-        eligible.then(|| {
+        let amount = payment_amount_of(activity, account_type, loan_currency)?;
+        tag.escrow.is_finite().then(|| {
             let payment = Self {
                 activity_id: activity.id.clone(),
                 account_id: activity.account_id.clone(),

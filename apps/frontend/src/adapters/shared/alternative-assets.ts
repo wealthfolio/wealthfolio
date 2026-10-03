@@ -144,11 +144,48 @@ export interface LoanCalculation {
   residualBalance: number;
   residualInterest: number;
   payoffDate: string | null;
+  /** How each tagged payment was applied, in date order. */
+  allocations: PaymentAllocation[];
+  /** Due instalments from the first tagged payment onward. */
+  instalments: LoanInstalment[];
+  paymentSuggestion: { effectiveDate: string; paymentAmount: number } | null;
+}
+
+/** Where a payment applies: an instalment due date, or extra principal. */
+export type PaymentTarget = string;
+
+/** A withdrawal tagged as a payment on a loan. */
+export interface LoanPayment {
+  activityId: string;
+  accountId: string;
+  date: string;
+  amount: number;
+  escrow: number;
+  appliesTo: PaymentTarget | null;
+}
+
+export interface PaymentAllocation {
+  activityId: string;
+  date: string;
+  instalment: string | null;
+  escrow: number;
+  applied: number;
+  extra: number;
+}
+
+export type InstalmentStatus = "paid" | "due" | "short" | "missing";
+
+export interface LoanInstalment {
+  dueDate: string;
+  scheduled: number;
+  paid: number;
+  status: InstalmentStatus;
 }
 export const calculateLoan = (request: {
   metadata: Record<string, unknown>;
   balances: { date: string; balance: number; notes?: string | null }[];
   asOf: string;
+  payments?: LoanPayment[];
 }): Promise<LoanCalculation | null> => invoke("calculate_loan", { request });
 
 export interface LoanRecalculation {
@@ -192,7 +229,21 @@ export type LoanAction =
       type: "edit_balance";
       quoteId: string;
       replacement: { date: string; balance: number; note: string } | null;
-    };
+    }
+  | { type: "set_payment_account"; accountId: string | null; escrowAmount?: number }
+  | { type: "change_payment"; date: string; paymentAmount: number };
 
 export const applyLoanAction = (assetId: string, action: LoanAction): Promise<void> =>
   invoke("apply_loan_action", { assetId, action });
+
+/** Withdrawals tagged as payments on a loan; only qualifying ones are returned. */
+export const getLoanPayments = (assetId: string): Promise<LoanPayment[]> =>
+  invoke("get_loan_payments", { assetId });
+
+export type PaymentLink =
+  | { type: "link"; loanId: string; escrow?: number; appliesTo?: PaymentTarget }
+  | { type: "unlink" };
+
+/** Links or unlinks a withdrawal as a loan payment; the backend checks it. */
+export const linkLoanPayment = (activityId: string, link: PaymentLink): Promise<void> =>
+  invoke("link_loan_payment", { activityId, link });
