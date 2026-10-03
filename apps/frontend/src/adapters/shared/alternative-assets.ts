@@ -161,7 +161,10 @@ export const recalculateLoan = (
 ): Promise<LoanRecalculation | null> => invoke("recalculate_loan", { request });
 
 /** A recorded loan event as stored; the backend validates every write. */
-export type StoredLoanEvent = Record<string, unknown> & { type: string; effectiveDate: string };
+export interface StoredLoanEvent {
+  type: string;
+  effectiveDate: string;
+}
 
 /** A change to a loan, checked and applied by the backend in one transaction. */
 export type LoanAction =
