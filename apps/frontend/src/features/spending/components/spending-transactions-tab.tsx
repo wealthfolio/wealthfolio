@@ -20,6 +20,7 @@ import { useAccounts } from "@/hooks/use-accounts";
 import { useIsMobileViewport } from "@/hooks/use-platform";
 import { useVirtualScrollContainer } from "@/hooks/use-virtual-scroll-container";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
+import { usePersistentState } from "@/hooks/use-persistent-state";
 import { InfiniteScrollTrigger } from "@/components/infinite-scroll-trigger";
 import { useTaxonomy } from "@/hooks/use-taxonomies";
 import { QueryKeys } from "@/lib/query-keys";
@@ -30,6 +31,10 @@ import { useSettingsContext } from "@/lib/settings-provider";
 import {
   Button,
   Checkbox,
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
   EmptyPlaceholder,
   Icons,
   Skeleton,
@@ -65,6 +70,16 @@ import {
   isSpendingAccountType,
 } from "../lib/constants";
 import { cashActivityFlowMetadata } from "../lib/cash-activity-form-utils";
+import {
+  DEFAULT_TRANSACTION_COLUMN_VISIBILITY,
+  OPTIONAL_TRANSACTION_COLUMNS,
+  TRANSACTION_COLUMNS_STORAGE_KEY,
+  countVisibleOptionalColumns,
+  resolveTransactionColumns,
+  transactionTableColumnCount,
+  type OptionalTransactionColumn,
+  type TransactionColumnVisibility,
+} from "../lib/transaction-columns";
 import {
   isTransferCashActivity,
   stableArr,
@@ -537,6 +552,22 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
       () => new Set(rows.map((r) => r.activity.accountId)).size > 1,
       [rows],
     );
+
+    const [storedColumns, setStoredColumns] = usePersistentState<
+      Partial<TransactionColumnVisibility>
+    >(TRANSACTION_COLUMNS_STORAGE_KEY, DEFAULT_TRANSACTION_COLUMN_VISIBILITY);
+    const columns = useMemo(() => resolveTransactionColumns(storedColumns), [storedColumns]);
+    const tableColumnCount = transactionTableColumnCount(columns);
+    const toggleColumn = useCallback(
+      (column: OptionalTransactionColumn, visible: boolean) =>
+        setStoredColumns((prev) => ({ ...resolveTransactionColumns(prev), [column]: visible })),
+      [setStoredColumns],
+    );
+    const columnLabels: Record<OptionalTransactionColumn, string> = {
+      type: t("common:type"),
+      account: t("common:account"),
+      subcategory: t("spending:filters.subcategory"),
+    };
 
     const dayGroups = useMemo(() => groupRowsByDay(rows, appTimezone), [rows, appTimezone]);
 
@@ -1058,7 +1089,11 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
       <>
         {firstItemStart > 0 && (
           <TableRow aria-hidden className="hover:bg-transparent">
-            <TableCell colSpan={6} className="p-0" style={{ height: firstItemStart }} />
+            <TableCell
+              colSpan={tableColumnCount}
+              className="p-0"
+              style={{ height: firstItemStart }}
+            />
           </TableRow>
         )}
         {virtualItems.map((virtualItem) => {
@@ -1074,6 +1109,7 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
               selectionState={daySelectionState(item.group)}
               onToggleDay={handleToggleDay}
               isPartial={hasNextPage === true && item.isLastGroup}
+              labelColSpan={3 + countVisibleOptionalColumns(columns)}
             />
           ) : (
             <TransactionRow
@@ -1082,12 +1118,17 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
               data-index={virtualItem.index}
               {...sharedRowProps(item.row)}
               showAccount={showAccount}
+              columns={columns}
             />
           );
         })}
         {totalSize - lastItemEnd > 0 && (
           <TableRow aria-hidden className="hover:bg-transparent">
-            <TableCell colSpan={6} className="p-0" style={{ height: totalSize - lastItemEnd }} />
+            <TableCell
+              colSpan={tableColumnCount}
+              className="p-0"
+              style={{ height: totalSize - lastItemEnd }}
+            />
           </TableRow>
         )}
       </>
@@ -1236,11 +1277,43 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
                     {t("spending:txTab.time")}
                   </TableHead>
                   <TableHead className="px-3">{t("spending:txTab.nameNotes")}</TableHead>
+                  {columns.type && <TableHead className="w-32 px-3">{columnLabels.type}</TableHead>}
+                  {columns.account && (
+                    <TableHead className="w-36 px-3">{columnLabels.account}</TableHead>
+                  )}
                   <TableHead className="hidden w-44 px-3 sm:table-cell">
                     {t("spending:filters.category")}
                   </TableHead>
+                  {columns.subcategory && (
+                    <TableHead className="w-44 px-3">{columnLabels.subcategory}</TableHead>
+                  )}
                   <TableHead className="w-28 px-3 text-right">{t("common:amount")}</TableHead>
-                  <TableHead className="w-10 px-3" />
+                  <TableHead className="w-10 px-3">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          className="h-7 w-7 rounded-lg"
+                          title={t("activity:table_toggle_columns")}
+                          aria-label={t("activity:table_toggle_columns")}
+                        >
+                          <Icons.ChevronDown className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        {OPTIONAL_TRANSACTION_COLUMNS.map((column) => (
+                          <DropdownMenuCheckboxItem
+                            key={column}
+                            checked={columns[column]}
+                            onCheckedChange={(value) => toggleColumn(column, !!value)}
+                          >
+                            {columnLabels[column]}
+                          </DropdownMenuCheckboxItem>
+                        ))}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               {/* The ref goes on the body, not the table: the virtualizer's

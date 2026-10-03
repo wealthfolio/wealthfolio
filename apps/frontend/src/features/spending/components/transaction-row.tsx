@@ -1,4 +1,4 @@
-import { memo, type Ref } from "react";
+import { memo, type ReactNode, type Ref } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { Account } from "@/lib/types";
@@ -19,7 +19,15 @@ import {
   useDateFormatting,
 } from "@wealthfolio/ui";
 
-import { getEffectiveCashActivityType, isCreditCardAccountType } from "../lib/constants";
+import {
+  getCashActivityLabel,
+  getEffectiveCashActivityType,
+  isCreditCardAccountType,
+} from "../lib/constants";
+import {
+  DEFAULT_TRANSACTION_COLUMN_VISIBILITY,
+  type TransactionColumnVisibility,
+} from "../lib/transaction-columns";
 import {
   getTransactionDisplay,
   getTransferLinkStatus,
@@ -37,6 +45,8 @@ interface TransactionRowProps {
   appTimezone?: string;
   /** True when the loaded result set spans more than one account. */
   showAccount: boolean;
+  /** Optional columns the user switched on; all hidden when omitted. */
+  columns?: TransactionColumnVisibility;
   isSelected: boolean;
   onToggleSelect: (id: string) => void;
   onAssignCategory: (activityId: string, taxonomyId: string, categoryId: string) => void;
@@ -58,6 +68,21 @@ interface TransactionRowProps {
   "data-index"?: number;
 }
 
+function CategoryLabel({ name, color }: { name: string; color: string | null }) {
+  return (
+    <>
+      {color && (
+        <span
+          className="h-2.5 w-2.5 shrink-0 rounded-full"
+          style={{ backgroundColor: color }}
+          aria-hidden="true"
+        />
+      )}
+      <span className="truncate text-sm">{name}</span>
+    </>
+  );
+}
+
 /** Shown only on row hover/focus, so an unset slot costs nothing at rest. */
 function TransactionRowImpl({
   ref,
@@ -68,6 +93,7 @@ function TransactionRowImpl({
   eventTypeColor,
   appTimezone,
   showAccount,
+  columns = DEFAULT_TRANSACTION_COLUMN_VISIBILITY,
   isSelected,
   onToggleSelect,
   onAssignCategory,
@@ -103,6 +129,38 @@ function TransactionRowImpl({
     minute: "numeric",
     ...(appTimezone ? { timeZone: appTimezone } : {}),
   });
+
+  // With the subcategory column on, Category names the parent and the
+  // subcategory gets its own cell. Both open the same picker.
+  const category = row.category;
+  const shownCategory = category
+    ? columns.subcategory && category.parentName
+      ? { name: category.parentName, color: category.parentColor }
+      : { name: category.name, color: category.color }
+    : null;
+  const subcategory = category?.parentName ? { name: category.name, color: category.color } : null;
+  const canCategorize = !isNeutral && row.splitCount === 0;
+  const categoryPicker = (content: ReactNode) => (
+    <QuickCategorizePopover
+      scope={isIncome ? "income" : isSaving ? "saving" : "expense"}
+      selectedCategoryId={category?.id ?? null}
+      onSelect={(taxonomyId, categoryId) => onAssignCategory(a.id, taxonomyId, categoryId)}
+      onClear={() => category && onClearCategory(a.id, category.taxonomyId)}
+      trigger={
+        <button
+          type="button"
+          aria-label={
+            category
+              ? t("spending:transactions.changeCategory", { name: category.name })
+              : t("spending:transactions.assignCategory")
+          }
+          className="hover:bg-muted/60 -mx-1 inline-flex max-w-full items-center gap-1.5 rounded-md px-1.5 py-0.5 text-left transition-colors"
+        >
+          {content}
+        </button>
+      }
+    />
+  );
 
   return (
     <TableRow
@@ -146,7 +204,7 @@ function TransactionRowImpl({
           ) : (
             <span className="text-muted-foreground text-sm italic">—</span>
           )}
-          {showAccount && (
+          {showAccount && !columns.account && (
             <span className="text-muted-foreground max-w-[8rem] shrink-0 truncate text-xs">
               {accountName}
             </span>
@@ -187,6 +245,16 @@ function TransactionRowImpl({
           />
         </div>
       </TableCell>
+      {columns.type && (
+        <TableCell className="text-muted-foreground w-32 whitespace-nowrap px-3 py-2 text-sm">
+          {getCashActivityLabel(activityType, account?.accountType, a.subtype)}
+        </TableCell>
+      )}
+      {columns.account && (
+        <TableCell className="w-36 px-3 py-2">
+          <span className="block max-w-[10rem] truncate text-sm">{accountName}</span>
+        </TableCell>
+      )}
       <TableCell className="hidden w-44 px-3 py-2 sm:table-cell">
         {isNeutral ? (
           <span className="text-muted-foreground text-xs">
@@ -204,43 +272,30 @@ function TransactionRowImpl({
             </span>
           </button>
         ) : (
-          <QuickCategorizePopover
-            scope={isIncome ? "income" : isSaving ? "saving" : "expense"}
-            selectedCategoryId={row.category?.id ?? null}
-            onSelect={(taxonomyId, categoryId) => onAssignCategory(a.id, taxonomyId, categoryId)}
-            onClear={() => row.category && onClearCategory(a.id, row.category.taxonomyId)}
-            trigger={
-              <button
-                type="button"
-                aria-label={
-                  row.category
-                    ? t("spending:transactions.changeCategory", { name: row.category.name })
-                    : t("spending:transactions.assignCategory")
-                }
-                className="hover:bg-muted/60 -mx-1 inline-flex max-w-full items-center gap-1.5 rounded-md px-1.5 py-0.5 text-left transition-colors"
-              >
-                {row.category ? (
-                  <>
-                    {row.category.color && (
-                      <span
-                        className="h-2.5 w-2.5 shrink-0 rounded-full"
-                        style={{ backgroundColor: row.category.color }}
-                        aria-hidden="true"
-                      />
-                    )}
-                    <span className="truncate text-sm">{row.category.name}</span>
-                  </>
-                ) : (
-                  <span className="text-muted-foreground inline-flex items-center gap-1 text-xs italic">
-                    <Icons.Plus className="h-3 w-3" aria-hidden="true" />
-                    {t("spending:transactions.categorize")}
-                  </span>
-                )}
-              </button>
-            }
-          />
+          categoryPicker(
+            shownCategory ? (
+              <CategoryLabel name={shownCategory.name} color={shownCategory.color} />
+            ) : (
+              <span className="text-muted-foreground inline-flex items-center gap-1 text-xs italic">
+                <Icons.Plus className="h-3 w-3" aria-hidden="true" />
+                {t("spending:transactions.categorize")}
+              </span>
+            ),
+          )
         )}
       </TableCell>
+      {columns.subcategory && (
+        <TableCell className="w-44 px-3 py-2">
+          {canCategorize &&
+            categoryPicker(
+              subcategory ? (
+                <CategoryLabel name={subcategory.name} color={subcategory.color} />
+              ) : (
+                <span className="text-muted-foreground text-sm">—</span>
+              ),
+            )}
+        </TableCell>
+      )}
       <TableCell
         className={cn(
           "w-28 whitespace-nowrap px-3 py-2 text-right text-sm font-medium tabular-nums",

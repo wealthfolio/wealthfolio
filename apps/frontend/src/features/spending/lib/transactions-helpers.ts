@@ -47,6 +47,7 @@ export interface TransactionRowVM {
     name: string;
     color: string | null;
     parentName: string | null;
+    parentColor: string | null;
   } | null;
   splitCount: number;
   needsReview: boolean;
@@ -163,6 +164,7 @@ export function toRowVM(
             name: cat.name,
             color: cat.color ?? null,
             parentName: parent?.name ?? null,
+            parentColor: parent?.color ?? null,
           }
         : null,
     splitCount: splits.length,

@@ -61,6 +61,14 @@ describe("TransactionDayHeader", () => {
     expect(spanned).toBe(6);
   });
 
+  it("widens its label across the optional columns that are shown", () => {
+    const { container } = renderHeader(group([{ id: "a" }]), { labelColSpan: 3 + 3 });
+
+    const cells = [...container.querySelectorAll("td")];
+    const spanned = cells.reduce((total, cell) => total + (cell.colSpan || 1), 0);
+    expect(spanned).toBe(9);
+  });
+
   it("shows the day, its count and its net", () => {
     renderHeader(group([{ id: "a" }, { id: "b", amount: "35.03", netAmount: -35.03 }]));
 
