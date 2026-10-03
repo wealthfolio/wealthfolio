@@ -3,6 +3,7 @@ export const PRESET_FLAGS: Record<string, string> = {
   ca: "🇨🇦",
   gb: "🇬🇧",
   es: "🇪🇸",
+  fr: "🇫🇷",
   au: "🇦🇺",
   nz: "🇳🇿",
   se: "🇸🇪",

@@ -1,0 +1,385 @@
+{
+  "presetId": "fr",
+  "presetVersion": "2026-09.1",
+  "name": "France",
+  "description": "Rules for common French household transactions, including supermarkets, transport, telecom, utilities, shopping, healthcare, subscriptions, and fees.",
+  "language": "fr-FR",
+  "rules": [
+    {
+      "key": "fr.groceries.major_chains",
+      "name": "Groceries — major chains",
+      "pattern": "(?i)e\\.?leclerc|carrefour|intermarch[eé]|super u|hyper u|u express|monoprix|franprix|\\blidl\\b|\\baldi\\b|auchan|casino|cora|picard|netto|biocoop|grand frais",
+      "matchType": "regex",
+      "categoryKey": "groceries",
+      "priority": 80
+    },
+    {
+      "key": "fr.bakeries_coffee",
+      "name": "Bakeries & coffee shops",
+      "pattern": "(?i)boulangerie|\\bpaul\\b|brioche dor[eé]e|starbucks|columbus caf[eé]|cafe caf[eé]|coffee shop",
+      "matchType": "regex",
+      "categoryKey": "food_coffee",
+      "priority": 78
+    },
+    {
+      "key": "fr.bakeries_regional_chains",
+      "name": "French bakery chains",
+      "pattern": "(?i)maison kayser|eric kayser|boulangerie ange|marie blach[eè]re|la mie c[aâ]line|pomme de pain",
+      "matchType": "regex",
+      "categoryKey": "food_coffee",
+      "priority": 79
+    },
+    {
+      "key": "fr.restaurants_fast_food",
+      "name": "Restaurants & fast food",
+      "pattern": "(?i)mcdonald|burger king|\\bkfc\\b|\\bquick\\b|o'?tacos|flunch|buffalo grill|big fernand|sushi shop|domino'?s|pizza hut|five guys",
+      "matchType": "regex",
+      "categoryKey": "food_restaurants",
+      "priority": 76
+    },
+    {
+      "key": "fr.food_delivery",
+      "name": "Food delivery",
+      "pattern": "(?i)uber ?eats|deliveroo|just ?eat|\\bdeliveroo\\b|frichti|cajoo",
+      "matchType": "regex",
+      "categoryKey": "food_delivery",
+      "priority": 85
+    },
+    {
+      "key": "fr.food_delivery_local",
+      "name": "Additional food delivery services",
+      "pattern": "(?i)stuart|foodch[eé]ri|delivroo",
+      "matchType": "regex",
+      "categoryKey": "food_delivery",
+      "priority": 85
+    },
+    {
+      "key": "fr.fuel",
+      "name": "Fuel stations",
+      "pattern": "(?i)totalenergies|esso|shell|\\bbp\\b|avia|dyneff|station service",
+      "matchType": "regex",
+      "categoryKey": "transport_gas",
+      "priority": 82
+    },
+    {
+      "key": "fr.fuel.leclerc_stations",
+      "name": "E.Leclerc fuel stations",
+      "pattern": "(?i)e\\.?leclerc.{0,20}(station|carburant)",
+      "matchType": "regex",
+      "categoryKey": "transport_gas",
+      "priority": 82
+    },
+    {
+      "key": "fr.fuel.carrefour_stations",
+      "name": "Carrefour fuel stations",
+      "pattern": "(?i)carrefour.{0,20}(station|carburant)",
+      "matchType": "regex",
+      "categoryKey": "transport_gas",
+      "priority": 82
+    },
+    {
+      "key": "fr.fuel.intermarche_stations",
+      "name": "Intermarché fuel stations",
+      "pattern": "(?i)intermarch[eé].{0,20}(station|carburant)",
+      "matchType": "regex",
+      "categoryKey": "transport_gas",
+      "priority": 82
+    },
+    {
+      "key": "fr.public_transit_rail",
+      "name": "Public transit & rail",
+      "pattern": "(?i)sncf|\\btgv\\b|\\bouigo\\b|\\bter [a-z]|transilien|\\bratp\\b|navigo|\\btcl lyon\\b|\\brtm\\b|tiss[eé]o|\\btan nantes\\b|\\btbm\\b|idfm",
+      "matchType": "regex",
+      "categoryKey": "transport_public",
+      "priority": 84
+    },
+    {
+      "key": "fr.public_transit_regional_networks",
+      "name": "Regional public transit networks",
+      "pattern": "(?i)il[eé]via|star rennes|divia|lignes d['’]azur|m tag|li[oô] occitanie|keolis|transdev",
+      "matchType": "regex",
+      "categoryKey": "transport_public",
+      "priority": 84
+    },
+    {
+      "key": "fr.rideshare_taxi",
+      "name": "Rideshare & taxi",
+      "pattern": "(?i)\\buber\\b|\\bbolt\\b|heetch|free ?now|\\bg7 taxi\\b|\\btaxi\\b",
+      "matchType": "regex",
+      "categoryKey": "transport_rideshare",
+      "priority": 80
+    },
+    {
+      "key": "fr.parking_tolls",
+      "name": "Parking & tolls",
+      "pattern": "(?i)indigo|q-?park|vinci autoroutes|\\bulys\\b|aprr|sanef|paybyphone|easypark|flowbird|t[eé]l[eé]p[eé]age|parking",
+      "matchType": "regex",
+      "categoryKey": "transport_parking",
+      "priority": 82
+    },
+    {
+      "key": "fr.parking_additional_operators",
+      "name": "Additional parking operators",
+      "pattern": "(?i)effia|saemes|zenpark|onepark|parclick",
+      "matchType": "regex",
+      "categoryKey": "transport_parking",
+      "priority": 83
+    },
+    {
+      "key": "fr.car_maintenance",
+      "name": "Car maintenance",
+      "pattern": "(?i)norauto|feu vert|midas|speedy|euromaster|centre auto|contr[oô]le technique",
+      "matchType": "regex",
+      "categoryKey": "transport_maintenance",
+      "priority": 85
+    },
+    {
+      "key": "fr.airlines_travel",
+      "name": "Airlines & travel",
+      "pattern": "(?i)air france|transavia|easyjet|ryanair|volotea|booking\\.com|airbnb|g[eé]n[eé]rations? voyage|lastminute\\.com",
+      "matchType": "regex",
+      "categoryKey": "travel",
+      "priority": 90
+    },
+    {
+      "key": "fr.hotels_accommodation",
+      "name": "Hotels & holiday accommodation",
+      "pattern": "(?i)accor|\\bibis\\b|novotel|mercure hotels|campanile|b\\&b hotels|center parcs|pierre et vacances",
+      "matchType": "regex",
+      "categoryKey": "travel",
+      "priority": 86
+    },
+    {
+      "key": "fr.streaming",
+      "name": "Streaming services",
+      "pattern": "(?i)netflix|spotify|deezer|canal ?\\+|disney ?\\+|amazon prime video|\\bdazn\\b|apple tv|paramount ?\\+|youtube premium",
+      "matchType": "regex",
+      "categoryKey": "entertainment_streaming",
+      "priority": 85
+    },
+    {
+      "key": "fr.streaming_french_services",
+      "name": "French streaming services",
+      "pattern": "(?i)molotov tv|mycanal|france tv|tf1\\+",
+      "matchType": "regex",
+      "categoryKey": "entertainment_streaming",
+      "priority": 85
+    },
+    {
+      "key": "fr.software_cloud",
+      "name": "Software & cloud",
+      "pattern": "(?i)adobe|microsoft ?365|icloud|dropbox|chatgpt|openai|canva|notion|github|jetbrains|1password|google one",
+      "matchType": "regex",
+      "categoryKey": "bills_software",
+      "priority": 80
+    },
+    {
+      "key": "fr.telecom",
+      "name": "Phone & internet",
+      "pattern": "(?i)orange|sfr|bouygues telecom|free mobile|red by sfr|sosh|b\\&you|la poste mobile|prixtel|s\\.f\\.r\\.",
+      "matchType": "regex",
+      "categoryKey": "bills_phone",
+      "priority": 82
+    },
+    {
+      "key": "fr.utilities_energy",
+      "name": "Electricity & gas",
+      "pattern": "(?i)\\bedf\\b|engie|ekwateur|ilek|mint energie|octopus energy|totalenergies.{0,25}(electricit[eé]|gaz)|fournisseur d['’]?[eé]nergie",
+      "matchType": "regex",
+      "categoryKey": "housing_utilities",
+      "priority": 82
+    },
+    {
+      "key": "fr.utilities_water",
+      "name": "Water utilities",
+      "pattern": "(?i)veolia.{0,15}eau|suez.{0,15}eau|\\bsaur\\b|eau de paris|service des eaux",
+      "matchType": "regex",
+      "categoryKey": "housing_utilities",
+      "priority": 82
+    },
+    {
+      "key": "fr.rent_housing",
+      "name": "Rent & housing services",
+      "pattern": "(?i)\\bloyer\\b|\\blocation immobili[eè]re\\b|foncia|citya immobilier|nexity|syndic de copropri[eé]t[eé]",
+      "matchType": "regex",
+      "categoryKey": "housing_rent",
+      "priority": 88
+    },
+    {
+      "key": "fr.online_marketplaces",
+      "name": "Online marketplaces",
+      "pattern": "(?i)amazon|cdiscount|vinted|leboncoin|\\btemu\\b|shein|aliexpress|rakuten|manomano",
+      "matchType": "regex",
+      "categoryKey": "shopping_online",
+      "priority": 74
+    },
+    {
+      "key": "fr.online_recommerce",
+      "name": "Recommerce & private sales",
+      "pattern": "(?i)veepee|showroompriv[eé]|back ?market|label emma[uü]s",
+      "matchType": "regex",
+      "categoryKey": "shopping_online",
+      "priority": 76
+    },
+    {
+      "key": "fr.clothing_retail",
+      "name": "Clothing retailers",
+      "pattern": "(?i)zara|h\\&m|uniqlo|decathlon|kiabi|celio|jules|galeries lafayette|printemps|zalando|la redoute",
+      "matchType": "regex",
+      "categoryKey": "shopping_clothing",
+      "priority": 78
+    },
+    {
+      "key": "fr.electronics",
+      "name": "Electronics retailers",
+      "pattern": "(?i)fnac|darty|boulanger|\\bldlc\\b|materiel\\.net|apple store",
+      "matchType": "regex",
+      "categoryKey": "shopping_electronics",
+      "priority": 82
+    },
+    {
+      "key": "fr.electronics_additional_retailers",
+      "name": "Additional electronics retailers",
+      "pattern": "(?i)electro d[eé]p[oô]t|rue du commerce|\\bson-video\\b|\\bmacway\\b",
+      "matchType": "regex",
+      "categoryKey": "shopping_electronics",
+      "priority": 82
+    },
+    {
+      "key": "fr.home_goods",
+      "name": "Home & DIY stores",
+      "pattern": "(?i)ikea|leroy merlin|castorama|bricomarch[eé]|\\bbut\\b|conforama|maisons du monde|action",
+      "matchType": "regex",
+      "categoryKey": "shopping_home",
+      "priority": 78
+    },
+    {
+      "key": "fr.home_goods_additional_retailers",
+      "name": "Additional home & DIY retailers",
+      "pattern": "(?i)mr bricolage|brico d[eé]p[oô]t|gifi|centrakor|jardiland|truffaut",
+      "matchType": "regex",
+      "categoryKey": "shopping_home",
+      "priority": 78
+    },
+    {
+      "key": "fr.pharmacy",
+      "name": "Pharmacies",
+      "pattern": "(?i)pharmacie|pharmacie en ligne|pharma ?gdd|newpharma",
+      "matchType": "regex",
+      "categoryKey": "health_pharmacy",
+      "priority": 85
+    },
+    {
+      "key": "fr.medical",
+      "name": "Medical & clinics",
+      "pattern": "(?i)\\bdoctolib\\b|clinique|h[oô]pital|laboratoire d['’]analyses|centre m[eé]dical|m[eé]decin|kin[eé]sith[eé]rapeute",
+      "matchType": "regex",
+      "categoryKey": "health_medical",
+      "priority": 84
+    },
+    {
+      "key": "fr.dental",
+      "name": "Dental care",
+      "pattern": "(?i)dentiste|cabinet dentaire|centre dentaire|orthodont",
+      "matchType": "regex",
+      "categoryKey": "health_dental",
+      "priority": 86
+    },
+    {
+      "key": "fr.vision",
+      "name": "Opticians",
+      "pattern": "(?i)opticien|optic 2000|afflelou|g[eé]n[eé]rale d['’]optique|krys|grand optical",
+      "matchType": "regex",
+      "categoryKey": "health_vision",
+      "priority": 86
+    },
+    {
+      "key": "fr.vision_additional_chains",
+      "name": "Additional optician chains",
+      "pattern": "(?i)optical center|atol les opticiens|lunettes pour tous|optique leclerc",
+      "matchType": "regex",
+      "categoryKey": "health_vision",
+      "priority": 86
+    },
+    {
+      "key": "fr.health_insurance",
+      "name": "Health insurance",
+      "pattern": "(?i)mutuelle|harmonie mutuelle|malakoff humanis|mgen|alan sant[eé]|compl[eé]mentaire sant[eé]",
+      "matchType": "regex",
+      "categoryKey": "health_insurance",
+      "priority": 84
+    },
+    {
+      "key": "fr.fitness",
+      "name": "Gyms & fitness",
+      "pattern": "(?i)basic-?fit|fitness park|keep cool|neoness|l['’]orange bleue|on air fitness",
+      "matchType": "regex",
+      "categoryKey": "health_fitness",
+      "priority": 84
+    },
+    {
+      "key": "fr.auto_insurance",
+      "name": "Auto insurance",
+      "pattern": "(?i)(maif|macif|matmut|maaf).{0,20}(auto|voiture)|assurance auto|assurance automobile",
+      "matchType": "regex",
+      "categoryKey": "transport_insurance",
+      "priority": 86
+    },
+    {
+      "key": "fr.home_insurance",
+      "name": "Home insurance",
+      "pattern": "(?i)assurance habitation|(maif|macif|matmut|maaf).{0,20}habitation",
+      "matchType": "regex",
+      "categoryKey": "housing_insurance",
+      "priority": 86
+    },
+    {
+      "key": "fr.bank_fees",
+      "name": "Bank fees",
+      "pattern": "(?i)frais de tenue de compte|cotisation carte|commission d['’]intervention|frais bancaires|commission carte|frais de retrait",
+      "matchType": "regex",
+      "categoryKey": "fees_bank",
+      "priority": 88
+    },
+    {
+      "key": "fr.cash_withdrawal_fees",
+      "name": "ATM fees",
+      "pattern": "(?i)frais distributeur|commission retrait|retrait hors r[eé]seau|frais d['’]opposition",
+      "matchType": "regex",
+      "categoryKey": "fees_atm",
+      "priority": 90
+    },
+    {
+      "key": "fr.cinemas_events",
+      "name": "Cinemas & ticketing",
+      "pattern": "(?i)ugc cin[eé]ma|path[eé] cin[eé]mas|gaumont cin[eé]mas|cgr cin[eé]mas|fnac spectacles",
+      "matchType": "regex",
+      "categoryKey": "entertainment_movies",
+      "priority": 84
+    },
+    {
+      "key": "fr.gaming_platforms",
+      "name": "Gaming platforms",
+      "pattern": "(?i)steamgames|playstation network|\\bpsn\\b|nintendo eshop|xbox game pass|ubisoft store",
+      "matchType": "regex",
+      "categoryKey": "entertainment_games",
+      "priority": 84
+    },
+    {
+      "key": "fr.education_student_services",
+      "name": "Education & student services",
+      "pattern": "(?i)\\bcrous\\b|frais de scolarit[eé]|inscription universitaire",
+      "matchType": "regex",
+      "categoryKey": "education",
+      "priority": 82
+    },
+    {
+      "key": "fr.charities_donations",
+      "name": "Charities & donations",
+      "pattern": "(?i)restos du coeur|croix rouge fran[cç]aise|secours populaire|unicef france|fondation de france",
+      "matchType": "regex",
+      "categoryKey": "gifts",
+      "priority": 82
+    }
+  ]
+}

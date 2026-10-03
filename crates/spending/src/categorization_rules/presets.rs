@@ -89,6 +89,7 @@ const PRESET_JSONS: &[(&str, &str)] = &[
     ("ca", include_str!("../../seeds/presets/ca.json")),
     ("gb", include_str!("../../seeds/presets/gb.json")),
     ("es", include_str!("../../seeds/presets/es.json")),
+    ("fr", include_str!("../../seeds/presets/fr.json")),
     ("au", include_str!("../../seeds/presets/au.json")),
     ("nz", include_str!("../../seeds/presets/nz.json")),
     ("se", include_str!("../../seeds/presets/se.json")),
@@ -150,7 +151,6 @@ mod tests {
     use super::*;
     use crate::categorization_rules::{match_rules, CategorizationRule, RuleMatchType};
     use chrono::Utc;
-    use regex::Regex;
 
     fn match_swedish_preset(notes: &str) -> Option<String> {
         let now = Utc::now().naive_utc();
@@ -188,7 +188,7 @@ mod tests {
 
     #[test]
     fn bundled_presets_have_unique_keys_and_valid_regexes() {
-        for preset_id in ["us", "ca", "gb", "es", "au", "nz", "se"] {
+        for preset_id in ["us", "ca", "gb", "es", "fr", "au", "nz", "se"] {
             let preset = load_preset(preset_id).expect("preset should load");
             assert_eq!(preset.preset_id, preset_id);
             assert!(!preset.rules.is_empty(), "preset {preset_id} has no rules");
@@ -214,12 +214,13 @@ mod tests {
                     rule.key
                 );
                 if rule.match_type == "regex" {
-                    Regex::new(&rule.pattern).unwrap_or_else(|err| {
-                        panic!(
-                            "invalid regex in preset {} rule {}: {}",
-                            preset.preset_id, rule.key, err
-                        )
-                    });
+                    crate::categorization_rules::compile_regex_pattern(&rule.pattern)
+                        .unwrap_or_else(|err| {
+                            panic!(
+                                "invalid regex in preset {} rule {}: {}",
+                                preset.preset_id, rule.key, err
+                            )
+                        });
                 }
             }
         }
