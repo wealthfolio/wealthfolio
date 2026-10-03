@@ -1,5 +1,19 @@
-import { ActivityStatus } from "@/lib/constants";
-import type { ActivityDetails } from "@/lib/types";
+import { AccountType, ActivityStatus } from "@/lib/constants";
+import type { Account, ActivityDetails } from "@/lib/types";
+
+/**
+ * Accounts a loan can be paid from, as the backend checks: active, unarchived cash
+ * accounts in its currency. A stored account that stops qualifying is not used.
+ */
+export function paymentAccounts(accounts: Account[], currency: string): Account[] {
+  return accounts.filter(
+    (account) =>
+      account.accountType === AccountType.CASH &&
+      account.currency === currency &&
+      account.isActive &&
+      !account.isArchived,
+  );
+}
 
 /** A withdrawal that could pay this loan: posted, in its currency and not yet linked. */
 export function isPaymentCandidate(activity: ActivityDetails, currency: string): boolean {

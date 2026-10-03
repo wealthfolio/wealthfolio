@@ -338,7 +338,9 @@ statement remains the truth.
    confirmations. Loans without tagged payments behave exactly as before.
 4. **The tag decides, not the account.** Changing the "Paid from" account only
    changes where new payments are recorded and where untagged withdrawals are
-   suggested; payments already tagged keep counting.
+   suggested; payments already tagged keep counting. "Paid from" must be an
+   active, unarchived cash account in the loan's currency; one archived or
+   deactivated later is treated as not set.
 5. **Payment date.** A payment is dated by its activity date, the calendar day
    Wealthfolio shows for that withdrawal.
 6. **Escrow first.** The tag's escrow, at most the payment amount, is never

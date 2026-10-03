@@ -1,11 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { AlternativeAssetKind, type Account } from "@/lib/types";
+import { AlternativeAssetKind } from "@/lib/types";
 import {
   assetDetailsSchema,
   formValuesToMetadata,
   getDefaultDetailsFormValues,
   paymentAccountAction,
-  paymentAccounts,
   type LiabilityDetailsFormValues,
 } from "./asset-details-sheet-schema";
 import { readLoanProjectionMetadata } from "../lib/loan-events";
@@ -197,22 +196,5 @@ describe("the paid from account", () => {
   it("does nothing for a manual loan", () => {
     const values = { ...liability(), automaticLoan: false, paymentAccountId: "chequing" };
     expect(paymentAccountAction(values, metadata)).toBeNull();
-  });
-
-  it("offers only unarchived cash accounts in the loan's currency", () => {
-    const account = (id: string, overrides: Partial<Account>) =>
-      ({ id, accountType: "CASH", currency: "USD", isArchived: false, ...overrides }) as Account;
-    const accounts = [
-      account("chequing", {}),
-      account("savings", {}),
-      account("card", { accountType: "CREDIT_CARD" }),
-      account("brokerage", { accountType: "SECURITIES" }),
-      account("cad", { currency: "CAD" }),
-      account("closed", { isArchived: true }),
-    ];
-    expect(paymentAccounts(accounts, "USD").map((item) => item.id)).toEqual([
-      "chequing",
-      "savings",
-    ]);
   });
 });

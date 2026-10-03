@@ -19,6 +19,7 @@ import {
   LOAN_RENEWAL_MATURITY_METADATA_KEY,
   type LoanEvent,
 } from "../lib/loan-events";
+import { paymentAccounts } from "../lib/loan-payments";
 import { loanBalanceUserNote } from "../lib/loan-balance";
 import { balanceAt, confirmedLoanBalances, loanBalanceTimeline } from "../lib/loan-presentation";
 import {
@@ -114,10 +115,13 @@ export function useLoanActions(
     dueDate: string | null;
     allocations: PaymentAllocation[];
   } | null>(null);
-  const paymentAccountId =
-    typeof metadata.payment_account_id === "string" ? metadata.payment_account_id : undefined;
   const { accounts } = useAccounts({ filterActive: false });
-  const paidFrom = accounts.find((account) => account.id === paymentAccountId)?.name;
+  // Paid from applies only while its account can take payments.
+  const paymentAccount = paymentAccounts(accounts, holding?.currency ?? "").find(
+    (account) => account.id === metadata.payment_account_id,
+  );
+  const paymentAccountId = paymentAccount?.id;
+  const paidFrom = paymentAccount?.name;
   const [closeLoanOpen, setCloseLoanOpen] = useState(false);
   const [recalculateScheduleOpen, setRecalculateScheduleOpen] = useState(false);
   const [renewLoanOpen, setRenewLoanOpen] = useState(false);

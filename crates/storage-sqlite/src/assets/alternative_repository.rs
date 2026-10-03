@@ -104,6 +104,7 @@ fn read_loan(conn: &mut SqliteConnection, asset_id: &str) -> Result<LoanRecord> 
     let payment_accounts = accounts::table
         .filter(accounts::account_type.eq("CASH"))
         .filter(accounts::currency.eq(&asset.quote_ccy))
+        .filter(accounts::is_active.eq(true))
         .filter(accounts::is_archived.eq(false))
         .select(accounts::id)
         .load::<String>(conn)

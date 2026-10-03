@@ -500,7 +500,9 @@ async fn only_a_cash_account_in_the_loans_currency_can_be_paid_from() {
     loan.execute("UPDATE accounts SET currency = 'USD' WHERE id = 'usd'");
     loan.add_account("closed", "CASH");
     loan.execute("UPDATE accounts SET is_archived = 1 WHERE id = 'closed'");
-    for account in ["card", "usd", "closed", "missing"] {
+    loan.add_account("inactive", "CASH");
+    loan.execute("UPDATE accounts SET is_active = 0 WHERE id = 'inactive'");
+    for account in ["card", "usd", "closed", "inactive", "missing"] {
         let refused = loan
             .service
             .apply_loan_action("mortgage", set(account))

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { ActivityDetails } from "@/lib/types";
-import { activityDay, isPaymentCandidate } from "./loan-payments";
+import type { Account, ActivityDetails } from "@/lib/types";
+import { activityDay, isPaymentCandidate, paymentAccounts } from "./loan-payments";
 
 const withdrawal = (overrides: Partial<ActivityDetails> = {}) =>
   ({
@@ -29,4 +29,26 @@ describe("withdrawals offered as loan payments", () => {
   it("dates a withdrawal by its UTC day, as the engine does", () => {
     expect(activityDay(withdrawal())).toBe("2026-03-01");
   });
+});
+
+it("pays a loan only from an active, unarchived cash account in its currency", () => {
+  const account = (id: string, overrides: Partial<Account> = {}) =>
+    ({
+      id,
+      accountType: "CASH",
+      currency: "USD",
+      isActive: true,
+      isArchived: false,
+      ...overrides,
+    }) as Account;
+  const accounts = [
+    account("chequing"),
+    account("savings"),
+    account("card", { accountType: "CREDIT_CARD" }),
+    account("brokerage", { accountType: "SECURITIES" }),
+    account("cad", { currency: "CAD" }),
+    account("inactive", { isActive: false }),
+    account("archived", { isArchived: true }),
+  ];
+  expect(paymentAccounts(accounts, "USD").map((item) => item.id)).toEqual(["chequing", "savings"]);
 });

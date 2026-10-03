@@ -41,7 +41,12 @@ vi.mock("@/adapters", () => ({
   calculateLoan: vi.fn(),
 }));
 vi.mock("@/hooks/use-accounts", () => ({
-  useAccounts: () => ({ accounts: [{ id: "chequing", name: "Chequing" }] }),
+  useAccounts: () => ({
+    accounts: [
+      { id: "chequing", name: "Chequing", accountType: "CASH", currency: "CAD", isActive: true },
+      { id: "closed", name: "Closed", accountType: "CASH", currency: "CAD", isActive: false },
+    ],
+  }),
 }));
 vi.mock("@wealthfolio/ui/components/ui/use-toast", () => ({ toast: mocks.toast }));
 vi.mock("../../hooks/use-quote-mutations", () => ({
@@ -311,6 +316,19 @@ describe("extra repayments from the paid from account", () => {
       escrow: 0,
     });
     expect(mocks.apply).not.toHaveBeenCalled();
+  });
+
+  it("records an event once the paid from account no longer qualifies", async () => {
+    show(holding({ payment_account_id: "closed" }));
+    expect(
+      mocks.balanceSheet.mock.calls.filter(([props]) => props.mode === "extra_repayment").at(-1)![0]
+        .paidFrom,
+    ).toBeUndefined();
+    await act(async () => {
+      await balanceSubmit("extra_repayment")(new Date(2026, 3, 2), 100);
+    });
+    expect(mocks.create).not.toHaveBeenCalled();
+    expect(sent()).toEqual(["loan", { type: "extra_repayment", date: "2026-04-02", amount: 100 }]);
   });
 
   it("keeps recording an event for a manual loan", async () => {

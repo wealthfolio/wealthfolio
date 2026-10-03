@@ -66,8 +66,8 @@ import {
   WEIGHT_UNITS,
   LIABILITY_TYPES,
   paymentAccountAction,
-  paymentAccounts,
 } from "./asset-details-sheet-schema";
+import { paymentAccounts } from "../lib/loan-payments";
 import { type LinkableAsset } from "./alternative-asset-quick-add-modal";
 import { AlternativeAssetKind, ALTERNATIVE_ASSET_KIND_DISPLAY_NAMES } from "@/lib/types";
 import { formatDateISO } from "@/lib/utils";
@@ -744,16 +744,22 @@ function LiabilityFields({
   linkedAssetName?: string;
 }) {
   const { t } = useTranslation();
-  const { accounts } = useAccounts();
+  const { accounts, isLoading: accountsLoading } = useAccounts();
+  const eligibleAccounts = useMemo(() => paymentAccounts(accounts, currency), [accounts, currency]);
   const paymentAccountOptions: ResponsiveSelectOption[] = [
     { value: "__none__", label: t("asset:loanPayments.no_account") },
-    ...paymentAccounts(accounts, currency).map((account) => ({
-      value: account.id,
-      label: account.name,
-    })),
+    ...eligibleAccounts.map((account) => ({ value: account.id, label: account.name })),
   ];
   const dates = useDateFormatting();
   const values = form.watch() as LiabilityDetailsFormValues;
+  // An account archived or deactivated since it was chosen no longer pays the loan.
+  const storedPaymentAccount = values.paymentAccountId;
+  useEffect(() => {
+    if (accountsLoading || !storedPaymentAccount) return;
+    if (!eligibleAccounts.some((account) => account.id === storedPaymentAccount)) {
+      form.setValue("paymentAccountId", null, { shouldDirty: true });
+    }
+  }, [accountsLoading, eligibleAccounts, form, storedPaymentAccount]);
   const automatic = values.automaticLoan === true;
   const isMortgage = values.liabilityType === "mortgage";
   const durationLabel = t(
@@ -1067,8 +1073,14 @@ function LiabilityFields({
                   )}
                   <FormControl>
                     <ResponsiveSelect
-                      value={field.value ?? "__none__"}
-                      onValueChange={(value) => field.onChange(value === "__none__" ? null : value)}
+                      // A value missing from the options would be reported back as empty.
+                      value={
+                        eligibleAccounts.find((account) => account.id === field.value)?.id ??
+                        "__none__"
+                      }
+                      onValueChange={(value) =>
+                        field.onChange(value && value !== "__none__" ? value : null)
+                      }
                       options={paymentAccountOptions}
                       sheetTitle={t("asset:loanPayments.paid_from")}
                       aria-label={t("asset:loanPayments.paid_from")}

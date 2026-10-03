@@ -11,8 +11,7 @@ import {
   calculateLoanPaymentDate,
   countLoanPayments,
 } from "../lib/loan-calculator";
-import { AccountType } from "@/lib/constants";
-import { AlternativeAssetKind, type Account } from "@/lib/types";
+import { AlternativeAssetKind } from "@/lib/types";
 import { parseLocalDate } from "@/lib/utils";
 
 // Property types
@@ -485,16 +484,6 @@ function storedPaymentAccount(metadata?: Record<string, unknown>): string | null
 function storedEscrow(metadata?: Record<string, unknown>): number {
   const escrow = Number(metadata?.escrow_amount);
   return Number.isFinite(escrow) && escrow > 0 ? escrow : 0;
-}
-
-/** Accounts a loan can be paid from, as the backend checks: cash, unarchived, in its currency. */
-export function paymentAccounts(accounts: Account[], currency: string): Account[] {
-  return accounts.filter(
-    (account) =>
-      account.accountType === AccountType.CASH &&
-      account.currency === currency &&
-      !account.isArchived,
-  );
 }
 
 /**
