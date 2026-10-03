@@ -13,6 +13,7 @@ use crate::quotes::Quote;
 mod actions;
 mod interest;
 mod model;
+mod payments;
 mod recalculation;
 pub use actions::{
     apply_loan_action, BalanceEdit, LoanAction, LoanActionResult, LoanError, LoanRecord, LoanUpdate,
@@ -22,6 +23,10 @@ pub use model::{
     balance_notes, balance_user_note, edited_balance_notes, event_entries, LoanBalanceKind,
     LoanEvent, LoanTerms, LOAN_CLOSED_NOTE, LOAN_EVENTS_KEY, LOAN_PROJECTION_KEY,
     RENEWAL_MATURITY_KEY, TRACKING_MODE_KEY,
+};
+pub use payments::{
+    InstalmentStatus, LoanInstalment, LoanPayment, PaymentAllocation, PaymentChangeSuggestion,
+    PaymentTarget,
 };
 pub use recalculation::{recalculate_loan, LoanRecalculation, LoanRecalculationRequest};
 
@@ -70,6 +75,9 @@ pub struct LoanCalculationRequest {
     pub metadata: Value,
     pub balances: Vec<LoanBalance>,
     pub as_of: NaiveDate,
+    /// Tagged withdrawals from the loan's account; none for most loans.
+    #[serde(default)]
+    pub payments: Vec<LoanPayment>,
 }
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -104,6 +112,11 @@ pub struct LoanCalculation {
     /// Accrued but unposted interest at the projection horizon; never principal.
     pub residual_interest: f64,
     pub payoff_date: Option<NaiveDate>,
+    /// How each tagged payment was applied, in date order.
+    pub allocations: Vec<PaymentAllocation>,
+    /// Due instalments from the first tagged payment onward.
+    pub instalments: Vec<LoanInstalment>,
+    pub payment_suggestion: Option<PaymentChangeSuggestion>,
 }
 fn money(n: f64) -> f64 {
     // Convert only at posting boundaries: binary multiplication by 100 can turn
@@ -144,6 +157,30 @@ fn amortization_horizon(t: &LoanTerms) -> Option<NaiveDate> {
 /// Estimates are never written back as quotes. Dated terms apply before that day's payment;
 /// balance events apply after it; a confirmed closing quote wins over both.
 pub fn calculate_loan(request: &LoanCalculationRequest) -> Option<LoanCalculation> {
+    let schedule = calculate(request, &[])?;
+    if request.payments.is_empty() {
+        return Some(schedule);
+    }
+    // Payments are matched against the schedule they would have settled, then the
+    // extra principal they carry is applied like recorded extra repayments.
+    let plan = payments::allocate(&schedule, &request.payments);
+    let extras: Vec<_> = plan.extras().collect();
+    let mut result = if extras.is_empty() {
+        schedule
+    } else {
+        calculate(request, &extras)?
+    };
+    result.instalments = payments::instalment_statuses(&plan, &result, request.as_of);
+    result.payment_suggestion = payments::payment_suggestion(&plan, &request.payments);
+    result.allocations = plan.allocations;
+    Some(result)
+}
+
+/// The dated ledger, with `extras` applied as extra repayments on their dates.
+fn calculate(
+    request: &LoanCalculationRequest,
+    extras: &[(NaiveDate, f64)],
+) -> Option<LoanCalculation> {
     if request.balances.len() > 10_000 {
         return None;
     }
@@ -192,10 +229,18 @@ pub fn calculate_loan(request: &LoanCalculationRequest) -> Option<LoanCalculatio
     if horizon > payment_date(t.first_payment_date, MAX_PAYMENTS - 1, t.frequency)? {
         return None;
     }
+    let derived = extras
+        .iter()
+        .map(|&(date, amount)| LoanEvent::ExtraRepayment {
+            effective_date: date,
+            amount,
+            note: None,
+        });
     let mut events: Vec<LoanEvent> = event_entries(&request.metadata)
         .iter()
         .filter_map(LoanEvent::parse)
-        .filter(|event| event.date() <= limit)
+        .chain(derived)
+        .filter(|event| event.valid() && event.date() <= limit)
         .collect();
     if events.len() > 10_000 {
         return None;
@@ -435,15 +480,24 @@ pub fn calculate_loan(request: &LoanCalculationRequest) -> Option<LoanCalculatio
         residual_balance: money(balance),
         residual_interest: money(accrued_interest),
         payoff_date,
+        allocations: Vec::new(),
+        instalments: Vec::new(),
+        payment_suggestion: None,
     })
 }
 
-pub fn loan_value(metadata: Option<&Value>, quotes: &[Quote], date: NaiveDate) -> Option<Decimal> {
+pub fn loan_value(
+    metadata: Option<&Value>,
+    quotes: &[Quote],
+    payments: &[LoanPayment],
+    date: NaiveDate,
+) -> Option<Decimal> {
     let metadata = metadata?;
     let result = calculate_loan(&LoanCalculationRequest {
         metadata: metadata.clone(),
         balances: quotes.iter().map(LoanBalance::from).collect(),
         as_of: date,
+        payments: payments.to_vec(),
     })?;
     Decimal::from_f64_retain(result.current_balance).map(|v| v.round_dp(2))
 }

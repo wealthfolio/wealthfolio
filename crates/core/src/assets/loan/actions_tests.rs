@@ -20,6 +20,7 @@ fn record(metadata: Value, balances: &[(&str, f64, Option<&str>)]) -> LoanRecord
         currency: "CAD".into(),
         metadata,
         balances: vec![],
+        payments: vec![],
     };
     record.balances = balances
         .iter()
@@ -367,6 +368,7 @@ fn recalculation_stores_the_engines_solved_payment() {
             metadata: loan.metadata.clone(),
             balances: loan.balances.iter().map(LoanBalance::from).collect(),
             as_of: date("2026-04-01"),
+            payments: loan.payments.clone(),
         },
         annual_rate: 0.0,
     })

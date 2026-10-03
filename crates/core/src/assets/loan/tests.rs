@@ -13,6 +13,7 @@ fn request() -> LoanCalculationRequest {
             notes: None,
         }],
         as_of: date("2026-04-15"),
+        payments: Vec::new(),
     }
 }
 #[test]

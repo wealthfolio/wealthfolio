@@ -664,7 +664,7 @@ impl AlternativeAssetServiceTrait for AlternativeAssetService {
             {
                 let history = self.quote_service.get_historical_quotes(&asset.id)?;
                 if let Some(value) =
-                    super::loan::loan_value(asset.metadata.as_ref(), &history, as_of)
+                    super::loan::loan_value(asset.metadata.as_ref(), &history, &[], as_of)
                 {
                     loan_values.insert(asset.id.clone(), value);
                 }

@@ -55,6 +55,7 @@ fn read_loan(conn: &mut SqliteConnection, asset_id: &str) -> Result<LoanRecord> 
         currency: asset.quote_ccy,
         metadata,
         balances,
+        payments: Vec::new(),
     })
 }
 

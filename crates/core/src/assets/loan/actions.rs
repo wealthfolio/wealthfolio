@@ -13,8 +13,8 @@ use super::model::decoded;
 use super::{
     balance_notes, balance_user_note, calculate_loan, edited_balance_notes, event_entries, money,
     recalculate_loan, valid_amount, InterestMethod, LoanBalance, LoanBalanceKind, LoanCalculation,
-    LoanCalculationRequest, LoanEvent, LoanFrequency, LoanRecalculationRequest, LoanTerms,
-    LOAN_CLOSED_NOTE, LOAN_EVENTS_KEY, RENEWAL_MATURITY_KEY,
+    LoanCalculationRequest, LoanEvent, LoanFrequency, LoanPayment, LoanRecalculationRequest,
+    LoanTerms, LOAN_CLOSED_NOTE, LOAN_EVENTS_KEY, RENEWAL_MATURITY_KEY,
 };
 use crate::quotes::constants::DATA_SOURCE_MANUAL;
 use crate::quotes::{quote_id, AssetId, Day, Quote, QuoteSource};
@@ -58,6 +58,8 @@ pub struct LoanRecord {
     pub metadata: Value,
     /// Manual quotes, oldest first.
     pub balances: Vec<Quote>,
+    /// Tagged withdrawals counted as payments on this loan.
+    pub payments: Vec<LoanPayment>,
 }
 
 /// The writes for one action, applied together or not at all.
@@ -174,6 +176,7 @@ impl LoanRecord {
             metadata: metadata.clone(),
             balances: self.balances.iter().map(LoanBalance::from).collect(),
             as_of,
+            payments: self.payments.clone(),
         })
     }
 
@@ -422,6 +425,7 @@ pub fn apply_loan_action(
                     metadata: metadata.clone(),
                     balances: record.balances.iter().map(LoanBalance::from).collect(),
                     as_of: *date,
+                    payments: record.payments.clone(),
                 },
                 annual_rate: *annual_rate,
             })

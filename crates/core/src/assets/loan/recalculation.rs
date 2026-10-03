@@ -36,6 +36,7 @@ pub fn recalculate_loan(request: &LoanRecalculationRequest) -> Option<LoanRecalc
     // Solve from observations known at the effective date. Later confirmations
     // reconcile recorded history; they cannot prove that a proposed payment works.
     loan.balances.retain(|balance| balance.date <= date);
+    loan.payments.retain(|payment| payment.date <= date);
     let mut events = event_entries(&loan.metadata);
     events.retain(|value| {
         serde_json::from_value::<LoanEvent>(value.clone())
@@ -292,6 +293,7 @@ mod stabilization_tests {
                 metadata,
                 balances: vec![],
                 as_of: "2026-01-01".parse().unwrap(),
+                payments: Vec::new(),
             };
             let solved = recalculate_loan(&LoanRecalculationRequest {
                 loan: request.clone(),

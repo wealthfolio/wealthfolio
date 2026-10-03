@@ -635,7 +635,7 @@ impl NetWorthServiceTrait for NetWorthService {
                     .is_some_and(|m| m.get(crate::assets::loan::LOAN_PROJECTION_KEY).is_some())
             {
                 let quotes = self.quote_service.get_historical_quotes(&asset.id)?;
-                crate::assets::loan::loan_value(asset.metadata.as_ref(), &quotes, date)
+                crate::assets::loan::loan_value(asset.metadata.as_ref(), &quotes, &[], date)
                     .map(|value| (value, asset.quote_ccy.clone(), date))
             } else {
                 None
@@ -831,6 +831,7 @@ impl NetWorthServiceTrait for NetWorthService {
                             .map(crate::assets::loan::LoanBalance::from)
                             .collect(),
                         as_of: end_date,
+                        payments: Vec::new(),
                     },
                 ) {
                     loan_histories.push((*asset, calculation));

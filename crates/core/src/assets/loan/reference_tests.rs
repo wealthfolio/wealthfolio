@@ -83,6 +83,7 @@ fn fcac_monthly_and_accelerated_reference_schedules() {
                 balance: case.principal,
                 notes: None,
             }],
+            payments: Vec::new(),
         })
         .unwrap();
         // Two independent quantizations per period (interest and payment), each
@@ -171,6 +172,7 @@ fn cfpb_statement_principal_and_interest_exclude_escrow_and_fees() {
             notes: None,
         }],
         as_of: "2012-04-01".parse().unwrap(),
+        payments: Vec::new(),
     })
     .unwrap();
     near(
@@ -226,6 +228,7 @@ fn nationwide_statement_confirmation_reconciles_unmodelled_charges() {
             },
         ],
         as_of: "2025-12-31".parse().unwrap(),
+        payments: Vec::new(),
     })
     .unwrap();
     assert_eq!(result.current_balance, n("closingBalance"));
