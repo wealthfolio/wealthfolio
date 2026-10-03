@@ -14,6 +14,12 @@ pub const SYNC_IDENTITY_KEY: &str = "sync_identity";
 /// Retired device ID entry; used only to clean up older installations.
 pub const LEGACY_SYNC_DEVICE_ID_KEY: &str = "sync_device_id";
 
+/// Web Push VAPID signing key (RFC 8292) for the self-hosted server.
+pub const WEB_PUSH_VAPID_KEY: &str = "web_push_vapid_key";
+/// Web Push subscriptions registered by browsers on the self-hosted server.
+/// Each holds the per-browser `auth` secret used to encrypt payloads.
+pub const WEB_PUSH_SUBSCRIPTIONS_KEY: &str = "web_push_subscriptions";
+
 /// UI pairing updates may add keys only to the enrollment they originally read.
 /// Never recreate an identity removed by a Connect account change.
 pub fn update_existing_sync_identity(
@@ -102,6 +108,8 @@ pub fn validate_unscoped_secret_service_id(service: &str) -> std::result::Result
             CLOUD_ACCESS_TOKEN_KEY,
             SYNC_IDENTITY_KEY,
             LEGACY_SYNC_DEVICE_ID_KEY,
+            WEB_PUSH_VAPID_KEY,
+            WEB_PUSH_SUBSCRIPTIONS_KEY,
         ]
         .contains(&normalized.as_str())
     {
@@ -231,6 +239,8 @@ mod tests {
             "database_encryption_key",
             CLOUD_REFRESH_TOKEN_KEY,
             SYNC_IDENTITY_KEY,
+            WEB_PUSH_VAPID_KEY,
+            WEB_PUSH_SUBSCRIPTIONS_KEY,
         ] {
             assert!(validate_unscoped_secret_service_id(key).is_err(), "{key}");
         }

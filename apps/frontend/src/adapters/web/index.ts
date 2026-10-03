@@ -417,6 +417,14 @@ export {
   stopMcp,
 } from "./agent-access";
 
+// Web Push notifications (self-hosted server; desktop stubs reject)
+export {
+  getWebPushPublicKey,
+  sendTestNotification,
+  subscribeWebPush,
+  unsubscribeWebPush,
+} from "./notifications";
+
 // AI Streaming (web-specific HTTP fetch implementation)
 export { streamAiChat } from "./ai-streaming";
 

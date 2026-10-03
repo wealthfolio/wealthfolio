@@ -1,5 +1,6 @@
 import { Separator } from "@wealthfolio/ui/components/ui/separator";
 import { useTranslation } from "react-i18next";
+import { isWeb } from "@/adapters";
 import { usePlatform } from "@/hooks/use-platform";
 import { SettingsHeader } from "../settings-header";
 import { AutoUpdateSettings } from "./auto-update-settings";
@@ -7,6 +8,7 @@ import { BaseCurrencySettings } from "./currency-settings";
 import { DatabaseEncryptionSettings } from "./database-encryption-settings";
 import { ExchangeRatesSettings } from "./exchange-rates/exchange-rates-settings";
 import { LanguageRegionSettings } from "./language-region-settings";
+import { NotificationSettings } from "./notification-settings";
 
 export default function GeneralSettingsPage() {
   const { t } = useTranslation();
@@ -27,6 +29,11 @@ export default function GeneralSettingsPage() {
       <div className="pt-6">
         <DatabaseEncryptionSettings />
       </div>
+      {isWeb && (
+        <div className="pt-6">
+          <NotificationSettings />
+        </div>
+      )}
       {!isMobile && (
         <div className="pt-6">
           <AutoUpdateSettings />

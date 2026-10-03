@@ -225,6 +225,14 @@ export {
   deleteAgentAccessToken,
 } from "./agent-access";
 
+// Web Push notifications (self-hosted server; desktop stubs reject)
+export {
+  getWebPushPublicKey,
+  sendTestNotification,
+  subscribeWebPush,
+  unsubscribeWebPush,
+} from "./notifications";
+
 // AI Streaming (Tauri Channel-based implementation)
 export { streamAiChat } from "./ai-streaming";
 
