@@ -147,6 +147,7 @@ mod tests {
             account_type: "SECURITIES".into(),
             tracking_mode: "TRANSACTIONS".into(),
             is_archived: false,
+            cost_basis_method: None,
         }
     }
 

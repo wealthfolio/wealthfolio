@@ -483,6 +483,15 @@ impl Projector<'_> {
         self.facts.policy.base_currency.as_str()
     }
 
+    /// The account's cost basis method (rules §7).
+    fn method(&self, account: &AccountId) -> CostBasisMethod {
+        self.facts
+            .accounts
+            .get(account)
+            .map(|facts| facts.cost_basis_method)
+            .unwrap_or_default()
+    }
+
     fn asset_facts(&self, asset: &AssetId, currency: &Currency) -> AssetFacts {
         self.facts
             .assets
@@ -1071,7 +1080,7 @@ impl Projector<'_> {
                 position_currency.as_str(),
                 account_currency.as_str(),
             )?;
-            let reduction = reduce_positive_lots_fifo(position, quantity)?;
+            let reduction = relieve_long_lots(position, quantity, self.method(&account_id))?;
             // The proceeds belong to every unit sold: units beyond the
             // position have no lot, so only their share of the proceeds is
             // realised against the lots that were held.
@@ -1142,13 +1151,13 @@ impl Projector<'_> {
                     checked(arith::mul(close_quantity, price), "cover cost")?
                         + close_fee
                         + close_tax,
-                    reduce_negative_lots_fifo(position, close_quantity)?,
+                    relieve_short_lots(position, close_quantity, self.method(account_id))?,
                 ),
                 Side::Sell => (
                     checked(arith::mul(close_quantity, price), "sale proceeds")?
                         - close_fee
                         - close_tax,
-                    reduce_positive_lots_fifo(position, close_quantity)?,
+                    relieve_long_lots(position, close_quantity, self.method(account_id))?,
                 ),
             };
             self.record_reduction(
@@ -1335,7 +1344,8 @@ impl Projector<'_> {
             Decimal::ZERO
         };
         let (to_add, cover) = if cover_abs > Decimal::ZERO {
-            let (cover_lots, residual) = split_lots_by_cover(&lots, cover_abs)?;
+            let (cover_lots, residual) =
+                split_for_cover(&lots, cover_abs, self.method(&account_id))?;
             let cover_proceeds: Decimal = cover_lots
                 .iter()
                 .map(|l| l.cost_basis)
@@ -1347,9 +1357,9 @@ impl Projector<'_> {
                 .historical_base_cost(&cover_lots, position_currency.as_str())
                 .map(|total| total.abs());
             let reduction = if incoming_negative {
-                reduce_positive_lots_fifo(position, cover_abs)?
+                relieve_long_lots(position, cover_abs, self.method(&account_id))?
             } else {
-                reduce_negative_lots_fifo(position, cover_abs)?
+                relieve_short_lots(position, cover_abs, self.method(&account_id))?
             };
             (
                 residual,
@@ -1526,9 +1536,9 @@ impl Projector<'_> {
         let position_currency = position.currency.clone();
         let short = position.quantity.is_sign_negative();
         let reduction = if short {
-            reduce_negative_lots_fifo(position, quantity)?
+            relieve_short_lots(position, quantity, self.method(&account_id))?
         } else {
-            reduce_positive_lots_fifo(position, quantity)?
+            relieve_long_lots(position, quantity, self.method(&account_id))?
         };
         self.record_reduction(
             &account_id,
@@ -1630,9 +1640,9 @@ impl Projector<'_> {
         };
         let position_currency = position.currency.clone();
         let reduction = if position.quantity < Decimal::ZERO {
-            reduce_negative_lots_fifo(position, quantity)?
+            relieve_short_lots(position, quantity, self.method(&account_id))?
         } else {
-            reduce_positive_lots_fifo(position, quantity)?
+            relieve_long_lots(position, quantity, self.method(&account_id))?
         };
         self.record_reduction(
             &account_id,
@@ -2572,19 +2582,50 @@ fn split_lots_by_cover(lots: &[Lot], cover_abs: Decimal) -> Result<(Vec<Lot>, Ve
     Ok((cover, residual))
 }
 
-/// FIFO relief of long lots in effective units (legacy `reduce_lots_fifo`).
-fn reduce_positive_lots_fifo(
+/// Relieves long lots in effective units (`relieve`).
+fn relieve_long_lots(
     position: &mut Position,
     requested: Decimal,
+    method: CostBasisMethod,
 ) -> Result<Reduction, String> {
-    reduce_fifo(position, requested, false)
+    relieve(position, requested, false, method)
 }
 
-fn reduce_negative_lots_fifo(
+fn relieve_short_lots(
     position: &mut Position,
     requested: Decimal,
+    method: CostBasisMethod,
 ) -> Result<Reduction, String> {
-    reduce_fifo(position, requested, true)
+    relieve(position, requested, true, method)
+}
+
+/// Relieves `requested` units from a position's long (or `negative`) lots
+/// as the account's cost basis method chooses them (rules §7): every sale,
+/// cover, transfer out and expiry goes through here. A method decides which
+/// lots and how much of each, and returns what it removed; it never changes
+/// units held, cash or prices. The cost removed is what a transfer carries.
+fn relieve(
+    position: &mut Position,
+    requested: Decimal,
+    negative: bool,
+    method: CostBasisMethod,
+) -> Result<Reduction, String> {
+    match method {
+        CostBasisMethod::Fifo => reduce_fifo(position, requested, negative),
+    }
+}
+
+/// Splits the lots a transfer delivers into those that cover `cover_abs`
+/// units of an opposite position and the rest, as the receiving account's
+/// cost basis method chooses them (rules §7).
+fn split_for_cover(
+    lots: &[Lot],
+    cover_abs: Decimal,
+    method: CostBasisMethod,
+) -> Result<(Vec<Lot>, Vec<Lot>), String> {
+    match method {
+        CostBasisMethod::Fifo => split_lots_by_cover(lots, cover_abs),
+    }
 }
 
 fn reduce_fifo(

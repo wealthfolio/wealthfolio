@@ -113,6 +113,9 @@ pub struct AccountSpec {
     pub tracking_mode: String,
     #[serde(default)]
     pub is_archived: bool,
+    /// The cost basis method's stored code; none means FIFO (rules §7).
+    #[serde(default)]
+    pub cost_basis_method: Option<String>,
 }
 
 fn securities() -> String {
@@ -262,6 +265,7 @@ impl Scenario {
                     account_type: a.account_type.clone(),
                     tracking_mode: a.tracking_mode.clone(),
                     is_archived: a.is_archived,
+                    cost_basis_method: a.cost_basis_method.clone(),
                 })
                 .collect(),
             assets: self
@@ -432,6 +436,34 @@ pub fn scenario_selected(id: &str) -> bool {
 /// checked cases does not apply.
 pub fn filtered() -> bool {
     std::env::var("SCENARIO_FILTER").is_ok_and(|filter| !filter.trim().is_empty())
+}
+
+impl Scenario {
+    /// The scenario with every account on `method`: a property law holds
+    /// whatever the method (rules R7.3). FIFO keeps the scenario's id;
+    /// another method suffixes it, as `NOM-TRADE-01@WAC`.
+    pub fn with_cost_basis_method(&self, method: CostBasisMethod) -> Self {
+        let mut scenario = self.clone();
+        for account in &mut scenario.accounts {
+            account.cost_basis_method = Some(method.as_str().to_string());
+        }
+        if method != CostBasisMethod::default() {
+            scenario.id = format!("{}@{}", scenario.id, method.as_str());
+        }
+        scenario
+    }
+}
+
+/// Each scenario under every cost basis method the engine computes: a
+/// property law holds whatever the method (rules R7.3, §9).
+pub fn under_every_method(
+    scenarios: impl IntoIterator<Item = Scenario>,
+) -> impl Iterator<Item = Scenario> {
+    scenarios.into_iter().flat_map(|scenario| {
+        CostBasisMethod::ALL
+            .iter()
+            .map(move |method| scenario.with_cost_basis_method(*method))
+    })
 }
 
 /// The generated scenarios (`generate`), parsed like the fixtures.

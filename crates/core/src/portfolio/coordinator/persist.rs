@@ -249,6 +249,19 @@ pub fn snapshot_rows(
         .collect()
 }
 
+/// The cost basis method an account's lots were computed with (engine rules
+/// §7), stored as provenance on its lot and disposal rows.
+fn cost_basis_method(resolved: &Resolved, account_id: &str) -> String {
+    resolved
+        .facts
+        .accounts()
+        .get(&AccountId::new(account_id))
+        .map(|account| account.cost_basis_method)
+        .unwrap_or_default()
+        .as_str()
+        .to_string()
+}
+
 pub fn lot_rows(
     resolved: &Resolved,
     records: Vec<engine::model::LotRecord>,
@@ -286,7 +299,7 @@ pub fn lot_rows(
             fx_rate_to_base: lot.fx_rate_to_base.to_string(),
             fx_rate_to_account: lot.fx_rate_to_account.map(|r| r.to_string()),
             account_currency: lot.fx_rate_to_account.and(account_currency.clone()),
-            cost_basis_method: "FIFO".to_string(),
+            cost_basis_method: cost_basis_method(resolved, account_id),
             split_ratio: lot.split_ratio.to_string(),
             is_closed: lot.close_date.is_some(),
             close_date: lot.close_date.map(|d| d.to_string()),
@@ -338,7 +351,7 @@ pub fn disposal_rows(
             currency: d.currency.as_str().to_string(),
             base_currency: base.clone(),
             fx_rate_to_base: d.fx_rate_to_base.to_string(),
-            cost_basis_method: "FIFO".to_string(),
+            cost_basis_method: cost_basis_method(resolved, account_id),
             created_at: now.clone(),
         })
         .collect()

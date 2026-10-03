@@ -121,7 +121,7 @@ pub struct Position {
     pub average_cost: Decimal,
     #[serde(with = "crate::model::decimal_serde")]
     pub total_cost_basis: Decimal,
-    /// FIFO book, sorted by acquisition instant; quantities are as-acquired.
+    /// Lot book, sorted by acquisition instant; quantities are as-acquired.
     pub lots: Vec<Lot>,
     pub alternative: bool,
     #[serde(with = "crate::model::decimal_serde")]

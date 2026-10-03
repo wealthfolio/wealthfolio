@@ -19,7 +19,6 @@ pub struct Policy {
     pub as_of: NaiveDate,
     /// Minor-unit rule table (data, not code): `GBp`→`GBP` ×0.01, …
     pub minor_units: Vec<MinorUnitRule>,
-    pub cost_basis: CostBasisMethod,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -33,13 +32,37 @@ pub struct MinorUnitRule {
     pub case_sensitive: bool,
 }
 
-/// v1 supports FIFO only; LIFO and pooled average cost are designed-in
-/// roadmap items (architecture §2, scope boundaries).
+/// How an account's disposals choose the lots they relieve (rules §7). Each
+/// variant is a method the engine computes; the stored code of any other is
+/// refused (`parse` returns `None`). A new method is a variant here, its
+/// branches in the projection's `relieve` and `split_for_cover`, its rules
+/// entry and fixtures, and every property law passing under it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum CostBasisMethod {
+    /// Oldest lots first.
     #[default]
     Fifo,
+}
+
+impl CostBasisMethod {
+    /// Every method the engine computes.
+    pub const ALL: &'static [Self] = &[Self::Fifo];
+
+    /// The code account settings store.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Fifo => "FIFO",
+        }
+    }
+
+    /// The method a stored code names, when the engine computes it.
+    pub fn parse(code: &str) -> Option<Self> {
+        Self::ALL
+            .iter()
+            .copied()
+            .find(|method| method.as_str().eq_ignore_ascii_case(code.trim()))
+    }
 }
 
 impl Policy {
@@ -49,7 +72,6 @@ impl Policy {
             timezone,
             as_of,
             minor_units: default_minor_units(),
-            cost_basis: CostBasisMethod::Fifo,
         }
     }
 

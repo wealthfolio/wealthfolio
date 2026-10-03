@@ -46,6 +46,7 @@ accounts:
     account_type: SECURITIES   # SECURITIES | CASH | CREDIT_CARD | CRYPTOCURRENCY
     tracking_mode: TRANSACTIONS # TRANSACTIONS | HOLDINGS | NOT_SET
     is_archived: false
+    cost_basis_method: FIFO # default FIFO; a code the engine computes (rules R7.2)
 assets:
   - id: aapl
     symbol: AAPL            # default: id

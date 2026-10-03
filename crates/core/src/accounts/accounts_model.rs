@@ -51,15 +51,21 @@ impl CostBasisMethod {
         }
     }
 
+    /// Whether the portfolio engine computes this method: the engine alone
+    /// says which methods it computes (engine rules §7).
     pub fn ensure_supported_for_calculation(self, account_id: &str) -> Result<()> {
-        if self == Self::Fifo {
+        if wealthfolio_portfolio_engine::model::CostBasisMethod::parse(self.as_str()).is_some() {
             return Ok(());
         }
-
+        let computed: Vec<&str> = wealthfolio_portfolio_engine::model::CostBasisMethod::ALL
+            .iter()
+            .map(|method| method.as_str())
+            .collect();
         Err(Error::Validation(ValidationError::InvalidInput(format!(
-            "Cost basis method {} for account {} is not supported by the snapshot calculator yet; only FIFO is supported.",
+            "Cost basis method {} for account {} is not supported yet; supported: {}.",
             self.as_str(),
-            account_id
+            account_id,
+            computed.join(", ")
         ))))
     }
 }

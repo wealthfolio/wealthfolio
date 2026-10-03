@@ -1514,6 +1514,50 @@ async fn unsupported_cost_basis_settings_fail_the_account() {
         .is_empty());
 }
 
+/// Engine rules R7.2: an account set to a method the engine does not compute
+/// fails alone; folded as a transfer partner it folds FIFO, so its partner's
+/// results are those of an all-FIFO run.
+#[tokio::test]
+async fn a_refused_transfer_partner_folds_fifo() {
+    let facts = scenario("EDGE-TXF-02").facts();
+    let baseline = harness(facts.clone()).await;
+    baseline
+        .coordinator
+        .run_job(request(), &SilentObserver)
+        .await
+        .unwrap();
+
+    let refused = harness(facts).await;
+    refused
+        .account_repo
+        .set_accounting_settings(AccountAccountingSettings {
+            cost_basis_method: CostBasisMethod::Lifo,
+            ..AccountAccountingSettings::default_for_account("acc-a")
+        });
+    let report = refused
+        .coordinator
+        .run_job(request(), &SilentObserver)
+        .await
+        .unwrap();
+    assert_eq!(
+        report
+            .failures
+            .iter()
+            .map(|f| (f.account_id.as_str(), f.code.as_str()))
+            .collect::<Vec<_>>(),
+        vec![("acc-a", "UNSUPPORTED_COST_BASIS")]
+    );
+    let rows = |h: &Harness| {
+        let mut rows = h.rows("acc-b");
+        for row in &mut rows {
+            row.calculated_at = chrono::DateTime::<chrono::Utc>::MIN_UTC;
+        }
+        rows
+    };
+    assert!(!rows(&refused).is_empty());
+    assert_eq!(rows(&refused), rows(&baseline));
+}
+
 #[tokio::test]
 async fn explicitly_requested_archived_accounts_are_rebuilt() {
     let scenario = scenario("NOM-TXF-01");

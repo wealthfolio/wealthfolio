@@ -29,6 +29,9 @@ pub struct RawAccount {
     /// `TRANSACTIONS` | `HOLDINGS` | `NOT_SET`
     pub tracking_mode: String,
     pub is_archived: bool,
+    /// The cost basis method's stored code (`FIFO`); none means FIFO.
+    #[serde(default)]
+    pub cost_basis_method: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

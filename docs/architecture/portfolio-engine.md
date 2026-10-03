@@ -68,9 +68,16 @@ rebuilds safe to run by default.
   supports the lifecycle: `projection_state`.
 - Market-data fetching, broker sync, device sync and the frontend are outside
   this architecture.
-- Cost basis is FIFO. LIFO and pooled average cost are designed for but not
-  implemented; unsupported settings fail loudly per account rather than being
-  silently computed as FIFO.
+- Cost basis is per account (rules §7), and FIFO is the one method computed. A
+  method is a choice of which lots a disposal relieves, made in one place in the
+  projection (`relieve`, `split_for_cover`), so a new method is a variant of
+  `CostBasisMethod` with its branches, rules entry, fixtures, and every property
+  law passing under it (a code core does not know yet, beyond FIFO, LIFO and
+  WAC, is also added to core's settings). Settings the engine does not compute
+  fail loudly per account rather than being silently computed as FIFO; settings
+  this version cannot read are a known limit (rules §8). Pooling across
+  accounts, rules that look ahead and choosing specific lots per disposal are
+  outside this design (rules R7.3).
 
 ## 3. System architecture
 
@@ -319,8 +326,8 @@ pub struct Policy {
     pub timezone: Tz,                 // UTC instant → business date, once, in normalize
     pub as_of: NaiveDate,             // "today" is data, never a clock read
     pub minor_units: Vec<MinorUnitRule>, // GBp→GBP ×0.01, ZAc→ZAR, KWF→KWD ×0.001, …
-    pub cost_basis: CostBasisMethod,  // FIFO
 }
+// Each account's facts carry its cost basis method (`AccountFacts::cost_basis_method`).
 ```
 
 The minor-unit table is data: a new minor unit is a data change, not an engine
@@ -661,7 +668,8 @@ product shows when the inputs are imperfect.
 
 - **Unsupported settings fail loudly.** An account configured for a cost-basis
   method the kernel does not implement fails with a per-account error instead of
-  being computed as FIFO and labelled FIFO.
+  being computed as FIFO and labelled FIFO. The kernel alone says which methods
+  it computes (`CostBasisMethod::parse`); the coordinator asks it.
 
 ### 4.6 Invariants
 

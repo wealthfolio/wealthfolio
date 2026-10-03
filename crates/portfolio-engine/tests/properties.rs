@@ -17,13 +17,16 @@ use wealthfolio_portfolio_engine::{
 
 const DUST: Decimal = Decimal::from_parts(1, 0, 0, false, 8);
 
-/// The fixtures (but shell-level ones) and the generated scenarios.
+/// The fixtures (but shell-level ones) and the generated scenarios, each under
+/// every cost basis method the engine computes (rules R7.3).
 fn corpus() -> Vec<Scenario> {
-    load_all_scenarios()
-        .into_iter()
-        .chain(generated_scenarios())
-        .filter(|s| !s.markers.iter().any(|m| m == "S") && scenario_selected(&s.id))
-        .collect()
+    under_every_method(
+        load_all_scenarios()
+            .into_iter()
+            .chain(generated_scenarios())
+            .filter(|s| !s.markers.iter().any(|m| m == "S") && scenario_selected(&s.id)),
+    )
+    .collect()
 }
 
 fn body(pipeline: &Pipeline, scenario: &Scenario) -> Value {
@@ -1532,7 +1535,7 @@ fn p_total_no_panics_on_mutated_inputs() {
             body(&pipeline, scenario);
         }
     };
-    for scenario in load_all_scenarios() {
+    for scenario in under_every_method(load_all_scenarios()) {
         let raw = scenario.raw_facts();
         run(raw.clone(), &scenario);
         for index in 0..raw.activities.len() {

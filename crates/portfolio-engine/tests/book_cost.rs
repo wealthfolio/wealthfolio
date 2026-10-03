@@ -14,10 +14,11 @@ use wealthfolio_portfolio_engine::DiagnosticCode;
 fn p_book_keyframes_and_valuations_agree_on_book_cost() {
     let mut compared = 0;
     let mut failures = Vec::new();
-    for scenario in load_all_scenarios()
-        .into_iter()
-        .filter(|s| !s.markers.iter().any(|m| m == "S") && scenario_selected(&s.id))
-    {
+    for scenario in under_every_method(
+        load_all_scenarios()
+            .into_iter()
+            .filter(|s| !s.markers.iter().any(|m| m == "S") && scenario_selected(&s.id)),
+    ) {
         let Ok(pipeline) = Pipeline::run(scenario.raw_facts()) else {
             continue;
         };

@@ -36,12 +36,20 @@ pub fn normalize(raw: RawFacts) -> Result<Normalized, EngineError> {
                 reason: "it has no currency".into(),
             });
         };
+        let code = account.cost_basis_method.as_deref().unwrap_or("FIFO");
+        let Some(cost_basis_method) = CostBasisMethod::parse(code) else {
+            return Err(EngineError::InvalidAccount {
+                account: account.id,
+                reason: format!("its cost basis method {code:?} is not one the engine computes"),
+            });
+        };
         let facts = AccountFacts {
             id: id.clone(),
             currency,
             kind: account_kind(&account.account_type),
             tracking: tracking_mode(&account.tracking_mode),
             archived: account.is_archived,
+            cost_basis_method,
         };
         if accounts.insert(id, facts).is_some() {
             return Err(EngineError::DuplicateAccountId(account.id));
@@ -835,6 +843,7 @@ mod tests {
             account_type: "SECURITIES".into(),
             tracking_mode: "TRANSACTIONS".into(),
             is_archived: false,
+            cost_basis_method: None,
         }
     }
 
@@ -899,6 +908,27 @@ mod tests {
             fx_rates: vec![],
             observed_snapshots: vec![],
         }
+    }
+
+    #[test]
+    fn an_account_takes_the_cost_basis_method_its_settings_name() {
+        // Rules R7.2: none means FIFO; a code the engine does not compute is
+        // refused, never relabelled.
+        let mut raw = facts(vec![], chrono_tz::UTC);
+        raw.accounts[1].cost_basis_method = Some(" fifo ".into());
+        let normalized = normalize(raw.clone()).unwrap();
+        assert!(normalized
+            .facts
+            .accounts
+            .values()
+            .all(|account| account.cost_basis_method == CostBasisMethod::Fifo));
+
+        raw.accounts[1].cost_basis_method = Some("LIFO".into());
+        let refused = normalize(raw).unwrap_err();
+        assert!(
+            matches!(&refused, EngineError::InvalidAccount { account, .. } if account == "a2"),
+            "{refused}"
+        );
     }
 
     #[test]

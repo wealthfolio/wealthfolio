@@ -213,6 +213,9 @@ fn policy(base_currency: &str, timezone: &str, as_of: NaiveDate) -> Result<Polic
     ))
 }
 
+/// An account's facts without its cost basis method: for facts that are never
+/// folded (measures read the stored lots, split recorders are not projected),
+/// so the method does not matter.
 pub(super) fn raw_account(a: &crate::accounts::Account) -> RawAccount {
     RawAccount {
         id: a.id.clone(),
@@ -220,6 +223,7 @@ pub(super) fn raw_account(a: &crate::accounts::Account) -> RawAccount {
         account_type: a.account_type.clone(),
         tracking_mode: tracking_label(a.tracking_mode).to_string(),
         is_archived: a.is_archived,
+        cost_basis_method: None,
     }
 }
 
@@ -520,9 +524,9 @@ pub fn load(
         .filter(|a| requested.contains(a.id.as_str()))
         .map(|a| a.id.clone())
         .collect();
-    // Legacy refused LIFO / non-generic / pooled accounts with a validation
-    // error; the kernel computes FIFO only, so such accounts fail loudly
-    // instead of being relabelled FIFO.
+    // An account set to a method or policy the engine does not compute fails
+    // loudly instead of being relabelled (engine rules R7.2): its results are
+    // not written. Where another account needs it folded, it folds FIFO.
     let accounting = deps
         .accounts
         .get_accounting_settings_by_account_ids(&scope)?;
@@ -535,6 +539,14 @@ pub fn load(
                 .map(|error| (id.clone(), error.to_string()))
         })
         .collect();
+    // Accounts outside the scope are archived partners, which the engine never
+    // folds: their method does not matter.
+    let cost_basis_method = |account: &str| {
+        accounting
+            .get(account)
+            .filter(|settings| settings.ensure_supported_for_calculation().is_ok())
+            .map(|settings| settings.cost_basis_method.as_str().to_string())
+    };
 
     // Transfer closure: every account sharing a transfer group with the scope.
     let (closure, closure_activities) =
@@ -549,6 +561,7 @@ pub fn load(
             account_type: a.account_type.clone(),
             tracking_mode: tracking_label(a.tracking_mode).to_string(),
             is_archived: a.is_archived,
+            cost_basis_method: cost_basis_method(&a.id),
         })
         .collect();
     let activities: Vec<&Activity> = closure_activities.iter().collect();

@@ -7,7 +7,7 @@ use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 
 use super::facts::RawFxConversion;
-use super::policy::Policy;
+use super::policy::{CostBasisMethod, Policy};
 use super::scalar::{AccountId, ActivityId, AssetId, Currency};
 
 /// Facts as `normalize` validated and ordered them: the only way to build
@@ -86,6 +86,8 @@ pub struct AccountFacts {
     pub kind: AccountKind,
     pub tracking: TrackingMode,
     pub archived: bool,
+    /// How its disposals choose the lots they relieve (rules §7).
+    pub cost_basis_method: CostBasisMethod,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

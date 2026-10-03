@@ -383,10 +383,11 @@ fn unsound(before: &Pipeline, after: &Pipeline, impact: &Impact) -> Option<Strin
 fn p_impact_names_every_output_a_change_can_move() {
     let mut checked = 0;
     let mut failures = Vec::new();
-    for scenario in load_all_scenarios()
-        .into_iter()
-        .filter(|s| !s.markers.iter().any(|m| m == "S") && scenario_selected(&s.id))
-    {
+    for scenario in under_every_method(
+        load_all_scenarios()
+            .into_iter()
+            .filter(|s| !s.markers.iter().any(|m| m == "S") && scenario_selected(&s.id)),
+    ) {
         let raw = scenario.raw_facts();
         let Ok(before) = Pipeline::run(raw.clone()) else {
             continue;
@@ -418,10 +419,11 @@ fn p_impact_names_every_output_a_change_can_move() {
 fn p_impact_covers_a_moving_day() {
     let mut checked = 0;
     let mut failures = Vec::new();
-    for scenario in load_all_scenarios()
-        .into_iter()
-        .filter(|s| !s.markers.iter().any(|m| m == "S") && scenario_selected(&s.id))
-    {
+    for scenario in under_every_method(
+        load_all_scenarios()
+            .into_iter()
+            .filter(|s| !s.markers.iter().any(|m| m == "S") && scenario_selected(&s.id)),
+    ) {
         let raw = scenario.raw_facts();
         for shift in [1, 4, 10] {
             let mut earlier = raw.clone();

@@ -27,6 +27,7 @@ fn generated_facts() -> RawFacts {
             account_type: "SECURITIES".to_string(),
             tracking_mode: "TRANSACTIONS".to_string(),
             is_archived: false,
+            cost_basis_method: None,
         })
         .collect::<Vec<_>>();
     let assets = (0..ASSETS)
