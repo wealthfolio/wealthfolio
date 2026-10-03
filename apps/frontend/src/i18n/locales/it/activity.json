@@ -243,6 +243,7 @@
   "table_type": "Tipo",
   "table_date": "Data",
   "table_symbol": "Simbolo",
+  "table_name": "Nome",
   "table_quantity": "Quantità",
   "table_price_amount": "Prezzo/Importo",
   "table_fee": "Commissione",

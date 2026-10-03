@@ -243,6 +243,7 @@
   "table_type": "Type",
   "table_date": "Date",
   "table_symbol": "Symbole",
+  "table_name": "Nom",
   "table_quantity": "Quantité",
   "table_price_amount": "Prix/Montant",
   "table_fee": "Frais",

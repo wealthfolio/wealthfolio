@@ -241,6 +241,7 @@
   "table_type": "类型",
   "table_date": "日期",
   "table_symbol": "代码",
+  "table_name": "名称",
   "table_quantity": "数量",
   "table_price_amount": "价格/金额",
   "table_fee": "费用",
