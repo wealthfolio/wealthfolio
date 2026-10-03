@@ -988,6 +988,7 @@
     "account_invalid": "Scegli un conto nella valuta del prestito.",
     "suggestion": "Gli ultimi tre pagamenti differiscono ciascuno dalla rata prevista dello stesso importo. Dal {{date}} la rata potrebbe essere di {{amount}}.",
     "record_change": "Registra modifica rata",
-    "edit_escrow": "Sono tasse e assicurazione"
+    "edit_escrow": "Sono tasse e assicurazione",
+    "recorded_as_withdrawal": "Registrato come prelievo da {{account}}."
   }
 }

@@ -988,6 +988,7 @@
     "account_invalid": "Choisissez un compte courant dans la devise du prêt.",
     "suggestion": "Vos trois derniers paiements diffèrent chacun du montant prévu de la même somme. À partir du {{date}}, le paiement est peut-être de {{amount}}.",
     "record_change": "Enregistrer le changement",
-    "edit_escrow": "Ce sont les taxes et l'assurance"
+    "edit_escrow": "Ce sont les taxes et l'assurance",
+    "recorded_as_withdrawal": "Enregistré comme un retrait de {{account}}."
   }
 }

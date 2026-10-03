@@ -10,6 +10,8 @@ import { useLoanActions, type LoanActionCallbacks } from "./use-loan-actions";
 type Dialogs = typeof import("../components/loan-action-dialogs");
 const mocks = vi.hoisted(() => ({
   apply: vi.fn<(assetId: string, action: unknown) => Promise<void>>(),
+  create: vi.fn<(activity: Record<string, unknown>) => Promise<{ id: string }>>(),
+  link: vi.fn<(activityId: string, link: unknown) => Promise<void>>(),
   invalidateQuotes: vi.fn(),
   invalidateAssets: vi.fn(),
   toast: vi.fn(),
@@ -32,7 +34,15 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@/lib/settings-provider", () => ({
   useSettingsContext: () => ({ settings: { timezone: "UTC" } }),
 }));
-vi.mock("@/adapters", () => ({ applyLoanAction: mocks.apply, calculateLoan: vi.fn() }));
+vi.mock("@/adapters", () => ({
+  applyLoanAction: mocks.apply,
+  createActivity: mocks.create,
+  linkLoanPayment: mocks.link,
+  calculateLoan: vi.fn(),
+}));
+vi.mock("@/hooks/use-accounts", () => ({
+  useAccounts: () => ({ accounts: [{ id: "chequing", name: "Chequing" }] }),
+}));
 vi.mock("@wealthfolio/ui/components/ui/use-toast", () => ({ toast: mocks.toast }));
 vi.mock("../../hooks/use-quote-mutations", () => ({
   useQuoteMutations: () => ({ invalidateQuoteQueries: mocks.invalidateQuotes }),
@@ -43,7 +53,13 @@ vi.mock("./use-alternative-asset-mutations", () => ({
 vi.mock("./use-loan-calculation", async (original) => ({
   ...(await original<typeof import("./use-loan-calculation")>()),
   useLoanCalculation: () => ({
-    data: { currentBalance: 500, frequency: "biweekly", annualRate: 4, interestMethod: "monthly" },
+    data: {
+      currentBalance: 500,
+      frequency: "biweekly",
+      annualRate: 4,
+      interestMethod: "monthly",
+      rows: [],
+    },
   }),
 }));
 vi.mock("../components/loan-event-sheet", () => ({
@@ -123,6 +139,8 @@ const balanceSubmit = (mode: "extra_repayment" | "balance_correction") =>
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.apply.mockResolvedValue(undefined);
+  mocks.create.mockResolvedValue({ id: "withdrawal" });
+  mocks.link.mockResolvedValue(undefined);
 });
 
 describe("loan actions are single backend calls", () => {
@@ -267,4 +285,40 @@ it("records a suggested payment change as one action", async () => {
     "loan",
     { type: "change_payment", date: "2026-03-01", paymentAmount: 110 },
   ]);
+});
+
+describe("extra repayments from the paid from account", () => {
+  it("records the withdrawal and links it as extra principal instead of an event", async () => {
+    show(holding({ payment_account_id: "chequing" }));
+    expect(
+      mocks.balanceSheet.mock.calls.filter(([props]) => props.mode === "extra_repayment").at(-1)![0]
+        .paidFrom,
+    ).toBe("Chequing");
+    await act(async () => {
+      await balanceSubmit("extra_repayment")(new Date(2026, 3, 2), 100);
+    });
+    expect(mocks.create).toHaveBeenCalledWith({
+      accountId: "chequing",
+      activityType: "WITHDRAWAL",
+      activityDate: "2026-04-02",
+      amount: 100,
+      currency: "CAD",
+    });
+    expect(mocks.link).toHaveBeenCalledWith("withdrawal", {
+      type: "link",
+      loanId: "loan",
+      appliesTo: "extra",
+      escrow: 0,
+    });
+    expect(mocks.apply).not.toHaveBeenCalled();
+  });
+
+  it("keeps recording an event for a manual loan", async () => {
+    show(holding({ payment_account_id: "chequing", tracking_mode: "manual" }));
+    await act(async () => {
+      await balanceSubmit("extra_repayment")(new Date(2026, 3, 2), 100);
+    });
+    expect(mocks.create).not.toHaveBeenCalled();
+    expect(sent()).toEqual(["loan", { type: "extra_repayment", date: "2026-04-02", amount: 100 }]);
+  });
 });

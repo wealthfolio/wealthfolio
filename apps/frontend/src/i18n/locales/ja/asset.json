@@ -972,6 +972,7 @@
     "account_invalid": "ローンと同じ通貨の現金口座を選択してください。",
     "suggestion": "直近3回の返済が、いずれも予定額と同じ金額だけ異なります。{{date}}以降の返済額は{{amount}}かもしれません。",
     "record_change": "返済額の変更を記録",
-    "edit_escrow": "税金・保険料の差です"
+    "edit_escrow": "税金・保険料の差です",
+    "recorded_as_withdrawal": "{{account}}からの出金として記録されます。"
   }
 }

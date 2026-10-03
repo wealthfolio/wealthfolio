@@ -279,6 +279,8 @@ interface LoanBalanceEventDialogProps {
   currency: string;
   /** Recorded balances, oldest first; a later one overrides a repayment. */
   confirmations?: Quote[];
+  /** The "Paid from" account an extra repayment is withdrawn from. */
+  paidFrom?: string;
   onSubmit: (date: Date, amount: number) => Promise<void>;
 }
 
@@ -288,6 +290,7 @@ export function LoanBalanceEventDialog({
   mode,
   currency,
   confirmations = [],
+  paidFrom,
   onSubmit,
 }: LoanBalanceEventDialogProps) {
   const { t } = useTranslation();
@@ -385,6 +388,11 @@ export function LoanBalanceEventDialog({
               aria-invalid={amountTouched && amountInvalid}
             />
           </div>
+          {!isCorrection && paidFrom && (
+            <p className="text-muted-foreground text-xs">
+              {t("asset:loanPayments.recorded_as_withdrawal", { account: paidFrom })}
+            </p>
+          )}
           {overridingBalance && (
             <Alert variant="warning">
               <Icons.AlertTriangle className="h-4 w-4" />

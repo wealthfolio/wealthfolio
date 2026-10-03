@@ -972,6 +972,7 @@
     "account_invalid": "Wählen Sie ein Konto in der Kreditwährung.",
     "suggestion": "Ihre letzten drei Zahlungen weichen jeweils um denselben Betrag von der geplanten Zahlung ab. Ab {{date}} beträgt die Zahlung vielleicht {{amount}}.",
     "record_change": "Zahlungsänderung erfassen",
-    "edit_escrow": "Es sind Steuern und Versicherung"
+    "edit_escrow": "Es sind Steuern und Versicherung",
+    "recorded_as_withdrawal": "Wird als Abbuchung von {{account}} erfasst."
   }
 }

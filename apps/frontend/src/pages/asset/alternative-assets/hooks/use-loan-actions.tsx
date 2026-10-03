@@ -3,7 +3,9 @@ import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
 import { parseISO } from "date-fns";
 import { toast } from "@wealthfolio/ui/components/ui/use-toast";
-import { applyLoanAction } from "@/adapters";
+import { applyLoanAction, createActivity, linkLoanPayment } from "@/adapters";
+import { useAccounts } from "@/hooks/use-accounts";
+import { QueryKeys } from "@/lib/query-keys";
 import type { LoanAction, PaymentAllocation } from "@/adapters/shared/alternative-assets";
 import type { AlternativeAssetHolding, Quote } from "@/lib/types";
 import { formatDateISO } from "@/lib/utils";
@@ -18,7 +20,7 @@ import {
   type LoanEvent,
 } from "../lib/loan-events";
 import { loanBalanceUserNote } from "../lib/loan-balance";
-import { confirmedLoanBalances } from "../lib/loan-presentation";
+import { balanceAt, confirmedLoanBalances, loanBalanceTimeline } from "../lib/loan-presentation";
 import {
   CloseLoanDialog,
   RecalculateScheduleDialog,
@@ -114,6 +116,8 @@ export function useLoanActions(
   } | null>(null);
   const paymentAccountId =
     typeof metadata.payment_account_id === "string" ? metadata.payment_account_id : undefined;
+  const { accounts } = useAccounts({ filterActive: false });
+  const paidFrom = accounts.find((account) => account.id === paymentAccountId)?.name;
   const [closeLoanOpen, setCloseLoanOpen] = useState(false);
   const [recalculateScheduleOpen, setRecalculateScheduleOpen] = useState(false);
   const [renewLoanOpen, setRenewLoanOpen] = useState(false);
@@ -166,13 +170,45 @@ export function useLoanActions(
   ) => {
     if (!holding) return;
     const date = formatDateISO(effectiveDate);
-    await run(
-      mode === "balance_correction"
-        ? { type: "confirm_balance", date, balance: amount }
-        : { type: "extra_repayment", date, amount },
-    );
+    if (mode === "extra_repayment" && paymentAccountId && storedProjection) {
+      await recordExtraWithdrawal(paymentAccountId, date, amount);
+    } else {
+      await run(
+        mode === "balance_correction"
+          ? { type: "confirm_balance", date, balance: amount }
+          : { type: "extra_repayment", date, amount },
+      );
+    }
     setBalanceCorrectionOpen(false);
     setExtraRepaymentOpen(false);
+  };
+
+  // With a "Paid from" account, the withdrawal is the repayment. It is checked
+  // against the balance first, so the usual refusal never leaves a withdrawal behind.
+  const recordExtraWithdrawal = async (accountId: string, date: string, amount: number) => {
+    const balance = balanceAt(loanBalanceTimeline(calculation, quoteHistory, today), date);
+    if (balance != null && amount > balance) throw new Error("LOAN_AMOUNT_EXCEEDS_BALANCE");
+    const withdrawal = await createActivity({
+      accountId,
+      activityType: "WITHDRAWAL",
+      activityDate: date,
+      amount,
+      currency: holding!.currency,
+    });
+    try {
+      await linkLoanPayment(withdrawal.id, {
+        type: "link",
+        loanId: assetId,
+        appliesTo: "extra",
+        escrow: 0,
+      });
+    } finally {
+      // Refresh either way: an unlinked withdrawal is then offered for linking.
+      await Promise.all([
+        refresh(),
+        queryClient.invalidateQueries({ queryKey: [QueryKeys.ACTIVITIES] }),
+      ]);
+    }
   };
 
   const isMortgage = (metadata.sub_type ?? metadata.liability_type) === "mortgage";
@@ -292,6 +328,7 @@ export function useLoanActions(
             mode="extra_repayment"
             currentBalance={currentBalance}
             currency={holding.currency}
+            paidFrom={storedProjection ? paidFrom : undefined}
             confirmations={confirmedLoanBalances(quoteHistory, today)}
             onSubmit={(date, amount) => handleBalanceEvent("extra_repayment", date, amount)}
           />

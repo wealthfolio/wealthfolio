@@ -972,6 +972,7 @@
     "account_invalid": "請選擇與貸款幣別相同的現金帳戶。",
     "suggestion": "您最近三次還款都與計畫還款相差相同金額。自 {{date}} 起，還款額可能為 {{amount}}。",
     "record_change": "記錄還款額變更",
-    "edit_escrow": "是稅費和保險"
+    "edit_escrow": "是稅費和保險",
+    "recorded_as_withdrawal": "將記錄為從{{account}}提款。"
   }
 }

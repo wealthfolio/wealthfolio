@@ -988,6 +988,7 @@
     "account_invalid": "Escolha uma conta à ordem na moeda do empréstimo.",
     "suggestion": "Os seus três últimos pagamentos diferem do pagamento previsto no mesmo valor. A partir de {{date}}, o pagamento pode ser de {{amount}}.",
     "record_change": "Registar alteração do pagamento",
-    "edit_escrow": "São impostos e seguro"
+    "edit_escrow": "São impostos e seguro",
+    "recorded_as_withdrawal": "Registado como um levantamento de {{account}}."
   }
 }
