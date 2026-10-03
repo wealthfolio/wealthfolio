@@ -197,7 +197,10 @@ function ActivityDateListItem({
     ? formatOptionSubtitle(parsedOption, { ...numberFormatting, ...dateFormatting })
     : null;
   const formattedDate = formatDateTime(activity.date, dateFormatting, appTimezone);
-  const displayValue = calculateActivityValue(activity);
+  const activityValue = calculateActivityValue(activity);
+  const displayValue = isIncomeActivity(activity.activityType)
+    ? activityValue + Number(activity.tax ?? 0)
+    : activityValue;
   const activityTypeLabel = localizeActivityTypeName(t, activity.activityType);
   const activityTone = getActivityTone(activity.activityType);
   const quantityLabel =

@@ -219,16 +219,16 @@ describe("Activity Utilities", () => {
       expect(calculateActivityCashImpact(activity)).toBe(-100);
     });
 
-    it("does not subtract charges from a final dividend amount", () => {
+    it("returns stored net amount as cash impact for dividend", () => {
       const activity = createActivity({
         activityType: ActivityType.DIVIDEND,
-        amount: "100",
+        amount: "85",
         fee: "1",
         tax: "15",
       });
 
-      expect(calculateActivityValue(activity)).toBe(100);
-      expect(calculateActivityCashImpact(activity)).toBe(100);
+      expect(calculateActivityValue(activity)).toBe(85);
+      expect(calculateActivityCashImpact(activity)).toBe(85);
     });
 
     it("does not replace a missing final amount", () => {
