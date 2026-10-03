@@ -166,6 +166,7 @@ export interface LoanPayment {
 
 export interface PaymentAllocation {
   activityId: string;
+  accountId: string;
   date: string;
   instalment: string | null;
   escrow: number;

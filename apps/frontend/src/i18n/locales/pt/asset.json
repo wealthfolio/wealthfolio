@@ -964,6 +964,27 @@
     "paid_from_hint": "A conta de onde saem os seus pagamentos. Os seus levantamentos podem ser associados a este empréstimo como pagamentos.",
     "no_account": "Não acompanhado",
     "escrow": "Impostos e seguro por pagamento",
-    "escrow_hint": "Impostos sobre o imóvel e seguro incluídos em cada pagamento. Nunca contam como capital nem juros."
+    "escrow_hint": "Impostos sobre o imóvel e seguro incluídos em cada pagamento. Nunca contam como capital nem juros.",
+    "account": "Conta",
+    "status_paid": "Pago",
+    "status_due": "A pagar",
+    "status_missing": "Não encontrado",
+    "short_by": "Faltam {{amount}}",
+    "paid_on": "Pago em {{date}} a partir de {{account}}",
+    "extra_from": "Amortização extra · {{account}}",
+    "escrow_included": "Inclui {{amount}} de impostos e seguro",
+    "sheet_title": "Pagamentos",
+    "instalment_due": "Prestação com vencimento em {{date}}",
+    "extra_description": "Capital extra pago a partir de uma conta.",
+    "linked": "Levantamentos associados",
+    "candidates": "Levantamentos perto desta data",
+    "link": "Associar",
+    "unlink": "Desassociar",
+    "needs_account": "Escolha uma conta em \"Pago a partir de\" em Editar detalhes do empréstimo para associar os seus levantamentos.",
+    "no_candidates_one": "Nenhum levantamento não associado em {{account}} a {{count}} dia desta data.",
+    "no_candidates_other": "Nenhum levantamento não associado em {{account}} a {{count}} dias desta data.",
+    "no_candidates_many": "Nenhum levantamento não associado em {{account}} a {{count}} dias desta data.",
+    "not_eligible": "Apenas um levantamento lançado de uma conta à ordem na moeda do empréstimo pode pagar este empréstimo.",
+    "account_invalid": "Escolha uma conta à ordem na moeda do empréstimo."
   }
 }

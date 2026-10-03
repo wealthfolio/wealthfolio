@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import type { LoanCalculation, LoanCalculationRow } from "@/adapters/shared/alternative-assets";
+import type {
+  LoanCalculation,
+  LoanCalculationRow,
+  PaymentAllocation,
+} from "@/adapters/shared/alternative-assets";
 import type { Quote } from "@/lib/types";
 import {
   buildLoanLedger,
@@ -229,4 +233,72 @@ describe("payment runs", () => {
   it("shows an opened run in full", () => {
     expect(collapsePaymentRuns("2026", entries, new Set(["2026:2026-01-01"]))).toEqual(entries);
   });
+});
+
+describe("payments from an account in the ledger", () => {
+  const allocation = (overrides: Partial<PaymentAllocation>): PaymentAllocation => ({
+    activityId: "act",
+    accountId: "chequing",
+    date: "2026-03-01",
+    instalment: "2026-03-01",
+    escrow: 0,
+    applied: 80,
+    extra: 0,
+    ...overrides,
+  });
+  const paid: LoanCalculation = {
+    ...calculation,
+    allocations: [
+      allocation({ activityId: "march" }),
+      allocation({
+        activityId: "bonus",
+        date: "2026-02-01",
+        instalment: null,
+        applied: 0,
+        extra: 150,
+      }),
+    ],
+    instalments: [
+      { dueDate: "2026-03-01", scheduled: 80, paid: 80, status: "paid" },
+      { dueDate: "2026-04-01", scheduled: 80, paid: 0, status: "missing" },
+    ],
+  };
+  const entries = buildLoanLedger(paid, [], {}, "2026-06-01");
+
+  it("marks instalments with their status and the withdrawals that paid them", () => {
+    const march = entries.find((entry) => entry.kind === "payment" && entry.date === "2026-03-01");
+    expect(march).toMatchObject({ status: "paid", paidBy: [{ activityId: "march" }] });
+    const april = entries.find((entry) => entry.kind === "payment" && entry.date === "2026-04-01");
+    expect(april).toMatchObject({ status: "missing" });
+    expect(april).not.toHaveProperty("paidBy");
+  });
+
+  it("shows extra principal from a payment once in the year's extra total", () => {
+    const extras = entries.filter((entry) => entry.kind === "account_payment");
+    expect(extras).toHaveLength(1);
+    expect(extras[0]).toMatchObject({ date: "2026-02-01", extraTotalForDate: 150 });
+    expect(groupLoanLedger(entries).find((year) => year.year === "2026")?.extra).toBe(150);
+  });
+});
+
+it("never collapses an instalment that needs attention", () => {
+  const payment = (date: string, status?: "paid" | "missing"): LoanLedgerEntry => ({
+    kind: "payment",
+    date,
+    balance: 100,
+    payment: 10,
+    principal: 8,
+    interest: 2,
+    ...(status ? { status } : {}),
+  });
+  const entries = [
+    payment("2026-01-01", "paid"),
+    payment("2026-02-01", "paid"),
+    payment("2026-03-01", "paid"),
+    payment("2026-04-01", "missing"),
+    payment("2026-05-01", "paid"),
+  ];
+  const items = collapsePaymentRuns("2026", entries, new Set());
+  expect(items).toContainEqual(entries[3]);
+  expect(items).toContainEqual({ more: "2026:2026-01-01", count: 2 });
 });

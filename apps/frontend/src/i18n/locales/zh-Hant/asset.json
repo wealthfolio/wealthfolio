@@ -949,6 +949,26 @@
     "paid_from_hint": "還款扣款的帳戶。該帳戶的提款可連結為此貸款的還款。",
     "no_account": "不追蹤",
     "escrow": "每期稅費和保險",
-    "escrow_hint": "每次還款中包含的房屋稅和保險，不計入本金或利息。"
+    "escrow_hint": "每次還款中包含的房屋稅和保險，不計入本金或利息。",
+    "account": "帳戶",
+    "status_paid": "已付",
+    "status_due": "待付",
+    "status_missing": "未找到",
+    "short_by": "少付 {{amount}}",
+    "paid_on": "{{date}} 從{{account}}支付",
+    "extra_from": "額外還款 · {{account}}",
+    "escrow_included": "含稅費和保險 {{amount}}",
+    "sheet_title": "還款",
+    "instalment_due": "{{date}} 到期的分期",
+    "extra_description": "從帳戶支付的額外本金。",
+    "linked": "已連結的提款",
+    "candidates": "該日期附近的提款",
+    "link": "連結",
+    "unlink": "取消連結",
+    "needs_account": "請在編輯貸款詳情中選擇「付款帳戶」，以連結其提款。",
+    "no_candidates_one": "該日期前後 {{count}} 天內，{{account}} 中沒有未連結的提款。",
+    "no_candidates_other": "該日期前後 {{count}} 天內，{{account}} 中沒有未連結的提款。",
+    "not_eligible": "只有貸款幣別現金帳戶中的已入帳提款才能支付此貸款。",
+    "account_invalid": "請選擇與貸款幣別相同的現金帳戶。"
   }
 }

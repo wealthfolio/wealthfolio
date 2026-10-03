@@ -1,5 +1,9 @@
 import { isClosedLoanBalance } from "./loan-balance";
-import type { LoanCalculation } from "@/adapters/shared/alternative-assets";
+import type {
+  InstalmentStatus,
+  LoanCalculation,
+  PaymentAllocation,
+} from "@/adapters/shared/alternative-assets";
 import type { Quote } from "@/lib/types";
 import { classifyLoanBalance } from "./loan-balance";
 import {
@@ -32,6 +36,19 @@ export type LoanLedgerEntry =
       payment: number;
       principal: number;
       interest: number;
+      /** Set once the loan is paid from an account and this instalment is due. */
+      status?: InstalmentStatus;
+      /** Withdrawals that settled this instalment. */
+      paidBy?: PaymentAllocation[];
+    }
+  | {
+      /** Extra principal carried by a withdrawal paid from an account. */
+      kind: "account_payment";
+      date: string;
+      balance: number | null;
+      allocation: PaymentAllocation;
+      /** Applied total for this date, recorded and paid extras together. */
+      extraTotalForDate?: number;
     }
   | {
       kind: "event";
@@ -70,6 +87,7 @@ const KIND_ORDER: Record<LoanLedgerEntry["kind"], number> = {
   start: 0,
   event: 1,
   payment: 2,
+  account_payment: 2.5,
   balance: 3,
   maturity: 4,
 };
@@ -106,8 +124,13 @@ export function buildLoanLedger(
       scheduledPayoff: loanMilestones(calculation, metadata, today).horizon,
     });
   }
+  const allocations = calculation?.allocations ?? [];
+  const statuses = new Map(
+    (calculation?.instalments ?? []).map((instalment) => [instalment.dueDate, instalment.status]),
+  );
   for (const row of calculation?.rows ?? []) {
     if (!row.scheduledPayment || row.payment <= 0) continue;
+    const paidBy = allocations.filter((allocation) => allocation.instalment === row.date);
     entries.push({
       kind: "payment",
       date: row.date,
@@ -115,6 +138,19 @@ export function buildLoanLedger(
       payment: row.payment - row.extraPayment,
       principal: row.principal - row.extraPayment,
       interest: row.interest,
+      ...(statuses.has(row.date) ? { status: statuses.get(row.date) } : {}),
+      ...(paidBy.length ? { paidBy } : {}),
+    });
+  }
+  for (const allocation of allocations) {
+    if (allocation.extra <= 0) continue;
+    entries.push({
+      kind: "account_payment",
+      date: allocation.date,
+      balance: at(allocation.date),
+      allocation,
+      extraTotalForDate: calculation?.rows.find((row) => row.date === allocation.date)
+        ?.extraPayment,
     });
   }
   for (const quote of confirmed) {
@@ -202,7 +238,7 @@ export function collapsePaymentRuns(
     run = [];
   };
   for (const entry of entries) {
-    if (entry.kind === "payment") run.push(entry);
+    if (entry.kind === "payment" && !needsAttention(entry)) run.push(entry);
     else {
       flush();
       items.push(entry);
@@ -210,6 +246,11 @@ export function collapsePaymentRuns(
   }
   flush();
   return items;
+}
+
+/** A short or missing instalment stays visible rather than collapsing with routine ones. */
+function needsAttention(entry: LoanLedgerEntry): boolean {
+  return entry.kind === "payment" && (entry.status === "short" || entry.status === "missing");
 }
 
 export function groupLoanLedger(entries: LoanLedgerEntry[]): LoanLedgerYear[] {
@@ -228,8 +269,15 @@ export function groupLoanLedger(entries: LoanLedgerEntry[]): LoanLedgerYear[] {
       group.principal += entry.principal;
       group.interest += entry.interest;
     }
-    if (entry.kind === "event" && entry.event.type === "extra_repayment") {
-      if (entry.extraTotalForDate == null) group.extra += entry.event.amount;
+    const extra =
+      entry.kind === "event" && entry.event.type === "extra_repayment"
+        ? entry.event.amount
+        : entry.kind === "account_payment"
+          ? entry.allocation.extra
+          : null;
+    if (extra != null && (entry.kind === "event" || entry.kind === "account_payment")) {
+      // A date's applied extra counts once, whether recorded or paid from an account.
+      if (entry.extraTotalForDate == null) group.extra += extra;
       else if (!countedExtraDates.has(entry.date)) {
         group.extra += entry.extraTotalForDate;
         countedExtraDates.add(entry.date);

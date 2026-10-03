@@ -949,6 +949,26 @@
     "paid_from_hint": "还款扣款的账户。该账户的取款可关联为此贷款的还款。",
     "no_account": "不跟踪",
     "escrow": "每期税费和保险",
-    "escrow_hint": "每次还款中包含的房产税和保险，不计入本金或利息。"
+    "escrow_hint": "每次还款中包含的房产税和保险，不计入本金或利息。",
+    "account": "账户",
+    "status_paid": "已付",
+    "status_due": "待付",
+    "status_missing": "未找到",
+    "short_by": "少付 {{amount}}",
+    "paid_on": "{{date}} 从{{account}}支付",
+    "extra_from": "额外还款 · {{account}}",
+    "escrow_included": "含税费和保险 {{amount}}",
+    "sheet_title": "还款",
+    "instalment_due": "{{date}} 到期的分期",
+    "extra_description": "从账户支付的额外本金。",
+    "linked": "已关联的取款",
+    "candidates": "该日期附近的取款",
+    "link": "关联",
+    "unlink": "取消关联",
+    "needs_account": "请在编辑贷款详情中选择「付款账户」，以关联其取款。",
+    "no_candidates_one": "该日期前后 {{count}} 天内，{{account}} 中没有未关联的取款。",
+    "no_candidates_other": "该日期前后 {{count}} 天内，{{account}} 中没有未关联的取款。",
+    "not_eligible": "只有贷款币种现金账户中的已入账取款才能支付此贷款。",
+    "account_invalid": "请选择与贷款币种相同的现金账户。"
   }
 }

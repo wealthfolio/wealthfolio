@@ -949,6 +949,26 @@
     "paid_from_hint": "상환금이 빠져나가는 계좌입니다. 이 계좌의 출금을 이 대출의 상환으로 연결할 수 있습니다.",
     "no_account": "추적 안 함",
     "escrow": "회당 세금·보험료",
-    "escrow_hint": "각 상환액에 포함된 재산세와 보험료입니다. 원금이나 이자로 계산하지 않습니다."
+    "escrow_hint": "각 상환액에 포함된 재산세와 보험료입니다. 원금이나 이자로 계산하지 않습니다.",
+    "account": "계좌",
+    "status_paid": "납부 완료",
+    "status_due": "납부 예정",
+    "status_missing": "찾을 수 없음",
+    "short_by": "{{amount}} 부족",
+    "paid_on": "{{date}} {{account}}에서 납부",
+    "extra_from": "추가 상환 · {{account}}",
+    "escrow_included": "세금·보험료 {{amount}} 포함",
+    "sheet_title": "상환",
+    "instalment_due": "{{date}} 납부 회차",
+    "extra_description": "계좌에서 납부한 추가 원금입니다.",
+    "linked": "연결된 출금",
+    "candidates": "이 날짜 근처의 출금",
+    "link": "연결",
+    "unlink": "연결 해제",
+    "needs_account": "출금을 연결하려면 대출 정보 편집에서 '출금 계좌'를 선택하세요.",
+    "no_candidates_one": "이 날짜 전후 {{count}}일 이내에 {{account}}의 연결되지 않은 출금이 없습니다.",
+    "no_candidates_other": "이 날짜 전후 {{count}}일 이내에 {{account}}의 연결되지 않은 출금이 없습니다.",
+    "not_eligible": "대출과 같은 통화의 현금 계좌에서 처리된 출금만 이 대출을 상환할 수 있습니다.",
+    "account_invalid": "대출과 같은 통화의 현금 계좌를 선택하세요."
   }
 }

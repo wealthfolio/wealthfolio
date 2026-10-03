@@ -9,6 +9,8 @@ const LOAN_ERROR_KEYS: Record<string, string> = {
   LOAN_EVENT_MISSING: "asset:loanEvents.no_longer_exists",
   LOAN_PAYMENT_REQUIRED: "asset:loanActions.payment_required_for_frequency",
   LOAN_CLOSURE_DATE_INVALID: "asset:loanActions.validation.closure_date_invalid",
+  LOAN_PAYMENT_ACCOUNT_INVALID: "asset:loanPayments.account_invalid",
+  LOAN_PAYMENT_NOT_ELIGIBLE: "asset:loanPayments.not_eligible",
 };
 
 /** The desktop runtime rejects with the message itself; the web runtime with an Error. */

@@ -964,6 +964,27 @@
     "paid_from_hint": "Le compte d'où partent vos paiements. Ses retraits peuvent être liés à ce prêt comme paiements.",
     "no_account": "Non suivi",
     "escrow": "Taxes et assurance par paiement",
-    "escrow_hint": "Taxes foncières et assurance incluses dans chaque paiement. Elles ne comptent jamais comme capital ni intérêts."
+    "escrow_hint": "Taxes foncières et assurance incluses dans chaque paiement. Elles ne comptent jamais comme capital ni intérêts.",
+    "account": "Compte",
+    "status_paid": "Payé",
+    "status_due": "À payer",
+    "status_missing": "Introuvable",
+    "short_by": "Manque {{amount}}",
+    "paid_on": "Payé le {{date}} depuis {{account}}",
+    "extra_from": "Remboursement anticipé · {{account}}",
+    "escrow_included": "Dont {{amount}} de taxes et d'assurance",
+    "sheet_title": "Paiements",
+    "instalment_due": "Échéance du {{date}}",
+    "extra_description": "Capital supplémentaire payé depuis un compte.",
+    "linked": "Retraits liés",
+    "candidates": "Retraits proches de cette date",
+    "link": "Lier",
+    "unlink": "Délier",
+    "needs_account": "Choisissez un compte « Payé depuis » dans Modifier les détails du prêt pour lier ses retraits.",
+    "no_candidates_one": "Aucun retrait non lié dans {{account}} à {{count}} jour de cette date.",
+    "no_candidates_other": "Aucun retrait non lié dans {{account}} à {{count}} jours de cette date.",
+    "no_candidates_many": "Aucun retrait non lié dans {{account}} à {{count}} jours de cette date.",
+    "not_eligible": "Seul un retrait comptabilisé d'un compte courant dans la devise du prêt peut payer ce prêt.",
+    "account_invalid": "Choisissez un compte courant dans la devise du prêt."
   }
 }

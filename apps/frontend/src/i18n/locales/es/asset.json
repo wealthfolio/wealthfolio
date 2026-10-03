@@ -964,6 +964,27 @@
     "paid_from_hint": "La cuenta de la que salen tus pagos. Sus retiros pueden vincularse a este préstamo como pagos.",
     "no_account": "Sin seguimiento",
     "escrow": "Impuestos y seguro por pago",
-    "escrow_hint": "Impuestos sobre la propiedad y seguro incluidos en cada pago. Nunca cuentan como capital ni intereses."
+    "escrow_hint": "Impuestos sobre la propiedad y seguro incluidos en cada pago. Nunca cuentan como capital ni intereses.",
+    "account": "Cuenta",
+    "status_paid": "Pagado",
+    "status_due": "Pendiente",
+    "status_missing": "No encontrado",
+    "short_by": "Faltan {{amount}}",
+    "paid_on": "Pagado el {{date}} desde {{account}}",
+    "extra_from": "Amortización extra · {{account}}",
+    "escrow_included": "Incluye {{amount}} de impuestos y seguro",
+    "sheet_title": "Pagos",
+    "instalment_due": "Cuota con vencimiento el {{date}}",
+    "extra_description": "Capital extra pagado desde una cuenta.",
+    "linked": "Retiros vinculados",
+    "candidates": "Retiros cerca de esta fecha",
+    "link": "Vincular",
+    "unlink": "Desvincular",
+    "needs_account": "Elige una cuenta en \"Pagado desde\" en Editar detalles del préstamo para vincular sus retiros.",
+    "no_candidates_one": "No hay retiros sin vincular en {{account}} a {{count}} día de esta fecha.",
+    "no_candidates_other": "No hay retiros sin vincular en {{account}} a {{count}} días de esta fecha.",
+    "no_candidates_many": "No hay retiros sin vincular en {{account}} a {{count}} días de esta fecha.",
+    "not_eligible": "Solo un retiro contabilizado de una cuenta de efectivo en la moneda del préstamo puede pagar este préstamo.",
+    "account_invalid": "Elige una cuenta de efectivo en la moneda del préstamo."
   }
 }

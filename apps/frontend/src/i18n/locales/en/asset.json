@@ -949,6 +949,26 @@
     "paid_from_hint": "The cash account your payments leave from. Its withdrawals can be linked as payments on this loan.",
     "no_account": "Not tracked",
     "escrow": "Escrow per payment",
-    "escrow_hint": "Property taxes and insurance included in each payment. They never count as principal or interest."
+    "escrow_hint": "Property taxes and insurance included in each payment. They never count as principal or interest.",
+    "account": "Account",
+    "status_paid": "Paid",
+    "status_due": "Due",
+    "status_missing": "Not found",
+    "short_by": "Short by {{amount}}",
+    "paid_on": "Paid {{date}} from {{account}}",
+    "extra_from": "Extra repayment · {{account}}",
+    "escrow_included": "Includes {{amount}} of taxes and insurance",
+    "sheet_title": "Payments",
+    "instalment_due": "Instalment due {{date}}",
+    "extra_description": "Extra principal paid from an account.",
+    "linked": "Linked withdrawals",
+    "candidates": "Withdrawals near this date",
+    "link": "Link",
+    "unlink": "Unlink",
+    "needs_account": "Choose a \"Paid from\" account in Edit loan details to link its withdrawals.",
+    "no_candidates_one": "No unlinked withdrawals in {{account}} within {{count}} day of this date.",
+    "no_candidates_other": "No unlinked withdrawals in {{account}} within {{count}} days of this date.",
+    "not_eligible": "Only a posted withdrawal from a cash account in the loan's currency can pay this loan.",
+    "account_invalid": "Choose a cash account in the loan's currency."
   }
 }

@@ -964,6 +964,27 @@
     "paid_from_hint": "Il conto da cui partono i pagamenti. I suoi prelievi possono essere collegati a questo prestito come pagamenti.",
     "no_account": "Non monitorato",
     "escrow": "Tasse e assicurazione per pagamento",
-    "escrow_hint": "Tasse sulla proprietà e assicurazione incluse in ogni pagamento. Non contano mai come capitale o interessi."
+    "escrow_hint": "Tasse sulla proprietà e assicurazione incluse in ogni pagamento. Non contano mai come capitale o interessi.",
+    "account": "Conto",
+    "status_paid": "Pagato",
+    "status_due": "In scadenza",
+    "status_missing": "Non trovato",
+    "short_by": "Mancano {{amount}}",
+    "paid_on": "Pagato il {{date}} da {{account}}",
+    "extra_from": "Rimborso extra · {{account}}",
+    "escrow_included": "Include {{amount}} di tasse e assicurazione",
+    "sheet_title": "Pagamenti",
+    "instalment_due": "Rata in scadenza il {{date}}",
+    "extra_description": "Capitale extra pagato da un conto.",
+    "linked": "Prelievi collegati",
+    "candidates": "Prelievi vicini a questa data",
+    "link": "Collega",
+    "unlink": "Scollega",
+    "needs_account": "Scegli un conto in \"Pagato da\" in Modifica dettagli del prestito per collegarne i prelievi.",
+    "no_candidates_one": "Nessun prelievo non collegato in {{account}} entro {{count}} giorno da questa data.",
+    "no_candidates_other": "Nessun prelievo non collegato in {{account}} entro {{count}} giorni da questa data.",
+    "no_candidates_many": "Nessun prelievo non collegato in {{account}} entro {{count}} giorni da questa data.",
+    "not_eligible": "Solo un prelievo contabilizzato da un conto nella valuta del prestito può pagare questo prestito.",
+    "account_invalid": "Scegli un conto nella valuta del prestito."
   }
 }

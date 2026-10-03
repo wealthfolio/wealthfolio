@@ -949,6 +949,26 @@
     "paid_from_hint": "返済が引き落とされる口座です。この口座の出金を、このローンの返済として紐付けできます。",
     "no_account": "追跡しない",
     "escrow": "1回あたりの税金・保険料",
-    "escrow_hint": "各返済に含まれる固定資産税と保険料です。元金や利息には数えません。"
+    "escrow_hint": "各返済に含まれる固定資産税と保険料です。元金や利息には数えません。",
+    "account": "口座",
+    "status_paid": "支払済み",
+    "status_due": "支払期日",
+    "status_missing": "見つかりません",
+    "short_by": "{{amount}}不足",
+    "paid_on": "{{date}}に{{account}}から支払",
+    "extra_from": "繰上返済 · {{account}}",
+    "escrow_included": "税金・保険料{{amount}}を含む",
+    "sheet_title": "返済",
+    "instalment_due": "{{date}}期日の返済",
+    "extra_description": "口座から支払った追加の元金です。",
+    "linked": "紐付け済みの出金",
+    "candidates": "この日付付近の出金",
+    "link": "紐付け",
+    "unlink": "紐付け解除",
+    "needs_account": "出金を紐付けるには、ローン詳細の編集で「支払元」口座を選択してください。",
+    "no_candidates_one": "この日付の前後{{count}}日以内に、{{account}}の未紐付けの出金はありません。",
+    "no_candidates_other": "この日付の前後{{count}}日以内に、{{account}}の未紐付けの出金はありません。",
+    "not_eligible": "このローンを返済できるのは、ローンと同じ通貨の現金口座からの確定済み出金だけです。",
+    "account_invalid": "ローンと同じ通貨の現金口座を選択してください。"
   }
 }

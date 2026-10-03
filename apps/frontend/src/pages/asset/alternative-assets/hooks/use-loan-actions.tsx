@@ -4,7 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { parseISO } from "date-fns";
 import { toast } from "@wealthfolio/ui/components/ui/use-toast";
 import { applyLoanAction } from "@/adapters";
-import type { LoanAction } from "@/adapters/shared/alternative-assets";
+import type { LoanAction, PaymentAllocation } from "@/adapters/shared/alternative-assets";
 import type { AlternativeAssetHolding, Quote } from "@/lib/types";
 import { formatDateISO } from "@/lib/utils";
 import { useQuoteMutations } from "../../hooks/use-quote-mutations";
@@ -28,9 +28,12 @@ import { RenewLoanDialog, type LoanRenewalInput } from "../components/renew-loan
 import { isStaleLoanError, loanErrorText } from "../components/loan-error-text";
 
 import { LoanEventSheet, type LoanSheetEntry } from "../components/loan-event-sheet";
+import { LoanPaymentsSheet } from "../components/loan-payments-sheet";
 
 export interface LoanActionCallbacks {
   editEvent: (index: number) => void;
+  /** Link or unlink the withdrawals paying an instalment, or extra principal when null. */
+  editPayments: (dueDate: string | null, allocations: PaymentAllocation[]) => void;
   editBalance: (quote: Quote) => void;
   confirmBalance: () => void;
   extraPayment: () => void;
@@ -103,6 +106,12 @@ export function useLoanActions(
     });
     setEditingBalance(null);
   };
+  const [editingPayments, setEditingPayments] = useState<{
+    dueDate: string | null;
+    allocations: PaymentAllocation[];
+  } | null>(null);
+  const paymentAccountId =
+    typeof metadata.payment_account_id === "string" ? metadata.payment_account_id : undefined;
   const [closeLoanOpen, setCloseLoanOpen] = useState(false);
   const [recalculateScheduleOpen, setRecalculateScheduleOpen] = useState(false);
   const [renewLoanOpen, setRenewLoanOpen] = useState(false);
@@ -176,6 +185,7 @@ export function useLoanActions(
       if (event) setEditingEvent({ index, event });
     },
     editBalance: setEditingBalance,
+    editPayments: (dueDate, allocations) => setEditingPayments({ dueDate, allocations }),
     confirmBalance: () => setBalanceCorrectionOpen(true),
     extraPayment: () => setExtraRepaymentOpen(true),
     renew: () => setRenewLoanOpen(true),
@@ -197,6 +207,16 @@ export function useLoanActions(
               originationDate={loanOriginationDate}
               onClose={() => setEditingEvent(null)}
               onSave={handleEditEvent}
+            />
+          )}
+          {editingPayments && (
+            <LoanPaymentsSheet
+              loanId={assetId}
+              currency={holding.currency}
+              paymentAccountId={paymentAccountId}
+              dueDate={editingPayments.dueDate}
+              allocations={editingPayments.allocations}
+              onClose={() => setEditingPayments(null)}
             />
           )}
           {editingBalance && (

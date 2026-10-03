@@ -6,7 +6,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
 } from "@wealthfolio/ui/components/ui/dropdown-menu";
-import { AnimatedToggleGroup, Button, Checkbox, Icons } from "@wealthfolio/ui";
+import { AnimatedToggleGroup, Badge, Button, Checkbox, Icons } from "@wealthfolio/ui";
 import {
   Card,
   CardContent,
@@ -27,6 +27,8 @@ import {
   type LoanLedgerView,
 } from "../lib/loan-ledger";
 import type { LoanActionCallbacks } from "../hooks/use-loan-actions";
+import { useAccounts } from "@/hooks/use-accounts";
+import type { InstalmentStatus } from "@/adapters/shared/alternative-assets";
 import { useLoanFormat } from "../hooks/use-loan-format";
 import { LoanTermsStrip } from "./loan-terms-strip";
 import { useLoanToday } from "../hooks/use-loan-calculation";
@@ -74,6 +76,11 @@ function LoanLedger({ holding, calculation, quotes, actions, onEditDetails }: Lo
   const { t, money, moneyText, rate, date, shortDate: day } = useLoanFormat(holding.currency);
   const today = useLoanToday();
   const metadata = useMemo(() => holding.metadata ?? {}, [holding.metadata]);
+  const { accounts } = useAccounts({ filterActive: false });
+  const accountName = (id: string) =>
+    accounts.find((account) => account.id === id)?.name ?? t("asset:loanPayments.account");
+  // Withdrawals can be linked to past instalments once the loan has a "Paid from" account.
+  const paidFromAccount = typeof metadata.payment_account_id === "string";
   const [searchParams, setSearchParams] = useSearchParams();
   const view: LoanLedgerView =
     calculation && searchParams.get("schedule") === "upcoming" ? "upcoming" : "past";
@@ -101,7 +108,13 @@ function LoanLedger({ holding, calculation, quotes, actions, onEditDetails }: Lo
   );
   const describe = (
     entry: LoanLedgerEntry,
-  ): { icon: ReactNode; label: string; detail?: ReactNode; amount?: ReactNode } => {
+  ): {
+    icon: ReactNode;
+    label: string;
+    badge?: ReactNode;
+    detail?: ReactNode;
+    amount?: ReactNode;
+  } => {
     const dot = <span className="bg-success size-2 rounded-full" />;
     switch (entry.kind) {
       case "start":
@@ -126,17 +139,51 @@ function LoanLedger({ holding, calculation, quotes, actions, onEditDetails }: Lo
             </>
           ),
         };
-      case "payment":
+      case "payment": {
+        const paidBy = entry.paidBy?.[0];
+        const applied = (entry.paidBy ?? []).reduce((sum, a) => sum + a.applied, 0);
         return {
           icon: null,
-          label: `${t("asset:valueHistory.payment")} · ${t("asset:loanOverview.projected")}`,
-          detail: (
+          label: entry.status
+            ? t("asset:valueHistory.payment")
+            : `${t("asset:valueHistory.payment")} · ${t("asset:loanOverview.projected")}`,
+          badge: entry.status && (
+            <InstalmentBadge
+              status={entry.status}
+              label={
+                entry.status === "short"
+                  ? t("asset:loanPayments.short_by", { amount: moneyText(entry.payment - applied) })
+                  : t(`asset:loanPayments.status_${entry.status}`)
+              }
+            />
+          ),
+          detail: paidBy ? (
+            t("asset:loanPayments.paid_on", {
+              date: day(paidBy.date),
+              account: accountName(paidBy.accountId),
+            })
+          ) : (
             <>
               {t("asset:valueHistory.capital")} {money(entry.principal)} ·{" "}
               {t("asset:valueHistory.interest")} {money(entry.interest)}
             </>
           ),
           amount: money(entry.payment),
+        };
+      }
+      case "account_payment":
+        return {
+          icon: dot,
+          label: t("asset:loanPayments.extra_from", {
+            account: accountName(entry.allocation.accountId),
+          }),
+          detail:
+            entry.allocation.escrow > 0
+              ? t("asset:loanPayments.escrow_included", {
+                  amount: moneyText(entry.allocation.escrow),
+                })
+              : undefined,
+          amount: money(entry.allocation.extra),
         };
       case "maturity":
         return {
@@ -231,7 +278,11 @@ function LoanLedger({ holding, calculation, quotes, actions, onEditDetails }: Lo
         ? () => actions.editBalance(entry.quote)
         : entry.kind === "start"
           ? onEditDetails
-          : undefined;
+          : entry.kind === "account_payment"
+            ? () => actions.editPayments(null, [entry.allocation])
+            : entry.kind === "payment" && (entry.paidBy || (paidFromAccount && entry.date <= today))
+              ? () => actions.editPayments(entry.date, entry.paidBy ?? [])
+              : undefined;
 
   const views: LoanLedgerView[] = calculation ? ["past", "upcoming"] : ["past"];
 
@@ -377,11 +428,17 @@ function LoanLedger({ holding, calculation, quotes, actions, onEditDetails }: Lo
                         </span>
                       </button>
                     );
-                  const { icon, label, detail, amount } = describe(item);
+                  const { icon, label, badge, detail, amount } = describe(item);
                   const onEdit = edit(item);
+                  const identity =
+                    "index" in item
+                      ? item.index
+                      : "allocation" in item
+                        ? item.allocation.activityId
+                        : "";
                   return (
                     <div
-                      key={`${item.kind}-${item.date}-${"index" in item ? item.index : ""}`}
+                      key={`${item.kind}-${item.date}-${identity}`}
                       data-testid="loan-ledger-row"
                       data-kind={item.kind}
                       className={cn(
@@ -404,6 +461,7 @@ function LoanLedger({ holding, calculation, quotes, actions, onEditDetails }: Lo
                           >
                             {label}
                           </span>
+                          {badge}
                         </span>
                         {detail && (
                           <span className="text-muted-foreground block truncate pl-6 text-xs">
@@ -435,5 +493,28 @@ function LoanLedger({ holding, calculation, quotes, actions, onEditDetails }: Lo
         })}
       </CardContent>
     </Card>
+  );
+}
+
+const INSTALMENT_TONES: Record<InstalmentStatus, string> = {
+  paid: "bg-success/10 text-success",
+  due: "bg-muted text-muted-foreground",
+  short: "bg-warning/10 text-warning",
+  missing: "bg-warning/10 text-warning",
+};
+
+/** An instalment's status once the loan is paid from an account. */
+function InstalmentBadge({ status, label }: { status: InstalmentStatus; label: string }) {
+  return (
+    <Badge
+      variant="secondary"
+      data-status={status}
+      className={cn(
+        "shrink-0 rounded-md px-1.5 py-0 text-xs font-medium",
+        INSTALMENT_TONES[status],
+      )}
+    >
+      {label}
+    </Badge>
   );
 }

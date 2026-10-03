@@ -128,6 +128,7 @@ impl LoanPayment {
 #[serde(rename_all = "camelCase")]
 pub struct PaymentAllocation {
     pub activity_id: String,
+    pub account_id: String,
     pub date: NaiveDate,
     /// The instalment it settled, if any.
     pub instalment: Option<NaiveDate>,
@@ -254,6 +255,7 @@ pub(super) fn allocate(schedule: &LoanCalculation, payments: &[LoanPayment]) -> 
             }
             PaymentAllocation {
                 activity_id: payment.activity_id.clone(),
+                account_id: payment.account_id.clone(),
                 date: payment.date,
                 instalment: target.map(|i| instalments[i].date),
                 escrow,
