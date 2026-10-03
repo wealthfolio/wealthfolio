@@ -151,6 +151,10 @@ pub struct ValuationInfo {
     pub category: AssetCategory,
     /// True for balance snapshots that should not be treated like stale market data.
     pub is_cash_like: bool,
+    /// Ownership percentage (0-100) if this valuation came from a partially-owned
+    /// alternative asset. None for account-derived valuations (cash, investments,
+    /// credit cards) and for fully-owned alternative assets.
+    pub ownership_pct: Option<Decimal>,
 }
 
 /// Asset category for net worth breakdown.

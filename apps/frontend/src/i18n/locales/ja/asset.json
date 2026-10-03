@@ -686,7 +686,9 @@
       "precious_metal": "貴金属",
       "liability": "負債",
       "other": "その他"
-    }
+    },
+    "ownership_pct": "所有割合",
+    "ownership_pct_description": "この資産に対するあなたの持分です。純資産の合計にのみ影響し、表示される値は常に100%になります。"
   },
   "updateValuation": {
     "title": "評価額を更新: {{name}}",

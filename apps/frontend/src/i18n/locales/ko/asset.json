@@ -686,7 +686,9 @@
       "precious_metal": "귀금속",
       "liability": "부채",
       "other": "기타"
-    }
+    },
+    "ownership_pct": "소유 비율",
+    "ownership_pct_description": "이 자산에 대한 당신의 지분입니다. 순자산 합계에만 영향을 주며, 표시되는 값은 항상 100%입니다."
   },
   "updateValuation": {
     "title": "가치 업데이트: {{name}}",

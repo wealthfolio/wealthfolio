@@ -63,6 +63,14 @@ const baseSchema = z.object({
     .optional()
     .nullable(),
   purchaseDate: z.date().optional().nullable(),
+  // Percentage of this asset you own (e.g. 50 for a house split with a spouse).
+  // Only affects net worth totals, not the displayed market value.
+  ownershipPct: z.coerce
+    .number()
+    .min(1, "Ownership must be greater than 0%")
+    .max(100, "Ownership cannot exceed 100%")
+    .optional()
+    .nullable(),
   notes: z.string().max(1000, "Notes must be less than 1000 characters").optional().nullable(),
 });
 
@@ -172,6 +180,7 @@ export function getDefaultDetailsFormValues(
     name,
     purchasePrice: metadata?.purchase_price ? parseFloat(metadata.purchase_price as string) : null,
     purchaseDate: metadata?.purchase_date ? parseLocalDate(metadata.purchase_date as string) : null,
+    ownershipPct: metadata?.ownership_pct ? parseFloat(metadata.ownership_pct as string) : null,
     notes: notes ?? null,
   };
 
@@ -257,6 +266,10 @@ export function formValuesToMetadata(values: AssetDetailsFormValues): Record<str
 
   if (values.purchaseDate) {
     metadata.purchase_date = formatDateToISO(values.purchaseDate);
+  }
+
+  if (values.ownershipPct != null) {
+    metadata.ownership_pct = values.ownershipPct.toString();
   }
 
   // Notes are NOT stored in metadata - they go in asset.notes field
