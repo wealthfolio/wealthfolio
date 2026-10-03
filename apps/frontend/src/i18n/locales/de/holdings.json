@@ -234,5 +234,24 @@
   "category_breakdown": "Kategorieaufschlüsselung",
   "personal_assets": "Persönliche Vermögenswerte",
   "health_filter_active": "Vom Health Center markierte Positionen werden angezeigt",
-  "closing_cash_flow": "Cashflow bei Positionsschließung"
+  "closing_cash_flow": "Cashflow bei Positionsschließung",
+  "liability_cards": {
+    "owed": "Offen",
+    "paid_down": "Getilgt",
+    "overall": "Gesamt",
+    "monthly": "Monatlich",
+    "paid_off": "Getilgt",
+    "owed_of": "offen von {{amount}}",
+    "owed_now": "offen",
+    "manual": "Manuell",
+    "manual_hint": "Saldo von Hand gepflegt",
+    "debt_free": "Schuldenfrei {{date}}",
+    "updated": "Aktualisiert {{date}}",
+    "status_paid_off": "Getilgt",
+    "status_renewal_due": "Verlängerung fällig",
+    "status_renew_soon": "Bald verlängern",
+    "status_update_balance": "Saldo aktualisieren",
+    "update_balance": "Saldo aktualisieren",
+    "schedule": "Zahlungsplan"
+  }
 }

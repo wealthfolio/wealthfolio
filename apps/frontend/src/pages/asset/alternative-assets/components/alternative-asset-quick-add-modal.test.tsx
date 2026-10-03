@@ -16,6 +16,7 @@ vi.mock("@wealthfolio/ui", () => ({
   CurrencyInput: () => null,
   DatePickerInput: () => null,
   QuantityInput: () => null,
+  useDateFormatting: () => ({ formatCalendarDate: (value: string) => value }),
   MoneyInput: ({
     value,
     onValueChange,
@@ -33,12 +34,18 @@ vi.mock("@wealthfolio/ui", () => ({
     value,
     onValueChange,
     options,
+    sheetTitle,
   }: {
     value: string;
     onValueChange: (value: string) => void;
     options: { value: string; label: string }[];
+    sheetTitle?: string;
   }) => (
-    <select aria-label="Type" value={value} onChange={(event) => onValueChange(event.target.value)}>
+    <select
+      aria-label={sheetTitle}
+      value={value}
+      onChange={(event) => onValueChange(event.target.value)}
+    >
       {options.map((option) => (
         <option key={option.value} value={option.value}>
           {option.label}
@@ -62,14 +69,22 @@ it.each([undefined, "auto_loan"])(
         defaultLiabilityType={defaultLiabilityType}
       />,
     );
-    expect(await screen.findByRole("combobox")).toHaveValue(defaultLiabilityType ?? "mortgage");
+    expect(await screen.findByRole("combobox", { name: "Select Liability Type" })).toHaveValue(
+      defaultLiabilityType ?? "mortgage",
+    );
+    // Track the balance manually so the loan terms stay optional.
+    fireEvent.click(screen.getByRole("switch", { name: "Estimate balance from payments" }));
     fireEvent.change(screen.getAllByLabelText("Amount")[0], { target: { value: "500000" } });
     fireEvent.click(screen.getByRole("button", { name: "Add Liability" }));
     await waitFor(() =>
       expect(create).toHaveBeenCalledWith(
         expect.objectContaining({
           kind: "liability",
-          metadata: { sub_type: defaultLiabilityType ?? "mortgage" },
+          metadata: {
+            sub_type: defaultLiabilityType ?? "mortgage",
+            tracking_mode: "manual",
+            original_amount: "500000",
+          },
         }),
       ),
     );

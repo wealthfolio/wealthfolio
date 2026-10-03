@@ -235,5 +235,24 @@
   "category_breakdown": "Ripartizione per categoria",
   "personal_assets": "Asset personali",
   "health_filter_active": "Vengono mostrate le posizioni segnalate dal Centro salute",
-  "closing_cash_flow": "Flusso di cassa di chiusura"
+  "closing_cash_flow": "Flusso di cassa di chiusura",
+  "liability_cards": {
+    "owed": "Dovuto",
+    "paid_down": "Rimborsato",
+    "overall": "Complessivo",
+    "monthly": "Mensile",
+    "paid_off": "Rimborsato",
+    "owed_of": "dovuto su {{amount}}",
+    "owed_now": "dovuto",
+    "manual": "Manuale",
+    "manual_hint": "saldo aggiornato a mano",
+    "debt_free": "Senza debiti a {{date}}",
+    "updated": "Aggiornato {{date}}",
+    "status_paid_off": "Estinto",
+    "status_renewal_due": "Rinnovo scaduto",
+    "status_renew_soon": "Rinnovo a breve",
+    "status_update_balance": "Aggiorna saldo",
+    "update_balance": "Aggiorna saldo",
+    "schedule": "Piano pagamenti"
+  }
 }

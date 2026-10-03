@@ -114,7 +114,7 @@ function getLiabilityTypeLabel(
   t: TFunction,
 ): string {
   if (!metadata) return t("asset:linkedLiabilities.liability");
-  const liabilityType = metadata.liability_type as string | undefined;
+  const liabilityType = (metadata.sub_type ?? metadata.liability_type) as string | undefined;
   if (!liabilityType) return t("asset:linkedLiabilities.liability");
   const key = LIABILITY_TYPE_LABEL_KEYS[liabilityType];
   return key ? t(key) : liabilityType;
@@ -196,78 +196,6 @@ export const LinkedLiabilitiesSection: React.FC<LinkedLiabilitiesSectionProps> =
           )}
         </div>
       )}
-    </div>
-  );
-};
-
-/**
- * Section variant for showing a linked asset (for liabilities).
- * Shows the property/vehicle this liability is linked to.
- */
-interface LinkedAssetSectionProps {
-  assetId: string;
-  assetName: string;
-  assetKind?: string;
-  assetValue?: string;
-  currency?: string;
-}
-
-export const LinkedAssetSection: React.FC<LinkedAssetSectionProps> = ({
-  assetId,
-  assetName,
-  assetKind,
-  assetValue,
-  currency,
-}) => {
-  const { t } = useTranslation();
-  const navigate = useNavigate();
-  const { isBalanceHidden } = useBalancePrivacy();
-
-  const handleAssetClick = () => {
-    navigate(`/holdings/${encodeURIComponent(assetId)}`);
-  };
-
-  // Get icon based on asset kind
-  const AssetIcon =
-    assetKind?.toLowerCase() === "vehicle" ? Icons.VehicleDuotone : Icons.RealEstateDuotone;
-  const kindLabel =
-    assetKind?.toLowerCase() === "vehicle"
-      ? t("asset:linkedLiabilities.vehicle")
-      : t("asset:linkedLiabilities.property");
-
-  return (
-    <div>
-      <div className="mb-3">
-        <span className="text-sm font-medium">{t("asset:linkedLiabilities.linked_asset")}</span>
-      </div>
-
-      <button
-        type="button"
-        onClick={handleAssetClick}
-        className="bg-muted/50 hover:bg-muted flex w-full items-center justify-between rounded-lg p-2 transition-colors"
-      >
-        <div className="flex items-center gap-3">
-          <div className="bg-muted flex h-8 w-8 items-center justify-center rounded-full">
-            <AssetIcon size={16} />
-          </div>
-          <div className="text-left">
-            <p className="text-sm font-medium">{assetName}</p>
-            <p className="text-muted-foreground text-xs">{kindLabel}</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          {assetValue && currency && (
-            <span className="text-success text-sm font-medium">
-              <AmountDisplay
-                value={parseFloat(assetValue)}
-                currency={currency}
-                isHidden={isBalanceHidden}
-              />
-            </span>
-          )}
-          <Icons.ChevronRight className="text-muted-foreground h-4 w-4" />
-        </div>
-      </button>
     </div>
   );
 };

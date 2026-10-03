@@ -234,5 +234,24 @@
   "category_breakdown": "Category Breakdown",
   "personal_assets": "Personal Assets",
   "health_filter_active": "Showing holdings flagged by Health Center",
-  "closing_cash_flow": "Closing Cash Flow"
+  "closing_cash_flow": "Closing Cash Flow",
+  "liability_cards": {
+    "owed": "Owed",
+    "paid_down": "Paid down",
+    "overall": "Overall",
+    "monthly": "Monthly",
+    "paid_off": "Paid off",
+    "owed_of": "owed of {{amount}}",
+    "owed_now": "owed",
+    "manual": "Manual",
+    "manual_hint": "balance updated by hand",
+    "debt_free": "Debt-free {{date}}",
+    "updated": "Updated {{date}}",
+    "status_paid_off": "Paid off",
+    "status_renewal_due": "Renewal due",
+    "status_renew_soon": "Renew soon",
+    "status_update_balance": "Update balance",
+    "update_balance": "Update balance",
+    "schedule": "Schedule"
+  }
 }

@@ -235,5 +235,24 @@
   "category_breakdown": "Desglose por categoría",
   "personal_assets": "Activos personales",
   "health_filter_active": "Se muestran las posiciones marcadas por el Centro de salud",
-  "closing_cash_flow": "Flujo de caja al cierre"
+  "closing_cash_flow": "Flujo de caja al cierre",
+  "liability_cards": {
+    "owed": "Adeudado",
+    "paid_down": "Amortizado",
+    "overall": "Total",
+    "monthly": "Mensual",
+    "paid_off": "Pagado",
+    "owed_of": "adeudado de {{amount}}",
+    "owed_now": "adeudado",
+    "manual": "Manual",
+    "manual_hint": "saldo actualizado a mano",
+    "debt_free": "Sin deuda en {{date}}",
+    "updated": "Actualizado {{date}}",
+    "status_paid_off": "Pagado",
+    "status_renewal_due": "Renovación pendiente",
+    "status_renew_soon": "Renovar pronto",
+    "status_update_balance": "Actualizar saldo",
+    "update_balance": "Actualizar saldo",
+    "schedule": "Calendario"
+  }
 }

@@ -1082,6 +1082,25 @@ async fn test_empty_accounts_returns_zero_net_worth() {
 }
 
 #[tokio::test]
+async fn test_alternative_assets_count_without_accounts() {
+    // A household that only tracks a home and its mortgage has no accounts.
+    let property = create_test_asset("PROP-home", AssetKind::Property, "USD");
+    let mortgage = create_test_asset("LIAB-mortgage", AssetKind::Liability, "USD");
+    let date = NaiveDate::from_ymd_opt(2024, 1, 15).unwrap();
+    let quotes = vec![
+        create_test_quote("PROP-home", dec!(450000), date, "USD"),
+        create_test_quote("LIAB-mortgage", dec!(300000), date, "USD"),
+    ];
+    let service = create_net_worth_service(vec![], vec![property, mortgage], vec![], quotes);
+
+    let result = service.get_net_worth(date).await.unwrap();
+
+    assert_eq!(get_category_value(&result, "properties"), dec!(450000));
+    assert_eq!(result.liabilities.total, dec!(300000));
+    assert_eq!(result.net_worth, dec!(150000));
+}
+
+#[tokio::test]
 async fn test_single_investment_account() {
     let account = create_test_account("acc1", "SECURITIES", "USD");
     let asset = create_test_asset("AAPL", AssetKind::Investment, "USD");
@@ -2648,4 +2667,79 @@ async fn test_liability_with_future_zero_quote_is_included_at_past_balance() {
     );
     // Net worth = assets (0) - liabilities (180_000) = -180_000
     assert_eq!(result.net_worth, dec!(-180000));
+}
+
+#[tokio::test]
+async fn automated_loan_net_worth_and_history_use_the_same_as_of_balance() {
+    let start = NaiveDate::from_ymd_opt(2026, 1, 1).unwrap();
+    let end = NaiveDate::from_ymd_opt(2026, 4, 15).unwrap();
+    let mut asset = create_test_asset("LIAB-automatic", AssetKind::Liability, "USD");
+    asset.metadata = Some(serde_json::json!({
+        "loan_projection": {"version": 1,"annualRate":0,"paymentAmount":100,"frequency":"monthly","firstPaymentDate":"2026-02-01","amortizationEndDate":"2027-01-01"},
+        "loan_events": [{"type":"extra_repayment","effectiveDate":"2026-04-10","amount":200}]
+    }));
+    let service = create_net_worth_service(
+        vec![],
+        vec![asset],
+        vec![],
+        vec![create_test_quote(
+            "LIAB-automatic",
+            dec!(1200),
+            start,
+            "USD",
+        )],
+    );
+    let current = service.get_net_worth(end).await.unwrap();
+    let history = service.get_net_worth_history(start, end).unwrap();
+    assert_eq!(current.liabilities.total, dec!(700));
+    assert_eq!(history.last().unwrap().total_liabilities, dec!(700));
+    assert_eq!(
+        history
+            .iter()
+            .find(|p| p.date == NaiveDate::from_ymd_opt(2026, 3, 1).unwrap())
+            .unwrap()
+            .total_liabilities,
+        dec!(1000)
+    );
+}
+
+#[tokio::test]
+async fn loan_history_before_first_confirmation_matches_point_in_time() {
+    let start = NaiveDate::from_ymd_opt(2026, 1, 1).unwrap();
+    let as_of = NaiveDate::from_ymd_opt(2026, 2, 15).unwrap();
+    let confirmation = NaiveDate::from_ymd_opt(2026, 4, 1).unwrap();
+    let mut asset = create_test_asset("LIAB-history", AssetKind::Liability, "USD");
+    asset.metadata = Some(serde_json::json!({
+        "original_amount":"1200", "origination_date":"2026-01-01",
+        "loan_projection":{"version": 1,"annualRate":0,"paymentAmount":100,"frequency":"monthly","firstPaymentDate":"2026-02-01","amortizationEndDate":"2027-01-01"}
+    }));
+    let service = create_net_worth_service(
+        vec![],
+        vec![asset],
+        vec![],
+        vec![create_test_quote(
+            "LIAB-history",
+            dec!(950),
+            confirmation,
+            "USD",
+        )],
+    );
+    assert_eq!(
+        service
+            .get_net_worth(as_of)
+            .await
+            .unwrap()
+            .liabilities
+            .total,
+        dec!(1100)
+    );
+    assert_eq!(
+        service
+            .get_net_worth_history(start, as_of)
+            .unwrap()
+            .last()
+            .unwrap()
+            .total_liabilities,
+        dec!(1100)
+    );
 }

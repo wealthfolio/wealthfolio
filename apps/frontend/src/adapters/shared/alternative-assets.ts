@@ -117,3 +117,45 @@ export const getNetWorthHistory = async (
     endDate,
   });
 };
+
+export interface LoanCalculationRow {
+  date: string;
+  openingBalance: number;
+  scheduledPayment: boolean;
+  balance: number;
+  payment: number;
+  extraPayment: number;
+  principal: number;
+  interest: number;
+  confirmed: boolean;
+  balanceAdjustment: number;
+}
+export interface LoanCalculation {
+  currentBalance: number;
+  annualRate: number;
+  paymentAmount: number;
+  frequency: "monthly" | "biweekly" | "accelerated_biweekly";
+  interestMethod: "nominal_periodic" | "monthly" | "semiannual";
+  calculationStartDate: string;
+  rows: LoanCalculationRow[];
+  remainingPayments: number;
+  interestToDate: number;
+  projectedInterest: number;
+  residualBalance: number;
+  residualInterest: number;
+  payoffDate: string | null;
+}
+export const calculateLoan = (request: {
+  metadata: Record<string, unknown>;
+  balances: { date: string; balance: number; notes?: string | null }[];
+  asOf: string;
+}): Promise<LoanCalculation | null> => invoke("calculate_loan", { request });
+
+export interface LoanRecalculation {
+  paymentAmount: number;
+  remainingPayments: number;
+  currentBalance: number;
+}
+export const recalculateLoan = (
+  request: Parameters<typeof calculateLoan>[0] & { annualRate: number },
+): Promise<LoanRecalculation | null> => invoke("recalculate_loan", { request });

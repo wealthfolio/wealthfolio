@@ -16,12 +16,11 @@ export const WEIGHT_UNITS = [
   { value: "kg", label: "Kilogram (kg)" },
 ] as const;
 
-// Liability types
+// Liability types. Credit cards are accounts, so new liabilities can't use that type.
 export const LIABILITY_TYPES = [
   { value: "mortgage", label: "Mortgage" },
   { value: "auto_loan", label: "Auto Loan" },
   { value: "student_loan", label: "Student Loan" },
-  { value: "credit_card", label: "Credit Card" },
   { value: "personal_loan", label: "Personal Loan" },
   { value: "heloc", label: "HELOC" },
   { value: "other", label: "Other" },
@@ -36,6 +35,32 @@ export const ASSET_KIND_OPTIONS = [
   { value: AlternativeAssetKind.LIABILITY, label: "Liability" },
   { value: AlternativeAssetKind.OTHER, label: "Other" },
 ] as const;
+
+export const liabilityQuickAddSchema = z
+  .object({
+    originalAmount: z.coerce.number().finite().positive().optional(),
+    currentBalance: z.coerce.number().finite().min(0).optional(),
+    originationDate: z.date().optional(),
+    balanceDate: z.date(),
+    loanTermMonths: z.coerce.number().finite().int().positive().max(1200).optional(),
+    interestRate: z.coerce.number().finite().min(0).max(100).optional(),
+  })
+  .superRefine((values, context) => {
+    if (!values.originalAmount && values.currentBalance === undefined) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["currentBalance"],
+        message: "asset:quickAdd.validation.invalid",
+      });
+    }
+    if (values.originationDate && values.balanceDate < values.originationDate) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["balanceDate"],
+        message: "asset:quickAdd.validation.balance_date_before_origination",
+      });
+    }
+  });
 
 // Zod schema for the quick add form
 export const alternativeAssetQuickAddSchema = z
@@ -78,15 +103,7 @@ export const alternativeAssetQuickAddSchema = z
 
     // Liability-specific fields
     liabilityType: z
-      .enum([
-        "mortgage",
-        "auto_loan",
-        "student_loan",
-        "credit_card",
-        "personal_loan",
-        "heloc",
-        "other",
-      ])
+      .enum(["mortgage", "auto_loan", "student_loan", "personal_loan", "heloc", "other"])
       .optional(),
     linkedAssetId: z.string().optional(),
   })
