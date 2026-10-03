@@ -28,7 +28,7 @@ pub fn recalculate_loan(request: &LoanRecalculationRequest) -> Option<LoanRecalc
         return None;
     }
     let date = request.loan.as_of;
-    let horizon = amortization_horizon(&terms(&request.loan.metadata)?)?;
+    let horizon = amortization_horizon(&LoanTerms::active(&request.loan.metadata)?)?;
     if date > horizon {
         return None;
     }
@@ -36,14 +36,13 @@ pub fn recalculate_loan(request: &LoanRecalculationRequest) -> Option<LoanRecalc
     // Solve from observations known at the effective date. Later confirmations
     // reconcile recorded history; they cannot prove that a proposed payment works.
     loan.balances.retain(|balance| balance.date <= date);
-    let mut events = decoded(loan.metadata.get(LOAN_EVENTS_KEY))
-        .and_then(|v| v.as_array().cloned())
-        .unwrap_or_default();
+    let mut events = event_entries(&loan.metadata);
     events.retain(|value| {
-        serde_json::from_value::<Event>(value.clone()).map_or(true, |event| event.date() <= horizon)
+        serde_json::from_value::<LoanEvent>(value.clone())
+            .map_or(true, |event| event.date() <= horizon)
     });
     if events.iter().any(|value| {
-        serde_json::from_value::<Event>(value.clone())
+        serde_json::from_value::<LoanEvent>(value.clone())
             .is_ok_and(|event| event.date() > date && event.sets_payment())
     }) {
         return None;
@@ -138,11 +137,7 @@ mod tests {
     }
     fn apply(request: &LoanRecalculationRequest, payment: f64) -> LoanCalculation {
         let mut loan = request.loan.clone();
-        let mut events = decoded(loan.metadata.get(LOAN_EVENTS_KEY))
-            .unwrap()
-            .as_array()
-            .unwrap()
-            .clone();
+        let mut events = event_entries(&loan.metadata);
         events.push(json!({"type":"rate_change","effectiveDate":loan.as_of,"annualRate":request.annual_rate}));
         events.push(
             json!({"type":"payment_change","effectiveDate":loan.as_of,"paymentAmount":payment}),
@@ -309,7 +304,7 @@ mod stabilization_tests {
             assert_eq!(result.residual_interest, 0.0);
             assert_eq!(
                 result.payoff_date,
-                amortization_horizon(&terms(&request.metadata).unwrap())
+                amortization_horizon(&LoanTerms::active(&request.metadata).unwrap())
             );
             request.metadata[LOAN_PROJECTION_KEY]["paymentAmount"] =
                 json!(solved.payment_amount - 0.01);
