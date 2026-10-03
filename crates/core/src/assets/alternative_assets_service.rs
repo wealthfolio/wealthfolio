@@ -25,6 +25,7 @@ use super::alternative_assets_model::{
 use super::alternative_assets_traits::{
     AlternativeAssetRepositoryTrait, AlternativeAssetServiceTrait,
 };
+use super::loan::{apply_loan_action, LoanAction, LoanActionResult};
 use super::{AssetKind, AssetRepositoryTrait, NewAsset, QuoteMode};
 use crate::errors::{Error, Result, ValidationError};
 use crate::events::{DomainEvent, DomainEventSink, NoOpDomainEventSink};
@@ -602,6 +603,30 @@ impl AlternativeAssetServiceTrait for AlternativeAssetService {
         })
     }
 
+    async fn apply_loan_action(
+        &self,
+        asset_id: &str,
+        action: LoanAction,
+    ) -> Result<LoanActionResult> {
+        let asset = self.asset_repository.get_by_id(asset_id)?;
+        if asset.kind != AssetKind::Liability {
+            return Err(Error::Validation(ValidationError::InvalidInput(format!(
+                "Asset {asset_id} is not a liability"
+            ))));
+        }
+        let today = self.today();
+        let update = self
+            .alternative_asset_repository
+            .update_loan(
+                asset_id,
+                Box::new(move |record| Ok(apply_loan_action(record, &action, today)?)),
+            )
+            .await?;
+        Ok(LoanActionResult {
+            balances_changed: update.changes_balances(),
+        })
+    }
+
     fn get_alternative_holdings(&self) -> Result<Vec<AlternativeHolding>> {
         debug!("Fetching alternative holdings");
 
@@ -1137,6 +1162,18 @@ mod tests {
             _metadata: Option<serde_json::Value>,
             _notes: Option<&str>,
         ) -> Result<()> {
+            unimplemented!("not used in this test")
+        }
+
+        fn load_loan(&self, _asset_id: &str) -> Result<crate::assets::loan::LoanRecord> {
+            unimplemented!("not used in this test")
+        }
+
+        async fn update_loan(
+            &self,
+            _asset_id: &str,
+            _change: crate::assets::LoanChange,
+        ) -> Result<crate::assets::loan::LoanUpdate> {
             unimplemented!("not used in this test")
         }
     }

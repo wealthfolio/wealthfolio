@@ -183,6 +183,10 @@ pub enum ValidationError {
     #[error("Invalid input: {0}")]
     InvalidInput(String),
 
+    /// A loan action refused by the loan rules; the message is a stable code.
+    #[error("{0}")]
+    Loan(#[from] crate::assets::loan::LoanError),
+
     #[error("Required field '{0}' is missing")]
     MissingField(String),
 

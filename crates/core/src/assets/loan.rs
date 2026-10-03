@@ -14,7 +14,9 @@ mod actions;
 mod interest;
 mod model;
 mod recalculation;
-pub use actions::{apply_loan_action, BalanceEdit, LoanAction, LoanError, LoanRecord, LoanUpdate};
+pub use actions::{
+    apply_loan_action, BalanceEdit, LoanAction, LoanActionResult, LoanError, LoanRecord, LoanUpdate,
+};
 pub use interest::{payment_amount, InterestMethod};
 pub use model::{
     balance_notes, balance_user_note, edited_balance_notes, event_entries, LoanBalanceKind,

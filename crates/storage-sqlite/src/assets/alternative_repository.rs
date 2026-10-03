@@ -12,13 +12,51 @@ use diesel::r2d2::{self, Pool};
 use diesel::sqlite::SqliteConnection;
 use std::sync::Arc;
 
-use wealthfolio_core::assets::AlternativeAssetRepositoryTrait;
+use wealthfolio_core::assets::loan::{LoanRecord, LoanUpdate};
+use wealthfolio_core::assets::{AlternativeAssetRepositoryTrait, LoanChange};
 use wealthfolio_core::errors::DatabaseError;
+use wealthfolio_core::quotes::Quote;
 use wealthfolio_core::{Error, Result};
 
 use crate::db::{get_connection, WriteHandle};
 use crate::errors::StorageError;
+use crate::market_data::QuoteDB;
 use crate::schema::{assets, quotes};
+
+/// A loan's metadata and its manual balance quotes, oldest first.
+fn read_loan(conn: &mut SqliteConnection, asset_id: &str) -> Result<LoanRecord> {
+    let asset = assets::table
+        .filter(assets::id.eq(asset_id))
+        .first::<crate::assets::AssetDB>(conn)
+        .optional()
+        .map_err(StorageError::from)?
+        .ok_or_else(|| {
+            Error::Database(DatabaseError::NotFound(format!(
+                "Asset not found: {asset_id}"
+            )))
+        })?;
+    let metadata = asset
+        .metadata
+        .as_deref()
+        .and_then(|m| serde_json::from_str(m).ok())
+        .unwrap_or_else(|| serde_json::json!({}));
+    let balances = quotes::table
+        .filter(quotes::asset_id.eq(asset_id))
+        .filter(quotes::source.eq("MANUAL"))
+        .order(quotes::day.asc())
+        .select(QuoteDB::as_select())
+        .load::<QuoteDB>(conn)
+        .map_err(StorageError::from)?
+        .into_iter()
+        .map(Quote::from)
+        .collect();
+    Ok(LoanRecord {
+        asset_id: asset.id,
+        currency: asset.quote_ccy,
+        metadata,
+        balances,
+    })
+}
 
 /// Repository for managing alternative asset data in the database.
 ///
@@ -205,6 +243,74 @@ impl AlternativeAssetRepositoryTrait for AlternativeAssetRepository {
                 tx.update(&updated_row)?;
 
                 Ok(())
+            })
+            .await
+    }
+
+    fn load_loan(&self, asset_id: &str) -> Result<LoanRecord> {
+        let mut conn = get_connection(&self.pool)?;
+        read_loan(&mut conn, asset_id)
+    }
+
+    async fn update_loan(&self, asset_id: &str, change: LoanChange) -> Result<LoanUpdate> {
+        let asset_id = asset_id.to_string();
+        self.writer
+            .exec_tx(move |tx| -> Result<LoanUpdate> {
+                // Decide from what is stored now, inside the same transaction as the writes.
+                let record = read_loan(tx.conn(), &asset_id)?;
+                let update = change(&record)?;
+                if let Some(metadata) = &update.metadata {
+                    diesel::update(assets::table.filter(assets::id.eq(&asset_id)))
+                        .set(assets::metadata.eq(Some(metadata.to_string())))
+                        .execute(tx.conn())
+                        .map_err(StorageError::from)?;
+                    let row = assets::table
+                        .filter(assets::id.eq(&asset_id))
+                        .first::<crate::assets::AssetDB>(tx.conn())
+                        .map_err(StorageError::from)?;
+                    tx.update(&row)?;
+                }
+                for id in &update.delete_balances {
+                    let existing = quotes::table
+                        .filter(quotes::id.eq(id))
+                        .filter(quotes::asset_id.eq(&asset_id))
+                        .select(QuoteDB::as_select())
+                        .first::<QuoteDB>(tx.conn())
+                        .optional()
+                        .map_err(StorageError::from)?;
+                    if let Some(row) = existing {
+                        diesel::delete(quotes::table.filter(quotes::id.eq(id)))
+                            .execute(tx.conn())
+                            .map_err(StorageError::from)?;
+                        tx.delete_model(&row);
+                    }
+                }
+                // Manual quotes are one per day, as when saved one at a time.
+                for quote in &update.save_balances {
+                    let mut row = QuoteDB::from(quote);
+                    let existing = quotes::table
+                        .filter(quotes::asset_id.eq(&row.asset_id))
+                        .filter(quotes::day.eq(&row.day))
+                        .filter(quotes::source.eq(&row.source))
+                        .select(QuoteDB::as_select())
+                        .first::<QuoteDB>(tx.conn())
+                        .optional()
+                        .map_err(StorageError::from)?;
+                    let is_update = existing.is_some();
+                    if let Some(existing) = existing {
+                        row.id = existing.id;
+                    }
+                    diesel::replace_into(quotes::table)
+                        .values(&row)
+                        .execute(tx.conn())
+                        .map_err(StorageError::from)?;
+                    if is_update {
+                        tx.update(&row)?;
+                    } else {
+                        tx.insert(&row)?;
+                    }
+                }
+                Ok(update)
             })
             .await
     }

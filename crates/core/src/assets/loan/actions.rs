@@ -5,7 +5,7 @@ use rust_decimal::{
     prelude::{FromPrimitive, ToPrimitive},
     Decimal,
 };
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use thiserror::Error;
 
@@ -36,6 +36,19 @@ pub enum LoanError {
     PaymentRequired,
     #[error("LOAN_CLOSURE_DATE_INVALID")]
     ClosureDateInvalid,
+}
+
+impl From<LoanError> for crate::errors::Error {
+    fn from(error: LoanError) -> Self {
+        Self::Validation(error.into())
+    }
+}
+
+/// The outcome callers act on: refreshed balances need portfolio recalculation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LoanActionResult {
+    pub balances_changed: bool,
 }
 
 /// A loan's stored inputs, read inside the write transaction.
