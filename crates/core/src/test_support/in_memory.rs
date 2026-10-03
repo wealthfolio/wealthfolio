@@ -12,9 +12,7 @@ use async_trait::async_trait;
 use chrono::{DateTime, Duration, NaiveDate, NaiveDateTime, TimeZone, Utc};
 use rust_decimal::Decimal;
 
-use crate::accounts::{
-    Account, AccountAccountingSettings, AccountRepositoryTrait, AccountUpdate, NewAccount,
-};
+use crate::accounts::{Account, AccountRepositoryTrait, AccountUpdate, NewAccount};
 use crate::activities::*;
 use crate::assets::AssetRepositoryTrait;
 use crate::assets::{Asset, InstrumentType, NewAsset, ProviderProfile, UpdateAssetProfile};
@@ -55,47 +53,32 @@ fn midnight_utc(day: NaiveDate) -> DateTime<Utc> {
 // ---------------------------------------------------------------------------
 
 pub struct InMemoryAccountRepository {
-    accounts: Vec<Account>,
-    accounting: RwLock<HashMap<String, AccountAccountingSettings>>,
+    accounts: RwLock<Vec<Account>>,
 }
 
 impl InMemoryAccountRepository {
     pub fn new(accounts: Vec<Account>) -> Self {
         Self {
-            accounts,
-            accounting: RwLock::new(HashMap::new()),
+            accounts: RwLock::new(accounts),
         }
     }
 
-    /// Overrides the default FIFO/GENERIC/ACCOUNT settings of one account.
-    pub fn set_accounting_settings(&self, settings: AccountAccountingSettings) {
-        self.accounting
+    /// Replaces one account's stored meta, where its accounting settings live.
+    pub fn set_meta(&self, account_id: &str, meta: &str) {
+        for account in self
+            .accounts
             .write()
             .unwrap()
-            .insert(settings.account_id.clone(), settings);
+            .iter_mut()
+            .filter(|account| account.id == account_id)
+        {
+            account.meta = Some(meta.to_string());
+        }
     }
 }
 
 #[async_trait]
 impl AccountRepositoryTrait for InMemoryAccountRepository {
-    fn get_accounting_settings_by_account_ids(
-        &self,
-        account_ids: &[String],
-    ) -> Result<HashMap<String, AccountAccountingSettings>> {
-        let overrides = self.accounting.read().unwrap();
-        Ok(account_ids
-            .iter()
-            .map(|id| {
-                (
-                    id.clone(),
-                    overrides.get(id).cloned().unwrap_or_else(|| {
-                        AccountAccountingSettings::default_for_account(id.clone())
-                    }),
-                )
-            })
-            .collect())
-    }
-
     async fn create(&self, _new_account: NewAccount) -> Result<Account> {
         not_needed!("AccountRepositoryTrait::create")
     }
@@ -110,6 +93,8 @@ impl AccountRepositoryTrait for InMemoryAccountRepository {
 
     fn get_by_id(&self, account_id: &str) -> Result<Account> {
         self.accounts
+            .read()
+            .unwrap()
             .iter()
             .find(|account| account.id == account_id)
             .cloned()
@@ -124,6 +109,8 @@ impl AccountRepositoryTrait for InMemoryAccountRepository {
     ) -> Result<Vec<Account>> {
         Ok(self
             .accounts
+            .read()
+            .unwrap()
             .iter()
             .filter(|account| is_active_filter.is_none_or(|flag| account.is_active == flag))
             .filter(|account| is_archived_filter.is_none_or(|flag| account.is_archived == flag))

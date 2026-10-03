@@ -8,7 +8,7 @@ use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 
 use super::*;
-use crate::accounts::{AccountAccountingSettings, AccountRepositoryTrait, CostBasisMethod};
+use crate::accounts::AccountRepositoryTrait;
 use crate::activities::{Activity, ActivityRepositoryTrait};
 use crate::assets::AssetRepositoryTrait;
 use crate::fx::{FxRepositoryTrait, FxService};
@@ -253,9 +253,10 @@ async fn a_lot_selection_change_is_validated() {
         .unwrap();
     assert!(first.failures.is_empty());
     let account = first.account_ids[0].clone();
-    let mut settings = AccountAccountingSettings::default_for_account(account.clone());
-    settings.lot_selection_strategy = Some(crate::accounts::LotSelectionStrategy::HighestCost);
-    h.account_repo.set_accounting_settings(settings);
+    h.account_repo.set_meta(
+        &account,
+        r#"{"accounting":{"lotSelectionStrategy":"HIGHEST_COST"}}"#,
+    );
     h.store.mark(MarkerScope::Account(account.clone()), GENESIS);
     let second = h
         .coordinator
@@ -1577,10 +1578,7 @@ async fn unsupported_cost_basis_settings_fail_the_account() {
     let harness = harness(facts).await;
     harness
         .account_repo
-        .set_accounting_settings(AccountAccountingSettings {
-            cost_basis_method: CostBasisMethod::Lifo,
-            ..AccountAccountingSettings::default_for_account(account.clone())
-        });
+        .set_meta(&account, r#"{"accounting":{"costBasisMethod":"LIFO"}}"#);
     let report = harness
         .coordinator
         .run_job(request(), &SilentObserver)
@@ -1596,11 +1594,10 @@ async fn unsupported_cost_basis_settings_fail_the_account() {
         .is_empty());
 }
 
-/// Engine rules R7.2: an account set to a method the engine does not compute
-/// fails alone; folded as a transfer partner it folds FIFO, so its partner's
-/// results are those of an all-FIFO run.
-#[tokio::test]
-async fn a_refused_transfer_partner_folds_fifo() {
+/// Runs EDGE-TXF-02 (acc-a transfers to acc-b) with acc-a's meta set to
+/// `meta` and checks the job refuses acc-a alone, and folds it FIFO as acc-b's
+/// transfer partner: acc-b's results are those of an all-FIFO run.
+async fn assert_acc_a_refused_and_folded_fifo(meta: &str) {
     let facts = scenario("EDGE-TXF-02").facts();
     let baseline = harness(facts.clone()).await;
     baseline
@@ -1610,12 +1607,7 @@ async fn a_refused_transfer_partner_folds_fifo() {
         .unwrap();
 
     let refused = harness(facts).await;
-    refused
-        .account_repo
-        .set_accounting_settings(AccountAccountingSettings {
-            cost_basis_method: CostBasisMethod::Lifo,
-            ..AccountAccountingSettings::default_for_account("acc-a")
-        });
+    refused.account_repo.set_meta("acc-a", meta);
     let report = refused
         .coordinator
         .run_job(request(), &SilentObserver)
@@ -1627,7 +1619,8 @@ async fn a_refused_transfer_partner_folds_fifo() {
             .iter()
             .map(|f| (f.account_id.as_str(), f.code.as_str()))
             .collect::<Vec<_>>(),
-        vec![("acc-a", "UNSUPPORTED_COST_BASIS")]
+        vec![("acc-a", "UNSUPPORTED_COST_BASIS")],
+        "{meta}"
     );
     let rows = |h: &Harness| {
         let mut rows = h.rows("acc-b");
@@ -1637,7 +1630,27 @@ async fn a_refused_transfer_partner_folds_fifo() {
         rows
     };
     assert!(!rows(&refused).is_empty());
-    assert_eq!(rows(&refused), rows(&baseline));
+    assert_eq!(rows(&refused), rows(&baseline), "{meta}");
+}
+
+/// Engine rules R7.2: an account set to a method the engine does not compute
+/// fails alone; folded as a transfer partner it folds FIFO.
+#[tokio::test]
+async fn a_refused_transfer_partner_folds_fifo() {
+    assert_acc_a_refused_and_folded_fifo(r#"{"accounting":{"costBasisMethod":"LIFO"}}"#).await;
+}
+
+/// Engine rules R7.2: settings this version cannot read (a code it does not
+/// know, an entry that is not an object) are refused the same way: never read
+/// as the defaults, and never failing another account.
+#[tokio::test]
+async fn an_account_whose_settings_cannot_be_read_fails_alone() {
+    for meta in [
+        r#"{"accounting":{"costBasisMethod":"ACB"}}"#,
+        r#"{"accounting":"LIFO"}"#,
+    ] {
+        assert_acc_a_refused_and_folded_fifo(meta).await;
+    }
 }
 
 #[tokio::test]

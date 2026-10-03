@@ -4,9 +4,8 @@
 //! database-specific types, allowing for different storage implementations.
 
 use async_trait::async_trait;
-use std::collections::HashMap;
 
-use super::accounts_model::{Account, AccountAccountingSettings, AccountUpdate, NewAccount};
+use super::accounts_model::{Account, AccountUpdate, NewAccount};
 use crate::errors::Result;
 
 /// Trait defining the contract for Account repository operations.
@@ -44,25 +43,6 @@ pub trait AccountRepositoryTrait: Send + Sync {
         is_archived_filter: Option<bool>,
         account_ids: Option<&[String]>,
     ) -> Result<Vec<Account>>;
-
-    /// Retrieves accounting settings for the requested accounts.
-    ///
-    /// Implementations must return default FIFO/GENERIC/ACCOUNT settings for
-    /// accounts that do not yet have an explicit settings row.
-    fn get_accounting_settings_by_account_ids(
-        &self,
-        account_ids: &[String],
-    ) -> Result<HashMap<String, AccountAccountingSettings>> {
-        Ok(account_ids
-            .iter()
-            .map(|account_id| {
-                (
-                    account_id.clone(),
-                    AccountAccountingSettings::default_for_account(account_id.clone()),
-                )
-            })
-            .collect())
-    }
 }
 
 /// Trait defining the contract for Account service operations.

@@ -1385,7 +1385,7 @@ mod tests {
             .first::<crate::accounts::AccountDB>(&mut conn)
             .unwrap();
         // The job validates this setting, so a change must reach it.
-        assert!(account
+        assert!(wealthfolio_core::accounts::Account::from(account)
             .accounting_settings()
             .unwrap()
             .ensure_supported_for_calculation()

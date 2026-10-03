@@ -2,7 +2,7 @@
 
 #[cfg(test)]
 mod tests {
-    use crate::accounts::{Account, NewAccount, TrackingMode};
+    use crate::accounts::{Account, AccountAccountingSettings, NewAccount, TrackingMode};
     use chrono::NaiveDateTime;
 
     // ==================== TrackingMode Serialization Tests ====================
@@ -111,6 +111,67 @@ mod tests {
             account.cash_allocation_category_id(),
             Some("EQUITY".to_string())
         );
+    }
+
+    // ==================== Accounting Settings Tests ====================
+
+    fn accounting_settings_of(meta: Option<&str>) -> crate::Result<AccountAccountingSettings> {
+        Account {
+            id: "acc".to_string(),
+            meta: meta.map(String::from),
+            ..Account::default()
+        }
+        .accounting_settings()
+    }
+
+    /// Engine rules R7.2: an account without settings takes the defaults.
+    #[test]
+    fn absent_accounting_settings_read_as_the_defaults() {
+        for meta in [
+            None,
+            Some(""),
+            Some(" \n "),
+            Some("{}"),
+            Some(r#"{"allocation":{"cashCategoryId":"EQUITY"}}"#),
+            Some("[]"),
+        ] {
+            let settings =
+                accounting_settings_of(meta).unwrap_or_else(|error| panic!("{meta:?}: {error}"));
+            assert_eq!(
+                settings,
+                AccountAccountingSettings {
+                    created_at: settings.created_at.clone(),
+                    updated_at: settings.updated_at.clone(),
+                    ..AccountAccountingSettings::default_for_account("acc")
+                },
+                "{meta:?}"
+            );
+        }
+    }
+
+    /// Engine rules R7.2: settings this version cannot read are an error for
+    /// their account, never the defaults.
+    #[test]
+    fn accounting_settings_this_version_cannot_read_are_an_error() {
+        for meta in [
+            "{not json",
+            r#"{"accounting":"LIFO"}"#,
+            r#"{"accounting":null}"#,
+            r#"{"accounting":["FIFO"]}"#,
+            r#"{"accounting":{"costBasisMethod":"ACB"}}"#,
+            r#"{"accounting":{"costBasisMethod":7}}"#,
+            r#"{"accounting":{"costBasisProfile":"UK_S104"}}"#,
+            r#"{"accounting":{"poolingScope":"HOUSEHOLD"}}"#,
+            r#"{"accounting":{"lotSelectionStrategy":"MAX_LOSS"}}"#,
+        ] {
+            let error = accounting_settings_of(Some(meta)).expect_err(meta);
+            assert!(
+                error
+                    .to_string()
+                    .contains("Accounting settings for account acc cannot be read"),
+                "{meta}: {error}"
+            );
+        }
     }
 
     #[test]
