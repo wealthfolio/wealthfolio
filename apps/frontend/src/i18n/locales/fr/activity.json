@@ -317,7 +317,23 @@
   "delete_modal": {
     "title": "Supprimer l'activité ?",
     "description": "Cette activité sera définitivement supprimée. Cette action est irréversible.",
-    "linked_transfer_desc": "Cette activité est liée à une paire de transfert. Les deux côtés seront définitivement supprimés. Cette action est irréversible."
+    "linked_transfer_desc": "Cette activité est liée à une paire de transfert. Les deux côtés seront définitivement supprimés. Cette action est irréversible.",
+    "broker_synced_desc": "Cette activité provient d'une synchronisation avec le courtier. La supprimer l'exclut aussi des prochaines synchronisations : elle ne reviendra pas. Vous pourrez la restaurer plus tard depuis la page des activités."
+  },
+  "suppressed": {
+    "summary_one": "{{count}} activité de courtier supprimée est exclue des prochaines synchronisations.",
+    "summary_other": "{{count}} activités de courtier supprimées sont exclues des prochaines synchronisations.",
+    "summary_many": "{{count}} activités de courtier supprimées sont exclues des prochaines synchronisations.",
+    "review": "Examiner",
+    "title": "Activités de courtier supprimées",
+    "description": "Votre courtier signale toujours ces enregistrements, donc chaque synchronisation les rajouterait. Ils restent exclus jusqu'à ce que vous les restauriez.",
+    "deleted_on": "Supprimée le {{date}}",
+    "restore": "Restaurer",
+    "restore_all": "Tout restaurer",
+    "restored_one": "{{count}} activité restaurée. La prochaine synchronisation la mettra à jour.",
+    "restored_other": "{{count}} activités restaurées. La prochaine synchronisation les mettra à jour.",
+    "restored_many": "{{count}} activités restaurées. La prochaine synchronisation les mettra à jour.",
+    "restore_failed": "Restauration impossible"
   },
   "form_renderer": {
     "select_type": "Sélectionnez un type d'activité ci-dessus pour continuer",

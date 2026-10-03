@@ -315,7 +315,21 @@
   "delete_modal": {
     "title": "删除活动？",
     "description": "此活动将被永久删除。此操作无法撤销。",
-    "linked_transfer_desc": "此活动关联到一对转账。双方都将被永久删除。此操作无法撤销。"
+    "linked_transfer_desc": "此活动关联到一对转账。双方都将被永久删除。此操作无法撤销。",
+    "broker_synced_desc": "此活动来自券商同步。删除后也会在今后的同步中排除，不会再次出现。你之后可以在活动页面恢复它。"
+  },
+  "suppressed": {
+    "summary_one": "已删除的 {{count}} 条券商活动将不再随同步返回。",
+    "summary_other": "已删除的 {{count}} 条券商活动将不再随同步返回。",
+    "review": "查看",
+    "title": "已删除的券商活动",
+    "description": "券商仍会返回这些记录，因此每次同步都会重新添加。在你恢复之前，它们将保持排除状态。",
+    "deleted_on": "删除于 {{date}}",
+    "restore": "恢复",
+    "restore_all": "全部恢复",
+    "restored_one": "已恢复 {{count}} 条活动。下次同步会再次更新它们。",
+    "restored_other": "已恢复 {{count}} 条活动。下次同步会再次更新它们。",
+    "restore_failed": "无法恢复"
   },
   "form_renderer": {
     "select_type": "请在上方选择一种活动类型以继续",
