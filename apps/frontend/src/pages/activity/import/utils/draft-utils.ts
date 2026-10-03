@@ -487,7 +487,7 @@ export function validateDraft(
   ) {
     errors.activityType = [
       ...(errors.activityType ?? []),
-      "Credit card imports only support charges, payments, refunds, fees, and interest",
+      "Credit card imports only support charges, payments, transfers out, refunds, fees, and interest",
     ];
   }
 

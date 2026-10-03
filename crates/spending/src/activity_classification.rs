@@ -504,6 +504,24 @@ mod tests {
     }
 
     #[test]
+    fn credit_card_transfer_out_is_never_spending() {
+        // A card's TRANSFER_OUT is money moved, not bought: a balance transfer,
+        // a cash advance, a wallet top-up. Unlinked it is Ignored, like a
+        // card's payment in; linked out of the spending set it is still not a
+        // CASH saving (#1227).
+        assert_eq!(
+            classify_activity(&activity("TRANSFER_OUT", None), account_types::CREDIT_CARD),
+            SpendingClassification::Ignored
+        );
+        let out = activity("TRANSFER_OUT", Some("pair-card"));
+        let within = within_spending_transfer_groups(&[&out]);
+        assert_eq!(
+            classify_activity_for_aggregation(&out, account_types::CREDIT_CARD, &within),
+            SpendingClassification::InternalTransfer
+        );
+    }
+
+    #[test]
     fn within_spending_transfers_stay_neutral() {
         // Both legs on spending accounts (same group, 2 legs) → neutral.
         let out = activity("TRANSFER_OUT", Some("pair-z"));
