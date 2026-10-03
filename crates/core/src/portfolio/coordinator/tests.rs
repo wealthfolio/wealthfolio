@@ -338,6 +338,88 @@ async fn a_holdings_snapshot_read_after_its_splits_agrees_with_its_valuation() {
     assert_eq!(held(&stored), expected(dec!(10), dec!(5)));
 }
 
+/// Rules R1.1: a transactions account's holdings are the projection's. A
+/// snapshot it kept from holdings mode (imported or entered, newer than its
+/// last projected one) stays stored but is not read.
+#[tokio::test]
+async fn a_snapshot_kept_from_holdings_mode_is_not_read_on_a_transactions_account() {
+    let facts = scenario("EDGE-SPLIT-03").facts();
+    let as_of = facts.as_of;
+    let h = harness(facts).await;
+    h.coordinator
+        .run_job(request(), &SilentObserver)
+        .await
+        .unwrap();
+    let projected = h
+        .snapshot_repo
+        .get_latest_snapshot_before_date("acc-t", as_of)
+        .unwrap()
+        .unwrap();
+    assert_eq!(projected.source, SnapshotSource::Calculated);
+    assert!(projected.snapshot_date < as_of);
+    // What broker sync saved while the account tracked holdings.
+    let kept = AccountStateSnapshot {
+        id: AccountStateSnapshot::stable_id("acc-t", as_of),
+        snapshot_date: as_of,
+        positions: Default::default(),
+        cash_balances: [(projected.currency.clone(), dec!(25000))].into(),
+        source: SnapshotSource::BrokerImported,
+        ..projected.clone()
+    };
+    h.snapshot_repo.save_snapshots(&[kept]).await.unwrap();
+
+    let snapshots = SnapshotService::new(
+        h.timezone.clone(),
+        h.account_repo.clone(),
+        h.snapshot_repo.clone(),
+        h.activity_repo.clone(),
+    );
+    let read = |snapshot: Option<AccountStateSnapshot>| {
+        snapshot.map(|s| (s.snapshot_date, s.source, s.cash_balances))
+    };
+    let expected = read(Some(projected.clone()));
+    assert_eq!(
+        read(
+            snapshots
+                .get_latest_snapshots_as_of(&["acc-t".to_string()], as_of)
+                .unwrap()
+                .remove("acc-t")
+        ),
+        expected,
+        "latest as of today"
+    );
+    assert_eq!(
+        read(snapshots.get_latest_holdings_snapshot("acc-t").unwrap()),
+        expected,
+        "latest holdings"
+    );
+    assert!(snapshots
+        .get_holdings_keyframes("acc-t", None, None)
+        .unwrap()
+        .iter()
+        .all(|s| s.source == SnapshotSource::Calculated));
+    assert_eq!(
+        read(
+            snapshots
+                .get_holdings_timeline("acc-t", None, None)
+                .unwrap()
+                .snapshot_at(as_of)
+                .cloned()
+        ),
+        expected,
+        "timeline today"
+    );
+    // The kept snapshot stays stored, for a switch back to holdings mode.
+    assert_eq!(
+        h.snapshot_repo
+            .get_latest_snapshot_before_date("acc-t", as_of)
+            .unwrap()
+            .unwrap()
+            .source,
+        SnapshotSource::BrokerImported
+    );
+}
+
 /// A transactions account's snapshots are projections: its lots split only
 /// on its own split rows (rules R1.5), so a split recorded on another
 /// account after its latest snapshot leaves it as projected.

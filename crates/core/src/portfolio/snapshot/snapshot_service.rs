@@ -162,6 +162,14 @@ impl SplitCarry {
     }
 }
 
+/// Whether reads use `snapshot` of an account tracked in `mode` (engine rules
+/// R1.1, R1.2): a holdings account is read from its own snapshots, any other
+/// from the projection's. A snapshot an account kept from the other mode stays
+/// stored, for a switch back, but is not read.
+fn is_read(mode: TrackingMode, snapshot: &AccountStateSnapshot) -> bool {
+    (mode == TrackingMode::Holdings) != (snapshot.source == SnapshotSource::Calculated)
+}
+
 /// A quantity and its unit cost carried by `factor`: units multiply, unit
 /// cost divides, total cost is unchanged. `None` when out of range.
 fn carried(
@@ -285,6 +293,68 @@ impl SnapshotService {
         Ok(())
     }
 
+    /// The accounts' tracking modes; an account not found is left out.
+    fn tracking_modes(&self, account_ids: &[String]) -> Result<HashMap<String, TrackingMode>> {
+        Ok(self
+            .account_repository
+            .list(None, None, Some(account_ids))?
+            .into_iter()
+            .map(|account| (account.id, account.tracking_mode))
+            .collect())
+    }
+
+    /// Replaces each latest snapshot (on or before `day`) that reads do not
+    /// use with the latest one they do, if any (see [`is_read`]).
+    fn keep_read(
+        &self,
+        snapshots: &mut HashMap<String, AccountStateSnapshot>,
+        day: NaiveDate,
+    ) -> Result<()> {
+        let account_ids: Vec<String> = snapshots.keys().cloned().collect();
+        for (account_id, mode) in self.tracking_modes(&account_ids)? {
+            if snapshots
+                .get(&account_id)
+                .is_none_or(|snapshot| is_read(mode, snapshot))
+            {
+                continue;
+            }
+            let read = if mode == TrackingMode::Holdings {
+                self.snapshot_repository
+                    .get_snapshots_by_account(&account_id, None, Some(day))?
+                    .into_iter()
+                    .filter(|snapshot| is_read(mode, snapshot))
+                    .max_by_key(|snapshot| snapshot.snapshot_date)
+            } else {
+                self.snapshot_repository
+                    .get_latest_calculated_snapshot_on_or_before(&account_id, day)?
+            };
+            match read {
+                Some(snapshot) => snapshots.insert(account_id, snapshot),
+                None => snapshots.remove(&account_id),
+            };
+        }
+        Ok(())
+    }
+
+    /// An account's snapshots in a range, those reads use (see [`is_read`]).
+    fn read_snapshots(
+        &self,
+        account_id: &str,
+        start_date: Option<NaiveDate>,
+        end_date: Option<NaiveDate>,
+    ) -> Result<Vec<AccountStateSnapshot>> {
+        let mut snapshots = self
+            .snapshot_repository
+            .get_snapshots_by_account(account_id, start_date, end_date)?;
+        if let Some(mode) = self
+            .tracking_modes(&[account_id.to_string()])?
+            .remove(account_id)
+        {
+            snapshots.retain(|snapshot| is_read(mode, snapshot));
+        }
+        Ok(snapshots)
+    }
+
     fn create_initial_snapshot(account: &Account, date: NaiveDate) -> AccountStateSnapshot {
         AccountStateSnapshot {
             id: AccountStateSnapshot::stable_id(&account.id, date),
@@ -338,8 +408,7 @@ impl SnapshotServiceTrait for SnapshotService {
             account_id, start_date_opt, end_date_opt
         );
         // Directly fetch from the repository without reconstruction
-        self.snapshot_repository
-            .get_snapshots_by_account(account_id, start_date_opt, end_date_opt)
+        self.read_snapshots(account_id, start_date_opt, end_date_opt)
     }
 
     fn get_holdings_timeline(
@@ -370,9 +439,7 @@ impl SnapshotServiceTrait for SnapshotService {
                 today,
             )?;
         }
-        let all_keyframes = self
-            .snapshot_repository
-            .get_snapshots_by_account(account_id, None, None)?;
+        let all_keyframes = self.read_snapshots(account_id, None, None)?;
         let deferred_future_snapshots = all_keyframes
             .iter()
             .any(|snapshot| snapshot.snapshot_date > today);
@@ -508,25 +575,24 @@ impl SnapshotServiceTrait for SnapshotService {
         let today = self.user_today();
         // The date passed to get_latest_snapshot_before_date is exclusive, so use tomorrow to include today.
         let tomorrow = today.succ_opt().unwrap_or(today);
-        match self
+        let mut snapshots: HashMap<String, AccountStateSnapshot> = self
             .snapshot_repository
             .get_latest_snapshot_before_date(account_id, tomorrow)?
-        {
-            Some(snapshot) => {
-                let mut snapshots = HashMap::from([(account_id.to_string(), snapshot)]);
-                self.carry_splits(&mut snapshots, today)?;
-                Ok(snapshots.remove(account_id))
-            }
-            None => {
-                // It's possible no snapshot exists yet, which is not necessarily an error,
-                // but we should inform the caller.
-                debug!(
-                    "No snapshot found for account {} on or before {}",
-                    account_id, today
-                );
-                Ok(None)
-            }
+            .map(|snapshot| (account_id.to_string(), snapshot))
+            .into_iter()
+            .collect();
+        self.keep_read(&mut snapshots, tomorrow)?;
+        if snapshots.is_empty() {
+            // It's possible no snapshot exists yet, which is not necessarily an error,
+            // but we should inform the caller.
+            debug!(
+                "No snapshot found for account {} on or before {}",
+                account_id, today
+            );
+            return Ok(None);
         }
+        self.carry_splits(&mut snapshots, today)?;
+        Ok(snapshots.remove(account_id))
     }
 
     fn get_latest_snapshots_as_of(
@@ -537,6 +603,7 @@ impl SnapshotServiceTrait for SnapshotService {
         let mut snapshots = self
             .snapshot_repository
             .get_latest_snapshots_before_date(account_ids, day)?;
+        self.keep_read(&mut snapshots, day)?;
         if snapshots.is_empty() {
             return Ok(snapshots);
         }

@@ -14,7 +14,9 @@ it, never taken from the engine.
 **R1.1 Transactions accounts.** A deposit, withdrawal, or transfer to or from
 outside the scope is money in or out on its business day, at its amount (or its
 units at that day's price, for securities). Income, fees and taxes are returns,
-not flows.
+not flows. Its holdings are the projection's: snapshots it kept from holdings
+mode, imported or entered, stay stored (switching back reads them again) but are
+not read.
 
 **R1.2 Holdings accounts: snapshots for numbers, activities for reports.** A
 holdings account is known only through its snapshots, so its value, positions,
