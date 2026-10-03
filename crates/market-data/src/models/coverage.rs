@@ -141,6 +141,17 @@ impl Coverage {
         }
     }
 
+    /// Moscow Exchange stock market only, strict mode.
+    /// Rejects mic=None: a bare ticker is not proof of a MOEX listing.
+    pub const fn moex() -> Self {
+        Self {
+            equity_mic_allow: Some(&["MISX"]),
+            equity_mic_deny: None,
+            allow_unknown_mic: false,
+            metal_quote_ccy_allow: None,
+        }
+    }
+
     /// Metals only, USD quotes only.
     pub const fn metals_usd_only() -> Self {
         Self {
@@ -257,6 +268,26 @@ mod tests {
             mic: Some(Cow::Borrowed("XNAS")),
         };
         assert!(!coverage.supports(&inst));
+    }
+
+    #[test]
+    fn test_moex_accepts_only_misx() {
+        let coverage = Coverage::moex();
+        let misx = InstrumentId::Equity {
+            ticker: Arc::from("AFLT"),
+            mic: Some(Cow::Borrowed("MISX")),
+        };
+        let xpar = InstrumentId::Equity {
+            ticker: Arc::from("AFLT"),
+            mic: Some(Cow::Borrowed("XPAR")),
+        };
+        let bare = InstrumentId::Equity {
+            ticker: Arc::from("AFLT"),
+            mic: None,
+        };
+        assert!(coverage.supports(&misx));
+        assert!(!coverage.supports(&xpar));
+        assert!(!coverage.supports(&bare));
     }
 
     #[test]
