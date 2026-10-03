@@ -195,9 +195,6 @@ pub trait AlternativeAssetRepositoryTrait: Send + Sync {
         notes: Option<&str>,
     ) -> Result<()>;
 
-    /// Reads a loan's metadata and manual balance quotes.
-    fn load_loan(&self, asset_id: &str) -> Result<LoanRecord>;
-
     /// Reads a loan, decides its writes from what is stored and applies them in
     /// one transaction, so a concurrent edit cannot be overwritten.
     async fn update_loan(&self, asset_id: &str, change: LoanChange) -> Result<LoanUpdate>;

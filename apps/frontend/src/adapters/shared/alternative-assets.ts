@@ -177,8 +177,8 @@ export type LoanAction =
       date: string;
       annualRate: number;
       paymentAmount?: number;
-      frequency?: string;
-      interestMethod?: string;
+      frequency?: "monthly" | "biweekly" | "accelerated_biweekly";
+      interestMethod?: "nominal_periodic" | "monthly" | "semiannual";
       termEndDate?: string;
       balance?: number;
     }

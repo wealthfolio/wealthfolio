@@ -5,7 +5,7 @@ use rust_decimal::{
     prelude::{FromPrimitive, ToPrimitive},
     Decimal,
 };
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use serde_json::Value;
 use thiserror::Error;
 
@@ -45,8 +45,7 @@ impl From<LoanError> for crate::errors::Error {
 }
 
 /// The outcome callers act on: refreshed balances need portfolio recalculation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct LoanActionResult {
     pub balances_changed: bool,
 }
@@ -139,7 +138,10 @@ fn origination(metadata: &Value) -> Option<NaiveDate> {
 
 /// Dated actions fall between origination and today.
 fn check_date(metadata: &Value, date: NaiveDate, today: NaiveDate) -> Result<(), LoanError> {
-    if date > today || origination(metadata).is_some_and(|start| date < start) {
+    // `today` is in the settings timezone; the device that picked the date may be
+    // a day ahead of it, and its date was always accepted.
+    let latest = today.succ_opt().unwrap_or(today);
+    if date > latest || origination(metadata).is_some_and(|start| date < start) {
         return Err(LoanError::Invalid);
     }
     Ok(())
@@ -242,15 +244,26 @@ fn with_entries(metadata: &Value, entries: Vec<Value>) -> Value {
     next
 }
 
+/// Stored entries to add to; an unreadable list is refused rather than replaced.
+fn stored_entries(metadata: &Value) -> Result<Vec<Value>, LoanError> {
+    match metadata.get(LOAN_EVENTS_KEY) {
+        None | Some(Value::Null) => Ok(Vec::new()),
+        Some(Value::String(text)) if text.is_empty() => Ok(Vec::new()),
+        stored => decoded(stored)
+            .and_then(|v| v.as_array().cloned())
+            .ok_or(LoanError::Invalid),
+    }
+}
+
 /// Add an event after everything recorded on or before its date.
-fn with_event(metadata: &Value, event: &LoanEvent) -> Value {
-    let mut entries = event_entries(metadata);
+fn with_event(metadata: &Value, event: &LoanEvent) -> Result<Value, LoanError> {
+    let mut entries = stored_entries(metadata)?;
     let position = entries
         .iter()
         .rposition(|entry| LoanEvent::parse(entry).is_some_and(|e| e.date() <= event.date()))
         .map_or(0, |i| i + 1);
     entries.insert(position, serde_json::to_value(event).unwrap_or(Value::Null));
-    with_entries(metadata, entries)
+    Ok(with_entries(metadata, entries))
 }
 
 /// The latest renewal's term end, in date order with recorded same-day order.
@@ -288,10 +301,14 @@ fn change_event(
         .filter_map(|(position, entry)| LoanEvent::parse(entry).map(|event| (position, event)))
         .collect();
     ordered.sort_by_key(|(_, event)| event.date());
+    // The event is found by its stored value; the index only chooses between
+    // identical events, so entries another reader skips cannot shift the target.
     let position = ordered
-        .get(index)
-        .filter(|(_, event)| event == original)
-        .map(|(position, _)| *position)
+        .iter()
+        .enumerate()
+        .filter(|(_, (_, event))| event == original)
+        .min_by_key(|(order, _)| order.abs_diff(index))
+        .map(|(_, (position, _))| *position)
         .ok_or(LoanError::EventChanged)?;
     let mut next_entries = entries.clone();
     match replacement {
@@ -358,7 +375,9 @@ pub fn apply_loan_action(
                 .iter()
                 .filter(|quote| day_of(quote) <= *date)
                 .max_by_key(|quote| quote.timestamp);
-            if calculated.is_none() && (LoanTerms::active(metadata).is_some() || recorded.is_none())
+            // Tracked terms the engine cannot use must not fall back to a manual balance.
+            if calculated.is_none()
+                && (LoanTerms::tracked(metadata).is_some() || recorded.is_none())
             {
                 return Err(LoanError::Invalid);
             }
@@ -376,7 +395,7 @@ pub fn apply_loan_action(
                     amount: *amount,
                     note: None,
                 })?;
-                update.metadata = Some(with_event(metadata, &event));
+                update.metadata = Some(with_event(metadata, &event)?);
             } else {
                 let notes = balance_notes(LoanBalanceKind::ExtraRepayment, "");
                 let balance = (at_date - amount).max(0.0);
@@ -417,7 +436,7 @@ pub fn apply_loan_action(
                 payment_amount: solved.payment_amount,
                 note: None,
             })?;
-            update.metadata = Some(with_event(&with_event(metadata, &rate), &payment));
+            update.metadata = Some(with_event(&with_event(metadata, &rate)?, &payment)?);
         }
         LoanAction::Renew {
             date,
@@ -465,7 +484,7 @@ pub fn apply_loan_action(
                     .save_balances
                     .push(record.manual_quote(*date, *balance, notes)?);
             }
-            let mut next = with_event(metadata, &event);
+            let mut next = with_event(metadata, &event)?;
             // Only the latest dated renewal sets the current term's maturity.
             if let Some(end) = term_end_date {
                 let latest = event_entries(&next)
@@ -506,7 +525,7 @@ pub fn apply_loan_action(
                 ..
             }) = replacement
             {
-                if LoanTerms::active(metadata).is_some() {
+                if LoanTerms::tracked(metadata).is_some() {
                     let without = change_event(metadata, *index, original, None)?;
                     let available = record.calculation(&without, *effective_date);
                     if available.is_none_or(|c| *amount > c.current_balance) {

@@ -5,11 +5,12 @@ use diesel::RunQueryDsl;
 use rust_decimal::Decimal;
 use serde_json::json;
 use wealthfolio_core::assets::loan::{
-    event_entries, BalanceEdit, LoanAction, LoanEvent, LoanFrequency, RENEWAL_MATURITY_KEY,
+    event_entries, BalanceEdit, LoanAction, LoanEvent, LoanFrequency, LoanRecord, LoanUpdate,
+    RENEWAL_MATURITY_KEY,
 };
 use wealthfolio_core::assets::{
-    AlternativeAssetService, AlternativeAssetServiceTrait, AssetKind, AssetRepositoryTrait,
-    NewAsset, QuoteMode,
+    AlternativeAssetRepositoryTrait, AlternativeAssetService, AlternativeAssetServiceTrait,
+    AssetKind, AssetRepositoryTrait, NewAsset, QuoteMode,
 };
 use wealthfolio_core::quotes::{Quote, QuoteService, QuoteServiceTrait};
 use wealthfolio_core::secrets::SecretStore;
@@ -37,6 +38,7 @@ impl SecretStore for NoSecrets {
 
 struct Fixture {
     service: AlternativeAssetService,
+    repository: Arc<AlternativeAssetRepository>,
     assets: Arc<AssetRepository>,
     quotes: Arc<dyn QuoteServiceTrait>,
     _dir: tempfile::TempDir,
@@ -87,14 +89,11 @@ async fn fixture() -> Fixture {
         .await
         .unwrap(),
     );
-    let service = AlternativeAssetService::new(
-        Arc::new(AlternativeAssetRepository::new(
-            pool.clone(),
-            writer.clone(),
-        )),
-        assets.clone(),
-        quotes.clone(),
-    );
+    let repository = Arc::new(AlternativeAssetRepository::new(
+        pool.clone(),
+        writer.clone(),
+    ));
+    let service = AlternativeAssetService::new(repository.clone(), assets.clone(), quotes.clone());
     assets
         .create(NewAsset {
             id: Some("mortgage".into()),
@@ -131,6 +130,7 @@ async fn fixture() -> Fixture {
         .unwrap();
     Fixture {
         service,
+        repository,
         assets,
         quotes,
         _dir: dir,
@@ -274,4 +274,74 @@ async fn loan_actions_only_apply_to_liabilities() {
         )
         .await
         .is_err());
+}
+
+#[tokio::test]
+async fn a_write_that_fails_after_the_metadata_change_leaves_the_loan_untouched() {
+    let loan = fixture().await;
+    let before = (loan.metadata(), loan.balances());
+    let result = loan
+        .repository
+        .update_loan(
+            "mortgage",
+            Box::new(|record: &LoanRecord| {
+                let mut metadata = record.metadata.clone();
+                metadata["sub_type"] = json!("auto");
+                // A quote for an asset that does not exist fails its foreign key
+                // after the metadata row has already been updated.
+                let mut orphan = record.balances[0].clone();
+                orphan.asset_id = "missing".into();
+                orphan.id = "missing_2026-01-02_MANUAL".into();
+                Ok(LoanUpdate {
+                    metadata: Some(metadata),
+                    save_balances: vec![orphan],
+                    delete_balances: vec![],
+                })
+            }),
+        )
+        .await;
+    let error = result.unwrap_err().to_string();
+    assert!(error.contains("FOREIGN KEY"), "{error}");
+    assert_eq!((loan.metadata(), loan.balances()), before);
+}
+
+#[tokio::test]
+async fn confirming_a_day_with_a_creation_quote_replaces_it() {
+    let loan = fixture().await;
+    // Creation records its opening balance under a random id at midday UTC.
+    let value = Decimal::new(4800, 0);
+    loan.quotes
+        .add_quote(&Quote {
+            id: "6f0c8a52-3c1e-4c55-9d8e-1b7f0e1c2d3a".into(),
+            asset_id: "mortgage".into(),
+            timestamp: "2026-01-20T12:00:00Z".parse().unwrap(),
+            open: value,
+            high: value,
+            low: value,
+            close: value,
+            adjclose: value,
+            currency: "CAD".into(),
+            data_source: "MANUAL".into(),
+            created_at: chrono::Utc::now(),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    loan.service
+        .apply_loan_action(
+            "mortgage",
+            LoanAction::ConfirmBalance {
+                date: "2026-01-20".parse().unwrap(),
+                balance: 4750.0,
+            },
+        )
+        .await
+        .unwrap();
+    let on_day: Vec<_> = loan
+        .balances()
+        .into_iter()
+        .filter(|(day, ..)| day == "2026-01-20")
+        .collect();
+    assert_eq!(on_day.len(), 1);
+    assert_eq!(on_day[0].1, Decimal::new(4750, 0));
 }

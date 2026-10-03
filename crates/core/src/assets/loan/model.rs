@@ -12,7 +12,7 @@ pub const RENEWAL_MATURITY_KEY: &str = "renewal_maturity_date";
 pub const TRACKING_MODE_KEY: &str = "tracking_mode";
 
 /// Contractual terms as originally agreed; later changes are dated events.
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LoanTerms {
     pub version: u8,
@@ -22,9 +22,9 @@ pub struct LoanTerms {
     #[serde(default)]
     pub interest_method: InterestMethod,
     pub first_payment_date: NaiveDate,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     pub payment_count: Option<usize>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     pub amortization_end_date: Option<NaiveDate>,
 }
 
@@ -36,12 +36,17 @@ impl LoanTerms {
         terms.valid().then_some(terms)
     }
 
-    /// Terms that drive calculation; a loan switched to manual has none.
-    pub fn active(metadata: &Value) -> Option<Self> {
+    /// Stored terms of a tracked loan, including terms the engine cannot use.
+    pub fn tracked(metadata: &Value) -> Option<Self> {
         if metadata.get(TRACKING_MODE_KEY).and_then(Value::as_str) == Some("manual") {
             return None;
         }
-        Self::read(metadata)
+        serde_json::from_value(decoded(metadata.get(LOAN_PROJECTION_KEY))?).ok()
+    }
+
+    /// Terms that drive calculation; a loan switched to manual has none.
+    pub fn active(metadata: &Value) -> Option<Self> {
+        Self::tracked(metadata).filter(Self::valid)
     }
 
     pub fn valid(&self) -> bool {
@@ -64,28 +69,44 @@ pub enum LoanEvent {
     ExtraRepayment {
         effective_date: NaiveDate,
         amount: f64,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[serde(
+            default,
+            deserialize_with = "lenient_note",
+            skip_serializing_if = "Option::is_none"
+        )]
         note: Option<String>,
     },
     #[serde(rename_all = "camelCase")]
     RateChange {
         effective_date: NaiveDate,
         annual_rate: f64,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[serde(
+            default,
+            deserialize_with = "lenient_note",
+            skip_serializing_if = "Option::is_none"
+        )]
         note: Option<String>,
     },
     #[serde(rename_all = "camelCase")]
     PaymentChange {
         effective_date: NaiveDate,
         payment_amount: f64,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[serde(
+            default,
+            deserialize_with = "lenient_note",
+            skip_serializing_if = "Option::is_none"
+        )]
         note: Option<String>,
     },
     #[serde(rename_all = "camelCase")]
     PaymentFrequencyChange {
         effective_date: NaiveDate,
         frequency: LoanFrequency,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[serde(
+            default,
+            deserialize_with = "lenient_note",
+            skip_serializing_if = "Option::is_none"
+        )]
         note: Option<String>,
     },
     #[serde(rename_all = "camelCase")]
@@ -105,7 +126,11 @@ pub enum LoanEvent {
             skip_serializing_if = "Option::is_none"
         )]
         term_end_date: Option<NaiveDate>,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[serde(
+            default,
+            deserialize_with = "lenient_note",
+            skip_serializing_if = "Option::is_none"
+        )]
         note: Option<String>,
     },
 }
@@ -163,6 +188,11 @@ impl LoanEvent {
     }
 }
 
+fn lenient_note<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Option<String>, D::Error> {
+    Ok(Option::<Value>::deserialize(deserializer)?
+        .and_then(|value| value.as_str().map(str::to_string)))
+}
+
 fn lenient_date<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Option<NaiveDate>, D::Error> {
     Ok(Option::<Value>::deserialize(deserializer)?
         .and_then(|value| value.as_str().and_then(|text| text.parse().ok())))
@@ -186,15 +216,12 @@ pub fn event_entries(metadata: &Value) -> Vec<Value> {
 pub const LOAN_CLOSED_NOTE: &str = "loan_closed";
 const NOTE_MARKER: &str = "|note=";
 
-/// How a recorded balance was entered. Every recorded balance is a confirmation;
-/// provenance in the quote's notes only says how it got there.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "snake_case")]
+/// How a balance recorded by a loan action was entered. Every recorded balance
+/// is a confirmation; provenance in the quote's notes only says how it got there.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LoanBalanceKind {
-    ConfirmedBalance,
     BalanceCorrection,
     ExtraRepayment,
-    Closed,
 }
 
 fn has_provenance(notes: Option<&str>, provenance: &str) -> bool {
@@ -206,24 +233,10 @@ fn has_provenance(notes: Option<&str>, provenance: &str) -> bool {
 }
 
 impl LoanBalanceKind {
-    pub fn of(close: f64, notes: Option<&str>) -> Self {
-        if has_provenance(notes, "loan_event|type=balance_correction") {
-            Self::BalanceCorrection
-        } else if has_provenance(notes, "loan_event|type=extra_repayment") {
-            Self::ExtraRepayment
-        } else if close == 0.0 && has_provenance(notes, LOAN_CLOSED_NOTE) {
-            Self::Closed
-        } else {
-            Self::ConfirmedBalance
-        }
-    }
-
-    fn provenance(self) -> Option<&'static str> {
+    fn provenance(self) -> &'static str {
         match self {
-            Self::ConfirmedBalance => None,
-            Self::BalanceCorrection => Some("loan_event|type=balance_correction"),
-            Self::ExtraRepayment => Some("loan_event|type=extra_repayment"),
-            Self::Closed => Some(LOAN_CLOSED_NOTE),
+            Self::BalanceCorrection => "loan_event|type=balance_correction",
+            Self::ExtraRepayment => "loan_event|type=extra_repayment",
         }
     }
 }
@@ -259,7 +272,7 @@ fn with_note(provenance: Option<&str>, note: &str) -> Option<String> {
 
 /// Notes for a new recorded balance of this kind with the user's note.
 pub fn balance_notes(kind: LoanBalanceKind, note: &str) -> Option<String> {
-    with_note(kind.provenance(), note)
+    with_note(Some(kind.provenance()), note)
 }
 
 /// Notes after editing a recorded balance: a closure reopened by a non-zero
@@ -269,7 +282,7 @@ pub fn edited_balance_notes(original: Option<&str>, balance: f64, note: &str) ->
     let provenance = if closed && balance == 0.0 {
         Some(LOAN_CLOSED_NOTE)
     } else if closed {
-        LoanBalanceKind::BalanceCorrection.provenance()
+        Some(LoanBalanceKind::BalanceCorrection.provenance())
     } else {
         original
             .filter(|notes| notes.starts_with("loan_event|"))
@@ -345,25 +358,14 @@ mod tests {
     }
 
     #[test]
-    fn balance_provenance_and_notes_round_trip() {
-        assert_eq!(
-            LoanBalanceKind::of(100.0, None),
-            LoanBalanceKind::ConfirmedBalance
-        );
-        assert_eq!(
-            LoanBalanceKind::of(100.0, Some("Statement")),
-            LoanBalanceKind::ConfirmedBalance
-        );
+    fn balance_notes_carry_provenance_and_the_users_note() {
         let correction = balance_notes(LoanBalanceKind::BalanceCorrection, "Bank | 50% off");
-        assert_eq!(
-            LoanBalanceKind::of(100.0, correction.as_deref()),
-            LoanBalanceKind::BalanceCorrection
-        );
+        assert!(has_provenance(
+            correction.as_deref(),
+            "loan_event|type=balance_correction"
+        ));
         assert_eq!(balance_user_note(correction.as_deref()), "Bank | 50% off");
-        assert_eq!(
-            LoanBalanceKind::of(0.0, Some("loan_closed")),
-            LoanBalanceKind::Closed
-        );
+        assert_eq!(balance_user_note(Some("Statement")), "Statement");
         // Notes written by the previous frontend decode the same way.
         assert_eq!(
             balance_user_note(Some(
@@ -371,7 +373,20 @@ mod tests {
             )),
             "Bonus & gift"
         );
-        assert_eq!(balance_notes(LoanBalanceKind::ConfirmedBalance, ""), None);
+        assert_eq!(
+            balance_notes(LoanBalanceKind::ExtraRepayment, "").as_deref(),
+            Some("loan_event|type=extra_repayment")
+        );
+    }
+
+    #[test]
+    fn a_non_string_note_keeps_the_event() {
+        let stored =
+            json!({"type":"extra_repayment","effectiveDate":"2026-03-01","amount":100,"note":42});
+        assert!(matches!(
+            LoanEvent::parse(&stored),
+            Some(LoanEvent::ExtraRepayment { note: None, .. })
+        ));
     }
 
     #[test]

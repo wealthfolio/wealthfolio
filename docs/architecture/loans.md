@@ -88,8 +88,11 @@ confirmation, extra repayment, renewal, recalculation, closure, or event or
 balance edit; it reads the loan's metadata and manual quotes, checks the action
 against them, and writes both in one transaction through the sync outbox. A
 refused action writes nothing. Actions that change recorded balances start the
-same portfolio recalculation as a manual quote. Creation and Edit loan details
-still write terms through the alternative-asset metadata API.
+same portfolio recalculation as a manual quote. Dates are checked against today
+in the settings timezone, allowing one day for a device ahead of it. The
+decision, including the engine calculation that checks a repayment or solves a
+payment, runs inside the write transaction on the database writer. Creation and
+Edit loan details still write terms through the alternative-asset metadata API.
 
 ### Implementation map
 
@@ -446,8 +449,10 @@ lender equivalence. Reference observations were captured September 24, 2026.
   limits, repayments within the balance on their date, occupied balance dates,
   stale event edits, renewal settings and maturity, and manual balances on their
   own calendar day. Storage tests
-  (`crates/storage-sqlite/tests/loan_actions.rs`) verify that a refused action
-  writes nothing and that a renewal's balance and terms are written together.
+  (`crates/storage-sqlite/tests/loan_actions.rs`) verify that a write failing
+  after the metadata change leaves the loan untouched, that a refused action
+  writes nothing, that a renewal's balance and terms are written together, and
+  that confirming a day replaces its creation quote.
 - Frontend tests cover preview conventions, input construction, the action each
   dialog sends, period boundaries, privacy-related presentation, and opening
   confirmations, and that liabilities from earlier releases can opt into

@@ -172,7 +172,8 @@ fn dated_actions_stay_between_origination_and_today() {
         &[("2026-01-01", 1000.0, None)],
     );
     let early = date("2025-12-31");
-    let future = date("2026-10-03");
+    // One day of tolerance for a device ahead of the settings timezone.
+    let future = date("2026-10-04");
     for action in [
         LoanAction::ExtraRepayment {
             date: early,
@@ -601,4 +602,152 @@ fn actions_read_the_shape_the_frontend_sends() {
             ..
         }
     ));
+}
+
+#[test]
+fn a_date_one_day_ahead_of_the_settings_timezone_is_accepted() {
+    let loan = record(json!({}), &[]);
+    let ahead = LoanAction::ConfirmBalance {
+        date: date("2026-10-03"),
+        balance: 100.0,
+    };
+    assert!(apply(&loan, ahead).is_ok());
+}
+
+#[test]
+fn a_backdated_renewal_inherits_the_settings_in_effect_on_its_date() {
+    let mut projection = terms();
+    projection["interestMethod"] = json!("semiannual");
+    let later = LoanEvent::Renewal {
+        effective_date: date("2026-06-10"),
+        annual_rate: 3.0,
+        payment_amount: None,
+        frequency: Some(LoanFrequency::Biweekly),
+        interest_method: Some(InterestMethod::Monthly),
+        term_end_date: None,
+        note: None,
+    };
+    let metadata = with_events(
+        json!({ "sub_type": "mortgage", "loan_projection": projection }),
+        std::slice::from_ref(&later),
+    );
+    let loan = record(metadata, &[("2026-02-01", 1000.0, None)]);
+    let renew_with = |day: &str, frequency, method| LoanAction::Renew {
+        date: date(day),
+        annual_rate: 2.0,
+        payment_amount: None,
+        frequency: Some(frequency),
+        interest_method: Some(method),
+        term_end_date: None,
+        balance: None,
+    };
+    let before = apply(
+        &loan,
+        renew_with(
+            "2026-03-10",
+            LoanFrequency::Monthly,
+            InterestMethod::Semiannual,
+        ),
+    )
+    .unwrap();
+    assert_eq!(
+        events(before.metadata.as_ref().unwrap())[0],
+        renewal("2026-03-10", 2.0, None)
+    );
+    // The same day's recorded renewal already set biweekly and monthly compounding.
+    let same_day = apply(
+        &loan,
+        renew_with(
+            "2026-06-10",
+            LoanFrequency::Biweekly,
+            InterestMethod::Monthly,
+        ),
+    )
+    .unwrap();
+    assert_eq!(
+        events(same_day.metadata.as_ref().unwrap())[1],
+        renewal("2026-06-10", 2.0, None)
+    );
+    assert_eq!(
+        apply(
+            &loan,
+            renew_with(
+                "2026-03-10",
+                LoanFrequency::Biweekly,
+                InterestMethod::Semiannual
+            )
+        )
+        .unwrap_err(),
+        LoanError::PaymentRequired
+    );
+}
+
+#[test]
+fn edited_renewals_the_engine_would_discard_are_refused() {
+    let stored = renewal("2026-02-01", 4.0, Some("2029-02-01"));
+    let loan = record(with_events(json!({}), std::slice::from_ref(&stored)), &[]);
+    for replacement in [
+        renewal("2026-02-01", 101.0, Some("2029-02-01")),
+        LoanEvent::Renewal {
+            effective_date: date("2026-02-01"),
+            annual_rate: 4.0,
+            payment_amount: Some(0.001),
+            frequency: None,
+            interest_method: None,
+            term_end_date: Some(date("2029-02-01")),
+            note: None,
+        },
+    ] {
+        assert_eq!(
+            apply(&loan, edit(0, stored.clone(), Some(replacement))).unwrap_err(),
+            LoanError::Invalid
+        );
+    }
+}
+
+#[test]
+fn entries_another_reader_skips_do_not_shift_the_edited_event() {
+    let repayment = extra("2026-02-01", 100.0);
+    // The frontend hides a renewal with a malformed term end; the engine keeps it.
+    let metadata = json!({ "loan_events": json!([
+        {"type":"renewal","effectiveDate":"2026-01-01","annualRate":4,"termEndDate":"soon"},
+        repayment,
+    ]).to_string() });
+    let update = apply(
+        &record(metadata, &[]),
+        edit(0, repayment, Some(extra("2026-02-01", 150.0))),
+    )
+    .unwrap();
+    assert_eq!(
+        events(update.metadata.as_ref().unwrap())[1],
+        extra("2026-02-01", 150.0)
+    );
+}
+
+#[test]
+fn tracked_terms_the_engine_cannot_use_do_not_become_a_manual_balance() {
+    let mut unusable = terms();
+    unusable["paymentAmount"] = json!(0.001);
+    let loan = record(
+        json!({ "loan_projection": unusable }),
+        &[("2026-04-01", 500.0, None)],
+    );
+    let repay = LoanAction::ExtraRepayment {
+        date: date("2026-04-02"),
+        amount: 100.0,
+    };
+    assert_eq!(apply(&loan, repay).unwrap_err(), LoanError::Invalid);
+}
+
+#[test]
+fn an_unreadable_event_list_is_refused_rather_than_replaced() {
+    let loan = record(
+        json!({ "loan_projection": terms(), "loan_events": "not-json" }),
+        &[("2026-04-01", 500.0, None)],
+    );
+    let repay = LoanAction::ExtraRepayment {
+        date: date("2026-05-10"),
+        amount: 100.0,
+    };
+    assert_eq!(apply(&loan, repay).unwrap_err(), LoanError::Invalid);
 }

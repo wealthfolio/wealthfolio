@@ -25,7 +25,7 @@ import {
   LoanBalanceEventDialog,
 } from "../components/loan-action-dialogs";
 import { RenewLoanDialog, type LoanRenewalInput } from "../components/renew-loan-dialog";
-import { loanErrorText } from "../components/loan-error-text";
+import { isStaleLoanError, loanErrorText } from "../components/loan-error-text";
 
 import { LoanEventSheet, type LoanSheetEntry } from "../components/loan-event-sheet";
 
@@ -59,14 +59,18 @@ export function useLoanActions(
   const loanOriginationDate =
     typeof metadata.origination_date === "string" ? metadata.origination_date : undefined;
   const queryClient = useQueryClient();
-  const { invalidateQuoteQueries } = useQuoteMutations(assetId, {
-    invalidateOnSuccess: false,
-    notifyOnSuccess: false,
-  });
+  const { invalidateQuoteQueries } = useQuoteMutations(assetId);
+  const refresh = () =>
+    Promise.all([invalidateAlternativeAssetQueries(queryClient), invalidateQuoteQueries()]);
   // The backend checks each action against the stored loan and applies it in one transaction.
   const run = async (action: LoanAction) => {
-    await applyLoanAction(assetId, action);
-    await Promise.all([invalidateAlternativeAssetQueries(queryClient), invalidateQuoteQueries()]);
+    try {
+      await applyLoanAction(assetId, action);
+    } catch (cause) {
+      if (isStaleLoanError(cause)) await refresh();
+      throw cause;
+    }
+    await refresh();
   };
   const [editingEvent, setEditingEvent] = useState<{ index: number; event: LoanEvent } | null>(
     null,

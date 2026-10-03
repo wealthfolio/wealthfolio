@@ -168,6 +168,15 @@ describe("loan actions are single backend calls", () => {
     expect(mocks.invalidateAssets).not.toHaveBeenCalled();
   });
 
+  it("reloads the loan when its copy was stale", async () => {
+    mocks.apply.mockRejectedValueOnce("LOAN_EVENT_CHANGED");
+    show();
+    act(() => actions.editEvent(0));
+    await expect(saveSheet({ ...extra, amount: 150 })).rejects.toBe("LOAN_EVENT_CHANGED");
+    expect(mocks.invalidateAssets).toHaveBeenCalled();
+    expect(mocks.invalidateQuotes).toHaveBeenCalled();
+  });
+
   it("names the edited event by position and stored value", async () => {
     show();
     act(() => actions.editEvent(0));

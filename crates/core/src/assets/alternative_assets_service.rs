@@ -1165,10 +1165,6 @@ mod tests {
             unimplemented!("not used in this test")
         }
 
-        fn load_loan(&self, _asset_id: &str) -> Result<crate::assets::loan::LoanRecord> {
-            unimplemented!("not used in this test")
-        }
-
         async fn update_loan(
             &self,
             _asset_id: &str,

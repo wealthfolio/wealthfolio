@@ -247,18 +247,17 @@ impl AlternativeAssetRepositoryTrait for AlternativeAssetRepository {
             .await
     }
 
-    fn load_loan(&self, asset_id: &str) -> Result<LoanRecord> {
-        let mut conn = get_connection(&self.pool)?;
-        read_loan(&mut conn, asset_id)
-    }
-
     async fn update_loan(&self, asset_id: &str, change: LoanChange) -> Result<LoanUpdate> {
         let asset_id = asset_id.to_string();
         self.writer
             .exec_tx(move |tx| -> Result<LoanUpdate> {
                 // Decide from what is stored now, inside the same transaction as the writes.
+                // The decision runs on the shared writer, so a panic becomes an error
+                // instead of stopping every later write.
                 let record = read_loan(tx.conn(), &asset_id)?;
-                let update = change(&record)?;
+                let update =
+                    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| change(&record)))
+                        .map_err(|_| Error::Unexpected("Loan action failed unexpectedly".into()))??;
                 if let Some(metadata) = &update.metadata {
                     diesel::update(assets::table.filter(assets::id.eq(&asset_id)))
                         .set(assets::metadata.eq(Some(metadata.to_string())))

@@ -11,13 +11,20 @@ const LOAN_ERROR_KEYS: Record<string, string> = {
   LOAN_CLOSURE_DATE_INVALID: "asset:loanActions.validation.closure_date_invalid",
 };
 
-/**
- * Loan errors are backend codes or translation keys; other errors are shown as
- * they are. The desktop runtime rejects with the message itself.
- */
+/** The desktop runtime rejects with the message itself; the web runtime with an Error. */
+function errorMessage(cause: unknown): string | undefined {
+  return cause instanceof Error ? cause.message : typeof cause === "string" ? cause : undefined;
+}
+
+/** Refusals caused by a stale copy of the loan; reloading lets the next attempt succeed. */
+export function isStaleLoanError(cause: unknown): boolean {
+  const message = errorMessage(cause);
+  return message === "LOAN_EVENT_CHANGED" || message === "LOAN_EVENT_MISSING";
+}
+
+/** Loan errors are backend codes or translation keys; other errors are shown as they are. */
 export function loanErrorText(t: TFunction, cause: unknown, fallbackKey: string): string {
-  const message =
-    cause instanceof Error ? cause.message : typeof cause === "string" ? cause : undefined;
+  const message = errorMessage(cause);
   if (!message) return t(fallbackKey);
   const key = LOAN_ERROR_KEYS[message] ?? (message.startsWith("asset:") ? message : undefined);
   return key ? t(key) : message;
