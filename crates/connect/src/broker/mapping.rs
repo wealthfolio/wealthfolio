@@ -579,6 +579,25 @@ pub fn map_broker_activity(
     // Preserve provider provenance: preparation derives a missing total only
     // after resolving the asset's multiplier and quote currency.
     let amount = activity.amount.and_then(Decimal::from_f64).map(|d| d.abs());
+
+    // Some funds (e.g. money market funds) settle at a fixed $1 NAV; brokers
+    // sometimes omit price for these trades while still reporting amount.
+    // Derive price from amount/quantity so balance math isn't zeroed out.
+    let is_plain_trade = matches!(
+        activity_type.as_str(),
+        activities::ACTIVITY_TYPE_BUY | activities::ACTIVITY_TYPE_SELL
+    ) && !is_option_activity
+        && !is_crypto
+        && !is_bond;
+    let unit_price = if is_plain_trade && unit_price.map(|p| p.is_zero()).unwrap_or(true) {
+        match (quantity, amount) {
+            (Some(q), Some(a)) if !q.is_zero() && !a.is_zero() => Some(a / q),
+            _ => unit_price,
+        }
+    } else {
+        unit_price
+    };
+
     let is_trade = matches!(
         activity_type.as_str(),
         activities::ACTIVITY_TYPE_BUY | activities::ACTIVITY_TYPE_SELL
@@ -876,6 +895,26 @@ mod tests {
         assert_eq!(mapped.amount.unwrap().round_dp(4), decimal("9976.0000"));
         assert_eq!(mapped.fee.unwrap().round_dp(4), decimal("4.9000"));
         assert_eq!(mapped.tax, None);
+    }
+
+    #[test]
+    fn test_map_broker_activity_derives_price_for_zero_price_fund_trade() {
+        // Money market funds settle at a fixed $1 NAV; SnapTrade reports
+        // units and amount for these but omits price.
+        let activity = AccountUniversalActivity {
+            id: Some("act-mmf-buy".to_string()),
+            activity_type: Some("BUY".to_string()),
+            symbol: Some(broker_symbol("AAFXX", "oef")),
+            units: Some(87.3),
+            price: None,
+            amount: Some(87.3),
+            ..Default::default()
+        };
+
+        let mapped = map_test_activity(&activity);
+
+        assert_eq!(mapped.unit_price.unwrap().round_dp(4), decimal("1.0000"));
+        assert_eq!(mapped.amount.unwrap().round_dp(4), decimal("87.3000"));
     }
 
     #[test]
