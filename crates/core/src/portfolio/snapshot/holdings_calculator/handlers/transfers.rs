@@ -135,6 +135,7 @@ impl HoldingsCalculator {
             if !cash_effect.is_zero() {
                 add_cash(state, activity_currency, cash_effect);
             }
+            let cost_basis_method = run.cost_basis_method(&state.account_id);
 
             let position = self.get_or_create_position_mut_cached(
                 state,
@@ -211,9 +212,9 @@ impl HoldingsCalculator {
                         .sum::<Decimal>()
                         .abs();
                     let reduction = if incoming_negative {
-                        position.reduce_positive_lots_fifo(cover_qty_abs)?
+                        position.reduce_positive_lots(cover_qty_abs, cost_basis_method)?
                     } else {
-                        position.reduce_negative_lots_fifo(cover_qty_abs)?
+                        position.reduce_negative_lots(cover_qty_abs, cost_basis_method)?
                     };
                     (residual_lots, Some((reduction, cover_proceeds)))
                 } else {
@@ -459,6 +460,7 @@ impl HoldingsCalculator {
             if !cash_effect.is_zero() {
                 add_cash(state, activity_currency, cash_effect);
             }
+            let cost_basis_method = run.cost_basis_method(&state.account_id);
 
             if let Some(position) = state.positions.get_mut(asset_id) {
                 let position_currency = position.currency.clone();
@@ -474,9 +476,9 @@ impl HoldingsCalculator {
                 // correct leg.
                 let transferred_short_position = position.quantity.is_sign_negative();
                 let reduction = if transferred_short_position {
-                    position.reduce_negative_lots_fifo(activity.qty())?
+                    position.reduce_negative_lots(activity.qty(), cost_basis_method)?
                 } else {
-                    position.reduce_lots_fifo(activity.qty())?
+                    position.reduce_positive_lots(activity.qty(), cost_basis_method)?
                 };
                 let cost_basis_removed = reduction.cost_basis_removed;
                 let disposal_proceeds = if transferred_short_position {

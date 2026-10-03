@@ -258,6 +258,21 @@ pub const ACTIVITY_SUBTYPE_REIMBURSEMENT: &str = "REIMBURSEMENT";
 /// Removes lots via FIFO with no cash effect.
 pub const ACTIVITY_SUBTYPE_OPTION_EXPIRY: &str = "OPTION_EXPIRY";
 
+/// Return of capital: lowers the asset's cost basis by `amount` with no unit
+/// or cash effect (the distribution that paid it books the cash). Cost basis
+/// floors at zero; any excess is a realized capital gain.
+pub const ACTIVITY_SUBTYPE_RETURN_OF_CAPITAL: &str = "RETURN_OF_CAPITAL";
+
+/// Notional (phantom) distribution: a distribution reinvested without issuing
+/// units. Raises the asset's cost basis by `amount` with no unit or cash effect.
+pub const ACTIVITY_SUBTYPE_NOTIONAL_DISTRIBUTION: &str = "NOTIONAL_DISTRIBUTION";
+
+/// ADJUSTMENT subtypes that change an asset's cost basis without moving units.
+pub fn is_cost_basis_adjustment_subtype(subtype: &str) -> bool {
+    subtype.eq_ignore_ascii_case(ACTIVITY_SUBTYPE_RETURN_OF_CAPITAL)
+        || subtype.eq_ignore_ascii_case(ACTIVITY_SUBTYPE_NOTIONAL_DISTRIBUTION)
+}
+
 /// Position-opening trade intent.
 /// Examples: buy-to-open for long options, sell-to-open for short options.
 pub const ACTIVITY_SUBTYPE_POSITION_OPEN: &str = "POSITION_OPEN";

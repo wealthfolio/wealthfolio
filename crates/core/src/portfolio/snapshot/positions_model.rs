@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 use std::default::Default;
 
+use crate::accounts::CostBasisMethod;
 use crate::activities::Activity;
 
 use crate::constants::QUANTITY_THRESHOLD;
@@ -1297,6 +1298,261 @@ impl Position {
         })
     }
 
+    /// Reduces long lots with the account's cost-basis method.
+    pub fn reduce_positive_lots(
+        &mut self,
+        quantity_to_reduce_input: Decimal,
+        method: CostBasisMethod,
+    ) -> Result<FifoReductionResult> {
+        match method {
+            CostBasisMethod::Wac => self.reduce_lots_average_cost(quantity_to_reduce_input, false),
+            // LIFO is rejected before calculation (`ensure_supported_for_calculation`).
+            CostBasisMethod::Fifo | CostBasisMethod::Lifo => {
+                self.reduce_lots_fifo(quantity_to_reduce_input)
+            }
+        }
+    }
+
+    /// Reduces short lots with the account's cost-basis method.
+    pub fn reduce_negative_lots(
+        &mut self,
+        quantity_to_reduce_input: Decimal,
+        method: CostBasisMethod,
+    ) -> Result<FifoReductionResult> {
+        match method {
+            CostBasisMethod::Wac => self.reduce_lots_average_cost(quantity_to_reduce_input, true),
+            CostBasisMethod::Fifo | CostBasisMethod::Lifo => {
+                self.reduce_negative_lots_fifo(quantity_to_reduce_input)
+            }
+        }
+    }
+
+    /// Weighted-average-cost relief: every open lot on the reduced side gives
+    /// up the same fraction of its remaining units. The cost removed is then the
+    /// position's average cost × the quantity reduced, and each remaining lot
+    /// keeps its own per-unit cost, so the next disposal again relieves the
+    /// average. Lots keep their acquisition dates and source activities, so lot
+    /// persistence and activity-delete cascades work exactly as under FIFO.
+    ///
+    /// `quantity_to_reduce_input` is in effective (post-split) units, like
+    /// [`Position::reduce_lots_fifo`]. `short_side` selects negative lots.
+    fn reduce_lots_average_cost(
+        &mut self,
+        quantity_to_reduce_input: Decimal,
+        short_side: bool,
+    ) -> Result<FifoReductionResult> {
+        if !quantity_to_reduce_input.is_sign_positive() {
+            return Err(CalculatorError::InvalidActivity(
+                "Quantity to reduce must be positive".to_string(),
+            )
+            .into());
+        }
+
+        let on_side = |lot: &Lot| {
+            if short_side {
+                lot.quantity < Decimal::ZERO
+            } else {
+                lot.quantity > Decimal::ZERO
+            }
+        };
+        let available_effective_abs: Decimal = self
+            .lots
+            .iter()
+            .filter(|lot| on_side(lot))
+            .map(|lot| lot.effective_quantity().abs())
+            .sum();
+
+        if !is_quantity_significant(&available_effective_abs) {
+            warn!(
+                "Attempting to reduce position {} which has zero/insignificant effective quantity {}. Skipping reduction.",
+                self.id, available_effective_abs
+            );
+            return Ok(FifoReductionResult {
+                quantity_reduced: Decimal::ZERO,
+                cost_basis_removed: Decimal::ZERO,
+                removed_lots: Vec::new(),
+                fully_consumed_lot_ids: Vec::new(),
+                fully_consumed_lots: Vec::new(),
+            });
+        }
+
+        let mut quantity_to_reduce = quantity_to_reduce_input;
+        if available_effective_abs < quantity_to_reduce {
+            warn!(
+                "Reduce quantity {} exceeds available {} for position {}. Reducing by available amount.",
+                quantity_to_reduce, available_effective_abs, self.id
+            );
+            quantity_to_reduce = available_effective_abs;
+        }
+        let closes_side = quantity_to_reduce == available_effective_abs;
+        let fraction = quantity_to_reduce / available_effective_abs;
+
+        let mut vec_lots: Vec<_> = self.lots.drain(..).collect();
+        vec_lots.sort_by_key(|lot| lot.acquisition_date);
+        let side_lot_count = vec_lots.iter().filter(|lot| on_side(lot)).count();
+
+        let mut kept_lots = Vec::with_capacity(vec_lots.len());
+        let mut remaining_to_reduce = quantity_to_reduce;
+        let mut side_lots_seen = 0;
+        let mut cost_basis_removed_total = Decimal::ZERO;
+        let mut removed_lots: Vec<Lot> = Vec::new();
+        let mut fully_consumed_lot_ids: Vec<String> = Vec::new();
+        let mut fully_consumed_lots: Vec<Lot> = Vec::new();
+
+        for mut lot in vec_lots {
+            if !on_side(&lot) {
+                kept_lots.push(lot);
+                continue;
+            }
+            side_lots_seen += 1;
+
+            let lot_effective_abs = lot.effective_quantity().abs();
+            // The last lot takes the remainder so the units removed sum exactly
+            // to the requested quantity despite decimal rounding.
+            let consume_effective = if closes_side {
+                lot_effective_abs
+            } else if side_lots_seen == side_lot_count {
+                remaining_to_reduce.min(lot_effective_abs)
+            } else {
+                (lot_effective_abs * fraction).min(lot_effective_abs)
+            };
+            remaining_to_reduce -= consume_effective;
+            if consume_effective.is_zero() || lot_effective_abs.is_zero() {
+                kept_lots.push(lot);
+                continue;
+            }
+
+            let share = consume_effective / lot_effective_abs;
+            let quantity_removed = lot.quantity * share;
+            let cost_basis_removed = lot.cost_basis * share;
+            let fees_removed = lot.acquisition_fees * share;
+            let taxes_removed = lot.acquisition_taxes * share;
+
+            removed_lots.push(Lot {
+                quantity: quantity_removed,
+                original_quantity: quantity_removed,
+                cost_basis: cost_basis_removed,
+                acquisition_fees: fees_removed,
+                original_acquisition_fees: fees_removed,
+                acquisition_taxes: taxes_removed,
+                original_acquisition_taxes: taxes_removed,
+                split_ratio: lot.effective_split_ratio(),
+                ..lot.clone()
+            });
+            cost_basis_removed_total += cost_basis_removed;
+
+            let remaining_lot_qty = lot.quantity - quantity_removed;
+            if closes_side || !is_quantity_significant(&remaining_lot_qty) {
+                fully_consumed_lot_ids.push(lot.id.clone());
+                fully_consumed_lots.push(lot);
+            } else {
+                lot.quantity = remaining_lot_qty;
+                lot.cost_basis -= cost_basis_removed;
+                lot.acquisition_fees -= fees_removed;
+                lot.acquisition_taxes -= taxes_removed;
+                kept_lots.push(lot);
+            }
+        }
+
+        self.lots = kept_lots.into();
+        let allows_negative_lots = self.lots.iter().any(|lot| lot.quantity < Decimal::ZERO);
+        self.recalculate_aggregates_with_policy(allows_negative_lots);
+
+        Ok(FifoReductionResult {
+            quantity_reduced: quantity_to_reduce - remaining_to_reduce,
+            cost_basis_removed: cost_basis_removed_total,
+            removed_lots,
+            fully_consumed_lot_ids,
+            fully_consumed_lots,
+        })
+    }
+
+    /// Changes the cost basis of the open long lots by `delta` without changing
+    /// units: a return of capital lowers it, a reinvested (notional)
+    /// distribution raises it.
+    ///
+    /// Cost basis never goes below zero. Returns the part of a reduction that
+    /// exceeded the basis it could reduce; that excess is a capital gain
+    /// (ITA 40(3) for Canadian ACB). Under WAC the floor applies to the pooled
+    /// basis, so the reduction is spread in proportion to each lot's cost.
+    /// Under FIFO each unit keeps its own basis, so the change is spread per
+    /// unit and each lot floors at zero on its own.
+    pub fn adjust_cost_basis(
+        &mut self,
+        delta: Decimal,
+        method: CostBasisMethod,
+    ) -> Result<Decimal> {
+        let long_lot_count = self
+            .lots
+            .iter()
+            .filter(|lot| lot.quantity > Decimal::ZERO)
+            .count();
+        let total_effective: Decimal = self
+            .lots
+            .iter()
+            .filter(|lot| lot.quantity > Decimal::ZERO)
+            .map(Lot::effective_quantity)
+            .sum();
+        if long_lot_count == 0 || !is_quantity_significant(&total_effective) {
+            return Err(CalculatorError::InvalidActivity(format!(
+                "Cost basis adjustment for position {} needs an open long position",
+                self.id
+            ))
+            .into());
+        }
+        let total_cost: Decimal = self
+            .lots
+            .iter()
+            .filter(|lot| lot.quantity > Decimal::ZERO)
+            .map(|lot| lot.cost_basis)
+            .sum();
+
+        let pooled_reduction = method == CostBasisMethod::Wac && delta < Decimal::ZERO;
+        if pooled_reduction && -delta >= total_cost {
+            for lot in self
+                .lots
+                .iter_mut()
+                .filter(|lot| lot.quantity > Decimal::ZERO)
+            {
+                lot.cost_basis = Decimal::ZERO;
+            }
+            self.recalculate_aggregates();
+            return Ok(-delta - total_cost.max(Decimal::ZERO));
+        }
+
+        let mut excess = Decimal::ZERO;
+        let mut unallocated = delta;
+        let mut lots_seen = 0;
+        for lot in self
+            .lots
+            .iter_mut()
+            .filter(|lot| lot.quantity > Decimal::ZERO)
+        {
+            lots_seen += 1;
+            // The last lot takes the remainder so the lots' changes sum exactly
+            // to `delta` despite decimal rounding.
+            let change = if lots_seen == long_lot_count {
+                unallocated
+            } else if pooled_reduction {
+                delta * lot.cost_basis / total_cost
+            } else {
+                delta * lot.effective_quantity() / total_effective
+            };
+            unallocated -= change;
+
+            let adjusted = lot.cost_basis + change;
+            if adjusted < Decimal::ZERO {
+                excess -= adjusted;
+                lot.cost_basis = Decimal::ZERO;
+            } else {
+                lot.cost_basis = adjusted;
+            }
+        }
+
+        self.recalculate_aggregates();
+        Ok(excess)
+    }
+
     /// Applies a stock split by multiplying the cumulative `split_ratio` of
     /// every open lot opened **before** `split_date`. The caller supplies the
     /// same calendar-date projection for `split_date` and each lot acquisition
@@ -1631,5 +1887,119 @@ mod tests {
         let round_tripped: Position = serde_json::from_value(value).unwrap();
         assert_eq!(round_tripped.quantity, dec!(10.5));
         assert_eq!(round_tripped.average_cost, dec!(100));
+    }
+
+    fn position_with_lots(lots: &[(&str, Decimal, Decimal)]) -> Position {
+        let mut position = test_position();
+        for (day, (id, quantity, unit_price)) in lots.iter().enumerate() {
+            position
+                .add_lot_values(
+                    id.to_string(),
+                    *quantity,
+                    *unit_price,
+                    dec!(0),
+                    dec!(0),
+                    Utc.with_ymd_and_hms(2025, 1, day as u32 + 1, 12, 0, 0)
+                        .unwrap(),
+                    None,
+                    Some(id.to_string()),
+                    book_basis(),
+                )
+                .unwrap();
+        }
+        position
+    }
+
+    #[test]
+    fn average_cost_relief_takes_the_same_fraction_of_every_lot() {
+        let mut position =
+            position_with_lots(&[("a", dec!(10), dec!(10)), ("b", dec!(30), dec!(20))]);
+
+        let reduction = position
+            .reduce_positive_lots(dec!(20), CostBasisMethod::Wac)
+            .unwrap();
+
+        // Average is 700 / 40 = 17.50, so 20 units relieve 350.
+        assert_eq!(reduction.quantity_reduced, dec!(20));
+        assert_eq!(reduction.cost_basis_removed, dec!(350));
+        assert_eq!(position.lots[0].quantity, dec!(5));
+        assert_eq!(position.lots[1].quantity, dec!(15));
+        assert_eq!(position.total_cost_basis, dec!(350));
+        assert_eq!(position.average_cost, dec!(17.5));
+        assert!(reduction.fully_consumed_lot_ids.is_empty());
+    }
+
+    #[test]
+    fn average_cost_relief_removes_exact_units_with_repeating_fractions() {
+        let mut position = position_with_lots(&[
+            ("a", dec!(1), dec!(10)),
+            ("b", dec!(1), dec!(20)),
+            ("c", dec!(1), dec!(30)),
+        ]);
+
+        let reduction = position
+            .reduce_positive_lots(dec!(1), CostBasisMethod::Wac)
+            .unwrap();
+
+        assert_eq!(reduction.quantity_reduced, dec!(1));
+        assert_eq!(position.quantity, dec!(2));
+        assert_eq!(reduction.cost_basis_removed.round_dp(10), dec!(20));
+        assert_eq!(position.total_cost_basis.round_dp(10), dec!(40));
+    }
+
+    #[test]
+    fn average_cost_relief_of_the_whole_position_closes_every_lot() {
+        let mut position =
+            position_with_lots(&[("a", dec!(3), dec!(10)), ("b", dec!(7), dec!(20))]);
+
+        let reduction = position
+            .reduce_positive_lots(dec!(10), CostBasisMethod::Wac)
+            .unwrap();
+
+        assert_eq!(reduction.cost_basis_removed, dec!(170));
+        assert_eq!(reduction.fully_consumed_lot_ids, vec!["a", "b"]);
+        assert!(position.lots.is_empty());
+        assert_eq!(position.quantity, dec!(0));
+    }
+
+    #[test]
+    fn fifo_return_of_capital_floors_each_lot_at_zero() {
+        // Per-unit basis: a $4/unit return of capital wipes the $1 lot and
+        // leaves $3/unit of excess as a gain, while the $10 lot drops to $6.
+        let mut position =
+            position_with_lots(&[("a", dec!(10), dec!(1)), ("b", dec!(10), dec!(10))]);
+
+        let excess = position
+            .adjust_cost_basis(dec!(-80), CostBasisMethod::Fifo)
+            .unwrap();
+
+        assert_eq!(excess, dec!(30));
+        assert_eq!(position.lots[0].cost_basis, dec!(0));
+        assert_eq!(position.lots[1].cost_basis, dec!(60));
+    }
+
+    #[test]
+    fn average_cost_return_of_capital_floors_the_pooled_basis_only() {
+        // Same lots under WAC: the pool's $110 basis absorbs the $80 without
+        // any lot going negative, so nothing is realized.
+        let mut position =
+            position_with_lots(&[("a", dec!(10), dec!(1)), ("b", dec!(10), dec!(10))]);
+
+        let excess = position
+            .adjust_cost_basis(dec!(-80), CostBasisMethod::Wac)
+            .unwrap();
+
+        assert_eq!(excess, dec!(0));
+        assert_eq!(position.total_cost_basis.round_dp(10), dec!(30));
+        assert!(position.lots.iter().all(|lot| lot.cost_basis >= dec!(0)));
+    }
+
+    #[test]
+    fn cost_basis_adjustment_without_an_open_position_is_rejected() {
+        let mut position = test_position();
+
+        assert!(position
+            .adjust_cost_basis(dec!(-10), CostBasisMethod::Wac)
+            .is_err());
     }
 }

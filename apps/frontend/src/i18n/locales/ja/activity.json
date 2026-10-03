@@ -42,6 +42,8 @@
   "subtype_refund": "手数料返金",
   "subtype_reimbursement": "払い戻し",
   "subtype_option_expiry": "オプション満期",
+  "subtype_return_of_capital": "資本の払い戻し",
+  "subtype_notional_distribution": "みなし分配",
   "subtype_position_open": "新規建て",
   "subtype_position_close": "決済",
   "type_buy_desc": "資産を購入します。保有数量が増加し、現金残高が減少します。",

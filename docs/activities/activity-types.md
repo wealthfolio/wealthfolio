@@ -62,12 +62,12 @@ flagged. Incomplete imported final amounts are kept as Draft for review.
 | Type             | Category | Cash Impact          | Holdings Impact   | Cost Basis         | Net Contribution                     | Required Asset |
 | ---------------- | -------- | -------------------- | ----------------- | ------------------ | ------------------------------------ | -------------- |
 | **BUY**          | Trading  | -amount              | +quantity         | +cost              | No change                            | Yes            |
-| **SELL**         | Trading  | +amount              | -quantity         | -cost (FIFO)       | No change                            | Yes            |
+| **SELL**         | Trading  | +amount              | -quantity         | -cost (method)     | No change                            | Yes            |
 | **SPLIT**        | Trading  | No change            | Adjusted          | Per-share adjusted | No change                            | Yes            |
 | **DEPOSIT**      | Cash     | +amount              | N/A               | N/A                | +gross flow                          | No             |
 | **WITHDRAWAL**   | Cash     | -amount              | N/A               | N/A                | -gross flow                          | No             |
 | **TRANSFER_IN**  | Transfer | +amount or +quantity | +quantity (asset) | Preserved/set      | +gross flow (ordinary account scope) | Optional       |
-| **TRANSFER_OUT** | Transfer | -amount or -quantity | -quantity (asset) | Removed (FIFO)     | -gross flow (ordinary account scope) | Optional       |
+| **TRANSFER_OUT** | Transfer | -amount or -quantity | -quantity (asset) | Removed (method)   | -gross flow (ordinary account scope) | Optional       |
 | **DIVIDEND**     | Income   | +amount              | No change         | No change          | No change                            | Yes            |
 | **INTEREST**     | Income   | +amount              | No change         | No change          | No change                            | Optional       |
 | **CREDIT**       | Income   | +amount              | No change         | No change          | Depends on subtype                   | No             |
@@ -75,6 +75,10 @@ flagged. Incomplete imported final amounts are kept as Draft for review.
 | **TAX**          | Charge   | -amount              | No change         | No change          | No change                            | Optional       |
 | **ADJUSTMENT**   | Other    | Varies               | Varies            | Varies             | No change                            | Yes (required) |
 | **UNKNOWN**      | Other    | No auto impact       | No auto impact    | No auto impact     | No change                            | Optional       |
+
+"(method)" is the account's cost basis method: FIFO by default, or average cost
+for WAC and Canadian ACB accounts. See
+[Cost Basis Methods](../features/cost-basis-methods.md).
 
 ---
 
@@ -111,8 +115,8 @@ The writer can calculate an omitted amount. **Optional Fields**: `fee`, `tax`.
 | Impact               | Description                                                                   |
 | -------------------- | ----------------------------------------------------------------------------- |
 | **Cash**             | Increases by `amount` (final proceeds after fee and tax) in activity currency |
-| **Holdings**         | Decreases quantity; lots reduced using FIFO                                   |
-| **Cost Basis**       | Decreases by cost basis of sold lots (FIFO matching)                          |
+| **Holdings**         | Decreases quantity; lots reduced with the account's cost basis method         |
+| **Cost Basis**       | Decreases by cost basis of sold lots (FIFO, or average cost for WAC accounts) |
 | **Net Contribution** | No change (internal reallocation of asset to cash)                            |
 
 **Entry Fields**: `asset`, `quantity`, `unit_price`, `currency`, final `amount`.
@@ -237,7 +241,7 @@ automatically contribution-neutral.
 | ----------------------------------- | -------------- | ---------------- | --------------------------- |
 | **Ordinary cash transfer**          | -amount        | N/A              | -gross flow (account scope) |
 | **Recognized same-account FX pair** | -source amount | N/A              | No change                   |
-| **Asset transfer**                  | -fee only      | -quantity (FIFO) | -cost_basis (account scope) |
+| **Asset transfer**                  | -fee only      | -qty (by method) | -cost_basis (account scope) |
 
 **Required Fields**:
 
@@ -380,15 +384,20 @@ asset-specific taxes)
 **Required Fields**: `asset`, varies by use case **Optional Fields**: `metadata`
 with adjustment details
 
-**Use Cases**:
+Handling depends on the `subtype`:
 
-- Option expiring worthless
-- Return of capital basis adjustment
-- Merger/spinoff compiler input
-- Corporate action adjustments
+| Subtype                 | Required fields     | Effect                                                                                                                                                            |
+| ----------------------- | ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `OPTION_EXPIRY`         | `asset`, `quantity` | Removes the expired option lots with the account's cost basis method. No cash effect.                                                                             |
+| `RETURN_OF_CAPITAL`     | `asset`, `amount`   | Lowers the position's cost basis by `amount`. No unit or cash effect. Cost basis floors at zero; the excess is recorded as a realized gain against this activity. |
+| `NOTIONAL_DISTRIBUTION` | `asset`, `amount`   | Raises the position's cost basis by `amount` (a distribution reinvested without issuing units). No unit or cash effect.                                           |
+| (none / other)          | varies              | No automatic effect yet (future: merger/spinoff compiler input, other corporate actions).                                                                         |
 
-**Note**: This is a flexible type for non-standard corrections. Specific
-handling depends on the `subtype` and metadata.
+`amount` is in activity currency and is converted to the position currency when
+they differ. Book the cash of a return of capital with the distribution that
+paid it (usually a DIVIDEND); the adjustment only moves cost basis. See
+[Cost Basis Methods](../features/cost-basis-methods.md) for how the adjustment
+is spread across lots.
 
 ---
 
@@ -413,13 +422,13 @@ The compiler expands these into canonical activity postings.
 
 ### Dividend Subtypes
 
-| Subtype             | Description                                                    | Expansion                   |
-| ------------------- | -------------------------------------------------------------- | --------------------------- |
-| `DRIP`              | Dividend Reinvestment Plan - dividend automatically reinvested | DIVIDEND + BUY              |
-| `QUALIFIED`         | Qualified dividend (tax classification)                        | DIVIDEND (pass-through)     |
-| `ORDINARY`          | Ordinary dividend (tax classification)                         | DIVIDEND (pass-through)     |
-| `RETURN_OF_CAPITAL` | Return of capital (reduces cost basis)                         | DIVIDEND (special handling) |
-| `DIVIDEND_IN_KIND`  | Dividend paid as additional units of the same asset            | DIVIDEND + BUY              |
+| Subtype             | Description                                                                                  | Expansion               |
+| ------------------- | -------------------------------------------------------------------------------------------- | ----------------------- |
+| `DRIP`              | Dividend Reinvestment Plan - dividend automatically reinvested                               | DIVIDEND + BUY          |
+| `QUALIFIED`         | Qualified dividend (tax classification)                                                      | DIVIDEND (pass-through) |
+| `ORDINARY`          | Ordinary dividend (tax classification)                                                       | DIVIDEND (pass-through) |
+| `RETURN_OF_CAPITAL` | Return of capital (label only; record an ADJUSTMENT `RETURN_OF_CAPITAL` to lower cost basis) | DIVIDEND (pass-through) |
+| `DIVIDEND_IN_KIND`  | Dividend paid as additional units of the same asset                                          | DIVIDEND + BUY          |
 
 #### DRIP Expansion
 

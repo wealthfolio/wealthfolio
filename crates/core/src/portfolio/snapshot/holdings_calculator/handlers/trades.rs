@@ -22,6 +22,7 @@ impl HoldingsCalculator {
         let activity_currency = &activity.currency;
         let asset_id = activity.asset_id.as_deref().unwrap_or("");
         let account_id = state.account_id.clone();
+        let cost_basis_method = run.cost_basis_method(&account_id);
 
         self.ensure_asset_cached(asset_id, activity_currency, asset_cache);
         let asset_info = asset_cache
@@ -130,7 +131,7 @@ impl HoldingsCalculator {
                 let close_fee = proportional_amount(fee_for_lot, close_quantity, quantity);
                 let close_tax = proportional_amount(tax_for_lot, close_quantity, quantity);
                 let close_cost = close_quantity * unit_price_for_lot + close_fee + close_tax;
-                let reduction = position.reduce_negative_lots_fifo(close_quantity)?;
+                let reduction = position.reduce_negative_lots(close_quantity, cost_basis_method)?;
                 self.record_reduction(
                     &account_id,
                     asset_id,
@@ -219,6 +220,7 @@ impl HoldingsCalculator {
         let activity_currency = &activity.currency;
         let asset_id = activity.asset_id.as_deref().unwrap_or("");
         let account_id = state.account_id.clone();
+        let cost_basis_method = run.cost_basis_method(&account_id);
 
         // Ensure cache is populated for multiplier lookup
         self.ensure_asset_cached(asset_id, activity_currency, asset_cache);
@@ -321,7 +323,7 @@ impl HoldingsCalculator {
                 let close_fee = proportional_amount(fee_for_lot, close_quantity, quantity);
                 let close_tax = proportional_amount(tax_for_lot, close_quantity, quantity);
                 let close_proceeds = close_quantity * unit_price_for_lot - close_fee - close_tax;
-                let reduction = position.reduce_positive_lots_fifo(close_quantity)?;
+                let reduction = position.reduce_positive_lots(close_quantity, cost_basis_method)?;
                 self.record_reduction(
                     &account_id,
                     asset_id,
@@ -381,7 +383,7 @@ impl HoldingsCalculator {
                     account_currency,
                     "sell proceeds",
                 )?;
-            let reduction = position.reduce_lots_fifo(activity.qty())?;
+            let reduction = position.reduce_positive_lots(activity.qty(), cost_basis_method)?;
             self.record_reduction(
                 &state.account_id,
                 asset_id,

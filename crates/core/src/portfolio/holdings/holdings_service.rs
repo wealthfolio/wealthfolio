@@ -1,3 +1,4 @@
+use crate::activities::ACTIVITY_SUBTYPE_RETURN_OF_CAPITAL;
 use crate::activities::{
     Activity, ActivityRepositoryTrait, ACTIVITY_SUBTYPE_OPTION_EXPIRY, ACTIVITY_TYPE_ADJUSTMENT,
     ACTIVITY_TYPE_BUY, ACTIVITY_TYPE_DIVIDEND, ACTIVITY_TYPE_INTEREST, ACTIVITY_TYPE_SELL,
@@ -786,7 +787,12 @@ impl HoldingsService {
                             && activity.subtype.as_deref().is_some_and(|subtype| {
                                 subtype.eq_ignore_ascii_case(ACTIVITY_SUBTYPE_OPTION_EXPIRY)
                             });
-                        is_trade || is_option_expiry
+                        // A return of capital beyond the remaining cost basis realizes a gain.
+                        let is_return_of_capital = activity_type == ACTIVITY_TYPE_ADJUSTMENT
+                            && activity.subtype.as_deref().is_some_and(|subtype| {
+                                subtype.eq_ignore_ascii_case(ACTIVITY_SUBTYPE_RETURN_OF_CAPITAL)
+                            });
+                        is_trade || is_option_expiry || is_return_of_capital
                     })
                     .map(|activity| activity.id)
                     .collect(),

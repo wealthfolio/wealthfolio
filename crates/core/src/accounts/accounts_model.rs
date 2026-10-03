@@ -52,12 +52,12 @@ impl CostBasisMethod {
     }
 
     pub fn ensure_supported_for_calculation(self, account_id: &str) -> Result<()> {
-        if self == Self::Fifo {
+        if matches!(self, Self::Fifo | Self::Wac) {
             return Ok(());
         }
 
         Err(Error::Validation(ValidationError::InvalidInput(format!(
-            "Cost basis method {} for account {} is not supported by the snapshot calculator yet; only FIFO is supported.",
+            "Cost basis method {} for account {} is not supported by the snapshot calculator yet; only FIFO and WAC are supported.",
             self.as_str(),
             account_id
         ))))
@@ -194,11 +194,15 @@ impl AccountAccountingSettings {
         self.cost_basis_method
             .ensure_supported_for_calculation(&self.account_id)?;
 
-        if self.cost_basis_profile != CostBasisProfile::Generic {
+        // Canadian ACB averages the cost of identical properties (ITA s. 47),
+        // so it is only valid with weighted average cost.
+        if self.cost_basis_profile == CostBasisProfile::CanadaAcb
+            && self.cost_basis_method != CostBasisMethod::Wac
+        {
             return Err(Error::Validation(ValidationError::InvalidInput(format!(
-                "Cost basis profile {} for account {} is not supported by the snapshot calculator yet; only GENERIC is supported.",
-                self.cost_basis_profile.as_str(),
-                self.account_id
+                "Cost basis profile CANADA_ACB for account {} requires the WAC cost basis method, not {}.",
+                self.account_id,
+                self.cost_basis_method.as_str()
             ))));
         }
 

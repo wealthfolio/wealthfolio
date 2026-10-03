@@ -42,6 +42,8 @@
   "subtype_refund": "수수료 환불",
   "subtype_reimbursement": "환급",
   "subtype_option_expiry": "옵션 만기",
+  "subtype_return_of_capital": "자본 반환",
+  "subtype_notional_distribution": "명목 분배",
   "subtype_position_open": "포지션 개설",
   "subtype_position_close": "포지션 청산",
   "type_buy_desc": "자산을 매수합니다. 보유 수량이 늘어나고 현금 잔액이 줄어듭니다.",

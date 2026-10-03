@@ -10,6 +10,9 @@ use crate::activities::activities_constants::{
     ACTIVITY_TYPE_TAX, ACTIVITY_TYPE_TRANSFER_IN, ACTIVITY_TYPE_TRANSFER_OUT,
     ACTIVITY_TYPE_WITHDRAWAL,
 };
+use crate::activities::activities_constants::{
+    ACTIVITY_SUBTYPE_NOTIONAL_DISTRIBUTION, ACTIVITY_SUBTYPE_RETURN_OF_CAPITAL,
+};
 use crate::activities::csv_parser::ParseConfig;
 use crate::assets::NewAsset;
 use crate::Result;
@@ -398,6 +401,10 @@ impl NewActivity {
             ACTIVITY_SUBTYPE_REIMBURSEMENT
         } else if subtype.eq_ignore_ascii_case(ACTIVITY_SUBTYPE_OPTION_EXPIRY) {
             ACTIVITY_SUBTYPE_OPTION_EXPIRY
+        } else if subtype.eq_ignore_ascii_case(ACTIVITY_SUBTYPE_RETURN_OF_CAPITAL) {
+            ACTIVITY_SUBTYPE_RETURN_OF_CAPITAL
+        } else if subtype.eq_ignore_ascii_case(ACTIVITY_SUBTYPE_NOTIONAL_DISTRIBUTION) {
+            ACTIVITY_SUBTYPE_NOTIONAL_DISTRIBUTION
         } else if subtype.eq_ignore_ascii_case(ACTIVITY_SUBTYPE_POSITION_OPEN) {
             ACTIVITY_SUBTYPE_POSITION_OPEN
         } else if subtype.eq_ignore_ascii_case(ACTIVITY_SUBTYPE_POSITION_CLOSE) {

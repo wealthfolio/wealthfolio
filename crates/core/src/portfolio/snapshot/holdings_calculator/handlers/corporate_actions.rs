@@ -2,7 +2,7 @@
 use super::super::economics::*;
 use super::super::{HoldingsCalculator, ProjectionRun, SideEffectBuffer};
 use crate::activities::Activity;
-use crate::errors::Result;
+use crate::errors::{CalculatorError, Result};
 use crate::portfolio::snapshot::AccountStateSnapshot;
 use crate::utils::time_utils::{activity_date_in_tz, parse_user_timezone_or_default};
 use log::{debug, warn};
@@ -76,19 +76,77 @@ impl HoldingsCalculator {
 
     /// Handle ADJUSTMENT activity.
     /// Dispatches on subtype:
-    /// - OPTION_EXPIRY: removes option lots via FIFO, no cash effect
-    /// - Other/None: no-op (future: RoC basis adjustment, merger/spinoff, etc.)
+    /// - OPTION_EXPIRY: removes option lots with the account's cost-basis
+    ///   method, no cash effect
+    /// - RETURN_OF_CAPITAL / NOTIONAL_DISTRIBUTION: lowers / raises the
+    ///   position's cost basis by `amount`, no unit or cash effect
+    /// - Other/None: no-op (future: merger/spinoff, etc.)
     pub(crate) fn handle_adjustment(
         &self,
         activity: &Activity,
         state: &mut AccountStateSnapshot,
+        account_currency: &str,
         _asset_cache: &mut AssetCache,
         run: &ProjectionRun,
         buffer: &mut SideEffectBuffer,
     ) -> Result<()> {
-        use crate::activities::ACTIVITY_SUBTYPE_OPTION_EXPIRY;
+        use crate::activities::{
+            is_cost_basis_adjustment_subtype, ACTIVITY_SUBTYPE_OPTION_EXPIRY,
+            ACTIVITY_SUBTYPE_RETURN_OF_CAPITAL,
+        };
 
+        let cost_basis_method = run.cost_basis_method(&state.account_id);
         match activity.subtype.as_deref() {
+            Some(subtype) if is_cost_basis_adjustment_subtype(subtype) => {
+                let asset_id = activity.asset_id.as_deref().unwrap_or("");
+                let amount = activity.amt().abs();
+                if amount.is_zero() {
+                    return Err(CalculatorError::InvalidActivity(format!(
+                        "{} activity {} needs a positive amount",
+                        subtype, activity.id
+                    ))
+                    .into());
+                }
+                let Some(position) = state.positions.get_mut(asset_id) else {
+                    return Err(CalculatorError::InvalidActivity(format!(
+                        "{} activity {} has no open position in asset {}",
+                        subtype, activity.id, asset_id
+                    ))
+                    .into());
+                };
+                let position_currency = position.currency.clone();
+                let amount = self.convert_activity_amount_to_position_currency(
+                    amount,
+                    activity,
+                    &position_currency,
+                    account_currency,
+                    "cost basis adjustment",
+                )?;
+                let delta = if subtype.eq_ignore_ascii_case(ACTIVITY_SUBTYPE_RETURN_OF_CAPITAL) {
+                    -amount
+                } else {
+                    amount
+                };
+                let lot_id = position
+                    .lots
+                    .iter()
+                    .find(|lot| lot.quantity > Decimal::ZERO)
+                    .map(|lot| lot.id.clone());
+                let excess = position.adjust_cost_basis(delta, cost_basis_method)?;
+                if let (Some(lot_id), true) = (lot_id, excess > Decimal::ZERO) {
+                    self.record_cost_basis_excess(
+                        &state.account_id,
+                        asset_id,
+                        &lot_id,
+                        activity,
+                        excess,
+                        &position_currency,
+                        run,
+                        buffer,
+                    );
+                }
+                Ok(())
+            }
             Some(subtype) if subtype.eq_ignore_ascii_case(ACTIVITY_SUBTYPE_OPTION_EXPIRY) => {
                 let asset_id = activity.asset_id.as_deref().unwrap_or("");
                 if let Some(position) = state.positions.get_mut(asset_id) {
@@ -98,9 +156,9 @@ impl HoldingsCalculator {
                     // lots), so dispatching on the net position sign relieves the
                     // correct leg.
                     let reduction = if position.quantity < Decimal::ZERO {
-                        position.reduce_negative_lots_fifo(qty)?
+                        position.reduce_negative_lots(qty, cost_basis_method)?
                     } else {
-                        position.reduce_positive_lots_fifo(qty)?
+                        position.reduce_positive_lots(qty, cost_basis_method)?
                     };
                     self.record_reduction(
                         &state.account_id,

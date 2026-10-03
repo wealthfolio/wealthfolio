@@ -7,6 +7,7 @@ mod tests {
     use std::collections::{HashMap, HashSet, VecDeque};
     use std::sync::{Arc, RwLock};
 
+    use crate::accounts::CostBasisProfile;
     use crate::accounts::{
         Account, AccountAccountingSettings, AccountRepositoryTrait, AccountUpdate, CostBasisMethod,
         NewAccount,
@@ -29,6 +30,7 @@ mod tests {
         SnapshotService, SnapshotServiceTrait, SnapshotSource,
     };
     use crate::utils::time_utils::valuation_date_today;
+    use std::str::FromStr;
 
     #[derive(Clone, Debug)]
     struct MockFxService {
@@ -2109,6 +2111,121 @@ mod tests {
         );
     }
 
+    /// An append-only rebuild seeds a WAC account's lots from the `lots` table
+    /// (not from replaying history); a sale appended after the seed must still
+    /// relieve the average cost of the hydrated lots.
+    #[tokio::test]
+    async fn test_append_only_wac_sale_relieves_average_of_hydrated_lots() {
+        let mut account_repo = MockAccountRepository::new();
+        let acc = create_test_account("acc1", "USD", "Average Cost Account");
+        account_repo.add_account(acc.clone());
+        let mut settings = AccountAccountingSettings::default_for_account(acc.id.clone());
+        settings.cost_basis_method = CostBasisMethod::Wac;
+        account_repo.set_accounting_settings(settings);
+
+        let today = valuation_date_today();
+        let hwm_date = days_before(today, 5);
+        let append_since = days_before(today, 2);
+        let deposit = create_test_activity(
+            "dep1",
+            &acc.id,
+            Some("CASH:USD"),
+            "DEPOSIT",
+            days_before(today, 10),
+            None,
+            None,
+            Some(dec!(10000)),
+            "USD",
+        );
+        let sell = create_test_activity(
+            "sell1",
+            &acc.id,
+            Some("AAPL"),
+            "SELL",
+            append_since,
+            Some(dec!(10)),
+            Some(dec!(25)),
+            Some(dec!(250)),
+            "USD",
+        );
+
+        let hwm_str = hwm_date.format("%Y-%m-%d").to_string();
+        let mut seed = create_blank_snapshot(&acc.id, "USD", &hwm_str);
+        seed.positions.insert(
+            "AAPL".to_string(),
+            carried_position_empty_lots(
+                &acc.id,
+                "AAPL",
+                dec!(20),
+                "USD",
+                dec!(300),
+                dec!(300),
+                dec!(300),
+            ),
+        );
+        let snapshot_repo = Arc::new(MockSnapshotRepository::new());
+        snapshot_repo.add_snapshots(vec![seed]);
+
+        let lot_repo = SeededLotRepository::new(vec![
+            make_open_lot_record(
+                "lot-a",
+                &acc.id,
+                "AAPL",
+                &days_before(today, 8).format("%Y-%m-%d").to_string(),
+                dec!(10),
+                dec!(10),
+                "USD",
+                "USD",
+                dec!(1),
+            ),
+            make_open_lot_record(
+                "lot-b",
+                &acc.id,
+                "AAPL",
+                &days_before(today, 7).format("%Y-%m-%d").to_string(),
+                dec!(10),
+                dec!(20),
+                "USD",
+                "USD",
+                dec!(1),
+            ),
+        ]);
+        let lot_repo_assert = lot_repo.clone();
+
+        let svc = SnapshotService::new(
+            Arc::new(RwLock::new("USD".to_string())),
+            Arc::new(account_repo),
+            Arc::new(MockActivityRepositoryWithData::new(vec![deposit, sell])),
+            snapshot_repo.clone(),
+            Arc::new(MockAssetRepository::new()),
+            Arc::new(MockFxService::new()),
+        )
+        .with_lot_repository(Arc::new(lot_repo));
+
+        svc.recalculate_holdings_snapshots(
+            Some(std::slice::from_ref(&acc.id)),
+            SnapshotRecalcMode::SinceDate(append_since),
+        )
+        .await
+        .expect("append-only recalc should succeed");
+
+        assert!(
+            lot_repo_assert.open_lots_call_count() >= 1,
+            "the seed must be hydrated from the lots table"
+        );
+        // FIFO would leave lot-b whole (10 @ $20 = $200); average cost leaves
+        // half of each lot and $150 of book value.
+        let open_lots = lot_repo_assert.synced_lots();
+        let remaining: Decimal = open_lots
+            .iter()
+            .map(|lot| Decimal::from_str(&lot.remaining_cost_basis).unwrap())
+            .sum();
+        assert_eq!(remaining, dec!(150));
+        assert!(open_lots
+            .iter()
+            .all(|lot| Decimal::from_str(&lot.remaining_quantity).unwrap() == dec!(5)));
+    }
+
     /// Regression (multi-currency): an append-only incremental rebuild yields
     /// the same `cost_basis_account` as a full rebuild. Base = USD, account
     /// currency = EUR, AAPL listed in USD, so `cost_basis_account` is genuinely
@@ -2608,7 +2725,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_non_fifo_accounting_method_is_rejected_by_snapshot_calculator() {
+    async fn test_lifo_accounting_method_is_rejected_by_snapshot_calculator() {
         let base_currency_arc = Arc::new(RwLock::new("USD".to_string()));
 
         let mut account_repo = MockAccountRepository::new();
@@ -2649,10 +2766,150 @@ mod tests {
         let err = svc
             .recalculate_holdings_snapshots(None, SnapshotRecalcMode::Full)
             .await
-            .expect_err("non-FIFO methods should not run through the FIFO calculator");
+            .expect_err("LIFO is not implemented by the snapshot calculator");
 
-        assert!(err.to_string().contains("only FIFO is supported"));
+        assert!(err.to_string().contains("only FIFO and WAC are supported"));
         assert!(err.to_string().contains("LIFO"));
+    }
+
+    #[tokio::test]
+    async fn test_canada_acb_account_relieves_average_cost_and_records_wac_method() {
+        let base_currency_arc = Arc::new(RwLock::new("CAD".to_string()));
+
+        let mut account_repo = MockAccountRepository::new();
+        let acc = create_test_account("acc1", "CAD", "Canadian ACB Account");
+        account_repo.add_account(acc.clone());
+        let mut settings = AccountAccountingSettings::default_for_account(acc.id.clone());
+        settings.cost_basis_method = CostBasisMethod::Wac;
+        settings.cost_basis_profile = CostBasisProfile::CanadaAcb;
+        account_repo.set_accounting_settings(settings);
+        let account_repo = Arc::new(account_repo);
+
+        let today = valuation_date_today();
+        let second_buy_date = today.pred_opt().unwrap_or(today);
+        let first_buy_date = second_buy_date.pred_opt().unwrap_or(second_buy_date);
+        let deposit_date = first_buy_date.pred_opt().unwrap_or(first_buy_date);
+        let deposit = create_test_activity(
+            "deposit1",
+            &acc.id,
+            Some("CASH:CAD"),
+            "DEPOSIT",
+            deposit_date,
+            None,
+            None,
+            Some(dec!(10000)),
+            "CAD",
+        );
+        let first_buy = create_test_activity(
+            "buy1",
+            &acc.id,
+            Some("XIC"),
+            "BUY",
+            first_buy_date,
+            Some(dec!(10)),
+            Some(dec!(10)),
+            Some(dec!(100)),
+            "CAD",
+        );
+        let second_buy = create_test_activity(
+            "buy2",
+            &acc.id,
+            Some("XIC"),
+            "BUY",
+            second_buy_date,
+            Some(dec!(10)),
+            Some(dec!(20)),
+            Some(dec!(200)),
+            "CAD",
+        );
+        let sell = create_test_activity(
+            "sell1",
+            &acc.id,
+            Some("XIC"),
+            "SELL",
+            today,
+            Some(dec!(10)),
+            Some(dec!(25)),
+            Some(dec!(250)),
+            "CAD",
+        );
+        let activity_repo = Arc::new(MockActivityRepositoryWithData::new(vec![
+            deposit, first_buy, second_buy, sell,
+        ]));
+
+        let lot_repo = RecordingLotRepository::new();
+        let lot_repo_assert = lot_repo.clone();
+        let svc = SnapshotService::new(
+            base_currency_arc,
+            account_repo,
+            activity_repo,
+            Arc::new(MockSnapshotRepository::new()),
+            Arc::new(MockAssetRepository::new()),
+            Arc::new(MockFxService::new()),
+        )
+        .with_lot_repository(Arc::new(lot_repo));
+
+        svc.recalculate_holdings_snapshots(None, SnapshotRecalcMode::Full)
+            .await
+            .unwrap();
+
+        // ACB is $15/unit, so selling 10 relieves $150 (FIFO would relieve $100)
+        // and leaves $150 of book value across both lots.
+        let disposals = lot_repo_assert.synced_disposals();
+        let relieved: Decimal = disposals
+            .iter()
+            .map(|d| Decimal::from_str(&d.cost_basis).unwrap())
+            .sum();
+        assert_eq!(relieved, dec!(150));
+        assert!(disposals.iter().all(|d| d.cost_basis_method == "WAC"));
+
+        let open_lots = lot_repo_assert.synced_lots();
+        let remaining: Decimal = open_lots
+            .iter()
+            .map(|lot| Decimal::from_str(&lot.remaining_cost_basis).unwrap())
+            .sum();
+        assert_eq!(remaining, dec!(150));
+        assert_eq!(open_lots.len(), 2);
+        assert!(open_lots.iter().all(|lot| lot.cost_basis_method == "WAC"));
+    }
+
+    #[tokio::test]
+    async fn test_canada_acb_profile_without_wac_is_rejected_by_snapshot_calculator() {
+        let mut account_repo = MockAccountRepository::new();
+        let acc = create_test_account("acc1", "CAD", "Canadian FIFO Account");
+        account_repo.add_account(acc.clone());
+        let mut settings = AccountAccountingSettings::default_for_account(acc.id.clone());
+        settings.cost_basis_profile = CostBasisProfile::CanadaAcb;
+        account_repo.set_accounting_settings(settings);
+
+        let buy = create_test_activity(
+            "buy1",
+            &acc.id,
+            Some("XIC"),
+            "BUY",
+            valuation_date_today(),
+            Some(dec!(10)),
+            Some(dec!(10)),
+            Some(dec!(100)),
+            "CAD",
+        );
+        let svc = SnapshotService::new(
+            Arc::new(RwLock::new("CAD".to_string())),
+            Arc::new(account_repo),
+            Arc::new(MockActivityRepositoryWithData::new(vec![buy])),
+            Arc::new(MockSnapshotRepository::new()),
+            Arc::new(MockAssetRepository::new()),
+            Arc::new(MockFxService::new()),
+        );
+
+        let err = svc
+            .recalculate_holdings_snapshots(None, SnapshotRecalcMode::Full)
+            .await
+            .expect_err("Canadian ACB averages identical properties, so FIFO is invalid");
+
+        assert!(err
+            .to_string()
+            .contains("requires the WAC cost basis method"));
     }
 
     #[tokio::test]

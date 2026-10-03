@@ -44,6 +44,8 @@
   "subtype_refund": "Reembolso de taxa",
   "subtype_reimbursement": "Reembolso",
   "subtype_option_expiry": "Vencimento de opção",
+  "subtype_return_of_capital": "Devolução de capital",
+  "subtype_notional_distribution": "Distribuição nocional",
   "subtype_position_open": "Abrir posição",
   "subtype_position_close": "Fechar posição",
   "type_buy_desc": "Compra um ativo. Isso aumenta a quantidade da sua posição e reduz seu saldo em caixa.",

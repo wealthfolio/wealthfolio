@@ -224,6 +224,58 @@ impl HoldingsCalculator {
             ));
         }
     }
+
+    /// Records the part of a return of capital that exceeded the remaining
+    /// cost basis as a realized gain: a zero-quantity disposal against
+    /// `lot_id` with zero cost basis.
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn record_cost_basis_excess(
+        &self,
+        account_id: &str,
+        asset_id: &str,
+        lot_id: &str,
+        activity: &Activity,
+        excess: Decimal,
+        position_currency: &str,
+        run: &ProjectionRun,
+        buffer: &mut SideEffectBuffer,
+    ) {
+        let disposal_date = self.activity_local_date(activity);
+        let base_currency = self.base_currency.read().unwrap().clone();
+        let fx_rate_to_base = self
+            .fx_rate_for_basis(
+                position_currency,
+                &base_currency,
+                disposal_date,
+                &activity.id,
+            )
+            .unwrap_or(Decimal::ZERO);
+        let gain = storage_money(excess);
+        let gain_base = storage_money(excess * fx_rate_to_base);
+        buffer.lot_disposals.push((
+            account_id.to_string(),
+            LotDisposal {
+                id: format!("{}:{}:0", activity.id, lot_id),
+                lot_id: lot_id.to_string(),
+                account_id: account_id.to_string(),
+                asset_id: asset_id.to_string(),
+                disposal_activity_id: activity.id.clone(),
+                disposal_date: disposal_date.to_string(),
+                quantity: Decimal::ZERO.to_string(),
+                proceeds: gain.to_string(),
+                cost_basis: Decimal::ZERO.to_string(),
+                realized_pnl: gain.to_string(),
+                proceeds_base: gain_base.to_string(),
+                cost_basis_base: Decimal::ZERO.to_string(),
+                realized_pnl_base: gain_base.to_string(),
+                currency: position_currency.to_string(),
+                base_currency,
+                fx_rate_to_base: fx_rate_to_base.to_string(),
+                cost_basis_method: run.cost_basis_method_for_account(account_id),
+                created_at: Utc::now().format("%Y-%m-%dT%H:%M:%S%.3fZ").to_string(),
+            },
+        ));
+    }
 }
 
 impl HoldingsCalculator {

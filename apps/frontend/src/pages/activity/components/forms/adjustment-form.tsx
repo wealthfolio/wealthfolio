@@ -140,6 +140,18 @@ export const createAdjustmentFormSchema = (t?: TFunction) =>
           });
         }
       }
+
+      const normalizedSubtype = data.subtype?.trim().toUpperCase();
+      const isCostBasisAdjustment =
+        normalizedSubtype === ACTIVITY_SUBTYPES.RETURN_OF_CAPITAL ||
+        normalizedSubtype === ACTIVITY_SUBTYPES.NOTIONAL_DISTRIBUTION;
+      if (isCostBasisAdjustment && !(data.amount != null && data.amount > 0)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["amount"],
+          message: msg(t, "activity:form.err_enter_amount", "Please enter an amount."),
+        });
+      }
     });
 
 export const adjustmentFormSchema = createAdjustmentFormSchema();
@@ -213,7 +225,7 @@ export function AdjustmentForm({
       symbolInstrumentType?.trim().toUpperCase() === InstrumentType.OPTION || isCurrentOptionExpiry;
     const options: string[] = canSelectOptionExpiry
       ? [isCurrentOptionExpiry && currentSubtype ? currentSubtype : ACTIVITY_SUBTYPES.OPTION_EXPIRY]
-      : [];
+      : [ACTIVITY_SUBTYPES.RETURN_OF_CAPITAL, ACTIVITY_SUBTYPES.NOTIONAL_DISTRIBUTION];
     if (currentSubtype && !options.includes(currentSubtype)) {
       return [currentSubtype, ...options];
     }

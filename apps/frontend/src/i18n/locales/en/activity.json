@@ -43,6 +43,8 @@
   "subtype_refund": "Fee Refund",
   "subtype_reimbursement": "Reimbursement",
   "subtype_option_expiry": "Option Expiry",
+  "subtype_return_of_capital": "Return of Capital",
+  "subtype_notional_distribution": "Notional Distribution",
   "subtype_position_open": "Open Position",
   "subtype_position_close": "Close Position",
   "type_buy_desc": "Purchase an asset. This increases your holding quantity and decreases your cash balance.",

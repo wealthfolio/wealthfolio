@@ -44,6 +44,8 @@
   "subtype_refund": "Remboursement de frais",
   "subtype_reimbursement": "Remboursement",
   "subtype_option_expiry": "Expiration d'option",
+  "subtype_return_of_capital": "Remboursement de capital",
+  "subtype_notional_distribution": "Distribution théorique",
   "subtype_position_open": "Ouverture de position",
   "subtype_position_close": "Clôture de position",
   "type_buy_desc": "Achetez un actif. Cela augmente la quantité de vos positions et diminue votre solde de liquidités.",

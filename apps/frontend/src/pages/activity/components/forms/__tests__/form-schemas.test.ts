@@ -97,6 +97,31 @@ describe("Form Schemas Validation", () => {
       }
     });
 
+    it.each([ACTIVITY_SUBTYPES.RETURN_OF_CAPITAL, ACTIVITY_SUBTYPES.NOTIONAL_DISTRIBUTION])(
+      "requires a positive amount for a %s cost basis adjustment",
+      (subtype) => {
+        const base = {
+          adjustmentMode: "securities",
+          accountId: "acc-123",
+          activityDate: new Date(),
+          assetId: "XIC",
+          symbolInstrumentType: "EQUITY",
+          currency: "CAD",
+          subtype,
+        };
+
+        const missing = adjustmentFormSchema.safeParse({ ...base, amount: null });
+        expect(missing.success).toBe(false);
+        if (!missing.success) {
+          expect(missing.error.issues).toEqual(
+            expect.arrayContaining([expect.objectContaining({ path: ["amount"] })]),
+          );
+        }
+
+        expect(adjustmentFormSchema.safeParse({ ...base, amount: 125.5 }).success).toBe(true);
+      },
+    );
+
     it("derives cash and security edit modes without losing imported values", () => {
       const cashDefaults = ACTIVITY_FORM_CONFIG.ADJUSTMENT.getDefaults(
         {

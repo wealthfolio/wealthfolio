@@ -44,6 +44,8 @@
   "subtype_refund": "Rimborso commissione",
   "subtype_reimbursement": "Rimborso",
   "subtype_option_expiry": "Scadenza opzione",
+  "subtype_return_of_capital": "Rimborso di capitale",
+  "subtype_notional_distribution": "Distribuzione nozionale",
   "subtype_position_open": "Apertura posizione",
   "subtype_position_close": "Chiusura posizione",
   "type_buy_desc": "Acquista un asset. Questo aumenta la quantità della tua posizione e riduce il saldo disponibile.",

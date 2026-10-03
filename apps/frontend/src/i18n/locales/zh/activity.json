@@ -42,6 +42,8 @@
   "subtype_refund": "费用退还",
   "subtype_reimbursement": "补偿",
   "subtype_option_expiry": "期权到期",
+  "subtype_return_of_capital": "资本返还",
+  "subtype_notional_distribution": "名义分配",
   "subtype_position_open": "开仓",
   "subtype_position_close": "平仓",
   "type_buy_desc": "买入一项资产。这会增加您的持仓数量并减少您的现金余额。",

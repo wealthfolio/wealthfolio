@@ -1,4 +1,4 @@
-use crate::accounts::account_types;
+use crate::accounts::{account_types, CostBasisMethod};
 use crate::activities::{
     is_contribution_neutral_same_account_cash_fx_conversion, Activity, ActivityType, TransferPair,
     TransferPairResolution,
@@ -92,6 +92,14 @@ impl ProjectionRun {
             .get(account_id)
             .cloned()
             .unwrap_or_else(|| "FIFO".to_string())
+    }
+
+    /// Lot-relief method for an account; unknown codes fall back to FIFO.
+    fn cost_basis_method(&self, account_id: &str) -> CostBasisMethod {
+        self.cost_basis_methods
+            .get(account_id)
+            .and_then(|code| CostBasisMethod::from_code(code).ok())
+            .unwrap_or_default()
     }
 
     fn register_contribution_neutral_transfer_pair(&mut self, transfer_pair: &TransferPair) {
@@ -522,7 +530,7 @@ impl HoldingsCalculator {
             ),
             ActivityType::Split => self.handle_split(activity, state, asset_cache),
             ActivityType::Adjustment => {
-                self.handle_adjustment(activity, state, asset_cache, run, buffer)
+                self.handle_adjustment(activity, state, account_currency, asset_cache, run, buffer)
             }
             ActivityType::Unknown => {
                 warn!(

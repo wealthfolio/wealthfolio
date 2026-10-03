@@ -39,6 +39,7 @@ use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, RwLock};
 
 use crate::accounts::{account_types, Account, AccountServiceTrait};
+use crate::activities::activities_constants::is_cost_basis_adjustment_subtype;
 use crate::activities::activities_constants::{
     classify_import_activity, is_cash_symbol, is_garbage_symbol, is_securities_transfer,
     requires_final_cash_amount, requires_symbol, ImportSymbolDisposition,
@@ -826,6 +827,7 @@ impl ActivityService {
         if activity_type.eq_ignore_ascii_case(ACTIVITY_TYPE_ADJUSTMENT) {
             return subtype.is_some_and(|subtype| {
                 subtype.eq_ignore_ascii_case(ACTIVITY_SUBTYPE_OPTION_EXPIRY)
+                    || is_cost_basis_adjustment_subtype(subtype)
             });
         }
         requires_symbol(activity_type)

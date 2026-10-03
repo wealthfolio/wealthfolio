@@ -81,6 +81,36 @@ function setCashCategoryInMeta(meta: string | null | undefined, categoryId: stri
   return JSON.stringify(parsed);
 }
 
+type CostBasisChoice = "FIFO" | "WAC" | "CANADA_ACB";
+
+function parseMeta(meta?: string | null): Record<string, unknown> {
+  if (!meta) return {};
+  try {
+    return JSON.parse(meta) as Record<string, unknown>;
+  } catch {
+    return {};
+  }
+}
+
+function getCostBasisFromMeta(meta?: string | null): CostBasisChoice {
+  const accounting = parseMeta(meta).accounting as Record<string, unknown> | undefined;
+  if (accounting?.costBasisProfile === "CANADA_ACB") return "CANADA_ACB";
+  return accounting?.costBasisMethod === "WAC" ? "WAC" : "FIFO";
+}
+
+// Canadian ACB averages identical properties, so it always pairs WAC with the
+// CANADA_ACB profile. Other accounting fields are kept as they are.
+function setCostBasisInMeta(meta: string | null | undefined, choice: CostBasisChoice): string {
+  const parsed = parseMeta(meta);
+  const accounting = (parsed.accounting as Record<string, unknown> | undefined) ?? {};
+  parsed.accounting = {
+    ...accounting,
+    costBasisMethod: choice === "FIFO" ? "FIFO" : "WAC",
+    costBasisProfile: choice === "CANADA_ACB" ? "CANADA_ACB" : "GENERIC",
+  };
+  return JSON.stringify(parsed);
+}
+
 function getSelectableCashCategoryFromMeta(meta?: string | null): string {
   const categoryId = getCashCategoryFromMeta(meta);
   return categoryId === CASH_FIXED_INCOME_CATEGORY_ID
@@ -124,6 +154,15 @@ export function AccountForm({ defaultValues, onSuccess = () => undefined }: Acco
       { label: t("settings:accounts_form_type_cash"), value: "CASH" },
       { label: t("settings:accounts_form_type_credit_card"), value: "CREDIT_CARD" },
       { label: t("settings:accounts_form_type_crypto"), value: "CRYPTOCURRENCY" },
+    ],
+    [t],
+  );
+
+  const costBasisOptions: ResponsiveSelectOption[] = useMemo(
+    () => [
+      { label: t("settings:accounts.form_cost_basis_fifo"), value: "FIFO" },
+      { label: t("settings:accounts.form_cost_basis_wac"), value: "WAC" },
+      { label: t("settings:accounts.form_cost_basis_canada_acb"), value: "CANADA_ACB" },
     ],
     [t],
   );
@@ -365,6 +404,32 @@ export function AccountForm({ defaultValues, onSuccess = () => undefined }: Acco
                       {fixedIncomeCategoryName}
                     </ToggleGroupItem>
                   </ToggleGroup>
+                </div>
+              )}
+
+              {!isCashAccount && !isCreditCardAccount && (
+                <div className="flex flex-col gap-2">
+                  <div>
+                    <label className="text-sm font-medium">
+                      {t("settings:accounts.form_cost_basis_label")}
+                    </label>
+                    <p className="text-muted-foreground text-xs">
+                      {t("settings:accounts.form_cost_basis_description")}
+                    </p>
+                  </div>
+                  <ResponsiveSelect
+                    value={getCostBasisFromMeta(form.watch("meta"))}
+                    onValueChange={(value) => {
+                      const updatedMeta = setCostBasisInMeta(
+                        form.getValues("meta"),
+                        value as CostBasisChoice,
+                      );
+                      form.setValue("meta", updatedMeta, { shouldDirty: true });
+                    }}
+                    options={costBasisOptions}
+                    sheetTitle={t("settings:accounts.form_cost_basis_label")}
+                    triggerClassName="h-11"
+                  />
                 </div>
               )}
             </div>

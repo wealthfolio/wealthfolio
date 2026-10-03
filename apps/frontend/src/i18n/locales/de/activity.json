@@ -39,6 +39,8 @@
   "subtype_refund": "Gebührenerstattung",
   "subtype_reimbursement": "Erstattung",
   "subtype_option_expiry": "Optionsverfall",
+  "subtype_return_of_capital": "Kapitalrückzahlung",
+  "subtype_notional_distribution": "Fiktive Ausschüttung",
   "subtype_position_open": "Positionseröffnung",
   "subtype_position_close": "Glattstellung",
   "type_add_holding": "Bestand hinzufügen",

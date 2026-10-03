@@ -9764,4 +9764,728 @@ mod tests {
             prop_assert_eq!(simple_gain(&snapshot), Decimal::ZERO);
         }
     }
+
+    /// Canadian adjusted cost base (ACB) rules, one test per rule, run through
+    /// accounts set to WAC (the method CANADA_ACB requires).
+    ///
+    /// Sources: CRA guide T4037 "Capital Gains" (identical properties, stock
+    /// splits, foreign currency), ITA s. 47 (identical properties averaging),
+    /// ITA 40(3) (negative ACB), TD Wealth "Identical Properties" and the
+    /// finiki / adjustedcostbase.ca worked examples cited per test.
+    ///
+    /// Not modelled: pooling identical property across accounts (CRA pools
+    /// every non-registered account; Wealthfolio pools per account, like the
+    /// broker statements), the superficial loss rule, and deemed dispositions
+    /// on in-kind contributions to registered plans.
+    mod canada_acb_rules {
+        use super::*;
+        use crate::activities::{
+            ACTIVITY_SUBTYPE_NOTIONAL_DISTRIBUTION, ACTIVITY_SUBTYPE_RETURN_OF_CAPITAL,
+        };
+
+        fn acb_harness(
+            fx_service: MockFxService,
+            base_currency: &str,
+            accounts: &[&str],
+        ) -> CalcHarness {
+            let mut asset_repository = MockAssetRepository::new();
+            asset_repository.add_asset("XIC", "CAD");
+            let mut harness = CalcHarness::new(HoldingsCalculator::new(
+                Arc::new(fx_service),
+                Arc::new(RwLock::new(base_currency.to_string())),
+                Arc::new(asset_repository),
+            ));
+            for account_id in accounts {
+                harness.set_cost_basis_method_for_account(account_id, "WAC");
+            }
+            harness
+        }
+
+        fn step(
+            harness: &mut CalcHarness,
+            previous: &AccountStateSnapshot,
+            activities: &[Activity],
+            date: &str,
+        ) -> AccountStateSnapshot {
+            let result = harness
+                .calculate_next_holdings(previous, activities, NaiveDate::from_str(date).unwrap())
+                .expect("calculation should succeed");
+            assert!(
+                result.warnings.is_empty(),
+                "unexpected warnings: {:?}",
+                result.warnings
+            );
+            result.snapshot
+        }
+
+        fn trade(
+            id: &str,
+            activity_type: ActivityType,
+            quantity: Decimal,
+            unit_price: Decimal,
+            fee: Decimal,
+            date: &str,
+        ) -> Activity {
+            create_default_activity(
+                id,
+                activity_type,
+                "XIC",
+                quantity,
+                unit_price,
+                fee,
+                "CAD",
+                date,
+            )
+        }
+
+        /// A purchase whose total cost is known exactly, e.g. a reinvested
+        /// distribution of $500 that bought 47.39 units.
+        fn buy_for_total(id: &str, quantity: Decimal, total: Decimal, date: &str) -> Activity {
+            let mut activity = trade(
+                id,
+                ActivityType::Buy,
+                quantity,
+                total / quantity,
+                dec!(0),
+                date,
+            );
+            activity.amount = Some(total);
+            activity
+        }
+
+        fn basis_only(
+            id: &str,
+            activity_type: ActivityType,
+            amount: Decimal,
+            date: &str,
+        ) -> Activity {
+            let mut activity = trade(id, activity_type, dec!(0), dec!(0), dec!(0), date);
+            activity.quantity = None;
+            activity.unit_price = None;
+            activity.fee = None;
+            activity.amount = Some(amount);
+            activity
+        }
+
+        fn adjustment(id: &str, subtype: &str, amount: Decimal, date: &str) -> Activity {
+            let mut activity = basis_only(id, ActivityType::Adjustment, amount, date);
+            activity.subtype = Some(subtype.to_string());
+            activity
+        }
+
+        fn xic(snapshot: &AccountStateSnapshot) -> &Position {
+            snapshot.positions.get("XIC").expect("XIC position")
+        }
+
+        fn sum(disposals: &[LotDisposal], field: fn(&LotDisposal) -> &str) -> Decimal {
+            disposals
+                .iter()
+                .map(|disposal| Decimal::from_str(field(disposal)).unwrap())
+                .sum::<Decimal>()
+                .round_dp(2)
+        }
+
+        fn relieved(disposals: &[LotDisposal]) -> Decimal {
+            sum(disposals, |d| &d.cost_basis)
+        }
+
+        fn realized(disposals: &[LotDisposal]) -> Decimal {
+            sum(disposals, |d| &d.realized_pnl)
+        }
+
+        /// T4037 / ITA s. 47: the ACB of each identical property is the average
+        /// cost of the group, recalculated at each purchase. A sale relieves
+        /// that average, not the oldest purchase.
+        #[test]
+        fn identical_properties_are_averaged_and_a_sale_relieves_the_average() {
+            let mut h = acb_harness(MockFxService::new(), "CAD", &["acc_1"]);
+            let s0 = create_initial_snapshot("acc_1", "CAD", "2024-01-01");
+            let s1 = step(
+                &mut h,
+                &s0,
+                &[trade(
+                    "b1",
+                    ActivityType::Buy,
+                    dec!(100),
+                    dec!(10),
+                    dec!(0),
+                    "2024-01-02",
+                )],
+                "2024-01-02",
+            );
+            let s2 = step(
+                &mut h,
+                &s1,
+                &[trade(
+                    "b2",
+                    ActivityType::Buy,
+                    dec!(100),
+                    dec!(20),
+                    dec!(0),
+                    "2024-01-03",
+                )],
+                "2024-01-03",
+            );
+            assert_eq!(xic(&s2).average_cost, dec!(15));
+
+            let s3 = step(
+                &mut h,
+                &s2,
+                &[trade(
+                    "s1",
+                    ActivityType::Sell,
+                    dec!(50),
+                    dec!(30),
+                    dec!(0),
+                    "2024-01-04",
+                )],
+                "2024-01-04",
+            );
+
+            let disposals = h.take_lot_disposals("acc_1", "WAC");
+            // 50 × $15 average (FIFO would relieve 50 × $10 = $500).
+            assert_eq!(relieved(&disposals), dec!(750));
+            assert_eq!(realized(&disposals), dec!(750));
+            assert_eq!(xic(&s3).quantity, dec!(150));
+            assert_eq!(xic(&s3).total_cost_basis, dec!(2250));
+            assert_eq!(xic(&s3).average_cost, dec!(15));
+        }
+
+        /// finiki "Adjusted cost base" (Ed): purchase commissions are added to
+        /// ACB, sale commissions reduce proceeds. 200 @ $20.32 + $9.95 = ACB
+        /// $4,073.95; sold for $7,046 less $9.95 → gain $2,962.10.
+        #[test]
+        fn purchase_commissions_add_to_acb_and_sale_commissions_reduce_proceeds() {
+            let mut h = acb_harness(MockFxService::new(), "CAD", &["acc_1"]);
+            let s0 = create_initial_snapshot("acc_1", "CAD", "2024-01-01");
+            let s1 = step(
+                &mut h,
+                &s0,
+                &[trade(
+                    "b1",
+                    ActivityType::Buy,
+                    dec!(200),
+                    dec!(20.32),
+                    dec!(9.95),
+                    "2024-01-02",
+                )],
+                "2024-01-02",
+            );
+            assert_eq!(xic(&s1).total_cost_basis, dec!(4073.95));
+
+            step(
+                &mut h,
+                &s1,
+                &[trade(
+                    "s1",
+                    ActivityType::Sell,
+                    dec!(200),
+                    dec!(35.23),
+                    dec!(9.95),
+                    "2024-01-03",
+                )],
+                "2024-01-03",
+            );
+
+            let disposals = h.take_lot_disposals("acc_1", "WAC");
+            assert_eq!(relieved(&disposals), dec!(4073.95));
+            assert_eq!(sum(&disposals, |d| &d.proceeds), dec!(7036.05));
+            assert_eq!(realized(&disposals), dec!(2962.10));
+        }
+
+        /// finiki "Adjusted cost base" (Genevieve): selling does not change
+        /// ACB per unit. 100 @ $20 + $10 = $20.10/unit; selling 50 @ $30 less
+        /// $10 → gain $485, and the remaining 50 stay at $20.10.
+        #[test]
+        fn a_sale_does_not_change_acb_per_unit() {
+            let mut h = acb_harness(MockFxService::new(), "CAD", &["acc_1"]);
+            let s0 = create_initial_snapshot("acc_1", "CAD", "2024-01-01");
+            let s1 = step(
+                &mut h,
+                &s0,
+                &[trade(
+                    "b1",
+                    ActivityType::Buy,
+                    dec!(100),
+                    dec!(20),
+                    dec!(10),
+                    "2024-01-02",
+                )],
+                "2024-01-02",
+            );
+            let s2 = step(
+                &mut h,
+                &s1,
+                &[trade(
+                    "s1",
+                    ActivityType::Sell,
+                    dec!(50),
+                    dec!(30),
+                    dec!(10),
+                    "2024-01-03",
+                )],
+                "2024-01-03",
+            );
+
+            let disposals = h.take_lot_disposals("acc_1", "WAC");
+            assert_eq!(relieved(&disposals), dec!(1005));
+            assert_eq!(realized(&disposals), dec!(485));
+            assert_eq!(xic(&s2).quantity, dec!(50));
+            assert_eq!(xic(&s2).average_cost, dec!(20.10));
+        }
+
+        /// TD Wealth "Identical Properties" (Josée): reinvested distributions
+        /// are purchases that re-average ACB; a redemption leaves ACB/unit
+        /// unchanged. TD's table rounds ACB/unit to $10.09 and so prints
+        /// $5,045.00 relieved and a $1,727.84 gain; unrounded averaging gives
+        /// $5,045.02 and $1,727.87.
+        #[test]
+        fn reinvested_distributions_re_average_acb() {
+            let mut h = acb_harness(MockFxService::new(), "CAD", &["acc_1"]);
+            let s0 = create_initial_snapshot("acc_1", "CAD", "2014-01-01");
+            let s1 = step(
+                &mut h,
+                &s0,
+                &[buy_for_total(
+                    "b2014",
+                    dec!(1000),
+                    dec!(10000),
+                    "2014-01-02",
+                )],
+                "2014-01-02",
+            );
+            let s2 = step(
+                &mut h,
+                &s1,
+                &[buy_for_total("r2015", dec!(47.39), dec!(500), "2015-12-31")],
+                "2015-12-31",
+            );
+            let s3 = step(
+                &mut h,
+                &s2,
+                &[buy_for_total("r2016", dec!(67.57), dec!(750), "2016-12-31")],
+                "2016-12-31",
+            );
+            assert_eq!(xic(&s3).total_cost_basis.round_dp(2), dec!(11250));
+            assert_eq!(xic(&s3).quantity, dec!(1114.96));
+
+            let s4 = step(
+                &mut h,
+                &s3,
+                &[trade(
+                    "s2017",
+                    ActivityType::Sell,
+                    dec!(500),
+                    dec!(12.15),
+                    dec!(0),
+                    "2017-06-30",
+                )],
+                "2017-06-30",
+            );
+            let redemption = h.take_lot_disposals("acc_1", "WAC");
+            assert_eq!(relieved(&redemption), dec!(5045.02));
+            assert_eq!(xic(&s4).average_cost.round_dp(2), dec!(10.09));
+
+            let s5 = step(
+                &mut h,
+                &s4,
+                &[buy_for_total("r2018", dec!(32), dec!(400), "2018-12-31")],
+                "2018-12-31",
+            );
+            assert_eq!(xic(&s5).total_cost_basis.round_dp(2), dec!(6604.98));
+            assert_eq!(xic(&s5).quantity, dec!(646.96));
+
+            step(
+                &mut h,
+                &s5,
+                &[trade(
+                    "s2019",
+                    ActivityType::Sell,
+                    dec!(646.96),
+                    dec!(12.88),
+                    dec!(0),
+                    "2019-06-30",
+                )],
+                "2019-06-30",
+            );
+            let gain = realized(&h.take_lot_disposals("acc_1", "WAC"));
+            assert_eq!(gain, dec!(1727.87));
+            assert!(
+                (gain - dec!(1727.84)).abs() < dec!(0.05),
+                "within TD's per-unit rounding"
+            );
+        }
+
+        /// T3 box 42: a return of capital reduces ACB. It changes neither
+        /// units nor cash (the distribution that paid it books the cash) and
+        /// realizes nothing while ACB stays positive.
+        #[test]
+        fn return_of_capital_reduces_acb() {
+            let mut h = acb_harness(MockFxService::new(), "CAD", &["acc_1"]);
+            let s0 = create_initial_snapshot("acc_1", "CAD", "2024-01-01");
+            let s1 = step(
+                &mut h,
+                &s0,
+                &[trade(
+                    "b1",
+                    ActivityType::Buy,
+                    dec!(100),
+                    dec!(10),
+                    dec!(0),
+                    "2024-01-02",
+                )],
+                "2024-01-02",
+            );
+            let s2 = step(
+                &mut h,
+                &s1,
+                &[adjustment(
+                    "roc",
+                    ACTIVITY_SUBTYPE_RETURN_OF_CAPITAL,
+                    dec!(200),
+                    "2024-03-31",
+                )],
+                "2024-03-31",
+            );
+
+            assert_eq!(xic(&s2).quantity, dec!(100));
+            assert_eq!(xic(&s2).total_cost_basis, dec!(800));
+            assert_eq!(s2.cash_balances, s1.cash_balances);
+            assert_eq!(s2.net_contribution, s1.net_contribution);
+            assert!(h.take_lot_disposals("acc_1", "WAC").is_empty());
+
+            step(
+                &mut h,
+                &s2,
+                &[trade(
+                    "s1",
+                    ActivityType::Sell,
+                    dec!(50),
+                    dec!(12),
+                    dec!(0),
+                    "2024-04-02",
+                )],
+                "2024-04-02",
+            );
+            let disposals = h.take_lot_disposals("acc_1", "WAC");
+            assert_eq!(relieved(&disposals), dec!(400));
+            assert_eq!(realized(&disposals), dec!(200));
+        }
+
+        /// ITA 40(3), adjustedcostbase.ca "Can my ACB be negative?": ACB never
+        /// goes below zero. A return of capital beyond the remaining ACB sets
+        /// it to zero and the excess is a capital gain in that year; with ACB
+        /// already zero, the whole return of capital is a gain. A later
+        /// purchase starts ACB again from its cost.
+        #[test]
+        fn return_of_capital_beyond_acb_is_a_capital_gain_and_acb_floors_at_zero() {
+            let mut h = acb_harness(MockFxService::new(), "CAD", &["acc_1"]);
+            let s0 = create_initial_snapshot("acc_1", "CAD", "2024-03-31");
+            let s1 = step(
+                &mut h,
+                &s0,
+                &[trade(
+                    "buy",
+                    ActivityType::Buy,
+                    dec!(100),
+                    dec!(10),
+                    dec!(10),
+                    "2024-04-01",
+                )],
+                "2024-04-01",
+            );
+            assert_eq!(xic(&s1).total_cost_basis, dec!(1010));
+
+            let s2 = step(
+                &mut h,
+                &s1,
+                &[adjustment(
+                    "roc_may",
+                    ACTIVITY_SUBTYPE_RETURN_OF_CAPITAL,
+                    dec!(500),
+                    "2024-05-01",
+                )],
+                "2024-05-01",
+            );
+            assert_eq!(xic(&s2).total_cost_basis, dec!(510));
+            assert!(h.take_lot_disposals("acc_1", "WAC").is_empty());
+
+            let s3 = step(
+                &mut h,
+                &s2,
+                &[adjustment(
+                    "roc_jun",
+                    ACTIVITY_SUBTYPE_RETURN_OF_CAPITAL,
+                    dec!(600),
+                    "2024-06-01",
+                )],
+                "2024-06-01",
+            );
+            assert_eq!(xic(&s3).total_cost_basis, dec!(0));
+            assert_eq!(xic(&s3).quantity, dec!(100));
+            let june = h.take_lot_disposals("acc_1", "WAC");
+            assert_eq!(june.len(), 1);
+            assert_eq!(june[0].disposal_activity_id, "roc_jun");
+            assert_eq!(Decimal::from_str(&june[0].quantity).unwrap(), dec!(0));
+            assert_eq!(realized(&june), dec!(90));
+
+            let s4 = step(
+                &mut h,
+                &s3,
+                &[adjustment(
+                    "roc_jul",
+                    ACTIVITY_SUBTYPE_RETURN_OF_CAPITAL,
+                    dec!(100),
+                    "2024-07-01",
+                )],
+                "2024-07-01",
+            );
+            assert_eq!(realized(&h.take_lot_disposals("acc_1", "WAC")), dec!(100));
+
+            let s5 = step(
+                &mut h,
+                &s4,
+                &[trade(
+                    "rebuy",
+                    ActivityType::Buy,
+                    dec!(50),
+                    dec!(10),
+                    dec!(0),
+                    "2024-08-01",
+                )],
+                "2024-08-01",
+            );
+            assert_eq!(xic(&s5).total_cost_basis, dec!(500));
+            assert_eq!(xic(&s5).quantity, dec!(150));
+        }
+
+        /// Phantom (notional) distributions: a distribution reinvested without
+        /// issuing units is taxed in the year and increases ACB, so it is not
+        /// taxed again on sale.
+        #[test]
+        fn notional_distribution_increases_acb_without_adding_units() {
+            let mut h = acb_harness(MockFxService::new(), "CAD", &["acc_1"]);
+            let s0 = create_initial_snapshot("acc_1", "CAD", "2024-01-01");
+            let s1 = step(
+                &mut h,
+                &s0,
+                &[trade(
+                    "b1",
+                    ActivityType::Buy,
+                    dec!(100),
+                    dec!(10),
+                    dec!(0),
+                    "2024-01-02",
+                )],
+                "2024-01-02",
+            );
+            let s2 = step(
+                &mut h,
+                &s1,
+                &[adjustment(
+                    "notional",
+                    ACTIVITY_SUBTYPE_NOTIONAL_DISTRIBUTION,
+                    dec!(50),
+                    "2024-12-31",
+                )],
+                "2024-12-31",
+            );
+
+            assert_eq!(xic(&s2).quantity, dec!(100));
+            assert_eq!(xic(&s2).total_cost_basis, dec!(1050));
+            assert_eq!(s2.cash_balances, s1.cash_balances);
+
+            step(
+                &mut h,
+                &s2,
+                &[trade(
+                    "s1",
+                    ActivityType::Sell,
+                    dec!(100),
+                    dec!(12),
+                    dec!(0),
+                    "2025-01-02",
+                )],
+                "2025-01-02",
+            );
+            assert_eq!(realized(&h.take_lot_disposals("acc_1", "WAC")), dec!(150));
+        }
+
+        /// T4037 stock split example: 100 shares costing $1,000 split 2-for-1
+        /// become 200 shares with ACB $5 each; total ACB is unchanged.
+        #[test]
+        fn stock_split_keeps_total_acb_and_divides_acb_per_unit() {
+            let mut h = acb_harness(MockFxService::new(), "CAD", &["acc_1"]);
+            let s0 = create_initial_snapshot("acc_1", "CAD", "2024-01-01");
+            let s1 = step(
+                &mut h,
+                &s0,
+                &[trade(
+                    "b1",
+                    ActivityType::Buy,
+                    dec!(100),
+                    dec!(10),
+                    dec!(0),
+                    "2024-01-02",
+                )],
+                "2024-01-02",
+            );
+            let s2 = step(
+                &mut h,
+                &s1,
+                &[basis_only(
+                    "split",
+                    ActivityType::Split,
+                    dec!(2),
+                    "2024-02-01",
+                )],
+                "2024-02-01",
+            );
+
+            assert_eq!(xic(&s2).quantity, dec!(200));
+            assert_eq!(xic(&s2).total_cost_basis, dec!(1000));
+            assert_eq!(xic(&s2).average_cost, dec!(5));
+
+            step(
+                &mut h,
+                &s2,
+                &[trade(
+                    "s1",
+                    ActivityType::Sell,
+                    dec!(100),
+                    dec!(6),
+                    dec!(0),
+                    "2024-03-01",
+                )],
+                "2024-03-01",
+            );
+            assert_eq!(relieved(&h.take_lot_disposals("acc_1", "WAC")), dec!(500));
+        }
+
+        /// Moving units between your own accounts is not a disposition: the
+        /// units carry their ACB (the sender's average) to the receiving
+        /// account, and the sender's ACB per unit is unchanged.
+        #[test]
+        fn transfer_between_own_accounts_carries_the_average_acb() {
+            let mut h = acb_harness(MockFxService::new(), "CAD", &["acc_a", "acc_b"]);
+            let transfer = |id: &str, activity_type: ActivityType, account_id: &str| {
+                create_transfer_activity(
+                    id,
+                    activity_type,
+                    "XIC",
+                    dec!(10),
+                    dec!(0),
+                    dec!(0),
+                    "CAD",
+                    "2024-01-04",
+                    account_id,
+                    Some("grp_1"),
+                )
+            };
+            let mut b1 = trade(
+                "b1",
+                ActivityType::Buy,
+                dec!(10),
+                dec!(10),
+                dec!(0),
+                "2024-01-02",
+            );
+            b1.account_id = "acc_a".to_string();
+            let mut b2 = trade(
+                "b2",
+                ActivityType::Buy,
+                dec!(10),
+                dec!(20),
+                dec!(0),
+                "2024-01-03",
+            );
+            b2.account_id = "acc_a".to_string();
+
+            let a0 = create_initial_snapshot("acc_a", "CAD", "2024-01-01");
+            let a1 = step(&mut h, &a0, &[b1], "2024-01-02");
+            let a2 = step(&mut h, &a1, &[b2], "2024-01-03");
+            let a3 = step(
+                &mut h,
+                &a2,
+                &[transfer("out", ActivityType::TransferOut, "acc_a")],
+                "2024-01-04",
+            );
+            let b0 = create_initial_snapshot("acc_b", "CAD", "2024-01-03");
+            let b1 = step(
+                &mut h,
+                &b0,
+                &[transfer("in", ActivityType::TransferIn, "acc_b")],
+                "2024-01-04",
+            );
+
+            assert_eq!(xic(&a3).total_cost_basis, dec!(150));
+            assert_eq!(xic(&a3).average_cost, dec!(15));
+            assert_eq!(xic(&b1).total_cost_basis, dec!(150));
+            assert_eq!(xic(&b1).quantity, dec!(10));
+
+            let mut sale = trade(
+                "s1",
+                ActivityType::Sell,
+                dec!(10),
+                dec!(30),
+                dec!(0),
+                "2024-01-05",
+            );
+            sale.account_id = "acc_b".to_string();
+            step(&mut h, &b1, &[sale], "2024-01-05");
+            let disposals = h.take_lot_disposals("acc_b", "WAC");
+            assert_eq!(relieved(&disposals), dec!(150));
+            assert_eq!(realized(&disposals), dec!(150));
+        }
+
+        /// T4037 foreign currency: convert each purchase to CAD at the rate
+        /// when it was acquired and proceeds at the rate when sold. The CAD ACB
+        /// is averaged like any other: 10 USD units bought at 1.25 and 10 at
+        /// 1.30 give CAD ACB $2,550, so selling 10 relieves $1,275.
+        #[test]
+        fn foreign_currency_acb_averages_cad_cost_at_acquisition_fx() {
+            let mut fx = MockFxService::new();
+            for date in ["2023-01-03", "2023-01-10", "2023-01-12"] {
+                add_usd_cad_rates(&mut fx, date);
+            }
+            let mut h = acb_harness(fx, "CAD", &["acc_1"]);
+            let usd_trade = |id: &str, activity_type: ActivityType, price: Decimal, date: &str| {
+                create_default_activity(
+                    id,
+                    activity_type,
+                    "AAPL",
+                    dec!(10),
+                    price,
+                    dec!(0),
+                    "USD",
+                    date,
+                )
+            };
+            let s0 = create_initial_snapshot("acc_1", "CAD", "2023-01-02");
+            let s1 = step(
+                &mut h,
+                &s0,
+                &[usd_trade("b1", ActivityType::Buy, dec!(100), "2023-01-03")],
+                "2023-01-03",
+            );
+            let s2 = step(
+                &mut h,
+                &s1,
+                &[usd_trade("b2", ActivityType::Buy, dec!(100), "2023-01-10")],
+                "2023-01-10",
+            );
+            step(
+                &mut h,
+                &s2,
+                &[usd_trade("s1", ActivityType::Sell, dec!(110), "2023-01-12")],
+                "2023-01-12",
+            );
+
+            let disposals = h.take_lot_disposals("acc_1", "WAC");
+            assert_eq!(relieved(&disposals), dec!(1000));
+            assert_eq!(sum(&disposals, |d| &d.cost_basis_base), dec!(1275));
+            assert_eq!(sum(&disposals, |d| &d.proceeds_base), dec!(1430));
+            assert_eq!(sum(&disposals, |d| &d.realized_pnl_base), dec!(155));
+        }
+    }
 }

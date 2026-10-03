@@ -43,6 +43,8 @@
   "subtype_refund": "手續費退還",
   "subtype_reimbursement": "費用補償",
   "subtype_option_expiry": "選擇權到期",
+  "subtype_return_of_capital": "資本返還",
+  "subtype_notional_distribution": "名義分配",
   "subtype_position_open": "建立部位",
   "subtype_position_close": "平倉",
   "type_buy_desc": "買入一項資產。這會增加你的持有部位數量並減少你的現金餘額。",
