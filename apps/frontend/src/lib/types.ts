@@ -78,7 +78,8 @@ export interface Account {
   name: string;
   accountType: AccountType;
   group?: string; // Optional
-  balance: number;
+  /** @deprecated Never populated by the backend; read balances from valuations or net worth. */
+  balance?: number;
   currency: string;
   isDefault: boolean;
   isActive: boolean;

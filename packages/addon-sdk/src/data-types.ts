@@ -154,7 +154,13 @@ export interface Account {
   name: string;
   accountType: AccountType;
   group?: string;
-  balance: number;
+  /**
+   * @deprecated Never populated: Wealthfolio's account records carry no
+   * balance, so this was always undefined at runtime. Read balances from
+   * `portfolio.getLatestValuations()` (holdings accounts) or
+   * `portfolio.getNetWorth()` (every account, credit cards included).
+   */
+  balance?: number;
   currency: string;
   isDefault: boolean;
   isActive: boolean;
@@ -1057,6 +1063,48 @@ export type TimePeriod = '1D' | '1W' | '1M' | '3M' | '6M' | 'YTD' | '1Y' | '5Y' 
 
 export type ValuationStatus = 'complete' | 'partialUnpriced' | 'unavailable';
 export type BasisStatus = 'complete' | 'partialUnknown' | 'unknown' | 'notApplicable';
+
+/** A line in the net worth balance sheet. */
+export interface NetWorthBreakdownItem {
+  /** Category key, e.g. "cash", "investments", "properties", "liabilities". */
+  category: string;
+  /** Display name. */
+  name: string;
+  /** Value in base currency as a positive magnitude, as a decimal string. */
+  value: string;
+  /**
+   * Set on individual items. An account-level item is `CASH:<accountId>`,
+   * `INVESTMENTS:<accountId>` or, for what a credit card owes,
+   * `CREDIT_CARD:<accountId>` (a card in credit appears as `CASH:<accountId>`).
+   */
+  assetId?: string;
+  /** Items rolled up into this category, for drill-down. */
+  children?: NetWorthBreakdownItem[];
+}
+
+/** A net worth asset valuation older than 90 days. */
+export interface NetWorthStaleAsset {
+  assetId: string;
+  name?: string;
+  /** Date of the last valuation (ISO format). */
+  valuationDate: string;
+  daysStale: number;
+}
+
+/** Net worth as a balance sheet, as of one date. */
+export interface NetWorthResponse {
+  /** As-of date (ISO format). */
+  date: string;
+  assets: { total: string; breakdown: NetWorthBreakdownItem[] };
+  liabilities: { total: string; breakdown: NetWorthBreakdownItem[] };
+  /** Assets minus liabilities, as a decimal string. */
+  netWorth: string;
+  /** Base currency of every amount in the response. */
+  currency: string;
+  /** Oldest valuation date used in the calculation. */
+  oldestValuationDate?: string;
+  staleAssets: NetWorthStaleAsset[];
+}
 
 export interface AccountValuation {
   id: string;

@@ -136,6 +136,36 @@ describe("Addon Type Bridge", () => {
       expect(getExchangeRatesForDates).toHaveBeenCalledWith(pairs);
     });
 
+    it("should guard and forward net worth, which carries credit card balances", async () => {
+      // Valuations cover holdings accounts only, so net worth is the one read
+      // that reports what a credit card owes (a CREDIT_CARD:<accountId> item).
+      const getNetWorth = vi.fn().mockResolvedValue({ netWorth: "0" });
+      const guard = createPermissionGuard("test-addon", [
+        {
+          category: "portfolio",
+          purpose: "Balances",
+          functions: [{ name: "getNetWorth", isDeclared: true, isDetected: false }],
+        },
+      ]);
+      const sdkAPI = createSDKHostAPIBridge(
+        {
+          getNetWorth,
+          logError: vi.fn(),
+          logInfo: vi.fn(),
+          logWarn: vi.fn(),
+          logTrace: vi.fn(),
+          logDebug: vi.fn(),
+        } as unknown as InternalHostAPI,
+        "test-addon",
+        guard,
+      );
+
+      await sdkAPI.portfolio.getNetWorth("2026-09-23");
+
+      expect(getNetWorth).toHaveBeenCalledWith("2026-09-23");
+      expect(getPermissionCategory("portfolio")?.functions).toContain("getNetWorth");
+    });
+
     it("registers historical exchange-rate lookups in currency permissions", () => {
       expect(getPermissionCategory("currency")?.functions).toContain("getRatesForDates");
     });
