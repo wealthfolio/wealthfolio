@@ -631,7 +631,8 @@ impl AlternativeAssetServiceTrait for AlternativeAssetService {
 
     async fn link_loan_payment(&self, activity_id: &str, link: PaymentLink) -> Result<()> {
         let loan_id = link.loan_id().map(str::to_string);
-        self.alternative_asset_repository
+        let changed = self
+            .alternative_asset_repository
             .update_payment_tag(
                 activity_id,
                 loan_id.as_deref(),
@@ -639,7 +640,18 @@ impl AlternativeAssetServiceTrait for AlternativeAssetService {
                     Ok(link_payment(activity, account_type, loan, &link)?)
                 }),
             )
-            .await
+            .await?;
+        // Rewriting the withdrawal marks its account for recalculation, as any
+        // activity edit does; the event runs it.
+        if let Some(activity) = changed {
+            self.event_sink.emit(DomainEvent::activities_changed(
+                vec![activity.account_id],
+                activity.asset_id.into_iter().collect(),
+                vec![activity.currency],
+                Some(activity.activity_date),
+            ));
+        }
+        Ok(())
     }
 
     fn get_loan_payments(&self, asset_id: &str) -> Result<Vec<LoanPayment>> {
@@ -1217,7 +1229,7 @@ mod tests {
             _activity_id: &str,
             _loan_id: Option<&str>,
             _change: crate::assets::PaymentTagChange,
-        ) -> Result<()> {
+        ) -> Result<Option<crate::activities::Activity>> {
             unimplemented!("not used in this test")
         }
     }

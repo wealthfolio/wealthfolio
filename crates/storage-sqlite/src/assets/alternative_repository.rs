@@ -352,11 +352,11 @@ impl AlternativeAssetRepositoryTrait for AlternativeAssetRepository {
         activity_id: &str,
         loan_id: Option<&str>,
         change: PaymentTagChange,
-    ) -> Result<()> {
+    ) -> Result<Option<Activity>> {
         let activity_id = activity_id.to_string();
         let loan_id = loan_id.map(str::to_string);
         self.writer
-            .exec_tx(move |tx| -> Result<()> {
+            .exec_tx(move |tx| -> Result<Option<Activity>> {
                 let (row, account_type) = activities::table
                     .inner_join(accounts::table)
                     .filter(activities::id.eq(&activity_id))
@@ -379,10 +379,11 @@ impl AlternativeAssetRepositoryTrait for AlternativeAssetRepository {
                 };
                 let activity = Activity::from(row);
                 let metadata = change(&activity, &account_type, loan.as_ref())?;
-                if metadata != activity.metadata {
-                    write_activity_metadata(tx, &activity_id, metadata.as_ref())?;
+                if metadata == activity.metadata {
+                    return Ok(None);
                 }
-                Ok(())
+                write_activity_metadata(tx, &activity_id, metadata.as_ref())?;
+                Ok(Some(activity))
             })
             .await
     }

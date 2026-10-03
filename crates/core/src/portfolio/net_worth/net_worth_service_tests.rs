@@ -2791,7 +2791,7 @@ impl crate::assets::AlternativeAssetRepositoryTrait for TaggedPayments {
         _: &str,
         _: Option<&str>,
         _: crate::assets::PaymentTagChange,
-    ) -> Result<()> {
+    ) -> Result<Option<crate::activities::Activity>> {
         unimplemented!("not used by net worth")
     }
 }

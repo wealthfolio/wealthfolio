@@ -1,6 +1,7 @@
 #![allow(clippy::unwrap_used, clippy::panic, reason = "test code")]
 use std::sync::Arc;
 
+use chrono::NaiveDate;
 use diesel::RunQueryDsl;
 use rust_decimal::Decimal;
 use serde_json::json;
@@ -13,6 +14,7 @@ use wealthfolio_core::assets::{
     AlternativeAssetRepositoryTrait, AlternativeAssetService, AlternativeAssetServiceTrait,
     AssetKind, AssetRepositoryTrait, NewAsset, QuoteMode,
 };
+use wealthfolio_core::events::{DomainEvent, MockDomainEventSink};
 use wealthfolio_core::quotes::{Quote, QuoteService, QuoteServiceTrait};
 use wealthfolio_core::secrets::SecretStore;
 use wealthfolio_core::Result;
@@ -41,6 +43,7 @@ struct Fixture {
     pool: Arc<db::DbPool>,
     activities: ActivityRepository,
     service: AlternativeAssetService,
+    events: MockDomainEventSink,
     repository: Arc<AlternativeAssetRepository>,
     assets: Arc<AssetRepository>,
     quotes: Arc<dyn QuoteServiceTrait>,
@@ -139,7 +142,9 @@ async fn fixture() -> Fixture {
         pool.clone(),
         writer.clone(),
     ));
-    let service = AlternativeAssetService::new(repository.clone(), assets.clone(), quotes.clone());
+    let events = MockDomainEventSink::new();
+    let service = AlternativeAssetService::new(repository.clone(), assets.clone(), quotes.clone())
+        .with_event_sink(Arc::new(events.clone()));
     assets
         .create(NewAsset {
             id: Some("mortgage".into()),
@@ -178,6 +183,7 @@ async fn fixture() -> Fixture {
         activities: ActivityRepository::new(pool.clone(), writer.clone()),
         pool,
         service,
+        events,
         repository,
         assets,
         quotes,
@@ -449,13 +455,48 @@ async fn linking_a_withdrawal_makes_it_a_payment_and_unlinking_undoes_it() {
     assert_eq!(metadata["flow"]["is_external"], true);
     assert_eq!(metadata["loan_payment"]["applies_to"], "extra");
     assert_eq!(loan.service.get_loan_payments("mortgage").unwrap().len(), 1);
+    // The rewritten withdrawal's account is recalculated like any activity edit.
+    let changed = |events: Vec<DomainEvent>| {
+        events
+            .into_iter()
+            .filter_map(|event| match event {
+                DomainEvent::ActivitiesChanged {
+                    account_ids,
+                    earliest_activity_at_utc,
+                    ..
+                } => Some((
+                    account_ids,
+                    earliest_activity_at_utc.map(|at| at.date_naive()),
+                )),
+                _ => None,
+            })
+            .collect::<Vec<_>>()
+    };
+    let day = NaiveDate::from_ymd_opt(2026, 3, 1);
+    assert_eq!(
+        changed(loan.events.events()),
+        vec![(vec!["chequing".to_string()], day)]
+    );
 
+    loan.events.clear();
     loan.service
         .link_loan_payment("pay", PaymentLink::Unlink)
         .await
         .unwrap();
     assert_eq!(loan.holding_balance(), before);
     assert!(loan.activity_metadata("pay").get("loan_payment").is_none());
+    assert_eq!(
+        changed(loan.events.events()),
+        vec![(vec!["chequing".to_string()], day)]
+    );
+
+    // Unlinking again writes nothing, so nothing is recalculated.
+    loan.events.clear();
+    loan.service
+        .link_loan_payment("pay", PaymentLink::Unlink)
+        .await
+        .unwrap();
+    assert!(loan.events.is_empty());
 }
 
 #[tokio::test]

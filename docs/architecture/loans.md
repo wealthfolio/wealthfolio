@@ -374,7 +374,9 @@ statement remains the truth.
     that is offered for linking. Without one, it records an event as before.
 13. **Edits flow through.** Editing, voiding or deleting a tagged withdrawal
     changes the loan; unlinking keeps the withdrawal and removes the tag.
-    Deleting the loan removes its tags and keeps the withdrawals.
+    Deleting the loan removes its tags and keeps the withdrawals. Linking or
+    unlinking rewrites the withdrawal, so its account is recalculated as after
+    any activity edit.
 14. **One valuation.** The loan page, holdings, net worth and net-worth history
     count the same payments, so they show the same dated principal.
 

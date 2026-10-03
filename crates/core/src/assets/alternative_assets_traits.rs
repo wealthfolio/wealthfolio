@@ -217,11 +217,12 @@ pub trait AlternativeAssetRepositoryTrait: Send + Sync {
     async fn update_loan(&self, asset_id: &str, change: LoanChange) -> Result<LoanUpdate>;
 
     /// Reads a withdrawal, its account type and the loan to link, decides the
-    /// withdrawal's metadata and writes it in one transaction.
+    /// withdrawal's metadata and writes it in one transaction. Returns the
+    /// withdrawal when its metadata changed.
     async fn update_payment_tag(
         &self,
         activity_id: &str,
         loan_id: Option<&str>,
         change: PaymentTagChange,
-    ) -> Result<()>;
+    ) -> Result<Option<Activity>>;
 }
