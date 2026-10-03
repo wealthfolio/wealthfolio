@@ -2025,6 +2025,7 @@ impl ActivityService {
             activity.quote_mode = Some(match asset.quote_mode {
                 QuoteMode::Manual => "MANUAL".to_string(),
                 QuoteMode::Market => "MARKET".to_string(),
+                QuoteMode::Discontinued => "DISCONTINUED".to_string(),
             });
         }
         if activity.currency.trim().is_empty() {
@@ -2602,6 +2603,7 @@ impl ActivityService {
                 .as_deref()
                 .and_then(|mode| match mode.to_uppercase().as_str() {
                     "MANUAL" => Some(QuoteMode::Manual),
+                    "DISCONTINUED" => Some(QuoteMode::Discontinued),
                     "MARKET" => Some(QuoteMode::Market),
                     _ => None,
                 });
@@ -3083,6 +3085,7 @@ impl ActivityService {
                 .as_deref()
                 .and_then(|mode| match mode.to_uppercase().as_str() {
                     "MANUAL" => Some(QuoteMode::Manual),
+                    "DISCONTINUED" => Some(QuoteMode::Discontinued),
                     "MARKET" => Some(QuoteMode::Market),
                     _ => None,
                 });
@@ -3484,6 +3487,7 @@ impl ActivityService {
                             match s.to_uppercase().as_str() {
                                 "MARKET" => Some(QuoteMode::Market),
                                 "MANUAL" => Some(QuoteMode::Manual),
+                                "DISCONTINUED" => Some(QuoteMode::Discontinued),
                                 _ => None,
                             }
                         });
@@ -3595,6 +3599,7 @@ impl ActivityService {
             .and_then(|s| match s.to_uppercase().as_str() {
                 "MARKET" => Some(QuoteMode::Market),
                 "MANUAL" => Some(QuoteMode::Manual),
+                "DISCONTINUED" => Some(QuoteMode::Discontinued),
                 _ => None,
             });
 
@@ -3659,7 +3664,7 @@ impl ActivityService {
                     )
                 });
             let allow_provider_lookup = allow_live_resolution
-                && quote_mode != Some(QuoteMode::Manual)
+                && (quote_mode.is_none() || quote_mode == Some(QuoteMode::Market))
                 && !matches!(
                     instrument_type.as_ref(),
                     Some(InstrumentType::Crypto | InstrumentType::Fx)
@@ -3805,6 +3810,7 @@ impl ActivityService {
         match quote_mode?.trim().to_uppercase().as_str() {
             "MARKET" => Some(QuoteMode::Market),
             "MANUAL" => Some(QuoteMode::Manual),
+            "DISCONTINUED" => Some(QuoteMode::Discontinued),
             _ => None,
         }
     }
@@ -4157,6 +4163,7 @@ impl ActivityService {
                         activity.quote_mode = Some(match asset.quote_mode {
                             QuoteMode::Manual => "MANUAL".to_string(),
                             QuoteMode::Market => "MARKET".to_string(),
+                            QuoteMode::Discontinued => "DISCONTINUED".to_string(),
                         });
                     }
                 } else {
@@ -5398,6 +5405,7 @@ impl ActivityServiceTrait for ActivityService {
                         match mode.trim().to_uppercase().as_str() {
                             "MARKET" => Some(QuoteMode::Market),
                             "MANUAL" => Some(QuoteMode::Manual),
+                            "DISCONTINUED" => Some(QuoteMode::Discontinued),
                             _ => None,
                         }
                     }),

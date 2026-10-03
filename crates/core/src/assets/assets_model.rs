@@ -60,7 +60,8 @@ pub enum InstrumentType {
 pub enum QuoteMode {
     #[default]
     Market, // Priced via market data providers
-    Manual, // User-entered quotes only
+    Manual,       // User-entered quotes only
+    Discontinued, // Asset no longer traded; skip sync silently, preserve history
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -94,6 +95,7 @@ impl QuoteMode {
         match self {
             QuoteMode::Market => "MARKET",
             QuoteMode::Manual => "MANUAL",
+            QuoteMode::Discontinued => "DISCONTINUED",
         }
     }
 }

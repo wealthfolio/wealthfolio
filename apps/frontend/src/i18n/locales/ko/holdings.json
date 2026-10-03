@@ -139,6 +139,7 @@
   "asset_currency": "자산 통화",
   "base_currency": "기준 통화",
   "manual": "수동",
+  "discontinued": "단종",
   "open": "보유 중",
   "closed": "청산됨",
   "cost_basis": "매입금액",

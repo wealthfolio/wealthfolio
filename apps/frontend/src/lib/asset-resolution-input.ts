@@ -1,4 +1,4 @@
-import type { AssetResolutionInput, QuoteMode, SymbolSearchResult } from "./types";
+import type { AssetResolutionInput, SymbolSearchResult } from "./types";
 import { quoteModeFromSearchResult } from "./asset-utils";
 
 export function normalizeOptionalString(value: unknown): string | undefined {
@@ -25,7 +25,7 @@ export function buildAssetResolutionInput(input: {
     exchangeMic: normalizeOptionalString(input.exchangeMic),
     kind: normalizeOptionalString(input.kind),
     name: normalizeOptionalString(input.name),
-    quoteMode: normalizeOptionalString(input.quoteMode) as QuoteMode | undefined,
+    quoteMode: normalizeOptionalString(input.quoteMode) as "MARKET" | "MANUAL" | undefined,
     quoteCcy: normalizeOptionalString(input.quoteCcy),
     instrumentType: normalizeOptionalString(input.instrumentType),
     providerId: normalizeOptionalString(input.providerId),

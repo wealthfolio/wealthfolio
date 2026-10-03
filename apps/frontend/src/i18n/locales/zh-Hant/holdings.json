@@ -139,6 +139,7 @@
   "asset_currency": "資產幣別",
   "base_currency": "基準幣別",
   "manual": "手動",
+  "discontinued": "已停用",
   "open": "未平倉",
   "closed": "已平倉",
   "cost_basis": "成本基礎",

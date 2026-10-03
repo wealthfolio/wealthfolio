@@ -139,6 +139,7 @@
   "asset_currency": "Asset Currency",
   "base_currency": "Base Currency",
   "manual": "Manual",
+  "discontinued": "Discontinued",
   "open": "Open",
   "closed": "Closed",
   "cost_basis": "Cost Basis",
