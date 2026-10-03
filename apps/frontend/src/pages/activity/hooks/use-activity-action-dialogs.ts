@@ -4,7 +4,7 @@ import type { ActivityDetails } from "@/lib/types";
 import { useCallback, useState } from "react";
 import { useActivityMutations } from "./use-activity-mutations";
 
-function isInternalTransfer(activity: ActivityDetails): boolean {
+export function isInternalTransfer(activity: Partial<ActivityDetails>): boolean {
   return (
     (activity.activityType === ActivityType.TRANSFER_IN ||
       activity.activityType === ActivityType.TRANSFER_OUT) &&
@@ -12,6 +12,35 @@ function isInternalTransfer(activity: ActivityDetails): boolean {
     ((activity.metadata?.flow as { is_external?: boolean } | undefined)?.is_external ?? false) !==
       true
   );
+}
+
+/**
+ * Attaches the paired leg so the transfer form can show both accounts.
+ * Returns the activity unchanged when the pair cannot be resolved.
+ */
+export async function withTransferPair(
+  activity: Partial<ActivityDetails>,
+): Promise<Partial<ActivityDetails>> {
+  if (!activity.id) return activity;
+  try {
+    const pair = await getTransferPairForActivity(activity.id);
+    if (!pair) return activity;
+    const counterpart =
+      activity.activityType === ActivityType.TRANSFER_IN ? pair.transferOut : pair.transferIn;
+    return {
+      ...activity,
+      transferOutId: pair.transferOut.id,
+      transferInId: pair.transferIn.id,
+      counterpartActivityId: counterpart.id,
+      counterpartAccountId: counterpart.accountId,
+      counterpartAmount: counterpart.amount ?? null,
+      counterpartCurrency: counterpart.currency,
+      counterpartFxRate: pair.transferIn.fxRate ?? null,
+    };
+  } catch {
+    // Fall back to single-leg editing for invalid groups.
+    return activity;
+  }
 }
 
 export function useActivityActionDialogs() {
@@ -24,28 +53,9 @@ export function useActivityActionDialogs() {
 
   const openForm = useCallback(async (activity?: ActivityDetails, activityType?: ActivityType) => {
     if (activity?.id && isInternalTransfer(activity)) {
-      try {
-        const pair = await getTransferPairForActivity(activity.id);
-        if (pair) {
-          const counterpart =
-            activity.activityType === ActivityType.TRANSFER_IN ? pair.transferOut : pair.transferIn;
-
-          setSelectedActivity({
-            ...activity,
-            transferOutId: pair.transferOut.id,
-            transferInId: pair.transferIn.id,
-            counterpartActivityId: counterpart.id,
-            counterpartAccountId: counterpart.accountId,
-            counterpartAmount: counterpart.amount ?? null,
-            counterpartCurrency: counterpart.currency,
-            counterpartFxRate: pair.transferIn.fxRate ?? null,
-          });
-          setFormOpen(true);
-          return;
-        }
-      } catch {
-        // Fall back to single-leg editing for invalid groups.
-      }
+      setSelectedActivity(await withTransferPair(activity));
+      setFormOpen(true);
+      return;
     }
 
     setSelectedActivity(activity ?? { activityType });
