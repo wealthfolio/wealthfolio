@@ -175,7 +175,9 @@
       "1Y": "1Y",
       "5Y": "5Y",
       "ALL": "ALL"
-    }
+    },
+    "previousPeriod": "Previous period",
+    "nextPeriod": "Next period"
   },
   "search": {
     "clear": "Clear search",

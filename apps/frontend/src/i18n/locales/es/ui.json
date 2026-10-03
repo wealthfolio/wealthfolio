@@ -175,7 +175,9 @@
       "1Y": "1A",
       "5Y": "5A",
       "ALL": "Máx"
-    }
+    },
+    "previousPeriod": "Periodo anterior",
+    "nextPeriod": "Periodo siguiente"
   },
   "search": {
     "clear": "Borrar búsqueda",

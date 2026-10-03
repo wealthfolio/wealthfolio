@@ -71,9 +71,16 @@ vi.mock("@wealthfolio/ui", async () => {
               description: "3M",
             },
     IntervalSelector: () => <div>interval-selector</div>,
-    usePersistentState: () => [uiMocks.intervalCode, vi.fn()],
+    PeriodStepArrows: () => <div>period-step-arrows</div>,
+    formatPeriodRangeLabel: () => null,
+    shiftPeriodAnchor: (_code: string, _steps: number, anchor: Date = new Date()) => anchor,
+    PERIOD_STEP: { "3M": vi.fn(), ALL: null },
   };
 });
+
+vi.mock("@/hooks/use-persistent-state", () => ({
+  usePersistentState: () => [uiMocks.intervalCode, vi.fn()],
+}));
 
 vi.mock("@wealthfolio/ui/components/ui/skeleton", () => ({
   Skeleton: () => <div>loading</div>,

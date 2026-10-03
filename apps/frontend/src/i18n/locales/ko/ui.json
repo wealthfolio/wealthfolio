@@ -175,7 +175,9 @@
       "1Y": "1년",
       "5Y": "5년",
       "ALL": "전체"
-    }
+    },
+    "previousPeriod": "이전 기간",
+    "nextPeriod": "다음 기간"
   },
   "search": {
     "clear": "검색 지우기",
