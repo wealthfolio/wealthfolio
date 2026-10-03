@@ -5,6 +5,7 @@
 //! - String ↔ typed value conversion
 //! - Error formatting for the frontend
 
+use crate::events::{emit_portfolio_trigger_recalculate, PortfolioRequestPayload};
 use crate::profiles::ProfileAccess;
 use chrono::NaiveDate;
 use log::error;
@@ -17,6 +18,7 @@ use wealthfolio_core::assets::{
     LinkLiabilityRequest as CoreLinkRequest, UpdateAssetDetailsRequest as CoreUpdateDetailsRequest,
     UpdateValuationRequest as CoreValuationRequest,
 };
+use wealthfolio_core::quotes::MarketSyncMode;
 use wealthfolio_core::utils::time_utils::{parse_user_timezone_or_default, user_today};
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -542,6 +544,32 @@ pub async fn calculate_loan(
 ) -> Result<Option<wealthfolio_core::assets::loan::LoanCalculation>, String> {
     let _context = state.context()?;
     Ok(wealthfolio_core::assets::loan::calculate_loan(&request))
+}
+
+#[tauri::command]
+pub async fn apply_loan_action(
+    asset_id: String,
+    action: wealthfolio_core::assets::loan::LoanAction,
+    state: ProfileAccess,
+    handle: tauri::AppHandle,
+) -> Result<(), String> {
+    let context = state.context()?;
+    let result = context
+        .alternative_asset_service()
+        .apply_loan_action(&asset_id, action)
+        .await
+        .map_err(|e| e.to_string())?;
+    // Recorded balances change valuations, as a manual quote save does.
+    if result.balances_changed {
+        tauri::async_runtime::spawn(async move {
+            let payload = PortfolioRequestPayload::builder()
+                .account_ids(None)
+                .market_sync_mode(MarketSyncMode::None)
+                .build();
+            emit_portfolio_trigger_recalculate(&handle, payload, &context);
+        });
+    }
+    Ok(())
 }
 
 #[tauri::command]

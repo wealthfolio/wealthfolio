@@ -408,6 +408,7 @@ export const COMMANDS: CommandMap = {
   update_alternative_asset_metadata: { method: "PUT", path: "/alternative-assets" },
   calculate_loan: { method: "POST", path: "/loans/calculate" },
   recalculate_loan: { method: "POST", path: "/loans/recalculate" },
+  apply_loan_action: { method: "POST", path: "/loans" },
   get_alternative_holdings: { method: "GET", path: "/alternative-holdings" },
   // Agent Access (PATs + audit log)
   get_agent_access_status: { method: "GET", path: "/agent-access/status" },
@@ -1862,6 +1863,12 @@ export const invoke = async <T>(command: string, payload?: Record<string, unknow
       break;
     }
     // Alternative Assets commands
+    case "apply_loan_action": {
+      const { assetId, action } = payload as { assetId: string; action: Record<string, unknown> };
+      url += `/${encodeURIComponent(assetId)}/actions`;
+      body = JSON.stringify(action);
+      break;
+    }
     case "recalculate_loan":
     case "calculate_loan":
     case "create_alternative_asset": {
