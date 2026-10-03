@@ -277,6 +277,8 @@
     "pickedManually": "Manuell ausgewählt.",
     "failedApplyTitle": "Kategorien konnten nicht angewendet werden",
     "failedApply": "Kategorien konnten nicht angewendet werden.",
+    "partialApplyFailed_one": "{{count}} Transaktion konnte nicht kategorisiert werden: {{reason}}",
+    "partialApplyFailed_other": "{{count}} Transaktionen konnten nicht kategorisiert werden: {{reason}}",
     "transactionsCategorized_one": "{{count}} Transaktion kategorisiert",
     "transactionsCategorized_other": "{{count}} Transaktionen kategorisiert",
     "categoriesSaved": "Kategorien in Ihren Transaktionen gespeichert.",

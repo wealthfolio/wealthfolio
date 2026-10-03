@@ -1,6 +1,7 @@
 // AI Assistant Feature Types
 
 import type { NewCategorizationRule } from "@/features/spending/types/rule";
+import type { CashFlowBucket } from "@/features/spending/types/cash-activity";
 import type { MergedProvider } from "@/lib/types";
 
 // Re-export API types for convenience
@@ -703,6 +704,7 @@ export interface ProposeCategoryProposal {
   confidence: number;
   source: "rule" | "history" | "ai" | "manual";
   explanation: string;
+  cashFlowBucket: CashFlowBucket;
 }
 
 export interface ProposeCategoryUnproposed {
@@ -712,6 +714,7 @@ export interface ProposeCategoryUnproposed {
   currency: string;
   notes: string | null;
   reason: string;
+  cashFlowBucket: CashFlowBucket;
 }
 
 export interface ProposeCategoriesSummary {

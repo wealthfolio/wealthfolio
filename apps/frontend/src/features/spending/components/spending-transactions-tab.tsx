@@ -715,7 +715,12 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
           const result = await bulkAssignMutation.mutateAsync(
             ids.map((activityId) => ({ activityId, taxonomyId, categoryId })),
           );
-          toast.success(t("spending:txTab.categorizedCount", { count: result.length }));
+          if (result.applied.length > 0) {
+            toast.success(t("spending:txTab.categorizedCount", { count: result.applied.length }));
+          }
+          if (result.rejected.length > 0) {
+            toast.error(t("spending:txTab.failedOnCount", { count: result.rejected.length }));
+          }
         } catch {
           // Hook already toasts on error.
         }
