@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 
 import { useAssetLogoOverride } from "@/lib/asset-logo-registry";
 import { parseOccSymbol } from "@/lib/occ-symbol";
@@ -21,6 +21,8 @@ interface TickerAvatarProps {
   instrumentType?: string | null;
   className?: string;
   imageClassName?: string;
+  fallback?: ReactNode;
+  fallbackClassName?: string;
 }
 
 const getFallbackAvatarLabel = (symbol: string): string => symbol.slice(0, 4);
@@ -33,6 +35,8 @@ export const TickerAvatar = ({
   instrumentType,
   className = "size-8",
   imageClassName = "object-cover p-0",
+  fallback,
+  fallbackClassName,
 }: TickerAvatarProps) => {
   // For OCC option symbols (e.g. "AAPL250321C00150000"), use the underlying ticker for logo
   const parsed = symbol ? parseOccSymbol(symbol) : null;
@@ -90,16 +94,20 @@ export const TickerAvatar = ({
           }
         }}
       />
-      <AvatarFallback className="bg-primary/80 dark:bg-primary/20 font-medium text-white">
-        <span
-          className={cn(
-            "px-0.5 leading-none",
-            fallbackAvatarLabel.length >= 4 ? "text-[10px]" : "text-xs",
-          )}
-          title={fullSymbol}
-        >
-          {fallbackAvatarLabel}
-        </span>
+      <AvatarFallback
+        className={cn("bg-primary/80 dark:bg-primary/20 font-medium text-white", fallbackClassName)}
+      >
+        {fallback ?? (
+          <span
+            className={cn(
+              "px-0.5 leading-none",
+              fallbackAvatarLabel.length >= 4 ? "text-[10px]" : "text-xs",
+            )}
+            title={fullSymbol}
+          >
+            {fallbackAvatarLabel}
+          </span>
+        )}
       </AvatarFallback>
     </Avatar>
   );
