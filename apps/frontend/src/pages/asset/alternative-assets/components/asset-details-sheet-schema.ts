@@ -11,7 +11,8 @@ import {
   calculateLoanPaymentDate,
   countLoanPayments,
 } from "../lib/loan-calculator";
-import { AlternativeAssetKind } from "@/lib/types";
+import { AccountType } from "@/lib/constants";
+import { AlternativeAssetKind, type Account } from "@/lib/types";
 import { parseLocalDate } from "@/lib/utils";
 
 // Property types
@@ -159,6 +160,10 @@ export const liabilityDetailsSchema = baseSchema.extend({
   interestMethod: z.enum(["nominal_periodic", "monthly", "semiannual"]).optional(),
   firstPaymentDate: z.date().optional().nullable(),
   linkedAssetId: z.string().optional().nullable(),
+  /** "Paid from" cash account; saved by a loan action, not with the metadata. */
+  paymentAccountId: z.string().optional().nullable(),
+  /** Escrow usually included in a payment; saved with the "Paid from" account. */
+  escrowAmount: z.number().finite().min(0).optional().nullable(),
 });
 
 // Other asset schema (generic)
@@ -362,6 +367,8 @@ export function getDefaultDetailsFormValues(
         paymentFrequency: projection?.frequency ?? "monthly",
         interestMethod: projection?.interestMethod ?? "nominal_periodic",
         linkedAssetId: (metadata?.linked_asset_id as string) ?? null,
+        paymentAccountId: storedPaymentAccount(metadata),
+        escrowAmount: storedEscrow(metadata) || null,
       };
     }
 
@@ -419,7 +426,7 @@ export function formValuesToMetadata(values: AssetDetailsFormValues): Record<str
       if (values.description) metadata.description = values.description;
       break;
 
-    case AlternativeAssetKind.LIABILITY:
+    case AlternativeAssetKind.LIABILITY: {
       if (values.liabilityType) metadata.sub_type = values.liabilityType;
       if (values.originalAmount != null)
         metadata.original_amount = values.originalAmount.toString();
@@ -452,6 +459,7 @@ export function formValuesToMetadata(values: AssetDetailsFormValues): Record<str
         });
       }
       break;
+    }
 
     case AlternativeAssetKind.OTHER:
       if (values.description) metadata.description = values.description;
@@ -467,4 +475,41 @@ function formatDateToISO(date: Date): string {
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
+}
+
+function storedPaymentAccount(metadata?: Record<string, unknown>): string | null {
+  const account = metadata?.payment_account_id;
+  return typeof account === "string" && account ? account : null;
+}
+
+function storedEscrow(metadata?: Record<string, unknown>): number {
+  const escrow = Number(metadata?.escrow_amount);
+  return Number.isFinite(escrow) && escrow > 0 ? escrow : 0;
+}
+
+/** Accounts a loan can be paid from, as the backend checks: cash, unarchived, in its currency. */
+export function paymentAccounts(accounts: Account[], currency: string): Account[] {
+  return accounts.filter(
+    (account) =>
+      account.accountType === AccountType.CASH &&
+      account.currency === currency &&
+      !account.isArchived,
+  );
+}
+
+/**
+ * The "Paid from" settings to save after the details, when they changed. The
+ * backend writes them, and only for a calculated loan, so this runs after the
+ * details that may switch calculation on.
+ */
+export function paymentAccountAction(
+  values: LiabilityDetailsFormValues,
+  metadata?: Record<string, unknown>,
+): { type: "set_payment_account"; accountId: string | null; escrowAmount: number } | null {
+  if (!values.automaticLoan) return null;
+  const accountId = values.paymentAccountId || null;
+  const escrowAmount = values.escrowAmount ?? 0;
+  if (accountId === storedPaymentAccount(metadata) && escrowAmount === storedEscrow(metadata))
+    return null;
+  return { type: "set_payment_account", accountId, escrowAmount };
 }

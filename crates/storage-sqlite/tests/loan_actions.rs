@@ -496,12 +496,34 @@ async fn only_a_cash_account_in_the_loans_currency_can_be_paid_from() {
         .await
         .unwrap();
     assert_eq!(loan.metadata()[PAYMENT_ACCOUNT_KEY], "chequing");
-    let refused = loan
-        .service
-        .apply_loan_action("mortgage", set("card"))
+    loan.add_account("usd", "CASH");
+    loan.execute("UPDATE accounts SET currency = 'USD' WHERE id = 'usd'");
+    loan.add_account("closed", "CASH");
+    loan.execute("UPDATE accounts SET is_archived = 1 WHERE id = 'closed'");
+    for account in ["card", "usd", "closed", "missing"] {
+        let refused = loan
+            .service
+            .apply_loan_action("mortgage", set(account))
+            .await
+            .unwrap_err();
+        assert_eq!(
+            refused.to_string(),
+            "LOAN_PAYMENT_ACCOUNT_INVALID",
+            "{account}"
+        );
+    }
+    assert_eq!(loan.metadata()[PAYMENT_ACCOUNT_KEY], "chequing");
+    loan.service
+        .apply_loan_action(
+            "mortgage",
+            LoanAction::SetPaymentAccount {
+                account_id: None,
+                escrow_amount: None,
+            },
+        )
         .await
-        .unwrap_err();
-    assert_eq!(refused.to_string(), "LOAN_PAYMENT_ACCOUNT_INVALID");
+        .unwrap();
+    assert!(loan.metadata().get(PAYMENT_ACCOUNT_KEY).is_none());
 }
 
 #[tokio::test]

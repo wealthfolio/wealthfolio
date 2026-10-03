@@ -943,5 +943,12 @@
     "semiannual": "Compounded semiannually",
     "hint": "Use the method stated in your loan agreement, for example “compounded semiannually, not in advance”.",
     "adjustment": "Balance adjustment: {{amount}}"
+  },
+  "loanPayments": {
+    "paid_from": "Paid from",
+    "paid_from_hint": "The cash account your payments leave from. Its withdrawals can be linked as payments on this loan.",
+    "no_account": "Not tracked",
+    "escrow": "Escrow per payment",
+    "escrow_hint": "Property taxes and insurance included in each payment. They never count as principal or interest."
   }
 }

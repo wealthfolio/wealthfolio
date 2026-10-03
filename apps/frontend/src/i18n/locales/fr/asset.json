@@ -958,5 +958,12 @@
     "semiannual": "Capitalisation semestrielle",
     "hint": "Utilisez la méthode indiquée dans votre contrat de prêt, par exemple « calculé semestriellement, et non à l’avance ».",
     "adjustment": "Ajustement du solde : {{amount}}"
+  },
+  "loanPayments": {
+    "paid_from": "Payé depuis",
+    "paid_from_hint": "Le compte d'où partent vos paiements. Ses retraits peuvent être liés à ce prêt comme paiements.",
+    "no_account": "Non suivi",
+    "escrow": "Taxes et assurance par paiement",
+    "escrow_hint": "Taxes foncières et assurance incluses dans chaque paiement. Elles ne comptent jamais comme capital ni intérêts."
   }
 }

@@ -8,6 +8,11 @@ import { LoanInterestMethodSelect } from "./loan-interest-method-select";
 import { LoanFieldInfo } from "./loan-field-info";
 import { LoanDurationInput } from "./loan-duration-input";
 import { useEffect, useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { applyLoanAction } from "@/adapters";
+import { useAccounts } from "@/hooks/use-accounts";
+import { invalidateAlternativeAssetQueries } from "../hooks/use-alternative-asset-mutations";
+import { loanErrorText } from "./loan-error-text";
 import { useForm, type Resolver } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
@@ -60,6 +65,8 @@ import {
   METAL_TYPES,
   WEIGHT_UNITS,
   LIABILITY_TYPES,
+  paymentAccountAction,
+  paymentAccounts,
 } from "./asset-details-sheet-schema";
 import { type LinkableAsset } from "./alternative-asset-quick-add-modal";
 import { AlternativeAssetKind, ALTERNATIVE_ASSET_KIND_DISPLAY_NAMES } from "@/lib/types";
@@ -133,6 +140,7 @@ export function AssetDetailsSheet({
   isSaving = false,
 }: AssetDetailsSheetProps) {
   const { t } = useTranslation();
+  const queryClient = useQueryClient();
   // Use a fallback kind for the form when asset is null (form state won't be used anyway)
   const assetKind = asset?.kind ?? AlternativeAssetKind.OTHER;
   const assetName = asset?.name ?? "";
@@ -175,15 +183,23 @@ export function AssetDetailsSheet({
       const nameChanged = values.name !== asset.name ? values.name : undefined;
       // Pass notes separately (it goes to asset.notes, not metadata)
       await onSave(asset.id, metadata, nameChanged, values.notes);
+      const paymentAccount =
+        values.kind === AlternativeAssetKind.LIABILITY
+          ? paymentAccountAction(values, asset.metadata)
+          : null;
+      if (paymentAccount) {
+        await applyLoanAction(asset.id, paymentAccount);
+        await invalidateAlternativeAssetQueries(queryClient);
+      }
       toast({
         title: t("asset:detailsSheet.details_saved"),
         variant: "success",
       });
       onOpenChange(false);
-    } catch (_error) {
+    } catch (error) {
       toast({
         title: t("asset:detailsSheet.save_failed"),
-        description: t("asset:detailsSheet.save_failed_description"),
+        description: loanErrorText(t, error, "asset:detailsSheet.save_failed_description"),
         variant: "destructive",
       });
     }
@@ -314,6 +330,7 @@ export function AssetDetailsSheet({
               {isLoan && (
                 <LiabilityFields
                   form={form}
+                  currency={asset.currency}
                   linkableAssetOptions={linkableAssetOptions}
                   linkedAssetName={linkedAssetName}
                 />
@@ -717,14 +734,24 @@ function PreciousMetalFields({
 
 function LiabilityFields({
   form,
+  currency,
   linkableAssetOptions,
   linkedAssetName,
 }: {
   form: ReturnType<typeof useForm<AssetDetailsFormValues>>;
+  currency: string;
   linkableAssetOptions: ResponsiveSelectOption[];
   linkedAssetName?: string;
 }) {
   const { t } = useTranslation();
+  const { accounts } = useAccounts();
+  const paymentAccountOptions: ResponsiveSelectOption[] = [
+    { value: "__none__", label: t("asset:loanPayments.no_account") },
+    ...paymentAccounts(accounts, currency).map((account) => ({
+      value: account.id,
+      label: account.name,
+    })),
+  ];
   const dates = useDateFormatting();
   const values = form.watch() as LiabilityDetailsFormValues;
   const automatic = values.automaticLoan === true;
@@ -1022,6 +1049,52 @@ function LiabilityFields({
                       <DatePickerInput
                         value={field.value ?? undefined}
                         onChange={(date) => field.onChange(date ?? null)}
+                      />
+                    </FormControl>
+                    <LoanFormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
+            <FormField
+              control={form.control}
+              name="paymentAccountId"
+              render={({ field }) => (
+                <FormItem>
+                  {fieldLabel(
+                    t("asset:loanPayments.paid_from"),
+                    t("asset:loanPayments.paid_from_hint"),
+                  )}
+                  <FormControl>
+                    <ResponsiveSelect
+                      value={field.value ?? "__none__"}
+                      onValueChange={(value) => field.onChange(value === "__none__" ? null : value)}
+                      options={paymentAccountOptions}
+                      sheetTitle={t("asset:loanPayments.paid_from")}
+                      aria-label={t("asset:loanPayments.paid_from")}
+                    />
+                  </FormControl>
+                  <LoanFormMessage />
+                </FormItem>
+              )}
+            />
+            {values.paymentAccountId && (
+              <FormField
+                control={form.control}
+                name="escrowAmount"
+                render={({ field }) => (
+                  <FormItem>
+                    {fieldLabel(
+                      t("asset:loanPayments.escrow"),
+                      t("asset:loanPayments.escrow_hint"),
+                    )}
+                    <FormControl>
+                      <MoneyInput
+                        ref={field.ref}
+                        name={field.name}
+                        value={field.value}
+                        aria-label={t("asset:loanPayments.escrow")}
+                        onValueChange={(value) => field.onChange(value ?? null)}
                       />
                     </FormControl>
                     <LoanFormMessage />

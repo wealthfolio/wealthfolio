@@ -958,5 +958,12 @@
     "semiannual": "Capitalizzazione semestrale",
     "hint": "Usa il metodo indicato nel contratto di prestito, ad esempio “capitalizzazione semestrale, non anticipata”.",
     "adjustment": "Rettifica del saldo: {{amount}}"
+  },
+  "loanPayments": {
+    "paid_from": "Pagato da",
+    "paid_from_hint": "Il conto da cui partono i pagamenti. I suoi prelievi possono essere collegati a questo prestito come pagamenti.",
+    "no_account": "Non monitorato",
+    "escrow": "Tasse e assicurazione per pagamento",
+    "escrow_hint": "Tasse sulla proprietà e assicurazione incluse in ogni pagamento. Non contano mai come capitale o interessi."
   }
 }

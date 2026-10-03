@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { AlternativeAssetKind } from "@/lib/types";
+import { AlternativeAssetKind, type Account } from "@/lib/types";
 import {
   assetDetailsSchema,
   formValuesToMetadata,
   getDefaultDetailsFormValues,
+  paymentAccountAction,
+  paymentAccounts,
+  type LiabilityDetailsFormValues,
 } from "./asset-details-sheet-schema";
 import { readLoanProjectionMetadata } from "../lib/loan-events";
 
@@ -160,5 +163,56 @@ it("lets a loan created before payment schedules opt into calculated payments", 
     version: 1,
     paymentAmount: 100,
     amortizationEndDate: "2027-01-01",
+  });
+});
+
+describe("the paid from account", () => {
+  const liability = (extra: Record<string, unknown> = {}) =>
+    getDefaultDetailsFormValues(AlternativeAssetKind.LIABILITY, "Mortgage", {
+      ...metadata,
+      ...extra,
+    }) as LiabilityDetailsFormValues;
+
+  it("loads the stored account and escrow", () => {
+    expect(liability({ payment_account_id: "chequing", escrow_amount: "250" })).toMatchObject({
+      paymentAccountId: "chequing",
+      escrowAmount: 250,
+    });
+    expect(liability()).toMatchObject({ paymentAccountId: null, escrowAmount: null });
+  });
+
+  it("is saved by a loan action only when it changed, never with the metadata", () => {
+    const values = { ...liability(), paymentAccountId: "chequing", escrowAmount: 100 };
+    expect(paymentAccountAction(values, metadata)).toEqual({
+      type: "set_payment_account",
+      accountId: "chequing",
+      escrowAmount: 100,
+    });
+    const stored = { ...metadata, payment_account_id: "chequing", escrow_amount: "100" };
+    expect(paymentAccountAction(values, stored)).toBeNull();
+    expect(formValuesToMetadata(values)).not.toHaveProperty("payment_account_id");
+    expect(formValuesToMetadata(values)).not.toHaveProperty("escrow_amount");
+  });
+
+  it("does nothing for a manual loan", () => {
+    const values = { ...liability(), automaticLoan: false, paymentAccountId: "chequing" };
+    expect(paymentAccountAction(values, metadata)).toBeNull();
+  });
+
+  it("offers only unarchived cash accounts in the loan's currency", () => {
+    const account = (id: string, overrides: Partial<Account>) =>
+      ({ id, accountType: "CASH", currency: "USD", isArchived: false, ...overrides }) as Account;
+    const accounts = [
+      account("chequing", {}),
+      account("savings", {}),
+      account("card", { accountType: "CREDIT_CARD" }),
+      account("brokerage", { accountType: "SECURITIES" }),
+      account("cad", { currency: "CAD" }),
+      account("closed", { isArchived: true }),
+    ];
+    expect(paymentAccounts(accounts, "USD").map((item) => item.id)).toEqual([
+      "chequing",
+      "savings",
+    ]);
   });
 });

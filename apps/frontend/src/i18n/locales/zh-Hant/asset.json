@@ -943,5 +943,12 @@
     "semiannual": "按半年複利",
     "hint": "請使用貸款合約中規定的計算方式，例如「每半年複利，非預付」。",
     "adjustment": "餘額調整：{{amount}}"
+  },
+  "loanPayments": {
+    "paid_from": "付款帳戶",
+    "paid_from_hint": "還款扣款的帳戶。該帳戶的提款可連結為此貸款的還款。",
+    "no_account": "不追蹤",
+    "escrow": "每期稅費和保險",
+    "escrow_hint": "每次還款中包含的房屋稅和保險，不計入本金或利息。"
   }
 }

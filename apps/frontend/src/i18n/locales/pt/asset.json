@@ -958,5 +958,12 @@
     "semiannual": "Capitalização semestral",
     "hint": "Use o método indicado no contrato do empréstimo, por exemplo “capitalização semestral, não antecipada”.",
     "adjustment": "Ajuste do saldo: {{amount}}"
+  },
+  "loanPayments": {
+    "paid_from": "Pago a partir de",
+    "paid_from_hint": "A conta de onde saem os seus pagamentos. Os seus levantamentos podem ser associados a este empréstimo como pagamentos.",
+    "no_account": "Não acompanhado",
+    "escrow": "Impostos e seguro por pagamento",
+    "escrow_hint": "Impostos sobre o imóvel e seguro incluídos em cada pagamento. Nunca contam como capital nem juros."
   }
 }

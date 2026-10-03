@@ -943,5 +943,12 @@
     "semiannual": "Halbjährliche Verzinsung",
     "hint": "Verwenden Sie die Methode aus Ihrem Kreditvertrag, zum Beispiel „halbjährlich verzinst, nicht im Voraus“.",
     "adjustment": "Saldoanpassung: {{amount}}"
+  },
+  "loanPayments": {
+    "paid_from": "Bezahlt von",
+    "paid_from_hint": "Das Konto, von dem Ihre Zahlungen abgehen. Seine Abbuchungen können als Zahlungen mit diesem Kredit verknüpft werden.",
+    "no_account": "Nicht verfolgt",
+    "escrow": "Steuern und Versicherung je Zahlung",
+    "escrow_hint": "Grundsteuer und Versicherung, die in jeder Zahlung enthalten sind. Sie zählen nie als Tilgung oder Zinsen."
   }
 }

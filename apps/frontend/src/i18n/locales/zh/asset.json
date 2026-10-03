@@ -943,5 +943,12 @@
     "semiannual": "按半年复利",
     "hint": "请使用贷款合同中规定的计算方式，例如“每半年复利，非预付”。",
     "adjustment": "余额调整：{{amount}}"
+  },
+  "loanPayments": {
+    "paid_from": "付款账户",
+    "paid_from_hint": "还款扣款的账户。该账户的取款可关联为此贷款的还款。",
+    "no_account": "不跟踪",
+    "escrow": "每期税费和保险",
+    "escrow_hint": "每次还款中包含的房产税和保险，不计入本金或利息。"
   }
 }
