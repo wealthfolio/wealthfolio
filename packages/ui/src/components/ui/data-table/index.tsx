@@ -15,7 +15,7 @@ import {
 import * as React from "react";
 
 import { Icons } from "../icons";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../table";
+import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "../table";
 import { usePersistentState } from "../../../hooks/use-persistent-state";
 
 import type { DataTableFacetedFilterProps } from "./data-table-faceted-filter";
@@ -165,6 +165,10 @@ export function DataTable<TData, TValue>({
     ? [...rows.filter((row) => pinRowsToTop(row.original)), ...rows.filter((row) => !pinRowsToTop(row.original))]
     : rows;
 
+  // Render a totals footer only when a column opts in with a `footer` def, so tables
+  // that don't need one are unaffected. Uses the same auto-detection as the header.
+  const hasFooter = table.getAllLeafColumns().some((column) => column.columnDef.footer != null);
+
   return (
     <div className="flex h-full flex-col">
       <div className="mb-2 shrink-0">
@@ -213,6 +217,19 @@ export function DataTable<TData, TValue>({
               </TableRow>
             )}
           </TableBody>
+          {hasFooter && displayRows.length > 0 && (
+            <TableFooter className="bg-muted/50 sticky bottom-0 z-10">
+              {table.getFooterGroups().map((footerGroup) => (
+                <TableRow key={footerGroup.id} className="hover:bg-transparent">
+                  {footerGroup.headers.map((header) => (
+                    <TableCell key={header.id}>
+                      {header.isPlaceholder ? null : flexRender(header.column.columnDef.footer, header.getContext())}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))}
+            </TableFooter>
+          )}
         </Table>
       </div>
     </div>
