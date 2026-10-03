@@ -506,10 +506,16 @@ export function useImportMapping({
     setMapping((prev) => ({ ...prev, ...updates }));
   }, []);
 
-  const handleColumnMapping = useCallback((field: ImportFormat, value: string) => {
+  const handleColumnMapping = useCallback((field: ImportFormat, value: string | string[]) => {
+    // Store one column as a plain string; only multi-column picks become a list.
+    const mappedValue = Array.isArray(value)
+      ? value.length > 1
+        ? value
+        : (value[0] ?? "")
+      : value.trim();
     setMapping((prev) => ({
       ...prev,
-      fieldMappings: { ...prev.fieldMappings, [field]: value.trim() },
+      fieldMappings: { ...prev.fieldMappings, [field]: mappedValue },
     }));
   }, []);
 

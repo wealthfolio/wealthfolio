@@ -29,7 +29,7 @@ import {
 import { TemplatePicker } from "../components/template-picker";
 import { computeFieldMappings, useImportMapping } from "../hooks/use-import-mapping";
 import { autoMatchAccountMappings, collectCsvAccountValues } from "../utils/account-matching";
-import { ACTIVITY_SKIP, isFieldMapped } from "../utils/draft-utils";
+import { ACTIVITY_SKIP, isFieldMapped, resolveMappedValue } from "../utils/draft-utils";
 import { validateTickerSymbol, findMappedActivityType } from "../utils/validation-utils";
 import {
   createDefaultActivityMapping,
@@ -171,29 +171,18 @@ export function MappingStepUnified() {
     setTemplateName(localMapping.name ?? "");
   }, [localMapping.name]);
 
-  // Helper to get mapped value from row (supports fallback columns)
   const getMappedValue = useCallback(
-    (row: CsvRowData, field: ImportFormat): string => {
-      const mapping = localMapping.fieldMappings[field];
-      if (!mapping) return "";
-      if (Array.isArray(mapping)) {
-        for (const h of mapping) {
-          const val = row[h]?.trim();
-          if (val) return val;
-        }
-        return "";
-      }
-      return row[mapping] || "";
-    },
+    (row: CsvRowData, field: ImportFormat): string =>
+      resolveMappedValue(field, localMapping.fieldMappings[field], (header) => row[header]) || "",
     [localMapping.fieldMappings],
   );
 
   // Picking the account column resolves its values against existing accounts, so an
   // exact match needs no manual assignment.
   const handleColumnMappingWithAccountMatch = useCallback(
-    (field: ImportFormat, value: string) => {
+    (field: ImportFormat, value: string | string[]) => {
       handleColumnMapping(field, value);
-      if (field !== ImportFormat.ACCOUNT) return;
+      if (field !== ImportFormat.ACCOUNT || Array.isArray(value)) return;
 
       const currentMappings = localMapping.accountMappings;
       const accountMappings = autoMatchAccountMappings(
