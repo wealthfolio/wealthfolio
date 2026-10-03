@@ -14,7 +14,7 @@ export function LoanFieldInfo({ label, children }: { label: string; children: Re
       <PopoverTrigger asChild>
         <button
           type="button"
-          aria-label={t("common:more_info_about", { label })}
+          aria-label={t("common:component.more_info_about", { label })}
           className="text-muted-foreground hover:text-foreground focus-visible:ring-ring inline-flex rounded-sm focus-visible:outline-none focus-visible:ring-2"
         >
           <Icons.Info className="size-3.5" />
