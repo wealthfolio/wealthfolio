@@ -122,6 +122,11 @@ pub fn derive_session_key(shared_secret_b64: &str, context: &str) -> Result<Stri
 
 /// Encrypt data using XChaCha20-Poly1305
 pub fn encrypt(key_b64: &str, plaintext: &str) -> Result<String, String> {
+    encrypt_bytes(key_b64, plaintext.as_bytes()).map(|bytes| BASE64.encode(bytes))
+}
+
+/// Encrypt binary data, returning the nonce followed by authenticated ciphertext.
+pub fn encrypt_bytes(key_b64: &str, plaintext: &[u8]) -> Result<Vec<u8>, String> {
     let key_bytes: [u8; 32] = BASE64
         .decode(key_b64)
         .map_err(|e| format!("Invalid key: {}", e))?
@@ -138,7 +143,7 @@ pub fn encrypt(key_b64: &str, plaintext: &str) -> Result<String, String> {
 
     // Encrypt
     let ciphertext = cipher
-        .encrypt(nonce, plaintext.as_bytes())
+        .encrypt(nonce, plaintext)
         .map_err(|e| format!("Encryption failed: {}", e))?;
 
     // Prepend nonce to ciphertext
@@ -146,20 +151,25 @@ pub fn encrypt(key_b64: &str, plaintext: &str) -> Result<String, String> {
     result.extend_from_slice(&nonce_bytes);
     result.extend_from_slice(&ciphertext);
 
-    Ok(BASE64.encode(result))
+    Ok(result)
 }
 
 /// Decrypt data using XChaCha20-Poly1305
 pub fn decrypt(key_b64: &str, ciphertext_b64: &str) -> Result<String, String> {
+    let data = BASE64
+        .decode(ciphertext_b64)
+        .map_err(|e| format!("Invalid ciphertext: {}", e))?;
+    let plaintext = decrypt_bytes(key_b64, &data)?;
+    String::from_utf8(plaintext).map_err(|e| format!("Invalid UTF-8 in plaintext: {}", e))
+}
+
+/// Decrypt a binary nonce and authenticated ciphertext.
+pub fn decrypt_bytes(key_b64: &str, data: &[u8]) -> Result<Vec<u8>, String> {
     let key_bytes: [u8; 32] = BASE64
         .decode(key_b64)
         .map_err(|e| format!("Invalid key: {}", e))?
         .try_into()
         .map_err(|_| "Key must be 32 bytes")?;
-
-    let data = BASE64
-        .decode(ciphertext_b64)
-        .map_err(|e| format!("Invalid ciphertext: {}", e))?;
 
     if data.len() < NONCE_SIZE {
         return Err("Ciphertext too short".to_string());
@@ -176,7 +186,7 @@ pub fn decrypt(key_b64: &str, ciphertext_b64: &str) -> Result<String, String> {
         .decrypt(nonce, ciphertext)
         .map_err(|_| "Decryption failed - invalid key or corrupted data")?;
 
-    String::from_utf8(plaintext).map_err(|e| format!("Invalid UTF-8 in plaintext: {}", e))
+    Ok(plaintext)
 }
 
 /// Generate a 6-character alphanumeric pairing code

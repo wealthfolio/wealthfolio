@@ -1,0 +1,469 @@
+---
+source: crates/portfolio-engine/tests/goldens.rs
+assertion_line: 34
+---
+as_of: 2025-01-05
+base_currency: USD
+baseline:
+  accounts:
+    acc-cad:
+      currency: CAD
+      disposals: []
+      flows: []
+      keyframes:
+        - cash: {}
+          cash_total_account_currency: "0"
+          cash_total_base_currency: "0"
+          cost_basis: "20"
+          date: 2025-01-03
+          net_contribution: "20"
+          net_contribution_base: "10"
+          positions:
+            x:
+              average_cost: "20"
+              contract_multiplier: "1"
+              cost_basis_account: "20"
+              cost_basis_base: "10"
+              currency: CAD
+              is_alternative: false
+              quantity: "1"
+              total_cost_basis: "20"
+          source: CALCULATED
+      lots:
+        - asset_id: x
+          base_currency: USD
+          close_activity_id: ~
+          close_date: ~
+          cost_per_unit: "20"
+          currency: CAD
+          fee_allocated: "0"
+          fee_allocated_base: "0"
+          fx_rate_to_account: "0.5"
+          fx_rate_to_base: "0.5"
+          id: tin
+          is_closed: false
+          open_activity_id: tin
+          open_date: 2025-01-01
+          original_cost_basis: "20"
+          original_cost_basis_base: "10"
+          original_quantity: "1"
+          remaining_cost_basis: "20"
+          remaining_cost_basis_base: "10"
+          remaining_quantity: "1"
+          split_ratio: "1"
+          tax_allocated: "0"
+          tax_allocated_base: "0"
+      performance:
+        all_time:
+          attribution:
+            contributions: "10"
+            distributions: "0"
+            fees: "0"
+            fx_effect: "0"
+            income: "0"
+            realized_pnl: "0"
+            residual: "0"
+            taxes: "0"
+            unrealized_pnl_change: "0"
+          basis_status: notApplicable
+          is_holdings_mode: false
+          is_mixed_tracking_mode: false
+          method: timeWeighted
+          period_end: 2025-01-05
+          period_start: 2025-01-03
+          quality: partial
+          returns:
+            annualized_irr: ~
+            annualized_twr: ~
+            annualized_value_return: ~
+            irr: ~
+            twr: ~
+            value_return: ~
+          risk:
+            drawdown_duration_days: ~
+            max_drawdown: ~
+            peak_date: ~
+            recovery_date: ~
+            trough_date: ~
+            volatility: ~
+          series:
+            - date: 2025-01-03
+              value: "0"
+            - date: 2025-01-04
+              value: "0"
+            - date: 2025-01-05
+              value: "0"
+          summary:
+            amount: ~
+            amount_status: unavailable
+            basis: marketValue
+            basis_status: notApplicable
+            method: timeWeighted
+            percent: ~
+            percent_status: unavailable
+            quality: partial
+      tracking_mode: TRANSACTIONS
+      valuations:
+        - basis_status: complete
+          book_basis: "20"
+          book_basis_base: "10"
+          cash_balance: "0"
+          cash_balance_base: "0"
+          cost_basis: "20"
+          cost_basis_base: "10"
+          date: 2025-01-03
+          external_flow_source: NO_FLOW
+          external_inflow_base: "0"
+          external_outflow_base: "0"
+          fx_rate_to_base: "0.5"
+          investment_market_value: "0"
+          investment_market_value_base: "0"
+          net_contribution: "20"
+          net_contribution_base: "10"
+          performance_eligible_value_base: "0"
+          total_value: "0"
+          total_value_base: "0"
+          value_status: unavailable
+        - basis_status: complete
+          book_basis: "20"
+          book_basis_base: "10"
+          cash_balance: "0"
+          cash_balance_base: "0"
+          cost_basis: "20"
+          cost_basis_base: "10"
+          date: 2025-01-04
+          external_flow_source: NO_FLOW
+          external_inflow_base: "0"
+          external_outflow_base: "0"
+          fx_rate_to_base: "0.5"
+          investment_market_value: "0"
+          investment_market_value_base: "0"
+          net_contribution: "20"
+          net_contribution_base: "10"
+          performance_eligible_value_base: "0"
+          total_value: "0"
+          total_value_base: "0"
+          value_status: unavailable
+        - basis_status: complete
+          book_basis: "20"
+          book_basis_base: "10"
+          cash_balance: "0"
+          cash_balance_base: "0"
+          cost_basis: "20"
+          cost_basis_base: "10"
+          date: 2025-01-05
+          external_flow_source: NO_FLOW
+          external_inflow_base: "0"
+          external_outflow_base: "0"
+          fx_rate_to_base: "0.5"
+          investment_market_value: "0"
+          investment_market_value_base: "0"
+          net_contribution: "20"
+          net_contribution_base: "10"
+          performance_eligible_value_base: "0"
+          total_value: "0"
+          total_value_base: "0"
+          value_status: unavailable
+    acc-usd:
+      currency: USD
+      disposals:
+        - activity_id: out
+          asset_id: x
+          cost_basis: "10"
+          cost_basis_base: "10"
+          currency: USD
+          date: 2025-01-03
+          fx_rate_to_base: "1"
+          id: "out:buy:0"
+          lot_id: buy
+          proceeds: "10"
+          proceeds_base: "10"
+          quantity: "1"
+          realized_pnl: "0"
+          realized_pnl_base: "0"
+      flows:
+        - date: 2025-01-03
+          inflow_base: "0"
+          outflow_base: "10"
+          source: REMOVED_LOT_BASIS_FALLBACK
+      keyframes:
+        - cash:
+            USD: "-10"
+          cash_total_account_currency: "-10"
+          cash_total_base_currency: "-10"
+          cost_basis: "10"
+          date: 2025-01-01
+          net_contribution: "0"
+          net_contribution_base: "0"
+          positions:
+            x:
+              average_cost: "10"
+              contract_multiplier: "1"
+              cost_basis_account: "10"
+              cost_basis_base: "10"
+              currency: USD
+              is_alternative: false
+              quantity: "1"
+              total_cost_basis: "10"
+          source: CALCULATED
+        - cash:
+            USD: "-10"
+          cash_total_account_currency: "-10"
+          cash_total_base_currency: "-10"
+          cost_basis: "0"
+          date: 2025-01-03
+          net_contribution: "-10"
+          net_contribution_base: "-10"
+          positions:
+            x:
+              average_cost: "0"
+              contract_multiplier: "1"
+              cost_basis_account: ~
+              cost_basis_base: ~
+              currency: USD
+              is_alternative: false
+              quantity: "0"
+              total_cost_basis: "0"
+          source: CALCULATED
+      lots:
+        - asset_id: x
+          base_currency: USD
+          close_activity_id: out
+          close_date: 2025-01-03
+          cost_per_unit: "10"
+          currency: USD
+          fee_allocated: "0"
+          fee_allocated_base: "0"
+          fx_rate_to_account: ~
+          fx_rate_to_base: "1"
+          id: buy
+          is_closed: true
+          open_activity_id: buy
+          open_date: 2025-01-01
+          original_cost_basis: "10"
+          original_cost_basis_base: "10"
+          original_quantity: "1"
+          remaining_cost_basis: "0"
+          remaining_cost_basis_base: "0"
+          remaining_quantity: "0"
+          split_ratio: "1"
+          tax_allocated: "0"
+          tax_allocated_base: "0"
+      performance:
+        all_time:
+          attribution:
+            contributions: "0"
+            distributions: "10"
+            fees: "0"
+            fx_effect: "0"
+            income: "0"
+            realized_pnl: "0"
+            residual: "0"
+            taxes: "0"
+            unrealized_pnl_change: "0"
+          basis_status: notApplicable
+          is_holdings_mode: false
+          is_mixed_tracking_mode: false
+          method: timeWeighted
+          period_end: 2025-01-05
+          period_start: 2025-01-01
+          quality: partial
+          returns:
+            annualized_irr: ~
+            annualized_twr: ~
+            annualized_value_return: ~
+            irr: ~
+            twr: ~
+            value_return: ~
+          risk:
+            drawdown_duration_days: ~
+            max_drawdown: ~
+            peak_date: ~
+            recovery_date: ~
+            trough_date: ~
+            volatility: ~
+          series:
+            - date: 2025-01-01
+              value: "0"
+            - date: 2025-01-02
+              value: "0"
+            - date: 2025-01-03
+              value: "0"
+            - date: 2025-01-04
+              value: "0"
+            - date: 2025-01-05
+              value: "0"
+          summary:
+            amount: "0"
+            amount_status: complete
+            basis: marketValue
+            basis_status: notApplicable
+            method: timeWeighted
+            percent: ~
+            percent_status: unavailable
+            quality: partial
+      tracking_mode: TRANSACTIONS
+      valuations:
+        - basis_status: complete
+          book_basis: "0"
+          book_basis_base: "0"
+          cash_balance: "-10"
+          cash_balance_base: "-10"
+          cost_basis: "10"
+          cost_basis_base: "10"
+          date: 2025-01-01
+          external_flow_source: NO_FLOW
+          external_inflow_base: "0"
+          external_outflow_base: "0"
+          fx_rate_to_base: "1"
+          investment_market_value: "0"
+          investment_market_value_base: "0"
+          net_contribution: "0"
+          net_contribution_base: "0"
+          performance_eligible_value_base: "-10"
+          total_value: "-10"
+          total_value_base: "-10"
+          value_status: partialUnpriced
+        - basis_status: complete
+          book_basis: "0"
+          book_basis_base: "0"
+          cash_balance: "-10"
+          cash_balance_base: "-10"
+          cost_basis: "10"
+          cost_basis_base: "10"
+          date: 2025-01-02
+          external_flow_source: NO_FLOW
+          external_inflow_base: "0"
+          external_outflow_base: "0"
+          fx_rate_to_base: "1"
+          investment_market_value: "0"
+          investment_market_value_base: "0"
+          net_contribution: "0"
+          net_contribution_base: "0"
+          performance_eligible_value_base: "-10"
+          total_value: "-10"
+          total_value_base: "-10"
+          value_status: partialUnpriced
+        - basis_status: notApplicable
+          book_basis: "-10"
+          book_basis_base: "-10"
+          cash_balance: "-10"
+          cash_balance_base: "-10"
+          cost_basis: "0"
+          cost_basis_base: "0"
+          date: 2025-01-03
+          external_flow_source: REMOVED_LOT_BASIS_FALLBACK
+          external_inflow_base: "0"
+          external_outflow_base: "10"
+          fx_rate_to_base: "1"
+          investment_market_value: "0"
+          investment_market_value_base: "0"
+          net_contribution: "-10"
+          net_contribution_base: "-10"
+          performance_eligible_value_base: "-10"
+          total_value: "-10"
+          total_value_base: "-10"
+          value_status: complete
+        - basis_status: notApplicable
+          book_basis: "-10"
+          book_basis_base: "-10"
+          cash_balance: "-10"
+          cash_balance_base: "-10"
+          cost_basis: "0"
+          cost_basis_base: "0"
+          date: 2025-01-04
+          external_flow_source: NO_FLOW
+          external_inflow_base: "0"
+          external_outflow_base: "0"
+          fx_rate_to_base: "1"
+          investment_market_value: "0"
+          investment_market_value_base: "0"
+          net_contribution: "-10"
+          net_contribution_base: "-10"
+          performance_eligible_value_base: "-10"
+          total_value: "-10"
+          total_value_base: "-10"
+          value_status: complete
+        - basis_status: notApplicable
+          book_basis: "-10"
+          book_basis_base: "-10"
+          cash_balance: "-10"
+          cash_balance_base: "-10"
+          cost_basis: "0"
+          cost_basis_base: "0"
+          date: 2025-01-05
+          external_flow_source: NO_FLOW
+          external_inflow_base: "0"
+          external_outflow_base: "0"
+          fx_rate_to_base: "1"
+          investment_market_value: "0"
+          investment_market_value_base: "0"
+          net_contribution: "-10"
+          net_contribution_base: "-10"
+          performance_eligible_value_base: "-10"
+          total_value: "-10"
+          total_value_base: "-10"
+          value_status: complete
+  diagnostics:
+    - "normalize/x: Warning MissingCurrency: asset has no quote currency; its positions take the currency of the activity that opens them and its quotes need an explicit currency"
+    - "value/acc-cad:x: Warning MissingQuote: no quote on or before 2025-01-03 for x; position unpriced"
+    - "value/acc-usd:x: Warning MissingQuote: no quote on or before 2025-01-01 for x; position unpriced"
+  portfolio:
+    all_time:
+      attribution:
+        contributions: "0"
+        distributions: "0"
+        fees: "0"
+        fx_effect: "0"
+        income: "0"
+        realized_pnl: "0"
+        residual: "0"
+        taxes: "0"
+        unrealized_pnl_change: "0"
+      basis_status: notApplicable
+      is_holdings_mode: false
+      is_mixed_tracking_mode: false
+      method: timeWeighted
+      period_end: 2025-01-05
+      period_start: 2025-01-01
+      quality: partial
+      returns:
+        annualized_irr: ~
+        annualized_twr: ~
+        annualized_value_return: ~
+        irr: ~
+        twr: ~
+        value_return: ~
+      risk:
+        drawdown_duration_days: ~
+        max_drawdown: ~
+        peak_date: ~
+        recovery_date: ~
+        trough_date: ~
+        volatility: ~
+      series:
+        - date: 2025-01-01
+          value: "0"
+        - date: 2025-01-02
+          value: "0"
+        - date: 2025-01-03
+          value: "0"
+        - date: 2025-01-04
+          value: "0"
+        - date: 2025-01-05
+          value: "0"
+      summary:
+        amount: ~
+        amount_status: unavailable
+        basis: marketValue
+        basis_status: notApplicable
+        method: timeWeighted
+        percent: ~
+        percent_status: unavailable
+        quality: partial
+  portfolio_flows:
+    - date: 2025-01-03
+      inflow_base: "0"
+      outflow_base: "0"
+      source: REMOVED_LOT_BASIS_FALLBACK
+scenario: EDGE-CUR-03

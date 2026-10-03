@@ -9,6 +9,10 @@ use wealthfolio_ai::{AiProviderService, ChatConfig, ChatService};
 use wealthfolio_connect::{
     BrokerSyncService, CoreImportRunRepositoryAdapter, ImportRunRepositoryTrait,
 };
+use wealthfolio_core::portfolio::coordinator::{
+    CoordinatorDeps, FactSources, PortfolioCoordinator, WindowCadence,
+};
+use wealthfolio_core::portfolio::projection::ProjectionStoreTrait;
 use wealthfolio_core::secrets::SecretStore;
 use wealthfolio_core::{
     accounts::AccountService,
@@ -27,7 +31,6 @@ use wealthfolio_core::{
         income::IncomeService,
         net_worth::NetWorthService,
         performance::PerformanceService,
-        recalculation_gate::PortfolioRecalculationGate,
         snapshot::SnapshotService,
         valuation::ValuationService,
     },
@@ -454,9 +457,6 @@ async fn build_context(
         asset_service.as_ref(),
     )
     .await?;
-    let recalculation_gate = Arc::new(PortfolioRecalculationGate::new(
-        final_cash_migration.pending_account_ids.clone(),
-    ));
     let goal_service = Arc::new(
         GoalService::new(goal_repo.clone(), account_service.clone())
             .with_timezone(timezone.clone()),
@@ -476,18 +476,13 @@ async fn build_context(
     ));
 
     let snapshot_service = Arc::new(
-        SnapshotService::new_with_timezone(
-            base_currency.clone(),
+        SnapshotService::new(
             timezone.clone(),
             account_repository.clone(),
-            activity_repository.clone(),
             snapshot_repository.clone(),
-            asset_repository.clone(),
-            fx_service.clone(),
+            activity_repository.clone(),
         )
-        .with_event_sink(domain_event_sink.clone())
-        .with_lot_repository(lots_repository.clone())
-        .with_recalculation_gate(recalculation_gate.clone()),
+        .with_event_sink(domain_event_sink.clone()),
     );
 
     let holdings_valuation_service = Arc::new(HoldingsValuationService::new_with_timezone(
@@ -496,41 +491,55 @@ async fn build_context(
         timezone.clone(),
     ));
 
-    let valuation_service = Arc::new(
-        ValuationService::new(
-            base_currency.clone(),
-            valuation_repository.clone(),
-            snapshot_service.clone(),
-            quote_service.clone(),
-            fx_service.clone(),
-        )
-        .with_activity_repository(activity_repository.clone(), timezone.clone())
-        .with_lot_repository(lots_repository.clone())
-        .with_recalculation_gate(recalculation_gate.clone()),
+    let projection_store: Arc<dyn ProjectionStoreTrait> = Arc::new(
+        wealthfolio_storage_sqlite::portfolio::projection::ProjectionStore::new(
+            pool.clone(),
+            writer.clone(),
+        ),
     );
+    let fact_sources = FactSources {
+        accounts: account_repository.clone(),
+        activities: activity_repository.clone(),
+        assets: asset_repository.clone(),
+        quotes: quote_service.clone(),
+        fx_rates: fx_repository.clone(),
+        snapshots: snapshot_repository.clone(),
+        projections: projection_store.clone(),
+    };
+    let valuation_service = Arc::new(ValuationService::new(
+        valuation_repository.clone(),
+        fact_sources.clone(),
+        lots_repository.clone(),
+        timezone.clone(),
+    ));
+
+    let portfolio_coordinator = Arc::new(PortfolioCoordinator::new(CoordinatorDeps {
+        base_currency: base_currency.clone(),
+        timezone: timezone.clone(),
+        sources: fact_sources.clone(),
+        fx_service: fx_service.clone(),
+        snapshot_service: snapshot_service.clone(),
+        projections: projection_store,
+        lots: lots_repository.clone(),
+        window_cadence: WindowCadence::Year,
+    }));
 
     let final_cash_rebuild: Option<
         std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send>>,
     > = if !final_cash_migration.pending_account_ids.is_empty() {
-        // The recalculation gate already serializes and forces full
-        // recomputation for pending accounts, so the rebuild can always run
-        // in the background instead of blocking (or failing) startup.
+        // The coordinator serializes and forces a full rebuild per pending
+        // account, so the rebuild can run in the background instead of
+        // blocking (or failing) startup.
         log::info!(
             "Rebuilding {} account(s) after final-cash migration in the background",
             final_cash_migration.pending_account_ids.len()
         );
         let settings_service = settings_service.clone();
-        let snapshot_service = snapshot_service.clone();
-        let valuation_service = valuation_service.clone();
-        let recalculation_gate = recalculation_gate.clone();
+        let coordinator = portfolio_coordinator.clone();
         Some(Box::pin(async move {
-            if let Err(error) = rebuild_pending_final_cash_accounts(
-                settings_service.as_ref(),
-                snapshot_service.as_ref(),
-                valuation_service.as_ref(),
-                recalculation_gate.as_ref(),
-            )
-            .await
+            if let Err(error) =
+                rebuild_pending_final_cash_accounts(settings_service.as_ref(), coordinator.as_ref())
+                    .await
             {
                 log::warn!("Background final-cash rebuild failed: {}", error);
             }
@@ -539,15 +548,13 @@ async fn build_context(
         None
     };
 
-    let performance_service = Arc::new(
-        PerformanceService::new_with_timezone(
-            valuation_service.clone(),
-            quote_service.clone(),
-            timezone.clone(),
-        )
-        .with_activity_repository(activity_repository.clone(), fx_service.clone())
-        .with_lot_repository(lots_repository.clone()),
-    );
+    let performance_service = Arc::new(PerformanceService::new(
+        base_currency.clone(),
+        timezone.clone(),
+        fact_sources.clone(),
+        valuation_repository.clone(),
+        lots_repository.clone(),
+    ));
 
     let classification_service =
         Arc::new(AssetClassificationService::new(taxonomy_service.clone()));
@@ -595,7 +602,7 @@ async fn build_context(
         base_currency.clone(),
         account_repository.clone(),
         asset_repository.clone(),
-        snapshot_repository.clone(),
+        snapshot_service.clone(),
         quote_service.clone(),
         valuation_repository.clone(),
         fx_service.clone(),
@@ -658,7 +665,10 @@ async fn build_context(
     // Health service for portfolio health diagnostics
     let health_dismissal_repository =
         Arc::new(HealthDismissalRepository::new(pool.clone(), writer.clone()));
-    let health_service = Arc::new(HealthService::new(health_dismissal_repository));
+    let health_service = Arc::new(
+        HealthService::new(health_dismissal_repository)
+            .with_projection_freshness(portfolio_coordinator.clone()),
+    );
 
     // Create AI environment and chat service
     let ai_environment = Arc::new(TauriAiEnvironment::new(
@@ -751,7 +761,6 @@ async fn build_context(
             performance_service,
             income_service,
             snapshot_service,
-            snapshot_repository,
             lots_repository,
             app_sync_repository,
             holdings_service,
@@ -760,6 +769,7 @@ async fn build_context(
             drift_service,
             rebalance_service,
             valuation_service,
+            portfolio_coordinator,
             net_worth_service,
             sync_service,
             alternative_asset_service,

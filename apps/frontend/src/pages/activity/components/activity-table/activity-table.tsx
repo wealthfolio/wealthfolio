@@ -113,12 +113,14 @@ export const ActivityTable = ({
   const { isBalanceHidden } = useBalancePrivacy();
   const { t } = useTranslation();
   const { duplicateActivityMutation } = useActivityMutations();
+  // mutateAsync is stable; the mutation object is not, and `columns` depends on this handler.
+  const { mutateAsync: duplicateActivity } = duplicateActivityMutation;
   const { settings } = useSettingsContext();
   const appTimezone = settings?.timezone?.trim() || undefined;
 
   const handleDuplicate = React.useCallback(
-    async (activity: ActivityDetails) => duplicateActivityMutation.mutateAsync(activity),
-    [duplicateActivityMutation],
+    async (activity: ActivityDetails) => duplicateActivity(activity),
+    [duplicateActivity],
   );
 
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({

@@ -801,3 +801,267 @@ async fn admitted_ndjson_stream_delivers_incrementally_and_closes_on_lock() {
         .unwrap()
         .is_none());
 }
+
+#[tokio::test]
+async fn runtime_startup_failure_is_retryable_without_revoking_the_profile() {
+    use wealthfolio_storage_sqlite::db::DbAccess;
+    let dir = tempfile::tempdir().unwrap();
+    let config = test_config(dir.path());
+    let database = DbAccess::plaintext(&config.db_path);
+    database.prepare().unwrap();
+    database.run_migrations().unwrap();
+    // A deterministic failure after opening SQLite, independent of locking.
+    database
+        .connect_rusqlite()
+        .unwrap()
+        .execute(
+            "DELETE FROM app_settings WHERE setting_key = 'instance_id'",
+            [],
+        )
+        .unwrap();
+    let router = wealthfolio_server::api::app_router_from_config(&config)
+        .await
+        .unwrap();
+    let (status, error, cookie) = send(
+        &router,
+        "/api/v1/profiles/get_profile_state",
+        json!({}),
+        None,
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::INTERNAL_SERVER_ERROR, "{error}");
+    assert!(error.as_str().unwrap().contains("PROFILE_STARTUP_FAILED"));
+    assert!(error
+        .as_str()
+        .unwrap()
+        .contains("Missing internal instance ID"));
+    let response = router
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/api/v1/accounts")
+                .header("cookie", cookie.as_deref().unwrap())
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    let response = router
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/api/v1/healthz")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    database.connect_rusqlite().unwrap().execute(
+        "INSERT INTO app_settings (setting_key, setting_value) VALUES ('instance_id', 'repaired-test-instance')", [],
+    ).unwrap();
+    let (status, state, _) = send(
+        &router,
+        "/api/v1/profiles/get_profile_state",
+        json!({}),
+        cookie.as_deref(),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{state}");
+    assert_eq!(state["profiles"][0]["lockEnabled"], false);
+    let scope = state["session"]["scopeId"].as_str().unwrap();
+    let response = router
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/api/v1/accounts")
+                .header("cookie", cookie.as_deref().unwrap())
+                .header("x-wf-profile-scope", scope)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    send(
+        &router,
+        "/api/v1/profiles/lock_profile",
+        json!({}),
+        cookie.as_deref(),
+        None,
+    )
+    .await;
+    let response = router
+        .oneshot(
+            Request::builder()
+                .uri("/api/v1/accounts")
+                .header("cookie", cookie.as_deref().unwrap())
+                .header("x-wf-profile-scope", scope)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::LOCKED);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn cold_profile_startup_does_not_block_cached_runtime_or_initialize_twice() {
+    use wealthfolio_storage_sqlite::db::DbAccess;
+    let dir = tempfile::tempdir().unwrap();
+    let config = test_config(dir.path());
+    let state = build_state(&config).await.unwrap();
+    let root = WebProfiles::new(state.clone(), &config).unwrap();
+    let warm_id = root.registry.default_id().unwrap();
+    let cold = root.registry.create("Cold", "clay-fluff-animated").unwrap();
+    let path = root
+        .registry
+        .paths(&root.registry.profile(cold.id).unwrap())
+        .database;
+    let database = DbAccess::plaintext(path.to_str().unwrap());
+    database.prepare().unwrap();
+    database.run_migrations().unwrap();
+    let connection = database.connect_rusqlite().unwrap();
+    connection
+        .execute_batch("PRAGMA journal_mode = DELETE; BEGIN EXCLUSIVE;")
+        .unwrap();
+
+    let first = tokio::spawn({
+        let root = root.clone();
+        async move { root.runtime(cold.id).await }
+    });
+    // Ownership is acquired inside initialization, before the blocked SQLite read.
+    tokio::time::timeout(Duration::from_secs(5), async {
+        let owner_path = path.with_file_name("app.db.lock");
+        while !owner_path.exists() {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .unwrap();
+    let second = root.runtime(cold.id);
+    tokio::pin!(second);
+    let second_waiting = tokio::time::timeout(Duration::from_millis(50), &mut second).await;
+    let warm = tokio::time::timeout(Duration::from_millis(500), root.runtime(warm_id)).await;
+    connection.execute_batch("ROLLBACK;").unwrap();
+    let first = tokio::time::timeout(Duration::from_secs(5), first)
+        .await
+        .unwrap()
+        .unwrap()
+        .unwrap();
+    let second = tokio::time::timeout(Duration::from_secs(5), second)
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(
+        second_waiting.is_err(),
+        "The second open must wait for startup"
+    );
+    assert!(
+        Arc::ptr_eq(&first, &second),
+        "Concurrent opens must share one runtime"
+    );
+    assert!(Arc::ptr_eq(
+        &state,
+        &warm
+            .expect("Cached profile waited for cold initialization")
+            .unwrap()
+    ));
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn deleting_a_starting_profile_waits_for_startup_and_rejects_queued_opens() {
+    use wealthfolio_storage_sqlite::db::DbAccess;
+    let dir = tempfile::tempdir().unwrap();
+    let config = test_config(dir.path());
+    let state = build_state(&config).await.unwrap();
+    let root = WebProfiles::new(state.clone(), &config).unwrap();
+    let cold = root.registry.create("Cold", "clay-fluff-animated").unwrap();
+    let path = root
+        .registry
+        .paths(&root.registry.profile(cold.id).unwrap())
+        .database;
+    let database = DbAccess::plaintext(path.to_str().unwrap());
+    database.prepare().unwrap();
+    database.run_migrations().unwrap();
+    let connection = database.connect_rusqlite().unwrap();
+    connection
+        .execute_batch("PRAGMA journal_mode = DELETE; BEGIN EXCLUSIVE;")
+        .unwrap();
+    let startup = tokio::spawn({
+        let root = root.clone();
+        async move { root.runtime(cold.id).await }
+    });
+    tokio::time::timeout(Duration::from_secs(5), async {
+        while !path.with_file_name("app.db.lock").exists() {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .unwrap();
+    let waiting = root.runtime(cold.id);
+    tokio::pin!(waiting);
+    assert!(
+        tokio::time::timeout(Duration::from_millis(50), &mut waiting)
+            .await
+            .is_err()
+    );
+
+    let owner = uuid::Uuid::new_v4().to_string();
+    let session = root
+        .registry
+        .sessions
+        .issue(&owner, cold.id, false, None)
+        .unwrap();
+    let router = profiles::router(root.clone())
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            wealthfolio_server::auth::require_jwt,
+        ))
+        .with_state(state);
+    let deletion = tokio::spawn(async move {
+        send(
+            &router,
+            "/profiles/delete_profile",
+            json!({"profileId": cold.id, "confirmation": "Cold"}),
+            Some(&format!("wf_browser={owner}")),
+            Some(&session.scope_id.to_string()),
+        )
+        .await
+    });
+    tokio::time::timeout(Duration::from_secs(5), async {
+        while !root.registry.is_deleting(cold.id) {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .unwrap();
+    assert!(!deletion.is_finished());
+    connection.execute_batch("ROLLBACK;").unwrap();
+    drop(connection);
+    drop(
+        tokio::time::timeout(Duration::from_secs(5), startup)
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap(),
+    );
+    assert!(tokio::time::timeout(Duration::from_secs(5), waiting)
+        .await
+        .unwrap()
+        .is_err());
+    let (status, body, _) = tokio::time::timeout(Duration::from_secs(5), deletion)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert!(!path.exists());
+    assert!(root.runtime(cold.id).await.is_err());
+    assert!(
+        !path.exists(),
+        "A queued open recreated the deleted database"
+    );
+}

@@ -154,11 +154,15 @@ resembling SQLCipher raw-key syntax cannot bypass password derivation. Passwords
 are passed through explicit-length or bound APIs rather than interpolated SQL.
 
 Export copies the selected snapshot into private encrypted working storage,
-validates and sanitizes that copy, then creates a fresh password-protected or
-explicitly plaintext output. It does not change the source database or its
-credentials. The UI defaults to protection on every export and can generate a
-24-character password using `crypto.getRandomValues`, with unbiased selection
-from letters and digits that excludes easily confused characters.
+checks file length and database/cipher integrity, then creates a fresh
+password-protected or explicitly plaintext output with portable backup metadata.
+It preserves the snapshot schema, data and migration history without applying
+pending migrations or requiring restore compatibility. Unknown migration IDs do
+not block export; schema, migration-history and foreign-key validation belong to
+restore. It does not change the source database or its credentials. The UI
+defaults to protection on every export and can generate a 24-character password
+using `crypto.getRandomValues`, with unbiased selection from letters and digits
+that excludes easily confused characters.
 
 Import recognizes protected containers, plaintext standalone databases and
 compatible original encrypted snapshots with their retained installation key. It

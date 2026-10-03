@@ -29,7 +29,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Test change detection
+      - name: Test CI helpers
         run: python3 -m unittest discover -s .github/scripts -p 'test_*.py'
       - name: Classify changed files
         id: filter

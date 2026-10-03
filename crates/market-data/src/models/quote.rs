@@ -14,17 +14,37 @@ pub struct QuoteIdentifiers {
     pub isin: Option<Cow<'static, str>>,
 }
 
-/// Bond metadata needed for yield-curve-based price calculation.
+/// Known bond metadata supplied to quote providers.
+/// Missing pricing fields must not discard a known Treasury type.
 #[derive(Clone, Debug)]
 pub struct BondQuoteMetadata {
+    /// Verified TreasuryDirect type, required by the Treasury calculator.
+    pub treasury_type: Option<String>,
     /// Annual coupon rate as a decimal (0.05 = 5%)
-    pub coupon_rate: Decimal,
+    pub coupon_rate: Option<Decimal>,
     /// Maturity date of the bond
-    pub maturity_date: NaiveDate,
+    pub maturity_date: Option<NaiveDate>,
     /// Face/par value of the bond
     pub face_value: Decimal,
     /// Coupon payment frequency: "SEMI_ANNUAL", "ANNUAL", "QUARTERLY", "ZERO"
-    pub coupon_frequency: String,
+    pub coupon_frequency: Option<String>,
+}
+
+impl BondQuoteMetadata {
+    pub fn has_valid_treasury_terms(&self) -> bool {
+        let valid_coupon = match self.treasury_type.as_deref() {
+            Some("Bill") => {
+                self.coupon_rate == Some(Decimal::ZERO)
+                    && self.coupon_frequency.as_deref() == Some("ZERO")
+            }
+            Some("Note" | "Bond") => {
+                self.coupon_rate.is_some_and(|rate| rate > Decimal::ZERO)
+                    && self.coupon_frequency.as_deref() == Some("SEMI_ANNUAL")
+            }
+            _ => false,
+        };
+        valid_coupon && self.maturity_date.is_some() && self.face_value > Decimal::ZERO
+    }
 }
 
 /// Request context for quote fetching

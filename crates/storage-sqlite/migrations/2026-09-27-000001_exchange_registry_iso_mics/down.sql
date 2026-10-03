@@ -1,0 +1,4 @@
+-- No-op: the up migration cannot distinguish existing canonical MIC rows from
+-- rows it converted. Rewriting all canonical rows on rollback would replace
+-- valid identities with legacy, non-ISO keys. The application keeps runtime
+-- aliases for legacy rows that could not be converted because of a collision.

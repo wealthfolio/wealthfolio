@@ -30,13 +30,15 @@ vi.mock("@tauri-apps/api/event", () => ({
     return () => {};
   }),
 }));
-vi.mock("./api", () => ({
+vi.mock("./api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./api")>()),
   profileCommand: mocks.command,
   profileChangesChannel: new EventTarget(),
 }));
 vi.mock("./auth-bridge", () => ({ isNativeAuthPending: () => false }));
 vi.mock("./session", () => ({
   installProfileSession: mocks.admitted,
+  hasProfileSession: () => false,
   profileScope: () => "scope",
   revokeProfileSession: () => window.dispatchEvent(new Event("wealthfolio:profile-locked")),
 }));
@@ -1012,7 +1014,7 @@ it("re-reads a cross-tab unlock received during an in-flight locked-state read",
   expect(screen.getByText("Private portfolio")).toBeInTheDocument();
 });
 
-it.each(["online", "offline", "wealthfolio:event-stream-error"])(
+it.each(["online", "wealthfolio:event-stream-error"])(
   "re-reads web profile state on %s",
   async (event) => {
     vi.useFakeTimers();
@@ -1026,36 +1028,50 @@ it.each(["online", "offline", "wealthfolio:event-stream-error"])(
   },
 );
 
-it("hides financial content on a failed offline state read and retries backend locking after reconnect", async () => {
-  vi.useFakeTimers();
-  mocks.command.mockResolvedValue({
-    ...unlocked,
-    profiles: [{ ...profile, lockEnabled: true }],
-  });
+it.each([true, false])(
+  "keeps an open web session visible through an outage without locking (protected: %s)",
+  async (lockEnabled) => {
+    const active = { ...unlocked, profiles: [{ ...profile, lockEnabled }] };
+    mocks.command.mockResolvedValue(active);
+    mount();
+    await screen.findByText("Private portfolio");
+    mocks.command.mockRejectedValue(new TypeError("Failed to fetch"));
+    await act(async () => window.dispatchEvent(new Event("wealthfolio:event-stream-error")));
+    expect(screen.getByText("Private portfolio")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Retry" })).not.toBeInTheDocument();
+    expect(mocks.command).not.toHaveBeenCalledWith("lock_profile", expect.anything());
+    mocks.command.mockResolvedValue(active);
+    await act(async () => window.dispatchEvent(new Event("online")));
+    expect(await screen.findByText("Private portfolio")).toBeInTheDocument();
+    expect(mocks.admitted).toHaveBeenLastCalledWith(active.session, undefined);
+    expect(mocks.reload).not.toHaveBeenCalled();
+  },
+);
+
+it("keeps an expired profile closed after reconnect without issuing another lock", async () => {
+  const protectedState = { ...unlocked, profiles: [{ ...profile, lockEnabled: true }] };
+  mocks.command.mockResolvedValue(protectedState);
   mount();
-  await act(async () => {});
-  expect(screen.getByText("Private portfolio")).toBeInTheDocument();
-
+  await screen.findByText("Private portfolio");
   mocks.command.mockRejectedValue(new TypeError("Failed to fetch"));
-  await act(async () => {
-    window.dispatchEvent(new Event("offline"));
-  });
+  await act(async () => window.dispatchEvent(new Event("wealthfolio:event-stream-error")));
+  mocks.command.mockResolvedValue({ ...protectedState, session: null });
+  await act(async () => window.dispatchEvent(new Event("online")));
   expect(screen.queryByText("Private portfolio")).not.toBeInTheDocument();
-  expect(mocks.command).toHaveBeenCalledWith("lock_profile", { preserveAuth: false });
-  expect(screen.getByRole("button", { name: "Retry" })).toBeEnabled();
+  expect(
+    await screen.findByRole("heading", { name: "Who's using Wealthfolio?" }),
+  ).toBeInTheDocument();
+  expect(mocks.command).not.toHaveBeenCalledWith("lock_profile", expect.anything());
+});
 
-  // A stale, still-valid server grant must not reopen the closed view.
-  mocks.command.mockResolvedValue(unlocked);
-  await act(async () => {
-    window.dispatchEvent(new Event("online"));
-  });
+it("offers sign-in recovery when an external authentication proxy interrupts profile verification", async () => {
+  mocks.command.mockRejectedValue(new Error("PROFILE_AUTH_REQUIRED"));
+  mount();
+  const signIn = await screen.findByRole("button", { name: "Sign in again" });
   expect(screen.queryByText("Private portfolio")).not.toBeInTheDocument();
-  mocks.command.mockResolvedValue(null);
-  await act(async () => {
-    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
-  });
-  expect(screen.getByRole("heading", { name: "Who's using Wealthfolio?" })).toBeInTheDocument();
-  expect(screen.queryByText("Private portfolio")).not.toBeInTheDocument();
+  fireEvent.click(signIn);
+  expect(mocks.reload).toHaveBeenCalledOnce();
+  expect(mocks.command).not.toHaveBeenCalledWith("lock_profile", expect.anything());
 });
 
 it("shows cooldown feedback below the unlock button and keeps the password form available", async () => {
@@ -1193,3 +1209,232 @@ it.each([true, false])(
     }
   },
 );
+
+it("shows a retryable web runtime failure without mounting financial content", async () => {
+  mocks.command.mockRejectedValue(new Error("PROFILE_STARTUP_FAILED: private database detail"));
+  mount();
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "The server couldn’t open this profile. Retry, or ask the server administrator to check the startup error.",
+  );
+  expect(screen.queryByText("Private portfolio")).not.toBeInTheDocument();
+  expect(screen.queryByText(/private database detail/)).not.toBeInTheDocument();
+  mocks.command.mockResolvedValue(unlocked);
+  fireEvent.click(screen.getByRole("button", { name: /^Retry$/ }));
+  expect(await screen.findByText("Private portfolio")).toBeInTheDocument();
+  expect(mocks.command).not.toHaveBeenCalledWith("lock_profile", expect.anything());
+});
+
+it("offers a fresh-page retry when a revoked web session is still returned by the server", async () => {
+  mount();
+  await screen.findByText("Private portfolio");
+  mocks.admitted.mockReturnValue(false);
+  try {
+    await act(async () => window.dispatchEvent(new Event("wealthfolio:profile-locked")));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Your profile session was interrupted. Retry to reopen it.",
+    );
+    expect(screen.queryByText("Private portfolio")).not.toBeInTheDocument();
+    expect(mocks.reload).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: /^Retry$/ }));
+    expect(mocks.reload).toHaveBeenCalledOnce();
+    expect(screen.queryByText("Private portfolio")).not.toBeInTheDocument();
+    expect(mocks.command).not.toHaveBeenCalledWith("unlock_profile", expect.anything());
+  } finally {
+    mocks.admitted.mockReturnValue(true);
+  }
+});
+
+// Invoke the registered DOM listener with trusted activity; synthetic DOM dispatches
+// intentionally cannot extend a real profile's idle deadline.
+async function activityListener(lockEnabled: boolean) {
+  const registered = vi.spyOn(window, "addEventListener");
+  mocks.command.mockResolvedValue({ ...unlocked, profiles: [{ ...profile, lockEnabled }] });
+  mount();
+  await act(async () => {});
+  const listener = registered.mock.calls.find(([event]) => event === "pointerdown")?.[1];
+  registered.mockRestore();
+  return listener as ((event: Event) => void) | undefined;
+}
+
+it.each([true, false])(
+  "does not register activity updates for an unprotected profile (web: %s)",
+  async (isWeb) => {
+    mocks.isWeb = isWeb;
+    expect(await activityListener(false)).toBeUndefined();
+    expect(mocks.command.mock.calls.some(([command]) => command === "profile_activity")).toBe(
+      false,
+    );
+  },
+);
+
+it.each([true, false])(
+  "throttles protected-profile activity to thirty seconds (web: %s)",
+  async (isWeb) => {
+    vi.useFakeTimers();
+    mocks.isWeb = isWeb;
+    const activity = (await activityListener(true))!;
+    const trusted = { isTrusted: true } as Event;
+    await act(async () => activity(trusted));
+    await act(async () => activity(trusted));
+    const updates = () =>
+      mocks.command.mock.calls.filter(([command]) => command === "profile_activity");
+    expect(updates()).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(29_999);
+    await act(async () => activity(trusted));
+    expect(updates()).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(1);
+    await act(async () => activity(trusted));
+    expect(updates()).toHaveLength(2);
+  },
+);
+
+it("leaves failed activity updates alone without another state request or revoking a grant", async () => {
+  const activity = (await activityListener(true))!;
+  mocks.command.mockImplementation((command) =>
+    command === "profile_activity"
+      ? Promise.reject(new TypeError("Failed to fetch"))
+      : Promise.resolve({ ...unlocked, profiles: [{ ...profile, lockEnabled: true }] }),
+  );
+  await act(async () => activity({ isTrusted: true } as Event));
+  expect(screen.getByText("Private portfolio")).toBeInTheDocument();
+  expect(
+    mocks.command.mock.calls.filter(([command]) => command === "get_profile_state"),
+  ).toHaveLength(1);
+  expect(mocks.command).not.toHaveBeenCalledWith("lock_profile", expect.anything());
+  expect(mocks.reload).not.toHaveBeenCalled();
+});
+
+it("does not accept a late activity rejection after a lock has begun", async () => {
+  const activity = (await activityListener(true))!;
+  const pending = deferred<unknown>();
+  mocks.command.mockImplementation((command) =>
+    command === "profile_activity" ? pending.promise : Promise.resolve(unlocked),
+  );
+  await act(async () => activity({ isTrusted: true } as Event));
+  await act(async () => window.dispatchEvent(new Event("wealthfolio:profile-locked")));
+  const count = mocks.command.mock.calls.length;
+  await act(async () => pending.reject(new Error("PROFILE_LOCKED")));
+  expect(mocks.command.mock.calls).toHaveLength(count);
+});
+
+it("preserves a never-admitted unlock form when visibility refresh confirms no session", async () => {
+  mocks.command.mockResolvedValue({
+    ...unlocked,
+    profiles: [{ ...profile, lockEnabled: true }],
+    session: null,
+  });
+  mount();
+  fireEvent.click(await screen.findByRole("button", { name: "Personal" }));
+  fireEvent.change(screen.getByLabelText("Password"), { target: { value: "unfinished password" } });
+  await act(async () => document.dispatchEvent(new Event("visibilitychange")));
+  expect(screen.getByLabelText("Password")).toHaveValue("unfinished password");
+  expect(mocks.command).not.toHaveBeenCalledWith("lock_profile", expect.anything());
+});
+
+it("resumes after an SSE reconnect without relying on a browser online event", async () => {
+  mount();
+  await screen.findByText("Private portfolio");
+  mocks.command.mockRejectedValue(new Error("upstream unavailable"));
+  await act(async () => window.dispatchEvent(new Event("wealthfolio:event-stream-error")));
+  expect(screen.getByText("Private portfolio")).toBeInTheDocument();
+  mocks.command.mockResolvedValue(unlocked);
+  await act(async () => window.dispatchEvent(new Event("wealthfolio:event-stream-reconnected")));
+  expect(screen.getByText("Private portfolio")).toBeInTheDocument();
+  expect(mocks.reload).not.toHaveBeenCalled();
+  expect(mocks.command).not.toHaveBeenCalledWith("lock_profile", expect.anything());
+});
+
+it.each(["Lock Wealthfolio", "Switch profile"])(
+  "keeps content hidden when %s fails offline",
+  async (action) => {
+    mocks.command.mockResolvedValue({
+      ...unlocked,
+      profiles: [
+        { ...profile, lockEnabled: true },
+        { ...profile, id: "b", name: "Family" },
+      ],
+    });
+    mount();
+    await screen.findByText("Private portfolio");
+    fireEvent.keyDown(screen.getByRole("button", { name: "Profile menu for Personal" }), {
+      key: "Enter",
+    });
+    const item = await screen.findByRole("menuitem", { name: action });
+    mocks.command.mockRejectedValue(new TypeError("Failed to fetch"));
+    fireEvent.click(item);
+    expect(screen.queryByText("Private portfolio")).not.toBeInTheDocument();
+    await screen.findByRole("button", { name: "Retry" });
+    await act(async () => window.dispatchEvent(new Event("online")));
+    expect(screen.queryByText("Private portfolio")).not.toBeInTheDocument();
+  },
+);
+
+it("keeps startup closed when the initial profile check fails", async () => {
+  mocks.command.mockRejectedValue(new TypeError("Failed to fetch"));
+  mount();
+  await screen.findByRole("button", { name: "Retry" });
+  expect(screen.queryByText("Private portfolio")).not.toBeInTheDocument();
+});
+
+it.each([false, true])(
+  "preserves the selected profile and unlock input through a connection failure (switching: %s)",
+  async (switching) => {
+    const profiles = [
+      { ...profile, lockEnabled: true },
+      { ...profile, id: "b", name: "Family", lockEnabled: true },
+    ];
+    const locked = { ...unlocked, profiles, session: null };
+    mocks.command.mockResolvedValue(switching ? { ...unlocked, profiles } : locked);
+    mount();
+    if (switching) {
+      await screen.findByText("Private portfolio");
+      fireEvent.keyDown(screen.getByRole("button", { name: "Profile menu for Personal" }), {
+        key: "Enter",
+      });
+      mocks.command.mockResolvedValue(locked);
+      fireEvent.click(await screen.findByRole("menuitem", { name: "Switch profile" }));
+    }
+    fireEvent.click(await screen.findByRole("button", { name: "Family" }));
+    const input = screen.getByLabelText("Password");
+    fireEvent.change(input, { target: { value: "unfinished password" } });
+    const callsBeforeOutage = mocks.command.mock.calls.length;
+    mocks.command.mockRejectedValue(new TypeError("Failed to fetch"));
+    await act(async () => window.dispatchEvent(new Event("wealthfolio:event-stream-error")));
+    expect(screen.getByLabelText("Password")).toBe(input);
+    expect(input).toHaveValue("unfinished password");
+    expect(screen.queryByText("Private portfolio")).not.toBeInTheDocument();
+    expect(
+      mocks.command.mock.calls
+        .slice(callsBeforeOutage)
+        .every(([name]) => name === "get_profile_state"),
+    ).toBe(true);
+    mocks.command.mockResolvedValue(locked);
+    await act(async () => window.dispatchEvent(new Event("online")));
+    expect(screen.getByLabelText("Password")).toBe(input);
+    expect(input).toHaveValue("unfinished password");
+    fireEvent.submit(input.closest("form")!);
+    await waitFor(() =>
+      expect(mocks.command).toHaveBeenCalledWith("unlock_profile", {
+        profileId: "b",
+        proof: "unfinished password",
+      }),
+    );
+  },
+);
+
+it("does not send state requests when going offline or receiving an offline stream error", async () => {
+  mount();
+  await screen.findByText("Private portfolio");
+  const before = profileStateReads();
+  vi.spyOn(navigator, "onLine", "get").mockReturnValue(false);
+  try {
+    await act(async () => {
+      window.dispatchEvent(new Event("offline"));
+      window.dispatchEvent(new Event("wealthfolio:event-stream-error"));
+    });
+    expect(profileStateReads()).toBe(before);
+    expect(screen.getByText("Private portfolio")).toBeInTheDocument();
+  } finally {
+    vi.restoreAllMocks();
+  }
+});

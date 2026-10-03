@@ -14,6 +14,7 @@ use wealthfolio_server::{api::app_router, build_state, config::Config};
 
 async fn build_test_router(password: &str) -> axum::Router {
     let tmp = tempdir().unwrap();
+    std::env::set_var("WF_DATA_DIR", "");
     std::env::set_var("WF_DB_PATH", tmp.path().join("test.db"));
 
     let salt = SaltString::generate(&mut OsRng);

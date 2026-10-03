@@ -157,6 +157,36 @@
       "title_many": "Rilevati {{count}} trasferimenti incompleti",
       "title_other": "Rilevati {{count}} trasferimenti incompleti",
       "message": "Un trasferimento non è abbinato o manca della sua parte corrispondente, quindi il suo flusso è stato trattato come esterno e potrebbe distorcere i rendimenti. Abbinalo al trasferimento corrispondente, oppure contrassegnalo come esterno se è quello previsto."
+    },
+    "data_stale_projection": {
+      "title_one": "La cronologia del conto non è aggiornata",
+      "title_other": "{{count}} cronologie dei conti non sono aggiornate",
+      "title_many": "{{count}} cronologie dei conti non sono aggiornate",
+      "message": "Attività, prezzi o impostazioni sono cambiati dopo l'ultimo calcolo di queste cronologie. Ricalcolale affinché valori e rendimenti riflettano i dati attuali."
+    },
+    "data_rejected_activity": {
+      "title_one": "Impossibile applicare la transazione",
+      "title_other": "Impossibile applicare {{count}} transazioni",
+      "title_many": "Impossibile applicare {{count}} transazioni",
+      "message": "Queste transazioni non possono essere applicate così come sono registrate (ad esempio, la loro valuta non ha un tasso di cambio, oppure aprirebbero o chiuderebbero una posizione corta senza essere contrassegnate per farlo), quindi sono escluse da saldi, posizioni e rendimenti. Controllale."
+    },
+    "data_oversold_activity": {
+      "title_one": "La transazione vende più di quanto detenuto",
+      "title_other": "{{count}} transazioni vendono più di quanto detenuto",
+      "title_many": "{{count}} transazioni vendono più di quanto detenuto",
+      "message": "Queste transazioni vendono o trasferiscono più unità di quante il conto ne detenesse in quel momento. Sono state rimosse solo le unità detenute e il resto non ha un costo di carico. Verifica se manca un acquisto o un trasferimento in entrata."
+    },
+    "data_missing_activity_amount": {
+      "title_one": "La transazione non ha un importo",
+      "title_other": "{{count}} transazioni non hanno un importo",
+      "title_many": "{{count}} transazioni non hanno un importo",
+      "message": "Queste transazioni non hanno un importo, quindi non hanno modificato il saldo di cassa. Aggiungi l'importo se c'è stato un movimento di denaro."
+    },
+    "fx_conflicting_rates": {
+      "title_one": "I tassi di cambio tra {{from}} e {{to}} non coincidono",
+      "title_other": "I tassi di cambio non coincidono per {{count}} coppie di valute",
+      "title_many": "I tassi di cambio non coincidono per {{count}} coppie di valute",
+      "message": "Per gli stessi giorni sono registrati tassi in entrambe le direzioni che non corrispondono. Ogni direzione viene usata come registrata, quindi una conversione di andata e ritorno dà un importo diverso. Correggi o rimuovi i tassi errati."
     }
   },
   "page": {

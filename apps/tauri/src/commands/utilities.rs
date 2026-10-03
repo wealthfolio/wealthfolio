@@ -337,6 +337,7 @@ async fn build_data_export_content(
                     None,
                     None,
                 )
+                .await
                 .map_err(|e| format!("Failed to load portfolio history for export: {}", e))?;
             format_records(&records, format).map_err(|e| e.to_string())
         }
@@ -687,7 +688,13 @@ pub async fn export_database_backup(
         })
     })
     .await
-    .map_err(|_| "Backup export task failed".to_string())?
+    .map_err(|error| {
+        log::error!(
+            "Backup export task failed (panic={})",
+            matches!(error, tauri::Error::JoinError(ref join) if join.is_panic())
+        );
+        "Backup export task failed".to_string()
+    })?
 }
 
 /// Inspect a private immutable candidate without changing the live database.

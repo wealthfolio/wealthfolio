@@ -102,7 +102,7 @@
     "values_without_returns": "Account values are shown without period returns.",
     "failed_to_load": "Failed to load accounts",
     "failed_to_load_performance": "Failed to load performance metrics",
-    "try_restarting": "Try restarting the app. If this persists, your database may need to be reset."
+    "try_restarting": "Try again. If the problem persists, restart Wealthfolio or contact support."
   },
   "accounts_count_one": "{{count}} account",
   "accounts_count_other": "{{count}} accounts"

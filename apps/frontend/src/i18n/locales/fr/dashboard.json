@@ -106,7 +106,7 @@
     "values_without_returns": "Les valeurs des comptes sont affichées sans rendements de période.",
     "failed_to_load": "Échec du chargement des comptes",
     "failed_to_load_performance": "Échec du chargement des indicateurs de performance",
-    "try_restarting": "Essayez de redémarrer l'application. Si le problème persiste, votre base de données devra peut-être être réinitialisée."
+    "try_restarting": "Réessayez. Si le problème persiste, redémarrez Wealthfolio ou contactez le support."
   },
   "accounts_count_one": "{{count}} compte",
   "accounts_count_other": "{{count}} comptes",

@@ -262,7 +262,8 @@ async fn snapshot_account_replacement_preserves_omitted_configuration_tables() {
     assert_eq!(lists(&conn), before);
     assert_eq!(
         count(&conn, "holdings_snapshots WHERE source='BROKER_IMPORTED'"),
-        2
+        0,
+        "broker holdings are now replaced by the snapshot, which is empty here"
     );
     assert_eq!(
         count(

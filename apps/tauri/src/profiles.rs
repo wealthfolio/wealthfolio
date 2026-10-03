@@ -126,8 +126,18 @@ impl NativeProfiles {
         }
         .map_err(|e| e.to_string())?;
         for id in registry.pending_deletions().map_err(|e| e.to_string())? {
-            if registry.finish_delete(id).is_err() {
-                log::warn!("Profile deletion cleanup needs a retry.");
+            if let Err(error) = registry.finish_delete(id) {
+                let (kind, io_kind, os_code) = match error {
+                    ProfileError::StorageIo { kind, os_code } => {
+                        ("storage_io", Some(kind), os_code)
+                    }
+                    ProfileError::Unavailable(_) => ("storage_unavailable", None, None),
+                    ProfileError::Invalid(_) => ("invalid_deletion_record", None, None),
+                    _ => ("other", None, None),
+                };
+                log::warn!(
+                    "Profile deletion cleanup needs a retry (profile={id}, kind={kind}, ioKind={io_kind:?}, osCode={os_code:?})"
+                );
             }
         }
         Ok(Self {
@@ -235,7 +245,13 @@ impl NativeProfiles {
             registry.verify(id, proof.as_deref().map(String::as_str))
         })
         .await
-        .map_err(|_| "Profile verification failed.".to_string())?
+        .map_err(|error| {
+            log::error!(
+                "Profile verification task failed (panic={})",
+                matches!(error, tauri::Error::JoinError(ref join) if join.is_panic())
+            );
+            "Profile verification failed.".to_string()
+        })?
         .map_err(|e| e.to_string())?;
         self.registry
             .sessions
@@ -613,7 +629,13 @@ pub async fn set_profile_password(
         )
     })
     .await
-    .map_err(|_| "Profile password update failed.".to_string())?
+    .map_err(|error| {
+        log::error!(
+            "Profile password update task failed (panic={})",
+            matches!(error, tauri::Error::JoinError(ref join) if join.is_panic())
+        );
+        "Profile password update failed.".to_string()
+    })?
     .map_err(|e| e.to_string())?;
     drop(state);
     let _ = handle.state::<NativeProfiles>().lock(&handle).await;
@@ -641,7 +663,13 @@ pub async fn recover_profile_password(
         registry.set_password(profile_id, Some(&recovery), Some(&password))
     })
     .await
-    .map_err(|_| "Profile recovery failed.".to_string())?
+    .map_err(|error| {
+        log::error!(
+            "Profile recovery task failed (panic={})",
+            matches!(error, tauri::Error::JoinError(ref join) if join.is_panic())
+        );
+        "Profile recovery failed.".to_string()
+    })?
     .map_err(|e| e.to_string())?;
     let _ = state.lock(&handle).await;
     result.ok_or_else(|| "Profile recovery failed.".into())

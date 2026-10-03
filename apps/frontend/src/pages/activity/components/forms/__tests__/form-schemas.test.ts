@@ -1417,6 +1417,36 @@ describe("Form Schemas Validation", () => {
       });
     });
 
+    it("keeps an exact provider symbol selected for a dividend asset", () => {
+      const formData = {
+        accountId: "acc-123",
+        activityDate: new Date(),
+        symbol: "ABC",
+        amount: 12,
+        tax: 0,
+        subtype: null,
+        currency: "USD",
+        exchangeMic: "XNAS",
+        symbolQuoteCcy: "USD",
+        symbolInstrumentType: "EQUITY",
+        assetMetadata: {
+          providerId: "YAHOO",
+          providerSymbol: "ABC.ZZ",
+        },
+      } satisfies DividendFormValues;
+
+      const payload = ACTIVITY_FORM_CONFIG.DIVIDEND.toPayload(formData);
+
+      expect(payload).toMatchObject({
+        assetId: "ABC",
+        exchangeMic: "XNAS",
+        assetMetadata: {
+          providerId: "YAHOO",
+          providerSymbol: "ABC.ZZ",
+        },
+      });
+    });
+
     it("clears stale staking values when switching interest back to cash", () => {
       const formData = {
         accountId: "acc-123",

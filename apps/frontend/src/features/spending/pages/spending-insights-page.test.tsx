@@ -4,13 +4,16 @@ import { MemoryRouter, useLocation } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import SpendingInsightsPage from "./spending-insights-page";
 
-const { insightQuery, eventsQuery, cashQuery } = vi.hoisted(() => ({
+const { insightQuery, eventsQuery, cashQuery, testSettings } = vi.hoisted(() => ({
   insightQuery: vi.fn(),
   eventsQuery: vi.fn(),
   cashQuery: vi.fn(),
+  testSettings: { timezone: "America/Toronto" },
 }));
 vi.mock("@/lib/settings-provider", () => ({
-  useSettingsContext: () => ({ settings: { baseCurrency: "USD", timezone: "America/Toronto" } }),
+  useSettingsContext: () => ({
+    settings: { baseCurrency: "USD", timezone: testSettings.timezone },
+  }),
 }));
 vi.mock("@/hooks/use-balance-privacy", () => ({
   useBalancePrivacy: () => ({ isBalanceHidden: false }),
@@ -73,6 +76,78 @@ beforeEach(() => {
   Element.prototype.scrollIntoView = vi.fn();
   localStorage.clear();
   vi.clearAllMocks();
+  testSettings.timezone = "America/Toronto";
+});
+
+describe("This month comparisons", () => {
+  it.each([
+    [
+      "2026-09-29T12:00:00Z",
+      "America/Toronto",
+      "2026-08-01T04:00:00.000Z",
+      "2026-08-30T03:59:59.999Z",
+    ],
+    [
+      "2026-09-30T12:00:00Z",
+      "America/Toronto",
+      "2026-08-01T04:00:00.000Z",
+      "2026-09-01T03:59:59.999Z",
+    ],
+    [
+      "2026-09-29T23:00:00Z",
+      "Pacific/Kiritimati",
+      "2026-07-31T10:00:00.000Z",
+      "2026-08-31T09:59:59.999Z",
+    ],
+    [
+      "2026-02-28T12:00:00Z",
+      "America/Toronto",
+      "2026-01-01T05:00:00.000Z",
+      "2026-02-01T04:59:59.999Z",
+    ],
+    [
+      "2024-02-29T12:00:00Z",
+      "America/Toronto",
+      "2024-01-01T05:00:00.000Z",
+      "2024-02-01T04:59:59.999Z",
+    ],
+    [
+      "2026-03-31T12:00:00Z",
+      "America/Toronto",
+      "2026-02-01T05:00:00.000Z",
+      "2026-03-01T04:59:59.999Z",
+    ],
+    [
+      "2026-01-31T12:00:00Z",
+      "America/Toronto",
+      "2025-12-01T05:00:00.000Z",
+      "2026-01-01T04:59:59.999Z",
+    ],
+    ["2026-05-30T12:00:00Z", "UTC", "2026-04-01T00:00:00.000Z", "2026-04-30T23:59:59.999Z"],
+  ])(
+    "uses the matching prior month, including a completed month at %s in %s",
+    (now, timezone, expectedStart, expectedEnd) => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date(now));
+      testSettings.timezone = timezone;
+      try {
+        render(
+          <MemoryRouter initialEntries={["/spending/insights?stage=changed&period=MTD"]}>
+            <SpendingInsightsPage />
+          </MemoryRouter>,
+        );
+        expect(insightQuery).toHaveBeenCalledWith(
+          expect.objectContaining({
+            compareStartDate: expectedStart,
+            compareEndDate: expectedEnd,
+          }),
+          true,
+        );
+      } finally {
+        vi.useRealTimers();
+      }
+    },
+  );
 });
 
 describe("custom range in Spending Insights", () => {

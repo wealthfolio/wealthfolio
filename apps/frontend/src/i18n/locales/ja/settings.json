@@ -116,6 +116,7 @@
   "accounts_empty_title": "口座が登録されていません",
   "accounts_empty_description": "まだ口座がありません。投資口座の登録から始めましょう。",
   "accounts_add_first": "口座を追加",
+  "accounts_connect_account": "口座を連携",
   "accounts_disabled_badge": "無効",
   "accounts_operations_open": "開く",
   "accounts_operations_edit": "編集",

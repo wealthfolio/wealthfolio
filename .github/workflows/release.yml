@@ -3,6 +3,7 @@ on:
   push:
     tags:
       - "v*"
+  # Manual runs build, sign, notarize, and test without publishing.
   workflow_dispatch:
 
 jobs:
@@ -122,8 +123,8 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
         with:
-          tagName: ${{ github.ref_name }} # This only works if the workflow triggers on new tags.
-          releaseName: "Wealthfolio v__VERSION__" # tauri-action replaces \_\_VERSION\_\_ with the app version.
+          tagName: ${{ github.event_name == 'push' && github.ref_name || '' }}
+          releaseName: ${{ github.event_name == 'push' && 'Wealthfolio v__VERSION__' || '' }}
           releaseBody: "See the assets to download and install this version."
           releaseDraft: true
           prerelease: false
@@ -137,12 +138,12 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PUBLISH_RELEASE: ${{ github.event_name == 'push' }}
           APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
         run: |
           set -euo pipefail
           shopt -s nullglob
-          TAG="${{ github.ref_name }}"
           found=0
           # CI always passes --target <triple> → target/<triple>/release/…;
           # keep target/release/… as a safety net if the matrix args ever change.
@@ -156,12 +157,32 @@ jobs:
             xcrun stapler staple "$dmg"
             xcrun stapler validate "$dmg"
             # tauri-action already uploaded the unstapled copy; replace it in place
-            gh release upload "$TAG" "$dmg" --clobber
+            if [ "$PUBLISH_RELEASE" = true ]; then
+              gh release upload "$GITHUB_REF_NAME" "$dmg" --clobber
+            fi
           done
           if [ "$found" -eq 0 ]; then
             echo "::error::No DMG found under target/*/release/bundle/dmg/"
             exit 1
           fi
+
+      - name: Upload validation packages
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
+        with:
+          name: wealthfolio-${{ matrix.cache-key }}-${{ github.sha }}
+          path: |
+            target/**/release/bundle/**/*.dmg
+            target/**/release/bundle/**/*.exe
+            target/**/release/bundle/**/*.msi
+            target/**/release/bundle/**/*.deb
+            target/**/release/bundle/**/*.rpm
+            target/**/release/bundle/**/*.AppImage
+            target/**/release/bundle/**/*.tar.gz
+            target/**/release/bundle/**/*.zip
+            target/**/release/bundle/**/*.sig
+          if-no-files-found: error
+          retention-days: 7
 
   prebuild-server-linux:
     # Standalone server tarball for self-hosters (Proxmox LXC, bare metal, systemd).
@@ -232,8 +253,13 @@ jobs:
 
       - name: Stage tarball contents
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
+          if [ "$GITHUB_EVENT_NAME" = push ]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+          else
+            VERSION=$(node -p "require('./apps/tauri/tauri.conf.json').version")
+          fi
           STAGE="wealthfolio-server-${VERSION}-linux-amd64"
+          echo "SERVER_PACKAGE=$STAGE" >> "$GITHUB_ENV"
           mkdir -p "${STAGE}"
           cp target/release/wealthfolio-server "${STAGE}/wealthfolio-server"
           cp -r dist "${STAGE}/dist"
@@ -243,18 +269,17 @@ jobs:
 
       - name: Create tarball + checksum
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-          STAGE="wealthfolio-server-${VERSION}-linux-amd64"
-          tar -czf "${STAGE}.tar.gz" "${STAGE}"
-          sha256sum "${STAGE}.tar.gz" > "${STAGE}.tar.gz.sha256"
+          tar -czf "${SERVER_PACKAGE}.tar.gz" "$SERVER_PACKAGE"
+          sha256sum "${SERVER_PACKAGE}.tar.gz" > "${SERVER_PACKAGE}.tar.gz.sha256"
 
       - name: Smoke-test extracted server release on Debian 13
         run: |
           mkdir -p "$RUNNER_TEMP/server-smoke"
-          tar -xzf "wealthfolio-server-${GITHUB_REF_NAME#v}-linux-amd64.tar.gz" -C "$RUNNER_TEMP/server-smoke" --strip-components=1
+          tar -xzf "${SERVER_PACKAGE}.tar.gz" -C "$RUNNER_TEMP/server-smoke" --strip-components=1
           python3 .github/scripts/encryption_smoke.py --package "$RUNNER_TEMP/server-smoke"
 
       - name: Upload to GitHub release
+        if: github.event_name == 'push'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
@@ -262,3 +287,14 @@ jobs:
           files: |
             wealthfolio-server-*-linux-amd64.tar.gz
             wealthfolio-server-*-linux-amd64.tar.gz.sha256
+
+      - name: Upload validation server package
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
+        with:
+          name: wealthfolio-server-linux-amd64-${{ github.sha }}
+          path: |
+            wealthfolio-server-*-linux-amd64.tar.gz
+            wealthfolio-server-*-linux-amd64.tar.gz.sha256
+          if-no-files-found: error
+          retention-days: 7

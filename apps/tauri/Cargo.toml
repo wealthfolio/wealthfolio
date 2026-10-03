@@ -23,7 +23,7 @@ wealthfolio-spending = { workspace = true }
 wealthfolio-agent-tools = { workspace = true }
 
 # Tauri
-tauri = { version = "2.11.6", features = [] }
+tauri = { version = "2.12.0", features = [] }
 tauri-plugin-fs = "2.5"
 tauri-plugin-dialog = "2"
 tauri-plugin-shell = "2"
@@ -65,7 +65,7 @@ rand = { workspace = true }
 
 [dev-dependencies]
 tempfile = "3"
-tauri = { version = "2.11.6", features = ["test"] }
+tauri = { version = "2.12.0", features = ["test"] }
 
 [features]
 default = ["connect-sync", "device-sync"]
@@ -137,4 +137,7 @@ features = ["Win32_System_RemoteDesktop", "Win32_System_Power", "Win32_UI_Window
 [target.'cfg(all(unix, not(any(target_os = "macos", target_os = "ios", target_os = "android"))))'.dependencies.zbus]
 version = "5"
 default-features = false
-features = ["tokio"]
+# Shared with the synchronous Secret Service store. Enabling `tokio` makes its
+# blocking calls nest Tokio runtimes and panic during async desktop startup.
+# The async logind API also works with this runtime-independent backend.
+features = ["async-io"]

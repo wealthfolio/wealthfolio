@@ -304,6 +304,7 @@ pub async fn resolve_symbol_quote(
     instrument_type: Option<String>,
     quote_ccy: Option<String>,
     provider_id: Option<String>,
+    provider_symbol: Option<String>,
     state: ProfileAccess,
 ) -> Result<wealthfolio_core::quotes::ResolvedQuote, String> {
     let context = state.context()?;
@@ -318,6 +319,7 @@ pub async fn resolve_symbol_quote(
             inst_type.as_ref(),
             quote_ccy.as_deref(),
             provider_id.as_deref(),
+            provider_symbol.as_deref(),
         )
         .await
         .map_err(|e| format!("Failed to resolve symbol quote: {}", e))

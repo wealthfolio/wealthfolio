@@ -181,16 +181,9 @@ pub fn start_background_workers(state: Arc<AppState>) {
     // Start background broker sync scheduler (4-hour interval)
     start_broker_sync_scheduler(state.clone());
 
-    // Start periodic market data sync (6h interval, 2min initial delay)
-    let quote_svc = state.quote_service.clone();
-    let worker = tokio::spawn(async move {
-        wealthfolio_core::quotes::scheduler::run_periodic_sync(
-            quote_svc,
-            std::time::Duration::from_secs(120),
-            std::time::Duration::from_secs(6 * 3600),
-        )
-        .await;
-    });
+    // Periodic market data sync plus portfolio update (6h interval, 2min
+    // initial delay): the coordinator rebuilds whatever the sync made stale.
+    let worker = crate::api::shared::spawn_periodic_update(state.clone());
     state.workers.lock().unwrap().push(worker);
 }
 

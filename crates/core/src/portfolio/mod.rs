@@ -1,11 +1,12 @@
 pub mod allocation;
 pub mod allocation_targets;
+pub mod coordinator;
 pub mod economic_events;
 pub mod fire;
 pub mod holdings;
 pub mod income;
 pub mod net_worth;
 pub mod performance;
-pub mod recalculation_gate;
+pub mod projection;
 pub mod snapshot;
 pub mod valuation;

@@ -57,6 +57,7 @@ it("downloads through a browser link without buffering the backup into a Blob", 
   const blob = vi.fn();
   const fetch = vi.fn().mockResolvedValue({
     ok: true,
+    headers: new Headers({ "Content-Type": "application/json" }),
     json: async () => ({ id: "job-id", filename: "backup.db" }),
     blob,
   });

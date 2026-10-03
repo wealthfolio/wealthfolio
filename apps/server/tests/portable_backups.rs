@@ -72,6 +72,7 @@ async fn export_id(response: axum::response::Response) -> String {
 
 #[tokio::test]
 async fn portable_exports_preserve_selected_data_and_bound_download_lifetimes() {
+    std::env::set_var("WF_DATA_DIR", "");
     std::env::set_var("WF_AUTH_REQUIRED", "false");
     // An unverified login must fail without contacting the real auth service.
     std::env::set_var("CONNECT_AUTH_URL", "invalid-auth-url");

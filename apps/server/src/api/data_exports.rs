@@ -103,7 +103,8 @@ async fn build_data_export_content(
                     &resolved.base_currency,
                     None,
                     None,
-                )?;
+                )
+                .await?;
             Ok(format_records(&records, format)?)
         }
     }

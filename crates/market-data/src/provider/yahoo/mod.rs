@@ -1358,6 +1358,31 @@ mod tests {
         assert_eq!(allocation[2]["weight"].as_f64(), Some(0.10));
     }
 
+    #[test]
+    fn test_asset_allocation_json_preserves_leveraged_fractions() {
+        // Yahoo raw values are fractions even when a position exceeds 100%.
+        let holdings: YahooTopHoldings = serde_json::from_str(
+            r#"{
+                "stockPosition": {"raw": 0.6381, "fmt": "63.81%"},
+                "bondPosition": {"raw": 1.157, "fmt": "115.70%"},
+                "cashPosition": {"raw": -1.1242, "fmt": "-112.42%"},
+                "otherPosition": {"raw": 0.32919997, "fmt": "32.92%"}
+            }"#,
+        )
+        .unwrap();
+
+        let allocation: serde_json::Value =
+            serde_json::from_str(&asset_allocation_json(&holdings).unwrap()).unwrap();
+        assert_eq!(
+            allocation,
+            serde_json::json!([
+                {"name": "stock", "weight": 0.6381},
+                {"name": "bond", "weight": 1.157},
+                {"name": "other", "weight": 0.32919997}
+            ])
+        );
+    }
+
     fn create_test_context() -> QuoteContext {
         use crate::models::InstrumentId;
 
@@ -1601,6 +1626,10 @@ mod tests {
         assert_eq!(
             yahoo_equity_search_queries("AAPL"),
             vec!["AAPL".to_string()]
+        );
+        assert_eq!(
+            yahoo_equity_search_queries("BAC.PB"),
+            vec!["BAC.PB".to_string()]
         );
     }
 

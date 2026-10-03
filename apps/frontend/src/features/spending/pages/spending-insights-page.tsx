@@ -111,7 +111,11 @@ function previousMonthMatchingRange(range: ReportsRange, timezone?: string | nul
   };
   const priorEnd = {
     ...priorEndBase,
-    day: Math.min(currentEnd.day, daysInCalendarMonth(priorEndBase.year, priorEndBase.month)),
+    // Completed months compare in full; in-progress months keep matching dates.
+    day:
+      currentEnd.day === daysInCalendarMonth(currentEnd.year, currentEnd.month)
+        ? daysInCalendarMonth(priorEndBase.year, priorEndBase.month)
+        : Math.min(currentEnd.day, daysInCalendarMonth(priorEndBase.year, priorEndBase.month)),
   };
 
   return {

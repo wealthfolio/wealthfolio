@@ -54,6 +54,7 @@ fn restore_cli(path: &Path, options: &[&str], password: &[u8]) -> Output {
 // One test keeps process-global environment setup serial. All paths and data are synthetic.
 #[test]
 fn offline_restore_validates_before_replacement_and_preserves_destination_policy() {
+    std::env::set_var("WF_DATA_DIR", "");
     std::env::set_var("WF_SECRET_KEY", SECRET);
     std::env::set_var("WF_SECRET_KEY_FILE", "");
     let source_root = tempfile::tempdir().unwrap();
@@ -258,7 +259,7 @@ fn offline_restore_validates_before_replacement_and_preserves_destination_policy
 
     // Restoring an encrypted backup into B must not alter A or either profile's secrets.
     let installation = tempfile::tempdir().unwrap();
-    let a_path = installation.path().join("app.db");
+    let a_path = installation.path().join("custom-legacy.db");
     let a_access = DbAccess::plaintext(a_path.to_str().unwrap());
     a_access.prepare().unwrap();
     a_access.run_migrations().unwrap();
@@ -300,6 +301,10 @@ fn offline_restore_validates_before_replacement_and_preserves_destination_policy
     let b_id = b.id.to_string();
     drop(profiles);
     drop(runtime);
+    // Switch the same installation to directory-only configuration. Every offline
+    // operation must still select the registered profile and the shared vault.
+    std::env::set_var("WF_DATA_DIR", installation.path());
+    std::env::remove_var("WF_DB_PATH");
     let a_before = hash(&a_path);
     let secrets_before = hash(&installation.path().join("secrets.json"));
     let registry_before = hash(&installation.path().join("profiles.json"));

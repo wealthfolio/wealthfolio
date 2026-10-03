@@ -10,20 +10,22 @@
 //! 3. Interpolate the yield at the bond's remaining maturity.
 //! 4. Discount coupon + principal cash flows to get PV as fraction-of-par.
 //!
-//! Also exposes a TreasuryDirect auction-data lookup so the core crate can
-//! enrich bonds that are missing coupon/maturity metadata.
+//! Supplies TreasuryDirect bond terms through the standard provider profile interface.
 
 use async_trait::async_trait;
 use chrono::{DateTime, Datelike, NaiveDate, Utc};
 use log::{debug, warn};
 use rust_decimal::Decimal;
 use std::collections::HashMap;
+use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::RwLock;
 
 use crate::errors::MarketDataError;
-use crate::models::{Coverage, InstrumentKind, ProviderInstrument, Quote, QuoteContext};
+use crate::models::{
+    AssetProfile, BondProfile, Coverage, InstrumentKind, ProviderInstrument, Quote, QuoteContext,
+};
 use crate::provider::{MarketDataProvider, ProviderCapabilities, RateLimit};
 
 const PROVIDER_ID: &str = "US_TREASURY_CALC";
@@ -75,17 +77,22 @@ type YearCurves = Vec<(NaiveDate, YieldCurve)>;
 
 /// Bond details returned by the TreasuryDirect API.
 #[derive(Debug, Clone)]
-pub struct TreasuryBondDetails {
-    pub coupon_rate: Decimal,
-    pub maturity_date: NaiveDate,
+struct TreasuryBondDetails {
+    /// TreasuryDirect `type` distinguishes nominal notes from TIPS and FRNs.
+    pub treasury_type: String,
+    pub coupon_rate: Option<Decimal>,
+    pub maturity_date: Option<NaiveDate>,
     pub face_value: Decimal,
-    pub coupon_frequency: String,
+    pub coupon_frequency: Option<String>,
 }
 
 /// Response item from TreasuryDirect securities search.
-#[derive(Debug, serde::Deserialize)]
+#[derive(Clone, Debug, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct TdSecurityItem {
+    cusip: String,
+    #[serde(rename = "type")]
+    treasury_type: String,
     #[serde(default)]
     interest_rate: Option<String>,
     #[serde(default)]
@@ -102,6 +109,12 @@ pub struct UsTreasuryCalcProvider {
     client: reqwest::Client,
     /// Cached yield curves keyed by calendar year.
     curve_cache: Arc<RwLock<HashMap<i32, YearCurves>>>,
+    fixtures: Option<TreasuryFixtures>,
+}
+
+struct TreasuryFixtures {
+    securities: Vec<TdSecurityItem>,
+    as_of: NaiveDate,
 }
 
 impl Default for UsTreasuryCalcProvider {
@@ -120,70 +133,73 @@ impl UsTreasuryCalcProvider {
         Self {
             client,
             curve_cache: Arc::new(RwLock::new(HashMap::new())),
+            fixtures: None,
         }
     }
 
-    /// Fetch bond details from TreasuryDirect for enrichment.
-    /// Returns None if not a US Treasury ISIN or if lookup fails.
-    pub async fn fetch_bond_details(
-        client: &reqwest::Client,
-        isin: &str,
-    ) -> Option<TreasuryBondDetails> {
-        if !is_us_treasury_isin(isin) || isin.len() < 11 {
-            return None;
+    /// Use synthetic upstream responses with the production parser and calculator.
+    /// Missing securities or years fail closed; this instance never makes HTTP requests.
+    pub fn with_fixtures(fixture_dir: impl AsRef<Path>) -> Result<Self, MarketDataError> {
+        let read = |filename: &str| {
+            std::fs::read_to_string(fixture_dir.as_ref().join(filename)).map_err(|_| {
+                treasury_details_error(&format!("Cannot read Treasury fixture {filename}"))
+            })
+        };
+        let securities = serde_json::from_str(&read("treasury-securities.json")?)
+            .map_err(|_| treasury_details_error("Invalid Treasury securities fixture"))?;
+        let curves = parse_yield_curve_xml(&read("treasury-yield-curves.xml")?)?;
+        let as_of = curves
+            .iter()
+            .map(|(date, _)| *date)
+            .max()
+            .ok_or(MarketDataError::NoDataForRange)?;
+        let mut cache: HashMap<i32, YearCurves> = HashMap::new();
+        for (date, curve) in curves {
+            cache.entry(date.year()).or_default().push((date, curve));
         }
-        let cusip = &isin[2..11];
+        Ok(Self {
+            curve_cache: Arc::new(RwLock::new(cache)),
+            fixtures: Some(TreasuryFixtures { securities, as_of }),
+            ..Self::new()
+        })
+    }
+
+    /// Fetch authoritative terms for profiles and calculated quotes.
+    async fn fetch_bond_details(&self, isin: &str) -> Result<TreasuryBondDetails, MarketDataError> {
+        guard_us_treasury(isin)?;
+        let cusip = isin
+            .get(2..11)
+            .ok_or_else(|| treasury_details_error("Invalid Treasury identifier"))?;
+        if let Some(fixtures) = &self.fixtures {
+            let item = fixtures
+                .securities
+                .iter()
+                .find(|item| item.cusip == cusip)
+                .ok_or_else(|| treasury_details_error("Treasury security absent from fixtures"))?;
+            return parse_bond_details(item.clone());
+        }
         let url = format!(
             "https://www.treasurydirect.gov/TA_WS/securities/search?cusip={}&format=json",
             cusip
         );
-
-        let resp = client.get(&url).send().await.ok()?;
-        if !resp.status().is_success() {
-            warn!(
-                "TreasuryDirect API returned {} for CUSIP {}",
-                resp.status(),
-                cusip
-            );
-            return None;
-        }
-
-        let items: Vec<TdSecurityItem> = resp.json().await.ok()?;
-        let item = items.into_iter().next()?;
-
-        let coupon_rate = item
-            .interest_rate
-            .as_ref()
-            .filter(|r| !r.is_empty())
-            .and_then(|r| r.parse::<f64>().ok())
-            .map(|r| Decimal::try_from(r / 100.0).unwrap_or_default())
-            .unwrap_or(Decimal::ZERO);
-
-        let maturity_date = item.maturity_date.as_ref().and_then(|d| {
-            // Format: "2043-05-15T00:00:00"
-            NaiveDate::parse_from_str(&d[..10], "%Y-%m-%d").ok()
-        })?;
-
-        let is_zero_coupon = coupon_rate.is_zero();
-        let coupon_frequency = item
-            .interest_payment_frequency
-            .as_ref()
-            .filter(|f| !f.is_empty() && *f != "None")
-            .map(|f| normalize_frequency(f))
-            .unwrap_or_else(|| {
-                if is_zero_coupon {
-                    "ZERO".to_string()
-                } else {
-                    "SEMI_ANNUAL".to_string()
-                }
-            });
-
-        Some(TreasuryBondDetails {
-            coupon_rate,
-            maturity_date,
-            face_value: Decimal::from(US_TREASURY_FACE_VALUE as i64),
-            coupon_frequency,
-        })
+        let resp = self
+            .client
+            .get(&url)
+            .timeout(REQUEST_TIMEOUT)
+            .send()
+            .await
+            .map_err(|_| treasury_details_error("Treasury details request failed"))?
+            .error_for_status()
+            .map_err(|_| treasury_details_error("Treasury details request failed"))?;
+        let items: Vec<TdSecurityItem> = resp
+            .json()
+            .await
+            .map_err(|_| treasury_details_error("Invalid Treasury details response"))?;
+        let item = items
+            .into_iter()
+            .find(|item| item.cusip == cusip)
+            .ok_or_else(|| treasury_details_error("Treasury details unavailable"))?;
+        parse_bond_details(item)
     }
 
     // -----------------------------------------------------------------------
@@ -209,6 +225,9 @@ impl UsTreasuryCalcProvider {
 
     /// Fetch and parse one year of yield curve data from Treasury.gov XML.
     async fn fetch_year_curves(&self, year: i32) -> Result<YearCurves, MarketDataError> {
+        if self.fixtures.is_some() {
+            return Err(MarketDataError::NoDataForRange);
+        }
         let url = format!(
             "https://home.treasury.gov/resource-center/data-chart-center/interest-rates/pages/xml?data=daily_treasury_yield_curve&field_tdr_date_value={}",
             year
@@ -376,7 +395,7 @@ impl MarketDataProvider for UsTreasuryCalcProvider {
             supports_latest: true,
             supports_historical: true,
             supports_search: false,
-            supports_profile: false,
+            supports_profile: true,
             supports_dividends: false,
         }
     }
@@ -389,6 +408,12 @@ impl MarketDataProvider for UsTreasuryCalcProvider {
         }
     }
 
+    async fn get_profile(&self, symbol: &str) -> Result<AssetProfile, MarketDataError> {
+        guard_us_treasury(symbol)?;
+        let details = self.fetch_bond_details(symbol).await?;
+        Ok(details.into_profile(symbol))
+    }
+
     async fn get_latest_quote(
         &self,
         context: &QuoteContext,
@@ -397,17 +422,16 @@ impl MarketDataProvider for UsTreasuryCalcProvider {
         let isin = extract_isin(&instrument)?;
         guard_us_treasury(&isin)?;
 
-        let bond =
-            context
-                .bond_metadata
-                .as_ref()
-                .ok_or_else(|| MarketDataError::ProviderError {
-                    provider: PROVIDER_ID.to_string(),
-                    message: "Bond metadata (coupon, maturity) required for calculated pricing"
-                        .to_string(),
-                })?;
+        let bond = resolve_calculated_terms(
+            context.bond_metadata.as_ref(),
+            self.fetch_bond_details(&isin),
+        )
+        .await?;
 
-        let today = Utc::now().date_naive();
+        let today = match &self.fixtures {
+            Some(fixtures) => super::fixture::fixture_as_of_date(fixtures.as_of, PROVIDER_ID)?,
+            None => Utc::now().date_naive(),
+        };
         let curve = match self.get_curve_for_date(today).await {
             Ok(c) => c,
             Err(e) => {
@@ -460,18 +484,23 @@ impl MarketDataProvider for UsTreasuryCalcProvider {
         let isin = extract_isin(&instrument)?;
         guard_us_treasury(&isin)?;
 
-        let bond =
-            context
-                .bond_metadata
-                .as_ref()
-                .ok_or_else(|| MarketDataError::ProviderError {
-                    provider: PROVIDER_ID.to_string(),
-                    message: "Bond metadata (coupon, maturity) required for calculated pricing"
-                        .to_string(),
-                })?;
+        let bond = resolve_calculated_terms(
+            context.bond_metadata.as_ref(),
+            self.fetch_bond_details(&isin),
+        )
+        .await?;
 
         let start_date = start.date_naive();
-        let end_date = end.date_naive();
+        let end_date = match &self.fixtures {
+            Some(fixtures) => end.date_naive().min(super::fixture::fixture_as_of_date(
+                fixtures.as_of,
+                PROVIDER_ID,
+            )?),
+            None => end.date_naive(),
+        };
+        if self.fixtures.is_some() && start_date > end_date {
+            return Err(MarketDataError::NoDataForRange);
+        }
         let currency = context.currency_hint.as_deref().unwrap_or("USD");
 
         let coupon_rate: f64 = bond.coupon_rate.try_into().unwrap_or(0.0);
@@ -544,7 +573,138 @@ fn guard_us_treasury(isin: &str) -> Result<(), MarketDataError> {
 }
 
 fn is_us_treasury_isin(isin: &str) -> bool {
-    isin.starts_with("US912")
+    isin.starts_with("US912") && isin.len() == 12 && isin.bytes().all(|b| b.is_ascii_alphanumeric())
+}
+
+fn treasury_details_error(message: &str) -> MarketDataError {
+    MarketDataError::ProviderError {
+        provider: PROVIDER_ID.to_string(),
+        message: message.to_string(),
+    }
+}
+
+fn parse_bond_details(item: TdSecurityItem) -> Result<TreasuryBondDetails, MarketDataError> {
+    let supported = matches!(item.treasury_type.as_str(), "Bill" | "Note" | "Bond");
+    let coupon_rate = if item.treasury_type == "Bill" {
+        Some(Decimal::ZERO)
+    } else {
+        item.interest_rate
+            .as_deref()
+            .and_then(|r| r.parse::<Decimal>().ok())
+            .filter(|rate| *rate >= Decimal::ZERO)
+            .map(|r| r / Decimal::from(100))
+    };
+    let maturity_date = item
+        .maturity_date
+        .as_deref()
+        .and_then(|d| d.get(..10))
+        .and_then(|d| NaiveDate::parse_from_str(d, "%Y-%m-%d").ok());
+    let coupon_frequency = if item.treasury_type == "Bill" {
+        Some("ZERO".to_string())
+    } else {
+        item.interest_payment_frequency
+            .as_deref()
+            .map(normalize_frequency)
+            .filter(|f| matches!(f.as_str(), "SEMI_ANNUAL" | "ANNUAL" | "QUARTERLY"))
+    };
+    if item.treasury_type.trim().is_empty() {
+        return Err(treasury_details_error("Missing Treasury type"));
+    }
+    let details = TreasuryBondDetails {
+        treasury_type: item.treasury_type,
+        coupon_rate,
+        maturity_date,
+        coupon_frequency,
+        face_value: Decimal::from(US_TREASURY_FACE_VALUE as i64),
+    };
+    if supported {
+        details.clone().into_calculated_terms()?;
+    }
+    Ok(details)
+}
+
+// Only validated, complete nominal terms reach the price calculator.
+struct CalculatedBondTerms {
+    coupon_rate: Decimal,
+    maturity_date: NaiveDate,
+    face_value: Decimal,
+    coupon_frequency: String,
+}
+
+impl TryFrom<&crate::models::BondQuoteMetadata> for CalculatedBondTerms {
+    type Error = MarketDataError;
+
+    fn try_from(bond: &crate::models::BondQuoteMetadata) -> Result<Self, Self::Error> {
+        if !bond.has_valid_treasury_terms() {
+            return Err(treasury_details_error(
+                "Confirmed nominal Treasury terms required for calculated pricing",
+            ));
+        }
+        let incomplete = || treasury_details_error("Incomplete Treasury terms");
+        Ok(Self {
+            coupon_rate: bond.coupon_rate.ok_or_else(incomplete)?,
+            maturity_date: bond.maturity_date.ok_or_else(incomplete)?,
+            face_value: bond.face_value,
+            coupon_frequency: bond.coupon_frequency.clone().ok_or_else(incomplete)?,
+        })
+    }
+}
+
+// Resolve older assets on the quote path too: they may never enter broker sync.
+async fn resolve_calculated_terms(
+    supplied: Option<&crate::models::BondQuoteMetadata>,
+    fetch: impl std::future::Future<Output = Result<TreasuryBondDetails, MarketDataError>>,
+) -> Result<CalculatedBondTerms, MarketDataError> {
+    if let Some(bond) = supplied {
+        if let Ok(terms) = CalculatedBondTerms::try_from(bond) {
+            return Ok(terms);
+        }
+        if bond
+            .treasury_type
+            .as_deref()
+            .is_some_and(|kind| !matches!(kind, "Bill" | "Note" | "Bond"))
+        {
+            return Err(treasury_details_error("Unsupported Treasury type"));
+        }
+    }
+    let details = fetch.await?;
+    details.into_calculated_terms()
+}
+
+impl TreasuryBondDetails {
+    fn into_profile(self, isin: &str) -> AssetProfile {
+        let mut name = format!("United States Treasury {}", self.treasury_type);
+        if let Some(maturity) = self.maturity_date {
+            name.push_str(&format!(" {maturity}"));
+        }
+        AssetProfile {
+            name: Some(name),
+            source: Some(PROVIDER_ID.into()),
+            isin: Some(isin.into()),
+            quote_type: Some("BOND".into()),
+            currency: Some("USD".into()),
+            bond: Some(BondProfile {
+                isin: Some(isin.into()),
+                treasury_type: Some(self.treasury_type),
+                coupon_rate: self.coupon_rate,
+                maturity_date: self.maturity_date,
+                face_value: Some(self.face_value),
+                coupon_frequency: self.coupon_frequency,
+            }),
+            ..Default::default()
+        }
+    }
+
+    fn into_calculated_terms(self) -> Result<CalculatedBondTerms, MarketDataError> {
+        let bond = crate::models::BondQuoteMetadata {
+            treasury_type: Some(self.treasury_type),
+            coupon_rate: self.coupon_rate,
+            maturity_date: self.maturity_date,
+            face_value: self.face_value,
+            coupon_frequency: self.coupon_frequency,
+        };
+        CalculatedBondTerms::try_from(&bond)
+    }
 }
 
 fn normalize_frequency(freq: &str) -> String {
@@ -553,7 +713,7 @@ fn normalize_frequency(freq: &str) -> String {
         "ANNUAL" => "ANNUAL".to_string(),
         "QUARTERLY" => "QUARTERLY".to_string(),
         "NONE" | "ZERO" => "ZERO".to_string(),
-        _ => "SEMI_ANNUAL".to_string(),
+        _ => freq.to_string(),
     }
 }
 
@@ -664,7 +824,108 @@ fn extract_xml_value(xml: &str, tag: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use chrono::TimeZone;
     use rust_decimal_macros::dec;
+
+    fn fixture_provider() -> UsTreasuryCalcProvider {
+        UsTreasuryCalcProvider::with_fixtures(
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("../../e2e/fixtures/quotes"),
+        )
+        .unwrap()
+    }
+
+    fn fixture_context(isin: &str) -> QuoteContext {
+        QuoteContext {
+            instrument: crate::models::InstrumentId::Bond { isin: isin.into() },
+            currency_hint: Some("USD".into()),
+            overrides: None,
+            preferred_provider: None,
+            identifiers: Default::default(),
+            bond_metadata: None,
+            custom_provider_code: None,
+        }
+    }
+
+    #[tokio::test]
+    async fn fixtures_use_validated_terms_and_real_treasury_calculator() {
+        let provider = fixture_provider();
+        let profile = provider.get_profile("US91282CRF04").await.unwrap();
+        let bond = profile.bond.unwrap();
+        assert_eq!(profile.isin.as_deref(), Some("US91282CRF04"));
+        assert_eq!(bond.treasury_type.as_deref(), Some("Note"));
+        assert_eq!(bond.coupon_rate, Some(dec!(0.04)));
+        assert_eq!(bond.coupon_frequency.as_deref(), Some("SEMI_ANNUAL"));
+
+        for (isin, expected) in [
+            ("US91282CRF04", 1.0),
+            // 365-day bill at 4%: 1 / (1 + 0.04 * 365 / 360).
+            ("US912797VR56", 0.961025093433),
+            // 60 semiannual payments of 2.5% discounted at 2% per period.
+            ("US912810UW61", 1.173804433385),
+        ] {
+            let quotes = provider
+                .get_historical_quotes(
+                    &fixture_context(isin),
+                    ProviderInstrument::BondIsin { isin: isin.into() },
+                    Utc.with_ymd_and_hms(2026, 5, 12, 0, 0, 0).unwrap(),
+                    Utc.with_ymd_and_hms(2026, 5, 12, 23, 59, 59).unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(quotes.len(), 1);
+            assert_eq!(quotes[0].source, PROVIDER_ID);
+            assert_eq!(quotes[0].currency, "USD");
+            let close: f64 = quotes[0].close.try_into().unwrap();
+            assert!((close - expected).abs() < 1e-10);
+        }
+    }
+
+    #[tokio::test]
+    async fn treasury_fixtures_reject_unsupported_or_missing_inputs_without_live_fallback() {
+        let provider = fixture_provider();
+        for isin in ["US91282CRE39", "US91282CRD55"] {
+            assert!(provider.get_profile(isin).await.unwrap().bond.is_some());
+            assert!(provider
+                .get_historical_quotes(
+                    &fixture_context(isin),
+                    ProviderInstrument::BondIsin { isin: isin.into() },
+                    Utc.with_ymd_and_hms(2026, 5, 12, 0, 0, 0).unwrap(),
+                    Utc.with_ymd_and_hms(2026, 5, 12, 23, 59, 59).unwrap(),
+                )
+                .await
+                .is_err());
+        }
+        let missing = provider.get_profile("US912810TH14").await.unwrap_err();
+        assert!(missing.to_string().contains("absent from fixtures"));
+        assert!(matches!(
+            provider.ensure_curves(2025).await,
+            Err(MarketDataError::NoDataForRange)
+        ));
+        assert!(UsTreasuryCalcProvider::with_fixtures(
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("missing-fixtures"),
+        )
+        .is_err());
+    }
+
+    #[tokio::test]
+    async fn treasury_fixture_history_stops_at_as_of_without_fetching_future_years() {
+        let quotes = fixture_provider()
+            .get_historical_quotes(
+                &fixture_context("US91282CRF04"),
+                ProviderInstrument::BondIsin {
+                    isin: "US91282CRF04".into(),
+                },
+                Utc.with_ymd_and_hms(2026, 5, 11, 0, 0, 0).unwrap(),
+                Utc.with_ymd_and_hms(2027, 6, 1, 23, 59, 59).unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(quotes.len(), 2);
+        assert_eq!(
+            quotes[1].timestamp.date_naive(),
+            NaiveDate::from_ymd_opt(2026, 5, 12).unwrap()
+        );
+    }
 
     #[test]
     fn test_is_us_treasury_isin() {
@@ -687,7 +948,7 @@ mod tests {
         assert_eq!(normalize_frequency("Annual"), "ANNUAL");
         assert_eq!(normalize_frequency("Quarterly"), "QUARTERLY");
         assert_eq!(normalize_frequency("None"), "ZERO");
-        assert_eq!(normalize_frequency("unknown"), "SEMI_ANNUAL");
+        assert_eq!(normalize_frequency("unknown"), "unknown");
     }
 
     #[test]
@@ -880,7 +1141,7 @@ mod tests {
         assert!(caps.supports_latest);
         assert!(caps.supports_historical);
         assert!(!caps.supports_search);
-        assert!(!caps.supports_profile);
+        assert!(caps.supports_profile);
     }
 
     #[test]
@@ -890,6 +1151,206 @@ mod tests {
         assert_eq!(quote.currency, "USD");
         assert_eq!(quote.source, "US_TREASURY_CALC");
         assert!(quote.close > dec!(0));
+    }
+
+    #[test]
+    fn treasury_terms_require_explicit_type_and_valid_values() {
+        let fixture = |kind: &str, rate: &str, maturity: &str| -> TdSecurityItem {
+            serde_json::from_value(serde_json::json!({
+                "cusip": "912810TH1", "type": kind, "securityType": "Note",
+                "interestRate": rate, "maturityDate": maturity,
+                "interestPaymentFrequency": "Semi-Annual"
+            }))
+            .unwrap()
+        };
+        let bill = parse_bond_details(fixture("Bill", "", "2027-01-01")).unwrap();
+        assert_eq!(bill.coupon_rate, Some(Decimal::ZERO));
+        assert_eq!(bill.coupon_frequency.as_deref(), Some("ZERO"));
+        for rate in ["", "n/a", "NaN", "-1"] {
+            assert!(parse_bond_details(fixture("Note", rate, "2030-01-01")).is_err());
+        }
+        assert_eq!(
+            parse_bond_details(fixture("Bond", "4.125", "2030-01-01"))
+                .unwrap()
+                .coupon_rate,
+            Some(dec!(0.04125))
+        );
+        assert!(parse_bond_details(fixture("Bond", "0", "2030-01-01")).is_err());
+        let mut annual = fixture("Note", "4", "2030-01-01");
+        annual.interest_payment_frequency = Some("Annual".into());
+        assert!(parse_bond_details(annual).is_err());
+        for date in ["", "bad", "éééééé", "2030-99-99"] {
+            assert!(parse_bond_details(fixture("Note", "4", date)).is_err());
+        }
+        for kind in ["TIPS", "FRN", "STRIPS"] {
+            let details = parse_bond_details(fixture(kind, "", "2030-01-01")).unwrap();
+            assert_eq!(details.treasury_type, kind);
+            assert_eq!(details.coupon_rate, None);
+        }
+        assert!(parse_bond_details(fixture("", "4", "2030-01-01")).is_err());
+    }
+
+    #[test]
+    fn treasury_profile_carries_terms_including_unsupported_types() {
+        for kind in ["Bill", "Note", "Bond", "TIPS", "FRN"] {
+            let item = serde_json::from_value(serde_json::json!({
+                "cusip": "912810TH1", "type": kind,
+                "interestRate": if matches!(kind, "TIPS" | "FRN") { "" } else { "5" },
+                "maturityDate": "2043-05-15", "interestPaymentFrequency": "Semi-Annual",
+            }))
+            .unwrap();
+            let profile = parse_bond_details(item)
+                .unwrap()
+                .into_profile("US912810TH14");
+            assert_eq!(profile.source.as_deref(), Some(PROVIDER_ID));
+            assert_eq!(
+                profile.name,
+                Some(format!("United States Treasury {kind} 2043-05-15"))
+            );
+            assert_eq!(profile.isin.as_deref(), Some("US912810TH14"));
+            let bond = profile.bond.unwrap();
+            assert_eq!(bond.treasury_type.as_deref(), Some(kind));
+            assert_eq!(bond.maturity_date, NaiveDate::from_ymd_opt(2043, 5, 15));
+            if matches!(kind, "TIPS" | "FRN") {
+                assert!(bond.coupon_rate.is_none());
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn non_treasury_profile_is_rejected_before_fetching() {
+        let provider = UsTreasuryCalcProvider::new();
+        assert!(provider.get_profile("US037833EZ91").await.is_err());
+    }
+
+    #[tokio::test]
+    async fn legacy_quote_terms_are_verified_on_demand() {
+        let legacy = crate::models::BondQuoteMetadata {
+            treasury_type: None,
+            coupon_rate: Some(Decimal::ZERO),
+            maturity_date: NaiveDate::from_ymd_opt(2030, 1, 1),
+            coupon_frequency: Some("ZERO".into()),
+            face_value: dec!(1000),
+        };
+        for supplied in [None, Some(&legacy)] {
+            let verified = resolve_calculated_terms(supplied, async {
+                Ok(TreasuryBondDetails {
+                    treasury_type: "Note".into(),
+                    coupon_rate: Some(dec!(0.04)),
+                    maturity_date: legacy.maturity_date,
+                    coupon_frequency: Some("SEMI_ANNUAL".into()),
+                    face_value: dec!(1000),
+                })
+            })
+            .await
+            .unwrap();
+            assert_eq!(verified.coupon_rate, dec!(0.04));
+        }
+        assert!(resolve_calculated_terms(Some(&legacy), async {
+            Err(treasury_details_error("temporary outage"))
+        })
+        .await
+        .is_err());
+        let mut tips = legacy;
+        tips.treasury_type = Some("TIPS".into());
+        assert!(resolve_calculated_terms(Some(&tips), async {
+            panic!("known unsupported types must not refetch")
+        })
+        .await
+        .is_err());
+        let mut verified = tips;
+        verified.treasury_type = Some("Bill".into());
+        assert!(resolve_calculated_terms(Some(&verified), async {
+            panic!("valid verified terms must not refetch")
+        })
+        .await
+        .is_ok());
+    }
+
+    #[tokio::test]
+    async fn incomplete_unsupported_terms_never_fetch() {
+        for kind in ["TIPS", "FRN", "STRIPS"] {
+            let metadata = crate::models::BondQuoteMetadata {
+                treasury_type: Some(kind.into()),
+                coupon_rate: None,
+                maturity_date: None,
+                face_value: dec!(1000),
+                coupon_frequency: None,
+            };
+            let result = resolve_calculated_terms(Some(&metadata), async {
+                panic!("known unsupported Treasury types must not request terms")
+            })
+            .await;
+            assert!(
+                matches!(result, Err(MarketDataError::ProviderError { message, .. })
+                if message == "Unsupported Treasury type")
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn incomplete_nominal_terms_fetch_before_pricing() {
+        for kind in [None, Some("Note")] {
+            // Each missing field must prevent use of the supplied terms.
+            for missing in ["coupon", "maturity", "frequency"] {
+                let metadata = crate::models::BondQuoteMetadata {
+                    treasury_type: kind.map(str::to_string),
+                    coupon_rate: (missing != "coupon").then_some(dec!(0.01)),
+                    maturity_date: (missing != "maturity")
+                        .then(|| NaiveDate::from_ymd_opt(2030, 1, 1).unwrap()),
+                    face_value: dec!(1000),
+                    coupon_frequency: (missing != "frequency").then(|| "SEMI_ANNUAL".into()),
+                };
+                let terms = resolve_calculated_terms(Some(&metadata), async {
+                    Ok(TreasuryBondDetails {
+                        treasury_type: "Note".into(),
+                        coupon_rate: Some(dec!(0.04)),
+                        maturity_date: NaiveDate::from_ymd_opt(2030, 1, 1),
+                        face_value: dec!(1000),
+                        coupon_frequency: Some("SEMI_ANNUAL".into()),
+                    })
+                })
+                .await
+                .unwrap();
+                assert_eq!(terms.coupon_rate, dec!(0.04));
+            }
+        }
+    }
+
+    #[test]
+    fn incomplete_treasury_profile_still_has_a_name() {
+        let item = serde_json::from_value(serde_json::json!({
+            "cusip": "912810TH1", "type": "FRN",
+        }))
+        .unwrap();
+        let profile = parse_bond_details(item)
+            .unwrap()
+            .into_profile("US912810TH14");
+        assert_eq!(profile.name.as_deref(), Some("United States Treasury FRN"));
+    }
+
+    #[test]
+    fn treasury_pricing_requires_supported_confirmed_terms() {
+        let mut bond = crate::models::BondQuoteMetadata {
+            treasury_type: Some("Bond".into()),
+            coupon_rate: Some(dec!(0.04)),
+            maturity_date: NaiveDate::from_ymd_opt(2030, 1, 1),
+            coupon_frequency: Some("SEMI_ANNUAL".into()),
+            face_value: dec!(1000),
+        };
+        assert!(CalculatedBondTerms::try_from(&bond).is_ok());
+        for kind in [None, Some("TIPS"), Some("FRN"), Some("STRIPS")] {
+            bond.treasury_type = kind.map(str::to_string);
+            assert!(CalculatedBondTerms::try_from(&bond).is_err());
+        }
+        bond.treasury_type = Some("Bill".into());
+        assert!(CalculatedBondTerms::try_from(&bond).is_err());
+        bond.coupon_rate = Some(Decimal::ZERO);
+        bond.coupon_frequency = Some("ZERO".into());
+        assert!(CalculatedBondTerms::try_from(&bond).is_ok());
+        // A nominal zero-rate long bond must not enter the bill discount formula.
+        bond.treasury_type = Some("Bond".into());
+        assert!(CalculatedBondTerms::try_from(&bond).is_err());
     }
 
     #[test]

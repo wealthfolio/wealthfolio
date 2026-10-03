@@ -21,8 +21,7 @@ pub fn run_profile_database_restore(
         std::env::var_os("WF_SECRET_KEY"),
         std::env::var_os("WF_SECRET_KEY_FILE"),
     )?;
-    let database = std::env::var("WF_DB_PATH")
-        .unwrap_or_else(|_| crate::main_lib::DEFAULT_DB_PATH.to_string());
+    let database = crate::config::database_path_from_env()?;
     let (database, database_key, _registry) =
         crate::profiles::offline_database(database, &secret, profile)?;
     let key = Arc::new(DbEncryptionKey::from_bytes(&database_key));

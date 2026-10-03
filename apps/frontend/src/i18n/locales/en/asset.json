@@ -235,6 +235,7 @@
     }
   },
   "editSheet": {
+    "identity_conflict": "Another asset already has this identity. Your changes were not saved. Use the existing asset or choose a different exchange.",
     "general": "General",
     "classification": "Classification",
     "market_data": "Market Data",

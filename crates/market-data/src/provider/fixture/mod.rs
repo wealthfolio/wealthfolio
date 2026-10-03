@@ -72,6 +72,8 @@ struct FixtureInstrument {
     country: Option<String>,
     #[serde(default)]
     asset_allocation: Vec<FixtureWeight>,
+    #[serde(default)]
+    isin: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -114,18 +116,10 @@ impl FixtureProvider {
     }
 
     fn as_of_date(&self, catalog: &FixtureCatalog) -> Result<NaiveDate, MarketDataError> {
-        match std::env::var("WEALTHFOLIO_FIXTURE_AS_OF") {
-            Ok(value) if value.eq_ignore_ascii_case("today") => Ok(Utc::now().date_naive()),
-            Ok(value) if !value.trim().is_empty() => {
-                NaiveDate::parse_from_str(value.trim(), "%Y-%m-%d").map_err(|error| {
-                    MarketDataError::ProviderError {
-                        provider: self.provider_id.to_string(),
-                        message: format!("Invalid WEALTHFOLIO_FIXTURE_AS_OF: {error}"),
-                    }
-                })
-            }
-            _ => Ok(catalog.default_as_of.unwrap_or_else(default_as_of_date)),
-        }
+        fixture_as_of_date(
+            catalog.default_as_of.unwrap_or_else(default_as_of_date),
+            self.provider_id,
+        )
     }
 
     fn find_instrument(&self, symbol: &str) -> Result<FixtureInstrument, MarketDataError> {
@@ -183,6 +177,7 @@ impl FixtureProvider {
             website: None,
             country: None,
             asset_allocation: Vec::new(),
+            isin: None,
         })
     }
 
@@ -321,6 +316,7 @@ impl FixtureInstrument {
             source: Some(self.provider.clone()),
             name: Some(self.name.clone()),
             quote_type: Some(self.asset_type.clone()),
+            currency: Some(self.currency.clone()),
             sector: self.sector.clone(),
             sectors: self
                 .sector
@@ -333,8 +329,27 @@ impl FixtureInstrument {
             website: self.website.clone(),
             country: self.country.clone(),
             description: Some(format!("Synthetic e2e profile for {}", self.name)),
+            isin: self.isin.clone(),
             ..Default::default()
         }
+    }
+}
+
+pub(crate) fn fixture_as_of_date(
+    default: NaiveDate,
+    provider_id: &str,
+) -> Result<NaiveDate, MarketDataError> {
+    match std::env::var("WEALTHFOLIO_FIXTURE_AS_OF") {
+        Ok(value) if value.eq_ignore_ascii_case("today") => Ok(Utc::now().date_naive()),
+        Ok(value) if !value.trim().is_empty() => {
+            NaiveDate::parse_from_str(value.trim(), "%Y-%m-%d").map_err(|error| {
+                MarketDataError::ProviderError {
+                    provider: provider_id.to_string(),
+                    message: format!("Invalid WEALTHFOLIO_FIXTURE_AS_OF: {error}"),
+                }
+            })
+        }
+        _ => Ok(default),
     }
 }
 
@@ -1047,5 +1062,41 @@ mod tests {
         );
 
         remove_dir_all(dir).unwrap();
+    }
+
+    #[tokio::test]
+    async fn corporate_bond_fixture_preserves_identity_and_fraction_of_par_quotes() {
+        let provider = FixtureProvider::new_for_provider(
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("../../e2e/fixtures/quotes"),
+            "BOERSE_FRANKFURT",
+        );
+        let profile = provider.get_profile("US037833EZ91").await.unwrap();
+        assert_eq!(profile.quote_type.as_deref(), Some("BOND"));
+        assert_eq!(profile.isin.as_deref(), Some("US037833EZ91"));
+        assert_eq!(profile.currency.as_deref(), Some("USD"));
+        assert!(profile.bond.is_none());
+        let context = QuoteContext {
+            instrument: InstrumentId::Bond {
+                isin: "US037833EZ91".into(),
+            },
+            ..quote_context()
+        };
+
+        let quotes = provider
+            .get_historical_quotes(
+                &context,
+                ProviderInstrument::BondIsin {
+                    isin: "US037833EZ91".into(),
+                },
+                Utc.with_ymd_and_hms(2026, 5, 12, 0, 0, 0).unwrap(),
+                Utc.with_ymd_and_hms(2026, 5, 12, 23, 59, 59).unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(quotes.len(), 1);
+        assert_eq!(quotes[0].source, "BOERSE_FRANKFURT");
+        assert_eq!(quotes[0].currency, "USD");
+        assert!(quotes[0].close > "0.9".parse().unwrap());
+        assert!(quotes[0].close < "1.1".parse().unwrap());
     }
 }

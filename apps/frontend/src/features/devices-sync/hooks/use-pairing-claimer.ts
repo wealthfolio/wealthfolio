@@ -19,6 +19,7 @@ export type ClaimerStep =
   | "enter_code"
   | "connecting"
   | "waiting_keys"
+  | "preparing"
   | "confirming"
   | "restoring"
   | "error";
@@ -60,10 +61,10 @@ export function usePairingClaimer() {
     if (phase === "connecting") return "connecting";
     if (phase === "claimed") {
       if (keyPoll.error) return "error";
-      return "waiting_keys";
+      return keyPoll.data?.status === "approved" ? "preparing" : "waiting_keys";
     }
     return "enter_code";
-  }, [phase, operation, keyPoll.error]);
+  }, [phase, operation, keyPoll.error, keyPoll.data?.status]);
 
   const errorMessage = useMemo(() => {
     if (error) return error;

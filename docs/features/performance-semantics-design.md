@@ -1,5 +1,15 @@
 # Performance Semantics Design: Transfers, Holdings Mode, and Dashboard Returns
 
+> **Superseded (2026-09-02).** The calculation pipeline this document analyses
+> (`holdings_calculator`, `valuation_service`, `flow_classifier`, the math in
+> `performance_service`) was replaced by the pure kernel in
+> `crates/portfolio-engine` and the coordinator in
+> `crates/core/src/portfolio/coordinator/`. The semantics described here were
+> preserved where correct and ledgered where not; see
+> `docs/architecture/portfolio-engine-prd.md` (Revision 3) and
+> `crates/portfolio-engine/tests/fixtures/DIVERGENCES.md`. File references below
+> are historical.
+
 - Date: 2026-06-17
 - Status: target design plus current branch implementation notes
 - Primary input: GitHub issue #1119, local reproduction data, v3.5.2 versus

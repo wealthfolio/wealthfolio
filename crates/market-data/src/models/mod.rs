@@ -25,7 +25,7 @@ pub use country::to_iso_alpha2;
 pub use coverage::Coverage;
 pub use dividend::DividendEvent;
 pub use instrument::{AssetKind, InstrumentId, InstrumentKind};
-pub use profile::AssetProfile;
+pub use profile::{AssetProfile, BondProfile};
 pub use provider_params::{ProviderInstrument, ProviderOverrides};
 pub use quote::{BondQuoteMetadata, Quote, QuoteContext, QuoteIdentifiers};
 pub use search::SearchResult;

@@ -27,6 +27,24 @@ fn failure(error: impl ToString) -> (StatusCode, String) {
     (StatusCode::LOCKED, error.to_string())
 }
 
+/// Runtime failures are not revoked grants. Keep details in the authenticated
+/// response: arbitrary service errors can contain financial data or credentials.
+fn startup_failure(stage: &'static str, error: anyhow::Error) -> (StatusCode, String) {
+    let (kind, io_kind, os_code) = crate::error::safe_error_diagnostic(error.as_ref());
+    tracing::error!(
+        code = "PROFILE_STARTUP_FAILED",
+        stage,
+        kind,
+        ?io_kind,
+        ?os_code,
+        "Profile startup failed"
+    );
+    (
+        StatusCode::INTERNAL_SERVER_ERROR,
+        format!("PROFILE_STARTUP_FAILED: {error:#}"),
+    )
+}
+
 /// Original browser grant, retained so a waiting login can revalidate before mutation.
 #[derive(Clone)]
 pub(crate) struct ProfileAccess {
@@ -61,6 +79,8 @@ pub struct WebProfiles {
     auth: Option<Arc<crate::auth::AuthManager>>,
     pub(crate) oidc: Option<Arc<crate::oidc::OidcManager>>,
     runtimes: Mutex<HashMap<Uuid, Arc<AppState>>>,
+    // Keep slow startup serialized without blocking cached runtime lookups.
+    initialization: Mutex<()>,
     mcp: Mutex<HashMap<Uuid, Router>>,
     visited: std::sync::Mutex<std::collections::HashSet<String>>,
 }
@@ -112,8 +132,9 @@ impl WebProfiles {
         );
         registry.set_legacy_addons_root(std::path::PathBuf::from(&config.addons_root))?;
         for id in registry.pending_deletions()? {
-            if registry.finish_delete(id).is_err() {
-                tracing::warn!("Profile deletion cleanup needs a retry.");
+            if let Err(error) = registry.finish_delete(id) {
+                let (kind, io_kind, os_code) = crate::error::safe_error_diagnostic(&error);
+                tracing::warn!(%id, kind, ?io_kind, ?os_code, "Profile deletion cleanup needs a retry");
             }
         }
         let auth = crate::auth::AuthState::from_config(config).await?;
@@ -124,6 +145,7 @@ impl WebProfiles {
             oidc: auth.oidc,
             deletion: Mutex::new(()),
             runtimes: Mutex::new(HashMap::new()),
+            initialization: Mutex::new(()),
             mcp: Mutex::new(HashMap::new()),
             visited: std::sync::Mutex::new(Default::default()),
         }))
@@ -157,7 +179,10 @@ impl WebProfiles {
         }
         self.visited.lock().map_err(failure)?.insert(owner);
         self.mcp.lock().await.remove(&id);
-        let runtime = self.runtimes.lock().await.remove(&id);
+        let runtime = {
+            let _initialization = self.initialization.lock().await;
+            self.runtimes.lock().await.remove(&id)
+        };
         if let Some(runtime) = runtime {
             let _lifecycle = runtime.profile_lifecycle.lock().await;
             let workers = std::mem::take(&mut *runtime.workers.lock().map_err(failure)?);
@@ -232,6 +257,7 @@ impl WebProfiles {
             config: config.clone(),
             deletion: Mutex::new(()),
             runtimes: Mutex::new(runtimes),
+            initialization: Mutex::new(()),
             mcp: Mutex::new(HashMap::new()),
             visited: std::sync::Mutex::new(Default::default()),
         }))
@@ -268,14 +294,22 @@ impl WebProfiles {
     }
 
     pub async fn runtime(&self, id: Uuid) -> Result<Arc<AppState>> {
-        let mut runtimes = self.runtimes.lock().await;
+        {
+            let runtimes = self.runtimes.lock().await;
+            self.registry.profile(id).map_err(failure)?;
+            if let Some(runtime) = runtimes.get(&id) {
+                return Ok(runtime.clone());
+            }
+        }
+        let _initialization = self.initialization.lock().await;
+        // A waiting open may have been initialized or marked for deletion.
         let profile = self.registry.profile(id).map_err(failure)?;
-        if let Some(runtime) = runtimes.get(&id) {
+        if let Some(runtime) = self.runtimes.lock().await.get(&id) {
             return Ok(runtime.clone());
         }
         let paths = self.registry.paths(&profile);
         if profile.legacy_database.is_some() && !paths.database.is_file() {
-            return Err(failure("The legacy profile database is missing. Restore its file before opening this profile; existing credentials were preserved."));
+            return Err(startup_failure("legacy_database", anyhow::anyhow!("The legacy profile database is missing. Restore its file before opening this profile; existing credentials were preserved.")));
         }
         let mut config = self.config.clone();
         config.db_path = paths.database.to_string_lossy().into_owned();
@@ -286,9 +320,9 @@ impl WebProfiles {
         }
         let runtime = build_profile_state(&config, self.registry.secret_store(&profile))
             .await
-            .map_err(failure)?;
+            .map_err(|error| startup_failure("runtime_initialization", error))?;
         let _ = runtime.profile_binding.set((self.registry.clone(), id));
-        runtimes.insert(id, runtime.clone());
+        self.runtimes.lock().await.insert(id, runtime.clone());
         crate::scheduler::start_background_workers(runtime.clone());
         Ok(runtime)
     }
@@ -310,8 +344,8 @@ impl WebProfiles {
                         })
                         .is_some()
                     {
-                        if let Err((_, error)) = root.runtime(profile.id).await {
-                            tracing::warn!("Profile sync startup deferred: {error}");
+                        if let Err((status, _)) = root.runtime(profile.id).await {
+                            tracing::warn!(%status, "Profile sync startup deferred");
                         }
                     }
                 }
@@ -419,6 +453,15 @@ async fn command(
             let mut session = registry.sessions.current(&owner.0).map_err(failure)?;
             if session.is_none() {
                 session = root.auto_open(&owner.0)?;
+            }
+            if let Some(session) = &session {
+                // Gate financial UI startup on the runtime, not just the grant.
+                // Failed initialization remains retryable with the same session.
+                root.runtime(session.profile_id).await?;
+                registry
+                    .sessions
+                    .admit(&owner.0, session.scope_id)
+                    .map_err(failure)?;
             }
             Ok(Json(
                 json!({"profiles":profiles,"pendingDeletions":registry.pending_profiles().map_err(failure)?,"session":session,"starting":false}),

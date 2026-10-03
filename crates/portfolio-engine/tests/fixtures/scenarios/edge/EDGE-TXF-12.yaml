@@ -1,0 +1,41 @@
+id: EDGE-TXF-12
+title: Units a transfer's sender lacked enter the portfolio on a busy day too
+intent: >
+  Kernel-only. EDGE-TXF-09's transfers, now on days other money moves:
+  acc-c deposits 100 on 01-03, the day acc-a sends 8 x holding 5, and
+  acc-b, the receiver, deposits 10 on 01-04, the day it receives 2 y acc-a
+  never held. The units the sender lacked enter the portfolio as money from
+  outside its history whatever else happens that day: each account adds
+  its own flows less its legs of pairs inside the scope (I9 aggregation).
+markers: [K]
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-06
+accounts:
+  - { id: acc-a, currency: USD }
+  - { id: acc-b, currency: USD }
+  - { id: acc-c, currency: USD }
+assets:
+  - { id: x, quote_ccy: USD }
+  - { id: y, quote_ccy: USD }
+activities:
+  - { id: dep-a, account: acc-a, type: DEPOSIT, date: 2025-01-01T10:00:00Z, amount: 100 }
+  - { id: dep-b, account: acc-b, type: DEPOSIT, date: 2025-01-01T10:01:00Z, amount: 100 }
+  - { id: dep-c, account: acc-c, type: DEPOSIT, date: 2025-01-01T10:02:00Z, amount: 100 }
+  - { id: buy-x, account: acc-a, type: BUY, date: 2025-01-02T10:00:00Z, asset: x, quantity: 5, unit_price: 10, amount: 50 }
+  - { id: dep-c2, account: acc-c, type: DEPOSIT, date: 2025-01-03T09:00:00Z, amount: 100 }
+  - { id: x-out, account: acc-a, type: TRANSFER_OUT, date: 2025-01-03T10:00:00Z, asset: x, quantity: 8, unit_price: 10, source_group_id: gx }
+  - { id: x-in, account: acc-b, type: TRANSFER_IN, date: 2025-01-03T11:00:00Z, asset: x, quantity: 8, unit_price: 10, source_group_id: gx }
+  - { id: dep-b2, account: acc-b, type: DEPOSIT, date: 2025-01-04T09:00:00Z, amount: 10 }
+  - { id: y-out, account: acc-a, type: TRANSFER_OUT, date: 2025-01-04T10:00:00Z, asset: y, quantity: 2, unit_price: 20, source_group_id: gy }
+  - { id: y-in, account: acc-b, type: TRANSFER_IN, date: 2025-01-04T11:00:00Z, asset: y, quantity: 2, unit_price: 20, source_group_id: gy }
+quotes:
+  - { asset: x, day: 2025-01-01, close: 10 }
+  - { asset: y, day: 2025-01-01, close: 20 }
+expected_notes: >
+  Accounts as in EDGE-TXF-09, plus acc-c inflow 100 on 01-03 and acc-b
+  inflow 10 on 01-04 (inflow 50 with the 2 y). Portfolio flows: 01-03
+  inflow 130 (100 deposited + the 3 x at 10 acc-a lacked), 01-04 inflow 50
+  (10 deposited + the 2 y at 20). Before the fix the deposits replaced the
+  day's flows: 100 and 10.

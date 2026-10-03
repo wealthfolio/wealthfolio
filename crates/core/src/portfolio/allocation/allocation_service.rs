@@ -1338,6 +1338,13 @@ mod tests {
         async fn get_holdings(&self, _: &str, _: &str) -> Result<Vec<Holding>> {
             unimplemented!()
         }
+        async fn get_asset_lot_view(
+            &self,
+            _: &str,
+            _: bool,
+        ) -> Result<Vec<crate::lots::AssetLotView>> {
+            unimplemented!()
+        }
         async fn get_holdings_for_accounts(
             &self,
             _: &[String],

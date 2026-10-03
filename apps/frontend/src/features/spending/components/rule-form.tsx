@@ -366,7 +366,7 @@ export function RuleForm({
                 <FormItem>
                   <FormLabel>{t("spending:filters.category")}</FormLabel>
                   <QuickCategorizePopover
-                    scope="both"
+                    scope="all"
                     selectedCategoryId={currentCatId ?? null}
                     onSelect={(tax, catId) => field.onChange(`${tax}:${catId}`)}
                     onClear={() => field.onChange("")}

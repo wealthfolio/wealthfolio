@@ -147,6 +147,8 @@ export const BulkHoldingsModal = ({
           quoteMode: holding.quoteMode ?? QuoteMode.MARKET,
           quoteCcy: holding.symbolQuoteCcy || undefined,
           instrumentType: holding.symbolInstrumentType || undefined,
+          providerId: holding.providerId || undefined,
+          providerSymbol: holding.providerSymbol || undefined,
         }),
         quantity: Number(holding.sharesOwned),
         unitPrice: Number(holding.averageCost),

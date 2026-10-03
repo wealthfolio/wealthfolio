@@ -220,7 +220,7 @@ export function RestoreOperationView({
         phase === "transferring" ? (
           <DeviceLink source="other" flowing />
         ) : phase === "waiting_for_snapshot" ? (
-          <DeviceLink source="other" />
+          <DeviceLink source="other" flowing />
         ) : undefined
       }
       actions={actions}

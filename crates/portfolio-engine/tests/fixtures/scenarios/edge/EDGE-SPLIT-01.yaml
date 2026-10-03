@@ -1,0 +1,33 @@
+id: EDGE-SPLIT-01
+title: A split recorded only in an archived account still adjusts the quotes
+intent: >
+  Kernel-only. A split belongs to the asset, not to the account that
+  recorded it. The only SPLIT row for aapl is in an archived account, and
+  a holdings account (which records no activities) holds aapl before and
+  after it. The quotes are provider-adjusted, so the holding's pre-split
+  days are valued with the split factor: 10 x 50 x 2 = 1000, as they
+  would be if a live account had recorded the split. Marked [K].
+markers: [K]
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-10
+accounts:
+  - { id: acc-h, currency: USD, tracking_mode: HOLDINGS }
+  - { id: acc-old, currency: USD, is_archived: true }
+assets:
+  - { id: aapl, quote_ccy: USD }
+activities:
+  - { id: buy-old, account: acc-old, type: BUY, date: 2025-01-02T10:00:00Z, asset: aapl, quantity: 1, unit_price: 100, amount: 100 }
+  - { id: split-old, account: acc-old, type: SPLIT, date: 2025-01-08T10:00:00Z, asset: aapl, amount: 2 }
+observed_snapshots:
+  - { account: acc-h, date: 2025-01-02, positions: [{ asset: aapl, quantity: 10, average_cost: 100 }] }
+  - { account: acc-h, date: 2025-01-08, positions: [{ asset: aapl, quantity: 20, average_cost: 50 }] }
+quotes:
+  - { asset: aapl, day: 2025-01-02, close: 50 }
+  - { asset: aapl, day: 2025-01-07, close: 50 }
+  - { asset: aapl, day: 2025-01-08, close: 50 }
+  - { asset: aapl, day: 2025-01-10, close: 50 }
+expected_notes: >
+  acc-h is worth 1000 every day: 10 x 50 x 2 before the split, 20 x 50
+  from 01-08.

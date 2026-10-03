@@ -1,0 +1,96 @@
+id: LIFE-INC-05
+title: Split arriving inside an append-only SinceDate window with earlier history
+intent: >
+  The account holds 10 aapl bought on day 1. A 2-for-1 SPLIT (amount 2)
+  dated day 10 and a SELL of 5 post-split units on day 12 are appended, and
+  legacy is asked for SinceDate(day 10). `since` is strictly after the
+  high-water mark (the day-1 keyframe), so the append-only seeding path is
+  taken: the seed is the 01-01 keyframe hydrated from the lots table.
+  `determine_calculation_range_and_initial_state` then finds a SPLIT inside
+  the window with activity before the window and restarts from inception
+  (effective start = 01-01, no seed) so historical lots get their
+  split_ratio; the frames are still persisted through the in-range overwrite
+  of the SinceDate mode and lots/disposals through the incremental sync.
+  Compared with a full rebuild of the same facts (LIFE-INC-05: the
+  kernel replays without the special case).
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-09
+accounts:
+  - id: acc-1
+    currency: USD
+assets:
+  - id: aapl
+    quote_ccy: USD
+activities:
+  - id: dep-1
+    account: acc-1
+    type: DEPOSIT
+    date: 2025-01-01T09:00:00Z
+    amount: 2000
+  - id: buy-1
+    account: acc-1
+    type: BUY
+    date: 2025-01-01T10:00:00Z
+    asset: aapl
+    quantity: 10
+    unit_price: 100
+    amount: 1000
+    fee: 0
+quotes:
+  - { asset: aapl, day: 2025-01-01, close: 100 }
+  - { asset: aapl, day: 2025-01-05, close: 100 }
+  - { asset: aapl, day: 2025-01-09, close: 100 }
+lifecycle:
+  - label: split_then_sell_since_date_at_split
+    as_of: 2025-01-14
+    add_activities:
+      - id: split-1
+        account: acc-1
+        type: SPLIT
+        date: 2025-01-10T10:00:00Z
+        asset: aapl
+        amount: 2
+      - id: sell-1
+        account: acc-1
+        type: SELL
+        date: 2025-01-12T10:00:00Z
+        asset: aapl
+        quantity: 5
+        unit_price: 50
+        amount: 250
+        fee: 0
+    add_quotes:
+      - { asset: aapl, day: 2025-01-10, close: 50 }
+      - { asset: aapl, day: 2025-01-12, close: 50 }
+      - { asset: aapl, day: 2025-01-14, close: 55 }
+    recalc: { snapshots: SINCE_DATE, valuations: SINCE_DATE, since: 2025-01-10 }
+expected_notes: >
+  Baseline (as_of 01-09): one keyframe 01-01 (10 aapl @ 100, cash 1000,
+  basis 1000); lot buy-1 10 @ 100 split_ratio 1; total value 2000 every day
+  01-01..01-09.
+  Step (SPLIT 2:1 on 01-10, SELL 5 post-split units @ 50 on 01-12, SinceDate
+  01-10, as_of 01-14): expected keyframes 01-01 (unchanged), 01-10 (20 aapl,
+  average_cost 50, basis 1000, cash 1000 — a split moves no cash), 01-12 (15
+  aapl, basis 750, cash 1250); lot buy-1 keeps as-acquired quantity 10 with
+  split_ratio 2 and 5 post-split units (2.5 as-acquired) disposed by sell-1;
+  one disposal. Valuations: 01-01..01-09 untouched (total 2000), 01-10 = 20
+  x 50 + 1000 = 2000 (no return booked on the split day), 01-12 = 15 x 50 +
+  1250 = 2000, 01-14 = 15 x 55 + 1250 = 2075. Expected to MATCH the full
+  rebuild: the restart-from-inception rule makes the SinceDate run replay
+  the whole history; any lot/disposal-table drift from the incremental sync
+  (sync_lots_for_account / affected disposal ids) versus the Full replace is
+  a finding.
+  LEGACY BEHAVIOR (golden LIFE-INC-05.snap): matches_full_rebuild = true,
+  differences = []. The SinceDate(01-10) run passed the append-only check
+  (high-water mark 01-01 < 01-10) and then restarted from inception because
+  of the SPLIT in the window: keyframes 01-01 (10 aapl @ 100, cash 1000),
+  01-10 (20 aapl, average_cost 50, total_cost_basis 1000, cash 1000), 01-12
+  (15 aapl, total_cost_basis 750, cash 1250); lot buy-1 original_quantity
+  10, remaining_quantity 7.5 (as-acquired units), split_ratio 2,
+  remaining_cost_basis 750; disposal sell-1:buy-1:0 quantity 5 (post-split
+  units), proceeds 250, cost_basis 250, realized_pnl 0; valuations
+  01-01..01-09 unchanged at 2000, 01-10 = 2000, 01-12 = 2000 (750 + 1250),
+  01-14 = 2075. The incremental lot/disposal sync produced the same tables
+  as the Full replace.

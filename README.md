@@ -304,8 +304,17 @@ All configuration is done via environment variables in `.env.web`.
 **Server Configuration (WF\_\* variables)**:
 
 - `WF_LISTEN_ADDR` - Server bind address (default: `0.0.0.0:8088`)
-- `WF_DB_PATH` - SQLite database path or directory (default: `./db/app.db`)
-  - If a directory is provided, `app.db` will be used inside it
+- `WF_DATA_DIR` - Optional directory for the profile registry, profile
+  databases, and default encrypted vault. For `pnpm dev:web`, set it in
+  `.env.web` or the shell; the desktop `.env` value is masked. Relative paths
+  use the working directory; `~` is not expanded.
+- `WF_DB_PATH` - Supported legacy database file path (default: `./db/app.db`).
+  Its parent selects the installation when `WF_DATA_DIR` is unset. With only
+  `WF_DATA_DIR`, the legacy candidate is `<WF_DATA_DIR>/app.db`. If both are
+  set, their directories must agree. Existing registries retain their saved
+  database paths; neither setting moves data. See
+  [installation directory configuration](docs/self-host/README.md#installation-directory)
+  for Docker and upgrade behavior.
 - `WF_CORS_ALLOW_ORIGINS` - Comma-separated list of allowed CORS origins
   (default: `*`). **Required when auth is enabled** — wildcard `*` is rejected.
   - Example: `https://wealthfolio.example.com`

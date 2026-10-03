@@ -424,6 +424,7 @@ impl EtfProfileResponse {
     /// Convert to AssetProfile
     fn to_asset_profile(&self, _symbol: &str) -> AssetProfile {
         AssetProfile {
+            bond: None,
             source: Some(PROVIDER_ID.to_string()),
             name: None, // ETF_PROFILE doesn't include name
             quote_type: Some("ETF".to_string()),
@@ -482,6 +483,7 @@ impl CompanyOverviewResponse {
             });
 
         AssetProfile {
+            bond: None,
             source: Some(PROVIDER_ID.to_string()),
             name: self.name.clone(),
             quote_type,
@@ -1630,6 +1632,10 @@ mod tests {
 
         // Test decimal format
         assert!((EtfProfileResponse::parse_weight("0.511").unwrap() - 0.511).abs() < 0.001);
+
+        // Unit conversion is explicit, even when the resulting fraction exceeds 1.0.
+        assert!((EtfProfileResponse::parse_weight("115.7%").unwrap() - 1.157).abs() < 0.0001);
+        assert!((EtfProfileResponse::parse_weight("1.157").unwrap() - 1.157).abs() < 0.0001);
 
         // Test edge cases
         assert!(EtfProfileResponse::parse_weight("invalid").is_none());

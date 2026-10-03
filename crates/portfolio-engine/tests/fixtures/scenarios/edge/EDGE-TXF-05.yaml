@@ -1,0 +1,76 @@
+id: EDGE-TXF-05
+title: A linked same-account FX conversion leaves net contribution unchanged
+intent: >
+  Kernel-only; ports #1655 from the previous pipeline. Converting cash
+  between two currencies inside one account moves no money in or out, so
+  when the import linker recorded the pair (internal flow, rateSource
+  implied_from_import, matching currencies and amounts) neither leg moves
+  net contribution, and any difference between the conversion rate and the
+  market rate shows up as a gain, not as a contribution. A structurally
+  valid pair without that record keeps the legacy behaviour: each leg moves
+  net contribution at the market rate. Marked [K].
+markers: [K]
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-06
+accounts:
+  - id: acc-linked
+    currency: USD
+  - id: acc-plain
+    currency: USD
+activities:
+  - id: dep-linked
+    account: acc-linked
+    type: DEPOSIT
+    date: 2025-01-02T10:00:00Z
+    amount: 1000
+  - id: fx-out-linked
+    account: acc-linked
+    type: TRANSFER_OUT
+    date: 2025-01-03T10:00:00Z
+    amount: 100
+    currency: USD
+    source_group_id: fx-linked
+    metadata:
+      flow: { is_external: false }
+      fx: { rateSource: implied_from_import, sourceCurrency: USD, destinationCurrency: EUR, sourceAmount: "100", destinationAmount: "92" }
+  - id: fx-in-linked
+    account: acc-linked
+    type: TRANSFER_IN
+    date: 2025-01-03T10:01:00Z
+    amount: 92
+    currency: EUR
+    source_group_id: fx-linked
+    metadata:
+      flow: { is_external: false }
+      fx: { rateSource: implied_from_import, sourceCurrency: USD, destinationCurrency: EUR, sourceAmount: "100", destinationAmount: "92" }
+  - id: dep-plain
+    account: acc-plain
+    type: DEPOSIT
+    date: 2025-01-02T10:01:00Z
+    amount: 1000
+  - id: fx-out-plain
+    account: acc-plain
+    type: TRANSFER_OUT
+    date: 2025-01-03T10:02:00Z
+    amount: 100
+    currency: USD
+    source_group_id: fx-plain
+  - id: fx-in-plain
+    account: acc-plain
+    type: TRANSFER_IN
+    date: 2025-01-03T10:03:00Z
+    amount: 92
+    currency: EUR
+    source_group_id: fx-plain
+fx_rates:
+  - { from: EUR, to: USD, day: 2025-01-02, rate: 1.10 }
+  - { from: EUR, to: USD, day: 2025-01-06, rate: 1.10 }
+expected_notes: >
+  Both accounts: cash {USD 900, EUR 92} from 01-03, total value 900 + 92 x
+  1.10 = 1001.2. acc-linked: net_contribution stays 1000, the conversion
+  adds no flow, so the 1.2 won on the conversion rate is a gain (TWR 0.12%).
+  acc-plain: net_contribution 1000 -> 1001.2 (-100 USD, +92 EUR x 1.10), the
+  1.2 reads as a contribution (a NetContributionFallback inflow) and TWR is
+  0.

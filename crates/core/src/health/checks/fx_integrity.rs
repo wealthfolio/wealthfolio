@@ -27,6 +27,21 @@ pub struct FxPairInfo {
     pub latest_quote_time: Option<DateTime<Utc>>,
 }
 
+/// A currency pair whose two directions disagree in the stored rates: each
+/// direction converts at its own rate, so a conversion and its reverse do
+/// not match.
+#[derive(Debug, Clone)]
+pub struct FxConflictInfo {
+    /// Currency pair ID (e.g., "CAD:USD")
+    pub pair_id: String,
+    pub from_currency: String,
+    pub to_currency: String,
+    /// Days both directions are recorded and disagree.
+    pub days: usize,
+    pub first_day: chrono::NaiveDate,
+    pub last_day: chrono::NaiveDate,
+}
+
 /// Health check that detects missing or stale FX rates.
 pub struct FxIntegrityCheck;
 
@@ -273,6 +288,63 @@ impl FxIntegrityCheck {
 /// Builds a structured diagnostic for an FX issue: one evidence row per pair
 /// (pair, rate freshness, affected market value) plus a navigation action to the
 /// market-data settings where rates are managed.
+impl FxIntegrityCheck {
+    /// One issue for every pair whose directions disagree.
+    pub fn analyze_conflicts(&self, conflicts: &[FxConflictInfo]) -> Vec<HealthIssue> {
+        if conflicts.is_empty() {
+            return Vec::new();
+        }
+        let count = conflicts.len();
+        let pair_ids: Vec<String> = conflicts
+            .iter()
+            .map(|c| format!("{}:{}:{}:{}", c.pair_id, c.days, c.first_day, c.last_day))
+            .collect();
+        let data_hash = compute_data_hash(&pair_ids, Severity::Warning, 0.0);
+        let affected_items: Vec<AffectedItem> = conflicts
+            .iter()
+            .map(|c| {
+                AffectedItem::simple(
+                    &c.pair_id,
+                    format!(
+                        "{} ↔ {} ({} {}, {} to {})",
+                        c.from_currency,
+                        c.to_currency,
+                        c.days,
+                        if c.days == 1 { "day" } else { "days" },
+                        c.first_day,
+                        c.last_day
+                    ),
+                )
+            })
+            .collect();
+        let first = &conflicts[0];
+        vec![HealthIssue::builder()
+            .id(format!("fx_conflicting_rates:{}", data_hash))
+            .severity(Severity::Warning)
+            .category(HealthCategory::FxIntegrity)
+            .code("fx_conflicting_rates")
+            .param("count", count as u32)
+            .param("from", first.from_currency.clone())
+            .param("to", first.to_currency.clone())
+            .title(if count == 1 {
+                format!(
+                    "Exchange rates for {} and {} disagree",
+                    first.from_currency, first.to_currency
+                )
+            } else {
+                format!("Exchange rates disagree for {count} currency pairs")
+            })
+            .message(
+                "Rates are recorded in both directions for the same days, and they don't match. Each direction is used as recorded, so converting one way and back gives a different amount. Correct or remove the wrong rates.",
+            )
+            .affected_count(count as u32)
+            .affected_items(affected_items)
+            .navigate_action(NavigateAction::to_market_data())
+            .data_hash(data_hash)
+            .build()]
+    }
+}
+
 fn fx_diagnostic(
     pairs: &[&FxPairInfo],
     code: &str,
@@ -341,6 +413,42 @@ fn compute_data_hash(pair_ids: &[String], severity: Severity, mv_pct: f64) -> St
 mod tests {
     use super::*;
     use crate::health::model::HealthConfig;
+
+    #[test]
+    fn disagreeing_directions_of_a_pair_are_one_warning() {
+        let check = FxIntegrityCheck::new();
+        let day = |d| chrono::NaiveDate::from_ymd_opt(2025, 1, d).unwrap();
+        let conflict = FxConflictInfo {
+            pair_id: "CAD:USD".to_string(),
+            from_currency: "CAD".to_string(),
+            to_currency: "USD".to_string(),
+            days: 3,
+            first_day: day(2),
+            last_day: day(6),
+        };
+        assert!(check.analyze_conflicts(&[]).is_empty());
+        let issues = check.analyze_conflicts(std::slice::from_ref(&conflict));
+        assert_eq!(issues.len(), 1);
+        let issue = &issues[0];
+        assert_eq!(issue.code.as_deref(), Some("fx_conflicting_rates"));
+        assert_eq!(issue.severity, Severity::Warning);
+        assert_eq!(issue.category, HealthCategory::FxIntegrity);
+        assert_eq!(issue.params.get("from"), Some(&serde_json::json!("CAD")));
+        let items = issue.affected_items.as_ref().expect("items");
+        assert_eq!(
+            items[0].name,
+            "CAD ↔ USD (3 days, 2025-01-02 to 2025-01-06)"
+        );
+
+        // A new conflicting day is a new issue, even after a dismissal.
+        let mut later = conflict;
+        later.days = 4;
+        later.last_day = day(7);
+        assert_ne!(
+            check.analyze_conflicts(&[later])[0].data_hash,
+            issue.data_hash
+        );
+    }
 
     #[test]
     fn test_missing_fx_pair() {

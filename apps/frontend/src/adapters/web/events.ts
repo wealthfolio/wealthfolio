@@ -44,7 +44,15 @@ class ServerEventBridge {
       `${this.url}?profileScope=${encodeURIComponent(profileScope())}`,
       { withCredentials: true },
     );
+    let interrupted = false;
+    this.eventSource.onopen = () => {
+      if (interrupted) {
+        interrupted = false;
+        window.dispatchEvent(new Event("wealthfolio:event-stream-reconnected"));
+      }
+    };
     this.eventSource.onerror = (error) => {
+      interrupted = true;
       logger.warn("Portfolio event stream error", error);
       // The server ends this stream when the profile session is revoked or
       // idle-expires; with no polling, this is how an untouched screen locks.

@@ -1,4 +1,5 @@
-import { getPlatforms } from "@/features/wealthfolio-connect";
+import { getPlatforms, useWealthfolioConnect } from "@/features/wealthfolio-connect";
+import { isSubscriptionStatusActive } from "@/features/wealthfolio-connect/lib/plan-capabilities";
 import { useAccounts } from "@/hooks/use-accounts";
 import { QueryKeys } from "@/lib/query-keys";
 import type { Account, Platform } from "@/lib/types";
@@ -15,6 +16,7 @@ import {
 import { Input } from "@wealthfolio/ui/components/ui/input";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { Link } from "react-router-dom";
 import { SettingsHeader } from "../settings-header";
 import { AccountEditModal } from "./components/account-edit-modal";
 import { AccountItem } from "./components/account-item";
@@ -25,6 +27,23 @@ type FilterType = "all" | "active" | "archived" | "hidden";
 const SettingsAccountsPage = () => {
   const { t } = useTranslation();
   const { accounts, isLoading } = useAccounts({ filterActive: false, includeArchived: true });
+  const {
+    isEnabled,
+    isConnected,
+    isInitializing,
+    isLoadingUserInfo,
+    isSessionUnavailable,
+    userInfo,
+    error: connectError,
+  } = useWealthfolioConnect();
+  const showConnectLink =
+    isEnabled &&
+    !isInitializing &&
+    !isLoadingUserInfo &&
+    !isSessionUnavailable &&
+    !connectError &&
+    (!isConnected ||
+      (!!userInfo && !isSubscriptionStatusActive(userInfo.team?.subscription_status)));
 
   const { data: platforms } = useQuery<Platform[], Error>({
     queryKey: [QueryKeys.PLATFORMS],
@@ -254,6 +273,11 @@ const SettingsAccountsPage = () => {
                 <Icons.Plus className="mr-2 h-4 w-4" />
                 {t("settings:accounts_add_first")}
               </Button>
+              {showConnectLink && (
+                <Button variant="link" asChild>
+                  <Link to="/connect">{t("settings:accounts_connect_account")}</Link>
+                </Button>
+              )}
             </EmptyPlaceholder>
           ) : filteredAccounts.length === 0 ? (
             <div className="text-muted-foreground py-8 text-center">

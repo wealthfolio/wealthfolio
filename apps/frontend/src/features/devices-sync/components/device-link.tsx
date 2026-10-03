@@ -7,7 +7,6 @@
 import { cn } from "@/lib/utils";
 import { Icons } from "@wealthfolio/ui";
 import { useIsMobile } from "@wealthfolio/ui/hooks";
-import { motion } from "motion/react";
 
 const DOT_COUNT = 5;
 
@@ -45,17 +44,12 @@ export function DeviceLink({ source, flowing = false }: DeviceLinkProps) {
       <DeviceTile {...left} />
       <div className="flex w-24 items-center justify-between px-1">
         {Array.from({ length: DOT_COUNT }, (_, index) => (
-          <motion.span
+          <span
             key={index}
-            className="bg-primary size-1.5 rounded-full"
-            initial={{ opacity: 0.2 }}
-            animate={{ opacity: [0.2, 1, 0.2] }}
-            transition={{
-              duration: flowing ? 1.1 : 1.8,
-              repeat: Infinity,
-              ease: "easeInOut",
-              // Staggered left to right, the dots read as data moving across.
-              delay: flowing ? index * 0.14 : 0,
+            className="bg-primary size-1.5 rounded-full opacity-20 motion-safe:animate-[device-link-pulse_1.1s_ease-in-out_infinite]"
+            style={{
+              animationDuration: flowing ? "1.1s" : "1.8s",
+              animationDelay: flowing ? `${index * 0.14}s` : "0s",
             }}
           />
         ))}

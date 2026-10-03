@@ -10,7 +10,7 @@
 use async_trait::async_trait;
 use chrono::{Duration, NaiveDate, TimeZone, Utc};
 use log::{debug, info};
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
@@ -37,7 +37,8 @@ use crate::secrets::SecretStore;
 
 use wealthfolio_market_data::{
     exchanges_for_currency, mic_to_currency, mic_to_exchange_name,
-    yahoo_equity_provider_symbol_to_canonical, DividendEvent, ExchangeMap,
+    yahoo_equity_provider_symbol_to_canonical, DividendEvent, ExchangeMap, ProviderInstrument,
+    ProviderOverrides,
 };
 
 /// Provider information combining static info with settings.
@@ -239,6 +240,9 @@ fn has_open_position_quantity(quantity: &rust_decimal::Decimal) -> bool {
 
 fn provider_config_for_symbol_resolution(
     preferred_provider: Option<&str>,
+    provider_symbol: Option<&str>,
+    instrument_type: Option<&InstrumentType>,
+    quote_ccy: Option<&str>,
 ) -> Option<serde_json::Value> {
     let provider = preferred_provider
         .map(str::trim)
@@ -255,7 +259,36 @@ fn provider_config_for_symbol_resolution(
         }));
     }
 
-    Some(serde_json::json!({ "preferred_provider": provider }))
+    let mut config = serde_json::json!({ "preferred_provider": provider });
+    let Some(provider_symbol) = provider_symbol
+        .map(str::trim)
+        .filter(|symbol| !symbol.is_empty())
+    else {
+        return Some(config);
+    };
+    let symbol = Arc::from(provider_symbol);
+    let provider_instrument = match instrument_type {
+        Some(InstrumentType::Crypto) => ProviderInstrument::CryptoSymbol { symbol },
+        Some(InstrumentType::Fx) => ProviderInstrument::FxSymbol { symbol },
+        Some(InstrumentType::Metal) => ProviderInstrument::MetalSymbol {
+            symbol,
+            quote: std::borrow::Cow::Owned(quote_ccy.unwrap_or("USD").to_string()),
+        },
+        Some(InstrumentType::Bond) => ProviderInstrument::BondIsin { isin: symbol },
+        Some(InstrumentType::Equity | InstrumentType::Option) | None => {
+            ProviderInstrument::EquitySymbol { symbol }
+        }
+    };
+    let mut overrides = ProviderOverrides::new();
+    overrides.insert(provider.to_string(), provider_instrument);
+    config
+        .as_object_mut()
+        .expect("provider config is an object")
+        .insert(
+            "overrides".to_string(),
+            serde_json::to_value(overrides).expect("provider overrides serialize"),
+        );
+    Some(config)
 }
 
 fn resolved_provider_matches_requested(
@@ -392,23 +425,6 @@ pub trait QuoteServiceTrait: Send + Sync {
         self.get_quotes_in_range_filled(symbols, start, end)
     }
 
-    /// Gets sparse persisted quotes with an independent inclusive start per asset.
-    fn get_sparse_quotes_in_range_by_asset(
-        &self,
-        asset_start_dates: &BTreeMap<String, NaiveDate>,
-        end: NaiveDate,
-    ) -> Result<Vec<Quote>> {
-        let mut quotes = Vec::new();
-        for (asset_id, start) in asset_start_dates {
-            quotes.extend(self.get_sparse_quotes_in_range(
-                &HashSet::from([asset_id.clone()]),
-                *start,
-                end,
-            )?);
-        }
-        Ok(quotes)
-    }
-
     /// Get quotes for symbols within a date range, with gap filling.
     ///
     /// This method fills in missing quotes for weekends and holidays by carrying
@@ -490,6 +506,7 @@ pub trait QuoteServiceTrait: Send + Sync {
         instrument_type: Option<&InstrumentType>,
         quote_ccy: Option<&str>,
         preferred_provider: Option<&str>,
+        provider_symbol: Option<&str>,
     ) -> Result<ResolvedQuote> {
         let _ = (
             symbol,
@@ -497,6 +514,7 @@ pub trait QuoteServiceTrait: Send + Sync {
             instrument_type,
             quote_ccy,
             preferred_provider,
+            provider_symbol,
         );
         Ok(ResolvedQuote::default())
     }
@@ -1306,72 +1324,6 @@ where
         Ok(quotes)
     }
 
-    fn get_sparse_quotes_in_range_by_asset(
-        &self,
-        asset_start_dates: &BTreeMap<String, NaiveDate>,
-        end: NaiveDate,
-    ) -> Result<Vec<Quote>> {
-        if asset_start_dates.is_empty() {
-            return Ok(Vec::new());
-        }
-
-        const ASSET_BATCH_SIZE: usize = 400;
-        let ids: Vec<String> = asset_start_dates.keys().cloned().collect();
-        let assets = self.asset_repo.list_by_asset_ids(&ids)?;
-        let assets_by_id: HashMap<String, Asset> = assets
-            .into_iter()
-            .map(|asset| (asset.id.clone(), asset))
-            .collect();
-
-        let mut quotes = Vec::new();
-        for batch in ids.chunks(ASSET_BATCH_SIZE) {
-            let range_requests: Vec<_> = batch
-                .iter()
-                .map(|asset_id| {
-                    (
-                        AssetId::new(asset_id.clone()),
-                        Day::new(asset_start_dates[asset_id]),
-                    )
-                })
-                .collect();
-            quotes.extend(self.quote_store.range_batch_from_dates(
-                &range_requests,
-                Day::new(end),
-                None,
-            )?);
-
-            let seed_requests: Vec<_> = batch
-                .iter()
-                .filter_map(|asset_id| {
-                    asset_start_dates[asset_id]
-                        .checked_sub_signed(Duration::days(1))
-                        .map(|seed_date| (asset_id.clone(), seed_date))
-                })
-                .collect();
-            quotes.extend(
-                self.quote_store
-                    .get_latest_quotes_as_of_dates(&seed_requests)?
-                    .into_values(),
-            );
-        }
-
-        for quote in &mut quotes {
-            if let Some(asset) = assets_by_id.get(&quote.asset_id) {
-                reconcile_quote_currency(quote, asset);
-            }
-        }
-        quotes.sort_by(|left, right| {
-            left.asset_id
-                .cmp(&right.asset_id)
-                .then_with(|| left.timestamp.cmp(&right.timestamp))
-        });
-        quotes.dedup_by(|left, right| {
-            left.asset_id == right.asset_id
-                && left.timestamp.date_naive() == right.timestamp.date_naive()
-        });
-        Ok(quotes)
-    }
-
     fn get_quotes_in_range_filled(
         &self,
         symbols: &HashSet<String>,
@@ -1633,6 +1585,7 @@ where
         instrument_type: Option<&InstrumentType>,
         quote_ccy: Option<&str>,
         preferred_provider: Option<&str>,
+        provider_symbol: Option<&str>,
     ) -> Result<ResolvedQuote> {
         let trimmed_symbol = symbol.trim();
         if trimmed_symbol.is_empty() {
@@ -1657,44 +1610,15 @@ where
         };
 
         let requested_quote_ccy = normalize_quote_ccy_code(quote_ccy);
-        let provider_config = provider_config_for_symbol_resolution(preferred_provider);
+        let provider_config = provider_config_for_symbol_resolution(
+            preferred_provider,
+            provider_symbol,
+            instrument_type,
+            quote_ccy,
+        );
 
         for attempt_symbol in symbol_resolution_candidates(clean_symbol) {
-            // For bonds, populate metadata with TreasuryDirect details so
-            // US_TREASURY_CALC can price them during resolve.
-            let bond_metadata = if instrument_type == Some(&InstrumentType::Bond) {
-                let upper = attempt_symbol.to_uppercase();
-                // Convert CUSIP to ISIN if needed
-                let isin = if crate::utils::cusip::looks_like_cusip(&upper) {
-                    crate::utils::cusip::cusip_to_isin(&upper, "US")
-                } else {
-                    upper
-                };
-                if isin.starts_with("US912") {
-                    let http = wealthfolio_http::client();
-                    wealthfolio_market_data::provider::us_treasury_calc::UsTreasuryCalcProvider::fetch_bond_details(&http, &isin).await
-                        .map(|details| {
-                            let spec = crate::assets::BondSpec {
-                                isin: Some(isin.clone()),
-                                coupon_rate: Some(details.coupon_rate),
-                                maturity_date: Some(details.maturity_date),
-                                face_value: Some(details.face_value),
-                                coupon_frequency: Some(details.coupon_frequency),
-                            };
-                            (isin, serde_json::json!({ "bond": spec }))
-                        })
-                } else {
-                    None
-                }
-            } else {
-                None
-            };
-
-            let (resolved_symbol, metadata) = match &bond_metadata {
-                Some((isin, meta)) => (isin.clone(), Some(meta.clone())),
-                None => (attempt_symbol.clone(), None),
-            };
-
+            let resolved_symbol = attempt_symbol.clone();
             let pair_quote_ccy = if matches!(instrument_type, Some(InstrumentType::Crypto)) {
                 parse_crypto_pair_symbol(&resolved_symbol).map(|(_, quote)| quote)
             } else {
@@ -1737,7 +1661,7 @@ where
                     .or_else(|| Some(attempt_symbol.clone())),
                 instrument_exchange_mic: canonical_identity.instrument_exchange_mic,
                 provider_config: provider_config.clone(),
-                metadata,
+                metadata: None,
                 ..Default::default()
             };
 
@@ -2783,6 +2707,29 @@ mod tests {
         assert_eq!(
             local_search_identity("BRK-B"),
             Some(("BRK.B".to_string(), None))
+        );
+    }
+
+    #[test]
+    fn symbol_quote_provider_config_preserves_exact_provider_symbol() {
+        let config = provider_config_for_symbol_resolution(
+            Some("YAHOO"),
+            Some("ABC.ZZ"),
+            Some(&InstrumentType::Equity),
+            Some("USD"),
+        )
+        .expect("provider config");
+        let overrides = ProviderOverrides::from_json(
+            config.get("overrides").expect("exact override is present"),
+        )
+        .expect("valid overrides");
+
+        assert_eq!(
+            overrides
+                .get("YAHOO")
+                .map(ProviderInstrument::to_symbol_string)
+                .as_deref(),
+            Some("ABC.ZZ")
         );
     }
 
@@ -4577,6 +4524,7 @@ mod tests {
                     face_value: None,
                     coupon_frequency: None,
                     isin: None,
+                    treasury_type: None,
                 }
             })),
             ..Default::default()

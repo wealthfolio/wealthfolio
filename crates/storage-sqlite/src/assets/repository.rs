@@ -717,6 +717,53 @@ mod tests {
         );
     }
 
+    #[tokio::test]
+    async fn legacy_mic_profile_update_succeeds_when_canonical_twin_exists() {
+        let (pool, writer) = setup_db();
+        let repo = AssetRepository::new(pool.clone(), writer);
+        let mut conn = get_connection(&pool).expect("conn");
+        for (id, mic) in [("legacy", "CXE"), ("canonical", "BCXE")] {
+            sql_query(
+                "INSERT INTO assets (
+                    id, kind, name, display_code, is_active, quote_mode, quote_ccy,
+                    instrument_type, instrument_symbol, instrument_exchange_mic,
+                    created_at, updated_at
+                 ) VALUES (?, 'INVESTMENT', ?, 'VWRP', 1, 'MARKET', 'GBP',
+                    'EQUITY', 'VWRP', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
+            )
+            .bind::<Text, _>(id)
+            .bind::<Text, _>(id)
+            .bind::<Text, _>(mic)
+            .execute(&mut conn)
+            .expect("insert colliding legacy/canonical pair");
+        }
+        drop(conn);
+
+        let updated = repo
+            .update_profile(
+                "legacy",
+                UpdateAssetProfile {
+                    name: Some("Renamed legacy".to_string()),
+                    display_code: Some("VWRP".to_string()),
+                    notes: "edited".to_string(),
+                    kind: None,
+                    quote_mode: None,
+                    quote_ccy: None,
+                    instrument_type: None,
+                    instrument_symbol: Some("VWRP".to_string()),
+                    instrument_exchange_mic: Some("CXE".to_string()),
+                    provider_config: None,
+                    metadata: None,
+                },
+            )
+            .await
+            .expect("preserving the guarded legacy MIC must remain editable");
+
+        assert_eq!(updated.name.as_deref(), Some("Renamed legacy"));
+        assert_eq!(updated.instrument_exchange_mic.as_deref(), Some("CXE"));
+        assert_eq!(updated.instrument_key.as_deref(), Some("EQUITY:VWRP@CXE"));
+    }
+
     async fn cleanup_legacy_metadata_for(metadata: serde_json::Value) -> Option<serde_json::Value> {
         let (pool, writer) = setup_db();
         let repo = AssetRepository::new(pool.clone(), writer);

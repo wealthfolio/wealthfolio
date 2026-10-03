@@ -1,0 +1,50 @@
+id: EDGE-MAG-01
+title: Magnitudes above the kernel range are rejected at normalize
+intent: >
+  Kernel-only. The kernel computes with magnitudes up to 1e20
+  (`MAX_MAGNITUDE`) so that no product or sum of its values can overflow
+  `Decimal` and panic (architecture §4.3). An activity, a quote or an FX
+  observation carrying a larger magnitude, or a rate whose inverse would be
+  larger, is dropped at normalize with a ValueOutOfRange diagnostic; the
+  rest of the account computes as if the row were absent. Marked [K].
+markers: [K]
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-08
+accounts:
+  - id: acc-1
+    currency: USD
+assets:
+  - id: aapl
+    quote_ccy: USD
+activities:
+  - id: dep-1
+    account: acc-1
+    type: DEPOSIT
+    date: 2025-01-02T10:00:00Z
+    amount: 1000
+  - id: dep-huge
+    account: acc-1
+    type: DEPOSIT
+    date: 2025-01-02T11:00:00Z
+    amount: "1000000000000000000000000"
+  - id: buy-1
+    account: acc-1
+    type: BUY
+    date: 2025-01-03T10:00:00Z
+    asset: aapl
+    quantity: 10
+    unit_price: 100
+    amount: 1000
+quotes:
+  - { asset: aapl, day: 2025-01-03, close: 100 }
+  - { asset: aapl, day: 2025-01-06, close: "1000000000000000000000000" }
+fx_rates:
+  - { from: USD, to: CAD, day: 2025-01-02, rate: "0.00000000000000000000001" }
+expected_notes: >
+  Three normalize diagnostics: ValueOutOfRange errors for dep-huge (amount
+  1e24) and warnings for the aapl 01-06 quote (close 1e24) and the USD/CAD
+  01-02 observation (rate 1e-23, inverse 1e23). acc-1: cash 1000 (01-02) ->
+  0 (01-03); aapl 10 shares priced at 100 throughout (the 01-06 row is gone,
+  so 01-03's close carries); total value 1000 every day, complete; TWR 0.

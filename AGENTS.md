@@ -26,6 +26,28 @@ with a React frontend, Tauri desktop/mobile runtime, and Axum web server.
   clear and concise; identify what is reused, added, and deferred, and list
   unresolved questions only when they need an answer.
 
+## Architecture boundaries for fixes and refactors
+
+Before implementation, trace the affected execution path and identify whether
+proposed changes alter network calls or provider settings, synchronous versus
+background execution, persistence or events, ownership of business logic,
+failure propagation, retries, or user-edit precedence.
+
+For small fixes and behavior-preserving refactors, preserve these boundaries. If
+a boundary change is necessary, explain the previous and proposed behavior, why
+the existing mechanism is insufficient, and the required validation before
+proceeding. Include an explicit **Architecture impact** note in the plan and PR
+description: either name the boundaries that remain unchanged, or describe the
+changes and their validation. Revisit this note if the implementation expands.
+Do not call a change a refactor if it changes observable behavior, side effects,
+or execution timing.
+
+Test architectural invariants as well as successful outcomes: disabled providers
+receive no requests, local resolution does not acquire new network dependencies,
+provider failures stay isolated, and enrichment preserves user edits. In final
+reports and PR descriptions, state changed boundaries and distinguish tested
+guarantees from unverified assumptions.
+
 ## Architecture and implementation
 
 - Frontend code lives in `apps/frontend/src/`; shared TypeScript packages live

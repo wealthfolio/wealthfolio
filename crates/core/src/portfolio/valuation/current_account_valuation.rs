@@ -9,7 +9,7 @@ use crate::{
     errors::Result,
     fx::{currency::normalize_amount, FxServiceTrait},
     portfolio::{
-        snapshot::{AccountStateSnapshot, SnapshotRepositoryTrait},
+        snapshot::{AccountStateSnapshot, SnapshotServiceTrait},
         valuation::{
             CurrentAccountValuation, CurrentValuationResponse, CurrentValuationSplit,
             CurrentValuationSummary,
@@ -28,7 +28,7 @@ const MISSING_FX_WARNING: &str =
 
 pub struct CurrentAccountValuationService<'a> {
     account_service: &'a dyn AccountServiceTrait,
-    snapshot_repository: &'a dyn SnapshotRepositoryTrait,
+    snapshot_service: &'a dyn SnapshotServiceTrait,
     asset_service: &'a dyn AssetServiceTrait,
     quote_service: &'a dyn QuoteServiceTrait,
     fx_service: &'a dyn FxServiceTrait,
@@ -37,14 +37,14 @@ pub struct CurrentAccountValuationService<'a> {
 impl<'a> CurrentAccountValuationService<'a> {
     pub fn new(
         account_service: &'a dyn AccountServiceTrait,
-        snapshot_repository: &'a dyn SnapshotRepositoryTrait,
+        snapshot_service: &'a dyn SnapshotServiceTrait,
         asset_service: &'a dyn AssetServiceTrait,
         quote_service: &'a dyn QuoteServiceTrait,
         fx_service: &'a dyn FxServiceTrait,
     ) -> Self {
         Self {
             account_service,
-            snapshot_repository,
+            snapshot_service,
             asset_service,
             quote_service,
             fx_service,
@@ -65,7 +65,7 @@ impl<'a> CurrentAccountValuationService<'a> {
             base_currency,
             latest_snapshot_cutoff,
             include_accounts,
-            Utc::now(),
+            crate::utils::clock::now(),
         )
         .await
     }
@@ -127,28 +127,8 @@ impl<'a> CurrentAccountValuationService<'a> {
         account_ids: &[String],
         latest_snapshot_cutoff: NaiveDate,
     ) -> Result<HashMap<String, AccountStateSnapshot>> {
-        let mut snapshots = self
-            .snapshot_repository
-            .get_latest_snapshots_before_date(account_ids, latest_snapshot_cutoff)?;
-        if snapshots.is_empty() {
-            return Ok(snapshots);
-        }
-
-        let snapshot_ids: Vec<String> = snapshots
-            .values()
-            .map(|snapshot| snapshot.id.clone())
-            .collect();
-        let positions_by_snapshot_id = self
-            .snapshot_repository
-            .get_snapshot_positions_batch(&snapshot_ids)?;
-
-        for snapshot in snapshots.values_mut() {
-            if let Some(positions) = positions_by_snapshot_id.get(&snapshot.id) {
-                snapshot.positions = positions.clone();
-            }
-        }
-
-        Ok(snapshots)
+        self.snapshot_service
+            .get_latest_snapshots_as_of(account_ids, latest_snapshot_cutoff)
     }
 
     async fn load_assets_by_id(

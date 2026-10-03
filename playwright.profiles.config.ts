@@ -29,6 +29,7 @@ export default defineConfig({
     env: {
       WF_LISTEN_ADDR: "127.0.0.1:18388",
       WF_DB_PATH: join(installation, "app.db"),
+      WF_DATA_DIR: installation,
       WF_STATIC_DIR: process.env.WF_PROFILE_STATIC_DIR || resolve("dist"),
       WF_SECRET_KEY: randomBytes(32).toString("base64"),
       WF_DB_REQUIRE_ENCRYPTION: "false",

@@ -235,6 +235,7 @@
     }
   },
   "editSheet": {
+    "identity_conflict": "동일한 식별 정보를 가진 자산이 이미 있습니다. 변경 사항이 저장되지 않았습니다. 기존 자산을 사용하거나 다른 거래소를 선택하세요.",
     "general": "일반",
     "classification": "분류",
     "market_data": "시장 데이터",

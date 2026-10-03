@@ -1,0 +1,64 @@
+id: EDGE-QT-01
+title: Weekend rows carry Friday's close; FX uses the nearest observation
+intent: >
+  A USD-quoted stock in a CAD account (base CAD) with weekday-only quotes
+  and weekday-only USD->CAD rates across the weekend 2025-01-11/12. Every
+  calendar day is valued. Quotes carry FORWARD only (cursor on the last
+  quote on or before the day), so Saturday and Sunday price at Friday's
+  close. FX is resolved by the bidirectional nearest observation
+  (`CurrencyConverter::get_direct_rate`, ties go to the past): Saturday is
+  1 day from Friday and 2 from Monday, so it uses Friday's rate; Sunday is 2
+  days from Friday and 1 from Monday, so it uses MONDAY's rate. The BUY
+  carries an explicit fx_rate so cash settles in CAD and the lot book rates
+  are pinned; only the daily market value moves with FX.
+policy:
+  base_currency: CAD
+  timezone: UTC
+  as_of: 2025-01-14
+accounts:
+  - id: acc-1
+    currency: CAD
+assets:
+  - id: us-stock
+    symbol: USS
+    quote_ccy: USD
+activities:
+  - id: dep-1
+    account: acc-1
+    type: DEPOSIT
+    date: 2025-01-06T10:00:00Z
+    amount: 2000
+  - id: buy-1
+    account: acc-1
+    type: BUY
+    date: 2025-01-07T10:00:00Z
+    asset: us-stock
+    quantity: 10
+    unit_price: 100
+    amount: 1000
+    currency: USD
+    fx_rate: 1.40
+quotes:
+  - { asset: us-stock, day: 2025-01-07, close: 100 }
+  - { asset: us-stock, day: 2025-01-08, close: 101 }
+  - { asset: us-stock, day: 2025-01-09, close: 102 }
+  - { asset: us-stock, day: 2025-01-10, close: 103 }
+  - { asset: us-stock, day: 2025-01-13, close: 105 }
+  - { asset: us-stock, day: 2025-01-14, close: 106 }
+fx_rates:
+  - { from: USD, to: CAD, day: 2025-01-06, rate: 1.40 }
+  - { from: USD, to: CAD, day: 2025-01-07, rate: 1.41 }
+  - { from: USD, to: CAD, day: 2025-01-08, rate: 1.42 }
+  - { from: USD, to: CAD, day: 2025-01-09, rate: 1.43 }
+  - { from: USD, to: CAD, day: 2025-01-10, rate: 1.44 }
+  - { from: USD, to: CAD, day: 2025-01-13, rate: 1.46 }
+  - { from: USD, to: CAD, day: 2025-01-14, rate: 1.47 }
+expected_notes: >
+  Cash CAD 2000 then 600 (1000 USD x 1.40). Lot buy-1: cost_per_unit 100
+  USD, fx_rate_to_account 1.40, fx_rate_to_base 1.40, basis_base 1400.
+  Dense valuations every day 01-06..01-14 (nine rows). Investment value in
+  CAD: 01-07 1410; 01-08 1434.2; 01-09 1458.6; Fri 01-10 1483.2; Sat 01-11
+  1483.2 (Friday close 103 x Friday rate 1.44); Sun 01-12 1503.8 (Friday
+  close 103 x MONDAY rate 1.46 - nearest observation looks forward); Mon
+  01-13 1533; 01-14 1558.2. Cost basis stays 1400; fx_rate_to_base is 1
+  (CAD base); value_status complete on every row.

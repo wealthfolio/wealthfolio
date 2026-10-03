@@ -22,7 +22,6 @@ services:
     deploy: !reset {}
     environment:
       WF_LISTEN_ADDR: "0.0.0.0:8088"
-      WF_DB_PATH: "/data/wealthfolio.db"
       WF_SECRET_KEY: "${WF_SECRET_KEY:-}"
       # Alternative: path inside the container to a separately mounted secret.
       WF_SECRET_KEY_FILE: "${WF_SECRET_KEY_FILE:-}"

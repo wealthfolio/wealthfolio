@@ -1,0 +1,67 @@
+id: NOM-TRADE-05
+title: SELL whose charges exceed proceeds, and an inconsistent SELL row
+intent: >
+  sell-1: qty 1 x price 10 with fee 12 and stored amount 2. Because
+  qty x price - charges = -2 reproduces |amount| within tolerance, the final
+  cash is proven to be an outflow and books as -2. sell-2 stores amount 100
+  with the same qty/price/fee: the economics do not reproduce it, so the
+  stored magnitude keeps the SELL inflow sign (+100). Both dispose one share
+  of a two-share lot.
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-10
+accounts:
+  - id: acc-1
+    name: Brokerage
+    currency: USD
+assets:
+  - id: pny
+    symbol: PNY
+    quote_ccy: USD
+activities:
+  - id: dep-1
+    account: acc-1
+    type: DEPOSIT
+    date: 2025-01-02T10:00:00Z
+    amount: 1000
+  - id: buy-1
+    account: acc-1
+    type: BUY
+    date: 2025-01-03T10:00:00Z
+    asset: pny
+    quantity: 2
+    unit_price: 10
+    amount: 20
+    fee: 0
+  - id: sell-1
+    account: acc-1
+    type: SELL
+    date: 2025-01-06T10:00:00Z
+    asset: pny
+    quantity: 1
+    unit_price: 10
+    amount: 2
+    fee: 12
+  - id: sell-2
+    account: acc-1
+    type: SELL
+    date: 2025-01-08T10:00:00Z
+    asset: pny
+    quantity: 1
+    unit_price: 10
+    amount: 100
+    fee: 12
+quotes:
+  - { asset: pny, day: 2025-01-03, close: 10 }
+  - { asset: pny, day: 2025-01-06, close: 10 }
+  - { asset: pny, day: 2025-01-08, close: 10 }
+  - { asset: pny, day: 2025-01-10, close: 10 }
+expected_notes: >
+  Cash 1000 -> 980 (buy) -> 978 (sell-1 books -2) -> 1078 (sell-2 books
+  +100). Disposals: sell-1 proceeds -2, cost basis 10, realized -12; sell-2
+  proceeds 100, cost basis 10, realized 90 (gross reverse-derived as 112).
+  Lot buy-1 closed on 01-08 by sell-2. net_contribution 1000 throughout; no
+  flows after the first row. TWR = 1078/1000 - 1 = 7.8%. Attribution: fees
+  24 (12 + 12), realized 102 (78 net + the 24 of sell charges grossed back
+  up), summary 78.

@@ -149,6 +149,8 @@
     "verifySecurityCode": "Check the security code",
     "transferringData": "Transferring your data",
     "transferringDataDescription": "Encrypting a copy of your data for your new device. This can take a minute.",
+    "preparingData": "Preparing your data",
+    "preparingDataDescription": "Connection confirmed. Keep Wealthfolio open on both devices while your data is prepared.",
     "securingConnection": "Securing the connection",
     "securingConnectionDescription": "Exchanging encryption keys with your other device."
   },
@@ -202,8 +204,8 @@
       "description": "Downloading and checking the encrypted copy from your other device."
     },
     "waiting": {
-      "title": "Waiting for your other device",
-      "description": "Your other device is still uploading its data. Setup continues automatically."
+      "title": "Waiting for an up-to-date copy",
+      "description": "An up-to-date encrypted copy is not available yet. Setup will continue automatically when it is ready."
     },
     "consent": {
       "title": "Replace the data in this profile?",
@@ -244,7 +246,7 @@
     "errors": {
       "SUBSCRIPTION_REQUIRED": "Device sync needs an active subscription",
       "DEVICE_NOT_READY": "This device isn't ready to sync yet",
-      "SNAPSHOT_WAIT_TIMED_OUT": "Your other device hasn't finished uploading",
+      "SNAPSHOT_WAIT_TIMED_OUT": "An up-to-date copy did not become available in time",
       "SNAPSHOT_UNAVAILABLE": "The copy from your other device is no longer available",
       "SNAPSHOT_SCHEMA_NEWER": "Update this app to finish setup",
       "SNAPSHOT_INVALID": "The transferred data couldn't be verified",
@@ -277,7 +279,7 @@
       "encrypt": "Encrypt your data",
       "upload": "Upload the encrypted copy",
       "sendKeys": "Send the keys to your new device",
-      "waitForUpload": "Your other device uploads its data",
+      "waitForUpload": "Wait for an up-to-date copy",
       "downloadAndVerify": "Download and verify the encrypted copy",
       "replace": "Replace the data on this device",
       "backup": "Back up this profile"

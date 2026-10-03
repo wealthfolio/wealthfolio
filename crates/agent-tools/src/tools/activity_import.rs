@@ -599,6 +599,17 @@ mod tests {
     }
 
     #[test]
+    fn preserves_unknown_suffix_for_core_import_resolution() {
+        let mut input = row(false);
+        input.symbol = Some("ABC.ZZ".to_string());
+
+        let mapped = to_import_rows(&[input]).unwrap();
+
+        assert_eq!(mapped[0].symbol, "ABC.ZZ");
+        assert_eq!(mapped[0].exchange_mic, None);
+    }
+
+    #[test]
     fn cash_row_without_symbol_defaults_to_empty() {
         let mut r = row(false);
         r.symbol = None;

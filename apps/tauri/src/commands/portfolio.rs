@@ -35,10 +35,9 @@ use wealthfolio_core::{
     },
     portfolio::snapshot::{
         check_holdings_import as validate_holdings_import, holdings_import_data_source,
-        snapshot_date_requires_remediation, snapshot_recalculation_start_after_delete,
-        validate_holdings_import_snapshot, CashBalanceInput, HoldingsImportPositionValidationInput,
-        HoldingsImportSnapshotValidationInput, ManualHoldingInput, ManualSnapshotRequest,
-        ManualSnapshotService, SnapshotSource,
+        snapshot_date_requires_remediation, validate_holdings_import_snapshot, CashBalanceInput,
+        HoldingsImportPositionValidationInput, HoldingsImportSnapshotValidationInput,
+        ManualHoldingInput, ManualSnapshotRequest, ManualSnapshotService, SnapshotSource,
     },
     portfolios::{AccountScope, ResolvedAccountScope},
     quotes::MarketSyncMode,
@@ -173,6 +172,7 @@ pub async fn recalculate_portfolio(handle: AppHandle, state: ProfileAccess) -> R
             asset_ids: None,
             days: 365 * 5, // 5 years fallback if no activity dates
         })
+        .force_full(true)
         .build();
     emit_portfolio_trigger_recalculate(&handle, payload, &context);
     Ok(())
@@ -344,7 +344,7 @@ pub async fn get_asset_lots(
     let context = state.context()?;
     debug!("Get lot view rows for asset {}", asset_id);
     context
-        .lots_repository
+        .holdings_service()
         .get_asset_lot_view(&asset_id, include_snapshot_positions)
         .await
         .map_err(|e| e.to_string())
@@ -561,13 +561,13 @@ pub async fn get_current_valuation(
     let account_filter = filter.into_account_filter()?;
     let resolved = resolve_current_valuation_scope(&account_filter, &context).await?;
     let account_service = context.account_service();
-    let snapshot_repository = context.snapshot_repository();
+    let snapshot_service = context.snapshot_service();
     let asset_service = context.asset_service();
     let quote_service = context.quote_service();
     let fx_service = context.fx_service();
     let service = CurrentAccountValuationService::new(
         account_service.as_ref(),
-        snapshot_repository.as_ref(),
+        snapshot_service.as_ref(),
         asset_service.as_ref(),
         quote_service.as_ref(),
         fx_service.as_ref(),
@@ -1684,8 +1684,6 @@ pub async fn delete_snapshot(
     let requires_remediation = target_date
         .map(|date| snapshot_date_requires_remediation(date, today))
         .unwrap_or(true);
-    let recalculation_start =
-        target_date.and_then(|date| snapshot_recalculation_start_after_delete(date, today));
     if snapshot.source == SnapshotSource::Calculated.as_str() && !requires_remediation {
         return Err("This entry comes from account activity and can't be deleted here. Update or delete the related activity instead.".to_string());
     }
@@ -1725,7 +1723,6 @@ pub async fn delete_snapshot(
     let payload = PortfolioRequestPayload::builder()
         .account_ids(Some(vec![account_id.clone()]))
         .market_sync_mode(MarketSyncMode::Incremental { asset_ids: None })
-        .since_date(recalculation_start)
         .build();
     emit_portfolio_trigger_recalculate(&handle, payload, &context);
 

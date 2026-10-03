@@ -100,7 +100,7 @@
     "values_without_returns": "账户价值显示为不含期间收益。",
     "failed_to_load": "加载账户失败",
     "failed_to_load_performance": "加载业绩指标失败",
-    "try_restarting": "请尝试重启应用。如果问题持续存在，您的数据库可能需要重置。"
+    "try_restarting": "请重试。如果问题仍然存在，请重启 Wealthfolio 或联系支持团队。"
   },
   "accounts_count_one": "{{count}} 个账户",
   "accounts_count_other": "{{count}} 个账户"

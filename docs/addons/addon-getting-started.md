@@ -42,9 +42,15 @@ This enables:
 - Better error messages and debugging
 - Automatic addon discovery
 - Console logging for development
+- Brokered `ctx.api.network` requests without installing the addon. The dev
+  server's `manifest.json` is used as is: its `network.allowedHosts` are
+  approved, its permissions apply, and it overrides an installed copy of the
+  same addon while the dev runtime is active (debug builds only). A failed dev
+  activation removes its authorization and allows the installed copy to load
 
 > **Note:** For browser-only development (without Tauri), you can use
-> `pnpm dev:addons` instead.
+> `pnpm dev:addons` instead. Brokered network requests are not available there;
+> install the addon to test them.
 
 ## Create New Addon
 

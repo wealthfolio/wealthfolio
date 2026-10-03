@@ -149,6 +149,8 @@
     "verifySecurityCode": "Sicherheitscode überprüfen",
     "transferringData": "Ihre Daten werden übertragen",
     "transferringDataDescription": "Eine Kopie Ihrer Daten wird für Ihr neues Gerät verschlüsselt. Das kann einen Moment dauern.",
+    "preparingData": "Ihre Daten werden vorbereitet",
+    "preparingDataDescription": "Verbindung bestätigt. Lassen Sie Wealthfolio auf beiden Geräten geöffnet, während Ihre Daten vorbereitet werden.",
     "securingConnection": "Verbindung wird gesichert",
     "securingConnectionDescription": "Verschlüsselungsschlüssel werden mit Ihrem anderen Gerät ausgetauscht."
   },
@@ -202,8 +204,8 @@
       "description": "Die verschlüsselte Kopie Ihres anderen Geräts wird heruntergeladen und geprüft."
     },
     "waiting": {
-      "title": "Warten auf Ihr anderes Gerät",
-      "description": "Ihr anderes Gerät lädt seine Daten noch hoch. Die Einrichtung wird automatisch fortgesetzt."
+      "title": "Warten auf eine aktuelle Kopie",
+      "description": "Eine aktuelle verschlüsselte Kopie ist noch nicht verfügbar. Die Einrichtung wird automatisch fortgesetzt, sobald sie bereit ist."
     },
     "consent": {
       "title": "Daten in diesem Profil ersetzen?",
@@ -244,7 +246,7 @@
     "errors": {
       "SUBSCRIPTION_REQUIRED": "Die Gerätesynchronisierung erfordert ein aktives Abonnement",
       "DEVICE_NOT_READY": "Dieses Gerät ist noch nicht bereit für die Synchronisierung",
-      "SNAPSHOT_WAIT_TIMED_OUT": "Ihr anderes Gerät hat den Upload noch nicht abgeschlossen",
+      "SNAPSHOT_WAIT_TIMED_OUT": "Eine aktuelle Kopie war nicht rechtzeitig verfügbar",
       "SNAPSHOT_UNAVAILABLE": "Die Kopie Ihres anderen Geräts ist nicht mehr verfügbar",
       "SNAPSHOT_SCHEMA_NEWER": "Aktualisieren Sie die App, um die Einrichtung abzuschließen",
       "SNAPSHOT_INVALID": "Die übertragenen Daten konnten nicht überprüft werden",
@@ -277,7 +279,7 @@
       "encrypt": "Ihre Daten verschlüsseln",
       "upload": "Die verschlüsselte Kopie hochladen",
       "sendKeys": "Die Schlüssel an Ihr neues Gerät senden",
-      "waitForUpload": "Ihr anderes Gerät lädt seine Daten hoch",
+      "waitForUpload": "Auf eine aktuelle Kopie warten",
       "downloadAndVerify": "Die verschlüsselte Kopie herunterladen und prüfen",
       "replace": "Die Daten auf diesem Gerät ersetzen",
       "backup": "Dieses Profil sichern"

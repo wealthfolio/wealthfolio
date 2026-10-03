@@ -7,8 +7,12 @@
       "currency": "USD",
       "timezone": "America/New_York",
       "close": [16, 0],
-      "yahoo": { "suffix": "", "codes": ["NYQ", "NYS"] },
-      "alpha_vantage": { "suffix": "", "currency": "USD" }
+      "providers": {
+        "YAHOO": { "bare": true, "codes": ["NYQ", "NYS"] },
+        "ALPHA_VANTAGE": { "bare": true, "currency": "USD" },
+        "FINNHUB": { "bare": true },
+        "MARKETDATA_APP": { "bare": true }
+      }
     },
     {
       "mic": "XNAS",
@@ -17,8 +21,12 @@
       "currency": "USD",
       "timezone": "America/New_York",
       "close": [16, 0],
-      "yahoo": { "suffix": "", "codes": ["NMS", "NGM", "NCM", "NAS"] },
-      "alpha_vantage": { "suffix": "", "currency": "USD" }
+      "providers": {
+        "YAHOO": { "bare": true, "codes": ["NMS", "NGM", "NCM", "NAS"] },
+        "ALPHA_VANTAGE": { "bare": true, "currency": "USD" },
+        "FINNHUB": { "bare": true },
+        "MARKETDATA_APP": { "bare": true }
+      }
     },
     {
       "mic": "XASE",
@@ -27,8 +35,12 @@
       "currency": "USD",
       "timezone": "America/New_York",
       "close": [16, 0],
-      "yahoo": { "suffix": "", "codes": ["ASE"] },
-      "alpha_vantage": { "suffix": "", "currency": "USD" }
+      "providers": {
+        "YAHOO": { "bare": true, "codes": ["ASE"] },
+        "ALPHA_VANTAGE": { "bare": true, "currency": "USD" },
+        "FINNHUB": { "bare": true },
+        "MARKETDATA_APP": { "bare": true }
+      }
     },
     {
       "mic": "ARCX",
@@ -37,8 +49,12 @@
       "currency": "USD",
       "timezone": "America/New_York",
       "close": [16, 0],
-      "yahoo": { "suffix": "", "codes": ["PCX", "ARC"] },
-      "alpha_vantage": { "suffix": "", "currency": "USD" }
+      "providers": {
+        "YAHOO": { "bare": true, "codes": ["PCX", "ARC"] },
+        "ALPHA_VANTAGE": { "bare": true, "currency": "USD" },
+        "FINNHUB": { "bare": true },
+        "MARKETDATA_APP": { "bare": true }
+      }
     },
     {
       "mic": "BATS",
@@ -47,8 +63,12 @@
       "currency": "USD",
       "timezone": "America/New_York",
       "close": [16, 0],
-      "yahoo": { "suffix": "", "codes": ["BTS"] },
-      "alpha_vantage": { "suffix": "", "currency": "USD" }
+      "providers": {
+        "YAHOO": { "bare": true, "codes": ["BTS"] },
+        "ALPHA_VANTAGE": { "bare": true, "currency": "USD" },
+        "FINNHUB": { "bare": true },
+        "MARKETDATA_APP": { "bare": true }
+      }
     },
     {
       "mic": "OTCM",
@@ -57,7 +77,9 @@
       "currency": "USD",
       "timezone": "America/New_York",
       "close": [16, 0],
-      "yahoo": { "suffix": "", "codes": ["PNK", "OQB", "OQX"] }
+      "providers": {
+        "YAHOO": { "bare": true, "codes": ["PNK", "OQB", "OQX"] }
+      }
     },
     {
       "mic": "XTSE",
@@ -66,8 +88,10 @@
       "currency": "CAD",
       "timezone": "America/Toronto",
       "close": [16, 0],
-      "yahoo": { "suffix": ".TO", "codes": ["TOR"] },
-      "alpha_vantage": { "suffix": ".TRT", "currency": "CAD" }
+      "providers": {
+        "YAHOO": { "suffix": ".TO", "codes": ["TOR"] },
+        "ALPHA_VANTAGE": { "suffix": ".TRT", "currency": "CAD" }
+      }
     },
     {
       "mic": "XTSX",
@@ -76,8 +100,10 @@
       "currency": "CAD",
       "timezone": "America/Toronto",
       "close": [16, 0],
-      "yahoo": { "suffix": ".V", "codes": ["VAN", "CVE"] },
-      "alpha_vantage": { "suffix": ".TRV", "currency": "CAD" }
+      "providers": {
+        "YAHOO": { "suffix": ".V", "codes": ["VAN", "CVE"] },
+        "ALPHA_VANTAGE": { "suffix": ".TRV", "currency": "CAD" }
+      }
     },
     {
       "mic": "XCNQ",
@@ -86,8 +112,10 @@
       "currency": "CAD",
       "timezone": "America/Toronto",
       "close": [16, 0],
-      "yahoo": { "suffix": ".CN", "codes": ["CNQ"] },
-      "alpha_vantage": { "suffix": ".CNQ", "currency": "CAD" }
+      "providers": {
+        "YAHOO": { "suffix": ".CN", "codes": ["CNQ"] },
+        "ALPHA_VANTAGE": { "suffix": ".CNQ", "currency": "CAD" }
+      }
     },
     {
       "mic": "NEOE",
@@ -96,7 +124,9 @@
       "currency": "CAD",
       "timezone": "America/Toronto",
       "close": [16, 0],
-      "yahoo": { "suffix": ".NE", "codes": ["NEO"] }
+      "providers": {
+        "YAHOO": { "suffix": ".NE", "codes": ["NEO"] }
+      }
     },
     {
       "mic": "XMEX",
@@ -105,8 +135,10 @@
       "currency": "MXN",
       "timezone": "America/Mexico_City",
       "close": [15, 0],
-      "yahoo": { "suffix": ".MX", "codes": ["MEX"] },
-      "alpha_vantage": { "suffix": ".MEX", "currency": "MXN" }
+      "providers": {
+        "YAHOO": { "suffix": ".MX", "codes": ["MEX"] },
+        "ALPHA_VANTAGE": { "suffix": ".MEX", "currency": "MXN" }
+      }
     },
     {
       "mic": "XLON",
@@ -115,40 +147,43 @@
       "currency": "GBp",
       "timezone": "Europe/London",
       "close": [16, 30],
-      "yahoo": { "suffix": ".L", "codes": ["LSE", "IOB"] },
-      "alpha_vantage": { "suffix": ".LON", "currency": "GBP" }
+      "providers": {
+        "YAHOO": { "suffix": ".L", "codes": ["LSE", "IOB"] },
+        "ALPHA_VANTAGE": { "suffix": ".LON", "currency": "GBP" }
+      }
     },
     {
-      "mic": "CXE",
+      "mic": "AQSE",
+      "name": "Aquis",
+      "long_name": "Aquis Stock Exchange",
+      "currency": "GBP",
+      "timezone": "Europe/London",
+      "close": [16, 30],
+      "providers": {
+        "YAHOO": { "suffix": ".AQ", "codes": ["AQS"] }
+      }
+    },
+    {
+      "mic": "BCXE",
       "name": "Cboe UK",
       "long_name": "Cboe Europe Equities UK",
       "currency": "GBP",
       "timezone": "Europe/London",
       "close": [16, 30],
-      "yahoo": { "suffix": ".XC", "codes": ["CXE"] }
+      "providers": {
+        "YAHOO": { "suffix": ".XC", "codes": ["CXE"] }
+      }
     },
     {
-      "mic": "DXE",
+      "mic": "CCXE",
       "name": "Cboe Europe",
       "long_name": "Cboe Europe Equities (EUR)",
       "currency": "EUR",
       "timezone": "Europe/London",
       "close": [16, 30],
-      "yahoo": { "suffix": ".XD", "codes": ["DXE"] }
-    },
-    {
-      "mic": "XAQE",
-      "name": "Aquis",
-      "long_name": "Aquis Exchange",
-      "currency": "GBP",
-      "timezone": "Europe/London",
-      "close": [16, 30],
-      "yahoo": { "suffix": ".AQ", "codes": ["AQS"] }
-    },
-    {
-      "mic": "XLON_IL",
-      "name": null,
-      "yahoo": { "suffix": ".IL", "currency": "GBp" }
+      "providers": {
+        "YAHOO": { "suffix": ".XD", "codes": ["DXE"] }
+      }
     },
     {
       "mic": "XDUB",
@@ -157,8 +192,10 @@
       "currency": "EUR",
       "timezone": "Europe/Dublin",
       "close": [16, 30],
-      "yahoo": { "suffix": ".IR", "codes": ["ISE"] },
-      "alpha_vantage": { "suffix": ".DUB", "currency": "EUR" }
+      "providers": {
+        "YAHOO": { "suffix": ".IR", "codes": ["ISE"] },
+        "ALPHA_VANTAGE": { "suffix": ".DUB", "currency": "EUR" }
+      }
     },
     {
       "mic": "XETR",
@@ -167,8 +204,10 @@
       "currency": "EUR",
       "timezone": "Europe/Berlin",
       "close": [17, 30],
-      "yahoo": { "suffix": ".DE", "codes": ["GER", "XETRA"] },
-      "alpha_vantage": { "suffix": ".DEX", "currency": "EUR" }
+      "providers": {
+        "YAHOO": { "suffix": ".DE", "codes": ["GER", "XETRA"] },
+        "ALPHA_VANTAGE": { "suffix": ".DEX", "currency": "EUR" }
+      }
     },
     {
       "mic": "XFRA",
@@ -177,8 +216,10 @@
       "currency": "EUR",
       "timezone": "Europe/Berlin",
       "close": [17, 30],
-      "yahoo": { "suffix": ".F", "codes": ["FRA"] },
-      "alpha_vantage": { "suffix": ".FRK", "currency": "EUR" }
+      "providers": {
+        "YAHOO": { "suffix": ".F", "codes": ["FRA"] },
+        "ALPHA_VANTAGE": { "suffix": ".FRK", "currency": "EUR" }
+      }
     },
     {
       "mic": "XSTU",
@@ -187,8 +228,10 @@
       "currency": "EUR",
       "timezone": "Europe/Berlin",
       "close": [17, 30],
-      "yahoo": { "suffix": ".SG", "codes": ["STU"] },
-      "alpha_vantage": { "suffix": ".STU", "currency": "EUR" }
+      "providers": {
+        "YAHOO": { "suffix": ".SG", "codes": ["STU"] },
+        "ALPHA_VANTAGE": { "suffix": ".STU", "currency": "EUR" }
+      }
     },
     {
       "mic": "XHAM",
@@ -197,7 +240,9 @@
       "currency": "EUR",
       "timezone": "Europe/Berlin",
       "close": [17, 30],
-      "yahoo": { "suffix": ".HM", "codes": ["HAM"] }
+      "providers": {
+        "YAHOO": { "suffix": ".HM", "codes": ["HAM"] }
+      }
     },
     {
       "mic": "XDUS",
@@ -206,7 +251,9 @@
       "currency": "EUR",
       "timezone": "Europe/Berlin",
       "close": [17, 30],
-      "yahoo": { "suffix": ".DU", "codes": ["DUS"] }
+      "providers": {
+        "YAHOO": { "suffix": ".DU", "codes": ["DUS"] }
+      }
     },
     {
       "mic": "XMUN",
@@ -215,7 +262,9 @@
       "currency": "EUR",
       "timezone": "Europe/Berlin",
       "close": [17, 30],
-      "yahoo": { "suffix": ".MU", "codes": ["MUN"] }
+      "providers": {
+        "YAHOO": { "suffix": ".MU", "codes": ["MUN"] }
+      }
     },
     {
       "mic": "XBER",
@@ -224,7 +273,9 @@
       "currency": "EUR",
       "timezone": "Europe/Berlin",
       "close": [17, 30],
-      "yahoo": { "suffix": ".BE", "codes": ["BER"] }
+      "providers": {
+        "YAHOO": { "suffix": ".BE", "codes": ["BER"] }
+      }
     },
     {
       "mic": "XHAN",
@@ -233,7 +284,9 @@
       "currency": "EUR",
       "timezone": "Europe/Berlin",
       "close": [17, 30],
-      "yahoo": { "suffix": ".HA" }
+      "providers": {
+        "YAHOO": { "suffix": ".HA" }
+      }
     },
     {
       "mic": "XPAR",
@@ -242,8 +295,10 @@
       "currency": "EUR",
       "timezone": "Europe/Paris",
       "close": [17, 30],
-      "yahoo": { "suffix": ".PA", "codes": ["PAR", "ENX"] },
-      "alpha_vantage": { "suffix": ".PAR", "currency": "EUR" }
+      "providers": {
+        "YAHOO": { "suffix": ".PA", "codes": ["PAR", "ENX"] },
+        "ALPHA_VANTAGE": { "suffix": ".PAR", "currency": "EUR" }
+      }
     },
     {
       "mic": "XAMS",
@@ -252,8 +307,9 @@
       "currency": "EUR",
       "timezone": "Europe/Amsterdam",
       "close": [17, 30],
-      "yahoo": { "suffix": ".AS", "codes": ["AMS"] },
-      "alpha_vantage": { "suffix": "", "currency": "EUR" }
+      "providers": {
+        "YAHOO": { "suffix": ".AS", "codes": ["AMS"] }
+      }
     },
     {
       "mic": "XBRU",
@@ -262,8 +318,10 @@
       "currency": "EUR",
       "timezone": "Europe/Brussels",
       "close": [17, 30],
-      "yahoo": { "suffix": ".BR", "codes": ["BRU"] },
-      "alpha_vantage": { "suffix": ".BRU", "currency": "EUR" }
+      "providers": {
+        "YAHOO": { "suffix": ".BR", "codes": ["BRU"] },
+        "ALPHA_VANTAGE": { "suffix": ".BRU", "currency": "EUR" }
+      }
     },
     {
       "mic": "XLIS",
@@ -272,8 +330,10 @@
       "currency": "EUR",
       "timezone": "Europe/Lisbon",
       "close": [16, 30],
-      "yahoo": { "suffix": ".LS", "codes": ["LIS"] },
-      "alpha_vantage": { "suffix": ".LIS", "currency": "EUR" }
+      "providers": {
+        "YAHOO": { "suffix": ".LS", "codes": ["LIS"] },
+        "ALPHA_VANTAGE": { "suffix": ".LIS", "currency": "EUR" }
+      }
     },
     {
       "mic": "XMIL",
@@ -282,8 +342,10 @@
       "currency": "EUR",
       "timezone": "Europe/Rome",
       "close": [17, 30],
-      "yahoo": { "suffix": ".MI", "codes": ["MIL"] },
-      "alpha_vantage": { "suffix": ".MIL", "currency": "EUR" }
+      "providers": {
+        "YAHOO": { "suffix": ".MI", "codes": ["MIL"] },
+        "ALPHA_VANTAGE": { "suffix": ".MIL", "currency": "EUR" }
+      }
     },
     {
       "mic": "XMAD",
@@ -292,8 +354,10 @@
       "currency": "EUR",
       "timezone": "Europe/Madrid",
       "close": [17, 30],
-      "yahoo": { "suffix": ".MC", "codes": ["MCE"] },
-      "alpha_vantage": { "suffix": ".MCE", "currency": "EUR" }
+      "providers": {
+        "YAHOO": { "suffix": ".MC", "codes": ["MCE"] },
+        "ALPHA_VANTAGE": { "suffix": ".MCE", "currency": "EUR" }
+      }
     },
     {
       "mic": "XATH",
@@ -302,7 +366,9 @@
       "currency": "EUR",
       "timezone": "Europe/Athens",
       "close": [17, 20],
-      "yahoo": { "suffix": ".AT", "codes": ["ATH"] }
+      "providers": {
+        "YAHOO": { "suffix": ".AT", "codes": ["ATH"] }
+      }
     },
     {
       "mic": "XSTO",
@@ -311,8 +377,10 @@
       "currency": "SEK",
       "timezone": "Europe/Stockholm",
       "close": [17, 30],
-      "yahoo": { "suffix": ".ST", "codes": ["STO"] },
-      "alpha_vantage": { "suffix": ".STO", "currency": "SEK" }
+      "providers": {
+        "YAHOO": { "suffix": ".ST", "codes": ["STO"] },
+        "ALPHA_VANTAGE": { "suffix": ".STO", "currency": "SEK" }
+      }
     },
     {
       "mic": "XHEL",
@@ -321,8 +389,10 @@
       "currency": "EUR",
       "timezone": "Europe/Helsinki",
       "close": [18, 30],
-      "yahoo": { "suffix": ".HE", "codes": ["HEL"] },
-      "alpha_vantage": { "suffix": ".HEL", "currency": "EUR" }
+      "providers": {
+        "YAHOO": { "suffix": ".HE", "codes": ["HEL"] },
+        "ALPHA_VANTAGE": { "suffix": ".HEL", "currency": "EUR" }
+      }
     },
     {
       "mic": "XCSE",
@@ -331,8 +401,10 @@
       "currency": "DKK",
       "timezone": "Europe/Copenhagen",
       "close": [17, 0],
-      "yahoo": { "suffix": ".CO", "codes": ["CPH"] },
-      "alpha_vantage": { "suffix": ".CPH", "currency": "DKK" }
+      "providers": {
+        "YAHOO": { "suffix": ".CO", "codes": ["CPH"] },
+        "ALPHA_VANTAGE": { "suffix": ".CPH", "currency": "DKK" }
+      }
     },
     {
       "mic": "XOSL",
@@ -341,8 +413,10 @@
       "currency": "NOK",
       "timezone": "Europe/Oslo",
       "close": [16, 20],
-      "yahoo": { "suffix": ".OL", "codes": ["OSL"] },
-      "alpha_vantage": { "suffix": ".OSL", "currency": "NOK" }
+      "providers": {
+        "YAHOO": { "suffix": ".OL", "codes": ["OSL"] },
+        "ALPHA_VANTAGE": { "suffix": ".OSL", "currency": "NOK" }
+      }
     },
     {
       "mic": "XICE",
@@ -351,7 +425,9 @@
       "currency": "ISK",
       "timezone": "Atlantic/Reykjavik",
       "close": [15, 30],
-      "yahoo": { "suffix": ".IC" }
+      "providers": {
+        "YAHOO": { "suffix": ".IC" }
+      }
     },
     {
       "mic": "XSWX",
@@ -360,8 +436,10 @@
       "currency": "CHF",
       "timezone": "Europe/Zurich",
       "close": [17, 30],
-      "yahoo": { "suffix": ".SW", "codes": ["EBS", "SWX"] },
-      "alpha_vantage": { "suffix": ".SWX", "currency": "CHF" }
+      "providers": {
+        "YAHOO": { "suffix": ".SW", "codes": ["EBS", "SWX"] },
+        "ALPHA_VANTAGE": { "suffix": ".SWX", "currency": "CHF" }
+      }
     },
     {
       "mic": "XWBO",
@@ -370,8 +448,10 @@
       "currency": "EUR",
       "timezone": "Europe/Vienna",
       "close": [17, 30],
-      "yahoo": { "suffix": ".VI", "codes": ["VIE"] },
-      "alpha_vantage": { "suffix": ".VIE", "currency": "EUR" }
+      "providers": {
+        "YAHOO": { "suffix": ".VI", "codes": ["VIE"] },
+        "ALPHA_VANTAGE": { "suffix": ".VIE", "currency": "EUR" }
+      }
     },
     {
       "mic": "XWAR",
@@ -380,7 +460,9 @@
       "currency": "PLN",
       "timezone": "Europe/Warsaw",
       "close": [17, 0],
-      "yahoo": { "suffix": ".WA", "codes": ["WSE"] }
+      "providers": {
+        "YAHOO": { "suffix": ".WA", "codes": ["WSE"] }
+      }
     },
     {
       "mic": "XPRA",
@@ -389,7 +471,9 @@
       "currency": "CZK",
       "timezone": "Europe/Prague",
       "close": [16, 25],
-      "yahoo": { "suffix": ".PR", "codes": ["PRA"] }
+      "providers": {
+        "YAHOO": { "suffix": ".PR", "codes": ["PRA"] }
+      }
     },
     {
       "mic": "XBUD",
@@ -398,7 +482,9 @@
       "currency": "HUF",
       "timezone": "Europe/Budapest",
       "close": [17, 0],
-      "yahoo": { "suffix": ".BD", "codes": ["BUD"] }
+      "providers": {
+        "YAHOO": { "suffix": ".BD", "codes": ["BUD"] }
+      }
     },
     {
       "mic": "XIST",
@@ -407,7 +493,9 @@
       "currency": "TRY",
       "timezone": "Europe/Istanbul",
       "close": [18, 0],
-      "yahoo": { "suffix": ".IS", "codes": ["IST"] }
+      "providers": {
+        "YAHOO": { "suffix": ".IS", "codes": ["IST"] }
+      }
     },
     {
       "mic": "XBSE",
@@ -416,7 +504,9 @@
       "currency": "RON",
       "timezone": "Europe/Bucharest",
       "close": [17, 30],
-      "yahoo": { "suffix": ".RO", "codes": ["BVB"] }
+      "providers": {
+        "YAHOO": { "suffix": ".RO", "codes": ["BVB"] }
+      }
     },
     {
       "mic": "XTAL",
@@ -425,7 +515,9 @@
       "currency": "EUR",
       "timezone": "Europe/Tallinn",
       "close": [16, 30],
-      "yahoo": { "suffix": ".TL", "codes": ["TLX"] }
+      "providers": {
+        "YAHOO": { "suffix": ".TL", "codes": ["TLX"] }
+      }
     },
     {
       "mic": "XRIS",
@@ -434,7 +526,9 @@
       "currency": "EUR",
       "timezone": "Europe/Riga",
       "close": [16, 0],
-      "yahoo": { "suffix": ".RG", "codes": ["RIS"] }
+      "providers": {
+        "YAHOO": { "suffix": ".RG", "codes": ["RIS"] }
+      }
     },
     {
       "mic": "XLIT",
@@ -443,7 +537,9 @@
       "currency": "EUR",
       "timezone": "Europe/Vilnius",
       "close": [16, 0],
-      "yahoo": { "suffix": ".VS", "codes": ["VSE"] }
+      "providers": {
+        "YAHOO": { "suffix": ".VS", "codes": ["VSE"] }
+      }
     },
     {
       "mic": "XZAG",
@@ -452,7 +548,9 @@
       "currency": "EUR",
       "timezone": "Europe/Zagreb",
       "close": [16, 30],
-      "yahoo": { "suffix": ".ZA", "codes": ["ZSE"] }
+      "providers": {
+        "YAHOO": { "suffix": ".ZA", "codes": ["ZSE"] }
+      }
     },
     {
       "mic": "XLJU",
@@ -461,7 +559,9 @@
       "currency": "EUR",
       "timezone": "Europe/Ljubljana",
       "close": [16, 30],
-      "yahoo": { "suffix": ".LJ", "codes": ["LJU"] }
+      "providers": {
+        "YAHOO": { "suffix": ".LJ", "codes": ["LJU"] }
+      }
     },
     {
       "mic": "XSHG",
@@ -470,8 +570,10 @@
       "currency": "CNY",
       "timezone": "Asia/Shanghai",
       "close": [15, 0],
-      "yahoo": { "suffix": ".SS", "codes": ["SHH"] },
-      "alpha_vantage": { "suffix": ".SHH", "currency": "CNY" }
+      "providers": {
+        "YAHOO": { "suffix": ".SS", "codes": ["SHH"] },
+        "ALPHA_VANTAGE": { "suffix": ".SHH", "currency": "CNY" }
+      }
     },
     {
       "mic": "XSHE",
@@ -480,8 +582,10 @@
       "currency": "CNY",
       "timezone": "Asia/Shanghai",
       "close": [15, 0],
-      "yahoo": { "suffix": ".SZ", "codes": ["SHZ"] },
-      "alpha_vantage": { "suffix": ".SHZ", "currency": "CNY" }
+      "providers": {
+        "YAHOO": { "suffix": ".SZ", "codes": ["SHZ"] },
+        "ALPHA_VANTAGE": { "suffix": ".SHZ", "currency": "CNY" }
+      }
     },
     {
       "mic": "XHKG",
@@ -490,8 +594,10 @@
       "currency": "HKD",
       "timezone": "Asia/Hong_Kong",
       "close": [16, 0],
-      "yahoo": { "suffix": ".HK", "codes": ["HKG"] },
-      "alpha_vantage": { "suffix": ".HKG", "currency": "HKD" }
+      "providers": {
+        "YAHOO": { "suffix": ".HK", "codes": ["HKG"] },
+        "ALPHA_VANTAGE": { "suffix": ".HKG", "currency": "HKD" }
+      }
     },
     {
       "mic": "XTKS",
@@ -500,8 +606,10 @@
       "currency": "JPY",
       "timezone": "Asia/Tokyo",
       "close": [15, 0],
-      "yahoo": { "suffix": ".T", "codes": ["TYO", "JPX"] },
-      "alpha_vantage": { "suffix": ".TYO", "currency": "JPY" }
+      "providers": {
+        "YAHOO": { "suffix": ".T", "codes": ["TYO", "JPX"] },
+        "ALPHA_VANTAGE": { "suffix": ".TYO", "currency": "JPY" }
+      }
     },
     {
       "mic": "XKRX",
@@ -510,7 +618,9 @@
       "currency": "KRW",
       "timezone": "Asia/Seoul",
       "close": [15, 30],
-      "yahoo": { "suffix": ".KS", "codes": ["KSC", "KRX"] }
+      "providers": {
+        "YAHOO": { "suffix": ".KS", "codes": ["KSC", "KRX"] }
+      }
     },
     {
       "mic": "XKOS",
@@ -519,7 +629,9 @@
       "currency": "KRW",
       "timezone": "Asia/Seoul",
       "close": [15, 30],
-      "yahoo": { "suffix": ".KQ", "codes": ["KOE", "KOSDAQ"] }
+      "providers": {
+        "YAHOO": { "suffix": ".KQ", "codes": ["KOE", "KOSDAQ"] }
+      }
     },
     {
       "mic": "XSES",
@@ -528,7 +640,9 @@
       "currency": "SGD",
       "timezone": "Asia/Singapore",
       "close": [17, 0],
-      "yahoo": { "suffix": ".SI", "codes": ["SES", "SGX"] }
+      "providers": {
+        "YAHOO": { "suffix": ".SI", "codes": ["SES", "SGX"] }
+      }
     },
     {
       "mic": "XBKK",
@@ -537,7 +651,9 @@
       "currency": "THB",
       "timezone": "Asia/Bangkok",
       "close": [16, 30],
-      "yahoo": { "suffix": ".BK", "codes": ["BKK", "SET"] }
+      "providers": {
+        "YAHOO": { "suffix": ".BK", "codes": ["BKK", "SET"] }
+      }
     },
     {
       "mic": "XIDX",
@@ -546,7 +662,9 @@
       "currency": "IDR",
       "timezone": "Asia/Jakarta",
       "close": [16, 0],
-      "yahoo": { "suffix": ".JK", "codes": ["JKT", "IDX"] }
+      "providers": {
+        "YAHOO": { "suffix": ".JK", "codes": ["JKT", "IDX"] }
+      }
     },
     {
       "mic": "XKLS",
@@ -555,7 +673,9 @@
       "currency": "MYR",
       "timezone": "Asia/Kuala_Lumpur",
       "close": [17, 0],
-      "yahoo": { "suffix": ".KL", "codes": ["KLS", "KLSE"] }
+      "providers": {
+        "YAHOO": { "suffix": ".KL", "codes": ["KLS", "KLSE"] }
+      }
     },
     {
       "mic": "XBOM",
@@ -564,8 +684,10 @@
       "currency": "INR",
       "timezone": "Asia/Kolkata",
       "close": [15, 30],
-      "yahoo": { "suffix": ".BO", "codes": ["BSE", "BOM"] },
-      "alpha_vantage": { "suffix": ".BSE", "currency": "INR" }
+      "providers": {
+        "YAHOO": { "suffix": ".BO", "codes": ["BSE", "BOM"] },
+        "ALPHA_VANTAGE": { "suffix": ".BSE", "currency": "INR" }
+      }
     },
     {
       "mic": "XNSE",
@@ -574,8 +696,10 @@
       "currency": "INR",
       "timezone": "Asia/Kolkata",
       "close": [15, 30],
-      "yahoo": { "suffix": ".NS", "codes": ["NSI", "NSE"] },
-      "alpha_vantage": { "suffix": ".NSE", "currency": "INR" }
+      "providers": {
+        "YAHOO": { "suffix": ".NS", "codes": ["NSI", "NSE"] },
+        "ALPHA_VANTAGE": { "suffix": ".NSE", "currency": "INR" }
+      }
     },
     {
       "mic": "XTAI",
@@ -584,16 +708,20 @@
       "currency": "TWD",
       "timezone": "Asia/Taipei",
       "close": [13, 30],
-      "yahoo": { "suffix": ".TW", "codes": ["TAI", "TPE"] }
+      "providers": {
+        "YAHOO": { "suffix": ".TW", "codes": ["TAI", "TPE"] }
+      }
     },
     {
-      "mic": "XTAI_OTC",
+      "mic": "ROCO",
       "name": "TPEx",
       "long_name": "Taipei Exchange",
       "currency": "TWD",
       "timezone": "Asia/Taipei",
       "close": [13, 30],
-      "yahoo": { "suffix": ".TWO", "codes": ["TWO"] }
+      "providers": {
+        "YAHOO": { "suffix": ".TWO", "codes": ["TWO"] }
+      }
     },
     {
       "mic": "XASX",
@@ -602,8 +730,10 @@
       "currency": "AUD",
       "timezone": "Australia/Sydney",
       "close": [16, 0],
-      "yahoo": { "suffix": ".AX", "codes": ["ASX", "AX"] },
-      "alpha_vantage": { "suffix": ".AX", "currency": "AUD" }
+      "providers": {
+        "YAHOO": { "suffix": ".AX", "codes": ["ASX", "AX"] },
+        "ALPHA_VANTAGE": { "suffix": ".AX", "currency": "AUD" }
+      }
     },
     {
       "mic": "XNZE",
@@ -612,7 +742,9 @@
       "currency": "NZD",
       "timezone": "Pacific/Auckland",
       "close": [16, 45],
-      "yahoo": { "suffix": ".NZ", "codes": ["NZE"] }
+      "providers": {
+        "YAHOO": { "suffix": ".NZ", "codes": ["NZE"] }
+      }
     },
     {
       "mic": "BVMF",
@@ -621,7 +753,9 @@
       "currency": "BRL",
       "timezone": "America/Sao_Paulo",
       "close": [17, 0],
-      "yahoo": { "suffix": ".SA", "codes": ["SAO", "BVMF"] }
+      "providers": {
+        "YAHOO": { "suffix": ".SA", "codes": ["SAO", "BVMF"] }
+      }
     },
     {
       "mic": "XBUE",
@@ -630,7 +764,9 @@
       "currency": "ARS",
       "timezone": "America/Argentina/Buenos_Aires",
       "close": [17, 0],
-      "yahoo": { "suffix": ".BA", "codes": ["BUE"] }
+      "providers": {
+        "YAHOO": { "suffix": ".BA", "codes": ["BUE"] }
+      }
     },
     {
       "mic": "XSGO",
@@ -639,7 +775,9 @@
       "currency": "CLP",
       "timezone": "America/Santiago",
       "close": [16, 0],
-      "yahoo": { "suffix": ".SN", "codes": ["SGO"] }
+      "providers": {
+        "YAHOO": { "suffix": ".SN", "codes": ["SGO"] }
+      }
     },
     {
       "mic": "XTAE",
@@ -648,7 +786,9 @@
       "currency": "ILA",
       "timezone": "Asia/Jerusalem",
       "close": [17, 25],
-      "yahoo": { "suffix": ".TA", "codes": ["TLV"] }
+      "providers": {
+        "YAHOO": { "suffix": ".TA", "codes": ["TLV"] }
+      }
     },
     {
       "mic": "XSAU",
@@ -657,7 +797,9 @@
       "currency": "SAR",
       "timezone": "Asia/Riyadh",
       "close": [15, 0],
-      "yahoo": { "suffix": ".SAU", "codes": ["SAU"] }
+      "providers": {
+        "YAHOO": { "suffix": ".SAU", "codes": ["SAU"] }
+      }
     },
     {
       "mic": "XDFM",
@@ -666,7 +808,9 @@
       "currency": "AED",
       "timezone": "Asia/Dubai",
       "close": [14, 0],
-      "yahoo": { "suffix": ".AE", "codes": ["DFM"] }
+      "providers": {
+        "YAHOO": { "suffix": ".AE", "codes": ["DFM"] }
+      }
     },
     {
       "mic": "XADS",
@@ -675,7 +819,9 @@
       "currency": "AED",
       "timezone": "Asia/Dubai",
       "close": [14, 0],
-      "yahoo": { "suffix": ".AE", "codes": ["ADX"] }
+      "providers": {
+        "YAHOO": { "suffix": ".AE", "codes": ["ADX"] }
+      }
     },
     {
       "mic": "DSMD",
@@ -684,7 +830,9 @@
       "currency": "QAR",
       "timezone": "Asia/Qatar",
       "close": [13, 0],
-      "yahoo": { "suffix": ".QA", "codes": ["DOH"] }
+      "providers": {
+        "YAHOO": { "suffix": ".QA", "codes": ["DOH"] }
+      }
     },
     {
       "mic": "XJSE",
@@ -693,7 +841,9 @@
       "currency": "ZAR",
       "timezone": "Africa/Johannesburg",
       "close": [17, 0],
-      "yahoo": { "suffix": ".JO", "codes": ["JNB", "JSE"] }
+      "providers": {
+        "YAHOO": { "suffix": ".JO", "codes": ["JNB", "JSE"] }
+      }
     },
     {
       "mic": "XCAI",
@@ -702,7 +852,19 @@
       "currency": "EGP",
       "timezone": "Africa/Cairo",
       "close": [14, 30],
-      "yahoo": { "suffix": ".CA", "codes": ["CAI"] }
+      "providers": {
+        "YAHOO": { "suffix": ".CA", "codes": ["CAI"] }
+      }
+    }
+  ],
+  "legacy_exchanges": [
+    {
+      "mic": "XLON_IL",
+      "name": "London Stock Exchange IOB",
+      "currency": "GBp",
+      "providers": {
+        "YAHOO": { "suffix": ".IL" }
+      }
     }
   ],
   "currency_priority": {
@@ -730,6 +892,6 @@
     "ILS": ["XTAE"],
     "ILA": ["XTAE"],
     "ZAR": ["XJSE"],
-    "TWD": ["XTAI", "XTAI_OTC"]
+    "TWD": ["XTAI", "ROCO"]
   }
 }

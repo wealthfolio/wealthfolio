@@ -1,0 +1,141 @@
+id: EDGE-TXF-01
+title: Invalid transfer groups are unpaired (unknown boundary), no diagnostics
+intent: >
+  Five malformed source_group_id groups, one per pairing rule: (g-three)
+  three legs; (g-two-in) two TRANSFER_INs; (g-asset) a security group whose
+  legs name different assets; (g-qty) a security group whose quantities
+  differ by more than 1e-6; (g-same) same-account same-currency cash legs.
+  Every leg is unpaired with an InvalidTransferGroup diagnostic and, lacking
+  an explicit external marker, an unknown boundary that gates returns. Lots
+  travel through the transfer cache only for a valid pair: an invalid
+  group's out-leg relieves its lots and its in-leg opens a lot at its own
+  price, never another asset's lots. Marked [L]: the previous pipeline keyed
+  the lot cache on the group id alone and moved AAPL lots into an MSFT
+  position.
+markers: [L]
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-14
+accounts:
+  - id: acc-a
+    currency: USD
+  - id: acc-b
+    currency: USD
+  - id: acc-c
+    currency: USD
+assets:
+  - id: aapl
+    quote_ccy: USD
+  - id: msft
+    quote_ccy: USD
+activities:
+  - id: dep-a
+    account: acc-a
+    type: DEPOSIT
+    date: 2025-01-02T10:00:00Z
+    amount: 5000
+  - id: buy-aapl
+    account: acc-a
+    type: BUY
+    date: 2025-01-03T10:00:00Z
+    asset: aapl
+    quantity: 20
+    unit_price: 100
+    amount: 2000
+  - id: three-out-a
+    account: acc-a
+    type: TRANSFER_OUT
+    date: 2025-01-06T10:00:00Z
+    amount: 300
+    source_group_id: g-three
+  - id: three-in-b
+    account: acc-b
+    type: TRANSFER_IN
+    date: 2025-01-06T10:01:00Z
+    amount: 300
+    source_group_id: g-three
+  - id: three-in-c
+    account: acc-c
+    type: TRANSFER_IN
+    date: 2025-01-06T10:02:00Z
+    amount: 300
+    source_group_id: g-three
+  - id: twoin-b
+    account: acc-b
+    type: TRANSFER_IN
+    date: 2025-01-07T10:00:00Z
+    amount: 100
+    source_group_id: g-two-in
+  - id: twoin-c
+    account: acc-c
+    type: TRANSFER_IN
+    date: 2025-01-07T10:01:00Z
+    amount: 100
+    source_group_id: g-two-in
+  - id: asset-out-a
+    account: acc-a
+    type: TRANSFER_OUT
+    date: 2025-01-08T10:00:00Z
+    asset: aapl
+    quantity: 5
+    unit_price: 100
+    source_group_id: g-asset
+  - id: asset-in-b
+    account: acc-b
+    type: TRANSFER_IN
+    date: 2025-01-08T10:01:00Z
+    asset: msft
+    quantity: 5
+    unit_price: 100
+    source_group_id: g-asset
+  - id: qty-out-a
+    account: acc-a
+    type: TRANSFER_OUT
+    date: 2025-01-09T10:00:00Z
+    asset: aapl
+    quantity: 5
+    unit_price: 100
+    source_group_id: g-qty
+  - id: qty-in-b
+    account: acc-b
+    type: TRANSFER_IN
+    date: 2025-01-09T10:01:00Z
+    asset: aapl
+    quantity: 5.001
+    unit_price: 100
+    source_group_id: g-qty
+  - id: same-out-a
+    account: acc-a
+    type: TRANSFER_OUT
+    date: 2025-01-10T10:00:00Z
+    amount: 200
+    source_group_id: g-same
+  - id: same-in-a
+    account: acc-a
+    type: TRANSFER_IN
+    date: 2025-01-10T10:01:00Z
+    amount: 200
+    source_group_id: g-same
+quotes:
+  - { asset: aapl, day: 2025-01-03, close: 100 }
+  - { asset: aapl, day: 2025-01-08, close: 110 }
+  - { asset: aapl, day: 2025-01-13, close: 112 }
+  - { asset: msft, day: 2025-01-03, close: 200 }
+  - { asset: msft, day: 2025-01-08, close: 210 }
+  - { asset: msft, day: 2025-01-13, close: 212 }
+expected_notes: >
+  Only a valid pair moves lots, so every leg here is unpaired. A: cash 5000
+  -> 3000 (01-03) -> 2700 (01-06) -> 2700 (01-10, -200 +200); aapl 20 -> 15
+  (01-08) -> 10 (01-09), basis 1000 at the end; net_contribution 5000 ->
+  4700 -> 4200 -> 3700 (removed lot basis relieved). Disposals in A on 01-08
+  and 01-09: 5 units each, proceeds = basis = 500, P&L 0. B: cash 300 (01-06)
+  -> 400 (01-07); the msft leg opens its own lot at its reported price
+  (asset-in-b, 5 @ 100, basis 500, open 2025-01-08) and the aapl leg opens
+  5.001 @ 100 (qty-in-b, basis 500.1, open 2025-01-09): no AAPL lots cross
+  into MSFT and the in-leg keeps its own quantity. B net_contribution 300 ->
+  400 -> 900 -> 1400.1. C cash 300 -> 400. Every leg carries an
+  InvalidTransferGroup and an UnknownTransferBoundary diagnostic; the flows
+  are UNKNOWN_BOUNDARY_TRANSFER (cash legs 0/0, security legs at market:
+  01-08 A 550 out / B 1050 in, 01-09 A 550 out / B 550.11 in), so TWR and IRR
+  are unavailable on those days at account and portfolio scope.

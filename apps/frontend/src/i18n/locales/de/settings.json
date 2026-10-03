@@ -80,6 +80,7 @@
   "accounts_empty_title": "Noch kein Konto!",
   "accounts_empty_description": "Sie haben noch kein Konto. Legen Sie Ihre Anlagekonten an.",
   "accounts_add_first": "Konto anlegen",
+  "accounts_connect_account": "Konto verbinden",
   "accounts_disabled_badge": "Deaktiviert",
   "accounts_operations_open": "Öffnen",
   "accounts_operations_edit": "Bearbeiten",

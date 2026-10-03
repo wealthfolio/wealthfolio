@@ -1,0 +1,51 @@
+id: NOM-TXF-01
+title: Paired cash transfer between two accounts
+intent: >
+  TRANSFER_OUT 300 from acc-a and TRANSFER_IN 300 into acc-b share a
+  source_group_id. Each account sees an external flow at account scope
+  (net_contribution -300 / +300); at portfolio scope the pair is internal and
+  nets to zero (I7). Both accounts have an earlier deposit so the transfer
+  day is not a first valuation row.
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-10
+accounts:
+  - id: acc-a
+    name: Source
+    currency: USD
+  - id: acc-b
+    name: Destination
+    currency: USD
+activities:
+  - id: dep-1
+    account: acc-a
+    type: DEPOSIT
+    date: 2025-01-02T10:00:00Z
+    amount: 1000
+  - id: dep-2
+    account: acc-b
+    type: DEPOSIT
+    date: 2025-01-02T11:00:00Z
+    amount: 500
+  - id: out-1
+    account: acc-a
+    type: TRANSFER_OUT
+    date: 2025-01-06T10:00:00Z
+    amount: 300
+    source_group_id: g1
+  - id: in-1
+    account: acc-b
+    type: TRANSFER_IN
+    date: 2025-01-06T11:00:00Z
+    amount: 300
+    source_group_id: g1
+expected_notes: >
+  acc-a: cash 1000 -> 700, net_contribution 700 from 01-06; flows 01-06
+  outflow 300 CASH_AMOUNT. acc-b: cash 500 -> 800, net_contribution 800;
+  flows 01-06 inflow 300 CASH_AMOUNT. Portfolio: the 01-06 row nets to zero
+  (inflow 0, outflow 0) and is listed only because the internal-transfer
+  adjustment stamps its source as CASH_AMOUNT; portfolio net_contribution
+  1500 before and after. Attribution: acc-a contributions 1000,
+  distributions 300; acc-b contributions 800; portfolio contributions 1500,
+  distributions 0. TWR 0% everywhere.

@@ -1,0 +1,24 @@
+id: EDGE-MIX-04
+title: A deposit recorded between two holdings snapshots counts once
+intent: >
+  acc-h (HOLDINGS) records a 50 deposit on 01-03, between snapshots of 100
+  cash (01-01) and 150 cash (01-05). Its value comes only from its
+  snapshots, so the deposit is inside the second one: the account's flows
+  come only from its snapshots and the 50 counts once, on 01-05. Counting
+  the recorded deposit too would show 100 of money in and, on 01-03, a flow
+  the value does not move by.
+policy: { base_currency: USD, timezone: UTC, as_of: 2025-01-06 }
+accounts:
+  - { id: acc-h, currency: USD, tracking_mode: HOLDINGS }
+activities:
+  - { id: dep, account: acc-h, type: DEPOSIT, date: 2025-01-03T10:00:00Z, amount: 50 }
+observed_snapshots:
+  - { account: acc-h, date: 2025-01-01, cash: { USD: 100 } }
+  - { account: acc-h, date: 2025-01-05, cash: { USD: 150 } }
+performance_windows:
+  - { label: dated, start: 2025-01-01, end: 2025-01-06 }
+expected_notes: >
+  acc-h: value 100 until 01-04, 150 from 01-05; flows: 01-05 inflow 50
+  QUOTE_DERIVED_MARKET_VALUE, nothing on 01-03. The dated window's return is
+  0. Before the fix 01-03 also carried the 50 deposit: 100 of flows and a
+  return of -50%.

@@ -9,6 +9,7 @@ mod domain_events;
 mod events;
 mod listeners;
 mod mcp;
+mod portfolio_jobs;
 mod profile_lifecycle;
 mod profile_startup;
 mod profiles;
@@ -529,6 +530,8 @@ pub fn run() {
             commands::secrets::get_addon_secret,
             commands::secrets::delete_addon_secret,
             commands::addon_network::addon_network_request,
+            commands::addon_network::register_dev_addon_manifest,
+            commands::addon_network::unregister_dev_addon_manifest,
             // Provider settings commands
             commands::providers_settings::get_market_data_providers_settings,
             commands::providers_settings::update_market_data_provider_settings,

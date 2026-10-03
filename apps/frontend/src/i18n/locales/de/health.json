@@ -132,6 +132,31 @@
       "title_one": "Unvollständiger Transfer erkannt",
       "title_other": "{{count}} unvollständige Transfers erkannt",
       "message": "Ein Transfer ist nicht gepaart oder seine Gegenbuchung fehlt, sodass sein Fluss als extern behandelt wurde und die Renditen verzerren kann. Paaren Sie ihn mit dem passenden Transfer oder markieren Sie ihn als extern, falls dies beabsichtigt ist."
+    },
+    "data_stale_projection": {
+      "title_one": "Kontoverlauf ist veraltet",
+      "title_other": "{{count}} Kontoverläufe sind veraltet",
+      "message": "Aktivitäten, Kurse oder Einstellungen haben sich geändert, seit diese Kontoverläufe zuletzt berechnet wurden. Berechnen Sie sie neu, damit Werte und Renditen die aktuellen Daten widerspiegeln."
+    },
+    "data_rejected_activity": {
+      "title_one": "Transaktion konnte nicht angewendet werden",
+      "title_other": "{{count}} Transaktionen konnten nicht angewendet werden",
+      "message": "Diese Transaktionen können nicht wie erfasst angewendet werden (zum Beispiel, weil für ihre Währung kein Wechselkurs vorliegt oder weil sie ohne entsprechende Kennzeichnung eine Short-Position eröffnen oder schließen würden). Daher bleiben sie bei Salden, Beständen und Renditen unberücksichtigt. Bitte prüfen Sie sie."
+    },
+    "data_oversold_activity": {
+      "title_one": "Transaktion verkauft mehr als gehalten",
+      "title_other": "{{count}} Transaktionen verkaufen mehr als gehalten",
+      "message": "Diese Transaktionen verkaufen oder übertragen mehr Anteile, als das Konto zu diesem Zeitpunkt hielt. Nur die gehaltenen Anteile wurden ausgebucht; der Rest hat keinen Einstandswert. Prüfen Sie, ob ein Kauf oder eine Einlieferung fehlt."
+    },
+    "data_missing_activity_amount": {
+      "title_one": "Transaktion ohne Betrag",
+      "title_other": "{{count}} Transaktionen ohne Betrag",
+      "message": "Diese Transaktionen haben keinen Betrag und haben den Barbestand daher nicht verändert. Ergänzen Sie den Betrag, falls Geld geflossen ist."
+    },
+    "fx_conflicting_rates": {
+      "title_one": "Wechselkurse für {{from}} und {{to}} widersprechen sich",
+      "title_other": "Wechselkurse widersprechen sich für {{count}} Währungspaare",
+      "message": "Für dieselben Tage sind Kurse in beide Richtungen erfasst, die nicht zusammenpassen. Jede Richtung wird wie erfasst verwendet, sodass eine Umrechnung hin und zurück einen anderen Betrag ergibt. Korrigieren oder entfernen Sie die falschen Kurse."
     }
   },
   "page": {

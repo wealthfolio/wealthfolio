@@ -59,9 +59,9 @@ use crate::activities::{
 };
 use crate::assets::{
     canonicalize_market_identity, normalize_quote_ccy_code, parse_crypto_pair_symbol,
-    parse_symbol_with_known_exchange, resolve_import_quote_ccy_precedence,
+    parse_symbol_with_known_exchange, resolve_bond_aliases, resolve_import_quote_ccy_precedence,
     resolve_quote_ccy_precedence, AssetKind, AssetResolutionInput as ImportAssetResolutionInput,
-    AssetServiceTrait, InstrumentType, QuoteCcyResolutionSource, QuoteMode,
+    AssetServiceTrait, AssetSpec, InstrumentType, QuoteCcyResolutionSource, QuoteMode,
 };
 use crate::errors::{DatabaseError, Error};
 use crate::events::{DomainEvent, DomainEventSink, NoOpDomainEventSink};
@@ -1002,7 +1002,7 @@ impl ActivityService {
             || normalize_quote_ccy_code(existing_asset_quote_ccy).is_some();
         let provider_quote_ccy = if allow_provider_lookup && !has_deterministic_precedence {
             self.quote_service
-                .resolve_symbol_quote(symbol, exchange_mic, instrument_type, None, None)
+                .resolve_symbol_quote(symbol, exchange_mic, instrument_type, None, None, None)
                 .await
                 .ok()
                 .and_then(|q| q.currency)
@@ -1045,7 +1045,7 @@ impl ActivityService {
         }
         let result = self
             .quote_service
-            .resolve_symbol_quote(symbol, exchange_mic, instrument_type, None, None)
+            .resolve_symbol_quote(symbol, exchange_mic, instrument_type, None, None, None)
             .await
             .ok()
             .and_then(|q| q.currency);
@@ -2518,6 +2518,19 @@ impl ActivityService {
             }
         }
 
+        if instrument_type == Some(&InstrumentType::Bond) {
+            let specs = [AssetSpec::market_instrument(
+                symbol.to_string(),
+                symbol.to_string(),
+                exchange_mic.map(str::to_string),
+                InstrumentType::Bond,
+                quote_ccy.unwrap_or("USD").to_string(),
+            )];
+            if let Some(id) = resolve_bond_aliases(&specs, &assets)[0].asset_id.clone() {
+                return Some(id);
+            }
+        }
+
         for asset in &assets {
             if let (Some(ref a_symbol), Some(ref a_type)) =
                 (&asset.instrument_symbol, &asset.instrument_type)
@@ -3682,15 +3695,36 @@ impl ActivityService {
             resolved_quote_ccy
         };
 
-        // Look up existing asset by instrument fields to get its UUID
-        let existing_id = self
-            .find_existing_asset_id(
-                &normalized_symbol,
+        // Normalize activity bonds the same way as holdings before asset lookup.
+        let (asset_symbol, asset_exchange_mic) = if instrument_type == Some(InstrumentType::Bond) {
+            let canonical = canonicalize_market_identity(
+                instrument_type.clone(),
+                Some(&normalized_symbol),
                 exchange_mic.as_deref(),
+                Some(&asset_currency),
+            );
+            (
+                canonical
+                    .instrument_symbol
+                    .unwrap_or_else(|| normalized_symbol.clone()),
+                canonical.instrument_exchange_mic,
+            )
+        } else {
+            (normalized_symbol.clone(), exchange_mic)
+        };
+
+        // Look up existing asset by instrument fields to get its UUID
+        let existing_id = if instrument_type == Some(InstrumentType::Bond) {
+            submitted_asset_id
+        } else {
+            self.find_existing_asset_id(
+                &asset_symbol,
+                asset_exchange_mic.as_deref(),
                 instrument_type.as_ref(),
                 Some(&asset_currency),
             )
-            .or(submitted_asset_id);
+            .or(submitted_asset_id)
+        };
         let asset_metadata = if is_option {
             Self::custom_option_multiplier(activity.metadata.as_deref()).and_then(|multiplier| {
                 crate::assets::build_option_metadata(&normalized_symbol, multiplier)
@@ -3699,11 +3733,11 @@ impl ActivityService {
             None
         };
 
-        Ok(Some(AssetSpec {
+        let spec = AssetSpec {
             id: existing_id,
-            display_code: Some(normalized_symbol.clone()),
-            instrument_symbol: Some(normalized_symbol.clone()),
-            instrument_exchange_mic: exchange_mic,
+            display_code: Some(asset_symbol.clone()),
+            instrument_symbol: Some(asset_symbol),
+            instrument_exchange_mic: asset_exchange_mic,
             instrument_type,
             quote_ccy: asset_currency,
             requested_quote_ccy: quote_ccy_for_asset,
@@ -3720,7 +3754,8 @@ impl ActivityService {
                 .as_ref()
                 .and_then(|asset| asset.provider_symbol.clone()),
             metadata: asset_metadata,
-        }))
+        };
+        Ok(Some(spec))
     }
 
     /// Validates currency codes on an activity, marking invalid if malformed.
@@ -6592,29 +6627,17 @@ impl ActivityService {
         result.assets_created = ensure_result.created_ids.len() as u32;
         result.created_asset_ids = ensure_result.created_ids.clone();
 
-        // Build reverse lookup: instrument_key → asset_id for resolving activity_asset_map entries
-        let mut key_to_asset_id: HashMap<String, String> = HashMap::new();
-        for asset in ensure_result.assets.values() {
-            if let Some(ref key) = asset.instrument_key {
-                key_to_asset_id.insert(key.clone(), asset.id.clone());
-            }
-        }
-
         // Resolve activity_asset_map entries: replace instrument_key refs with actual asset IDs
         for entry in &mut activity_asset_map {
             if let Some(ref map_key) = entry {
-                // If the map_key is not a direct asset ID in ensure_result, try instrument_key lookup
-                if !ensure_result.assets.contains_key(map_key) {
-                    if let Some(asset_id) = key_to_asset_id.get(map_key) {
-                        *entry = Some(asset_id.clone());
-                    } else {
-                        // Unresolved instrument_key — clear to avoid FK violation
-                        warn!(
-                            "Could not resolve asset for key '{}'; activity will have no linked asset",
-                            map_key
-                        );
-                        *entry = None;
-                    }
+                if let Some(asset_id) = ensure_result.input_to_asset_id.get(map_key) {
+                    *entry = Some(asset_id.clone());
+                } else {
+                    warn!(
+                        "Could not resolve asset for key '{}'; activity will have no linked asset",
+                        map_key
+                    );
+                    *entry = None;
                 }
             }
         }

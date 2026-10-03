@@ -235,6 +235,7 @@
     }
   },
   "editSheet": {
+    "identity_conflict": "Un autre actif possède déjà cette identité. Vos modifications n’ont pas été enregistrées. Utilisez l’actif existant ou choisissez une autre place boursière.",
     "general": "Général",
     "classification": "Classification",
     "market_data": "Données de marché",

@@ -63,6 +63,46 @@ does not provide this. See the
 [reverse proxy guide](https://wealthfolio.app/docs/guide/self-hosting/reverse-proxy/)
 for examples.
 
+## Installation directory
+
+Existing deployments can keep their current configuration. `WF_DB_PATH` remains
+supported: its parent selects the profile registry and default encrypted vault,
+and its file is adopted as a legacy profile when initializing an installation.
+New profiles store their databases at `profiles/<uuid>/app.db` under that root.
+
+`WF_DATA_DIR` optionally selects the root directly. If both settings are
+nonempty, the parent of `WF_DB_PATH` must resolve to `WF_DATA_DIR`; conflicting
+paths fail before writing. With only `WF_DATA_DIR`, `<root>/app.db` is the
+legacy candidate. Existing registries retain their saved database paths. Opting
+in does not move data or change the master key, vault format, or profile IDs.
+Keep any existing `WF_SECRET_FILE` and legacy `WF_ADDONS_DIR` overrides when
+upgrading.
+
+For Docker, keep the container directory at `/data` and select host storage
+through its volume mapping. The image retains `WF_DB_PATH=/data/wealthfolio.db`.
+The supplied Compose files forward `WF_DATA_DIR` and `WF_DB_PATH` from
+`.env.docker`, preserving that legacy database default and leaving `WF_DATA_DIR`
+empty unless explicitly set. An explicitly empty `WF_DB_PATH=` is honored when
+opting into `WF_DATA_DIR`; the legacy candidate then becomes `<root>/app.db`.
+Keep the existing legacy database filename when first adopting an installation,
+so `/data/wealthfolio.db` is not missed by switching to `/data/app.db`.
+
+To select a different container root, update `WF_DATA_DIR` and point
+`WF_DB_PATH` into it, or clear the database path intentionally. Ensure that root
+has a persistent writable mount. Review any local Compose override that replaces
+these settings; explicit `-f` commands do not automatically include
+`compose.override.yml`. No new data-directory default is injected during
+upgrades.
+
+Use the same path settings, vault override, and master-key source for the server
+and offline `db encrypt`, `db decrypt`, and `db restore` commands. An existing
+registry selects the requested `--profile` (or its default profile), rather than
+the legacy candidate file.
+
+Standalone server and maintenance commands load `.env`, not `.env.web`. When
+running them from a desktop development checkout, explicitly supply the intended
+web path settings so the desktop `.env` directory is not selected accidentally.
+
 ## Master-key configuration
 
 Configure exactly one nonempty master-key input. Existing `WF_SECRET_KEY`
@@ -180,6 +220,15 @@ database using a key derived from the master key supplied through
 `WF_SECRET_KEY` or `WF_SECRET_KEY_FILE`. Keep that same key when converting or
 restarting.
 
+> **Existing databases must be encrypted before enabling
+> `WF_DB_REQUIRE_ENCRYPTION`.** The variable enforces the database state; it
+> does not convert a plaintext database. If startup reports a mismatch, the
+> database is not damaged. Either unset the variable to remain plaintext, or
+> stop the service, back up the full data directory, run
+> `wealthfolio-server db encrypt` with the same volume, service user, and master
+> key, then restart with the flag set. Releases before 3.9 ignored the variable,
+> so upgraded databases can be plaintext even when it was already configured.
+
 **Changing `WF_DB_REQUIRE_ENCRYPTION` does not convert an existing database.**
 It controls creation of a new database and checks the encryption state at
 startup:
@@ -190,9 +239,12 @@ startup:
 | Existing plaintext database | Starts normally                                            | Refuses to start; run `db encrypt` offline first |
 | Existing encrypted database | Refuses to start; set the flag or run `db decrypt` offline | Starts with the matching master key              |
 
-To change an existing database, stop the server and use
-`wealthfolio-server db encrypt` or `wealthfolio-server db decrypt`. Then set the
-startup flag to match the result and restart.
+To change existing databases, stop the server and use
+`wealthfolio-server db encrypt` or `wealthfolio-server db decrypt`. Without
+`--profile`, the command selects the default profile. Convert each additional
+profile separately with `--profile PROFILE_UUID` (find its ID in
+`profiles.json`). Set the startup flag only after every profile has the matching
+encryption state, then restart.
 
 For every Compose command below, use the same project, `--env-file`, and `-f`
 options as your normal deployment. For example, if you normally use
@@ -273,6 +325,17 @@ is back up and the data looks right.
 docker compose run --rm wealthfolio wealthfolio-server db encrypt
 ```
 
+If the installation has additional profiles, repeat the conversion for each one,
+using its UUID from `profiles.json`:
+
+```bash
+docker compose run --rm wealthfolio wealthfolio-server db encrypt --profile PROFILE_UUID
+```
+
+Do not set `WF_DB_REQUIRE_ENCRYPTION=1` until every existing profile is
+encrypted. Use the same `--profile PROFILE_UUID` option with the plain Docker
+command below when applicable.
+
 Both `db encrypt` and `db decrypt` accept the same key sources as server
 startup: set exactly one of `WF_SECRET_KEY` or `WF_SECRET_KEY_FILE` (empty
 environment values count as unset). For a file-based key, reuse the same
@@ -294,10 +357,10 @@ database-sized copies, plus WAL and filesystem headroom, on the volume while it
 runs. Before replacement, the command requires free space for a rollback copy
 plus 16 MiB; this check does not reserve space against other processes.
 
-**4. Set the container requirement and restart.** After conversion succeeds, set
-`WF_DB_REQUIRE_ENCRYPTION=1` in your deployment's environment file. The shipped
-Compose configuration forwards it to the container. Then recreate the service
-using the same `--env-file` and other deployment options:
+**4. Set the container requirement and restart.** After all profile conversions
+succeed, set `WF_DB_REQUIRE_ENCRYPTION=1` in your deployment's environment file.
+The shipped Compose configuration forwards it to the container. Then recreate
+the service using the same `--env-file` and other deployment options:
 
 ```bash
 docker compose up -d wealthfolio
@@ -360,6 +423,10 @@ Keep the current master key; decryption requires it.
 ```bash
 docker compose run --rm wealthfolio wealthfolio-server db decrypt
 ```
+
+If the installation has additional profiles, repeat with
+`db decrypt --profile PROFILE_UUID` for each one before changing the global
+startup flag. The same option works with the plain Docker command.
 
 Wait for the command to succeed before changing the startup configuration. The
 maintenance command can decrypt while the service configuration still has

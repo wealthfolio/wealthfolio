@@ -2,6 +2,19 @@
   "defaultAsOf": "2026-05-12",
   "instruments": [
     {
+      "symbol": "US037833EZ91",
+      "aliases": ["037833EZ9"],
+      "name": "Synthetic Corporate Bond 2031",
+      "provider": "BOERSE_FRANKFURT",
+      "assetType": "BOND",
+      "currency": "USD",
+      "basePrice": 0.75,
+      "baseVolume": 1000,
+      "seed": 301,
+      "country": "United States",
+      "isin": "US037833EZ91"
+    },
+    {
       "symbol": "AAPL",
       "aliases": ["APPL", "APPLE"],
       "name": "Apple Inc.",

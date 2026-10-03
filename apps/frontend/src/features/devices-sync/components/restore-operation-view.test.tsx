@@ -71,7 +71,11 @@ describe("RestoreOperationView", () => {
   it("cancels while transferring and offers no approval", () => {
     const restore = renderView(op({ phase: "waiting_for_snapshot" }));
 
-    expect(screen.getByText("Waiting for your other device")).toBeInTheDocument();
+    expect(screen.getByText("Waiting for an up-to-date copy")).toBeInTheDocument();
+    expect(
+      screen.getByText(/An up-to-date encrypted copy is not available yet/),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/still uploading/)).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Replace data" })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Cancel setup" }));
     expect(restore.cancel.mutateAsync).toHaveBeenCalledWith("op-1");

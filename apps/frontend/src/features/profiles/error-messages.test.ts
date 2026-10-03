@@ -13,6 +13,8 @@ it.each([
     "PROFILE_ORIGIN_REJECTED: /private/secret/internal-details",
     "We couldn’t connect to this Wealthfolio server. Check the address you’re using or contact the server administrator.",
   ],
+  ["PROFILE_CONNECTION_FAILED", "Unable to verify your profile. Check your connection and retry."],
+  ["PROFILE_AUTH_REQUIRED", "Your sign-in session could not be verified. Reload to sign in again."],
   ["PROFILE_LOCKED", "Enter your profile password to continue."],
   ["PROFILE_STALE", "Your session has ended. Unlock your profile again."],
   ["PROFILE_NOT_FOUND", "This profile is no longer available. Choose another profile."],
@@ -32,6 +34,11 @@ it.each([
     "PROFILE_UNAVAILABLE: /private/secret/database",
     "We couldn’t open this profile. Restart Wealthfolio and try again.",
   ],
+  [
+    "PROFILE_STARTUP_FAILED: private database details",
+    "The server couldn’t open this profile. Retry, or ask the server administrator to check the startup error.",
+  ],
+  ["PROFILE_SESSION_INTERRUPTED", "Your profile session was interrupted. Retry to reopen it."],
   ["database /private/secret/database", "Something went wrong. Please try again."],
 ])("renders safe copy for %s", (diagnostic, message) => {
   expect(profileErrorMessage(new Error(diagnostic), i18n.getFixedT("en", "common"))).toBe(message);

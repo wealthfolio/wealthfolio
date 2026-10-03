@@ -70,7 +70,11 @@ impl std::error::Error for IsinError {}
 /// Validates format (length, country code, alphanumeric NSIN) and
 /// verifies the Luhn check digit.
 pub fn parse_isin(s: &str) -> Result<ParsedIsin, IsinError> {
-    let s = s.trim().to_uppercase();
+    let s = s.trim();
+    if !s.is_ascii() {
+        return Err(IsinError::InvalidNsin);
+    }
+    let s = s.to_uppercase();
     let len = s.len();
 
     if len != 12 {
@@ -240,6 +244,14 @@ mod tests {
     fn test_invalid_country_code() {
         let result = parse_isin("120378331005");
         assert!(matches!(result, Err(IsinError::InvalidCountryCode(_))));
+    }
+
+    #[test]
+    fn test_non_ascii_isin_is_rejected_without_panicking() {
+        assert!(matches!(
+            parse_isin("USé12345678"),
+            Err(IsinError::InvalidNsin)
+        ));
     }
 
     #[test]

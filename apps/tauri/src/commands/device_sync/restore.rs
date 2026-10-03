@@ -9,7 +9,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use log::{info, warn};
 use tauri::AppHandle;
-use wealthfolio_core::quotes::MarketSyncMode;
+use wealthfolio_core::events::DomainEvent;
 use wealthfolio_device_sync::engine::{
     RestoreFile, RestoreOperation, RestorePorts, StartRestore, TransportError,
 };
@@ -26,7 +26,6 @@ use super::{
     is_pairing_already_confirmed_error, set_min_snapshot_created_at_in_store,
 };
 use crate::context::ServiceContext;
-use crate::events::{emit_portfolio_trigger_recalculate, PortfolioRequestPayload};
 use crate::profiles::ConnectAccess;
 
 const DEVICE_SYNC_RESTORE_EVENT: &str = "device-sync:restore-operation";
@@ -176,15 +175,17 @@ impl RestorePorts for TauriEnginePorts {
 
     fn refresh_portfolio(&self) {
         if let Ok(host) = self.host() {
-            emit_portfolio_trigger_recalculate(
-                &host.handle,
-                PortfolioRequestPayload::builder()
-                    .account_ids(None)
-                    .market_sync_mode(MarketSyncMode::Incremental { asset_ids: None })
-                    .build(),
-                &self.context,
-            );
+            let app = host.handle.clone();
+            let context = Arc::clone(&self.context);
+            tauri::async_runtime::spawn(async move {
+                crate::commands::wealthfolio_connect::run_broker_bootstrap(app, context).await;
+            });
         }
+        // Reuse the queued sync-pull pipeline: it recalculates with restored
+        // quotes even when a market provider is unavailable.
+        self.context
+            .domain_event_sink
+            .emit(DomainEvent::device_sync_pull_complete());
     }
 
     fn publish_restore(&self, operation: &RestoreOperation) {

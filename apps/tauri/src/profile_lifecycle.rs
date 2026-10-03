@@ -108,18 +108,28 @@ pub fn install(handle: &AppHandle) {
     ))]
     tauri::async_runtime::spawn(async {
         use futures::StreamExt;
-        let Ok(connection) = zbus::Connection::system().await else {
-            return;
+        let connection = match zbus::Connection::system().await {
+            Ok(connection) => connection,
+            Err(error) => {
+                log::warn!(
+                    "Could not connect to Linux system bus for session notifications: {error}"
+                );
+                return;
+            }
         };
-        let Ok(proxy) = zbus::Proxy::new(
+        let proxy = match zbus::Proxy::new(
             &connection,
             "org.freedesktop.login1",
             "/org/freedesktop/login1/session/auto",
             "org.freedesktop.login1.Session",
         )
         .await
-        else {
-            return;
+        {
+            Ok(proxy) => proxy,
+            Err(error) => {
+                log::warn!("Could not access Linux session notifications: {error}");
+                return;
+            }
         };
         let manager = zbus::Proxy::new(
             &connection,
@@ -129,12 +139,18 @@ pub fn install(handle: &AppHandle) {
         )
         .await;
         let mut sleep_signals = match manager.as_ref() {
-            Ok(manager) => manager.receive_signal("PrepareForSleep").await.ok(),
-            Err(_) => None,
+            Ok(manager) => match manager.receive_signal("PrepareForSleep").await {
+                Ok(signals) => Some(signals),
+                Err(error) => {
+                    log::warn!("Could not subscribe to Linux sleep notifications: {error}");
+                    None
+                }
+            },
+            Err(error) => {
+                log::warn!("Could not access Linux sleep notifications: {error}");
+                None
+            }
         };
-        if sleep_signals.is_none() {
-            log::warn!("Could not subscribe to Linux sleep notifications");
-        }
         // Subscribe before taking the delay inhibitor. Keep its fd until access
         // has been revoked, so logind cannot suspend us before request_lock runs.
         let mut inhibitor = if sleep_signals.is_some() {

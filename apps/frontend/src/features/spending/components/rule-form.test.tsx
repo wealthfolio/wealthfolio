@@ -1,6 +1,37 @@
-import { describe, expect, it } from "vitest";
+import { render, screen } from "@/test/render";
+import userEvent from "@testing-library/user-event";
+import { describe, expect, it, vi } from "vitest";
 
-import { buildRuleFormSchema, ruleAmountPayload, type RuleFormValues } from "./rule-form";
+import { RuleForm, buildRuleFormSchema, ruleAmountPayload, type RuleFormValues } from "./rule-form";
+
+vi.mock("@/hooks/use-taxonomies", () => {
+  const categories = {
+    spending_categories: [{ id: "cat_food", name: "Food", parentId: null, sortOrder: 0 }],
+    income_sources: [{ id: "cat_salary", name: "Salary", parentId: null, sortOrder: 0 }],
+    savings_categories: [
+      {
+        id: "cat_savings_investments",
+        name: "Investment Contributions",
+        parentId: null,
+        sortOrder: 0,
+      },
+    ],
+  };
+  return {
+    useTaxonomy: (id: keyof typeof categories) => ({ data: { categories: categories[id] } }),
+  };
+});
+
+if (typeof ResizeObserver === "undefined") {
+  globalThis.ResizeObserver = class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  } as typeof ResizeObserver;
+}
+if (!HTMLElement.prototype.scrollIntoView) {
+  HTMLElement.prototype.scrollIntoView = () => undefined;
+}
 
 const t = (key: string) => key;
 const schema = buildRuleFormSchema(t);
@@ -23,6 +54,29 @@ const errorPaths = (values: RuleFormValues): string[][] => {
   const result = schema.safeParse(values);
   return result.success ? [] : result.error.issues.map((i) => i.path.map(String));
 };
+
+it("offers Savings categories when editing a categorization rule", async () => {
+  const user = userEvent.setup();
+  render(
+    <RuleForm
+      categoryOptions={[
+        {
+          value: "savings_categories:cat_savings_investments",
+          label: "Investment Contributions",
+          taxonomyId: "savings_categories",
+          categoryId: "cat_savings_investments",
+        },
+      ]}
+      accountOptions={[]}
+      onSubmit={vi.fn()}
+      onCancel={vi.fn()}
+    />,
+  );
+
+  await user.click(screen.getByRole("button", { name: "Select category" }));
+  await user.type(screen.getByPlaceholderText("Search categories..."), "Investment Contributions");
+  expect(screen.getByText("Investment Contributions")).toBeInTheDocument();
+});
 
 describe("rule form amount validation", () => {
   it("accepts 'Any amount' with blank value fields", () => {

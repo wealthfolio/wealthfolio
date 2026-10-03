@@ -9,7 +9,7 @@ use std::collections::HashMap;
 
 use crate::models::{Mic, ProviderId};
 
-use super::exchange_registry::REGISTRY;
+use super::exchange_registry::{canonicalize_exchange_mic, REGISTRY};
 
 /// Provider-specific exchange suffix and currency.
 #[derive(Clone, Debug)]
@@ -46,37 +46,30 @@ impl ExchangeMap {
 
     /// Load all default exchange mappings from the JSON registry.
     fn load_defaults(&mut self) {
-        for entry in &REGISTRY.catalog.exchanges {
+        for entry in REGISTRY
+            .catalog
+            .exchanges
+            .iter()
+            .chain(REGISTRY.catalog.legacy_exchanges.iter())
+        {
             let mut provider_map: HashMap<ProviderId, ExchangeSuffix> = HashMap::new();
 
-            if let Some(ref yahoo) = entry.yahoo {
-                let currency = yahoo
+            for (provider_id, rule) in &entry.providers {
+                let currency = rule
                     .currency
                     .as_deref()
                     .or(entry.currency.as_deref())
                     .unwrap_or("USD");
-                provider_map.insert(
-                    Cow::Owned("YAHOO".to_string()),
-                    ExchangeSuffix {
-                        suffix: Cow::Owned(yahoo.suffix.clone()),
-                        currency: Cow::Owned(currency.to_string()),
-                    },
-                );
-            }
-
-            if let Some(ref av) = entry.alpha_vantage {
-                let currency = av
-                    .currency
-                    .as_deref()
-                    .or(entry.currency.as_deref())
-                    .unwrap_or("USD");
-                provider_map.insert(
-                    Cow::Owned("ALPHA_VANTAGE".to_string()),
-                    ExchangeSuffix {
-                        suffix: Cow::Owned(av.suffix.clone()),
-                        currency: Cow::Owned(currency.to_string()),
-                    },
-                );
+                let suffix = explicit_symbol_suffix(rule.suffix.as_deref(), rule.bare);
+                if let Some(suffix) = suffix {
+                    provider_map.insert(
+                        Cow::Owned(provider_id.to_ascii_uppercase()),
+                        ExchangeSuffix {
+                            suffix: Cow::Owned(suffix),
+                            currency: Cow::Owned(currency.to_string()),
+                        },
+                    );
+                }
             }
 
             if !provider_map.is_empty() {
@@ -88,62 +81,60 @@ impl ExchangeMap {
 
     /// Get the suffix for a MIC and provider.
     pub fn get_suffix(&self, mic: &Mic, provider: &ProviderId) -> Option<&str> {
+        let canonical = canonicalize_exchange_mic(mic);
+        let provider = provider.to_ascii_uppercase();
         self.mappings
-            .get(mic)?
-            .get(provider)
+            .get(canonical.as_str())?
+            .get(provider.as_str())
             .map(|s| s.suffix.as_ref())
     }
 
     /// Get the currency for a MIC and provider.
     pub fn get_currency(&self, mic: &Mic, provider: &ProviderId) -> Option<&str> {
+        let canonical = canonicalize_exchange_mic(mic);
+        let provider = provider.to_ascii_uppercase();
         self.mappings
-            .get(mic)?
-            .get(provider)
+            .get(canonical.as_str())?
+            .get(provider.as_str())
             .map(|s| s.currency.as_ref())
-    }
-
-    /// Whether an empty suffix for this venue is the provider's convention
-    /// rather than a hole in the registry.
-    ///
-    /// Yahoo and Alpha Vantage both write US tickers bare, so an empty suffix
-    /// is a real answer on a US venue — `AAPL` addresses exactly one listing.
-    /// Anywhere else it appends nothing to a ticker the provider then resolves
-    /// against its own default namespace, which *is* the US market, so the
-    /// symbol silently addresses a different instrument while looking like a
-    /// resolution.
-    ///
-    /// Currency is the discriminator because it is the only signal the catalog
-    /// carries, and it is exact for all 75 venues: the six that write bare
-    /// tickers (`XNYS`, `XNAS`, `XASE`, `ARCX`, `BATS`, `OTCM`) are precisely
-    /// the six the registry prices in USD.
-    fn empty_suffix_is_conventional(&self, mic: &Mic, provider: &ProviderId) -> bool {
-        self.get_currency(mic, provider) == Some("USD")
     }
 
     /// Resolve a MIC to a provider suffix, saying whether the result can be
     /// trusted to address the venue that was asked for.
     ///
-    /// `None` means the registry has no entry at all. `Some((suffix, false))`
-    /// means it has one that resolves to a bare ticker on a venue where bare
-    /// tickers are not the convention — which is a gap wearing a resolution's
-    /// clothes, and the caller must treat it as a fallback.
+    /// `None` means the registry has no verified rule. A returned empty suffix
+    /// is trusted because bare-symbol conventions are explicit catalog data.
     pub fn get_suffix_checked(&self, mic: &Mic, provider: &ProviderId) -> Option<(&str, bool)> {
         let suffix = self.get_suffix(mic, provider)?;
-        let trusted = !suffix.is_empty() || self.empty_suffix_is_conventional(mic, provider);
-        Some((suffix, trusted))
+        Some((suffix, true))
     }
 
     /// Check if a MIC is supported.
     pub fn has_mic(&self, mic: &Mic) -> bool {
-        self.mappings.contains_key(mic)
+        self.mappings
+            .contains_key(canonicalize_exchange_mic(mic).as_str())
     }
 
     /// Check if a MIC/provider combination is supported.
     pub fn has_mapping(&self, mic: &Mic, provider: &ProviderId) -> bool {
+        let canonical = canonicalize_exchange_mic(mic);
+        let provider = provider.to_ascii_uppercase();
         self.mappings
-            .get(mic)
-            .map(|p| p.contains_key(provider))
+            .get(canonical.as_str())
+            .map(|p| p.contains_key(provider.as_str()))
             .unwrap_or(false)
+    }
+}
+
+fn explicit_symbol_suffix(suffix: Option<&str>, bare: bool) -> Option<String> {
+    assert!(
+        !(bare && suffix.is_some_and(|value| !value.is_empty())),
+        "a provider rule cannot be both bare and suffixed"
+    );
+    if bare {
+        Some(String::new())
+    } else {
+        suffix.filter(|value| !value.is_empty()).map(str::to_string)
     }
 }
 
@@ -170,6 +161,24 @@ pub fn yahoo_suffix_to_mic(suffix: &str) -> Option<&'static str> {
         .yahoo_suffix_to_mic
         .get(&suffix.to_uppercase())
         .copied()
+}
+
+/// Strip a Yahoo suffix only when the supplied MIC has that exact provider
+/// rule. This lets an explicit venue disambiguate suffixes such as `.AE`, which
+/// is shared by XDFM and XADS and therefore cannot infer a MIC on its own.
+pub fn strip_yahoo_suffix_for_mic<'a>(symbol: &'a str, mic: &str) -> Option<&'a str> {
+    let canonical = canonicalize_exchange_mic(mic);
+    let entry = REGISTRY
+        .catalog
+        .exchanges
+        .iter()
+        .chain(REGISTRY.catalog.legacy_exchanges.iter())
+        .find(|entry| entry.mic.eq_ignore_ascii_case(&canonical))?;
+    let suffix = entry.providers.get("YAHOO")?.suffix.as_deref()?;
+    if suffix.is_empty() {
+        return None;
+    }
+    strip_ascii_suffix_ignore_case(symbol.trim(), suffix)
 }
 
 fn strip_ascii_suffix_ignore_case<'a>(value: &'a str, suffix: &str) -> Option<&'a str> {
@@ -222,6 +231,26 @@ pub fn yahoo_equity_provider_symbol_to_canonical(symbol: &str) -> String {
     yahoo_equity_provider_base_to_canonical(trimmed)
 }
 
+/// Whether a dotted symbol ends in an exchange-like suffix that cannot identify
+/// one Yahoo venue without an explicit MIC.
+///
+/// A one-letter tail remains the established share-class convention
+/// (`BRK.B`). Longer alphanumeric tails must be preserved until an exact
+/// provider result confirms them; rewriting one as a Yahoo share class can
+/// silently select a different security (`BAC.PB` -> `BAC-PB`).
+pub fn has_unrecognized_dotted_suffix(symbol: &str) -> bool {
+    let trimmed = symbol.trim();
+    let (_, suffix_mic, _) = split_known_yahoo_suffix(trimmed);
+    suffix_mic.is_none()
+        && trimmed.rsplit_once('.').is_some_and(|(base, suffix)| {
+            !base.is_empty()
+                && suffix.len() > 1
+                && suffix
+                    .chars()
+                    .all(|character| character.is_ascii_alphanumeric())
+        })
+}
+
 fn yahoo_equity_provider_base_to_canonical(base: &str) -> String {
     let trimmed = base.trim();
     let Some((base, class)) = trimmed.rsplit_once('-') else {
@@ -242,6 +271,10 @@ pub fn yahoo_equity_search_queries(query: &str) -> Vec<String> {
     let trimmed = query.trim();
     if trimmed.is_empty() {
         return vec![];
+    }
+
+    if has_unrecognized_dotted_suffix(trimmed) {
+        return vec![trimmed.to_string()];
     }
 
     let (base, _suffix_mic, known_suffix) = split_known_yahoo_suffix(trimmed);
@@ -275,8 +308,14 @@ pub fn strip_yahoo_suffix(symbol: &str) -> &str {
         return base;
     }
 
-    // Only strip if suffix is in our known exchange whitelist
+    // Only a suffix with one unambiguous reverse MIC can infer an exchange.
+    // Shared provider suffixes remain part of the symbol until a caller supplies
+    // a MIC and uses `strip_yahoo_suffix_for_mic` to disambiguate them.
     for suffix in yahoo_exchange_suffixes() {
+        let suffix_code = suffix.strip_prefix('.').unwrap_or(suffix);
+        if yahoo_suffix_to_mic(suffix_code).is_none() {
+            continue;
+        }
         if let Some(base) = strip_ascii_suffix_ignore_case(symbol, suffix) {
             return base;
         }
@@ -303,6 +342,12 @@ mod tests {
             map.get_currency(&Cow::Borrowed("XNYS"), &Cow::Borrowed("YAHOO")),
             Some("USD")
         );
+        for provider in ["FINNHUB", "MARKETDATA_APP"] {
+            assert_eq!(
+                map.get_suffix_checked(&Cow::Borrowed("XNAS"), &Cow::Owned(provider.to_string())),
+                Some(("", true))
+            );
+        }
 
         // Toronto
         assert_eq!(
@@ -347,6 +392,10 @@ mod tests {
             map.get_currency(&Cow::Borrowed("CXE"), &Cow::Borrowed("YAHOO")),
             Some("GBP")
         );
+        assert_eq!(
+            map.get_suffix(&Cow::Borrowed("XAQE"), &Cow::Borrowed("YAHOO")),
+            Some(".AQ")
+        );
 
         // XETRA
         assert_eq!(
@@ -355,12 +404,10 @@ mod tests {
         );
     }
 
-    /// An empty suffix means "write the ticker bare", which is only an answer
-    /// on the venues where that is the provider's convention. Everywhere else
-    /// it is an unfilled entry, and `get_suffix` alone cannot tell the caller
-    /// which it is holding.
+    /// Bare symbols are an explicit provider rule. A blank or missing suffix is
+    /// never inferred from the venue's currency.
     #[test]
-    fn test_empty_suffix_is_only_trusted_on_a_bare_ticker_venue() {
+    fn test_bare_symbol_rules_are_explicit() {
         let map = ExchangeMap::new();
 
         // NASDAQ writes tickers bare, so an empty suffix is the real answer.
@@ -369,10 +416,10 @@ mod tests {
             Some(("", true))
         );
 
-        // Amsterdam does not, so its empty Alpha Vantage suffix is a gap.
+        // Amsterdam has no verified Alpha Vantage rule.
         assert_eq!(
             map.get_suffix_checked(&Cow::Borrowed("XAMS"), &Cow::Borrowed("ALPHA_VANTAGE")),
-            Some(("", false))
+            None
         );
 
         // A venue with a real suffix is trusted whatever its currency.
@@ -386,48 +433,6 @@ mod tests {
             map.get_suffix_checked(&Cow::Borrowed("XKRX"), &Cow::Borrowed("ALPHA_VANTAGE")),
             None
         );
-    }
-
-    /// The venues that write bare tickers are the ones the catalog prices in
-    /// USD, which is what makes currency a sound discriminator.
-    ///
-    /// One entry is knowingly not: Euronext Amsterdam carries an empty Alpha
-    /// Vantage suffix and trades in EUR. The change above makes that resolve as
-    /// a fallback so it is checked rather than trusted, but the real fix is to
-    /// give the venue its Alpha Vantage suffix — which needs confirming against
-    /// the provider, not guessing from the pattern of its Euronext siblings.
-    /// Naming it here keeps it from being mistaken for an intended bare-ticker
-    /// venue, and this list should shrink to empty rather than grow.
-    #[test]
-    fn test_only_known_venues_carry_an_empty_suffix() {
-        const KNOWN_EMPTY_NON_USD: &[(&str, &str)] = &[("XAMS", "ALPHA_VANTAGE")];
-
-        for entry in &REGISTRY.catalog.exchanges {
-            let fallback = entry.currency.as_deref();
-
-            let check = |provider: &str, suffix: &str, currency: Option<&str>| {
-                if !suffix.is_empty() {
-                    return;
-                }
-                if currency.or(fallback) == Some("USD") {
-                    return;
-                }
-                assert!(
-                    KNOWN_EMPTY_NON_USD.contains(&(entry.mic.as_str(), provider)),
-                    "{} has an empty {} suffix but does not write bare tickers - \
-                     give it a real suffix, or add it to KNOWN_EMPTY_NON_USD with a reason",
-                    entry.mic,
-                    provider
-                );
-            };
-
-            if let Some(yahoo) = &entry.yahoo {
-                check("YAHOO", &yahoo.suffix, yahoo.currency.as_deref());
-            }
-            if let Some(av) = &entry.alpha_vantage {
-                check("ALPHA_VANTAGE", &av.suffix, av.currency.as_deref());
-            }
-        }
     }
 
     #[test]
@@ -455,6 +460,10 @@ mod tests {
             yahoo_exchange_to_mic("ASE"),
             Some(Cow::Owned("XASE".to_string()))
         );
+        assert_eq!(
+            yahoo_exchange_to_mic("AQS"),
+            Some(Cow::Owned("AQSE".to_string()))
+        );
 
         // Toronto
         assert_eq!(
@@ -465,16 +474,16 @@ mod tests {
         // Cboe UK Yahoo exchange code resolves to dedicated Cboe UK MIC.
         assert_eq!(
             yahoo_exchange_to_mic("CXE"),
-            Some(Cow::Owned("CXE".to_string()))
+            Some(Cow::Owned("BCXE".to_string()))
         );
         assert_eq!(
             yahoo_exchange_to_mic(" cxe "),
-            Some(Cow::Owned("CXE".to_string()))
+            Some(Cow::Owned("BCXE".to_string()))
         );
         // Cboe Europe EUR (DXE) — used by SXLPM.XD and similar instruments
         assert_eq!(
             yahoo_exchange_to_mic("DXE"),
-            Some(Cow::Owned("DXE".to_string()))
+            Some(Cow::Owned("CCXE".to_string()))
         );
         assert_eq!(
             yahoo_exchange_to_mic("xice"),
@@ -500,6 +509,12 @@ mod tests {
 
         // Cboe Europe EUR suffix
         assert_eq!(strip_yahoo_suffix("SXLPM.XD"), "SXLPM");
+
+        // `.AE` is used by both XDFM and XADS, so the symbol alone is not
+        // enough evidence to strip it.
+        assert_eq!(strip_yahoo_suffix("FOO.AE"), "FOO.AE");
+        assert_eq!(strip_yahoo_suffix_for_mic("FOO.AE", "XDFM"), Some("FOO"));
+        assert_eq!(strip_yahoo_suffix_for_mic("FOO.AE", "XADS"), Some("FOO"));
 
         // Special suffixes
         assert_eq!(strip_yahoo_suffix("EURUSD=X"), "EURUSD");
@@ -535,6 +550,12 @@ mod tests {
         assert_eq!(yahoo_equity_search_queries("BRK.B"), vec!["BRK-B", "BRK.B"]);
         assert_eq!(yahoo_equity_search_queries("SHOP.TO"), vec!["SHOP.TO"]);
         assert_eq!(yahoo_equity_search_queries("VOD.L"), vec!["VOD.L"]);
+        assert_eq!(yahoo_equity_search_queries("BAC.PB"), vec!["BAC.PB"]);
+        assert!(has_unrecognized_dotted_suffix("BAC.PB"));
+        assert!(has_unrecognized_dotted_suffix("FOO.AE"));
+        assert_eq!(yahoo_equity_search_queries("FOO.AE"), vec!["FOO.AE"]);
+        assert!(!has_unrecognized_dotted_suffix("BRK.B"));
+        assert!(!has_unrecognized_dotted_suffix("SHOP.TO"));
         assert_eq!(yahoo_equity_provider_symbol_to_canonical("BRK-B"), "BRK.B");
         assert_eq!(
             yahoo_equity_provider_symbol_to_canonical("BRK-B.TO"),
@@ -571,9 +592,10 @@ mod tests {
 
         // UK & Europe
         assert_eq!(yahoo_suffix_to_mic("L"), Some("XLON"));
-        assert_eq!(yahoo_suffix_to_mic("XC"), Some("CXE"));
-        assert_eq!(yahoo_suffix_to_mic("xc"), Some("CXE"));
-        assert_eq!(yahoo_suffix_to_mic("XD"), Some("DXE")); // Cboe Europe EUR
+        assert_eq!(yahoo_suffix_to_mic("XC"), Some("BCXE"));
+        assert_eq!(yahoo_suffix_to_mic("xc"), Some("BCXE"));
+        assert_eq!(yahoo_suffix_to_mic("XD"), Some("CCXE")); // Cboe Europe EUR
+        assert_eq!(yahoo_suffix_to_mic("AQ"), Some("AQSE")); // Yahoo lists .AQ as AQSE
         assert_eq!(yahoo_suffix_to_mic("DE"), Some("XETR"));
         assert_eq!(yahoo_suffix_to_mic("PA"), Some("XPAR"));
         assert_eq!(yahoo_suffix_to_mic("AE"), None); // Ambiguous between XDFM and XADS

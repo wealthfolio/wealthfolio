@@ -100,7 +100,7 @@
     "values_without_returns": "계좌 가치는 기간 수익률 없이 표시됩니다.",
     "failed_to_load": "계좌를 불러오지 못했습니다",
     "failed_to_load_performance": "수익률 지표를 불러오지 못했습니다",
-    "try_restarting": "앱을 다시 시작해 보세요. 문제가 계속되면 데이터베이스를 초기화해야 할 수 있습니다."
+    "try_restarting": "다시 시도해 주세요. 문제가 지속되면 Wealthfolio를 다시 시작하거나 지원팀에 문의하세요."
   },
   "accounts_count_one": "계좌 {{count}}개",
   "accounts_count_other": "계좌 {{count}}개"

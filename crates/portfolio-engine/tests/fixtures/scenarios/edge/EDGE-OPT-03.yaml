@@ -1,0 +1,22 @@
+id: EDGE-OPT-03
+title: An option transferred in without a quote flows at its contract cost
+intent: >
+  Kernel-only. An external TRANSFER_IN of one option contract at 2 with a
+  contract multiplier of 100 and no quote books a lot of 200, and the flow
+  that falls back to cost must be the same 200: compile and projection use
+  the same multiplier. Marked [K].
+markers: [K]
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-05
+accounts:
+  - { id: acc-1, currency: USD }
+assets:
+  - { id: opt, quote_ccy: USD, instrument_type: OPTION, contract_multiplier: 100 }
+activities:
+  - { id: dep, account: acc-1, type: DEPOSIT, date: 2025-01-01T10:00:00Z, amount: 1000 }
+  - { id: tin, account: acc-1, type: TRANSFER_IN, date: 2025-01-03T10:00:00Z, asset: opt, quantity: 1, unit_price: 2, metadata: { flow: { is_external: true } } }
+expected_notes: >
+  Lot tin: 1 contract, basis 200. Inflow 200 on 01-03 (COST_BASIS_FALLBACK).
+  The position has no quote, so values from 01-03 are unavailable.

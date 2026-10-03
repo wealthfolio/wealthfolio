@@ -1,0 +1,37 @@
+id: EDGE-TXF-19
+title: A transfer at cost with a sender shortfall nets the cost the sender removed
+intent: >
+  Kernel-only. Rules R2.1 and R2.4: acc-a holds 5 units and sends 8 to
+  acc-b, which is short 4; no quote exists, so both legs flow at cost. At
+  the portfolio, the pair nets the cost the sender removed; the cost the
+  receiver booked for the 3 units the sender lacked is money from outside
+  the history. Rates move from 1 to 2 USD/EUR on the transfer day.
+markers: [K]
+policy: { base_currency: USD, timezone: UTC, as_of: 2025-01-05 }
+accounts:
+  - { id: acc-a, currency: USD }
+  - { id: acc-b, currency: USD }
+assets:
+  - { id: x, quote_ccy: EUR }
+activities:
+  - { id: dep-a, account: acc-a, type: DEPOSIT, date: 2025-01-01T10:00:00Z, amount: 1000 }
+  - { id: dep-b, account: acc-b, type: DEPOSIT, date: 2025-01-01T11:00:00Z, amount: 1000 }
+  - { id: buy-1, account: acc-a, type: BUY, date: 2025-01-02T10:00:00Z, asset: x, quantity: 5, unit_price: 10, amount: 50, currency: EUR, fx_rate: 1 }
+  - { id: short-1, account: acc-b, type: SELL, subtype: POSITION_OPEN, date: 2025-01-02T11:00:00Z, asset: x, quantity: 4, unit_price: 12, amount: 48, currency: EUR, fx_rate: 1 }
+  - { id: out-1, account: acc-a, type: TRANSFER_OUT, date: 2025-01-03T10:00:00Z, asset: x, quantity: 8, unit_price: 20, source_group_id: g1, currency: EUR }
+  - { id: in-1, account: acc-b, type: TRANSFER_IN, date: 2025-01-03T11:00:00Z, asset: x, quantity: 8, unit_price: 20, source_group_id: g1, currency: EUR }
+  - { id: sale-1, account: acc-b, type: SELL, date: 2025-01-04T10:00:00Z, asset: x, quantity: 1, unit_price: 30, amount: 30, currency: EUR, fx_rate: 2 }
+fx_rates:
+  - { from: EUR, to: USD, day: 2025-01-02, rate: 1 }
+  - { from: EUR, to: USD, day: 2025-01-03, rate: 2 }
+expected_notes: >
+  acc-a gives its 5 units at historical cost 50 EUR x 1 = 50 USD: outflow 50
+  on 01-03. acc-b covers its 4 short units with sender cost 40 USD, against
+  the short's cost 48 (realized +8 in base), and opens 4 lots: 1 carried
+  unit at cost 10 and 3 lacked units at the transfer's price, 3 x 20 EUR x 2
+  = 120 USD, so 130. Inflow 40 + 130 = 170 on 01-03. Portfolio: the pair
+  nets the 50 the sender removed, so 170 - 50 = 120 of money in on 01-03,
+  the cost booked for the lacked units. The sale on 01-04 is a trade: 30 EUR
+  x 2 = 60 USD of proceeds against FIFO cost 10, realized +50. Before the
+  fix the pair netted the sender's share of units (5/8), so 3/8 x 170 =
+  63.75 of money in.

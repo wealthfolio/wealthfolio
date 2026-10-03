@@ -102,7 +102,7 @@
     "values_without_returns": "僅顯示帳戶價值，不含期間報酬率。",
     "failed_to_load": "無法載入帳戶",
     "failed_to_load_performance": "無法載入績效指標",
-    "try_restarting": "請重新啟動應用程式。如果問題持續發生，可能需要重設資料庫。"
+    "try_restarting": "請重試。如果問題持續發生，請重新啟動 Wealthfolio 或聯絡支援團隊。"
   },
   "accounts_count_one": "{{count}} 個帳戶",
   "accounts_count_other": "{{count}} 個帳戶"

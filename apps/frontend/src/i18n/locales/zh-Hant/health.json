@@ -132,6 +132,31 @@
       "title_one": "偵測到不完整的轉帳",
       "title_other": "偵測到 {{count}} 筆不完整的轉帳",
       "message": "某筆轉帳未配對或缺少對應的另一端，因此其資金流被視為外部資金流，可能會扭曲報酬。請將其與對應的轉帳配對，如屬預期則將其標記為外部轉帳。"
+    },
+    "data_stale_projection": {
+      "title_one": "帳戶歷史已過期",
+      "title_other": "{{count}} 個帳戶歷史已過期",
+      "message": "這些帳戶歷史上次計算後，交易、價格或設定已變更。請重新計算，讓價值與報酬反映目前的資料。"
+    },
+    "data_rejected_activity": {
+      "title_one": "交易無法套用",
+      "title_other": "{{count}} 筆交易無法套用",
+      "message": "這些交易無法依記錄套用（例如其幣別沒有匯率，或會在未標示的情況下建立或平倉空頭部位），因此未計入餘額、持有部位與報酬。請檢查這些交易。"
+    },
+    "data_oversold_activity": {
+      "title_one": "交易賣出數量超過持有數量",
+      "title_other": "{{count}} 筆交易賣出數量超過持有數量",
+      "message": "這些交易賣出或轉出的數量超過帳戶當時持有的數量。僅扣除持有的部分，其餘部分沒有成本基礎。請檢查是否漏記了買入或轉入。"
+    },
+    "data_missing_activity_amount": {
+      "title_one": "交易沒有金額",
+      "title_other": "{{count}} 筆交易沒有金額",
+      "message": "這些交易沒有金額，因此沒有改變現金餘額。如有資金變動，請補上金額。"
+    },
+    "fx_conflicting_rates": {
+      "title_one": "{{from}} 與 {{to}} 的匯率不一致",
+      "title_other": "{{count}} 組幣別對的匯率不一致",
+      "message": "同一天在兩個方向都記錄了匯率，但兩者不相符。每個方向都依記錄使用，因此來回換算會得到不同的金額。請更正或刪除錯誤的匯率。"
     }
   },
   "page": {

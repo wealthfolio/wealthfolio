@@ -1,3 +1,4 @@
+import { getEffectiveType } from "@/lib/types";
 import { AccountPurpose, accountSupportsPurpose, isLiabilityAccountType } from "@/lib/constants";
 
 /** Cash/card activity types tracked by the spending module. */
@@ -85,7 +86,7 @@ export function getEffectiveCashActivityType(activity: {
   activityType: string;
   activityTypeOverride?: string | null;
 }): string {
-  return activity.activityTypeOverride ?? activity.activityType;
+  return getEffectiveType(activity);
 }
 
 export function isCashActivityIncome(

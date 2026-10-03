@@ -1,0 +1,59 @@
+id: EDGE-TXF-04
+title: A paired transfer-in fee is capitalised into the delivered lots
+intent: >
+  Kernel-only. A security transfer books only its fee as cash, and a
+  transfer in capitalises that fee into the lot basis (Appendix A), paired
+  or not. The paired leg carries the source lot (acquisition date and
+  basis preserved) and adds its fee to that lot; net contribution moves by
+  the carried basis alone, so the pair nets to zero at portfolio scope
+  (I7), as a trade fee does not move contribution either. Marked [K].
+markers: [K]
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-06
+accounts:
+  - id: acc-a
+    currency: USD
+  - id: acc-b
+    currency: USD
+assets:
+  - id: aapl
+    quote_ccy: USD
+activities:
+  - id: dep-a
+    account: acc-a
+    type: DEPOSIT
+    date: 2025-01-02T10:00:00Z
+    amount: 1000
+  - id: buy-1
+    account: acc-a
+    type: BUY
+    date: 2025-01-02T11:00:00Z
+    asset: aapl
+    quantity: 10
+    unit_price: 100
+    amount: 1000
+  - id: out-1
+    account: acc-a
+    type: TRANSFER_OUT
+    date: 2025-01-03T10:00:00Z
+    asset: aapl
+    quantity: 10
+    source_group_id: g1
+  - id: in-1
+    account: acc-b
+    type: TRANSFER_IN
+    date: 2025-01-03T10:01:00Z
+    asset: aapl
+    quantity: 10
+    fee: 5
+    source_group_id: g1
+quotes:
+  - { asset: aapl, day: 2025-01-02, close: 100 }
+expected_notes: >
+  acc-b: lot in-1 opened 2025-01-02 (carried), 10 shares, cost basis 1005
+  including fee_allocated 5; cash -5; net_contribution 1000. acc-a:
+  net_contribution 1000 -> 0 on 01-03. Portfolio: the pair is internal, so
+  flows net to zero and contributions stay 1000; the 5 fee is the only
+  change in value (1000 -> 995).

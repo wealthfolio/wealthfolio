@@ -1,0 +1,28 @@
+id: EDGE-TXF-11
+title: A paired transfer without a quote flows the cost it carries, both ways
+intent: >
+  Kernel-only. Nothing prices x on the transfer day, so both legs fall
+  back to cost. The sending leg flows the cost of the lots it removed
+  (1005: 10 at 100 and a fee of 5); the receiving leg books those same
+  lots and flows the same 1005, not the activity's 10 x 150. The pair
+  nets to zero at portfolio scope. Marked [K].
+markers: [K]
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-06
+accounts:
+  - { id: acc-a, currency: USD }
+  - { id: acc-b, currency: USD }
+assets:
+  - { id: x, quote_ccy: USD }
+activities:
+  - { id: dep-a, account: acc-a, type: DEPOSIT, date: 2025-01-01T10:00:00Z, amount: 2000 }
+  - { id: buy, account: acc-a, type: BUY, date: 2025-01-02T10:00:00Z, asset: x, quantity: 10, unit_price: 100, amount: 1005, fee: 5 }
+  - { id: out, account: acc-a, type: TRANSFER_OUT, date: 2025-01-03T10:00:00Z, asset: x, quantity: 10, unit_price: 150, source_group_id: g }
+  - { id: tin, account: acc-b, type: TRANSFER_IN, date: 2025-01-03T11:00:00Z, asset: x, quantity: 10, unit_price: 150, source_group_id: g }
+expected_notes: >
+  acc-a: outflow 1005 on 01-03 (REMOVED_LOT_BASIS_FALLBACK). acc-b: lot
+  basis 1005 acquired 2025-01-02; its incoming leg prices at 1005
+  (COST_BASIS_FALLBACK), so the portfolio flow on 01-03 is 0 in, 0 out
+  (01-03 is acc-b's first day, which carries no flow of its own).

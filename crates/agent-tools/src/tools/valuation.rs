@@ -159,6 +159,7 @@ impl AgentTool for GetValuationHistory {
                     Some(start_date),
                     Some(end_date),
                 )
+                .await
                 .map_err(|e| AgentToolError::ExecutionFailed(e.to_string()))?
                 .into_iter()
                 .map(|v| ValuationPointDto {

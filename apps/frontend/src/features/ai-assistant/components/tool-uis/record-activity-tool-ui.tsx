@@ -60,6 +60,11 @@ interface ActivityDraft {
   symbol?: string;
   assetId?: string;
   assetName?: string;
+  exchangeMic?: string;
+  quoteCcy?: string;
+  instrumentType?: string;
+  providerId?: string;
+  providerSymbol?: string;
   quantity?: number;
   unitPrice?: number;
   amount?: number;
@@ -106,6 +111,8 @@ interface ResolvedAsset {
   exchange?: string;
   exchangeMic?: string;
   instrumentType?: string;
+  providerId?: string;
+  providerSymbol?: string;
 }
 
 interface RecordActivityOutput {
@@ -263,6 +270,13 @@ function normalizeResult(result: unknown, fallbackCurrency: string): RecordActiv
     symbol: (draftRaw.symbol as string) ?? undefined,
     assetId: (draftRaw.assetId as string) ?? (draftRaw.asset_id as string) ?? undefined,
     assetName: (draftRaw.assetName as string) ?? (draftRaw.asset_name as string) ?? undefined,
+    exchangeMic: (draftRaw.exchangeMic as string) ?? (draftRaw.exchange_mic as string) ?? undefined,
+    quoteCcy: (draftRaw.quoteCcy as string) ?? (draftRaw.quote_ccy as string) ?? undefined,
+    instrumentType:
+      (draftRaw.instrumentType as string) ?? (draftRaw.instrument_type as string) ?? undefined,
+    providerId: (draftRaw.providerId as string) ?? (draftRaw.provider_id as string) ?? undefined,
+    providerSymbol:
+      (draftRaw.providerSymbol as string) ?? (draftRaw.provider_symbol as string) ?? undefined,
     quantity: finiteNumberValue(draftRaw.quantity),
     unitPrice: finiteNumberValue(draftRaw.unitPrice ?? draftRaw.unit_price),
     amount: finiteNumberValue(draftRaw.amount),
@@ -320,6 +334,10 @@ function normalizeResult(result: unknown, fallbackCurrency: string): RecordActiv
           (assetRaw.exchangeMic as string) ?? (assetRaw.exchange_mic as string) ?? undefined,
         instrumentType:
           (assetRaw.instrumentType as string) ?? (assetRaw.instrument_type as string) ?? undefined,
+        providerId:
+          (assetRaw.providerId as string) ?? (assetRaw.provider_id as string) ?? undefined,
+        providerSymbol:
+          (assetRaw.providerSymbol as string) ?? (assetRaw.provider_symbol as string) ?? undefined,
       }
     : undefined;
 
@@ -541,8 +559,8 @@ function draftToPseudoActivity(
     currency: draft.currency,
     comment: draft.notes,
     subtype: draft.subtype,
-    exchangeMic: resolvedAsset?.exchangeMic,
-    instrumentType: resolvedAsset?.instrumentType,
+    exchangeMic: resolvedAsset?.exchangeMic ?? draft.exchangeMic,
+    instrumentType: resolvedAsset?.instrumentType ?? draft.instrumentType,
     assetQuoteMode: draft.quoteMode === "MANUAL" ? QuoteMode.MANUAL : QuoteMode.MARKET,
     // metadata.flow.is_external is what TransferForm uses to derive isExternal=true
     metadata: isTransfer ? { flow: { is_external: true } } : undefined,
@@ -560,27 +578,33 @@ function aiSpecificDefaultOverrides(
   const overrides: Record<string, unknown> = {};
 
   // Authoritative quote currency from the AI's symbol resolver, when present.
-  if (resolvedAsset?.currency) {
-    overrides.symbolQuoteCcy = resolvedAsset.currency;
+  if (draft.quoteCcy ?? resolvedAsset?.currency) {
+    overrides.symbolQuoteCcy = draft.quoteCcy ?? resolvedAsset?.currency;
   }
   if (resolvedAsset?.assetId) {
     overrides.existingAssetId = resolvedAsset.assetId;
   }
-  if (resolvedAsset?.instrumentType) {
-    overrides.symbolInstrumentType = resolvedAsset.instrumentType;
+  if (draft.instrumentType ?? resolvedAsset?.instrumentType) {
+    overrides.symbolInstrumentType = draft.instrumentType ?? resolvedAsset?.instrumentType;
   }
   // For AI-flagged custom assets, fall back to the activity currency the user
   // already approved. Safe because the asset is being created fresh — there is
   // no canonical quote currency to conflict with.
-  if (draft.isCustomAsset && draft.currency && !resolvedAsset?.currency) {
+  if (draft.isCustomAsset && draft.currency && !draft.quoteCcy && !resolvedAsset?.currency) {
     overrides.symbolQuoteCcy = draft.currency;
   }
 
   // Asset metadata for the create-on-save path inside BuyForm/SellForm/DividendForm.
-  if (draft.isCustomAsset && (draft.symbol || draft.assetName)) {
+  const providerId = draft.providerId ?? resolvedAsset?.providerId;
+  const providerSymbol = draft.providerSymbol ?? resolvedAsset?.providerSymbol;
+  const exchangeMic = draft.exchangeMic ?? resolvedAsset?.exchangeMic;
+  if (draft.isCustomAsset || providerId || providerSymbol || exchangeMic) {
     overrides.assetMetadata = {
       name: draft.assetName ?? draft.symbol,
       kind: draft.assetKind,
+      exchangeMic,
+      providerId,
+      providerSymbol,
     };
   }
 

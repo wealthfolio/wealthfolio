@@ -116,6 +116,7 @@
   "accounts_empty_title": "尚未添加账户！",
   "accounts_empty_description": "您还没有任何账户。开始添加您的投资账户吧。",
   "accounts_add_first": "添加账户",
+  "accounts_connect_account": "连接账户",
   "accounts_disabled_badge": "已禁用",
   "accounts_operations_open": "打开",
   "accounts_operations_edit": "编辑",

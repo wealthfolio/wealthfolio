@@ -1,0 +1,81 @@
+id: NOM-FX-01
+title: USD asset in a CAD account held across an FX step
+intent: >
+  Base and account currency CAD; a USD asset bought at USD/CAD 1.30, held
+  while the rate steps to 1.40 on 01-08, then sold at the same USD price.
+  The lot's book cost stays anchored at the acquisition-date rate (1300 CAD)
+  while market value in CAD moves with the valuation-date rate (1400 CAD
+  from 01-08). The disposal shows zero USD P&L but +100 CAD base P&L
+  (proceeds at 1.40, basis at 1.30). Daily FX rows keep every valuation
+  day's rate explicit.
+policy:
+  base_currency: CAD
+  timezone: UTC
+  as_of: 2025-01-13
+accounts:
+  - id: acc-1
+    name: CAD brokerage
+    currency: CAD
+assets:
+  - id: msft
+    quote_ccy: USD
+activities:
+  - id: dep-1
+    account: acc-1
+    type: DEPOSIT
+    date: 2025-01-02T10:00:00Z
+    amount: 1500
+    currency: USD
+  - id: buy-1
+    account: acc-1
+    type: BUY
+    date: 2025-01-03T10:00:00Z
+    asset: msft
+    quantity: 10
+    unit_price: 100
+    amount: 1000
+    fee: 0
+    currency: USD
+  - id: sell-1
+    account: acc-1
+    type: SELL
+    date: 2025-01-10T10:00:00Z
+    asset: msft
+    quantity: 10
+    unit_price: 100
+    amount: 1000
+    fee: 0
+    currency: USD
+quotes:
+  - { asset: msft, day: 2025-01-03, close: 100 }
+  - { asset: msft, day: 2025-01-07, close: 100 }
+  - { asset: msft, day: 2025-01-10, close: 100 }
+  - { asset: msft, day: 2025-01-13, close: 100 }
+fx_rates:
+  - { from: USD, to: CAD, day: 2025-01-02, rate: 1.30 }
+  - { from: USD, to: CAD, day: 2025-01-03, rate: 1.30 }
+  - { from: USD, to: CAD, day: 2025-01-04, rate: 1.30 }
+  - { from: USD, to: CAD, day: 2025-01-05, rate: 1.30 }
+  - { from: USD, to: CAD, day: 2025-01-06, rate: 1.30 }
+  - { from: USD, to: CAD, day: 2025-01-07, rate: 1.30 }
+  - { from: USD, to: CAD, day: 2025-01-08, rate: 1.40 }
+  - { from: USD, to: CAD, day: 2025-01-09, rate: 1.40 }
+  - { from: USD, to: CAD, day: 2025-01-10, rate: 1.40 }
+  - { from: USD, to: CAD, day: 2025-01-11, rate: 1.40 }
+  - { from: USD, to: CAD, day: 2025-01-12, rate: 1.40 }
+  - { from: USD, to: CAD, day: 2025-01-13, rate: 1.40 }
+expected_notes: >
+  Cash (USD bucket) 1500 -> 500 -> 1500; net_contribution 1500 x 1.30 =
+  1950 CAD throughout. Lot buy-1: basis 1000 USD, fx_rate_to_base 1.30,
+  original_cost_basis_base 1300, closed 01-10 by sell-1. Keyframe 01-03:
+  cost_basis 1300 (CAD), position cost_basis_account 1300,
+  cash_total_account_currency 650. Valuations: 01-03..01-07 market value
+  1300, cash 650, total 1950, cost_basis 1300; 01-08..01-09 (FX 1.40)
+  market value 1400, cash 700, total 2100, cost_basis still 1300 (book
+  anchored at acquisition FX). Disposal sell-1: proceeds 1000, basis 1000,
+  realized 0; proceeds_base 1400, cost_basis_base 1300, realized_pnl_base
+  100, fx_rate_to_base 1.40. From 01-10 cash 1500 USD = 2100 CAD. TWR (CAD)
+  = 2100/1950 - 1 = 7.692308% (all of it on 01-08). LEGACY BEHAVIOR
+  (attribution): realized 100, fx_effect 0 and unrealized 0; the 50 CAD FX
+  gain on the 500 USD cash balance is not attributed, so the diagnostics
+  report "attribution incomplete, difference 50".

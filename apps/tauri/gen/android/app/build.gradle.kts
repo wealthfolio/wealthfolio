@@ -13,6 +13,13 @@ val tauriProperties = Properties().apply {
     }
 }
 
+val uploadKeystorePath = System.getenv("WF_ANDROID_UPLOAD_KEYSTORE").orEmpty()
+val uploadKeystorePassword = System.getenv("WF_ANDROID_UPLOAD_PASSWORD").orEmpty()
+require(uploadKeystorePath.isBlank() == uploadKeystorePassword.isBlank()) {
+    "Set both WF_ANDROID_UPLOAD_KEYSTORE and WF_ANDROID_UPLOAD_PASSWORD to sign Android releases"
+}
+val hasUploadSigning = uploadKeystorePath.isNotBlank()
+
 val wealthfolioAndroidMinSdk = 24
 val wealthfolioAndroidNdkVersion = "28.2.13676358"
 
@@ -31,6 +38,16 @@ android {
         versionCode = tauriProperties.getProperty("tauri.android.versionCode", "1").toInt()
         versionName = tauriProperties.getProperty("tauri.android.versionName", "1.0")
     }
+    signingConfigs {
+        if (hasUploadSigning) {
+            create("release") {
+                keyAlias = "upload"
+                keyPassword = uploadKeystorePassword
+                storeFile = file(uploadKeystorePath)
+                storePassword = uploadKeystorePassword
+            }
+        }
+    }
     buildTypes {
         getByName("debug") {
             manifestPlaceholders["usesCleartextTraffic"] = "true"
@@ -44,6 +61,9 @@ android {
             }
         }
         getByName("release") {
+            if (hasUploadSigning) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             isMinifyEnabled = true
             proguardFiles(
                 *fileTree(".") { include("**/*.pro") }

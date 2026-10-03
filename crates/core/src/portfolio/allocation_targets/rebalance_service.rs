@@ -1042,6 +1042,14 @@ mod tests {
 
     #[async_trait]
     impl crate::portfolio::holdings::HoldingsServiceTrait for MockHoldingsService {
+        async fn get_asset_lot_view(
+            &self,
+            _asset_id: &str,
+            _include_snapshot_positions: bool,
+        ) -> crate::errors::Result<Vec<crate::lots::AssetLotView>> {
+            unimplemented!()
+        }
+
         async fn get_holdings(&self, account_id: &str, _: &str) -> CoreResult<Vec<Holding>> {
             Ok(self
                 .holdings

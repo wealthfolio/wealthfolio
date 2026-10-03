@@ -149,7 +149,7 @@ export function CreateSecurityDialog({
     () =>
       exchanges.map((e) => ({
         value: normalizeMic(e.mic),
-        label: `${e.longName} (${e.name})`,
+        label: `${e.longName} (${e.mic})`,
       })),
     [exchanges],
   );
@@ -227,6 +227,7 @@ export function CreateSecurityDialog({
         result.quoteType,
         result.providerId,
         provisionalCurrency,
+        result.providerSymbol,
       )
         .then((resolved) => {
           if (requestId !== resolveRequestSeq.current) return;
@@ -302,6 +303,7 @@ export function CreateSecurityDialog({
           selectedResult.quoteType,
           selectedResult.providerId,
           values.quoteCcy,
+          selectedResult.providerSymbol,
         );
         const confirmedCurrency = resolved?.currency?.trim();
         if (confirmedCurrency && !quoteCcyUserEditedAfterSelectionRef.current) {

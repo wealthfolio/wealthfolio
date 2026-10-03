@@ -44,6 +44,15 @@ pub enum ConsistencyIssueType {
     MissingActivityCurrency,
     /// A stored snapshot falls outside the supported date policy.
     InvalidSnapshotDate,
+    /// The account's facts changed since its history was last projected.
+    StaleProjection,
+    /// The engine rejected the activity: it contributes nothing.
+    RejectedActivity,
+    /// The activity sold or moved more units than were held: only the held
+    /// units were disposed.
+    OversoldActivity,
+    /// The activity was posted without a final amount: it booked no cash.
+    MissingActivityAmount,
 }
 
 /// Root cause classification for valuation-quality issues (incomplete value /
@@ -811,6 +820,52 @@ impl DataConsistencyCheck {
             ));
         }
 
+        if let Some(stale) = by_type.get(&ConsistencyIssueType::StaleProjection) {
+            health_issues.push(build_stale_projection_issue(stale));
+        }
+
+        if let Some(rejected) = by_type.get(&ConsistencyIssueType::RejectedActivity) {
+            health_issues.push(build_engine_activity_issue(
+                rejected,
+                EngineActivityCopy {
+                    id: "rejected_activity",
+                    code: "data_rejected_activity",
+                    severity: Severity::Error,
+                    title_one: "Transaction could not be applied",
+                    title_many: "transactions could not be applied",
+                    message: "These transactions can't be applied as recorded (for example, their currency has no exchange rate, or they would open or close a short position without being marked to), so they are left out of balances, holdings and returns. Review them.",
+                },
+            ));
+        }
+
+        if let Some(oversold) = by_type.get(&ConsistencyIssueType::OversoldActivity) {
+            health_issues.push(build_engine_activity_issue(
+                oversold,
+                EngineActivityCopy {
+                    id: "oversold_activity",
+                    code: "data_oversold_activity",
+                    severity: Severity::Warning,
+                    title_one: "Transaction sells more than was held",
+                    title_many: "transactions sell more than was held",
+                    message: "These transactions sell or move more units than the account held at the time. Only the units held were removed, and the rest has no cost basis. Check for a missing purchase or transfer in.",
+                },
+            ));
+        }
+
+        if let Some(no_amount) = by_type.get(&ConsistencyIssueType::MissingActivityAmount) {
+            health_issues.push(build_engine_activity_issue(
+                no_amount,
+                EngineActivityCopy {
+                    id: "missing_activity_amount",
+                    code: "data_missing_activity_amount",
+                    severity: Severity::Warning,
+                    title_one: "Transaction has no amount",
+                    title_many: "transactions have no amount",
+                    message: "These transactions have no amount, so they did not change the cash balance. Add the amount if cash moved.",
+                },
+            ));
+        }
+
         if let Some(flow_issues) = by_type.get(&ConsistencyIssueType::UnknownPerformanceFlowSource)
         {
             health_issues.push(build_unknown_performance_flow_issue(
@@ -826,6 +881,94 @@ impl DataConsistencyCheck {
 
         health_issues
     }
+}
+
+/// Wording of an issue about what the engine decided for activities.
+struct EngineActivityCopy {
+    id: &'static str,
+    code: &'static str,
+    severity: Severity,
+    title_one: &'static str,
+    title_many: &'static str,
+    message: &'static str,
+}
+
+/// One issue per kind of engine decision, listing each activity with its
+/// account and date and linking to it.
+fn build_engine_activity_issue(
+    issues: &[&ConsistencyIssueInfo],
+    copy: EngineActivityCopy,
+) -> HealthIssue {
+    let record_ids: Vec<String> = issues.iter().map(|i| i.record_id.clone()).collect();
+    let data_hash = compute_data_hash(&record_ids);
+    let affected_items: Vec<AffectedItem> = issues
+        .iter()
+        .map(|i| {
+            let date = i
+                .activity_date
+                .map(|d| d.format("%Y-%m-%d").to_string())
+                .unwrap_or_else(|| "unknown date".to_string());
+            AffectedItem::activity(i.record_id.clone(), format!("{} — {}", i.description, date))
+        })
+        .collect();
+    let count = issues.len();
+    HealthIssue::builder()
+        .id(format!("{}:{}", copy.id, data_hash))
+        .severity(copy.severity)
+        .category(HealthCategory::DataConsistency)
+        .code(copy.code)
+        .param("count", count as u32)
+        .title(if count == 1 {
+            copy.title_one.to_string()
+        } else {
+            format!("{count} {}", copy.title_many)
+        })
+        .message(copy.message)
+        .affected_count(count as u32)
+        .affected_items(affected_items)
+        .data_hash(data_hash)
+        .build()
+}
+
+/// Accounts whose recorded projection no longer matches their facts: the
+/// fix is a scoped rebuild through the coordinator.
+fn build_stale_projection_issue(issues: &[&ConsistencyIssueInfo]) -> HealthIssue {
+    let mut account_ids: Vec<String> = issues.iter().filter_map(|i| i.account_id.clone()).collect();
+    account_ids.sort();
+    account_ids.dedup();
+    let data_hash = compute_data_hash(
+        &issues
+            .iter()
+            .map(|i| format!("{}:{}", i.record_id, i.description))
+            .collect::<Vec<_>>(),
+    );
+    let affected_items: Vec<AffectedItem> = issues
+        .iter()
+        .filter_map(|i| {
+            i.account_id
+                .as_ref()
+                .map(|id| AffectedItem::account(id.clone(), i.description.clone()))
+        })
+        .collect();
+    let count = account_ids.len();
+    let title = if count == 1 {
+        "Account history is out of date".to_string()
+    } else {
+        format!("{count} account histories are out of date")
+    };
+    HealthIssue::builder()
+        .id("stale_projection")
+        .severity(Severity::Warning)
+        .category(HealthCategory::DataConsistency)
+        .title(title)
+        .message("Activities, prices or settings changed after these account histories were last calculated. Rebuild them so values and returns reflect the current data.")
+        .code("data_stale_projection")
+        .param("count", count as u32)
+        .affected_count(count as u32)
+        .affected_items(affected_items)
+        .fix_action(FixAction::rebuild_account_history(account_ids))
+        .data_hash(data_hash)
+        .build()
 }
 
 fn snapshot_source_label(source: &str) -> &str {
@@ -1495,6 +1638,66 @@ fn compute_data_hash(record_ids: &[String]) -> String {
 mod tests {
     use super::*;
     use crate::health::model::HealthConfig;
+
+    fn engine_issue(issue_type: ConsistencyIssueType, activity: &str) -> ConsistencyIssueInfo {
+        ConsistencyIssueInfo {
+            issue_type,
+            record_id: activity.to_string(),
+            description: "Brokerage".to_string(),
+            account_id: Some("acc-1".to_string()),
+            asset_id: None,
+            first_negative_date: None,
+            cash_balance: None,
+            total_value_at_date: None,
+            account_currency: None,
+            activity_date: NaiveDate::from_ymd_opt(2025, 1, 6),
+            asset_symbol: None,
+            asset_name: None,
+            quantity: None,
+            proceeds: None,
+            reason: None,
+            activity_id: Some(activity.to_string()),
+            snapshot_date_raw: None,
+            snapshot_source: None,
+            snapshot_min_date: None,
+            snapshot_max_date: None,
+        }
+    }
+
+    #[test]
+    fn engine_decisions_about_activities_are_one_issue_per_kind() {
+        let check = DataConsistencyCheck::new();
+        let ctx = HealthContext::new(HealthConfig::default(), "USD", 100_000.0);
+        let issues = check.analyze(
+            &[
+                engine_issue(ConsistencyIssueType::RejectedActivity, "sell-early"),
+                engine_issue(ConsistencyIssueType::OversoldActivity, "sell-1"),
+                engine_issue(ConsistencyIssueType::OversoldActivity, "sell-2"),
+                engine_issue(ConsistencyIssueType::MissingActivityAmount, "fee-1"),
+            ],
+            &ctx,
+        );
+        let by_code = |code: &str| {
+            issues
+                .iter()
+                .find(|i| i.code.as_deref() == Some(code))
+                .unwrap_or_else(|| panic!("{code}"))
+        };
+        let rejected = by_code("data_rejected_activity");
+        assert_eq!(rejected.severity, Severity::Error);
+        assert_eq!(rejected.affected_count, 1);
+        let oversold = by_code("data_oversold_activity");
+        assert_eq!(oversold.severity, Severity::Warning);
+        assert_eq!(oversold.affected_count, 2);
+        assert_eq!(oversold.params.get("count"), Some(&serde_json::json!(2)));
+        let items = oversold.affected_items.as_ref().expect("items");
+        assert_eq!(items[0].name, "Brokerage — 2025-01-06");
+        assert_eq!(
+            items[0].route.as_deref(),
+            Some("/activities?activity=sell-1&healthContext=activity")
+        );
+        assert_eq!(by_code("data_missing_activity_amount").affected_count, 1);
+    }
 
     #[test]
     fn test_orphan_activity_account() {

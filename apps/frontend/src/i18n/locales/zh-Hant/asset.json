@@ -235,6 +235,7 @@
     }
   },
   "editSheet": {
+    "identity_conflict": "已存在具有相同識別資訊的資產。變更未儲存。請使用現有資產或選擇其他交易所。",
     "general": "一般",
     "classification": "分類",
     "market_data": "市場資料",

@@ -1,0 +1,50 @@
+id: EDGE-TXF-03
+title: A security transfer before a provider-adjusted split is priced in pre-split terms
+intent: >
+  Kernel-only. The quotes are provider-adjusted: the 2:1 split on 01-06 is
+  already applied to every close, so the 01-03 close of 50 is 100 in the
+  units held that day. The position (10 pre-split shares) is valued with
+  the split factor at 10 x 50 x 2 = 1000; the transfer-in flow on the same
+  day must use the same factor, or the transfer reads as a 500 gain.
+  Marked [K].
+markers: [K]
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-08
+accounts:
+  - id: acc-1
+    currency: USD
+assets:
+  - id: aapl
+    quote_ccy: USD
+activities:
+  - id: dep-1
+    account: acc-1
+    type: DEPOSIT
+    date: 2025-01-02T10:00:00Z
+    amount: 100
+  - id: tin-1
+    account: acc-1
+    type: TRANSFER_IN
+    date: 2025-01-03T10:00:00Z
+    asset: aapl
+    quantity: 10
+    unit_price: 100
+    metadata: { flow: { is_external: true } }
+  - id: split-1
+    account: acc-1
+    type: SPLIT
+    date: 2025-01-06T10:00:00Z
+    asset: aapl
+    amount: 2
+quotes:
+  - { asset: aapl, day: 2025-01-02, close: 50 }
+  - { asset: aapl, day: 2025-01-03, close: 50 }
+  - { asset: aapl, day: 2025-01-06, close: 50 }
+  - { asset: aapl, day: 2025-01-07, close: 50 }
+expected_notes: >
+  Keyframes: 10 aapl from 01-03, 20 from 01-06 (split ratio 2). Total value
+  100 (01-02) then 1100 every day from 01-03. The 01-03 flow is an inflow of
+  1000 QUOTE_DERIVED_MARKET_VALUE (10 x 50 x split factor 2), so TWR and
+  value return are 0.

@@ -106,7 +106,7 @@
     "values_without_returns": "I valori dei conti sono mostrati senza i rendimenti del periodo.",
     "failed_to_load": "Impossibile caricare i conti",
     "failed_to_load_performance": "Impossibile caricare le metriche di performance",
-    "try_restarting": "Prova a riavviare l'app. Se il problema persiste, potrebbe essere necessario reimpostare il database."
+    "try_restarting": "Riprova. Se il problema persiste, riavvia Wealthfolio o contatta l’assistenza."
   },
   "accounts_count_one": "{{count}} conto",
   "accounts_count_many": "{{count}} conti",

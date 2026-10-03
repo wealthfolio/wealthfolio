@@ -23,6 +23,7 @@ vi.mock("@/features/profiles/api", () => ({
 }));
 vi.mock("@/features/profiles/session", () => ({
   installProfileSession: () => true,
+  hasProfileSession: () => false,
   profileScope: () => "test-scope",
   revokeProfileSession: vi.fn(),
 }));

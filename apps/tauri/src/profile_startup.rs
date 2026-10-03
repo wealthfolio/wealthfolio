@@ -56,7 +56,13 @@ impl ProfileStartup {
             }
         })
         .await
-        .map_err(|_| "Profile initialization failed.".to_string())
+        .map_err(|error| {
+            log::error!(
+                "Profile initialization task failed (panic={})",
+                matches!(error, tauri::Error::JoinError(ref join) if join.is_panic())
+            );
+            "Profile initialization failed.".to_string()
+        })
         .and_then(|result| result);
         *self
             .error

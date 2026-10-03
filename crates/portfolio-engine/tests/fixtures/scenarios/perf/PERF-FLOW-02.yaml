@@ -1,0 +1,57 @@
+id: PERF-FLOW-02
+title: Same-day deposit and withdrawal keep gross flows
+intent: >
+  A deposit (500) and a withdrawal (200) on the same day as a +10% price move.
+  With activity-derived provenance the day is stamped with BOTH gross legs
+  (inflow 500, outflow 200, CASH_AMOUNT) and the TWR uses the inflow in the
+  denominator and the outflow in the numerator: (1400 + 200 - 1000 - 500) /
+  (1000 + 500) = 0.06666667. Under the net-contribution fallback (no activity
+  repository; NET_CONTRIBUTION_FALLBACK with the netting warning) the day would
+  collapse to a single 300 inflow and read (1400 - 1000 - 300)/1300 =
+  0.07692308. The harness always has explicit provenance, so the fallback is
+  documented, not captured.
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-06
+accounts:
+  - id: acc-1
+    currency: USD
+assets:
+  - id: aapl
+    quote_ccy: USD
+activities:
+  - id: dep-1
+    account: acc-1
+    type: DEPOSIT
+    date: 2025-01-02T10:00:00Z
+    amount: 1000
+  - id: buy-1
+    account: acc-1
+    type: BUY
+    date: 2025-01-03T10:00:00Z
+    asset: aapl
+    quantity: 10
+    unit_price: 100
+    amount: 1000
+  - id: dep-2
+    account: acc-1
+    type: DEPOSIT
+    date: 2025-01-04T09:00:00Z
+    amount: 500
+  - id: wd-1
+    account: acc-1
+    type: WITHDRAWAL
+    date: 2025-01-04T11:00:00Z
+    amount: 200
+quotes:
+  - { asset: aapl, day: 2025-01-03, close: 100 }
+  - { asset: aapl, day: 2025-01-04, close: 110 }
+  - { asset: aapl, day: 2025-01-06, close: 110 }
+expected_notes: >
+  Values: 01-02 1000, 01-03 1000, 01-04 1400 (cash 300 + 1100), 01-05 1400,
+  01-06 1400. Flow 01-04: inflow 500, outflow 200, CASH_AMOUNT (gross, not the
+  netted 300); net_contribution 1300. TWR 01-04 = 100/1500 = 0.06666667 and the
+  headline equals it; value_return (1400 - 1000 - 300)/1000 = 0.1; IRR flows
+  -1000, -500, +200, +1400. Attribution: contributions 1500, distributions
+  200, unrealized 100 -> 1400. No flow-quality warnings (no fallback used).

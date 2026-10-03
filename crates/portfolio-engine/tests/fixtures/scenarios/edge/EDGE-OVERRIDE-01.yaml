@@ -1,0 +1,54 @@
+id: EDGE-OVERRIDE-01
+title: UNKNOWN row with override DIVIDEND and subtype DRIP
+intent: >
+  A row stored as UNKNOWN whose activity_type_override is DIVIDEND and
+  subtype DRIP. `effective_type()` wins everywhere: the compiler expands the
+  row into a DIVIDEND leg (+100 cash, income) and a BUY leg (2 shares @ 50,
+  amount 100, cash-neutral overall), the lot opens under the synthetic
+  `<id>:buy` leg, and performance attributes the 100 as income through the
+  same effective type. The raw type UNKNOWN (which would be a warn-and-skip)
+  is never consulted.
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-10
+accounts:
+  - id: acc-1
+    currency: USD
+assets:
+  - id: aapl
+    quote_ccy: USD
+activities:
+  - id: dep-1
+    account: acc-1
+    type: DEPOSIT
+    date: 2025-01-02T10:00:00Z
+    amount: 1000
+  - id: buy-1
+    account: acc-1
+    type: BUY
+    date: 2025-01-03T10:00:00Z
+    asset: aapl
+    quantity: 10
+    unit_price: 50
+    amount: 500
+  - id: drip-override
+    account: acc-1
+    type: UNKNOWN
+    override: DIVIDEND
+    subtype: DRIP
+    date: 2025-01-06T10:00:00Z
+    asset: aapl
+    quantity: 2
+    unit_price: 50
+    amount: 100
+quotes:
+  - { asset: aapl, day: 2025-01-03, close: 50 }
+  - { asset: aapl, day: 2025-01-08, close: 52 }
+expected_notes: >
+  01-03: cash 500, position 10 @ 50. 01-06: cash still 500 (dividend +100,
+  reinvestment -100), position 12 with basis 600 (average_cost 50); a
+  second lot `drip-override:buy` (2 @ 50, basis 100, open_activity_id
+  cleared because the synthetic leg is not a stored row). Valuations: 01-03
+  1000; 01-06 12 x 50 + 500 = 1100; 01-08 12 x 52 + 500 = 1124. Performance
+  attribution income 100; TWR +10% on 01-06 (DRIP is internal, no flow).

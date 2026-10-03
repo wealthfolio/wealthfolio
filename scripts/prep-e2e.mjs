@@ -27,7 +27,8 @@ const setEnvValue = (content, key, value) => {
 export const prepareE2eEnvContent = (content, dataDirectory) => {
   // The registry and per-profile databases live beside WF_DB_PATH. A new filename
   // in a shared directory would still reuse the previous run's profiles and vault.
-  let updated = setEnvValue(content, "WF_DB_PATH", join(dataDirectory, "app.db"));
+  let updated = setEnvValue(content, "WF_DATA_DIR", dataDirectory);
+  updated = setEnvValue(updated, "WF_DB_PATH", join(dataDirectory, "app.db"));
   updated = setEnvValue(updated, "WF_SECRET_FILE", join(dataDirectory, "vault.bin"));
   updated = setEnvValue(updated, "WF_ADDONS_DIR", join(dataDirectory, "addons"));
 

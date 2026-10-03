@@ -32,6 +32,20 @@ describe("profile request authority", () => {
       vi.unstubAllGlobals();
     }
   });
+  it("preserves the grant and diagnostic response when runtime startup fails", async () => {
+    const session = await import("./session");
+    session.installProfileSession({ profileId: "a", scopeId: "scope-a" });
+    const diagnostic = "PROFILE_STARTUP_FAILED: Missing internal instance ID";
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(diagnostic, { status: 500 })));
+    try {
+      const response = await session.profileFetch("/api/v1/accounts");
+      expect(response.status).toBe(500);
+      expect(await response.text()).toBe(diagnostic);
+      expect(session.profileScope()).toBe("scope-a");
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
   it("discards a response that arrives after lock", async () => {
     const session = await import("./session");
     session.installProfileSession({ profileId: "a", scopeId: "scope-a" });
@@ -100,4 +114,36 @@ it("enables legacy preference fallback only with backend legacy metadata", async
   const grant = { profileId: "adopted", scopeId: "scope" };
   session.installProfileSession(grant, true);
   expect(session.usesLegacyPreferences()).toBe(true);
+});
+
+it("routes a proxy sign-in page to auth recovery without revoking the profile, but preserves 524 responses", async () => {
+  vi.resetModules();
+  const session = await import("./session");
+  const { setUnauthorizedHandler } = await import("@/lib/auth-token");
+  const unauthorized = vi.fn();
+  setUnauthorizedHandler(unauthorized);
+  session.installProfileSession({ profileId: "a", scopeId: "scope-a" });
+  const fetch = vi
+    .fn()
+    .mockResolvedValue(
+      new Response("<html>Sign in</html>", { headers: { "Content-Type": "text/html" } }),
+    );
+  vi.stubGlobal("fetch", fetch);
+  try {
+    await expect(session.profileFetch("/api/v1/accounts")).rejects.toThrow("PROFILE_AUTH_REQUIRED");
+    expect(unauthorized).toHaveBeenCalledExactlyOnceWith("signIn");
+    expect(session.profileScope()).toBe("scope-a");
+    fetch.mockResolvedValue(
+      new Response("<html>Timeout</html>", {
+        status: 524,
+        headers: { "Content-Type": "text/html" },
+      }),
+    );
+    expect((await session.profileFetch("/api/v1/accounts")).status).toBe(524);
+    expect(unauthorized).toHaveBeenCalledExactlyOnceWith("signIn");
+    expect(session.profileScope()).toBe("scope-a");
+  } finally {
+    setUnauthorizedHandler(null);
+    vi.unstubAllGlobals();
+  }
 });

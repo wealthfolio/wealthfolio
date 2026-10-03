@@ -1,0 +1,43 @@
+id: EDGE-DRIP-01
+title: DRIP whose reinvestment leg is rejected is rejected whole
+intent: >
+  An activity applies whole or not at all. A DRIP paid in USD on a GBP-quoted
+  asset, with no USD/GBP rate and no rate on the row, compiles into
+  `drip-1:dividend` (books 20 USD) and `drip-1:buy` (needs the price in GBP).
+  The buy leg cannot convert, so the activity is rejected: the income leg is
+  rolled back with it, and valuation and attribution leave the activity out
+  as the fold did.
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-10
+accounts:
+  - id: acc-1
+    name: Brokerage
+    currency: USD
+assets:
+  - id: vod
+    quote_ccy: GBP
+activities:
+  - id: dep-1
+    account: acc-1
+    type: DEPOSIT
+    date: 2025-01-02T10:00:00Z
+    amount: 1000
+  - id: drip-1
+    account: acc-1
+    type: DIVIDEND
+    subtype: DRIP
+    date: 2025-01-08T10:00:00Z
+    asset: vod
+    quantity: 2
+    unit_price: 10
+    amount: 20
+quotes:
+  - { asset: vod, day: 2025-01-08, close: 8 }
+  - { asset: vod, day: 2025-01-10, close: 8 }
+expected_notes: >
+  Cash USD 1000 throughout: the rejected DRIP books nothing. No vod position
+  and no lot. An ActivityRejected error names `drip-1` (USD to GBP
+  conversion of the buy leg). net_contribution 1000, no flows, attribution
+  income 0, total value 1000.

@@ -155,6 +155,7 @@ export function SymbolSearch<TFieldValues extends FieldValues = FieldValues>({
         searchResult.quoteType,
         searchResult.providerId,
         searchResult.currency,
+        searchResult.providerSymbol,
       )
         .then((resolved) => {
           if (requestId !== latestResolveRequestId.current) return;

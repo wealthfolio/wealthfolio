@@ -51,12 +51,12 @@ pub fn valuation_date_from_utc(instant: DateTime<Utc>, tz: Tz) -> NaiveDate {
 /// Convenience function that uses the default valuation timezone.
 /// Equivalent to `valuation_date_from_utc(instant, DEFAULT_VALUATION_TZ)`.
 pub fn valuation_date_today() -> NaiveDate {
-    valuation_date_from_utc(Utc::now(), DEFAULT_VALUATION_TZ)
+    valuation_date_from_utc(crate::utils::clock::now(), DEFAULT_VALUATION_TZ)
 }
 
 /// Returns today's date in the configured user timezone.
 pub fn user_today(tz: Tz) -> NaiveDate {
-    valuation_date_from_utc(Utc::now(), tz)
+    valuation_date_from_utc(crate::utils::clock::now(), tz)
 }
 
 /// Converts a UTC instant to a user-local date.

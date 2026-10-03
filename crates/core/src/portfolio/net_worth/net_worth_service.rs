@@ -18,7 +18,7 @@ use crate::constants::DECIMAL_PRECISION;
 use crate::errors::Result;
 use crate::fx::currency::normalize_amount;
 use crate::fx::FxServiceTrait;
-use crate::portfolio::snapshot::SnapshotRepositoryTrait;
+use crate::portfolio::snapshot::SnapshotServiceTrait;
 use crate::portfolio::valuation::{DailyAccountValuation, ValuationRepositoryTrait};
 use crate::quotes::QuoteServiceTrait;
 
@@ -30,7 +30,7 @@ pub struct NetWorthService {
     base_currency: Arc<RwLock<String>>,
     account_repository: Arc<dyn AccountRepositoryTrait>,
     asset_repository: Arc<dyn AssetRepositoryTrait>,
-    snapshot_repository: Arc<dyn SnapshotRepositoryTrait>,
+    snapshot_service: Arc<dyn SnapshotServiceTrait>,
     quote_service: Arc<dyn QuoteServiceTrait>,
     valuation_repository: Arc<dyn ValuationRepositoryTrait>,
     fx_service: Arc<dyn FxServiceTrait>,
@@ -43,7 +43,7 @@ impl NetWorthService {
         base_currency: Arc<RwLock<String>>,
         account_repository: Arc<dyn AccountRepositoryTrait>,
         asset_repository: Arc<dyn AssetRepositoryTrait>,
-        snapshot_repository: Arc<dyn SnapshotRepositoryTrait>,
+        snapshot_service: Arc<dyn SnapshotServiceTrait>,
         quote_service: Arc<dyn QuoteServiceTrait>,
         valuation_repository: Arc<dyn ValuationRepositoryTrait>,
         fx_service: Arc<dyn FxServiceTrait>,
@@ -52,7 +52,7 @@ impl NetWorthService {
             base_currency,
             account_repository,
             asset_repository,
-            snapshot_repository,
+            snapshot_service,
             quote_service,
             valuation_repository,
             fx_service,
@@ -360,10 +360,10 @@ impl NetWorthServiceTrait for NetWorthService {
         // Get account IDs
         let account_ids: Vec<String> = accounts.iter().map(|a| a.id.clone()).collect();
 
-        // Get latest snapshots for all accounts as of the target date
+        // Latest snapshots for all accounts, read on the target date
         let snapshots = self
-            .snapshot_repository
-            .get_latest_snapshots_before_date(&account_ids, date)?;
+            .snapshot_service
+            .get_latest_snapshots_as_of(&account_ids, date)?;
 
         // Build a map of account_id -> account for easy lookup
         let account_map: HashMap<String, _> = accounts.iter().map(|a| (a.id.clone(), a)).collect();

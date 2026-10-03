@@ -1,0 +1,29 @@
+id: EDGE-FX-12
+title: A scope adds up the rows it aggregates, to the last stored decimal
+intent: >
+  Kernel-only. The base is CAD and the accounts are in USD and CAD, so
+  their flows convert at 1 / 0.76 = 1.3157894736..., which does not
+  terminate. Stored rows keep 8 decimals; a scope over one account must
+  read exactly its row, and an internal transfer must net to exactly zero
+  at portfolio scope, so the scope's flows are taken at the same
+  precision per account and day. Marked [K].
+markers: [K]
+policy:
+  base_currency: CAD
+  timezone: UTC
+  as_of: 2025-01-05
+accounts:
+  - { id: acc-usd, currency: USD }
+  - { id: acc-cad, currency: CAD }
+activities:
+  - { id: dep-usd, account: acc-usd, type: DEPOSIT, date: 2025-01-01T10:00:00Z, amount: 180 }
+  - { id: dep-cad, account: acc-cad, type: DEPOSIT, date: 2025-01-01T10:01:00Z, amount: 100 }
+  - { id: out, account: acc-usd, type: TRANSFER_OUT, date: 2025-01-03T10:00:00Z, amount: 50, currency: USD, source_group_id: g }
+  - { id: tin, account: acc-cad, type: TRANSFER_IN, date: 2025-01-03T11:00:00Z, amount: 50, currency: USD, source_group_id: g }
+  - { id: wd, account: acc-usd, type: WITHDRAWAL, date: 2025-01-04T10:00:00Z, amount: 10 }
+fx_rates:
+  - { from: CAD, to: USD, day: 2024-12-31, rate: 0.76 }
+expected_notes: >
+  acc-usd outflow on 01-04: 10 / 0.76 = 13.15789474 CAD (8 decimals); a
+  scope of acc-usd alone reads the same. The 01-03 transfer nets to 0 at
+  portfolio scope.

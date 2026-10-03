@@ -1,6 +1,5 @@
 ---
 source: crates/ai/tests/tool_outputs_parity.rs
-assertion_line: 678
 expression: result
 ---
 {
@@ -24,12 +23,17 @@ expression: result
       "assetKind": null,
       "assetName": "AAPL",
       "currency": "USD",
+      "exchangeMic": null,
       "fee": null,
+      "instrumentType": null,
       "isCustomAsset": true,
       "notes": null,
       "priceSource": "user",
       "pricingMode": "MARKET",
+      "providerId": null,
+      "providerSymbol": null,
       "quantity": 20.0,
+      "quoteCcy": null,
       "subtype": null,
       "symbol": "AAPL",
       "tax": null,

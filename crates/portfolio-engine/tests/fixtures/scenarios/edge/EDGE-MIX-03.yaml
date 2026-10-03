@@ -1,0 +1,25 @@
+id: EDGE-MIX-03
+title: A transfer into a holdings account shows up in its snapshot
+intent: >
+  acc-a sends 100 cash to acc-h (HOLDINGS) on 01-03, a paired transfer
+  inside the portfolio. acc-h's snapshots go from 100 to 150 cash, so the
+  owner also took 50 out. A holdings account's flows come only from its
+  snapshots, so the pair is not netted: acc-a's 100 leaves and acc-h's
+  snapshot brings 50 in (the 100 received less the 50 withdrawn). The
+  portfolio's net flow is the 50 withdrawal.
+policy: { base_currency: USD, timezone: UTC, as_of: 2025-01-04 }
+accounts:
+  - { id: acc-a, currency: USD }
+  - { id: acc-h, currency: USD, tracking_mode: HOLDINGS }
+activities:
+  - { id: dep, account: acc-a, type: DEPOSIT, date: 2025-01-01T10:00:00Z, amount: 1000 }
+  - { id: out, account: acc-a, type: TRANSFER_OUT, date: 2025-01-03T10:00:00Z, amount: 100, source_group_id: g }
+  - { id: tin, account: acc-h, type: TRANSFER_IN, date: 2025-01-03T11:00:00Z, amount: 100, source_group_id: g }
+observed_snapshots:
+  - { account: acc-h, date: 2025-01-01, cash: { USD: 100 } }
+  - { account: acc-h, date: 2025-01-03, cash: { USD: 150 } }
+expected_notes: >
+  acc-a: outflow 100 on 01-03. acc-h: inflow 50 on 01-03 (150 - 100,
+  inferred; its transfer adds no flow of its own). Portfolio flows: 01-03
+  inflow 50, outflow 100, net -50. Before netting by snapshot, each side was
+  netted on its own and floored at zero: no flow.

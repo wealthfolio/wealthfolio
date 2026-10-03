@@ -506,13 +506,13 @@ test.describe("Activity Creation Tests", () => {
     const targetRow = row.first();
     await expect(targetRow).toBeVisible({ timeout: 10000 });
     const dialog = page.getByRole("dialog", { name: "Update Activity" });
-    await expect(async () => {
-      await targetRow.getByRole("button", { name: "Open", exact: true }).press("Enter");
-      await page
-        .getByRole("menuitem", { name: "Edit", exact: true })
-        .evaluate((element: HTMLElement) => element.click());
-      await expect(dialog).toBeVisible({ timeout: 1000 });
-    }).toPass({ timeout: 10000 });
+    await targetRow.getByRole("button", { name: "Open", exact: true }).press("Enter");
+    const editItem = page.getByRole("menuitem", { name: "Edit", exact: true });
+    await expect(editItem).toBeVisible();
+    await page.keyboard.press("ArrowDown");
+    await expect(editItem).toBeFocused();
+    await page.keyboard.press("Enter");
+    await expect(dialog).toBeVisible();
     return dialog;
   }
 

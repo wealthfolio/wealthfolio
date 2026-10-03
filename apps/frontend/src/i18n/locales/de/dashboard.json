@@ -102,7 +102,7 @@
     "values_without_returns": "Kontowerte werden ohne Periodenrenditen angezeigt.",
     "failed_to_load": "Konten konnten nicht geladen werden",
     "failed_to_load_performance": "Wertentwicklungskennzahlen konnten nicht geladen werden",
-    "try_restarting": "Versuchen Sie, die App neu zu starten. Falls das Problem weiterhin besteht, muss Ihre Datenbank möglicherweise zurückgesetzt werden."
+    "try_restarting": "Versuchen Sie es erneut. Wenn das Problem weiterhin besteht, starten Sie Wealthfolio neu oder wenden Sie sich an den Support."
   },
   "accounts_count_one": "{{count}} Konto",
   "accounts_count_other": "{{count}} Konten"

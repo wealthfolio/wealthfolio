@@ -22,7 +22,7 @@ const SPENDING_TAXONOMY = "spending_categories";
 const INCOME_TAXONOMY = "income_sources";
 const SAVINGS_TAXONOMY = "savings_categories";
 
-export type QuickCategorizeScope = "expense" | "income" | "saving" | "both";
+export type QuickCategorizeScope = "expense" | "income" | "saving" | "both" | "all";
 
 export interface QuickCategorizePopoverProps {
   trigger: React.ReactNode;
@@ -79,13 +79,13 @@ export function QuickCategorizePopover({
 
   const options = useMemo<FlatOption[]>(() => {
     const out: FlatOption[] = [];
-    if (scope === "expense" || scope === "both") {
+    if (scope === "expense" || scope === "both" || scope === "all") {
       out.push(...flattenTaxonomy(SPENDING_TAXONOMY, spending.data?.categories ?? [], "Expense"));
     }
-    if (scope === "saving") {
+    if (scope === "saving" || scope === "all") {
       out.push(...flattenTaxonomy(SAVINGS_TAXONOMY, savings.data?.categories ?? [], "Savings"));
     }
-    if (scope === "income" || scope === "both") {
+    if (scope === "income" || scope === "both" || scope === "all") {
       out.push(...flattenTaxonomy(INCOME_TAXONOMY, income.data?.categories ?? [], "Income"));
     }
     return out;

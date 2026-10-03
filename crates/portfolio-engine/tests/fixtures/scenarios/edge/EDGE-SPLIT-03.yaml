@@ -1,0 +1,40 @@
+id: EDGE-SPLIT-03
+title: A holdings snapshot's quantities are carried across later splits
+intent: >
+  Kernel-only. Rules R1.5: a split recorded on any account, the holdings
+  account included, applies to a holdings account's snapshot quantities on
+  every later day, whether the provider adjusted its prices or not, and the
+  next snapshot is compared with them that way. acc-h's first snapshot holds
+  10 x and 10 y; both split 2:1 on 01-03. x's split is recorded on acc-h and
+  its quotes are provider-adjusted (10, then 10); y's is recorded on acc-t,
+  which holds none, and its quotes are not adjusted (10, then 5). The second
+  snapshot, on 01-04, holds 20 of each.
+markers: [K]
+policy: { base_currency: USD, timezone: UTC, as_of: 2025-01-04 }
+accounts:
+  - { id: acc-h, currency: USD, tracking_mode: HOLDINGS }
+  - { id: acc-t, currency: USD }
+assets:
+  - { id: x, quote_ccy: USD }
+  - { id: y, quote_ccy: USD }
+observed_snapshots:
+  - { account: acc-h, date: 2025-01-01, positions: [{ asset: x, quantity: 10, average_cost: 5 }, { asset: y, quantity: 10, average_cost: 5 }] }
+  - { account: acc-h, date: 2025-01-04, positions: [{ asset: x, quantity: 20, average_cost: 2.5 }, { asset: y, quantity: 20, average_cost: 2.5 }] }
+activities:
+  - { id: split-x, account: acc-h, type: SPLIT, date: 2025-01-03T10:00:00Z, asset: x, quantity: 2 }
+  - { id: split-y, account: acc-t, type: SPLIT, date: 2025-01-03T11:00:00Z, asset: y, quantity: 2 }
+quotes:
+  - { asset: x, day: 2025-01-01, close: 10 }
+  - { asset: x, day: 2025-01-03, close: 10 }
+  - { asset: y, day: 2025-01-01, close: 10 }
+  - { asset: y, day: 2025-01-03, close: 5 }
+expected_notes: >
+  x before the split reads its adjusted closes at their unadjusted level:
+  10 x 10 x 2 = 200 on 01-01 and 01-02; from 01-03, 10 x 2 = 20 units at
+  10, 200. y: 10 x 10 = 100 before, 20 x 5 = 100 from 01-03. acc-h is worth
+  300 every day. On 01-04 the snapshot's 20 x 10 + 20 x 5 = 300 equals the
+  first snapshot's holdings carried across the splits at that day's prices,
+  300: no flow. Before the fix the first snapshot's quantities were not
+  carried: 10 x 10 + 10 x 5 = 150 on 01-03, and on 01-04 the inference
+  priced x at its pre-split level (200) and y at its post-split close (50),
+  a flow of 300 - 250 = 50 in.

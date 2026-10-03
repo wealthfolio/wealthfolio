@@ -105,6 +105,18 @@ pub fn cusip_to_isin(cusip: &str, country_code: &str) -> String {
     format!("{}{}", body, check)
 }
 
+/// Resolve only CUSIPs whose issuer establishes the country. Treasury CUSIPs
+/// use the 912 issuer family, also recognized by US_TREASURY_CALC. Other CUSIPs
+/// require an authoritative ISIN; trading currency cannot supply its prefix.
+pub fn normalize_bond_identifier(symbol: &str) -> String {
+    let upper = symbol.trim().to_uppercase();
+    if upper.starts_with("912") && parse_cusip(&upper).is_ok() {
+        cusip_to_isin(&upper, "US")
+    } else {
+        upper
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -4,26 +4,38 @@
 //! such as names, currencies, and currency-to-exchange mappings.
 //! Data is loaded from `exchanges.json` via the exchange registry.
 
-use super::exchange_registry::REGISTRY;
+use super::exchange_registry::{canonicalize_exchange_mic, REGISTRY};
 
 /// Get the friendly exchange name for a MIC code.
 pub fn mic_to_exchange_name(mic: &str) -> Option<&'static str> {
-    REGISTRY.name_by_mic.get(mic).copied()
+    REGISTRY
+        .name_by_mic
+        .get(&canonicalize_exchange_mic(mic))
+        .copied()
 }
 
 /// Get the primary currency for a MIC code.
 pub fn mic_to_currency(mic: &str) -> Option<&'static str> {
-    REGISTRY.currency_by_mic.get(mic).copied()
+    REGISTRY
+        .currency_by_mic
+        .get(&canonicalize_exchange_mic(mic))
+        .copied()
 }
 
 /// Get the IANA timezone name for a MIC code.
 pub fn mic_to_timezone(mic: &str) -> Option<&'static str> {
-    REGISTRY.timezone_by_mic.get(mic).copied()
+    REGISTRY
+        .timezone_by_mic
+        .get(&canonicalize_exchange_mic(mic))
+        .copied()
 }
 
 /// Get the market close time (hour, minute) for a MIC code.
 pub fn mic_to_market_close(mic: &str) -> Option<(u8, u8)> {
-    REGISTRY.close_by_mic.get(mic).copied()
+    REGISTRY
+        .close_by_mic
+        .get(&canonicalize_exchange_mic(mic))
+        .copied()
 }
 
 /// Get the list of preferred exchanges for a given currency.
@@ -48,6 +60,7 @@ mod tests {
         assert_eq!(mic_to_exchange_name("NEOE"), Some("Cboe Canada"));
         assert_eq!(mic_to_exchange_name("XLON"), Some("LSE"));
         assert_eq!(mic_to_exchange_name("CXE"), Some("Cboe UK"));
+        assert_eq!(mic_to_exchange_name("XAQE"), Some("Aquis"));
         assert_eq!(mic_to_exchange_name("XETR"), Some("XETRA"));
         assert_eq!(mic_to_exchange_name("UNKNOWN"), None);
     }
@@ -59,6 +72,7 @@ mod tests {
         assert_eq!(mic_to_currency("XTSE"), Some("CAD"));
         assert_eq!(mic_to_currency("XLON"), Some("GBp")); // LSE quotes in pence
         assert_eq!(mic_to_currency("CXE"), Some("GBP"));
+        assert_eq!(mic_to_currency("XAQE"), Some("GBP"));
         assert_eq!(mic_to_currency("XTAE"), Some("ILA"));
         assert_eq!(mic_to_currency("XETR"), Some("EUR"));
         assert_eq!(mic_to_currency("XTKS"), Some("JPY"));

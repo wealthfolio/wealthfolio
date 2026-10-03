@@ -114,6 +114,7 @@ impl ProviderCapabilities {
                 features: vec![
                     "Real-time".to_string(),
                     "Historical".to_string(),
+                    "Profiles".to_string(),
                     "No API key".to_string(),
                 ],
             }),

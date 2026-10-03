@@ -6,6 +6,7 @@ use wealthfolio_server::{api::app_router, build_state, config::Config};
 #[tokio::test]
 async fn healthz_works() {
     let tmp = tempdir().unwrap();
+    std::env::set_var("WF_DATA_DIR", "");
     std::env::set_var("WF_DB_PATH", tmp.path().join("test.db"));
     std::env::set_var("WF_SECRET_KEY", "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
     std::env::set_var("WF_LISTEN_ADDR", "127.0.0.1:0");

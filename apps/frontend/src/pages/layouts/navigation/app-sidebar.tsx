@@ -225,7 +225,7 @@ function PinnedAddonNavItem({ item, collapsed, onSetPinned }: PinnedAddonNavItem
 
   return (
     <div className="group relative">
-      <NavItem item={item} collapsed={collapsed} className="pr-10" />
+      <NavItem item={item} collapsed={collapsed} className="w-full pr-10" />
 
       <DropdownMenu>
         <DropdownMenuTrigger asChild>

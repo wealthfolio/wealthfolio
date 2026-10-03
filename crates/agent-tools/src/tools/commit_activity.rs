@@ -120,14 +120,14 @@ fn draft_to_new_activity(draft: &ActivityDraft) -> Result<NewActivity, AgentTool
                 .as_deref()
                 .filter(|s| !s.is_empty())
                 .map(str::to_string),
-            exchange_mic: None,
+            exchange_mic: draft.exchange_mic.clone(),
             kind: draft.asset_kind.clone(),
             name: draft.asset_name.clone(),
             quote_mode: Some(draft.pricing_mode.clone()),
-            quote_ccy: None,
-            instrument_type: None,
-            provider_id: None,
-            provider_symbol: None,
+            quote_ccy: draft.quote_ccy.clone(),
+            instrument_type: draft.instrument_type.clone(),
+            provider_id: draft.provider_id.clone(),
+            provider_symbol: draft.provider_symbol.clone(),
         })
     } else {
         None
@@ -359,6 +359,11 @@ fn activity_draft_schema() -> serde_json::Value {
             "symbol": { "type": "string" },
             "assetId": { "type": "string" },
             "assetName": { "type": "string" },
+            "exchangeMic": { "type": "string" },
+            "quoteCcy": { "type": "string" },
+            "instrumentType": { "type": "string" },
+            "providerId": { "type": "string" },
+            "providerSymbol": { "type": "string" },
             "quantity": { "type": "number" },
             "unitPrice": { "type": "number" },
             "amount": { "type": "number" },
@@ -390,6 +395,11 @@ mod tests {
             symbol: Some("AAPL".to_string()),
             asset_id: Some("SEC:AAPL:XNAS".to_string()),
             asset_name: Some("Apple Inc.".to_string()),
+            exchange_mic: Some("XNAS".to_string()),
+            quote_ccy: Some("USD".to_string()),
+            instrument_type: Some("EQUITY".to_string()),
+            provider_id: Some("YAHOO".to_string()),
+            provider_symbol: Some("AAPL".to_string()),
             quantity: Some(10.0),
             unit_price: Some(150.25),
             amount: Some(1502.5),
@@ -420,8 +430,53 @@ mod tests {
         let asset = new.asset.expect("security draft should carry an asset");
         assert_eq!(asset.id.as_deref(), Some("SEC:AAPL:XNAS"));
         assert_eq!(asset.symbol.as_deref(), Some("AAPL"));
+        assert_eq!(asset.exchange_mic.as_deref(), Some("XNAS"));
+        assert_eq!(asset.quote_ccy.as_deref(), Some("USD"));
+        assert_eq!(asset.instrument_type.as_deref(), Some("EQUITY"));
+        assert_eq!(asset.provider_id.as_deref(), Some("YAHOO"));
+        assert_eq!(asset.provider_symbol.as_deref(), Some("AAPL"));
         // Never minted on commit — the service assigns it.
         assert!(new.id.is_none());
+    }
+
+    #[test]
+    fn preserves_unknown_suffix_for_core_activity_resolution() {
+        let mut draft = security_draft();
+        draft.symbol = Some("ABC.ZZ".to_string());
+        draft.asset_id = None;
+        draft.asset_name = Some("Unknown venue security".to_string());
+        draft.exchange_mic = None;
+        draft.provider_id = None;
+        draft.provider_symbol = None;
+
+        let new = draft_to_new_activity(&draft).unwrap();
+        let asset = new.asset.expect("security draft should carry an asset");
+
+        assert_eq!(asset.symbol.as_deref(), Some("ABC.ZZ"));
+        assert_eq!(asset.exchange_mic, None);
+        assert_eq!(asset.provider_id, None);
+        assert_eq!(asset.provider_symbol, None);
+    }
+
+    #[test]
+    fn preserves_provider_confirmed_canonical_identity() {
+        let mut draft = security_draft();
+        draft.symbol = Some("ABC".to_string());
+        draft.asset_id = None;
+        draft.asset_name = Some("Provider-confirmed security".to_string());
+        draft.exchange_mic = Some("XNAS".to_string());
+        draft.provider_id = Some("YAHOO".to_string());
+        draft.provider_symbol = Some("ABC.ZZ".to_string());
+
+        let new = draft_to_new_activity(&draft).unwrap();
+        let asset = new.asset.expect("confirmed draft should carry an asset");
+
+        assert_eq!(asset.symbol.as_deref(), Some("ABC"));
+        assert_eq!(asset.exchange_mic.as_deref(), Some("XNAS"));
+        assert_eq!(asset.quote_ccy.as_deref(), Some("USD"));
+        assert_eq!(asset.instrument_type.as_deref(), Some("EQUITY"));
+        assert_eq!(asset.provider_id.as_deref(), Some("YAHOO"));
+        assert_eq!(asset.provider_symbol.as_deref(), Some("ABC.ZZ"));
     }
 
     #[test]

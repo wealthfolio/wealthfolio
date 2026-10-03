@@ -116,6 +116,7 @@
   "accounts_empty_title": "No account added!",
   "accounts_empty_description": "You don't have any account yet. Start adding your investment accounts.",
   "accounts_add_first": "Add an account",
+  "accounts_connect_account": "Connect account",
   "accounts_disabled_badge": "Disabled",
   "accounts_operations_open": "Open",
   "accounts_operations_edit": "Edit",

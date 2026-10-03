@@ -1,5 +1,5 @@
 import { openUrlInBrowser } from "@/adapters";
-import { WEALTHFOLIO_CONNECT_PORTAL_URL } from "@/lib/constants";
+import { useConnectUrl } from "../hooks/use-connect-url";
 import { QueryKeys } from "@/lib/query-keys";
 import { useQuery } from "@tanstack/react-query";
 import { useAmountFormatting } from "@wealthfolio/ui";
@@ -89,6 +89,7 @@ interface PlanCardProps {
 }
 
 function PlanCard({ plan, billingPeriod, isDefault, isComingSoon }: PlanCardProps) {
+  const connectLink = useConnectUrl("subscription_plans", plan.id);
   const { t } = useTranslation();
   const { formatAmount } = useAmountFormatting();
   const priceAmount = billingPeriod === "monthly" ? plan.pricing.monthly : plan.pricing.yearly;
@@ -107,7 +108,7 @@ function PlanCard({ plan, billingPeriod, isDefault, isComingSoon }: PlanCardProp
   };
 
   const handleGetStarted = () => {
-    openUrlInBrowser(`${WEALTHFOLIO_CONNECT_PORTAL_URL}/onboarding?plan=${plan.id}`);
+    openUrlInBrowser(connectLink);
   };
 
   // Use isComingSoon from API if available

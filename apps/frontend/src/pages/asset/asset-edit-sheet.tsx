@@ -359,6 +359,7 @@ function SymbolMappingRow({
           requestInstrumentType,
           requestProvider,
           requestQuoteCcy,
+          trimmedSymbol,
         );
         if (validationRequestSeq.current !== requestId) return;
 
@@ -532,7 +533,7 @@ export function AssetEditSheet({
   const exchangeOptions = useMemo(() => {
     const options = exchanges.map((e) => ({
       value: normalizeMic(e.mic),
-      label: `${e.longName} (${e.name})`,
+      label: `${e.longName} (${e.mic})`,
     }));
 
     if (currentMic && !options.some((option) => option.value === currentMic)) {

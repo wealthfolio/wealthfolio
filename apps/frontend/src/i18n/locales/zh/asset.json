@@ -235,6 +235,7 @@
     }
   },
   "editSheet": {
+    "identity_conflict": "已存在具有相同标识的资产。更改未保存。请使用现有资产或选择其他交易所。",
     "general": "通用",
     "classification": "分类",
     "market_data": "市场数据",

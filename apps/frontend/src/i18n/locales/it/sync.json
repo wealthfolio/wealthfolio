@@ -154,6 +154,8 @@
     "verifySecurityCode": "Verifica codice di sicurezza",
     "transferringData": "Trasferimento dei tuoi dati",
     "transferringDataDescription": "Crittografia di una copia dei tuoi dati per il nuovo dispositivo. Potrebbe richiedere un minuto.",
+    "preparingData": "Preparazione dei tuoi dati",
+    "preparingDataDescription": "Connessione confermata. Tieni Wealthfolio aperto su entrambi i dispositivi durante la preparazione dei tuoi dati.",
     "securingConnection": "Protezione della connessione",
     "securingConnectionDescription": "Scambio delle chiavi di crittografia con l'altro dispositivo."
   },
@@ -207,8 +209,8 @@
       "description": "Download e verifica della copia crittografata dall'altro dispositivo."
     },
     "waiting": {
-      "title": "In attesa dell'altro dispositivo",
-      "description": "L'altro dispositivo sta ancora caricando i suoi dati. La configurazione prosegue automaticamente."
+      "title": "In attesa di una copia aggiornata",
+      "description": "Una copia crittografata aggiornata non è ancora disponibile. La configurazione continuerà automaticamente quando sarà pronta."
     },
     "consent": {
       "title": "Sostituire i dati di questo profilo?",
@@ -249,7 +251,7 @@
     "errors": {
       "SUBSCRIPTION_REQUIRED": "La sincronizzazione dei dispositivi richiede un abbonamento attivo",
       "DEVICE_NOT_READY": "Questo dispositivo non è ancora pronto per la sincronizzazione",
-      "SNAPSHOT_WAIT_TIMED_OUT": "L'altro dispositivo non ha completato il caricamento",
+      "SNAPSHOT_WAIT_TIMED_OUT": "Una copia aggiornata non è stata disponibile in tempo",
       "SNAPSHOT_UNAVAILABLE": "La copia dell'altro dispositivo non è più disponibile",
       "SNAPSHOT_SCHEMA_NEWER": "Aggiorna l'app per completare la configurazione",
       "SNAPSHOT_INVALID": "Impossibile verificare i dati trasferiti",
@@ -282,7 +284,7 @@
       "encrypt": "Crittografia dei dati",
       "upload": "Caricamento della copia crittografata",
       "sendKeys": "Invio delle chiavi al nuovo dispositivo",
-      "waitForUpload": "L'altro dispositivo carica i suoi dati",
+      "waitForUpload": "Attendi una copia aggiornata",
       "downloadAndVerify": "Download e verifica della copia crittografata",
       "replace": "Sostituzione dei dati su questo dispositivo",
       "backup": "Backup di questo profilo"

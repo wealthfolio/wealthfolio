@@ -1116,3 +1116,14 @@ summary {
   --event-default: oklch(0.78 0.13 150);
   --event-today: oklch(0.85 0.16 90);
 }
+
+/* Shared pairing progress animation for source and receiving devices. */
+@keyframes device-link-pulse {
+  0%,
+  100% {
+    opacity: 0.2;
+  }
+  50% {
+    opacity: 1;
+  }
+}

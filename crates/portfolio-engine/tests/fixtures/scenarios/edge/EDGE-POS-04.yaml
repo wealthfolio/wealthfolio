@@ -1,0 +1,61 @@
+id: EDGE-POS-04
+title: Selling more units than held disposes the held units at their share of the proceeds
+intent: >
+  Kernel-only. A SELL of 110 shares against a 100-share position books its
+  stored cash (1320) in full: the cash movement is a fact. Only 100 shares
+  have lots, so the disposal is realised on 100/110 of the proceeds (1200),
+  not all of them, and an InsufficientQuantity warning names the 10-share
+  shortfall. A second SELL after the position is closed books its cash with
+  a NoPositionToReduce warning. Nothing about an oversell is silent (I10).
+  Marked [K].
+markers: [K]
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-08
+accounts:
+  - id: acc-1
+    currency: USD
+assets:
+  - id: aapl
+    quote_ccy: USD
+activities:
+  - id: dep-1
+    account: acc-1
+    type: DEPOSIT
+    date: 2025-01-02T10:00:00Z
+    amount: 10000
+  - id: buy-1
+    account: acc-1
+    type: BUY
+    date: 2025-01-03T10:00:00Z
+    asset: aapl
+    quantity: 100
+    unit_price: 10
+    amount: 1000
+  - id: sell-1
+    account: acc-1
+    type: SELL
+    date: 2025-01-06T10:00:00Z
+    asset: aapl
+    quantity: 110
+    unit_price: 12
+    amount: 1320
+  - id: sell-2
+    account: acc-1
+    type: SELL
+    date: 2025-01-07T10:00:00Z
+    asset: aapl
+    quantity: 5
+    unit_price: 12
+    amount: 60
+quotes:
+  - { asset: aapl, day: 2025-01-03, close: 10 }
+  - { asset: aapl, day: 2025-01-06, close: 12 }
+expected_notes: >
+  Cash 10000 -> 9000 (01-03) -> 10320 (01-06) -> 10380 (01-07). One
+  disposal for sell-1: 100 shares, proceeds 1200, cost 1000, realized P&L
+  200. sell-2 has no disposal. Diagnostics: InsufficientQuantity for sell-1
+  (110 requested, 100 held) and NoPositionToReduce for sell-2. Attribution:
+  realized 200; the 180 of cash the unmatched units brought in is not P&L
+  of any lot, so the residual warning reports it.

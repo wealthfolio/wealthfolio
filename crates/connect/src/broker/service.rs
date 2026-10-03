@@ -1139,33 +1139,12 @@ impl BrokerSyncServiceTrait for BrokerSyncService {
         let assets_created = ensure_result.created_ids.len();
         let new_asset_ids = ensure_result.created_ids.clone();
 
-        // Build instrument_key → asset_id lookup
-        let mut key_to_asset_id: HashMap<String, String> = HashMap::new();
-        for asset in ensure_result.assets.values() {
-            if let Some(ref key) = asset.instrument_key {
-                key_to_asset_id.insert(key.clone(), asset.id.clone());
-            }
-        }
-
-        // Also map by direct asset id
-        for id in ensure_result.assets.keys() {
-            key_to_asset_id.insert(id.clone(), id.clone());
-        }
-
         // 3. Build spec_key → asset_id mapping
         let mut spec_key_to_asset_id: HashMap<String, String> = HashMap::new();
         for (spec_key, idx) in &spec_key_to_idx {
             let spec = &asset_specs[*idx];
-            // Try instrument_key first
-            if let Some(ikey) = spec.instrument_key() {
-                if let Some(asset_id) = key_to_asset_id.get(&ikey) {
-                    spec_key_to_asset_id.insert(spec_key.clone(), asset_id.clone());
-                    continue;
-                }
-            }
-            // Fall back to ID if provided
-            if let Some(ref id) = spec.id {
-                if let Some(asset_id) = key_to_asset_id.get(id) {
+            if let Some(input_key) = spec.id.clone().or_else(|| spec.instrument_key()) {
+                if let Some(asset_id) = ensure_result.input_to_asset_id.get(&input_key) {
                     spec_key_to_asset_id.insert(spec_key.clone(), asset_id.clone());
                 }
             }
@@ -1423,7 +1402,6 @@ impl BrokerSyncServiceTrait for BrokerSyncService {
             self.event_sink.emit(DomainEvent::HoldingsChanged {
                 account_ids: vec![account_id.clone()],
                 asset_ids: new_asset_ids.clone(),
-                earliest_snapshot_date: today,
             });
         }
 

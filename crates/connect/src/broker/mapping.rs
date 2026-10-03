@@ -294,7 +294,7 @@ pub fn is_broker_crypto(code: Option<&str>) -> bool {
 fn is_broker_bond(code: Option<&str>) -> bool {
     matches!(
         code.map(|c| c.to_uppercase()).as_deref(),
-        Some("BOND" | "FIXEDINCOME" | "FIXED_INCOME" | "FIXED INCOME" | "DEBT")
+        Some("BND" | "BOND" | "FIXEDINCOME" | "FIXED_INCOME" | "FIXED INCOME" | "DEBT")
     )
 }
 
@@ -894,6 +894,25 @@ mod tests {
 
         assert_eq!(mapped.amount.unwrap().round_dp(2), decimal("990.00"));
         let asset = mapped.asset.expect("bond activity should produce an asset");
+        assert_eq!(asset.kind.as_deref(), Some("BOND"));
+        assert_eq!(asset.instrument_type.as_deref(), Some("BOND"));
+    }
+
+    #[test]
+    fn test_map_broker_activity_recognizes_snaptrade_bnd_cusip() {
+        let activity = AccountUniversalActivity {
+            id: Some("act-bond-cusip-buy".to_string()),
+            activity_type: Some("BUY".to_string()),
+            symbol: Some(broker_symbol("912810TH1", "bnd")),
+            units: Some(1000.0),
+            price: Some(0.955),
+            amount: Some(955.0),
+            ..Default::default()
+        };
+
+        let mapped = map_test_activity(&activity);
+        let asset = mapped.asset.expect("bond activity should produce an asset");
+        assert_eq!(asset.symbol.as_deref(), Some("912810TH1"));
         assert_eq!(asset.kind.as_deref(), Some("BOND"));
         assert_eq!(asset.instrument_type.as_deref(), Some("BOND"));
     }

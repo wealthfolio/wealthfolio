@@ -1,0 +1,33 @@
+id: EDGE-FX-09
+title: Same-day FX observations from several sources resolve by source rank
+intent: >
+  Kernel-only. The FX store, like the quote store, is unique on pair, day
+  and source, so one day can carry a MANUAL, a provider and a BROKER rate.
+  The kernel keeps one observation per pair and day by source rank (MANUAL,
+  then providers, then BROKER), then source name, then value, so the
+  valuation does not depend on the order rows arrive in (I3; the
+  determinism law reverses the input). Marked [K].
+markers: [K]
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-03
+accounts:
+  - id: acc-1
+    currency: CAD
+activities:
+  - id: dep-1
+    account: acc-1
+    type: DEPOSIT
+    date: 2025-01-02T10:00:00Z
+    amount: 1300
+fx_rates:
+  - { from: CAD, to: USD, day: 2025-01-02, rate: 0.70, source: YAHOO }
+  - { from: CAD, to: USD, day: 2025-01-02, rate: 0.75, source: MANUAL }
+  - { from: CAD, to: USD, day: 2025-01-03, rate: 0.80, source: YAHOO }
+  - { from: CAD, to: USD, day: 2025-01-03, rate: 0.72, source: BROKER }
+expected_notes: >
+  The account converts CAD->USD in the observed direction, so the chosen
+  row is read as is. 01-02 uses the MANUAL 0.75 over the provider's 0.70:
+  total value 1300 CAD, base 975. 01-03 uses the provider's 0.80 over the
+  BROKER 0.72: base 1040. Complete, no diagnostics.

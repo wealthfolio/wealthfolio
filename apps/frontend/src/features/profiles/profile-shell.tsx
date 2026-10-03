@@ -1,6 +1,6 @@
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { DATABASE_STATE_CHANGED } from "../../adapters/tauri/events";
-import { profileErrorMessage } from "./error-messages";
+import { profileErrorCode, profileErrorMessage } from "./error-messages";
 import { clearProfilePreferences } from "@/hooks/use-persistent-state";
 import { DeleteProfileDialog } from "./delete-profile-dialog";
 import { StartupScreen } from "@/components/startup-screen";
@@ -15,6 +15,7 @@ import { PasswordInput } from "@wealthfolio/ui/components/ui/password-input";
 import { useCallback, useEffect, useRef, useState, type ReactNode, type FormEvent } from "react";
 import {
   profileCommand,
+  profileFailureKind,
   profileChangesChannel,
   type ProfileState,
   type ProfileSummary,
@@ -27,11 +28,13 @@ import { ProfileContext } from "./profile-context";
 import {
   installProfileSession,
   profileScope,
+  hasProfileSession,
   revokeProfileSession,
   type ProfileSession,
 } from "./session";
 
 const PROFILE_SELECTION_MS = 180;
+const PROFILE_ACTIVITY_INTERVAL_MS = 30_000;
 const MIN_PASSWORD_LENGTH = 4;
 const MAX_PASSWORD_LENGTH = 128;
 const PASSWORD_LENGTH_ERROR = "PROFILE_PASSWORD_LENGTH";
@@ -73,6 +76,7 @@ export function ProfileShell({ children }: { children: ReactNode }) {
   const [avatar, setAvatar] = useState(DEFAULT_PROFILE_AVATAR);
   const [mode, setMode] = useState<"choose" | "create" | "unlock" | "manage" | "recover">("choose");
   const [error, setError] = useState("");
+  const errorCode = profileErrorCode(error);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const deletion = useRef<{ profileId: string; confirmation: string } | undefined>(undefined);
   const [busy, setBusy] = useState(false);
@@ -80,6 +84,9 @@ export function ProfileShell({ children }: { children: ReactNode }) {
   const [copiedRecovery, setCopiedRecovery] = useState<string>();
   const [covered, setCovered] = useState(false);
   const sessionScope = state?.session?.scopeId;
+  const profileProtected = state?.profiles.find(
+    (profile) => profile.id === state.session?.profileId,
+  )?.lockEnabled;
   const [authPending, setAuthPending] = useState(isNativeAuthPending);
   const lock = useCallback(
     async (preserveAuth = false, nextIntent: "lock" | "switch" = "lock") => {
@@ -142,6 +149,7 @@ export function ProfileShell({ children }: { children: ReactNode }) {
       try {
         const next = await profileCommand<ProfileState>("get_profile_state");
         if (cancelled || requestEpoch !== epoch.current || working.current) return;
+        setError("");
         const previous = currentProfile.current;
         if (previous && !next.profiles.some((profile) => profile.id === previous.id)) {
           intent.current = "switch";
@@ -154,7 +162,17 @@ export function ProfileShell({ children }: { children: ReactNode }) {
         } else if (next.session) {
           const profile = next.profiles.find((p) => p.id === next.session?.profileId);
           if (profile) rememberOpeningProfile(profile);
-          if (!installProfileSession(next.session, profile?.isLegacy)) return;
+          if (!installProfileSession(next.session, profile?.isLegacy)) {
+            if (isWeb) {
+              // A 423 can revoke this document while the server retains its grant.
+              // Keep financial content closed; only an explicit retry opens a new document.
+              setCovered(true);
+              setPhase("loading");
+              setError("PROFILE_SESSION_INTERRUPTED");
+            }
+            return;
+          }
+          setError("");
           if (isWeb) void listenPortfolioUpdateStart(keepEventStreamOpen).catch(() => undefined);
           currentProfile.current = profile;
           setState(next);
@@ -167,7 +185,11 @@ export function ProfileShell({ children }: { children: ReactNode }) {
         } else {
           // Join native teardown before offering another activation. A replacement
           // recovery grant above must reload without being revoked again.
-          if (needsClose.current || phaseRef.current === "active") {
+          if (
+            needsClose.current ||
+            phaseRef.current === "active" ||
+            (isWeb && hasProfileSession())
+          ) {
             needsClose.current = false;
             setState(next);
             if (!isWeb) {
@@ -199,8 +221,20 @@ export function ProfileShell({ children }: { children: ReactNode }) {
         }
       } catch (e) {
         if (!cancelled && requestEpoch === epoch.current) {
-          if (isWeb && phaseRef.current === "active") await lock();
-          else setError(String(e));
+          const failure = profileFailureKind(e);
+          // Background connection failures must not replace an open profile or
+          // the user's current selection and form edits on the locked screen.
+          if (
+            failure === "connection" &&
+            (phaseRef.current === "active" || phaseRef.current === "locked")
+          )
+            return;
+          if (failure === "session") revokeProfileSession();
+          setCovered(true);
+          setPhase("loading");
+          setSelected(currentProfile.current);
+          const message = String(e);
+          setError(isWeb && failure === "connection" ? "PROFILE_CONNECTION_FAILED" : message);
         }
       } finally {
         inFlight = false;
@@ -216,7 +250,9 @@ export function ProfileShell({ children }: { children: ReactNode }) {
     const visibleRefresh = () => {
       if (document.visibilityState !== "hidden") void refresh();
     };
-    const wake = () => void refresh();
+    const wake = () => {
+      if (navigator.onLine) void refresh();
+    };
     const profileChanged = (event: MessageEvent) => {
       if (event.data === "changed") void refresh();
     };
@@ -224,8 +260,8 @@ export function ProfileShell({ children }: { children: ReactNode }) {
     const webEvents = [
       [document, "visibilitychange", visibleRefresh],
       [window, "online", wake],
-      [window, "offline", wake],
       [window, "wealthfolio:event-stream-error", wake],
+      [window, "wealthfolio:event-stream-reconnected", wake],
     ] as const;
     if (isWeb)
       for (const [target, name, handler] of webEvents) target.addEventListener(name, handler);
@@ -285,13 +321,17 @@ export function ProfileShell({ children }: { children: ReactNode }) {
   }, [queries, lock, setPhase]);
 
   useEffect(() => {
-    if (!sessionScope || covered) return;
+    if (!sessionScope || covered || !profileProtected) return;
     let last = 0;
     const activity = (event: Event) => {
-      if (!event.isTrusted || Date.now() - last < 15000) return;
+      if (!event.isTrusted || Date.now() - last < PROFILE_ACTIVITY_INTERVAL_MS) return;
       last = Date.now();
-      void profileCommand("profile_activity", { scopeId: profileScope() }, true).catch(() =>
-        revokeProfileSession(),
+      const requestEpoch = epoch.current;
+      void profileCommand("profile_activity", { scopeId: profileScope() }, true).catch(
+        (error: unknown) => {
+          if (requestEpoch !== epoch.current || phaseRef.current !== "active") return;
+          if (profileFailureKind(error) === "session") revokeProfileSession();
+        },
       );
     };
     for (const event of ["pointerdown", "keydown", "touchstart", "wheel"])
@@ -300,7 +340,7 @@ export function ProfileShell({ children }: { children: ReactNode }) {
       for (const event of ["pointerdown", "keydown", "touchstart", "wheel"])
         window.removeEventListener(event, activity);
     };
-  }, [sessionScope, covered, lock]);
+  }, [sessionScope, covered, profileProtected]);
 
   useEffect(() => {
     if (
@@ -577,18 +617,26 @@ export function ProfileShell({ children }: { children: ReactNode }) {
             ? t("profiles.lockFailed", { defaultValue: "Couldn’t finish locking" })
             : phase === "closing"
               ? t("profiles.locking", { defaultValue: "Locking Wealthfolio…" })
-              : undefined
+              : errorCode === "PROFILE_CONNECTION_FAILED" || errorCode === "PROFILE_AUTH_REQUIRED"
+                ? t("profiles.connectionFailed")
+                : undefined
         }
       >
         {error && (
           <Button
             onClick={() => {
               setError("");
-              if (closeFailed) void lock(false, intent.current);
+              if (
+                isWeb &&
+                (errorCode === "PROFILE_SESSION_INTERRUPTED" ||
+                  errorCode === "PROFILE_AUTH_REQUIRED")
+              )
+                reloadApplication();
+              else if (closeFailed) void lock(false, intent.current);
               else refreshRef.current?.();
             }}
           >
-            {t("retry")}
+            {errorCode === "PROFILE_AUTH_REQUIRED" ? t("profiles.signInAgain") : t("retry")}
           </Button>
         )}
       </StartupScreen>

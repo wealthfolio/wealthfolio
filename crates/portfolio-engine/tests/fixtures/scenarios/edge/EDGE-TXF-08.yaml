@@ -1,0 +1,29 @@
+id: EDGE-TXF-08
+title: A short moved across days flows the way it moved, in every window
+intent: >
+  Kernel-only. As EDGE-TXF-07, but the short leaves acc-a on 01-04 and
+  reaches acc-b on 01-05. Whatever window holds the incoming leg, it is a
+  liability arriving: an outflow of 10 from acc-b on 01-05 (and an inflow
+  of 10 to acc-a on 01-04), so neither account shows a return on a
+  transfer. Marked [K].
+markers: [K]
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-06
+accounts:
+  - { id: acc-a, currency: USD }
+  - { id: acc-b, currency: USD }
+assets:
+  - { id: x, quote_ccy: USD }
+activities:
+  - { id: dep-a, account: acc-a, type: DEPOSIT, date: 2025-01-01T10:00:00Z, amount: 100 }
+  - { id: dep-b, account: acc-b, type: DEPOSIT, date: 2025-01-01T10:01:00Z, amount: 100 }
+  - { id: short, account: acc-a, type: SELL, subtype: POSITION_OPEN, date: 2025-01-02T10:00:00Z, asset: x, quantity: 1, unit_price: 10, amount: 10 }
+  - { id: out, account: acc-a, type: TRANSFER_OUT, date: 2025-01-04T10:00:00Z, asset: x, quantity: 1, source_group_id: g }
+  - { id: tin, account: acc-b, type: TRANSFER_IN, date: 2025-01-05T10:00:00Z, asset: x, quantity: 1, source_group_id: g }
+quotes:
+  - { asset: x, day: 2025-01-01, close: 10 }
+expected_notes: >
+  acc-a: inflow 10 on 01-04, worth 110 from then. acc-b: outflow 10 on
+  01-05, worth 90 from then. Every TWR is 0.

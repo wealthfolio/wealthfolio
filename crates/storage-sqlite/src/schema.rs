@@ -293,6 +293,15 @@ diesel::table! {
 }
 
 diesel::table! {
+    projection_state (scope) {
+        scope -> Text,
+        dirty_from -> Nullable<Text>,
+        version -> BigInt,
+        activity_issues -> Text,
+    }
+}
+
+diesel::table! {
     holdings_snapshots (id) {
         id -> Text,
         account_id -> Text,

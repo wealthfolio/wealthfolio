@@ -1,0 +1,31 @@
+id: EDGE-TXF-14
+title: A dated read keeps a transfer's shortfall when its window starts between the legs
+intent: >
+  Kernel-only. acc-a holds 6 x and sends 10 on 01-03; acc-b receives the 10
+  on 01-05. The 4 acc-a lacked enter the portfolio as money from outside its
+  history (EDGE-TXF-09). A read starting 01-04 holds only the incoming leg,
+  but the share of it that is internal still depends on both legs: it keeps
+  the 40 the sender lacked as an inflow.
+markers: [K]
+policy: { base_currency: USD, timezone: UTC, as_of: 2025-01-06 }
+accounts:
+  - { id: acc-a, currency: USD }
+  - { id: acc-b, currency: USD }
+assets:
+  - { id: x, quote_ccy: USD }
+activities:
+  - { id: dep-a, account: acc-a, type: DEPOSIT, date: 2025-01-01T10:00:00Z, amount: 1000 }
+  - { id: dep-b, account: acc-b, type: DEPOSIT, date: 2025-01-01T11:00:00Z, amount: 100 }
+  - { id: buy, account: acc-a, type: BUY, date: 2025-01-02T10:00:00Z, asset: x, quantity: 6, unit_price: 10, amount: 60 }
+  - { id: out, account: acc-a, type: TRANSFER_OUT, date: 2025-01-03T10:00:00Z, asset: x, quantity: 10, unit_price: 10, source_group_id: g }
+  - { id: tin, account: acc-b, type: TRANSFER_IN, date: 2025-01-05T11:00:00Z, asset: x, quantity: 10, unit_price: 10, source_group_id: g }
+quotes:
+  - { asset: x, day: 2025-01-01, close: 10 }
+performance_windows:
+  - { label: dated, start: 2025-01-04, end: 2025-01-06 }
+expected_notes: >
+  Portfolio flows (full read): 01-05 inflow 40. The dated window (01-04 to
+  01-06) counts the same 40 as contributions. Before the fix the dated read
+  lost the outgoing leg, netted all 10 incoming units and counted none. (The
+  window's return is not 0: the 6 units acc-a gave left the portfolio's
+  value on 01-03, before the window, and return on 01-05.)

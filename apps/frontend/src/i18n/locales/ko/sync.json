@@ -145,6 +145,8 @@
     "verifySecurityCode": "보안 코드 확인",
     "transferringData": "데이터를 전송하는 중",
     "transferringDataDescription": "새 기기를 위해 데이터 사본을 암호화하고 있습니다. 1분 정도 걸릴 수 있습니다.",
+    "preparingData": "데이터 준비 중",
+    "preparingDataDescription": "연결이 확인되었습니다. 데이터가 준비되는 동안 두 기기 모두에서 Wealthfolio를 열어 두세요.",
     "securingConnection": "연결을 보호하는 중",
     "securingConnectionDescription": "다른 기기와 암호화 키를 교환하고 있습니다."
   },
@@ -198,8 +200,8 @@
       "description": "다른 기기의 암호화된 사본을 다운로드하고 확인하는 중입니다."
     },
     "waiting": {
-      "title": "다른 기기를 기다리는 중",
-      "description": "다른 기기가 아직 데이터를 업로드하고 있습니다. 설정은 자동으로 계속됩니다."
+      "title": "최신 사본을 기다리는 중",
+      "description": "최신 암호화 사본이 아직 준비되지 않았습니다. 준비되면 설정이 자동으로 계속됩니다."
     },
     "consent": {
       "title": "이 프로필의 데이터를 교체할까요?",
@@ -240,7 +242,7 @@
     "errors": {
       "SUBSCRIPTION_REQUIRED": "기기 동기화에는 활성 구독이 필요합니다",
       "DEVICE_NOT_READY": "이 기기는 아직 동기화할 준비가 되지 않았습니다",
-      "SNAPSHOT_WAIT_TIMED_OUT": "다른 기기의 업로드가 끝나지 않았습니다",
+      "SNAPSHOT_WAIT_TIMED_OUT": "제한 시간 내에 최신 사본이 준비되지 않았습니다",
       "SNAPSHOT_UNAVAILABLE": "다른 기기의 사본을 더 이상 사용할 수 없습니다",
       "SNAPSHOT_SCHEMA_NEWER": "설정을 완료하려면 앱을 업데이트하세요",
       "SNAPSHOT_INVALID": "전송된 데이터를 확인할 수 없습니다",
@@ -273,7 +275,7 @@
       "encrypt": "데이터 암호화",
       "upload": "암호화된 사본 업로드",
       "sendKeys": "새 기기로 키 전송",
-      "waitForUpload": "다른 기기가 데이터를 업로드",
+      "waitForUpload": "최신 사본 기다리기",
       "downloadAndVerify": "암호화된 사본 다운로드 및 확인",
       "replace": "이 기기의 데이터 교체",
       "backup": "이 프로필 백업"

@@ -530,6 +530,7 @@ impl FinnhubProvider {
         }
 
         Ok(AssetProfile {
+            bond: None,
             source: Some(PROVIDER_ID.to_string()),
             name: response.name,
             quote_type: Some("EQUITY".to_string()), // Finnhub only supports equities

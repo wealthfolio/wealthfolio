@@ -157,6 +157,36 @@
       "title_other": "{{count}} transferências incompletas foram detectadas",
       "title_many": "{{count}} transferências incompletas foram detectadas",
       "message": "Uma transferência não está emparelhada ou está sem a sua contrapartida, portanto seu fluxo foi tratado como externo e pode distorcer os retornos. Emparelhe-a com a transferência correspondente ou marque-a como externa se for o pretendido."
+    },
+    "data_stale_projection": {
+      "title_one": "O histórico da conta está desatualizado",
+      "title_other": "{{count}} históricos de contas estão desatualizados",
+      "title_many": "{{count}} históricos de contas estão desatualizados",
+      "message": "Atividades, preços ou configurações mudaram depois do último cálculo desses históricos. Recalcule-os para que os valores e os retornos reflitam os dados atuais."
+    },
+    "data_rejected_activity": {
+      "title_one": "Não foi possível aplicar a transação",
+      "title_other": "Não foi possível aplicar {{count}} transações",
+      "title_many": "Não foi possível aplicar {{count}} transações",
+      "message": "Essas transações não podem ser aplicadas como estão registradas (por exemplo, a moeda delas não tem taxa de câmbio, ou elas abririam ou fechariam uma posição vendida sem estarem marcadas para isso), então ficam fora dos saldos, das posições e dos retornos. Revise-as."
+    },
+    "data_oversold_activity": {
+      "title_one": "A transação vende mais do que havia",
+      "title_other": "{{count}} transações vendem mais do que havia",
+      "title_many": "{{count}} transações vendem mais do que havia",
+      "message": "Essas transações vendem ou transferem mais unidades do que a conta tinha no momento. Apenas as unidades existentes foram retiradas, e o restante não tem custo de aquisição. Verifique se falta uma compra ou uma transferência de entrada."
+    },
+    "data_missing_activity_amount": {
+      "title_one": "A transação não tem valor",
+      "title_other": "{{count}} transações não têm valor",
+      "title_many": "{{count}} transações não têm valor",
+      "message": "Essas transações não têm valor, então não alteraram o saldo em caixa. Adicione o valor se houve movimentação de dinheiro."
+    },
+    "fx_conflicting_rates": {
+      "title_one": "As taxas de câmbio de {{from}} e {{to}} não batem",
+      "title_other": "As taxas de câmbio não batem para {{count}} pares de moedas",
+      "title_many": "As taxas de câmbio não batem para {{count}} pares de moedas",
+      "message": "Há taxas registradas nos dois sentidos para os mesmos dias, e elas não correspondem. Cada sentido é usado como registrado, então converter em um sentido e voltar dá um valor diferente. Corrija ou remova as taxas erradas."
     }
   },
   "page": {
