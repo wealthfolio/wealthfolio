@@ -20,6 +20,15 @@ describe("extra repayment validation", () => {
     expect(screen.getByRole("button", { name: "Record Repayment" })).toBeDisabled();
   });
 
+  it("opens with an empty amount, so typing is not added to a prefilled zero", () => {
+    const { rerender } = render(<LoanBalanceEventDialog {...props} />);
+    expect(screen.getByLabelText("Repayment Amount")).toHaveValue("");
+    fireEvent.change(screen.getByLabelText("Repayment Amount"), { target: { value: "500" } });
+    rerender(<LoanBalanceEventDialog {...props} open={false} />);
+    rerender(<LoanBalanceEventDialog {...props} />);
+    expect(screen.getByLabelText("Repayment Amount")).toHaveValue("");
+  });
+
   it("validates on blur and clears the error when the amount becomes valid", () => {
     render(<LoanBalanceEventDialog {...props} />);
     const input = screen.getByLabelText("Repayment Amount");

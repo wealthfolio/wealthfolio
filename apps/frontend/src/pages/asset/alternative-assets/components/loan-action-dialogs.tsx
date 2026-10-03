@@ -300,11 +300,13 @@ export function LoanBalanceEventDialog({
   const [amountTouched, setAmountTouched] = useState(false);
   const [dateTouched, setDateTouched] = useState(false);
   const [date, setDate] = useState<Date>(() => new Date());
-  const [amount, setAmount] = useState<number>(0);
+  // Empty until typed: a prefilled 0 put the caret before it, so "500" became 5000.
+  const [amount, setAmount] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const isCorrection = mode === "balance_correction";
-  const amountInvalid = !Number.isFinite(amount) || amount < 0 || (!isCorrection && amount === 0);
+  const amountInvalid =
+    amount == null || !Number.isFinite(amount) || amount < 0 || (!isCorrection && amount === 0);
   const dateInvalid = !Number.isFinite(date.getTime()) || date > new Date();
   const invalid = amountInvalid || dateInvalid;
   const showValidation = (amountTouched && amountInvalid) || (dateTouched && dateInvalid);
@@ -317,7 +319,7 @@ export function LoanBalanceEventDialog({
   useEffect(() => {
     if (!open) return;
     setDate(new Date());
-    setAmount(0);
+    setAmount(null);
     setError(null);
     setAmountTouched(false);
     setDateTouched(false);
@@ -381,7 +383,7 @@ export function LoanBalanceEventDialog({
               id={amountId}
               value={amount}
               onValueChange={(value, isUserEdit) => {
-                setAmount(value ?? 0);
+                setAmount(value ?? null);
                 if (isUserEdit) setError(null);
               }}
               onBlur={() => setAmountTouched(true)}
