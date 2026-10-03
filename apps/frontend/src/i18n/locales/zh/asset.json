@@ -973,6 +973,17 @@
     "suggestion": "您最近三次还款都与计划还款相差相同金额。自 {{date}} 起，还款额可能为 {{amount}}。",
     "record_change": "记录还款额变更",
     "edit_escrow": "是税费和保险",
-    "recorded_as_withdrawal": "将记录为从{{account}}取款。"
+    "recorded_as_withdrawal": "将记录为从{{account}}取款。",
+    "menu": "贷款还款…",
+    "activity_title": "贷款还款",
+    "activity_description": "将此取款计为贷款还款，贷款余额会随之变化。",
+    "linked_to": "已计为{{loan}}的还款",
+    "no_loans": "没有此币种的计算型贷款，请先为贷款开启还款计算。",
+    "loan": "贷款",
+    "choose_loan": "选择贷款",
+    "applies_to": "计入",
+    "applies_instalment": "日期附近到期的分期",
+    "applies_extra": "额外本金",
+    "escrow_default": "贷款的通常金额"
   }
 }

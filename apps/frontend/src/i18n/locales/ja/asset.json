@@ -973,6 +973,17 @@
     "suggestion": "直近3回の返済が、いずれも予定額と同じ金額だけ異なります。{{date}}以降の返済額は{{amount}}かもしれません。",
     "record_change": "返済額の変更を記録",
     "edit_escrow": "税金・保険料の差です",
-    "recorded_as_withdrawal": "{{account}}からの出金として記録されます。"
+    "recorded_as_withdrawal": "{{account}}からの出金として記録されます。",
+    "menu": "ローン返済…",
+    "activity_title": "ローン返済",
+    "activity_description": "この出金をローンの返済として数えます。ローン残高に反映されます。",
+    "linked_to": "{{loan}}の返済として計上中",
+    "no_loans": "この通貨の計算対象ローンがありません。先にローンの返済計算を有効にしてください。",
+    "loan": "ローン",
+    "choose_loan": "ローンを選択",
+    "applies_to": "充当先",
+    "applies_instalment": "日付が近い回の返済",
+    "applies_extra": "繰上返済（元金）",
+    "escrow_default": "ローンの通常額"
   }
 }

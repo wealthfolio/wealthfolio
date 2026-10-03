@@ -973,6 +973,17 @@
     "suggestion": "Ihre letzten drei Zahlungen weichen jeweils um denselben Betrag von der geplanten Zahlung ab. Ab {{date}} beträgt die Zahlung vielleicht {{amount}}.",
     "record_change": "Zahlungsänderung erfassen",
     "edit_escrow": "Es sind Steuern und Versicherung",
-    "recorded_as_withdrawal": "Wird als Abbuchung von {{account}} erfasst."
+    "recorded_as_withdrawal": "Wird als Abbuchung von {{account}} erfasst.",
+    "menu": "Kreditzahlung…",
+    "activity_title": "Kreditzahlung",
+    "activity_description": "Diese Abbuchung als Zahlung auf einen Kredit zählen. Der Kreditsaldo folgt ihr.",
+    "linked_to": "Als Zahlung auf {{loan}} gezählt",
+    "no_loans": "Kein berechneter Kredit in dieser Währung. Aktivieren Sie zuerst berechnete Zahlungen für den Kredit.",
+    "loan": "Kredit",
+    "choose_loan": "Kredit wählen",
+    "applies_to": "Zählt für",
+    "applies_instalment": "Die Rate um dieses Datum",
+    "applies_extra": "Sondertilgung",
+    "escrow_default": "Der übliche Betrag des Kredits"
   }
 }

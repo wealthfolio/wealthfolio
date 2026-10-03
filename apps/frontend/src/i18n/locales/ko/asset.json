@@ -973,6 +973,17 @@
     "suggestion": "최근 세 번의 상환액이 모두 예정 상환액과 같은 금액만큼 다릅니다. {{date}}부터 상환액이 {{amount}}일 수 있습니다.",
     "record_change": "상환액 변경 기록",
     "edit_escrow": "세금·보험료 차이입니다",
-    "recorded_as_withdrawal": "{{account}}의 출금으로 기록됩니다."
+    "recorded_as_withdrawal": "{{account}}의 출금으로 기록됩니다.",
+    "menu": "대출 상환…",
+    "activity_title": "대출 상환",
+    "activity_description": "이 출금을 대출 상환으로 계산합니다. 대출 잔액에 반영됩니다.",
+    "linked_to": "{{loan}} 상환으로 계산됨",
+    "no_loans": "이 통화로 계산되는 대출이 없습니다. 먼저 대출의 상환 계산을 켜세요.",
+    "loan": "대출",
+    "choose_loan": "대출 선택",
+    "applies_to": "적용 대상",
+    "applies_instalment": "날짜가 가까운 회차",
+    "applies_extra": "추가 원금",
+    "escrow_default": "대출의 기본 금액"
   }
 }

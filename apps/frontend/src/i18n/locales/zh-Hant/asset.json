@@ -973,6 +973,17 @@
     "suggestion": "您最近三次還款都與計畫還款相差相同金額。自 {{date}} 起，還款額可能為 {{amount}}。",
     "record_change": "記錄還款額變更",
     "edit_escrow": "是稅費和保險",
-    "recorded_as_withdrawal": "將記錄為從{{account}}提款。"
+    "recorded_as_withdrawal": "將記錄為從{{account}}提款。",
+    "menu": "貸款還款…",
+    "activity_title": "貸款還款",
+    "activity_description": "將此提款計為貸款還款，貸款餘額會隨之變化。",
+    "linked_to": "已計為{{loan}}的還款",
+    "no_loans": "沒有此幣別的計算型貸款，請先為貸款開啟還款計算。",
+    "loan": "貸款",
+    "choose_loan": "選擇貸款",
+    "applies_to": "計入",
+    "applies_instalment": "日期附近到期的分期",
+    "applies_extra": "額外本金",
+    "escrow_default": "貸款的通常金額"
   }
 }

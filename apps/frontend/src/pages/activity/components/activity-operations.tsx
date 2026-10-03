@@ -16,6 +16,7 @@ import { Row } from "@tanstack/react-table";
 import { Fragment, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ActivityDetailSheet } from "./activity-detail-sheet";
+import { ActivityLoanPaymentSheet } from "@/pages/asset/alternative-assets/components/activity-loan-payment-sheet";
 
 export interface ActivityOperationsProps<TData> {
   row?: Row<TData>;
@@ -53,12 +54,15 @@ export function ActivityOperations<TData>({
   const { t } = useTranslation();
   const activity = activityProp ?? (row?.original as ActivityDetails);
   const [detailSheetOpen, setDetailSheetOpen] = useState(false);
+  const [loanSheetOpen, setLoanSheetOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const isTransfer =
     activity.activityType === ActivityType.TRANSFER_IN ||
     activity.activityType === ActivityType.TRANSFER_OUT;
   const isNew = (activity as ActivityDetails & { isNew?: boolean }).isNew === true;
   const canShowTransferActions = isTransfer && !isNew && (onLinkTransfer || onUnlinkTransfer);
+  // A withdrawal can be counted as a payment on a loan; the sheet checks the account.
+  const canPayLoan = activity.activityType === ActivityType.WITHDRAWAL && !isNew;
 
   /** One definition, rendered as either presentation below. */
   const groups: ActionPaletteGroup[] = [
@@ -95,6 +99,15 @@ export function ActivityOperations<TData>({
                   },
                 ]
               : []
+          : []),
+        ...(canPayLoan
+          ? [
+              {
+                icon: Icons.Link,
+                label: t("asset:loanPayments.menu"),
+                onClick: () => setLoanSheetOpen(true),
+              },
+            ]
           : []),
       ],
     },
@@ -166,6 +179,14 @@ export function ActivityOperations<TData>({
         open={detailSheetOpen}
         onOpenChange={setDetailSheetOpen}
       />
+      {/* Mounted only while open: tables render this menu on every row. */}
+      {canPayLoan && loanSheetOpen && (
+        <ActivityLoanPaymentSheet
+          activity={activity}
+          open={loanSheetOpen}
+          onOpenChange={setLoanSheetOpen}
+        />
+      )}
     </>
   );
 }

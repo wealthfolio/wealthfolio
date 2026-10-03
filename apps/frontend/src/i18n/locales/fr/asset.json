@@ -989,6 +989,17 @@
     "suggestion": "Vos trois derniers paiements diffèrent chacun du montant prévu de la même somme. À partir du {{date}}, le paiement est peut-être de {{amount}}.",
     "record_change": "Enregistrer le changement",
     "edit_escrow": "Ce sont les taxes et l'assurance",
-    "recorded_as_withdrawal": "Enregistré comme un retrait de {{account}}."
+    "recorded_as_withdrawal": "Enregistré comme un retrait de {{account}}.",
+    "menu": "Paiement de prêt…",
+    "activity_title": "Paiement de prêt",
+    "activity_description": "Comptez ce retrait comme un paiement sur un prêt. Le solde du prêt en tient compte.",
+    "linked_to": "Compté comme paiement sur {{loan}}",
+    "no_loans": "Aucun prêt calculé dans cette devise. Activez d'abord les paiements calculés du prêt.",
+    "loan": "Prêt",
+    "choose_loan": "Choisissez un prêt",
+    "applies_to": "S'applique à",
+    "applies_instalment": "L'échéance proche de sa date",
+    "applies_extra": "Capital supplémentaire",
+    "escrow_default": "Le montant habituel du prêt"
   }
 }

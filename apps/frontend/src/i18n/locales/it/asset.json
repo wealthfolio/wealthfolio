@@ -989,6 +989,17 @@
     "suggestion": "Gli ultimi tre pagamenti differiscono ciascuno dalla rata prevista dello stesso importo. Dal {{date}} la rata potrebbe essere di {{amount}}.",
     "record_change": "Registra modifica rata",
     "edit_escrow": "Sono tasse e assicurazione",
-    "recorded_as_withdrawal": "Registrato come prelievo da {{account}}."
+    "recorded_as_withdrawal": "Registrato come prelievo da {{account}}.",
+    "menu": "Pagamento del prestito…",
+    "activity_title": "Pagamento del prestito",
+    "activity_description": "Conta questo prelievo come pagamento di un prestito. Il saldo del prestito lo segue.",
+    "linked_to": "Conteggiato come pagamento di {{loan}}",
+    "no_loans": "Nessun prestito calcolato in questa valuta. Attiva prima i pagamenti calcolati del prestito.",
+    "loan": "Prestito",
+    "choose_loan": "Scegli un prestito",
+    "applies_to": "Si applica a",
+    "applies_instalment": "La rata vicina alla sua data",
+    "applies_extra": "Capitale extra",
+    "escrow_default": "L'importo abituale del prestito"
   }
 }

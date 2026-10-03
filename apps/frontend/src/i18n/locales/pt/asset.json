@@ -989,6 +989,17 @@
     "suggestion": "Os seus três últimos pagamentos diferem do pagamento previsto no mesmo valor. A partir de {{date}}, o pagamento pode ser de {{amount}}.",
     "record_change": "Registar alteração do pagamento",
     "edit_escrow": "São impostos e seguro",
-    "recorded_as_withdrawal": "Registado como um levantamento de {{account}}."
+    "recorded_as_withdrawal": "Registado como um levantamento de {{account}}.",
+    "menu": "Pagamento de empréstimo…",
+    "activity_title": "Pagamento de empréstimo",
+    "activity_description": "Conte este levantamento como um pagamento de um empréstimo. O saldo do empréstimo acompanha-o.",
+    "linked_to": "Contado como pagamento de {{loan}}",
+    "no_loans": "Nenhum empréstimo calculado nesta moeda. Ative primeiro os pagamentos calculados do empréstimo.",
+    "loan": "Empréstimo",
+    "choose_loan": "Escolha um empréstimo",
+    "applies_to": "Aplica-se a",
+    "applies_instalment": "A prestação perto da sua data",
+    "applies_extra": "Capital extra",
+    "escrow_default": "O valor habitual do empréstimo"
   }
 }

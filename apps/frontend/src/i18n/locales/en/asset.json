@@ -973,6 +973,17 @@
     "suggestion": "Your last three payments each differ from the scheduled payment by the same amount. From {{date}}, the payment may be {{amount}}.",
     "record_change": "Record payment change",
     "edit_escrow": "It's taxes and insurance",
-    "recorded_as_withdrawal": "Recorded as a withdrawal from {{account}}."
+    "recorded_as_withdrawal": "Recorded as a withdrawal from {{account}}.",
+    "menu": "Loan payment…",
+    "activity_title": "Loan payment",
+    "activity_description": "Count this withdrawal as a payment on a loan. The loan's balance follows it.",
+    "linked_to": "Counted as a payment on {{loan}}",
+    "no_loans": "No calculated loan in this currency. Turn on calculated payments for the loan first.",
+    "loan": "Loan",
+    "choose_loan": "Choose a loan",
+    "applies_to": "Counts toward",
+    "applies_instalment": "The instalment due near its date",
+    "applies_extra": "Extra principal",
+    "escrow_default": "The loan's usual amount"
   }
 }

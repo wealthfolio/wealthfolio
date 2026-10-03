@@ -989,6 +989,17 @@
     "suggestion": "Tus tres últimos pagos difieren del pago previsto en la misma cantidad. Desde el {{date}}, el pago podría ser de {{amount}}.",
     "record_change": "Registrar cambio de pago",
     "edit_escrow": "Son impuestos y seguro",
-    "recorded_as_withdrawal": "Se registra como un retiro de {{account}}."
+    "recorded_as_withdrawal": "Se registra como un retiro de {{account}}.",
+    "menu": "Pago de préstamo…",
+    "activity_title": "Pago de préstamo",
+    "activity_description": "Cuenta este retiro como un pago de un préstamo. El saldo del préstamo lo refleja.",
+    "linked_to": "Contado como pago de {{loan}}",
+    "no_loans": "No hay ningún préstamo calculado en esta moneda. Activa primero los pagos calculados del préstamo.",
+    "loan": "Préstamo",
+    "choose_loan": "Elige un préstamo",
+    "applies_to": "Se aplica a",
+    "applies_instalment": "La cuota cercana a su fecha",
+    "applies_extra": "Capital extra",
+    "escrow_default": "El importe habitual del préstamo"
   }
 }
