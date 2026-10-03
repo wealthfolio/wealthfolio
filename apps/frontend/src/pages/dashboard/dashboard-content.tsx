@@ -1,24 +1,32 @@
-import { formatZonedDateKey } from "@/features/spending/lib/timezone";
-import { parseLocalDate } from "@/lib/utils";
 import { calculatePerformanceSummary } from "@/adapters";
 import { HistoryChart } from "@/components/history-chart";
+import { formatZonedDateKey } from "@/features/spending/lib/timezone";
 import { useHapticFeedback } from "@/hooks";
+import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import { useCurrentValuation } from "@/hooks/use-current-account-valuations";
 import { useHoldings } from "@/hooks/use-holdings";
+import { usePersistentState } from "@/hooks/use-persistent-state";
 import { useValuationHistory } from "@/hooks/use-valuation-history";
 import { HoldingType, isAlternativeAssetKind } from "@/lib/constants";
 import { performancePeriodPnl, performanceSummaryReturn } from "@/lib/performance";
 import { QueryKeys } from "@/lib/query-keys";
 import { useSettingsContext } from "@/lib/settings-provider";
+import { parseLocalDate } from "@/lib/utils";
 import { PortfolioUpdateTrigger } from "@/pages/dashboard/portfolio-update-trigger";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import type { TimePeriod as UITimePeriod } from "@wealthfolio/ui";
-import { GainAmount, GainPercent, getInitialIntervalData, IntervalSelector } from "@wealthfolio/ui";
-import { usePersistentState } from "@/hooks/use-persistent-state";
+import {
+  AmountDisplay,
+  GainAmount,
+  GainPercent,
+  getInitialIntervalData,
+  IntervalSelector,
+} from "@wealthfolio/ui";
 import { Skeleton } from "@wealthfolio/ui/components/ui/skeleton";
 import { format } from "date-fns";
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
+import { computeBookCost } from "../insights/overview/allocation-derivations";
 import { AccountsSummary } from "./accounts-summary";
 import Balance from "./balance";
 import SavingGoals from "./goals";
@@ -88,6 +96,7 @@ export function DashboardContent() {
     error: currentValuationError,
   } = useCurrentValuation({ type: "all" }, { includeAccounts: true });
   const { triggerHaptic } = useHapticFeedback();
+  const { isBalanceHidden } = useBalancePrivacy();
 
   // Filter holdings for display (exclude alternative assets and cash for TopHoldings)
   const holdings = useMemo(() => {
@@ -102,6 +111,7 @@ export function DashboardContent() {
   }, [allHoldings]);
 
   const totalValue = portfolioCurrentValuation?.summary.totalValueBase ?? 0;
+  const bookCost = useMemo(() => computeBookCost(allHoldings ?? []).total, [allHoldings]);
 
   const valuationHistoryRange = isAllTime ? undefined : dateRange;
   const { valuationHistory, isLoading: isValuationHistoryLoading } =
@@ -184,6 +194,22 @@ export function DashboardContent() {
                 displayCurrency={true}
               />
               <div className="text-md flex min-h-5 items-center space-x-3">
+                {isHoldingsLoading ? (
+                  <Skeleton className="h-4 w-28" />
+                ) : (
+                  <>
+                    <span className="text-muted-foreground text-sm font-light">
+                      {t("dashboard:book_cost")}:
+                    </span>
+                    <AmountDisplay
+                      value={bookCost}
+                      currency={baseCurrency}
+                      isHidden={isBalanceHidden}
+                      className="text-sm font-light"
+                    />
+                  </>
+                )}
+                <div className="border-secondary my-1 border-r pr-2" />
                 {isPortfolioPerformanceLoading ? (
                   <div className="flex items-center gap-3">
                     <Skeleton className="h-4 w-24" />

@@ -1,6 +1,7 @@
 {
   "title": "Übersicht",
   "total_value": "Gesamtwert",
+  "book_cost": "Anschaffungskosten",
   "net_deposit": "Netto-Einzahlung",
   "cash_balance": "Bargeldbestand",
   "top_holdings": "Top-Bestände",

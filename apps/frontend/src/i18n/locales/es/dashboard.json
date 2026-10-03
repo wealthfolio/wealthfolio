@@ -2,6 +2,7 @@
   "title": "Panel",
   "welcome_message": "Bienvenido a Wealthfolio",
   "total_value": "Valor total",
+  "book_cost": "Coste contable",
   "total_gain": "Ganancia total",
   "total_gain_percent": "Ganancia total %",
   "today_gain": "Ganancia de hoy",
