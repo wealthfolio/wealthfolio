@@ -50,10 +50,9 @@ use crate::activities::{
 use crate::assets::AssetServiceTrait;
 use crate::errors::Result;
 use crate::fx::currency::currency_minor_unit;
+use crate::portfolio::coordinator::{PortfolioCoordinator, PortfolioJobRequest, SilentObserver};
 use crate::portfolio::economic_events::{ActivityCashInputs, ActivityEconomicsResolver};
-use crate::portfolio::recalculation_gate::PortfolioRecalculationGate;
-use crate::portfolio::snapshot::{SnapshotRecalcMode, SnapshotServiceTrait};
-use crate::portfolio::valuation::{ValuationRecalcMode, ValuationServiceTrait};
+use crate::quotes::MarketSyncMode;
 use crate::settings::SettingsServiceTrait;
 
 const MIGRATION_STATE_KEY: &str = "migration.activity_final_cash.v1";
@@ -157,53 +156,38 @@ pub async fn record_final_cash_rebuild_attempt(
     Ok(state.into())
 }
 
-/// Attempts every pending account independently. Failed accounts remain
-/// durable and will be retried on the next launch; successful accounts are
-/// removed from the gate immediately after the attempt is persisted.
+/// Attempts every pending account independently through the coordinator
+/// (one forced rebuild each). Failed accounts remain durable and are retried
+/// on the next launch; successful accounts leave the gate's pending set.
 pub async fn rebuild_pending_final_cash_accounts(
     settings_service: &dyn SettingsServiceTrait,
-    snapshot_service: &dyn SnapshotServiceTrait,
-    valuation_service: &dyn ValuationServiceTrait,
-    recalculation_gate: &PortfolioRecalculationGate,
+    coordinator: &PortfolioCoordinator,
 ) -> Result<ActivityFinalCashMigrationStatus> {
     let status = get_final_cash_migration_status(settings_service)?;
     let mut succeeded = Vec::new();
 
     for account_id in &status.pending_account_ids {
-        let account_ids = [account_id.clone()];
-        if let Err(error) = snapshot_service
-            .recalculate_holdings_snapshots(Some(&account_ids), SnapshotRecalcMode::Full)
-            .await
-        {
-            log::warn!(
-                "Final-cash holdings rebuild failed for account {}: {}",
-                account_id,
-                error
-            );
-            continue;
-        }
-
-        match valuation_service
-            .calculate_valuation_histories(&account_ids, ValuationRecalcMode::Full)
-            .await
-        {
-            Ok(outcome) if outcome.failures.is_empty() => succeeded.push(account_id.clone()),
-            Ok(outcome) => log::warn!(
-                "Final-cash valuation rebuild reported {} failure(s) for account {}",
-                outcome.failures.len(),
+        let request = PortfolioJobRequest {
+            account_ids: Some(vec![account_id.clone()]),
+            market_sync: MarketSyncMode::None,
+            ..PortfolioJobRequest::default()
+        };
+        match coordinator.run_job(request, &SilentObserver).await {
+            Ok(report) if report.failures.is_empty() => succeeded.push(account_id.clone()),
+            Ok(report) => log::warn!(
+                "Final-cash rebuild reported {} failure(s) for account {}",
+                report.failures.len(),
                 account_id
             ),
             Err(error) => log::warn!(
-                "Final-cash valuation rebuild failed for account {}: {}",
+                "Final-cash rebuild failed for account {}: {}",
                 account_id,
                 error
             ),
         }
     }
 
-    let status = record_final_cash_rebuild_attempt(settings_service, &succeeded).await?;
-    recalculation_gate.replace_pending_accounts(status.pending_account_ids.clone());
-    Ok(status)
+    record_final_cash_rebuild_attempt(settings_service, &succeeded).await
 }
 
 fn read_migration_state(

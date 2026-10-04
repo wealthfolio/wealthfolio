@@ -9,6 +9,7 @@ mod domain_events;
 mod events;
 mod listeners;
 mod mcp;
+mod portfolio_jobs;
 mod profile_lifecycle;
 mod profile_startup;
 mod profiles;

@@ -9,7 +9,7 @@ use crate::constants::DECIMAL_PRECISION;
 use crate::errors::{CalculatorError, Error as CoreError, Result};
 use crate::fx::currency::{get_normalization_rule, normalize_currency_code};
 use crate::fx::FxServiceTrait;
-use crate::lots::{LotRecord, LotRepositoryTrait};
+use crate::lots::{AssetLotView, LotRecord, LotRepositoryTrait};
 use crate::portfolio::economic_events::ActivityEconomicsResolver;
 use crate::portfolio::holdings::holdings_model::{Holding, HoldingType, Instrument, MonetaryValue};
 use crate::portfolio::snapshot::{self, SnapshotServiceTrait};
@@ -28,6 +28,16 @@ use super::HoldingsValuationServiceTrait;
 #[async_trait]
 pub trait HoldingsServiceTrait: Send + Sync {
     async fn get_holdings(&self, account_id: &str, base_currency: &str) -> Result<Vec<Holding>>;
+
+    /// An asset's lot view: its transaction lots and, when asked, each
+    /// holdings account's latest snapshot position, read today (carried
+    /// across the splits recorded since, engine rules R1.5). The one entry
+    /// to the lot view: the lot repository returns positions as stored.
+    async fn get_asset_lot_view(
+        &self,
+        asset_id: &str,
+        include_snapshot_positions: bool,
+    ) -> Result<Vec<AssetLotView>>;
 
     async fn get_holdings_with_options(
         &self,
@@ -1272,6 +1282,24 @@ mod expired_option_metadata_tests {
 
 #[async_trait]
 impl HoldingsServiceTrait for HoldingsService {
+    async fn get_asset_lot_view(
+        &self,
+        asset_id: &str,
+        include_snapshot_positions: bool,
+    ) -> Result<Vec<AssetLotView>> {
+        let Some(lot_repository) = &self.lot_repository else {
+            return Err(CoreError::Unexpected(
+                "the asset lot view needs the lot repository".to_string(),
+            ));
+        };
+        let mut rows = lot_repository
+            .get_asset_lot_view(asset_id, include_snapshot_positions)
+            .await?;
+        self.snapshot_service
+            .carry_lot_view_rows(&mut rows, self.today_in_user_timezone())?;
+        Ok(rows)
+    }
+
     async fn get_holdings(&self, account_id: &str, base_currency: &str) -> Result<Vec<Holding>> {
         self.get_holdings_with_options(account_id, base_currency, false)
             .await
@@ -1804,8 +1832,8 @@ mod tests {
     };
     use crate::errors::Error;
     use crate::fx::{denormalization_multiplier, ExchangeRate, FxServiceTrait, NewExchangeRate};
-    use crate::lots::{AssetLotView, LotClosure, LotRecord};
-    use crate::portfolio::snapshot::{AccountStateSnapshot, Position, SnapshotRecalcMode};
+    use crate::lots::{AssetLotView, LotRecord};
+    use crate::portfolio::snapshot::{AccountStateSnapshot, Position};
     use crate::snapshot::Lot;
     use crate::taxonomies::{
         AssetTaxonomyAssignment, Category, NewAssetTaxonomyAssignment, NewCategory, NewTaxonomy,
@@ -1940,14 +1968,6 @@ mod tests {
 
     #[async_trait::async_trait]
     impl SnapshotServiceTrait for MockSnapshotService {
-        async fn recalculate_holdings_snapshots(
-            &self,
-            _account_ids: Option<&[String]>,
-            _mode: SnapshotRecalcMode,
-        ) -> Result<usize> {
-            unimplemented!("unused in holdings service tests")
-        }
-
         fn get_holdings_keyframes(
             &self,
             _account_id: &str,
@@ -1978,19 +1998,27 @@ mod tests {
             ))
         }
 
+        fn get_latest_snapshots_as_of(
+            &self,
+            _account_ids: &[String],
+            _day: NaiveDate,
+        ) -> Result<HashMap<String, AccountStateSnapshot>> {
+            Ok(HashMap::new())
+        }
+
+        fn carry_lot_view_rows(
+            &self,
+            _rows: &mut [crate::lots::AssetLotView],
+            _day: NaiveDate,
+        ) -> Result<()> {
+            Ok(())
+        }
+
         async fn save_manual_snapshot(
             &self,
             _account_id: &str,
             _snapshot: AccountStateSnapshot,
         ) -> Result<()> {
-            unimplemented!("unused in holdings service tests")
-        }
-
-        async fn update_snapshots_source(
-            &self,
-            _account_id: &str,
-            _new_source: &str,
-        ) -> Result<usize> {
             unimplemented!("unused in holdings service tests")
         }
 
@@ -2482,10 +2510,6 @@ mod tests {
             Ok(())
         }
 
-        fn calculate_average_cost(&self, _account_id: &str, _asset_id: &str) -> Result<Decimal> {
-            Ok(Decimal::ZERO)
-        }
-
         fn get_income_activities_data(
             &self,
             _account_ids: Option<&[String]>,
@@ -2611,14 +2635,6 @@ mod tests {
             unimplemented!("unused in holdings service tests")
         }
 
-        async fn get_lots_as_of_date(
-            &self,
-            _account_ids: &[String],
-            _date: NaiveDate,
-        ) -> Result<Vec<LotRecord>> {
-            unimplemented!("unused in holdings service tests")
-        }
-
         async fn get_all_lots_for_account(&self, _account_id: &str) -> Result<Vec<LotRecord>> {
             unimplemented!("unused in holdings service tests")
         }
@@ -2636,15 +2652,6 @@ mod tests {
         }
 
         async fn get_all_lots(&self) -> Result<Vec<LotRecord>> {
-            unimplemented!("unused in holdings service tests")
-        }
-
-        async fn sync_lots_for_account(
-            &self,
-            _account_id: &str,
-            _open_lots: &[LotRecord],
-            _closures: &[LotClosure],
-        ) -> Result<()> {
             unimplemented!("unused in holdings service tests")
         }
 

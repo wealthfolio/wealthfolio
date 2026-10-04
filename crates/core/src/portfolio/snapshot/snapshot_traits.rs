@@ -13,6 +13,20 @@ pub trait SnapshotRepositoryTrait: Send + Sync {
     /// Save multiple snapshots to the database.
     async fn save_snapshots(&self, snapshots: &[AccountStateSnapshot]) -> Result<()>;
 
+    /// The latest projection-calculated snapshot on or before `date`: the
+    /// state a revalue starts a window from.
+    fn get_latest_calculated_snapshot_on_or_before(
+        &self,
+        account_id: &str,
+        date: NaiveDate,
+    ) -> Result<Option<AccountStateSnapshot>> {
+        Ok(self
+            .get_snapshots_by_account(account_id, None, Some(date))?
+            .into_iter()
+            .filter(|s| s.source == super::SnapshotSource::Calculated)
+            .max_by_key(|s| s.snapshot_date))
+    }
+
     /// Get snapshots for a specific account within optional date range.
     fn get_snapshots_by_account(
         &self,
@@ -86,29 +100,6 @@ pub trait SnapshotRepositoryTrait: Send + Sync {
             .await
     }
 
-    /// Delete snapshots for a specific account within a date range.
-    async fn delete_snapshots_for_account_in_range(
-        &self,
-        account_id: &str,
-        start_date: NaiveDate,
-        end_date: NaiveDate,
-    ) -> Result<()>;
-
-    /// Delete all snapshots in range and save new ones atomically.
-    async fn overwrite_snapshots_for_account_in_range(
-        &self,
-        account_id: &str,
-        start_date: NaiveDate,
-        end_date: NaiveDate,
-        snapshots_to_save: &[AccountStateSnapshot],
-    ) -> Result<()>;
-
-    /// Overwrite snapshot ranges for multiple accounts.
-    async fn overwrite_multiple_account_snapshot_ranges(
-        &self,
-        new_snapshots: &[AccountStateSnapshot],
-    ) -> Result<()>;
-
     /// Get all non-archived account snapshots.
     /// Uses is_archived=false filtering to include closed accounts.
     fn get_all_non_archived_account_snapshots(
@@ -126,10 +117,6 @@ pub trait SnapshotRepositoryTrait: Send + Sync {
         account_id: &str,
         snapshots_to_save: &[AccountStateSnapshot],
     ) -> Result<()>;
-
-    /// Update the source field of all snapshots for an account.
-    /// Returns the number of rows updated.
-    async fn update_snapshots_source(&self, account_id: &str, new_source: &str) -> Result<usize>;
 
     /// Save or update a snapshot for a specific date.
     /// If a snapshot exists for the same date, it is replaced.

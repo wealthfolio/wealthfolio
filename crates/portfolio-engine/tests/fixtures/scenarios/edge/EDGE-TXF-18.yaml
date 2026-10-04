@@ -1,0 +1,29 @@
+id: EDGE-TXF-18
+title: A transfer fee is not money out when the transfer only covers a short
+intent: >
+  Kernel-only. Rules R2.4: the incoming leg flows the cost of every unit it
+  delivered, less the part of its own fee capitalised into lots it opened. A
+  transfer that only covers opens no lot and capitalises nothing: its fee is
+  a charge. acc-a sends 10 units to acc-b, which is short exactly 10, with a
+  fee of 5 on the incoming leg. No quote exists.
+markers: [K]
+policy: { base_currency: USD, timezone: UTC, as_of: 2025-01-04 }
+accounts:
+  - { id: acc-a, currency: USD }
+  - { id: acc-b, currency: USD }
+assets:
+  - { id: x, quote_ccy: USD }
+activities:
+  - { id: dep-a, account: acc-a, type: DEPOSIT, date: 2025-01-01T10:00:00Z, amount: 1000 }
+  - { id: dep-b, account: acc-b, type: DEPOSIT, date: 2025-01-01T11:00:00Z, amount: 1000 }
+  - { id: buy-1, account: acc-a, type: BUY, date: 2025-01-02T10:00:00Z, asset: x, quantity: 10, unit_price: 10, amount: 100 }
+  - { id: short-1, account: acc-b, type: SELL, subtype: POSITION_OPEN, date: 2025-01-02T11:00:00Z, asset: x, quantity: 10, unit_price: 12, amount: 120 }
+  - { id: out-1, account: acc-a, type: TRANSFER_OUT, date: 2025-01-03T10:00:00Z, asset: x, quantity: 10, unit_price: 10, source_group_id: g1 }
+  - { id: in-1, account: acc-b, type: TRANSFER_IN, date: 2025-01-03T11:00:00Z, asset: x, quantity: 10, unit_price: 10, source_group_id: g1, fee: 5 }
+expected_notes: >
+  acc-a: outflow 100 USD on 01-03 (removed cost 10 x 10). acc-b: the 10
+  units cover the short (cover proceeds -100 against its cost -120, realized
+  +20) and open no lot, so the fee is not capitalised: inflow 100 USD on
+  01-03, and the fee of 5 is a charge (R1.1). Portfolio: no flow on 01-03
+  (the pair nets). Before the fix the incoming leg subtracted the fee as if
+  capitalised: acc-b's inflow was 95, and its return counted the fee twice.

@@ -1,0 +1,92 @@
+id: PERF-RISK-01
+title: Volatility, max drawdown and annualization over a 45-day path
+intent: >
+  One asset bought on day 1 with 45 daily quotes: a linear rise 100 -> 120
+  (01-02..01-16), a 15% fall to 102 (01-31) and a recovery to 125 (02-15).
+  Cash is zero so total value = 10 x price and every daily TWR sample is a
+  pure price return. Pins the risk constants: volatility = sample stdev of
+  ln(1 + r) x sqrt(365.25) over the 45 daily samples (the flat as_of day
+  included), max drawdown -0.15 with peak 01-16, trough 01-31, recovery on the
+  first day the cumulative value re-reaches the peak (02-12, price 120.40),
+  duration 27 days, and geometric annualization because the 45-day period
+  clears the 30-day gate.
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-02-16
+accounts:
+  - id: acc-1
+    currency: USD
+assets:
+  - id: aapl
+    quote_ccy: USD
+activities:
+  - id: dep-1
+    account: acc-1
+    type: DEPOSIT
+    date: 2025-01-02T09:00:00Z
+    amount: 1000
+  - id: buy-1
+    account: acc-1
+    type: BUY
+    date: 2025-01-02T10:00:00Z
+    asset: aapl
+    quantity: 10
+    unit_price: 100
+    amount: 1000
+quotes:
+  - { asset: aapl, day: 2025-01-02, close: 100.00 }
+  - { asset: aapl, day: 2025-01-03, close: 101.43 }
+  - { asset: aapl, day: 2025-01-04, close: 102.86 }
+  - { asset: aapl, day: 2025-01-05, close: 104.29 }
+  - { asset: aapl, day: 2025-01-06, close: 105.71 }
+  - { asset: aapl, day: 2025-01-07, close: 107.14 }
+  - { asset: aapl, day: 2025-01-08, close: 108.57 }
+  - { asset: aapl, day: 2025-01-09, close: 110.00 }
+  - { asset: aapl, day: 2025-01-10, close: 111.43 }
+  - { asset: aapl, day: 2025-01-11, close: 112.86 }
+  - { asset: aapl, day: 2025-01-12, close: 114.29 }
+  - { asset: aapl, day: 2025-01-13, close: 115.71 }
+  - { asset: aapl, day: 2025-01-14, close: 117.14 }
+  - { asset: aapl, day: 2025-01-15, close: 118.57 }
+  - { asset: aapl, day: 2025-01-16, close: 120.00 }
+  - { asset: aapl, day: 2025-01-17, close: 118.80 }
+  - { asset: aapl, day: 2025-01-18, close: 117.60 }
+  - { asset: aapl, day: 2025-01-19, close: 116.40 }
+  - { asset: aapl, day: 2025-01-20, close: 115.20 }
+  - { asset: aapl, day: 2025-01-21, close: 114.00 }
+  - { asset: aapl, day: 2025-01-22, close: 112.80 }
+  - { asset: aapl, day: 2025-01-23, close: 111.60 }
+  - { asset: aapl, day: 2025-01-24, close: 110.40 }
+  - { asset: aapl, day: 2025-01-25, close: 109.20 }
+  - { asset: aapl, day: 2025-01-26, close: 108.00 }
+  - { asset: aapl, day: 2025-01-27, close: 106.80 }
+  - { asset: aapl, day: 2025-01-28, close: 105.60 }
+  - { asset: aapl, day: 2025-01-29, close: 104.40 }
+  - { asset: aapl, day: 2025-01-30, close: 103.20 }
+  - { asset: aapl, day: 2025-01-31, close: 102.00 }
+  - { asset: aapl, day: 2025-02-01, close: 103.53 }
+  - { asset: aapl, day: 2025-02-02, close: 105.07 }
+  - { asset: aapl, day: 2025-02-03, close: 106.60 }
+  - { asset: aapl, day: 2025-02-04, close: 108.13 }
+  - { asset: aapl, day: 2025-02-05, close: 109.67 }
+  - { asset: aapl, day: 2025-02-06, close: 111.20 }
+  - { asset: aapl, day: 2025-02-07, close: 112.73 }
+  - { asset: aapl, day: 2025-02-08, close: 114.27 }
+  - { asset: aapl, day: 2025-02-09, close: 115.80 }
+  - { asset: aapl, day: 2025-02-10, close: 117.33 }
+  - { asset: aapl, day: 2025-02-11, close: 118.87 }
+  - { asset: aapl, day: 2025-02-12, close: 120.40 }
+  - { asset: aapl, day: 2025-02-13, close: 121.93 }
+  - { asset: aapl, day: 2025-02-14, close: 123.47 }
+  - { asset: aapl, day: 2025-02-15, close: 125.00 }
+expected_notes: >
+  46 valuation rows (01-02..02-16), value 1000 on 01-02, 1200 on 01-16, 1020
+  on 01-31, 1250 from 02-15. TWR = value_return = 0.25; annualized (both) =
+  1.25^(365.25/45) - 1 = 5.11767. IRR: -1000 @01-02, +1250 @02-16 ->
+  annualized ~5.1177, period irr 0.25. Volatility 0.21952 (ln-return sample
+  stdev 0.011486 x 19.1115; the 01-03 sample uses the 01-02 buy-day value).
+  max_drawdown -0.15, peak_date 2025-01-16, trough_date 2025-01-31,
+  recovery_date 2025-02-12, drawdown_duration_days 27. Series final point
+  0.25 = headline. Attribution: contributions 1000, unrealized 250. No
+  warnings; quality ok.

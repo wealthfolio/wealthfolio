@@ -1,0 +1,62 @@
+id: NOM-SPLIT-02
+title: 1-for-10 reverse split with a same-day fractional-share SELL
+intent: >
+  A reverse split (amount 0.1) leaves 2.5 effective shares from 25. The
+  broker liquidates the 0.5 fraction with a SELL later that day. The SELL
+  consumes effective (post-split) units through the lot's split_ratio (0.5
+  effective = 5 as-acquired units) so cost basis is relieved once, not
+  twice.
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-12
+accounts:
+  - id: acc-1
+    name: Brokerage
+    currency: USD
+assets:
+  - id: tiny
+    symbol: TINY
+    quote_ccy: USD
+activities:
+  - id: dep-1
+    account: acc-1
+    type: DEPOSIT
+    date: 2025-01-02T10:00:00Z
+    amount: 1000
+  - id: buy-1
+    account: acc-1
+    type: BUY
+    date: 2025-01-03T10:00:00Z
+    asset: tiny
+    quantity: 25
+    unit_price: 10
+    amount: 250
+    fee: 0
+  - id: split-1
+    account: acc-1
+    type: SPLIT
+    date: 2025-01-08T10:00:00Z
+    asset: tiny
+    amount: 0.1
+  - id: sell-frac
+    account: acc-1
+    type: SELL
+    date: 2025-01-08T11:00:00Z
+    asset: tiny
+    quantity: 0.5
+    unit_price: 100
+    amount: 50
+    fee: 0
+quotes:
+  - { asset: tiny, day: 2025-01-03, close: 10 }
+  - { asset: tiny, day: 2025-01-07, close: 10 }
+  - { asset: tiny, day: 2025-01-08, close: 100 }
+  - { asset: tiny, day: 2025-01-12, close: 110 }
+expected_notes: >
+  Cash 1000 -> 750 -> 800. Keyframe 01-08: tiny quantity 2 (effective),
+  total_cost_basis 200, average_cost 100. Lot buy-1: original_quantity 25,
+  remaining_quantity 20 (as-acquired), cost_per_unit 10, split_ratio 0.1.
+  Disposal sell-frac: quantity 0.5 (effective), proceeds 50, cost basis 50
+  (250 x 5/25), realized 0. Market value 01-07 = 250, 01-08 = 2 x 100 = 200
+  (+50 cash = value unchanged at 1000), 01-12 = 220.

@@ -182,7 +182,7 @@ pub trait HealthDismissalStore: Send + Sync {
 // =============================================================================
 
 use super::checks::{
-    AssetHoldingInfo, ConsistencyIssueInfo, FxPairInfo, InvalidTransferGroupInfo,
+    AssetHoldingInfo, ConsistencyIssueInfo, FxConflictInfo, FxPairInfo, InvalidTransferGroupInfo,
     LegacyMigrationInfo, QuoteSyncErrorInfo, UnclassifiedAssetInfo, UnconfiguredAccountInfo,
 };
 use super::model::{FixAction, HealthStatus};
@@ -227,6 +227,7 @@ pub trait HealthServiceTrait: Send + Sync {
     /// * `latest_quote_times` - Latest quote timestamps by asset ID
     /// * `quote_sync_errors` - Assets with quote sync failures
     /// * `fx_pairs` - FX pair information for currency checks
+    /// * `fx_conflicts` - Currency pairs whose two directions disagree
     /// * `unclassified_assets` - Assets missing classification
     /// * `consistency_issues` - Pre-detected data consistency issues
     /// * `legacy_migration_info` - Info about legacy classification data needing migration
@@ -246,6 +247,7 @@ pub trait HealthServiceTrait: Send + Sync {
         latest_quote_times: &HashMap<String, DateTime<Utc>>,
         quote_sync_errors: &[QuoteSyncErrorInfo],
         fx_pairs: &[FxPairInfo],
+        fx_conflicts: &[FxConflictInfo],
         unclassified_assets: &[UnclassifiedAssetInfo],
         consistency_issues: &[ConsistencyIssueInfo],
         legacy_migration_info: &Option<LegacyMigrationInfo>,

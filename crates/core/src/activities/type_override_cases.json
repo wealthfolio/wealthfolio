@@ -1,0 +1,19 @@
+[
+  ["", "DIVIDEND"],
+  [" ", "DIVIDEND"],
+  ["\t", "DIVIDEND"],
+  ["\n\r", "DIVIDEND"],
+  ["\u000b", "DIVIDEND"],
+  ["\f", "DIVIDEND"],
+  ["\u0085", "DIVIDEND"],
+  [" ", "DIVIDEND"],
+  [" ", "DIVIDEND"],
+  [" ", "DIVIDEND"],
+  [" ", "DIVIDEND"],
+  [" ", "DIVIDEND"],
+  ["　", "DIVIDEND"],
+  ["﻿", "﻿"],
+  ["SELL", "SELL"],
+  [" SELL ", "SELL"],
+  [" SELL ", "SELL"]
+]

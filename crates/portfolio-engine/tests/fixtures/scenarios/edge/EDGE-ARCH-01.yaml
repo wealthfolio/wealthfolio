@@ -1,0 +1,46 @@
+id: EDGE-ARCH-01
+title: A measured scope that names an archived account is refused
+intent: >
+  Kernel-only. Archived accounts are neither projected nor valued (their
+  activities stay visible to transfer pairing only), so a scope that names
+  one has no complete answer. Measuring it returns
+  EngineError::ArchivedAccountInScope instead of a performance result built
+  on a missing account. Transfers to the archived account are external for
+  every scope without it. Marked [K].
+markers: [K]
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-06
+accounts:
+  - id: acc-1
+    currency: USD
+  - id: acc-arch
+    currency: USD
+    is_archived: true
+activities:
+  - id: dep-1
+    account: acc-1
+    type: DEPOSIT
+    date: 2025-01-02T10:00:00Z
+    amount: 1000
+  - id: out-1
+    account: acc-1
+    type: TRANSFER_OUT
+    date: 2025-01-03T10:00:00Z
+    amount: 400
+    source_group_id: g1
+  - id: in-1
+    account: acc-arch
+    type: TRANSFER_IN
+    date: 2025-01-03T10:01:00Z
+    amount: 400
+    source_group_id: g1
+performance_windows:
+  - { label: with_archived, accounts: [acc-1, acc-arch] }
+expected_notes: >
+  acc-1: cash 1000 -> 600 on 01-03, an outflow of 400 CASH_AMOUNT (the pair
+  resolves and its counterparty is outside every valued scope); TWR 0 for
+  all_time and for acc-1's with_archived window. Portfolio with_archived:
+  error "account \"acc-arch\" is archived; archived accounts are neither
+  projected nor valued". No keyframes or valuations for acc-arch.

@@ -1,0 +1,62 @@
+id: NOM-SPLIT-01
+title: 2-for-1 split with a same-day post-split buy
+intent: >
+  A SPLIT (amount 2) multiplies the split_ratio of lots acquired before the
+  split's local date only. A BUY entered later the same day is already in
+  post-split units and must not be adjusted. Quotes halve on the split date,
+  so the position value is unchanged at the split instant (I6).
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-12
+accounts:
+  - id: acc-1
+    name: Brokerage
+    currency: USD
+assets:
+  - id: aapl
+    quote_ccy: USD
+activities:
+  - id: dep-1
+    account: acc-1
+    type: DEPOSIT
+    date: 2025-01-02T10:00:00Z
+    amount: 2000
+  - id: buy-1
+    account: acc-1
+    type: BUY
+    date: 2025-01-03T10:00:00Z
+    asset: aapl
+    quantity: 10
+    unit_price: 100
+    amount: 1000
+    fee: 0
+  - id: split-1
+    account: acc-1
+    type: SPLIT
+    date: 2025-01-08T10:00:00Z
+    asset: aapl
+    amount: 2
+  - id: buy-2
+    account: acc-1
+    type: BUY
+    date: 2025-01-08T11:00:00Z
+    asset: aapl
+    quantity: 4
+    unit_price: 50
+    amount: 200
+    fee: 0
+quotes:
+  - { asset: aapl, day: 2025-01-03, close: 100 }
+  - { asset: aapl, day: 2025-01-07, close: 100 }
+  - { asset: aapl, day: 2025-01-08, close: 50 }
+  - { asset: aapl, day: 2025-01-12, close: 55 }
+expected_notes: >
+  Cash 2000 -> 1000 -> 800. Keyframe 01-08: aapl quantity 24 (10 x 2 + 4),
+  total_cost_basis 1200, average_cost 50. Lots: buy-1 original/remaining
+  quantity 10 (as-acquired), cost_per_unit 100, split_ratio 2; buy-2 quantity
+  4, cost_per_unit 50, split_ratio 1 (untouched: same local date as the
+  split). Market value 01-07 = 1000, 01-08 = 24 x 50 = 1200 = 1000 + 200 of
+  new money, so total value is 2000 on both days and no return is booked on
+  the split day; 01-12 = 24 x 55 = 1320. The SPLIT has no cash effect and
+  no flow.

@@ -1,0 +1,71 @@
+id: NOM-TXF-03
+title: External security TRANSFER_IN with book basis vs the legacy amount variant
+intent: >
+  Two accounts each receive 10 aapl from outside the portfolio
+  (metadata.flow.is_external = true) on 01-05, before any quote exists.
+  acc-1 states the book basis (unit_price 90, fee 5, tax 2): the lot basis
+  is 10 x 90 + fee (capitalized) = 905, the tax is not capitalized, and only
+  the fee is booked as cash. acc-2 uses the legacy shape (quantity + amount
+  800, no unit_price): the amount becomes the lot basis (80/unit). With no
+  transfer-date quote, the flow ladder records COST_BASIS_FALLBACK (qty x
+  unit_price) for acc-1 and LEGACY_ACTIVITY_AMOUNT_FALLBACK for acc-2.
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-09
+accounts:
+  - id: acc-1
+    name: Book basis
+    currency: USD
+  - id: acc-2
+    name: Legacy amount
+    currency: USD
+assets:
+  - id: aapl
+    quote_ccy: USD
+activities:
+  - id: dep-1
+    account: acc-1
+    type: DEPOSIT
+    date: 2025-01-02T10:00:00Z
+    amount: 100
+  - id: dep-2
+    account: acc-2
+    type: DEPOSIT
+    date: 2025-01-02T11:00:00Z
+    amount: 100
+  - id: in-1
+    account: acc-1
+    type: TRANSFER_IN
+    date: 2025-01-05T10:00:00Z
+    asset: aapl
+    quantity: 10
+    unit_price: 90
+    fee: 5
+    tax: 2
+    metadata: { flow: { is_external: true } }
+  - id: in-2
+    account: acc-2
+    type: TRANSFER_IN
+    date: 2025-01-05T11:00:00Z
+    asset: aapl
+    quantity: 10
+    amount: 800
+    metadata: { flow: { is_external: true } }
+quotes:
+  - { asset: aapl, day: 2025-01-06, close: 95 }
+  - { asset: aapl, day: 2025-01-09, close: 98 }
+expected_notes: >
+  acc-1: cash 100 -> 95 (fee only; tax 2 is neither booked nor capitalized);
+  lot in-1 10 units, cost_per_unit 90, basis 905, fee_allocated 5,
+  tax_allocated 0; net_contribution 100 -> 1005. acc-2: cash 100 (no fee);
+  lot in-2 cost_per_unit 80, basis 800; net_contribution 900. Flows 01-05:
+  acc-1 inflow 900 COST_BASIS_FALLBACK (qty x unit_price, the capitalized
+  fee is excluded from the flow), acc-2 inflow 800
+  LEGACY_ACTIVITY_AMOUNT_FALLBACK; portfolio 01-05 inflow 1700 source MIXED.
+  Valuations on 01-05 carry an unpriced position (value_status
+  partialUnpriced, market value 0, total 95 / 100); from 01-06 market value
+  950, from 01-09 980. Basis status complete on both. TWR skips the unpriced
+  day: acc-1 (1045 - 100 - 900)/1000 x 1075/1045 - 1 = 7.5%; acc-2 20%;
+  acc-2 IRR does not converge (diagnostic). Diagnostics carry the degraded
+  provenance and unpriced-position warnings at every scope.

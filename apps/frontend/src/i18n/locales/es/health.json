@@ -157,6 +157,36 @@
       "title_other": "Se detectaron {{count}} transferencias incompletas",
       "title_many": "Se detectaron {{count}} transferencias incompletas",
       "message": "Una transferencia no está emparejada o le falta su contrapartida, por lo que su flujo se trató como externo y puede distorsionar las rentabilidades. Emparéjala con la transferencia correspondiente o márcala como externa si eso es lo previsto."
+    },
+    "data_stale_projection": {
+      "title_one": "El historial de la cuenta está desactualizado",
+      "title_other": "{{count}} historiales de cuentas están desactualizados",
+      "title_many": "{{count}} historiales de cuentas están desactualizados",
+      "message": "Las actividades, los precios o la configuración cambiaron después del último cálculo de estos historiales. Vuelve a calcularlos para que los valores y las rentabilidades reflejen los datos actuales."
+    },
+    "data_rejected_activity": {
+      "title_one": "No se pudo aplicar la transacción",
+      "title_other": "No se pudieron aplicar {{count}} transacciones",
+      "title_many": "No se pudieron aplicar {{count}} transacciones",
+      "message": "Estas transacciones no se pueden aplicar tal como están registradas (por ejemplo, su moneda no tiene tipo de cambio, o abrirían o cerrarían una posición corta sin estar marcadas para ello), así que se excluyen de los saldos, las posiciones y las rentabilidades. Revísalas."
+    },
+    "data_oversold_activity": {
+      "title_one": "La transacción vende más de lo que se tenía",
+      "title_other": "{{count}} transacciones venden más de lo que se tenía",
+      "title_many": "{{count}} transacciones venden más de lo que se tenía",
+      "message": "Estas transacciones venden o trasladan más unidades de las que la cuenta tenía en ese momento. Solo se retiraron las unidades que se tenían, y el resto no tiene base de coste. Comprueba si falta una compra o una transferencia entrante."
+    },
+    "data_missing_activity_amount": {
+      "title_one": "La transacción no tiene importe",
+      "title_other": "{{count}} transacciones no tienen importe",
+      "title_many": "{{count}} transacciones no tienen importe",
+      "message": "Estas transacciones no tienen importe, así que no cambiaron el saldo de efectivo. Añade el importe si hubo movimiento de efectivo."
+    },
+    "fx_conflicting_rates": {
+      "title_one": "Los tipos de cambio de {{from}} y {{to}} no coinciden",
+      "title_other": "Los tipos de cambio no coinciden en {{count}} pares de monedas",
+      "title_many": "Los tipos de cambio no coinciden en {{count}} pares de monedas",
+      "message": "Hay tipos registrados en ambos sentidos para los mismos días y no coinciden. Cada sentido se usa tal como está registrado, así que convertir en un sentido y volver da un importe distinto. Corrige o elimina los tipos incorrectos."
     }
   },
   "page": {

@@ -1,0 +1,28 @@
+id: EDGE-FX-11
+title: A holding whose cost cannot be converted has no known gain
+intent: >
+  Kernel-only. A holdings account in GBP holds a position whose cost is
+  recorded in USD, with no USD/GBP rate. Its market value is known, its
+  cost is not: the book basis is partly unknown and no gain or return is
+  reported, rather than a gain computed as if the cost were zero. Marked
+  [K].
+markers: [K]
+policy:
+  base_currency: GBP
+  timezone: UTC
+  as_of: 2025-01-03
+accounts:
+  - { id: acc-h, currency: GBP, tracking_mode: HOLDINGS }
+assets:
+  - { id: x, quote_ccy: USD }
+observed_snapshots:
+  - account: acc-h
+    date: 2025-01-01
+    cash: { GBP: 100 }
+    positions:
+      - { asset: x, quantity: 1, average_cost: 100 }
+quotes:
+  - { asset: x, day: 2025-01-01, close: 100, currency: GBP }
+expected_notes: >
+  Value 200 GBP (cash 100, x 100) on every day. Basis status PARTIAL_UNKNOWN;
+  the all-time gain and return are unavailable.

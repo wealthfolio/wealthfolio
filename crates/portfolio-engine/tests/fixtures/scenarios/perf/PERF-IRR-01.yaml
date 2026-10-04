@@ -1,0 +1,81 @@
+id: PERF-IRR-01
+title: XIRR converging, no-sign-change and insufficient-points cases
+intent: >
+  Three accounts, one per XIRR outcome. acc-a: -1000 on 01-02, +1100 on the
+  02-06 end date, 35 days -> bisection converges and the >= 30-day gate
+  annualizes. acc-b: deposits 1000 and 500, then a FEE consumes everything so
+  the ending value is 0 and is not emitted as a flow; the two remaining flows
+  are both negative -> "cash flows do not change sign" is a WARNING (irr null,
+  quality partial, not a not-applicable reason). Note that any positive ending
+  value is itself emitted as a flow, so "deposits only, value 1000" would still
+  converge (r = 0); the ending value must be zero to hit this branch. acc-c:
+  a single deposit on the as_of day gives one valuation row, which trips the
+  "at least two valuation points" gate before XIRR runs.
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-02-06
+accounts:
+  - id: acc-a
+    currency: USD
+  - id: acc-b
+    currency: USD
+  - id: acc-c
+    currency: USD
+assets:
+  - id: aapl
+    quote_ccy: USD
+activities:
+  - id: dep-a
+    account: acc-a
+    type: DEPOSIT
+    date: 2025-01-02T10:00:00Z
+    amount: 1000
+  - id: buy-a
+    account: acc-a
+    type: BUY
+    date: 2025-01-03T10:00:00Z
+    asset: aapl
+    quantity: 10
+    unit_price: 100
+    amount: 1000
+  - id: dep-b1
+    account: acc-b
+    type: DEPOSIT
+    date: 2025-01-02T11:00:00Z
+    amount: 1000
+  - id: dep-b2
+    account: acc-b
+    type: DEPOSIT
+    date: 2025-01-10T10:00:00Z
+    amount: 500
+  - id: fee-b
+    account: acc-b
+    type: FEE
+    date: 2025-01-20T10:00:00Z
+    amount: 1500
+    fee: 1500
+  - id: dep-c
+    account: acc-c
+    type: DEPOSIT
+    date: 2025-02-06T10:00:00Z
+    amount: 700
+quotes:
+  - { asset: aapl, day: 2025-01-03, close: 100 }
+  - { asset: aapl, day: 2025-02-02, close: 110 }
+  - { asset: aapl, day: 2025-02-06, close: 110 }
+expected_notes: >
+  acc-a: value 1000 until 02-01, 1100 from 02-02; TWR 0.1; annualized TWR
+  1.1^(365.25/35) - 1 = 1.7037; XIRR flows -1000 @01-02, +1100 @02-06 ->
+  annualized_irr ~1.7037 (bisection, 1e-7 NPV tolerance) and period irr =
+  (1 + ann)^(35/365.25) - 1 = 0.1; value_return 0.1, annualized 1.7037.
+  acc-b: value 1000, 1500 from 01-10, 0 from 01-20. XIRR flows -1000, -500
+  only -> warning "IRR unavailable: cash flows do not change sign.", irr null.
+  TWR: 01-10 0, 01-20 (0 - 1500)/1500 = -1 -> headline -1, later days paused
+  (denominator 0); annualized TWR clamps to -1; max_drawdown -1. LEGACY
+  BEHAVIOR: value_return = (0 - 1000 - 500)/1000 = -1.5 (gain over the FIRST
+  value, not over capital invested). Attribution: contributions 1500, fees 1500.
+  acc-c: one row (02-06, 700) -> "Performance unavailable: at least two
+  valuation points are required." (method NotApplicable, quality noData).
+  Portfolio: 02-06 inflow 700; the acc-b crash gives 01-20 r = -0.6 so
+  TWR = 0.4 x 1.1 - 1 = -0.56.

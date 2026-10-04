@@ -173,18 +173,39 @@ export interface Activity {
   updatedAt: string;
 }
 
+interface TypedActivity {
+  activityType: string;
+  activityTypeOverride?: string | null;
+}
+
+/**
+ * What Rust's `str::trim` strips (Unicode White_Space), at either end. The
+ * backend reads a blank override with that set; JavaScript's `trim()`
+ * differs (it strips U+FEFF and keeps U+0085).
+ */
+const OVERRIDE_PADDING =
+  /^[\t\n\v\f\r \u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+|[\t\n\v\f\r \u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+$/g;
+
+/**
+ * The user's type override, when it is not blank: a blank override is none,
+ * as the backend and the portfolio engine read it.
+ */
+function typeOverride(activity: TypedActivity): string | undefined {
+  return activity.activityTypeOverride?.replace(OVERRIDE_PADDING, "") || undefined;
+}
+
 /**
  * Helper to get effective type (respects user override)
  */
-export function getEffectiveType(activity: Activity): string {
-  return activity.activityTypeOverride ?? activity.activityType;
+export function getEffectiveType(activity: TypedActivity): string {
+  return typeOverride(activity) ?? activity.activityType;
 }
 
 /**
  * Check if activity has user override
  */
-export function hasUserOverride(activity: Activity): boolean {
-  return activity.activityTypeOverride !== undefined && activity.activityTypeOverride !== null;
+export function hasUserOverride(activity: TypedActivity): boolean {
+  return typeOverride(activity) !== undefined;
 }
 
 /**

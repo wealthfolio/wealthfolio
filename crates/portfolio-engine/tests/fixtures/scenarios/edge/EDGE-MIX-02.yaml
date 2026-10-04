@@ -1,0 +1,20 @@
+id: EDGE-MIX-02
+title: A holdings account that opens inside the portfolio brings its value
+intent: >
+  acc-a holds 1000 from 01-01; acc-h (HOLDINGS) first appears on 01-03 with
+  a snapshot of 100 cash and records no activities. A manual snapshot stores
+  no net contribution, so the opening money is the snapshot's value: the
+  portfolio gains a 100 inflow on 01-03, as a transition from nothing would
+  infer, and no return.
+policy: { base_currency: USD, timezone: UTC, as_of: 2025-01-04 }
+accounts:
+  - { id: acc-a, currency: USD }
+  - { id: acc-h, currency: USD, tracking_mode: HOLDINGS }
+activities:
+  - { id: dep, account: acc-a, type: DEPOSIT, date: 2025-01-01T10:00:00Z, amount: 1000 }
+observed_snapshots:
+  - { account: acc-h, date: 2025-01-03, cash: { USD: 100 } }
+expected_notes: >
+  acc-h: value 100 from 01-03, no flow of its own (its first day). Portfolio
+  flows: 01-03 inflow 100 QUOTE_DERIVED_MARKET_VALUE. Before the fix the
+  portfolio read the snapshot's net contribution (0) and showed no flow.

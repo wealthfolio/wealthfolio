@@ -301,7 +301,9 @@ test("bond UI entry, identifier reuse, provider terms, prices, and holdings use 
           });
           const response = await page.request.get(`${api}/holdings/item?${params}`);
           expect(response.ok()).toBeTruthy();
-          const holding = (await response.json()) as HoldingResponse;
+          const holding = (await response.json()) as HoldingResponse | null;
+          // The jobs the purchases queued may not have written it yet.
+          if (!holding) return null;
           return {
             quantity: Number(holding.quantity),
             price: Number(holding.price),

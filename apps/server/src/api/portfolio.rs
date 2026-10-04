@@ -20,12 +20,12 @@ async fn update_portfolio(
     body: Option<Json<PortfolioRequestBody>>,
 ) -> ApiResult<StatusCode> {
     // Web-mode callers typically omit the body; preserve desktop behavior by defaulting
-    // to an explicit market sync policy (PRD: no implicit sync inside the job runner).
+    // to an explicit market sync policy (the job runner performs no implicit sync).
     let mut request = body.map(|Json(inner)| inner).unwrap_or_default();
     if matches!(request.market_sync_mode, MarketSyncMode::None) {
         request.market_sync_mode = MarketSyncMode::Incremental { asset_ids: None };
     }
-    let cfg = request.into_config(false);
+    let cfg = request.into_config();
     enqueue_portfolio_job(state, cfg);
     Ok(StatusCode::ACCEPTED)
 }
@@ -43,7 +43,8 @@ async fn recalculate_portfolio(
             days: DEFAULT_HISTORY_DAYS,
         };
     }
-    let cfg = request.into_config(true);
+    request.force_full = true;
+    let cfg = request.into_config();
     enqueue_portfolio_job(state, cfg);
     Ok(StatusCode::ACCEPTED)
 }

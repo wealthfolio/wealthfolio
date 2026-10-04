@@ -1,5 +1,6 @@
+import { detectDateOrder } from "@/lib/utils";
 import { describe, expect, it } from "vitest";
-import { parseDateValue } from "./draft-utils";
+import { parseDateValue, validateDraft } from "./draft-utils";
 
 /**
  * Regression coverage for issue #984: Questrade exports dates as
@@ -85,5 +86,65 @@ describe("parseDateValue — two-digit years (issue #1341)", () => {
       mo: 6,
       day: 26,
     });
+  });
+});
+
+describe("parseDateValue — Schwab 'as of' dates (issue #1874)", () => {
+  const asOf = "09/16/2026 as of 09/15/2026";
+
+  it("auto-detects the posting date", () => {
+    expect(local(parseDateValue(asOf, "auto"))).toMatchObject({ y: 2026, mo: 9, day: 16 });
+  });
+
+  it("reads the posting date with an explicit format", () => {
+    expect(local(parseDateValue(asOf, "MM/DD/YYYY"))).toMatchObject({ y: 2026, mo: 9, day: 16 });
+  });
+
+  it("orders an ambiguous row by the column's posting dates", () => {
+    // Read month-first, "03/09/2026" would be 9 March; the 16th settles day-first.
+    const column = ["16/09/2026 as of 15/09/2026", "03/09/2026 as of 02/09/2026"];
+    const order = detectDateOrder(column) ?? undefined;
+    expect(local(parseDateValue(column[1], "auto", order))).toMatchObject({
+      y: 2026,
+      mo: 9,
+      day: 3,
+    });
+  });
+
+  it("ignores case and spacing around 'as of'", () => {
+    expect(local(parseDateValue("09/16/2026  AS  OF  09/15/2026", "auto"))).toMatchObject({
+      y: 2026,
+      mo: 9,
+      day: 16,
+    });
+  });
+});
+
+describe("parseDateValue — Unix timestamps", () => {
+  it("still parses a bare timestamp in seconds", () => {
+    expect(parseDateValue("1714521600", "auto")).toBe("2024-05-01T00:00:00.000Z");
+  });
+
+  it("returns text with leading digits as-is instead of an epoch date", () => {
+    expect(parseDateValue("12 Main St", "auto")).toBe("12 Main St");
+  });
+});
+
+describe("validateDraft — activity dates", () => {
+  const dateErrors = (activityDate: unknown) =>
+    validateDraft({ activityDate: activityDate as string }).errors.activityDate;
+
+  it("flags a date no format could read", () => {
+    expect(dateErrors(parseDateValue("09/16/2026 10:30", "auto"))).toEqual(["Date not recognized"]);
+  });
+
+  it("accepts parsed, calendar and grid-edited dates", () => {
+    expect(dateErrors(parseDateValue("09/16/2026 as of 09/15/2026", "auto"))).toBeUndefined();
+    expect(dateErrors("2026-09-16")).toBeUndefined();
+    expect(dateErrors(new Date(2026, 8, 16, 10, 30))).toBeUndefined();
+  });
+
+  it("still reports a missing date as required", () => {
+    expect(dateErrors("")).toEqual(["Date is required"]);
   });
 });

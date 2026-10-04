@@ -9,6 +9,9 @@ use log::{debug, info, warn};
 use rust_decimal::Decimal;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
+
+use crate::portfolio::coordinator::ProjectionFreshnessTrait;
+use crate::portfolio::projection::{ActivityIssue, ActivityIssueKind};
 use tokio::sync::RwLock;
 
 use crate::accounts::{
@@ -23,7 +26,6 @@ use crate::errors::Result;
 use crate::lots::LotRepositoryTrait;
 use crate::portfolio::economic_events::{ActivityEconomicsResolver, BasisStatus};
 use crate::portfolio::holdings::{HoldingType, HoldingsServiceTrait};
-use crate::portfolio::performance::is_external_transfer;
 use crate::portfolio::snapshot::{
     max_snapshot_read_date, min_supported_snapshot_date, validate_snapshot_read_date,
     AccountStateSnapshot, HoldingsTimeline, Position, SnapshotServiceTrait,
@@ -35,10 +37,10 @@ use crate::utils::time_utils::{activity_date_in_tz, parse_user_timezone_or_defau
 
 use super::checks::{
     AccountConfigurationCheck, AssetHoldingInfo, ClassificationCheck, ConsistencyIssueInfo,
-    DataConsistencyCheck, FxIntegrityCheck, FxPairInfo, InvalidTransferGroupInfo,
-    LegacyMigrationInfo, PriceStalenessCheck, QuoteSyncCheck, QuoteSyncErrorInfo,
-    TransferIntegrityCheck, TransferLegDetail, UnclassifiedAssetInfo, UnconfiguredAccountInfo,
-    ValuationIssueReason,
+    ConsistencyIssueType, DataConsistencyCheck, FxConflictInfo, FxIntegrityCheck, FxPairInfo,
+    InvalidTransferGroupInfo, LegacyMigrationInfo, PriceStalenessCheck, QuoteSyncCheck,
+    QuoteSyncErrorInfo, TransferIntegrityCheck, TransferLegDetail, UnclassifiedAssetInfo,
+    UnconfiguredAccountInfo, ValuationIssueReason,
 };
 use super::errors::HealthError;
 use super::model::{FixAction, HealthConfig, HealthIssue, HealthStatus, IssueDismissal};
@@ -69,6 +71,8 @@ pub struct HealthService {
     consistency_check: DataConsistencyCheck,
     account_config_check: AccountConfigurationCheck,
     transfer_integrity_check: TransferIntegrityCheck,
+    /// Projection freshness (the coordinator), when wired by the host.
+    projection_freshness: Option<Arc<dyn ProjectionFreshnessTrait>>,
 }
 
 fn is_price_staleness_candidate(
@@ -92,7 +96,17 @@ impl HealthService {
             consistency_check: DataConsistencyCheck::new(),
             account_config_check: AccountConfigurationCheck::new(),
             transfer_integrity_check: TransferIntegrityCheck::new(),
+            projection_freshness: None,
         }
+    }
+
+    /// Reports accounts whose projected history is behind their facts.
+    pub fn with_projection_freshness(
+        mut self,
+        freshness: Arc<dyn ProjectionFreshnessTrait>,
+    ) -> Self {
+        self.projection_freshness = Some(freshness);
+        self
     }
 
     /// Creates a health service with custom configuration.
@@ -111,6 +125,7 @@ impl HealthService {
             consistency_check: DataConsistencyCheck::new(),
             account_config_check: AccountConfigurationCheck::new(),
             transfer_integrity_check: TransferIntegrityCheck::new(),
+            projection_freshness: None,
         }
     }
 
@@ -127,6 +142,7 @@ impl HealthService {
         latest_quote_times: &std::collections::HashMap<String, chrono::DateTime<chrono::Utc>>,
         quote_sync_errors: &[QuoteSyncErrorInfo],
         fx_pairs: &[FxPairInfo],
+        fx_conflicts: &[FxConflictInfo],
         unclassified_assets: &[UnclassifiedAssetInfo],
         consistency_issues: &[ConsistencyIssueInfo],
         legacy_migration_info: &Option<LegacyMigrationInfo>,
@@ -168,6 +184,7 @@ impl HealthService {
         let fx_issues = self.fx_check.analyze(fx_pairs, &ctx);
         debug!("FX integrity check found {} issues", fx_issues.len());
         all_issues.extend(fx_issues);
+        all_issues.extend(self.fx_check.analyze_conflicts(fx_conflicts));
 
         // Run classification check
         debug!(
@@ -608,6 +625,67 @@ impl HealthService {
             &health_activities,
             effective_timezone,
         ));
+        if let Some(freshness) = &self.projection_freshness {
+            match freshness.stale_accounts() {
+                Ok(stale) => consistency_issues.extend(stale.into_iter().map(|stale| {
+                    ConsistencyIssueInfo {
+                        issue_type: ConsistencyIssueType::StaleProjection,
+                        record_id: stale.account_id.clone(),
+                        description: account_name_map
+                            .get(&stale.account_id)
+                            .cloned()
+                            .unwrap_or_else(|| stale.account_id.clone()),
+                        account_id: Some(stale.account_id),
+                        asset_id: None,
+                        first_negative_date: None,
+                        cash_balance: None,
+                        total_value_at_date: None,
+                        account_currency: None,
+                        activity_date: None,
+                        asset_symbol: None,
+                        asset_name: None,
+                        quantity: None,
+                        proceeds: None,
+                        reason: None,
+                        activity_id: None,
+                        snapshot_date_raw: None,
+                        snapshot_source: None,
+                        snapshot_min_date: None,
+                        snapshot_max_date: None,
+                    }
+                })),
+                Err(error) => warn!("Failed to check projection freshness: {}", error),
+            }
+            match freshness.activity_issues() {
+                Ok(issues) => consistency_issues.extend(engine_activity_issues(
+                    issues,
+                    &accounts,
+                    &health_activities,
+                    effective_timezone,
+                )),
+                Err(error) => warn!("Failed to read the engine's activity issues: {}", error),
+            }
+        }
+        let fx_conflicts: Vec<FxConflictInfo> = match &self.projection_freshness {
+            Some(freshness) => match freshness.fx_conflicts() {
+                Ok(conflicts) => conflicts
+                    .into_iter()
+                    .map(|c| FxConflictInfo {
+                        pair_id: format!("{}:{}", c.from, c.to),
+                        from_currency: c.from.as_str().to_string(),
+                        to_currency: c.to.as_str().to_string(),
+                        days: c.days,
+                        first_day: c.first_day,
+                        last_day: c.last_day,
+                    })
+                    .collect(),
+                Err(error) => {
+                    warn!("Failed to check FX rate conflicts: {}", error);
+                    Vec::new()
+                }
+            },
+            None => Vec::new(),
+        };
 
         // Run checks with gathered data
         self.run_checks_with_data(
@@ -617,6 +695,7 @@ impl HealthService {
             &latest_quote_times,
             &quote_sync_errors,
             &fx_pairs,
+            &fx_conflicts,
             &unclassified_assets,
             &consistency_issues,
             &legacy_migration_info,
@@ -786,7 +865,7 @@ fn invalid_transfer_groups_from_activities(
                 .activity_ids
                 .iter()
                 .filter_map(|id| by_id.get(id.as_str()).copied())
-                .filter(|act| act.is_posted() && !is_external_transfer(act))
+                .filter(|act| act.is_posted() && !act.is_external_transfer())
                 .filter(|act| eligible_account_ids.contains(act.account_id.as_str()))
                 .map(|act| transfer_leg_detail(act, account_names, tz))
                 .collect();
@@ -800,7 +879,7 @@ fn invalid_transfer_groups_from_activities(
     for activity in activities {
         if activity.is_posted()
             && resolution.is_ungrouped_transfer(&activity.id)
-            && !is_external_transfer(activity)
+            && !activity.is_external_transfer()
             && eligible_account_ids.contains(activity.account_id.as_str())
         {
             groups.push(InvalidTransferGroupInfo {
@@ -813,7 +892,7 @@ fn invalid_transfer_groups_from_activities(
     for pair in resolution.pairs() {
         for activity in [&pair.transfer_in, &pair.transfer_out] {
             if activity.is_posted()
-                && is_external_transfer(activity)
+                && activity.is_external_transfer()
                 && eligible_account_ids.contains(activity.account_id.as_str())
             {
                 groups.push(InvalidTransferGroupInfo {
@@ -1141,7 +1220,7 @@ fn is_lot_creating_basis_source(activity: &Activity) -> bool {
     }
 
     activity_type.eq_ignore_ascii_case(ACTIVITY_TYPE_TRANSFER_IN)
-        && (activity.source_group_id.is_none() || is_external_transfer(activity))
+        && (activity.source_group_id.is_none() || activity.is_external_transfer())
 }
 
 /// Flags activities stored without a currency (#1388): FX conversion fails for
@@ -1180,6 +1259,63 @@ fn missing_currency_activities_from_data(
                 cash_balance: None,
                 total_value_at_date: None,
                 account_currency,
+                activity_date: Some(activity_date_in_tz(activity.activity_date, tz)),
+                asset_symbol: None,
+                asset_name: None,
+                quantity: activity.quantity,
+                proceeds: None,
+                reason: None,
+                activity_id: Some(activity.id.clone()),
+                snapshot_date_raw: None,
+                snapshot_source: None,
+                snapshot_min_date: None,
+                snapshot_max_date: None,
+            })
+        })
+        .collect()
+}
+
+/// What the engine decided about activities (rejected, oversold, posted
+/// without an amount), labelled with their account and local date. Issues of
+/// activities no longer on record are dropped until the next run replaces
+/// them.
+fn engine_activity_issues(
+    issues: Vec<ActivityIssue>,
+    accounts: &[Account],
+    activities: &[Activity],
+    timezone: Option<&str>,
+) -> Vec<ConsistencyIssueInfo> {
+    let account_names: HashMap<&str, &str> = accounts
+        .iter()
+        .map(|account| (account.id.as_str(), account.name.as_str()))
+        .collect();
+    let by_id: HashMap<&str, &Activity> = activities
+        .iter()
+        .map(|activity| (activity.id.as_str(), activity))
+        .collect();
+    let tz = parse_user_timezone_or_default(timezone.unwrap_or_default());
+    issues
+        .into_iter()
+        .filter_map(|issue| {
+            let activity = by_id.get(issue.activity_id.as_str())?;
+            let issue_type = match issue.kind {
+                ActivityIssueKind::Rejected => ConsistencyIssueType::RejectedActivity,
+                ActivityIssueKind::Oversold => ConsistencyIssueType::OversoldActivity,
+                ActivityIssueKind::MissingAmount => ConsistencyIssueType::MissingActivityAmount,
+            };
+            Some(ConsistencyIssueInfo {
+                issue_type,
+                record_id: activity.id.clone(),
+                description: account_names
+                    .get(activity.account_id.as_str())
+                    .map(|name| name.to_string())
+                    .unwrap_or_else(|| activity.account_id.clone()),
+                account_id: Some(activity.account_id.clone()),
+                asset_id: activity.asset_id.clone(),
+                first_negative_date: None,
+                cash_balance: None,
+                total_value_at_date: None,
+                account_currency: None,
                 activity_date: Some(activity_date_in_tz(activity.activity_date, tz)),
                 asset_symbol: None,
                 asset_name: None,
@@ -1840,6 +1976,7 @@ impl HealthServiceTrait for HealthService {
         latest_quote_times: &std::collections::HashMap<String, chrono::DateTime<chrono::Utc>>,
         quote_sync_errors: &[QuoteSyncErrorInfo],
         fx_pairs: &[FxPairInfo],
+        fx_conflicts: &[FxConflictInfo],
         unclassified_assets: &[UnclassifiedAssetInfo],
         consistency_issues: &[ConsistencyIssueInfo],
         legacy_migration_info: &Option<LegacyMigrationInfo>,
@@ -1857,6 +1994,7 @@ impl HealthServiceTrait for HealthService {
             latest_quote_times,
             quote_sync_errors,
             fx_pairs,
+            fx_conflicts,
             unclassified_assets,
             consistency_issues,
             legacy_migration_info,
@@ -2360,6 +2498,45 @@ mod tests {
             issue.issue_type
                 == crate::health::checks::ConsistencyIssueType::UnknownPerformanceFlowSource
         }));
+    }
+
+    #[test]
+    fn engine_activity_issues_name_the_account_and_drop_activities_no_longer_on_record() {
+        let account = health_account(
+            "acc-1",
+            account_types::SECURITIES,
+            TrackingMode::Transactions,
+        );
+        let sell = transfer_activity(
+            "sell-1",
+            "acc-1",
+            "SELL",
+            None,
+            false,
+            ActivityStatus::Posted,
+        );
+        let issue = |id: &str, kind| ActivityIssue {
+            activity_id: id.to_string(),
+            kind,
+            message: "reported".to_string(),
+        };
+        let infos = engine_activity_issues(
+            vec![
+                issue("sell-1", ActivityIssueKind::Oversold),
+                issue("deleted", ActivityIssueKind::Rejected),
+            ],
+            std::slice::from_ref(&account),
+            &[sell],
+            None,
+        );
+        assert_eq!(infos.len(), 1, "the deleted activity's issue is dropped");
+        assert_eq!(
+            infos[0].issue_type,
+            crate::health::checks::ConsistencyIssueType::OversoldActivity
+        );
+        assert_eq!(infos[0].record_id, "sell-1");
+        assert_eq!(infos[0].description, account.name);
+        assert_eq!(infos[0].account_id.as_deref(), Some("acc-1"));
     }
 
     // Regression for #1388: activities persisted without a currency (pre-fix CSV
@@ -3081,6 +3258,7 @@ mod tests {
                 &[],
                 &[],
                 &[],
+                &[],
                 &None,
                 &[],
                 Some("UTC"),
@@ -3159,6 +3337,7 @@ mod tests {
                 &[],
                 &[],
                 &[],
+                &[],
                 &None,
                 &[],
                 Some("UTC"),
@@ -3198,6 +3377,7 @@ mod tests {
                 &[],
                 &[],
                 &[],
+                &[],
                 &None,
                 &[],
                 Some("UTC"),
@@ -3223,6 +3403,7 @@ mod tests {
                 100_000.0,
                 &holdings,
                 &quote_times,
+                &[],
                 &[],
                 &[],
                 &[],

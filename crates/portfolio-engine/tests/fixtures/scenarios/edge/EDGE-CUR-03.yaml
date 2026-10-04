@@ -1,0 +1,26 @@
+id: EDGE-CUR-03
+title: A lot moved between currencies keeps its cost in the right currency
+intent: >
+  Kernel-only. An asset without a quote currency takes the currency of the
+  activity that opens its position: USD in acc-usd, CAD in acc-cad. A lot
+  bought for 10 USD and transferred to acc-cad must arrive as 20 CAD at
+  its acquisition rate (USD/CAD 2), not as 10 relabelled CAD; its base cost
+  stays 10 USD. Marked [K].
+markers: [K]
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-05
+accounts:
+  - { id: acc-usd, currency: USD }
+  - { id: acc-cad, currency: CAD }
+assets:
+  - { id: x, quote_ccy: '' }
+activities:
+  - { id: buy, account: acc-usd, type: BUY, date: 2025-01-01T10:00:00Z, asset: x, quantity: 1, unit_price: 10, amount: 10 }
+  - { id: out, account: acc-usd, type: TRANSFER_OUT, date: 2025-01-03T10:00:00Z, asset: x, quantity: 1, source_group_id: g }
+  - { id: tin, account: acc-cad, type: TRANSFER_IN, date: 2025-01-03T11:00:00Z, asset: x, quantity: 1, source_group_id: g }
+fx_rates:
+  - { from: USD, to: CAD, day: 2025-01-01, rate: 2 }
+expected_notes: >
+  acc-cad holds x: cost basis 20 CAD, base cost 10 USD, acquired 2025-01-01.

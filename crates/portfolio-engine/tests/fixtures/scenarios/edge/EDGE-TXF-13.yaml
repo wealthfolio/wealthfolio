@@ -1,0 +1,30 @@
+id: EDGE-TXF-13
+title: A conversion's estimated flow on the day another account deposits
+intent: >
+  Kernel-only. acc-plain converts USD to EUR with the unlinked pair of
+  EDGE-TXF-05, so its net contribution moves by 1.2 and its row reads that
+  as an estimated inflow (NetContributionFallback). acc-other deposits 50
+  the same day. The portfolio's flow that day is both: another account's
+  activity does not replace an account's own flow (I9 aggregation).
+markers: [K]
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-06
+accounts:
+  - { id: acc-plain, currency: USD }
+  - { id: acc-other, currency: USD }
+activities:
+  - { id: dep-plain, account: acc-plain, type: DEPOSIT, date: 2025-01-02T10:00:00Z, amount: 1000 }
+  - { id: dep-other, account: acc-other, type: DEPOSIT, date: 2025-01-02T10:01:00Z, amount: 100 }
+  - { id: dep-other2, account: acc-other, type: DEPOSIT, date: 2025-01-03T09:00:00Z, amount: 50 }
+  - { id: fx-out-plain, account: acc-plain, type: TRANSFER_OUT, date: 2025-01-03T10:02:00Z, amount: 100, currency: USD, source_group_id: fx-plain }
+  - { id: fx-in-plain, account: acc-plain, type: TRANSFER_IN, date: 2025-01-03T10:03:00Z, amount: 92, currency: EUR, source_group_id: fx-plain }
+fx_rates:
+  - { from: EUR, to: USD, day: 2025-01-02, rate: 1.10 }
+  - { from: EUR, to: USD, day: 2025-01-06, rate: 1.10 }
+expected_notes: >
+  acc-plain: cash {USD 900, EUR 92}, net_contribution 1000 -> 1001.2, flow
+  01-03 inflow 1.2 NET_CONTRIBUTION_FALLBACK. acc-other: inflow 50 on 01-03
+  CASH_AMOUNT. Portfolio flows: 01-03 inflow 51.2 (MIXED, one part
+  estimated). Before the fix the deposit replaced the day's flows: 50.

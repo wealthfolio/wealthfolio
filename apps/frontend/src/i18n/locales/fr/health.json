@@ -157,6 +157,36 @@
       "title_other": "{{count}} transferts incomplets détectés",
       "title_many": "{{count}} transferts incomplets détectés",
       "message": "Un transfert n'est pas apparié ou sa contrepartie est manquante, de sorte que son flux a été traité comme externe et peut fausser les rendements. Appariez-le avec le transfert correspondant, ou marquez-le comme externe si cela est intentionnel."
+    },
+    "data_stale_projection": {
+      "title_one": "L'historique du compte n'est plus à jour",
+      "title_other": "{{count}} historiques de comptes ne sont plus à jour",
+      "title_many": "{{count}} historiques de comptes ne sont plus à jour",
+      "message": "Des activités, des cours ou des paramètres ont changé depuis le dernier calcul de ces historiques de comptes. Recalculez-les pour que les valeurs et les rendements reflètent les données actuelles."
+    },
+    "data_rejected_activity": {
+      "title_one": "Transaction impossible à appliquer",
+      "title_other": "{{count}} transactions impossibles à appliquer",
+      "title_many": "{{count}} transactions impossibles à appliquer",
+      "message": "Ces transactions ne peuvent pas être appliquées telles qu'elles sont saisies (par exemple, leur devise n'a pas de taux de change, ou elles ouvriraient ou fermeraient une position à découvert sans être marquées comme telles). Elles sont donc exclues des soldes, des positions et des rendements. Vérifiez-les."
+    },
+    "data_oversold_activity": {
+      "title_one": "Transaction vendant plus que la quantité détenue",
+      "title_other": "{{count}} transactions vendant plus que la quantité détenue",
+      "title_many": "{{count}} transactions vendant plus que la quantité détenue",
+      "message": "Ces transactions vendent ou transfèrent plus d'unités que le compte n'en détenait à ce moment-là. Seules les unités détenues ont été retirées, et le reste n'a pas de prix de revient. Vérifiez qu'il ne manque pas un achat ou un transfert entrant."
+    },
+    "data_missing_activity_amount": {
+      "title_one": "Transaction sans montant",
+      "title_other": "{{count}} transactions sans montant",
+      "title_many": "{{count}} transactions sans montant",
+      "message": "Ces transactions n'ont pas de montant et n'ont donc pas modifié le solde de trésorerie. Ajoutez le montant si de l'argent a été déplacé."
+    },
+    "fx_conflicting_rates": {
+      "title_one": "Les taux de change entre {{from}} et {{to}} ne concordent pas",
+      "title_other": "Les taux de change ne concordent pas pour {{count}} paires de devises",
+      "title_many": "Les taux de change ne concordent pas pour {{count}} paires de devises",
+      "message": "Des taux sont enregistrés dans les deux sens pour les mêmes jours et ne correspondent pas. Chaque sens est utilisé tel qu'enregistré, donc une conversion aller-retour donne un montant différent. Corrigez ou supprimez les taux erronés."
     }
   },
   "page": {

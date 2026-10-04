@@ -199,9 +199,8 @@ pub async fn execute_health_fix(
         return Ok(());
     }
 
-    // Handle rebuild_account_history - trigger an account-scoped full recalculation
-    // by reusing the existing portfolio recalculation pipeline (which maps the
-    // recalculate trigger to SnapshotRecalcMode::Full for the given accounts).
+    // Handle rebuild_account_history: an account-scoped job through the
+    // coordinator, which rebuilds the given accounts from genesis.
     if action.id == "rebuild_account_history" {
         let account_ids: Vec<String> = serde_json::from_value(action.payload.clone())
             .map_err(|e| format!("Failed to parse account IDs: {}", e))?;
@@ -216,10 +215,11 @@ pub async fn execute_health_fix(
         );
 
         // Incremental market sync (prices/valuations were already fixed by the
-        // user); the recalculate trigger performs the full snapshot rebuild.
+        // user); the coordinator performs the full rebuild in the background.
         let payload = PortfolioRequestPayload::builder()
             .account_ids(Some(account_ids))
             .market_sync_mode(MarketSyncMode::Incremental { asset_ids: None })
+            .force_full(true)
             .build();
         emit_portfolio_trigger_recalculate(&app_handle, payload, &context);
 

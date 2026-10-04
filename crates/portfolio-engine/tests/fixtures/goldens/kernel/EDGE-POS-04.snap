@@ -1,0 +1,378 @@
+---
+source: crates/portfolio-engine/tests/goldens.rs
+---
+as_of: 2025-01-08
+base_currency: USD
+baseline:
+  accounts:
+    acc-1:
+      currency: USD
+      disposals:
+        - activity_id: sell-1
+          asset_id: aapl
+          cost_basis: "1000"
+          cost_basis_base: "1000"
+          currency: USD
+          date: 2025-01-06
+          fx_rate_to_base: "1"
+          id: "sell-1:buy-1:0"
+          lot_id: buy-1
+          proceeds: "1200"
+          proceeds_base: "1200"
+          quantity: "100"
+          realized_pnl: "200"
+          realized_pnl_base: "200"
+      flows: []
+      keyframes:
+        - cash:
+            USD: "10000"
+          cash_total_account_currency: "10000"
+          cash_total_base_currency: "10000"
+          cost_basis: "0"
+          date: 2025-01-02
+          net_contribution: "10000"
+          net_contribution_base: "10000"
+          positions: {}
+          source: CALCULATED
+        - cash:
+            USD: "9000"
+          cash_total_account_currency: "9000"
+          cash_total_base_currency: "9000"
+          cost_basis: "1000"
+          date: 2025-01-03
+          net_contribution: "10000"
+          net_contribution_base: "10000"
+          positions:
+            aapl:
+              average_cost: "10"
+              contract_multiplier: "1"
+              cost_basis_account: "1000"
+              cost_basis_base: "1000"
+              currency: USD
+              is_alternative: false
+              quantity: "100"
+              total_cost_basis: "1000"
+          source: CALCULATED
+        - cash:
+            USD: "10320"
+          cash_total_account_currency: "10320"
+          cash_total_base_currency: "10320"
+          cost_basis: "0"
+          date: 2025-01-06
+          net_contribution: "10000"
+          net_contribution_base: "10000"
+          positions:
+            aapl:
+              average_cost: "0"
+              contract_multiplier: "1"
+              cost_basis_account: ~
+              cost_basis_base: ~
+              currency: USD
+              is_alternative: false
+              quantity: "0"
+              total_cost_basis: "0"
+          source: CALCULATED
+        - cash:
+            USD: "10380"
+          cash_total_account_currency: "10380"
+          cash_total_base_currency: "10380"
+          cost_basis: "0"
+          date: 2025-01-07
+          net_contribution: "10000"
+          net_contribution_base: "10000"
+          positions:
+            aapl:
+              average_cost: "0"
+              contract_multiplier: "1"
+              cost_basis_account: ~
+              cost_basis_base: ~
+              currency: USD
+              is_alternative: false
+              quantity: "0"
+              total_cost_basis: "0"
+          source: CALCULATED
+      lots:
+        - asset_id: aapl
+          base_currency: USD
+          close_activity_id: sell-1
+          close_date: 2025-01-06
+          cost_per_unit: "10"
+          currency: USD
+          fee_allocated: "0"
+          fee_allocated_base: "0"
+          fx_rate_to_account: ~
+          fx_rate_to_base: "1"
+          id: buy-1
+          is_closed: true
+          open_activity_id: buy-1
+          open_date: 2025-01-03
+          original_cost_basis: "1000"
+          original_cost_basis_base: "1000"
+          original_quantity: "100"
+          remaining_cost_basis: "0"
+          remaining_cost_basis_base: "0"
+          remaining_quantity: "0"
+          split_ratio: "1"
+          tax_allocated: "0"
+          tax_allocated_base: "0"
+      performance:
+        all_time:
+          attribution:
+            contributions: "10000"
+            distributions: "0"
+            fees: "0"
+            fx_effect: "0"
+            income: "0"
+            realized_pnl: "200"
+            residual: "0"
+            taxes: "0"
+            unrealized_pnl_change: "0"
+          basis_status: notApplicable
+          is_holdings_mode: false
+          is_mixed_tracking_mode: false
+          method: timeWeighted
+          period_end: 2025-01-08
+          period_start: 2025-01-02
+          quality: partial
+          returns:
+            annualized_irr: "8.68308837"
+            annualized_twr: ~
+            annualized_value_return: ~
+            irr: "0.038"
+            twr: "0.038"
+            value_return: "0.038"
+          risk:
+            drawdown_duration_days: 1
+            max_drawdown: "0"
+            peak_date: 2025-01-02
+            recovery_date: ~
+            trough_date: 2025-01-03
+            volatility: "0.24082683"
+          series:
+            - date: 2025-01-02
+              value: "0"
+            - date: 2025-01-03
+              value: "0"
+            - date: 2025-01-04
+              value: "0"
+            - date: 2025-01-05
+              value: "0"
+            - date: 2025-01-06
+              value: "0.032"
+            - date: 2025-01-07
+              value: "0.038"
+            - date: 2025-01-08
+              value: "0.038"
+          summary:
+            amount: "200"
+            amount_status: complete
+            basis: marketValue
+            basis_status: notApplicable
+            method: timeWeighted
+            percent: "0.038"
+            percent_status: complete
+            quality: partial
+      tracking_mode: TRANSACTIONS
+      valuations:
+        - basis_status: notApplicable
+          book_basis: "10000"
+          book_basis_base: "10000"
+          cash_balance: "10000"
+          cash_balance_base: "10000"
+          cost_basis: "0"
+          cost_basis_base: "0"
+          date: 2025-01-02
+          external_flow_source: NO_FLOW
+          external_inflow_base: "0"
+          external_outflow_base: "0"
+          fx_rate_to_base: "1"
+          investment_market_value: "0"
+          investment_market_value_base: "0"
+          net_contribution: "10000"
+          net_contribution_base: "10000"
+          performance_eligible_value_base: "10000"
+          total_value: "10000"
+          total_value_base: "10000"
+          value_status: complete
+        - basis_status: complete
+          book_basis: "10000"
+          book_basis_base: "10000"
+          cash_balance: "9000"
+          cash_balance_base: "9000"
+          cost_basis: "1000"
+          cost_basis_base: "1000"
+          date: 2025-01-03
+          external_flow_source: NO_FLOW
+          external_inflow_base: "0"
+          external_outflow_base: "0"
+          fx_rate_to_base: "1"
+          investment_market_value: "1000"
+          investment_market_value_base: "1000"
+          net_contribution: "10000"
+          net_contribution_base: "10000"
+          performance_eligible_value_base: "10000"
+          total_value: "10000"
+          total_value_base: "10000"
+          value_status: complete
+        - basis_status: complete
+          book_basis: "10000"
+          book_basis_base: "10000"
+          cash_balance: "9000"
+          cash_balance_base: "9000"
+          cost_basis: "1000"
+          cost_basis_base: "1000"
+          date: 2025-01-04
+          external_flow_source: NO_FLOW
+          external_inflow_base: "0"
+          external_outflow_base: "0"
+          fx_rate_to_base: "1"
+          investment_market_value: "1000"
+          investment_market_value_base: "1000"
+          net_contribution: "10000"
+          net_contribution_base: "10000"
+          performance_eligible_value_base: "10000"
+          total_value: "10000"
+          total_value_base: "10000"
+          value_status: complete
+        - basis_status: complete
+          book_basis: "10000"
+          book_basis_base: "10000"
+          cash_balance: "9000"
+          cash_balance_base: "9000"
+          cost_basis: "1000"
+          cost_basis_base: "1000"
+          date: 2025-01-05
+          external_flow_source: NO_FLOW
+          external_inflow_base: "0"
+          external_outflow_base: "0"
+          fx_rate_to_base: "1"
+          investment_market_value: "1000"
+          investment_market_value_base: "1000"
+          net_contribution: "10000"
+          net_contribution_base: "10000"
+          performance_eligible_value_base: "10000"
+          total_value: "10000"
+          total_value_base: "10000"
+          value_status: complete
+        - basis_status: notApplicable
+          book_basis: "10320"
+          book_basis_base: "10320"
+          cash_balance: "10320"
+          cash_balance_base: "10320"
+          cost_basis: "0"
+          cost_basis_base: "0"
+          date: 2025-01-06
+          external_flow_source: NO_FLOW
+          external_inflow_base: "0"
+          external_outflow_base: "0"
+          fx_rate_to_base: "1"
+          investment_market_value: "0"
+          investment_market_value_base: "0"
+          net_contribution: "10000"
+          net_contribution_base: "10000"
+          performance_eligible_value_base: "10320"
+          total_value: "10320"
+          total_value_base: "10320"
+          value_status: complete
+        - basis_status: notApplicable
+          book_basis: "10380"
+          book_basis_base: "10380"
+          cash_balance: "10380"
+          cash_balance_base: "10380"
+          cost_basis: "0"
+          cost_basis_base: "0"
+          date: 2025-01-07
+          external_flow_source: NO_FLOW
+          external_inflow_base: "0"
+          external_outflow_base: "0"
+          fx_rate_to_base: "1"
+          investment_market_value: "0"
+          investment_market_value_base: "0"
+          net_contribution: "10000"
+          net_contribution_base: "10000"
+          performance_eligible_value_base: "10380"
+          total_value: "10380"
+          total_value_base: "10380"
+          value_status: complete
+        - basis_status: notApplicable
+          book_basis: "10380"
+          book_basis_base: "10380"
+          cash_balance: "10380"
+          cash_balance_base: "10380"
+          cost_basis: "0"
+          cost_basis_base: "0"
+          date: 2025-01-08
+          external_flow_source: NO_FLOW
+          external_inflow_base: "0"
+          external_outflow_base: "0"
+          fx_rate_to_base: "1"
+          investment_market_value: "0"
+          investment_market_value_base: "0"
+          net_contribution: "10000"
+          net_contribution_base: "10000"
+          performance_eligible_value_base: "10380"
+          total_value: "10380"
+          total_value_base: "10380"
+          value_status: complete
+  diagnostics:
+    - "project/sell-1: Warning InsufficientQuantity: SELL of 110 aapl with only 100 held; the 10 units beyond the position have no lot"
+    - "project/sell-2: Warning NoPositionToReduce: SELL of aapl with no units held; nothing disposed"
+  portfolio:
+    all_time:
+      attribution:
+        contributions: "10000"
+        distributions: "0"
+        fees: "0"
+        fx_effect: "0"
+        income: "0"
+        realized_pnl: "200"
+        residual: "0"
+        taxes: "0"
+        unrealized_pnl_change: "0"
+      basis_status: notApplicable
+      is_holdings_mode: false
+      is_mixed_tracking_mode: false
+      method: timeWeighted
+      period_end: 2025-01-08
+      period_start: 2025-01-02
+      quality: partial
+      returns:
+        annualized_irr: "8.68308837"
+        annualized_twr: ~
+        annualized_value_return: ~
+        irr: "0.038"
+        twr: "0.038"
+        value_return: "0.038"
+      risk:
+        drawdown_duration_days: 1
+        max_drawdown: "0"
+        peak_date: 2025-01-02
+        recovery_date: ~
+        trough_date: 2025-01-03
+        volatility: "0.24082683"
+      series:
+        - date: 2025-01-02
+          value: "0"
+        - date: 2025-01-03
+          value: "0"
+        - date: 2025-01-04
+          value: "0"
+        - date: 2025-01-05
+          value: "0"
+        - date: 2025-01-06
+          value: "0.032"
+        - date: 2025-01-07
+          value: "0.038"
+        - date: 2025-01-08
+          value: "0.038"
+      summary:
+        amount: "200"
+        amount_status: complete
+        basis: marketValue
+        basis_status: notApplicable
+        method: timeWeighted
+        percent: "0.038"
+        percent_status: complete
+        quality: partial
+  portfolio_flows: []
+scenario: EDGE-POS-04

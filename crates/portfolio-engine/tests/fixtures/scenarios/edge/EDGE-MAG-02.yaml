@@ -1,0 +1,57 @@
+id: EDGE-MAG-02
+title: In-range inputs whose products leave the range are declined, never a panic
+intent: >
+  Kernel-only; the reproduction from the review of #1626. Quantity and unit
+  price are each exactly 1e20, the largest accepted magnitude, so normalize
+  keeps both rows, but quantity x price (1e40) exceeds `Decimal`. Compile
+  cannot prove the SELL's charges exceed its proceeds, so the stored amount
+  keeps its type-directed sign. The BUY opens its lot from the stored cash
+  (unit price 501 / 1e20). Valuing 1e20 shares at a close of 100 (1e22) is
+  outside the range: those days are Unavailable with a ValueOutOfRange
+  diagnostic instead of a panic or a silent zero. Marked [K].
+markers: [K]
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-08
+accounts:
+  - id: acc-1
+    currency: USD
+assets:
+  - id: aapl
+    quote_ccy: USD
+activities:
+  - id: dep-1
+    account: acc-1
+    type: DEPOSIT
+    date: 2025-01-02T10:00:00Z
+    amount: 1000
+  - id: buy-1
+    account: acc-1
+    type: BUY
+    date: 2025-01-03T10:00:00Z
+    asset: aapl
+    quantity: "100000000000000000000"
+    unit_price: "100000000000000000000"
+    amount: 501
+  - id: sell-1
+    account: acc-1
+    type: SELL
+    date: 2025-01-06T10:00:00Z
+    asset: aapl
+    quantity: "100000000000000000000"
+    unit_price: "100000000000000000000"
+    fee: 1
+    amount: 501
+quotes:
+  - { asset: aapl, day: 2025-01-03, close: 100 }
+  - { asset: aapl, day: 2025-01-06, close: 105 }
+expected_notes: >
+  No panic. buy-1: cash 1000 -> 499, one lot of 1e20 shares with basis 501.
+  sell-1: +501 (not reversed), the lot is disposed in full with proceeds 501
+  and P&L 0; cash back to 1000 and no position from 01-06. Valuations 01-03
+  to 01-05 are Unavailable with one ValueOutOfRange diagnostic for the aapl
+  value: the position is unpriced and the row carries the 499 of cash only.
+  01-02 and 01-06 to 01-08 are complete at 1000. TWR is unavailable (the
+  unavailable days interrupt the chain); IRR and value return are 0, since
+  both period endpoints are complete and the account ends where it began.

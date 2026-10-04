@@ -132,6 +132,31 @@
       "title_one": "检测到不完整的转账",
       "title_other": "检测到 {{count}} 笔不完整的转账",
       "message": "某笔转账未配对或缺少对应的另一端，因此其资金流被视为外部资金流，可能会扭曲收益。请将其与对应的转账配对，如属预期则将其标记为外部转账。"
+    },
+    "data_stale_projection": {
+      "title_one": "账户历史已过期",
+      "title_other": "{{count}} 个账户历史已过期",
+      "message": "这些账户历史上次计算后，交易、价格或设置发生了变化。请重新计算，使价值和收益反映当前数据。"
+    },
+    "data_rejected_activity": {
+      "title_one": "交易无法应用",
+      "title_other": "{{count}} 笔交易无法应用",
+      "message": "这些交易无法按记录应用（例如其货币没有汇率，或会在未标记的情况下开立或平掉空头头寸），因此未计入余额、持仓和收益。请检查这些交易。"
+    },
+    "data_oversold_activity": {
+      "title_one": "交易卖出数量超过持有数量",
+      "title_other": "{{count}} 笔交易卖出数量超过持有数量",
+      "message": "这些交易卖出或转出的数量超过了账户当时持有的数量。仅扣减了持有的部分，其余部分没有成本基础。请检查是否漏记了买入或转入。"
+    },
+    "data_missing_activity_amount": {
+      "title_one": "交易没有金额",
+      "title_other": "{{count}} 笔交易没有金额",
+      "message": "这些交易没有金额，因此没有改变现金余额。如有资金变动，请补充金额。"
+    },
+    "fx_conflicting_rates": {
+      "title_one": "{{from}} 与 {{to}} 的汇率不一致",
+      "title_other": "{{count}} 个货币对的汇率不一致",
+      "message": "同一天在两个方向都记录了汇率，但两者不相符。每个方向都按记录使用，因此来回换算会得到不同的金额。请更正或删除错误的汇率。"
     }
   },
   "page": {

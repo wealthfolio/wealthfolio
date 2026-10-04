@@ -1,0 +1,65 @@
+id: EDGE-ORD-02
+title: Same-day A->B->C cash transfer chain
+intent: >
+  Account A is funded in the morning and forwards 600 to B, which forwards
+  300 to C, all on the same day and paired by source_group_id.
+  `order_accounts_by_transfer_deps` builds TRANSFER_OUT -> TRANSFER_IN
+  edges per group and Kahn-sorts the accounts, so A is folded before B and
+  B before C. No account ever shows a phantom negative balance; at account
+  scope each leg is an external flow, at portfolio scope both pairs are
+  internal (both accounts in scope) so only the deposit remains. A small
+  seed deposit four days earlier keeps the chain day off A's first
+  valuation row (whose flows are always zeroed) so A's flows are visible.
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-08
+accounts:
+  - id: acc-a
+    currency: USD
+  - id: acc-b
+    currency: USD
+  - id: acc-c
+    currency: USD
+activities:
+  - id: dep-a-seed
+    account: acc-a
+    type: DEPOSIT
+    date: 2025-01-02T10:00:00Z
+    amount: 100
+  - id: dep-a
+    account: acc-a
+    type: DEPOSIT
+    date: 2025-01-06T10:00:00Z
+    amount: 1000
+  - id: out-ab
+    account: acc-a
+    type: TRANSFER_OUT
+    date: 2025-01-06T11:00:00Z
+    amount: 600
+    source_group_id: g-ab
+  - id: in-ab
+    account: acc-b
+    type: TRANSFER_IN
+    date: 2025-01-06T11:01:00Z
+    amount: 600
+    source_group_id: g-ab
+  - id: out-bc
+    account: acc-b
+    type: TRANSFER_OUT
+    date: 2025-01-06T12:00:00Z
+    amount: 300
+    source_group_id: g-bc
+  - id: in-bc
+    account: acc-c
+    type: TRANSFER_IN
+    date: 2025-01-06T12:01:00Z
+    amount: 300
+    source_group_id: g-bc
+expected_notes: >
+  Keyframes: A 01-02 cash 100; 01-06 A cash 500 (net_contribution 500), B
+  cash 300 (net_contribution 300), C cash 300 (net_contribution 300).
+  Account-scope flows on 01-06: A inflow 1000 / outflow 600 (CASH_AMOUNT);
+  B and C start on 01-06 so their first-row flows are zeroed and no flow
+  row appears. Portfolio flows: inflow 1000 on 01-06 (the two pairs are
+  internal). Valuations are cash-only and complete; all TWRs are 0.

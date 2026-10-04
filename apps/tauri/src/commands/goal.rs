@@ -272,13 +272,13 @@ async fn build_valuation_map(
     let timezone = state.get_timezone();
     let latest_snapshot_cutoff = user_today(parse_user_timezone_or_default(&timezone));
     let account_service = state.account_service();
-    let snapshot_repository = state.snapshot_repository();
+    let snapshot_service = state.snapshot_service();
     let asset_service = state.asset_service();
     let quote_service = state.quote_service();
     let fx_service = state.fx_service();
     let service = CurrentAccountValuationService::new(
         account_service.as_ref(),
-        snapshot_repository.as_ref(),
+        snapshot_service.as_ref(),
         asset_service.as_ref(),
         quote_service.as_ref(),
         fx_service.as_ref(),

@@ -1,0 +1,72 @@
+id: REG-COAL
+title: Two rapid edits coalesce into one batch with since_date = min
+markers: [S]
+intent: >
+  Coordinator-level scenario. Two activities are edited in quick succession:
+  the 01-04 buy (D1) and the 01-07 deposit (D2). The coordinator must coalesce
+  both into one batch whose since_date is min(D1, D2) = 01-04 and the result
+  must equal a full replay. The lifecycle step applies both edits at once and
+  reruns legacy SinceDate(01-04); legacy detects the backdated edit (since <=
+  high-water mark) and auto-upgrades the snapshot run to Full, while the
+  valuation SinceDate window re-anchors on 01-03.
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-10
+accounts:
+  - id: acc-1
+    currency: USD
+assets:
+  - id: aapl
+    quote_ccy: USD
+activities:
+  - id: dep-1
+    account: acc-1
+    type: DEPOSIT
+    date: 2025-01-02T10:00:00Z
+    amount: 1000
+  - id: buy-1
+    account: acc-1
+    type: BUY
+    date: 2025-01-04T10:00:00Z
+    asset: aapl
+    quantity: 5
+    unit_price: 100
+    amount: 500
+  - id: dep-2
+    account: acc-1
+    type: DEPOSIT
+    date: 2025-01-07T10:00:00Z
+    amount: 200
+quotes:
+  - { asset: aapl, day: 2025-01-04, close: 100 }
+  - { asset: aapl, day: 2025-01-08, close: 110 }
+  - { asset: aapl, day: 2025-01-10, close: 112 }
+lifecycle:
+  - label: coalesced_edits_since_min
+    as_of: 2025-01-11
+    update_activities:
+      - id: buy-1
+        account: acc-1
+        type: BUY
+        date: 2025-01-04T10:00:00Z
+        asset: aapl
+        quantity: 6
+        unit_price: 100
+        amount: 600
+      - id: dep-2
+        account: acc-1
+        type: DEPOSIT
+        date: 2025-01-07T10:00:00Z
+        amount: 300
+    recalc: { snapshots: SINCE_DATE, valuations: SINCE_DATE, since: 2025-01-04 }
+expected_notes: >
+  Baseline: cash 1000 -> 500 (01-04) -> 700 (01-07); position 5 aapl; values
+  1000, 1000, 1050 (01-08), 1060 (01-10); TWR 0.05, flow 01-07 inflow 200.
+  After the coalesced edits: cash 400 from 01-04 and 700 from 01-07 (deposit
+  300), position 6 aapl basis 600; values 1000 (01-04), 1300 (01-07), 1360
+  (01-08), 1372 (01-10/11); flow 01-07 inflow 300; TWR 0.05538462. Expected
+  result == full replay. Temporary capture with the marker removed
+  (2026-09-02): legacy SinceDate(01-04) is backdated (since <= high-water
+  mark), the snapshot run auto-upgrades to Full and matches_full_rebuild is
+  true with no differences.

@@ -1,0 +1,52 @@
+id: LIFE-MIG-01
+title: Account pending the final-cash migration rebuild
+markers: [S]
+intent: >
+  Shell-level. One account whose BUY row predates the final-cash writer:
+  `amount` is absent (the runtime never derives it, so until the migration
+  rewrites the row the cash effect of the buy is unknown). Today such
+  accounts sit in a pending set consumed by a background rebuild loop, and
+  the `PortfolioRecalculationGate` carries a hidden `force_full` override
+  that silently turns every recalculation of a pending account into Full
+  regardless of the requested mode. The coordinator owns the pending set and
+  the rebuild explicitly: a pending account is rebuilt Full once the row has
+  been migrated (amount = quantity x unit_price + fee = 505), and until then
+  the health check reports it instead of a hidden mode override. Expected in
+  the shell test: before migration the account is reported pending and any
+  requested mode is executed as Full; after migration one Full rebuild lands
+  and later SinceDate/IncrementalFromLast requests run as requested. No
+  legacy golden: the pending set and the gate override live in the hosts.
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-10
+accounts:
+  - id: acc-1
+    currency: USD
+assets:
+  - id: aapl
+    quote_ccy: USD
+activities:
+  - id: dep-1
+    account: acc-1
+    type: DEPOSIT
+    date: 2025-01-02T10:00:00Z
+    amount: 1000
+  - id: buy-1
+    account: acc-1
+    type: BUY
+    date: 2025-01-06T10:00:00Z
+    asset: aapl
+    quantity: 5
+    unit_price: 100
+    fee: 5
+quotes:
+  - { asset: aapl, day: 2025-01-02, close: 100 }
+  - { asset: aapl, day: 2025-01-06, close: 100 }
+  - { asset: aapl, day: 2025-01-10, close: 110 }
+expected_notes: >
+  Post-migration economics: cash 1000 -> 495 (amount 505 = 5 x 100 + 5 fee),
+  5 aapl basis 505, value 01-10 = 5 x 110 + 495 = 1045. Pre-migration the
+  row carries no `amount`; whatever cash the legacy calculator books for it
+  is the migration's problem, not the engine's, and the account must be
+  reported as pending rather than silently forced to Full.

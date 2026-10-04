@@ -1,0 +1,27 @@
+id: EDGE-TXF-10
+title: Shares arriving without staged lots cover a short first
+intent: >
+  Kernel-only. acc-1 is short 3 x when 5 x arrive by an external transfer,
+  which stages no lots. As with staged lots (NOM-TXF-04), the arriving
+  units cover the short first (a disposal closes it at the transfer's
+  price) and only the other 2 open a long lot: the position never holds
+  long and short lots at once. Marked [K].
+markers: [K]
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-06
+accounts:
+  - { id: acc-1, currency: USD }
+assets:
+  - { id: x, quote_ccy: USD }
+activities:
+  - { id: dep, account: acc-1, type: DEPOSIT, date: 2025-01-01T10:00:00Z, amount: 100 }
+  - { id: short, account: acc-1, type: SELL, subtype: POSITION_OPEN, date: 2025-01-02T10:00:00Z, asset: x, quantity: 3, unit_price: 10, amount: 30 }
+  - { id: tin, account: acc-1, type: TRANSFER_IN, date: 2025-01-03T10:00:00Z, asset: x, quantity: 5, unit_price: 12, metadata: { flow: { is_external: true } } }
+quotes:
+  - { asset: x, day: 2025-01-01, close: 10 }
+  - { asset: x, day: 2025-01-03, close: 12 }
+expected_notes: >
+  The short lot (3 at 10) is disposed by tin at 12 (realized -6). One long
+  lot of 2 at 12 opens. Position 2 x from 01-03; no short lot remains.

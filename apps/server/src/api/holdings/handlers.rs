@@ -14,16 +14,15 @@ use wealthfolio_core::{
         snapshot::{
             check_holdings_import as validate_holdings_import, holdings_import_data_source,
             reconcile_quote_sync_from_latest_account_snapshots, snapshot_date_requires_remediation,
-            snapshot_recalculation_start_after_delete, validate_holdings_import_snapshot,
-            CashBalanceInput, HoldingsImportPositionValidationInput,
-            HoldingsImportSnapshotValidationInput, ManualHoldingInput, ManualSnapshotRequest,
-            ManualSnapshotService, SnapshotSource,
+            validate_holdings_import_snapshot, CashBalanceInput,
+            HoldingsImportPositionValidationInput, HoldingsImportSnapshotValidationInput,
+            ManualHoldingInput, ManualSnapshotRequest, ManualSnapshotService, SnapshotSource,
         },
         valuation::{
             CurrentAccountValuationService, CurrentValuationResponse, DailyAccountValuation,
-            ValuationRecalcMode,
         },
     },
+    quotes::MarketSyncMode,
 };
 
 use crate::{api::shared::holdings_account_ids, error::ApiResult, main_lib::AppState};
@@ -255,7 +254,7 @@ pub async fn get_asset_lots(
     Query(q): Query<AssetLotsQuery>,
 ) -> ApiResult<Json<Vec<AssetLotView>>> {
     let rows = state
-        .lots_repository
+        .holdings_service
         .get_asset_lot_view(&q.asset_id, q.include_snapshot_positions)
         .await?;
     Ok(Json(rows))
@@ -373,7 +372,7 @@ pub async fn get_current_valuation(
     let resolved = resolve_current_valuation_scope(&body.filter, &state)?;
     let service = CurrentAccountValuationService::new(
         state.account_service.as_ref(),
-        state.snapshot_repository.as_ref(),
+        state.snapshot_service.as_ref(),
         state.asset_service.as_ref(),
         state.quote_service.as_ref(),
         state.fx_service.as_ref(),
@@ -526,8 +525,6 @@ pub async fn delete_snapshot_handler(
     let requires_remediation = target_date
         .map(|date| snapshot_date_requires_remediation(date, today))
         .unwrap_or(true);
-    let recalculation_start =
-        target_date.and_then(|date| snapshot_recalculation_start_after_delete(date, today));
     if snapshot.source == SnapshotSource::Calculated.as_str() && !requires_remediation {
         return Err(anyhow::anyhow!("This entry comes from account activity and can't be deleted here. Update or delete the related activity instead.").into());
     }
@@ -564,19 +561,16 @@ pub async fn delete_snapshot_handler(
         q.date
     );
 
-    let recalculation_mode = recalculation_start
-        .map(ValuationRecalcMode::SinceDate)
-        .unwrap_or(ValuationRecalcMode::Full);
-    if let Err(e) = state
-        .valuation_service
-        .calculate_valuation_history(&q.account_id, recalculation_mode)
-        .await
-    {
-        tracing::warn!(
-            "Failed to recalculate valuations after snapshot delete: {}",
-            e
-        );
-    }
+    // The rebuild runs in the background like every other portfolio job;
+    // the client follows it through the portfolio events.
+    crate::api::shared::enqueue_portfolio_job(
+        state.clone(),
+        crate::api::shared::PortfolioJobConfig {
+            account_ids: Some(vec![q.account_id.clone()]),
+            market_sync_mode: MarketSyncMode::None,
+            force_full: false,
+        },
+    );
     state.health_service.clear_cache().await;
 
     // Quote sync lifecycle is global; a single-account snapshot change must not

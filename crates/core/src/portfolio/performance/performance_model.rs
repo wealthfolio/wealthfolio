@@ -223,7 +223,6 @@ pub fn unavailable_performance_metrics(
         series: Vec::new(),
         is_holdings_mode: false,
         is_mixed_tracking_mode: false,
-        holdings_flows_unavailable: false,
     }
 }
 
@@ -408,13 +407,6 @@ pub struct PerformanceResult {
     pub is_holdings_mode: bool,
     #[serde(default)]
     pub is_mixed_tracking_mode: bool,
-    /// Internal gate, never serialized: the dated holdings flow series
-    /// contains a transition the valuation layer could not price (Unknown
-    /// source), so summary amount/percent must report unavailable. Lives on
-    /// the result so `refresh_summary` re-applies it even when attribution
-    /// finalization rebuilds the summary later.
-    #[serde(skip)]
-    pub holdings_flows_unavailable: bool,
 }
 
 // This struct now only holds the calculated performance metrics.
@@ -487,7 +479,6 @@ mod tests {
             series: Vec::new(),
             is_holdings_mode: false,
             is_mixed_tracking_mode: true,
-            holdings_flows_unavailable: false,
         };
 
         let value = serde_json::to_value(&result).expect("performance result should serialize");

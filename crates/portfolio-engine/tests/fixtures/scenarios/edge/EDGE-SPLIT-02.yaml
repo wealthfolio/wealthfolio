@@ -1,0 +1,28 @@
+id: EDGE-SPLIT-02
+title: A split is detected from the first quote after it, however late
+intent: >
+  Kernel-only. Whether the provider already adjusted a series for a split
+  is read from the last close before the split and the first close after
+  it. Here the first close after the 01-08 split is on 02-15, more than a
+  month later (sparse, manually entered history). The series is adjusted
+  all the same, so 01-07 is valued at 10 x 50 x 2 = 1000. Marked [K].
+markers: [K]
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-02-20
+accounts:
+  - { id: acc-1, currency: USD }
+assets:
+  - { id: aapl, quote_ccy: USD }
+activities:
+  - { id: dep, account: acc-1, type: DEPOSIT, date: 2025-01-02T10:00:00Z, amount: 2000 }
+  - { id: buy, account: acc-1, type: BUY, date: 2025-01-03T10:00:00Z, asset: aapl, quantity: 10, unit_price: 100, amount: 1000 }
+  - { id: split, account: acc-1, type: SPLIT, date: 2025-01-08T10:00:00Z, asset: aapl, amount: 2 }
+quotes:
+  - { asset: aapl, day: 2025-01-03, close: 50 }
+  - { asset: aapl, day: 2025-01-07, close: 50 }
+  - { asset: aapl, day: 2025-02-15, close: 50 }
+expected_notes: >
+  Investments 1000 every day from 01-03 (10 x 50 x 2, then 20 x 50); total
+  value 2000; no return.

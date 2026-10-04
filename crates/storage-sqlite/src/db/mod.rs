@@ -1482,6 +1482,27 @@ mod migration_tests {
             "the VACUUM migration must be recorded as applied exactly once"
         );
     }
+
+    /// Diesel keys pending migrations by version (the directory name before
+    /// the first `_`), so two directories sharing a version silently skip one
+    /// of them on every database that has not applied it yet.
+    #[test]
+    fn embedded_migration_versions_are_unique() {
+        use diesel::migration::MigrationSource;
+        let migrations =
+            <EmbeddedMigrations as MigrationSource<diesel::sqlite::Sqlite>>::migrations(
+                &MIGRATIONS,
+            )
+            .unwrap();
+        let mut seen = std::collections::HashMap::new();
+        for migration in &migrations {
+            let name = migration.name().to_string();
+            let version = migration.name().version().to_string();
+            if let Some(previous) = seen.insert(version.clone(), name.clone()) {
+                panic!("migrations {previous} and {name} share version {version}");
+            }
+        }
+    }
 }
 
 #[cfg(test)]

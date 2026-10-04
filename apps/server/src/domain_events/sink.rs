@@ -73,13 +73,8 @@ impl WebDomainEventSink {
         snapshot_service: Arc<
             dyn wealthfolio_core::portfolio::snapshot::SnapshotServiceTrait + Send + Sync,
         >,
-        snapshot_repository: Arc<
-            dyn wealthfolio_core::portfolio::snapshot::SnapshotRepositoryTrait + Send + Sync,
-        >,
         quote_service: Arc<dyn wealthfolio_core::quotes::QuoteServiceTrait + Send + Sync>,
-        valuation_service: Arc<
-            dyn wealthfolio_core::portfolio::valuation::ValuationServiceTrait + Send + Sync,
-        >,
+        portfolio_coordinator: Arc<wealthfolio_core::portfolio::coordinator::PortfolioCoordinator>,
         account_service: Arc<wealthfolio_core::accounts::AccountService>,
         goal_service: Arc<dyn GoalServiceTrait + Send + Sync>,
         fx_service: Arc<dyn wealthfolio_core::fx::FxServiceTrait + Send + Sync>,
@@ -105,9 +100,8 @@ impl WebDomainEventSink {
             broker_sync_running,
             health_service,
             snapshot_service,
-            snapshot_repository,
             quote_service,
-            valuation_service,
+            portfolio_coordinator,
             account_service,
             goal_service,
             fx_service,

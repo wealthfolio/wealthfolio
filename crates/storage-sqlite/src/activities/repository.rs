@@ -15,8 +15,8 @@ use uuid::Uuid;
 use wealthfolio_core::accounts::{account_supports_purpose, AccountPurpose};
 use wealthfolio_core::activities::ActivityError;
 use wealthfolio_core::activities::{
-    import_type, is_cash_symbol, violates_final_cash_floor, Activity,
-    ActivityBulkIdentifierMapping, ActivityBulkMutationResult, ActivityDetails,
+    import_type, is_cash_symbol, stored_type_override, type_override, violates_final_cash_floor,
+    Activity, ActivityBulkIdentifierMapping, ActivityBulkMutationResult, ActivityDetails,
     ActivityFinalCashMigrationUpdate, ActivityFinalCashMigrationWriteResult,
     ActivityRepositoryTrait, ActivitySearchResponse, ActivitySearchResponseMeta, ActivityUpdate,
     ActivityUpsert, BulkUpsertResult, ImportMapping, ImportTemplate, IncomeData, NewActivity, Sort,
@@ -163,7 +163,8 @@ fn queue_activity_update_outbox(
 fn activity_update_invalidates_spending_splits(before: &ActivityDB, after: &ActivityDB) -> bool {
     before.account_id != after.account_id
         || before.activity_type != after.activity_type
-        || before.activity_type_override != after.activity_type_override
+        || type_override(before.activity_type_override.as_deref())
+            != type_override(after.activity_type_override.as_deref())
         || before.subtype != after.subtype
         || before.amount != after.amount
         || before.source_group_id != after.source_group_id
@@ -275,10 +276,25 @@ fn non_cash_transfer_asset_key(activity: &ActivityDB) -> Option<String> {
 }
 
 fn effective_activity_type(activity: &ActivityDB) -> &str {
-    activity
-        .activity_type_override
-        .as_deref()
-        .unwrap_or(activity.activity_type.as_str())
+    wealthfolio_core::activities::effective_activity_type(
+        &activity.activity_type,
+        activity.activity_type_override.as_deref(),
+    )
+}
+
+/// The characters Rust's `str::trim` strips (Unicode White_Space), as a
+/// SQLite list, so SQL and Rust agree on what a blank override is. The
+/// projection triggers trim the same list.
+pub(crate) const SQL_WHITESPACE: &str = "char(9, 10, 11, 12, 13, 32, 133, 160, 5760, 8192, 8193, 8194, 8195, 8196, 8197, 8198, 8199, 8200, 8201, 8202, 8232, 8233, 8239, 8287, 12288)";
+
+/// An activity's effective type in SQL, `table` naming the activities table:
+/// its override when not blank, else its stored type, as core's
+/// `effective_activity_type` and the engine read it (engine rules §5). Every
+/// query reads the type through this.
+pub(crate) fn effective_type_sql(table: &str) -> String {
+    format!(
+        "COALESCE(NULLIF(TRIM({table}.activity_type_override, {SQL_WHITESPACE}), ''), {table}.activity_type)"
+    )
 }
 
 fn source_group_blocks_transfer_link(
@@ -438,12 +454,8 @@ impl ActivityRepository {
                 query = query.filter(activities::account_id.eq_any(account_ids));
             }
             if let Some(ref activity_types) = activity_type_filter {
-                query = query.filter(
-                    sql::<Text>(
-                        "COALESCE(activities.activity_type_override, activities.activity_type)",
-                    )
-                    .eq_any(activity_types),
-                );
+                query = query
+                    .filter(sql::<Text>(&effective_type_sql("activities")).eq_any(activity_types));
             }
             if let Some(ref keyword) = asset_id_keyword {
                 let pattern = format!("%{}%", keyword);
@@ -486,19 +498,11 @@ impl ActivityRepository {
                     }
                     "activityType" => {
                         if sort.desc {
-                            query = query.order(
-                                sql::<Text>(
-                                    "COALESCE(activities.activity_type_override, activities.activity_type)",
-                                )
-                                .desc(),
-                            );
+                            query =
+                                query.order(sql::<Text>(&effective_type_sql("activities")).desc());
                         } else {
-                            query = query.order(
-                                sql::<Text>(
-                                    "COALESCE(activities.activity_type_override, activities.activity_type)",
-                                )
-                                .asc(),
-                            );
+                            query =
+                                query.order(sql::<Text>(&effective_type_sql("activities")).asc());
                         }
                     }
                     "assetSymbol" => {
@@ -543,9 +547,7 @@ impl ActivityRepository {
                     activities::id,
                     activities::account_id,
                     activities::asset_id,
-                    sql::<Text>(
-                        "COALESCE(activities.activity_type_override, activities.activity_type)",
-                    ),
+                    sql::<Text>(&effective_type_sql("activities")),
                     activities::subtype,
                     activities::status,
                     activities::activity_date,
@@ -657,12 +659,7 @@ fn final_cash_legacy_metadata(existing: Option<&str>, legacy_amount: &str) -> Le
 /// Applied at every repository write door; the migration door is exempt by
 /// design (its rewrites always flag the rows they cannot verify).
 fn assert_final_cash_floor(activity_db: &ActivityDB) -> Result<()> {
-    let effective_type = activity_db
-        .activity_type_override
-        .as_deref()
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .unwrap_or(&activity_db.activity_type);
+    let effective_type = effective_activity_type(activity_db);
     let has_amount = activity_db
         .amount
         .as_deref()
@@ -719,12 +716,7 @@ impl ActivityRepositoryTrait for ActivityRepository {
         let activities_db = activities::table
             .inner_join(accounts::table.on(accounts::id.eq(activities::account_id)))
             .filter(accounts::is_archived.eq(false))
-            .filter(
-                sql::<Text>(
-                    "COALESCE(activities.activity_type_override, activities.activity_type)",
-                )
-                .eq_any(TRADING_ACTIVITY_TYPES),
-            )
+            .filter(sql::<Text>(&effective_type_sql("activities")).eq_any(TRADING_ACTIVITY_TYPES))
             .select(ActivityDB::as_select())
             .order(activities::activity_date.asc())
             .load::<ActivityDB>(&mut conn)
@@ -739,12 +731,7 @@ impl ActivityRepositoryTrait for ActivityRepository {
         let activities_db = activities::table
             .inner_join(accounts::table.on(accounts::id.eq(activities::account_id)))
             .filter(accounts::is_archived.eq(false))
-            .filter(
-                sql::<Text>(
-                    "COALESCE(activities.activity_type_override, activities.activity_type)",
-                )
-                .eq_any(INCOME_ACTIVITY_TYPES),
-            )
+            .filter(sql::<Text>(&effective_type_sql("activities")).eq_any(INCOME_ACTIVITY_TYPES))
             .select(ActivityDB::as_select())
             .order(activities::activity_date.asc())
             .load::<ActivityDB>(&mut conn)
@@ -946,7 +933,7 @@ impl ActivityRepositoryTrait for ActivityRepository {
                     activity_to_update.import_run_id = import_run_id;
                 }
                 // Preserve classification fields
-                if activity_to_update.activity_type_override.is_none() {
+                if type_override(activity_to_update.activity_type_override.as_deref()).is_none() {
                     activity_to_update.activity_type_override = activity_type_override;
                 }
                 if activity_to_update.source_type.is_none() {
@@ -972,6 +959,8 @@ impl ActivityRepositoryTrait for ActivityRepository {
                     &existing_activity_type,
                     provider_account_id.as_deref(),
                 );
+                activity_to_update.activity_type_override =
+                    stored_type_override(activity_to_update.activity_type_override.as_deref());
                 activity_to_update.updated_at = chrono::Utc::now().to_rfc3339();
                 assert_final_cash_floor(&activity_to_update)?;
 
@@ -1369,7 +1358,7 @@ impl ActivityRepositoryTrait for ActivityRepository {
                     if activity_db.import_run_id.is_none() {
                         activity_db.import_run_id = import_run_id;
                     }
-                    if activity_db.activity_type_override.is_none() {
+                    if type_override(activity_db.activity_type_override.as_deref()).is_none() {
                         activity_db.activity_type_override = activity_type_override;
                     }
                     if activity_db.source_type.is_none() {
@@ -1392,6 +1381,8 @@ impl ActivityRepositoryTrait for ActivityRepository {
                         &existing_activity_type,
                         provider_account_id.as_deref(),
                     );
+                    activity_db.activity_type_override =
+                        stored_type_override(activity_db.activity_type_override.as_deref());
                     activity_db.updated_at = chrono::Utc::now().to_rfc3339();
                     assert_final_cash_floor(&activity_db)?;
 
@@ -1519,6 +1510,62 @@ impl ActivityRepositoryTrait for ActivityRepository {
         Ok(activities_db.into_iter().map(Activity::from).collect())
     }
 
+    fn get_activities_by_account_ids_including_archived(
+        &self,
+        account_ids: &[String],
+    ) -> Result<Vec<Activity>> {
+        let mut conn = get_connection(&self.pool)?;
+
+        let activities_db = activities::table
+            .inner_join(accounts::table.on(activities::account_id.eq(accounts::id)))
+            .filter(activities::account_id.eq_any(account_ids))
+            .select(ActivityDB::as_select())
+            .order(activities::activity_date.asc())
+            .load::<ActivityDB>(&mut conn)
+            .map_err(StorageError::from)?;
+
+        Ok(activities_db.into_iter().map(Activity::from).collect())
+    }
+
+    fn get_split_activities_by_asset_ids(&self, asset_ids: &[String]) -> Result<Vec<Activity>> {
+        if asset_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        let mut conn = get_connection(&self.pool)?;
+        let mut results = Vec::new();
+        for chunk in chunk_for_sqlite(asset_ids) {
+            let activities_db = activities::table
+                .filter(activities::asset_id.eq_any(chunk))
+                .filter(diesel::dsl::sql::<Bool>(&format!(
+                    "{} = 'SPLIT'",
+                    effective_type_sql("activities")
+                )))
+                .select(ActivityDB::as_select())
+                .order(activities::activity_date.asc())
+                .load::<ActivityDB>(&mut conn)
+                .map_err(StorageError::from)?;
+            results.extend(activities_db.into_iter().map(Activity::from));
+        }
+        results.sort_by_key(|activity| activity.activity_date);
+        Ok(results)
+    }
+
+    fn get_activities_by_source_group_ids(&self, group_ids: &[String]) -> Result<Vec<Activity>> {
+        if group_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let mut conn = get_connection(&self.pool)?;
+        let activities_db = activities::table
+            .filter(activities::source_group_id.eq_any(group_ids))
+            .select(ActivityDB::as_select())
+            .order(activities::activity_date.asc())
+            .load::<ActivityDB>(&mut conn)
+            .map_err(StorageError::from)?;
+
+        Ok(activities_db.into_iter().map(Activity::from).collect())
+    }
+
     fn get_activities_by_account_ids_in_date_range(
         &self,
         account_ids: &[String],
@@ -1541,42 +1588,6 @@ impl ActivityRepositoryTrait for ActivityRepository {
         Ok(activities_db.into_iter().map(Activity::from).collect())
     }
 
-    fn get_split_activities_by_asset_ids_in_date_range(
-        &self,
-        asset_ids: &[String],
-        start_utc: DateTime<Utc>,
-        end_exclusive_utc: DateTime<Utc>,
-    ) -> Result<Vec<Activity>> {
-        if asset_ids.is_empty() {
-            return Ok(Vec::new());
-        }
-
-        let mut conn = get_connection(&self.pool)?;
-        let mut results = Vec::new();
-        let start = start_utc.to_rfc3339();
-        let end_exclusive = end_exclusive_utc.to_rfc3339();
-
-        for chunk in chunk_for_sqlite(asset_ids) {
-            let activities_db = activities::table
-                .filter(activities::asset_id.eq_any(chunk))
-                .filter(activities::status.eq("POSTED"))
-                .filter(diesel::dsl::sql::<Bool>(
-                    "COALESCE(activity_type_override, activity_type) = 'SPLIT'",
-                ))
-                .filter(activities::activity_date.ge(&start))
-                .filter(activities::activity_date.lt(&end_exclusive))
-                .select(ActivityDB::as_select())
-                .order(activities::activity_date.asc())
-                .load::<ActivityDB>(&mut conn)
-                .map_err(StorageError::from)?;
-
-            results.extend(activities_db.into_iter().map(Activity::from));
-        }
-
-        results.sort_by_key(|activity| activity.activity_date);
-        Ok(results)
-    }
-
     fn get_transfer_activities_touching_account_ids_in_date_range(
         &self,
         account_ids: &[String],
@@ -1593,9 +1604,10 @@ impl ActivityRepositoryTrait for ActivityRepository {
             .filter(accounts::is_archived.eq(false))
             .filter(activities::account_id.eq_any(account_ids))
             .filter(activities::status.eq("POSTED"))
-            .filter(diesel::dsl::sql::<Bool>(
-                "COALESCE(activity_type_override, activity_type) IN ('TRANSFER_IN', 'TRANSFER_OUT')",
-            ))
+            .filter(diesel::dsl::sql::<Bool>(&format!(
+                "{} IN ('TRANSFER_IN', 'TRANSFER_OUT')",
+                effective_type_sql("activities")
+            )))
             .into_boxed();
 
         if let Some(start_utc) = start_utc {
@@ -1634,9 +1646,10 @@ impl ActivityRepositoryTrait for ActivityRepository {
                 .inner_join(accounts::table.on(activities::account_id.eq(accounts::id)))
                 .filter(accounts::is_archived.eq(false))
                 .filter(activities::status.eq("POSTED"))
-                .filter(diesel::dsl::sql::<Bool>(
-                    "COALESCE(activity_type_override, activity_type) IN ('TRANSFER_IN', 'TRANSFER_OUT')",
-                ))
+                .filter(diesel::dsl::sql::<Bool>(&format!(
+                    "{} IN ('TRANSFER_IN', 'TRANSFER_OUT')",
+                    effective_type_sql("activities")
+                )))
                 .filter(activities::source_group_id.eq_any(chunk))
                 .select(ActivityDB::as_select())
                 .order(activities::activity_date.asc())
@@ -1651,47 +1664,6 @@ impl ActivityRepositoryTrait for ActivityRepository {
         let mut activities: Vec<Activity> = by_id.into_values().map(Activity::from).collect();
         activities.sort_by_key(|activity| activity.activity_date);
         Ok(activities)
-    }
-
-    /// Calculates the average cost for an asset in an account
-    fn calculate_average_cost(&self, account_id: &str, asset_id: &str) -> Result<Decimal> {
-        let mut conn = get_connection(&self.pool)?;
-
-        #[derive(QueryableByName, Debug)]
-        struct AverageCost {
-            #[diesel(sql_type = diesel::sql_types::Text)]
-            average_cost: String,
-        }
-
-        let result: AverageCost = diesel::sql_query(
-            r#"
-            WITH running_totals AS (
-                SELECT
-                    CAST(quantity AS TEXT) as quantity,
-                    CAST(unit_price AS TEXT) as unit_price,
-                    CAST(quantity AS TEXT) AS quantity_change,
-                    CAST(CAST(quantity AS DECIMAL) * CAST(unit_price AS DECIMAL) AS TEXT) AS value_change,
-                    CAST(SUM(CAST(quantity AS DECIMAL)) OVER (ORDER BY activity_date, id) AS TEXT) AS running_quantity,
-                    CAST(SUM(CAST(quantity AS DECIMAL) * CAST(unit_price AS DECIMAL)) OVER (ORDER BY activity_date, id) AS TEXT) AS running_value
-                FROM activities
-                WHERE account_id = ?1 AND asset_id = ?2
-                  AND activity_type IN ('BUY', 'TRANSFER_IN')
-            )
-            SELECT
-                CASE
-                    WHEN SUM(CAST(quantity_change AS DECIMAL)) > 0
-                    THEN CAST(CAST(SUM(CAST(value_change AS DECIMAL)) AS DECIMAL) / CAST(SUM(CAST(quantity_change AS DECIMAL)) AS DECIMAL) AS TEXT)
-                    ELSE '0'
-                END AS average_cost
-            FROM running_totals
-            "#,
-        )
-        .bind::<diesel::sql_types::Text, _>(account_id)
-        .bind::<diesel::sql_types::Text, _>(asset_id)
-        .get_result(&mut conn)
-        .map_err(StorageError::from)?;
-
-        Ok(Decimal::from_str(&result.average_cost).unwrap_or_default())
     }
 
     /// Gets the import mapping for a given account ID and context kind by joining import_account_templates + import_templates
@@ -2253,19 +2225,12 @@ impl ActivityRepositoryTrait for ActivityRepository {
         let results = activities::table
             .filter(activities::account_id.eq_any(eligible_account_ids))
             .filter(activities::status.eq("POSTED"))
-            .filter(
-                sql::<Text>(
-                    "COALESCE(activities.activity_type_override, activities.activity_type)",
-                )
-                .eq_any(CONTRIBUTION_TYPES),
-            )
+            .filter(sql::<Text>(&effective_type_sql("activities")).eq_any(CONTRIBUTION_TYPES))
             .filter(activities::activity_date.ge(start_utc.to_rfc3339()))
             .filter(activities::activity_date.lt(end_exclusive_utc.to_rfc3339()))
             .select((
                 activities::account_id,
-                sql::<Text>(
-                    "COALESCE(activities.activity_type_override, activities.activity_type)",
-                ),
+                sql::<Text>(&effective_type_sql("activities")),
                 activities::activity_date,
                 activities::asset_id,
                 activities::amount,
@@ -2392,10 +2357,11 @@ impl ActivityRepositoryTrait for ActivityRepository {
             _ => String::new(),
         };
 
+        let effective_type = effective_type_sql("a");
         let query = format!(
             "SELECT a.id as activity_id,
              strftime('%Y-%m', a.activity_date) as date,
-             COALESCE(a.activity_type_override, a.activity_type) as income_type,
+             {effective_type} as income_type,
              COALESCE(a.asset_id, 'CASH') as asset_id,
              COALESCE(ast.kind, 'CASH') as asset_kind,
              COALESCE(ast.display_code, 'CASH') as symbol,
@@ -2410,7 +2376,7 @@ impl ActivityRepositoryTrait for ActivityRepository {
              FROM activities a
              LEFT JOIN assets ast ON a.asset_id = ast.id
              INNER JOIN accounts acc ON a.account_id = acc.id
-             WHERE COALESCE(a.activity_type_override, a.activity_type)
+             WHERE {effective_type}
                    IN ('DIVIDEND', 'INTEREST', 'OTHER_INCOME')
              AND a.status = 'POSTED'
              AND acc.is_archived = 0
@@ -3288,62 +3254,6 @@ mod tests {
             .count()
             .get_result::<i64>(conn)
             .expect("count outbox")
-    }
-
-    #[tokio::test]
-    async fn split_activity_query_loads_posted_rows_across_accounts() {
-        let (pool, writer) = setup_db();
-        let repo = ActivityRepository::new(pool.clone(), writer);
-
-        {
-            let mut conn = get_connection(&pool).expect("conn");
-            insert_account(&mut conn, "account-1");
-            insert_account(&mut conn, "account-2");
-            insert_account_with_archived(&mut conn, "archived-account", true);
-            diesel::sql_query(
-                "INSERT INTO assets
-                 (id, kind, name, display_code, is_active, quote_mode, quote_ccy,
-                  instrument_type, instrument_symbol, created_at, updated_at)
-                 VALUES ('asset-vgt', 'INVESTMENT', 'VGT', 'VGT', 1, 'MARKET', 'USD',
-                         'EQUITY', 'VGT', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
-            )
-            .execute(&mut conn)
-            .expect("insert asset");
-            diesel::sql_query(
-                "INSERT INTO activities
-                 (id, account_id, asset_id, activity_type, status, activity_date, amount,
-                  currency, is_user_modified, needs_review, created_at, updated_at)
-                 VALUES
-                 ('split-1', 'account-1', 'asset-vgt', 'SPLIT', 'POSTED',
-                  '2025-12-01T12:00:00Z', '4', 'USD', 0, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-                 ('split-2', 'account-2', 'asset-vgt', 'SPLIT', 'POSTED',
-                  '2025-12-01T12:00:00Z', '4', 'USD', 0, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-                 ('draft-split', 'account-1', 'asset-vgt', 'SPLIT', 'DRAFT',
-                  '2025-12-01T12:00:00Z', '4', 'USD', 0, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-                 ('archived-split', 'archived-account', 'asset-vgt', 'SPLIT', 'POSTED',
-                  '2025-12-01T12:00:00Z', '4', 'USD', 0, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
-            )
-            .execute(&mut conn)
-            .expect("insert activities");
-        }
-
-        let activities = repo
-            .get_split_activities_by_asset_ids_in_date_range(
-                &["asset-vgt".to_string()],
-                DateTime::parse_from_rfc3339("2025-01-01T00:00:00Z")
-                    .unwrap()
-                    .with_timezone(&Utc),
-                DateTime::parse_from_rfc3339("2026-01-01T00:00:00Z")
-                    .unwrap()
-                    .with_timezone(&Utc),
-            )
-            .unwrap();
-
-        let ids: HashSet<&str> = activities
-            .iter()
-            .map(|activity| activity.id.as_str())
-            .collect();
-        assert_eq!(ids, HashSet::from(["split-1", "split-2", "archived-split"]));
     }
 
     #[tokio::test]
@@ -4266,6 +4176,56 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn split_activities_by_asset_cover_every_account_and_the_effective_type() {
+        let (pool, writer) = setup_db();
+        let repo = ActivityRepository::new(pool.clone(), writer);
+        let mut conn = get_connection(&pool).expect("conn");
+        insert_account(&mut conn, "acc-active");
+        insert_account_with_archived(&mut conn, "acc-archived", true);
+        for asset in ["asset-aapl", "asset-msft"] {
+            diesel::insert_into(assets::table)
+                .values((
+                    assets::id.eq(asset),
+                    assets::kind.eq("INVESTMENT"),
+                    assets::is_active.eq(1),
+                    assets::quote_mode.eq("MARKET"),
+                    assets::quote_ccy.eq("USD"),
+                    assets::created_at.eq("2024-01-15T00:00:00+00:00"),
+                    assets::updated_at.eq("2024-01-15T00:00:00+00:00"),
+                ))
+                .execute(&mut conn)
+                .expect("insert asset");
+        }
+        let rows = [
+            ("split-archived", "acc-archived", "SPLIT", "asset-aapl"),
+            ("split-override", "acc-active", "ADJUSTMENT", "asset-aapl"),
+            ("buy", "acc-active", "BUY", "asset-aapl"),
+            ("split-other-asset", "acc-active", "SPLIT", "asset-msft"),
+        ];
+        for (id, account, kind, asset) in rows {
+            insert_activity_with_subtype(&mut conn, id, account, kind, Some(asset), None);
+        }
+        diesel::update(activities::table.filter(activities::id.eq("split-override")))
+            .set(activities::activity_type_override.eq(Some("SPLIT")))
+            .execute(&mut conn)
+            .expect("override");
+        drop(conn);
+
+        let mut ids: Vec<String> = repo
+            .get_split_activities_by_asset_ids(&["asset-aapl".to_string()])
+            .expect("splits")
+            .into_iter()
+            .map(|activity| activity.id)
+            .collect();
+        ids.sort();
+        assert_eq!(ids, vec!["split-archived", "split-override"]);
+        assert!(repo
+            .get_split_activities_by_asset_ids(&[])
+            .expect("empty")
+            .is_empty());
+    }
+
+    #[tokio::test]
     async fn get_activities_by_ids_empty_input_returns_empty() {
         let (pool, writer) = setup_db();
         let repo = ActivityRepository::new(pool, writer);
@@ -4844,6 +4804,160 @@ mod tests {
             rows.iter().map(|row| row.amount).sum::<Decimal>(),
             Decimal::from(7)
         );
+    }
+
+    /// Engine rules §5: SQL reads every override in core's shared cases as
+    /// core and the engine do, in the repository's queries and the triggers.
+    #[test]
+    fn sql_reads_type_overrides_as_core_does() {
+        use diesel::Connection;
+        // The SQL list is exactly what Rust's `str::trim` strips.
+        let listed: Vec<u32> = SQL_WHITESPACE
+            .trim_start_matches("char(")
+            .trim_end_matches(')')
+            .split(',')
+            .map(|code| code.trim().parse().unwrap())
+            .collect();
+        let rust: Vec<u32> = (0..=0x10FFFF)
+            .filter_map(char::from_u32)
+            .filter(|c| c.is_whitespace())
+            .map(u32::from)
+            .collect();
+        assert_eq!(listed, rust);
+        // The triggers trim that list too.
+        let triggers = include_str!("../../migrations/2026-09-28-000001_projection_state/up.sql");
+        assert_eq!(
+            triggers.matches("trim(").count(),
+            triggers.matches(&format!(", {SQL_WHITESPACE})")).count()
+        );
+
+        let cases: Vec<(String, String)> = serde_json::from_str(include_str!(
+            "../../../core/src/activities/type_override_cases.json"
+        ))
+        .unwrap();
+        let mut conn = SqliteConnection::establish(":memory:").unwrap();
+        diesel::sql_query(
+            "CREATE TABLE activities (activity_type TEXT, activity_type_override TEXT)",
+        )
+        .execute(&mut conn)
+        .unwrap();
+        #[derive(QueryableByName)]
+        struct Type {
+            #[diesel(sql_type = Text)]
+            effective: String,
+        }
+        for (override_, expected) in cases {
+            diesel::sql_query("DELETE FROM activities")
+                .execute(&mut conn)
+                .unwrap();
+            diesel::sql_query("INSERT INTO activities VALUES ('DIVIDEND', ?)")
+                .bind::<Text, _>(&override_)
+                .execute(&mut conn)
+                .unwrap();
+            let read = diesel::sql_query(format!(
+                "SELECT {} AS effective FROM activities",
+                effective_type_sql("activities")
+            ))
+            .get_result::<Type>(&mut conn)
+            .unwrap();
+            assert_eq!(read.effective, expected, "{override_:?}");
+        }
+    }
+
+    #[tokio::test]
+    async fn income_report_reads_a_blank_override_as_none() {
+        // Engine rules §5: a blank override is none wherever the type is read.
+        let (pool, writer) = setup_db();
+        let repo = ActivityRepository::new(pool.clone(), writer);
+        let mut conn = get_connection(&pool).expect("conn");
+        insert_account(&mut conn, "acc-income");
+        insert_activity_with_subtype(&mut conn, "blank", "acc-income", "DIVIDEND", None, None);
+        diesel::update(activities::table.find("blank"))
+            .set((
+                activities::activity_type_override.eq(Some(" ".to_string())),
+                activities::amount.eq(Some("10".to_string())),
+            ))
+            .execute(&mut conn)
+            .expect("blank override");
+
+        let rows = repo
+            .get_income_activities_data(Some(&[String::from("acc-income")]))
+            .expect("income data");
+        assert_eq!(
+            rows.iter()
+                .map(|row| (row.income_type.as_str(), row.amount))
+                .collect::<Vec<_>>(),
+            vec![("DIVIDEND", Decimal::from(10))]
+        );
+    }
+
+    #[tokio::test]
+    async fn edits_store_type_overrides_as_they_read() {
+        let (pool, writer) = setup_db();
+        let repo = ActivityRepository::new(pool.clone(), writer);
+        let mut conn = get_connection(&pool).expect("conn");
+        insert_account(&mut conn, "acc-override");
+        // (row, override stored before the edit, override stored after it)
+        let rows = [
+            ("single-blank", "\u{a0}", None),
+            ("single-padded", "\u{2003}INTEREST ", Some("INTEREST")),
+            ("bulk-blank", "\u{a0}", None),
+            ("bulk-padded", " INTEREST\t", Some("INTEREST")),
+        ];
+        for (id, before, _) in rows {
+            insert_activity_with_subtype(&mut conn, id, "acc-override", "DIVIDEND", None, None);
+            diesel::update(activities::table.find(id))
+                .set(activities::activity_type_override.eq(Some(before.to_string())))
+                .execute(&mut conn)
+                .expect("stored override");
+            insert_spending_split(&mut conn, &format!("{id}-split"), id);
+        }
+        let notes_edit = |id: &str| ActivityUpdate {
+            id: id.to_string(),
+            account_id: "acc-override".to_string(),
+            asset: None,
+            activity_type: "DIVIDEND".to_string(),
+            subtype: None,
+            activity_date: "2024-01-15T00:00:00Z".to_string(),
+            quantity: None,
+            unit_price: None,
+            currency: "USD".to_string(),
+            fee: None,
+            tax: None,
+            amount: None,
+            status: None,
+            needs_review: None,
+            notes: Some("Edited".to_string()),
+            fx_rate: None,
+            metadata: None,
+        };
+
+        for id in ["single-blank", "single-padded"] {
+            repo.update_activity(notes_edit(id)).await.expect("update");
+        }
+        repo.bulk_mutate_activities(
+            Vec::new(),
+            vec![notes_edit("bulk-blank"), notes_edit("bulk-padded")],
+            Vec::new(),
+        )
+        .await
+        .expect("bulk update");
+
+        for (id, _, after) in rows {
+            let stored = activities::table
+                .find(id)
+                .select(activities::activity_type_override)
+                .first::<Option<String>>(&mut conn)
+                .expect("override");
+            assert_eq!(stored.as_deref(), after, "{id}");
+            // The type read did not change, so the edit keeps the splits.
+            let splits = spending_activity_splits::table
+                .filter(spending_activity_splits::activity_id.eq(id))
+                .count()
+                .get_result::<i64>(&mut conn)
+                .expect("count splits");
+            assert_eq!(splits, 1, "{id}");
+        }
     }
 
     /// Regression: re-linking the same (account_id, context_kind, source_system) must preserve the row `id`

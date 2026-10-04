@@ -1,0 +1,53 @@
+id: EDGE-CC-01
+title: INTEREST on a CREDIT_CARD account books a negative cash delta
+intent: >
+  On a CREDIT_CARD account INTEREST is a charge on a liability, not income:
+  compile books it as a negative cash delta and attributes its amount as a
+  fee (EconomicEvent::attribution), so performance reads the same economics
+  as the ledger. The account also carries a payment (DEPOSIT, +cash,
+  external), a purchase (WITHDRAWAL, -cash, external) and a FEE (-cash) to
+  show every other type keeps its normal direction on the same account
+  type. Marked [L]: the previous pipeline attributed the interest as +25
+  income.
+markers: [L]
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-10
+accounts:
+  - id: cc-1
+    name: Visa
+    currency: USD
+    account_type: CREDIT_CARD
+activities:
+  - id: payment-1
+    account: cc-1
+    type: DEPOSIT
+    date: 2025-01-02T10:00:00Z
+    amount: 500
+  - id: purchase-1
+    account: cc-1
+    type: WITHDRAWAL
+    date: 2025-01-03T10:00:00Z
+    amount: 300
+  - id: interest-1
+    account: cc-1
+    type: INTEREST
+    date: 2025-01-06T10:00:00Z
+    amount: 25
+  - id: fee-1
+    account: cc-1
+    type: FEE
+    date: 2025-01-07T10:00:00Z
+    amount: 10
+    fee: 10
+expected_notes: >
+  Cash: 500 (01-02) -> 200 (01-03) -> 175 (01-06, interest booked as -25)
+  -> 165 (01-07). net_contribution 500 -> 200 and unchanged by interest and
+  fee. Valuations track cash (complete, cash-only). Flows: outflow 300 on
+  01-03 (CASH_AMOUNT; the 01-02 payment is on the first valuation row, whose
+  flows are always zeroed). Attribution (inception): contributions 500,
+  distributions 300, income 0, fees 35 (the 10 FEE row and the 25 interest
+  charge); 500 - 300 - 35 = 165 reconciles with the ending value exactly, so
+  quality is ok and the summary amount is -35. TWR -17.5% and value_return
+  -7% are computed from the cash series.

@@ -1,0 +1,32 @@
+id: EDGE-TXF-07
+title: Moving a short position is a flow into the sending account
+intent: >
+  Kernel-only. A short position is a liability. acc-a opens a one-unit
+  short at 10 and transfers it to acc-b at unchanged prices: acc-a's value
+  rises by 10 (the liability leaves) and acc-b's falls by 10. The flows
+  must say the same, an inflow of 10 to acc-a and an outflow of 10 from
+  acc-b, so neither account reports a return on a transfer. The direction
+  of a security transfer's flow follows the sign of what moved, not only
+  TRANSFER_IN versus TRANSFER_OUT. Marked [K].
+markers: [K]
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-05
+accounts:
+  - { id: acc-a, currency: USD }
+  - { id: acc-b, currency: USD }
+assets:
+  - { id: x, quote_ccy: USD }
+activities:
+  - { id: dep-a, account: acc-a, type: DEPOSIT, date: 2025-01-01T10:00:00Z, amount: 100 }
+  - { id: dep-b, account: acc-b, type: DEPOSIT, date: 2025-01-01T10:01:00Z, amount: 100 }
+  - { id: short, account: acc-a, type: SELL, subtype: POSITION_OPEN, date: 2025-01-02T10:00:00Z, asset: x, quantity: 1, unit_price: 10, amount: 10 }
+  - { id: out, account: acc-a, type: TRANSFER_OUT, date: 2025-01-03T10:00:00Z, asset: x, quantity: 1, source_group_id: g }
+  - { id: tin, account: acc-b, type: TRANSFER_IN, date: 2025-01-03T11:00:00Z, asset: x, quantity: 1, source_group_id: g }
+quotes:
+  - { asset: x, day: 2025-01-01, close: 10 }
+expected_notes: >
+  From 01-03 acc-a is worth 110 (cash 110, no position) and acc-b 90 (cash
+  100, short x -10). acc-a has an inflow of 10 on 01-03, acc-b an outflow of
+  10. Both all-time TWRs are 0.

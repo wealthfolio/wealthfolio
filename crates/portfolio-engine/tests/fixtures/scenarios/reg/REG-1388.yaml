@@ -1,0 +1,52 @@
+id: REG-1388
+title: CSV import row with an empty currency (issue #1388)
+intent: >
+  Pre-fix CSV imports stored activities with currency "" instead of the
+  account currency. This is the kernel side of EDGE-CUR-01 and an [L] link:
+  the kernel must bucket the deposit under the account currency (apply-path
+  fallback) and emit a detection diagnostic for the existing row, while this
+  golden pins what legacy does today with the raw "" currency: the holdings
+  calculator books a "" cash bucket, adds it unconverted to
+  cash_total_account_currency, counts it in net_contribution (account
+  currency) but not in net_contribution_base, and the valuation layer then
+  fails every day from the row's date because "" is not a valid FX currency.
+markers: [L]
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-06
+accounts:
+  - id: acc-1
+    currency: USD
+activities:
+  - id: dep-1
+    account: acc-1
+    type: DEPOSIT
+    date: 2025-01-02T10:00:00Z
+    amount: 1000
+  - id: dep-empty
+    account: acc-1
+    type: DEPOSIT
+    date: 2025-01-03T10:00:00Z
+    amount: 500
+    currency: ""
+expected_notes: >
+  Keyframe 01-02: cash {USD: 1000}, net_contribution 1000/1000. Keyframe
+  01-03: cash {"": 500, USD: 1000}, cash_total_account_currency 1500 and
+  cash_total_base_currency 1500 (the "" bucket is added unconverted after the
+  FX lookup rejects the empty code), net_contribution 1500 (conversion
+  fallback keeps the original amount), net_contribution_base 1000 (the base
+  conversion fails and adds 0).
+  Valuations: none. The account valuation aborts before pricing any day, in
+  external-flow stamping: diagnostics "valuation/acc-1:
+  VALUATION_CALCULATION_FAILED ... Failed to convert external flow 500 ->USD
+  on 2025-01-03 for activity dep-empty: Fx error: Invalid currency code"; the
+  scoped flow reads fail with the same error (flows/account:acc-1,
+  flows/portfolio); account performance reports "at least two valuation
+  points are required" (noData) and the portfolio scope reports "Performance
+  is partially unavailable ... valuation history is incomplete" with the
+  not-applicable reason "Performance metrics unavailable because scoped
+  valuation history is incomplete." LEGACY BEHAVIOR: an empty currency is a
+  bucket key and a silent unconverted add in the keyframe, and a total
+  valuation/performance outage downstream; the kernel side (EDGE-CUR-01)
+  folds the row into USD with a diagnostic.

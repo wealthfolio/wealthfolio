@@ -62,7 +62,7 @@ mod tests {
     use chrono::NaiveDate;
     use rust_decimal_macros::dec;
 
-    use crate::portfolio::snapshot::{Position, SnapshotRecalcMode};
+    use crate::portfolio::snapshot::Position;
 
     #[derive(Default)]
     struct MockSnapshotService {
@@ -71,14 +71,6 @@ mod tests {
 
     #[async_trait]
     impl SnapshotServiceTrait for MockSnapshotService {
-        async fn recalculate_holdings_snapshots(
-            &self,
-            _account_ids: Option<&[String]>,
-            _mode: SnapshotRecalcMode,
-        ) -> Result<usize> {
-            unimplemented!()
-        }
-
         fn get_holdings_keyframes(
             &self,
             _account_id: &str,
@@ -104,19 +96,27 @@ mod tests {
             Ok(self.snapshots.get(account_id).cloned())
         }
 
+        fn get_latest_snapshots_as_of(
+            &self,
+            _account_ids: &[String],
+            _day: NaiveDate,
+        ) -> Result<HashMap<String, AccountStateSnapshot>> {
+            Ok(HashMap::new())
+        }
+
+        fn carry_lot_view_rows(
+            &self,
+            _rows: &mut [crate::lots::AssetLotView],
+            _day: NaiveDate,
+        ) -> Result<()> {
+            Ok(())
+        }
+
         async fn save_manual_snapshot(
             &self,
             _account_id: &str,
             _snapshot: AccountStateSnapshot,
         ) -> Result<()> {
-            unimplemented!()
-        }
-
-        async fn update_snapshots_source(
-            &self,
-            _account_id: &str,
-            _new_source: &str,
-        ) -> Result<usize> {
             unimplemented!()
         }
 

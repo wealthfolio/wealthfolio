@@ -1,0 +1,35 @@
+id: EDGE-MIX-05
+title: A transfer into a holdings account counts at its next snapshot's prices
+intent: >
+  Pins rules R2.3 and its limit (rules §8). acc-a (TRANSACTIONS) sends 10 x
+  to acc-h (HOLDINGS) on 01-03, when x is worth 10. acc-h's numbers come only
+  from its snapshots (R1.2), so its recorded transfer adds nothing, and the
+  pair is not netted: acc-a's 10 x leave the portfolio on 01-03 (100 out),
+  and acc-h's snapshot shows them on 01-04, when x closes at 12 (120 in).
+  The 20 price move between the transfer and the snapshot reads as money in,
+  not as a gain: holdings mode assumes trades and transfers happen at
+  snapshot prices.
+policy: { base_currency: USD, timezone: UTC, as_of: 2025-01-05 }
+accounts:
+  - { id: acc-a, currency: USD }
+  - { id: acc-h, currency: USD, tracking_mode: HOLDINGS }
+assets:
+  - { id: x, quote_ccy: USD }
+activities:
+  - { id: dep, account: acc-a, type: DEPOSIT, date: 2025-01-01T10:00:00Z, amount: 1000 }
+  - { id: buy, account: acc-a, type: BUY, date: 2025-01-02T10:00:00Z, asset: x, quantity: 10, unit_price: 10, amount: 100 }
+  - { id: out, account: acc-a, type: TRANSFER_OUT, date: 2025-01-03T12:00:00Z, asset: x, quantity: 10, unit_price: 10, source_group_id: g }
+  - { id: in, account: acc-h, type: TRANSFER_IN, date: 2025-01-03T12:00:01Z, asset: x, quantity: 10, unit_price: 10, source_group_id: g }
+quotes:
+  - { asset: x, day: 2025-01-01, close: 10 }
+  - { asset: x, day: 2025-01-04, close: 12 }
+observed_snapshots:
+  - { account: acc-h, date: 2025-01-01, cash: { USD: 100 } }
+  - { account: acc-h, date: 2025-01-04, cash: { USD: 100 }, positions: [{ asset: x, quantity: 10, average_cost: 10 }] }
+expected_notes: >
+  acc-a: outflow 100 on 01-03 (10 x at 10, a transfer to outside the
+  portfolio's netting); worth 900 from 01-03. acc-h: worth 100 until 01-03,
+  220 from 01-04 (100 cash + 10 x 12); flow 01-04 inflow 120 (220 - 100,
+  inferred), nothing on 01-03. Portfolio flows: 01-03 outflow 100, 01-04
+  inflow 120: a net 20 of money in, which is in truth the price gain while
+  the shares were in transit to the snapshot (rules §8).

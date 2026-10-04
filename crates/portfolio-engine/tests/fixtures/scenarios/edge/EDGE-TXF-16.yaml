@@ -1,0 +1,32 @@
+id: EDGE-TXF-16
+title: Units covering a short across currencies keep their historical cost in base
+intent: >
+  Kernel-only. EDGE-TXF-15 in EUR with a USD base: acc-a buys 10 aapl for
+  1005 EUR on 01-03, when EUR/USD is 1, and sends them on 01-08, when it is
+  2, to acc-b, which is short 4. Without a quote both legs flow at cost
+  (rules R2.4). The 6 opened lots keep their acquisition rate, and so do the
+  4 units that cover the short: the incoming leg flows 1005 USD, the cost the
+  sender removed, not 603 + 402 x 2 = 1407.
+markers: [K]
+policy: { base_currency: USD, timezone: UTC, as_of: 2025-01-12 }
+accounts:
+  - { id: acc-a, currency: EUR }
+  - { id: acc-b, currency: EUR }
+assets:
+  - { id: aapl, quote_ccy: EUR }
+activities:
+  - { id: dep-1, account: acc-a, type: DEPOSIT, date: 2025-01-02T10:00:00Z, amount: 2000, currency: EUR }
+  - { id: dep-2, account: acc-b, type: DEPOSIT, date: 2025-01-02T11:00:00Z, amount: 2000, currency: EUR }
+  - { id: buy-1, account: acc-a, type: BUY, date: 2025-01-03T10:00:00Z, asset: aapl, quantity: 10, unit_price: 100, amount: 1005, fee: 5, currency: EUR }
+  - { id: short-1, account: acc-b, type: SELL, subtype: POSITION_OPEN, date: 2025-01-03T11:00:00Z, asset: aapl, quantity: 4, unit_price: 100, amount: 400, fee: 0, currency: EUR }
+  - { id: out-1, account: acc-a, type: TRANSFER_OUT, date: 2025-01-08T10:00:00Z, asset: aapl, quantity: 10, unit_price: 100.5, source_group_id: g1, currency: EUR }
+  - { id: in-1, account: acc-b, type: TRANSFER_IN, date: 2025-01-08T11:00:00Z, asset: aapl, quantity: 10, unit_price: 100.5, source_group_id: g1, currency: EUR }
+fx_rates:
+  - { from: EUR, to: USD, day: 2025-01-01, rate: 1 }
+  - { from: EUR, to: USD, day: 2025-01-08, rate: 2 }
+expected_notes: >
+  acc-a: outflow 1005 USD on 01-08 (removed basis 1005 EUR at the 01-03
+  rate, 1). acc-b: covers the 4 short (cover proceeds 402 EUR, 402 USD at the
+  units' acquisition rate) and opens 6 lots (603 EUR, 603 USD); inflow 1005
+  USD on 01-08. Portfolio flows: none on 01-08 (the pair nets). Before the
+  fix the covered units converted at the transfer day's rate: inflow 1407.

@@ -111,6 +111,55 @@ mod tests {
         assert_eq!(activity.effective_type(), "DIVIDEND");
     }
 
+    /// Engine rules §5: core reads every override in the shared cases as the
+    /// engine does (the same file checks SQL and the frontend).
+    #[test]
+    fn type_overrides_read_as_the_engine_reads_them() {
+        use wealthfolio_portfolio_engine::SplitRow;
+        let cases: Vec<(String, String)> =
+            serde_json::from_str(include_str!("type_override_cases.json")).unwrap();
+        for (override_, expected) in cases {
+            assert_eq!(
+                effective_activity_type("DIVIDEND", Some(&override_)),
+                expected,
+                "{override_:?}"
+            );
+            let mut split = create_test_activity();
+            split.activity_type = "SPLIT".to_string();
+            split.activity_type_override = Some(override_.clone());
+            split.amount = Some(dec!(2));
+            let raw = crate::portfolio::coordinator::raw_activity(&split);
+            assert_eq!(
+                SplitRow::from_raw(&raw, &chrono_tz::UTC).is_some(),
+                effective_activity_type("SPLIT", Some(&override_)) == "SPLIT",
+                "{override_:?}"
+            );
+        }
+    }
+
+    /// Every override in the shared cases is stored as it reads: none when
+    /// it reads as none (the stored DIVIDEND), else the type it reads as.
+    #[test]
+    fn type_overrides_are_stored_as_they_read() {
+        let cases: Vec<(String, String)> =
+            serde_json::from_str(include_str!("type_override_cases.json")).unwrap();
+        for (override_, expected) in cases {
+            assert_eq!(
+                stored_type_override(Some(&override_)),
+                (expected != "DIVIDEND").then_some(expected),
+                "{override_:?}"
+            );
+        }
+        assert_eq!(stored_type_override(None), None);
+    }
+
+    #[test]
+    fn test_effective_type_with_blank_override() {
+        let mut activity = create_test_activity();
+        activity.activity_type_override = Some(" ".to_string());
+        assert_eq!(activity.effective_type(), "BUY");
+    }
+
     #[test]
     fn test_effective_date() {
         let activity = create_test_activity();

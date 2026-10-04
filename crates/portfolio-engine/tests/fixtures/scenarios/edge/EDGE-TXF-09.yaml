@@ -1,0 +1,39 @@
+id: EDGE-TXF-09
+title: The sender gives what it holds, the receiver books what it records
+intent: >
+  Kernel-only. A history can start after shares were bought, so a transfer
+  can send more than its account holds. acc-a holds 5 x and sends 8 to
+  acc-b, then sends 2 y it never held. The sender gives what it had: 5 x
+  leave it (an outflow of 5 x 10) and the y leg moves nothing (no flow);
+  both shortfalls are reported. The receiver books what its own activity
+  records: 8 x (the 5 carried lots and 3 at the transfer's price) and 2 y
+  at the transfer's price, with inflows to match. Every account's value
+  moves by its flows, so no return is reported; the 3 x and 2 y the
+  sender lacked enter the portfolio as money from outside its history.
+markers: [K]
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-06
+accounts:
+  - { id: acc-a, currency: USD }
+  - { id: acc-b, currency: USD }
+assets:
+  - { id: x, quote_ccy: USD }
+  - { id: y, quote_ccy: USD }
+activities:
+  - { id: dep-a, account: acc-a, type: DEPOSIT, date: 2025-01-01T10:00:00Z, amount: 100 }
+  - { id: dep-b, account: acc-b, type: DEPOSIT, date: 2025-01-01T10:01:00Z, amount: 100 }
+  - { id: buy-x, account: acc-a, type: BUY, date: 2025-01-02T10:00:00Z, asset: x, quantity: 5, unit_price: 10, amount: 50 }
+  - { id: x-out, account: acc-a, type: TRANSFER_OUT, date: 2025-01-03T10:00:00Z, asset: x, quantity: 8, unit_price: 10, source_group_id: gx }
+  - { id: x-in, account: acc-b, type: TRANSFER_IN, date: 2025-01-03T11:00:00Z, asset: x, quantity: 8, unit_price: 10, source_group_id: gx }
+  - { id: y-out, account: acc-a, type: TRANSFER_OUT, date: 2025-01-04T10:00:00Z, asset: y, quantity: 2, unit_price: 20, source_group_id: gy }
+  - { id: y-in, account: acc-b, type: TRANSFER_IN, date: 2025-01-04T11:00:00Z, asset: y, quantity: 2, unit_price: 20, source_group_id: gy }
+quotes:
+  - { asset: x, day: 2025-01-01, close: 10 }
+  - { asset: y, day: 2025-01-01, close: 20 }
+expected_notes: >
+  acc-a: outflow 50 on 01-03 (5 x 10), no flow on 01-04; worth 50 from
+  01-03. acc-b: inflow 80 on 01-03 (8 x 10), inflow 40 on 01-04 (2 x 20);
+  holds 8 x (lots buy-x 5 from 2025-01-02 and 3 at 10 from 2025-01-03) and
+  2 y. Every TWR is 0.

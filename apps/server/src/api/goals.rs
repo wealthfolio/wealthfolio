@@ -192,7 +192,7 @@ async fn build_valuation_map(state: &AppState) -> ApiResult<HashMap<String, f64>
     let latest_snapshot_cutoff = user_today(parse_user_timezone_or_default(&timezone));
     let service = CurrentAccountValuationService::new(
         state.account_service.as_ref(),
-        state.snapshot_repository.as_ref(),
+        state.snapshot_service.as_ref(),
         state.asset_service.as_ref(),
         state.quote_service.as_ref(),
         state.fx_service.as_ref(),

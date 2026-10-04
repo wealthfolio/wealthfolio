@@ -45,6 +45,35 @@ describe("locale formatting", () => {
     }
   });
 
+  it("skips reported system locales Intl cannot use", () => {
+    const languages = vi
+      .spyOn(window.navigator, "languages", "get")
+      .mockReturnValue(["C", "POSIX", "de-DE"]);
+
+    try {
+      expect(resolveFormattingLocale("system")).toBe("de-DE");
+    } finally {
+      languages.mockRestore();
+    }
+  });
+
+  it("falls back to a usable locale when WebKitGTK reports C for LC_ALL=C.UTF-8", () => {
+    const languages = vi.spyOn(window.navigator, "languages", "get").mockReturnValue(["C"]);
+    const language = vi.spyOn(window.navigator, "language", "get").mockReturnValue("C");
+
+    try {
+      const locale = resolveFormattingLocale("system");
+      expect(Intl.NumberFormat.supportedLocalesOf(locale)).toEqual([locale]);
+      expect(() => dateFnsLocaleFor(locale)).not.toThrow();
+      expect(createFormatter("system", "UTC").formatDecimal(1234.5)).toBe(
+        createFormatter(locale, "UTC").formatDecimal(1234.5),
+      );
+    } finally {
+      languages.mockRestore();
+      language.mockRestore();
+    }
+  });
+
   it("formats an English UI using the resolved Germany locale", () => {
     const formatter = createFormatter(resolveFormattingLocale("DE", "en"));
     expect(formatter.formatDecimal(1234.56)).toBe("1.234,56");

@@ -1213,16 +1213,11 @@ fn start_workers(
             crate::mcp::start_if_enabled(&mcp_handle, &mcp_context).await;
         }));
 
-        // Periodic market data sync (6h interval, 2min initial delay).
-        let periodic_quote_service = Arc::clone(&context.quote_service);
-        workers.push(tauri::async_runtime::spawn(async move {
-            wealthfolio_core::quotes::scheduler::run_periodic_sync(
-                periodic_quote_service,
-                std::time::Duration::from_secs(120),
-                std::time::Duration::from_secs(6 * 3600),
-            )
-            .await;
-        }));
+        // Periodic market data sync plus portfolio update (6h, 2min delay).
+        workers.push(crate::portfolio_jobs::spawn_periodic_update(
+            handle.clone(),
+            Arc::clone(context),
+        ));
     }
 
     // Background device sync engine (self-skips when the device is not READY).

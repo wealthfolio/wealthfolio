@@ -1,0 +1,31 @@
+id: EDGE-TXF-20
+title: Each lot a transfer removes gives its own cost and realizes nothing
+intent: >
+  Kernel-only. Rules R2.4: the outgoing leg flows the cost it removed, each
+  lot giving its own cost, so no disposal row realizes anything, in base or
+  in its currency. acc-a sends two lots bought at different prices and rates
+  to acc-b, which is short 4. No quote exists.
+markers: [K]
+policy: { base_currency: USD, timezone: UTC, as_of: 2025-01-09 }
+accounts:
+  - { id: acc-a, currency: USD }
+  - { id: acc-b, currency: USD }
+assets:
+  - { id: x, quote_ccy: EUR }
+activities:
+  - { id: dep-a, account: acc-a, type: DEPOSIT, date: 2025-01-02T10:00:00Z, amount: 2000 }
+  - { id: dep-b, account: acc-b, type: DEPOSIT, date: 2025-01-02T11:00:00Z, amount: 2000 }
+  - { id: buy-1, account: acc-a, type: BUY, date: 2025-01-03T10:00:00Z, asset: x, quantity: 5, unit_price: 100, amount: 500, currency: EUR, fx_rate: 1.5 }
+  - { id: short-1, account: acc-b, type: SELL, subtype: POSITION_OPEN, date: 2025-01-03T11:00:00Z, asset: x, quantity: 4, unit_price: 110, amount: 440, currency: EUR, fx_rate: 1.5 }
+  - { id: buy-2, account: acc-a, type: BUY, date: 2025-01-04T10:00:00Z, asset: x, quantity: 5, unit_price: 200, amount: 1000, currency: EUR, fx_rate: 2 }
+  - { id: out-1, account: acc-a, type: TRANSFER_OUT, date: 2025-01-08T10:00:00Z, asset: x, quantity: 10, unit_price: 100, source_group_id: g1, currency: EUR }
+  - { id: in-1, account: acc-b, type: TRANSFER_IN, date: 2025-01-08T11:00:00Z, asset: x, quantity: 10, unit_price: 100, source_group_id: g1, currency: EUR }
+expected_notes: >
+  acc-a's rows: buy-1's lot gives 500 EUR, 750 USD (at 1.5), buy-2's 1000
+  EUR, 2000 USD (at 2); each realizes 0. acc-a: outflow 2750 USD on 01-08.
+  acc-b covers its 4 short units with the first lot's units, 400 EUR, 600
+  USD, against the short's 440 EUR, 660 USD: realized +40 EUR, +60 USD. The
+  6 units left cost 100 + 1000 = 1100 EUR, 150 + 2000 = 2150 USD. acc-b:
+  inflow 600 + 2150 = 2750 USD on 01-08; the pair nets. Before the fix the
+  removed cost was spread over the lots by units: 750 EUR, 1375 USD each,
+  so the rows realized +250 / -250 EUR and +625 / -625 USD.

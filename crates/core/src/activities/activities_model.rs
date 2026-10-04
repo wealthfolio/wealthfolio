@@ -212,13 +212,34 @@ pub struct Activity {
     pub updated_at: DateTime<Utc>,
 }
 
+/// An activity's type override, when it is not blank: a blank override is
+/// none, wherever the type is read (engine rules §5). SQL reads it through
+/// the storage crate's `effective_type_sql`, the frontend through
+/// `getEffectiveType`.
+pub fn type_override(type_override: Option<&str>) -> Option<&str> {
+    type_override.map(str::trim).filter(|s| !s.is_empty())
+}
+
+/// A type override as stored: as `type_override` reads it, trimmed and none
+/// when blank. Every write of `activities.activity_type_override` stores it
+/// through this, so a reader of the stored column that does not trim (the
+/// addon SDK's `getEffectiveType`) reads the type the engine reads in every
+/// row written since; rows stored before keep theirs until edited or device-synced.
+pub fn stored_type_override(value: Option<&str>) -> Option<String> {
+    type_override(value).map(str::to_string)
+}
+
+/// The type an activity computes as: its override when not blank, else its
+/// stored type.
+pub fn effective_activity_type<'a>(activity_type: &'a str, override_: Option<&'a str>) -> &'a str {
+    type_override(override_).unwrap_or(activity_type)
+}
+
 impl Activity {
     /// Returns the effective activity type, respecting user overrides.
     /// This is what the compiler and calculator should use.
     pub fn effective_type(&self) -> &str {
-        self.activity_type_override
-            .as_deref()
-            .unwrap_or(&self.activity_type)
+        effective_activity_type(&self.activity_type, self.activity_type_override.as_deref())
     }
 
     /// Returns the effective date for this activity
@@ -231,9 +252,24 @@ impl Activity {
         self.status == ActivityStatus::Posted
     }
 
+    /// The explicit external-transfer marker (`metadata.flow.is_external`),
+    /// when the row carries one.
+    pub fn explicit_external_transfer(&self) -> Option<bool> {
+        self.metadata
+            .as_ref()
+            .and_then(|m| m.get("flow"))
+            .and_then(|f| f.get("is_external"))
+            .and_then(|v| v.as_bool())
+    }
+
+    /// Whether the row is explicitly marked as an external transfer.
+    pub fn is_external_transfer(&self) -> bool {
+        self.explicit_external_transfer().unwrap_or(false)
+    }
+
     /// Check if this activity has a user override
     pub fn has_override(&self) -> bool {
-        self.activity_type_override.is_some()
+        type_override(self.activity_type_override.as_deref()).is_some()
     }
 
     /// Get quantity, defaulting to zero if not set.

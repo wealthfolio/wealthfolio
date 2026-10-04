@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import type { Account } from "@/lib/types";
-import { canAddHoldings } from "./activity-restrictions";
+import {
+  canAddHoldings,
+  getAllowedActivityTypes,
+  restrictionAllowsType,
+} from "./activity-restrictions";
 
 function holdingsAccount(providerAccountId?: string): Account {
   return {
@@ -27,5 +31,21 @@ describe("canAddHoldings", () => {
 
   it("keeps connected holdings read-only outside remediation", () => {
     expect(canAddHoldings(holdingsAccount("provider-account"))).toBe(false);
+  });
+});
+
+describe("manual holdings activity types", () => {
+  it("allows recording a split, which applies to the snapshot quantities", () => {
+    expect(getAllowedActivityTypes(holdingsAccount())).toContain("SPLIT");
+    expect(restrictionAllowsType("limited", "SPLIT")).toBe(true);
+  });
+
+  it("keeps trades on the account page's holdings update", () => {
+    expect(getAllowedActivityTypes(holdingsAccount())).not.toContain("BUY");
+    expect(restrictionAllowsType("limited", "SELL")).toBe(false);
+  });
+
+  it("keeps connected holdings sync-only", () => {
+    expect(getAllowedActivityTypes(holdingsAccount("provider-account"))).toEqual([]);
   });
 });

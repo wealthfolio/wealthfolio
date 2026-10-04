@@ -29,7 +29,7 @@ pub use transfer_integrity::TransferIntegrityCheck;
 pub use account_configuration::UnconfiguredAccountInfo;
 pub use classification::{LegacyMigrationInfo, UnclassifiedAssetInfo};
 pub use data_consistency::{ConsistencyIssueInfo, ConsistencyIssueType, ValuationIssueReason};
-pub use fx_integrity::FxPairInfo;
+pub use fx_integrity::{FxConflictInfo, FxPairInfo};
 pub use price_staleness::AssetHoldingInfo;
 pub use quote_sync::QuoteSyncErrorInfo;
 pub use transfer_integrity::{InvalidTransferGroupInfo, TransferLegDetail};

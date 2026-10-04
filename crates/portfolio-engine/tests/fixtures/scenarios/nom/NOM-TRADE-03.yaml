@@ -1,0 +1,57 @@
+id: NOM-TRADE-03
+title: Fractional asset with contract_multiplier 0.1
+intent: >
+  An asset whose unit is a tenth of the quoted price (contract_multiplier
+  0.1). Gross trade value, lot unit price, market value and disposal proceeds
+  all use the multiplier exactly: 100 units @ 50 is 500 of value, not 5000.
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-10
+accounts:
+  - id: acc-1
+    name: Brokerage
+    currency: USD
+assets:
+  - id: frac
+    symbol: FRAC
+    quote_ccy: USD
+    contract_multiplier: 0.1
+activities:
+  - id: dep-1
+    account: acc-1
+    type: DEPOSIT
+    date: 2025-01-02T10:00:00Z
+    amount: 1000
+  - id: buy-1
+    account: acc-1
+    type: BUY
+    date: 2025-01-03T10:00:00Z
+    asset: frac
+    quantity: 100
+    unit_price: 50
+    amount: 501
+    fee: 1
+  - id: sell-1
+    account: acc-1
+    type: SELL
+    date: 2025-01-07T10:00:00Z
+    asset: frac
+    quantity: 40
+    unit_price: 60
+    amount: 239
+    fee: 1
+quotes:
+  - { asset: frac, day: 2025-01-03, close: 50 }
+  - { asset: frac, day: 2025-01-07, close: 60 }
+  - { asset: frac, day: 2025-01-10, close: 62 }
+expected_notes: >
+  Cash 1000 -> 499 -> 738. Lot buy-1: 100 units, cost_per_unit 5 (gross 500
+  / 100, multiplier-inclusive), basis 501, fee 1; remaining 60 units, basis
+  300.6. Keyframe position contract_multiplier 0.1, average_cost 5.01.
+  Market value 01-03 = 100 x 50 x 0.1 = 500; 01-07 = 60 x 60 x 0.1 = 360;
+  01-10 = 60 x 62 x 0.1 = 372. sell-1 disposal: quantity 40, proceeds 239,
+  basis 200.4, realized 38.6. Total value 01-10 = 738 + 372 = 1110; TWR 11%.
+  Attribution is gross of charges: realized 40 (38.6 + 0.4 disposed
+  acquisition fee + 1 sell fee), unrealized 72 (71.4 + 0.6 remaining fee),
+  fees 2; summary 110.

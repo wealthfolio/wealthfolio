@@ -1,0 +1,71 @@
+id: PERF-TWR-03
+title: Unknown-boundary flow day and unavailable valuation days null the headline
+intent: >
+  Two fatal day taxonomies. acc-1 receives an unpaired cash TRANSFER_IN with no
+  flow.is_external metadata: the day is stamped UNKNOWN_BOUNDARY_TRANSFER and
+  TWR/IRR are nulled with typed not-applicable reasons. acc-2 buys an asset
+  whose first quote arrives three days later: with no cash left the rows are
+  value_status UNAVAILABLE and every transition touching them is fatal for TWR.
+  Both propagate to the portfolio scope. Pins that value_return and IRR are NOT
+  gated by unavailable valuation days, and that value_return counts the unknown
+  transfer as gain.
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-08
+accounts:
+  - id: acc-1
+    currency: USD
+  - id: acc-2
+    currency: USD
+assets:
+  - id: msft
+    quote_ccy: USD
+activities:
+  - id: dep-1
+    account: acc-1
+    type: DEPOSIT
+    date: 2025-01-02T10:00:00Z
+    amount: 1000
+  - id: tin-1
+    account: acc-1
+    type: TRANSFER_IN
+    date: 2025-01-04T10:00:00Z
+    amount: 500
+  - id: dep-2
+    account: acc-2
+    type: DEPOSIT
+    date: 2025-01-02T11:00:00Z
+    amount: 1000
+  - id: buy-2
+    account: acc-2
+    type: BUY
+    date: 2025-01-03T10:00:00Z
+    asset: msft
+    quantity: 10
+    unit_price: 100
+    amount: 1000
+quotes:
+  - { asset: msft, day: 2025-01-06, close: 110 }
+expected_notes: >
+  acc-1: cash 1000 -> 1500 on 01-04, net_contribution 1500 (account-level
+  transfer). Flow 01-04 = 0/0 UNKNOWN_BOUNDARY_TRANSFER. TWR null with reason
+  "TWR unavailable for 2025-01-04 because an external flow amount or transfer
+  boundary is unknown."; IRR null with the matching reason; summary percent
+  unavailable; plus the warning "External cash flow provenance is incomplete
+  for part of this period". LEGACY BEHAVIOR: value_return = (1500 - 1000 -
+  0)/1000 = 0.5 (the transfer is counted as gain) and inception attribution
+  uses opening net_contribution 1000 + zero flows, so the unreconciled delta
+  500 exceeds tolerance max(1, 0.2% x 1500) = 3 and the attribution-incomplete
+  warning fires ("Difference: 500; tolerance: 3.000").
+  acc-2: rows 01-03..01-05 value_status UNAVAILABLE (msft unpriced, cash 0,
+  total 0); 01-06.. COMPLETE at 1100. TWR null with four "valuation coverage
+  is unavailable" reasons (01-03, 01-04, 01-05, 01-06). LEGACY BEHAVIOR: IRR
+  still converges on -1000/+1100 (irr 0.1, annualized 329.96) and
+  value_return = 0.1; neither is gated by the unavailable days.
+  Portfolio all_time: rows 01-03..01-05 UNAVAILABLE, 01-04
+  UNKNOWN_BOUNDARY_TRANSFER; TWR and IRR null; value_return 0.3; attribution
+  warning "Difference: 500; tolerance: 5.200"; the transfer-pair pass also
+  warns "Transfer activity tin-1 has no valid linked transfer pair and no
+  external intent; it was treated as external." although the stamped flow is
+  Unknown, not External (misleading message text).

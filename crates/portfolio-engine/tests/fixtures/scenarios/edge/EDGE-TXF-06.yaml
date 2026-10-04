@@ -1,0 +1,50 @@
+id: EDGE-TXF-06
+title: Transfers both ways between two accounts on one day keep their lots
+intent: >
+  Kernel-only. Accounts are folded day by day with each transfer's sending
+  account before its receiving one. Transfers both ways between two
+  accounts on the same day make that order a cycle: acc-a sends x to acc-b
+  while acc-b sends y to acc-a, and acc-z sends z to acc-y while acc-y
+  pays cash back to acc-z (a cash transfer is a pair too). Every incoming
+  leg must still receive the lots its outgoing leg removed, with their
+  basis and acquisition date, whichever account's id sorts first, and no
+  lot may be left in the transfer cache. Marked [K].
+markers: [K]
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-06
+accounts:
+  - { id: acc-a, currency: USD }
+  - { id: acc-b, currency: USD }
+  - { id: acc-y, currency: USD }
+  - { id: acc-z, currency: USD }
+assets:
+  - { id: x, quote_ccy: USD }
+  - { id: y, quote_ccy: USD }
+  - { id: z, quote_ccy: USD }
+activities:
+  - { id: dep-a, account: acc-a, type: DEPOSIT, date: 2025-01-02T09:00:00Z, amount: 100 }
+  - { id: dep-b, account: acc-b, type: DEPOSIT, date: 2025-01-02T09:01:00Z, amount: 100 }
+  - { id: dep-y, account: acc-y, type: DEPOSIT, date: 2025-01-02T09:02:00Z, amount: 100 }
+  - { id: dep-z, account: acc-z, type: DEPOSIT, date: 2025-01-02T09:03:00Z, amount: 100 }
+  - { id: buy-x, account: acc-a, type: BUY, date: 2025-01-02T10:00:00Z, asset: x, quantity: 1, unit_price: 10, amount: 10 }
+  - { id: buy-y, account: acc-b, type: BUY, date: 2025-01-02T10:01:00Z, asset: y, quantity: 1, unit_price: 20, amount: 20 }
+  - { id: buy-z, account: acc-z, type: BUY, date: 2025-01-02T10:02:00Z, asset: z, quantity: 1, unit_price: 30, amount: 30 }
+  - { id: x-out, account: acc-a, type: TRANSFER_OUT, date: 2025-01-03T10:00:00Z, asset: x, quantity: 1, source_group_id: gx }
+  - { id: y-out, account: acc-b, type: TRANSFER_OUT, date: 2025-01-03T10:01:00Z, asset: y, quantity: 1, source_group_id: gy }
+  - { id: x-in, account: acc-b, type: TRANSFER_IN, date: 2025-01-03T11:00:00Z, asset: x, quantity: 1, source_group_id: gx }
+  - { id: y-in, account: acc-a, type: TRANSFER_IN, date: 2025-01-03T11:01:00Z, asset: y, quantity: 1, source_group_id: gy }
+  - { id: z-out, account: acc-z, type: TRANSFER_OUT, date: 2025-01-03T10:02:00Z, asset: z, quantity: 1, source_group_id: gz }
+  - { id: z-in, account: acc-y, type: TRANSFER_IN, date: 2025-01-03T11:02:00Z, asset: z, quantity: 1, source_group_id: gz }
+  - { id: cash-out, account: acc-y, type: TRANSFER_OUT, date: 2025-01-03T12:00:00Z, amount: 30, source_group_id: gc }
+  - { id: cash-in, account: acc-z, type: TRANSFER_IN, date: 2025-01-03T12:01:00Z, amount: 30, source_group_id: gc }
+quotes:
+  - { asset: x, day: 2025-01-02, close: 10 }
+  - { asset: y, day: 2025-01-02, close: 20 }
+  - { asset: z, day: 2025-01-02, close: 30 }
+expected_notes: >
+  acc-a holds y (lot from buy-y: basis 20, acquired 2025-01-02), acc-b holds
+  x (basis 10, acquired 2025-01-02), acc-y holds z (basis 30, acquired
+  2025-01-02). The transfer cache is empty. Prices never move, so every
+  account's value changes only by its flows and every TWR is 0.

@@ -1,0 +1,49 @@
+id: EDGE-FX-04
+title: Base-FX pair fully unresolvable - legacy fails the whole account
+intent: >
+  EUR account, USD base, EMPTY fx table. The holdings stage survives (it
+  falls back per leg), but `calculate_prepared_valuation_account_from_facts`
+  skips every day whose account->base rate is missing and then returns an
+  error for the account ("Incomplete valuation history"), so NO valuation
+  row is persisted at all, not even the EUR-denominated columns that need
+  no FX. The kernel emits every day with a typed degradation (base columns
+  unavailable) and continues.
+markers: [L]
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-08
+accounts:
+  - id: acc-1
+    currency: EUR
+assets:
+  - id: eu
+    symbol: EUS
+    quote_ccy: EUR
+activities:
+  - id: dep-1
+    account: acc-1
+    type: DEPOSIT
+    date: 2025-01-02T10:00:00Z
+    amount: 1000
+  - id: buy-1
+    account: acc-1
+    type: BUY
+    date: 2025-01-03T10:00:00Z
+    asset: eu
+    quantity: 5
+    unit_price: 100
+    amount: 500
+quotes:
+  - { asset: eu, day: 2025-01-03, close: 100 }
+  - { asset: eu, day: 2025-01-06, close: 102 }
+expected_notes: >
+  No EUR->USD rate exists at all. Keyframes are computed in EUR (cash 1000
+  then 500, position 5 @ 100); a total in USD is never faked:
+  cash_total_base_currency 0 with an FxUnavailable diagnostic per day ("cash
+  ... excluded from the USD total"), net_contribution_base 0 ("base
+  contribution not updated") and no base FX on the lot. Every valuation row
+  exists and is Unavailable with the EUR columns filled (cash 1000 -> 500,
+  investment 500 -> 510, total 1000 -> 1010) and base columns 0; TWR and IRR
+  are unavailable and quality is partial. Previously the valuation failed
+  outright and produced no rows at all.

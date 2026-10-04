@@ -132,6 +132,31 @@
       "title_one": "Incomplete transfer detected",
       "title_other": "{{count}} incomplete transfers detected",
       "message": "A transfer is unpaired or missing its matching leg, so its flow was treated as external and may distort returns. Pair it with the matching transfer, or mark it external if that is intended."
+    },
+    "data_stale_projection": {
+      "title_one": "Account history is out of date",
+      "title_other": "{{count}} account histories are out of date",
+      "message": "Activities, prices or settings changed after these account histories were last calculated. Rebuild them so values and returns reflect the current data."
+    },
+    "data_rejected_activity": {
+      "title_one": "Transaction could not be applied",
+      "title_other": "{{count}} transactions could not be applied",
+      "message": "These transactions can't be applied as recorded (for example, their currency has no exchange rate, or they would open or close a short position without being marked to), so they are left out of balances, holdings and returns. Review them."
+    },
+    "data_oversold_activity": {
+      "title_one": "Transaction sells more than was held",
+      "title_other": "{{count}} transactions sell more than was held",
+      "message": "These transactions sell or move more units than the account held at the time. Only the units held were removed, and the rest has no cost basis. Check for a missing purchase or transfer in."
+    },
+    "data_missing_activity_amount": {
+      "title_one": "Transaction has no amount",
+      "title_other": "{{count}} transactions have no amount",
+      "message": "These transactions have no amount, so they did not change the cash balance. Add the amount if cash moved."
+    },
+    "fx_conflicting_rates": {
+      "title_one": "Exchange rates for {{from}} and {{to}} disagree",
+      "title_other": "Exchange rates disagree for {{count}} currency pairs",
+      "message": "Rates are recorded in both directions for the same days, and they don't match. Each direction is used as recorded, so converting one way and back gives a different amount. Correct or remove the wrong rates."
     }
   },
   "page": {
