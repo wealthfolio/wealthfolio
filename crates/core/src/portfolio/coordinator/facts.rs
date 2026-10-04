@@ -524,29 +524,32 @@ pub fn load(
         .filter(|a| requested.contains(a.id.as_str()))
         .map(|a| a.id.clone())
         .collect();
-    // An account set to a method or policy the engine does not compute fails
-    // loudly instead of being relabelled (engine rules R7.2): its results are
-    // not written. Where another account needs it folded, it folds FIFO.
-    let accounting = deps
-        .accounts
-        .get_accounting_settings_by_account_ids(&scope)?;
+    // Each scope account's method, or why it is refused: settings this version
+    // cannot read, or a method or policy the engine does not compute. A refused
+    // account fails loudly instead of being relabelled (engine rules R7.2): its
+    // results are not written. Where another account needs it folded, it folds
+    // FIFO.
+    let methods: BTreeMap<&str, _> = all_accounts
+        .iter()
+        .filter(|a| requested.contains(a.id.as_str()))
+        .map(|a| {
+            let method = a
+                .accounting_settings()
+                .and_then(|settings| {
+                    settings.ensure_supported_for_calculation()?;
+                    Ok(settings.cost_basis_method.as_str().to_string())
+                })
+                .map_err(|error| error.to_string());
+            (a.id.as_str(), method)
+        })
+        .collect();
     let unsupported_accounts: Vec<(String, String)> = scope
         .iter()
-        .filter_map(|id| {
-            accounting
-                .get(id)
-                .and_then(|settings| settings.ensure_supported_for_calculation().err())
-                .map(|error| (id.clone(), error.to_string()))
-        })
+        .filter_map(|id| Some((id.clone(), methods.get(id.as_str())?.clone().err()?)))
         .collect();
     // Accounts outside the scope are archived partners, which the engine never
     // folds: their method does not matter.
-    let cost_basis_method = |account: &str| {
-        accounting
-            .get(account)
-            .filter(|settings| settings.ensure_supported_for_calculation().is_ok())
-            .map(|settings| settings.cost_basis_method.as_str().to_string())
-    };
+    let cost_basis_method = |account: &str| methods.get(account)?.clone().ok();
 
     // Transfer closure: every account sharing a transfer group with the scope.
     let (closure, closure_activities) =

@@ -234,6 +234,26 @@ export type DateFormatting = Pick<
   | "parseDate"
 >;
 
+/**
+ * The host reports its locale; it is not a user setting, so an unusable one (POSIX
+ * `C`/`POSIX`, or a tag Intl has no data for) falls through to the next reported
+ * locale and finally to Intl's own default instead of failing startup.
+ */
+function resolveSystemFormattingLocale(): string {
+  const reported =
+    typeof navigator !== "undefined" ? [...(navigator.languages ?? []), navigator.language] : [];
+  for (const tag of reported) {
+    if (!tag) continue;
+    try {
+      const [supported] = Intl.NumberFormat.supportedLocalesOf(tag);
+      if (supported) return supported;
+    } catch {
+      // Not a BCP 47 tag, e.g. "C" from LC_ALL=C.UTF-8.
+    }
+  }
+  return new Intl.NumberFormat().resolvedOptions().locale;
+}
+
 export function resolveFormattingLocale(
   setting: string | null | undefined,
   /** @deprecated UI language no longer affects formatting. */
@@ -243,16 +263,7 @@ export function resolveFormattingLocale(
     throw new Error("A formatting locale is required");
   }
   if (setting === "system") {
-    const systemLocale =
-      typeof navigator !== "undefined" ? navigator.languages?.[0] || navigator.language : undefined;
-    if (!systemLocale) {
-      throw new Error("The system formatting locale is unavailable; provide an explicit locale");
-    }
-    try {
-      return Intl.getCanonicalLocales(systemLocale)[0]!;
-    } catch {
-      throw new Error(`Invalid formatting locale: ${systemLocale}`);
-    }
+    return resolveSystemFormattingLocale();
   }
   try {
     const region = setting.toUpperCase() as Exclude<FormattingRegionSetting, "system">;

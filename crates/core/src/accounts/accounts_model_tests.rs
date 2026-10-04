@@ -2,7 +2,7 @@
 
 #[cfg(test)]
 mod tests {
-    use crate::accounts::{Account, NewAccount, TrackingMode};
+    use crate::accounts::{Account, AccountAccountingSettings, NewAccount, TrackingMode};
     use chrono::NaiveDateTime;
 
     // ==================== TrackingMode Serialization Tests ====================
@@ -111,6 +111,74 @@ mod tests {
             account.cash_allocation_category_id(),
             Some("EQUITY".to_string())
         );
+    }
+
+    // ==================== Accounting Settings Tests ====================
+
+    fn accounting_settings_of(meta: Option<&str>) -> crate::Result<AccountAccountingSettings> {
+        Account {
+            id: "acc".to_string(),
+            meta: meta.map(String::from),
+            ..Account::default()
+        }
+        .accounting_settings()
+    }
+
+    /// Engine rules R7.2: an account without settings takes the defaults.
+    #[test]
+    fn absent_accounting_settings_read_as_the_defaults() {
+        for meta in [
+            None,
+            Some(""),
+            Some(" \n "),
+            Some("{}"),
+            Some(r#"{"allocation":{"cashCategoryId":"EQUITY"}}"#),
+            Some("[]"),
+        ] {
+            let settings =
+                accounting_settings_of(meta).unwrap_or_else(|error| panic!("{meta:?}: {error}"));
+            assert_eq!(
+                settings,
+                AccountAccountingSettings {
+                    created_at: settings.created_at.clone(),
+                    updated_at: settings.updated_at.clone(),
+                    ..AccountAccountingSettings::default_for_account("acc")
+                },
+                "{meta:?}"
+            );
+        }
+    }
+
+    /// Engine rules R7.2: settings this version cannot read are an error for
+    /// their account, never the defaults.
+    #[test]
+    fn accounting_settings_this_version_cannot_read_are_an_error() {
+        for meta in [
+            "{NEWER_CODE",
+            r#"{"accounting":"NEWER_CODE"}"#,
+            r#"{"accounting":null}"#,
+            r#"{"accounting":["NEWER_CODE"]}"#,
+            r#"{"accounting":{"costBasisMethod":"NEWER_CODE"}}"#,
+            r#"{"accounting":{"costBasisMethod":987654321}}"#,
+            r#"{"accounting":{"costBasisProfile":"NEWER_CODE"}}"#,
+            r#"{"accounting":{"poolingScope":"NEWER_CODE"}}"#,
+            r#"{"accounting":{"lotSelectionStrategy":"NEWER_CODE"}}"#,
+            r#"{"accounting":{"createdAt":987654321}}"#,
+        ] {
+            let error = accounting_settings_of(Some(meta))
+                .expect_err(meta)
+                .to_string();
+            assert!(
+                error.contains("Accounting settings for account acc cannot be read"),
+                "{meta}: {error}"
+            );
+            // Failures are logged: the message names what it could not read,
+            // never the stored value.
+            assert!(
+                !error.contains("NEWER_CODE") && !error.contains("987654321"),
+                "{meta}: {error}"
+            );
+        }
     }
 
     #[test]

@@ -2,7 +2,6 @@ use async_trait::async_trait;
 use diesel::prelude::*;
 use diesel::r2d2::{self, Pool};
 use diesel::sqlite::SqliteConnection;
-use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::db::{get_connection, WriteHandle};
@@ -11,9 +10,7 @@ use crate::schema::accounts;
 use crate::schema::accounts::dsl::*;
 
 use super::model::AccountDB;
-use wealthfolio_core::accounts::{
-    Account, AccountAccountingSettings, AccountRepositoryTrait, AccountUpdate, NewAccount,
-};
+use wealthfolio_core::accounts::{Account, AccountRepositoryTrait, AccountUpdate, NewAccount};
 use wealthfolio_core::errors::Result;
 
 /// Repository for managing account data in the database
@@ -158,39 +155,6 @@ impl AccountRepositoryTrait for AccountRepository {
         Ok(accounts_list)
     }
 
-    fn get_accounting_settings_by_account_ids(
-        &self,
-        requested_account_ids: &[String],
-    ) -> Result<HashMap<String, AccountAccountingSettings>> {
-        if requested_account_ids.is_empty() {
-            return Ok(HashMap::new());
-        }
-
-        let mut conn = get_connection(&self.pool)?;
-        let rows: Vec<AccountDB> = accounts::table
-            .filter(id.eq_any(requested_account_ids))
-            .select(AccountDB::as_select())
-            .load(&mut conn)
-            .map_err(StorageError::from)?;
-
-        let mut settings: HashMap<String, AccountAccountingSettings> = requested_account_ids
-            .iter()
-            .map(|account_id| {
-                (
-                    account_id.clone(),
-                    AccountAccountingSettings::default_for_account(account_id.clone()),
-                )
-            })
-            .collect();
-
-        for account in rows {
-            let setting = account.accounting_settings()?;
-            settings.insert(setting.account_id.clone(), setting);
-        }
-
-        Ok(settings)
-    }
-
     /// Deletes an account by its ID and returns the number of deleted records
     async fn delete(&self, account_id_param: &str) -> Result<usize> {
         let id_to_delete_owned = account_id_param.to_string();
@@ -276,10 +240,11 @@ mod tests {
         let (repo, pool, _dir) = setup().await;
         let account = repo.create(new_account("Seeded")).await.unwrap();
 
-        let settings = repo
-            .get_accounting_settings_by_account_ids(std::slice::from_ref(&account.id))
+        let setting = repo
+            .get_by_id(&account.id)
+            .unwrap()
+            .accounting_settings()
             .unwrap();
-        let setting = settings.get(&account.id).unwrap();
         assert_eq!(setting.cost_basis_method, CostBasisMethod::Fifo);
         assert_eq!(setting.cost_basis_profile, CostBasisProfile::Generic);
         assert_eq!(setting.pooling_scope, PoolingScope::Account);
@@ -304,14 +269,45 @@ mod tests {
         let (repo, pool, _dir) = setup().await;
         insert_account_without_settings(&pool, "acc-missing-settings");
 
-        let settings = repo
-            .get_accounting_settings_by_account_ids(&["acc-missing-settings".to_string()])
+        let setting = repo
+            .get_by_id("acc-missing-settings")
+            .unwrap()
+            .accounting_settings()
             .unwrap();
-        let setting = settings.get("acc-missing-settings").unwrap();
         assert_eq!(setting.cost_basis_method, CostBasisMethod::Fifo);
         assert_eq!(setting.cost_basis_profile, CostBasisProfile::Generic);
         assert_eq!(setting.pooling_scope, PoolingScope::Account);
         assert_eq!(setting.settings_json, "{}");
+    }
+
+    #[tokio::test]
+    async fn unreadable_accounting_settings_fail_their_account_alone() {
+        let (repo, pool, _dir) = setup().await;
+        insert_account_without_settings(&pool, "acc-readable");
+        insert_account_without_settings(&pool, "acc-unreadable");
+        let mut conn = get_connection(&pool).unwrap();
+        diesel::sql_query(
+            "UPDATE accounts SET meta = '{\"accounting\":{\"costBasisMethod\":\"ACB\"}}'
+             WHERE id = 'acc-unreadable'",
+        )
+        .execute(&mut conn)
+        .unwrap();
+
+        // The read the portfolio job makes: a code this version does not know
+        // fails that account's settings, not the read or another account's.
+        let listed = repo.list(None, None, None).unwrap();
+        let settings = |account_id: &str| {
+            listed
+                .iter()
+                .find(|account| account.id == account_id)
+                .unwrap()
+                .accounting_settings()
+        };
+        assert_eq!(
+            settings("acc-readable").unwrap().cost_basis_method,
+            CostBasisMethod::Fifo
+        );
+        assert!(settings("acc-unreadable").is_err());
     }
 
     #[tokio::test]
@@ -328,10 +324,11 @@ mod tests {
         .execute(&mut conn)
         .unwrap();
 
-        let settings = repo
-            .get_accounting_settings_by_account_ids(&["acc-explicit-settings".to_string()])
+        let setting = repo
+            .get_by_id("acc-explicit-settings")
+            .unwrap()
+            .accounting_settings()
             .unwrap();
-        let setting = settings.get("acc-explicit-settings").unwrap();
         assert_eq!(setting.cost_basis_method, CostBasisMethod::Lifo);
         assert_eq!(setting.cost_basis_profile, CostBasisProfile::CanadaAcb);
         assert_eq!(setting.pooling_scope, PoolingScope::Portfolio);

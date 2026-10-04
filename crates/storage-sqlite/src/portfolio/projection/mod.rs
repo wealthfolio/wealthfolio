@@ -1385,12 +1385,71 @@ mod tests {
             .first::<crate::accounts::AccountDB>(&mut conn)
             .unwrap();
         // The job validates this setting, so a change must reach it.
-        assert!(account
+        assert!(wealthfolio_core::accounts::Account::from(account)
             .accounting_settings()
             .unwrap()
             .ensure_supported_for_calculation()
             .is_err());
         assert_eq!(dirty(&db, "acc1").as_deref(), Some("0001-01-01"));
+    }
+
+    /// Rules §5 and R7.2: the job reads an account's accounting settings
+    /// strictly, so a change to how they read marks the account, whatever
+    /// shape it takes; a change to another meta key does not.
+    #[tokio::test]
+    async fn an_accounting_settings_change_marks_however_it_reads() {
+        let db = setup();
+        let fifo = r#"{"accounting":{"costBasisMethod":"FIFO"}}"#;
+        // (meta before, meta after, whether the account is marked)
+        let changes = [
+            (
+                fifo,
+                r#"{"accounting":{"costBasisMethod":"FIFO"},"allocation":{"cashCategoryId":"EQUITY"}}"#,
+                false,
+            ),
+            ("{}", r#"{"broker":{"lastSync":"x"}}"#, false),
+            ("{}", "{not json", true),
+            (fifo, "{not json", true),
+            ("{not json", "{still not json", true),
+            ("{}", r#"{"accounting":null}"#, true),
+            (r#"{"accounting":{}}"#, r#"{"accounting":[]}"#, true),
+            (
+                r#"{"accounting":{"createdAt":"x"}}"#,
+                r#"{"accounting":{"createdAt":1}}"#,
+                true,
+            ),
+            (
+                fifo,
+                r#"{"accounting":{"costBasisMethod":"FIFO","cost_basis_method":"FIFO"}}"#,
+                true,
+            ),
+            (
+                fifo,
+                r#"{"accounting":{"costBasisMethod":"FIFO","costBasisMethod":"LIFO"}}"#,
+                true,
+            ),
+            (
+                fifo,
+                r#"{"accounting":{"costBasisMethod":"FIFO"},"accounting":{"costBasisMethod":"LIFO"}}"#,
+                true,
+            ),
+        ];
+        for (before, after, marks) in changes {
+            sql(
+                &db,
+                &format!("UPDATE accounts SET meta = '{before}' WHERE id = 'acc1'"),
+            );
+            consume_all(&db).await;
+            sql(
+                &db,
+                &format!("UPDATE accounts SET meta = '{after}' WHERE id = 'acc1'"),
+            );
+            assert_eq!(
+                dirty(&db, "acc1").as_deref(),
+                marks.then_some("0001-01-01"),
+                "{before} -> {after}"
+            );
+        }
     }
 
     #[tokio::test]

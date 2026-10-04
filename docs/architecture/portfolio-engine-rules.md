@@ -148,7 +148,7 @@ is `0001-01-01`; `@all` refolds every account from `GENESIS`.
 | Fact              | Change                                                                                            | Marker and earliest day                                                                                                                                                                        |
 | ----------------- | ------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Account           | insert                                                                                            | the account, from `GENESIS` (sync can deliver its snapshots first)                                                                                                                             |
-| Account           | currency, type, tracking mode, archived, accounting method, profile, pooling scope, lot selection | the account, from `GENESIS`                                                                                                                                                                    |
+| Account           | currency, type, tracking mode, archived, accounting settings in meta as the job reads them (R7.2) | the account, from `GENESIS`                                                                                                                                                                    |
 | Activity          | insert, update, delete (any field)                                                                | old and new accounts, from the day before their old and new dates; transfer partners likewise; a split's old and new assets from `GENESIS`                                                     |
 | Asset             | insert                                                                                            | its holders, from `GENESIS` (sync can deliver snapshots naming it first); an FX asset whose rates arrived before it (a sync batch defers foreign keys): its conversions from its earliest rate |
 | Asset             | kind, quote currency, instrument type, option, contract multiplier                                | its holders, from `GENESIS`                                                                                                                                                                    |
@@ -209,8 +209,13 @@ and delivered units cover a short in the order the sender gave them. An
 account's settings name its method, and the engine alone says which methods it
 computes: an account set to another is refused (`UNSUPPORTED_COST_BASIS`) and
 its results are not written; where another account needs it folded (a transfer
-partner), it is folded FIFO. Changing an account's method refolds it (§5).
-Fixtures: every fixture is FIFO.
+partner), it is folded FIFO. Each account's settings are read on their own. An
+account with none (no meta, or no `accounting` entry in it) takes the defaults,
+FIFO. Settings this version cannot read are refused the same way and never read
+as the defaults: meta that is not JSON, an `accounting` entry that is not an
+object, or a code it does not know, such as one a newer version wrote. Only a
+failed database read fails the whole job. Changing an account's method refolds
+it (§5). Fixtures: every fixture is FIFO.
 
 **R7.3 What a new method must respect.**
 
@@ -251,11 +256,11 @@ Fixtures: every fixture is FIFO.
   not trim it (the addon SDK's `getEffectiveType` and `hasUserOverride`, broker
   sync's split check) reads a blank one as a type, or keeps the whitespace
   around another.
-- Accounting settings this version cannot read do not fail their account alone:
-  a method code it does not know (one a newer version wrote) fails the whole
-  job, and a malformed entry reads as the defaults (FIFO). Users cannot set
-  these settings yet; reading them per account and strictly comes with the first
-  method they can choose.
+- The §5 trigger accepts some JSON the job's reader rejects: a lone surrogate
+  escape, a number beyond a double, nesting deeper than 128 levels. A change
+  elsewhere in an account's meta that adds one leaves no marker, and the account
+  keeps its last results until a later run, for another change or a new day,
+  refuses it (R7.2).
 
 ## 9. How tests use these rules
 
