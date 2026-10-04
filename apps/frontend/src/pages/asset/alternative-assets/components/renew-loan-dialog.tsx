@@ -139,9 +139,10 @@ export function RenewLoanDialog({
 
   // Preview the renewal as drafted: the backend solves the payment that keeps the
   // original amortization end, from the balance on the renewal date.
-  const { data: payments = [] } = useLoanPayments(assetId, open);
+  // Without the payments the estimate would be off, so it waits for them.
+  const payments = useLoanPayments(assetId, open);
   const estimateRequest =
-    open && !rateInvalid && !dateInvalid
+    open && !rateInvalid && !dateInvalid && payments.isSuccess
       ? loanRenewalEstimateRequest(
           metadata,
           quoteHistory,
@@ -152,7 +153,7 @@ export function RenewLoanDialog({
             interestMethod: changedMethod,
             balance,
           },
-          payments,
+          payments.data,
         )
       : null;
   const { data: estimate } = useQuery({

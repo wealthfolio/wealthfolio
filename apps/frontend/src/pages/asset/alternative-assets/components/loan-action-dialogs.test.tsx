@@ -1,8 +1,16 @@
+import type { ReactNode } from "react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@/test/render";
 import { describe, expect, it, vi } from "vitest";
 import type { Quote } from "@/lib/types";
 import { formatDateISO } from "@/lib/utils";
-import { LoanBalanceEventDialog } from "./loan-action-dialogs";
+import { LoanBalanceEventDialog, RecalculateScheduleDialog } from "./loan-action-dialogs";
+
+const adapters = vi.hoisted(() => ({ payments: vi.fn(), recalculate: vi.fn() }));
+vi.mock("@/adapters", () => ({
+  getLoanPayments: adapters.payments,
+  recalculateLoan: adapters.recalculate,
+}));
 
 const props = {
   open: true,
@@ -76,5 +84,32 @@ describe("extra repayment validation", () => {
       <LoanBalanceEventDialog {...props} confirmations={[balance(formatDateISO(new Date()))]} />,
     );
     expect(screen.getByText(/takes priority/)).toHaveTextContent("500,000");
+  });
+});
+
+describe("recalculating the schedule", () => {
+  it("shows an error instead of a preview that leaves out the loan's payments", async () => {
+    adapters.payments.mockRejectedValue(new Error("offline"));
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <RecalculateScheduleDialog
+        open
+        onOpenChange={vi.fn()}
+        currency="USD"
+        interestRate={4}
+        endDate={null}
+        assetId="loan"
+        metadata={{}}
+        quoteHistory={[]}
+        onSubmit={vi.fn()}
+      />,
+      {
+        wrapper: ({ children }: { children: ReactNode }) => (
+          <QueryClientProvider client={client}>{children}</QueryClientProvider>
+        ),
+      },
+    );
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    expect(adapters.recalculate).not.toHaveBeenCalled();
   });
 });

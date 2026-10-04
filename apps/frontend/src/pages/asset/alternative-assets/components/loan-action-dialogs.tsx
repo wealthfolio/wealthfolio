@@ -143,20 +143,27 @@ export function RecalculateScheduleDialog({
     parsedRate < 0 ||
     parsedRate > 100 ||
     effectiveDate > new Date();
-  const { data: payments = [] } = useLoanPayments(assetId, open);
+  const payments = useLoanPayments(assetId, open);
   const request = {
-    ...loanCalculationRequest(metadata, quoteHistory, formatDateISO(effectiveDate), payments),
+    ...loanCalculationRequest(
+      metadata,
+      quoteHistory,
+      formatDateISO(effectiveDate),
+      payments.data ?? [],
+    ),
     annualRate: parsedRate,
   };
   const {
     data: calculation,
     isFetching,
-    isError,
+    isError: recalculationFailed,
   } = useQuery({
     queryKey: [QueryKeys.ASSET_DATA, assetId, "loan-recalculation", request],
     queryFn: () => recalculateLoan(request),
-    enabled: open && !isRateInvalid,
+    // The preview needs the payments the backend will count when saving.
+    enabled: open && !isRateInvalid && payments.isSuccess,
   });
+  const isError = recalculationFailed || payments.isError;
   const remainingPayments = calculation?.remainingPayments ?? 0;
   const newPayment = calculation?.paymentAmount ?? null;
   const unavailable = (

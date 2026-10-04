@@ -98,7 +98,8 @@ export function useLoanCalculation(
   return useQuery({
     queryKey: [QueryKeys.ASSET_DATA, assetId, "loan-calculation", request],
     queryFn: () => calculateLoan(request),
-    // Wait for payments so the balance is never shown without them first.
-    enabled: calculated && payments.isFetched,
+    // Only with the payments read: a failed read is not an empty list, and the
+    // holding's own value, which counts them, stays in place.
+    enabled: calculated && payments.isSuccess,
   });
 }

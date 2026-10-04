@@ -2,6 +2,7 @@ import { createElement, type ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { renderHook, waitFor } from "@/test/render";
+import { QueryKeys } from "@/lib/query-keys";
 import type { Quote } from "@/lib/types";
 import { LOAN_EVENTS_METADATA_KEY } from "../lib/loan-events";
 import {
@@ -10,10 +11,10 @@ import {
   useLoanToday,
 } from "./use-loan-calculation";
 
-const mocks = vi.hoisted(() => ({ calculate: vi.fn() }));
+const mocks = vi.hoisted(() => ({ calculate: vi.fn(), payments: vi.fn() }));
 vi.mock("@/adapters", () => ({
   calculateLoan: mocks.calculate,
-  getLoanPayments: vi.fn().mockResolvedValue([]),
+  getLoanPayments: mocks.payments,
 }));
 // Fourteen hours ahead of UTC: a day ahead of any browser west of UTC+9 at 15:00 UTC.
 vi.mock("@/lib/settings-provider", () => ({
@@ -73,6 +74,7 @@ describe("the day a loan is valued on", () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date("2026-03-01T15:00:00Z"));
     mocks.calculate.mockResolvedValue(null);
+    mocks.payments.mockResolvedValue([]);
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const wrapper = ({ children }: { children: ReactNode }) =>
       createElement(QueryClientProvider, { client }, children);
@@ -92,4 +94,29 @@ describe("the day a loan is valued on", () => {
     await waitFor(() => expect(mocks.calculate).toHaveBeenCalled());
     expect(mocks.calculate.mock.calls[0][0]).toMatchObject({ asOf: "2026-03-02" });
   });
+});
+
+it("does not calculate without the loan's payments when reading them fails", async () => {
+  mocks.calculate.mockReset().mockResolvedValue(null);
+  mocks.payments.mockReset().mockRejectedValue(new Error("offline"));
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const wrapper = ({ children }: { children: ReactNode }) =>
+    createElement(QueryClientProvider, { client }, children);
+  const metadata = {
+    loan_projection: {
+      version: 1,
+      annualRate: 4,
+      paymentAmount: 1000,
+      frequency: "monthly",
+      firstPaymentDate: "2026-02-01",
+      amortizationEndDate: "2046-01-01",
+    },
+  };
+  renderHook(() => useLoanCalculation("loan", metadata, quotes), { wrapper });
+  await waitFor(() =>
+    expect(client.getQueryState([QueryKeys.ASSET_DATA, "loan", "loan-payments"])?.status).toBe(
+      "error",
+    ),
+  );
+  expect(mocks.calculate).not.toHaveBeenCalled();
 });

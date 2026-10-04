@@ -1,13 +1,17 @@
 import type { ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen } from "@/test/render";
+import { fireEvent, render, screen, waitFor } from "@/test/render";
 import { describe, expect, it, vi } from "vitest";
 import { RenewLoanDialog } from "./renew-loan-dialog";
 
+const adapters = vi.hoisted(() => ({
+  recalculate: vi.fn().mockResolvedValue(null),
+  payments: vi.fn().mockResolvedValue([]),
+}));
 vi.mock("@/adapters", () => ({
-  recalculateLoan: vi.fn().mockResolvedValue(null),
+  recalculateLoan: adapters.recalculate,
   calculateLoan: vi.fn(),
-  getLoanPayments: vi.fn().mockResolvedValue([]),
+  getLoanPayments: adapters.payments,
 }));
 vi.mock("@wealthfolio/ui", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@wealthfolio/ui")>()),
@@ -36,7 +40,46 @@ vi.mock("@wealthfolio/ui", async (importOriginal) => ({
   ),
 }));
 
+const props = {
+  open: true,
+  onOpenChange: vi.fn(),
+  assetId: "loan",
+  currency: "USD",
+  interestRate: 4,
+  metadata: {
+    loan_projection: {
+      version: 1,
+      annualRate: 4,
+      paymentAmount: 1000,
+      frequency: "monthly",
+      firstPaymentDate: "2026-02-01",
+      amortizationEndDate: "2046-01-01",
+    },
+  },
+  quoteHistory: [],
+  maturity: null,
+  mortgage: true,
+  onSubmit: vi.fn(),
+};
+
 describe("renewal", () => {
+  it("estimates nothing without the loan's payments when reading them fails", async () => {
+    adapters.payments.mockRejectedValueOnce(new Error("offline"));
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(<RenewLoanDialog {...props} />, {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      ),
+    });
+    await waitFor(() => expect(adapters.payments).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(
+        client.getQueryCache().findAll({ predicate: (q) => q.state.status === "error" }),
+      ).toHaveLength(1),
+    );
+    expect(adapters.recalculate).not.toHaveBeenCalled();
+  });
+
   it("asks for the payment when the renewal changes the frequency", () => {
     const client = new QueryClient();
     render(
