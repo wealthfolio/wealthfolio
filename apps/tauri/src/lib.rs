@@ -778,9 +778,10 @@ pub fn run() {
                 }
             }
 
-            // Every desktop quit ends here, including macOS Quit, which skips
-            // ExitRequested. Releasing the database also stops the MCP server
-            // (deleting mcp.lock) and the background device sync engine.
+            // Desktop quits and restarts end here, including macOS Quit, which
+            // skips ExitRequested. The Windows updater does not: its installer
+            // step exits the process itself. Releasing the database also stops
+            // the MCP server (deleting mcp.lock) and the device sync engine.
             #[cfg(desktop)]
             if matches!(event, tauri::RunEvent::Exit) {
                 profiles::release_for_exit(_handle);
