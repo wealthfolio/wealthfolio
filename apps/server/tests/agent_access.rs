@@ -524,53 +524,9 @@ async fn mcp_write_scoped_token_sees_write_tools() {
 /// Manual quotes keep this deterministic and independent of market providers.
 #[tokio::test]
 async fn mcp_import_reuses_reviewed_crypto_assets_despite_equity_collisions() {
-    async fn post_api(
-        server: &TestServer,
-        cookie: &str,
-        path: &str,
-        body: serde_json::Value,
-    ) -> serde_json::Value {
-        let response = server
-            .client
-            .post(format!("{}/api/v1/{path}", server.base))
-            .header(header::COOKIE, format!("wf_session={cookie}"))
-            .json(&body)
-            .send()
-            .await
-            .unwrap();
-        let status = response.status();
-        let value: serde_json::Value = response.json().await.unwrap();
-        assert!(status.is_success(), "{path}: {status} {value}");
-        value
-    }
-
-    async fn call_import(
-        server: &TestServer,
-        pat: &str,
-        session: &str,
-        name: &str,
-        activities: serde_json::Value,
-    ) -> serde_json::Value {
-        let response = mcp_post(
-            server,
-            Some(pat),
-            Some(session),
-            serde_json::json!({
-                "jsonrpc": "2.0", "id": name, "method": "tools/call",
-                "params": { "name": name, "arguments": { "activities": activities } }
-            }),
-        )
-        .await;
-        assert_eq!(response.status(), 200);
-        let result = parse_sse_data(&response.text().await.unwrap());
-        assert!(result.get("error").is_none(), "{result}");
-        assert_ne!(result["result"]["isError"], true, "{result}");
-        result["result"]["structuredContent"].clone()
-    }
-
     let server = spawn_server(true, false).await;
     let cookie = login(&server).await;
-    let account = post_api(
+    let account = api_post(
         &server,
         &cookie,
         "accounts",
@@ -584,7 +540,7 @@ async fn mcp_import_reuses_reviewed_crypto_assets_despite_equity_collisions() {
     let mut crypto_ids = Vec::new();
     for symbol in ["BNB", "PEPE"] {
         for kind in ["EQUITY", "CRYPTO"] {
-            let asset = post_api(
+            let asset = api_post(
                 &server,
                 &cookie,
                 "assets",
@@ -618,12 +574,12 @@ async fn mcp_import_reuses_reviewed_crypto_assets_despite_equity_collisions() {
     for row in activities.as_array_mut().unwrap() {
         row["accountId"] = account["id"].clone();
     }
-    let preview = call_import(
+    let preview = mcp_call_tool(
         &server,
         pat,
         &session,
         "prepare_activity_import",
-        activities.clone(),
+        serde_json::json!({ "activities": activities.clone() }),
     )
     .await;
     assert_eq!(preview["summary"]["valid"], 3, "{preview}");
@@ -643,11 +599,18 @@ async fn mcp_import_reuses_reviewed_crypto_assets_despite_equity_collisions() {
             .unwrap()
             .extend(reviewed.as_object().unwrap().clone());
     }
-    let committed = call_import(&server, pat, &session, "commit_activity_import", activities).await;
+    let committed = mcp_call_tool(
+        &server,
+        pat,
+        &session,
+        "commit_activity_import",
+        serde_json::json!({ "activities": activities }),
+    )
+    .await;
     assert_eq!(committed["summary"]["imported"], 3, "{committed}");
     assert_eq!(committed["summary"]["assetsCreated"], 0, "{committed}");
 
-    let stored = post_api(
+    let stored = api_post(
         &server,
         &cookie,
         "activities/search",
@@ -807,6 +770,114 @@ async fn disable_market_data_providers(server: &TestServer, cookie: &str) {
             .unwrap();
         assert!(response.status().is_success(), "{provider}");
     }
+}
+
+/// Regression guard for #1375 / #1602, fixed on main by ad574a2b5 (imports)
+/// and 92df6b700 (draft commits): MCP writes for a security that is not stored
+/// yet must create the asset and link the activity to it, not save an activity
+/// with no asset while reporting success. Providers are disabled, so every
+/// identity is resolved from the rows alone.
+#[tokio::test]
+async fn mcp_writes_link_activities_to_newly_created_assets() {
+    let server = spawn_server(true, false).await;
+    let cookie = login(&server).await;
+    disable_market_data_providers(&server, &cookie).await;
+    let (pat, session) = activity_writer_session(&server, &cookie).await;
+
+    // Import: symbol-only rows, as an agent maps them from a statement.
+    let crypto_account = api_post(
+        &server,
+        &cookie,
+        "accounts",
+        serde_json::json!({
+            "name": "Import crypto", "accountType": "CRYPTOCURRENCY", "currency": "EUR",
+            "isDefault": false, "isActive": true, "trackingMode": "TRANSACTIONS"
+        }),
+    )
+    .await;
+    let suffix_account = create_eur_account(&server, &cookie, "Import ticker").await;
+    let securities_account = create_eur_account(&server, &cookie, "Import securities").await;
+    for (account, row, symbol) in [
+        // A ticker as in the reports, its suffix naming the venue.
+        (
+            &suffix_account,
+            serde_json::json!({
+                "symbol": "ZZSUF.PA", "instrumentType": "EQUITY", "quoteCcy": "EUR"
+            }),
+            "ZZSUF",
+        ),
+        (
+            &crypto_account,
+            serde_json::json!({
+                "symbol": "ZZCOIN", "instrumentType": "CRYPTO", "quoteMode": "MANUAL"
+            }),
+            "ZZCOIN",
+        ),
+        (
+            &securities_account,
+            serde_json::json!({
+                "symbol": "ZZIMPORT", "exchangeMic": "XPAR", "instrumentType": "EQUITY",
+                "quoteCcy": "EUR", "quoteMode": "MANUAL"
+            }),
+            "ZZIMPORT",
+        ),
+    ] {
+        let mut row = row;
+        row.as_object_mut().unwrap().extend(
+            serde_json::json!({
+                "accountId": account["id"], "activityType": "BUY", "date": "2026-07-27",
+                "currency": "EUR", "quantity": 2, "unitPrice": 10.0
+            })
+            .as_object()
+            .unwrap()
+            .clone(),
+        );
+        let preview = mcp_call_tool(
+            &server,
+            &pat,
+            &session,
+            "prepare_activity_import",
+            serde_json::json!({ "activities": [row.clone()] }),
+        )
+        .await;
+        assert_eq!(preview["summary"]["valid"], 1, "{preview}");
+        let committed = mcp_call_tool(
+            &server,
+            &pat,
+            &session,
+            "commit_activity_import",
+            serde_json::json!({ "activities": [row] }),
+        )
+        .await;
+        assert_eq!(committed["summary"]["imported"], 1, "{committed}");
+        assert_eq!(committed["summary"]["assetsCreated"], 1, "{committed}");
+        let imported = stored_activities(&server, &cookie, account).await;
+        assert_eq!(imported.len(), 1);
+        assert_eq!(imported[0]["assetSymbol"], symbol, "{imported:?}");
+    }
+
+    // Draft commit: the shape record_activity returns for a resolved security
+    // that has no stored asset yet, including its non-UUID draft asset id.
+    let account = create_eur_account(&server, &cookie, "Draft").await;
+    let draft = serde_json::json!({
+        "accountId": account["id"], "activityType": "BUY", "activityDate": "2026-08-28",
+        "symbol": "ZZDRAFT", "assetId": "ZZDRAFT:XPAR", "assetName": "Synthetic ETF",
+        "exchangeMic": "XPAR", "quoteCcy": "EUR", "instrumentType": "ETF",
+        "currency": "EUR", "quantity": 3, "unitPrice": 18.9,
+        "priceSource": "user", "pricingMode": "MARKET", "isCustomAsset": false
+    });
+    let created = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "commit_activity_draft",
+        serde_json::json!({ "draft": draft }),
+    )
+    .await;
+    let drafted = stored_activities(&server, &cookie, &account).await;
+    assert_eq!(drafted.len(), 1);
+    assert_eq!(drafted[0]["assetSymbol"], "ZZDRAFT", "{drafted:?}");
+    assert_eq!(created["created"]["assetId"], drafted[0]["assetId"]);
 }
 
 /// When validation rejects a row, commit_activity_import must not import it
