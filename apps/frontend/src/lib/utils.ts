@@ -206,9 +206,11 @@ export function tryParseDate(dateStr: string, order?: DateOrder): Date | null {
     } catch {}
   }
 
-  // Try Unix timestamp (in seconds or milliseconds)
-  const num = parseInt(cleaned);
-  if (!isNaN(num)) {
+  // Try Unix timestamp (in seconds or milliseconds). Only a bare number is one:
+  // parseInt would read the leading digits of "09/16/2026 AS OF 09/15/2026" as
+  // 9 seconds after the epoch.
+  if (/^\d+$/.test(cleaned)) {
+    const num = Number(cleaned);
     const timestampDate = new Date(num > 1000000000000 ? num : num * 1000);
     if (isValid(timestampDate) && isDateInRange(timestampDate)) {
       return timestampDate;
