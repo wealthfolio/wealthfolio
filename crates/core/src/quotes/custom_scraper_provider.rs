@@ -648,9 +648,13 @@ impl CustomScraperProvider {
                     provider: DATA_SOURCE_CUSTOM_SCRAPER.to_string(),
                     message: format!("Failed to load source config: {}", e),
                 })?
+                // The repository returns nothing for disabled or deleted providers too.
                 .ok_or_else(|| MarketDataError::ProviderError {
                     provider: DATA_SOURCE_CUSTOM_SCRAPER.to_string(),
-                    message: format!("No '{}' source configured for provider '{}'", kind, code),
+                    message: format!(
+                        "Custom provider '{}' is disabled, deleted, or has no '{}' source",
+                        code, kind
+                    ),
                 })?;
             return Ok(vec![source]);
         }
@@ -1520,6 +1524,20 @@ mod tests {
 
         assert_eq!(sources.len(), 1);
         assert_eq!(sources[0].provider_id, "private-fund");
+    }
+
+    #[test]
+    fn find_sources_explains_a_missing_assigned_provider() {
+        let repo = Arc::new(MockCustomProviderRepository { providers: vec![] });
+        let provider = CustomScraperProvider::new(repo, Arc::new(MockSecretStore));
+
+        let error = provider
+            .find_sources(&equity_context(Some("deleted-fund")), "latest")
+            .unwrap_err();
+
+        assert!(error
+            .to_string()
+            .contains("'deleted-fund' is disabled, deleted, or has no 'latest' source"));
     }
 
     #[tokio::test]

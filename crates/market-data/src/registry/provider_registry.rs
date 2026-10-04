@@ -1045,6 +1045,8 @@ impl ProviderRegistry {
                     diagnostics.record_error(provider_id.clone(), format!("{:?}", e));
 
                     match retry_class {
+                        // A terminal answer wins over an earlier failure: sync relies on its
+                        // kind (e.g. "symbol not found" is non-fatal while backfilling).
                         RetryClass::Never => {
                             diagnostics.error_provider = Some(provider_id);
                             return (Err(e), diagnostics);
