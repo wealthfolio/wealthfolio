@@ -1280,7 +1280,9 @@ export function AssetEditSheet({
                               </FormControl>
                             )}
                             <p className="text-muted-foreground text-xs">
-                              {t("asset:editSheet.preferred_provider_hint")}
+                              {field.value?.startsWith("CUSTOM:")
+                                ? t("asset:editSheet.preferred_provider_custom_hint")
+                                : t("asset:editSheet.preferred_provider_hint")}
                             </p>
                           </FormItem>
                         )}

@@ -31,6 +31,9 @@ pub enum SkipReason {
 
     /// Provider doesn't support historical quotes (for historical fetch).
     HistoricalNotSupported,
+
+    /// The security is assigned to a custom provider, which serves it alone.
+    AssignedToCustomProvider,
 }
 
 /// Record of a single provider attempt during a fetch.
@@ -46,12 +49,15 @@ pub struct ProviderAttempt {
 #[derive(Clone, Debug, Default)]
 pub struct FetchDiagnostics {
     pub attempts: Vec<ProviderAttempt>,
+    /// Provider whose error the fetch returned, when a provider's error was returned.
+    pub error_provider: Option<ProviderId>,
 }
 
 impl FetchDiagnostics {
     pub fn new() -> Self {
         Self {
             attempts: Vec::new(),
+            error_provider: None,
         }
     }
 

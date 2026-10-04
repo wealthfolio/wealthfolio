@@ -296,6 +296,7 @@
     "custom": "カスタム",
     "preferred_provider_sheet_description": "この資産で最初に使用するプロバイダーを選択します",
     "preferred_provider_hint": "価格取得時に最初に試すプロバイダーを選択します。",
+    "preferred_provider_custom_hint": "この資産の価格はこのカスタムプロバイダーからのみ取得します。失敗しても他のプロバイダーは試行されません。",
     "symbol_mapping": "銘柄マッピング",
     "symbol_mapping_hint": "既定の銘柄コードで取得できない場合は、プロバイダーごとに別のティッカーを指定できます。",
     "add": "追加",

@@ -296,6 +296,7 @@
     "custom": "Personalizado",
     "preferred_provider_sheet_description": "Selecione qual provedor usar primeiro para este ativo",
     "preferred_provider_hint": "Escolha qual provedor tentar primeiro ao obter preços.",
+    "preferred_provider_custom_hint": "Os preços deste ativo vêm somente deste provedor personalizado. Se ele falhar, nenhum outro provedor é tentado.",
     "symbol_mapping": "Mapeamento de símbolo",
     "symbol_mapping_hint": "Use um ticker diferente para provedores específicos se o padrão não funcionar.",
     "add": "Adicionar",

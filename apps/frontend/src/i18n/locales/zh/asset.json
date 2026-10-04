@@ -296,6 +296,7 @@
     "custom": "自定义",
     "preferred_provider_sheet_description": "选择优先用于此资产的提供商",
     "preferred_provider_hint": "选择获取价格时优先尝试的提供商。",
+    "preferred_provider_custom_hint": "此资产的价格仅来自此自定义提供商。如果它失败，不会尝试其他提供商。",
     "symbol_mapping": "代码映射",
     "symbol_mapping_hint": "如果默认代码不起作用，可为特定提供商使用不同的代码。",
     "add": "添加",

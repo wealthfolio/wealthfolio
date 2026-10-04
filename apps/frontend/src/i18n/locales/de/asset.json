@@ -296,6 +296,7 @@
     "custom": "Benutzerdefiniert",
     "preferred_provider_sheet_description": "Wählen Sie aus, welcher Anbieter für diese Anlage zuerst verwendet werden soll",
     "preferred_provider_hint": "Wählen Sie, welcher Anbieter beim Abrufen der Preise zuerst versucht werden soll.",
+    "preferred_provider_custom_hint": "Preise für diesen Wert kommen nur von diesem benutzerdefinierten Anbieter. Schlägt er fehl, werden keine anderen Anbieter versucht.",
     "symbol_mapping": "Symbolzuordnung",
     "symbol_mapping_hint": "Verwenden Sie für bestimmte Anbieter ein anderes Symbol, falls das Standardsymbol nicht funktioniert.",
     "add": "Hinzufügen",

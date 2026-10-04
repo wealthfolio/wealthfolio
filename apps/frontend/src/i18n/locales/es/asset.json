@@ -296,6 +296,7 @@
     "custom": "Personalizado",
     "preferred_provider_sheet_description": "Selecciona qué proveedor usar primero para este activo",
     "preferred_provider_hint": "Elige qué proveedor probar primero al obtener precios.",
+    "preferred_provider_custom_hint": "Los precios de este activo solo provienen de este proveedor personalizado. Si falla, no se prueban otros proveedores.",
     "symbol_mapping": "Correspondencia de símbolo",
     "symbol_mapping_hint": "Usa un ticker distinto para proveedores específicos si el predeterminado no funciona.",
     "add": "Añadir",

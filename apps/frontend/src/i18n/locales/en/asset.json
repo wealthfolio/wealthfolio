@@ -296,6 +296,7 @@
     "custom": "Custom",
     "preferred_provider_sheet_description": "Select which provider to use first for this asset",
     "preferred_provider_hint": "Choose which provider to try first when fetching prices.",
+    "preferred_provider_custom_hint": "Prices for this security come only from this custom provider. If it fails, other providers aren't tried.",
     "symbol_mapping": "Symbol Mapping",
     "symbol_mapping_hint": "Use a different ticker for specific providers if the default doesn't work.",
     "add": "Add",

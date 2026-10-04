@@ -234,3 +234,28 @@ describe("AssetEditSheet bond spec", () => {
     expect((await saveAndGetMetadata()).bond).toMatchObject({ faceValue: 100 });
   });
 });
+
+describe("AssetEditSheet preferred provider hint", () => {
+  function renderMarketData(asset: Asset) {
+    return render(
+      <AssetEditSheet asset={asset} open onOpenChange={vi.fn()} defaultTab="market-data" />,
+    );
+  }
+
+  it("explains that a custom provider is the only source for the security", () => {
+    renderMarketData(
+      buildAsset({
+        providerConfig: { preferred_provider: "CUSTOM_SCRAPER", custom_provider_code: "fund" },
+      }),
+    );
+
+    expect(screen.getByText(/come only from this custom provider/i)).toBeInTheDocument();
+    expect(screen.queryByText(/which provider to try first/i)).not.toBeInTheDocument();
+  });
+
+  it("keeps the try-first hint for built-in providers", () => {
+    renderMarketData(buildAsset({ providerConfig: { preferred_provider: "YAHOO" } }));
+
+    expect(screen.getByText(/which provider to try first/i)).toBeInTheDocument();
+  });
+});

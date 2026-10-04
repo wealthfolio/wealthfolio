@@ -29,6 +29,17 @@ fn is_unverified_fallback(source: ResolutionSource) -> bool {
     source == ResolutionSource::RulesFallback
 }
 
+/// A security assigned to a custom provider is served by it alone, so its identifiers
+/// never reach other providers when the custom source fails.
+fn excluded_by_custom_assignment(
+    provider: &dyn MarketDataProvider,
+    context: &QuoteContext,
+) -> bool {
+    context.custom_provider_code.is_some()
+        && context.preferred_provider.as_deref() == Some(DATA_SOURCE_CUSTOM_SCRAPER)
+        && provider.id() != DATA_SOURCE_CUSTOM_SCRAPER
+}
+
 /// Provider registry for orchestrating market data fetching.
 pub struct ProviderRegistry {
     providers: Vec<Arc<dyn MarketDataProvider>>,
@@ -481,7 +492,9 @@ impl ProviderRegistry {
             .iter()
             .filter(|p| {
                 let caps = p.capabilities();
-                caps.supports_dividends && caps.supports_instrument(&context.instrument)
+                caps.supports_dividends
+                    && caps.supports_instrument(&context.instrument)
+                    && !excluded_by_custom_assignment(p.as_ref(), context)
             })
             .collect();
 
@@ -557,8 +570,9 @@ impl ProviderRegistry {
     /// Orders providers by:
     /// 1. Filter to providers that support the instrument (kind + coverage)
     /// 2. Filter by operation capability (historical or latest)
-    /// 3. Preferred provider first (if set and available)
-    /// 4. Then by priority (lower is higher priority)
+    /// 3. Only the custom provider, if the security is assigned to one
+    /// 4. Preferred provider first (if set and available)
+    /// 5. Then by priority (lower is higher priority)
     ///
     /// # Arguments
     /// * `context` - The quote context with instrument info
@@ -572,6 +586,9 @@ impl ProviderRegistry {
             .providers
             .iter()
             .filter(|p| {
+                if excluded_by_custom_assignment(p.as_ref(), context) {
+                    return false;
+                }
                 let caps = p.capabilities();
                 // Check instrument support
                 if !caps.supports_instrument(&context.instrument) {
@@ -600,7 +617,9 @@ impl ProviderRegistry {
             .iter()
             .filter(|p| {
                 let caps = p.capabilities();
-                caps.supports_profile && caps.supports_instrument(&context.instrument)
+                caps.supports_profile
+                    && caps.supports_instrument(&context.instrument)
+                    && !excluded_by_custom_assignment(p.as_ref(), context)
             })
             .collect();
 
@@ -619,6 +638,10 @@ impl ProviderRegistry {
 
         for provider in &self.providers {
             let provider_id: ProviderId = Cow::Borrowed(provider.id());
+            if excluded_by_custom_assignment(provider.as_ref(), context) {
+                diagnostics.record_skip(provider_id, SkipReason::AssignedToCustomProvider);
+                continue;
+            }
             let caps = provider.capabilities();
 
             // Check capability for fetch type
@@ -922,7 +945,9 @@ impl ProviderRegistry {
             return (Err(MarketDataError::NoProvidersAvailable), diagnostics);
         }
 
-        let mut last_error: Option<MarketDataError> = None;
+        // The most-preferred provider's failure explains the fetch best. Later
+        // fallbacks failing must not replace it in the sync error.
+        let mut first_error: Option<MarketDataError> = None;
         let mut saw_no_data = false;
 
         for provider in providers {
@@ -995,9 +1020,12 @@ impl ProviderRegistry {
                             provider_id.clone(),
                             "All quotes failed validation".to_string(),
                         );
-                        last_error = Some(MarketDataError::ValidationFailed {
-                            message: "All quotes failed validation".to_string(),
-                        });
+                        if first_error.is_none() {
+                            first_error = Some(MarketDataError::ValidationFailed {
+                                message: "All quotes failed validation".to_string(),
+                            });
+                            diagnostics.error_provider = Some(provider_id.clone());
+                        }
                         continue;
                     }
 
@@ -1020,6 +1048,7 @@ impl ProviderRegistry {
 
                     match retry_class {
                         RetryClass::Never => {
+                            diagnostics.error_provider = Some(provider_id);
                             return (Err(e), diagnostics);
                         }
                         RetryClass::FailoverWithPenalty | RetryClass::CircuitOpen => {
@@ -1028,7 +1057,10 @@ impl ProviderRegistry {
                         RetryClass::NextProvider => {}
                     }
 
-                    last_error = Some(e);
+                    if first_error.is_none() {
+                        first_error = Some(e);
+                        diagnostics.error_provider = Some(provider_id);
+                    }
                 }
             }
         }
@@ -1037,7 +1069,7 @@ impl ProviderRegistry {
             "All providers failed. Diagnostics: {}",
             diagnostics.summary()
         );
-        let error = last_error.unwrap_or_else(|| {
+        let error = first_error.unwrap_or_else(|| {
             if saw_no_data {
                 MarketDataError::NoDataForRange
             } else {
@@ -1434,6 +1466,100 @@ mod tests {
         assert_eq!(counts.splits.load(Ordering::SeqCst), 0);
         assert_eq!(counts.dividends.load(Ordering::SeqCst), 0);
         assert_eq!(counts.profile.load(Ordering::SeqCst), 0);
+    }
+
+    fn equity_context(
+        preferred_provider: Option<&'static str>,
+        custom_provider_code: Option<&str>,
+    ) -> QuoteContext {
+        QuoteContext {
+            instrument: InstrumentId::Equity {
+                ticker: Arc::from("FUNDA"),
+                mic: Some(Cow::Borrowed("XNAS")),
+            },
+            identifiers: Default::default(),
+            overrides: None,
+            currency_hint: None,
+            preferred_provider: preferred_provider.map(Cow::Borrowed),
+            bond_metadata: None,
+            custom_provider_code: custom_provider_code.map(str::to_string),
+        }
+    }
+
+    #[tokio::test]
+    async fn custom_assignment_keeps_every_operation_on_the_custom_provider() {
+        let counts = Arc::new(OperationCounts::default());
+        let builtin: Arc<dyn MarketDataProvider> = Arc::new(AllOperationsProvider {
+            id: "YAHOO",
+            counts: Arc::clone(&counts),
+        });
+        let custom = Arc::new(MockProvider::new(DATA_SOURCE_CUSTOM_SCRAPER, 50, true));
+        let registry = ProviderRegistry::new(vec![builtin, custom.clone()], Arc::new(MockResolver));
+        let context = equity_context(Some(DATA_SOURCE_CUSTOM_SCRAPER), Some("private-nav"));
+        let now = Utc::now();
+
+        assert!(registry.fetch_latest_quote(&context).await.is_err());
+        assert!(registry.fetch_quotes(&context, now, now).await.is_err());
+        assert!(registry
+            .fetch_quotes_for_reset(&context, now, now)
+            .await
+            .is_err());
+        assert!(registry.fetch_splits(&context, now, now).await.is_empty());
+        assert!(registry.fetch_dividends(&context, now, now).await.is_err());
+        assert!(registry.get_profile(&context).await.is_err());
+        assert!(registry
+            .fetch_latest_quote_with_diagnostics(&context)
+            .await
+            .0
+            .is_err());
+        let (history, diagnostics) = registry
+            .fetch_quotes_with_diagnostics(&context, now, now)
+            .await;
+
+        assert!(history.is_err());
+        assert!(diagnostics.skip_reasons().iter().any(|(id, reason)| {
+            id.as_ref() == "YAHOO" && matches!(reason, SkipReason::AssignedToCustomProvider)
+        }));
+        assert!(custom.call_count.load(Ordering::SeqCst) > 0);
+        assert_eq!(counts.latest.load(Ordering::SeqCst), 0);
+        assert_eq!(counts.historical.load(Ordering::SeqCst), 0);
+        assert_eq!(counts.splits.load(Ordering::SeqCst), 0);
+        assert_eq!(counts.dividends.load(Ordering::SeqCst), 0);
+        assert_eq!(counts.profile.load(Ordering::SeqCst), 0);
+    }
+
+    #[tokio::test]
+    async fn stale_custom_code_does_not_restrict_another_preferred_provider() {
+        let yahoo = Arc::new(MockProvider::new("YAHOO", 1, false));
+        let registry = ProviderRegistry::new(vec![yahoo.clone()], Arc::new(MockResolver));
+        let context = equity_context(Some("YAHOO"), Some("private-nav"));
+
+        assert!(registry.fetch_latest_quote(&context).await.is_ok());
+        assert_eq!(yahoo.call_count.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn diagnostics_report_the_most_preferred_providers_failure() {
+        let preferred = Arc::new(MockProvider::new("PREFERRED", 1, true));
+        let fallback = Arc::new(MockProvider::new("FALLBACK", 10, true));
+        let registry = ProviderRegistry::new(
+            vec![fallback.clone(), preferred.clone()],
+            Arc::new(MockResolver),
+        );
+        let now = Utc::now();
+
+        let (result, diagnostics) = registry
+            .fetch_quotes_with_diagnostics(&equity_context(None, None), now, now)
+            .await;
+
+        match result {
+            Err(MarketDataError::ProviderError { provider, .. }) => {
+                assert_eq!(provider, "PREFERRED")
+            }
+            other => panic!("expected the preferred provider's error, got {other:?}"),
+        }
+        assert_eq!(diagnostics.error_provider.as_deref(), Some("PREFERRED"));
+        assert_eq!(fallback.call_count.load(Ordering::SeqCst), 1);
     }
 
     #[tokio::test]

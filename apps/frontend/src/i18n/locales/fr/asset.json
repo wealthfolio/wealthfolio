@@ -296,6 +296,7 @@
     "custom": "Personnalisé",
     "preferred_provider_sheet_description": "Sélectionnez le fournisseur à utiliser en premier pour cet actif",
     "preferred_provider_hint": "Choisissez le fournisseur à essayer en premier lors de la récupération des prix.",
+    "preferred_provider_custom_hint": "Les prix de cet actif proviennent uniquement de ce fournisseur personnalisé. En cas d'échec, aucun autre fournisseur n'est essayé.",
     "symbol_mapping": "Mappage de symbole",
     "symbol_mapping_hint": "Utilisez un symbole différent pour des fournisseurs spécifiques si le symbole par défaut ne fonctionne pas.",
     "add": "Ajouter",

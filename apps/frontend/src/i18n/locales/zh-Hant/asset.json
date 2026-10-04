@@ -296,6 +296,7 @@
     "custom": "自訂",
     "preferred_provider_sheet_description": "選取此資產優先使用的資料來源",
     "preferred_provider_hint": "選取取得價格時要優先嘗試的資料來源。",
+    "preferred_provider_custom_hint": "此資產的價格僅來自此自訂資料來源。若失敗，不會嘗試其他資料來源。",
     "symbol_mapping": "代號對應",
     "symbol_mapping_hint": "如果預設代號無法使用，可為特定資料來源指定其他代號。",
     "add": "新增",

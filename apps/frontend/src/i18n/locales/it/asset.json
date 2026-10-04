@@ -296,6 +296,7 @@
     "custom": "Personalizzato",
     "preferred_provider_sheet_description": "Seleziona quale provider usare per primo per questo asset",
     "preferred_provider_hint": "Scegli quale provider provare per primo durante il recupero dei prezzi.",
+    "preferred_provider_custom_hint": "I prezzi di questo asset provengono solo da questo provider personalizzato. Se non risponde, non vengono provati altri provider.",
     "symbol_mapping": "Associazione simbolo",
     "symbol_mapping_hint": "Usa un ticker diverso per provider specifici se quello predefinito non funziona.",
     "add": "Aggiungi",
