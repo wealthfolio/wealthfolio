@@ -381,7 +381,9 @@ impl Account {
                 self.id.clone(),
             ));
         };
-        let unreadable = |reason: String| {
+        // Failures are logged, so the reason names what could not be read and
+        // never echoes the stored value (serde's messages quote it).
+        let unreadable = |reason: &str| {
             Error::Validation(ValidationError::InvalidInput(format!(
                 "Accounting settings for account {} cannot be read: {reason}.",
                 self.id
@@ -389,19 +391,19 @@ impl Account {
         };
 
         let meta = serde_json::from_str::<Value>(raw_meta)
-            .map_err(|error| unreadable(error.to_string()))?;
+            .map_err(|_| unreadable("its meta is not JSON"))?;
         let Some(accounting) = meta.get(ACCOUNTING_META_KEY) else {
             return Ok(AccountAccountingSettings::default_for_account(
                 self.id.clone(),
             ));
         };
         if !accounting.is_object() {
-            return Err(unreadable(format!(
-                "its {ACCOUNTING_META_KEY} entry is not an object"
-            )));
+            return Err(unreadable("its accounting entry is not an object"));
         }
         serde_json::from_value::<AccountAccountingSettingsMeta>(accounting.clone())
-            .map_err(|error| unreadable(error.to_string()))?
+            .map_err(|_| {
+                unreadable("its accounting entry holds a value this version does not know")
+            })?
             .into_settings(self.id.clone())
     }
 }

@@ -154,21 +154,28 @@ mod tests {
     #[test]
     fn accounting_settings_this_version_cannot_read_are_an_error() {
         for meta in [
-            "{not json",
-            r#"{"accounting":"LIFO"}"#,
+            "{NEWER_CODE",
+            r#"{"accounting":"NEWER_CODE"}"#,
             r#"{"accounting":null}"#,
-            r#"{"accounting":["FIFO"]}"#,
-            r#"{"accounting":{"costBasisMethod":"ACB"}}"#,
-            r#"{"accounting":{"costBasisMethod":7}}"#,
-            r#"{"accounting":{"costBasisProfile":"UK_S104"}}"#,
-            r#"{"accounting":{"poolingScope":"HOUSEHOLD"}}"#,
-            r#"{"accounting":{"lotSelectionStrategy":"MAX_LOSS"}}"#,
+            r#"{"accounting":["NEWER_CODE"]}"#,
+            r#"{"accounting":{"costBasisMethod":"NEWER_CODE"}}"#,
+            r#"{"accounting":{"costBasisMethod":987654321}}"#,
+            r#"{"accounting":{"costBasisProfile":"NEWER_CODE"}}"#,
+            r#"{"accounting":{"poolingScope":"NEWER_CODE"}}"#,
+            r#"{"accounting":{"lotSelectionStrategy":"NEWER_CODE"}}"#,
+            r#"{"accounting":{"createdAt":987654321}}"#,
         ] {
-            let error = accounting_settings_of(Some(meta)).expect_err(meta);
+            let error = accounting_settings_of(Some(meta))
+                .expect_err(meta)
+                .to_string();
             assert!(
-                error
-                    .to_string()
-                    .contains("Accounting settings for account acc cannot be read"),
+                error.contains("Accounting settings for account acc cannot be read"),
+                "{meta}: {error}"
+            );
+            // Failures are logged: the message names what it could not read,
+            // never the stored value.
+            assert!(
+                !error.contains("NEWER_CODE") && !error.contains("987654321"),
                 "{meta}: {error}"
             );
         }
