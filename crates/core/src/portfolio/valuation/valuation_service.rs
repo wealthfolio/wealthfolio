@@ -13,7 +13,7 @@ use super::valuation_model::{DailyAccountValuation, NegativeBalanceInfo, Valuati
 use super::valuation_traits::ValuationRepositoryTrait;
 use crate::errors::Result as CoreResult;
 use crate::lots::LotRepositoryTrait;
-use crate::portfolio::coordinator::{rows, valuation_rows, FactSources};
+use crate::portfolio::coordinator::{blocking_read, rows, valuation_rows, FactSources};
 use crate::portfolio::economic_events::BasisStatus;
 use crate::utils::time_utils::{parse_user_timezone_or_default, user_today};
 use wealthfolio_portfolio_engine as engine;
@@ -116,6 +116,50 @@ impl ValuationService {
     fn today(&self) -> NaiveDate {
         let timezone = self.timezone.read().unwrap_or_else(|p| p.into_inner());
         user_today(parse_user_timezone_or_default(&timezone))
+    }
+
+    /// The scope's history with transfers between in-scope accounts netted,
+    /// from the full stored history and the facts that price the legs.
+    async fn aggregate_scope_history(
+        &self,
+        scope_id: &str,
+        account_ids: &[String],
+        base_currency: &str,
+        start_date_opt: Option<NaiveDate>,
+        end_date_opt: Option<NaiveDate>,
+        as_of: NaiveDate,
+    ) -> CoreResult<Vec<DailyAccountValuation>> {
+        let rows = self
+            .valuation_repository
+            .get_historical_valuations_for_accounts(account_ids, None, None)?;
+        let measured = rows::measure_engine(
+            &self.sources,
+            account_ids,
+            base_currency,
+            &self.timezone.read().unwrap_or_else(|p| p.into_inner()),
+            as_of,
+        )?;
+        let mut disposal_rows = Vec::new();
+        let mut lot_rows = Vec::new();
+        for account_id in account_ids {
+            disposal_rows.extend(self.lots.get_lot_disposals_for_account(account_id).await?);
+            lot_rows.extend(self.lots.get_all_lots_for_account(account_id).await?);
+        }
+        let series = rows::stored_series(&rows);
+        let disposals = rows::stored_disposals(&disposal_rows);
+        let lots = rows::stored_lots(&lot_rows);
+        let scope: Vec<AccountId> = account_ids.iter().map(AccountId::new).collect();
+        let rejected = rows::stored_rejections(&self.sources, &measured)?;
+        let aggregated = engine::aggregate_scope(
+            &measured.effects(&disposals, &lots, &rejected),
+            &series,
+            &scope,
+            engine::Window {
+                start: start_date_opt,
+                end: end_date_opt,
+            },
+        )?;
+        Ok(valuation_rows(&aggregated, scope_id, base_currency))
     }
 }
 
@@ -222,38 +266,26 @@ impl ValuationServiceTrait for ValuationService {
         }
         // Several accounts: the kernel's scope aggregation nets the transfer
         // pairs whose both legs are in scope. It needs the full stored
-        // history plus the facts (activities, disposals) that price the legs.
-        let rows = self
-            .valuation_repository
-            .get_historical_valuations_for_accounts(account_ids, None, None)?;
-        let measured = rows::measure_engine(
-            &self.sources,
-            account_ids,
-            base_currency,
-            &self.timezone.read().unwrap_or_else(|p| p.into_inner()),
-            self.today(),
-        )?;
-        let mut disposal_rows = Vec::new();
-        let mut lot_rows = Vec::new();
-        for account_id in account_ids {
-            disposal_rows.extend(self.lots.get_lot_disposals_for_account(account_id).await?);
-            lot_rows.extend(self.lots.get_all_lots_for_account(account_id).await?);
-        }
-        let series = rows::stored_series(&rows);
-        let disposals = rows::stored_disposals(&disposal_rows);
-        let lots = rows::stored_lots(&lot_rows);
-        let scope: Vec<AccountId> = account_ids.iter().map(AccountId::new).collect();
-        let rejected = rows::stored_rejections(&self.sources, &measured)?;
-        let aggregated = engine::aggregate_scope(
-            &measured.effects(&disposals, &lots, &rejected),
-            &series,
-            &scope,
-            engine::Window {
-                start: start_date_opt,
-                end: end_date_opt,
-            },
-        )?;
-        Ok(valuation_rows(&aggregated, scope_id, base_currency))
+        // history plus the facts (activities, disposals) that price the legs,
+        // so it runs off the async workers. "Today" is read here, on the
+        // caller's thread, where tests pin the clock.
+        let as_of = self.today();
+        let service = self.clone();
+        let scope_id = scope_id.to_string();
+        let account_ids = account_ids.to_vec();
+        let base_currency = base_currency.to_string();
+        let handle = tokio::runtime::Handle::current();
+        blocking_read(move || {
+            handle.block_on(service.aggregate_scope_history(
+                &scope_id,
+                &account_ids,
+                &base_currency,
+                start_date_opt,
+                end_date_opt,
+                as_of,
+            ))
+        })
+        .await
     }
 
     fn get_historical_valuation_totals_for_accounts(

@@ -270,6 +270,12 @@ impl WriteProjection {
 /// Spawns a background Tokio task that acts as a single writer to the database.
 /// This actor owns one database connection from the pool and processes write jobs serially.
 ///
+/// Each job is a synchronous SQLite transaction, so the actor runs on Tokio's
+/// blocking pool rather than as an async task, where every transaction would
+/// hold an async worker. The runtime still owns it: shutting the runtime down
+/// drops the async tasks holding write handles, then waits for the actor to
+/// release its connection, so nothing is closing it while the process exits.
+///
 /// # Arguments
 /// * `pool`: The database connection pool.
 ///
@@ -345,11 +351,11 @@ fn spawn_writer_inner(
     // The channel is bounded; 1024 is an arbitrary size.
     let (tx, mut rx) = mpsc::channel::<WriteMessage>(1024);
 
-    let join = tokio::spawn(async move {
+    let join = tokio::task::spawn_blocking(move || {
         let mut shutdown_ack: Option<oneshot::Sender<()>> = None;
 
         // Loop to receive and process jobs.
-        while let Some(message) = rx.recv().await {
+        while let Some(message) = rx.blocking_recv() {
             let (job, reply_tx) = match message {
                 WriteMessage::Job(job, reply_tx) => (job, reply_tx),
                 WriteMessage::Shutdown(ack) => {
@@ -381,7 +387,7 @@ fn spawn_writer_inner(
             // Ignore error if the receiver has dropped (e.g., request timed out or was cancelled).
             let _ = reply_tx.send(result);
         }
-        // If rx.recv() returns None, it means every sender (WriteHandle) was
+        // If rx.blocking_recv() returns None, it means every sender (WriteHandle) was
         // dropped, so the actor can terminate.
 
         // Release the pooled connection before acknowledging, so that a caller
@@ -538,6 +544,36 @@ mod tests {
         let (queued, ()) = tokio::join!(queued, stopped);
         assert_eq!(queued.expect("queued write must still run"), 7);
         task.join().await;
+    }
+
+    /// The job holds its thread until another task has run. On the runtime's
+    /// only async worker that task could not run, so the job would wait out
+    /// its timeout instead.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+    async fn a_long_write_leaves_the_async_worker_free() {
+        let (writer, _task) =
+            spawn_writer_with_outbox_observer(setup_pool(), Arc::new(|| {})).expect("spawn writer");
+        let (started_tx, started_rx) = tokio_oneshot::channel();
+        let (release_tx, release_rx) = std::sync::mpsc::channel::<()>();
+
+        let write = tokio::spawn(async move {
+            writer
+                .exec(move |_conn| {
+                    let _ = started_tx.send(());
+                    Ok(release_rx
+                        .recv_timeout(std::time::Duration::from_secs(5))
+                        .is_ok())
+                })
+                .await
+        });
+        tokio::spawn(async move {
+            if started_rx.await.is_ok() {
+                let _ = release_tx.send(());
+            }
+        });
+
+        let released = write.await.expect("write task").expect("write");
+        assert!(released, "the write held the async worker");
     }
 
     #[tokio::test]

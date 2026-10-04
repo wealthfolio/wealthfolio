@@ -2462,3 +2462,233 @@ async fn the_app_matches_one_kernel_run_on_generated_scenarios() {
         found.join("\n")
     );
 }
+
+/// Valuation rows whose history reads hold their thread until another task
+/// has run. On a runtime's only async worker that task could not run, so the
+/// read would wait out its timeout instead.
+struct GatedValuations {
+    inner: Arc<dyn ValuationRepositoryTrait>,
+    started: std::sync::Mutex<Option<tokio::sync::oneshot::Sender<()>>>,
+    release: std::sync::Mutex<std::sync::mpsc::Receiver<()>>,
+    released_in_time: std::sync::atomic::AtomicBool,
+}
+
+impl GatedValuations {
+    fn new(
+        inner: Arc<dyn ValuationRepositoryTrait>,
+    ) -> (
+        Arc<Self>,
+        tokio::sync::oneshot::Receiver<()>,
+        std::sync::mpsc::Sender<()>,
+    ) {
+        let (started_tx, started_rx) = tokio::sync::oneshot::channel();
+        let (release_tx, release_rx) = std::sync::mpsc::channel();
+        let gate = Arc::new(Self {
+            inner,
+            started: std::sync::Mutex::new(Some(started_tx)),
+            release: std::sync::Mutex::new(release_rx),
+            released_in_time: std::sync::atomic::AtomicBool::new(false),
+        });
+        (gate, started_rx, release_tx)
+    }
+
+    fn hold(&self) {
+        let Some(started) = self.started.lock().unwrap().take() else {
+            return;
+        };
+        let _ = started.send(());
+        let released = self
+            .release
+            .lock()
+            .unwrap()
+            .recv_timeout(std::time::Duration::from_secs(5))
+            .is_ok();
+        self.released_in_time
+            .store(released, std::sync::atomic::Ordering::SeqCst);
+    }
+
+    /// Ends the wait of a releaser whose read never reached the rows.
+    fn close(&self) {
+        self.started.lock().unwrap().take();
+    }
+
+    fn released_in_time(&self) -> bool {
+        self.released_in_time
+            .load(std::sync::atomic::Ordering::SeqCst)
+    }
+}
+
+#[async_trait]
+impl ValuationRepositoryTrait for GatedValuations {
+    async fn replace_valuations_for_account(
+        &self,
+        account_id: &str,
+        since_date: Option<NaiveDate>,
+        valuation_records: &[crate::portfolio::valuation::DailyAccountValuation],
+    ) -> Result<()> {
+        self.inner
+            .replace_valuations_for_account(account_id, since_date, valuation_records)
+            .await
+    }
+
+    fn get_historical_valuations(
+        &self,
+        account_id: &str,
+        start_date: Option<NaiveDate>,
+        end_date: Option<NaiveDate>,
+    ) -> Result<Vec<crate::portfolio::valuation::DailyAccountValuation>> {
+        self.hold();
+        self.inner
+            .get_historical_valuations(account_id, start_date, end_date)
+    }
+
+    fn get_historical_valuations_for_accounts(
+        &self,
+        account_ids: &[String],
+        start_date: Option<NaiveDate>,
+        end_date: Option<NaiveDate>,
+    ) -> Result<Vec<crate::portfolio::valuation::DailyAccountValuation>> {
+        self.hold();
+        self.inner
+            .get_historical_valuations_for_accounts(account_ids, start_date, end_date)
+    }
+
+    async fn delete_valuations_for_account(
+        &self,
+        account_id: &str,
+        since_date: Option<NaiveDate>,
+    ) -> Result<()> {
+        self.inner
+            .delete_valuations_for_account(account_id, since_date)
+            .await
+    }
+
+    fn get_latest_valuations(
+        &self,
+        account_ids: &[String],
+    ) -> Result<Vec<crate::portfolio::valuation::DailyAccountValuation>> {
+        self.inner.get_latest_valuations(account_ids)
+    }
+
+    fn get_valuations_on_date(
+        &self,
+        account_ids: &[String],
+        date: NaiveDate,
+    ) -> Result<Vec<crate::portfolio::valuation::DailyAccountValuation>> {
+        self.inner.get_valuations_on_date(account_ids, date)
+    }
+
+    fn get_accounts_with_negative_balance(
+        &self,
+        account_ids: &[String],
+    ) -> Result<Vec<crate::portfolio::valuation::NegativeBalanceInfo>> {
+        self.inner.get_accounts_with_negative_balance(account_ids)
+    }
+}
+
+/// Releases the gated read once it has started. This task needs the async
+/// worker the read would hold if it ran there.
+fn release_when_started(
+    started: tokio::sync::oneshot::Receiver<()>,
+    release: std::sync::mpsc::Sender<()>,
+) -> tokio::task::JoinHandle<()> {
+    tokio::spawn(async move {
+        if started.await.is_ok() {
+            let _ = release.send(());
+        }
+    })
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn performance_reads_leave_the_async_worker_free() {
+    use crate::portfolio::performance::{PerformanceService, PerformanceServiceTrait};
+    let harness = harness(scenario("NOM-TXF-01").facts()).await;
+    let (gate, started, release) = GatedValuations::new(harness.valuation_repo.clone());
+    let service = PerformanceService::new(
+        harness.base_currency.clone(),
+        harness.timezone.clone(),
+        harness.sources.clone(),
+        gate.clone(),
+        harness.lot_repo.clone(),
+    );
+
+    let read = tokio::spawn(async move {
+        service
+            .calculate_performance_history("account", "acc-a", None, None, None, None)
+            .await
+            .map(|_| ())
+    });
+    let releaser = release_when_started(started, release);
+    read.await.expect("read task").expect("performance read");
+    gate.close();
+    releaser.await.expect("releaser task");
+
+    assert!(gate.released_in_time(), "the read held the async worker");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn scoped_valuation_reads_leave_the_async_worker_free() {
+    use crate::portfolio::valuation::{ValuationService, ValuationServiceTrait};
+    let harness = harness(scenario("NOM-TXF-01").facts()).await;
+    // The scope's aggregation reads the stored histories of both accounts.
+    harness
+        .coordinator
+        .run_job(request(), &SilentObserver)
+        .await
+        .expect("projection");
+    let (gate, started, release) = GatedValuations::new(harness.valuation_repo.clone());
+    let service = ValuationService::new(
+        gate.clone(),
+        harness.sources.clone(),
+        harness.lot_repo.clone(),
+        harness.timezone.clone(),
+    );
+    let base_currency = harness.base_currency.read().unwrap().clone();
+
+    let read = tokio::spawn(async move {
+        let accounts = ["acc-a".to_string(), "acc-b".to_string()];
+        service
+            .get_historical_valuations_for_accounts(
+                "portfolio",
+                &accounts,
+                &base_currency,
+                None,
+                None,
+            )
+            .await
+            .map(|_| ())
+    });
+    let releaser = release_when_started(started, release);
+    read.await
+        .expect("read task")
+        .expect("scoped valuation read");
+    gate.close();
+    releaser.await.expect("releaser task");
+
+    assert!(gate.released_in_time(), "the read held the async worker");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn bounded_reads_run_at_most_one_per_cpu() {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    let cpus = std::thread::available_parallelism().map_or(1, std::num::NonZeroUsize::get);
+    let running = Arc::new(AtomicUsize::new(0));
+    let peak = Arc::new(AtomicUsize::new(0));
+    let reads: Vec<_> = (0..cpus * 2 + 1)
+        .map(|_| {
+            let (running, peak) = (running.clone(), peak.clone());
+            tokio::spawn(blocking_read(move || {
+                let now = running.fetch_add(1, Ordering::SeqCst) + 1;
+                peak.fetch_max(now, Ordering::SeqCst);
+                std::thread::sleep(std::time::Duration::from_millis(20));
+                running.fetch_sub(1, Ordering::SeqCst);
+                Ok(())
+            }))
+        })
+        .collect();
+    for read in reads {
+        read.await.expect("read task").expect("read");
+    }
+    let peak = peak.load(Ordering::SeqCst);
+    assert!(peak <= cpus, "{peak} reads ran at once on {cpus} CPUs");
+}
