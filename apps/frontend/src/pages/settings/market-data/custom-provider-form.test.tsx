@@ -3,7 +3,8 @@ import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { NewCustomProvider } from "@/lib/types/custom-provider";
+import type { Asset } from "@/lib/types";
+import type { CustomProviderWithSources, NewCustomProvider } from "@/lib/types/custom-provider";
 import { CustomProviderForm } from "./custom-provider-form";
 
 const createProvider = vi.fn();
@@ -157,5 +158,87 @@ describe("CustomProviderForm", () => {
 
     await user.selectOptions(method, "POST");
     expect(screen.getByLabelText(/request body/i)).toHaveValue("");
+  });
+
+  function fillLatestSource(url: string) {
+    setInputValue(screen.getByLabelText(/url template/i), url);
+    setInputValue(screen.getByPlaceholderText("$.data.price"), "$.price");
+  }
+
+  async function submittedPayload() {
+    const createButton = screen.getByRole("button", { name: /create provider/i });
+    fireEvent.submit(createButton.closest("form")!);
+    await waitFor(() => expect(createProvider).toHaveBeenCalledTimes(1));
+    return createProvider.mock.calls[0][0] as NewCustomProvider;
+  }
+
+  it("creates providers that serve only the securities assigned to them", async () => {
+    render(<CustomProviderForm open onOpenChange={vi.fn()} />);
+    fillLatestSource("https://funds.example.com/nav/{ISIN}");
+
+    expect(screen.getByRole("radio", { name: /only securities assigned/i })).toBeChecked();
+    expect(screen.queryByLabelText(/order among fallbacks/i)).not.toBeInTheDocument();
+    expect((await submittedPayload()).useAsFallback).toBe(false);
+  });
+
+  it("sends fallback use and its order when chosen", async () => {
+    const user = userEvent.setup();
+    render(<CustomProviderForm open onOpenChange={vi.fn()} />);
+    fillLatestSource("https://funds.example.com/nav/{ISIN}");
+
+    await user.click(screen.getByRole("radio", { name: /also as a fallback/i }));
+    setInputValue(screen.getByLabelText(/order among fallbacks/i), "7");
+
+    expect(screen.queryByText(/needs \{SYMBOL\} or \{ISIN\}/i)).not.toBeInTheDocument();
+    const payload = await submittedPayload();
+    expect(payload.useAsFallback).toBe(true);
+    expect(payload.priority).toBe(7);
+  });
+
+  it("explains that fallback use needs an identity placeholder", async () => {
+    const user = userEvent.setup();
+    render(<CustomProviderForm open onOpenChange={vi.fn()} />);
+    fillLatestSource("https://funds.example.com/nav?fund=abc");
+
+    await user.click(screen.getByRole("radio", { name: /also as a fallback/i }));
+
+    expect(screen.getByText(/needs \{SYMBOL\} or \{ISIN\}/i)).toBeInTheDocument();
+  });
+
+  it("lists the securities using the provider and warns about mapping-only ones", async () => {
+    const user = userEvent.setup();
+    const provider: CustomProviderWithSources = {
+      id: "fund",
+      name: "Fund",
+      description: "",
+      enabled: true,
+      priority: 50,
+      useAsFallback: false,
+      sources: [
+        {
+          id: "fund:latest",
+          providerId: "fund",
+          kind: "latest",
+          format: "json",
+          url: "https://funds.example.com/nav/{ISIN}",
+          pricePath: "$.price",
+        },
+      ],
+    };
+    const usage = {
+      assigned: [{ id: "fund-a", displayCode: "FUNDA" } as Asset],
+      mappedOnly: [{ id: "aapl", displayCode: "AAPL" } as Asset],
+    };
+
+    render(<CustomProviderForm open onOpenChange={vi.fn()} provider={provider} usage={usage} />);
+
+    expect(screen.getByText("Assigned (1)")).toBeInTheDocument();
+    expect(screen.getByText("FUNDA")).toBeInTheDocument();
+    expect(screen.getByText("Symbol mapping only (1)")).toBeInTheDocument();
+    expect(screen.getByText("AAPL")).toBeInTheDocument();
+    expect(screen.getByText(/won't use this provider/i)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("radio", { name: /also as a fallback/i }));
+    expect(screen.queryByText(/won't use this provider/i)).not.toBeInTheDocument();
   });
 });

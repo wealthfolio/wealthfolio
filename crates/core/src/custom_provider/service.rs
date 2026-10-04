@@ -69,6 +69,7 @@ impl CustomProviderService {
             name: payload.name,
             description: payload.description,
             priority: payload.priority,
+            use_as_fallback: payload.use_as_fallback,
             sources: payload.sources,
         };
 

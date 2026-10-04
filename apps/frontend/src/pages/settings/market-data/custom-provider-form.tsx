@@ -31,6 +31,13 @@ import { cn } from "@/lib/utils";
 
 import { SourceConfigPanel } from "./source-config-panel";
 import { LivePreviewPane } from "./live-preview-pane";
+import { CustomProviderUsageChips } from "./custom-provider-usage-chips";
+import {
+  EMPTY_USAGE,
+  hasIdentityPlaceholder,
+  usageCount,
+  type CustomProviderUsage,
+} from "./custom-provider-usage";
 import { useSourceRuntime, type SourceRuntime } from "./use-source-runtime";
 
 const DOCS_URL = "https://wealthfolio.app/docs/guide/custom-providers/";
@@ -73,6 +80,7 @@ function makeFormSchema(t: TFunction) {
         .regex(/^[a-z0-9-]+$/, t("settings:market_data_page.validation_code_format")),
       description: z.string().optional(),
       priority: z.coerce.number().int().min(1).default(50),
+      useAsFallback: z.boolean().default(false),
       latestEnabled: z.boolean(),
       latestSource: sourceSchema,
       historicalEnabled: z.boolean(),
@@ -235,9 +243,16 @@ interface CustomProviderFormProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   provider?: CustomProviderWithSources;
+  /** Securities using the provider being edited. */
+  usage?: CustomProviderUsage;
 }
 
-export function CustomProviderForm({ open, onOpenChange, provider }: CustomProviderFormProps) {
+export function CustomProviderForm({
+  open,
+  onOpenChange,
+  provider,
+  usage = EMPTY_USAGE,
+}: CustomProviderFormProps) {
   const [saving, setSaving] = useState(false);
   return (
     <Dialog
@@ -255,6 +270,7 @@ export function CustomProviderForm({ open, onOpenChange, provider }: CustomProvi
           <CustomProviderFormContent
             key={provider?.id ?? "__new__"}
             provider={provider}
+            usage={usage}
             onOpenChange={onOpenChange}
             onSavingChange={setSaving}
           />
@@ -268,10 +284,12 @@ export function CustomProviderForm({ open, onOpenChange, provider }: CustomProvi
 
 function CustomProviderFormContent({
   provider,
+  usage,
   onOpenChange,
   onSavingChange,
 }: {
   provider?: CustomProviderWithSources;
+  usage: CustomProviderUsage;
   onOpenChange: (open: boolean) => void;
   onSavingChange: (saving: boolean) => void;
 }) {
@@ -303,6 +321,7 @@ function CustomProviderFormContent({
       code: provider?.id ?? "",
       description: provider?.description ?? "",
       priority: provider?.priority ?? 50,
+      useAsFallback: provider?.useAsFallback ?? false,
       latestEnabled: !!latestSourceInitial || !historicalSourceInitial,
       latestSource: sourceDefaults(latestSourceInitial, defaultTimezone),
       historicalEnabled: !!historicalSourceInitial,
@@ -381,6 +400,27 @@ function CustomProviderFormContent({
   const latestPriceValue = form.watch("latestSource.pricePath");
   const historicalUrlValue = form.watch("historicalSource.url");
   const historicalPriceValue = form.watch("historicalSource.pricePath");
+  const latestMethodValue = form.watch("latestSource.method");
+  const latestBodyValue = form.watch("latestSource.body");
+  const historicalMethodValue = form.watch("historicalSource.method");
+  const historicalBodyValue = form.watch("historicalSource.body");
+  const useAsFallback = form.watch("useAsFallback");
+
+  // Fallback needs an identity placeholder, or the provider can't price other securities.
+  const canServeAsFallback =
+    (latestEnabled &&
+      hasIdentityPlaceholder({
+        url: latestUrlValue,
+        method: latestMethodValue,
+        body: latestBodyValue,
+      })) ||
+    (historicalEnabled &&
+      hasIdentityPlaceholder({
+        url: historicalUrlValue,
+        method: historicalMethodValue,
+        body: historicalBodyValue,
+      }));
+  const mappedOnlyWontUseIt = usage.mappedOnly.length > 0 && !(useAsFallback && canServeAsFallback);
 
   const checklist = useMemo(() => {
     const check = (enabled: boolean, url: string | undefined, price: string | undefined) => {
@@ -455,6 +495,7 @@ function CustomProviderFormContent({
               name: values.name,
               description: values.description || undefined,
               priority: values.priority,
+              useAsFallback: values.useAsFallback,
               sources,
             },
           },
@@ -467,6 +508,7 @@ function CustomProviderFormContent({
             name: values.name,
             description: values.description || undefined,
             priority: values.priority,
+            useAsFallback: values.useAsFallback,
             sources,
           },
           { onSuccess: () => onOpenChange(false) },
@@ -614,7 +656,7 @@ function CustomProviderFormContent({
                 </h3>
               </div>
 
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_140px_80px]">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_140px]">
                 <FormField
                   control={form.control}
                   name="name"
@@ -665,21 +707,6 @@ function CustomProviderFormContent({
                     </FormItem>
                   )}
                 />
-                <FormField
-                  control={form.control}
-                  name="priority"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-muted-foreground text-[11px] font-medium uppercase tracking-wide">
-                        {t("settings:market_data_page.priority")}
-                      </FormLabel>
-                      <FormControl>
-                        <Input type="number" min={1} {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
               </div>
 
               <FormField
@@ -704,6 +731,103 @@ function CustomProviderFormContent({
                   </FormItem>
                 )}
               />
+            </div>
+
+            {/* Step 4 — Usage */}
+            <div className="bg-background rounded-xl border p-4">
+              <div className="mb-3 flex items-center gap-2.5">
+                <div className="bg-muted text-muted-foreground flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-semibold">
+                  4
+                </div>
+                <h3 id="provider-usage-heading" className="text-sm font-semibold">
+                  {t("settings:market_data_page.usage_step")}
+                </h3>
+              </div>
+
+              <div
+                role="radiogroup"
+                aria-labelledby="provider-usage-heading"
+                className="grid gap-2"
+              >
+                <UsageOption
+                  selected={!useAsFallback}
+                  title={t("settings:market_data_page.usage_assigned_title")}
+                  description={t("settings:market_data_page.usage_assigned_description")}
+                  onSelect={() => form.setValue("useAsFallback", false, { shouldDirty: true })}
+                />
+                <UsageOption
+                  selected={useAsFallback}
+                  title={t("settings:market_data_page.usage_fallback_title")}
+                  description={t("settings:market_data_page.usage_fallback_description")}
+                  onSelect={() => form.setValue("useAsFallback", true, { shouldDirty: true })}
+                >
+                  {!canServeAsFallback && (
+                    <p
+                      className={cn(
+                        "text-xs",
+                        useAsFallback ? "text-warning" : "text-muted-foreground",
+                      )}
+                    >
+                      {t("settings:market_data_page.usage_fallback_needs_placeholder")}
+                    </p>
+                  )}
+                  {useAsFallback && (
+                    <FormField
+                      control={form.control}
+                      name="priority"
+                      render={({ field }) => (
+                        <FormItem className="flex items-center gap-2 space-y-0">
+                          <FormLabel className="text-muted-foreground text-xs font-normal">
+                            {t("settings:market_data_page.usage_fallback_order")}
+                          </FormLabel>
+                          <FormControl>
+                            <Input type="number" min={1} className="h-8 w-20" {...field} />
+                          </FormControl>
+                          <span className="text-muted-foreground text-xs">
+                            {t("settings:market_data_page.usage_fallback_order_hint")}
+                          </span>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  )}
+                </UsageOption>
+              </div>
+
+              {isEditing && (
+                <div className="mt-3 space-y-2 border-t pt-3">
+                  <div className="text-muted-foreground text-[11px] font-medium uppercase tracking-wide">
+                    {t("settings:market_data_page.usage_used_by")}
+                  </div>
+                  {usageCount(usage) === 0 ? (
+                    <p className="text-muted-foreground text-xs">
+                      {t("settings:market_data_page.no_assets_using_provider")}
+                    </p>
+                  ) : (
+                    <>
+                      <CustomProviderUsageChips
+                        label={t("settings:market_data_page.usage_assigned_group", {
+                          count: usage.assigned.length,
+                        })}
+                        assets={usage.assigned}
+                      />
+                      <CustomProviderUsageChips
+                        label={t("settings:market_data_page.usage_mapped_group", {
+                          count: usage.mappedOnly.length,
+                        })}
+                        assets={usage.mappedOnly}
+                      />
+                    </>
+                  )}
+                  {mappedOnlyWontUseIt && (
+                    <p className="text-warning text-xs">
+                      {t("settings:market_data_page.usage_mapped_warning", {
+                        count: usage.mappedOnly.length,
+                      })}
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 
@@ -806,6 +930,53 @@ function ModeCard({
         <span className="text-muted-foreground block text-xs">{subtitle}</span>
       </span>
     </button>
+  );
+}
+
+function UsageOption({
+  selected,
+  title,
+  description,
+  onSelect,
+  children,
+}: {
+  selected: boolean;
+  title: string;
+  description: string;
+  onSelect: () => void;
+  children?: React.ReactNode;
+}) {
+  return (
+    <div
+      className={cn(
+        "rounded-lg border p-3 transition-all",
+        selected
+          ? "bg-background border-foreground/30 ring-foreground/5 shadow-sm ring-1"
+          : "bg-background/50 border-border",
+      )}
+    >
+      <button
+        type="button"
+        role="radio"
+        aria-checked={selected}
+        onClick={onSelect}
+        className="flex w-full items-start gap-2 text-left"
+      >
+        <div
+          className={cn(
+            "mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border",
+            selected ? "border-foreground bg-foreground" : "border-muted-foreground/40",
+          )}
+        >
+          {selected && <div className="bg-background h-1.5 w-1.5 rounded-full" />}
+        </div>
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-medium">{title}</span>
+          <span className="text-muted-foreground block text-xs">{description}</span>
+        </span>
+      </button>
+      {children && <div className="mt-2 space-y-2 pl-6">{children}</div>}
+    </div>
   );
 }
 

@@ -1,6 +1,23 @@
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@wealthfolio/ui/components/ui/alert-dialog";
 import { Badge } from "@wealthfolio/ui/components/ui/badge";
 import { Button } from "@wealthfolio/ui/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@wealthfolio/ui/components/ui/dropdown-menu";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { Popover, PopoverContent, PopoverTrigger } from "@wealthfolio/ui/components/ui/popover";
 import { Separator } from "@wealthfolio/ui/components/ui/separator";
@@ -8,13 +25,13 @@ import { Skeleton } from "@wealthfolio/ui/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@wealthfolio/ui/components/ui/tabs";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Link, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 import { ResetProviderHistoryDialog } from "@/pages/asset/reset-provider-history-dialog";
 
 import { SettingsHeader } from "../settings-header";
 
-import { getSecret, type MarketDataProviderSetting } from "@/adapters";
+import { getAssets, getSecret, type MarketDataProviderSetting } from "@/adapters";
 import {
   useRecalculatePortfolioMutation,
   useUpdatePortfolioMutation,
@@ -25,6 +42,7 @@ import {
   useUpdateCustomProvider,
 } from "@/hooks/use-custom-providers";
 import { QueryKeys } from "@/lib/query-keys";
+import type { Asset } from "@/lib/types";
 import type { CustomProviderWithSources } from "@/lib/types/custom-provider";
 import { cn } from "@/lib/utils";
 import { ActionConfirm, useDateFormatting } from "@wealthfolio/ui";
@@ -37,6 +55,14 @@ import { Input } from "@wealthfolio/ui/components/ui/input";
 import { Label } from "@wealthfolio/ui/components/ui/label";
 import { Switch } from "@wealthfolio/ui/components/ui/switch";
 import { CustomProviderForm } from "./custom-provider-form";
+import { CustomProviderUsageChips } from "./custom-provider-usage-chips";
+import {
+  EMPTY_USAGE,
+  getCustomProviderUsage,
+  servesAsFallback,
+  usageCount,
+  type CustomProviderUsage,
+} from "./custom-provider-usage";
 import {
   useDeleteApiKey,
   useMarketDataProviderSettings,
@@ -514,6 +540,7 @@ function ProviderSettings({
 
 function CustomProviderCard({
   provider,
+  usage,
   onEdit,
   onDelete,
   onToggleEnabled,
@@ -522,6 +549,7 @@ function CustomProviderCard({
   isLast = false,
 }: {
   provider: CustomProviderWithSources;
+  usage: CustomProviderUsage;
   onEdit: () => void;
   onDelete: () => void;
   onToggleEnabled: (enabled: boolean) => void;
@@ -532,6 +560,7 @@ function CustomProviderCard({
   const { t } = useTranslation();
   const latestSource = provider.sources.find((s) => s.kind === "latest");
   const historicalSource = provider.sources.find((s) => s.kind === "historical");
+  const usedBy = usageCount(usage);
 
   return (
     <div className={cn("hover:bg-accent/30 transition-colors", !isLast && "border-b")}>
@@ -546,6 +575,15 @@ function CustomProviderCard({
             {!provider.enabled && (
               <Badge variant="outline" className="h-5 px-1.5 text-[10px] font-normal">
                 {t("settings:market_data_page.disabled")}
+              </Badge>
+            )}
+            {servesAsFallback(provider) && (
+              <Badge
+                variant="outline"
+                className="border-warning/40 text-warning h-5 px-1.5 text-[10px] font-normal"
+                title={t("settings:market_data_page.fallback_badge_hint")}
+              >
+                {t("settings:market_data_page.fallback_badge")}
               </Badge>
             )}
           </div>
@@ -563,6 +601,11 @@ function CustomProviderCard({
               <span className="text-muted-foreground inline-flex items-center gap-1 text-[11px]">
                 <Icons.Clock className="h-3 w-3" />
                 {t("settings:market_data_page.historical")}
+              </span>
+            )}
+            {usedBy > 0 && (
+              <span className="text-muted-foreground text-[11px]">
+                {t("settings:market_data_page.custom_used_by", { count: usedBy })}
               </span>
             )}
           </div>
@@ -584,46 +627,114 @@ function CustomProviderCard({
           >
             <Icons.Pencil className="h-4 w-4" />
           </Button>
-          <ActionConfirm
-            handleConfirm={onDelete}
-            isPending={isDeleting}
-            confirmTitle={t("settings:market_data_page.delete_provider_title")}
-            confirmMessage={t("settings:market_data_page.delete_provider_message", {
-              name: provider.name,
-            })}
-            confirmButtonText={t("settings:common_delete")}
-            cancelButtonText={t("settings:common_cancel")}
-            confirmButtonVariant="destructive"
-            button={
-              <Button
-                variant="ghost"
-                size="icon"
-                className="text-muted-foreground hover:text-destructive h-8 w-8"
-              >
-                <Icons.Trash className="h-4 w-4" />
-              </Button>
-            }
-          />
+          {usedBy > 0 ? (
+            // The backend refuses to delete a provider securities still use; say which.
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="text-muted-foreground hover:text-destructive h-8 w-8"
+                  aria-label={t("settings:common_delete")}
+                >
+                  <Icons.Trash className="h-4 w-4" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-80 space-y-3" align="end">
+                <div className="space-y-2">
+                  <h4 className="font-medium leading-none">
+                    {t("settings:market_data_page.delete_provider_in_use_title", {
+                      name: provider.name,
+                    })}
+                  </h4>
+                  <p className="text-muted-foreground text-sm">
+                    {t("settings:market_data_page.delete_provider_in_use_message", {
+                      count: usedBy,
+                    })}
+                  </p>
+                </div>
+                <CustomProviderUsageChips
+                  assets={[...usage.assigned, ...usage.mappedOnly]}
+                  linkable
+                />
+              </PopoverContent>
+            </Popover>
+          ) : (
+            <ActionConfirm
+              handleConfirm={onDelete}
+              isPending={isDeleting}
+              confirmTitle={t("settings:market_data_page.delete_provider_title")}
+              confirmMessage={t("settings:market_data_page.delete_provider_message", {
+                name: provider.name,
+              })}
+              confirmButtonText={t("settings:common_delete")}
+              cancelButtonText={t("settings:common_cancel")}
+              confirmButtonVariant="destructive"
+              button={
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="text-muted-foreground hover:text-destructive h-8 w-8"
+                  aria-label={t("settings:common_delete")}
+                >
+                  <Icons.Trash className="h-4 w-4" />
+                </Button>
+              }
+            />
+          )}
         </div>
       </div>
     </div>
   );
 }
 
+function HistoryMenuItem({
+  icon,
+  title,
+  description,
+  ...props
+}: {
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+} & React.ComponentProps<typeof DropdownMenuItem>) {
+  return (
+    <DropdownMenuItem className="items-start gap-3 py-2" {...props}>
+      <span className="mt-0.5">{icon}</span>
+      <span className="min-w-0">
+        <span className="block font-medium">{title}</span>
+        <span className="text-muted-foreground block text-xs">{description}</span>
+      </span>
+    </DropdownMenuItem>
+  );
+}
+
 export default function MarketDataSettingsPage() {
   const { t } = useTranslation();
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const { data: providers, isLoading, error } = useMarketDataProviderSettings();
   const { mutate: updateSettings } = useUpdateMarketDataProviderSettings();
   const { mutate: updatePortfolio, isPending: isUpdating } = useUpdatePortfolioMutation();
   const { mutate: recalculatePortfolio, isPending: isRecalculating } =
     useRecalculatePortfolioMutation();
   const { data: customProviders = [] } = useCustomProviders();
+  // Unfiltered: exchange rates can use custom providers too.
+  const { data: assets = [] } = useQuery<Asset[], Error>({
+    queryKey: [QueryKeys.ASSETS],
+    queryFn: getAssets,
+  });
+  const usageByProvider = useMemo(
+    () => new Map(customProviders.map((cp) => [cp.id, getCustomProviderUsage(assets, cp.id)])),
+    [customProviders, assets],
+  );
   const { mutate: deleteCustomProvider } = useDeleteCustomProvider();
   const { mutate: updateCustomProvider } = useUpdateCustomProvider();
 
   const [priorityInputs, setPriorityInputs] = useState<Record<string, number>>({});
   const [resetHistoryOpen, setResetHistoryOpen] = useState(false);
+  const [rebuildConfirmOpen, setRebuildConfirmOpen] = useState(false);
+  const [providersTab, setProvidersTab] = useState("builtin");
   const [customFormOpen, setCustomFormOpen] = useState(false);
   const [editingProvider, setEditingProvider] = useState<CustomProviderWithSources | undefined>();
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -760,59 +871,54 @@ export default function MarketDataSettingsPage() {
         text={t("settings:market_data_page.subtitle")}
         actionsInline
       >
-        <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => setResetHistoryOpen(true)}>
-            {t("asset:resetDialog.title")}
-          </Button>
-          <Button
-            asChild
-            variant="outline"
-            size="icon"
-            className="sm:hidden"
-            aria-label={t("settings:market_data_page.import_quotes_aria")}
-          >
-            <Link to="/settings/market-data/import">
-              <Icons.Import className="h-4 w-4" />
-            </Link>
-          </Button>
-          <Button
-            asChild
-            variant="outline"
-            size="sm"
-            className="hidden sm:inline-flex"
-            aria-label={t("settings:market_data_page.import_historical_aria")}
-          >
-            <Link to="/settings/market-data/import">
-              <Icons.Import className="mr-2 h-4 w-4" />
-              {t("settings:market_data_page.import")}
-            </Link>
-          </Button>
-          {/* Mobile icon-only actions */}
-          <ActionConfirm
-            handleConfirm={() => recalculatePortfolio()}
-            isPending={isRecalculating}
-            confirmTitle={t("settings:market_data_page.rebuild_confirm_title")}
-            confirmMessage={t("settings:market_data_page.rebuild_confirm_message")}
-            confirmButtonText={t("settings:market_data_page.rebuild_confirm_button")}
-            pendingText={t("settings:market_data_page.rebuild_pending")}
-            cancelButtonText={t("settings:common_cancel")}
-            confirmButtonVariant="default"
-            button={
+        <div className="flex items-center gap-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
               <Button
                 variant="outline"
-                size="icon"
-                className="sm:hidden"
-                disabled={isRecalculating}
-                aria-label={t("settings:market_data_page.rebuild_history_aria")}
+                size="sm"
+                className="h-10 w-10 px-0 sm:h-9 sm:w-auto sm:px-3"
+                aria-label={t("settings:market_data_page.history_menu")}
               >
                 {isRecalculating ? (
                   <Icons.Spinner className="h-4 w-4 animate-spin" />
                 ) : (
-                  <Icons.Clock className="h-4 w-4" />
+                  <Icons.History className="h-4 w-4" />
                 )}
+                <span className="hidden sm:inline">
+                  {t("settings:market_data_page.history_menu")}
+                </span>
+                <Icons.ChevronDown className="hidden h-4 w-4 sm:block" />
               </Button>
-            }
-          />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-80">
+              <HistoryMenuItem
+                icon={<Icons.Clock />}
+                title={t(
+                  isRecalculating
+                    ? "settings:market_data_page.rebuild_pending"
+                    : "settings:market_data_page.rebuild_history",
+                )}
+                description={t("settings:market_data_page.rebuild_history_description")}
+                disabled={isRecalculating}
+                onSelect={() => setRebuildConfirmOpen(true)}
+              />
+              <HistoryMenuItem
+                icon={<Icons.Import />}
+                title={t("settings:market_data_page.import_prices_csv")}
+                description={t("settings:market_data_page.import_prices_csv_description")}
+                onSelect={() => navigate("/settings/market-data/import")}
+              />
+              <DropdownMenuSeparator />
+              <HistoryMenuItem
+                variant="destructive"
+                icon={<Icons.RotateCcw />}
+                title={t("settings:market_data_page.reset_history_menu")}
+                description={t("settings:market_data_page.reset_history_description")}
+                onSelect={() => setResetHistoryOpen(true)}
+              />
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button
             size="icon"
             className="sm:hidden"
@@ -827,32 +933,6 @@ export default function MarketDataSettingsPage() {
             )}
           </Button>
 
-          {/* Desktop buttons with labels */}
-          <ActionConfirm
-            handleConfirm={() => recalculatePortfolio()}
-            isPending={isRecalculating}
-            confirmTitle={t("settings:market_data_page.rebuild_confirm_title")}
-            confirmMessage={t("settings:market_data_page.rebuild_confirm_message")}
-            confirmButtonText={t("settings:market_data_page.rebuild_confirm_button")}
-            pendingText={t("settings:market_data_page.rebuild_pending")}
-            cancelButtonText={t("settings:common_cancel")}
-            confirmButtonVariant="default"
-            button={
-              <Button
-                variant="outline"
-                size="sm"
-                className="hidden sm:inline-flex"
-                disabled={isRecalculating}
-              >
-                {isRecalculating ? (
-                  <Icons.Spinner className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <Icons.Clock className="mr-2 h-4 w-4" />
-                )}
-                {t("settings:market_data_page.rebuild_history")}
-              </Button>
-            }
-          />
           <Button
             size="sm"
             className="hidden sm:inline-flex"
@@ -873,6 +953,24 @@ export default function MarketDataSettingsPage() {
         open={resetHistoryOpen}
         onOpenChange={setResetHistoryOpen}
       />
+      <AlertDialog open={rebuildConfirmOpen} onOpenChange={setRebuildConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {t("settings:market_data_page.rebuild_confirm_title")}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("settings:market_data_page.rebuild_confirm_message")}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("settings:common_cancel")}</AlertDialogCancel>
+            <AlertDialogAction onClick={() => recalculatePortfolio()}>
+              {t("settings:market_data_page.rebuild_confirm_button")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <Separator />
       {showHealthBanner && (
         <div className="border-border bg-muted/30 flex items-center justify-between gap-3 rounded-md border px-3 py-2">
@@ -899,25 +997,41 @@ export default function MarketDataSettingsPage() {
         </div>
       )}
 
-      <Tabs defaultValue="builtin" className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="builtin">
-            {t("settings:market_data_page.tab_builtin")}
-            {builtinProviders.filter((p) => p.enabled).length > 0 && (
-              <Badge variant="secondary" className="ml-1.5 h-5 px-1.5 text-[10px] font-normal">
-                {builtinProviders.filter((p) => p.enabled).length}
-              </Badge>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="custom">
-            {t("settings:market_data_page.tab_custom")}
-            {customProviders.filter((p) => p.enabled).length > 0 && (
-              <Badge variant="secondary" className="ml-1.5 h-5 px-1.5 text-[10px] font-normal">
-                {customProviders.filter((p) => p.enabled).length}
-              </Badge>
-            )}
-          </TabsTrigger>
-        </TabsList>
+      <Tabs value={providersTab} onValueChange={setProvidersTab} className="w-full">
+        {/* Narrow screens wrap the button below the tabs so their labels keep full width. */}
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <TabsList className="grid w-full grid-cols-2 sm:w-auto sm:flex-1">
+            <TabsTrigger value="builtin">
+              {t("settings:market_data_page.tab_builtin")}
+              {builtinProviders.filter((p) => p.enabled).length > 0 && (
+                <Badge variant="secondary" className="ml-1.5 h-5 px-1.5 text-[10px] font-normal">
+                  {builtinProviders.filter((p) => p.enabled).length}
+                </Badge>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="custom">
+              {t("settings:market_data_page.tab_custom")}
+              {customProviders.filter((p) => p.enabled).length > 0 && (
+                <Badge variant="secondary" className="ml-1.5 h-5 px-1.5 text-[10px] font-normal">
+                  {customProviders.filter((p) => p.enabled).length}
+                </Badge>
+              )}
+            </TabsTrigger>
+          </TabsList>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              // Show the custom list, where the new provider will appear.
+              setProvidersTab("custom");
+              setEditingProvider(undefined);
+              setCustomFormOpen(true);
+            }}
+          >
+            <Icons.Plus className="h-4 w-4" />
+            {t("settings:market_data_page.add_provider")}
+          </Button>
+        </div>
 
         <TabsContent value="builtin" className="mt-4">
           {builtinProviders.length === 0 ? (
@@ -942,19 +1056,6 @@ export default function MarketDataSettingsPage() {
         </TabsContent>
 
         <TabsContent value="custom" className="mt-4">
-          <div className="mb-3 flex items-center justify-end">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                setEditingProvider(undefined);
-                setCustomFormOpen(true);
-              }}
-            >
-              <Icons.Plus className="mr-1 h-3 w-3" />
-              {t("settings:market_data_page.add_provider")}
-            </Button>
-          </div>
           {customScraperErrors && customScraperErrors.errorCount > 0 && (
             <div className="border-destructive/20 bg-destructive/5 mb-3 rounded-lg border p-3">
               <div className="flex items-start gap-2">
@@ -1008,6 +1109,7 @@ export default function MarketDataSettingsPage() {
                 <CustomProviderCard
                   key={cp.id}
                   provider={cp}
+                  usage={usageByProvider.get(cp.id) ?? EMPTY_USAGE}
                   onEdit={() => {
                     setEditingProvider(cp);
                     setCustomFormOpen(true);
@@ -1039,6 +1141,7 @@ export default function MarketDataSettingsPage() {
         open={customFormOpen}
         onOpenChange={setCustomFormOpen}
         provider={editingProvider}
+        usage={editingProvider ? usageByProvider.get(editingProvider.id) : undefined}
       />
     </div>
   );
