@@ -248,10 +248,11 @@ it (§5). Fixtures: every fixture is FIFO.
   the addon SDK's `getEffectiveType` and `hasUserOverride`) still treat a blank
   type override as a type. A follow-up stores a blank override as none on every
   write path and clears the ones already stored, so no reader sees one.
-- Settings that become unreadable (R7.2) while every setting §5 watches stays
-  the same, such as meta that stops being JSON, leave no marker: the account
-  keeps its last results until a later run, for another change or a new day,
-  refuses it.
+- An accounting settings change §5 does not watch leaves no marker: meta that
+  stops being JSON, an `accounting` entry that stops being an object, a field
+  given a wrong type, or a key repeated with another value (the trigger reads
+  its first value, the engine its last). The account keeps its last results
+  until a later run, for another change or a new day, reads its settings (R7.2).
 
 ## 9. How tests use these rules
 
