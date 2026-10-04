@@ -213,7 +213,9 @@ const AccountPage = () => {
 
   const recalculatePortfolioMutation = useRecalculatePortfolioMutation();
   const { accounts, isLoading: isAccountsLoading } = useAccounts();
-  const account = useMemo(() => accounts?.find((acc) => acc.id === id), [accounts, id]);
+  // Hidden accounts stay reachable by URL, so look this one up without the active filter.
+  const { accounts: allAccounts } = useAccounts({ filterActive: false });
+  const account = useMemo(() => allAccounts?.find((acc) => acc.id === id), [allAccounts, id]);
   const isLiabilityAccount = isLiabilityAccountType(account?.accountType);
   const isCashOnlyAccount = account?.accountType === AccountType.CASH || isLiabilityAccount;
   const supportsPerformance = accountSupportsPurpose(account, AccountPurpose.PERFORMANCE);

@@ -474,6 +474,42 @@ describe("AccountPage", () => {
     );
   });
 
+  it("scopes activities to a hidden account opened by URL", () => {
+    const hiddenAccount = { ...createAccount(), isActive: false };
+    mockUseAccounts.mockImplementation(
+      (options) =>
+        ({
+          accounts: options?.filterActive === false ? [hiddenAccount] : [],
+          isLoading: false,
+        }) as unknown as ReturnType<typeof useAccounts>,
+    );
+    mockUseValuationHistory.mockReturnValue({
+      valuationHistory: [createHistoricalValuation({ totalValue: 100 })],
+      isLoading: false,
+      error: null,
+    } as unknown as ReturnType<typeof useValuationHistory>);
+    mockUseCurrentValuation.mockReturnValue({
+      currentValuation: {
+        summary: createCurrentSummary({ totalValueBase: 125 }),
+        accounts: [createCurrentAccountValuation({ totalValue: 125 })],
+      },
+      isLoading: false,
+      isFetching: false,
+      error: null,
+    } as unknown as ReturnType<typeof useCurrentValuation>);
+
+    render(<AccountPage />);
+
+    expect(screen.getAllByText("Brokerage").length).toBeGreaterThan(0);
+
+    fireEvent.click(screen.getByRole("button", { name: "Activities" }));
+
+    expect(mockUseActivitySearch.mock.calls.at(-1)?.[0]).toMatchObject({
+      mode: "infinite",
+      filters: { accountIds: ["account-1"] },
+    });
+  });
+
   it("defaults to the snapshots tab for holdings-mode accounts without a holdings tab", () => {
     mockUseAccounts.mockReturnValue({
       accounts: [{ ...createAccount(), trackingMode: "HOLDINGS" }],
