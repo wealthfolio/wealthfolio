@@ -1661,47 +1661,6 @@ impl ActivityRepositoryTrait for ActivityRepository {
         Ok(activities)
     }
 
-    /// Calculates the average cost for an asset in an account
-    fn calculate_average_cost(&self, account_id: &str, asset_id: &str) -> Result<Decimal> {
-        let mut conn = get_connection(&self.pool)?;
-
-        #[derive(QueryableByName, Debug)]
-        struct AverageCost {
-            #[diesel(sql_type = diesel::sql_types::Text)]
-            average_cost: String,
-        }
-
-        let result: AverageCost = diesel::sql_query(
-            r#"
-            WITH running_totals AS (
-                SELECT
-                    CAST(quantity AS TEXT) as quantity,
-                    CAST(unit_price AS TEXT) as unit_price,
-                    CAST(quantity AS TEXT) AS quantity_change,
-                    CAST(CAST(quantity AS DECIMAL) * CAST(unit_price AS DECIMAL) AS TEXT) AS value_change,
-                    CAST(SUM(CAST(quantity AS DECIMAL)) OVER (ORDER BY activity_date, id) AS TEXT) AS running_quantity,
-                    CAST(SUM(CAST(quantity AS DECIMAL) * CAST(unit_price AS DECIMAL)) OVER (ORDER BY activity_date, id) AS TEXT) AS running_value
-                FROM activities
-                WHERE account_id = ?1 AND asset_id = ?2
-                  AND activity_type IN ('BUY', 'TRANSFER_IN')
-            )
-            SELECT
-                CASE
-                    WHEN SUM(CAST(quantity_change AS DECIMAL)) > 0
-                    THEN CAST(CAST(SUM(CAST(value_change AS DECIMAL)) AS DECIMAL) / CAST(SUM(CAST(quantity_change AS DECIMAL)) AS DECIMAL) AS TEXT)
-                    ELSE '0'
-                END AS average_cost
-            FROM running_totals
-            "#,
-        )
-        .bind::<diesel::sql_types::Text, _>(account_id)
-        .bind::<diesel::sql_types::Text, _>(asset_id)
-        .get_result(&mut conn)
-        .map_err(StorageError::from)?;
-
-        Ok(Decimal::from_str(&result.average_cost).unwrap_or_default())
-    }
-
     /// Gets the import mapping for a given account ID and context kind by joining import_account_templates + import_templates
     fn get_import_mapping(
         &self,

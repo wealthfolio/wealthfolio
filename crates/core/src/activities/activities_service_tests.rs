@@ -1746,10 +1746,6 @@ pub(crate) mod tests {
             Ok(())
         }
 
-        fn calculate_average_cost(&self, _account_id: &str, _asset_id: &str) -> Result<Decimal> {
-            unimplemented!()
-        }
-
         fn get_income_activities_data(
             &self,
             _account_ids: Option<&[String]>,

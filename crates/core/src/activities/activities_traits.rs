@@ -4,7 +4,6 @@ use crate::limits::ContributionActivity;
 use crate::Result;
 use async_trait::async_trait;
 use chrono::{DateTime, NaiveDate, Utc};
-use rust_decimal::Decimal;
 use std::collections::{HashMap, HashSet};
 
 /// Trait defining the contract for Activity repository operations.
@@ -289,8 +288,6 @@ pub trait ActivityRepositoryTrait: Send + Sync {
         template_id: &str,
         source_system: &str,
     ) -> Result<()>;
-    // Add other repository methods if necessary, e.g., calculate_average_cost, get_deposit_activities
-    fn calculate_average_cost(&self, account_id: &str, asset_id: &str) -> Result<Decimal>;
     fn get_income_activities_data(&self, account_ids: Option<&[String]>)
         -> Result<Vec<IncomeData>>;
     fn get_first_activity_date_overall(&self) -> Result<DateTime<Utc>>;
