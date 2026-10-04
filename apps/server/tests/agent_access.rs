@@ -809,6 +809,102 @@ async fn disable_market_data_providers(server: &TestServer, cookie: &str) {
     }
 }
 
+/// When validation rejects a row, commit_activity_import must not import it
+/// (nor the rest of the batch) and report success. An unknown ticker that
+/// carries a quoteCcy passes the importer's lighter checks, so it used to be
+/// imported, create an asset, and be listed as failed at once. With providers
+/// disabled the ticker cannot be found, as an unknown one would not be.
+#[tokio::test]
+async fn mcp_import_commits_nothing_when_a_row_fails_validation() {
+    let server = spawn_server(true, false).await;
+    let cookie = login(&server).await;
+    disable_market_data_providers(&server, &cookie).await;
+    let (pat, session) = activity_writer_session(&server, &cookie).await;
+    let account = create_eur_account(&server, &cookie, "Rejected").await;
+    let rows = serde_json::json!([
+        { "accountId": account["id"], "activityType": "BUY", "date": "2026-07-27",
+          "symbol": "ZZQXNOPE", "quoteCcy": "EUR", "currency": "EUR",
+          "quantity": 1, "unitPrice": 10.0 },
+        { "accountId": account["id"], "activityType": "DEPOSIT", "date": "2026-07-27",
+          "currency": "EUR", "amount": 100.0 }
+    ]);
+    let preview = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "prepare_activity_import",
+        serde_json::json!({ "activities": rows.clone() }),
+    )
+    .await;
+    assert_eq!(preview["summary"]["invalid"], 1, "{preview}");
+
+    let committed = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "commit_activity_import",
+        serde_json::json!({ "activities": rows }),
+    )
+    .await;
+    assert_eq!(committed["summary"]["success"], false, "{committed}");
+    assert_eq!(committed["summary"]["imported"], 0, "{committed}");
+    assert_eq!(committed["summary"]["assetsCreated"], 0, "{committed}");
+    assert_eq!(committed["failed"][0]["symbol"], "ZZQXNOPE", "{committed}");
+    assert!(stored_activities(&server, &cookie, &account)
+        .await
+        .is_empty());
+}
+
+/// A row the check passes can still fail while being written: a split with a
+/// zero ratio fails its account's batch. The importer skips those rows and
+/// still reported success; the other accounts' rows are imported.
+#[tokio::test]
+async fn mcp_import_reports_rows_that_fail_while_being_written() {
+    let server = spawn_server(true, false).await;
+    let cookie = login(&server).await;
+    disable_market_data_providers(&server, &cookie).await;
+    let (pat, session) = activity_writer_session(&server, &cookie).await;
+    let split_account = create_eur_account(&server, &cookie, "Split").await;
+    let cash_account = create_eur_account(&server, &cookie, "Cash").await;
+    let rows = serde_json::json!([
+        { "accountId": split_account["id"], "activityType": "SPLIT", "date": "2026-07-27",
+          "symbol": "ZZSPLIT", "exchangeMic": "XPAR", "instrumentType": "EQUITY",
+          "quoteCcy": "EUR", "quoteMode": "MANUAL", "currency": "EUR", "amount": 0 },
+        { "accountId": cash_account["id"], "activityType": "DEPOSIT", "date": "2026-07-27",
+          "currency": "EUR", "amount": 100.0 }
+    ]);
+    let preview = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "prepare_activity_import",
+        serde_json::json!({ "activities": rows.clone() }),
+    )
+    .await;
+    assert_eq!(preview["summary"]["invalid"], 0, "{preview}");
+
+    let committed = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "commit_activity_import",
+        serde_json::json!({ "activities": rows }),
+    )
+    .await;
+    assert_eq!(committed["summary"]["success"], false, "{committed}");
+    assert_eq!(committed["summary"]["imported"], 1, "{committed}");
+    assert_eq!(
+        committed["failed"][0]["activityType"], "SPLIT",
+        "{committed}"
+    );
+    assert_eq!(
+        stored_activities(&server, &cookie, &cash_account)
+            .await
+            .len(),
+        1
+    );
+}
+
 /// Part of #1701: a bare date is a calendar day. West of UTC, UTC midnight
 /// falls on the previous local day, so a bare date is stored at the day's
 /// midnight in the configured timezone. The instant stays on the same UTC day,

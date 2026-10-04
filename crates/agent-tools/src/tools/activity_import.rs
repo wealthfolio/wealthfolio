@@ -15,7 +15,7 @@ use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use wealthfolio_core::activities::ActivityImport;
+use wealthfolio_core::activities::{ActivityImport, ImportActivitiesSummary};
 use wealthfolio_core::assets::{InstrumentType, QuoteMode};
 
 use crate::env::AgentEnvironment;
@@ -158,6 +158,11 @@ fn flatten_messages(map: &Option<std::collections::HashMap<String, Vec<String>>>
                 .collect()
         })
         .unwrap_or_default()
+}
+
+/// A row validation rejected; duplicates are warnings, not rejections.
+fn is_rejected(row: &ActivityImport) -> bool {
+    !row.is_valid || row.errors.as_ref().is_some_and(|e| !e.is_empty())
 }
 
 fn is_duplicate(row: &ActivityImport) -> bool {
@@ -431,7 +436,7 @@ impl AgentTool for PrepareActivityImport {
 #[serde(rename_all = "camelCase")]
 pub struct CommitActivityImportOutput {
     pub import_run_id: String,
-    pub summary: wealthfolio_core::activities::ImportActivitiesSummary,
+    pub summary: ImportActivitiesSummary,
     /// Rows that failed validation/import (with their errors).
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub failed: Vec<ImportRowResult>,
@@ -447,7 +452,7 @@ impl AgentTool for CommitActivityImport {
     }
 
     fn description(&self) -> &'static str {
-        "Import a batch of mapped activity rows through Wealthfolio's import pipeline as one import run. Include the reviewed identity fields returned by prepare_activity_import to preserve the selected assets; bare symbols are resolved again. Duplicates are skipped unless a row sets forceImport=true. This MUTATES data — only call after previewing with prepare_activity_import and confirming with the user. Returns the import run id, a summary (imported/skipped/duplicates/assets created), and any failed rows."
+        "Import a batch of mapped activity rows through Wealthfolio's import pipeline as one import run. Include the reviewed identity fields returned by prepare_activity_import to preserve the selected assets; bare symbols are resolved again. Duplicates are skipped unless a row sets forceImport=true. Nothing is imported if any row fails validation; fix or remove the failed rows and retry. A row that passes validation but fails while being written is skipped and listed in failed, with success false; the other rows are still imported. This MUTATES data — only call after previewing with prepare_activity_import and confirming with the user. Returns the import run id, a summary (imported/skipped/duplicates/assets created), and any failed rows."
     }
 
     fn input_schema(&self) -> serde_json::Value {
@@ -495,6 +500,34 @@ impl AgentTool for CommitActivityImport {
             .await
             .map_err(|e| AgentToolError::ExecutionFailed(e.to_string()))?;
 
+        // Import nothing when validation rejects a row, as the importer does for
+        // the errors it checks itself. Its checks are lighter, so a row the
+        // preview rejected (an unknown ticker that carries a quoteCcy) was
+        // otherwise imported and reported as both imported and failed.
+        let failed: Vec<ImportRowResult> = checked
+            .iter()
+            .filter(|row| is_rejected(row))
+            .map(to_result)
+            .collect();
+        if !failed.is_empty() {
+            let output = CommitActivityImportOutput {
+                import_run_id: String::new(),
+                summary: ImportActivitiesSummary {
+                    total: checked.len() as u32,
+                    imported: 0,
+                    skipped: failed.len() as u32,
+                    duplicates: 0,
+                    assets_created: 0,
+                    success: false,
+                    error_message: Some("Validation errors found in activities.".to_string()),
+                },
+                failed,
+            };
+            return Ok(AgentToolResult {
+                content: serde_json::to_value(output)?,
+            });
+        }
+
         let result = env
             .activity_service()
             .import_activities(checked)
@@ -509,13 +542,23 @@ impl AgentTool for CommitActivityImport {
         let failed: Vec<ImportRowResult> = result
             .activities
             .iter()
-            .filter(|r| !r.is_valid || r.errors.as_ref().is_some_and(|e| !e.is_empty()))
+            .filter(|row| is_rejected(row))
             .map(to_result)
             .collect();
 
+        // A row the check passed can still fail while being written (a split
+        // with a zero ratio fails its account's batch). The importer skips it
+        // and still reports success; the caller must not read that as success.
+        let mut summary = result.summary;
+        if !failed.is_empty() && summary.success {
+            summary.success = false;
+            summary.error_message.get_or_insert_with(|| {
+                "Some activities failed while being written; see failed.".to_string()
+            });
+        }
         let output = CommitActivityImportOutput {
             import_run_id: result.import_run_id,
-            summary: result.summary,
+            summary,
             failed,
         };
         Ok(AgentToolResult {
