@@ -93,6 +93,7 @@ pub fn parse_cusip(s: &str) -> Result<&str, CusipError> {
 pub fn looks_like_cusip(s: &str) -> bool {
     let s = s.trim();
     s.len() == 9
+        && s.is_ascii()
         && s[..8].chars().all(|c| c.is_ascii_alphanumeric())
         && s.as_bytes()[8].is_ascii_digit()
 }
@@ -162,5 +163,11 @@ mod tests {
         let isin = cusip_to_isin("037833100", "US");
         assert_eq!(isin, "US0378331005");
         assert!(crate::utils::isin::parse_isin(&isin).is_ok());
+    }
+
+    #[test]
+    fn test_looks_like_cusip_non_ascii() {
+        // 9 bytes, with byte 8 inside the 'é'
+        assert!(!looks_like_cusip("1234567é"));
     }
 }

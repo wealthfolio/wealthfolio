@@ -692,7 +692,7 @@ impl YahooProvider {
                     "[YAHOO] Failed to parse quoteSummary for {}: {}. Response: {}",
                     symbol,
                     e,
-                    &response_text[..response_text.len().min(1000)]
+                    &response_text[..response_text.floor_char_boundary(1000)]
                 );
                 MarketDataError::ProviderError {
                     provider: "YAHOO".to_string(),
@@ -854,7 +854,7 @@ impl YahooProvider {
             profile.name,
             profile.quote_type,
             profile.sector,
-            profile.sectors.as_ref().map(|s| if s.len() > 100 { format!("{}...", &s[..100]) } else { s.clone() }),
+            profile.sectors.as_ref().map(|s| if s.len() > 100 { format!("{}...", &s[..s.floor_char_boundary(100)]) } else { s.clone() }),
             profile.industry,
             profile.country,
             profile.description.as_ref().map(|d| d.len())
@@ -1202,8 +1202,8 @@ fn format_name(
     // Special handling for futures - strip date suffix
     if quote_type.to_uppercase() == "FUTURE" {
         if let Some(sn) = short_name {
-            if sn.len() >= 7 {
-                return sn[..sn.len() - 7].to_string();
+            if let Some(base) = sn.len().checked_sub(7).and_then(|end| sn.get(..end)) {
+                return base.to_string();
             }
         }
     }
@@ -1324,6 +1324,15 @@ mod tests {
 
         // Test fallback to symbol
         assert_eq!(format_name(None, "EQUITY", None, "AAPL"), "AAPL");
+    }
+
+    #[test]
+    fn test_format_name_future_non_ascii_short_name() {
+        // 15 bytes, with byte 8 (seven from the end) inside the second 'é'
+        assert_eq!(
+            format_name(None, "FUTURE", Some("Café Déc 2024"), "KC=F"),
+            "Café Déc 2024"
+        );
     }
 
     #[test]

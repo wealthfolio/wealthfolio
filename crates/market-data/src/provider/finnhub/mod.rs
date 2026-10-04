@@ -284,7 +284,7 @@ impl FinnhubProvider {
             }
             ProviderInstrument::FxSymbol { symbol } => {
                 // Try to parse and format
-                if symbol.len() == 6 {
+                if symbol.len() == 6 && symbol.is_ascii() {
                     let from = &symbol[..3];
                     let to = &symbol[3..];
                     Ok(format!("OANDA:{}_{}", from, to))
@@ -940,5 +940,15 @@ mod tests {
         assert_eq!(response.weburl, Some("https://www.apple.com/".to_string()));
         // Market cap in millions
         assert_eq!(response.market_capitalization, Some(2800000.0));
+    }
+
+    #[test]
+    fn test_extract_symbol_non_ascii_fx_symbol() {
+        // 6 bytes, with byte 3 inside the '€'
+        let provider = FinnhubProvider::new("test_key".to_string());
+        let instrument = ProviderInstrument::FxSymbol {
+            symbol: "US€D".into(),
+        };
+        assert_eq!(provider.extract_symbol(&instrument).unwrap(), "US€D");
     }
 }

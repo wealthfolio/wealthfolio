@@ -1356,7 +1356,7 @@ fn invalid_budget_input(message: &str) -> anyhow::Error {
 }
 
 fn validate_month_key(period_key: &str) -> Result<()> {
-    if period_key.len() != 7 {
+    if period_key.len() != 7 || !period_key.is_ascii() {
         return Err(invalid_budget_input("Invalid budget period key"));
     }
     if &period_key[4..5] != "-" {
@@ -1854,5 +1854,11 @@ mod tests {
             local_month_end_date("2026-05", "Asia/Tokyo").unwrap(),
             NaiveDate::from_ymd_opt(2026, 5, 31).unwrap()
         );
+    }
+
+    #[test]
+    fn validate_month_key_rejects_non_ascii_key() {
+        // 7 bytes, with byte 5 inside the 'é'
+        assert!(validate_month_key("2024é5").is_err());
     }
 }

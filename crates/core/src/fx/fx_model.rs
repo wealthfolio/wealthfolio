@@ -76,7 +76,7 @@ impl ExchangeRate {
         }
         // Handle legacy Yahoo format: "EURUSD=X" or "EURUSD"
         let base_symbol = key.strip_suffix("=X").unwrap_or(key);
-        if base_symbol.len() >= 6 {
+        if base_symbol.len() >= 6 && base_symbol.is_ascii() {
             (base_symbol[..3].to_string(), base_symbol[3..6].to_string())
         } else {
             (base_symbol.to_string(), String::new())
@@ -140,5 +140,14 @@ mod tests {
 
         assert!(value["rate"].is_number());
         assert_eq!(value["rate"], serde_json::json!(0.9));
+    }
+
+    #[test]
+    fn parse_fx_pair_keeps_non_ascii_key_whole() {
+        // 7 bytes, with byte 3 inside the '€'
+        assert_eq!(
+            ExchangeRate::parse_fx_pair("EU€SD"),
+            ("EU€SD".to_string(), String::new())
+        );
     }
 }

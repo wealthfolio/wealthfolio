@@ -253,7 +253,11 @@ impl CustomProviderService {
                 price: None,
                 currency: None,
                 date: None,
-                error: Some(format!("HTTP {}: {}", status, &body[..body.len().min(500)])),
+                error: Some(format!(
+                    "HTTP {}: {}",
+                    status,
+                    &body[..body.floor_char_boundary(500)]
+                )),
                 raw_response: Some(body),
                 detected_elements: None,
                 detected_tables: None,
@@ -1268,7 +1272,7 @@ pub fn detect_html_locale(body: &str) -> Option<String> {
     let sel = scraper::Selector::parse("html").ok()?;
     let el = document.select(&sel).next()?;
     let lang = el.value().attr("lang")?;
-    Some(lang[..2.min(lang.len())].to_lowercase())
+    Some(lang.get(..2.min(lang.len()))?.to_lowercase())
 }
 
 #[cfg(test)]
@@ -1370,5 +1374,15 @@ mod tests {
             Some(1234.56)
         );
         assert_eq!(parse_number_string("0,5", Some("pt-BR")), Some(0.5));
+    }
+
+    #[test]
+    fn detect_html_locale_ignores_non_ascii_lang() {
+        assert_eq!(
+            detect_html_locale(r#"<html lang="fr-FR"></html>"#),
+            Some("fr".to_string())
+        );
+        // Byte 2 falls inside '中'
+        assert_eq!(detect_html_locale(r#"<html lang="中文"></html>"#), None);
     }
 }

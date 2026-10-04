@@ -1165,7 +1165,7 @@ impl MarketDataProvider for AlphaVantageProvider {
             } => self.fetch_crypto_quotes(symbol, market).await?,
             ProviderInstrument::FxSymbol { ref symbol } => {
                 // Try to parse FX symbol format (e.g., "EURUSD" -> EUR/USD)
-                if symbol.len() == 6 {
+                if symbol.len() == 6 && symbol.is_ascii() {
                     let from = &symbol[..3];
                     let to = &symbol[3..];
                     self.fetch_fx_quotes(from, to).await?
@@ -1234,7 +1234,7 @@ impl MarketDataProvider for AlphaVantageProvider {
             } => self.fetch_crypto_quotes(symbol, market).await?,
             ProviderInstrument::FxSymbol { ref symbol } => {
                 // Try to parse FX symbol format (e.g., "EURUSD" -> EUR/USD)
-                if symbol.len() == 6 {
+                if symbol.len() == 6 && symbol.is_ascii() {
                     let from = &symbol[..3];
                     let to = &symbol[3..];
                     self.fetch_fx_quotes(from, to).await?
@@ -1730,6 +1730,30 @@ mod tests {
             AlphaVantageProvider::extract_underlying_from_occ("Société Générale"),
             "Société Générale"
         );
+    }
+
+    #[tokio::test]
+    async fn test_non_ascii_fx_symbol_is_unsupported() {
+        // 6 bytes, with byte 3 inside the '€'
+        let provider = AlphaVantageProvider::new("test_key".to_string());
+        let context = create_test_fx_context(None, "USD");
+        let instrument = || ProviderInstrument::FxSymbol {
+            symbol: "US€D".into(),
+        };
+
+        let latest = provider.get_latest_quote(&context, instrument()).await;
+        assert!(matches!(
+            latest,
+            Err(MarketDataError::UnsupportedAssetType(_))
+        ));
+
+        let history = provider
+            .get_historical_quotes(&context, instrument(), Utc::now(), Utc::now())
+            .await;
+        assert!(matches!(
+            history,
+            Err(MarketDataError::UnsupportedAssetType(_))
+        ));
     }
 
     #[test]
