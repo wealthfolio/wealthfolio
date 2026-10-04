@@ -81,7 +81,9 @@ react-hook-form/Zod form patterns, and theme tokens in
 `apps/frontend/src/globals.css`. Prefer interfaces for object shapes, named
 component exports, and lowercase-with-dashes directories; avoid TypeScript
 enums. For Rust domain errors, follow the existing `Result`/`Option` and
-`thiserror` patterns.
+`thiserror` patterns. Clippy rejects `unwrap()` and `panic!` outside tests:
+return an error with `?`, or use `expect("why it cannot fail")` for a proven
+invariant.
 
 ## Persisted identifiers and security
 

@@ -1,5 +1,6 @@
 //! Property suite (architecture §5) driven by the fixture corpus: every scenario is
 //! a generator seed, and each law is checked over all of them.
+#![allow(clippy::unwrap_used, clippy::panic, reason = "test code")]
 
 mod support;
 

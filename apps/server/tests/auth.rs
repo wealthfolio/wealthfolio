@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used, clippy::panic, reason = "test code")]
 use std::net::SocketAddr;
 
 use argon2::{password_hash::SaltString, Argon2, PasswordHasher};

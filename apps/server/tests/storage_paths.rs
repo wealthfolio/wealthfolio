@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used, clippy::panic, reason = "test code")]
 use std::{path::Path, process::Command, sync::Arc};
 
 use wealthfolio_server::{config::Config, profiles::WebProfiles};

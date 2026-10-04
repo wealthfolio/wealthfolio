@@ -1,6 +1,7 @@
 //! Test/eval-only mock implementations of the AiEnvironment trait and
 //! every service it returns. Gated behind the `test-utils` feature so the
 //! eval binary (`cargo run --bin eval --features eval`) can construct one.
+#![allow(clippy::unwrap_used, clippy::panic, reason = "test fixture")]
 
 use super::*;
 use async_trait::async_trait;

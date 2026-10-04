@@ -12,10 +12,16 @@ edition = "2021"
 license = "AGPL-3.0"
 
 [workspace.lints.rust]
-unsafe_code = "forbid"
+# deny, not forbid: the FFI calls that need unsafe allow it locally, with a reason.
+unsafe_code = "deny"
 
 [workspace.lints.clippy]
 all = "warn"
+# Production code returns errors instead of panicking. Where a value provably
+# cannot be missing, `expect("why it cannot fail")` states the invariant.
+# Tests are exempt (clippy.toml).
+unwrap_used = "warn"
+panic = "warn"
 
 [profile.dev]
 # Keep file/line backtraces without full type and variable debug information.

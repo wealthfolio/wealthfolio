@@ -129,6 +129,10 @@ pub fn shared_secret_store(identifier: &str) -> Arc<dyn SecretStore> {
 // MainActivity supplies the application context before Tauri starts using secrets.
 #[cfg(target_os = "android")]
 #[allow(non_snake_case)]
+#[allow(
+    unsafe_code,
+    reason = "JNI entry point that Android finds by its unmangled name"
+)]
 #[no_mangle]
 pub extern "system" fn Java_com_teymz_wealthfolio_MainActivity_initializeSecretStoreContext(
     env: jni::JNIEnv,

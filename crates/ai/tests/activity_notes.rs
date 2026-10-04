@@ -1,4 +1,5 @@
 #![cfg(feature = "test-utils")]
+#![allow(clippy::unwrap_used, clippy::panic, reason = "test code")]
 
 use std::sync::Arc;
 use wealthfolio_agent_tools::{

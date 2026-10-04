@@ -1,6 +1,7 @@
 //! The fold recomputes book costs only for the positions a day's activities
 //! touch; an unchanged position keeps its figures, except when its conversion
 //! failed, which is reported again on every activity day as before.
+#![allow(clippy::unwrap_used, clippy::panic, reason = "test code")]
 
 mod support;
 

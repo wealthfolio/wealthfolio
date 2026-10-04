@@ -1,5 +1,6 @@
 //! The daily return series is built only when the caller asks for it (history
 //! responses); summaries skip it, as the legacy summaries did.
+#![allow(clippy::unwrap_used, clippy::panic, reason = "test code")]
 
 mod support;
 

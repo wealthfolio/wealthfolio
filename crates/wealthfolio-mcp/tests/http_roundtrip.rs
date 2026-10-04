@@ -8,6 +8,7 @@
 //! - Scope filtering hides tools from `tools/list` and denies `tools/call`.
 //! - Missing auth context fails closed.
 //! - Audit entries are recorded with the right outcomes.
+#![allow(clippy::unwrap_used, clippy::panic, reason = "test code")]
 
 use std::sync::Arc;
 

@@ -2,6 +2,7 @@
 //! one way and reported so the health center can show it: directions of a
 //! pair that disagree, a reduction beyond the position, and a posted row
 //! without a final amount.
+#![allow(clippy::unwrap_used, clippy::panic, reason = "test code")]
 
 mod support;
 

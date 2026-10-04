@@ -1,6 +1,7 @@
 //! P3 (architecture §4.1): the kernel's runtime dependency list is closed. A
 //! database, runtime or workspace crate added here fails this test instead of
 //! slipping through review.
+#![allow(clippy::unwrap_used, clippy::panic, reason = "test code")]
 
 use std::collections::BTreeSet;
 

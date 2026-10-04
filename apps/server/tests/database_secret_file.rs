@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used, clippy::panic, reason = "test code")]
 use std::path::Path;
 use std::process::{Command, Output};
 use std::sync::Arc;

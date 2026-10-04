@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used, clippy::panic, reason = "test code")]
 use std::{io, net::SocketAddr, sync::Arc, time::Duration};
 
 use tokio::{

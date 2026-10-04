@@ -65,3 +65,6 @@ insta = { version = "1", features = ["json"] }
 name = "eval"
 path = "src/bin/eval.rs"
 required-features = ["eval"]
+
+[lints]
+workspace = true

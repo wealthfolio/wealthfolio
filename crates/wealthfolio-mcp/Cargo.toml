@@ -30,3 +30,6 @@ reqwest = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 wealthfolio-core = { workspace = true }
 wealthfolio-spending = { workspace = true }
+
+[lints]
+workspace = true

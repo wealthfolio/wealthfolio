@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used, clippy::panic, reason = "test code")]
 use wealthfolio_server::{build_state, config::Config};
 use wealthfolio_storage_sqlite::db;
 

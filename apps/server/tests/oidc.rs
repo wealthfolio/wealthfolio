@@ -6,6 +6,7 @@
 //! with a transaction cookie, and protected routes still require a session.
 //!
 //! All assertions live in one test to avoid races on the process-global env vars.
+#![allow(clippy::unwrap_used, clippy::panic, reason = "test code")]
 
 use std::net::SocketAddr;
 

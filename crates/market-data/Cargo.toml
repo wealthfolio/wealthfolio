@@ -24,3 +24,6 @@ lazy_static = "1.4"
 [dev-dependencies]
 rust_decimal_macros = "1"
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
+
+[lints]
+workspace = true

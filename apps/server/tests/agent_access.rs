@@ -3,6 +3,7 @@
 //!
 //! These boot the real router on a loopback port (the MCP transport
 //! answers over SSE, so `oneshot` is not enough) with auth enabled.
+#![allow(clippy::unwrap_used, clippy::panic, reason = "test code")]
 
 use std::net::SocketAddr;
 

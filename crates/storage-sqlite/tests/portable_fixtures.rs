@@ -1,4 +1,5 @@
 //! Frozen version-one files must remain readable independently of today's exporter.
+#![allow(clippy::unwrap_used, clippy::panic, reason = "test code")]
 use sha2::{Digest, Sha256};
 use std::{fs, io::Write, path::PathBuf, sync::Arc};
 use wealthfolio_storage_sqlite::db::{self, portable, DbAccess, DbEncryptionKey};

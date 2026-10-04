@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used, clippy::panic, reason = "test code")]
 use std::sync::Arc;
 
 use diesel::RunQueryDsl;

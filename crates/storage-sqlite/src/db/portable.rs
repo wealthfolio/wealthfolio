@@ -55,6 +55,7 @@ fn password_key(password: &str) -> Zeroizing<String> {
     Zeroizing::new(format!("wealthfolio-portable-v1:{password}"))
 }
 
+#[allow(unsafe_code, reason = "SQLCipher's sqlite3_key has no safe binding")]
 fn password_connection(path: &Path, password: &str) -> anyhow::Result<Connection> {
     let conn = Connection::open_with_flags(path, OpenFlags::SQLITE_OPEN_READ_WRITE)?;
     let key = password_key(password);
