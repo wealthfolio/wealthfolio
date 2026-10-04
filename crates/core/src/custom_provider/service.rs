@@ -113,8 +113,9 @@ impl CustomProviderService {
         let asset_count = self.repo.get_asset_count_for_provider(provider_id)?;
         if asset_count > 0 {
             return Err(ValidationError::InvalidInput(format!(
-                "Cannot delete '{}': {} asset(s) still use it as preferred provider. \
-                 Change their preferred provider first, then try again.",
+                "Cannot delete '{}': {} asset(s) still use it as their market data provider \
+                 or in a symbol mapping. Change their provider or remove the mapping first, \
+                 then try again.",
                 provider_id, asset_count
             ))
             .into());

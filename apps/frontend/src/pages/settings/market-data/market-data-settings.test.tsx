@@ -197,6 +197,13 @@ describe("MarketDataSettingsPage", () => {
     hookMocks.getAssets.mockResolvedValue([
       assignedAsset("fund-b", "FUNDB", "fund"),
       assignedAsset("fund-a", "FUNDA", "fund"),
+      {
+        ...assignedAsset("aapl", "AAPL", "fund"),
+        providerConfig: {
+          preferred_provider: "YAHOO",
+          overrides: { "CUSTOM:fund": { type: "equity_symbol", symbol: "apple" } },
+        },
+      },
     ]);
     const user = userEvent.setup();
     renderPage();
@@ -209,20 +216,31 @@ describe("MarketDataSettingsPage", () => {
   it("marks fallback providers and counts the securities each one serves", async () => {
     const { row } = await openCustomProviders();
 
-    expect(await within(row("Private fund")).findByText("2 securities")).toBeInTheDocument();
+    expect(await within(row("Private fund")).findByText("3 securities")).toBeInTheDocument();
     expect(within(row("Private fund")).queryByText("Fallback")).not.toBeInTheDocument();
     expect(within(row("General API")).getByText("Fallback")).toBeInTheDocument();
   });
 
-  it("names the securities blocking a delete instead of offering to delete", async () => {
+  it("names the securities blocking a delete and how to release each kind", async () => {
     const { user, row } = await openCustomProviders();
-    await within(row("Private fund")).findByText("2 securities");
+    await within(row("Private fund")).findByText("3 securities");
 
     await user.click(within(row("Private fund")).getByRole("button", { name: "Delete" }));
 
     expect(await screen.findByText("Can't delete Private fund yet")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "2 securities are assigned to it. Choose a different market data provider for them.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "1 security has a symbol mapped for it. Remove that mapping in its market data settings.",
+      ),
+    ).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "FUNDA" })).toHaveAttribute("href", "/holdings/fund-a");
     expect(screen.getByRole("link", { name: "FUNDB" })).toHaveAttribute("href", "/holdings/fund-b");
+    expect(screen.getByRole("link", { name: "AAPL" })).toHaveAttribute("href", "/holdings/aapl");
     expect(mutate).not.toHaveBeenCalled();
   });
 

@@ -641,22 +641,33 @@ function CustomProviderCard({
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-80 space-y-3" align="end">
-                <div className="space-y-2">
-                  <h4 className="font-medium leading-none">
-                    {t("settings:market_data_page.delete_provider_in_use_title", {
-                      name: provider.name,
-                    })}
-                  </h4>
-                  <p className="text-muted-foreground text-sm">
-                    {t("settings:market_data_page.delete_provider_in_use_message", {
-                      count: usedBy,
-                    })}
-                  </p>
-                </div>
-                <CustomProviderUsageChips
-                  assets={[...usage.assigned, ...usage.mappedOnly]}
-                  linkable
-                />
+                <h4 className="font-medium leading-none">
+                  {t("settings:market_data_page.delete_provider_in_use_title", {
+                    name: provider.name,
+                  })}
+                </h4>
+                {/* Changing a security's provider keeps its symbol mappings, so each group
+                    needs its own instruction. */}
+                {usage.assigned.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-muted-foreground text-sm">
+                      {t("settings:market_data_page.delete_provider_in_use_assigned", {
+                        count: usage.assigned.length,
+                      })}
+                    </p>
+                    <CustomProviderUsageChips assets={usage.assigned} linkable />
+                  </div>
+                )}
+                {usage.mappedOnly.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-muted-foreground text-sm">
+                      {t("settings:market_data_page.delete_provider_in_use_mapped", {
+                        count: usage.mappedOnly.length,
+                      })}
+                    </p>
+                    <CustomProviderUsageChips assets={usage.mappedOnly} linkable />
+                  </div>
+                )}
               </PopoverContent>
             </Popover>
           ) : (
