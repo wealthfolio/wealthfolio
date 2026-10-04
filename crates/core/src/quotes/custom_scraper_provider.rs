@@ -629,7 +629,7 @@ impl MarketDataProvider for CustomScraperProvider {
 
 impl CustomScraperProvider {
     /// Find candidate sources for the given kind.
-    /// If `custom_provider_code` is set, returns that single provider's source.
+    /// If the security is assigned to a custom provider, returns that provider's source.
     /// Otherwise, returns sources from enabled custom providers that allow fallback use and
     /// whose URL or body contains an identity placeholder (general-purpose sources that work
     /// like built-in providers).
@@ -638,8 +638,9 @@ impl CustomScraperProvider {
         context: &QuoteContext,
         kind: &str,
     ) -> Result<Vec<CustomProviderSource>, MarketDataError> {
-        // Explicit provider code — use it directly
-        if let Some(code) = context.custom_provider_code.as_deref() {
+        // Assigned provider — use it directly. A leftover code under another chosen
+        // provider is ignored, so only fallback providers can serve that security.
+        if let Some(code) = context.assigned_custom_provider() {
             let source = self
                 .repo
                 .get_source_by_kind(code, kind)
@@ -1519,6 +1520,31 @@ mod tests {
 
         assert_eq!(sources.len(), 1);
         assert_eq!(sources[0].provider_id, "private-fund");
+    }
+
+    #[tokio::test]
+    async fn leftover_custom_code_under_another_provider_sends_no_request() {
+        // The security now prefers Yahoo but its config still carries the old code.
+        let repo = Arc::new(MockCustomProviderRepository {
+            providers: vec![provider_with_scope(
+                "private-fund",
+                false,
+                "http://127.0.0.1:9/nav/{SYMBOL}",
+            )],
+        });
+        let provider = CustomScraperProvider::new(repo, Arc::new(MockSecretStore));
+        let mut context = equity_context(Some("private-fund"));
+        context.preferred_provider = Some(Cow::Borrowed("YAHOO"));
+        let instrument = ProviderInstrument::EquitySymbol {
+            symbol: Arc::from("AAPL"),
+        };
+
+        let latest = provider
+            .get_latest_quote(&context, instrument)
+            .await
+            .unwrap_err();
+
+        assert!(matches!(latest, MarketDataError::NotSupported { .. }));
     }
 
     #[tokio::test]

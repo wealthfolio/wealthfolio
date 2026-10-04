@@ -35,9 +35,7 @@ fn excluded_by_custom_assignment(
     provider: &dyn MarketDataProvider,
     context: &QuoteContext,
 ) -> bool {
-    context.custom_provider_code.is_some()
-        && context.preferred_provider.as_deref() == Some(DATA_SOURCE_CUSTOM_SCRAPER)
-        && provider.id() != DATA_SOURCE_CUSTOM_SCRAPER
+    context.assigned_custom_provider().is_some() && provider.id() != DATA_SOURCE_CUSTOM_SCRAPER
 }
 
 /// Provider registry for orchestrating market data fetching.
