@@ -223,7 +223,8 @@ pub fn type_override(type_override: Option<&str>) -> Option<&str> {
 /// A type override as stored: as `type_override` reads it, trimmed and none
 /// when blank. Every write of `activities.activity_type_override` stores it
 /// through this, so a reader of the stored column that does not trim (the
-/// addon SDK's `getEffectiveType`) reads the type the engine reads.
+/// addon SDK's `getEffectiveType`) reads the type the engine reads in every
+/// row written since; rows stored before keep theirs until edited or device-synced.
 pub fn stored_type_override(value: Option<&str>) -> Option<String> {
     type_override(value).map(str::to_string)
 }

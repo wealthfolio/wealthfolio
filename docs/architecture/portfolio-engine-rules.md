@@ -164,11 +164,11 @@ reads an activity's type as the engine does: its override when the override is
 not blank (blank: empty or only whitespace, as Rust's `str::trim` strips it),
 else its stored type. That covers the engine's facts, core's
 `effective_activity_type`, the triggers and the split query; the activity
-repository's queries and the frontend read it the same way, and every override
-is stored as it reads (R6.3), so a reader that does not trim it reads the same
-type. A run consumes a marker only after writing what it covers. An account or
-asset that arrives after facts naming it marks itself on insert (rows above), so
-a run that could not project it yet projects it once it exists.
+repository's queries and the frontend read it the same way, and every write
+stores an override as it reads (R6.3). A run consumes a marker only after
+writing what it covers. An account or asset that arrives after facts naming it
+marks itself on insert (rows above), so a run that could not project it yet
+projects it once it exists.
 
 ## 6. Data normalized where written
 
@@ -187,7 +187,9 @@ account; both owners are invalidated (§5).
 
 **R6.3** An activity's type override is stored as it reads (§5): trimmed, and as
 none when blank. An edit, a synced activity or broker edit, and a snapshot
-restore each store it so, and a migration rewrote those stored before.
+restore each store it so. Rows already stored are not repaired: no app write is
+known to have stored a blank or untrimmed override, and editing a row, or
+receiving it by device sync, stores its override as it reads.
 
 ## 7. Cost basis methods
 
@@ -243,6 +245,11 @@ Fixtures: every fixture is FIFO.
   others closed before it) shifts that weighting, by a part of the fee (R2.4).
 - A split recorded on one transactions account does not split another's lots
   (R1.5): each account records its own.
+- An override stored blank or untrimmed before R6.3 keeps that form until its
+  row is next edited or received by device sync. Until then, a reader that does
+  not trim it (the addon SDK's `getEffectiveType` and `hasUserOverride`, broker
+  sync's split check) reads a blank one as a type, or keeps the whitespace
+  around another.
 - Accounting settings this version cannot read do not fail their account alone:
   a method code it does not know (one a newer version wrote) fails the whole
   job, and a malformed entry reads as the defaults (FIFO). Users cannot set

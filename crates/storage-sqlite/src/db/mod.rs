@@ -1483,64 +1483,6 @@ mod migration_tests {
         );
     }
 
-    /// A database written before the migration holds blank and untrimmed
-    /// type overrides: the migration stores each as it reads, by core's shared
-    /// cases (a blank one, NULL, reads as the stored DIVIDEND).
-    #[test]
-    fn normalize_type_overrides_migration_stores_overrides_as_they_read() {
-        use diesel::sql_types::{Nullable, Text};
-        #[derive(QueryableByName)]
-        struct OverrideRow {
-            #[diesel(sql_type = Nullable<Text>)]
-            activity_type_override: Option<String>,
-        }
-        let dir = tempfile::tempdir().unwrap();
-        let access = DbAccess::plaintext(dir.path().join("app.db").to_str().unwrap());
-        access.run_migrations().unwrap();
-        let mut conn = access.connect().unwrap();
-        conn.batch_execute(
-            "DELETE FROM __diesel_schema_migrations WHERE version = '20261003000001';
-             INSERT INTO accounts (id, name, account_type, currency, is_default, is_active,
-                                   created_at, updated_at, is_archived, tracking_mode)
-             VALUES ('acc', 'Test', 'SECURITIES', 'USD', 1, 1,
-                     CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 0, 'portfolio');",
-        )
-        .unwrap();
-        let cases: Vec<(String, String)> = serde_json::from_str(include_str!(
-            "../../../core/src/activities/type_override_cases.json"
-        ))
-        .unwrap();
-        for (index, (override_, _)) in cases.iter().enumerate() {
-            diesel::sql_query(
-                "INSERT INTO activities (id, account_id, activity_type, activity_type_override, \
-                 status, activity_date, currency, is_user_modified, needs_review, created_at, \
-                 updated_at) \
-                 VALUES (?, 'acc', 'DIVIDEND', ?, 'POSTED', '2024-01-15T00:00:00Z', 'USD', 0, 0, \
-                 CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
-            )
-            .bind::<Text, _>(index.to_string())
-            .bind::<Text, _>(override_)
-            .execute(&mut conn)
-            .unwrap();
-        }
-
-        access.run_migrations().unwrap();
-
-        for (index, (override_, expected)) in cases.into_iter().enumerate() {
-            let stored =
-                diesel::sql_query("SELECT activity_type_override FROM activities WHERE id = ?")
-                    .bind::<Text, _>(index.to_string())
-                    .get_result::<OverrideRow>(&mut conn)
-                    .unwrap()
-                    .activity_type_override;
-            assert_eq!(
-                stored,
-                (expected != "DIVIDEND").then_some(expected),
-                "{override_:?}"
-            );
-        }
-    }
-
     /// Diesel keys pending migrations by version (the directory name before
     /// the first `_`), so two directories sharing a version silently skip one
     /// of them on every database that has not applied it yet.

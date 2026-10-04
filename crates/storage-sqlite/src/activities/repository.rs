@@ -4824,22 +4824,12 @@ mod tests {
             .map(u32::from)
             .collect();
         assert_eq!(listed, rust);
-        // The triggers trim that list too, as does the migration that
-        // normalizes stored overrides.
+        // The triggers trim that list too.
         let triggers = include_str!("../../migrations/2026-09-28-000001_projection_state/up.sql");
         assert_eq!(
             triggers.matches("trim(").count(),
             triggers.matches(&format!(", {SQL_WHITESPACE})")).count()
         );
-        let normalized =
-            include_str!("../../migrations/2026-10-03-000001_normalize_type_overrides/up.sql");
-        assert_eq!(
-            normalized.matches("trim(").count(),
-            normalized
-                .matches(&format!("trim(activity_type_override, {SQL_WHITESPACE})"))
-                .count()
-        );
-        assert!(normalized.contains("trim("));
 
         let cases: Vec<(String, String)> = serde_json::from_str(include_str!(
             "../../../core/src/activities/type_override_cases.json"

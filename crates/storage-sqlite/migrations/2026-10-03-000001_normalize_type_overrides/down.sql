@@ -1,2 +1,0 @@
--- No-op: an override reads the same trimmed, and a blank one the same as NULL,
--- and the up migration does not record which rows it rewrote.
