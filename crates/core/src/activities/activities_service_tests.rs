@@ -14334,4 +14334,166 @@ pub(crate) mod tests {
 
         assert!(result.is_err());
     }
+
+    // ───────────────────────────────────────────────────────────────────
+    // Bare activity dates (#1701). A bare `YYYY-MM-DD` is a calendar day and
+    // is stored on that day in the configured timezone: UTC midnight, where it
+    // used to land, falls on the previous day west of UTC.
+    // ───────────────────────────────────────────────────────────────────
+
+    fn bank_account() -> Account {
+        let mut bank = create_test_account("bank-1", "USD");
+        bank.account_type = "CASH".to_string();
+        bank
+    }
+
+    fn dated_service(timezone: &str) -> ActivityService {
+        let account_service = Arc::new(MockAccountService::new());
+        account_service.add_account(bank_account());
+        ActivityService::new(
+            Arc::new(MockActivityRepository::new()),
+            account_service,
+            Arc::new(MockAssetService::new()),
+            Arc::new(MockFxService::new()),
+            Arc::new(MockQuoteService),
+        )
+        .with_timezone(Arc::new(std::sync::RwLock::new(timezone.to_string())))
+    }
+
+    fn dated_deposit(activity_date: &str) -> NewActivity {
+        let mut deposit = create_test_cash_create("deposit", "bank-1", "DEPOSIT", "USD");
+        deposit.activity_date = activity_date.to_string();
+        deposit
+    }
+
+    fn instant(timestamp: &str) -> DateTime<Utc> {
+        DateTime::parse_from_rfc3339(timestamp)
+            .unwrap()
+            .with_timezone(&Utc)
+    }
+
+    /// The in-app assistant's batch confirm sends each draft's bare date to the
+    /// bulk path. With Toronto configured it was stored at UTC midnight, which
+    /// shows there as the day before.
+    #[tokio::test]
+    async fn bulk_create_stores_a_bare_date_on_its_day_in_the_configured_timezone() {
+        let result = dated_service("America/Toronto")
+            .bulk_mutate_activities(ActivityBulkMutationRequest {
+                creates: vec![dated_deposit("2026-04-01")],
+                updates: vec![],
+                delete_ids: vec![],
+            })
+            .await
+            .expect("bulk create");
+        assert!(result.errors.is_empty(), "{:?}", result.errors);
+        assert_eq!(
+            result.created[0].activity_date,
+            instant("2026-04-01T04:00:00Z")
+        );
+    }
+
+    #[tokio::test]
+    async fn activity_dates_keep_timestamps_and_place_bare_dates_by_timezone() {
+        for (timezone, submitted, stored) in [
+            // Timestamps keep their instant, including the CSV wizard's
+            // browser-local midnight.
+            (
+                "America/Toronto",
+                "2026-04-01T09:30:00-04:00",
+                "2026-04-01T13:30:00Z",
+            ),
+            (
+                "America/Toronto",
+                "2026-04-01T04:00:00.000Z",
+                "2026-04-01T04:00:00Z",
+            ),
+            (
+                "Europe/Paris",
+                "2026-03-31T22:00:00.000Z",
+                "2026-03-31T22:00:00Z",
+            ),
+            // West of UTC a bare date is stored at local midnight.
+            ("America/Toronto", "2026-04-01", "2026-04-01T04:00:00Z"),
+            ("Pacific/Honolulu", "2026-04-01", "2026-04-01T10:00:00Z"),
+            // At or east of UTC, or with no timezone, at UTC midnight as before.
+            ("Europe/Paris", "2026-04-01", "2026-04-01T00:00:00Z"),
+            ("UTC", "2026-04-01", "2026-04-01T00:00:00Z"),
+            ("", "2026-04-01", "2026-04-01T00:00:00Z"),
+            // Surrounding whitespace is ignored whatever the timezone.
+            ("America/Toronto", " 2026-04-01\n", "2026-04-01T04:00:00Z"),
+            ("Europe/Paris", " 2026-04-01 ", "2026-04-01T00:00:00Z"),
+            ("", "2026-04-01\n", "2026-04-01T00:00:00Z"),
+            // Chile skips midnight on 2024-09-08: the day starts at 01:00 -03:00.
+            ("America/Santiago", "2024-09-08", "2024-09-08T04:00:00Z"),
+        ] {
+            let created = dated_service(timezone)
+                .create_activity(dated_deposit(submitted))
+                .await
+                .unwrap_or_else(|error| panic!("{timezone} {submitted:?}: {error}"));
+            assert_eq!(
+                created.activity_date,
+                instant(stored),
+                "{timezone} {submitted:?}"
+            );
+        }
+    }
+
+    /// Broker dates follow the broker's own day convention, and a re-sync
+    /// upserts rows already stored, so sync keeps a bare date as received.
+    #[tokio::test]
+    async fn sync_keeps_a_bare_broker_date() {
+        let result = dated_service("America/Toronto")
+            .prepare_activities_for_sync(vec![dated_deposit("2026-04-01")], &bank_account())
+            .await
+            .expect("sync preparation");
+        assert!(result.errors.is_empty(), "{:?}", result.errors);
+        assert_eq!(result.prepared[0].activity.activity_date, "2026-04-01");
+    }
+
+    #[tokio::test]
+    async fn import_stores_a_bare_date_on_its_day_in_the_configured_timezone() {
+        let (service, repository, account) = qa_import_service("USD", Vec::new());
+        let service = service.with_timezone(Arc::new(std::sync::RwLock::new(
+            "America/Toronto".to_string(),
+        )));
+        let mut row = qa_import_row(&account.id, "DEPOSIT", "USD");
+        row.date = "2026-04-01".to_string();
+        row.amount = Some(dec!(100));
+        let result = service.import_activities(vec![row]).await.expect("import");
+        assert_eq!(result.summary.imported, 1, "{:?}", result.summary);
+        let stored = repository.get_activities().expect("stored");
+        assert_eq!(stored[0].activity_date, instant("2026-04-01T04:00:00Z"));
+    }
+
+    /// The import check flags a date the import would reject, so a preview and
+    /// the import agree, and keeps a bare day as submitted.
+    #[tokio::test]
+    async fn import_check_flags_unreadable_dates_and_keeps_bare_days() {
+        let (service, _, account) = qa_import_service("USD", Vec::new());
+        let service = service.with_timezone(Arc::new(std::sync::RwLock::new(
+            "America/Toronto".to_string(),
+        )));
+        let mut readable = qa_import_row(&account.id, "DEPOSIT", "USD");
+        readable.date = " 2026-04-01 ".to_string();
+        readable.amount = Some(dec!(100));
+        let mut unreadable = readable.clone();
+        unreadable.date = "07/28/2026".to_string();
+        unreadable.line_number = Some(2);
+
+        let checked = service
+            .check_activities_import(vec![readable, unreadable])
+            .await
+            .expect("check");
+        assert!(checked[0].is_valid, "{:?}", checked[0].errors);
+        assert_eq!(checked[0].date, "2026-04-01");
+        assert!(!checked[1].is_valid);
+        assert!(
+            checked[1]
+                .errors
+                .as_ref()
+                .is_some_and(|errors| errors.contains_key("activityDate")),
+            "{:?}",
+            checked[1].errors
+        );
+    }
 }

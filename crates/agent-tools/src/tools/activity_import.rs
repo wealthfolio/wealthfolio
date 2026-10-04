@@ -31,7 +31,7 @@ const MAX_IMPORT_ROWS: usize = 1000;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ActivityImportRow {
-    /// Activity date (the importer accepts ISO and common formats).
+    /// Activity date: `YYYY-MM-DD` or an RFC 3339 timestamp.
     pub date: String,
     pub activity_type: String,
     pub currency: String,
@@ -529,7 +529,7 @@ fn activity_row_schema() -> serde_json::Value {
     json!({
         "type": "object",
         "properties": {
-            "date": { "type": "string", "description": "Activity date (ISO or common format)." },
+            "date": { "type": "string", "description": "YYYY-MM-DD, or an RFC 3339 timestamp such as 2026-04-01T09:30:00-04:00. A bare date is stored on that day in the configured timezone." },
             "activityType": { "type": "string", "description": "e.g. BUY, SELL, DEPOSIT, DIVIDEND." },
             "currency": { "type": "string" },
             "symbol": { "type": "string", "description": "Ticker or typed symbol such as crypto:BNB-EUR, bond:<ISIN>, option:<OCC>. Omit when selecting assetId or for pure cash activities." },

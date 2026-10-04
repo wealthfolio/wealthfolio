@@ -355,7 +355,7 @@ fn activity_draft_schema() -> serde_json::Value {
         "type": "object",
         "properties": {
             "activityType": { "type": "string" },
-            "activityDate": { "type": "string", "description": "ISO 8601 date." },
+            "activityDate": { "type": "string", "description": "YYYY-MM-DD, or an RFC 3339 timestamp. A bare date is stored on that day in the configured timezone." },
             "symbol": { "type": "string" },
             "assetId": { "type": "string" },
             "assetName": { "type": "string" },

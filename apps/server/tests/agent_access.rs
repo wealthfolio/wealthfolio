@@ -689,6 +689,240 @@ async fn mcp_import_reuses_reviewed_crypto_assets_despite_equity_collisions() {
     );
 }
 
+/// POSTs JSON to the cookie-authenticated REST API and returns the body.
+async fn api_post(
+    server: &TestServer,
+    cookie: &str,
+    path: &str,
+    body: serde_json::Value,
+) -> serde_json::Value {
+    let response = server
+        .client
+        .post(format!("{}/api/v1/{path}", server.base))
+        .header(header::COOKIE, format!("wf_session={cookie}"))
+        .json(&body)
+        .send()
+        .await
+        .unwrap();
+    let status = response.status();
+    let value: serde_json::Value = response.json().await.unwrap();
+    assert!(status.is_success(), "{path}: {status} {value}");
+    value
+}
+
+/// Calls an MCP tool and returns its structured result, failing on tool errors.
+async fn mcp_call_tool(
+    server: &TestServer,
+    pat: &str,
+    session: &str,
+    name: &str,
+    arguments: serde_json::Value,
+) -> serde_json::Value {
+    let response = mcp_post(
+        server,
+        Some(pat),
+        Some(session),
+        serde_json::json!({
+            "jsonrpc": "2.0", "id": name, "method": "tools/call",
+            "params": { "name": name, "arguments": arguments }
+        }),
+    )
+    .await;
+    assert_eq!(response.status(), 200);
+    let result = parse_sse_data(&response.text().await.unwrap());
+    assert!(result.get("error").is_none(), "{result}");
+    assert_ne!(result["result"]["isError"], true, "{name}: {result}");
+    result["result"]["structuredContent"].clone()
+}
+
+/// Mints a read/draft/write activity token and opens an MCP session.
+async fn activity_writer_session(server: &TestServer, cookie: &str) -> (String, String) {
+    let (status, token) = create_pat(
+        server,
+        cookie,
+        serde_json::json!({
+            "name": "activity writer",
+            "scopes": ["activities:read", "activities:draft", "activities:write"]
+        }),
+    )
+    .await;
+    assert_eq!(status, 201);
+    let pat = token["token"].as_str().unwrap().to_string();
+    let session = mcp_initialize(server, &pat).await;
+    (pat, session)
+}
+
+async fn create_eur_account(server: &TestServer, cookie: &str, name: &str) -> serde_json::Value {
+    api_post(
+        server,
+        cookie,
+        "accounts",
+        serde_json::json!({
+            "name": name, "accountType": "SECURITIES", "currency": "EUR",
+            "isDefault": false, "isActive": true, "trackingMode": "TRANSACTIONS"
+        }),
+    )
+    .await
+}
+
+async fn stored_activities(
+    server: &TestServer,
+    cookie: &str,
+    account: &serde_json::Value,
+) -> Vec<serde_json::Value> {
+    let stored = api_post(
+        server,
+        cookie,
+        "activities/search",
+        serde_json::json!({ "page": 0, "pageSize": 10, "accountIdFilter": account["id"] }),
+    )
+    .await;
+    stored["data"].as_array().unwrap().clone()
+}
+
+/// Disables every market-data provider. Symbol search, quote-currency and
+/// profile lookups all go through them, so the test makes no outbound requests.
+async fn disable_market_data_providers(server: &TestServer, cookie: &str) {
+    let providers: Vec<serde_json::Value> = server
+        .client
+        .get(format!("{}/api/v1/providers/settings", server.base))
+        .header(header::COOKIE, format!("wf_session={cookie}"))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert!(!providers.is_empty());
+    for provider in providers {
+        let response = server
+            .client
+            .put(format!("{}/api/v1/providers/settings", server.base))
+            .header(header::COOKIE, format!("wf_session={cookie}"))
+            .json(&serde_json::json!({
+                "providerId": provider["id"], "priority": provider["priority"], "enabled": false
+            }))
+            .send()
+            .await
+            .unwrap();
+        assert!(response.status().is_success(), "{provider}");
+    }
+}
+
+/// Part of #1701: a bare date is a calendar day. West of UTC, UTC midnight
+/// falls on the previous local day, so a bare date is stored at the day's
+/// midnight in the configured timezone. The instant stays on the same UTC day,
+/// so the UTC-based date filter and duplicate keys keep matching, and nothing
+/// changes at or east of UTC. The preview shows the date as submitted.
+#[tokio::test]
+async fn mcp_writes_place_bare_dates_on_their_local_day() {
+    let server = spawn_server(true, false).await;
+    let cookie = login(&server).await;
+    disable_market_data_providers(&server, &cookie).await;
+    let (pat, session) = activity_writer_session(&server, &cookie).await;
+    // Midnight in Toronto (EDT) is 04:00 UTC; Paris keeps UTC midnight.
+    for (timezone, stored_time) in [("America/Toronto", "04:00"), ("Europe/Paris", "00:00")] {
+        let response = server
+            .client
+            .put(format!("{}/api/v1/settings", server.base))
+            .header(header::COOKIE, format!("wf_session={cookie}"))
+            .json(&serde_json::json!({ "timezone": timezone }))
+            .send()
+            .await
+            .unwrap();
+        assert!(response.status().is_success());
+        let account = create_eur_account(&server, &cookie, timezone).await;
+        let deposit = |date: &str, amount: f64| {
+            serde_json::json!({
+                "accountId": account["id"], "activityType": "DEPOSIT", "date": date,
+                "currency": "EUR", "amount": amount
+            })
+        };
+
+        let preview = mcp_call_tool(
+            &server,
+            &pat,
+            &session,
+            "prepare_activity_import",
+            serde_json::json!({ "activities": [deposit("2026-04-01", 105.31)] }),
+        )
+        .await;
+        assert_eq!(preview["rows"][0]["date"], "2026-04-01", "{preview}");
+        let committed = mcp_call_tool(
+            &server,
+            &pat,
+            &session,
+            "commit_activity_import",
+            serde_json::json!({ "activities": [deposit("2026-04-01", 105.31)] }),
+        )
+        .await;
+        assert_eq!(committed["summary"]["imported"], 1, "{committed}");
+        mcp_call_tool(
+            &server,
+            &pat,
+            &session,
+            "commit_activity_draft",
+            serde_json::json!({ "draft": {
+                "accountId": account["id"], "activityType": "DEPOSIT", "activityDate": "2026-04-02",
+                "currency": "EUR", "amount": 50.0,
+                "priceSource": "none", "pricingMode": "MARKET", "isCustomAsset": false
+            }}),
+        )
+        .await;
+        let mut dates: Vec<String> = stored_activities(&server, &cookie, &account)
+            .await
+            .iter()
+            .map(|activity| activity["date"].as_str().unwrap().to_string())
+            .collect();
+        dates.sort();
+        assert_eq!(
+            dates,
+            vec![
+                format!("2026-04-01T{stored_time}:00+00:00"),
+                format!("2026-04-02T{stored_time}:00+00:00")
+            ],
+            "{timezone}"
+        );
+
+        // The UTC-based date filter still finds the day's activity.
+        let found = mcp_call_tool(
+            &server,
+            &pat,
+            &session,
+            "search_activities",
+            serde_json::json!({
+                "accountId": account["id"], "dateFrom": "2026-04-01", "dateTo": "2026-04-01"
+            }),
+        )
+        .await;
+        assert_eq!(
+            found["activities"].as_array().unwrap().len(),
+            1,
+            "{timezone}: {found}"
+        );
+
+        // A row an earlier version stored at UTC midnight is still a duplicate.
+        let committed = mcp_call_tool(
+            &server,
+            &pat,
+            &session,
+            "commit_activity_import",
+            serde_json::json!({ "activities": [deposit("2026-04-03T00:00:00Z", 7.0)] }),
+        )
+        .await;
+        assert_eq!(committed["summary"]["imported"], 1, "{committed}");
+        let preview = mcp_call_tool(
+            &server,
+            &pat,
+            &session,
+            "prepare_activity_import",
+            serde_json::json!({ "activities": [deposit("2026-04-03", 7.0)] }),
+        )
+        .await;
+        assert_eq!(preview["summary"]["duplicates"], 1, "{timezone}: {preview}");
+    }
+}
+
 #[tokio::test]
 async fn mcp_audit_disabled_writes_no_rows() {
     let server = spawn_server(true, false).await;

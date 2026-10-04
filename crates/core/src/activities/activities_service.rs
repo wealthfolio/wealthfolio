@@ -33,6 +33,7 @@
 //! - Drafts stay in the review queue until explicitly approved and posted.
 
 use chrono::{DateTime, NaiveDate, TimeZone, Utc};
+use chrono_tz::Tz;
 use log::debug;
 use rust_decimal::Decimal;
 use std::collections::{HashMap, HashSet};
@@ -73,7 +74,7 @@ use crate::fx::FxServiceTrait;
 use crate::portfolio::economic_events::{ActivityCashInputs, ActivityEconomicsResolver};
 use crate::quotes::constants::DATA_SOURCE_MANUAL;
 use crate::quotes::{Quote, QuoteServiceTrait};
-use crate::utils::time_utils::parse_user_timezone_or_default;
+use crate::utils::time_utils::{calendar_day_instant, parse_user_timezone_or_default};
 use crate::Result;
 use log::warn;
 
@@ -1200,13 +1201,44 @@ impl ActivityService {
         self
     }
 
-    fn validate_and_normalize_activity_date(&self, activity_date: &str) -> Result<String> {
+    fn configured_timezone(&self) -> Tz {
         let configured_timezone = self
             .timezone
             .read()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
             .clone();
-        let timezone = parse_user_timezone_or_default(&configured_timezone);
+        parse_user_timezone_or_default(&configured_timezone)
+    }
+
+    /// Validates a submitted activity date and normalizes it for storage. A bare
+    /// `YYYY-MM-DD` names a calendar day: it is stored at [`calendar_day_instant`]
+    /// in the configured timezone, so the day it shows there is the day given.
+    /// UTC midnight, which is where a bare date used to land, falls on the
+    /// previous day west of UTC. Timestamps keep their instant.
+    fn validate_and_normalize_activity_date(&self, activity_date: &str) -> Result<String> {
+        let activity_date = activity_date.trim();
+        let timezone = self.configured_timezone();
+        if let Ok(day) = NaiveDate::parse_from_str(activity_date, "%Y-%m-%d") {
+            validate_activity_date_in_timezone(activity_date, timezone)?;
+            let instant = calendar_day_instant(day, timezone);
+            // At or east of UTC that is UTC midnight: keep the date as given.
+            return Ok(if instant.time() == chrono::NaiveTime::MIN {
+                activity_date.to_string()
+            } else {
+                instant.with_timezone(&timezone).to_rfc3339()
+            });
+        }
+        Self::validate_activity_timestamp(activity_date, timezone)
+    }
+
+    /// Validates a synced activity date and keeps a bare date as received.
+    /// Broker dates follow the broker's own day convention, and a re-sync
+    /// upserts rows already stored that way.
+    fn validate_synced_activity_date(&self, activity_date: &str) -> Result<String> {
+        Self::validate_activity_timestamp(activity_date, self.configured_timezone())
+    }
+
+    fn validate_activity_timestamp(activity_date: &str, timezone: Tz) -> Result<String> {
         validate_activity_date_in_timezone(activity_date, timezone)?;
 
         // Preserve the submitted timestamp whenever its own calendar date is
@@ -3963,6 +3995,16 @@ impl ActivityService {
                 activities_with_status.push(activity);
                 continue;
             }
+            // Flag a date the import would reject, so the check agrees with it.
+            // The checked row keeps the day as submitted; the import stores it.
+            match self.validate_and_normalize_activity_date(&activity.date) {
+                Ok(_) => activity.date = activity.date.trim().to_string(),
+                Err(error) => {
+                    Self::add_activity_error(&mut activity, "activityDate", &error.to_string());
+                    activities_with_status.push(activity);
+                    continue;
+                }
+            }
             self.hydrate_import_activity_from_asset_id(&mut activity);
             Self::normalize_import_activity_subtype(&mut activity);
 
@@ -6521,8 +6563,12 @@ impl ActivityService {
             .into_iter()
             .map(|activity| {
                 let mut activity = Self::normalize_activity_for_preparation(activity);
-                if let Ok(date) = self.validate_and_normalize_activity_date(&activity.activity_date)
-                {
+                let date = if mode.is_sync() {
+                    self.validate_synced_activity_date(&activity.activity_date)
+                } else {
+                    self.validate_and_normalize_activity_date(&activity.activity_date)
+                };
+                if let Ok(date) = date {
                     activity.activity_date = date;
                 }
                 activity
