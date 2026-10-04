@@ -196,6 +196,7 @@ impl OpenFigiProvider {
         }
         // ISIN: 2 letter country code + 10 alphanumeric
         if q.len() == 12
+            && q.is_ascii()
             && q[..2].chars().all(|c| c.is_ascii_alphabetic())
             && q[2..].chars().all(|c| c.is_ascii_alphanumeric())
         {
@@ -388,6 +389,12 @@ mod tests {
         assert_eq!(OpenFigiProvider::detect_id_types("AAPL"), None);
         assert_eq!(OpenFigiProvider::detect_id_types("short"), None);
         assert_eq!(OpenFigiProvider::detect_id_types(""), None);
+    }
+
+    #[test]
+    fn test_detect_non_ascii_query() {
+        // 12 bytes, with byte 2 inside the 'é'
+        assert_eq!(OpenFigiProvider::detect_id_types("Bézier Fund"), None);
     }
 
     #[test]
