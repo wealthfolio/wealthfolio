@@ -190,6 +190,10 @@ export function useLoanActions(
   // With a "Paid from" account, the withdrawal is the repayment. It is checked
   // against the balance first, so the usual refusal never leaves a withdrawal behind.
   const recordExtraWithdrawal = async (accountId: string, date: string, amount: number) => {
+    // The engine counts no payment before its history starts, so cash would leave
+    // without the debt changing; a loan event before origination is refused too.
+    const start = calculation?.calculationStartDate ?? loanOriginationDate;
+    if (start && date < start) throw new Error("LOAN_INVALID");
     const balance = balanceAt(loanBalanceTimeline(calculation, quoteHistory, today), date);
     if (balance != null && amount > balance) throw new Error("LOAN_AMOUNT_EXCEEDS_BALANCE");
     const withdrawal = await createActivity({

@@ -59,6 +59,7 @@ vi.mock("./use-loan-calculation", async (original) => ({
   ...(await original<typeof import("./use-loan-calculation")>()),
   useLoanCalculation: () => ({
     data: {
+      calculationStartDate: "2026-01-01",
       currentBalance: 500,
       frequency: "biweekly",
       annualRate: 4,
@@ -316,6 +317,15 @@ describe("extra repayments from the paid from account", () => {
       escrow: 0,
     });
     expect(mocks.apply).not.toHaveBeenCalled();
+  });
+
+  it("refuses a repayment before the loan's history starts without recording a withdrawal", async () => {
+    show(holding({ payment_account_id: "chequing" }));
+    await expect(balanceSubmit("extra_repayment")(new Date(2025, 11, 15), 100)).rejects.toThrow(
+      "LOAN_INVALID",
+    );
+    expect(mocks.create).not.toHaveBeenCalled();
+    expect(mocks.link).not.toHaveBeenCalled();
   });
 
   it("records an event once the paid from account no longer qualifies", async () => {
