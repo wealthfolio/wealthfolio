@@ -7,6 +7,7 @@ use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::fmt::Write;
 use std::sync::Mutex;
+use wealthfolio_core::activities::stored_type_override;
 use wealthfolio_core::errors::{DatabaseError, Error};
 use wealthfolio_core::sync::{should_apply_lww, SyncEntity, SyncOperation};
 use wealthfolio_core::Result;
@@ -188,7 +189,7 @@ pub(crate) fn parse_broker_activity_user_patch_payload(
     parsed.provider_account_id = identity.provider_account_id;
     parsed.source_record_id = identity.source_record_id;
     parsed.overlay.activity_type_override =
-        normalize_optional(parsed.overlay.activity_type_override.as_deref());
+        stored_type_override(parsed.overlay.activity_type_override.as_deref());
     parsed.overlay.subtype = normalize_optional(parsed.overlay.subtype.as_deref());
     Ok(parsed)
 }

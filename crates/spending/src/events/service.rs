@@ -626,13 +626,6 @@ mod tests {
         ) -> wealthfolio_core::Result<()> {
             unimplemented!()
         }
-        fn calculate_average_cost(
-            &self,
-            _: &str,
-            _: &str,
-        ) -> wealthfolio_core::Result<rust_decimal::Decimal> {
-            unimplemented!()
-        }
         fn get_income_activities_data(
             &self,
             _: Option<&[String]>,

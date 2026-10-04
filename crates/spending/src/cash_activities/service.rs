@@ -1636,10 +1636,6 @@ mod tests {
             unimplemented!()
         }
 
-        fn calculate_average_cost(&self, _: &str, _: &str) -> wealthfolio_core::Result<Decimal> {
-            unimplemented!()
-        }
-
         fn get_income_activities_data(
             &self,
             _: Option<&[String]>,

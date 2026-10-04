@@ -437,9 +437,6 @@ mod tests {
         ) -> Result<()> {
             Ok(())
         }
-        fn calculate_average_cost(&self, _: &str, _: &str) -> Result<Decimal> {
-            unimplemented!()
-        }
         fn get_income_activities_data(
             &self,
             _account_ids: Option<&[String]>,

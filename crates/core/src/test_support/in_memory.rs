@@ -510,10 +510,6 @@ impl ActivityRepositoryTrait for InMemoryActivityRepository {
         not_needed!("ActivityRepositoryTrait::link_broker_sync_profile")
     }
 
-    fn calculate_average_cost(&self, _account_id: &str, _asset_id: &str) -> Result<Decimal> {
-        not_needed!("ActivityRepositoryTrait::calculate_average_cost")
-    }
-
     fn get_income_activities_data(
         &self,
         _account_ids: Option<&[String]>,

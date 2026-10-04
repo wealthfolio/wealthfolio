@@ -3697,14 +3697,6 @@ mod tests {
             Ok(())
         }
 
-        fn calculate_average_cost(
-            &self,
-            _account_id: &str,
-            _asset_id: &str,
-        ) -> Result<rust_decimal::Decimal> {
-            unimplemented!("unused in this test")
-        }
-
         fn get_income_activities_data(
             &self,
             _account_ids: Option<&[String]>,

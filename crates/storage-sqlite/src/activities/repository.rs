@@ -15,8 +15,8 @@ use uuid::Uuid;
 use wealthfolio_core::accounts::{account_supports_purpose, AccountPurpose};
 use wealthfolio_core::activities::ActivityError;
 use wealthfolio_core::activities::{
-    import_type, is_cash_symbol, type_override, violates_final_cash_floor, Activity,
-    ActivityBulkIdentifierMapping, ActivityBulkMutationResult, ActivityDetails,
+    import_type, is_cash_symbol, stored_type_override, type_override, violates_final_cash_floor,
+    Activity, ActivityBulkIdentifierMapping, ActivityBulkMutationResult, ActivityDetails,
     ActivityFinalCashMigrationUpdate, ActivityFinalCashMigrationWriteResult,
     ActivityRepositoryTrait, ActivitySearchResponse, ActivitySearchResponseMeta, ActivityUpdate,
     ActivityUpsert, BulkUpsertResult, ImportMapping, ImportTemplate, IncomeData, NewActivity, Sort,
@@ -163,7 +163,8 @@ fn queue_activity_update_outbox(
 fn activity_update_invalidates_spending_splits(before: &ActivityDB, after: &ActivityDB) -> bool {
     before.account_id != after.account_id
         || before.activity_type != after.activity_type
-        || before.activity_type_override != after.activity_type_override
+        || type_override(before.activity_type_override.as_deref())
+            != type_override(after.activity_type_override.as_deref())
         || before.subtype != after.subtype
         || before.amount != after.amount
         || before.source_group_id != after.source_group_id
@@ -958,6 +959,8 @@ impl ActivityRepositoryTrait for ActivityRepository {
                     &existing_activity_type,
                     provider_account_id.as_deref(),
                 );
+                activity_to_update.activity_type_override =
+                    stored_type_override(activity_to_update.activity_type_override.as_deref());
                 activity_to_update.updated_at = chrono::Utc::now().to_rfc3339();
                 assert_final_cash_floor(&activity_to_update)?;
 
@@ -1378,6 +1381,8 @@ impl ActivityRepositoryTrait for ActivityRepository {
                         &existing_activity_type,
                         provider_account_id.as_deref(),
                     );
+                    activity_db.activity_type_override =
+                        stored_type_override(activity_db.activity_type_override.as_deref());
                     activity_db.updated_at = chrono::Utc::now().to_rfc3339();
                     assert_final_cash_floor(&activity_db)?;
 
@@ -1659,47 +1664,6 @@ impl ActivityRepositoryTrait for ActivityRepository {
         let mut activities: Vec<Activity> = by_id.into_values().map(Activity::from).collect();
         activities.sort_by_key(|activity| activity.activity_date);
         Ok(activities)
-    }
-
-    /// Calculates the average cost for an asset in an account
-    fn calculate_average_cost(&self, account_id: &str, asset_id: &str) -> Result<Decimal> {
-        let mut conn = get_connection(&self.pool)?;
-
-        #[derive(QueryableByName, Debug)]
-        struct AverageCost {
-            #[diesel(sql_type = diesel::sql_types::Text)]
-            average_cost: String,
-        }
-
-        let result: AverageCost = diesel::sql_query(
-            r#"
-            WITH running_totals AS (
-                SELECT
-                    CAST(quantity AS TEXT) as quantity,
-                    CAST(unit_price AS TEXT) as unit_price,
-                    CAST(quantity AS TEXT) AS quantity_change,
-                    CAST(CAST(quantity AS DECIMAL) * CAST(unit_price AS DECIMAL) AS TEXT) AS value_change,
-                    CAST(SUM(CAST(quantity AS DECIMAL)) OVER (ORDER BY activity_date, id) AS TEXT) AS running_quantity,
-                    CAST(SUM(CAST(quantity AS DECIMAL) * CAST(unit_price AS DECIMAL)) OVER (ORDER BY activity_date, id) AS TEXT) AS running_value
-                FROM activities
-                WHERE account_id = ?1 AND asset_id = ?2
-                  AND activity_type IN ('BUY', 'TRANSFER_IN')
-            )
-            SELECT
-                CASE
-                    WHEN SUM(CAST(quantity_change AS DECIMAL)) > 0
-                    THEN CAST(CAST(SUM(CAST(value_change AS DECIMAL)) AS DECIMAL) / CAST(SUM(CAST(quantity_change AS DECIMAL)) AS DECIMAL) AS TEXT)
-                    ELSE '0'
-                END AS average_cost
-            FROM running_totals
-            "#,
-        )
-        .bind::<diesel::sql_types::Text, _>(account_id)
-        .bind::<diesel::sql_types::Text, _>(asset_id)
-        .get_result(&mut conn)
-        .map_err(StorageError::from)?;
-
-        Ok(Decimal::from_str(&result.average_cost).unwrap_or_default())
     }
 
     /// Gets the import mapping for a given account ID and context kind by joining import_account_templates + import_templates
@@ -4925,6 +4889,75 @@ mod tests {
                 .collect::<Vec<_>>(),
             vec![("DIVIDEND", Decimal::from(10))]
         );
+    }
+
+    #[tokio::test]
+    async fn edits_store_type_overrides_as_they_read() {
+        let (pool, writer) = setup_db();
+        let repo = ActivityRepository::new(pool.clone(), writer);
+        let mut conn = get_connection(&pool).expect("conn");
+        insert_account(&mut conn, "acc-override");
+        // (row, override stored before the edit, override stored after it)
+        let rows = [
+            ("single-blank", "\u{a0}", None),
+            ("single-padded", "\u{2003}INTEREST ", Some("INTEREST")),
+            ("bulk-blank", "\u{a0}", None),
+            ("bulk-padded", " INTEREST\t", Some("INTEREST")),
+        ];
+        for (id, before, _) in rows {
+            insert_activity_with_subtype(&mut conn, id, "acc-override", "DIVIDEND", None, None);
+            diesel::update(activities::table.find(id))
+                .set(activities::activity_type_override.eq(Some(before.to_string())))
+                .execute(&mut conn)
+                .expect("stored override");
+            insert_spending_split(&mut conn, &format!("{id}-split"), id);
+        }
+        let notes_edit = |id: &str| ActivityUpdate {
+            id: id.to_string(),
+            account_id: "acc-override".to_string(),
+            asset: None,
+            activity_type: "DIVIDEND".to_string(),
+            subtype: None,
+            activity_date: "2024-01-15T00:00:00Z".to_string(),
+            quantity: None,
+            unit_price: None,
+            currency: "USD".to_string(),
+            fee: None,
+            tax: None,
+            amount: None,
+            status: None,
+            needs_review: None,
+            notes: Some("Edited".to_string()),
+            fx_rate: None,
+            metadata: None,
+        };
+
+        for id in ["single-blank", "single-padded"] {
+            repo.update_activity(notes_edit(id)).await.expect("update");
+        }
+        repo.bulk_mutate_activities(
+            Vec::new(),
+            vec![notes_edit("bulk-blank"), notes_edit("bulk-padded")],
+            Vec::new(),
+        )
+        .await
+        .expect("bulk update");
+
+        for (id, _, after) in rows {
+            let stored = activities::table
+                .find(id)
+                .select(activities::activity_type_override)
+                .first::<Option<String>>(&mut conn)
+                .expect("override");
+            assert_eq!(stored.as_deref(), after, "{id}");
+            // The type read did not change, so the edit keeps the splits.
+            let splits = spending_activity_splits::table
+                .filter(spending_activity_splits::activity_id.eq(id))
+                .count()
+                .get_result::<i64>(&mut conn)
+                .expect("count splits");
+            assert_eq!(splits, 1, "{id}");
+        }
     }
 
     /// Regression: re-linking the same (account_id, context_kind, source_system) must preserve the row `id`
