@@ -69,7 +69,10 @@ impl AlternativeAssetService {
 
     fn today(&self) -> chrono::NaiveDate {
         user_today(parse_user_timezone_or_default(
-            &self.timezone.read().unwrap(),
+            &self
+                .timezone
+                .read()
+                .unwrap_or_else(|poisoned| poisoned.into_inner()),
         ))
     }
 
@@ -266,7 +269,11 @@ impl AlternativeAssetServiceTrait for AlternativeAssetService {
             let purchase_quote = Quote {
                 id: Uuid::new_v4().to_string(),
                 asset_id: asset_id.clone(),
-                timestamp: Utc.from_utc_datetime(&purchase_date.and_hms_opt(12, 0, 0).unwrap()),
+                timestamp: Utc.from_utc_datetime(
+                    &purchase_date
+                        .and_hms_opt(12, 0, 0)
+                        .expect("12:00:00 is a valid time"),
+                ),
                 open: purchase_price,
                 high: purchase_price,
                 low: purchase_price,
@@ -290,7 +297,12 @@ impl AlternativeAssetServiceTrait for AlternativeAssetService {
         let quote = Quote {
             id: quote_id.clone(),
             asset_id: asset_id.clone(),
-            timestamp: Utc.from_utc_datetime(&request.value_date.and_hms_opt(12, 0, 0).unwrap()),
+            timestamp: Utc.from_utc_datetime(
+                &request
+                    .value_date
+                    .and_hms_opt(12, 0, 0)
+                    .expect("12:00:00 is a valid time"),
+            ),
             open: request.current_value,
             high: request.current_value,
             low: request.current_value,
@@ -340,7 +352,12 @@ impl AlternativeAssetServiceTrait for AlternativeAssetService {
         let quote = Quote {
             id: quote_id.clone(),
             asset_id: request.asset_id.clone(),
-            timestamp: Utc.from_utc_datetime(&request.date.and_hms_opt(12, 0, 0).unwrap()),
+            timestamp: Utc.from_utc_datetime(
+                &request
+                    .date
+                    .and_hms_opt(12, 0, 0)
+                    .expect("12:00:00 is a valid time"),
+            ),
             open: request.value,
             high: request.value,
             low: request.value,
@@ -546,7 +563,11 @@ impl AlternativeAssetServiceTrait for AlternativeAssetService {
                 let purchase_quote = Quote {
                     id: Uuid::new_v4().to_string(),
                     asset_id: request.asset_id.clone(),
-                    timestamp: Utc.from_utc_datetime(&purchase_date.and_hms_opt(12, 0, 0).unwrap()),
+                    timestamp: Utc.from_utc_datetime(
+                        &purchase_date
+                            .and_hms_opt(12, 0, 0)
+                            .expect("12:00:00 is a valid time"),
+                    ),
                     open: purchase_price,
                     high: purchase_price,
                     low: purchase_price,

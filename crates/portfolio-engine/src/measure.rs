@@ -518,48 +518,49 @@ fn performance_core(
         None
     };
 
-    let (method, value_return, value_return_reason) = if holdings {
-        let (_, all_time_return) = holdings_value_return.unwrap();
-        let ret = if start_opt.is_none() {
-            all_time_return
-        } else {
-            holdings_chained
-        };
-        let reason = ret.is_none().then(|| {
-            if holdings_out_of_range && start_opt.is_some() {
-                QualityNote::HoldingsReturnOutOfRange
-            } else if holdings_flows_unavailable {
-                QualityNote::FlowsNotInferred {
-                    metric: Metric::ValueReturn,
-                    subject: Subject::HoldingsScope,
-                }
-            } else if start_opt.is_none() {
-                holdings_all_time_unavailable_reason(
-                    end_point,
-                    Metric::ValueReturn,
-                    Subject::HoldingsScope,
-                )
-                .unwrap_or(QualityNote::HoldingsValueReturnUnavailable)
+    // Some exactly when `holdings`.
+    let (method, value_return, value_return_reason) =
+        if let Some((_, all_time_return)) = holdings_value_return {
+            let ret = if start_opt.is_none() {
+                all_time_return
             } else {
-                QualityNote::HoldingsNonPositiveStart
-            }
-        });
-        (ReturnMethod::ValueReturn, ret, reason)
-    } else if coverage_unavailable {
-        (
-            ReturnMethod::TimeWeighted,
-            None,
-            Some(QualityNote::CoverageUnavailable {
-                metric: Metric::ValueReturn,
-            }),
-        )
-    } else {
-        let value_return = simple_value_return(history, &flows);
-        let reason = value_return
-            .is_none()
-            .then_some(QualityNote::TransactionNonPositiveStart);
-        (ReturnMethod::TimeWeighted, value_return, reason)
-    };
+                holdings_chained
+            };
+            let reason = ret.is_none().then(|| {
+                if holdings_out_of_range && start_opt.is_some() {
+                    QualityNote::HoldingsReturnOutOfRange
+                } else if holdings_flows_unavailable {
+                    QualityNote::FlowsNotInferred {
+                        metric: Metric::ValueReturn,
+                        subject: Subject::HoldingsScope,
+                    }
+                } else if start_opt.is_none() {
+                    holdings_all_time_unavailable_reason(
+                        end_point,
+                        Metric::ValueReturn,
+                        Subject::HoldingsScope,
+                    )
+                    .unwrap_or(QualityNote::HoldingsValueReturnUnavailable)
+                } else {
+                    QualityNote::HoldingsNonPositiveStart
+                }
+            });
+            (ReturnMethod::ValueReturn, ret, reason)
+        } else if coverage_unavailable {
+            (
+                ReturnMethod::TimeWeighted,
+                None,
+                Some(QualityNote::CoverageUnavailable {
+                    metric: Metric::ValueReturn,
+                }),
+            )
+        } else {
+            let value_return = simple_value_return(history, &flows);
+            let reason = value_return
+                .is_none()
+                .then_some(QualityNote::TransactionNonPositiveStart);
+            (ReturnMethod::TimeWeighted, value_return, reason)
+        };
     let holdings_pnl_reason = holdings_value_return.and_then(|(amount, _)| {
         if amount.is_none() && start_opt.is_none() {
             holdings_all_time_unavailable_reason(end_point, Metric::Pnl, Subject::HoldingsScope)

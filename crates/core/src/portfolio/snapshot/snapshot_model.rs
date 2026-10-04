@@ -164,7 +164,7 @@ impl Default for AccountStateSnapshot {
         AccountStateSnapshot {
             id: String::new(),
             account_id: String::new(),
-            snapshot_date: NaiveDate::from_ymd_opt(1970, 1, 1).unwrap(),
+            snapshot_date: NaiveDate::from_ymd_opt(1970, 1, 1).expect("1970-01-01 is a valid date"),
             currency: String::new(),
             positions: HashMap::new(),
             cash_balances: HashMap::new(),

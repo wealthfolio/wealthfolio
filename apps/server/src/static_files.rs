@@ -80,13 +80,11 @@ async fn cache_headers(request: Request<Body>, next: Next) -> Response {
             .is_some_and(|value| value.as_bytes().starts_with(b"text/html"));
     response.headers_mut().insert(
         header::CACHE_CONTROL,
-        if reusable_asset {
+        header::HeaderValue::from_static(if reusable_asset {
             "public, max-age=31536000, immutable"
         } else {
             "no-cache"
-        }
-        .parse()
-        .unwrap(),
+        }),
     );
     response
 }

@@ -362,8 +362,11 @@ impl UsTreasuryCalcProvider {
                 message: format!("Invalid price: {}", price_fraction),
             })?;
 
-        let timestamp =
-            DateTime::<Utc>::from_naive_utc_and_offset(date.and_hms_opt(16, 0, 0).unwrap(), Utc);
+        let timestamp = DateTime::<Utc>::from_naive_utc_and_offset(
+            date.and_hms_opt(16, 0, 0)
+                .expect("16:00:00 is a valid time"),
+            Utc,
+        );
 
         Ok(Quote::new(
             timestamp,
@@ -780,7 +783,7 @@ fn parse_yield_curve_xml(xml: &str) -> Result<YearCurves, MarketDataError> {
         }
 
         if !points.is_empty() {
-            points.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+            points.sort_by(|a, b| a.0.total_cmp(&b.0));
             results.push((date, YieldCurve(points)));
         }
     }

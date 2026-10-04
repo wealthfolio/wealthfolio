@@ -333,13 +333,13 @@ impl QuoteStore for MarketDataRepository {
             .iter()
             .map(|q| q.timestamp.date_naive())
             .min()
-            .unwrap()
+            .expect("quotes is non-empty: first was read above")
             .to_string();
         let to_date = quotes
             .iter()
             .map(|q| q.timestamp.date_naive())
             .max()
-            .unwrap()
+            .expect("quotes is non-empty: first was read above")
             .to_string();
         let rows: Vec<QuoteDB> = quotes.iter().map(QuoteDB::from).collect();
         self.writer.exec_tx(move |tx| {

@@ -183,7 +183,9 @@ impl FixtureProvider {
 
     fn quote_for_date(&self, instrument: &FixtureInstrument, date: NaiveDate) -> Quote {
         let day_index = date
-            .signed_duration_since(NaiveDate::from_ymd_opt(2019, 1, 1).unwrap())
+            .signed_duration_since(
+                NaiveDate::from_ymd_opt(2019, 1, 1).expect("2019-01-01 is a valid date"),
+            )
             .num_days();
         let seed = instrument.seed.wrapping_add(day_index.max(0) as u64);
         let drift = day_index as f64 * 0.00012;
@@ -366,7 +368,8 @@ fn instrument_symbol(instrument: &ProviderInstrument) -> String {
 }
 
 fn default_as_of_date() -> NaiveDate {
-    NaiveDate::parse_from_str(DEFAULT_AS_OF, "%Y-%m-%d").unwrap()
+    NaiveDate::parse_from_str(DEFAULT_AS_OF, "%Y-%m-%d")
+        .expect("DEFAULT_AS_OF is a YYYY-MM-DD date")
 }
 
 fn default_volume() -> u64 {

@@ -1010,7 +1010,9 @@ pub(crate) fn project_retirement_with_mode_cached(
         let r = plan_blended_return(plan, i, in_fire, actual_retirement_age);
 
         if in_fire {
-            let payouts = resolved_payouts.as_ref().unwrap();
+            let payouts = resolved_payouts
+                .as_ref()
+                .expect("payouts are resolved when FIRE starts");
             let (total_expenses, _) = annual_expenses_at_year(&plan.expenses, age, i, inflation);
             let income = plan_income_at_age_with_drawdown(
                 &plan.income_streams,

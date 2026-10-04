@@ -53,7 +53,12 @@ impl IncomeService {
     }
 
     fn today_in_user_timezone(&self) -> NaiveDate {
-        let tz = parse_user_timezone_or_default(&self.timezone.read().unwrap());
+        let tz = parse_user_timezone_or_default(
+            &self
+                .timezone
+                .read()
+                .unwrap_or_else(|poisoned| poisoned.into_inner()),
+        );
         user_today(tz)
     }
 
@@ -86,7 +91,11 @@ impl IncomeServiceTrait for IncomeService {
             return Ok(Vec::new());
         }
 
-        let base_currency = self.base_currency.read().unwrap().clone();
+        let base_currency = self
+            .base_currency
+            .read()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .clone();
         let current_date = self.today_in_user_timezone();
         let current_year = current_date.year();
         let last_year = current_year - 1;

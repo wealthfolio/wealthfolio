@@ -54,7 +54,12 @@ impl ContributionLimitService {
     }
 
     fn user_timezone(&self) -> chrono_tz::Tz {
-        parse_user_timezone_or_default(&self.timezone.read().unwrap())
+        parse_user_timezone_or_default(
+            &self
+                .timezone
+                .read()
+                .unwrap_or_else(|poisoned| poisoned.into_inner()),
+        )
     }
 
     /// Checks if an activity has metadata.flow.is_external = true

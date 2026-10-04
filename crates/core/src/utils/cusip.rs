@@ -43,8 +43,8 @@ impl std::error::Error for CusipError {}
 fn compute_cusip_check_digit(first_8: &str) -> u8 {
     let mut sum = 0u32;
     for (i, c) in first_8.chars().enumerate() {
-        let val = if c.is_ascii_digit() {
-            c.to_digit(10).unwrap()
+        let val = if let Some(digit) = c.to_digit(10) {
+            digit
         } else if c.is_ascii_alphabetic() {
             c.to_ascii_uppercase() as u32 - b'A' as u32 + 10
         } else {

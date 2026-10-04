@@ -964,9 +964,9 @@ pub fn parse_number_string(s: &str, locale: Option<&str>) -> Option<f64> {
 
             if has_european_comma && !has_trailing_dot {
                 stripped.replace('.', "").replace(',', ".")
-            } else if stripped.contains(',') && !stripped.contains('.') {
+            } else if let Some(last_comma) = stripped.rfind(',').filter(|_| !stripped.contains('.'))
+            {
                 // Check if comma is a thousands separator (exactly 3 digits after last comma)
-                let last_comma = stripped.rfind(',').unwrap();
                 let digits_after = stripped.len() - last_comma - 1;
                 if digits_after == 3
                     && stripped[last_comma + 1..]
@@ -1049,9 +1049,9 @@ fn detect_html_tables(body: &str) -> Vec<DetectedHtmlTable> {
         Ok(s) => s,
         Err(_) => return Vec::new(),
     };
-    let tr_sel = scraper::Selector::parse("tr").unwrap();
-    let th_sel = scraper::Selector::parse("th").unwrap();
-    let td_sel = scraper::Selector::parse("td").unwrap();
+    let tr_sel = scraper::Selector::parse("tr").expect("valid CSS selector 'tr'");
+    let th_sel = scraper::Selector::parse("th").expect("valid CSS selector 'th'");
+    let td_sel = scraper::Selector::parse("td").expect("valid CSS selector 'td'");
 
     let mut tables = Vec::new();
     for (table_idx, table_el) in document.select(&table_sel).take(10).enumerate() {

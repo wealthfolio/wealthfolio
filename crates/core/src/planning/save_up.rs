@@ -68,8 +68,10 @@ fn days_in_month(year: i32, month: u32) -> u32 {
     } else {
         (year, month + 1)
     };
-    let this_first = NaiveDate::from_ymd_opt(year, month, 1).unwrap();
-    let next_first = NaiveDate::from_ymd_opt(next_year, next_month, 1).unwrap();
+    let this_first =
+        NaiveDate::from_ymd_opt(year, month, 1).expect("callers pass a month from a NaiveDate");
+    let next_first =
+        NaiveDate::from_ymd_opt(next_year, next_month, 1).expect("the next month is 1-12");
     (next_first - this_first).num_days() as u32
 }
 
@@ -157,7 +159,7 @@ fn advance_month(d: NaiveDate) -> NaiveDate {
     };
     let max_day = days_in_month(y, m);
     let day = d.day().min(max_day);
-    NaiveDate::from_ymd_opt(y, m, day).unwrap()
+    NaiveDate::from_ymd_opt(y, m, day).expect("day is clamped to the month's length")
 }
 
 // ---------------------------------------------------------------------------
@@ -184,7 +186,8 @@ pub fn future_value(
     while cursor < end_date {
         // End of current month (last day)
         let dim = days_in_month(cursor.year(), cursor.month());
-        let month_end = NaiveDate::from_ymd_opt(cursor.year(), cursor.month(), dim).unwrap();
+        let month_end = NaiveDate::from_ymd_opt(cursor.year(), cursor.month(), dim)
+            .expect("dim is the length of cursor's month");
         let period_end = if month_end < end_date {
             month_end
         } else {

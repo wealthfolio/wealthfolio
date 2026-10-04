@@ -162,7 +162,11 @@ async fn get_drift_for_target(
     axum::Extension(state): axum::Extension<Arc<AppState>>,
     Json(body): Json<DriftBody>,
 ) -> ApiResult<Json<DriftReport>> {
-    let base_currency = state.base_currency.read().unwrap().clone();
+    let base_currency = state
+        .base_currency
+        .read()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .clone();
     let _ = &body.filter;
     let target = state
         .allocation_target_service
@@ -220,7 +224,11 @@ fn resolve_rebalance_input(
     filter: &AccountScope,
     eligible_asset_ids: Option<Vec<String>>,
 ) -> ApiResult<CalculateRebalancePlanInput> {
-    let base_currency = state.base_currency.read().unwrap().clone();
+    let base_currency = state
+        .base_currency
+        .read()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .clone();
     let resolved = state
         .portfolio_service
         .resolve_account_scope_for_purpose(filter, &base_currency, AccountPurpose::Holdings)

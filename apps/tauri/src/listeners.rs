@@ -56,7 +56,10 @@ impl PortfolioTasks {
     // Completion timestamps come from the whole job, not from market-sync events.
     // Admission and spawning share the existing lock so simultaneous resumes coalesce.
     fn spawn(&self, automatic: bool, task: impl Future<Output = bool> + Send + 'static) -> bool {
-        let mut state = self.0.lock().unwrap();
+        let mut state = self
+            .0
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         state.collect_finished();
         let PortfolioTaskState {
             tasks,
@@ -84,7 +87,12 @@ impl PortfolioTasks {
 
     pub async fn stop(&self) {
         // Taking the set also rejects late requests from commands already in flight.
-        let tasks = self.0.lock().unwrap().tasks.take();
+        let tasks = self
+            .0
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .tasks
+            .take();
         if let Some(mut tasks) = tasks {
             tasks.shutdown().await;
         }

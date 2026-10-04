@@ -241,7 +241,12 @@ impl SnapshotService {
         if assets.is_empty() {
             return Ok(SplitCarry::default());
         }
-        let timezone = parse_user_timezone_or_default(&self.timezone.read().unwrap());
+        let timezone = parse_user_timezone_or_default(
+            &self
+                .timezone
+                .read()
+                .unwrap_or_else(|poisoned| poisoned.into_inner()),
+        );
         let splits = engine::group_splits(
             self.activity_repository
                 .get_split_activities_by_asset_ids(&assets)?
@@ -380,7 +385,12 @@ impl SnapshotService {
     }
 
     fn user_today(&self) -> NaiveDate {
-        let tz = parse_user_timezone_or_default(&self.timezone.read().unwrap());
+        let tz = parse_user_timezone_or_default(
+            &self
+                .timezone
+                .read()
+                .unwrap_or_else(|poisoned| poisoned.into_inner()),
+        );
         user_today(tz)
     }
 

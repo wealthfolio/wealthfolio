@@ -225,7 +225,7 @@ fn parse_event_start_bound(s: &str) -> Result<DateTime<Utc>> {
         return Ok(dt.with_timezone(&Utc));
     }
     if let Ok(date) = chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d") {
-        let naive = date.and_hms_opt(0, 0, 0).unwrap();
+        let naive = date.and_hms_opt(0, 0, 0).expect("00:00:00 is a valid time");
         return Ok(DateTime::<Utc>::from_naive_utc_and_offset(naive, Utc));
     }
     Err(SpendingError::InvalidInput {
@@ -242,7 +242,9 @@ fn parse_event_end_bound(s: &str) -> Result<DateTime<Utc>> {
         return Ok(dt.with_timezone(&Utc));
     }
     if let Ok(date) = chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d") {
-        let naive = date.and_hms_nano_opt(23, 59, 59, 999_999_999).unwrap();
+        let naive = date
+            .and_hms_nano_opt(23, 59, 59, 999_999_999)
+            .expect("23:59:59.999999999 is a valid time");
         return Ok(DateTime::<Utc>::from_naive_utc_and_offset(naive, Utc));
     }
     Err(SpendingError::InvalidInput {

@@ -136,10 +136,9 @@ impl AssetClassificationService {
                     cached
                 } else {
                     match self.taxonomy_service.get_taxonomy(&assignment.taxonomy_id) {
-                        Ok(Some(twc)) => {
-                            taxonomy_cache.insert(assignment.taxonomy_id.clone(), twc);
-                            taxonomy_cache.get(&assignment.taxonomy_id).unwrap()
-                        }
+                        Ok(Some(twc)) => &*taxonomy_cache
+                            .entry(assignment.taxonomy_id.clone())
+                            .or_insert(twc),
                         _ => continue,
                     }
                 };

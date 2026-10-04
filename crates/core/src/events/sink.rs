@@ -54,28 +54,43 @@ impl MockDomainEventSink {
 
     /// Returns all collected events.
     pub fn events(&self) -> Vec<DomainEvent> {
-        self.events.lock().unwrap().clone()
+        self.events
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .clone()
     }
 
     /// Clears collected events.
     pub fn clear(&self) {
-        self.events.lock().unwrap().clear();
+        self.events
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .clear();
     }
 
     /// Returns the number of collected events.
     pub fn len(&self) -> usize {
-        self.events.lock().unwrap().len()
+        self.events
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .len()
     }
 
     /// Returns true if no events have been collected.
     pub fn is_empty(&self) -> bool {
-        self.events.lock().unwrap().is_empty()
+        self.events
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .is_empty()
     }
 }
 
 impl DomainEventSink for MockDomainEventSink {
     fn emit(&self, event: DomainEvent) {
-        self.events.lock().unwrap().push(event);
+        self.events
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .push(event);
     }
 }
 

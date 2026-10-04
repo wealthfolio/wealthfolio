@@ -110,7 +110,7 @@ impl WriteHandle {
             .map(|boxed: Box<dyn Any + Send + 'static>| {
                 *boxed
                     .downcast::<T>()
-                    .unwrap_or_else(|_| panic!("Failed to downcast writer actor result."))
+                    .expect("a write job returns its own result type")
             })
     }
 

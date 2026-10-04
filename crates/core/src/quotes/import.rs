@@ -590,7 +590,12 @@ impl QuoteImportService {
         let id = quote_id(&validation.asset_id, validation.day, &source);
 
         // Convert Day to DateTime<Utc> at noon UTC
-        let timestamp = validation.day.0.and_hms_opt(12, 0, 0).unwrap().and_utc();
+        let timestamp = validation
+            .day
+            .0
+            .and_hms_opt(12, 0, 0)
+            .expect("12:00:00 is a valid time")
+            .and_utc();
 
         Quote {
             id,
@@ -669,7 +674,8 @@ impl QuoteImportService {
         start: Option<Day>,
         end: Option<Day>,
     ) -> Result<Vec<QuoteExport>> {
-        let start_day = start.unwrap_or_else(|| Day::from_ymd(1900, 1, 1).unwrap());
+        let start_day =
+            start.unwrap_or_else(|| Day::from_ymd(1900, 1, 1).expect("1900-01-01 is a valid date"));
         let end_day = end.unwrap_or_else(Day::today);
 
         let quotes = self.quote_store.range(asset_id, start_day, end_day, None)?;

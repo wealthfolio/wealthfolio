@@ -164,7 +164,9 @@ impl YahooProvider {
     async fn ensure_crumb(&self) -> Result<CrumbData, MarketDataError> {
         // Check if we have a cached crumb
         {
-            let guard = YAHOO_CRUMB.read().unwrap();
+            let guard = YAHOO_CRUMB
+                .read()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
             if let Some(crumb) = guard.as_ref() {
                 return Ok(crumb.clone());
             }
@@ -222,7 +224,9 @@ impl YahooProvider {
         let crumb_data = CrumbData { cookie, crumb };
 
         // Cache it
-        let mut guard = YAHOO_CRUMB.write().unwrap();
+        let mut guard = YAHOO_CRUMB
+            .write()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         *guard = Some(crumb_data.clone());
 
         Ok(crumb_data)
@@ -230,7 +234,9 @@ impl YahooProvider {
 
     /// Clear the cached crumb (used when authentication fails)
     fn clear_crumb(&self) {
-        let mut guard = YAHOO_CRUMB.write().unwrap();
+        let mut guard = YAHOO_CRUMB
+            .write()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         *guard = None;
     }
 

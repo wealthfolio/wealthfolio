@@ -345,7 +345,11 @@ impl NetWorthService {
 #[async_trait]
 impl NetWorthServiceTrait for NetWorthService {
     async fn get_net_worth(&self, date: NaiveDate) -> Result<NetWorthResponse> {
-        let base_currency = self.base_currency.read().unwrap().clone();
+        let base_currency = self
+            .base_currency
+            .read()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .clone();
 
         debug!("Calculating net worth as of {} in {}", date, base_currency);
 
@@ -712,7 +716,11 @@ impl NetWorthServiceTrait for NetWorthService {
         start_date: NaiveDate,
         end_date: NaiveDate,
     ) -> Result<Vec<NetWorthHistoryPoint>> {
-        let base_currency = self.base_currency.read().unwrap().clone();
+        let base_currency = self
+            .base_currency
+            .read()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .clone();
 
         debug!(
             "Calculating net worth history from {} to {} in {}",

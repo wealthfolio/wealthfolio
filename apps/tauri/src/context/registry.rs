@@ -97,19 +97,31 @@ pub struct ServiceContext {
 
 impl ServiceContext {
     pub fn get_base_currency(&self) -> String {
-        self.base_currency.read().unwrap().clone()
+        self.base_currency
+            .read()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .clone()
     }
 
     pub fn get_timezone(&self) -> String {
-        self.timezone.read().unwrap().clone()
+        self.timezone
+            .read()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .clone()
     }
 
     pub fn update_base_currency(&self, new_currency: String) {
-        *self.base_currency.write().unwrap() = new_currency;
+        *self
+            .base_currency
+            .write()
+            .unwrap_or_else(|poisoned| poisoned.into_inner()) = new_currency;
     }
 
     pub fn update_timezone(&self, new_timezone: String) {
-        *self.timezone.write().unwrap() = new_timezone;
+        *self
+            .timezone
+            .write()
+            .unwrap_or_else(|poisoned| poisoned.into_inner()) = new_timezone;
     }
 
     pub fn settings_service(&self) -> Arc<dyn settings::SettingsServiceTrait> {

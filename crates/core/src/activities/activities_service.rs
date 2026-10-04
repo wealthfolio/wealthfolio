@@ -1098,8 +1098,11 @@ impl ActivityService {
         DateTime::parse_from_rfc3339(activity_date)
             .map(|dt| dt.with_timezone(&Utc))
             .or_else(|_| {
-                NaiveDate::parse_from_str(activity_date, "%Y-%m-%d")
-                    .map(|date| Utc.from_utc_datetime(&date.and_hms_opt(0, 0, 0).unwrap()))
+                NaiveDate::parse_from_str(activity_date, "%Y-%m-%d").map(|date| {
+                    Utc.from_utc_datetime(
+                        &date.and_hms_opt(0, 0, 0).expect("00:00:00 is a valid time"),
+                    )
+                })
             })
             .ok()
     }
@@ -1197,7 +1200,11 @@ impl ActivityService {
     }
 
     fn validate_and_normalize_activity_date(&self, activity_date: &str) -> Result<String> {
-        let configured_timezone = self.timezone.read().unwrap().clone();
+        let configured_timezone = self
+            .timezone
+            .read()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .clone();
         let timezone = parse_user_timezone_or_default(&configured_timezone);
         validate_activity_date_in_timezone(activity_date, timezone)?;
 
@@ -2156,7 +2163,11 @@ impl ActivityService {
         let timestamp = if let Ok(dt) = DateTime::parse_from_rfc3339(activity_date) {
             dt.with_timezone(&Utc)
         } else if let Ok(date) = NaiveDate::parse_from_str(activity_date, "%Y-%m-%d") {
-            Utc.from_utc_datetime(&date.and_hms_opt(12, 0, 0).unwrap())
+            Utc.from_utc_datetime(
+                &date
+                    .and_hms_opt(12, 0, 0)
+                    .expect("12:00:00 is a valid time"),
+            )
         } else {
             debug!(
                 "Could not parse activity date '{}' for quote creation",

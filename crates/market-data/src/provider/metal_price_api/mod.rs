@@ -357,7 +357,11 @@ impl MarketDataProvider for MetalPriceApiProvider {
                 }
             })?;
 
-            let timestamp = Utc.from_utc_datetime(&date.and_hms_opt(12, 0, 0).unwrap());
+            let timestamp = Utc.from_utc_datetime(
+                &date
+                    .and_hms_opt(12, 0, 0)
+                    .expect("12:00:00 is a valid time"),
+            );
 
             quotes.push(Quote::new(
                 timestamp,

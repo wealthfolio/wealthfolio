@@ -65,7 +65,11 @@ impl AccountService {
 impl AccountServiceTrait for AccountService {
     /// Creates a new account with currency exchange support.
     async fn create_account(&self, new_account: NewAccount) -> Result<Account> {
-        let base_currency = self.base_currency.read().unwrap().clone();
+        let base_currency = self
+            .base_currency
+            .read()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .clone();
         debug!(
             "Creating account..., base_currency: {}, new_account.currency: {}",
             base_currency, new_account.currency
@@ -114,7 +118,11 @@ impl AccountServiceTrait for AccountService {
 
         // Detect currency changes and register FX pair if needed
         let currency_changes = if existing.currency != result.currency {
-            let base_currency = self.base_currency.read().unwrap().clone();
+            let base_currency = self
+                .base_currency
+                .read()
+                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                .clone();
             if result.currency != base_currency {
                 self.fx_service
                     .register_currency_pair(result.currency.as_str(), base_currency.as_str())
@@ -191,7 +199,11 @@ impl AccountServiceTrait for AccountService {
     }
 
     fn get_base_currency(&self) -> Option<String> {
-        let base_currency = self.base_currency.read().unwrap().clone();
+        let base_currency = self
+            .base_currency
+            .read()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .clone();
         if base_currency.trim().is_empty() {
             None
         } else {

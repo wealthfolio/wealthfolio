@@ -129,7 +129,7 @@ impl ProfileSessions {
             return Err(ProfileError::Stale);
         }
         let result = self.issue(owner, profile, protected, None)?;
-        *revisions.get_mut(owner).unwrap() += 1;
+        *revisions.entry(owner.into()).or_default() += 1;
         Ok(result)
     }
     pub fn revoke(&self, owner: &str) -> ProfileResult<()> {

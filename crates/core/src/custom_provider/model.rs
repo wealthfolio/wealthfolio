@@ -52,8 +52,9 @@ impl PreparedCustomProviderRequest {
 
 /// Cached regex for formatted date templates: `{DATE:...}`, `{FROM:...}`,
 /// `{TO:...}`, `{TODAY:...}`.
-pub static DATE_TEMPLATE_RE: std::sync::LazyLock<regex::Regex> =
-    std::sync::LazyLock::new(|| regex::Regex::new(r"\{(DATE|FROM|TO|TODAY):([^}]+)\}").unwrap());
+pub static DATE_TEMPLATE_RE: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
+    regex::Regex::new(r"\{(DATE|FROM|TO|TODAY):([^}]+)\}").expect("valid date template regex")
+});
 
 /// Maximum HTTP response body size (10 MB).
 pub const MAX_RESPONSE_BYTES: usize = 10 * 1024 * 1024;

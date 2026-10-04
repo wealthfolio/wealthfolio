@@ -156,7 +156,10 @@ pub fn parse_occ_symbol(symbol: &str) -> std::result::Result<ParsedOccSymbol, Oc
     // Underlying: everything before date
 
     let strike_str = &symbol[len - 8..];
-    let option_type_char = symbol.chars().nth(len - 9).unwrap();
+    let option_type_char = symbol
+        .chars()
+        .nth(len - 9)
+        .expect("an ASCII symbol of 15+ bytes has 15+ characters");
     let date_str = &symbol[len - 15..len - 9];
     let underlying = symbol[..len - 15].trim();
 

@@ -164,7 +164,7 @@ fn atomic_write(path: &Path, bytes: &[u8]) -> ProfileResult<()> {
         file.sync_all().map_err(storage_io_error)?;
         fs::rename(&temporary, path).map_err(storage_io_error)?;
         #[cfg(unix)]
-        File::open(path.parent().unwrap())
+        File::open(path.parent().expect("registry files live in a directory"))
             .and_then(|f| f.sync_all())
             .map_err(storage_io_error)?;
         Ok(())
@@ -231,7 +231,10 @@ impl ProfileRegistry {
                 if source.try_exists().map_err(storage_error)? {
                     let bytes = fs::read(source).map_err(storage_error)?;
                     fs::create_dir_all(&archive).map_err(storage_error)?;
-                    atomic_write(&archive.join(source.file_name().unwrap()), &bytes)?;
+                    let name = source
+                        .file_name()
+                        .expect("registry paths end in a file name");
+                    atomic_write(&archive.join(name), &bytes)?;
                 }
             }
             let data = RegistryData {
@@ -836,7 +839,7 @@ impl ProfileRegistry {
         data.profiles
             .iter_mut()
             .find(|p| p.id == id)
-            .unwrap()
+            .ok_or(ProfileError::NotFound)?
             .never_protected = false;
         let encoded = serde_json::to_vec_pretty(&*data).map_err(storage_error)?;
         atomic_write(&self.root.join(REGISTRY_FILE), &encoded)?;
@@ -847,7 +850,7 @@ impl ProfileRegistry {
         next.profiles
             .iter_mut()
             .find(|p| p.id == id && !self.is_deleting(id))
-            .unwrap()
+            .ok_or(ProfileError::NotFound)?
             .lock_enabled = password.is_some();
         self.save(&mut data, next)?;
         Ok(recovery)
@@ -875,7 +878,7 @@ fn new_lock_record(password: Option<&str>) -> ProfileResult<(LockRecord, Option<
         let formatted = code
             .as_bytes()
             .chunks(4)
-            .map(|part| std::str::from_utf8(part).unwrap())
+            .map(|part| std::str::from_utf8(part).expect("hex digits are ASCII"))
             .collect::<Vec<_>>()
             .join("-");
         (

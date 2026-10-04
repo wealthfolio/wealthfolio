@@ -106,7 +106,10 @@ impl ServerAiEnvironment {
 
 impl AgentEnvironment for ServerAiEnvironment {
     fn base_currency(&self) -> String {
-        self.base_currency.read().unwrap().clone()
+        self.base_currency
+            .read()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .clone()
     }
 
     fn account_service(&self) -> Arc<dyn AccountServiceTrait> {

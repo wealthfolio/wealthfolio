@@ -1171,7 +1171,7 @@ async fn initialize_profile_state(
     });
 
     #[cfg(feature = "device-sync")]
-    state.workers.lock().unwrap().push(start_sync_outbox_wake_worker(sync_outbox_wake_receiver, Arc::clone(&state)));
+    state.workers.lock().unwrap_or_else(|poisoned| poisoned.into_inner()).push(start_sync_outbox_wake_worker(sync_outbox_wake_receiver, Arc::clone(&state)));
 
     crate::api::shared::spawn_portfolio_update(Arc::clone(&state));
 

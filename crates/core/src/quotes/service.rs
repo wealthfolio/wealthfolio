@@ -1726,8 +1726,15 @@ where
         end: NaiveDate,
     ) -> Result<Vec<Quote>> {
         let asset = self.asset_repo.get_by_id(asset_id)?;
-        let start_dt = Utc.from_utc_datetime(&start.and_hms_opt(0, 0, 0).unwrap());
-        let end_dt = Utc.from_utc_datetime(&end.and_hms_opt(23, 59, 59).unwrap());
+        let start_dt = Utc.from_utc_datetime(
+            &start
+                .and_hms_opt(0, 0, 0)
+                .expect("00:00:00 is a valid time"),
+        );
+        let end_dt = Utc.from_utc_datetime(
+            &end.and_hms_opt(23, 59, 59)
+                .expect("23:59:59 is a valid time"),
+        );
 
         self.client
             .read()
@@ -1763,8 +1770,15 @@ where
                 return Ok(quotes);
             }
 
-            let start_dt = Utc.from_utc_datetime(&start.and_hms_opt(0, 0, 0).unwrap());
-            let end_dt = Utc.from_utc_datetime(&end.and_hms_opt(23, 59, 59).unwrap());
+            let start_dt = Utc.from_utc_datetime(
+                &start
+                    .and_hms_opt(0, 0, 0)
+                    .expect("00:00:00 is a valid time"),
+            );
+            let end_dt = Utc.from_utc_datetime(
+                &end.and_hms_opt(23, 59, 59)
+                    .expect("23:59:59 is a valid time"),
+            );
             return self
                 .client
                 .read()
@@ -1785,8 +1799,15 @@ where
             ..Default::default()
         };
 
-        let start_dt = Utc.from_utc_datetime(&start.and_hms_opt(0, 0, 0).unwrap());
-        let end_dt = Utc.from_utc_datetime(&end.and_hms_opt(23, 59, 59).unwrap());
+        let start_dt = Utc.from_utc_datetime(
+            &start
+                .and_hms_opt(0, 0, 0)
+                .expect("00:00:00 is a valid time"),
+        );
+        let end_dt = Utc.from_utc_datetime(
+            &end.and_hms_opt(23, 59, 59)
+                .expect("23:59:59 is a valid time"),
+        );
 
         self.client
             .read()
@@ -1808,8 +1829,16 @@ where
 
         let end_date = end.unwrap_or_else(|| Utc::now().date_naive());
         let start_date = start.unwrap_or_else(|| end_date - Duration::days(365 * 5));
-        let start_dt = Utc.from_utc_datetime(&start_date.and_hms_opt(0, 0, 0).unwrap());
-        let end_dt = Utc.from_utc_datetime(&end_date.and_hms_opt(23, 59, 59).unwrap());
+        let start_dt = Utc.from_utc_datetime(
+            &start_date
+                .and_hms_opt(0, 0, 0)
+                .expect("00:00:00 is a valid time"),
+        );
+        let end_dt = Utc.from_utc_datetime(
+            &end_date
+                .and_hms_opt(23, 59, 59)
+                .expect("23:59:59 is a valid time"),
+        );
 
         let provider_config = preferred_provider
             .map(|provider| serde_json::json!({ "preferred_provider": provider }));
@@ -2297,9 +2326,9 @@ where
 
         // Helper to get column index
         let get_idx = |name: &str| headers.iter().position(|h| h == name);
-        let symbol_idx = get_idx("symbol").unwrap();
-        let date_idx = get_idx("date").unwrap();
-        let close_idx = get_idx("close").unwrap();
+        let symbol_idx = get_idx("symbol").expect("required columns are checked above");
+        let date_idx = get_idx("date").expect("required columns are checked above");
+        let close_idx = get_idx("close").expect("required columns are checked above");
         let open_idx = get_idx("open");
         let high_idx = get_idx("high");
         let low_idx = get_idx("low");
@@ -2633,8 +2662,11 @@ pub(crate) fn fill_missing_quotes(
             if let Some(last_quote) = last_known_quotes.get(symbol) {
                 let mut quote_for_today = last_quote.clone();
                 // Update timestamp to current date at noon UTC
-                quote_for_today.timestamp =
-                    Utc.from_utc_datetime(&current_date.and_hms_opt(12, 0, 0).unwrap());
+                quote_for_today.timestamp = Utc.from_utc_datetime(
+                    &current_date
+                        .and_hms_opt(12, 0, 0)
+                        .expect("12:00:00 is a valid time"),
+                );
                 all_filled_quotes.push(quote_for_today);
             }
         }
