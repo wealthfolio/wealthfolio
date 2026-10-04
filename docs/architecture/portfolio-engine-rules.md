@@ -148,7 +148,7 @@ is `0001-01-01`; `@all` refolds every account from `GENESIS`.
 | Fact              | Change                                                                                            | Marker and earliest day                                                                                                                                                                        |
 | ----------------- | ------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Account           | insert                                                                                            | the account, from `GENESIS` (sync can deliver its snapshots first)                                                                                                                             |
-| Account           | currency, type, tracking mode, archived, accounting method, profile, pooling scope, lot selection | the account, from `GENESIS`                                                                                                                                                                    |
+| Account           | currency, type, tracking mode, archived, accounting settings in meta as the job reads them (R7.2) | the account, from `GENESIS`                                                                                                                                                                    |
 | Activity          | insert, update, delete (any field)                                                                | old and new accounts, from the day before their old and new dates; transfer partners likewise; a split's old and new assets from `GENESIS`                                                     |
 | Asset             | insert                                                                                            | its holders, from `GENESIS` (sync can deliver snapshots naming it first); an FX asset whose rates arrived before it (a sync batch defers foreign keys): its conversions from its earliest rate |
 | Asset             | kind, quote currency, instrument type, option, contract multiplier                                | its holders, from `GENESIS`                                                                                                                                                                    |
@@ -248,11 +248,11 @@ it (§5). Fixtures: every fixture is FIFO.
   the addon SDK's `getEffectiveType` and `hasUserOverride`) still treat a blank
   type override as a type. A follow-up stores a blank override as none on every
   write path and clears the ones already stored, so no reader sees one.
-- An accounting settings change §5 does not watch leaves no marker: meta that
-  stops being JSON, an `accounting` entry that stops being an object, a field
-  given a wrong type, or a key repeated with another value (the trigger reads
-  its first value, the engine its last). The account keeps its last results
-  until a later run, for another change or a new day, reads its settings (R7.2).
+- The §5 trigger accepts some JSON the job's reader rejects: a lone surrogate
+  escape, a number beyond a double, nesting deeper than 128 levels. A change
+  elsewhere in an account's meta that adds one leaves no marker, and the account
+  keeps its last results until a later run, for another change or a new day,
+  refuses it (R7.2).
 
 ## 9. How tests use these rules
 
