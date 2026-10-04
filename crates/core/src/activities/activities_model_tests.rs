@@ -137,6 +137,23 @@ mod tests {
         }
     }
 
+    /// An override the shared cases read as none (the stored DIVIDEND) is
+    /// stored as none; any other is stored as given.
+    #[test]
+    fn blank_type_overrides_are_stored_as_none() {
+        let cases: Vec<(String, String)> =
+            serde_json::from_str(include_str!("type_override_cases.json")).unwrap();
+        for (override_, expected) in cases {
+            let blank = expected == "DIVIDEND";
+            assert_eq!(
+                stored_type_override(Some(override_.clone())),
+                (!blank).then(|| override_.clone()),
+                "{override_:?}"
+            );
+        }
+        assert_eq!(stored_type_override(None), None);
+    }
+
     #[test]
     fn test_effective_type_with_blank_override() {
         let mut activity = create_test_activity();

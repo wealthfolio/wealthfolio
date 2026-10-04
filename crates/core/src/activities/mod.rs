@@ -21,7 +21,7 @@ mod activities_model_tests;
 pub use activities_constants::*;
 pub use activities_errors::ActivityError;
 pub use activities_model::import_type;
-pub use activities_model::{effective_activity_type, type_override};
+pub use activities_model::{effective_activity_type, stored_type_override, type_override};
 pub use activities_model::{
     into_field_mapping_values, normalize_context_kind_value, parse_decimal_string_tolerant,
     Activity, ActivityBulkIdentifierMapping, ActivityBulkMutationError,

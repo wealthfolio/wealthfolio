@@ -1,0 +1,2 @@
+-- No-op: a blank override and NULL both read as no override, and the up
+-- migration does not record which rows held a blank one.

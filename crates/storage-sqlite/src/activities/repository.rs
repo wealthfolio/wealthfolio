@@ -15,8 +15,8 @@ use uuid::Uuid;
 use wealthfolio_core::accounts::{account_supports_purpose, AccountPurpose};
 use wealthfolio_core::activities::ActivityError;
 use wealthfolio_core::activities::{
-    import_type, is_cash_symbol, type_override, violates_final_cash_floor, Activity,
-    ActivityBulkIdentifierMapping, ActivityBulkMutationResult, ActivityDetails,
+    import_type, is_cash_symbol, stored_type_override, type_override, violates_final_cash_floor,
+    Activity, ActivityBulkIdentifierMapping, ActivityBulkMutationResult, ActivityDetails,
     ActivityFinalCashMigrationUpdate, ActivityFinalCashMigrationWriteResult,
     ActivityRepositoryTrait, ActivitySearchResponse, ActivitySearchResponseMeta, ActivityUpdate,
     ActivityUpsert, BulkUpsertResult, ImportMapping, ImportTemplate, IncomeData, NewActivity, Sort,
@@ -163,7 +163,8 @@ fn queue_activity_update_outbox(
 fn activity_update_invalidates_spending_splits(before: &ActivityDB, after: &ActivityDB) -> bool {
     before.account_id != after.account_id
         || before.activity_type != after.activity_type
-        || before.activity_type_override != after.activity_type_override
+        || type_override(before.activity_type_override.as_deref())
+            != type_override(after.activity_type_override.as_deref())
         || before.subtype != after.subtype
         || before.amount != after.amount
         || before.source_group_id != after.source_group_id
@@ -958,6 +959,8 @@ impl ActivityRepositoryTrait for ActivityRepository {
                     &existing_activity_type,
                     provider_account_id.as_deref(),
                 );
+                activity_to_update.activity_type_override =
+                    stored_type_override(activity_to_update.activity_type_override.take());
                 activity_to_update.updated_at = chrono::Utc::now().to_rfc3339();
                 assert_final_cash_floor(&activity_to_update)?;
 
@@ -1378,6 +1381,8 @@ impl ActivityRepositoryTrait for ActivityRepository {
                         &existing_activity_type,
                         provider_account_id.as_deref(),
                     );
+                    activity_db.activity_type_override =
+                        stored_type_override(activity_db.activity_type_override.take());
                     activity_db.updated_at = chrono::Utc::now().to_rfc3339();
                     assert_final_cash_floor(&activity_db)?;
 
@@ -4819,12 +4824,18 @@ mod tests {
             .map(u32::from)
             .collect();
         assert_eq!(listed, rust);
-        // The triggers trim that list too.
+        // The triggers trim that list too, as does the migration that clears
+        // blank overrides.
         let triggers = include_str!("../../migrations/2026-09-28-000001_projection_state/up.sql");
         assert_eq!(
             triggers.matches("trim(").count(),
             triggers.matches(&format!(", {SQL_WHITESPACE})")).count()
         );
+        let cleared =
+            include_str!("../../migrations/2026-10-03-000001_clear_blank_type_overrides/up.sql");
+        assert!(cleared.contains(&format!(
+            "trim(activity_type_override, {SQL_WHITESPACE}) = ''"
+        )));
 
         let cases: Vec<(String, String)> = serde_json::from_str(include_str!(
             "../../../core/src/activities/type_override_cases.json"
@@ -4884,6 +4895,71 @@ mod tests {
                 .collect::<Vec<_>>(),
             vec![("DIVIDEND", Decimal::from(10))]
         );
+    }
+
+    #[tokio::test]
+    async fn updates_store_a_blank_type_override_as_none() {
+        let (pool, writer) = setup_db();
+        let repo = ActivityRepository::new(pool.clone(), writer);
+        let mut conn = get_connection(&pool).expect("conn");
+        insert_account(&mut conn, "acc-blank-override");
+        for id in ["single-blank", "bulk-blank"] {
+            insert_activity_with_subtype(
+                &mut conn,
+                id,
+                "acc-blank-override",
+                "DIVIDEND",
+                None,
+                None,
+            );
+            diesel::update(activities::table.find(id))
+                .set(activities::activity_type_override.eq(Some("\u{a0}".to_string())))
+                .execute(&mut conn)
+                .expect("blank override");
+            insert_spending_split(&mut conn, &format!("{id}-split"), id);
+        }
+        let notes_edit = |id: &str| ActivityUpdate {
+            id: id.to_string(),
+            account_id: "acc-blank-override".to_string(),
+            asset: None,
+            activity_type: "DIVIDEND".to_string(),
+            subtype: None,
+            activity_date: "2024-01-15T00:00:00Z".to_string(),
+            quantity: None,
+            unit_price: None,
+            currency: "USD".to_string(),
+            fee: None,
+            tax: None,
+            amount: None,
+            status: None,
+            needs_review: None,
+            notes: Some("Edited".to_string()),
+            fx_rate: None,
+            metadata: None,
+        };
+
+        repo.update_activity(notes_edit("single-blank"))
+            .await
+            .expect("update");
+        repo.bulk_mutate_activities(Vec::new(), vec![notes_edit("bulk-blank")], Vec::new())
+            .await
+            .expect("bulk update");
+
+        for id in ["single-blank", "bulk-blank"] {
+            let stored = activities::table
+                .find(id)
+                .select(activities::activity_type_override)
+                .first::<Option<String>>(&mut conn)
+                .expect("override");
+            assert_eq!(stored, None, "{id}");
+            // The effective type did not change, so the edit keeps its splits.
+            let splits = spending_activity_splits::table
+                .filter(spending_activity_splits::activity_id.eq(id))
+                .count()
+                .get_result::<i64>(&mut conn)
+                .expect("count splits");
+            assert_eq!(splits, 1, "{id}");
+        }
     }
 
     /// Regression: re-linking the same (account_id, context_kind, source_system) must preserve the row `id`

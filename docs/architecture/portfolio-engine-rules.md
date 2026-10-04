@@ -164,8 +164,8 @@ reads an activity's type as the engine does: its override when the override is
 not blank (blank: empty or only whitespace, as Rust's `str::trim` strips it),
 else its stored type. That covers the engine's facts, core's
 `effective_activity_type`, the triggers and the split query; the activity
-repository's queries and the frontend read it the same way. Other parts of the
-app keep their own type reads until blank overrides are no longer stored (§8). A
+repository's queries and the frontend read it the same way, and no blank
+override is stored (R6.3), so a reader that does not trim it never sees one. A
 run consumes a marker only after writing what it covers. An account or asset
 that arrives after facts naming it marks itself on insert (rows above), so a run
 that could not project it yet projects it once it exists.
@@ -184,6 +184,11 @@ sync could have written inconsistent ones.
 
 **R6.2** Sync may move a quote to another asset or a snapshot to another
 account; both owners are invalidated (§5).
+
+**R6.3** An activity's type override is stored as none when blank (§5): an edit,
+a synced activity or broker edit, and a snapshot restore each store a blank one
+as none, and a migration cleared those stored before. A non-blank override is
+stored as given; a synced broker edit stores it trimmed.
 
 ## 7. Cost basis methods
 
@@ -239,10 +244,9 @@ Fixtures: every fixture is FIFO.
   others closed before it) shifts that weighting, by a part of the fee (R2.4).
 - A split recorded on one transactions account does not split another's lots
   (R1.5): each account records its own.
-- Some app reads outside the engine's (older service checks on the stored type,
-  the addon SDK's `getEffectiveType` and `hasUserOverride`) still treat a blank
-  type override as a type. A follow-up stores a blank override as none on every
-  write path and clears the ones already stored, so no reader sees one.
+- A non-blank type override is stored as given (R6.3): a reader that does not
+  trim it (the addon SDK's `getEffectiveType`) keeps whitespace around it that
+  the engine strips.
 - Accounting settings this version cannot read do not fail their account alone:
   a method code it does not know (one a newer version wrote) fails the whole
   job, and a malformed entry reads as the defaults (FIFO). Users cannot set
