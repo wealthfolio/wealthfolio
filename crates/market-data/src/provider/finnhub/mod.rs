@@ -284,7 +284,7 @@ impl FinnhubProvider {
             }
             ProviderInstrument::FxSymbol { symbol } => {
                 // Try to parse and format
-                if symbol.len() == 6 && symbol.is_ascii() {
+                if symbol.len() == 6 && symbol.is_char_boundary(3) {
                     let from = &symbol[..3];
                     let to = &symbol[3..];
                     Ok(format!("OANDA:{}_{}", from, to))

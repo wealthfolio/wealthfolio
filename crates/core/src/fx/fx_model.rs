@@ -76,7 +76,10 @@ impl ExchangeRate {
         }
         // Handle legacy Yahoo format: "EURUSD=X" or "EURUSD"
         let base_symbol = key.strip_suffix("=X").unwrap_or(key);
-        if base_symbol.len() >= 6 && base_symbol.is_ascii() {
+        if base_symbol.len() >= 6
+            && base_symbol.is_char_boundary(3)
+            && base_symbol.is_char_boundary(6)
+        {
             (base_symbol[..3].to_string(), base_symbol[3..6].to_string())
         } else {
             (base_symbol.to_string(), String::new())

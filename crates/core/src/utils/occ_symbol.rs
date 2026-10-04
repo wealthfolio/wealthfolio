@@ -270,7 +270,7 @@ pub fn normalize_option_symbol(symbol: &str) -> Option<String> {
     // Strip leading dash (Fidelity convention)
     let s = symbol.trim().strip_prefix('-').unwrap_or(symbol.trim());
 
-    if s.is_empty() || !s.is_ascii() {
+    if s.is_empty() {
         return None;
     }
 
@@ -297,7 +297,7 @@ pub fn normalize_option_symbol(symbol: &str) -> Option<String> {
         return None;
     }
 
-    let date_str = &rest[..6];
+    let date_str = rest.get(..6)?;
     if !date_str.chars().all(|c| c.is_ascii_digit()) {
         return None;
     }
@@ -635,5 +635,14 @@ mod tests {
     #[test]
     fn test_normalize_non_ascii_symbol() {
         assert_eq!(normalize_option_symbol("Fonds 2024 Été"), None);
+    }
+
+    #[test]
+    fn test_normalize_keeps_non_ascii_underlying() {
+        // Only the date cut is guarded; a non-ASCII underlying normalizes as before
+        assert_eq!(
+            normalize_option_symbol("-ÉDF270115C600"),
+            Some("ÉDF270115C00600000".to_string())
+        );
     }
 }

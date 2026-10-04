@@ -718,10 +718,9 @@ impl AlphaVantageProvider {
         // OCC format: UNDERLYING + YYMMDD + C/P + STRIKE(8) = 15 non-underlying chars
         let s = occ_symbol.trim();
         let underlying_len = s.len().saturating_sub(15);
-        if underlying_len == 0 || !s.is_ascii() {
-            s.to_string()
-        } else {
-            s[..underlying_len].trim().to_string()
+        match s.get(..underlying_len) {
+            Some(underlying) if underlying_len > 0 => underlying.trim().to_string(),
+            _ => s.to_string(),
         }
     }
 
@@ -1165,7 +1164,7 @@ impl MarketDataProvider for AlphaVantageProvider {
             } => self.fetch_crypto_quotes(symbol, market).await?,
             ProviderInstrument::FxSymbol { ref symbol } => {
                 // Try to parse FX symbol format (e.g., "EURUSD" -> EUR/USD)
-                if symbol.len() == 6 && symbol.is_ascii() {
+                if symbol.len() == 6 && symbol.is_char_boundary(3) {
                     let from = &symbol[..3];
                     let to = &symbol[3..];
                     self.fetch_fx_quotes(from, to).await?
@@ -1234,7 +1233,7 @@ impl MarketDataProvider for AlphaVantageProvider {
             } => self.fetch_crypto_quotes(symbol, market).await?,
             ProviderInstrument::FxSymbol { ref symbol } => {
                 // Try to parse FX symbol format (e.g., "EURUSD" -> EUR/USD)
-                if symbol.len() == 6 && symbol.is_ascii() {
+                if symbol.len() == 6 && symbol.is_char_boundary(3) {
                     let from = &symbol[..3];
                     let to = &symbol[3..];
                     self.fetch_fx_quotes(from, to).await?
@@ -1729,6 +1728,11 @@ mod tests {
         assert_eq!(
             AlphaVantageProvider::extract_underlying_from_occ("Société Générale"),
             "Société Générale"
+        );
+        // A cut on a character boundary still extracts the underlying
+        assert_eq!(
+            AlphaVantageProvider::extract_underlying_from_occ("ÉDF240119C00195000"),
+            "ÉDF"
         );
     }
 
