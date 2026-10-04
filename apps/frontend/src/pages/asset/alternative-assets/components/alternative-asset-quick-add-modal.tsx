@@ -216,6 +216,8 @@ export function AlternativeAssetQuickAddModal({
         currency: baseCurrency,
         currentValue: "",
         valueDate: defaultOriginationDate || new Date(),
+        // A mortgage added for a property starts when the property was bought.
+        purchaseDate: defaultOriginationDate,
         linkedAssetId: initialLinkedAssetId,
         liabilityType: defaultLiabilityType ?? "mortgage",
         automaticSchedule: true,

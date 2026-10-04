@@ -7,6 +7,10 @@ const create = vi.hoisted(() => vi.fn().mockResolvedValue({ assetId: "created" }
 vi.mock("@/lib/settings-provider", () => ({
   useSettingsContext: () => ({ settings: { baseCurrency: "USD" } }),
 }));
+// The backend solves the payment; the form's own rules are what is tested here.
+vi.mock("../lib/loan-schedule", () => ({
+  initialLoanProjection: async (_metadata: unknown, projection: unknown) => projection,
+}));
 vi.mock("../hooks/use-alternative-asset-mutations", () => ({
   useAlternativeAssetMutations: () => ({
     createMutation: { mutateAsync: create, isPending: false },
@@ -15,7 +19,21 @@ vi.mock("../hooks/use-alternative-asset-mutations", () => ({
 vi.mock("@wealthfolio/ui", () => ({
   CurrencyInput: () => null,
   DatePickerInput: () => null,
-  QuantityInput: () => null,
+  QuantityInput: ({
+    value,
+    onValueChange,
+    "aria-label": label,
+  }: {
+    value?: number | string;
+    onValueChange: (value: number | undefined) => void;
+    "aria-label"?: string;
+  }) => (
+    <input
+      aria-label={label}
+      value={value ?? ""}
+      onChange={(event) => onValueChange(Number(event.target.value) || undefined)}
+    />
+  ),
   useDateFormatting: () => ({ formatCalendarDate: (value: string) => value }),
   MoneyInput: ({
     value,
@@ -90,3 +108,27 @@ it.each([undefined, "auto_loan"])(
     );
   },
 );
+
+it("keeps the property's purchase date as a chained mortgage's origination date", async () => {
+  render(
+    <AlternativeAssetQuickAddModal
+      open
+      onOpenChange={() => undefined}
+      defaultKind={AlternativeAssetKind.LIABILITY}
+      defaultName="Mortgage"
+      defaultOriginationDate={new Date(2025, 5, 1)}
+    />,
+  );
+  await screen.findByRole("combobox", { name: "Select Liability Type" });
+  // Only the amount and term are entered; the origination date comes from the property.
+  fireEvent.change(screen.getAllByLabelText("Amount")[0], { target: { value: "400000" } });
+  fireEvent.change(screen.getByLabelText("Years"), { target: { value: "25" } });
+  fireEvent.click(screen.getByRole("button", { name: "Add Liability" }));
+  await waitFor(() =>
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        metadata: expect.objectContaining({ origination_date: "2025-06-01" }),
+      }),
+    ),
+  );
+});
