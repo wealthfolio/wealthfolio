@@ -107,38 +107,28 @@ BEGIN
 END;
 
 -- Account facts the kernel reads (currency, type, tracking mode, archived, and
--- the accounting settings under meta.accounting, which the job also
--- validates): the whole history may change. Other meta keys (broker details,
--- timestamps) do not.
+-- the accounting settings the job reads from meta, engine rules R7.2): the
+-- whole history may change. The settings are watched as the job reads them
+-- (strictly, the last of a repeated key): meta that is not JSON, or that
+-- repeats its accounting entry (SQLite reads the first), by its whole text
+-- ('meta:', a prefix no JSON type takes); any other meta by the type and text
+-- of its accounting entry. Other meta keys (broker details, timestamps) do not
+-- mark.
 CREATE TRIGGER projection_account_update AFTER UPDATE OF currency, account_type, tracking_mode, is_archived, meta ON accounts
 WHEN OLD.currency IS NOT NEW.currency
   OR OLD.account_type IS NOT NEW.account_type
   OR OLD.tracking_mode IS NOT NEW.tracking_mode
   OR OLD.is_archived IS NOT NEW.is_archived
-  OR (CASE WHEN json_valid(OLD.meta) THEN coalesce(
-        json_extract(OLD.meta, '$.accounting.costBasisMethod'),
-        json_extract(OLD.meta, '$.accounting.cost_basis_method')) END)
-     IS NOT (CASE WHEN json_valid(NEW.meta) THEN coalesce(
-        json_extract(NEW.meta, '$.accounting.costBasisMethod'),
-        json_extract(NEW.meta, '$.accounting.cost_basis_method')) END)
-  OR (CASE WHEN json_valid(OLD.meta) THEN coalesce(
-        json_extract(OLD.meta, '$.accounting.costBasisProfile'),
-        json_extract(OLD.meta, '$.accounting.cost_basis_profile')) END)
-     IS NOT (CASE WHEN json_valid(NEW.meta) THEN coalesce(
-        json_extract(NEW.meta, '$.accounting.costBasisProfile'),
-        json_extract(NEW.meta, '$.accounting.cost_basis_profile')) END)
-  OR (CASE WHEN json_valid(OLD.meta) THEN coalesce(
-        json_extract(OLD.meta, '$.accounting.poolingScope'),
-        json_extract(OLD.meta, '$.accounting.pooling_scope')) END)
-     IS NOT (CASE WHEN json_valid(NEW.meta) THEN coalesce(
-        json_extract(NEW.meta, '$.accounting.poolingScope'),
-        json_extract(NEW.meta, '$.accounting.pooling_scope')) END)
-  OR (CASE WHEN json_valid(OLD.meta) THEN coalesce(
-        json_extract(OLD.meta, '$.accounting.lotSelectionStrategy'),
-        json_extract(OLD.meta, '$.accounting.lot_selection_strategy')) END)
-     IS NOT (CASE WHEN json_valid(NEW.meta) THEN coalesce(
-        json_extract(NEW.meta, '$.accounting.lotSelectionStrategy'),
-        json_extract(NEW.meta, '$.accounting.lot_selection_strategy')) END)
+  OR (CASE
+        WHEN NOT json_valid(OLD.meta) THEN 'meta:' || OLD.meta
+        WHEN json_type(json_remove(OLD.meta, '$.accounting'), '$.accounting') IS NOT NULL THEN 'meta:' || OLD.meta
+        ELSE json_type(OLD.meta, '$.accounting') || ':' || coalesce(json_extract(OLD.meta, '$.accounting'), '')
+      END)
+     IS NOT (CASE
+        WHEN NOT json_valid(NEW.meta) THEN 'meta:' || NEW.meta
+        WHEN json_type(json_remove(NEW.meta, '$.accounting'), '$.accounting') IS NOT NULL THEN 'meta:' || NEW.meta
+        ELSE json_type(NEW.meta, '$.accounting') || ':' || coalesce(json_extract(NEW.meta, '$.accounting'), '')
+      END)
 BEGIN
     INSERT INTO projection_state (scope, dirty_from, version)
     VALUES (NEW.id, '0001-01-01', 1)
