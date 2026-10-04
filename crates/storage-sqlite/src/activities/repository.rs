@@ -960,7 +960,7 @@ impl ActivityRepositoryTrait for ActivityRepository {
                     provider_account_id.as_deref(),
                 );
                 activity_to_update.activity_type_override =
-                    stored_type_override(activity_to_update.activity_type_override.take());
+                    stored_type_override(activity_to_update.activity_type_override.as_deref());
                 activity_to_update.updated_at = chrono::Utc::now().to_rfc3339();
                 assert_final_cash_floor(&activity_to_update)?;
 
@@ -1382,7 +1382,7 @@ impl ActivityRepositoryTrait for ActivityRepository {
                         provider_account_id.as_deref(),
                     );
                     activity_db.activity_type_override =
-                        stored_type_override(activity_db.activity_type_override.take());
+                        stored_type_override(activity_db.activity_type_override.as_deref());
                     activity_db.updated_at = chrono::Utc::now().to_rfc3339();
                     assert_final_cash_floor(&activity_db)?;
 
@@ -4824,18 +4824,22 @@ mod tests {
             .map(u32::from)
             .collect();
         assert_eq!(listed, rust);
-        // The triggers trim that list too, as does the migration that clears
-        // blank overrides.
+        // The triggers trim that list too, as does the migration that
+        // normalizes stored overrides.
         let triggers = include_str!("../../migrations/2026-09-28-000001_projection_state/up.sql");
         assert_eq!(
             triggers.matches("trim(").count(),
             triggers.matches(&format!(", {SQL_WHITESPACE})")).count()
         );
-        let cleared =
-            include_str!("../../migrations/2026-10-03-000001_clear_blank_type_overrides/up.sql");
-        assert!(cleared.contains(&format!(
-            "trim(activity_type_override, {SQL_WHITESPACE}) = ''"
-        )));
+        let normalized =
+            include_str!("../../migrations/2026-10-03-000001_normalize_type_overrides/up.sql");
+        assert_eq!(
+            normalized.matches("trim(").count(),
+            normalized
+                .matches(&format!("trim(activity_type_override, {SQL_WHITESPACE})"))
+                .count()
+        );
+        assert!(normalized.contains("trim("));
 
         let cases: Vec<(String, String)> = serde_json::from_str(include_str!(
             "../../../core/src/activities/type_override_cases.json"
@@ -4898,29 +4902,29 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn updates_store_a_blank_type_override_as_none() {
+    async fn edits_store_type_overrides_as_they_read() {
         let (pool, writer) = setup_db();
         let repo = ActivityRepository::new(pool.clone(), writer);
         let mut conn = get_connection(&pool).expect("conn");
-        insert_account(&mut conn, "acc-blank-override");
-        for id in ["single-blank", "bulk-blank"] {
-            insert_activity_with_subtype(
-                &mut conn,
-                id,
-                "acc-blank-override",
-                "DIVIDEND",
-                None,
-                None,
-            );
+        insert_account(&mut conn, "acc-override");
+        // (row, override stored before the edit, override stored after it)
+        let rows = [
+            ("single-blank", "\u{a0}", None),
+            ("single-padded", "\u{2003}INTEREST ", Some("INTEREST")),
+            ("bulk-blank", "\u{a0}", None),
+            ("bulk-padded", " INTEREST\t", Some("INTEREST")),
+        ];
+        for (id, before, _) in rows {
+            insert_activity_with_subtype(&mut conn, id, "acc-override", "DIVIDEND", None, None);
             diesel::update(activities::table.find(id))
-                .set(activities::activity_type_override.eq(Some("\u{a0}".to_string())))
+                .set(activities::activity_type_override.eq(Some(before.to_string())))
                 .execute(&mut conn)
-                .expect("blank override");
+                .expect("stored override");
             insert_spending_split(&mut conn, &format!("{id}-split"), id);
         }
         let notes_edit = |id: &str| ActivityUpdate {
             id: id.to_string(),
-            account_id: "acc-blank-override".to_string(),
+            account_id: "acc-override".to_string(),
             asset: None,
             activity_type: "DIVIDEND".to_string(),
             subtype: None,
@@ -4938,21 +4942,25 @@ mod tests {
             metadata: None,
         };
 
-        repo.update_activity(notes_edit("single-blank"))
-            .await
-            .expect("update");
-        repo.bulk_mutate_activities(Vec::new(), vec![notes_edit("bulk-blank")], Vec::new())
-            .await
-            .expect("bulk update");
+        for id in ["single-blank", "single-padded"] {
+            repo.update_activity(notes_edit(id)).await.expect("update");
+        }
+        repo.bulk_mutate_activities(
+            Vec::new(),
+            vec![notes_edit("bulk-blank"), notes_edit("bulk-padded")],
+            Vec::new(),
+        )
+        .await
+        .expect("bulk update");
 
-        for id in ["single-blank", "bulk-blank"] {
+        for (id, _, after) in rows {
             let stored = activities::table
                 .find(id)
                 .select(activities::activity_type_override)
                 .first::<Option<String>>(&mut conn)
                 .expect("override");
-            assert_eq!(stored, None, "{id}");
-            // The effective type did not change, so the edit keeps its splits.
+            assert_eq!(stored.as_deref(), after, "{id}");
+            // The type read did not change, so the edit keeps the splits.
             let splits = spending_activity_splits::table
                 .filter(spending_activity_splits::activity_id.eq(id))
                 .count()

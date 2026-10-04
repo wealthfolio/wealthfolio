@@ -1483,11 +1483,11 @@ mod migration_tests {
         );
     }
 
-    /// A database written before the migration holds blank type overrides:
-    /// the migration stores each as NULL and keeps every other override, by
-    /// core's shared cases (a blank one reads as the stored DIVIDEND).
+    /// A database written before the migration holds blank and untrimmed
+    /// type overrides: the migration stores each as it reads, by core's shared
+    /// cases (a blank one, NULL, reads as the stored DIVIDEND).
     #[test]
-    fn clear_blank_type_overrides_migration_stores_blank_overrides_as_null() {
+    fn normalize_type_overrides_migration_stores_overrides_as_they_read() {
         use diesel::sql_types::{Nullable, Text};
         #[derive(QueryableByName)]
         struct OverrideRow {
@@ -1533,8 +1533,11 @@ mod migration_tests {
                     .get_result::<OverrideRow>(&mut conn)
                     .unwrap()
                     .activity_type_override;
-            let blank = expected == "DIVIDEND";
-            assert_eq!(stored, (!blank).then(|| override_.clone()), "{override_:?}");
+            assert_eq!(
+                stored,
+                (expected != "DIVIDEND").then_some(expected),
+                "{override_:?}"
+            );
         }
     }
 

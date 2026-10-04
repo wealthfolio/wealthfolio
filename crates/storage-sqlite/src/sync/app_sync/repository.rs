@@ -462,9 +462,9 @@ fn apply_value_migration(table: &str, column: &str, value: serde_json::Value) ->
             }
             value
         }
-        // Older builds stored a blank type override; store it as every write does.
+        // Older builds stored a type override untrimmed; store it as every write does.
         ("activities", "activity_type_override") => match value {
-            serde_json::Value::String(s) => stored_type_override(Some(s))
+            serde_json::Value::String(s) => stored_type_override(Some(&s))
                 .map_or(serde_json::Value::Null, serde_json::Value::String),
             value => value,
         },
@@ -701,9 +701,9 @@ fn normalize_restored_quotes(conn: &mut SqliteConnection) -> Result<()> {
     Ok(())
 }
 
-/// Stores the blank type overrides a snapshot restore copied as none, as
-/// every write stores them (`stored_type_override`): a snapshot exported by an
-/// older client may hold some.
+/// Stores the type overrides a snapshot restore copied as every write stores
+/// them (`stored_type_override`): a snapshot exported by an older client may
+/// hold blank or untrimmed ones.
 fn normalize_restored_type_overrides(conn: &mut SqliteConnection) -> Result<()> {
     let overrides = activities::table
         .filter(activities::activity_type_override.is_not_null())
@@ -711,9 +711,10 @@ fn normalize_restored_type_overrides(conn: &mut SqliteConnection) -> Result<()> 
         .load::<(String, Option<String>)>(conn)
         .map_err(|err| restore_sql_error("normalize", "activities", err))?;
     for (id, value) in overrides {
-        if stored_type_override(value).is_none() {
+        let stored = stored_type_override(value.as_deref());
+        if stored != value {
             diesel::update(activities::table.find(id))
-                .set(activities::activity_type_override.eq(None::<String>))
+                .set(activities::activity_type_override.eq(stored))
                 .execute(conn)
                 .map_err(|err| restore_sql_error("normalize", "activities", err))?;
         }
@@ -6732,12 +6733,12 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn a_synced_activity_stores_a_blank_type_override_as_none() {
+    async fn a_synced_activity_stores_its_type_override_as_it_reads() {
         let (pool, writer) = setup_db();
         let mut conn = get_connection(&pool).expect("conn");
         insert_account_for_test(&mut conn, "acc-synced-override").expect("insert account");
         let repo = AppSyncRepository::new(pool.clone(), writer);
-        for (seq, (id, override_)) in [("synced-blank", "\u{3000}"), ("synced-sell", "SELL")]
+        for (seq, (id, override_)) in [("synced-blank", "\u{3000}"), ("synced-padded", " SELL\t")]
             .into_iter()
             .enumerate()
         {
@@ -6771,7 +6772,7 @@ mod tests {
             stored_type_overrides(&mut conn),
             vec![
                 ("synced-blank".to_string(), None),
-                ("synced-sell".to_string(), Some("SELL".to_string())),
+                ("synced-padded".to_string(), Some("SELL".to_string())),
             ]
         );
     }
@@ -6838,12 +6839,12 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn snapshot_restore_stores_a_blank_type_override_as_none() {
+    async fn snapshot_restore_stores_type_overrides_as_they_read() {
         let snapshot_path = create_snapshot_db_with_account("acc-restored-override");
         {
             let pool = create_pool(&snapshot_path).expect("snapshot pool");
             let mut conn = get_connection(&pool).expect("snapshot conn");
-            for (id, override_) in [("restored-blank", "\t"), ("restored-sell", "SELL")] {
+            for (id, override_) in [("restored-blank", "\t"), ("restored-padded", "SELL\u{a0}")] {
                 insert_activity_for_snapshot_filter_test(
                     &mut conn,
                     id,
@@ -6878,7 +6879,7 @@ mod tests {
             stored_type_overrides(&mut conn),
             vec![
                 ("restored-blank".to_string(), None),
-                ("restored-sell".to_string(), Some("SELL".to_string())),
+                ("restored-padded".to_string(), Some("SELL".to_string())),
             ]
         );
     }

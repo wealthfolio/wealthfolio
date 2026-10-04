@@ -220,14 +220,12 @@ pub fn type_override(type_override: Option<&str>) -> Option<&str> {
     type_override.map(str::trim).filter(|s| !s.is_empty())
 }
 
-/// A type override as stored: none when blank, else as given. The writes
-/// that set `activities.activity_type_override` (an edit, a synced activity,
-/// a snapshot restore) store it through this, and a synced broker edit
-/// stores it trimmed, so a reader of the stored column that does not trim
-/// (the addon SDK's `getEffectiveType`) never reads a blank override as a
-/// type.
-pub fn stored_type_override(value: Option<String>) -> Option<String> {
-    value.filter(|value| type_override(Some(value)).is_some())
+/// A type override as stored: as `type_override` reads it, trimmed and none
+/// when blank. Every write of `activities.activity_type_override` stores it
+/// through this, so a reader of the stored column that does not trim (the
+/// addon SDK's `getEffectiveType`) reads the type the engine reads.
+pub fn stored_type_override(value: Option<&str>) -> Option<String> {
+    type_override(value).map(str::to_string)
 }
 
 /// The type an activity computes as: its override when not blank, else its
