@@ -760,7 +760,7 @@ fn parse_yield_curve_xml(xml: &str) -> Result<YearCurves, MarketDataError> {
         let date = match extract_xml_value(content, "NEW_DATE") {
             Some(d) => {
                 // Format: "2025-01-02T00:00:00" or similar
-                let date_str = if d.len() >= 10 { &d[..10] } else { &d };
+                let date_str = d.get(..10).unwrap_or(&d);
                 match NaiveDate::parse_from_str(date_str, "%Y-%m-%d") {
                     Ok(nd) => nd,
                     Err(_) => continue,
@@ -1103,6 +1103,25 @@ mod tests {
         // Second entry
         assert_eq!(curves[1].0, NaiveDate::from_ymd_opt(2025, 1, 3).unwrap());
         assert_eq!(curves[1].1 .0.len(), 4); // only 4 tenors in this entry
+    }
+
+    #[test]
+    fn test_parse_yield_curve_xml_skips_non_ascii_date() {
+        // The first NEW_DATE is 20 bytes, with byte 10 inside the 'é'
+        let xml = r#"<feed>
+  <entry><content><m:properties>
+    <d:NEW_DATE>2025-01-0éT00:00:00</d:NEW_DATE>
+    <d:BC_10YEAR>4.57</d:BC_10YEAR>
+  </m:properties></content></entry>
+  <entry><content><m:properties>
+    <d:NEW_DATE>2025-01-03T00:00:00</d:NEW_DATE>
+    <d:BC_10YEAR>4.60</d:BC_10YEAR>
+  </m:properties></content></entry>
+</feed>"#;
+
+        let curves = parse_yield_curve_xml(xml).unwrap();
+        assert_eq!(curves.len(), 1);
+        assert_eq!(curves[0].0, NaiveDate::from_ymd_opt(2025, 1, 3).unwrap());
     }
 
     #[test]

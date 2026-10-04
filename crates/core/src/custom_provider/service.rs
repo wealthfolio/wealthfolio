@@ -1377,7 +1377,7 @@ mod tests {
     }
 
     #[test]
-    fn detect_html_locale_ignores_non_ascii_lang() {
+    fn detect_html_locale_skips_lang_cut_inside_a_character() {
         assert_eq!(
             detect_html_locale(r#"<html lang="fr-FR"></html>"#),
             Some("fr".to_string())
