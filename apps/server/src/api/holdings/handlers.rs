@@ -323,7 +323,8 @@ pub async fn get_historical_valuations_for_scope(
                 &resolved.base_currency,
                 start,
                 end,
-            )?
+            )
+            .await?
     };
     Ok(Json(vals))
 }

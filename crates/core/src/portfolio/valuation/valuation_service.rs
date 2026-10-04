@@ -13,7 +13,7 @@ use super::valuation_model::{DailyAccountValuation, NegativeBalanceInfo, Valuati
 use super::valuation_traits::ValuationRepositoryTrait;
 use crate::errors::Result as CoreResult;
 use crate::lots::LotRepositoryTrait;
-use crate::portfolio::coordinator::{blocking_read, rows, valuation_rows, FactSources};
+use crate::portfolio::coordinator::{blocking, rows, valuation_rows, FactSources};
 use crate::portfolio::economic_events::BasisStatus;
 use crate::utils::time_utils::{parse_user_timezone_or_default, user_today};
 use wealthfolio_portfolio_engine as engine;
@@ -43,8 +43,9 @@ pub trait ValuationServiceTrait: Send + Sync {
     ) -> CoreResult<Vec<DailyAccountValuation>>;
 
     /// Per-day sums of the accounts' stored rows (charts): flows are the
-    /// per-account gross flows, not netted.
-    fn get_historical_valuation_totals_for_accounts(
+    /// per-account gross flows, not netted. Without a range this reads every
+    /// row of every account, so it runs off the async workers.
+    async fn get_historical_valuation_totals_for_accounts(
         &self,
         scope_id: &str,
         account_ids: &[String],
@@ -113,11 +114,6 @@ impl ValuationService {
         }
     }
 
-    fn today(&self) -> NaiveDate {
-        let timezone = self.timezone.read().unwrap_or_else(|p| p.into_inner());
-        user_today(parse_user_timezone_or_default(&timezone))
-    }
-
     /// The scope's history with transfers between in-scope accounts netted,
     /// from the full stored history and the facts that price the legs.
     async fn aggregate_scope_history(
@@ -125,20 +121,15 @@ impl ValuationService {
         scope_id: &str,
         account_ids: &[String],
         base_currency: &str,
-        start_date_opt: Option<NaiveDate>,
-        end_date_opt: Option<NaiveDate>,
+        window: engine::Window,
+        timezone: &str,
         as_of: NaiveDate,
     ) -> CoreResult<Vec<DailyAccountValuation>> {
         let rows = self
             .valuation_repository
             .get_historical_valuations_for_accounts(account_ids, None, None)?;
-        let measured = rows::measure_engine(
-            &self.sources,
-            account_ids,
-            base_currency,
-            &self.timezone.read().unwrap_or_else(|p| p.into_inner()),
-            as_of,
-        )?;
+        let measured =
+            rows::measure_engine(&self.sources, account_ids, base_currency, timezone, as_of)?;
         let mut disposal_rows = Vec::new();
         let mut lot_rows = Vec::new();
         for account_id in account_ids {
@@ -154,10 +145,7 @@ impl ValuationService {
             &measured.effects(&disposals, &lots, &rejected),
             &series,
             &scope,
-            engine::Window {
-                start: start_date_opt,
-                end: end_date_opt,
-            },
+            window,
         )?;
         Ok(valuation_rows(&aggregated, scope_id, base_currency))
     }
@@ -256,39 +244,50 @@ impl ValuationServiceTrait for ValuationService {
             return Ok(Vec::new());
         }
         if account_ids.len() == 1 {
-            return self.get_historical_valuation_totals_for_accounts(
-                scope_id,
-                account_ids,
-                base_currency,
-                start_date_opt,
-                end_date_opt,
-            );
+            return self
+                .get_historical_valuation_totals_for_accounts(
+                    scope_id,
+                    account_ids,
+                    base_currency,
+                    start_date_opt,
+                    end_date_opt,
+                )
+                .await;
         }
         // Several accounts: the kernel's scope aggregation nets the transfer
         // pairs whose both legs are in scope. It needs the full stored
         // history plus the facts (activities, disposals) that price the legs,
-        // so it runs off the async workers. "Today" is read here, on the
-        // caller's thread, where tests pin the clock.
-        let as_of = self.today();
+        // so it runs off the async workers. The timezone and "today" are read
+        // here, together, on the caller's thread, where tests pin the clock.
+        let timezone = self
+            .timezone
+            .read()
+            .unwrap_or_else(|p| p.into_inner())
+            .clone();
+        let as_of = user_today(parse_user_timezone_or_default(&timezone));
         let service = self.clone();
         let scope_id = scope_id.to_string();
         let account_ids = account_ids.to_vec();
         let base_currency = base_currency.to_string();
+        let window = engine::Window {
+            start: start_date_opt,
+            end: end_date_opt,
+        };
         let handle = tokio::runtime::Handle::current();
-        blocking_read(move || {
+        blocking(move || {
             handle.block_on(service.aggregate_scope_history(
                 &scope_id,
                 &account_ids,
                 &base_currency,
-                start_date_opt,
-                end_date_opt,
+                window,
+                &timezone,
                 as_of,
             ))
         })
         .await
     }
 
-    fn get_historical_valuation_totals_for_accounts(
+    async fn get_historical_valuation_totals_for_accounts(
         &self,
         scope_id: &str,
         account_ids: &[String],
@@ -299,10 +298,19 @@ impl ValuationServiceTrait for ValuationService {
         if account_ids.is_empty() {
             return Ok(Vec::new());
         }
-        let rows = self
-            .valuation_repository
-            .get_historical_valuations_for_accounts(account_ids, start_date_opt, end_date_opt)?;
-        Ok(aggregate_rows(scope_id, base_currency, rows))
+        let repository = Arc::clone(&self.valuation_repository);
+        let scope_id = scope_id.to_string();
+        let account_ids = account_ids.to_vec();
+        let base_currency = base_currency.to_string();
+        blocking(move || {
+            let rows = repository.get_historical_valuations_for_accounts(
+                &account_ids,
+                start_date_opt,
+                end_date_opt,
+            )?;
+            Ok(aggregate_rows(&scope_id, &base_currency, rows))
+        })
+        .await
     }
 
     fn get_historical_valuations_by_account(

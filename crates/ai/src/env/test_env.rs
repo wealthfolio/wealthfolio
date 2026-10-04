@@ -736,7 +736,7 @@ impl ValuationServiceTrait for MockValuationService {
         Ok(self.valuations.clone())
     }
 
-    fn get_historical_valuation_totals_for_accounts(
+    async fn get_historical_valuation_totals_for_accounts(
         &self,
         _scope_id: &str,
         _account_ids: &[String],

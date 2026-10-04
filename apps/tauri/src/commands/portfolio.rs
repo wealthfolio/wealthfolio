@@ -468,6 +468,7 @@ pub async fn get_historical_valuations(
                     from_date_opt,
                     to_date_opt,
                 )
+                .await
                 .map_err(|e| e.to_string())
         }
     } else if let Some(account_id) = account_id {
@@ -499,6 +500,7 @@ pub async fn get_historical_valuations(
                 from_date_opt,
                 to_date_opt,
             )
+            .await
             .map_err(|e| e.to_string())
     };
 

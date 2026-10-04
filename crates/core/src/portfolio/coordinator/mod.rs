@@ -561,44 +561,15 @@ impl PortfolioCoordinator {
     }
 }
 
-/// CPU-bound kernel work on the blocking pool, so it never holds an async
-/// worker. A panic's payload is not surfaced (it may carry figures).
+/// Work that grows with history (kernel runs, full-history reads) on the
+/// blocking pool, so it never holds an async worker. A panic's payload is not
+/// surfaced (it may carry figures).
 pub(crate) async fn blocking<T: Send + 'static>(
     work: impl FnOnce() -> Result<T> + Send + 'static,
 ) -> Result<T> {
     tokio::task::spawn_blocking(work).await.unwrap_or_else(|_| {
         Err(Error::Unexpected(
-            "Portfolio projection stopped unexpectedly".to_string(),
-        ))
-    })
-}
-
-/// A read that loads a full history and runs the kernel over it (performance,
-/// scoped valuation history), on the blocking pool like [`blocking`]. At most
-/// one per CPU runs at a time: the blocking pool is sized for IO, so a burst
-/// of reads would otherwise each hold a full history in memory at once. The
-/// permit travels with the work, so a caller that stops waiting does not free
-/// it early. `work` must not start another bounded read.
-pub(crate) async fn blocking_read<T: Send + 'static>(
-    work: impl FnOnce() -> Result<T> + Send + 'static,
-) -> Result<T> {
-    static PERMITS: std::sync::OnceLock<Arc<tokio::sync::Semaphore>> = std::sync::OnceLock::new();
-    let permits = PERMITS.get_or_init(|| {
-        let cpus = std::thread::available_parallelism().map_or(1, std::num::NonZeroUsize::get);
-        Arc::new(tokio::sync::Semaphore::new(cpus))
-    });
-    let permit = Arc::clone(permits)
-        .acquire_owned()
-        .await
-        .map_err(|_| Error::Unexpected("Portfolio read stopped unexpectedly".to_string()))?;
-    tokio::task::spawn_blocking(move || {
-        let _permit = permit;
-        work()
-    })
-    .await
-    .unwrap_or_else(|_| {
-        Err(Error::Unexpected(
-            "Portfolio read stopped unexpectedly".to_string(),
+            "Portfolio calculation stopped unexpectedly".to_string(),
         ))
     })
 }

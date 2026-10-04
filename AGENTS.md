@@ -68,12 +68,11 @@ guarantees from unverified assumptions.
   crate; core services live in `crates/core/`, persistence and migrations in
   `crates/storage-sqlite/`. Add schema changes as new migrations in
   `crates/storage-sqlite/migrations/`; never edit a migration already shipped.
-- An `async fn` must be safe to await on an async worker. Synchronous work that
-  grows with history (full-history reads, engine runs) runs off the workers
-  inside the service that owns it, through `blocking` or `blocking_read` in
-  `crates/core/src/portfolio/coordinator/mod.rs`; callers do not wrap service
-  calls in `spawn_blocking`. Writes go through the writer actor, which runs on
-  the blocking pool.
+- Portfolio reads in `crates/core` that load a whole history or run the engine
+  (performance, valuation history) run off the async workers inside their
+  service, through `blocking` in `crates/core/src/portfolio/coordinator/mod.rs`,
+  so callers await them directly rather than wrapping them in `spawn_blocking`.
+  Give new history-sized reads the same treatment.
 
 When adding or changing a backend call, trace both runtime paths: the frontend
 adapter/export, Tauri command registration in `apps/tauri/src/lib.rs`, web

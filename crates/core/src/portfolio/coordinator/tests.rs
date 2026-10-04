@@ -2668,27 +2668,38 @@ async fn scoped_valuation_reads_leave_the_async_worker_free() {
     assert!(gate.released_in_time(), "the read held the async worker");
 }
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn bounded_reads_run_at_most_one_per_cpu() {
-    use std::sync::atomic::{AtomicUsize, Ordering};
-    let cpus = std::thread::available_parallelism().map_or(1, std::num::NonZeroUsize::get);
-    let running = Arc::new(AtomicUsize::new(0));
-    let peak = Arc::new(AtomicUsize::new(0));
-    let reads: Vec<_> = (0..cpus * 2 + 1)
-        .map(|_| {
-            let (running, peak) = (running.clone(), peak.clone());
-            tokio::spawn(blocking_read(move || {
-                let now = running.fetch_add(1, Ordering::SeqCst) + 1;
-                peak.fetch_max(now, Ordering::SeqCst);
-                std::thread::sleep(std::time::Duration::from_millis(20));
-                running.fetch_sub(1, Ordering::SeqCst);
-                Ok(())
-            }))
-        })
-        .collect();
-    for read in reads {
-        read.await.expect("read task").expect("read");
-    }
-    let peak = peak.load(Ordering::SeqCst);
-    assert!(peak <= cpus, "{peak} reads ran at once on {cpus} CPUs");
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn valuation_totals_leave_the_async_worker_free() {
+    use crate::portfolio::valuation::{ValuationService, ValuationServiceTrait};
+    let harness = harness(scenario("NOM-TXF-01").facts()).await;
+    let (gate, started, release) = GatedValuations::new(harness.valuation_repo.clone());
+    let service = ValuationService::new(
+        gate.clone(),
+        harness.sources.clone(),
+        harness.lot_repo.clone(),
+        harness.timezone.clone(),
+    );
+    let base_currency = harness.base_currency.read().unwrap().clone();
+
+    let read = tokio::spawn(async move {
+        let accounts = ["acc-a".to_string(), "acc-b".to_string()];
+        service
+            .get_historical_valuation_totals_for_accounts(
+                "portfolio",
+                &accounts,
+                &base_currency,
+                None,
+                None,
+            )
+            .await
+            .map(|_| ())
+    });
+    let releaser = release_when_started(started, release);
+    read.await
+        .expect("read task")
+        .expect("valuation totals read");
+    gate.close();
+    releaser.await.expect("releaser task");
+
+    assert!(gate.released_in_time(), "the read held the async worker");
 }

@@ -18,7 +18,7 @@ use crate::accounts::{Account, TrackingMode};
 use crate::constants::DECIMAL_PRECISION;
 use crate::errors::{Error, Result, ValidationError};
 use crate::lots::LotRepositoryTrait;
-use crate::portfolio::coordinator::{blocking_read, rows, FactSources};
+use crate::portfolio::coordinator::{blocking, rows, FactSources};
 use crate::portfolio::economic_events::BasisStatus;
 use crate::portfolio::valuation::{DailyAccountValuation, ValuationRepositoryTrait};
 use crate::quotes::QuoteServiceTrait;
@@ -255,6 +255,14 @@ enum MeasureTarget {
     Scope { id: String, accounts: Vec<String> },
 }
 
+/// The settings one `measure` uses, read together before it leaves the
+/// caller's thread.
+struct ReadSettings {
+    base_currency: String,
+    timezone: String,
+    as_of: NaiveDate,
+}
+
 #[derive(Clone)]
 pub struct PerformanceService {
     base_currency: Arc<RwLock<String>>,
@@ -319,8 +327,8 @@ impl PerformanceService {
     /// transfer pairs keep their attribution).
     ///
     /// The read loads the accounts' whole history, so it runs off the async
-    /// workers. "Today" is read here, on the caller's thread, where tests pin
-    /// the clock.
+    /// workers. The settings and "today" are read here, together, on the
+    /// caller's thread, where tests pin the clock.
     async fn measure(
         &self,
         target: MeasureTarget,
@@ -330,17 +338,22 @@ impl PerformanceService {
         include_series: bool,
     ) -> Result<PerformanceResult> {
         Self::validate_window(start, end)?;
-        let as_of = self.today();
+        let timezone = self.timezone();
+        let settings = ReadSettings {
+            base_currency: self.base_currency(),
+            as_of: user_today(parse_user_timezone_or_default(&timezone)),
+            timezone,
+        };
         let service = self.clone();
         let handle = tokio::runtime::Handle::current();
-        blocking_read(move || {
+        blocking(move || {
             handle.block_on(service.measure_rows(
                 &target,
                 start,
                 end,
                 profile,
                 include_series,
-                as_of,
+                &settings,
             ))
         })
         .await
@@ -353,19 +366,18 @@ impl PerformanceService {
         end: Option<NaiveDate>,
         profile: PerformanceSummaryProfile,
         include_series: bool,
-        as_of: NaiveDate,
+        settings: &ReadSettings,
     ) -> Result<PerformanceResult> {
         let account_ids: &[String] = match target {
             MeasureTarget::Account(id) => std::slice::from_ref(id),
             MeasureTarget::Scope { accounts, .. } => accounts,
         };
-        let base_currency = self.base_currency();
         let measured = rows::measure_engine(
             &self.sources,
             account_ids,
-            &base_currency,
-            &self.timezone(),
-            as_of,
+            &settings.base_currency,
+            &settings.timezone,
+            settings.as_of,
         )?;
 
         let mut valuation_rows: Vec<DailyAccountValuation> = Vec::new();
