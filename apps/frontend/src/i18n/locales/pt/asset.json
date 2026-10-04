@@ -691,7 +691,9 @@
       "precious_metal": "Metal precioso",
       "liability": "Passivo",
       "other": "Outro"
-    }
+    },
+    "ownership_pct": "Percentual de propriedade",
+    "ownership_pct_description": "Sua participação neste ativo. Afeta apenas o total do seu patrimônio líquido — o valor exibido sempre mostra 100%."
   },
   "updateValuation": {
     "title": "Atualizar valor: {{name}}",
