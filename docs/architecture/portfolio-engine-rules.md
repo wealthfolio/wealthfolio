@@ -187,9 +187,10 @@ account; both owners are invalidated (§5).
 
 **R6.3** An activity's type override is stored as it reads (§5): trimmed, and as
 none when blank. An edit, a synced activity or broker edit, and a snapshot
-restore each store it so. Rows already stored are not repaired: no app write is
-known to have stored a blank or untrimmed override, and editing a row, or
-receiving it by device sync, stores its override as it reads.
+restore each store it so. Rows already stored are not repaired: the app's own
+forms never stored a blank or untrimmed override (an API caller could have
+stored an untrimmed one by editing a broker activity with a padded type), and
+editing a row, or receiving it by device sync, stores its override as it reads.
 
 ## 7. Cost basis methods
 
