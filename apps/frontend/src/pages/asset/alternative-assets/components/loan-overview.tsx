@@ -1,11 +1,12 @@
 import type { AlternativeAssetHolding, Quote } from "@/lib/types";
 import type { LoanCalculation } from "@/adapters/shared/alternative-assets";
-import { cn, formatDateISO } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { LoanTimeline } from "./loan-timeline";
 import { LoanSummaryStrip } from "./loan-summary-strip";
 import { LoanFactsCard, PayoffCard, ThisTermCard } from "./loan-overview-cards";
 import { lastLoanConfirmation, loanDisplayBalance, loanMilestones } from "../lib/loan-presentation";
 import type { LoanActionCallbacks } from "../hooks/use-loan-actions";
+import { useLoanToday } from "../hooks/use-loan-calculation";
 
 export interface LoanOverviewProps {
   holding: AlternativeAssetHolding;
@@ -32,7 +33,7 @@ export function LoanOverview({
   onEdit,
   mortgage = false,
 }: LoanOverviewProps & { mortgage?: boolean }) {
-  const today = formatDateISO(new Date());
+  const today = useLoanToday();
   const metadata = holding.metadata ?? {};
   const confirmed = lastLoanConfirmation(quotes, today);
   const balance = loanDisplayBalance(calculation, holding.marketValue);

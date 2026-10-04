@@ -6,7 +6,7 @@ import type { AlternativeAssetHolding, Quote } from "@/lib/types";
 import { formatDateISO } from "@/lib/utils";
 import { useQuoteMutations } from "../../hooks/use-quote-mutations";
 import { useAlternativeAssetMutations } from "./use-alternative-asset-mutations";
-import { loanCalculationRequest, useLoanCalculation } from "./use-loan-calculation";
+import { loanCalculationRequest, useLoanCalculation, useLoanToday } from "./use-loan-calculation";
 import {
   readActiveLoanProjection,
   canRenewLoan,
@@ -60,6 +60,7 @@ export function useLoanActions(
   const metadata = useMemo(() => holding?.metadata ?? {}, [holding?.metadata]);
   const storedProjection = readActiveLoanProjection(metadata);
   const { data: calculation } = useLoanCalculation(assetId, metadata, quoteHistory, isLiability);
+  const today = useLoanToday();
   const currentBalance = calculation?.currentBalance ?? Math.abs(Number(holding?.marketValue ?? 0));
   const activeInterestRate = calculation?.annualRate ?? Number(metadata.interest_rate ?? 0);
   const endDate = storedProjection?.amortizationEndDate
@@ -398,7 +399,7 @@ export function useLoanActions(
             mode="extra_repayment"
             currentBalance={currentBalance}
             currency={holding.currency}
-            confirmations={confirmedLoanBalances(quoteHistory, formatDateISO(new Date()))}
+            confirmations={confirmedLoanBalances(quoteHistory, today)}
             onSubmit={(date, amount) => handleBalanceEvent("extra_repayment", date, amount)}
           />
         </>

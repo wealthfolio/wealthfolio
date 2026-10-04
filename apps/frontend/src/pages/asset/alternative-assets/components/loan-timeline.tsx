@@ -38,6 +38,7 @@ import {
   loanPeriod,
   type LoanMarker,
 } from "../lib/loan-presentation";
+import { useLoanToday } from "../hooks/use-loan-calculation";
 
 const LOAN_RANGES = ["YTD", "1Y", "5Y", "ALL"] as const;
 type LoanRange = (typeof LOAN_RANGES)[number];
@@ -84,7 +85,7 @@ export function LoanTimeline({
   const { isBalanceHidden } = useBalancePrivacy();
   const formatting = useNumberFormatting();
   const dateFormatting = useDateFormatting();
-  const today = formatDateISO(new Date());
+  const today = useLoanToday();
   const [range, setRange] = useState<LoanRange>("ALL");
   const [focusedEvent, setFocusedEvent] = useState<string | null>(null);
   const milestones = loanMilestones(calculation, metadata, today);

@@ -7,10 +7,11 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from "@wealthfolio/ui";
 import { Card, CardContent } from "@wealthfolio/ui/components/ui/card";
 import type { LoanCalculation } from "@/adapters/shared/alternative-assets";
-import { cn, formatDateISO } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { RENEWAL_SOON_DAYS, loanMilestones } from "../lib/loan-presentation";
 import { readLoanEvents } from "../lib/loan-events";
 import { useLoanFormat } from "../hooks/use-loan-format";
+import { useLoanToday } from "../hooks/use-loan-calculation";
 
 /** Repaid share, the current term and the next payment, above the balance chart. */
 export function LoanSummaryStrip({
@@ -28,7 +29,7 @@ export function LoanSummaryStrip({
 }) {
   const { t, isBalanceHidden, numbers, money, moneyText, shortDate, month, rate } =
     useLoanFormat(currency);
-  const today = formatDateISO(new Date());
+  const today = useLoanToday();
   const milestones = loanMilestones(calculation, metadata, today);
   const progress =
     originalAmount != null

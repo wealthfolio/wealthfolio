@@ -16,7 +16,7 @@ import {
 } from "@wealthfolio/ui/components/ui/card";
 import type { AlternativeAssetHolding, Quote } from "@/lib/types";
 import type { LoanCalculation } from "@/adapters/shared/alternative-assets";
-import { cn, formatDateISO } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { canRenewLoan } from "../lib/loan-events";
 import {
   buildLoanLedger,
@@ -29,6 +29,7 @@ import {
 import type { LoanActionCallbacks } from "../hooks/use-loan-actions";
 import { useLoanFormat } from "../hooks/use-loan-format";
 import { LoanTermsStrip } from "./loan-terms-strip";
+import { useLoanToday } from "../hooks/use-loan-calculation";
 
 // Columns: date, activity, amount, balance (from sm), edit action.
 const ROW_GRID =
@@ -71,7 +72,7 @@ export function LoanHistory({
 
 function LoanLedger({ holding, calculation, quotes, actions, onEditDetails }: LoanHistoryProps) {
   const { t, money, moneyText, rate, date, shortDate: day } = useLoanFormat(holding.currency);
-  const today = formatDateISO(new Date());
+  const today = useLoanToday();
   const metadata = useMemo(() => holding.metadata ?? {}, [holding.metadata]);
   const [searchParams, setSearchParams] = useSearchParams();
   const view: LoanLedgerView =

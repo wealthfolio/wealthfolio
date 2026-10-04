@@ -10,7 +10,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@wealthfolio/ui/components/ui/card";
 import type { AlternativeAssetHolding } from "@/lib/types";
 import type { LoanCalculation } from "@/adapters/shared/alternative-assets";
-import { cn, formatDateISO } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import {
   readActiveLoanProjection,
   readLoanEvents,
@@ -18,6 +18,7 @@ import {
 } from "../lib/loan-events";
 import { loanMilestones } from "../lib/loan-presentation";
 import { useLoanFormat } from "../hooks/use-loan-format";
+import { useLoanToday } from "../hooks/use-loan-calculation";
 
 interface LoanTerm {
   key: string;
@@ -48,9 +49,9 @@ export function LoanTermsStrip({
   const projection = readActiveLoanProjection(metadata);
   const origination =
     typeof metadata.origination_date === "string" ? metadata.origination_date : undefined;
+  const today = useLoanToday();
   if (!projection || !origination) return null;
 
-  const today = formatDateISO(new Date());
   const milestones = loanMilestones(calculation, metadata, today);
   const finish = milestones.payoff ?? milestones.horizon ?? today;
   const renewals = readLoanEvents(metadata).flatMap((event, index) =>

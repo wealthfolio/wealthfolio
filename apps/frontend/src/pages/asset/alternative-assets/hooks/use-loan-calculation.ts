@@ -1,6 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { calculateLoan } from "@/adapters";
+import { formatZonedDateKey } from "@/features/spending/lib/timezone";
 import { QueryKeys } from "@/lib/query-keys";
+import { useSettingsContext } from "@/lib/settings-provider";
 import type { Quote } from "@/lib/types";
 import {
   appendLoanEvent,
@@ -8,12 +10,17 @@ import {
   type LoanInterestMethod,
   type LoanPaymentFrequency,
 } from "../lib/loan-events";
-import { formatDateISO } from "@/lib/utils";
+
+/** Today in the settings timezone: the day holdings and net worth value loans on. */
+export function useLoanToday(): string {
+  const { settings } = useSettingsContext();
+  return formatZonedDateKey(new Date(), settings?.timezone);
+}
 
 export function loanCalculationRequest(
   metadata: Record<string, unknown>,
   quotes: Quote[],
-  asOf = formatDateISO(new Date()),
+  asOf: string,
 ) {
   return {
     metadata,
@@ -70,7 +77,8 @@ export function useLoanCalculation(
   enabled = true,
   asOf?: string,
 ) {
-  const request = loanCalculationRequest(metadata, quotes, asOf);
+  const today = useLoanToday();
+  const request = loanCalculationRequest(metadata, quotes, asOf ?? today);
   return useQuery({
     queryKey: [QueryKeys.ASSET_DATA, assetId, "loan-calculation", request],
     queryFn: () => calculateLoan(request),

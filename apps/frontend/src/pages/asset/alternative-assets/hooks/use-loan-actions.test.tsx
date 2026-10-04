@@ -43,6 +43,9 @@ const mocks = vi.hoisted(() => ({
       ) => void
     >(),
 }));
+vi.mock("@/lib/settings-provider", () => ({
+  useSettingsContext: () => ({ settings: { timezone: "UTC" } }),
+}));
 vi.mock("@/adapters", () => ({ calculateLoan: vi.fn(), recalculateLoan: mocks.recalculate }));
 vi.mock("../../hooks/use-quote-mutations", () => ({
   useQuoteMutations: () => ({

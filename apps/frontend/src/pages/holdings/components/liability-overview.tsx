@@ -31,8 +31,10 @@ import { ProgressBar } from "@/features/goals/components/goal-card";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import { useQuoteHistory } from "@/hooks/use-quote-history";
 import type { AlternativeAssetHolding } from "@/lib/types";
-import { formatDateISO } from "@/lib/utils";
-import { useLoanCalculation } from "@/pages/asset/alternative-assets/hooks/use-loan-calculation";
+import {
+  useLoanCalculation,
+  useLoanToday,
+} from "@/pages/asset/alternative-assets/hooks/use-loan-calculation";
 import { loanPayoffDate } from "@/pages/asset/alternative-assets/lib/loan-presentation";
 import {
   liabilityCardModel,
@@ -77,7 +79,7 @@ export function LiabilityOverview({
 }: LiabilityOverviewProps) {
   const { t } = useTranslation();
   const [toDelete, setToDelete] = useState<AlternativeAssetHolding | null>(null);
-  const today = formatDateISO(new Date());
+  const today = useLoanToday();
   const cards = useMemo(
     () =>
       holdings

@@ -6,6 +6,9 @@ import type { AlternativeAssetHolding } from "@/lib/types";
 import type { LoanActionCallbacks } from "../hooks/use-loan-actions";
 import { LoanOverview, MortgageOverview } from "./loan-overview";
 
+vi.mock("@/lib/settings-provider", () => ({
+  useSettingsContext: () => ({ settings: { timezone: "UTC" } }),
+}));
 vi.mock("./loan-timeline", () => ({ LoanTimeline: () => null }));
 vi.mock("@/hooks/use-alternative-assets", () => ({ useLinkedLiabilities: () => ({ data: [] }) }));
 vi.mock("@/hooks/use-balance-privacy", () => ({

@@ -8,11 +8,12 @@ import { useNavigate } from "react-router-dom";
 import { useLinkedLiabilities } from "@/hooks/use-alternative-assets";
 import type { AlternativeAssetHolding } from "@/lib/types";
 import type { LoanCalculation } from "@/adapters/shared/alternative-assets";
-import { cn, formatDateISO } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { RENEWAL_SOON_DAYS, loanMilestones } from "../lib/loan-presentation";
 import { readLoanEvents, readLoanProjectionMetadata } from "../lib/loan-events";
 import { getLoanRenewalSummary } from "../lib/loan-renewal-summary";
 import { useLoanFormat } from "../hooks/use-loan-format";
+import { useLoanToday } from "../hooks/use-loan-calculation";
 
 export function ThisTermCard({
   calculation,
@@ -29,7 +30,7 @@ export function ThisTermCard({
   onRenew: () => void;
 }) {
   const { t, numbers, money, duration } = useLoanFormat(currency);
-  const today = formatDateISO(new Date());
+  const today = useLoanToday();
   const renewal = getLoanRenewalSummary(calculation, maturity, today);
   const renewalDue =
     differenceInCalendarDays(parseISO(maturity), parseISO(today)) <= RENEWAL_SOON_DAYS;
@@ -82,7 +83,8 @@ export function PayoffCard({
   currency: string;
 }) {
   const { t, numbers, money, date, duration } = useLoanFormat(currency);
-  const milestones = loanMilestones(calculation, metadata, formatDateISO(new Date()));
+  const today = useLoanToday();
+  const milestones = loanMilestones(calculation, metadata, today);
   const extraPaid = readLoanEvents(metadata).reduce(
     (sum, event) => (event.type === "extra_repayment" ? sum + event.amount : sum),
     0,
