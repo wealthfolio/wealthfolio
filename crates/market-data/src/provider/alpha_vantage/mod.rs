@@ -718,7 +718,7 @@ impl AlphaVantageProvider {
         // OCC format: UNDERLYING + YYMMDD + C/P + STRIKE(8) = 15 non-underlying chars
         let s = occ_symbol.trim();
         let underlying_len = s.len().saturating_sub(15);
-        if underlying_len == 0 {
+        if underlying_len == 0 || !s.is_ascii() {
             s.to_string()
         } else {
             s[..underlying_len].trim().to_string()
@@ -1720,6 +1720,15 @@ mod tests {
         assert_eq!(
             AlphaVantageProvider::extract_underlying_from_occ("TSLA  250321C00250000"),
             "TSLA"
+        );
+    }
+
+    #[test]
+    fn test_extract_underlying_from_non_ascii_symbol() {
+        // 20 bytes, with byte 5 inside the first 'é'
+        assert_eq!(
+            AlphaVantageProvider::extract_underlying_from_occ("Société Générale"),
+            "Société Générale"
         );
     }
 

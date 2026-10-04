@@ -36,6 +36,9 @@ pub enum OccSymbolError {
 
     #[error("Empty underlying symbol")]
     EmptyUnderlying,
+
+    #[error("Symbol contains non-ASCII characters")]
+    NonAscii,
 }
 
 /// Represents the option type (Call or Put)
@@ -132,6 +135,10 @@ impl ParsedOccSymbol {
 /// without spaces (minimum 15 characters for 1-char underlying).
 pub fn parse_occ_symbol(symbol: &str) -> std::result::Result<ParsedOccSymbol, OccSymbolError> {
     let symbol = symbol.trim();
+    // OCC symbols are ASCII, so the byte offsets below are character offsets.
+    if !symbol.is_ascii() {
+        return Err(OccSymbolError::NonAscii);
+    }
     let len = symbol.len();
 
     if len < 15 {
@@ -263,7 +270,7 @@ pub fn normalize_option_symbol(symbol: &str) -> Option<String> {
     // Strip leading dash (Fidelity convention)
     let s = symbol.trim().strip_prefix('-').unwrap_or(symbol.trim());
 
-    if s.is_empty() {
+    if s.is_empty() || !s.is_ascii() {
         return None;
     }
 
@@ -334,8 +341,8 @@ pub fn looks_like_occ_symbol(symbol: &str) -> bool {
     let symbol = symbol.trim();
     let len = symbol.len();
 
-    // Length check: 15-21 characters
-    if !(15..=21).contains(&len) {
+    // ASCII, 15-21 characters
+    if !symbol.is_ascii() || !(15..=21).contains(&len) {
         return false;
     }
 
@@ -607,5 +614,26 @@ mod tests {
     fn test_normalize_plain_equity() {
         // Regular equity symbol should return None
         assert_eq!(normalize_option_symbol("AAPL"), None);
+    }
+
+    // Each input below puts a byte offset the parsers cut at inside a
+    // multi-byte character.
+
+    #[test]
+    fn test_parse_non_ascii_symbol() {
+        assert_eq!(
+            parse_occ_symbol("Société Générale"),
+            Err(OccSymbolError::NonAscii)
+        );
+    }
+
+    #[test]
+    fn test_looks_like_non_ascii_symbol() {
+        assert!(!looks_like_occ_symbol("CAFÉ PÂTÉ CRÈME"));
+    }
+
+    #[test]
+    fn test_normalize_non_ascii_symbol() {
+        assert_eq!(normalize_option_symbol("Fonds 2024 Été"), None);
     }
 }
