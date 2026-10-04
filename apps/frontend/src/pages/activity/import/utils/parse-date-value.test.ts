@@ -1,6 +1,6 @@
 import { detectDateOrder } from "@/lib/utils";
 import { describe, expect, it } from "vitest";
-import { parseDateValue } from "./draft-utils";
+import { parseDateValue, validateDraft } from "./draft-utils";
 
 /**
  * Regression coverage for issue #984: Questrade exports dates as
@@ -127,5 +127,24 @@ describe("parseDateValue — Unix timestamps", () => {
 
   it("returns text with leading digits as-is instead of an epoch date", () => {
     expect(parseDateValue("12 Main St", "auto")).toBe("12 Main St");
+  });
+});
+
+describe("validateDraft — activity dates", () => {
+  const dateErrors = (activityDate: unknown) =>
+    validateDraft({ activityDate: activityDate as string }).errors.activityDate;
+
+  it("flags a date no format could read", () => {
+    expect(dateErrors(parseDateValue("09/16/2026 10:30", "auto"))).toEqual(["Date not recognized"]);
+  });
+
+  it("accepts parsed, calendar and grid-edited dates", () => {
+    expect(dateErrors(parseDateValue("09/16/2026 as of 09/15/2026", "auto"))).toBeUndefined();
+    expect(dateErrors("2026-09-16")).toBeUndefined();
+    expect(dateErrors(new Date(2026, 8, 16, 10, 30))).toBeUndefined();
+  });
+
+  it("still reports a missing date as required", () => {
+    expect(dateErrors("")).toEqual(["Date is required"]);
   });
 });

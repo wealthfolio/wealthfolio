@@ -468,6 +468,12 @@ export function validateDraft(
   // Required field validation
   if (!draft.activityDate) {
     errors.activityDate = ["Date is required"];
+  } else {
+    // A cell no format could read stays raw text; a grid edit stores a Date.
+    const date = draft.activityDate as string | Date;
+    if (!isValid(typeof date === "string" ? parseISO(date) : date)) {
+      errors.activityDate = ["Date not recognized"];
+    }
   }
 
   if (!draft.activityType) {
