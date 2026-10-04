@@ -616,6 +616,8 @@ test("property deletion and mortgage linking preserve the loan and its history",
   expect(after.metadata).toMatchObject(metadata);
   expect(after.marketValue).toBe(before.marketValue);
   expect(await quotes()).toEqual(beforeQuotes);
+  // Deleting navigates back on its own; going elsewhere first would abort.
+  await expect(page).not.toHaveURL(new RegExp(propertyId));
   await page.goto(`${BASE_URL}/holdings/${loanId}`);
   await expect(page.getByTestId("mortgage-overview")).toBeVisible();
 

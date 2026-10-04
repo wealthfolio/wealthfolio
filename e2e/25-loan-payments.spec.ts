@@ -152,8 +152,10 @@ test("withdrawals from a cash account pay a loan and keep its balance in step", 
   await page.goto(`${BASE_URL}/holdings/${loanId}?tab=history`);
   const ledger = page.getByRole("region", { name: "Payments & events", exact: true });
   const year = ledger.getByRole("region", { name: "2025", exact: true });
-  // Only the latest year starts open.
+  // Only the latest year starts open. The ledger first renders without the
+  // calculation, when 2025 is the only year, so wait for a status it draws.
   const openYear = async () => {
+    await expect(ledger.getByText("Not found").first()).toBeVisible();
     const toggle = year.getByRole("button", { name: /^2025/ });
     if ((await toggle.getAttribute("aria-expanded")) !== "true") await toggle.click();
   };
