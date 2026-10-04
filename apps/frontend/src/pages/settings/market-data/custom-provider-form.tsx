@@ -16,6 +16,7 @@ import {
 } from "@wealthfolio/ui/components/ui/form";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { Input } from "@wealthfolio/ui/components/ui/input";
+import { RadioGroup, RadioGroupItem } from "@wealthfolio/ui/components/ui/radio-group";
 import { Textarea } from "@wealthfolio/ui/components/ui/textarea";
 import { toast } from "@wealthfolio/ui/components/ui/use-toast";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@wealthfolio/ui";
@@ -744,22 +745,24 @@ function CustomProviderFormContent({
                 </h3>
               </div>
 
-              <div
-                role="radiogroup"
+              <RadioGroup
                 aria-labelledby="provider-usage-heading"
-                className="grid gap-2"
+                value={useAsFallback ? "fallback" : "assigned"}
+                onValueChange={(value) =>
+                  form.setValue("useAsFallback", value === "fallback", { shouldDirty: true })
+                }
               >
                 <UsageOption
+                  value="assigned"
                   selected={!useAsFallback}
                   title={t("settings:market_data_page.usage_assigned_title")}
                   description={t("settings:market_data_page.usage_assigned_description")}
-                  onSelect={() => form.setValue("useAsFallback", false, { shouldDirty: true })}
                 />
                 <UsageOption
+                  value="fallback"
                   selected={useAsFallback}
                   title={t("settings:market_data_page.usage_fallback_title")}
                   description={t("settings:market_data_page.usage_fallback_description")}
-                  onSelect={() => form.setValue("useAsFallback", true, { shouldDirty: true })}
                 >
                   {!canServeAsFallback && (
                     <p
@@ -792,7 +795,7 @@ function CustomProviderFormContent({
                     />
                   )}
                 </UsageOption>
-              </div>
+              </RadioGroup>
 
               {isEditing && (
                 <div className="mt-3 space-y-2 border-t pt-3">
@@ -934,18 +937,19 @@ function ModeCard({
 }
 
 function UsageOption({
+  value,
   selected,
   title,
   description,
-  onSelect,
   children,
 }: {
+  value: string;
   selected: boolean;
   title: string;
   description: string;
-  onSelect: () => void;
   children?: React.ReactNode;
 }) {
+  const id = `provider-usage-${value}`;
   return (
     <div
       className={cn(
@@ -955,26 +959,13 @@ function UsageOption({
           : "bg-background/50 border-border",
       )}
     >
-      <button
-        type="button"
-        role="radio"
-        aria-checked={selected}
-        onClick={onSelect}
-        className="flex w-full items-start gap-2 text-left"
-      >
-        <div
-          className={cn(
-            "mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border",
-            selected ? "border-foreground bg-foreground" : "border-muted-foreground/40",
-          )}
-        >
-          {selected && <div className="bg-background h-1.5 w-1.5 rounded-full" />}
-        </div>
+      <label htmlFor={id} className="flex cursor-pointer items-start gap-2">
+        <RadioGroupItem value={value} id={id} className="mt-0.5 shrink-0" />
         <span className="min-w-0 flex-1">
           <span className="block text-sm font-medium">{title}</span>
           <span className="text-muted-foreground block text-xs">{description}</span>
         </span>
-      </button>
+      </label>
       {children && <div className="mt-2 space-y-2 pl-6">{children}</div>}
     </div>
   );

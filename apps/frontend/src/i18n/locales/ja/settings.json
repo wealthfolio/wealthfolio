@@ -786,6 +786,8 @@
     "delete_provider_in_use_assigned_other": "{{count}}件の資産に割り当てられています。別のマーケットデータプロバイダーを選択してください。",
     "delete_provider_in_use_mapped_one": "{{count}}件の資産がこのプロバイダー用のシンボルをマッピングしています。資産のマーケットデータ設定でマッピングを削除してください。",
     "delete_provider_in_use_mapped_other": "{{count}}件の資産がこのプロバイダー用のシンボルをマッピングしています。資産のマーケットデータ設定でマッピングを削除してください。",
+    "delete_provider_in_use_leftover_one": "{{count}}件の資産に古い参照が残っています。資産のマーケットデータ設定を開いて保存すると削除されます。",
+    "delete_provider_in_use_leftover_other": "{{count}}件の資産に古い参照が残っています。資産のマーケットデータ設定を開いて保存すると削除されます。",
     "custom_used_by_one": "{{count}}件の資産",
     "custom_used_by_other": "{{count}}件の資産",
     "fallback_badge": "フォールバック",

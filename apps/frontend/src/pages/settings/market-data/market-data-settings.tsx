@@ -60,6 +60,7 @@ import {
   EMPTY_USAGE,
   getCustomProviderUsage,
   servesAsFallback,
+  deleteBlockerCount,
   usageCount,
   type CustomProviderUsage,
 } from "./custom-provider-usage";
@@ -627,7 +628,7 @@ function CustomProviderCard({
           >
             <Icons.Pencil className="h-4 w-4" />
           </Button>
-          {usedBy > 0 ? (
+          {deleteBlockerCount(usage) > 0 ? (
             // The backend refuses to delete a provider securities still use; say which.
             <Popover>
               <PopoverTrigger asChild>
@@ -666,6 +667,16 @@ function CustomProviderCard({
                       })}
                     </p>
                     <CustomProviderUsageChips assets={usage.mappedOnly} linkable />
+                  </div>
+                )}
+                {usage.leftover.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-muted-foreground text-sm">
+                      {t("settings:market_data_page.delete_provider_in_use_leftover", {
+                        count: usage.leftover.length,
+                      })}
+                    </p>
+                    <CustomProviderUsageChips assets={usage.leftover} linkable />
                   </div>
                 )}
               </PopoverContent>

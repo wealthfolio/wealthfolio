@@ -786,6 +786,8 @@
     "delete_provider_in_use_assigned_other": "已指派給 {{count}} 項資產。請為其選擇其他市場資料來源。",
     "delete_provider_in_use_mapped_one": "{{count}} 項資產為它對應了代號。請在資產的市場資料設定中移除該對應。",
     "delete_provider_in_use_mapped_other": "{{count}} 項資產為它對應了代號。請在資產的市場資料設定中移除這些對應。",
+    "delete_provider_in_use_leftover_one": "{{count}} 項資產仍保留對它的舊參照。開啟資產的市場資料設定並儲存即可清除。",
+    "delete_provider_in_use_leftover_other": "{{count}} 項資產仍保留對它的舊參照。開啟資產的市場資料設定並儲存即可清除。",
     "custom_used_by_one": "{{count}} 項資產",
     "custom_used_by_other": "{{count}} 項資產",
     "fallback_badge": "備援",

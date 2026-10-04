@@ -89,6 +89,29 @@ describe("getCustomProviderUsage", () => {
 
     expect(usage.assigned.map((a) => a.id)).toEqual(["a", "b"]);
     expect(usage.mappedOnly.map((a) => a.id)).toEqual(["mapped"]);
+    expect(usage.leftover).toEqual([]);
+  });
+
+  it("treats a code left under another provider as a leftover, not an assignment", () => {
+    const leftover = asset({
+      id: "leftover",
+      providerConfig: { preferred_provider: "YAHOO", custom_provider_code: "fund" },
+    });
+    const leftoverAndMapped = asset({
+      id: "leftover-mapped",
+      providerConfig: {
+        preferred_provider: "YAHOO",
+        custom_provider_code: "fund",
+        overrides: { "CUSTOM:fund": { type: "equity_symbol", symbol: "x" } },
+      },
+    });
+
+    const usage = getCustomProviderUsage([leftover, leftoverAndMapped], "fund");
+
+    expect(usage.assigned).toEqual([]);
+    // Removing the mapping and saving clears the leftover code as well.
+    expect(usage.mappedOnly.map((a) => a.id)).toEqual(["leftover-mapped"]);
+    expect(usage.leftover.map((a) => a.id)).toEqual(["leftover"]);
   });
 
   it("labels exchange rates as currency pairs", () => {

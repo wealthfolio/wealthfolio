@@ -11,6 +11,15 @@ const createProvider = vi.fn();
 const updateProvider = vi.fn();
 const testSource = vi.fn();
 
+// jsdom lacks ResizeObserver, which the Radix radio group measures with.
+if (typeof ResizeObserver === "undefined") {
+  globalThis.ResizeObserver = class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  } as typeof ResizeObserver;
+}
+
 function setInputValue(input: HTMLElement, value: string) {
   fireEvent.change(input, { target: { value } });
 }
@@ -181,6 +190,22 @@ describe("CustomProviderForm", () => {
     expect((await submittedPayload()).useAsFallback).toBe(false);
   });
 
+  it("lets keyboard users switch the usage with arrow keys", async () => {
+    const user = userEvent.setup();
+    render(<CustomProviderForm open onOpenChange={vi.fn()} />);
+
+    screen.getByRole("radio", { name: /only securities assigned/i }).focus();
+    // Radix moves focus on the next tick and selects only while the arrow key is
+    // still down, so hold it the way a real key press does.
+    await user.keyboard("{ArrowDown>}");
+    await waitFor(() =>
+      expect(screen.getByRole("radio", { name: /also as a fallback/i })).toBeChecked(),
+    );
+    await user.keyboard("{/ArrowDown}");
+
+    expect(screen.getByLabelText(/order among fallbacks/i)).toBeInTheDocument();
+  });
+
   it("sends fallback use and its order when chosen", async () => {
     const user = userEvent.setup();
     render(<CustomProviderForm open onOpenChange={vi.fn()} />);
@@ -228,6 +253,7 @@ describe("CustomProviderForm", () => {
     const usage = {
       assigned: [{ id: "fund-a", displayCode: "FUNDA" } as Asset],
       mappedOnly: [{ id: "aapl", displayCode: "AAPL" } as Asset],
+      leftover: [],
     };
 
     render(<CustomProviderForm open onOpenChange={vi.fn()} provider={provider} usage={usage} />);

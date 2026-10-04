@@ -204,6 +204,10 @@ describe("MarketDataSettingsPage", () => {
           overrides: { "CUSTOM:fund": { type: "equity_symbol", symbol: "apple" } },
         },
       },
+      {
+        ...assignedAsset("msft", "MSFT", "fund"),
+        providerConfig: { preferred_provider: "YAHOO", custom_provider_code: "fund" },
+      },
     ]);
     const user = userEvent.setup();
     renderPage();
@@ -241,6 +245,13 @@ describe("MarketDataSettingsPage", () => {
     expect(screen.getByRole("link", { name: "FUNDA" })).toHaveAttribute("href", "/holdings/fund-a");
     expect(screen.getByRole("link", { name: "FUNDB" })).toHaveAttribute("href", "/holdings/fund-b");
     expect(screen.getByRole("link", { name: "AAPL" })).toHaveAttribute("href", "/holdings/aapl");
+    // A code left under another provider isn't an assignment but still blocks deletion.
+    expect(
+      screen.getByText(
+        "1 security still carries an old reference to it. Open its market data settings and save to clear it.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "MSFT" })).toHaveAttribute("href", "/holdings/msft");
     expect(mutate).not.toHaveBeenCalled();
   });
 

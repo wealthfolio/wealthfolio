@@ -746,6 +746,8 @@
     "delete_provider_in_use_assigned_other": "{{count}} securities are assigned to it. Choose a different market data provider for them.",
     "delete_provider_in_use_mapped_one": "{{count}} security has a symbol mapped for it. Remove that mapping in its market data settings.",
     "delete_provider_in_use_mapped_other": "{{count}} securities have a symbol mapped for it. Remove those mappings in their market data settings.",
+    "delete_provider_in_use_leftover_one": "{{count}} security still carries an old reference to it. Open its market data settings and save to clear it.",
+    "delete_provider_in_use_leftover_other": "{{count}} securities still carry an old reference to it. Open their market data settings and save to clear it.",
     "custom_used_by_one": "{{count}} security",
     "custom_used_by_other": "{{count}} securities",
     "fallback_badge": "Fallback",
