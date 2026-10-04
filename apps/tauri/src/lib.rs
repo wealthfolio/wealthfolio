@@ -778,33 +778,12 @@ pub fn run() {
                 }
             }
 
+            // Every desktop quit ends here, including macOS Quit, which skips
+            // ExitRequested. Releasing the database also stops the MCP server
+            // (deleting mcp.lock) and the background device sync engine.
             #[cfg(desktop)]
-            if matches!(
-                event,
-                tauri::RunEvent::ExitRequested { .. } | tauri::RunEvent::Exit
-            ) {
-                // Stop the embedded MCP server and delete mcp.lock.
-                if _handle.try_state::<mcp::McpServerState>().is_some() {
-                    let mcp_handle = _handle.clone();
-                    tauri::async_runtime::block_on(async move {
-                        mcp::stop_server(&mcp_handle).await;
-                    });
-                }
-
-                #[cfg(feature = "device-sync")]
-                if let Some(context) = _handle
-                    .try_state::<profiles::NativeProfiles>()
-                    .and_then(|runtime| runtime.try_context())
-                {
-                    tauri::async_runtime::block_on(async move {
-                        if let Err(err) =
-                            crate::commands::device_sync::ensure_background_engine_stopped(context)
-                                .await
-                        {
-                            warn!("Failed to stop background device sync engine: {}", err);
-                        }
-                    });
-                }
+            if matches!(event, tauri::RunEvent::Exit) {
+                profiles::release_for_exit(_handle);
             }
         });
 }

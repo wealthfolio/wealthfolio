@@ -127,7 +127,7 @@ fn configured_port(ctx: &ServiceContext) -> Option<u16> {
 }
 
 #[cfg(desktop)]
-fn app_data_dir(app: &AppHandle) -> Result<PathBuf, String> {
+fn app_data_dir<R: tauri::Runtime>(app: &AppHandle<R>) -> Result<PathBuf, String> {
     app.path()
         .app_data_dir()
         .map_err(|e| format!("Failed to resolve app data dir: {e}"))
@@ -135,7 +135,7 @@ fn app_data_dir(app: &AppHandle) -> Result<PathBuf, String> {
 
 /// Removes any stale `mcp.lock` left behind by an unclean shutdown.
 /// Call once at app startup, before deciding whether to auto-start.
-pub fn remove_stale_lock(app: &AppHandle) {
+pub fn remove_stale_lock<R: tauri::Runtime>(app: &AppHandle<R>) {
     #[cfg(desktop)]
     {
         if let Ok(dir) = app_data_dir(app) {
@@ -205,7 +205,7 @@ async fn start_server_locked(app: &AppHandle, ctx: &ServiceContext) -> Result<()
 }
 
 /// Stops the server when running and removes `mcp.lock`.
-pub async fn stop_server(app: &AppHandle) {
+pub async fn stop_server<R: tauri::Runtime>(app: &AppHandle<R>) {
     #[cfg(desktop)]
     {
         let state = app.state::<McpServerState>();
@@ -220,7 +220,7 @@ pub async fn stop_server(app: &AppHandle) {
 
 /// Stop implementation; callers must hold the `ops` mutex.
 #[cfg(desktop)]
-async fn stop_server_locked(app: &AppHandle) {
+async fn stop_server_locked<R: tauri::Runtime>(app: &AppHandle<R>) {
     let state = app.state::<McpServerState>();
     let running = state.inner.lock().await.take();
     if let Some(running) = running {
