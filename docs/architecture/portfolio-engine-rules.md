@@ -53,7 +53,7 @@ that the provider adjusted are read back at their unadjusted level. A
 transactions account's lots split on the split day of a split it records itself
 (as before): brokers record a split on each account, not always on the same day,
 so another account's row would split its lots twice (§8). Fixtures:
-EDGE-SPLIT-01, EDGE-SPLIT-02, EDGE-SPLIT-03, EDGE-QT-05.
+EDGE-SPLIT-01, EDGE-SPLIT-02, EDGE-SPLIT-03, EDGE-SPLIT-04, EDGE-QT-05.
 
 ## 2. Transfers
 
