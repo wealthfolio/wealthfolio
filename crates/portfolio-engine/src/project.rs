@@ -1346,6 +1346,16 @@ impl Projector<'_> {
         let (to_add, cover) = if cover_abs > Decimal::ZERO {
             let (cover_lots, residual) =
                 split_for_cover(&lots, cover_abs, self.method(&account_id))?;
+            // A rest below the fold's dust (a split's rounding: the covered
+            // position held 0.999…9 units) opens nothing, as a shortfall
+            // below it is none: a lot that small could never be closed, and
+            // the position would hold both signs (I5).
+            let rest: Decimal = residual.iter().map(|l| l.effective_quantity().abs()).sum();
+            let residual = if is_significant(rest) {
+                residual
+            } else {
+                Vec::new()
+            };
             let cover_proceeds: Decimal = cover_lots
                 .iter()
                 .map(|l| l.cost_basis)

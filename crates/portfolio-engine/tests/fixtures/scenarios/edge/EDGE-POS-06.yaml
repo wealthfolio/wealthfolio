@@ -1,0 +1,51 @@
+id: EDGE-POS-06
+title: A short that covers a split's rounding leaves no lot behind
+intent: >
+  Kernel-only. acc-a buys 1 x on 01-02; x splits 3:1 on 01-03 (quotes not
+  adjusted: 30, then 12); acc-a sells 2 on 01-04 and keeps a third of
+  buy-1, 0.999…9 units (a lot keeps its as-acquired units and its ratio).
+  acc-b shorts 1 x on 01-04 and sends the short to acc-a on 01-05 (rules
+  R2.5). Arriving into acc-a's long, it covers the 0.999…9 units
+  (NOM-TXF-04); the 1e-28 short left over is below the fold's dust (1e-8)
+  and opens nothing, as a lot left below it is closed (EDGE-POS-03). acc-a
+  then buys 2 x on 01-06 with no intent: it holds no short to cover. acc-b
+  buys 1 x on 01-06 and sends it to acc-a on 01-07.
+markers: [K]
+policy: { base_currency: USD, timezone: UTC, as_of: 2025-01-08 }
+accounts:
+  - { id: acc-a, currency: USD }
+  - { id: acc-b, currency: USD }
+assets:
+  - { id: x, quote_ccy: USD }
+activities:
+  - { id: dep-a, account: acc-a, type: DEPOSIT, date: 2025-01-01T10:00:00Z, amount: 100 }
+  - { id: dep-b, account: acc-b, type: DEPOSIT, date: 2025-01-01T11:00:00Z, amount: 100 }
+  - { id: buy-1, account: acc-a, type: BUY, date: 2025-01-02T10:00:00Z, asset: x, quantity: 1, unit_price: 30, amount: 30 }
+  - { id: split, account: acc-a, type: SPLIT, date: 2025-01-03T10:00:00Z, asset: x, amount: 3 }
+  - { id: sell-1, account: acc-a, type: SELL, date: 2025-01-04T10:00:00Z, asset: x, quantity: 2, unit_price: 12, amount: 24 }
+  - { id: short-1, account: acc-b, type: SELL, subtype: POSITION_OPEN, date: 2025-01-04T11:00:00Z, asset: x, quantity: 1, unit_price: 12, amount: 12 }
+  - { id: out-1, account: acc-b, type: TRANSFER_OUT, date: 2025-01-05T10:00:00Z, asset: x, quantity: 1, unit_price: 12, source_group_id: g1 }
+  - { id: in-1, account: acc-a, type: TRANSFER_IN, date: 2025-01-05T11:00:00Z, asset: x, quantity: 1, unit_price: 12, source_group_id: g1 }
+  - { id: buy-2, account: acc-a, type: BUY, date: 2025-01-06T10:00:00Z, asset: x, quantity: 2, unit_price: 12, amount: 24 }
+  - { id: buy-3, account: acc-b, type: BUY, date: 2025-01-06T11:00:00Z, asset: x, quantity: 1, unit_price: 12, amount: 12 }
+  - { id: out-2, account: acc-b, type: TRANSFER_OUT, date: 2025-01-07T10:00:00Z, asset: x, quantity: 1, unit_price: 12, source_group_id: g2 }
+  - { id: in-2, account: acc-a, type: TRANSFER_IN, date: 2025-01-07T11:00:00Z, asset: x, quantity: 1, unit_price: 12, source_group_id: g2 }
+quotes:
+  - { asset: x, day: 2025-01-02, close: 30 }
+  - { asset: x, day: 2025-01-03, close: 12 }
+expected_notes: >
+  sell-1 (01-04) disposes 2 of buy-1's 3 units at 10 each: cost 20,
+  proceeds 24, realized 4; buy-1 keeps 0.999…9 units (1 at 8 dp), cost 10.
+  short-1 opens a short lot of -1 at -12 in acc-b. out-1 (01-05) removes it
+  (cost -12, realized 0). in-1 delivers -1 unit at cost -12 into acc-a's
+  long: it covers buy-1's 0.999…9 units (proceeds 12, cost 10, realized 2)
+  and closes it; acc-a holds no x lot and opens none. buy-2 (01-06) opens
+  lot buy-2: 2 units, cost 24. buy-3 opens 1 unit at 12 in acc-b, and on
+  01-07 in-2 delivers it to acc-a as lot in-2, acquired 01-06, cost 12.
+  Cash: acc-a 100 - 30 + 24 - 24 = 70, acc-b 100 + 12 - 12 = 100. acc-a is
+  worth 70 + 2 x 12 = 94 on 01-06 and 70 + 3 x 12 = 106 from 01-07; acc-b
+  100 + 12 = 112 on 01-06 and 100 from 01-07. Before the fix in-1 also
+  opened a short lot of -1e-28 (0 at 8 dp) that no later fold could close
+  (a reduction ignores a side below the dust), so buy-2 was rejected as
+  reducing a short without Buy to Cover intent, and in-2's long sat beside
+  that short (P-LOTS: mixed-sign lots).
