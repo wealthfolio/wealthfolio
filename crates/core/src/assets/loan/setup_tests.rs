@@ -248,7 +248,10 @@ fn each_rule_is_refused_with_its_own_code() {
         LoanError::AmortizationInvalid
     );
     assert_eq!(
-        check(&with(|s| s.last_payment_date = Some(date("2026-01-15")))),
+        check(&with(|s| {
+            s.amortization_months = None;
+            s.last_payment_date = Some(date("2026-01-15"));
+        })),
         LoanError::AmortizationInvalid
     );
     assert_eq!(
@@ -366,4 +369,20 @@ fn an_end_past_the_last_payment_the_engine_reaches_is_refused() {
             LoanError::AmortizationInvalid
         );
     }
+}
+
+#[test]
+fn an_end_given_both_as_a_date_and_as_months_is_refused() {
+    let both = setup(Some(LoanSchedule {
+        last_payment_date: Some(date("2031-01-01")),
+        ..schedule(LoanFrequency::Monthly)
+    }));
+    assert_eq!(
+        apply_loan_setup(&json!({}), &both).unwrap_err(),
+        LoanError::Invalid
+    );
+    assert_eq!(
+        preview_loan_terms(&both, &json!({})).unwrap_err(),
+        LoanError::Invalid
+    );
 }

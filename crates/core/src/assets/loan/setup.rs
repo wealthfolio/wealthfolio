@@ -189,7 +189,9 @@ fn derive(setup: &LoanSetup, stored: &Value) -> Result<Option<LoanSchedulePrevie
         return Err(LoanError::FirstPaymentBeforeOrigination);
     }
     let last = match (schedule.last_payment_date, schedule.amortization_months) {
-        (Some(last), _) => last,
+        // Two ways of stating one end could disagree; neither is picked silently.
+        (Some(_), Some(_)) => return Err(LoanError::Invalid),
+        (Some(last), None) => last,
         (None, Some(months)) => {
             // Saving other details never moves an off-cadence contractual end.
             let stored_end = LoanTerms::read(stored)

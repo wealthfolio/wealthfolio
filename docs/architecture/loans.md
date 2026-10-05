@@ -239,10 +239,11 @@ a preview always matches what is saved.
 3. **Dates.** The first payment defaults to one period after origination and
    must fall after it. The last payment cannot fall before the first. Renewal
    maturity must fall after origination.
-4. **Derived schedule.** Months of amortization give the payment count by
-   frequency and the last payment by the payment calendar. A stored last payment
-   that still matches the entered months is kept, so saving other details never
-   moves an off-cadence contractual end.
+4. **Derived schedule.** The end is given as months of amortization or as a last
+   payment date, not both. Months give the payment count by frequency and the
+   last payment by the payment calendar. A stored last payment that still
+   matches the entered months is kept, so saving other details never moves an
+   off-cadence contractual end.
 5. **Payment.** An entered payment must be above zero. An omitted payment is
    solved as at creation, below.
 6. **Paid from and escrow** follow the payment rules: an active, unarchived cash
