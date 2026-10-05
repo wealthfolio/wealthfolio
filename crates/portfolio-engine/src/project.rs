@@ -2695,26 +2695,32 @@ fn reduce_fifo(
         } else {
             acquired_abs
         };
-        removed_lots.push(Lot {
-            id: lot.id.clone(),
-            acquisition: lot.acquisition,
-            acquisition_date: lot.acquisition_date,
-            quantity: removed_signed,
-            original_quantity: removed_signed,
-            cost_basis: basis_removed,
-            acquisition_price: lot.acquisition_price,
-            fees: fees_removed,
-            original_fees: fees_removed,
-            taxes: taxes_removed,
-            original_taxes: taxes_removed,
-            fx_rate_to_position: lot.fx_rate_to_position,
-            fx_rate_to_account: lot.fx_rate_to_account,
-            account_currency: lot.account_currency.clone(),
-            fx_rate_to_base: lot.fx_rate_to_base,
-            base_currency: lot.base_currency.clone(),
-            source_event: lot.source_event.clone(),
-            split_ratio: ratio,
-        });
+        // What a split's rounding leaves of a request (a third of a unit
+        // split 3:1 holds 0.999…9) can be too small to take any of this
+        // lot's as-acquired units: that slice removes nothing, so no
+        // disposal records it.
+        if !acquired_abs.is_zero() {
+            removed_lots.push(Lot {
+                id: lot.id.clone(),
+                acquisition: lot.acquisition,
+                acquisition_date: lot.acquisition_date,
+                quantity: removed_signed,
+                original_quantity: removed_signed,
+                cost_basis: basis_removed,
+                acquisition_price: lot.acquisition_price,
+                fees: fees_removed,
+                original_fees: fees_removed,
+                taxes: taxes_removed,
+                original_taxes: taxes_removed,
+                fx_rate_to_position: lot.fx_rate_to_position,
+                fx_rate_to_account: lot.fx_rate_to_account,
+                account_currency: lot.account_currency.clone(),
+                fx_rate_to_base: lot.fx_rate_to_base,
+                base_currency: lot.base_currency.clone(),
+                source_event: lot.source_event.clone(),
+                split_ratio: ratio,
+            });
+        }
         quantity_reduced += consume;
         cost_removed += basis_removed;
         to_reduce -= consume;
