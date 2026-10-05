@@ -14,6 +14,12 @@ test("backup capture requires an unlocked profile and never uploads without loca
   expect(unlock.ok()).toBeTruthy();
   const session = await unlock.json();
   const headers = { "x-wf-profile-scope": session.scopeId };
+  const health = await context.request.post("/api/v1/cloud-backups/action", {
+    headers,
+    data: { operation: { action: "runtimeStatus" } },
+  });
+  expect(health.status()).toBe(200);
+  expect(await health.json()).toEqual({ state: "idle", retryAt: null, completed: 0 });
   const capture = await context.request.post("/api/v1/cloud-backups/capture", { headers });
   expect(capture.status()).toBe(200);
   expect(await capture.json()).toBeNull();
@@ -33,4 +39,9 @@ test("backup capture requires an unlocked profile and never uploads without loca
   expect(lock.ok()).toBeTruthy();
   const denied = await context.request.post("/api/v1/cloud-backups/capture", { headers });
   expect([401, 403, 423]).toContain(denied.status());
+  const deniedHealth = await context.request.post("/api/v1/cloud-backups/action", {
+    headers,
+    data: { operation: { action: "runtimeStatus" } },
+  });
+  expect([401, 403, 423]).toContain(deniedHealth.status());
 });

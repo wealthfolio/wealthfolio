@@ -48,6 +48,30 @@ Setting authentication environment variables when launching an already-built app
 does not enable Connect. The transfer destination setting can additionally be
 overridden at runtime by custom server deployments.
 
+## Cloud compatibility and backup behavior
+
+Builds using direct snapshot transfers require the updated Connect API to be
+deployed first, with its database migrations applied. Released apps continue to
+use the existing binary snapshot routes; updated apps use the direct routes. See
+the
+[cloud rollout runbook](https://github.com/wealthfolio/wealthfolio-cloud/blob/develop/docs/connect-cloud-backups-rollout.md)
+for migration, staging and supported-client checks before releasing a build.
+
+Cloud backups remain off until the user enables them for a profile and saves a
+recovery code. The selected backup device checks at startup and while the app is
+running. Mobile also checks when the app resumes; it does not capture backups
+while suspended. The web server owns its timer, so keeping a browser open is
+unnecessary. Linked-device backup access uses the existing pairing lifecycle;
+the recovery code provides access when no reachable device has the backup key.
+
+Architecture impact: capture uses the existing profile-owned timer and secret
+store. Export, encryption and upload release Connect lifecycle locks; account or
+profile changes cancel obsolete captures. Capture progress and failures are
+ephemeral local status, not additional cloud polling or persisted retry state.
+Subscription expiry preserves the user's backup consent and checks eligibility
+again after a relevant action or at the next daily check. Local database
+encryption, sync enrollment and explicit backup opt-in stay separate boundaries.
+
 ## Docker
 
 From the repository root, build your image with both authentication settings and

@@ -141,7 +141,7 @@ pub fn start_background_workers(state: Arc<AppState>) {
     state
         .workers
         .lock()
-        .unwrap()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
         .push(crate::api::cloud_backups::start_scheduler(state.clone()));
     #[cfg(feature = "device-sync")]
     #[allow(clippy::collapsible_if)]
