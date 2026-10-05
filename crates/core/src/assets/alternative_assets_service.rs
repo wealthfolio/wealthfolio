@@ -28,7 +28,7 @@ use super::alternative_assets_traits::{
 use super::loan::{
     apply_loan_action, apply_loan_setup, link_payment, preview_loan_terms, AssetDetailsChange,
     LoanAction, LoanActionResult, LoanError, LoanPayment, LoanRecord, LoanSchedulePreview,
-    LoanSetup, PaymentLink, LOAN_FIELDS,
+    LoanSetup, LoanSummary, PaymentLink, LOAN_FIELDS,
 };
 use super::{Asset, AssetKind, AssetRepositoryTrait, NewAsset, QuoteMode};
 use crate::errors::{Error, Result, ValidationError};
@@ -807,24 +807,32 @@ impl AlternativeAssetServiceTrait for AlternativeAssetService {
             .map(|asset| asset.id.clone())
             .collect();
         let mut payments = self.alternative_asset_repository.loan_payments(&loan_ids)?;
+        // One calculation per scheduled loan gives both its value and its card summary.
         let mut loan_values = std::collections::HashMap::new();
+        let mut loan_summaries = std::collections::HashMap::new();
         for asset in &alternative_assets {
-            if asset.kind == AssetKind::Liability
-                && asset
-                    .metadata
-                    .as_ref()
-                    .is_some_and(|m| m.get(super::loan::LOAN_PROJECTION_KEY).is_some())
-            {
+            if asset.kind != AssetKind::Liability {
+                continue;
+            }
+            let metadata = asset.metadata.clone().unwrap_or_else(|| json!({}));
+            let calculation = if metadata.get(super::loan::LOAN_PROJECTION_KEY).is_some() {
                 let history = self.quote_service.get_historical_quotes(&asset.id)?;
-                if let Some(value) = super::loan::loan_value(
-                    asset.metadata.as_ref(),
+                super::loan::loan_calculation(
+                    &metadata,
                     &history,
                     &payments.remove(&asset.id).unwrap_or_default(),
                     as_of,
-                ) {
-                    loan_values.insert(asset.id.clone(), value);
-                }
+                )
+            } else {
+                None
+            };
+            if let Some(value) = calculation.as_ref().and_then(super::loan::loan_balance) {
+                loan_values.insert(asset.id.clone(), value);
             }
+            loan_summaries.insert(
+                asset.id.clone(),
+                LoanSummary::new(&metadata, calculation.as_ref()),
+            );
         }
 
         // Build AlternativeHolding for each asset
@@ -898,6 +906,7 @@ impl AlternativeAssetServiceTrait for AlternativeAssetService {
                     metadata: asset.metadata,
                     linked_asset_id,
                     notes: asset.notes,
+                    loan: loan_summaries.remove(&asset.id),
                 })
             })
             .collect();
@@ -1634,5 +1643,64 @@ mod tests {
         assert_eq!(holdings.len(), 1);
         assert_eq!(holdings[0].id, "loan");
         assert_eq!(holdings[0].market_value, Decimal::new(1000, 0));
+    }
+
+    #[test]
+    fn liability_holdings_carry_the_summary_of_their_valuation() {
+        let today = Utc::now().date_naive();
+        let initial = today - chrono::Days::new(28);
+        let first = today - chrono::Days::new(14);
+        let loan = crate::assets::Asset {
+            id: "loan".into(),
+            kind: AssetKind::Liability,
+            quote_ccy: "EUR".into(),
+            metadata: Some(json!({
+                "original_amount": "1200",
+                "origination_date": initial.to_string(),
+                "loan_projection": {"version": 1,"annualRate":0,"paymentAmount":100,
+                    "frequency":"biweekly","firstPaymentDate":first.to_string(),"paymentCount":12}
+            })),
+            ..Default::default()
+        };
+        let house = crate::assets::Asset {
+            id: "house".into(),
+            kind: AssetKind::Property,
+            quote_ccy: "EUR".into(),
+            ..Default::default()
+        };
+        let service = AlternativeAssetService::new(
+            Arc::new(MockAltAssetRepository::default()),
+            Arc::new(MockAssetRepository {
+                assets: vec![loan, house],
+            }),
+            Arc::new(MockQuoteService {
+                cutoff: Arc::new(std::sync::Mutex::new(None)),
+                as_of_quotes: [(
+                    "house".into(),
+                    make_quote("house", Decimal::new(5000, 0), initial),
+                )]
+                .into_iter()
+                .collect(),
+                latest_quotes: HashMap::new(),
+            }),
+        )
+        .with_timezone(Arc::new(RwLock::new("UTC".into())));
+        let holdings = service.get_alternative_holdings().unwrap();
+        let loan = holdings.iter().find(|h| h.id == "loan").unwrap();
+        let summary = loan.loan.as_ref().expect("a liability has a summary");
+        assert!(summary.scheduled);
+        assert_eq!(summary.original_amount, Some(1200.0));
+        assert_eq!(summary.payment_amount, Some(100.0));
+        assert_eq!(
+            summary.frequency,
+            Some(crate::assets::loan::LoanFrequency::Biweekly)
+        );
+        // Twelve fortnightly payments from the first, at 0%.
+        assert_eq!(
+            summary.payoff_date,
+            Some(first + chrono::Days::new(11 * 14))
+        );
+        let house = holdings.iter().find(|h| h.id == "house").unwrap();
+        assert!(house.loan.is_none());
     }
 }

@@ -13,7 +13,7 @@ use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use super::loan::LoanSetup;
+use super::loan::{LoanSetup, LoanSummary};
 use super::AssetKind;
 
 /// Request for creating a new alternative asset.
@@ -144,6 +144,8 @@ pub struct AlternativeHolding {
     pub linked_asset_id: Option<String>,
     /// Asset notes
     pub notes: Option<String>,
+    /// For liabilities: what the card shows, from the calculation that values it.
+    pub loan: Option<LoanSummary>,
 }
 
 /// Request for updating an alternative asset's details.

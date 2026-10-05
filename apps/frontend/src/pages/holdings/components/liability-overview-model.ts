@@ -1,12 +1,6 @@
 import { differenceInCalendarDays, parseISO } from "date-fns";
 import type { AlternativeAssetHolding } from "@/lib/types";
-import {
-  readActiveLoanProjection,
-  LOAN_RENEWAL_MATURITY_METADATA_KEY,
-  getLoanFrequencyAtDate,
-  readLoanEvents,
-  type LoanPaymentFrequency,
-} from "@/pages/asset/alternative-assets/lib/loan-events";
+import type { LoanPaymentFrequency } from "@/pages/asset/alternative-assets/lib/loan-events";
 import { getLoanPeriodsPerYear } from "@/pages/asset/alternative-assets/lib/loan-calculator";
 import { RENEWAL_SOON_DAYS } from "@/pages/asset/alternative-assets/lib/loan-presentation";
 
@@ -23,16 +17,13 @@ export interface LiabilityCardModel {
   paidShare: number | null;
   /** Balance comes from a recorded payment schedule rather than manual updates. */
   scheduled: boolean;
-  /** Terms in effect today, from the projection and dated events. */
+  /** Terms in effect today, from the calculation that values the loan. */
   rate: number | null;
   payment: number | null;
   frequency: LoanPaymentFrequency | null;
+  /** When principal and accrued interest are settled. */
+  payoffDate: string | null;
   status: LiabilityStatus | null;
-}
-
-function positive(value: unknown): number | null {
-  const number = Number(value);
-  return Number.isFinite(number) && number > 0 ? number : null;
 }
 
 export function liabilityCardModel(
@@ -40,26 +31,16 @@ export function liabilityCardModel(
   today: string,
 ): LiabilityCardModel {
   const metadata = holding.metadata ?? {};
-  const projection = readActiveLoanProjection(metadata);
+  // Terms and milestones come with the holding, from the calculation that values it.
+  const loan = holding.loan;
+  const scheduled = loan?.scheduled ?? false;
   const subType = metadata.sub_type ?? metadata.liability_type;
   const balance = Math.abs(Number(holding.marketValue) || 0);
-  const original = positive(metadata.original_amount ?? metadata.purchase_price);
-  let rate =
-    projection?.annualRate ??
-    (Number.isFinite(Number(metadata.interest_rate)) ? Number(metadata.interest_rate) : null);
-  let payment = projection?.paymentAmount ?? null;
-  for (const event of readLoanEvents(metadata)) {
-    if (event.effectiveDate > today) break;
-    if (event.type === "rate_change" || event.type === "renewal") rate = event.annualRate;
-    if (event.type === "payment_change") payment = event.paymentAmount;
-    if (event.type === "renewal" && event.paymentAmount !== undefined)
-      payment = event.paymentAmount;
-  }
-  const maturity = metadata[LOAN_RENEWAL_MATURITY_METADATA_KEY];
-  const daysToMaturity =
-    typeof maturity === "string"
-      ? differenceInCalendarDays(parseISO(maturity), parseISO(today))
-      : Number.NaN;
+  const original = loan?.originalAmount ?? null;
+  const maturity = loan?.renewalMaturity;
+  const daysToMaturity = maturity
+    ? differenceInCalendarDays(parseISO(maturity), parseISO(today))
+    : Number.NaN;
   const daysSinceUpdate = differenceInCalendarDays(
     parseISO(today),
     parseISO(holding.valuationDate.slice(0, 10)),
@@ -71,7 +52,7 @@ export function liabilityCardModel(
         ? "renewal_due"
         : daysToMaturity <= RENEWAL_SOON_DAYS
           ? "renew_soon"
-          : !projection && daysSinceUpdate > STALE_MANUAL_DAYS
+          : !scheduled && daysSinceUpdate > STALE_MANUAL_DAYS
             ? "update_balance"
             : null;
   return {
@@ -79,10 +60,11 @@ export function liabilityCardModel(
     balance,
     original,
     paidShare: original ? Math.max(0, Math.min(1, (original - balance) / original)) : null,
-    scheduled: !!projection,
-    rate: rate != null && Number.isFinite(rate) ? rate : null,
-    payment: projection && payment != null && payment > 0 ? payment : null,
-    frequency: projection ? getLoanFrequencyAtDate(metadata, today) : null,
+    scheduled,
+    rate: loan?.annualRate ?? null,
+    payment: scheduled ? (loan?.paymentAmount ?? null) : null,
+    frequency: scheduled ? (loan?.frequency ?? null) : null,
+    payoffDate: loan?.payoffDate ?? null,
     status,
   };
 }

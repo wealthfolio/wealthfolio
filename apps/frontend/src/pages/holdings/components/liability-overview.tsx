@@ -29,13 +29,8 @@ import {
 import { Icons, type Icon } from "@wealthfolio/ui/components/ui/icons";
 import { ProgressBar } from "@/features/goals/components/goal-card";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
-import { useQuoteHistory } from "@/hooks/use-quote-history";
 import type { AlternativeAssetHolding } from "@/lib/types";
-import {
-  useLoanCalculation,
-  useLoanToday,
-} from "@/pages/asset/alternative-assets/hooks/use-loan-calculation";
-import { loanPayoffDate } from "@/pages/asset/alternative-assets/lib/loan-presentation";
+import { useLoanToday } from "@/pages/asset/alternative-assets/hooks/use-loan-calculation";
 import {
   liabilityCardModel,
   liabilitySummary,
@@ -206,15 +201,7 @@ function LiabilityCard({
   const numbers = useNumberFormatting();
   const dates = useDateFormatting();
   const { isBalanceHidden } = useBalancePrivacy();
-  // Only the payoff date needs the engine; both queries are shared with the loan page.
-  const { data: quotes } = useQuoteHistory({ assetId: holding.id, enabled: model.scheduled });
-  const { data: calculation } = useLoanCalculation(
-    holding.id,
-    holding.metadata ?? {},
-    quotes ?? [],
-    model.scheduled && quotes !== undefined,
-  );
-  const payoff = loanPayoffDate(calculation);
+  const payoff = model.payoffDate;
   const money = (value: number) =>
     isBalanceHidden ? "••••" : amounts.formatAmount(value, holding.currency);
   const TypeIcon = TYPE_ICONS[model.type] ?? Icons.ReceiptDuotone;

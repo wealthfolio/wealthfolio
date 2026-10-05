@@ -1721,6 +1721,21 @@ export interface AlternativeAssetHolding {
   linkedAssetId?: string;
   /** Asset notes */
   notes?: string | null;
+  /** For liabilities: what the card shows, from the calculation that values it */
+  loan?: LoanSummary | null;
+}
+
+/** A liability's terms in effect and its milestones, as Holdings values it. */
+export interface LoanSummary {
+  /** The balance follows a payment schedule rather than manual updates. */
+  scheduled: boolean;
+  originalAmount: number | null;
+  annualRate: number | null;
+  paymentAmount: number | null;
+  frequency: "monthly" | "biweekly" | "accelerated_biweekly" | null;
+  /** When principal and accrued interest are settled; null while a residual remains. */
+  payoffDate: string | null;
+  renewalMaturity: string | null;
 }
 
 /**

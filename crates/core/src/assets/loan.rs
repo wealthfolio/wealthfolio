@@ -17,6 +17,7 @@ mod model;
 mod payments;
 mod recalculation;
 mod setup;
+mod summary;
 pub use actions::{
     apply_loan_action, AssetDetailsChange, BalanceEdit, LoanAction, LoanActionResult, LoanError,
     LoanRecord, LoanUpdate,
@@ -37,6 +38,7 @@ pub use recalculation::{recalculate_loan, LoanRecalculation, LoanRecalculationRe
 pub use setup::{
     apply_loan_setup, preview_loan_terms, LoanSchedule, LoanSchedulePreview, LoanSetup, LOAN_FIELDS,
 };
+pub use summary::LoanSummary;
 
 const MAX_PAYMENTS: usize = 2600;
 
@@ -494,20 +496,33 @@ fn calculate(
     })
 }
 
+/// The calculation that values a loan on `date` from what is stored for it.
+pub fn loan_calculation(
+    metadata: &Value,
+    quotes: &[Quote],
+    payments: &[LoanPayment],
+    date: NaiveDate,
+) -> Option<LoanCalculation> {
+    calculate_loan(&LoanCalculationRequest {
+        metadata: metadata.clone(),
+        balances: quotes.iter().map(LoanBalance::from).collect(),
+        as_of: date,
+        payments: payments.to_vec(),
+    })
+}
+
+/// A calculation's balance, in cents, as holdings and net worth value the loan.
+pub fn loan_balance(calculation: &LoanCalculation) -> Option<Decimal> {
+    Decimal::from_f64_retain(calculation.current_balance).map(|v| v.round_dp(2))
+}
+
 pub fn loan_value(
     metadata: Option<&Value>,
     quotes: &[Quote],
     payments: &[LoanPayment],
     date: NaiveDate,
 ) -> Option<Decimal> {
-    let metadata = metadata?;
-    let result = calculate_loan(&LoanCalculationRequest {
-        metadata: metadata.clone(),
-        balances: quotes.iter().map(LoanBalance::from).collect(),
-        as_of: date,
-        payments: payments.to_vec(),
-    })?;
-    Decimal::from_f64_retain(result.current_balance).map(|v| v.round_dp(2))
+    loan_balance(&loan_calculation(metadata?, quotes, payments, date)?)
 }
 
 #[cfg(test)]

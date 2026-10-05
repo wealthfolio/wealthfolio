@@ -662,6 +662,16 @@ test("loan terms are previewed and checked by the backend", async ({ page }) => 
     firstPaymentDate: "2026-02-01",
     amortizationEndDate: "2027-01-01",
   });
+  // Holdings carries what the card shows, from the calculation that values the loan.
+  expect((await named("Setup loan")).loan).toEqual({
+    scheduled: true,
+    originalAmount: 1200,
+    annualRate: 0,
+    paymentAmount: 100,
+    frequency: "monthly",
+    payoffDate: "2027-01-01",
+    renewalMaturity: null,
+  });
   const edited = await page.request.put(`${api}/alternative-assets/${assetId}/metadata`, {
     data: { metadata: { interest_rate: "9" } },
   });

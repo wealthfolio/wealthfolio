@@ -123,6 +123,8 @@ pub struct AlternativeHoldingResponse {
     pub metadata: Option<Value>,
     pub linked_asset_id: Option<String>,
     pub notes: Option<String>,
+    /// For liabilities: what the card shows, from the calculation that values it.
+    pub loan: Option<wealthfolio_core::assets::loan::LoanSummary>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -374,6 +376,7 @@ async fn get_alternative_holdings(
                 metadata: h.metadata,
                 linked_asset_id: h.linked_asset_id,
                 notes: h.notes,
+                loan: h.loan,
             }
         })
         .collect();

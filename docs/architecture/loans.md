@@ -111,6 +111,7 @@ Paths below are relative to the repository root.
 | Linking a withdrawal to a loan                   | `crates/core/src/assets/loan/linking.rs`                       |
 | Atomic loan writes                               | `crates/storage-sqlite/src/assets/alternative_repository.rs`   |
 | Holdings integration                             | `crates/core/src/assets/alternative_assets_service.rs`         |
+| Holdings card summary                            | `crates/core/src/assets/loan/summary.rs`                       |
 | Net worth and history                            | `crates/core/src/portfolio/net_worth/net_worth_service.rs`     |
 | Shared frontend calls                            | `apps/frontend/src/adapters/shared/alternative-assets.ts`      |
 | Desktop commands                                 | `apps/tauri/src/commands/alternative_assets.rs`                |
@@ -346,9 +347,12 @@ worth. Reopening resets payoff; trailing term changes or repeated zero
 confirmations do not move an already settled payoff date.
 
 Net-worth snapshots and history must use the same dated principal as holdings
-and the loan page. Alternative assets and loans count even when there are no
-accounts. Confirmation adjustments are not cash payments. Passing time does not
-turn a projected payment into a confirmation.
+and the loan page. Holdings returns each liability's card summary (terms in
+effect, payoff date, renewal maturity, original amount) from the calculation
+that values it, so a card runs no calculation of its own. Alternative assets and
+loans count even when there are no accounts. Confirmation adjustments are not
+cash payments. Passing time does not turn a projected payment into a
+confirmation.
 
 ## Payments from an account
 
