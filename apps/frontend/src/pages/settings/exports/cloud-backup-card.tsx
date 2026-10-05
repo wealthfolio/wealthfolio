@@ -46,11 +46,11 @@ function ProtectionStatus({ data }: { data: CloudBackupStatus }) {
   return (
     <Badge
       variant="outline"
-      className={`shrink-0 gap-1.5 border-0 px-2 py-0.5 text-[11px] font-medium ${state === "on" ? "bg-success/10 text-success" : "bg-muted/60 text-muted-foreground"}`}
+      className={`shrink-0 gap-1.5 border-0 px-2 py-0.5 text-[11px] font-medium ${state === "on" || state === "unchanged" ? "bg-success/10 text-success" : "bg-muted/60 text-muted-foreground"}`}
     >
       <span
         aria-hidden
-        className={`size-1.5 rounded-full ${state === "on" ? "bg-success" : "bg-current"}`}
+        className={`size-1.5 rounded-full ${state === "on" || state === "unchanged" ? "bg-success" : "bg-current"}`}
       />
       {t(`settings:cloud_backup_state_${state}`)}
     </Badge>
@@ -63,7 +63,11 @@ function BackupOverview({ data, profileName }: { data: CloudBackupStatus; profil
   const formatting = useDateFormatting();
   const last = backupDate(data.policy.lastBackupAt);
   const due = backupDate(
-    data.capture?.state === "failed" ? (data.capture.retryAt ?? null) : data.policy.nextDueAt,
+    data.capture?.state === "failed"
+      ? (data.capture.retryAt ?? null)
+      : data.capture?.state === "unchanged"
+        ? (data.capture.nextCheckAt ?? null)
+        : data.policy.nextDueAt,
   );
   const state = backupState(data);
   return (
@@ -91,7 +95,9 @@ function BackupOverview({ data, profileName }: { data: CloudBackupStatus; profil
             {t(
               data.capture?.state === "failed"
                 ? "settings:cloud_backup_retry_label"
-                : "settings:cloud_backup_next_label",
+                : state === "unchanged"
+                  ? "settings:cloud_backup_next_check_label"
+                  : "settings:cloud_backup_next_label",
             )}
           </dt>
           <dd className="text-sm font-medium leading-5">
@@ -109,6 +115,16 @@ function BackupOverview({ data, profileName }: { data: CloudBackupStatus; profil
           </dd>
         </div>
       </dl>
+      {state === "unchanged" && data.capture?.lastCheckedAt && (
+        <p className="text-muted-foreground text-xs">
+          {t("settings:cloud_backup_last_checked", {
+            date: formatting.formatDateTime(new Date(data.capture.lastCheckedAt), {
+              dateStyle: "medium",
+              timeStyle: "short",
+            }),
+          })}
+        </p>
+      )}
       {data.policy.enabled && data.isSource && data.sourceConsented !== false && (
         <p className="text-muted-foreground flex items-center gap-2 text-xs">
           <Icons.Laptop className="size-3.5 shrink-0" aria-hidden />

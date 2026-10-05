@@ -541,3 +541,42 @@ it("refreshes history after a capture that completes between progress reads", as
   );
   expect(mocks.action.mock.calls.filter(([op]) => op.action === "status")).toHaveLength(2);
 });
+
+it("shows an unchanged check without claiming a new backup or polling cloud status", async () => {
+  const checked = new Date().toISOString();
+  const next = new Date(Date.now() + 86400000).toISOString();
+  const ready = {
+    ...status,
+    hasKey: true,
+    keyReady: true,
+    isSource: true,
+    sourceConsented: true,
+    policy: {
+      ...status.policy,
+      enabled: true,
+      lastBackupAt: "2026-10-01T00:00:00Z",
+      nextDueAt: "2026-10-02T00:00:00Z",
+    },
+  };
+  mocks.action.mockImplementation((op) =>
+    Promise.resolve(
+      op.action === "runtimeStatus"
+        ? {
+            state: "unchanged",
+            retryAt: null,
+            completed: 0,
+            lastCheckedAt: checked,
+            nextCheckAt: next,
+          }
+        : ready,
+    ),
+  );
+  mount();
+  expect(await screen.findByText(copy.cloud_backup_state_unchanged)).toBeInTheDocument();
+  expect(screen.getByText(copy.cloud_backup_hint_unchanged)).toBeInTheDocument();
+  expect(screen.getByText(copy.cloud_backup_next_check_label)).toBeInTheDocument();
+  expect(screen.getByText(/Last checked/)).toBeInTheDocument();
+  expect(screen.queryByText(copy.cloud_backup_state_due)).not.toBeInTheDocument();
+  expect(mocks.action.mock.calls.filter(([op]) => op.action === "status")).toHaveLength(1);
+  expect(mocks.capture).not.toHaveBeenCalled();
+});

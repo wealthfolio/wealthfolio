@@ -49,6 +49,17 @@ pub fn validate_password(password: &str) -> anyhow::Result<()> {
     Ok(())
 }
 
+/// Transport bookkeeping is reset on full restore and cannot make user data stale.
+pub(super) const RESTORED_SYNC_TABLES: &[&str] = &[
+    "sync_cursor",
+    "sync_outbox",
+    "sync_entity_metadata",
+    "sync_device_config",
+    "sync_engine_state",
+    "sync_table_state",
+    "sync_applied_events",
+];
+
 // A fixed prefix ensures SQLCipher never interprets a user-entered x'...' value
 // as a raw key, bypassing password derivation. Preserve the user's bytes exactly.
 fn password_key(password: &str) -> Zeroizing<String> {
@@ -213,15 +224,7 @@ fn validate_foreign_keys(conn: &Connection) -> anyhow::Result<()> {
 /// A restore starts a new device-sync baseline. User data, configuration, broker
 /// associations and MCP grants belong to the backup and remain unchanged.
 fn reset_restored_sync_state(conn: &Connection) -> anyhow::Result<()> {
-    for table in [
-        "sync_cursor",
-        "sync_outbox",
-        "sync_entity_metadata",
-        "sync_device_config",
-        "sync_engine_state",
-        "sync_table_state",
-        "sync_applied_events",
-    ] {
+    for table in RESTORED_SYNC_TABLES {
         conn.execute(&format!("DELETE FROM \"{table}\""), [])?;
     }
     conn.execute_batch(

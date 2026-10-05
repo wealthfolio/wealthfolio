@@ -72,6 +72,45 @@ Subscription expiry preserves the user's backup consent and checks eligibility
 again after a relevant action or at the next daily check. Local database
 encryption, sync enrollment and explicit backup opt-in stay separate boundaries.
 
+Automatic checks save a new copy only when the profile's restorable data
+changes. A logical fingerprint of the immutable export is stored in existing
+encrypted metadata and compared with the latest point from this source/key.
+Export timestamps, physical SQLite layout and resettable sync transport state do
+not count as changes; preferences, addon data and future tables do. Old points
+without a fingerprint receive a fresh capture. Missing history never means
+unchanged, and history read failures remain visible. Explicit retry/setup
+captures retain their due checks and bypass the unchanged optimization. Last
+backup and last unchanged check are separate UI timestamps; no duplicate point
+or cloud policy write is created for an unchanged check. Native pause/resume
+keeps the in-memory daily deadline while revalidating source eligibility. An
+unchanged policy avoids another export before that deadline; user actions and
+changed policy revisions invalidate it. Process restart has no cached deadline
+and checks again. Mobile has no suspended background jobs.
+
+**Architecture impact:** due checks add a history read through the existing
+backup client. Matching data skips compression, storage PUT and completion.
+Existing profile admission, lifecycle cancellation, scheduler, secret-store
+boundaries and cloud index remain authoritative. The fingerprint uses the
+existing authenticated metadata field; there is no migration, new secret key or
+persisted retry state. Gzip level 3 reduces bytes with the existing format;
+SHA-256 verification stays mandatory. Native/mobile timing and sleep/resume
+still need the release checks.
+
+A local compression benchmark can be run after exporting a disposable portable
+database; its contents must never be logged or uploaded by the benchmark:
+
+```bash
+CONNECT_BACKUP_BENCHMARK_EXPORT=/private/disposable-export.db \
+  cargo test --locked --release -p wealthfolio-device-sync \
+  demo_compression_benchmark -- --ignored --nocapture
+```
+
+It compares levels 1, 3, 6 and 9, checks decode compatibility, and reports only
+sizes and timings. The export/fingerprint measurement is available in
+`wealthfolio-storage-sqlite` as `demo_capture_export_benchmark`, with
+`CONNECT_BACKUP_BENCHMARK_DATABASE` pointing to a disposable plaintext demo
+database.
+
 ## Docker
 
 From the repository root, build your image with both authentication settings and

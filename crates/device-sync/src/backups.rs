@@ -18,6 +18,9 @@ pub mod scheduler;
 
 pub const MAX_ENCRYPTED_BYTES: usize = 120 * 1024 * 1024;
 pub const MAX_DECODED_BYTES: usize = 512 * 1024 * 1024;
+// Demo measurements: ~13% fewer bytes than level 1 without level 6/9's CPU cost.
+// Standard gzip remains readable by every existing backup reader.
+pub const BACKUP_COMPRESSION_LEVEL: u32 = 3;
 const MAGIC: &[u8; 8] = b"WFBACK\x00\x01";
 const PACKAGE_MAGIC: &[u8; 8] = b"WFRECV\x00\x01";
 const MAX_HEADER_BYTES: usize = 16 * 1024;
@@ -374,7 +377,10 @@ pub fn encrypt_database(
         return Err(BackupError::Invalid);
     }
     let aad = backup_aad(ctx)?;
-    let mut gzip = GzEncoder::new(BoundedCompression(Vec::new()), Compression::fast());
+    let mut gzip = GzEncoder::new(
+        BoundedCompression(Vec::new()),
+        Compression::new(BACKUP_COMPRESSION_LEVEL),
+    );
     gzip.write_all(database)?;
     let compressed = zeroize::Zeroizing::new(gzip.finish()?.0);
     let ciphertext = seal(&derive(&master.0, &aad), &compressed, &aad)?;
@@ -613,6 +619,37 @@ mod tests {
         assert!(writer.write(&[1]).is_err());
         assert_eq!(writer.0.len(), MAX_ENCRYPTED_BYTES - MAGIC.len() - 40);
     }
+    #[test]
+    #[ignore = "local compression benchmark; needs CONNECT_BACKUP_BENCHMARK_EXPORT"]
+    fn demo_compression_benchmark() {
+        let input = std::env::var("CONNECT_BACKUP_BENCHMARK_EXPORT").unwrap();
+        let database = zeroize::Zeroizing::new(std::fs::read(input).unwrap());
+        assert!(database.starts_with(b"SQLite format 3\0"));
+        let master = MasterKey::generate();
+        let ctx = ctx();
+        let aad = backup_aad(&ctx).unwrap();
+        for level in [1, BACKUP_COMPRESSION_LEVEL, 6, 9] {
+            for run in 0..3 {
+                let start = std::time::Instant::now();
+                let mut gzip =
+                    GzEncoder::new(BoundedCompression(Vec::new()), Compression::new(level));
+                gzip.write_all(&database).unwrap();
+                let compressed = zeroize::Zeroizing::new(gzip.finish().unwrap().0);
+                let compress = start.elapsed();
+                let start = std::time::Instant::now();
+                let mut encrypted = MAGIC.to_vec();
+                encrypted.extend(seal(&derive(&master.0, &aad), &compressed, &aad).unwrap());
+                let encrypt = start.elapsed();
+                let start = std::time::Instant::now();
+                let _digest = crate::crypto::sha256_checksum(&encrypted);
+                let hash = start.elapsed();
+                let start = std::time::Instant::now();
+                decrypt_database_to_writer(&master, &ctx, &encrypted, std::io::sink()).unwrap();
+                eprintln!("compression_benchmark level={level} run={run} decoded_bytes={} encrypted_bytes={} compress_ms={} encrypt_ms={} sha256_ms={} restore_ms={}",database.len(),encrypted.len(),compress.as_millis(),encrypt.as_millis(),hash.as_millis(),start.elapsed().as_millis());
+            }
+        }
+    }
+
     #[test]
     #[ignore = "synthetic resource measurement; run explicitly with --ignored --nocapture"]
     fn synthetic_capture_resource_probe() {
