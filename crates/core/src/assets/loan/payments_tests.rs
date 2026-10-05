@@ -434,3 +434,23 @@ fn the_payment_on_a_due_date_covers_an_extra_recorded_for_that_day() {
     );
     assert_eq!(double.current_balance, 600.0);
 }
+
+#[test]
+fn an_extra_paid_separately_does_not_leave_its_due_date_short() {
+    // An extra repayment recorded on March's due date, its withdrawal not linked.
+    let with_extra = |payments: Vec<LoanPayment>| {
+        let mut request = monthly(payments);
+        request.metadata["loan_events"] =
+            json!([{ "type": "extra_repayment", "effectiveDate": "2026-03-01", "amount": 40 }]);
+        calc(&request)
+    };
+    let regular = with_extra(vec![pay("r", "2026-03-01", 100.0)]);
+    assert_eq!(regular.current_balance, 660.0);
+    assert_eq!(status(&regular, "2026-03-01"), Some(InstalmentStatus::Paid));
+    // Less than the scheduled payment is still short.
+    let partial = with_extra(vec![pay("r", "2026-03-01", 60.0)]);
+    assert_eq!(
+        status(&partial, "2026-03-01"),
+        Some(InstalmentStatus::Short)
+    );
+}

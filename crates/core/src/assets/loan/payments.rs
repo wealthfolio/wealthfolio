@@ -179,6 +179,9 @@ const CENT: f64 = 0.005;
 struct Instalment {
     date: NaiveDate,
     scheduled: f64,
+    /// The scheduled payment without extra repayments recorded that day, which
+    /// their own events already count.
+    regular: f64,
     window: i64,
     remaining: f64,
 }
@@ -216,17 +219,23 @@ fn instalments(schedule: &LoanCalculation) -> Vec<Instalment> {
         .filter(|row| row.scheduled_payment)
         // An extra repayment recorded on a due date is part of what that day's
         // payment covers, so a withdrawal paying both counts it once.
-        .map(|row| (row.date, row.payment))
+        .map(|row| {
+            (
+                row.date,
+                row.payment,
+                money(row.payment - row.extra_payment),
+            )
+        })
         .collect();
     dates
         .iter()
         .enumerate()
-        .map(|(i, &(date, scheduled))| {
+        .map(|(i, &(date, scheduled, regular))| {
             let gap = [i.checked_sub(1), Some(i + 1)]
                 .into_iter()
                 .flatten()
                 .filter_map(|j| dates.get(j))
-                .map(|(other, _)| (date - *other).num_days().abs())
+                .map(|(other, ..)| (date - *other).num_days().abs())
                 .min();
             let window = match gap {
                 Some(days) if days < 20 => BIWEEKLY_WINDOW_DAYS,
@@ -235,6 +244,7 @@ fn instalments(schedule: &LoanCalculation) -> Vec<Instalment> {
             Instalment {
                 date,
                 scheduled,
+                regular,
                 window,
                 remaining: scheduled,
             }
@@ -325,7 +335,9 @@ pub(super) fn instalment_statuses(
         .map(|i| {
             let paid = money(i.scheduled - i.remaining);
             let overdue = (as_of - i.date).num_days() > i.window;
-            let status = if i.remaining <= CENT {
+            // An extra recorded that day counts through its own event, so the
+            // regular payment settles the instalment.
+            let status = if paid >= i.regular - CENT {
                 InstalmentStatus::Paid
             } else if !overdue {
                 InstalmentStatus::Due

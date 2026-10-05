@@ -400,16 +400,16 @@ statement remains the truth.
 8. **Allocation.** Applied to an instalment, the payment covers what remains of
    that instalment's scheduled payment, its interest and principal, and any
    extra repayment recorded on the due date, so a withdrawal paying both counts
-   the extra once; an extra paid by a separate withdrawal that is not linked
-   leaves the instalment short. Whatever is left is extra principal on the
-   payment date, applied like a recorded extra repayment. A payment that settles
-   no instalment is entirely extra principal.
+   the extra once. Whatever is left is extra principal on the payment date,
+   applied like a recorded extra repayment. A payment that settles no instalment
+   is entirely extra principal.
 9. **Shortfalls and missed payments are flagged, not guessed.** From the first
    counted payment onward, an instalment more than its matching window overdue
-   with less than its scheduled payment applied is marked short or missing. The
-   balance still assumes the scheduled payment until a confirmed balance
-   corrects it, because an import that is late or incomplete must not lower
-   debt.
+   with less than its scheduled payment applied is marked short or missing. An
+   extra repayment recorded on the due date counts through its own event, so it
+   is not required from the payments. The balance still assumes the scheduled
+   payment until a confirmed balance corrects it, because an import that is late
+   or incomplete must not lower debt.
 10. **A repeated difference suggests a payment change.** When the last three
     instalments settled by payments, matched or directed, each differ from the
     scheduled payment by the same amount of at least 1.00, the loan suggests a
