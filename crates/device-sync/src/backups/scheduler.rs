@@ -34,6 +34,22 @@ pub enum CaptureState {
     Failed,
 }
 
+/// An outer request timeout or task abort drops capture before its caller can
+/// finalize status. Lifecycle changes are protected by `finished`'s generation check.
+struct CaptureCancellation<'a> {
+    scheduler: &'a BackupScheduler,
+    generation: u64,
+    armed: bool,
+}
+
+impl Drop for CaptureCancellation<'_> {
+    fn drop(&mut self) {
+        if self.armed {
+            self.scheduler.finished(self.generation, true);
+        }
+    }
+}
+
 impl BackupScheduler {
     /// Cancel admitted work using the existing lifecycle generation. Notify has
     /// one consumer (the due timer), so a bounded local wait observes revocation
@@ -42,10 +58,18 @@ impl BackupScheduler {
         if !self.is_current(generation) {
             return None;
         }
+        let mut cancellation = CaptureCancellation {
+            scheduler: self,
+            generation,
+            armed: true,
+        };
         tokio::pin!(work);
         loop {
             tokio::select! {
-                result = &mut work => return self.is_current(generation).then_some(result),
+                result = &mut work => {
+                    cancellation.armed = false;
+                    return self.is_current(generation).then_some(result);
+                },
                 _ = tokio::time::sleep(Duration::from_secs(1)) => {
                     if !self.is_current(generation) { return None; }
                 }
@@ -193,6 +217,98 @@ impl BackupScheduler {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn completing_capture_leaves_finalization_to_its_caller() {
+        let scheduler = BackupScheduler::default();
+        let generation = scheduler.generation();
+        let result = scheduler
+            .until_changed(generation, async {
+                scheduler.started(generation);
+                scheduler.published(generation);
+                Ok::<_, ()>(())
+            })
+            .await
+            .unwrap();
+        assert_eq!(scheduler.status().state, CaptureState::Running);
+        assert_eq!(scheduler.status().completed, 1);
+        scheduler.finished(generation, result.is_err());
+        assert_eq!(scheduler.status().state, CaptureState::Idle);
+        assert!(scheduler.status().retry_at.is_none());
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn request_timeout_releases_capture_and_exposes_retry() {
+        let scheduler = BackupScheduler::default();
+        let slot = std::sync::Arc::new(tokio::sync::Semaphore::new(1));
+        let generation = scheduler.generation();
+        let capture = async {
+            let _permit = slot.clone().try_acquire_owned().unwrap();
+            let result = scheduler
+                .until_changed(generation, async {
+                    scheduler.started(generation);
+                    std::future::pending::<Result<(), ()>>().await
+                })
+                .await
+                .unwrap_or(Ok(()));
+            scheduler.finished(generation, result.is_err());
+        };
+
+        assert!(tokio::time::timeout(Duration::from_secs(1), capture)
+            .await
+            .is_err());
+        assert_eq!(slot.available_permits(), 1);
+        let status = scheduler.status();
+        assert_eq!(status.state, CaptureState::Failed);
+        assert!(status.retry_at.is_some());
+        assert_eq!(status.completed, 0);
+    }
+
+    #[tokio::test]
+    async fn aborting_capture_preserves_status_after_a_lifecycle_change() {
+        for change_generation in [false, true] {
+            let scheduler = std::sync::Arc::new(BackupScheduler::default());
+            let slot = std::sync::Arc::new(tokio::sync::Semaphore::new(1));
+            let generation = scheduler.generation();
+            let (started, ready) = tokio::sync::oneshot::channel();
+            let task = tokio::spawn({
+                let scheduler = scheduler.clone();
+                let slot = slot.clone();
+                async move {
+                    let _permit = slot.try_acquire_owned().unwrap();
+                    let result = scheduler
+                        .until_changed(generation, async {
+                            scheduler.started(generation);
+                            started.send(()).unwrap();
+                            std::future::pending::<Result<(), ()>>().await
+                        })
+                        .await
+                        .unwrap_or(Ok(()));
+                    scheduler.finished(generation, result.is_err());
+                }
+            });
+            ready.await.unwrap();
+            if change_generation {
+                scheduler.wake();
+                scheduler.started(scheduler.generation());
+            }
+            task.abort();
+            assert!(task.await.unwrap_err().is_cancelled());
+            assert_eq!(slot.available_permits(), 1);
+            let status = scheduler.status();
+            assert_eq!(
+                status.state,
+                if change_generation {
+                    CaptureState::Running
+                } else {
+                    CaptureState::Failed
+                }
+            );
+            assert_eq!(status.retry_at.is_some(), !change_generation);
+            assert_eq!(status.completed, 0);
+        }
+    }
+
     async fn run_test_clock<F, Fut, E>(scheduler: &BackupScheduler, check: F)
     where
         F: FnMut() -> Fut,
