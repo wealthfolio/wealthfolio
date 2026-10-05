@@ -67,6 +67,7 @@ import { useUpdatePortfolioMutation } from "@/hooks/use-calculate-portfolio";
 import { useQueryClient } from "@tanstack/react-query";
 import { QueryKeys } from "@/lib/query-keys";
 import { useSettingsContext } from "@/lib/settings-provider";
+import type { LoanSetup } from "@/adapters/shared/alternative-assets";
 
 export const HoldingsPage = () => {
   const { t } = useTranslation();
@@ -233,10 +234,11 @@ export const HoldingsPage = () => {
       metadata: Record<string, string>,
       name?: string,
       notes?: string | null,
+      loan?: LoanSetup,
     ) => {
       setIsSavingDetails(true);
       try {
-        await updateAlternativeAssetMetadata(assetId, metadata, name, notes);
+        await updateAlternativeAssetMetadata(assetId, metadata, name, notes, loan);
         // Invalidate queries to refresh the list and the asset detail page
         queryClient.invalidateQueries({ queryKey: [QueryKeys.ALTERNATIVE_HOLDINGS] });
         queryClient.invalidateQueries({ queryKey: [QueryKeys.NET_WORTH] });

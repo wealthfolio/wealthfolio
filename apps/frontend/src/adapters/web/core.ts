@@ -1919,14 +1919,15 @@ export const invoke = async <T>(command: string, payload?: Record<string, unknow
       break;
     }
     case "update_alternative_asset_metadata": {
-      const { assetId, metadata, name, notes } = payload as {
+      const { assetId, metadata, name, notes, loan } = payload as {
         assetId: string;
         metadata: Record<string, string>;
         name?: string;
         notes?: string | null;
+        loan?: unknown;
       };
       url += `/${encodeURIComponent(assetId)}/metadata`;
-      body = JSON.stringify({ metadata, name, notes });
+      body = JSON.stringify({ metadata, name, notes, loan });
       break;
     }
     case "get_alternative_holdings":

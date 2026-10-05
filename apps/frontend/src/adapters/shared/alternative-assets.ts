@@ -85,12 +85,14 @@ export const updateAlternativeAssetMetadata = async (
   metadata: Record<string, string>,
   name?: string,
   notes?: string | null,
+  loan?: LoanSetup,
 ): Promise<void> => {
   return invoke<void>("update_alternative_asset_metadata", {
     assetId,
     name,
     metadata,
     notes,
+    loan,
   });
 };
 

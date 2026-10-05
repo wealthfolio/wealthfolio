@@ -18,7 +18,8 @@ mod payments;
 mod recalculation;
 mod setup;
 pub use actions::{
-    apply_loan_action, BalanceEdit, LoanAction, LoanActionResult, LoanError, LoanRecord, LoanUpdate,
+    apply_loan_action, AssetDetailsChange, BalanceEdit, LoanAction, LoanActionResult, LoanError,
+    LoanRecord, LoanUpdate,
 };
 pub use interest::{payment_amount, InterestMethod};
 pub use linking::{link_payment, PaymentLink, PaymentTagUpdate};

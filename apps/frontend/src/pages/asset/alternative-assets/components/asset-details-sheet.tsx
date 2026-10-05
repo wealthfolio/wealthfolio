@@ -8,12 +8,10 @@ import { LoanInterestMethodSelect } from "./loan-interest-method-select";
 import { LoanFieldInfo } from "./loan-field-info";
 import { LoanDurationInput } from "./loan-duration-input";
 import { useEffect, useMemo, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
-import { applyLoanAction } from "@/adapters";
 import { useAccounts } from "@/hooks/use-accounts";
-import { invalidateAlternativeAssetQueries } from "../hooks/use-alternative-asset-mutations";
 import { useLoanSchedulePreview } from "../hooks/use-loan-calculation";
 import { loanErrorField, loanErrorText, type LoanSetupField } from "./loan-error-text";
+import type { LoanSetup } from "@/adapters/shared/alternative-assets";
 import { useForm, type Resolver } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
@@ -65,7 +63,6 @@ import {
   METAL_TYPES,
   WEIGHT_UNITS,
   LIABILITY_TYPES,
-  loanSetupAction,
   liabilityLoanSetup,
 } from "./asset-details-sheet-schema";
 import { paymentAccounts } from "../lib/loan-payments";
@@ -105,6 +102,7 @@ interface AssetDetailsSheetProps {
     metadata: Record<string, string>,
     name?: string,
     notes?: string | null,
+    loan?: LoanSetup,
   ) => Promise<void>;
   /** Optional: For displaying linked asset name for liabilities */
   linkedAssetName?: string;
@@ -140,7 +138,6 @@ export function AssetDetailsSheet({
   isSaving = false,
 }: AssetDetailsSheetProps) {
   const { t } = useTranslation();
-  const queryClient = useQueryClient();
   // Use a fallback kind for the form when asset is null (form state won't be used anyway)
   const assetKind = asset?.kind ?? AlternativeAssetKind.OTHER;
   const assetName = asset?.name ?? "";
@@ -181,14 +178,11 @@ export function AssetDetailsSheet({
       const metadata = formValuesToMetadata(values);
       // Only pass name if it changed
       const nameChanged = values.name !== asset.name ? values.name : undefined;
-      // Pass notes separately (it goes to asset.notes, not metadata)
-      // The loan section is checked and saved by the backend in one action,
-      // first, so terms it refuses leave the other details unsaved too.
-      if (values.kind === AlternativeAssetKind.LIABILITY) {
-        await applyLoanAction(asset.id, loanSetupAction(values));
-        await invalidateAlternativeAssetQueries(queryClient);
-      }
-      await onSave(asset.id, metadata, nameChanged, values.notes);
+      // Pass notes separately (it goes to asset.notes, not metadata). A liability's
+      // loan section goes with them: the backend saves the edit in one transaction.
+      const loan =
+        values.kind === AlternativeAssetKind.LIABILITY ? liabilityLoanSetup(values) : undefined;
+      await onSave(asset.id, metadata, nameChanged, values.notes, loan);
       toast({
         title: t("asset:detailsSheet.details_saved"),
         variant: "success",

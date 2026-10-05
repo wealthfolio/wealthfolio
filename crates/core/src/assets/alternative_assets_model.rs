@@ -162,6 +162,9 @@ pub struct UpdateAssetDetailsRequest {
     /// Optional new metadata (merged with existing)
     /// Keys with None values are removed
     pub metadata: Option<std::collections::HashMap<String, Option<String>>>,
+    /// A liability's loan section, saved with the other details in one transaction.
+    #[serde(default)]
+    pub loan: Option<LoanSetup>,
 }
 
 /// Response after updating asset details.

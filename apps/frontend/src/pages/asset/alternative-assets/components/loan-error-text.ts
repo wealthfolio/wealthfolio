@@ -58,6 +58,12 @@ export function isStaleLoanError(cause: unknown): boolean {
   return message === "LOAN_EVENT_CHANGED" || message === "LOAN_EVENT_MISSING";
 }
 
+/** A loan refusal with its own message, which the form that sent it shows. */
+export function isLoanRefusal(cause: unknown): boolean {
+  const message = errorMessage(cause);
+  return message !== undefined && message in LOAN_ERROR_KEYS;
+}
+
 /** The withdrawal matches a recorded extra repayment; linking can replace it on request. */
 export function isDuplicateEventError(cause: unknown): boolean {
   return errorMessage(cause) === "LOAN_PAYMENT_DUPLICATES_EVENT";

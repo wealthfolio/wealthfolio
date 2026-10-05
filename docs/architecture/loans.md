@@ -249,12 +249,14 @@ a preview always matches what is saved.
 6. **Paid from and escrow** follow the payment rules: an active, unarchived cash
    account in the loan's currency, and escrow of zero or more. Paid from is set
    when editing a loan; creation refuses it.
-7. **One way in.** Creation takes a setup with the asset; Edit loan details
-   saves it with the `set_terms` loan action, in one transaction through the
-   sync outbox. The general metadata API refuses loan fields (`loan_projection`,
-   `loan_events`, `renewal_maturity_date`, `tracking_mode`,
-   `payment_account_id`, `escrow_amount`, `original_amount`, `origination_date`,
-   `interest_rate`) on liabilities with `LOAN_FIELDS_READ_ONLY`.
+7. **One way in.** Creation takes a setup with the asset. Edit loan details
+   sends its setup with the other details in one request, saved with the
+   `set_terms` rules in one transaction through the sync outbox, so a refusal or
+   a failure saves none of it. The alternative-asset metadata API refuses loan
+   fields (`loan_projection`, `loan_events`, `renewal_maturity_date`,
+   `tracking_mode`, `payment_account_id`, `escrow_amount`, `original_amount`,
+   `origination_date`, `interest_rate`) on liabilities with
+   `LOAN_FIELDS_READ_ONLY`.
 
 A refused setup names the rule it broke with a stable code, and nothing is
 written. Every save checks the whole setup.
@@ -595,8 +597,9 @@ lender equivalence. Reference observations were captured September 24, 2026.
   (`crates/storage-sqlite/tests/loan_actions.rs`) verify that a write failing
   after the metadata change leaves the loan untouched, that a refused action
   writes nothing, that a renewal's balance and terms are written together, that
-  confirming a day replaces its creation quote, that creation takes a setup, and
-  that the general details update refuses loan fields and writes nothing.
+  confirming a day replaces its creation quote, that creation takes a setup,
+  that the general details update refuses loan fields and writes nothing, and
+  that editing details with loan terms saves both or neither.
 - Payment tests (`loan/payments_tests.rs`, `loan/linking_tests.rs`) cover
   eligibility, escrow, matching windows, directed targets, short and missing
   instalments, suggestions, and confirmations winning. Storage tests verify that

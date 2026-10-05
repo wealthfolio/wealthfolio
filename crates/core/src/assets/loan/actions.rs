@@ -99,8 +99,18 @@ pub struct LoanRecord {
 pub struct LoanUpdate {
     /// The complete new metadata, when it changes.
     pub metadata: Option<Value>,
+    /// Columns of the loan's asset row saved with an edit of its details.
+    pub details: Option<AssetDetailsChange>,
     pub save_balances: Vec<Quote>,
     pub delete_balances: Vec<String>,
+}
+
+/// Asset row columns written with a loan's terms; `None` keeps a column.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct AssetDetailsChange {
+    pub name: Option<String>,
+    pub display_code: Option<String>,
+    pub notes: Option<String>,
 }
 
 impl LoanUpdate {

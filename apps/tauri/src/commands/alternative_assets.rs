@@ -302,6 +302,7 @@ pub async fn update_alternative_asset_metadata(
     name: Option<String>,
     metadata: std::collections::HashMap<String, String>,
     notes: Option<String>,
+    loan: Option<wealthfolio_core::assets::loan::LoanSetup>,
     state: ProfileAccess,
 ) -> Result<(), String> {
     let context = state.context()?;
@@ -324,6 +325,7 @@ pub async fn update_alternative_asset_metadata(
         name,
         notes,
         metadata: Some(metadata_map),
+        loan,
     };
 
     // Delegate to core service

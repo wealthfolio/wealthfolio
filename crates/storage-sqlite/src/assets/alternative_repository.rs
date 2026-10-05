@@ -17,7 +17,8 @@ use std::sync::Arc;
 
 use wealthfolio_core::activities::Activity;
 use wealthfolio_core::assets::loan::{
-    link_payment, LoanPayment, LoanPaymentTag, LoanRecord, LoanUpdate, PaymentLink,
+    link_payment, AssetDetailsChange, LoanPayment, LoanPaymentTag, LoanRecord, LoanUpdate,
+    PaymentLink,
 };
 use wealthfolio_core::assets::{AlternativeAssetRepositoryTrait, LoanChange, PaymentTagChange};
 use wealthfolio_core::errors::DatabaseError;
@@ -119,14 +120,24 @@ fn read_loan(conn: &mut SqliteConnection, asset_id: &str) -> Result<LoanRecord> 
     })
 }
 
-/// Replaces a loan's metadata and records the change for sync.
+/// Replaces a loan's metadata, with any details edited alongside it, and records
+/// the change for sync as one row update.
 fn write_asset_metadata(
     tx: &mut DbWriteTx<'_>,
     asset_id: &str,
     metadata: &serde_json::Value,
+    details: Option<&AssetDetailsChange>,
 ) -> Result<()> {
+    let details = details.cloned().unwrap_or_default();
     diesel::update(assets::table.filter(assets::id.eq(asset_id)))
-        .set(assets::metadata.eq(Some(metadata.to_string())))
+        .set((
+            assets::metadata.eq(Some(metadata.to_string())),
+            details.name.map(|name| assets::name.eq(name)),
+            details
+                .display_code
+                .map(|code| assets::display_code.eq(code)),
+            details.notes.map(|notes| assets::notes.eq(Some(notes))),
+        ))
         .execute(tx.conn())
         .map_err(StorageError::from)?;
     let row = assets::table
@@ -398,7 +409,7 @@ impl AlternativeAssetRepositoryTrait for AlternativeAssetRepository {
                 let activity = Activity::from(row);
                 let update = change(&activity, &account_type, loan.as_ref())?;
                 if let (Some(metadata), Some(loan)) = (&update.loan, &loan) {
-                    write_asset_metadata(tx, &loan.asset_id, metadata)?;
+                    write_asset_metadata(tx, &loan.asset_id, metadata, None)?;
                 }
                 if update.activity == activity.metadata {
                     return Ok(None);
@@ -426,7 +437,7 @@ impl AlternativeAssetRepositoryTrait for AlternativeAssetRepository {
                     std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| change(&record)))
                         .map_err(|_| Error::Unexpected("Loan action failed unexpectedly".into()))??;
                 if let Some(metadata) = &update.metadata {
-                    write_asset_metadata(tx, &asset_id, metadata)?;
+                    write_asset_metadata(tx, &asset_id, metadata, update.details.as_ref())?;
                 }
                 for id in &update.delete_balances {
                     let existing = quotes::table

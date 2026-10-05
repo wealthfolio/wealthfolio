@@ -351,7 +351,7 @@ async fn a_write_that_fails_after_the_metadata_change_leaves_the_loan_untouched(
                 Ok(LoanUpdate {
                     metadata: Some(metadata),
                     save_balances: vec![orphan],
-                    delete_balances: vec![],
+                    ..Default::default()
                 })
             }),
         )
@@ -593,6 +593,7 @@ async fn the_general_details_update_refuses_loan_fields_and_writes_nothing() {
         name: Some("Renamed".into()),
         notes: None,
         metadata: Some([(key.to_string(), Some(value.to_string()))].into()),
+        loan: None,
     };
     for key in [
         "interest_rate",
@@ -798,4 +799,43 @@ async fn replacing_a_recorded_extra_repayment_with_its_withdrawal_counts_it_once
         .await
         .unwrap_err();
     assert_eq!(again.to_string(), "LOAN_EXTRA_ALREADY_LINKED");
+}
+
+#[tokio::test]
+async fn editing_details_with_loan_terms_saves_both_or_neither() {
+    let loan = fixture().await;
+    loan.add_account("chequing", "CASH");
+    let edit = |setup: LoanSetup| UpdateAssetDetailsRequest {
+        asset_id: "mortgage".into(),
+        name: Some("Renamed".into()),
+        notes: Some("Fixed rate".into()),
+        metadata: Some([("sub_type".to_string(), Some("heloc".to_string()))].into()),
+        loan: Some(setup),
+    };
+    let name = || loan.assets.get_by_id("mortgage").unwrap().name;
+    let before = loan.metadata();
+
+    // Terms the backend refuses leave the rename and the type unsaved too.
+    let mut refused = loan_setup(Some("chequing"));
+    refused.schedule.as_mut().unwrap().renewal_maturity = NaiveDate::from_ymd_opt(2025, 12, 1);
+    let error = loan
+        .service
+        .update_asset_details(edit(refused))
+        .await
+        .unwrap_err();
+    assert_eq!(error.to_string(), "LOAN_MATURITY_BEFORE_ORIGINATION");
+    assert_eq!(loan.metadata(), before);
+    assert_eq!(name().as_deref(), Some("Mortgage"));
+
+    // Accepted, the details and the terms are saved together.
+    loan.service
+        .update_asset_details(edit(loan_setup(Some("chequing"))))
+        .await
+        .unwrap();
+    let saved = loan.assets.get_by_id("mortgage").unwrap();
+    assert_eq!(saved.name.as_deref(), Some("Renamed"));
+    assert_eq!(saved.notes.as_deref(), Some("Fixed rate"));
+    let metadata = loan.metadata();
+    assert_eq!(metadata["sub_type"], "heloc");
+    assert_eq!(metadata[PAYMENT_ACCOUNT_KEY], "chequing");
 }

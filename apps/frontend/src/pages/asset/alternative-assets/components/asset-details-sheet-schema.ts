@@ -1,5 +1,5 @@
 import * as z from "zod";
-import type { LoanAction, LoanSetup } from "@/adapters/shared/alternative-assets";
+import type { LoanSetup } from "@/adapters/shared/alternative-assets";
 import { readActiveLoanProjection, LOAN_RENEWAL_MATURITY_METADATA_KEY } from "../lib/loan-events";
 import { calculateAmortizationMonths, calculateLoanPaymentDate } from "../lib/loan-calculator";
 import { AlternativeAssetKind } from "@/lib/types";
@@ -442,9 +442,4 @@ export function liabilityLoanSetup(values: LiabilityDetailsFormValues): LoanSetu
       escrowAmount: values.escrowAmount ?? undefined,
     },
   };
-}
-
-/** Saves the loan section of Edit loan details in one backend action. */
-export function loanSetupAction(values: LiabilityDetailsFormValues): LoanAction {
-  return { type: "set_terms", ...liabilityLoanSetup(values) };
 }

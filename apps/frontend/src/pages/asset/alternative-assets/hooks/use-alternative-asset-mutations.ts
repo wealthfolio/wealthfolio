@@ -17,6 +17,8 @@ import type {
   UpdateValuationRequest,
   LinkLiabilityRequest,
 } from "@/lib/types";
+import type { LoanSetup } from "@/adapters/shared/alternative-assets";
+import { isLoanRefusal } from "../components/loan-error-text";
 
 interface UseAlternativeAssetMutationsOptions {
   onCreateSuccess?: (response: CreateAlternativeAssetResponse) => void;
@@ -153,18 +155,22 @@ export function useAlternativeAssetMutations(options: UseAlternativeAssetMutatio
       metadata,
       name,
       notes,
+      loan,
     }: {
       assetId: string;
       metadata: Record<string, string>;
       name?: string;
       notes?: string | null;
-    }) => updateAlternativeAssetMetadata(assetId, metadata, name, notes),
+      loan?: LoanSetup;
+    }) => updateAlternativeAssetMetadata(assetId, metadata, name, notes, loan),
     onSuccess: async () => {
       await invalidateQueries();
       options.onMetadataUpdateSuccess?.();
     },
     onError: (error) => {
       logger.error(`Error updating asset metadata: ${error}`);
+      // The details sheet explains a refused loan setup itself.
+      if (isLoanRefusal(error)) return;
       toast({
         title: "Failed to save details",
         description: "Please try again or report an issue if the problem persists.",

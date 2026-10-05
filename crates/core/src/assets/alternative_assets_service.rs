@@ -26,16 +26,37 @@ use super::alternative_assets_traits::{
     AlternativeAssetRepositoryTrait, AlternativeAssetServiceTrait,
 };
 use super::loan::{
-    apply_loan_action, apply_loan_setup, link_payment, preview_loan_terms, LoanAction,
-    LoanActionResult, LoanError, LoanPayment, LoanSchedulePreview, LoanSetup, PaymentLink,
-    LOAN_FIELDS,
+    apply_loan_action, apply_loan_setup, link_payment, preview_loan_terms, AssetDetailsChange,
+    LoanAction, LoanActionResult, LoanError, LoanPayment, LoanRecord, LoanSchedulePreview,
+    LoanSetup, PaymentLink, LOAN_FIELDS,
 };
-use super::{AssetKind, AssetRepositoryTrait, NewAsset, QuoteMode};
+use super::{Asset, AssetKind, AssetRepositoryTrait, NewAsset, QuoteMode};
 use crate::errors::{Error, Result, ValidationError};
 use crate::events::{DomainEvent, DomainEventSink, NoOpDomainEventSink};
 use crate::quotes::constants::DATA_SOURCE_MANUAL;
 use crate::quotes::{Quote, QuoteServiceTrait};
 use crate::utils::time_utils::{parse_user_timezone_or_default, user_today};
+
+/// `existing` metadata with the requested changes; an empty value removes a key.
+fn merged_details(
+    existing: Option<&Value>,
+    changes: Option<&std::collections::HashMap<String, Option<String>>>,
+) -> Option<Value> {
+    let mut fields = existing
+        .and_then(|v| v.as_object().cloned())
+        .unwrap_or_default();
+    for (key, value) in changes.into_iter().flatten() {
+        match value {
+            Some(v) if !v.is_empty() => {
+                fields.insert(key.clone(), json!(v));
+            }
+            _ => {
+                fields.remove(key);
+            }
+        }
+    }
+    (!fields.is_empty()).then_some(Value::Object(fields))
+}
 
 fn has_loan_fields<'a>(mut keys: impl Iterator<Item = &'a String>) -> bool {
     keys.any(|key| LOAN_FIELDS.contains(&key.as_str()))
@@ -213,6 +234,72 @@ impl AlternativeAssetService {
             .filter(|s| !s.is_empty())
             .map(Self::format_subtype)
             .unwrap_or_else(|| kind.display_name().to_string())
+    }
+
+    /// Records a new purchase quote when the purchase price or date changed.
+    async fn sync_purchase_quote(&self, asset: &Asset, updated: Option<&Value>) -> Result<bool> {
+        let purchase = |metadata: Option<&Value>, key: &str| {
+            metadata
+                .and_then(|m| m.get(key))
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string())
+        };
+        let (old_purchase_price, old_purchase_date) = (
+            purchase(asset.metadata.as_ref(), "purchase_price"),
+            purchase(asset.metadata.as_ref(), "purchase_date"),
+        );
+        let (new_purchase_price, new_purchase_date) = (
+            purchase(updated, "purchase_price"),
+            purchase(updated, "purchase_date"),
+        );
+        let mut purchase_quote_updated = false;
+        let purchase_info_changed =
+            old_purchase_price != new_purchase_price || old_purchase_date != new_purchase_date;
+
+        if purchase_info_changed {
+            if let (Some(price_str), Some(date_str)) = (&new_purchase_price, &new_purchase_date) {
+                let purchase_price: Decimal = price_str.parse().map_err(|_| {
+                    Error::Validation(ValidationError::InvalidInput(
+                        "Invalid purchase price format".to_string(),
+                    ))
+                })?;
+                let purchase_date = chrono::NaiveDate::parse_from_str(date_str, "%Y-%m-%d")
+                    .map_err(|_| {
+                        Error::Validation(ValidationError::InvalidInput(
+                            "Invalid purchase date format".to_string(),
+                        ))
+                    })?;
+
+                let purchase_quote = Quote {
+                    id: Uuid::new_v4().to_string(),
+                    asset_id: asset.id.clone(),
+                    timestamp: Utc.from_utc_datetime(
+                        &purchase_date
+                            .and_hms_opt(12, 0, 0)
+                            .expect("12:00:00 is a valid time"),
+                    ),
+                    open: purchase_price,
+                    high: purchase_price,
+                    low: purchase_price,
+                    close: purchase_price,
+                    adjclose: purchase_price,
+                    volume: Decimal::ZERO,
+                    currency: asset.quote_ccy.clone(),
+                    data_source: DATA_SOURCE_MANUAL.to_string(),
+                    created_at: Utc::now(),
+                    notes: None,
+                };
+
+                self.quote_service.add_quote(&purchase_quote).await?;
+                purchase_quote_updated = true;
+                debug!(
+                    "Updated purchase quote for {} at {} with value {}",
+                    asset.id, purchase_date, purchase_price
+                );
+            }
+        }
+
+        Ok(purchase_quote_updated)
     }
 
     /// Formats a snake_case subtype to Title Case (e.g., "auto_loan" → "Auto Loan").
@@ -545,113 +632,64 @@ impl AlternativeAssetServiceTrait for AlternativeAssetService {
             return Err(LoanError::FieldsReadOnly.into());
         }
 
-        // Parse existing metadata
-        let mut metadata_obj = asset
-            .metadata
-            .as_ref()
-            .and_then(|v| v.as_object().cloned())
-            .unwrap_or_default();
-
-        // Track old purchase info for quote sync
-        let old_purchase_price = metadata_obj
-            .get("purchase_price")
-            .and_then(|v| v.as_str())
-            .map(|s| s.to_string());
-        let old_purchase_date = metadata_obj
-            .get("purchase_date")
-            .and_then(|v| v.as_str())
-            .map(|s| s.to_string());
-
-        // Merge new metadata (None values remove the key)
-        if let Some(new_metadata) = &request.metadata {
-            for (key, value) in new_metadata {
-                match value {
-                    Some(v) if !v.is_empty() => {
-                        metadata_obj.insert(key.clone(), json!(v));
-                    }
-                    _ => {
-                        metadata_obj.remove(key);
-                    }
+        let updated_metadata = match request.loan.clone() {
+            // The loan section is checked and saved with the other details in the
+            // loan's transaction, so a refusal or a failure saves none of the edit.
+            Some(setup) => {
+                if asset.kind != AssetKind::Liability {
+                    return Err(LoanError::Invalid.into());
                 }
+                let (name, notes) = (request.name.clone(), request.notes.clone());
+                let changes = request.metadata.clone();
+                let kind = asset.kind.clone();
+                let today = self.today();
+                let update = self
+                    .alternative_asset_repository
+                    .update_loan(
+                        &request.asset_id,
+                        Box::new(move |record| {
+                            let edited = LoanRecord {
+                                metadata: merged_details(Some(&record.metadata), changes.as_ref())
+                                    .unwrap_or_else(|| json!({})),
+                                ..record.clone()
+                            };
+                            let mut update =
+                                apply_loan_action(&edited, &LoanAction::SetTerms(setup), today)?;
+                            let metadata = update.metadata.take().unwrap_or(edited.metadata);
+                            let display_code =
+                                Self::derive_display_code(&kind, &Some(metadata.clone()));
+                            update.details = Some(AssetDetailsChange {
+                                name,
+                                display_code: Some(display_code),
+                                notes,
+                            });
+                            update.metadata = Some(metadata);
+                            Ok(update)
+                        }),
+                    )
+                    .await?;
+                update.metadata
             }
-        }
-
-        // Get new purchase info after merge
-        let new_purchase_price = metadata_obj
-            .get("purchase_price")
-            .and_then(|v| v.as_str())
-            .map(|s| s.to_string());
-        let new_purchase_date = metadata_obj
-            .get("purchase_date")
-            .and_then(|v| v.as_str())
-            .map(|s| s.to_string());
-
-        // Recalculate display_code from updated metadata
-        let updated_metadata = if metadata_obj.is_empty() {
-            None
-        } else {
-            Some(Value::Object(metadata_obj))
+            None => {
+                let updated_metadata =
+                    merged_details(asset.metadata.as_ref(), request.metadata.as_ref());
+                let display_code = Self::derive_display_code(&asset.kind, &updated_metadata);
+                self.alternative_asset_repository
+                    .update_asset_details(
+                        &request.asset_id,
+                        request.name.as_deref(),
+                        Some(&display_code),
+                        updated_metadata.clone(),
+                        request.notes.as_deref(),
+                    )
+                    .await?;
+                updated_metadata
+            }
         };
-        let display_code = Self::derive_display_code(&asset.kind, &updated_metadata);
 
-        // Persist asset details update
-        self.alternative_asset_repository
-            .update_asset_details(
-                &request.asset_id,
-                request.name.as_deref(),
-                Some(&display_code),
-                updated_metadata,
-                request.notes.as_deref(),
-            )
+        let purchase_quote_updated = self
+            .sync_purchase_quote(&asset, updated_metadata.as_ref())
             .await?;
-
-        // Check if purchase info changed and update/create purchase quote
-        let mut purchase_quote_updated = false;
-        let purchase_info_changed =
-            old_purchase_price != new_purchase_price || old_purchase_date != new_purchase_date;
-
-        if purchase_info_changed {
-            if let (Some(price_str), Some(date_str)) = (&new_purchase_price, &new_purchase_date) {
-                let purchase_price: Decimal = price_str.parse().map_err(|_| {
-                    Error::Validation(ValidationError::InvalidInput(
-                        "Invalid purchase price format".to_string(),
-                    ))
-                })?;
-                let purchase_date = chrono::NaiveDate::parse_from_str(date_str, "%Y-%m-%d")
-                    .map_err(|_| {
-                        Error::Validation(ValidationError::InvalidInput(
-                            "Invalid purchase date format".to_string(),
-                        ))
-                    })?;
-
-                let purchase_quote = Quote {
-                    id: Uuid::new_v4().to_string(),
-                    asset_id: request.asset_id.clone(),
-                    timestamp: Utc.from_utc_datetime(
-                        &purchase_date
-                            .and_hms_opt(12, 0, 0)
-                            .expect("12:00:00 is a valid time"),
-                    ),
-                    open: purchase_price,
-                    high: purchase_price,
-                    low: purchase_price,
-                    close: purchase_price,
-                    adjclose: purchase_price,
-                    volume: Decimal::ZERO,
-                    currency: asset.quote_ccy.clone(),
-                    data_source: DATA_SOURCE_MANUAL.to_string(),
-                    created_at: Utc::now(),
-                    notes: None,
-                };
-
-                self.quote_service.add_quote(&purchase_quote).await?;
-                purchase_quote_updated = true;
-                debug!(
-                    "Updated purchase quote for {} at {} with value {}",
-                    request.asset_id, purchase_date, purchase_price
-                );
-            }
-        }
 
         debug!(
             "Updated asset details for {}, purchase_quote_updated: {}",

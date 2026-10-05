@@ -5,7 +5,6 @@ import {
   formValuesToMetadata,
   getDefaultDetailsFormValues,
   liabilityLoanSetup,
-  loanSetupAction,
   type LiabilityDetailsFormValues,
 } from "./asset-details-sheet-schema";
 
@@ -92,8 +91,7 @@ describe("correcting original loan terms", () => {
       amortizationMonths: null,
       originalAmount: 1500,
     }) as LiabilityDetailsFormValues;
-    expect(loanSetupAction(values)).toEqual({
-      type: "set_terms",
+    expect(liabilityLoanSetup(values)).toEqual({
       originalAmount: 1500,
       originationDate: "2026-01-01",
       interestRate: 6,

@@ -131,6 +131,9 @@ pub struct UpdateAssetDetailsRequest {
     pub name: Option<String>,
     pub metadata: std::collections::HashMap<String, String>,
     pub notes: Option<String>,
+    /// A liability's loan section, saved with the other details.
+    #[serde(default)]
+    pub loan: Option<wealthfolio_core::assets::loan::LoanSetup>,
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -269,6 +272,7 @@ async fn update_alternative_asset_metadata(
         name: request.name,
         notes: request.notes,
         metadata: Some(metadata_map),
+        loan: request.loan,
     };
 
     // Delegate to core service

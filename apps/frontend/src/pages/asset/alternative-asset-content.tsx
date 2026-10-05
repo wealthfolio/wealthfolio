@@ -44,6 +44,7 @@ import { MortgageOverview, LoanOverview } from "./alternative-assets/components/
 import { useAlternativeAssetMutations } from "./alternative-assets/hooks/use-alternative-asset-mutations";
 import { useQuoteMutations } from "./hooks/use-quote-mutations";
 import { LinkedLiabilitiesSection } from "./linked-liabilities-card";
+import type { LoanSetup } from "@/adapters/shared/alternative-assets";
 
 interface AlternativeAssetContentProps {
   assetId: string;
@@ -748,6 +749,7 @@ export function useAlternativeAssetActions({
     metadata: Record<string, string>,
     name?: string,
     notes?: string | null,
+    loan?: LoanSetup,
   ) => {
     if (!holding) return;
     await updateMetadataMutation.mutateAsync({
@@ -755,6 +757,7 @@ export function useAlternativeAssetActions({
       metadata,
       name,
       notes,
+      loan,
     });
   };
 
