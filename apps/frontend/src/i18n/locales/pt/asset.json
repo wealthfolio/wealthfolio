@@ -1003,7 +1003,8 @@
     "applies_instalment": "A prestação perto da sua data",
     "applies_extra": "Capital extra",
     "escrow_default": "O valor habitual do empréstimo",
-    "duplicates_event": "Já existe uma amortização adicional deste valor registada neste dia. Se este levantamento é essa amortização, use-o em vez dela para que conte uma só vez.",
+    "escrow_none": "Nenhum, salvo se o indicar",
+    "duplicates_event": "Já existe uma amortização adicional deste valor registada neste dia. Se este levantamento é essa amortização, use-o em vez dela para que conte uma só vez. Conta então integralmente como capital extra, salvo se indicar impostos e seguro.",
     "replace_event": "Usar este levantamento em vez disso",
     "extra_already_linked": "Um levantamento associado já amortizou este valor neste dia.",
     "extra_already_recorded": "Já existe uma amortização adicional deste valor registada neste dia."

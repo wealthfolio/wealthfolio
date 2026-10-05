@@ -987,7 +987,8 @@
     "applies_instalment": "Die Rate um dieses Datum",
     "applies_extra": "Sondertilgung",
     "escrow_default": "Der übliche Betrag des Kredits",
-    "duplicates_event": "Für diesen Tag ist bereits eine Sondertilgung in dieser Höhe erfasst. Wenn diese Abbuchung diese Tilgung ist, verwenden Sie stattdessen sie, damit sie nur einmal zählt.",
+    "escrow_none": "Keine, sofern nicht eingegeben",
+    "duplicates_event": "Für diesen Tag ist bereits eine Sondertilgung in dieser Höhe erfasst. Wenn diese Abbuchung diese Tilgung ist, verwenden Sie stattdessen sie, damit sie nur einmal zählt. Sie zählt dann vollständig als Sondertilgung, sofern Sie keine Steuern und Versicherung eingeben.",
     "replace_event": "Stattdessen diese Abbuchung verwenden",
     "extra_already_linked": "Eine verknüpfte Abbuchung hat diesen Betrag an diesem Tag bereits getilgt.",
     "extra_already_recorded": "Für diesen Tag ist bereits eine Sondertilgung in dieser Höhe erfasst."

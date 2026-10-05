@@ -987,7 +987,8 @@
     "applies_instalment": "The instalment due near its date",
     "applies_extra": "Extra principal",
     "escrow_default": "The loan's usual amount",
-    "duplicates_event": "An extra repayment of this amount is already recorded on this day. If this withdrawal is that repayment, use it instead so it counts once.",
+    "escrow_none": "None unless you enter it",
+    "duplicates_event": "An extra repayment of this amount is already recorded on this day. If this withdrawal is that repayment, use it instead so it counts once. All of it then counts as extra principal, unless you enter escrow.",
     "replace_event": "Use this withdrawal instead",
     "extra_already_linked": "A linked withdrawal already repaid this amount on this day.",
     "extra_already_recorded": "An extra repayment of this amount is already recorded on this day."

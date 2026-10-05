@@ -1003,7 +1003,8 @@
     "applies_instalment": "La rata vicina alla sua data",
     "applies_extra": "Capitale extra",
     "escrow_default": "L'importo abituale del prestito",
-    "duplicates_event": "In questo giorno è già registrato un rimborso aggiuntivo di questo importo. Se questo prelievo è quel rimborso, usalo al suo posto così conta una sola volta.",
+    "escrow_none": "Nessuno, salvo se indicato",
+    "duplicates_event": "In questo giorno è già registrato un rimborso aggiuntivo di questo importo. Se questo prelievo è quel rimborso, usalo al suo posto così conta una sola volta. Conta quindi interamente come capitale extra, salvo se indichi tasse e assicurazione.",
     "replace_event": "Usa invece questo prelievo",
     "extra_already_linked": "Un prelievo collegato ha già rimborsato questo importo in questo giorno.",
     "extra_already_recorded": "In questo giorno è già registrato un rimborso aggiuntivo di questo importo."

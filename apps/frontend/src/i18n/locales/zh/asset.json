@@ -987,7 +987,8 @@
     "applies_instalment": "日期附近到期的分期",
     "applies_extra": "额外本金",
     "escrow_default": "贷款的通常金额",
-    "duplicates_event": "该日期已记录了相同金额的额外还款。如果这笔取款就是那次还款，请改用这笔取款，使其只计算一次。",
+    "escrow_none": "除非填写，否则为无",
+    "duplicates_event": "该日期已记录了相同金额的额外还款。如果这笔取款就是那次还款，请改用这笔取款，使其只计算一次。届时除非填写税费和保险，否则全部计为额外本金。",
     "replace_event": "改用这笔取款",
     "extra_already_linked": "已关联的取款已在该日期偿还了这笔金额。",
     "extra_already_recorded": "该日期已记录了相同金额的额外还款。"

@@ -160,7 +160,12 @@ export function ActivityLoanPaymentSheet({
                 <MoneyInput
                   id={escrowId}
                   value={escrow}
-                  placeholder={t("asset:loanPayments.escrow_default")}
+                  // A replaced extra repayment has no escrow unless one is entered.
+                  placeholder={t(
+                    duplicate
+                      ? "asset:loanPayments.escrow_none"
+                      : "asset:loanPayments.escrow_default",
+                  )}
                   onValueChange={(value) => setEscrow(value ?? null)}
                 />
               </div>

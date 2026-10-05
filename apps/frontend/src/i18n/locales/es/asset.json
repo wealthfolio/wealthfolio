@@ -1003,7 +1003,8 @@
     "applies_instalment": "La cuota cercana a su fecha",
     "applies_extra": "Capital extra",
     "escrow_default": "El importe habitual del préstamo",
-    "duplicates_event": "Ya hay una amortización adicional de este importe registrada en este día. Si este retiro es esa amortización, úsalo en su lugar para que cuente una sola vez.",
+    "escrow_none": "Ninguno, salvo que lo indiques",
+    "duplicates_event": "Ya hay una amortización adicional de este importe registrada en este día. Si este retiro es esa amortización, úsalo en su lugar para que cuente una sola vez. Entonces cuenta íntegramente como capital extra, salvo que indiques impuestos y seguro.",
     "replace_event": "Usar este retiro en su lugar",
     "extra_already_linked": "Un retiro vinculado ya amortizó este importe en este día.",
     "extra_already_recorded": "Ya hay una amortización adicional de este importe registrada en este día."

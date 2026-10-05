@@ -1003,7 +1003,8 @@
     "applies_instalment": "L'échéance proche de sa date",
     "applies_extra": "Capital supplémentaire",
     "escrow_default": "Le montant habituel du prêt",
-    "duplicates_event": "Un remboursement supplémentaire de ce montant est déjà enregistré ce jour-là. Si ce retrait correspond à ce remboursement, utilisez-le à sa place pour qu’il ne compte qu’une fois.",
+    "escrow_none": "Aucun, sauf si vous le saisissez",
+    "duplicates_event": "Un remboursement supplémentaire de ce montant est déjà enregistré ce jour-là. Si ce retrait correspond à ce remboursement, utilisez-le à sa place pour qu’il ne compte qu’une fois. Il compte alors entièrement comme capital supplémentaire, sauf si vous saisissez des taxes et assurance.",
     "replace_event": "Utiliser ce retrait à la place",
     "extra_already_linked": "Un retrait lié a déjà remboursé ce montant ce jour-là.",
     "extra_already_recorded": "Un remboursement supplémentaire de ce montant est déjà enregistré ce jour-là."

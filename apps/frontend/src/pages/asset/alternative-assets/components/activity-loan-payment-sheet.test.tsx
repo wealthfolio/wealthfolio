@@ -162,8 +162,13 @@ describe("linking a withdrawal from its account", () => {
     fireEvent.change(screen.getByRole("combobox", { name: "Loan" }), {
       target: { value: "mortgage" },
     });
+    const escrow = screen.getByLabelText("Escrow per payment");
+    expect(escrow).toHaveAttribute("placeholder", "The loan's usual amount");
     fireEvent.click(screen.getByRole("button", { name: "Link" }));
-    fireEvent.click(await screen.findByRole("button", { name: "Use this withdrawal instead" }));
+    const replace = await screen.findByRole("button", { name: "Use this withdrawal instead" });
+    // The replacement is all extra principal, so no escrow is assumed.
+    expect(escrow).toHaveAttribute("placeholder", "None unless you enter it");
+    fireEvent.click(replace);
     await waitFor(() => expect(onChanged).toHaveBeenCalled());
     expect(mocks.link).toHaveBeenLastCalledWith("act", {
       type: "link",
