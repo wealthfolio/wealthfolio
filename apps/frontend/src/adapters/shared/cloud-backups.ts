@@ -6,12 +6,10 @@ export interface CloudBackupPoint {
   metadata?: { device_name?: string; profile_name?: string; app_version?: string } | null;
 }
 export interface CloudBackupCaptureStatus {
-  state: "idle" | "running" | "failed" | "unchanged";
+  state: "idle" | "running" | "failed";
   retryAt: string | null;
   /** Local completion counter catches uploads that finish between progress reads. */
   completed: number;
-  lastCheckedAt?: string | null;
-  nextCheckAt?: string | null;
 }
 export interface CloudBackupStatus {
   /** In-memory health from this profile's scheduler; never a cloud policy field. */

@@ -24,10 +24,6 @@ pub struct CaptureStatus {
     pub state: CaptureState,
     pub retry_at: Option<chrono::DateTime<chrono::Utc>>,
     pub completed: u64,
-    pub last_checked_at: Option<chrono::DateTime<chrono::Utc>>,
-    pub next_check_at: Option<chrono::DateTime<chrono::Utc>>,
-    #[serde(skip)]
-    checked_policy_revision: Option<u32>,
 }
 #[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -36,7 +32,6 @@ pub enum CaptureState {
     Idle,
     Running,
     Failed,
-    Unchanged,
 }
 
 /// An outer request timeout or task abort drops capture before its caller can
@@ -109,48 +104,12 @@ impl BackupScheduler {
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
         if self.is_current(generation) {
-            status.state = if !failed && status.state == CaptureState::Unchanged {
-                CaptureState::Unchanged
-            } else if failed {
+            status.state = if failed {
                 CaptureState::Failed
             } else {
                 CaptureState::Idle
             };
             status.retry_at = failed.then(|| chrono::Utc::now() + chrono::Duration::minutes(30));
-        }
-    }
-
-    /// Native resume still checks the cloud source policy, but a matching policy
-    /// can keep the existing daily deadline without another database export.
-    pub fn unchanged_delay(&self, generation: u64, revision: u32) -> Option<Duration> {
-        let status = self
-            .status
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
-        if !self.is_current(generation)
-            || status.state != CaptureState::Unchanged
-            || status.checked_policy_revision != Some(revision)
-        {
-            return None;
-        }
-        (status.next_check_at? - chrono::Utc::now())
-            .to_std()
-            .ok()
-            .filter(|delay| !delay.is_zero())
-    }
-
-    pub fn unchanged(&self, generation: u64, revision: u32) {
-        let mut status = self
-            .status
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
-        if self.is_current(generation) {
-            status.state = CaptureState::Unchanged;
-            status.retry_at = None;
-            let checked = chrono::Utc::now();
-            status.last_checked_at = Some(checked);
-            status.next_check_at = Some(checked + chrono::Duration::hours(24));
-            status.checked_policy_revision = Some(revision);
         }
     }
 
@@ -161,14 +120,9 @@ impl BackupScheduler {
             .unwrap_or_else(|poisoned| poisoned.into_inner());
         if self.is_current(generation) {
             status.completed = status.completed.wrapping_add(1);
-            status.last_checked_at = Some(chrono::Utc::now());
-            status.next_check_at = None;
         }
     }
     pub fn wake(&self) {
-        self.notify(false);
-    }
-    fn notify(&self, preserve_unchanged_check: bool) {
         // Existing lifecycle/user notifications also invalidate an admitted capture.
         // An upload may finish, but an obsolete account/profile must not publish it.
         let mut status = self
@@ -176,11 +130,7 @@ impl BackupScheduler {
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
         self.generation.fetch_add(1, Ordering::SeqCst);
-        if !preserve_unchanged_check || status.state != CaptureState::Unchanged {
-            status.state = CaptureState::Idle;
-            status.next_check_at = None;
-            status.checked_policy_revision = None;
-        }
+        status.state = CaptureState::Idle;
         status.retry_at = None;
         self.wake.notify_one();
     }
@@ -192,7 +142,7 @@ impl BackupScheduler {
     /// Mobile lifecycle events pause new checks; resume immediately checks whether one is due.
     pub fn set_paused(&self, paused: bool) {
         if self.paused.swap(paused, Ordering::SeqCst) != paused {
-            self.notify(true);
+            self.wake();
         }
     }
 
@@ -230,8 +180,6 @@ impl BackupScheduler {
                 if self.is_current(generation) && status.state != CaptureState::Running {
                     status.state = if result.is_err() {
                         CaptureState::Failed
-                    } else if status.state == CaptureState::Unchanged {
-                        CaptureState::Unchanged
                     } else {
                         CaptureState::Idle
                     };
@@ -269,57 +217,6 @@ impl BackupScheduler {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn mobile_resume_preserves_the_daily_check_but_user_actions_and_policy_changes_do_not() {
-        let scheduler = BackupScheduler::default();
-        scheduler.unchanged(scheduler.generation(), 7);
-        let before = scheduler.status().next_check_at;
-        scheduler.set_paused(true);
-        scheduler.set_paused(false);
-        assert_eq!(scheduler.status().next_check_at, before);
-        assert_eq!(scheduler.status().state, CaptureState::Unchanged);
-        assert!(scheduler
-            .unchanged_delay(scheduler.generation(), 7)
-            .is_some());
-        assert!(scheduler
-            .unchanged_delay(scheduler.generation(), 8)
-            .is_none());
-        assert!(scheduler
-            .unchanged_delay(scheduler.generation() - 1, 7)
-            .is_none());
-        scheduler.wake();
-        assert!(scheduler
-            .unchanged_delay(scheduler.generation(), 7)
-            .is_none());
-        assert_eq!(scheduler.status().state, CaptureState::Idle);
-    }
-
-    #[tokio::test]
-    async fn unchanged_check_has_its_own_schedule_without_claiming_a_publication() {
-        let scheduler = BackupScheduler::default();
-        let generation = scheduler.generation();
-        scheduler.started(generation);
-        scheduler.unchanged(generation, 1);
-        scheduler.finished(generation, false);
-        let status = scheduler.status();
-        assert_eq!(status.state, CaptureState::Unchanged);
-        assert_eq!(status.completed, 0);
-        assert!(status.last_checked_at.is_some());
-        assert_eq!(
-            status.next_check_at.unwrap() - status.last_checked_at.unwrap(),
-            chrono::Duration::hours(24)
-        );
-        scheduler.wake();
-        assert_eq!(scheduler.status().state, CaptureState::Idle);
-        assert!(scheduler.status().next_check_at.is_none());
-        scheduler.unchanged(generation, 1);
-        assert_eq!(
-            scheduler.status().state,
-            CaptureState::Idle,
-            "obsolete capture must not mark unchanged"
-        );
-    }
 
     #[tokio::test]
     async fn completing_capture_leaves_finalization_to_its_caller() {

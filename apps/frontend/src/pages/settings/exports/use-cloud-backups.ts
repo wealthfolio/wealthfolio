@@ -79,9 +79,6 @@ export function backupState(data: CloudBackupStatus) {
   if (data.capture?.state === "running") return "running";
   if (data.capture?.state === "failed") return "failed";
   if (!data.policy.lastBackupAt) return "waiting";
-  const nextCheck = backupDate(data.capture?.nextCheckAt ?? null);
-  if (data.capture?.state === "unchanged" && nextCheck && nextCheck.getTime() > Date.now())
-    return "unchanged";
   const due = backupDate(data.policy.nextDueAt);
   return due && due.getTime() <= Date.now() ? "due" : "on";
 }

@@ -39,7 +39,7 @@ pub async fn cloud_backup_action(
 }
 #[tauri::command]
 pub async fn cloud_backup_capture(runtime: ProfileAccess) -> Result<Option<BackupPoint>, String> {
-    let result = check_and_capture(&runtime.0, true).await?;
+    let result = check_and_capture(&runtime.0).await?;
     if result.0.is_some() {
         runtime.backup_scheduler.wake();
     }
@@ -48,7 +48,6 @@ pub async fn cloud_backup_capture(runtime: ProfileAccess) -> Result<Option<Backu
 
 async fn check_and_capture(
     runtime: &Arc<crate::database::DatabaseRuntime>,
-    force: bool,
 ) -> Result<(Option<BackupPoint>, Option<std::time::Duration>), String> {
     // Single-flight admission is distinct from lifecycle locks. A competing
     // automatic/manual check observes the active capture instead of failing it.
@@ -58,7 +57,7 @@ async fn check_and_capture(
     let generation = runtime.backup_scheduler.generation();
     let result = runtime
         .backup_scheduler
-        .until_changed(generation, capture_in_phases(runtime, generation, force))
+        .until_changed(generation, capture_in_phases(runtime, generation))
         .await
         .unwrap_or(Ok((None, None)));
     runtime
@@ -70,7 +69,6 @@ async fn check_and_capture(
 async fn capture_in_phases(
     runtime: &Arc<crate::database::DatabaseRuntime>,
     generation: u64,
-    force: bool,
 ) -> Result<(Option<BackupPoint>, Option<std::time::Duration>), String> {
     if runtime.backup_scheduler.is_paused() {
         return Ok((None, None));
@@ -108,14 +106,6 @@ async fn capture_in_phases(
     if runtime.backup_scheduler.is_paused() {
         return Ok((None, None));
     }
-    if !force {
-        if let Some(delay) = runtime
-            .backup_scheduler
-            .unchanged_delay(generation, policy.revision)
-        {
-            return Ok((None, Some(delay)));
-        }
-    }
     let material = client
         .capture_material(&token, runtime.secret_store.as_ref(), &policy)
         .await
@@ -129,28 +119,14 @@ async fn capture_in_phases(
     let access = runtime.access()?;
     let scratch = db::profile_scratch_dir(runtime.app_data_dir()).map_err(|e| e.to_string())?;
     let image = tauri::async_runtime::spawn_blocking(move || {
-        db::cloud_backups::capture_image(&access, &scratch)
+        db::cloud_backups::portable_image(&access, &scratch)
     })
     .await
     .map_err(|_| "Backup export task failed")?
     .map_err(|e| e.to_string())?;
-    if !force
-        && client
-            .is_unchanged(&token, &material, &image.fingerprint)
-            .await
-            .map_err(|e| e.to_string())?
-    {
-        if !runtime.backup_scheduler.is_current(generation) {
-            return Ok((None, None));
-        }
-        runtime
-            .backup_scheduler
-            .unchanged(generation, policy.revision);
-        return Ok((None, Some(std::time::Duration::from_secs(24 * 60 * 60))));
-    }
     let encoded = BackupClient::encode_capture(
         material,
-        image.database,
+        image,
         if policy.last_backup_at.is_some() {
             "scheduled"
         } else {
@@ -164,7 +140,6 @@ async fn capture_in_phases(
                 .and_then(|r| r.profile(runtime.profile_id).ok())
                 .map(|p| p.name),
             app_version: Some(env!("CARGO_PKG_VERSION").into()),
-            content_fingerprint: Some(image.fingerprint),
         },
     )
     .await
@@ -223,7 +198,7 @@ pub(crate) fn start_scheduler(
                 let Some(runtime) = runtime.filter(|runtime| runtime.profile_id == profile_id) else {
                     return Ok(None);
                 };
-                let result = check_and_capture(&runtime, false).await.map(|(_, next)| next);
+                let result = check_and_capture(&runtime).await.map(|(_, next)| next);
                 if result.is_err() {
                     log::warn!("Cloud backup attempt failed; check the last successful backup in settings");
                 }

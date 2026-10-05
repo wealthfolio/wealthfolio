@@ -67,9 +67,6 @@ pub struct BackupMetadata {
     pub profile_name: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub app_version: Option<String>,
-    /// Versioned logical digest; encrypted with the labels, never sent in plaintext.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub content_fingerprint: Option<String>,
 }
 impl BackupMetadata {
     fn bounded(mut self) -> Self {
@@ -87,20 +84,6 @@ fn metadata_aad(ctx: &BackupContext) -> Vec<u8> {
     context(&["metadata", "1", &ctx.user_id, &ctx.key_id, &ctx.backup_id])
 }
 impl BackupPoint {
-    fn decrypt_metadata(&self, master: &MasterKey) -> Option<BackupMetadata> {
-        let aad = metadata_aad(&BackupContext {
-            format: self.format,
-            user_id: self.user_id.clone(),
-            key_id: self.key_id.clone(),
-            backup_id: self.backup_id.clone(),
-        });
-        BASE64
-            .decode(&self.encrypted_metadata)
-            .ok()
-            .and_then(|bytes| open(&derive(&master.0, &aad), &bytes, &aad).ok())
-            .and_then(|bytes| serde_json::from_slice::<BackupMetadata>(&bytes).ok())
-            .map(BackupMetadata::bounded)
-    }
     pub fn delay_until_next(&self) -> ApiResult<std::time::Duration> {
         let published = crate::parse_sync_datetime_to_utc(&self.published_at)
             .map_err(|_| DeviceSyncError::invalid_request("Invalid backup schedule"))?;
@@ -440,24 +423,6 @@ impl BackupClient {
             policy: policy.clone(),
         })
     }
-    /// Read the current published history at each due check. No local fingerprint
-    /// cache can outlive deletion, a source change or recovery. Missing/old metadata
-    /// causes a full capture; a failed history read is a retryable check failure.
-    pub async fn is_unchanged(
-        &self,
-        token: &str,
-        material: &CaptureMaterial,
-        fingerprint: &str,
-    ) -> ApiResult<bool> {
-        if material.policy.last_backup_at.is_none() {
-            return Ok(false);
-        }
-        let history = self.history(token).await?;
-        let latest = history
-            .iter()
-            .max_by_key(|point| crate::parse_sync_datetime_to_utc(&point.published_at).ok());
-        Ok(latest.is_some_and(|point| unchanged_point(material, point, fingerprint)))
-    }
     pub async fn encode_capture(
         material: CaptureMaterial,
         database: zeroize::Zeroizing<Vec<u8>>,
@@ -752,10 +717,18 @@ impl BackupClient {
                         if point.user_id != policy.user_id {
                             continue;
                         }
-                        point.metadata = point.decrypt_metadata(&master).map(|mut labels| {
-                            labels.content_fingerprint = None;
-                            labels
+                        let aad = metadata_aad(&BackupContext {
+                            format: point.format,
+                            user_id: point.user_id.clone(),
+                            key_id: point.key_id.clone(),
+                            backup_id: point.backup_id.clone(),
                         });
+                        point.metadata = BASE64
+                            .decode(&point.encrypted_metadata)
+                            .ok()
+                            .and_then(|bytes| open(&derive(&master.0, &aad), &bytes, &aad).ok())
+                            .and_then(|bytes| serde_json::from_slice::<BackupMetadata>(&bytes).ok())
+                            .map(BackupMetadata::bounded);
                     }
                 }
                 let source_consented = store
@@ -789,27 +762,6 @@ impl BackupClient {
         Ok(())
     }
 }
-fn unchanged_point(material: &CaptureMaterial, point: &BackupPoint, fingerprint: &str) -> bool {
-    let published = crate::parse_sync_datetime_to_utc(&point.published_at).ok();
-    let last = material
-        .policy
-        .last_backup_at
-        .as_deref()
-        .and_then(|date| crate::parse_sync_datetime_to_utc(date).ok());
-    point.user_id == material.policy.user_id
-        && point.key_id == material.key_id
-        && point.source_id == material.source_id
-        && published.is_some()
-        && published == last
-        && point.format == 1
-        && point
-            .decrypt_metadata(&material.master)
-            .is_some_and(|metadata| {
-                metadata.app_version.as_deref() == Some(env!("CARGO_PKG_VERSION"))
-                    && metadata.content_fingerprint.as_deref() == Some(fingerprint)
-            })
-}
-
 fn crypto_error(error: BackupError) -> DeviceSyncError {
     DeviceSyncError::invalid_request(error.to_string())
 }
@@ -881,137 +833,6 @@ mod access_tests {
             )
             .unwrap();
     }
-    #[test]
-    fn unchanged_capture_requires_current_authenticated_same_source_metadata() {
-        let user = uuid::Uuid::new_v4().to_string();
-        let key = uuid::Uuid::new_v4().to_string();
-        let source = uuid::Uuid::new_v4().to_string();
-        let published = "2026-10-05T10:00:00Z";
-        let master = MasterKey::generate();
-        let ctx = BackupContext {
-            format: 1,
-            user_id: user.clone(),
-            key_id: key.clone(),
-            backup_id: uuid::Uuid::new_v4().to_string(),
-        };
-        let fingerprint = format!("logical-v1:{}", "a".repeat(64));
-        let labels = BackupMetadata {
-            app_version: Some(env!("CARGO_PKG_VERSION").into()),
-            content_fingerprint: Some(fingerprint.clone()),
-            ..Default::default()
-        };
-        let aad = metadata_aad(&ctx);
-        let metadata = BASE64.encode(
-            seal(
-                &derive(&master.0, &aad),
-                &serde_json::to_vec(&labels).unwrap(),
-                &aad,
-            )
-            .unwrap(),
-        );
-        let material = CaptureMaterial {
-            master,
-            key_id: key.clone(),
-            source_id: source.clone(),
-            policy: BackupPolicy {
-                user_id: user.clone(),
-                enabled: true,
-                source_id: Some(source.clone()),
-                revision: 1,
-                team_id: None,
-                next_due_at: Some(published.into()),
-                last_backup_at: Some(published.into()),
-                upload_entitled: true,
-            },
-        };
-        let point = BackupPoint {
-            backup_id: ctx.backup_id,
-            key_id: key,
-            user_id: user,
-            source_id: source,
-            size_bytes: 100,
-            checksum: format!("sha256:{}", "a".repeat(64)),
-            format: 1,
-            published_at: published.into(),
-            encrypted_metadata: metadata,
-            metadata: None,
-        };
-        assert!(unchanged_point(&material, &point, &fingerprint));
-        assert!(!unchanged_point(&material, &point, "changed"));
-        let mut other = point.clone();
-        other.source_id = uuid::Uuid::new_v4().to_string();
-        assert!(!unchanged_point(&material, &other, &fingerprint));
-        other = point.clone();
-        other.published_at = "2026-10-04T10:00:00Z".into();
-        assert!(!unchanged_point(&material, &other, &fingerprint));
-        other = point.clone();
-        other.key_id = uuid::Uuid::new_v4().to_string();
-        assert!(!unchanged_point(&material, &other, &fingerprint));
-        other = point;
-        other.encrypted_metadata = BASE64.encode(b"forged");
-        assert!(!unchanged_point(&material, &other, &fingerprint));
-        // Existing points have no fingerprint and must be uploaded once after upgrade.
-        assert!(serde_json::from_str::<BackupMetadata>("{}")
-            .unwrap()
-            .content_fingerprint
-            .is_none());
-    }
-
-    #[tokio::test]
-    async fn unchanged_history_checks_never_write_and_errors_do_not_skip_capture() {
-        for fail in [false, true] {
-            let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-            let url = format!("http://{}", listener.local_addr().unwrap());
-            let server = tokio::spawn(async move {
-                let (mut socket, _) = listener.accept().await.unwrap();
-                let mut request = Vec::new();
-                while !request.windows(4).any(|part| part == b"\r\n\r\n") {
-                    let mut chunk = [0; 4096];
-                    let n = socket.read(&mut chunk).await.unwrap();
-                    assert!(n > 0);
-                    request.extend_from_slice(&chunk[..n]);
-                }
-                assert!(
-                    String::from_utf8_lossy(&request).starts_with("GET /api/v1/backups/history ")
-                );
-                let (status, body) = if fail {
-                    (
-                        "503 Service Unavailable",
-                        "{\"code\":\"UNAVAILABLE\",\"message\":\"Unavailable\"}",
-                    )
-                } else {
-                    ("200 OK", "[]")
-                };
-                socket.write_all(format!("HTTP/1.1 {status}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len()).as_bytes()).await.unwrap();
-            });
-            let material = CaptureMaterial {
-                master: MasterKey::generate(),
-                key_id: uuid::Uuid::new_v4().to_string(),
-                source_id: uuid::Uuid::new_v4().to_string(),
-                policy: BackupPolicy {
-                    user_id: uuid::Uuid::new_v4().to_string(),
-                    enabled: true,
-                    source_id: None,
-                    revision: 1,
-                    team_id: None,
-                    next_due_at: None,
-                    last_backup_at: Some("2026-10-05T10:00:00Z".into()),
-                    upload_entitled: true,
-                },
-            };
-            let result = BackupClient::new(&url)
-                .unwrap()
-                .is_unchanged("test", &material, "logical-v1:test")
-                .await;
-            if fail {
-                assert!(result.is_err());
-            } else {
-                assert!(!result.unwrap(), "empty history must cause capture");
-            }
-            server.await.unwrap();
-        }
-    }
-
     #[tokio::test]
     async fn lifecycle_access_publishes_once_then_joiner_recovers_without_code() {
         exercise_access(false).await;

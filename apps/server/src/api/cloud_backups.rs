@@ -54,7 +54,6 @@ async fn action(
 }
 async fn check_and_capture(
     state: &Arc<AppState>,
-    force: bool,
 ) -> ApiResult<(Option<BackupPoint>, Option<std::time::Duration>)> {
     // Single-flight admission is distinct from lifecycle locks. A competing
     // automatic/manual check observes the active capture instead of failing it.
@@ -64,7 +63,7 @@ async fn check_and_capture(
     let generation = state.backup_scheduler.generation();
     let result = state
         .backup_scheduler
-        .until_changed(generation, capture_in_phases(state, generation, force))
+        .until_changed(generation, capture_in_phases(state, generation))
         .await
         .unwrap_or(Ok((None, None)));
     state.backup_scheduler.finished(generation, result.is_err());
@@ -73,7 +72,6 @@ async fn check_and_capture(
 async fn capture_in_phases(
     state: &Arc<AppState>,
     generation: u64,
-    force: bool,
 ) -> ApiResult<(Option<BackupPoint>, Option<std::time::Duration>)> {
     if state.backup_scheduler.is_paused() {
         return Ok((None, None));
@@ -103,14 +101,6 @@ async fn capture_in_phases(
     if !delay.is_zero() {
         return Ok((None, Some(delay)));
     }
-    if !force {
-        if let Some(delay) = state
-            .backup_scheduler
-            .unchanged_delay(generation, policy.revision)
-        {
-            return Ok((None, Some(delay)));
-        }
-    }
     let material = client
         .capture_material(&token, state.secret_store.as_ref(), &policy)
         .await
@@ -126,27 +116,13 @@ async fn capture_in_phases(
     let scratch = db::profile_scratch_dir(&state.data_root)?;
     let image = tokio::task::spawn_blocking(move || {
         let _owner = owner;
-        db::cloud_backups::capture_image(&access, &scratch)
+        db::cloud_backups::portable_image(&access, &scratch)
     })
     .await
     .map_err(|_| ApiError::Internal("Backup export task failed".into()))??;
-    if !force
-        && client
-            .is_unchanged(&token, &material, &image.fingerprint)
-            .await
-            .map_err(|e| ApiError::BadRequest(e.to_string()))?
-    {
-        if !state.backup_scheduler.is_current(generation) {
-            return Ok((None, None));
-        }
-        state
-            .backup_scheduler
-            .unchanged(generation, policy.revision);
-        return Ok((None, Some(std::time::Duration::from_secs(24 * 60 * 60))));
-    }
     let encoded = BackupClient::encode_capture(
         material,
-        image.database,
+        image,
         if policy.last_backup_at.is_some() {
             "scheduled"
         } else {
@@ -160,7 +136,6 @@ async fn capture_in_phases(
                 .and_then(|(r, id)| r.profile(*id).ok())
                 .map(|p| p.name),
             app_version: Some(env!("CARGO_PKG_VERSION").into()),
-            content_fingerprint: Some(image.fingerprint),
         },
     )
     .await
@@ -195,7 +170,7 @@ pub(crate) fn start_scheduler(state: Arc<AppState>) -> tokio::task::JoinHandle<(
         state.backup_scheduler.run(|| {
             let state = state.clone();
             async move {
-                let result = check_and_capture(&state, false).await.map(|(_, next)| next);
+                let result = check_and_capture(&state).await.map(|(_, next)| next);
                 if result.is_err() {
                     tracing::warn!("Cloud backup attempt failed; check the last successful backup in settings");
                 }
@@ -207,7 +182,7 @@ pub(crate) fn start_scheduler(state: Arc<AppState>) -> tokio::task::JoinHandle<(
 async fn capture_route(
     Extension(state): Extension<Arc<AppState>>,
 ) -> ApiResult<Json<Option<BackupPoint>>> {
-    let result = check_and_capture(&state, true).await?;
+    let result = check_and_capture(&state).await?;
     if result.0.is_some() {
         state.backup_scheduler.wake();
     }
@@ -295,7 +270,7 @@ mod tests {
             .await
             .unwrap();
         state.backup_scheduler.started(generation);
-        let competing = check_and_capture(&state, false).await.unwrap();
+        let competing = check_and_capture(&state).await.unwrap();
         assert!(competing.0.is_none());
         let Json(competing_manual) = capture_route(Extension(state.clone())).await.unwrap();
         assert!(competing_manual.is_none());
