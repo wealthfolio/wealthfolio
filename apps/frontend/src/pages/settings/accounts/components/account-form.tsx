@@ -88,6 +88,48 @@ function getSelectableCashCategoryFromMeta(meta?: string | null): string {
     : CASH_ALLOCATION_DEFAULT_VALUE;
 }
 
+// The methods the portfolio engine computes (CostBasisMethod::ALL); an account
+// without a method in its meta uses FIFO.
+const COST_BASIS_METHODS: readonly string[] = ["FIFO", "WAC"];
+const DEFAULT_COST_BASIS_METHOD = "FIFO";
+
+function asObject(value: unknown): Record<string, unknown> | null {
+  return value !== null && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function parseMetaObject(meta?: string | null): Record<string, unknown> | null {
+  if (!meta) return null;
+  try {
+    return asObject(JSON.parse(meta));
+  } catch {
+    return null;
+  }
+}
+
+function getAccountingFromMeta(meta?: string | null): Record<string, unknown> {
+  return asObject(parseMetaObject(meta)?.accounting) ?? {};
+}
+
+// The stored code as core reads it: exactly, without trimming or case folding,
+// so a code core refuses reads as unsupported here too.
+function getCostBasisMethodFromMeta(meta?: string | null): string {
+  const accounting = getAccountingFromMeta(meta);
+  const method = accounting.costBasisMethod ?? accounting.cost_basis_method;
+  return typeof method === "string" ? method : DEFAULT_COST_BASIS_METHOD;
+}
+
+function setCostBasisMethodInMeta(meta: string | null | undefined, method: string): string {
+  // Meta that is not a JSON object cannot hold settings: start a new one.
+  const parsed = parseMetaObject(meta) ?? {};
+  // Keep the rest of the accounting settings; one spelling of the method key.
+  const accounting = { ...getAccountingFromMeta(meta) };
+  delete accounting.cost_basis_method;
+  parsed.accounting = { ...accounting, costBasisMethod: method };
+  return JSON.stringify(parsed);
+}
+
 const accountTypeIcons = {
   [AccountType.SECURITIES]: Icons.Briefcase,
   [AccountType.CASH]: Icons.DollarSign,
@@ -149,6 +191,39 @@ export function AccountForm({ defaultValues, onSuccess = () => undefined }: Acco
   const currentAccountType = form.watch("accountType");
   const isCreditCardAccount = currentAccountType === AccountType.CREDIT_CARD;
   const isCashAccount = currentAccountType === AccountType.CASH;
+  // Only transactions accounts that hold securities keep lots.
+  const showsCostBasisMethod =
+    currentTrackingMode === "TRANSACTIONS" && !isCashAccount && !isCreditCardAccount;
+
+  const currentMeta = form.watch("meta");
+  const costBasisMethod = getCostBasisMethodFromMeta(currentMeta);
+  const savedCostBasisMethod = getCostBasisMethodFromMeta(defaultValues?.meta);
+  // Collapsed while the account uses the default; open when it does not, so
+  // a non-default method is never hidden.
+  const [costBasisOpen, setCostBasisOpen] = useState(
+    savedCostBasisMethod !== DEFAULT_COST_BASIS_METHOD,
+  );
+  const costBasisChanged = !!defaultValues?.id && costBasisMethod !== savedCostBasisMethod;
+  const costBasisDescription = COST_BASIS_METHODS.includes(costBasisMethod)
+    ? t(`settings:accounts.form_cost_basis_method_${costBasisMethod.toLowerCase()}_description`)
+    : null;
+  const costBasisMethods: ResponsiveSelectOption[] = useMemo(() => {
+    const options: ResponsiveSelectOption[] = COST_BASIS_METHODS.map((method) => ({
+      label: t(`settings:accounts.form_cost_basis_method_${method.toLowerCase()}`),
+      value: method,
+    }));
+    // A stored method the engine does not compute fails this account's
+    // calculation: show it, so choosing another is the fix.
+    if (!COST_BASIS_METHODS.includes(costBasisMethod)) {
+      options.push({
+        label: t("settings:accounts.form_cost_basis_method_unsupported", {
+          method: costBasisMethod,
+        }),
+        value: costBasisMethod,
+      });
+    }
+    return options;
+  }, [costBasisMethod, t]);
 
   const { data: assetClassesTaxonomy } = useTaxonomy(isCashAccount ? "asset_classes" : null);
   const fixedIncomeCategoryName = useMemo(() => {
@@ -252,123 +327,181 @@ export function AccountForm({ defaultValues, onSuccess = () => undefined }: Acco
 
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(320px,0.9fr)]">
           <input type="hidden" name="id" />
-          <section className={formCardClassName}>
-            <h3 className={formSectionLabelClassName}>{t("settings:accounts.form_identity")}</h3>
-            <div className="mt-4 grid gap-4">
-              <FormField
-                control={form.control}
-                name="name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t("settings:accounts_form_name_label")}</FormLabel>
-                    <FormControl>
-                      <Input
-                        data-testid="account-name-input"
-                        placeholder={t("settings:accounts_form_name_placeholder")}
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="group"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t("settings:accounts_form_group_label")}</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder={t("settings:accounts_form_group_placeholder")}
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="accountType"
-                render={({ field }) => (
-                  <FormItem className="flex flex-col">
-                    <FormLabel>{t("settings:accounts_form_type_label")}</FormLabel>
-                    <FormControl>
-                      <ResponsiveSelect
-                        value={field.value}
-                        onValueChange={field.onChange}
-                        options={accountTypes}
-                        placeholder={t("settings:accounts_form_type_placeholder")}
-                        sheetTitle={t("settings:accounts_form_type_sheet_title")}
-                        sheetDescription={t("settings:accounts_form_type_sheet_description")}
-                        triggerClassName="h-11"
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              {!defaultValues?.id ? (
+          <div className="contents lg:grid lg:content-start lg:gap-4">
+            <section className={formCardClassName}>
+              <h3 className={formSectionLabelClassName}>{t("settings:accounts.form_identity")}</h3>
+              <div className="mt-4 grid gap-4">
                 <FormField
                   control={form.control}
-                  name="currency"
+                  name="name"
                   render={({ field }) => (
-                    <FormItem className="flex flex-col">
-                      <FormLabel>{t("settings:accounts_form_currency_label")}</FormLabel>
+                    <FormItem>
+                      <FormLabel>{t("settings:accounts_form_name_label")}</FormLabel>
                       <FormControl>
-                        <CurrencyInput
-                          data-testid="account-currency-select"
-                          value={field.value}
-                          onChange={(value: string) => field.onChange(value)}
+                        <Input
+                          data-testid="account-name-input"
+                          placeholder={t("settings:accounts_form_name_placeholder")}
+                          {...field}
                         />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-              ) : null}
+                <FormField
+                  control={form.control}
+                  name="group"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t("settings:accounts_form_group_label")}</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder={t("settings:accounts_form_group_placeholder")}
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
-              {isCashAccount && (
-                <div className="flex flex-col gap-2">
-                  <div>
-                    <label className="text-sm font-medium">
-                      {t("settings:accounts.form_cash_classification_label")}
-                    </label>
-                    <p className="text-muted-foreground text-xs">
-                      {t("settings:accounts.form_cash_classification_description")}
-                    </p>
+                <FormField
+                  control={form.control}
+                  name="accountType"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-col">
+                      <FormLabel>{t("settings:accounts_form_type_label")}</FormLabel>
+                      <FormControl>
+                        <ResponsiveSelect
+                          value={field.value}
+                          onValueChange={field.onChange}
+                          options={accountTypes}
+                          placeholder={t("settings:accounts_form_type_placeholder")}
+                          sheetTitle={t("settings:accounts_form_type_sheet_title")}
+                          sheetDescription={t("settings:accounts_form_type_sheet_description")}
+                          triggerClassName="h-11"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                {!defaultValues?.id ? (
+                  <FormField
+                    control={form.control}
+                    name="currency"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-col">
+                        <FormLabel>{t("settings:accounts_form_currency_label")}</FormLabel>
+                        <FormControl>
+                          <CurrencyInput
+                            data-testid="account-currency-select"
+                            value={field.value}
+                            onChange={(value: string) => field.onChange(value)}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                ) : null}
+
+                {isCashAccount && (
+                  <div className="flex flex-col gap-2">
+                    <div>
+                      <label className="text-sm font-medium">
+                        {t("settings:accounts.form_cash_classification_label")}
+                      </label>
+                      <p className="text-muted-foreground text-xs">
+                        {t("settings:accounts.form_cash_classification_description")}
+                      </p>
+                    </div>
+                    <ToggleGroup
+                      type="single"
+                      aria-label={t("settings:accounts.form_cash_classification_aria")}
+                      value={getSelectableCashCategoryFromMeta(form.watch("meta"))}
+                      onValueChange={(v) => {
+                        if (!v) return;
+                        const categoryId = v === CASH_ALLOCATION_DEFAULT_VALUE ? null : v;
+                        const updatedMeta = setCashCategoryInMeta(
+                          form.getValues("meta"),
+                          categoryId,
+                        );
+                        form.setValue("meta", updatedMeta, { shouldDirty: true });
+                      }}
+                      className="bg-muted grid h-11 grid-cols-2 rounded-lg p-1"
+                    >
+                      <ToggleGroupItem
+                        value={CASH_ALLOCATION_DEFAULT_VALUE}
+                        className={cashClassificationItemClassName}
+                      >
+                        {t("settings:accounts.form_cash_classification_cash")}
+                      </ToggleGroupItem>
+                      <ToggleGroupItem
+                        value={CASH_FIXED_INCOME_CATEGORY_ID}
+                        className={cashClassificationItemClassName}
+                      >
+                        {fixedIncomeCategoryName}
+                      </ToggleGroupItem>
+                    </ToggleGroup>
                   </div>
-                  <ToggleGroup
-                    type="single"
-                    aria-label={t("settings:accounts.form_cash_classification_aria")}
-                    value={getSelectableCashCategoryFromMeta(form.watch("meta"))}
-                    onValueChange={(v) => {
-                      if (!v) return;
-                      const categoryId = v === CASH_ALLOCATION_DEFAULT_VALUE ? null : v;
-                      const updatedMeta = setCashCategoryInMeta(form.getValues("meta"), categoryId);
-                      form.setValue("meta", updatedMeta, { shouldDirty: true });
-                    }}
-                    className="bg-muted grid h-11 grid-cols-2 rounded-lg p-1"
-                  >
-                    <ToggleGroupItem
-                      value={CASH_ALLOCATION_DEFAULT_VALUE}
-                      className={cashClassificationItemClassName}
-                    >
-                      {t("settings:accounts.form_cash_classification_cash")}
-                    </ToggleGroupItem>
-                    <ToggleGroupItem
-                      value={CASH_FIXED_INCOME_CATEGORY_ID}
-                      className={cashClassificationItemClassName}
-                    >
-                      {fixedIncomeCategoryName}
-                    </ToggleGroupItem>
-                  </ToggleGroup>
-                </div>
-              )}
-            </div>
-          </section>
+                )}
+              </div>
+            </section>
+            <section className={cn(formCardClassName, "order-last lg:order-none")}>
+              <h3 className={formSectionLabelClassName}>
+                {t("settings:accounts.form_visibility")}
+              </h3>
+              <div className="mt-4 grid gap-4">
+                <FormField
+                  control={form.control}
+                  name="isActive"
+                  render={({ field }) => (
+                    <FormItem className="flex items-center justify-between gap-4 space-y-0">
+                      <div className="min-w-0">
+                        <FormLabel className="text-sm font-normal">
+                          {t("settings:accounts.form_hide_label")}
+                          <span className="text-muted-foreground ml-1 text-xs font-normal">
+                            {t("settings:accounts.form_hide_hint")}
+                          </span>
+                        </FormLabel>
+                        <FormMessage />
+                      </div>
+                      <FormControl>
+                        <Switch
+                          checked={!field.value}
+                          onCheckedChange={(checked) => field.onChange(!checked)}
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+
+                {defaultValues?.id && (
+                  <FormField
+                    control={form.control}
+                    name="isArchived"
+                    render={({ field }) => (
+                      <FormItem className="flex items-center justify-between gap-4 space-y-0">
+                        <div className="min-w-0">
+                          <FormLabel className="text-sm font-normal">
+                            {t("settings:accounts.form_archive_label")}
+                            <span className="text-muted-foreground ml-1 text-xs font-normal">
+                              {t("settings:accounts.form_archive_hint")}
+                            </span>
+                          </FormLabel>
+                          <FormMessage />
+                        </div>
+                        <FormControl>
+                          <Switch checked={field.value} onCheckedChange={field.onChange} />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                )}
+              </div>
+            </section>
+          </div>
 
           <div className="grid content-start gap-4">
             <FormField
@@ -466,63 +599,67 @@ export function AccountForm({ defaultValues, onSuccess = () => undefined }: Acco
                     </Alert>
                   )}
                   <FormMessage />
+                  {showsCostBasisMethod && (
+                    <div className="border-border border-t pt-4">
+                      <button
+                        type="button"
+                        aria-expanded={costBasisOpen}
+                        aria-controls="account-cost-basis"
+                        onClick={() => setCostBasisOpen((open) => !open)}
+                        className="flex w-full items-center justify-between gap-3 text-left"
+                      >
+                        <span className="text-sm font-medium">
+                          {t("settings:accounts.form_cost_basis_method_label")}
+                        </span>
+                        <span className="text-muted-foreground flex items-center gap-1 text-sm">
+                          {!costBasisOpen && costBasisMethod}
+                          <Icons.ChevronDown
+                            className={cn(
+                              "h-4 w-4 transition-transform",
+                              costBasisOpen && "rotate-180",
+                            )}
+                          />
+                        </span>
+                      </button>
+                      {costBasisOpen && (
+                        <div id="account-cost-basis" className="mt-2 flex flex-col gap-2">
+                          <p className="text-muted-foreground text-xs">
+                            {t("settings:accounts.form_cost_basis_method_description")}
+                          </p>
+                          <ResponsiveSelect
+                            aria-label={t("settings:accounts.form_cost_basis_method_label")}
+                            value={costBasisMethod}
+                            onValueChange={(method) => {
+                              const updatedMeta = setCostBasisMethodInMeta(
+                                form.getValues("meta"),
+                                method,
+                              );
+                              form.setValue("meta", updatedMeta, { shouldDirty: true });
+                            }}
+                            options={costBasisMethods}
+                            placeholder={t("settings:accounts.form_cost_basis_method_label")}
+                            sheetTitle={t("settings:accounts.form_cost_basis_method_label")}
+                            sheetDescription={t(
+                              "settings:accounts.form_cost_basis_method_description",
+                            )}
+                            triggerClassName="h-11"
+                          />
+                          {costBasisDescription && (
+                            <p className="text-muted-foreground text-xs">{costBasisDescription}</p>
+                          )}
+                        </div>
+                      )}
+                      {costBasisChanged && (
+                        <p className="text-muted-foreground mt-2 flex items-start gap-1.5 text-xs">
+                          <Icons.Info className="mt-px h-3.5 w-3.5 shrink-0" />
+                          {t("settings:accounts.form_cost_basis_method_changed")}
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </FormItem>
               )}
             />
-
-            <section className={formCardClassName}>
-              <h3 className={formSectionLabelClassName}>
-                {t("settings:accounts.form_visibility")}
-              </h3>
-              <div className="mt-4 grid gap-4">
-                <FormField
-                  control={form.control}
-                  name="isActive"
-                  render={({ field }) => (
-                    <FormItem className="flex items-center justify-between gap-4 space-y-0">
-                      <div className="min-w-0">
-                        <FormLabel className="text-sm font-normal">
-                          {t("settings:accounts.form_hide_label")}
-                          <span className="text-muted-foreground ml-1 text-xs font-normal">
-                            {t("settings:accounts.form_hide_hint")}
-                          </span>
-                        </FormLabel>
-                        <FormMessage />
-                      </div>
-                      <FormControl>
-                        <Switch
-                          checked={!field.value}
-                          onCheckedChange={(checked) => field.onChange(!checked)}
-                        />
-                      </FormControl>
-                    </FormItem>
-                  )}
-                />
-
-                {defaultValues?.id && (
-                  <FormField
-                    control={form.control}
-                    name="isArchived"
-                    render={({ field }) => (
-                      <FormItem className="flex items-center justify-between gap-4 space-y-0">
-                        <div className="min-w-0">
-                          <FormLabel className="text-sm font-normal">
-                            {t("settings:accounts.form_archive_label")}
-                            <span className="text-muted-foreground ml-1 text-xs font-normal">
-                              {t("settings:accounts.form_archive_hint")}
-                            </span>
-                          </FormLabel>
-                          <FormMessage />
-                        </div>
-                        <FormControl>
-                          <Switch checked={field.value} onCheckedChange={field.onChange} />
-                        </FormControl>
-                      </FormItem>
-                    )}
-                  />
-                )}
-              </div>
-            </section>
           </div>
         </div>
         <DialogFooter className="gap-2">
