@@ -13,7 +13,7 @@ import { applyLoanAction } from "@/adapters";
 import { useAccounts } from "@/hooks/use-accounts";
 import { invalidateAlternativeAssetQueries } from "../hooks/use-alternative-asset-mutations";
 import { useLoanSchedulePreview } from "../hooks/use-loan-calculation";
-import { loanErrorText } from "./loan-error-text";
+import { loanErrorField, loanErrorText, type LoanSetupField } from "./loan-error-text";
 import { useForm, type Resolver } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
@@ -770,6 +770,31 @@ function LiabilityFields({
     assetId,
     values.automaticLoan ? liabilityLoanSetup(values) : null,
   );
+  const showsMaturity = isMortgage || !!values.renewalMaturity;
+  const previewErrorField =
+    scheduleError != null
+      ? loanErrorField(
+          scheduleError,
+          [
+            "originalAmount",
+            "originationDate",
+            "interestRate",
+            "paymentAmount",
+            "firstPaymentDate",
+            "amortization",
+            ...(showsMaturity ? (["renewalMaturity"] as const) : []),
+          ],
+          "amortization",
+        )
+      : null;
+  // A field's own validation message comes first; the preview's would repeat it.
+  const previewError = (field: LoanSetupField, name: Parameters<typeof form.getFieldState>[0]) =>
+    previewErrorField === field &&
+    !form.getFieldState(name, form.formState).error && (
+      <p className="text-destructive text-xs" role="alert">
+        {loanErrorText(t, scheduleError, "asset:loanEvents.invalid")}
+      </p>
+    );
   const fieldLabel = (label: string, info?: string) => (
     <div className="flex items-center gap-1.5">
       <FormLabel>{label}</FormLabel>
@@ -857,6 +882,7 @@ function LiabilityFields({
                     onValueChange={(value) => field.onChange(value ?? null)}
                   />
                 </FormControl>
+                {previewError("originalAmount", "originalAmount")}
                 <LoanFormMessage />
               </FormItem>
             )}
@@ -876,6 +902,7 @@ function LiabilityFields({
                     onChange={(date) => field.onChange(date ?? null)}
                   />
                 </FormControl>
+                {previewError("originationDate", "originationDate")}
                 <LoanFormMessage />
               </FormItem>
             )}
@@ -901,6 +928,7 @@ function LiabilityFields({
                     %
                   </span>
                 </div>
+                {previewError("interestRate", "interestRate")}
                 <LoanFormMessage />
               </FormItem>
             )}
@@ -962,6 +990,7 @@ function LiabilityFields({
                       onValueChange={(value) => field.onChange(value ?? null)}
                     />
                   </FormControl>
+                  {previewError("paymentAmount", "paymentAmount")}
                   <LoanFormMessage />
                 </FormItem>
               )}
@@ -999,6 +1028,7 @@ function LiabilityFields({
                       onChange={(date) => field.onChange(date ?? null)}
                     />
                   </FormControl>
+                  {previewError("firstPaymentDate", "firstPaymentDate")}
                   <LoanFormMessage />
                 </FormItem>
               )}
@@ -1029,7 +1059,7 @@ function LiabilityFields({
                       }
                     />
                   </FormControl>
-                  {schedule ? (
+                  {schedule && (
                     <FormDescription className="text-xs">
                       {t("asset:loanActions.last_payment", {
                         count: schedule.paymentCount,
@@ -1040,18 +1070,13 @@ function LiabilityFields({
                         }),
                       })}
                     </FormDescription>
-                  ) : (
-                    scheduleError && (
-                      <p className="text-destructive text-xs" role="alert">
-                        {loanErrorText(t, scheduleError, "asset:loanEvents.invalid")}
-                      </p>
-                    )
                   )}
+                  {previewError("amortization", "amortizationYears")}
                   <LoanFormMessage />
                 </FormItem>
               )}
             />
-            {(isMortgage || values.renewalMaturity) && (
+            {showsMaturity && (
               <FormField
                 control={form.control}
                 name="renewalMaturity"
@@ -1067,6 +1092,7 @@ function LiabilityFields({
                         onChange={(date) => field.onChange(date ?? null)}
                       />
                     </FormControl>
+                    {previewError("renewalMaturity", "renewalMaturity")}
                     <LoanFormMessage />
                   </FormItem>
                 )}

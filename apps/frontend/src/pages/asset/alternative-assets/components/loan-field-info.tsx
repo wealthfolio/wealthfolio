@@ -6,6 +6,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@wealthfolio/ui/compone
 /**
  * Field help behind an (i). A popover rather than a tooltip so it opens on touch.
  * Render it beside the label, not inside it, so the input's name stays the label.
+ * Its 24px target surrounds the 14px icon without moving the label.
  */
 export function LoanFieldInfo({ label, children }: { label: string; children: ReactNode }) {
   const { t } = useTranslation();
@@ -15,7 +16,7 @@ export function LoanFieldInfo({ label, children }: { label: string; children: Re
         <button
           type="button"
           aria-label={t("common:component.more_info_about", { label })}
-          className="text-muted-foreground hover:text-foreground focus-visible:ring-ring inline-flex rounded-sm focus-visible:outline-none focus-visible:ring-2"
+          className="text-muted-foreground hover:text-foreground focus-visible:ring-ring -m-[5px] inline-flex size-6 items-center justify-center rounded-sm focus-visible:outline-none focus-visible:ring-2"
         >
           <Icons.Info className="size-3.5" />
         </button>

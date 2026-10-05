@@ -31,10 +31,15 @@ vi.mock("@wealthfolio/ui", () => ({
     <input
       aria-label={label}
       value={value ?? ""}
-      onChange={(event) => onValueChange(Number(event.target.value) || undefined)}
+      onChange={(event) =>
+        onValueChange(event.target.value === "" ? undefined : Number(event.target.value))
+      }
     />
   ),
   useDateFormatting: () => ({ formatCalendarDate: (value: string) => value }),
+  useAmountFormatting: () => ({
+    formatAmount: (value: number, currency: string) => `${currency} ${value}`,
+  }),
   MoneyInput: ({
     value,
     onValueChange,
@@ -132,6 +137,7 @@ it("keeps the property's purchase date as a chained mortgage's origination date"
   // Only the amount and term are entered; the origination date comes from the property.
   fireEvent.change(screen.getAllByLabelText("Amount")[0], { target: { value: "400000" } });
   fireEvent.change(screen.getByLabelText("Years"), { target: { value: "25" } });
+  fireEvent.change(screen.getByLabelText("Interest Rate (%)"), { target: { value: "5" } });
   fireEvent.click(screen.getByRole("button", { name: "Add Liability" }));
   await waitFor(() =>
     expect(create).toHaveBeenCalledWith(
@@ -155,6 +161,7 @@ it("shows the schedule the backend previews, and sends the loan as entered", asy
   await screen.findByRole("combobox", { name: "Select Liability Type" });
   fireEvent.change(screen.getAllByLabelText("Amount")[0], { target: { value: "400000" } });
   fireEvent.change(screen.getByLabelText("Years"), { target: { value: "25" } });
+  fireEvent.change(screen.getByLabelText("Interest Rate (%)"), { target: { value: "5" } });
   await waitFor(() =>
     expect(preview).toHaveBeenLastCalledWith(
       null,
@@ -166,6 +173,7 @@ it("shows the schedule the backend previews, and sends the loan as entered", asy
     ),
   );
   expect(await screen.findByText(/300 payments/)).toBeInTheDocument();
+  expect(screen.getByText("Estimated payment USD 2100")).toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "Add Liability" }));
   await waitFor(() => expect(create).toHaveBeenCalled());
   const request = create.mock.lastCall![0];
@@ -188,9 +196,15 @@ it("shows a refusal from the backend preview", async () => {
   await screen.findByRole("combobox", { name: "Select Liability Type" });
   fireEvent.change(screen.getAllByLabelText("Amount")[0], { target: { value: "400000" } });
   fireEvent.change(screen.getByLabelText("Years"), { target: { value: "25" } });
+  fireEvent.change(screen.getByLabelText("Interest Rate (%)"), { target: { value: "5" } });
   expect(await screen.findByRole("alert")).toHaveTextContent(/first payment/i);
   // Terms the backend refuses are not submitted; the reason is already shown.
   expect(screen.getByRole("button", { name: "Add Liability" })).toBeDisabled();
+  // More options opened for the refusal, and the user can still fold it.
+  const more = screen.getByRole("button", { name: "More options" });
+  expect(more).toHaveAttribute("aria-expanded", "true");
+  fireEvent.click(more);
+  expect(more).toHaveAttribute("aria-expanded", "false");
 });
 
 it("clears a save refusal once the form changes", async () => {
@@ -207,9 +221,92 @@ it("clears a save refusal once the form changes", async () => {
   await screen.findByRole("combobox", { name: "Select Liability Type" });
   fireEvent.change(screen.getAllByLabelText("Amount")[0], { target: { value: "400000" } });
   fireEvent.change(screen.getByLabelText("Years"), { target: { value: "25" } });
+  fireEvent.change(screen.getByLabelText("Interest Rate (%)"), { target: { value: "5" } });
   await screen.findByText(/300 payments/);
   fireEvent.click(screen.getByRole("button", { name: "Add Liability" }));
   expect(await screen.findByRole("alert")).toBeInTheDocument();
   fireEvent.change(screen.getByLabelText("Years"), { target: { value: "20" } });
   await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
+});
+
+it("asks for no preview, and shows no error, until the terms are entered", async () => {
+  show(
+    <AlternativeAssetQuickAddModal
+      open
+      onOpenChange={() => undefined}
+      defaultKind={AlternativeAssetKind.LIABILITY}
+      defaultName="Mortgage"
+    />,
+  );
+  await screen.findByRole("combobox", { name: "Select Liability Type" });
+  fireEvent.change(screen.getAllByLabelText("Amount")[0], { target: { value: "400000" } });
+  fireEvent.change(screen.getByLabelText("Years"), { target: { value: "25" } });
+  fireEvent.change(screen.getByLabelText("Interest Rate (%)"), { target: { value: "5" } });
+  // Past the preview's debounce: the origination date is still missing.
+  await new Promise((resolve) => setTimeout(resolve, 400));
+  expect(preview).not.toHaveBeenCalled();
+  expect(screen.queryByRole("alert")).toBeNull();
+});
+
+it("shows a refusal under the field it is about", async () => {
+  preview.mockRejectedValue(new Error("LOAN_AMORTIZATION_INVALID"));
+  show(
+    <AlternativeAssetQuickAddModal
+      open
+      onOpenChange={() => undefined}
+      defaultKind={AlternativeAssetKind.LIABILITY}
+      defaultName="Mortgage"
+      defaultOriginationDate={new Date(2025, 5, 1)}
+    />,
+  );
+  await screen.findByRole("combobox", { name: "Select Liability Type" });
+  fireEvent.change(screen.getAllByLabelText("Amount")[0], { target: { value: "400000" } });
+  fireEvent.change(screen.getByLabelText("Years"), { target: { value: "250" } });
+  fireEvent.change(screen.getByLabelText("Interest Rate (%)"), { target: { value: "5" } });
+  const alert = await screen.findByRole("alert");
+  expect(alert.parentElement).toContainElement(screen.getByLabelText("Years"));
+});
+
+it("needs the rate for an estimated loan", async () => {
+  show(
+    <AlternativeAssetQuickAddModal
+      open
+      onOpenChange={() => undefined}
+      defaultKind={AlternativeAssetKind.LIABILITY}
+      defaultName="Mortgage"
+      defaultOriginationDate={new Date(2025, 5, 1)}
+    />,
+  );
+  await screen.findByRole("combobox", { name: "Select Liability Type" });
+  fireEvent.change(screen.getAllByLabelText("Amount")[0], { target: { value: "400000" } });
+  fireEvent.change(screen.getByLabelText("Years"), { target: { value: "20" } });
+  // Left blank the rate would be 0%: nothing is previewed or submitted.
+  await new Promise((resolve) => setTimeout(resolve, 400));
+  expect(preview).not.toHaveBeenCalled();
+  expect(screen.getByRole("button", { name: "Add Liability" })).toBeDisabled();
+  // Its label no longer says "(optional)".
+  expect(screen.getByText("Interest Rate (%)")).toBeInTheDocument();
+  // A 0% loan is entered as 0.
+  fireEvent.change(screen.getByLabelText("Interest Rate (%)"), { target: { value: "0" } });
+  await waitFor(() => expect(preview).toHaveBeenCalled());
+  await waitFor(() => expect(screen.getByRole("button", { name: "Add Liability" })).toBeEnabled());
+});
+
+it("folds the less common terms under More options", async () => {
+  show(
+    <AlternativeAssetQuickAddModal
+      open
+      onOpenChange={() => undefined}
+      defaultKind={AlternativeAssetKind.LIABILITY}
+      defaultName="Mortgage"
+    />,
+  );
+  await screen.findByRole("combobox", { name: "Select Liability Type" });
+  expect(screen.queryByText("First payment date")).toBeNull();
+  const more = screen.getByRole("button", { name: "More options" });
+  expect(more).toHaveAttribute("aria-expanded", "false");
+  fireEvent.click(more);
+  expect(more).toHaveAttribute("aria-expanded", "true");
+  expect(screen.getByText("First payment date")).toBeInTheDocument();
+  expect(screen.getByText("Interest calculation")).toBeInTheDocument();
 });

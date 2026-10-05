@@ -27,6 +27,26 @@ const LOAN_ERROR_KEYS: Record<string, string> = {
   LOAN_EXTRA_ALREADY_RECORDED: "asset:loanPayments.extra_already_recorded",
 };
 
+/** Loan form fields a setup refusal can be about. */
+export type LoanSetupField =
+  | "originalAmount"
+  | "originationDate"
+  | "interestRate"
+  | "amortization"
+  | "firstPaymentDate"
+  | "paymentAmount"
+  | "renewalMaturity";
+
+const LOAN_ERROR_FIELDS: Record<string, LoanSetupField> = {
+  LOAN_AMOUNT_REQUIRED: "originalAmount",
+  LOAN_ORIGINATION_REQUIRED: "originationDate",
+  LOAN_RATE_INVALID: "interestRate",
+  LOAN_AMORTIZATION_INVALID: "amortization",
+  LOAN_FIRST_PAYMENT_BEFORE_ORIGINATION: "firstPaymentDate",
+  LOAN_PAYMENT_AMOUNT_INVALID: "paymentAmount",
+  LOAN_MATURITY_BEFORE_ORIGINATION: "renewalMaturity",
+};
+
 /** The desktop runtime rejects with the message itself; the web runtime with an Error. */
 function errorMessage(cause: unknown): string | undefined {
   return cause instanceof Error ? cause.message : typeof cause === "string" ? cause : undefined;
@@ -49,4 +69,14 @@ export function loanErrorText(t: TFunction, cause: unknown, fallbackKey: string)
   if (!message) return t(fallbackKey);
   const key = LOAN_ERROR_KEYS[message] ?? (message.startsWith("asset:") ? message : undefined);
   return key ? t(key) : message;
+}
+
+/** The field a setup refusal is about, among those a form shows; otherwise `fallback`. */
+export function loanErrorField(
+  cause: unknown,
+  fields: readonly LoanSetupField[],
+  fallback: LoanSetupField,
+): LoanSetupField {
+  const field = LOAN_ERROR_FIELDS[errorMessage(cause) ?? ""];
+  return field && fields.includes(field) ? field : fallback;
 }

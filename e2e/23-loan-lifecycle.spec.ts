@@ -478,9 +478,11 @@ test("loan estimates, dated actions and net worth stay consistent", async ({ pag
     .getByPlaceholder("0.00")
     .fill("1200");
   await dialog.locator('input[type="date"]').first().fill(origin);
+  await dialog.getByLabel("Interest Rate (%)", { exact: true }).fill("0");
   await dialog.getByLabel("Years", { exact: true }).fill("1");
   await dialog.getByRole("combobox").filter({ hasText: "Monthly" }).click();
   await page.getByRole("option", { name: "Accelerated biweekly", exact: true }).click();
+  await dialog.getByRole("button", { name: "More options", exact: true }).click();
   await expect(dialog.getByText("First payment date", { exact: true })).toBeVisible();
   await dialog.getByRole("button", { name: "Add Liability", exact: true }).click();
   await expect(dialog).not.toBeVisible();
@@ -680,9 +682,13 @@ test("loan terms are previewed and checked by the backend", async ({ page }) => 
     .getByPlaceholder("0.00")
     .fill("1200");
   await sheet.locator('input[type="date"]').first().fill("2026-01-01");
+  await sheet.getByLabel("Interest Rate (%)", { exact: true }).fill("0");
   await sheet.getByLabel("Years", { exact: true }).fill("1");
+  // The payment Rust solves and the end of the schedule, before saving.
+  await expect(sheet).toContainText("Last payment Jan 1, 2027 · 12 payments");
+  await expect(sheet).toContainText(/Estimated payment \D*100\.00/);
+  await sheet.getByRole("button", { name: "More options", exact: true }).click();
   const firstPayment = sheet.getByText("First payment date", { exact: true }).locator("..");
-  await expect(firstPayment).toContainText("Last payment Jan 1, 2027 · 12 payments");
   const setFirstPayment = async (month: string) => {
     await firstPayment.locator('[data-type="month"]').click();
     await page.keyboard.type(month, { delay: 30 });
@@ -696,7 +702,7 @@ test("loan terms are previewed and checked by the backend", async ({ page }) => 
   await expect(sheet.getByRole("alert").filter({ hasText: refusal })).toHaveCount(1);
   expect(await named("Previewed loan")).toBeUndefined();
   await setFirstPayment("03");
-  await expect(firstPayment).toContainText("Last payment Feb 1, 2027 · 12 payments");
+  await expect(sheet).toContainText("Last payment Feb 1, 2027 · 12 payments");
   await sheet.getByRole("button", { name: "Add Liability", exact: true }).click();
   await expect(sheet).toHaveCount(0);
   expect(JSON.parse((await named("Previewed loan")).metadata.loan_projection)).toMatchObject({
