@@ -72,7 +72,13 @@ EDGE-SPLIT-01, EDGE-SPLIT-02, EDGE-SPLIT-03, EDGE-SPLIT-04, EDGE-QT-05.
   pair nets whole: a rate difference between its legs is a gain (#1655).
 - Each leg is priced on its own day, so the legs' amounts differ when the price
   moves; their units differ only by what the sender lacked.
-- Fixtures: EDGE-TXF-02, EDGE-TXF-09, EDGE-TXF-12, EDGE-TXF-14, EDGE-TXF-19.
+- The sender's units are the sum of the slices it relieved, which a split's
+  rounding can leave short of the units sent (three thirds of a unit are
+  0.9999999999999999999999999999). A shortfall below the fold's dust (1e-8
+  units) is none, as the receiver books it: the sender gave every unit and the
+  pair nets whole.
+- Fixtures: EDGE-TXF-02, EDGE-TXF-09, EDGE-TXF-12, EDGE-TXF-14, EDGE-TXF-19,
+  EDGE-TXF-24.
 
 **R2.2 A currency conversion inside one account.** When the import linker
 recorded it, it moves no money in or out and a better rate than the market's is

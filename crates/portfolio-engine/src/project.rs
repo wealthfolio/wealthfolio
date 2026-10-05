@@ -22,7 +22,7 @@ use crate::resolve::FxResolver;
 use crate::scope::transfer_closure;
 
 /// Positions below this effective quantity are treated as closed.
-const QUANTITY_THRESHOLD: Decimal = Decimal::from_parts(1, 0, 0, false, 8);
+pub(crate) const QUANTITY_THRESHOLD: Decimal = Decimal::from_parts(1, 0, 0, false, 8);
 
 /// A value outside the kernel range rejects the event (architecture §4.3):
 /// the fold keeps the scratch state from before it and reports why.

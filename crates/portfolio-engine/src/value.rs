@@ -19,7 +19,7 @@ use crate::compile::CompiledLedger;
 use crate::diagnostics::{Diagnostic, DiagnosticCode};
 use crate::error::EngineError;
 use crate::model::*;
-use crate::project::{in_position_currency, lot_records, position_book_cost};
+use crate::project::{in_position_currency, lot_records, position_book_cost, QUANTITY_THRESHOLD};
 use crate::resolve::{FxResolver, ResolvedSurfaces};
 
 /// A quote or FX rate carried at least this many days is reported once per
@@ -1707,10 +1707,13 @@ fn internal_adjustments<'a>(
         // each leg at its own day's price, so a price move between them
         // stays a return; valued at cost, it nets the cost the sender
         // removed. A cash pair nets whole: a rate difference between its
-        // legs is a gain, not a flow (#1655).
+        // legs is a gain, not a flow (#1655). A shortfall below the fold's
+        // dust is none, as the receiver books it: the sender's units are the
+        // sum of the slices it relieved, which can fall short of what it sent
+        // by a rounding.
         let incoming_netted = match (incoming, outgoing) {
             (Some((_, inflow)), Some((_, outflow)))
-                if pair.security && inflow.units > outflow.units =>
+                if pair.security && inflow.units - outflow.units >= QUANTITY_THRESHOLD =>
             {
                 if inflow.source == FlowSource::QuoteDerivedMarketValue {
                     arith::div(outflow.units, inflow.units)
