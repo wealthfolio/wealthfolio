@@ -91,8 +91,13 @@ impl ConnectTransferTransport {
         for (name, value) in &descriptor.headers {
             if !matches!(
                 name.as_str(),
-                "content-type" | "content-length" | "if-none-match"
+                "content-type" | "content-length" | "if-none-match" | "x-amz-checksum-sha256"
             ) {
+                return Err(DeviceSyncError::invalid_request(
+                    "Unapproved transfer header",
+                ));
+            }
+            if name == "x-amz-checksum-sha256" && method != "PUT" {
                 return Err(DeviceSyncError::invalid_request(
                     "Unapproved transfer header",
                 ));
@@ -154,6 +159,15 @@ impl ConnectTransferTransport {
         {
             return Err(DeviceSyncError::invalid_request("Transfer size mismatch"));
         }
+        if let Some(expected) = descriptor.headers.get("x-amz-checksum-sha256") {
+            use base64::{engine::general_purpose::STANDARD, Engine};
+            use sha2::{Digest, Sha256};
+            if *expected != STANDARD.encode(Sha256::digest(&bytes)) {
+                return Err(DeviceSyncError::invalid_request(
+                    "Transfer integrity verification failed",
+                ));
+            }
+        }
         let response = self
             .request(descriptor, "PUT")?
             .body(bytes)
@@ -179,6 +193,33 @@ mod tests {
             headers: BTreeMap::new(),
             expires_at: (chrono::Utc::now() + chrono::Duration::minutes(5)).to_rfc3339(),
         }
+    }
+    #[tokio::test]
+    async fn checksum_header_is_bound_to_upload_bytes_before_network_io() {
+        use base64::{engine::general_purpose::STANDARD, Engine};
+        let transport = ConnectTransferTransport::new(vec!["storage.test".into()]).unwrap();
+        let mut upload = descriptor("https://storage.test/object");
+        upload.method = "PUT".into();
+        upload.headers.insert("content-length".into(), "3".into());
+        upload
+            .headers
+            .insert("x-amz-checksum-sha256".into(), STANDARD.encode([0u8; 32]));
+        assert!(transport.request(&upload, "PUT").is_ok());
+        let error = transport.upload(&upload, vec![1, 2, 3]).await.unwrap_err();
+        assert!(error
+            .to_string()
+            .contains("Transfer integrity verification failed"));
+        assert!(transport.request(&upload, "GET").is_err());
+        use sha2::{Digest, Sha256};
+        let checksum = STANDARD.encode(Sha256::digest([1, 2, 3]));
+        upload
+            .headers
+            .insert("x-amz-checksum-sha256".into(), checksum.clone());
+        let request = transport.request(&upload, "PUT").unwrap().build().unwrap();
+        assert_eq!(
+            request.headers().get("x-amz-checksum-sha256").unwrap(),
+            checksum.as_str()
+        );
     }
     #[test]
     fn destination_and_headers_are_restricted_and_capabilities_redacted() {

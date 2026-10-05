@@ -144,3 +144,9 @@ Official CI refreshes this stage on every build.
 For web sign-in flows that use redirects, the authentication service must allow
 your deployment's callback URL (`https://your-host/auth/callback`). Supplying
 the build arguments does not register a new redirect URL.
+
+The direct-upload descriptor includes a signed `x-amz-checksum-sha256` header.
+The shared transport verifies it against the ciphertext before PUT. Storage
+validates the checksum; cloud completion compares the provider checksum through
+HEAD, falling back to full streaming verification for older objects without one.
+Released legacy binary clients remain compatible.
