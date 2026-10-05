@@ -208,12 +208,46 @@ never changes the units held, cash or prices. What it moves is cost: the cost a
 transfer carries (R2.4), and the flows and net contribution valued at that cost,
 follow the lots it relieves. Each lot keeps its acquisition date, its historical
 rates and its source, so realized P&L in base follows from the lots relieved
-(R3.3).
+(R3.3); under WAC a pool keeps its members' book cost instead (R7.2).
 
-**R7.2 The methods the engine computes.** FIFO: lots are relieved oldest first,
-and delivered units cover a short in the order the sender gave them. An
-account's settings name its method, and the engine alone says which methods it
-computes: an account set to another is refused (`UNSUPPORTED_COST_BASIS`) and
+**R7.2 The methods the engine computes.**
+
+- FIFO: lots are relieved oldest first, and delivered units cover a short in the
+  order the sender gave them.
+- WAC (moving weighted average), as a pool, the way the UK's section 104 holding
+  and Italy's _costo medio_ are kept:
+  - Before a disposal, a position's lots on the relieved side merge into one
+    pool: the lots no disposal has relieved join the lot a disposal has (the
+    pool), or the earliest of them forms it. The pool holds their units after
+    splits, their cost and charges, and their book cost in the account and base
+    currency (its rates are that book cost over its cost). It keeps the id of
+    the lot it formed from, so the disposals naming it stay valid, the earliest
+    acquisition date, and no source; what it holds when it forms is its
+    original, and its price is its cost less charges per unit.
+  - A disposal takes the same share of every lot it relieves, so the cost it
+    relieves is the position's average cost, in its currency and in base, and
+    the average after it is the average before it; a purchase re-averages at the
+    next disposal. Each sale is one disposal row, however many purchases built
+    the pool.
+  - A lot stays apart, relieved in the same share as the pool, when merging
+    would change what it is worth or what reads it: one whose book cost has no
+    rate, one bought on the day of a split the account records (the split must
+    not reach it), one a transfer delivered (the transfer is valued from the
+    lots it opened, R2.4), or a second relieved lot (its disposals name it).
+  - A lot left with less than the dust closes only when the side keeps less than
+    the dust: the side's dust, not each lot's.
+  - A transfer out carries a slice of the pool: the average cost as one lot
+    dated at the pool's earliest acquisition, which the receiver disposes of by
+    its own method. Delivered units cover a WAC account's short alike, the same
+    share of every delivered lot.
+  - Attribution: a pooled purchase has no lot of its own, so its charge (what of
+    it opened units) counts in its window; what the window's sales relieve from
+    a pool, at the pool's charge per unit and at most those charges, is
+    realized, the rest unrealized.
+  - Fixtures: NOM-CB-01, EDGE-CB-01 to EDGE-CB-05.
+
+An account's settings name its method, and the engine alone says which methods
+it computes: an account set to another is refused (`UNSUPPORTED_COST_BASIS`) and
 its results are not written; where another account needs it folded (a transfer
 partner), it is folded FIFO. Each account's settings are read on their own. An
 account with none (no meta, or no `accounting` entry in it) takes the defaults,
@@ -221,7 +255,7 @@ FIFO. Settings this version cannot read are refused the same way and never read
 as the defaults: meta that is not JSON, an `accounting` entry that is not an
 object, or a code it does not know, such as one a newer version wrote. Only a
 failed database read fails the whole job. Changing an account's method refolds
-it (§5). Fixtures: every fixture is FIFO.
+it (§5). Fixtures: every other fixture is FIFO.
 
 **R7.3 What a new method must respect.**
 
@@ -257,6 +291,15 @@ it (§5). Fixtures: every fixture is FIFO.
   others closed before it) shifts that weighting, by a part of the fee (R2.4).
 - A split recorded on one transactions account does not split another's lots
   (R1.5): each account records its own.
+- A WAC pool's lot row records what the pool held when it last formed as its
+  original, and the purchases it absorbed have no row of their own (their
+  activities remain). A window's purchase charges in a pool are split between
+  realized and unrealized at the pool's charge per unit, not purchase by
+  purchase (R7.2).
+- WAC is per account: the same security in two WAC accounts is two pools.
+  Jurisdictions that pool across accounts (Canada's ACB, France's PMP) or match
+  later purchases (the UK's 30-day rule) need a tax report over all accounts
+  (R7.3).
 - An override stored blank or untrimmed before R6.3 keeps that form until its
   row is next edited or received by device sync. Until then, a reader that does
   not trim it (the addon SDK's `getEffectiveType` and `hasUserOverride`, broker
@@ -273,9 +316,10 @@ it (§5). Fixtures: every fixture is FIFO.
 - Each rule's fixtures carry expected values worked out by hand in their
   `expected_notes`, and the goldens pin them.
 - Property laws state rules over every scenario, under every cost basis method
-  the engine computes (R7.3). Where a law compares the engine with itself
-  (determinism, windows, renaming), it proves consistency, not these rules; the
-  fixtures above prove the rules.
+  the engine computes and with the methods mixed across its accounts, so
+  transfers pair accounts on different methods (R7.3). Where a law compares the
+  engine with itself (determinism, windows, renaming), it proves consistency,
+  not these rules; the fixtures above prove the rules.
 - §5 is checked mechanically: a storage test changes every column the engine
   reads, one at a time, and fails unless the change leaves the marker scope and
   earliest day the table states.

@@ -1590,6 +1590,7 @@ fn priced_events(
                         tracking: account.tracking,
                         kind: account.kind,
                         archived: account.archived,
+                        cost_basis_method: account.cost_basis_method,
                     },
                 )
             })

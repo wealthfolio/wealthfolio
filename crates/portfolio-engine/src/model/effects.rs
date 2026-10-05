@@ -12,6 +12,7 @@ use serde::{Deserialize, Serialize};
 
 use super::canonical::{AccountKind, TrackingMode};
 use super::event::Boundary;
+use super::policy::CostBasisMethod;
 use super::scalar::{AccountId, ActivityId, Currency, EventId};
 use super::state::DateRange;
 use super::valuation::FlowSource;
@@ -41,6 +42,10 @@ pub struct AccountProfile {
     pub tracking: TrackingMode,
     pub kind: AccountKind,
     pub archived: bool,
+    /// How its disposals chose their lots: a WAC account's purchases pool
+    /// (rules R7.2).
+    #[serde(default)]
+    pub cost_basis_method: CostBasisMethod,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

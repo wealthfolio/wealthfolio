@@ -1925,15 +1925,76 @@ fn trade_charge_effects(
         }
     }
 
+    // A WAC account's purchases pool (rules R7.2): a pooled purchase has no
+    // lot of its own, so its charge (what of it opened units) counts here,
+    // and a sale from a pool relieves the pool's charge per unit, of these
+    // charges at most.
+    let wac = |account: &AccountId| {
+        inputs
+            .effects
+            .account(account)
+            .is_some_and(|profile| profile.cost_basis_method == CostBasisMethod::Wac)
+    };
+    let lot_activities: HashSet<&str> = lots
+        .iter()
+        .filter_map(|lot| lot.open_activity.as_ref().map(ActivityId::as_str))
+        .collect();
+    let mut pooled_charges = Decimal::ZERO;
+    for (event, trade) in inputs
+        .effects
+        .events
+        .iter()
+        .filter(|e| scope.contains(&e.account) && period.contains(e.date) && wac(&e.account))
+        .filter_map(|e| e.trade_charge.map(|trade| (e, trade)))
+        .filter(|(e, trade)| trade.buy && !lot_activities.contains(e.source.as_str()))
+    {
+        let covered = disposed_quantity_by_activity
+            .get(event.source.as_str())
+            .copied()
+            .unwrap_or_default();
+        pooled_charges += if trade.quantity > Decimal::ZERO {
+            let opened = (trade.quantity - covered).max(Decimal::ZERO);
+            arith::proportional(trade.charge, opened, trade.quantity).unwrap_or(Decimal::ZERO)
+        } else {
+            trade.charge
+        };
+    }
+    let mut pool_charges_relieved = Decimal::ZERO;
+    for disposal in disposals.iter().filter(|d| wac(&d.account)) {
+        let Some(pool) = lot_by_id.get(&(&disposal.account, disposal.lot_id.as_str())) else {
+            continue;
+        };
+        if pool.open_activity.is_some() {
+            continue;
+        }
+        let units = arith::mul(pool.original_quantity, pool.split_ratio)
+            .unwrap_or(Decimal::ZERO)
+            .abs();
+        if units > Decimal::ZERO {
+            pool_charges_relieved += arith::proportional(
+                pool.fee_allocated_base + pool.tax_allocated_base,
+                disposal.quantity.abs(),
+                units,
+            )
+            .unwrap_or(Decimal::ZERO);
+        }
+    }
+    let pooled_relieved = pool_charges_relieved.min(pooled_charges);
+
     let r = |v: Decimal| v.round_dp(STORED_PRECISION);
     let mut period_open_charges = r(period_open_charge_by_activity.values().copied().sum());
     if period_open_charges.is_zero() && !saw_period_open_lots {
+        // The window's purchases, pooled ones included.
         period_open_charges = r(fallback_buy_charge
             .iter()
             .filter(|(id, _)| !disposal_activity_ids.contains(*id))
             .map(|(_, charge)| *charge)
             .sum());
+    } else {
+        period_open_charges = r(period_open_charges + pooled_charges);
+        remaining_open_from_lots += pooled_charges - pooled_relieved;
     }
+    acquisition_charges_disposed += pooled_relieved;
     let period_disposal_charges = r(disposed_quantity_by_activity
         .iter()
         .filter_map(|(id, disposed)| {

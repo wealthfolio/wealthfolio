@@ -1,0 +1,39 @@
+id: EDGE-CB-01
+title: A WAC sale in a foreign currency realizes against its lots' historical rates
+intent: >
+  Rules R7.2, R3.3. A EUR account in a USD portfolio buys a EUR asset at two
+  EUR/USD rates, then sells part under WAC. The lots pool with their book
+  cost in USD (its rate is that book cost over its cost in EUR), so the cost
+  relieved in EUR is the average in EUR and in USD the same share of the
+  lots' cost at the rates they were acquired at; the proceeds convert at the
+  sale day's rate.
+policy: { base_currency: USD, timezone: UTC, as_of: 2025-01-10 }
+accounts:
+  - { id: acc-1, currency: EUR, cost_basis_method: WAC }
+assets:
+  - { id: sap, quote_ccy: EUR }
+activities:
+  - { id: dep-1, account: acc-1, type: DEPOSIT, date: 2025-01-02T10:00:00Z, amount: 3000 }
+  - { id: buy-1, account: acc-1, type: BUY, date: 2025-01-03T10:00:00Z, asset: sap, quantity: 10, unit_price: 100, amount: 1000, fee: 0 }
+  - { id: buy-2, account: acc-1, type: BUY, date: 2025-01-06T10:00:00Z, asset: sap, quantity: 10, unit_price: 120, amount: 1200, fee: 0 }
+  - { id: sell-1, account: acc-1, type: SELL, date: 2025-01-08T10:00:00Z, asset: sap, quantity: 5, unit_price: 130, amount: 650, fee: 0 }
+quotes:
+  - { asset: sap, day: 2025-01-03, close: 100 }
+  - { asset: sap, day: 2025-01-06, close: 120 }
+  - { asset: sap, day: 2025-01-08, close: 130 }
+  - { asset: sap, day: 2025-01-10, close: 130 }
+fx_rates:
+  - { from: EUR, to: USD, day: 2025-01-02, rate: 1.10 }
+  - { from: EUR, to: USD, day: 2025-01-03, rate: 1.10 }
+  - { from: EUR, to: USD, day: 2025-01-06, rate: 1.20 }
+  - { from: EUR, to: USD, day: 2025-01-08, rate: 1.25 }
+  - { from: EUR, to: USD, day: 2025-01-10, rate: 1.25 }
+expected_notes: >
+  buy-1: 10 units, 1000 EUR, at 1.10 = 1100 USD. buy-2: 10 units, 1200
+  EUR, at 1.20 = 1440 USD. sell-1 pools them into buy-1: 20 units, 2200
+  EUR, 2540 USD. It takes 5 of 20: cost 550 EUR = 5 x the 110 average, 635
+  USD (a quarter of 2540). Proceeds 650 EUR at 1.25 = 812.5 USD: P&L 100
+  EUR, 177.5 USD, one disposal. Left: 15 units, 1650 EUR (average 110), 1905
+  USD. Cash 3000 - 1000 -
+  1200 + 650 = 1450 EUR. Under FIFO sell-1 would relieve 5 of buy-1 at 500
+  EUR (550 USD): P&L 150 EUR, 262.5 USD.

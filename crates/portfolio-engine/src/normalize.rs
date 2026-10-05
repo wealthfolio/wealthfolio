@@ -923,6 +923,13 @@ mod tests {
             .values()
             .all(|account| account.cost_basis_method == CostBasisMethod::Fifo));
 
+        raw.accounts[1].cost_basis_method = Some("wac".into());
+        let normalized = normalize(raw.clone()).unwrap();
+        assert_eq!(
+            normalized.facts.accounts[&AccountId::new("a2")].cost_basis_method,
+            CostBasisMethod::Wac
+        );
+
         raw.accounts[1].cost_basis_method = Some("LIFO".into());
         let refused = normalize(raw).unwrap_err();
         assert!(
