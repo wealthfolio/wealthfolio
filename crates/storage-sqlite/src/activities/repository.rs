@@ -1070,10 +1070,14 @@ impl ActivityRepositoryTrait for ActivityRepository {
                     transfer_in.source_group_id.as_deref(),
                 )?;
                 // Linking a pair already linked to each other repairs it: it keeps
-                // the group and clears an external marker left on either leg.
-                let linked_to_each_other = in_group_blocks
-                    && transfer_in.source_group_id.as_deref().map(str::trim)
-                        == transfer_out.source_group_id.as_deref().map(str::trim);
+                // the group and clears an external marker left on either leg. Both
+                // legs store the same trimmed group id, and that group is a valid
+                // pair, so it holds exactly these two.
+                let shared_group = transfer_in.source_group_id.clone().filter(|group_id| {
+                    group_id.trim() == group_id.as_str()
+                        && transfer_out.source_group_id.as_deref() == Some(group_id.as_str())
+                });
+                let linked_to_each_other = in_group_blocks && shared_group.is_some();
                 if !linked_to_each_other
                     && (in_group_blocks
                         || source_group_blocks_transfer_link(
@@ -1095,8 +1099,8 @@ impl ActivityRepositoryTrait for ActivityRepository {
                 }
                 validate_link_transfer_asset_shape(&transfer_in, &transfer_out)?;
 
-                let group_id = match transfer_in.source_group_id.as_deref() {
-                    Some(group_id) if linked_to_each_other => group_id.trim().to_string(),
+                let group_id = match shared_group {
+                    Some(group_id) if linked_to_each_other => group_id,
                     _ => Uuid::new_v4().to_string(),
                 };
                 let now = chrono::Utc::now().to_rfc3339();
@@ -5245,6 +5249,73 @@ mod tests {
                 .contains("already linked to another transfer"),
             "{error}"
         );
+    }
+
+    #[tokio::test]
+    async fn link_transfer_activities_does_not_merge_pairs_whose_groups_differ_by_whitespace() {
+        let (pool, writer) = setup_db();
+        let repo = ActivityRepository::new(pool.clone(), writer);
+        let mut conn = get_connection(&pool).expect("conn");
+
+        insert_account(&mut conn, "acc-a");
+        insert_account(&mut conn, "acc-b");
+        let internal = Some(r#"{"flow":{"is_external":false}}"#);
+        insert_transfer_activity(
+            &mut conn,
+            "out-1",
+            "acc-a",
+            "TRANSFER_OUT",
+            Some("g"),
+            internal,
+        );
+        insert_transfer_activity(
+            &mut conn,
+            "in-1",
+            "acc-b",
+            "TRANSFER_IN",
+            Some("g"),
+            internal,
+        );
+        insert_transfer_activity(
+            &mut conn,
+            "out-2",
+            "acc-a",
+            "TRANSFER_OUT",
+            Some(" g "),
+            internal,
+        );
+        insert_transfer_activity(
+            &mut conn,
+            "in-2",
+            "acc-b",
+            "TRANSFER_IN",
+            Some(" g "),
+            internal,
+        );
+
+        let error = repo
+            .link_transfer_activities("in-1".to_string(), "out-2".to_string())
+            .await
+            .expect_err("legs of two different pairs are not linked to each other");
+        assert!(
+            error
+                .to_string()
+                .contains("already linked to another transfer"),
+            "{error}"
+        );
+        for (id, group) in [
+            ("out-1", "g"),
+            ("in-1", "g"),
+            ("out-2", " g "),
+            ("in-2", " g "),
+        ] {
+            let stored: Option<String> = activities::table
+                .filter(activities::id.eq(id))
+                .select(activities::source_group_id)
+                .first(&mut conn)
+                .expect("stored source group");
+            assert_eq!(stored.as_deref(), Some(group), "{id}");
+        }
     }
 
     #[tokio::test]

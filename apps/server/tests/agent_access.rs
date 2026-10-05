@@ -1018,6 +1018,18 @@ async fn mcp_finds_links_and_unlinks_transfers() {
         transfer(&savings, "TRANSFER_IN", "2026-04-01T12:00:00Z", "100").await["id"].clone();
     let other_id =
         transfer(&savings, "TRANSFER_IN", "2026-04-02T12:00:00Z", "250").await["id"].clone();
+    // A pending transfer stays out of the scan and cannot be linked.
+    let pending = api_post(
+        &server,
+        &cookie,
+        "activities",
+        serde_json::json!({
+            "accountId": chequing["id"], "activityType": "TRANSFER_OUT", "status": "PENDING",
+            "activityDate": "2026-04-02T12:00:00Z", "currency": "EUR", "amount": "250"
+        }),
+    )
+    .await;
+    assert_eq!(pending["status"], "PENDING", "{pending}");
 
     let found = mcp_call_tool(
         &server,
@@ -1047,7 +1059,8 @@ async fn mcp_finds_links_and_unlinks_transfers() {
         "{outgoing}"
     );
 
-    // The second pair reuses the now-linked outgoing side and fails alone.
+    // The second pair reuses the now-linked outgoing side and the third has a
+    // pending side; each fails alone.
     let linked = mcp_call_tool(
         &server,
         &pat,
@@ -1055,7 +1068,8 @@ async fn mcp_finds_links_and_unlinks_transfers() {
         "link_transfer_activities",
         serde_json::json!({ "pairs": [
             { "activityAId": out_id, "activityBId": in_id },
-            { "activityAId": other_id, "activityBId": out_id }
+            { "activityAId": other_id, "activityBId": out_id },
+            { "activityAId": other_id, "activityBId": pending["id"] }
         ]}),
     )
     .await;
@@ -1063,6 +1077,13 @@ async fn mcp_finds_links_and_unlinks_transfers() {
     assert_eq!(linked["linked"][0]["transferOutId"], out_id);
     assert_eq!(linked["linked"][0]["transferInId"], in_id);
     assert_eq!(linked["errors"][0]["index"], 1, "{linked}");
+    assert_eq!(linked["errors"][1]["index"], 2, "{linked}");
+    assert!(
+        linked["errors"][1]["message"]
+            .as_str()
+            .is_some_and(|message| message.contains("not posted")),
+        "{linked}"
+    );
 
     let lookup = mcp_call_tool(
         &server,

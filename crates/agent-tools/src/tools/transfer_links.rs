@@ -15,7 +15,8 @@ use rust_decimal::prelude::ToPrimitive;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use wealthfolio_core::activities::{
-    Activity, TransferLinkState, TransferMatchCandidate, UnlinkedTransfer, UnlinkedTransfersRequest,
+    Activity, ActivityServiceTrait, TransferLinkState, TransferMatchCandidate, UnlinkedTransfer,
+    UnlinkedTransfersRequest,
 };
 
 use crate::env::AgentEnvironment;
@@ -371,6 +372,26 @@ fn parse_pairs(args: serde_json::Value) -> Result<Vec<TransferPairInput>, AgentT
     Ok(args.pairs)
 }
 
+/// Only posted transfers count in calculations, and the scan offers only
+/// those: a pending, draft or void side would hide its posted counterpart as
+/// an internal transfer.
+fn ensure_posted(
+    activity_service: &dyn ActivityServiceTrait,
+    ids: [&str; 2],
+) -> Result<(), String> {
+    for id in ids {
+        let activity = activity_service
+            .get_activity(id)
+            .map_err(|error| error.to_string())?;
+        if !activity.is_posted() {
+            return Err(format!(
+                "Activity {id} is not posted; only posted transfers can be linked"
+            ));
+        }
+    }
+    Ok(())
+}
+
 #[derive(Clone, Copy)]
 enum PairAction {
     Link,
@@ -392,18 +413,24 @@ async fn apply_pairs(
         let a = pair.activity_a_id.trim().to_string();
         let b = pair.activity_b_id.trim().to_string();
         let result = match action {
-            PairAction::Link => activity_service.link_transfer_activities(a, b).await,
-            PairAction::Unlink => activity_service.unlink_transfer_activities(a, b).await,
+            PairAction::Link => match ensure_posted(activity_service.as_ref(), [&a, &b]) {
+                Ok(()) => activity_service
+                    .link_transfer_activities(a, b)
+                    .await
+                    .map_err(|error| error.to_string()),
+                Err(message) => Err(message),
+            },
+            PairAction::Unlink => activity_service
+                .unlink_transfer_activities(a, b)
+                .await
+                .map_err(|error| error.to_string()),
         };
         match result {
             Ok((transfer_in, transfer_out)) => done.push(TransferPairDto {
                 transfer_in_id: transfer_in.id,
                 transfer_out_id: transfer_out.id,
             }),
-            Err(error) => errors.push(TransferPairError {
-                index,
-                message: error.to_string(),
-            }),
+            Err(message) => errors.push(TransferPairError { index, message }),
         }
     }
     if !done.is_empty() {
@@ -422,7 +449,7 @@ impl AgentTool for LinkTransferActivities {
     }
 
     fn description(&self) -> &'static str {
-        "Link transfer pairs. Each pair is a TRANSFER_OUT and a TRANSFER_IN (in either order) that are the two sides of one movement between owned accounts; linked, they count as an internal transfer instead of spending and income, and broker syncs keep the link. This MUTATES data: only call it after the user confirmed the pairs, for example from find_transfer_matches. Linking applies the app's rules: neither side may already be linked to another transfer, a same-account pair must be a cash currency conversion, and security legs must match in asset and quantity. Linking a pair that is already linked to each other repairs it, clearing an external marker left on either side. Up to 100 pairs; each is linked on its own, with linked pairs listed in linked and failures in errors."
+        "Link transfer pairs. Each pair is a TRANSFER_OUT and a TRANSFER_IN (in either order) that are the two sides of one movement between owned accounts; linked, they count as an internal transfer instead of spending and income, and broker syncs keep the link. This MUTATES data: only call it after the user confirmed the pairs, for example from find_transfer_matches. Linking applies the app's rules: neither side may already be linked to another transfer, a same-account pair must be a cash currency conversion, security legs must match in asset and quantity, and both sides must be posted. Linking a pair that is already linked to each other repairs it, clearing an external marker left on either side. Up to 100 pairs; each is linked on its own, with linked pairs listed in linked and failures in errors."
     }
 
     fn input_schema(&self) -> serde_json::Value {
