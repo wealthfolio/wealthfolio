@@ -148,6 +148,10 @@ pub struct AccountSpec {
     pub tracking_mode: String,
     #[serde(default)]
     pub is_archived: bool,
+    /// Stored in the account's meta as its settings name it (engine rules
+    /// R7.2); none reads as the defaults.
+    #[serde(default)]
+    pub cost_basis_method: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -635,7 +639,9 @@ impl Scenario {
                 updated_at: stamp,
                 platform_id: None,
                 account_number: None,
-                meta: None,
+                meta: spec.cost_basis_method.as_ref().map(|method| {
+                    json!({ "accounting": { "costBasisMethod": method } }).to_string()
+                }),
                 provider: None,
                 provider_account_id: None,
                 is_archived: spec.is_archived,

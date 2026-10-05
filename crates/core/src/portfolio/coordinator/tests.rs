@@ -1594,6 +1594,35 @@ async fn unsupported_cost_basis_settings_fail_the_account() {
         .is_empty());
 }
 
+/// Engine rules R7.2: an account whose settings name WAC is computed, not
+/// refused, its purchases pool (one lot, one disposal per sale), and its lot
+/// and disposal rows record the method they were computed with.
+#[tokio::test]
+async fn an_account_set_to_wac_is_computed_and_its_rows_record_it() {
+    let facts = scenario("NOM-CB-01").facts();
+    let account = facts.accounts[0].id.clone();
+    let harness = harness(facts).await;
+    let report = harness
+        .coordinator
+        .run_job(request(), &SilentObserver)
+        .await
+        .unwrap();
+    assert!(report.failures.is_empty(), "{:?}", report.failures);
+    let lots = harness
+        .lot_repo
+        .get_all_lots_for_account(&account)
+        .await
+        .unwrap();
+    let disposals = harness
+        .lot_repo
+        .get_lot_disposals_for_account(&account)
+        .await
+        .unwrap();
+    assert_eq!((lots.len(), disposals.len()), (1, 2));
+    assert!(lots.iter().all(|lot| lot.cost_basis_method == "WAC"));
+    assert!(disposals.iter().all(|d| d.cost_basis_method == "WAC"));
+}
+
 /// Runs EDGE-TXF-02 (acc-a transfers to acc-b) with acc-a's meta set to
 /// `meta` and checks the job refuses acc-a alone, and folds it FIFO as acc-b's
 /// transfer partner: acc-b's results are those of an all-FIFO run.
@@ -2036,7 +2065,23 @@ fn reference(harness: &Harness, facts: &ScenarioFacts) -> Reference {
                 facts.timezone.parse().unwrap_or(chrono_tz::Tz::UTC),
                 facts.as_of,
             ),
-            accounts: facts.accounts.iter().map(facts::raw_account).collect(),
+            // Each account folds by the method its settings name, as the job
+            // reads them (engine rules R7.2).
+            accounts: facts
+                .accounts
+                .iter()
+                .map(|account| engine::model::RawAccount {
+                    cost_basis_method: Some(
+                        account
+                            .accounting_settings()
+                            .unwrap()
+                            .cost_basis_method
+                            .as_str()
+                            .to_string(),
+                    ),
+                    ..facts::raw_account(account)
+                })
+                .collect(),
             assets: facts.assets.iter().map(facts::raw_asset).collect(),
             activities: facts.activities.iter().map(facts::raw_activity).collect(),
             quotes,
