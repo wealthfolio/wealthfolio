@@ -161,3 +161,41 @@ describe("AccountForm cost basis method", () => {
     ).not.toBeInTheDocument();
   });
 });
+
+describe("AccountForm archive", () => {
+  beforeEach(() => mutations.update.mockClear());
+
+  const archiveSwitch = () =>
+    screen.getByRole("switch", { name: /settings:accounts\.form_archive_label/ });
+
+  it("asks before archiving, then saves", async () => {
+    renderForm();
+    fireEvent.click(archiveSwitch());
+    fireEvent.click(screen.getByTestId("account-submit-button"));
+
+    expect(await screen.findByText("settings:accounts.archive_title")).toBeInTheDocument();
+    expect(mutations.update).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "settings:accounts.operations_archive" }));
+    await waitFor(() => expect(mutations.update).toHaveBeenCalledTimes(1));
+    expect(mutations.update.mock.calls[0][0]).toMatchObject({ isArchived: true });
+  });
+
+  it("keeps the account as it was when archiving is cancelled", async () => {
+    renderForm();
+    fireEvent.click(archiveSwitch());
+    fireEvent.click(screen.getByTestId("account-submit-button"));
+    await screen.findByText("settings:accounts.archive_title");
+
+    fireEvent.click(screen.getByRole("button", { name: "settings:accounts_cancel_button" }));
+    await waitFor(() => expect(archiveSwitch()).not.toBeChecked());
+    expect(mutations.update).not.toHaveBeenCalled();
+  });
+
+  it("saves other edits to an archived account without asking", async () => {
+    renderForm({ isArchived: true });
+    fireEvent.click(screen.getByTestId("account-submit-button"));
+    await waitFor(() => expect(mutations.update).toHaveBeenCalledTimes(1));
+    expect(screen.queryByText("settings:accounts.archive_title")).not.toBeInTheDocument();
+  });
+});

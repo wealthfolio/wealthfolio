@@ -174,8 +174,9 @@ export function AccountForm({ defaultValues, onSuccess = () => undefined }: Acco
   const initialTrackingMode = defaultValues?.trackingMode;
   const needsSetup = initialTrackingMode === "NOT_SET" || initialTrackingMode === undefined;
 
-  // State for mode switch confirmation dialog
+  // State for the mode switch and archive confirmation dialogs
   const [showModeConfirmation, setShowModeConfirmation] = useState(false);
+  const [showArchiveConfirmation, setShowArchiveConfirmation] = useState(false);
   const [pendingFormData, setPendingFormData] = useState<AccountFormOutput | null>(null);
 
   const form = useForm<AccountFormInput, unknown, AccountFormOutput>({
@@ -262,6 +263,17 @@ export function AccountForm({ defaultValues, onSuccess = () => undefined }: Acco
   );
 
   function onSubmit(data: AccountFormOutput) {
+    // Archiving asks first, as it does from the account menu
+    const isArchiving = !!data.id && data.isArchived && !defaultValues?.isArchived;
+    if (isArchiving) {
+      setPendingFormData(data);
+      setShowArchiveConfirmation(true);
+      return;
+    }
+    submitAfterArchiveCheck(data);
+  }
+
+  function submitAfterArchiveCheck(data: AccountFormOutput) {
     // Check if this is an existing account (update) and mode is switching from HOLDINGS to TRANSACTIONS
     const isExistingAccount = !!data.id;
     const isSwitchingFromHoldingsToTransactions =
@@ -296,6 +308,20 @@ export function AccountForm({ defaultValues, onSuccess = () => undefined }: Acco
     setPendingFormData(null);
     // Revert the tracking mode in the form
     form.setValue("trackingMode", initialTrackingMode);
+  };
+
+  const handleConfirmArchive = () => {
+    setShowArchiveConfirmation(false);
+    setPendingFormData(null);
+    if (pendingFormData) {
+      submitAfterArchiveCheck(pendingFormData);
+    }
+  };
+
+  const handleCancelArchive = () => {
+    setShowArchiveConfirmation(false);
+    setPendingFormData(null);
+    form.setValue("isArchived", false);
   };
 
   const formTitle = defaultValues?.id
@@ -739,6 +765,32 @@ export function AccountForm({ defaultValues, onSuccess = () => undefined }: Acco
             </AlertDialogCancel>
             <Button onClick={handleConfirmModeSwitch}>
               {t("settings:accounts.mode_switch_confirm")}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Archive Confirmation Dialog, as the account menu shows it */}
+      <AlertDialog
+        open={showArchiveConfirmation}
+        onOpenChange={(open) => {
+          if (!open) handleCancelArchive();
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <Icons.AlertTriangle className="h-5 w-5 text-amber-500" />
+              {t("settings:accounts.archive_title")}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("settings:accounts.archive_description")}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("settings:accounts_cancel_button")}</AlertDialogCancel>
+            <Button onClick={handleConfirmArchive}>
+              {t("settings:accounts.operations_archive")}
             </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
