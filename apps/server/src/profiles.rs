@@ -184,6 +184,7 @@ impl WebProfiles {
             self.runtimes.lock().await.remove(&id)
         };
         if let Some(runtime) = runtime {
+            runtime.backup_scheduler.set_paused(true);
             let _lifecycle = runtime.profile_lifecycle.lock().await;
             let workers = std::mem::take(&mut *runtime.workers.lock().map_err(failure)?);
             for worker in workers {

@@ -43,7 +43,42 @@ impl TokenLifecycleConfig {
 /// Connect and provider credentials; the database reconnect gate blocks cloud
 /// access until explicit login. Verify deletion before reopening that gate.
 pub fn clear_restored_sync_identity(store: &dyn SecretStore) -> Result<(), String> {
-    clear_credentials(store, &[SYNC_IDENTITY_KEY, LEGACY_SYNC_DEVICE_ID_KEY])
+    // Keep installation identifiers, never key material from the old baseline.
+    // Account rebind uses clear_connect_binding_credentials and retains nothing.
+    let retained = store
+        .get_secret(SYNC_IDENTITY_KEY)
+        .map_err(|e| e.to_string())?
+        .and_then(|value| serde_json::from_str::<serde_json::Value>(&value).ok())
+        .and_then(|identity| {
+            let nonce = identity.get("deviceNonce")?.as_str()?;
+            let device = identity.get("deviceId")?.as_str()?;
+            uuid::Uuid::parse_str(nonce).ok()?;
+            uuid::Uuid::parse_str(device).ok()?;
+            Some(serde_json::json!({"version": 2, "deviceNonce": nonce, "deviceId": device}))
+        });
+    clear_credentials(
+        store,
+        &[
+            SYNC_IDENTITY_KEY,
+            LEGACY_SYNC_DEVICE_ID_KEY,
+            wealthfolio_core::secrets::CLOUD_BACKUP_CONSENT_KEY,
+        ],
+    )?;
+    if let Some(identity) = retained {
+        let value = identity.to_string();
+        store
+            .set_secret(SYNC_IDENTITY_KEY, &value)
+            .map_err(|e| e.to_string())?;
+        if store
+            .get_secret(SYNC_IDENTITY_KEY)
+            .map_err(|e| e.to_string())?
+            .as_deref()
+            != Some(&value)
+        {
+            return Err("Restored installation identity could not be saved".into());
+        }
+    }
+    Ok(())
 }
 
 /// An explicitly confirmed account change also removes the old login.
@@ -55,6 +90,7 @@ fn clear_connect_binding_credentials(store: &dyn SecretStore) -> Result<(), Stri
             CLOUD_REFRESH_TOKEN_KEY,
             SYNC_IDENTITY_KEY,
             LEGACY_SYNC_DEVICE_ID_KEY,
+            wealthfolio_core::secrets::CLOUD_BACKUP_CONSENT_KEY,
         ],
     )
 }
@@ -251,6 +287,7 @@ impl TokenLifecycleState {
                 CLOUD_REFRESH_TOKEN_KEY,
                 CLOUD_ACCESS_TOKEN_KEY,
                 LEGACY_SYNC_DEVICE_ID_KEY,
+                wealthfolio_core::secrets::CLOUD_BACKUP_CONSENT_KEY,
             ]
             .iter()
             .try_fold(false, |found, key| {
@@ -754,15 +791,22 @@ mod tests {
             DATABASE_KEY_SECRET,
             "YAHOO",
             "addon.test.key",
+            "cloud_backup_master_v1:synthetic-user",
+            "cloud_backup_source_v1:synthetic-user",
         ];
-        for key in preserved
-            .into_iter()
-            .chain([SYNC_IDENTITY_KEY, LEGACY_SYNC_DEVICE_ID_KEY])
-        {
+        for key in preserved.into_iter().chain([
+            SYNC_IDENTITY_KEY,
+            LEGACY_SYNC_DEVICE_ID_KEY,
+            wealthfolio_core::secrets::CLOUD_BACKUP_CONSENT_KEY,
+        ]) {
             store.set_secret(key, "synthetic secret").unwrap();
         }
         clear_restored_sync_identity(&store).unwrap();
-        for key in [SYNC_IDENTITY_KEY, LEGACY_SYNC_DEVICE_ID_KEY] {
+        for key in [
+            SYNC_IDENTITY_KEY,
+            LEGACY_SYNC_DEVICE_ID_KEY,
+            wealthfolio_core::secrets::CLOUD_BACKUP_CONSENT_KEY,
+        ] {
             assert!(store.get_secret(key).unwrap().is_none());
         }
         for key in preserved {
@@ -780,6 +824,35 @@ mod tests {
     }
 
     #[test]
+    fn restore_retains_only_installation_ids_and_rebind_removes_them() {
+        let store = MemorySecrets::default();
+        let nonce = uuid::Uuid::new_v4().to_string();
+        let device = uuid::Uuid::new_v4().to_string();
+        store
+            .set_secret(
+                SYNC_IDENTITY_KEY,
+                &serde_json::json!({
+                    "deviceNonce": nonce, "deviceId": device, "rootKey": "old-key",
+                    "keyVersion": 5, "deviceSecretKey": "private", "devicePublicKey": "public"
+                })
+                .to_string(),
+            )
+            .unwrap();
+        for _ in 0..2 {
+            clear_restored_sync_identity(&store).unwrap();
+            let identity: serde_json::Value =
+                serde_json::from_str(&store.get_secret(SYNC_IDENTITY_KEY).unwrap().unwrap())
+                    .unwrap();
+            assert_eq!(
+                identity,
+                serde_json::json!({"version": 2, "deviceNonce": nonce, "deviceId": device})
+            );
+        }
+        clear_connect_binding_credentials(&store).unwrap();
+        assert!(store.get_secret(SYNC_IDENTITY_KEY).unwrap().is_none());
+    }
+
+    #[test]
     fn restored_identity_rejects_a_store_that_does_not_delete() {
         struct BrokenStore(&'static str);
         impl SecretStore for BrokenStore {
@@ -793,7 +866,11 @@ mod tests {
                 Ok(())
             }
         }
-        for key in [SYNC_IDENTITY_KEY, LEGACY_SYNC_DEVICE_ID_KEY] {
+        for key in [
+            SYNC_IDENTITY_KEY,
+            LEGACY_SYNC_DEVICE_ID_KEY,
+            wealthfolio_core::secrets::CLOUD_BACKUP_CONSENT_KEY,
+        ] {
             assert!(clear_restored_sync_identity(&BrokenStore(key)).is_err());
         }
     }
@@ -1013,6 +1090,7 @@ mod tests {
         for key in [
             SYNC_IDENTITY_KEY,
             LEGACY_SYNC_DEVICE_ID_KEY,
+            wealthfolio_core::secrets::CLOUD_BACKUP_CONSENT_KEY,
             CLOUD_REFRESH_TOKEN_KEY,
         ] {
             store.set_secret(key, "preserved").unwrap();
@@ -1059,6 +1137,7 @@ mod tests {
         for key in [
             SYNC_IDENTITY_KEY,
             LEGACY_SYNC_DEVICE_ID_KEY,
+            wealthfolio_core::secrets::CLOUD_BACKUP_CONSENT_KEY,
             CLOUD_REFRESH_TOKEN_KEY,
         ] {
             assert_eq!(store.get_secret(key).unwrap().as_deref(), Some("preserved"));

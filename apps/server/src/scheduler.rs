@@ -39,7 +39,6 @@ pub fn start_broker_sync_scheduler(state: Arc<AppState>) {
 
         // Set up periodic sync - first tick is immediate, subsequent ticks are 4h apart
         let mut sync_interval = interval(Duration::from_secs(SYNC_INTERVAL_SECS));
-
         loop {
             sync_interval.tick().await;
             run_scheduled_sync(&runtime).await;
@@ -138,6 +137,12 @@ fn is_expected_startup_token_warmup_error(err: &crate::error::ApiError) -> bool 
 
 /// Start background jobs after server construction succeeds.
 pub fn start_background_workers(state: Arc<AppState>) {
+    #[cfg(any(feature = "connect-sync", feature = "device-sync"))]
+    state
+        .workers
+        .lock()
+        .unwrap()
+        .push(crate::api::cloud_backups::start_scheduler(state.clone()));
     #[cfg(feature = "device-sync")]
     #[allow(clippy::collapsible_if)]
     if crate::features::device_sync_enabled() {

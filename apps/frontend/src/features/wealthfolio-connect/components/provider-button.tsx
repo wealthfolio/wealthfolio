@@ -5,7 +5,8 @@ import { useTranslation } from "react-i18next";
 
 interface ProviderButtonProps {
   provider: "google" | "apple" | "email";
-  onClick: () => void;
+  onClick?: () => void;
+  disabled?: boolean;
   isLoading: boolean;
   isLastUsed?: boolean;
   variant?: "default" | "outline";
@@ -21,6 +22,7 @@ export function ProviderButton({
   variant = "outline",
   className,
   type = "button",
+  disabled = false,
 }: ProviderButtonProps) {
   const { t } = useTranslation();
   const providerConfig = {
@@ -46,7 +48,7 @@ export function ProviderButton({
       type={type}
       variant={variant}
       onClick={onClick}
-      disabled={isLoading}
+      disabled={disabled || isLoading}
       className={cn("relative h-12 w-full max-w-sm justify-start gap-3", className)}
     >
       {isLoading ? (

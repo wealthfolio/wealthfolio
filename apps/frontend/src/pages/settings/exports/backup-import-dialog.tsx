@@ -31,7 +31,9 @@ export function BackupImportDialog({
   filename,
   displayName,
   onClose,
+  initialPreview,
 }: {
+  initialPreview?: BackupImportPreview;
   filename?: string;
   displayName?: string;
   onClose: () => void;
@@ -48,11 +50,11 @@ export function BackupImportDialog({
   });
   const [selected, setSelected] = useState<string | null>(null);
   const [password, setPassword] = useState("");
-  const [preview, setPreview] = useState<BackupImportPreview | null>(null);
+  const [preview, setPreview] = useState<BackupImportPreview | null>(initialPreview ?? null);
   const [pending, setPending] = useState<"inspect" | "restore" | null>(null);
   const [error, setError] = useState<BackupFailure | null>(null);
   const operation = useRef<AbortController | null>(null);
-  const previewId = useRef<string | null>(null);
+  const previewId = useRef<string | null>(initialPreview?.id ?? null);
   useEffect(
     () => () => {
       operation.current?.abort();
@@ -117,7 +119,7 @@ export function BackupImportDialog({
       setRestored(true);
     } catch (cause) {
       setError({ cause });
-      setPreview(null);
+      if (!initialPreview) setPreview(null);
       setPending(null);
     }
   };
@@ -135,7 +137,11 @@ export function BackupImportDialog({
   };
   const EncryptionIcon = encryption.data?.enabled ? Icons.Lock : Icons.LockOpen;
   const created = preview?.summary.createdAt ? new Date(preview.summary.createdAt) : null;
-  const selectedName = filename ? (displayName ?? filename) : selected?.split(/[\\/]/).pop();
+  const selectedName = initialPreview
+    ? (displayName ?? t("settings:cloud_backup_title"))
+    : filename
+      ? (displayName ?? filename)
+      : selected?.split(/[\\/]/).pop();
   return (
     <Dialog
       open
@@ -258,7 +264,7 @@ export function BackupImportDialog({
                       </Button>
                     )}
                   </div>
-                ) : (
+                ) : !preview ? (
                   <Button
                     type="button"
                     variant="outline"
@@ -269,7 +275,7 @@ export function BackupImportDialog({
                     <Icons.FolderOpen className="size-5" aria-hidden />
                     {t("settings:recovery_choose_file")}
                   </Button>
-                )}
+                ) : null}
                 {preview ? (
                   <>
                     <section className="space-y-3" aria-label={t("settings:recovery_preview")}>
@@ -335,7 +341,11 @@ export function BackupImportDialog({
                     <div className="space-y-3">
                       <div className="space-y-2">
                         <Label htmlFor={`${id}-password`} className="text-sm">
-                          {t("settings:recovery_password")}
+                          {t(
+                            selectedName?.endsWith(".wfrec")
+                              ? "settings:cloud_backup_code"
+                              : "settings:recovery_password",
+                          )}
                         </Label>
                         <PasswordInput
                           id={`${id}-password`}
@@ -357,7 +367,13 @@ export function BackupImportDialog({
                         <summary className="cursor-pointer py-2">
                           {t("settings:backup_password_help_title")}
                         </summary>
-                        <p className="pt-1">{t("settings:recovery_password_help")}</p>
+                        <p className="pt-1">
+                          {t(
+                            selectedName?.endsWith(".wfrec")
+                              ? "settings:cloud_backup_save_code"
+                              : "settings:recovery_password_help",
+                          )}
+                        </p>
                       </details>
                     </div>
                   )
@@ -379,15 +395,22 @@ export function BackupImportDialog({
                 type="button"
                 variant="ghost"
                 disabled={pending === "restore"}
-                onClick={preview ? back : close}
+                onClick={preview && !initialPreview ? back : close}
               >
-                {preview && <Icons.ArrowLeft className="mr-2 size-4" aria-hidden />}
-                {t(preview ? "common:back" : "common:cancel")}
+                {preview && !initialPreview && (
+                  <Icons.ArrowLeft className="mr-2 size-4" aria-hidden />
+                )}
+                {t(preview && !initialPreview ? "common:back" : "common:cancel")}
               </Button>
               <Button
                 type="submit"
                 className="gap-2 sm:flex-1"
-                disabled={pending !== null || (preview ? !encryption.data : !filename && !selected)}
+                disabled={
+                  pending !== null ||
+                  (preview
+                    ? !encryption.data || previewId.current !== preview.id
+                    : !filename && !selected)
+                }
               >
                 {pending && <Icons.Spinner className="size-4 animate-spin" aria-hidden />}
                 {t(

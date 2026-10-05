@@ -24,16 +24,16 @@
     "learnMore": "了解有關 Connect 的更多資訊",
     "features": {
       "brokerageSync": {
-        "title": "券商同步",
-        "description": "每天自動同步帳戶與交易。"
+        "title": "已連接的帳戶",
+        "description": "自動同步券商的交易紀錄。"
       },
       "deviceSync": {
-        "title": "裝置同步",
-        "description": "透過端對端加密在裝置間同步資料。"
+        "title": "裝置同步與備份",
+        "description": "端對端加密同步與自動雲端備份。"
       },
       "householdView": {
-        "title": "家庭檢視",
-        "description": "與家庭成員分享帳戶。"
+        "title": "家庭投資組合",
+        "description": "共同檢視家庭成員的投資。"
       }
     }
   },

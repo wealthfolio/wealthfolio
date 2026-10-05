@@ -244,6 +244,7 @@
   --color-success-foreground: var(--success-foreground);
   --color-warning: var(--warning);
   --color-warning-foreground: var(--warning-foreground);
+  --color-connect-brand: var(--connect-brand);
   --color-info: var(--info);
   --color-info-foreground: var(--info-foreground);
   --color-border: var(--border);
@@ -365,6 +366,8 @@
 }
 
 :root {
+  /* Connect login brand: sage, with its existing dark-mode counterpart. */
+  --connect-brand: #6b7256;
   /* Base radius - desktop default */
   --radius: 0.625rem;
 
@@ -485,6 +488,7 @@
 }
 
 .dark {
+  --connect-brand: #9ca88a;
   /* Flexoki Dark Theme (HSL numeric components) */
   --flexoki-bg: 0 3% 6%;
   --flexoki-bg-2: 30 4% 11%;

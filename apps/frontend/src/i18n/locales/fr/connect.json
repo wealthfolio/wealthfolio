@@ -24,16 +24,16 @@
     "learnMore": "En savoir plus sur Connect",
     "features": {
       "brokerageSync": {
-        "title": "Synchronisation des courtiers",
-        "description": "Synchronisez automatiquement vos comptes et transactions chaque jour."
+        "title": "Comptes connectés",
+        "description": "Synchronisez automatiquement les transactions de vos courtiers."
       },
       "deviceSync": {
-        "title": "Synchronisation des appareils",
-        "description": "Synchronisez entre appareils avec un chiffrement de bout en bout."
+        "title": "Synchronisation et sauvegarde",
+        "description": "Synchronisation chiffrée de bout en bout et sauvegardes cloud automatiques."
       },
       "householdView": {
-        "title": "Vue foyer",
-        "description": "Partagez des comptes avec les membres de votre famille."
+        "title": "Portefeuilles familiaux",
+        "description": "Une vue partagée des investissements de votre famille."
       }
     }
   },

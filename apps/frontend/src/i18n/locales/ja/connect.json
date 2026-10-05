@@ -24,16 +24,16 @@
     "learnMore": "Connectについて詳しく見る",
     "features": {
       "brokerageSync": {
-        "title": "証券会社の同期",
-        "description": "口座と取引を毎日自動で同期します。"
+        "title": "接続された口座",
+        "description": "証券会社の取引を自動的に同期。"
       },
       "deviceSync": {
-        "title": "デバイス同期",
-        "description": "E2E暗号化で複数のデバイス間を同期します。"
+        "title": "デバイス同期とバックアップ",
+        "description": "エンドツーエンド暗号化による同期と自動クラウドバックアップ。"
       },
       "householdView": {
-        "title": "世帯ビュー",
-        "description": "家族と口座を共有できます。"
+        "title": "家族のポートフォリオ",
+        "description": "家族の投資を共有ビューで確認。"
       }
     }
   },

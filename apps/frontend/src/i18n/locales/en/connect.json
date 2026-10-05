@@ -24,16 +24,16 @@
     "learnMore": "Learn more about Connect",
     "features": {
       "brokerageSync": {
-        "title": "Brokerage Sync",
-        "description": "Auto-sync accounts and transactions daily."
+        "title": "Connected accounts",
+        "description": "Automatically sync transactions from your brokers."
       },
       "deviceSync": {
-        "title": "Device Sync",
-        "description": "Sync across devices with E2E encryption."
+        "title": "Device Sync & Backup",
+        "description": "End-to-end encrypted sync and automatic cloud backups."
       },
       "householdView": {
-        "title": "Household View",
-        "description": "Share accounts with family members."
+        "title": "Family portfolios",
+        "description": "A shared view of your family’s investments."
       }
     }
   },

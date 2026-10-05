@@ -2,12 +2,13 @@
 //!
 //! This client uses the REST API endpoints for device synchronization.
 
+use crate::transfer::{ConnectTransferTransport, TransferDescriptor};
 use log::debug;
 use rand::Rng;
-use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION, CONTENT_LENGTH, CONTENT_TYPE};
+use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION, CONTENT_TYPE};
 use reqwest::{Method, RequestBuilder, StatusCode};
 use serde::de::DeserializeOwned;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::OnceLock;
@@ -21,9 +22,6 @@ use crate::types::*;
 
 /// Default timeout for API requests.
 const DEFAULT_TIMEOUT_SECS: u64 = 30;
-// Pairing snapshots include price history and can be tens of megabytes. Give
-// their bodies time to upload/download without relaxing ordinary API deadlines.
-const SNAPSHOT_TRANSFER_TIMEOUT_SECS: u64 = 300;
 const SNAPSHOT_UPLOAD_MAX_ATTEMPTS: usize = 5;
 const SNAPSHOT_UPLOAD_BASE_BACKOFF_MS: u64 = 250;
 const SNAPSHOT_UPLOAD_MAX_BACKOFF_MS: u64 = 8_000;
@@ -348,28 +346,6 @@ impl DeviceSyncClient {
         latest
     }
 
-    fn snapshot_download_url(&self, snapshot_id: &str) -> Result<reqwest::Url> {
-        let snapshot_id = snapshot_id.trim();
-        if snapshot_id.is_empty() {
-            return Err(DeviceSyncError::invalid_request(
-                "snapshot_id is required for download",
-            ));
-        }
-
-        let mut url = reqwest::Url::parse(&format!("{}/api/v1/sync/snapshots/", self.base_url))
-            .map_err(|err| {
-                DeviceSyncError::invalid_request(format!("Invalid base URL: {}", err))
-            })?;
-        {
-            let mut segments = url.path_segments_mut().map_err(|_| {
-                DeviceSyncError::invalid_request("Invalid base URL path for snapshot download")
-            })?;
-            segments.pop_if_empty();
-            segments.push(snapshot_id);
-        }
-        Ok(url)
-    }
-
     /// Create a new device sync client.
     ///
     /// # Arguments
@@ -416,7 +392,7 @@ impl DeviceSyncClient {
         Ok(headers)
     }
 
-    async fn send_json_no_body<T: DeserializeOwned>(
+    pub(crate) async fn send_json_no_body<T: DeserializeOwned>(
         &self,
         method: Method,
         path: String,
@@ -432,7 +408,7 @@ impl DeviceSyncClient {
         Self::parse_response(response, &context).await
     }
 
-    async fn send_json_body<T: DeserializeOwned, B: Serialize + ?Sized>(
+    pub(crate) async fn send_json_body<T: DeserializeOwned, B: Serialize + ?Sized>(
         &self,
         method: Method,
         path: String,
@@ -538,78 +514,6 @@ impl DeviceSyncClient {
                 ),
             )
         })
-    }
-
-    /// Parse a binary response body while preserving API error handling.
-    async fn parse_binary_response(
-        response: reqwest::Response,
-        context: &CloudRequestContext,
-    ) -> Result<reqwest::Response> {
-        let status = response.status();
-        if status.is_success() {
-            return Ok(response);
-        }
-
-        let request_id = server_request_id(response.headers());
-        let body = response.text().await.map_err(|err| {
-            log_failed_cloud_request(
-                context,
-                Some(status),
-                request_id.as_deref(),
-                transport_error_kind(&err),
-                None,
-            );
-            DeviceSyncError::Http(err)
-        })?;
-        if let Ok(error) = serde_json::from_str::<ApiErrorResponse>(&body) {
-            let code = if error.code.is_empty() {
-                error.error
-            } else {
-                error.code
-            };
-            log_failed_cloud_request(
-                context,
-                Some(status),
-                request_id.as_deref(),
-                "http",
-                Some(&code),
-            );
-            return Err(DeviceSyncError::api_structured(
-                status.as_u16(),
-                code,
-                with_request_metadata(error.message, context, request_id.as_deref()),
-                details_with_request_metadata(error.details, context, request_id.as_deref()),
-            ));
-        }
-        log_failed_cloud_request(context, Some(status), request_id.as_deref(), "http", None);
-
-        Err(DeviceSyncError::api(
-            status.as_u16(),
-            with_request_metadata(
-                fallback_api_error_message(&body),
-                context,
-                request_id.as_deref(),
-            ),
-        ))
-    }
-
-    fn parse_required_header_i32(headers: &HeaderMap, name: &'static str) -> Result<i32> {
-        headers
-            .get(name)
-            .ok_or_else(|| DeviceSyncError::invalid_request(format!("Missing header {}", name)))?
-            .to_str()
-            .map_err(|_| DeviceSyncError::invalid_request(format!("Invalid header {}", name)))?
-            .parse::<i32>()
-            .map_err(|_| DeviceSyncError::invalid_request(format!("Invalid header {}", name)))
-    }
-
-    fn parse_required_header_string(headers: &HeaderMap, name: &'static str) -> Result<String> {
-        Ok(headers
-            .get(name)
-            .ok_or_else(|| DeviceSyncError::invalid_request(format!("Missing header {}", name)))?
-            .to_str()
-            .map_err(|_| DeviceSyncError::invalid_request(format!("Invalid header {}", name)))?
-            .to_string())
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -928,56 +832,167 @@ impl DeviceSyncClient {
         }
     }
 
-    /// Download encrypted snapshot blob and metadata headers.
+    async fn upload_snapshot_direct(
+        &self,
+        token: &str,
+        device: &str,
+        headers: &SnapshotUploadHeaders,
+        bytes: Vec<u8>,
+        cancel_flag: Option<&AtomicBool>,
+    ) -> Result<SnapshotUploadResponse> {
+        #[derive(Deserialize)]
+        struct Prepared {
+            published: Option<SnapshotUploadResponse>,
+            ticket: Option<String>,
+            transfer: Option<TransferDescriptor>,
+        }
+        let check_cancel = || {
+            if cancel_flag.is_some_and(|flag| flag.load(Ordering::Relaxed)) {
+                Err(DeviceSyncError::invalid_request(
+                    "Snapshot upload cancelled",
+                ))
+            } else {
+                Ok(())
+            }
+        };
+        check_cancel()?;
+        let input = serde_json::json!({ "event_id": headers.event_id, "snapshot_seq": headers.base_seq.unwrap_or(0), "schema_version": headers.schema_version, "size_bytes": headers.size_bytes, "checksum": headers.checksum, "metadata_payload": headers.metadata_payload, "payload_key_version": headers.payload_key_version });
+        let mut attempt = 0usize;
+        let prepared: Prepared = loop {
+            check_cancel()?;
+            attempt += 1;
+            match self
+                .send_json_body(
+                    Method::POST,
+                    "/api/v1/sync/snapshots/prepare-upload".into(),
+                    token,
+                    Some(device),
+                    &input,
+                )
+                .await
+            {
+                Ok(prepared) => break prepared,
+                Err(error) => {
+                    let retryable = match &error {
+                        DeviceSyncError::Api {
+                            status,
+                            code,
+                            message,
+                            ..
+                        } => is_retryable_snapshot_error(*status, Some(code), Some(message)),
+                        DeviceSyncError::Http(error) => is_retryable_transport_error(error),
+                        _ => false,
+                    };
+                    if !retryable || attempt >= SNAPSHOT_UPLOAD_MAX_ATTEMPTS {
+                        return Err(error);
+                    }
+                    sleep(snapshot_backoff_with_jitter(attempt)).await;
+                }
+            }
+        };
+        if let Some(published) = prepared.published {
+            return Ok(published);
+        }
+        let ticket = prepared
+            .ticket
+            .ok_or_else(|| DeviceSyncError::invalid_request("Missing transfer ticket"))?;
+        let transfer = prepared
+            .transfer
+            .ok_or_else(|| DeviceSyncError::invalid_request("Missing transfer descriptor"))?;
+        check_cancel()?;
+        // Resolve completion even after a lost PUT response; publication stays idempotent.
+        let put = match ConnectTransferTransport::configured()?
+            .upload(&transfer, bytes)
+            .await
+        {
+            // No request was sent when local validation rejected the descriptor.
+            Err(error @ DeviceSyncError::InvalidRequest(_)) => return Err(error),
+            result => result,
+        };
+        let mut last = None;
+        for attempt in 0..3 {
+            check_cancel()?;
+            match self
+                .send_json_body(
+                    Method::POST,
+                    "/api/v1/sync/snapshots/complete-upload".into(),
+                    token,
+                    Some(device),
+                    &serde_json::json!({ "ticket": ticket }),
+                )
+                .await
+            {
+                Ok(result) => return Ok(result),
+                Err(error) => {
+                    if error
+                        .status_code()
+                        .is_some_and(|status| status < 500 && !matches!(status, 408 | 429))
+                    {
+                        return Err(error);
+                    }
+                    last = Some(error);
+                    if attempt < 2 {
+                        sleep(snapshot_backoff_with_jitter(attempt + 1)).await;
+                    }
+                }
+            }
+        }
+        Err(last.or_else(|| put.err()).expect("completion failed"))
+    }
+    /// Authorize and download an encrypted snapshot directly from Connect storage.
     ///
-    /// GET /api/v1/sync/snapshots/{snapshotId}
+    /// POST /api/v1/sync/snapshots/{snapshotId}/download-url
     pub async fn download_snapshot(
         &self,
         token: &str,
         device_id: &str,
         snapshot_id: &str,
     ) -> Result<(SnapshotDownloadHeaders, Vec<u8>)> {
-        let url = self.snapshot_download_url(snapshot_id)?;
-        let path = url.path().to_string();
-        let context = CloudRequestContext::new("GET", path, Some(device_id));
-        let headers = self.headers_with_device(token, Some(device_id), &context)?;
-        let response = self
-            .client
-            .get(url)
-            .timeout(Duration::from_secs(SNAPSHOT_TRANSFER_TIMEOUT_SECS))
-            .headers(headers)
-            .send()
-            .await
-            .map_err(|err| {
-                log_failed_cloud_request(&context, None, None, transport_error_kind(&err), None);
-                DeviceSyncError::Http(err)
-            })?;
-        let response = Self::parse_binary_response(response, &context).await?;
-        let headers = response.headers().clone();
-        let body = response.bytes().await?.to_vec();
-
-        let raw_tables = Self::parse_required_header_string(&headers, "x-snapshot-covers-tables")?;
-        let snapshot_headers = SnapshotDownloadHeaders {
-            schema_version: Self::parse_required_header_i32(&headers, "x-snapshot-schema-version")?,
-            covers_tables: raw_tables
-                .split(',')
-                .map(|value| value.trim().to_string())
-                .filter(|value| !value.is_empty())
-                .collect(),
-            checksum: Self::parse_required_header_string(&headers, "x-snapshot-checksum")?,
-        };
-
-        Ok((snapshot_headers, body))
+        #[derive(Deserialize)]
+        struct Download {
+            transfer: TransferDescriptor,
+            snapshot: SnapshotLatestResponse,
+        }
+        uuid::Uuid::parse_str(snapshot_id)
+            .map_err(|_| DeviceSyncError::invalid_request("Invalid snapshot ID"))?;
+        let result: Download = self
+            .send_json_body(
+                Method::POST,
+                format!("/api/v1/sync/snapshots/{snapshot_id}/download-url"),
+                token,
+                Some(device_id),
+                &serde_json::json!({}),
+            )
+            .await?;
+        if result.snapshot.snapshot_id != snapshot_id {
+            return Err(DeviceSyncError::invalid_request("Transfer object mismatch"));
+        }
+        let bytes = ConnectTransferTransport::configured()?
+            .download(
+                &result.transfer,
+                usize::try_from(result.snapshot.size_bytes)
+                    .map_err(|_| DeviceSyncError::invalid_request("Transfer size invalid"))?,
+                &result.snapshot.checksum,
+            )
+            .await?;
+        Ok((
+            SnapshotDownloadHeaders {
+                schema_version: result.snapshot.schema_version,
+                covers_tables: result.snapshot.covers_tables,
+                checksum: result.snapshot.checksum,
+            },
+            bytes,
+        ))
     }
 
     /// Upload a snapshot blob.
     ///
-    /// The client performs single-call idempotent upload with retry hardening:
+    /// Prepare, upload encrypted bytes to Connect storage, and complete idempotent publication:
     /// - validates size/checksum against payload bytes
-    /// - reuses the same `X-Snapshot-Event-Id` across retries
+    /// - reuses the same event ID across retries
     /// - retries transient/unknown-outcome failures with exponential backoff + jitter
     ///
-    /// POST /api/v1/sync/snapshots/upload
+    /// POST /api/v1/sync/snapshots/prepare-upload and complete-upload
     pub async fn upload_snapshot(
         &self,
         token: &str,
@@ -1054,213 +1069,12 @@ impl DeviceSyncClient {
         }
 
         let result = self
-            .upload_snapshot_with_retry(token, device_id, &upload_headers, payload, cancel_flag)
+            .upload_snapshot_direct(token, device_id, &upload_headers, payload, cancel_flag)
             .await;
 
         let mut in_flight = snapshot_upload_in_flight().lock().await;
         in_flight.remove(&dedupe_key);
         result
-    }
-
-    async fn upload_snapshot_with_retry(
-        &self,
-        token: &str,
-        device_id: &str,
-        upload_headers: &SnapshotUploadHeaders,
-        payload: Vec<u8>,
-        cancel_flag: Option<&AtomicBool>,
-    ) -> Result<SnapshotUploadResponse> {
-        let path = "/api/v1/sync/snapshots/upload";
-        let url = format!("{}{}", self.base_url, path);
-        let mut attempt = 0usize;
-
-        loop {
-            if cancel_flag
-                .map(|flag| flag.load(Ordering::Relaxed))
-                .unwrap_or(false)
-            {
-                return Err(DeviceSyncError::invalid_request(
-                    "Snapshot upload cancelled",
-                ));
-            }
-
-            attempt = attempt.saturating_add(1);
-            let context = CloudRequestContext::new("POST", path, Some(device_id));
-            let mut headers = self.headers_with_device(token, Some(device_id), &context)?;
-            headers.insert(
-                CONTENT_TYPE,
-                HeaderValue::from_static("application/octet-stream"),
-            );
-            if let Some(event_id) = upload_headers.event_id.as_deref() {
-                headers.insert(
-                    "x-snapshot-event-id",
-                    HeaderValue::from_str(event_id).map_err(|_| {
-                        DeviceSyncError::invalid_request("Invalid snapshot event ID")
-                    })?,
-                );
-            }
-            headers.insert(
-                "x-snapshot-schema-version",
-                HeaderValue::from_str(&upload_headers.schema_version.to_string()).map_err(
-                    |_| DeviceSyncError::invalid_request("Invalid snapshot schema version"),
-                )?,
-            );
-            headers.insert(
-                "x-snapshot-covers-tables",
-                HeaderValue::from_str(&upload_headers.covers_tables.join(",")).map_err(|_| {
-                    DeviceSyncError::invalid_request("Invalid snapshot covers tables")
-                })?,
-            );
-            headers.insert(
-                "x-snapshot-size-bytes",
-                HeaderValue::from_str(&upload_headers.size_bytes.to_string())
-                    .map_err(|_| DeviceSyncError::invalid_request("Invalid snapshot size"))?,
-            );
-            headers.insert(
-                CONTENT_LENGTH,
-                HeaderValue::from_str(&upload_headers.size_bytes.to_string())
-                    .map_err(|_| DeviceSyncError::invalid_request("Invalid snapshot size"))?,
-            );
-            headers.insert(
-                "x-snapshot-checksum",
-                HeaderValue::from_str(&upload_headers.checksum)
-                    .map_err(|_| DeviceSyncError::invalid_request("Invalid snapshot checksum"))?,
-            );
-            headers.insert(
-                "x-snapshot-metadata-payload",
-                HeaderValue::from_str(&upload_headers.metadata_payload).map_err(|_| {
-                    DeviceSyncError::invalid_request("Invalid snapshot metadata payload")
-                })?,
-            );
-            headers.insert(
-                "x-snapshot-payload-key-version",
-                HeaderValue::from_str(&upload_headers.payload_key_version.to_string()).map_err(
-                    |_| DeviceSyncError::invalid_request("Invalid snapshot payload key version"),
-                )?,
-            );
-            if let Some(base_seq) = upload_headers.base_seq {
-                headers.insert("x-snapshot-base-seq", HeaderValue::from(base_seq));
-            }
-
-            let send_result = self
-                .client
-                .post(&url)
-                .timeout(Duration::from_secs(SNAPSHOT_TRANSFER_TIMEOUT_SECS))
-                .headers(headers)
-                .body(payload.clone())
-                .send()
-                .await;
-
-            match send_result {
-                Ok(response) => {
-                    let status = response.status();
-                    if status.is_success() {
-                        return Self::parse_response(response, &context).await;
-                    }
-
-                    let request_id = server_request_id(response.headers());
-                    let body = response.text().await.map_err(|err| {
-                        log_failed_cloud_request(
-                            &context,
-                            Some(status),
-                            request_id.as_deref(),
-                            transport_error_kind(&err),
-                            None,
-                        );
-                        DeviceSyncError::Http(err)
-                    })?;
-                    let mut parsed_error_code: Option<String> = None;
-                    let mut parsed_error_message: Option<String> = None;
-                    let error =
-                        if let Ok(api_error) = serde_json::from_str::<ApiErrorResponse>(&body) {
-                            let message = api_error.message;
-                            let code = if api_error.code.is_empty() {
-                                api_error.error
-                            } else {
-                                api_error.code
-                            };
-                            parsed_error_code = Some(code.clone());
-                            parsed_error_message = Some(message.clone());
-                            log_failed_cloud_request(
-                                &context,
-                                Some(status),
-                                request_id.as_deref(),
-                                "http",
-                                Some(&code),
-                            );
-                            DeviceSyncError::api_structured(
-                                status.as_u16(),
-                                code,
-                                with_request_metadata(message, &context, request_id.as_deref()),
-                                details_with_request_metadata(
-                                    api_error.details,
-                                    &context,
-                                    request_id.as_deref(),
-                                ),
-                            )
-                        } else {
-                            log_failed_cloud_request(
-                                &context,
-                                Some(status),
-                                request_id.as_deref(),
-                                "http",
-                                None,
-                            );
-                            DeviceSyncError::api(
-                                status.as_u16(),
-                                with_request_metadata(
-                                    fallback_api_error_message(&body),
-                                    &context,
-                                    request_id.as_deref(),
-                                ),
-                            )
-                        };
-
-                    if is_retryable_snapshot_error(
-                        status.as_u16(),
-                        parsed_error_code.as_deref(),
-                        parsed_error_message.as_deref(),
-                    ) && attempt < SNAPSHOT_UPLOAD_MAX_ATTEMPTS
-                    {
-                        let backoff = snapshot_backoff_with_jitter(attempt);
-                        debug!(
-                            "Snapshot upload retry attempt {}/{} after HTTP {} code={:?} (event_id={})",
-                            attempt + 1,
-                            SNAPSHOT_UPLOAD_MAX_ATTEMPTS,
-                            status.as_u16(),
-                            parsed_error_code.as_deref(),
-                            upload_headers.event_id.as_deref().unwrap_or("none")
-                        );
-                        sleep(backoff).await;
-                        continue;
-                    }
-                    return Err(error);
-                }
-                Err(err) => {
-                    log_failed_cloud_request(
-                        &context,
-                        None,
-                        None,
-                        transport_error_kind(&err),
-                        None,
-                    );
-                    if is_retryable_transport_error(&err) && attempt < SNAPSHOT_UPLOAD_MAX_ATTEMPTS
-                    {
-                        let backoff = snapshot_backoff_with_jitter(attempt);
-                        debug!(
-                            "Snapshot upload retry attempt {}/{} after transport error (event_id={}): {}",
-                            attempt + 1,
-                            SNAPSHOT_UPLOAD_MAX_ATTEMPTS,
-                            upload_headers.event_id.as_deref().unwrap_or("none"),
-                            err
-                        );
-                        sleep(backoff).await;
-                        continue;
-                    }
-                    return Err(DeviceSyncError::Http(err));
-                }
-            }
-        }
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -1488,8 +1302,8 @@ mod tests {
         client_request_id: Option<String>,
         request_id: Option<String>,
         device_id: Option<String>,
-        content_length: Option<String>,
-        snapshot_size_bytes: Option<String>,
+        path: String,
+        input: serde_json::Value,
     }
 
     #[derive(Debug, Clone)]
@@ -1503,10 +1317,13 @@ mod tests {
     }
 
     fn success_upload_body(snapshot_id: &str) -> String {
-        format!(
-            r#"{{"snapshotId":"{}","r2Key":"snapshots/test/{}","oplogSeq":123,"createdAt":"2026-01-01T00:00:00.000Z"}}"#,
-            snapshot_id, snapshot_id
-        )
+        serde_json::json!({ "published": {
+            "snapshot_id": snapshot_id,
+            "r2_key": format!("snapshots/test/{snapshot_id}"),
+            "oplog_seq": 123,
+            "created_at": "2026-01-01T00:00:00.000Z"
+        }})
+        .to_string()
     }
 
     fn api_error_body(code: &str, message: &str) -> String {
@@ -1520,7 +1337,6 @@ mod tests {
         SnapshotUploadHeaders {
             event_id,
             schema_version: 1,
-            covers_tables: vec!["accounts".to_string(), "assets".to_string()],
             size_bytes: payload.len() as i64,
             checksum: compute_sha256_checksum(payload),
             metadata_payload: "meta".to_string(),
@@ -1535,7 +1351,7 @@ mod tests {
 
     async fn read_http_request(
         stream: &mut tokio::net::TcpStream,
-    ) -> Option<(HashMap<String, String>, usize)> {
+    ) -> Option<(HashMap<String, String>, String, serde_json::Value)> {
         let mut buffer = Vec::new();
         loop {
             let mut chunk = [0_u8; 2048];
@@ -1552,7 +1368,8 @@ mod tests {
         let header_end = header_end_offset(&buffer)?;
         let head = String::from_utf8_lossy(&buffer[..header_end]).to_string();
         let mut lines = head.lines();
-        let _request_line = lines.next()?.to_string();
+        let request_line = lines.next()?.to_string();
+        let path = request_line.split_whitespace().nth(1)?.to_string();
 
         let mut headers = HashMap::new();
         for line in lines {
@@ -1574,9 +1391,12 @@ mod tests {
                 break;
             }
             body_read = body_read.saturating_add(read);
+            buffer.extend_from_slice(&chunk[..read]);
         }
 
-        Some((headers, content_length))
+        let body = &buffer[header_end + 4..];
+        let input = serde_json::from_slice(body).unwrap_or(serde_json::Value::Null);
+        Some((headers, path, input))
     }
 
     fn status_text(status: u16) -> &'static str {
@@ -1632,23 +1452,24 @@ mod tests {
                 let captured_inner = Arc::clone(&captured_clone);
                 let scripted_inner = Arc::clone(&scripted_clone);
                 tokio::spawn(async move {
-                    let Some((headers, _content_length)) = read_http_request(&mut stream).await
-                    else {
+                    let Some((headers, path, input)) = read_http_request(&mut stream).await else {
                         return;
                     };
-                    let event_id = headers.get("x-snapshot-event-id").cloned();
+                    let event_id = input
+                        .get("event_id")
+                        .and_then(|v| v.as_str())
+                        .map(str::to_string);
                     let client_request_id = headers.get(CLIENT_REQUEST_ID_HEADER).cloned();
                     let request_id = headers.get(SERVER_REQUEST_ID_HEADER).cloned();
                     let device_id = headers.get("x-wf-device-id").cloned();
-                    let content_length = headers.get("content-length").cloned();
-                    let snapshot_size_bytes = headers.get("x-snapshot-size-bytes").cloned();
+
                     captured_inner.lock().await.push(CapturedUploadRequest {
                         event_id,
                         client_request_id,
                         request_id,
                         device_id,
-                        content_length,
-                        snapshot_size_bytes,
+                        path,
+                        input,
                     });
 
                     let outcome = scripted_inner.lock().await.pop_front().unwrap_or(
@@ -1708,19 +1529,6 @@ mod tests {
     }
 
     #[test]
-    fn snapshot_download_url_encodes_snapshot_id_path_segment() {
-        let client = DeviceSyncClient::new("https://sync.example.com");
-        let url = client
-            .snapshot_download_url("snapshot/segment with spaces")
-            .expect("url");
-
-        assert_eq!(
-            url.as_str(),
-            "https://sync.example.com/api/v1/sync/snapshots/snapshot%2Fsegment%20with%20spaces"
-        );
-    }
-
-    #[test]
     fn fallback_error_preserves_snapshot_validation_body_with_metadata() {
         let context = CloudRequestContext::new(
             "GET",
@@ -1741,7 +1549,7 @@ mod tests {
     }
 
     // Shorten the client's ordinary deadline so these tests exercise the real
-    // transport without waiting 30 seconds. Snapshot requests must override it.
+    // control requests without waiting 30 seconds. Encrypted transfers use their own client.
     fn client_with_short_timeout(base_url: &str) -> DeviceSyncClient {
         DeviceSyncClient {
             client: wealthfolio_http::client_builder()
@@ -1754,48 +1562,142 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn snapshot_upload_outlives_api_timeout_without_retry() {
-        let (base_url, captured, server) =
-            start_mock_upload_server(vec![MockUploadOutcome::Respond {
-                status: 200,
-                body: success_upload_body("slow-snapshot"),
-                delay_ms: 200,
-            }])
-            .await;
-        let client = client_with_short_timeout(&base_url);
-        let payload = b"encrypted snapshot".to_vec();
-        let result = client
-            .upload_snapshot(
-                "token",
-                "device",
-                build_upload_headers(None, &payload),
-                payload,
-            )
-            .await;
-        server.abort();
-        assert!(result.is_ok(), "slow upload failed: {result:?}");
-        assert_eq!(captured.lock().await.len(), 1);
-    }
-
-    #[tokio::test]
-    async fn snapshot_download_body_outlives_api_timeout() {
+    async fn snapshot_download_uses_signed_route_without_negotiation_or_fallback() {
+        let snapshot_id = Uuid::new_v4().to_string();
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let base_url = format!("http://{}", listener.local_addr().unwrap());
         let server = tokio::spawn(async move {
             let (mut stream, _) = listener.accept().await.unwrap();
-            read_http_request(&mut stream).await.unwrap();
-            stream.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 4\r\nx-snapshot-schema-version: 3\r\nx-snapshot-covers-tables: accounts\r\nx-snapshot-checksum: test\r\nConnection: close\r\n\r\n").await.unwrap();
-            stream.flush().await.unwrap();
-            tokio::time::sleep(Duration::from_millis(200)).await;
-            let _ = stream.write_all(b"data").await;
+            let mut data = vec![0; 4096];
+            let count = stream.read(&mut data).await.unwrap();
+            let request = String::from_utf8_lossy(&data[..count]).to_string();
+            write_http_response(
+                &mut stream,
+                404,
+                &api_error_body("TRANSFER_OBJECT_MISSING", "missing"),
+            )
+            .await
+            .unwrap();
+            request
         });
-        let result = client_with_short_timeout(&base_url)
-            .download_snapshot("token", "device", "snapshot")
+        let result = DeviceSyncClient::new(&base_url)
+            .download_snapshot("token", "device", &snapshot_id)
             .await;
-        server.await.unwrap();
-        let (headers, body) = result.expect("slow download must finish reading its body");
-        assert_eq!(headers.schema_version, 3);
-        assert_eq!(body, b"data");
+        assert_eq!(result.unwrap_err().status_code(), Some(404));
+        let request = server.await.unwrap();
+        assert!(
+            request.starts_with(&format!(
+                "POST /api/v1/sync/snapshots/{snapshot_id}/download-url "
+            )),
+            "{request}"
+        );
+    }
+
+    #[tokio::test]
+    async fn snapshot_download_does_not_fallback_on_authorization_or_integrity_errors() {
+        for (status, code) in [(403, "DEVICE_UNTRUSTED"), (409, "TRANSFER_SIZE_MISMATCH")] {
+            let (base_url, captured, server) =
+                start_mock_upload_server(vec![MockUploadOutcome::Respond {
+                    status,
+                    body: api_error_body(code, "rejected"),
+                    delay_ms: 0,
+                }])
+                .await;
+            let id = Uuid::new_v4().to_string();
+            let result = DeviceSyncClient::new(&base_url)
+                .download_snapshot("token", "device", &id)
+                .await;
+            assert_eq!(result.unwrap_err().error_code(), Some(code));
+            let requests = captured.lock().await;
+            assert_eq!(requests.len(), 1);
+            assert_eq!(
+                requests[0].path,
+                format!("/api/v1/sync/snapshots/{id}/download-url")
+            );
+            server.abort();
+        }
+    }
+
+    #[tokio::test]
+    async fn snapshot_upload_does_not_fallback_on_missing_route_or_rejection() {
+        for (status, code) in [
+            (404, "NOT_FOUND"),
+            (403, "DEVICE_UNTRUSTED"),
+            (409, "TRANSFER_CHECKSUM_MISMATCH"),
+        ] {
+            let (base_url, captured, server) =
+                start_mock_upload_server(vec![MockUploadOutcome::Respond {
+                    status,
+                    body: api_error_body(code, "rejected"),
+                    delay_ms: 0,
+                }])
+                .await;
+            let bytes = b"encrypted snapshot".to_vec();
+            let result = DeviceSyncClient::new(&base_url)
+                .upload_snapshot("token", "device", build_upload_headers(None, &bytes), bytes)
+                .await;
+            assert_eq!(result.unwrap_err().error_code(), Some(code));
+            let requests = captured.lock().await;
+            assert_eq!(requests.len(), 1);
+            assert_eq!(requests[0].path, "/api/v1/sync/snapshots/prepare-upload");
+            server.abort();
+        }
+    }
+
+    #[tokio::test]
+    async fn snapshot_upload_local_validation_failure_does_not_attempt_completion() {
+        let bytes = b"encrypted snapshot".to_vec();
+        let prepared = serde_json::json!({
+            "ticket": "opaque-ticket",
+            "transfer": {
+                "url": "https://unapproved.invalid/object",
+                "method": "PUT",
+                "headers": {"content-length": bytes.len().to_string()},
+                "expires_at": (chrono::Utc::now() + chrono::Duration::minutes(1)).to_rfc3339(),
+            }
+        });
+        let (base_url, captured, server) = start_mock_upload_server(vec![
+            MockUploadOutcome::Respond {
+                status: 200,
+                body: prepared.to_string(),
+                delay_ms: 0,
+            },
+            MockUploadOutcome::Respond {
+                status: 403,
+                body: api_error_body("REJECTED", "unexpected completion"),
+                delay_ms: 0,
+            },
+        ])
+        .await;
+        let result = DeviceSyncClient::new(&base_url)
+            .upload_snapshot("token", "device", build_upload_headers(None, &bytes), bytes)
+            .await;
+        assert!(
+            matches!(result, Err(DeviceSyncError::InvalidRequest(message)) if message == "Unapproved transfer destination")
+        );
+        assert_eq!(captured.lock().await.len(), 1);
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn snapshot_upload_cancellation_prevents_preparation() {
+        let (base_url, captured, server) = start_mock_upload_server(vec![]).await;
+        let bytes = b"encrypted snapshot".to_vec();
+        let cancelled = AtomicBool::new(true);
+        let result = DeviceSyncClient::new(&base_url)
+            .upload_snapshot_with_cancel_flag(
+                "token",
+                "device",
+                build_upload_headers(None, &bytes),
+                bytes,
+                Some(&cancelled),
+            )
+            .await;
+        assert!(
+            matches!(result, Err(DeviceSyncError::InvalidRequest(message)) if message.contains("cancelled"))
+        );
+        assert!(captured.lock().await.is_empty());
+        server.abort();
     }
 
     #[tokio::test]
@@ -1866,8 +1768,11 @@ mod tests {
             Some("019bb9fe-f707-71e9-a40d-733575f4f246")
         );
         assert!(requests[0].request_id.is_none());
-        assert_eq!(requests[0].content_length, requests[0].snapshot_size_bytes);
-        assert_eq!(requests[1].content_length, requests[1].snapshot_size_bytes);
+        for request in &requests {
+            assert_eq!(request.path, "/api/v1/sync/snapshots/prepare-upload");
+            assert!(request.input["size_bytes"].as_i64().unwrap() > 0);
+            assert!(request.input.get("covers_tables").is_none());
+        }
 
         server.abort();
     }
@@ -1947,8 +1852,11 @@ mod tests {
         let second_id = requests[1].event_id.clone().expect("second event id");
         assert_eq!(first_id, second_id);
         assert!(Uuid::parse_str(&first_id).is_ok());
-        assert_eq!(requests[0].content_length, requests[0].snapshot_size_bytes);
-        assert_eq!(requests[1].content_length, requests[1].snapshot_size_bytes);
+        for request in &requests {
+            assert_eq!(request.path, "/api/v1/sync/snapshots/prepare-upload");
+            assert!(request.input["size_bytes"].as_i64().unwrap() > 0);
+            assert!(request.input.get("covers_tables").is_none());
+        }
 
         server.abort();
     }

@@ -17,6 +17,9 @@ const context = vi.hoisted(() => ({
 vi.mock("../providers/wealthfolio-connect-provider", () => ({
   useWealthfolioConnect: () => context,
 }));
+vi.mock("@/pages/settings/exports/cloud-backup-card", () => ({
+  CloudBackupSummary: () => <div data-testid="cloud-backups" />,
+}));
 vi.mock("./subscription-plans", () => ({
   SubscriptionPlans: () => <div data-testid="pricing" />,
 }));

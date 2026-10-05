@@ -377,6 +377,9 @@ pub async fn ensure_background_engine_started(context: Arc<ServiceContext>) -> R
     }
 
     let runtime = context.device_sync_runtime();
+    if !runtime.is_background_running().await {
+        super::share_backup_access(&context).await;
+    }
     let ports = Arc::new(TauriEnginePorts::new(context.clone()));
     runtime.ensure_background_started(ports).await;
     Ok(())

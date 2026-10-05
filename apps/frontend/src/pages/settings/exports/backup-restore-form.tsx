@@ -33,17 +33,17 @@ export function BackupRestoreForm() {
   );
   const busy = create.isPending || remove.isPending || exporting !== null || restoring !== null;
   return (
-    <Card className="overflow-hidden shadow-none">
+    <Card className="overflow-hidden rounded-2xl shadow-none">
       <CardHeader className="gap-4 space-y-0 p-5 sm:p-6">
         <div className="space-y-1.5">
           <CardTitle className="text-lg leading-6">{t("settings:backup_title")}</CardTitle>
           <CardDescription className="leading-relaxed">
-            {t("settings:backup_managed_description")}
+            {t(isWeb ? "settings:backup_local_web" : "settings:backup_managed_description")}
           </CardDescription>
         </div>
-        <div className="grid gap-2 md:flex md:flex-wrap">
+        <div className="flex flex-wrap gap-2">
           <Button
-            className="h-auto min-h-11 whitespace-normal md:h-11 md:whitespace-nowrap"
+            className="h-auto min-h-11 whitespace-normal rounded-lg md:h-11 md:whitespace-nowrap"
             disabled={busy}
             onClick={() => create.mutate()}
           >
@@ -57,7 +57,7 @@ export function BackupRestoreForm() {
           {!isWeb && (
             <Button
               variant="outline"
-              className="h-auto min-h-11 whitespace-normal md:h-11 md:whitespace-nowrap"
+              className="h-auto min-h-11 whitespace-normal rounded-lg md:h-11 md:whitespace-nowrap"
               disabled={busy}
               onClick={() => setRestoring({})}
             >

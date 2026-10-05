@@ -8,6 +8,8 @@ pub struct ProfileStartup {
     identifier: String,
     error: Mutex<Option<String>>,
     initialization: tokio::sync::Mutex<()>,
+    #[cfg(mobile)]
+    pub(crate) backup_suspended: std::sync::atomic::AtomicBool,
 }
 
 impl ProfileStartup {
@@ -17,6 +19,8 @@ impl ProfileStartup {
             identifier,
             error: Mutex::new(None),
             initialization: tokio::sync::Mutex::new(()),
+            #[cfg(mobile)]
+            backup_suspended: std::sync::atomic::AtomicBool::new(false),
         }
     }
 

@@ -11,6 +11,7 @@ on:
       - "crates/storage-sqlite/**"
       - "crates/core/src/profiles/**"
       - "crates/core/src/secrets/**"
+      - "crates/device-sync/**"
       - "Cargo.toml"
       - "Cargo.lock"
       - "rust-toolchain.toml"
@@ -56,6 +57,10 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=docker-${{ matrix.arch }}
           cache-to: type=gha,mode=max,scope=docker-${{ matrix.arch }}
+          # Secret values do not invalidate Docker's cache; compile current destinations.
+          no-cache-filters: backend
+          secrets: |
+            connect-storage-hosts=${{ secrets.CONNECT_STORAGE_ALLOWED_HOSTS }}
           build-args: |
             CONNECT_AUTH_URL=${{ vars.CONNECT_AUTH_URL }}
             CONNECT_AUTH_PUBLISHABLE_KEY=${{ vars.CONNECT_AUTH_PUBLISHABLE_KEY }}

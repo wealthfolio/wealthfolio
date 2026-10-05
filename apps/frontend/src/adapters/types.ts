@@ -322,7 +322,12 @@ export interface BackendRestoreOperation {
   /** Increases with every change; newer state wins across tabs and windows. */
   revision: number;
   phase: BackendRestorePhase;
-  snapshot: { snapshotId: string; oplogSeq: number; createdAt: string } | null;
+  snapshot: {
+    snapshotId: string;
+    oplogSeq: number;
+    createdAt: string;
+    isEmpty?: boolean | null;
+  } | null;
   error: { code: BackendRestoreErrorCode; message: string; retry: BackendRestoreRetry } | null;
   /** The restore committed. */
   replaced: boolean;

@@ -3,6 +3,7 @@
 //! This module provides REST endpoints for syncing broker accounts and activities
 //! from the Wealthfolio Connect cloud service.
 
+#[cfg(feature = "device-sync")]
 use std::future::Future;
 use std::sync::Arc;
 use wealthfolio_core::settings::SettingsServiceTrait;
@@ -127,7 +128,7 @@ fn cloud_api_base_url() -> ApiResult<String> {
     })
 }
 
-fn connect_auth_url() -> Option<String> {
+pub(super) fn connect_auth_url() -> Option<String> {
     std::env::var("CONNECT_AUTH_URL")
         .ok()
         .map(|v| v.trim().trim_end_matches('/').to_string())
@@ -351,6 +352,7 @@ async fn store_sync_session(
         .await
         .map_err(ApiError::Forbidden)?;
 
+    state.backup_scheduler.wake();
     Ok(Json(()))
 }
 
@@ -476,6 +478,7 @@ async fn clear_sync_session(
 }
 
 async fn disconnect_cloud_session(state: &AppState) -> Result<(), String> {
+    state.backup_scheduler.wake();
     state
         .token_lifecycle
         .clear_session_with(state.secret_store.as_ref(), || async {
@@ -491,7 +494,9 @@ async fn disconnect_cloud_session(state: &AppState) -> Result<(), String> {
             state.device_sync_runtime.ensure_background_stopped().await;
         })
         .await
-        .map(|_| ())
+        .map(|_| {
+            state.backup_scheduler.wake();
+        })
         .map_err(|err| err.to_string())
 }
 

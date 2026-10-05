@@ -126,6 +126,23 @@ describe("RestoreOperationView", () => {
     expect(restore.approve.mutateAsync).toHaveBeenCalledWith({ operationId: "op-1", backup: true });
   });
 
+  it("warns explicitly before replacing an existing portfolio with an empty one", () => {
+    const restore = renderView(
+      op({
+        phase: "awaiting_consent",
+        snapshot: {
+          snapshotId: "empty",
+          oplogSeq: 0,
+          createdAt: "2026-09-22T11:31:00Z",
+          isEmpty: true,
+        },
+      }),
+    );
+    expect(screen.getByText(/Your other device has an empty portfolio/)).toBeInTheDocument();
+    expect(restore.approve.mutateAsync).not.toHaveBeenCalled();
+    expect(screen.getByRole("checkbox", { name: "Back up this profile first" })).toBeChecked();
+  });
+
   // Working steps list their real sub-steps, following the restore's phase.
   it("shows where Apply stands while backing up", () => {
     renderView(op({ phase: "backing_up" }));

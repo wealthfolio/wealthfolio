@@ -34,6 +34,7 @@
 //! }
 //! ```
 
+pub mod backups;
 mod client;
 pub mod crypto;
 pub mod engine;
@@ -41,6 +42,7 @@ mod enroll_service;
 mod error;
 pub mod snapshot;
 mod time;
+pub mod transfer;
 mod types;
 
 pub use client::DeviceSyncClient;

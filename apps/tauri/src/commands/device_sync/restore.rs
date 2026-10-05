@@ -111,6 +111,14 @@ impl RestorePorts for TauriEnginePorts {
         }
     }
 
+    fn snapshot_is_empty(&self, image: &[u8]) -> Result<bool, String> {
+        wealthfolio_storage_sqlite::db::cloud_backups::snapshot_is_empty(
+            image,
+            &self.scratch_dir()?,
+        )
+        .map_err(|e| e.to_string())
+    }
+
     fn local_rows(&self) -> Result<i64, String> {
         self.context
             .app_sync_repository()
@@ -163,6 +171,7 @@ impl RestorePorts for TauriEnginePorts {
     }
 
     async fn resume_sync(&self, restored: bool) -> Result<(), String> {
+        super::share_backup_access(&self.context).await;
         if restored {
             // The snapshot is committed; a failed initial cycle must not prevent
             // the background engine from starting and retrying sync.

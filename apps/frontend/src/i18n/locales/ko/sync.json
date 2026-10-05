@@ -210,7 +210,8 @@
       "descriptionDated": "다른 기기의 데이터({{date}} 복사본)로 이 기기의 데이터를 교체합니다.",
       "replace": "데이터 교체",
       "backupLabel": "먼저 이 프로필 백업",
-      "backupAndReplace": "백업 후 교체"
+      "backupAndReplace": "백업 후 교체",
+      "descriptionEmpty": "다른 기기의 포트폴리오가 비어 있습니다. 계속하면 이 기기의 포트폴리오가 해당 빈 포트폴리오로 대체됩니다."
     },
     "backingUp": {
       "title": "이 프로필을 백업하는 중",

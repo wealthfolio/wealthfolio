@@ -83,7 +83,15 @@ export default defineConfig({
   },
   // 3. to make use of `TAURI_DEBUG` and other env variables
   // https://tauri.app/v1/api/config#buildconfig.beforedevcommand
-  envPrefix: ["VITE_", "TAURI_", "CONNECT_"],
+  // Connect storage settings belong to Rust; expose only public app configuration.
+  envPrefix: [
+    "VITE_",
+    "TAURI_",
+    "CONNECT_API_URL",
+    "CONNECT_AUTH_URL",
+    "CONNECT_AUTH_PUBLISHABLE_KEY",
+    "CONNECT_OAUTH_CALLBACK_URL",
+  ],
   build: {
     target: ["chrome107", "edge107", "firefox104", "safari16"],
     // Output to project root's dist folder (for Tauri)

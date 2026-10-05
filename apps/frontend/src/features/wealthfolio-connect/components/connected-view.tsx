@@ -1,4 +1,5 @@
 import { openUrlInBrowser } from "@/adapters";
+import { CloudBackupSummary } from "@/pages/settings/exports/cloud-backup-card";
 import { ExternalLink } from "@/components/external-link";
 import { DeviceSyncSection } from "@/features/devices-sync";
 import { WEALTHFOLIO_CONNECT_PORTAL_URL } from "@/lib/constants";
@@ -520,6 +521,7 @@ export function ConnectedView() {
       )}
 
       {/* Broker Connections Card - Only show if user has broker sync */}
+      <CloudBackupSummary />
       {showBrokerSync && (
         <BrokerConnectionsCard
           connections={connections}

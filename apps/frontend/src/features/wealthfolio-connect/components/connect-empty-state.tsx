@@ -4,47 +4,12 @@ import { Button } from "@wealthfolio/ui/components/ui/button";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import { ConnectFeatures } from "./connect-features";
 import { ConnectFlowDiagram } from "./connect-flow-diagram";
-
-const colorClasses = {
-  orange: {
-    bg: "bg-orange-100 dark:bg-orange-900/30",
-    icon: "text-orange-600 dark:text-orange-400",
-  },
-  blue: {
-    bg: "bg-blue-100 dark:bg-blue-900/30",
-    icon: "text-blue-600 dark:text-blue-400",
-  },
-  green: {
-    bg: "bg-green-100 dark:bg-green-900/30",
-    icon: "text-green-600 dark:text-green-400",
-  },
-};
 
 export function ConnectEmptyState() {
   const { t } = useTranslation();
   const connectLink = useConnectUrl("connect_empty_state");
-
-  const features = [
-    {
-      icon: Icons.CloudSync2,
-      title: t("connect:emptyState.features.brokerageSync.title"),
-      description: t("connect:emptyState.features.brokerageSync.description"),
-      color: "orange",
-    },
-    {
-      icon: Icons.Devices,
-      title: t("connect:emptyState.features.deviceSync.title"),
-      description: t("connect:emptyState.features.deviceSync.description"),
-      color: "green",
-    },
-    {
-      icon: Icons.UserSwitch,
-      title: t("connect:emptyState.features.householdView.title"),
-      description: t("connect:emptyState.features.householdView.description"),
-      color: "blue",
-    },
-  ];
 
   return (
     <div className="flex min-h-[calc(100vh-12rem)] flex-col items-center justify-center px-4 py-6">
@@ -65,23 +30,7 @@ export function ConnectEmptyState() {
           <ConnectFlowDiagram />
         </section>
 
-        {/* Features - responsive grid */}
-        <section className="grid grid-cols-1 gap-4 sm:grid-cols-3 sm:gap-6">
-          {features.map((feature) => {
-            const colors = colorClasses[feature.color as keyof typeof colorClasses];
-            return (
-              <div key={feature.title} className="flex items-center gap-3">
-                <div className={`shrink-0 rounded-xl p-2.5 ${colors.bg}`}>
-                  <feature.icon className={`h-5 w-5 ${colors.icon}`} />
-                </div>
-                <div className="min-w-0">
-                  <h3 className="text-sm font-medium">{feature.title}</h3>
-                  <p className="text-muted-foreground text-xs">{feature.description}</p>
-                </div>
-              </div>
-            );
-          })}
-        </section>
+        <ConnectFeatures dashboard />
 
         {/* CTA */}
         <footer className="flex flex-col items-center gap-4">

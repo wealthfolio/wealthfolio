@@ -214,7 +214,8 @@
       "descriptionDated": "Die Daten Ihres anderen Geräts (kopiert am {{date}}) ersetzen die Daten auf diesem Gerät.",
       "replace": "Daten ersetzen",
       "backupLabel": "Dieses Profil zuerst sichern",
-      "backupAndReplace": "Sichern und ersetzen"
+      "backupAndReplace": "Sichern und ersetzen",
+      "descriptionEmpty": "Dein anderes Gerät hat ein leeres Portfolio. Wenn du fortfährst, wird das Portfolio auf diesem Gerät durch das leere Portfolio ersetzt."
     },
     "backingUp": {
       "title": "Dieses Profil wird gesichert",

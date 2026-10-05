@@ -214,7 +214,8 @@
       "descriptionDated": "另一部裝置的資料（複製於 {{date}}）將取代此裝置上的資料。",
       "replace": "取代資料",
       "backupLabel": "先備份此設定檔",
-      "backupAndReplace": "備份並取代"
+      "backupAndReplace": "備份並取代",
+      "descriptionEmpty": "另一台裝置的投資組合為空。繼續將用該空投資組合取代此裝置上的投資組合。"
     },
     "backingUp": {
       "title": "正在備份此設定檔",

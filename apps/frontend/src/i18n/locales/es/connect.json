@@ -24,16 +24,16 @@
     "learnMore": "Más información sobre Connect",
     "features": {
       "brokerageSync": {
-        "title": "Sincronización de corredores",
-        "description": "Sincroniza cuentas y transacciones automáticamente a diario."
+        "title": "Cuentas conectadas",
+        "description": "Sincroniza automáticamente las transacciones de tus brókeres."
       },
       "deviceSync": {
-        "title": "Sincronización de dispositivos",
-        "description": "Sincroniza entre dispositivos con cifrado de extremo a extremo."
+        "title": "Sincronización y copias",
+        "description": "Sincronización cifrada de extremo a extremo y copias automáticas en la nube."
       },
       "householdView": {
-        "title": "Vista familiar",
-        "description": "Comparte cuentas con miembros de la familia."
+        "title": "Carteras familiares",
+        "description": "Una vista compartida de las inversiones de tu familia."
       }
     }
   },

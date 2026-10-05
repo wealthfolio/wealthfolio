@@ -68,6 +68,13 @@ jobs:
       - name: Install frontend dependencies
         run: pnpm install
 
+      - name: Check Connect build configuration
+        env:
+          CONNECT_AUTH_URL: ${{ vars.CONNECT_AUTH_URL }}
+          CONNECT_AUTH_PUBLISHABLE_KEY: ${{ vars.CONNECT_AUTH_PUBLISHABLE_KEY }}
+          CONNECT_STORAGE_ALLOWED_HOSTS: ${{ secrets.CONNECT_STORAGE_ALLOWED_HOSTS }}
+        run: python3 .github/scripts/check_connect_build.py
+
       - name: Set up Windows code signing
         if: inputs.sign
         id: win-signing
@@ -86,6 +93,7 @@ jobs:
           CONNECT_AUTH_URL: ${{ vars.CONNECT_AUTH_URL }}
           CONNECT_AUTH_PUBLISHABLE_KEY: ${{ vars.CONNECT_AUTH_PUBLISHABLE_KEY }}
           CONNECT_API_URL: ${{ vars.CONNECT_API_URL }}
+          CONNECT_STORAGE_ALLOWED_HOSTS: ${{ secrets.CONNECT_STORAGE_ALLOWED_HOSTS }}
           CONNECT_OAUTH_CALLBACK_URL: ${{ vars.CONNECT_OAUTH_CALLBACK_URL }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}

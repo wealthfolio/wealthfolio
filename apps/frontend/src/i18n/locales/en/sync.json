@@ -214,7 +214,8 @@
       "descriptionDated": "Data from your other device (copied {{date}}) will replace the data on this device.",
       "replace": "Replace data",
       "backupLabel": "Back up this profile first",
-      "backupAndReplace": "Back up and replace"
+      "backupAndReplace": "Back up and replace",
+      "descriptionEmpty": "Your other device has an empty portfolio. Continuing will replace the portfolio on this device with that empty portfolio."
     },
     "backingUp": {
       "title": "Backing up this profile",

@@ -610,7 +610,8 @@ pub struct SnapshotLatestResponse {
     pub snapshot_id: String,
     #[serde(alias = "schemaVersion")]
     pub schema_version: i32,
-    #[serde(alias = "coversTables")]
+    // Direct downloads omit table metadata; legacy responses may still include it.
+    #[serde(default, alias = "coversTables")]
     pub covers_tables: Vec<String>,
     #[serde(alias = "oplogSeq")]
     pub oplog_seq: i64,
@@ -636,8 +637,6 @@ pub struct SnapshotUploadHeaders {
     pub event_id: Option<String>,
     #[serde(alias = "schemaVersion")]
     pub schema_version: i32,
-    #[serde(alias = "coversTables")]
-    pub covers_tables: Vec<String>,
     #[serde(alias = "sizeBytes")]
     pub size_bytes: i64,
     pub checksum: String,
@@ -677,6 +676,19 @@ pub struct SnapshotUploadResponse {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn snapshot_metadata_accepts_omitted_table_list_and_legacy_alias() {
+        let mut value = serde_json::json!({
+            "snapshot_id": "snapshot", "schema_version": 1, "oplog_seq": 0,
+            "size_bytes": 20, "checksum": "digest", "created_at": "2026-10-04T00:00:00Z"
+        });
+        let direct: SnapshotLatestResponse = serde_json::from_value(value.clone()).unwrap();
+        assert!(direct.covers_tables.is_empty());
+        value["coversTables"] = serde_json::json!(["accounts"]);
+        let legacy: SnapshotLatestResponse = serde_json::from_value(value).unwrap();
+        assert_eq!(legacy.covers_tables, vec!["accounts"]);
+    }
 
     #[test]
     fn app_preference_wire_entity_is_recognized() {

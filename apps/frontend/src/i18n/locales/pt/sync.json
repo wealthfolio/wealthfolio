@@ -219,7 +219,8 @@
       "descriptionDated": "Os dados do seu outro dispositivo (copiados em {{date}}) substituirão os deste dispositivo.",
       "replace": "Substituir dados",
       "backupLabel": "Fazer backup deste perfil primeiro",
-      "backupAndReplace": "Fazer backup e substituir"
+      "backupAndReplace": "Fazer backup e substituir",
+      "descriptionEmpty": "O outro dispositivo tem uma carteira vazia. Se continuar, a carteira neste dispositivo será substituída por essa carteira vazia."
     },
     "backingUp": {
       "title": "Fazendo backup deste perfil",

@@ -24,16 +24,16 @@
     "learnMore": "Mehr über Connect erfahren",
     "features": {
       "brokerageSync": {
-        "title": "Broker-Synchronisierung",
-        "description": "Konten und Transaktionen täglich automatisch synchronisieren."
+        "title": "Verbundene Konten",
+        "description": "Transaktionen deiner Broker automatisch synchronisieren."
       },
       "deviceSync": {
-        "title": "Gerätesynchronisierung",
-        "description": "Geräteübergreifend mit Ende-zu-Ende-Verschlüsselung synchronisieren."
+        "title": "Gerätesync und Backup",
+        "description": "Ende-zu-Ende-verschlüsselte Synchronisierung und automatische Cloud-Backups."
       },
       "householdView": {
-        "title": "Haushaltsansicht",
-        "description": "Konten mit Familienmitgliedern teilen."
+        "title": "Familienportfolios",
+        "description": "Eine gemeinsame Übersicht über die Anlagen deiner Familie."
       }
     }
   },

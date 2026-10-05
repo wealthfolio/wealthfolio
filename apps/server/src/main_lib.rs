@@ -86,6 +86,7 @@ pub struct AppState {
     pub profile_binding:
         Arc<std::sync::OnceLock<(Arc<wealthfolio_core::profiles::ProfileRegistry>, uuid::Uuid)>>,
     pub backup_exports: crate::api::portable_backups::BackupExports,
+    pub(crate) backup_scheduler: Arc<wealthfolio_device_sync::backups::scheduler::BackupScheduler>,
     /// Domain event sink for emitting events after mutations.
     /// Note: The sink is used by services injected at construction time; this field
     /// is kept for documentation and possible future access patterns.
@@ -478,6 +479,8 @@ async fn initialize_profile_state(
 
     let pool = db_access.create_pool_with_owner(database_owner.clone())?;
     let (sync_outbox_wake_sender, sync_outbox_wake_receiver) = tokio::sync::mpsc::channel(128);
+    #[cfg(not(feature = "device-sync"))]
+    drop(sync_outbox_wake_receiver);
     let writer_result = write_actor::spawn_writer_with_outbox_observer(
         (*pool).clone(),
         Arc::new(move || {
@@ -1112,6 +1115,7 @@ async fn initialize_profile_state(
         sync_approvals: Default::default(),
         profile_binding,
         backup_exports: crate::api::portable_backups::BackupExports::default(),
+        backup_scheduler: Arc::default(),
         domain_event_sink,
         account_service,
         settings_service,

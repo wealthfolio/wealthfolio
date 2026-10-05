@@ -581,6 +581,23 @@ pub async fn run_sync_cycle(
     Ok(result)
 }
 
+pub(crate) async fn share_backup_access(state: &Arc<AppState>) {
+    if !get_sync_identity_from_store(state).is_some_and(|i| sync_identity_can_run_background(&i)) {
+        return;
+    }
+    if let (Some(url), Ok(token)) = (
+        crate::features::cloud_api_base_url(),
+        crate::api::connect::mint_access_token(state).await,
+    ) {
+        if let Ok(client) = wealthfolio_device_sync::backups::client::BackupClient::new(&url) {
+            client
+                .share_access_best_effort(&token, state.secret_store.as_ref(), None)
+                .await;
+            state.backup_scheduler.wake();
+        }
+    }
+}
+
 pub async fn ensure_background_engine_started(state: Arc<AppState>) -> Result<(), String> {
     let _lifecycle = state.profile_lifecycle.lock().await;
     if let Some((registry, id)) = state.profile_binding.get() {
@@ -606,6 +623,9 @@ pub async fn ensure_background_engine_started(state: Arc<AppState>) -> Result<()
     };
     if !sync_identity_can_run_background(&identity) {
         return Ok(());
+    }
+    if !state.device_sync_runtime.is_background_running().await {
+        share_backup_access(&state).await;
     }
     let ports = Arc::new(ServerEnginePorts::new(Arc::clone(&state)));
     state
@@ -746,7 +766,6 @@ pub async fn generate_snapshot_now(
     let upload_headers = wealthfolio_device_sync::SnapshotUploadHeaders {
         event_id: Some(Uuid::now_v7().to_string()),
         schema_version: SNAPSHOT_SCHEMA_VERSION,
-        covers_tables: APP_SYNC_TABLES.iter().map(|v| v.to_string()).collect(),
         size_bytes: payload.len() as i64,
         checksum,
         metadata_payload,
@@ -845,6 +864,8 @@ pub async fn complete_pairing_with_transfer(
     if snapshot.status != "uploaded" {
         return Err(format!("Snapshot upload failed: {}", snapshot.message));
     }
+
+    share_backup_access(&state).await;
 
     // 4. Complete pairing (send encrypted key bundle)
     let token = crate::api::connect::mint_access_token(&state)
@@ -954,6 +975,14 @@ impl RestorePorts for ServerEnginePorts {
         }
     }
 
+    fn snapshot_is_empty(&self, image: &[u8]) -> Result<bool, String> {
+        wealthfolio_storage_sqlite::db::cloud_backups::snapshot_is_empty(
+            image,
+            &self.scratch_dir()?,
+        )
+        .map_err(|e| e.to_string())
+    }
+
     fn local_rows(&self) -> Result<i64, String> {
         self.state
             .app_sync_repository
@@ -1009,6 +1038,7 @@ impl RestorePorts for ServerEnginePorts {
     }
 
     async fn resume_sync(&self, restored: bool) -> Result<(), String> {
+        share_backup_access(&self.state).await;
         if restored {
             // The snapshot is committed; a failed initial cycle must not prevent
             // the background engine from starting and retrying sync.

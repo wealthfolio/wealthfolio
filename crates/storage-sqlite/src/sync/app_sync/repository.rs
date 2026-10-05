@@ -5244,7 +5244,10 @@ mod tests {
 
         repo.restore_snapshot_tables_from_file(
             snapshot_path.clone(),
-            vec!["accounts".to_string()],
+            APP_SYNC_TABLES
+                .iter()
+                .map(|table| table.to_string())
+                .collect(),
             88,
             "device-1".to_string(),
             Some(1),
@@ -5257,7 +5260,10 @@ mod tests {
 
         repo.restore_snapshot_tables_from_file(
             snapshot_path,
-            vec!["accounts".to_string()],
+            APP_SYNC_TABLES
+                .iter()
+                .map(|table| table.to_string())
+                .collect(),
             88,
             "device-1".to_string(),
             Some(1),

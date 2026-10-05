@@ -24,16 +24,16 @@
     "learnMore": "了解有关 Connect 的更多信息",
     "features": {
       "brokerageSync": {
-        "title": "券商同步",
-        "description": "每日自动同步账户和交易。"
+        "title": "已连接的账户",
+        "description": "自动同步券商的交易记录。"
       },
       "deviceSync": {
-        "title": "设备同步",
-        "description": "通过端到端加密在各设备间同步。"
+        "title": "设备同步与备份",
+        "description": "端到端加密同步和自动云备份。"
       },
       "householdView": {
-        "title": "家庭视图",
-        "description": "与家庭成员共享账户。"
+        "title": "家庭投资组合",
+        "description": "共同查看家庭成员的投资。"
       }
     }
   },

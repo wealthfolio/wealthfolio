@@ -41,12 +41,12 @@ fn run_maintenance_cli(args: &[String]) -> Option<anyhow::Result<()>> {
         Some("decrypt") => false,
         Some(other) => {
             return Some(Err(anyhow::anyhow!(
-                "Unknown database command 'db {other}'. Expected 'db encrypt', 'db decrypt', or 'db restore <file> [--password-stdin] [--yes]'."
+                "Unknown database command 'db {other}'. Expected 'db encrypt', 'db decrypt', or 'db restore <file> [--password-stdin | --recovery-code-stdin] [--yes]'."
             )))
         }
         None => {
             return Some(Err(anyhow::anyhow!(
-                "Missing database command. Expected 'db encrypt', 'db decrypt', or 'db restore <file> [--password-stdin] [--yes]'."
+                "Missing database command. Expected 'db encrypt', 'db decrypt', or 'db restore <file> [--password-stdin | --recovery-code-stdin] [--yes]'."
             )))
         }
     };
@@ -65,12 +65,18 @@ fn run_restore_cli(args: &[String], profile: Option<uuid::Uuid>) -> anyhow::Resu
     let path = args
         .first()
         .filter(|arg| !arg.starts_with("--"))
-        .ok_or_else(|| anyhow::anyhow!("Usage: db restore <file> [--password-stdin] [--yes]"))?;
+        .ok_or_else(|| {
+            anyhow::anyhow!(
+                "Usage: db restore <file> [--password-stdin | --recovery-code-stdin] [--yes]"
+            )
+        })?;
     let mut password_stdin = false;
     let mut confirmed = false;
     for option in &args[1..] {
         match option.as_str() {
-            "--password-stdin" if !password_stdin => password_stdin = true,
+            "--password-stdin" | "--recovery-code-stdin" if !password_stdin => {
+                password_stdin = true
+            }
             "--yes" if !confirmed => confirmed = true,
             _ => anyhow::bail!("Unknown or repeated restore option: {option}"),
         }

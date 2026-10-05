@@ -10,6 +10,7 @@ jobs:
   android:
     name: Android release APK
     uses: ./.github/workflows/build-android.yml
+    secrets: inherit
   ios:
     name: iOS unsigned archive
     runs-on: macos-latest

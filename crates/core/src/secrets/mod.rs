@@ -9,6 +9,8 @@ pub const SERVICE_PREFIX: &str = "wealthfolio_";
 pub const CLOUD_REFRESH_TOKEN_KEY: &str = "sync_refresh_token";
 pub const CLOUD_ACCESS_TOKEN_KEY: &str = "sync_access_token";
 
+pub const CLOUD_BACKUP_CONSENT_KEY: &str = "cloud_backup_local_consent_v1";
+
 pub const SYNC_IDENTITY_KEY: &str = "sync_identity";
 
 /// Retired device ID entry; used only to clean up older installations.
@@ -94,13 +96,17 @@ pub fn validate_unscoped_secret_service_id(service: &str) -> std::result::Result
         return Err("Addon-scoped secrets must use the addon secret API".to_string());
     }
 
-    if normalized.starts_with("profile:")
+    if normalized.starts_with("cloud_backup_master_v1:")
+        || normalized.starts_with("cloud_backup_pending_master_v1:")
+        || normalized.starts_with("cloud_backup_source_v1:")
+        || normalized.starts_with("profile:")
         || [
             crate::profiles::PROFILE_LOCK_KEY,
             crate::profiles::DATABASE_KEY_SECRET,
             CLOUD_REFRESH_TOKEN_KEY,
             CLOUD_ACCESS_TOKEN_KEY,
             SYNC_IDENTITY_KEY,
+            CLOUD_BACKUP_CONSENT_KEY,
             LEGACY_SYNC_DEVICE_ID_KEY,
         ]
         .contains(&normalized.as_str())
@@ -145,6 +151,18 @@ pub trait SecretStore: Send + Sync {
 mod tests {
     use super::*;
 
+    #[test]
+    fn backup_credentials_are_reserved_from_generic_secret_api() {
+        for name in [
+            CLOUD_BACKUP_CONSENT_KEY,
+            "cloud_backup_master_v1:user",
+            "cloud_backup_source_v1:user",
+            "cloud_backup_pending_master_v1:user",
+            "CLOUD_BACKUP_MASTER_V1:user",
+        ] {
+            assert!(validate_unscoped_secret_service_id(name).is_err());
+        }
+    }
     #[test]
     fn unicode_aliases_cannot_reach_reserved_credentials() {
         for (canonical, alias) in [
@@ -231,6 +249,7 @@ mod tests {
             "database_encryption_key",
             CLOUD_REFRESH_TOKEN_KEY,
             SYNC_IDENTITY_KEY,
+            CLOUD_BACKUP_CONSENT_KEY,
         ] {
             assert!(validate_unscoped_secret_service_id(key).is_err(), "{key}");
         }

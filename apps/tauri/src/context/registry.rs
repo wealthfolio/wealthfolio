@@ -28,7 +28,9 @@ use crate::services::ConnectService;
 
 pub struct ServiceContext {
     pub portfolio_tasks: crate::listeners::PortfolioTasks,
+    #[cfg(feature = "device-sync")]
     pub sync_approvals: crate::commands::device_sync::SyncApprovals,
+    pub backup_scheduler: Arc<wealthfolio_device_sync::backups::scheduler::BackupScheduler>,
     pub sync_lifecycle: tokio::sync::Mutex<()>,
     pub active: AtomicBool,
     pub profile_id: uuid::Uuid,

@@ -210,7 +210,8 @@
       "descriptionDated": "另一台设备的数据（复制于 {{date}}）将替换此设备上的数据。",
       "replace": "替换数据",
       "backupLabel": "先备份此配置文件",
-      "backupAndReplace": "备份并替换"
+      "backupAndReplace": "备份并替换",
+      "descriptionEmpty": "另一台设备的投资组合为空。继续将用该空投资组合替换此设备上的投资组合。"
     },
     "backingUp": {
       "title": "正在备份此配置文件",

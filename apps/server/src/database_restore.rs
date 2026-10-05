@@ -22,7 +22,7 @@ pub fn run_profile_database_restore(
         std::env::var_os("WF_SECRET_KEY_FILE"),
     )?;
     let database = crate::config::database_path_from_env()?;
-    let (database, database_key, _registry) =
+    let (database, database_key, registry) =
         crate::profiles::offline_database(database, &secret, profile)?;
     let key = Arc::new(DbEncryptionKey::from_bytes(&database_key));
     let required = std::env::var("WF_DB_REQUIRE_ENCRYPTION")
@@ -56,10 +56,37 @@ pub fn run_profile_database_restore(
         .filter(|parent| !parent.as_os_str().is_empty())
         .unwrap_or_else(|| Path::new("."));
     let root = root.to_str().context("Invalid database directory")?;
+    let scratch = db::profile_scratch_dir(root)?;
+
+    let decoded;
+    let (backup_path, backup_password) = if db::cloud_backups::is_recovery_package(path)? {
+        let store: Arc<dyn wealthfolio_core::secrets::SecretStore> =
+            if let Some(registry) = &registry {
+                let id = profile.unwrap_or(registry.default_id()?);
+                registry.secret_store(&registry.profile(id)?)
+            } else {
+                let (_, vault_key) = crate::auth::derive_keys(&secret);
+                Arc::new(crate::secrets::build_secret_store(
+                    std::env::var("WF_SECRET_FILE")
+                        .map(std::path::PathBuf::from)
+                        .unwrap_or_else(|_| Path::new(root).join("secrets.json")),
+                    Some(vault_key),
+                    Some(&secret),
+                )?)
+            };
+        decoded = db::cloud_backups::decoded_package(
+            fs::File::open(path)?,
+            store.as_ref(),
+            password,
+            &scratch,
+        )?;
+        (decoded.path(), None)
+    } else {
+        (path, password)
+    };
     // Match the existing offline conversion path and the shared scratch helper.
-    let prepared =
-        portable::prepare_import(path, &db::profile_scratch_dir(root)?, password, Some(key))
-            .context("Backup validation failed; the destination database was not replaced")?;
+    let prepared = portable::prepare_import(backup_path, &scratch, backup_password, Some(key))
+        .context("Backup validation failed; the destination database was not replaced")?;
     println!(
         "Validated backup: {} accounts, {} activities. Destination encryption: {}.",
         prepared.summary.account_count,

@@ -9127,6 +9127,7 @@ dependencies = [
  "wealthfolio-core",
  "wealthfolio-http",
  "x25519-dalek",
+ "zeroize",
 ]
 
 [[package]]

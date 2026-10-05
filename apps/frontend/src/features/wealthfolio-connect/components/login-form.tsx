@@ -11,95 +11,20 @@ import {
   CardHeader,
   CardTitle,
 } from "@wealthfolio/ui/components/ui/card";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@wealthfolio/ui/components/ui/collapsible";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { Input } from "@wealthfolio/ui/components/ui/input";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@wealthfolio/ui/components/ui/input-otp";
 import { Label } from "@wealthfolio/ui/components/ui/label";
 import { Separator } from "@wealthfolio/ui/components/ui/separator";
-import type { TFunction } from "i18next";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
 import { useWealthfolioConnect } from "../providers/wealthfolio-connect-provider";
 import { ProviderButton } from "./provider-button";
+import { ConnectFeatures } from "./connect-features";
 
 // OAuth is only available on desktop/mobile (Tauri) where we can handle deep links
 // Web (self-hosted) uses email OTP only since we can't register all possible redirect URLs
-const isNativeApp = isDesktop;
-
 type Provider = "google" | "email";
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Features Section
-// ─────────────────────────────────────────────────────────────────────────────
-
-const featureColors = {
-  orange: {
-    bg: "bg-orange-100 dark:bg-orange-900/30",
-    icon: "text-orange-600 dark:text-orange-400",
-  },
-  green: {
-    bg: "bg-green-100 dark:bg-green-900/30",
-    icon: "text-green-600 dark:text-green-400",
-  },
-  blue: {
-    bg: "bg-blue-100 dark:bg-blue-900/30",
-    icon: "text-blue-600 dark:text-blue-400",
-  },
-};
-
-function FeaturesSection({ t }: { t: TFunction }) {
-  const features = useMemo(
-    () => [
-      {
-        icon: Icons.CloudSync2,
-        title: t("auth:connect.features.brokerSync.title"),
-        description: t("auth:connect.features.brokerSync.description"),
-        color: "orange",
-      },
-      {
-        icon: Icons.Devices,
-        title: t("auth:connect.features.deviceSync.title"),
-        description: t("auth:connect.features.deviceSync.description"),
-        color: "green",
-      },
-      {
-        icon: Icons.Users,
-        title: t("auth:connect.features.household.title"),
-        description: t("auth:connect.features.household.description"),
-        color: "blue",
-      },
-    ],
-    [t],
-  );
-  return (
-    <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 sm:gap-3">
-      {features.map((feature) => {
-        const colors = featureColors[feature.color as keyof typeof featureColors];
-        return (
-          <div
-            key={feature.title}
-            className="bg-muted/30 flex items-center gap-3 rounded-lg border p-3 sm:flex-col sm:gap-2 sm:text-center"
-          >
-            <div
-              className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${colors.bg}`}
-            >
-              <feature.icon className={`h-4 w-4 ${colors.icon}`} />
-            </div>
-            <div>
-              <p className="text-xs font-medium">{feature.title}</p>
-              <p className="text-muted-foreground text-[10px]">{feature.description}</p>
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
 
 export function LoginForm() {
   const { t } = useTranslation();
@@ -111,8 +36,8 @@ export function LoginForm() {
   const [localError, setLocalError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [loadingProvider, setLoadingProvider] = useState<Provider | null>(null);
+  const signInPending = useRef(false);
   const [preferredProvider, setPreferredProvider] = useState<Provider | null>(null);
-  const [isMoreOptionsOpen, setIsMoreOptionsOpen] = useState(false);
 
   // OTP verification state
   const [showOtpInput, setShowOtpInput] = useState(false);
@@ -125,38 +50,17 @@ export function LoginForm() {
     setPreferredProvider(savedProvider);
   }, []);
 
-  // Determine which providers to show at the top
-  const getTopProviders = (): Provider[] => {
-    // Web (self-hosted): only email OTP is available
-    if (!isNativeApp) {
-      return ["email"];
-    }
-
-    // Native app: if user has a preference, show it first
-    if (preferredProvider) {
-      return [preferredProvider];
-    }
-
-    // Default: show Google only
-    return ["google"];
-  };
-
-  // Determine which providers to show in "More options"
-  const getMoreOptionsProviders = (): Provider[] => {
-    // Web (self-hosted): no additional options
-    if (!isNativeApp) {
-      return [];
-    }
-
-    const topProviders = getTopProviders();
-    const allProviders: Provider[] = ["google", "email"];
-    return allProviders.filter((p) => !topProviders.includes(p));
-  };
-
-  const topProviders = getTopProviders();
-  const moreOptionsProviders = getMoreOptionsProviders();
+  // Keep both native sign-in methods visible, with the last-used method first.
+  // Self-hosted web continues to offer email only.
+  const providers: Provider[] = isDesktop
+    ? preferredProvider === "email"
+      ? ["email", "google"]
+      : ["google", "email"]
+    : ["email"];
 
   const handleOAuthSignIn = async (provider: "google") => {
+    if (signInPending.current || isLoading) return;
+    signInPending.current = true;
     setLocalError(null);
     setSuccessMessage(null);
     clearError();
@@ -170,12 +74,14 @@ export function LoginForm() {
       const message = err instanceof Error ? err.message : t("auth:connect.errors.signInFailed");
       setLocalError(message);
     } finally {
+      signInPending.current = false;
       setLoadingProvider(null);
     }
   };
 
   const handleMagicLinkSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (signInPending.current || isLoading) return;
     setLocalError(null);
     setSuccessMessage(null);
     clearError();
@@ -192,6 +98,7 @@ export function LoginForm() {
       return;
     }
 
+    signInPending.current = true;
     setLoadingProvider("email");
 
     try {
@@ -206,6 +113,7 @@ export function LoginForm() {
       const message = err instanceof Error ? err.message : t("auth:connect.errors.magicLinkFailed");
       setLocalError(message);
     } finally {
+      signInPending.current = false;
       setLoadingProvider(null);
     }
   };
@@ -271,12 +179,12 @@ export function LoginForm() {
   return (
     <div className="space-y-6">
       {/* Features Grid */}
-      <FeaturesSection t={t} />
+      <ConnectFeatures />
 
       {/* Sign In Card */}
-      <Card>
+      <Card className="rounded-2xl shadow-none">
         <CardHeader className="pb-4">
-          <CardTitle className="text-center text-base font-medium">
+          <CardTitle className="text-center text-xl font-semibold tracking-tight">
             {t("auth:connect.getStarted")}
           </CardTitle>
           <CardDescription className="text-center">
@@ -372,111 +280,57 @@ export function LoginForm() {
               </div>
             </div>
           ) : (
-            <>
-              {/* Top Provider Buttons */}
-              <div className="flex flex-col items-center space-y-3">
-                {topProviders.includes("google") && (
-                  <ProviderButton
-                    provider="google"
-                    onClick={() => handleOAuthSignIn("google")}
-                    isLoading={loadingProvider === "google"}
-                    isLastUsed={topProviders.length > 1 && preferredProvider === "google"}
-                  />
-                )}
-                {topProviders.includes("email") && (
-                  <form onSubmit={handleMagicLinkSignIn} className="w-full max-w-sm space-y-3">
-                    <div className="space-y-2">
-                      <Label htmlFor="email">{t("auth:connect.emailLabel")}</Label>
-                      <Input
-                        id="email"
-                        type="email"
-                        placeholder={t("auth:connect.emailPlaceholder")}
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        autoComplete="email"
-                        className="rounded-full"
-                      />
+            <div className="mx-auto w-full max-w-sm space-y-4">
+              {providers.map((provider, index) => (
+                <div key={provider} className="flex w-full flex-col items-center gap-4">
+                  {index > 0 && (
+                    <div className="relative w-full">
+                      <div className="absolute inset-0 flex items-center">
+                        <Separator />
+                      </div>
+                      <div className="relative flex justify-center text-xs uppercase">
+                        <span className="bg-card text-muted-foreground px-2">
+                          {t("auth:connect.or")}
+                        </span>
+                      </div>
                     </div>
+                  )}
+                  {provider === "google" ? (
                     <ProviderButton
-                      provider="email"
-                      type="submit"
-                      onClick={() => {}}
-                      isLoading={loadingProvider === "email"}
-                      isLastUsed={topProviders.length > 1 && preferredProvider === "email"}
-                      variant="default"
+                      provider="google"
+                      onClick={() => handleOAuthSignIn("google")}
+                      isLoading={loadingProvider === "google"}
+                      disabled={loadingProvider !== null || isLoading}
+                      isLastUsed={preferredProvider === "google"}
                     />
-                  </form>
-                )}
-              </div>
-
-              {/* Divider */}
-              {moreOptionsProviders.length > 0 && (
-                <div className="relative">
-                  <div className="absolute inset-0 flex items-center">
-                    <Separator className="mx-auto max-w-sm" />
-                  </div>
-                  <div className="relative flex justify-center text-xs uppercase">
-                    <span className="bg-background text-muted-foreground px-2">
-                      {t("auth:connect.or")}
-                    </span>
-                  </div>
+                  ) : (
+                    <form onSubmit={handleMagicLinkSignIn} className="w-full space-y-3">
+                      <div className="space-y-2">
+                        <Label htmlFor="email">{t("auth:connect.emailLabel")}</Label>
+                        <Input
+                          id="email"
+                          type="email"
+                          placeholder={t("auth:connect.emailPlaceholder")}
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                          autoComplete="email"
+                          disabled={loadingProvider !== null || isLoading}
+                          className="rounded-full"
+                        />
+                      </div>
+                      <ProviderButton
+                        provider="email"
+                        type="submit"
+                        isLoading={loadingProvider === "email"}
+                        disabled={loadingProvider !== null || isLoading}
+                        isLastUsed={providers.length > 1 && preferredProvider === "email"}
+                        variant="default"
+                      />
+                    </form>
+                  )}
                 </div>
-              )}
-            </>
-          )}
-
-          {/* More Sign-in Options (Collapsible) - Hidden during OTP */}
-          {!showOtpInput && moreOptionsProviders.length > 0 && (
-            <Collapsible open={isMoreOptionsOpen} onOpenChange={setIsMoreOptionsOpen}>
-              <div className="flex justify-center">
-                <CollapsibleTrigger asChild>
-                  <Button type="button" variant="ghost" className="gap-2" disabled={isLoading}>
-                    <span className="text-muted-foreground text-sm">
-                      {t("auth:connect.moreSignInOptions")}
-                    </span>
-                    <Icons.ChevronDown
-                      className={`h-4 w-4 transition-transform ${
-                        isMoreOptionsOpen ? "rotate-180" : ""
-                      }`}
-                    />
-                  </Button>
-                </CollapsibleTrigger>
-              </div>
-              <CollapsibleContent className="flex flex-col items-center space-y-3 pt-3">
-                {moreOptionsProviders.includes("google") && (
-                  <ProviderButton
-                    provider="google"
-                    onClick={() => handleOAuthSignIn("google")}
-                    isLoading={loadingProvider === "google"}
-                  />
-                )}
-                {moreOptionsProviders.includes("email") && (
-                  <form
-                    onSubmit={handleMagicLinkSignIn}
-                    className="flex w-full max-w-sm flex-col items-center space-y-3"
-                  >
-                    <div className="w-full space-y-2">
-                      <Label htmlFor="more-email">{t("auth:connect.emailLabel")}</Label>
-                      <Input
-                        id="more-email"
-                        type="email"
-                        placeholder={t("auth:connect.emailPlaceholder")}
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        autoComplete="email"
-                        className="rounded-full"
-                      />
-                    </div>
-                    <ProviderButton
-                      provider="email"
-                      type="submit"
-                      onClick={() => {}}
-                      isLoading={loadingProvider === "email"}
-                    />
-                  </form>
-                )}
-              </CollapsibleContent>
-            </Collapsible>
+              ))}
+            </div>
           )}
 
           {/* Terms and Privacy Footer - Hidden during OTP */}

@@ -219,7 +219,8 @@
       "descriptionDated": "Les données de votre autre appareil (copiées le {{date}}) remplaceront celles de cet appareil.",
       "replace": "Remplacer les données",
       "backupLabel": "Sauvegarder d'abord ce profil",
-      "backupAndReplace": "Sauvegarder et remplacer"
+      "backupAndReplace": "Sauvegarder et remplacer",
+      "descriptionEmpty": "Votre autre appareil a un portefeuille vide. Continuer remplacera le portefeuille de cet appareil par ce portefeuille vide."
     },
     "backingUp": {
       "title": "Sauvegarde de ce profil",

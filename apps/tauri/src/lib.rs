@@ -41,19 +41,22 @@ fn start_sync_outbox_wake_worker(
     tauri::async_runtime::spawn(async move {
         while receiver.recv().await.is_some() {
             while receiver.try_recv().is_ok() {}
-            let was_running = context.device_sync_runtime().is_background_running().await;
-            if let Err(err) =
-                crate::commands::device_sync::ensure_background_engine_started(Arc::clone(&context))
-                    .await
             {
-                warn!(
+                let was_running = context.device_sync_runtime().is_background_running().await;
+                if let Err(err) = crate::commands::device_sync::ensure_background_engine_started(
+                    Arc::clone(&context),
+                )
+                .await
+                {
+                    warn!(
                     "Failed to start background device sync engine after local outbox write: {}",
                     err
                 );
-                continue;
-            }
-            if was_running {
-                context.device_sync_runtime().notify_sync_work_available();
+                    continue;
+                }
+                if was_running {
+                    context.device_sync_runtime().notify_sync_work_available();
+                }
             }
         }
     })
@@ -433,6 +436,10 @@ pub fn run() {
             commands::limits::update_contribution_limit,
             commands::limits::delete_contribution_limit,
             commands::limits::calculate_deposits_for_contribution_limit,
+            commands::cloud_backups::cloud_backup_action,
+            commands::cloud_backups::cloud_backup_capture,
+            commands::cloud_backups::cloud_backup_download,
+            commands::cloud_backups::cloud_backup_restore_preview,
             // Utility commands
             commands::utilities::save_text_file_with_dialog,
             commands::utilities::save_file_with_dialog,
@@ -769,6 +776,30 @@ pub fn run() {
         .expect("Failed to build Wealthfolio application")
         .run(|_handle, event| {
             #[cfg(mobile)]
+            if let tauri::RunEvent::WindowEvent {
+                event: window_event,
+                ..
+            } = &event
+            {
+                let suspended = match window_event {
+                    tauri::WindowEvent::Suspended => Some(true),
+                    tauri::WindowEvent::Resumed => Some(false),
+                    _ => None,
+                };
+                if let Some(suspended) = suspended {
+                    if let Some(startup) = _handle.try_state::<profile_startup::ProfileStartup>() {
+                        startup
+                            .backup_suspended
+                            .store(suspended, std::sync::atomic::Ordering::SeqCst);
+                    }
+                    if let Some(profiles) = _handle.try_state::<profiles::NativeProfiles>() {
+                        if let Ok(Some(runtime)) = profiles.active() {
+                            runtime.backup_scheduler.set_paused(suspended);
+                        }
+                    }
+                }
+            }
+            #[cfg(mobile)]
             if matches!(
                 &event,
                 tauri::RunEvent::WindowEvent {
@@ -780,7 +811,13 @@ pub fn run() {
                     .try_state::<profiles::NativeProfiles>()
                     .and_then(|profiles| profiles.try_context())
                 {
-                    listeners::refresh_portfolio_on_resume(_handle.clone(), context);
+                    listeners::refresh_portfolio_on_resume(_handle.clone(), context.clone());
+                    tauri::async_runtime::spawn(async move {
+                        let _guard = context.sync_lifecycle.lock().await;
+                        if context.is_active() {
+                            commands::device_sync::share_backup_access(&context).await;
+                        }
+                    });
                 }
             }
 

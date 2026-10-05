@@ -37,6 +37,7 @@ const SQLITE_MAGIC: &[u8; 16] = b"SQLite format 3\0";
 pub type DbPool = r2d2::Pool<ConnectionManager<SqliteConnection>>;
 pub type DbConnection = PooledConnection<ConnectionManager<SqliteConnection>>;
 
+pub mod cloud_backups;
 pub mod encryption;
 pub mod imports;
 pub mod maintenance;

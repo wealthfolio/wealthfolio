@@ -1,4 +1,5 @@
 import { ConnectSessionUnavailable } from "../components/connect-session-unavailable";
+import { CloudBackupSummary } from "@/pages/settings/exports/cloud-backup-card";
 import { openUrlInBrowser, syncTriggerCycle } from "@/adapters";
 import { Page, PageContent, PageHeader } from "@/components/page";
 import { useDevices, useSyncStatus } from "@/features/devices-sync/hooks";
@@ -284,7 +285,7 @@ export default function ConnectPage() {
         }
       />
       <PageContent>
-        <div className="mx-auto max-w-5xl space-y-6 pt-12">
+        <div className="mx-auto max-w-5xl space-y-6 pt-4 sm:pt-6">
           {showBrokerSync && hasAccountsNeedingSetup && (
             <Alert variant="warning" className="mb-4">
               <Icons.AlertTriangle className="h-4 w-4" />
@@ -320,6 +321,8 @@ export default function ConnectPage() {
               isSyncing={isSyncRunning}
             />
           )}
+
+          <CloudBackupSummary />
 
           <div className={`grid grid-cols-1 gap-4 ${showBrokerSync ? "md:grid-cols-2" : ""}`}>
             {showBrokerSync && (

@@ -219,7 +219,8 @@
       "descriptionDated": "I dati dell'altro dispositivo (copiati il {{date}}) sostituiranno quelli di questo dispositivo.",
       "replace": "Sostituisci dati",
       "backupLabel": "Esegui prima il backup di questo profilo",
-      "backupAndReplace": "Esegui backup e sostituisci"
+      "backupAndReplace": "Esegui backup e sostituisci",
+      "descriptionEmpty": "L’altro dispositivo ha un portafoglio vuoto. Continuando, il portafoglio su questo dispositivo verrà sostituito da quello vuoto."
     },
     "backingUp": {
       "title": "Backup di questo profilo in corso",

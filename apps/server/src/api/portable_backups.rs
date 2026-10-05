@@ -32,7 +32,7 @@ struct ExportJob {
 }
 pub struct BackupExports {
     jobs: Mutex<Vec<ExportJob>>,
-    slot: Arc<Semaphore>,
+    pub(crate) slot: Arc<Semaphore>,
     outstanding: Arc<Semaphore>,
 }
 impl Default for BackupExports {

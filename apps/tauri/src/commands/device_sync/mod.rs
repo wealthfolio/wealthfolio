@@ -27,6 +27,22 @@ use wealthfolio_device_sync::{
 // Re-export public items consumed by lib.rs
 pub use engine::{ensure_background_engine_started, ensure_background_engine_stopped};
 
+/// Best-effort explicit lifecycle hook; backup failures never fail sync pairing.
+pub(crate) async fn share_backup_access(context: &Arc<ServiceContext>) {
+    if !get_sync_identity_from_store(context).is_some_and(|i| sync_identity_can_run_background(&i))
+    {
+        return;
+    }
+    if let (Ok(url), Ok(token)) = (cloud_api_base_url(), get_access_token(context).await) {
+        if let Ok(client) = wealthfolio_device_sync::backups::client::BackupClient::new(&url) {
+            client
+                .share_access_best_effort(&token, context.secret_store.as_ref(), None)
+                .await;
+            context.backup_scheduler.wake();
+        }
+    }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Shared Constants & Helpers
 // ─────────────────────────────────────────────────────────────────────────────
@@ -616,6 +632,7 @@ pub async fn complete_pairing(
     let device_id =
         get_device_id_from_store(&context).ok_or_else(|| "No device ID configured".to_string())?;
 
+    share_backup_access(&context).await;
     let result = create_client()?
         .complete_pairing(
             &token,
@@ -766,6 +783,8 @@ pub async fn complete_pairing_with_transfer(
     if snapshot.status != "uploaded" {
         return Err(format!("Snapshot upload failed: {}", snapshot.message));
     }
+
+    share_backup_access(&context).await;
 
     // 4. Complete pairing
     let token = get_access_token(&context).await?;

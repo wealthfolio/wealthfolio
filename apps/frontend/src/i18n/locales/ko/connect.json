@@ -24,16 +24,16 @@
     "learnMore": "Connect에 대해 자세히 알아보기",
     "features": {
       "brokerageSync": {
-        "title": "증권사 동기화",
-        "description": "매일 자동으로 계좌와 거래 내역을 동기화합니다."
+        "title": "연결된 계좌",
+        "description": "증권사의 거래 내역을 자동으로 동기화하세요."
       },
       "deviceSync": {
-        "title": "기기 동기화",
-        "description": "종단 간 암호화로 기기 간 동기화합니다."
+        "title": "기기 동기화 및 백업",
+        "description": "종단 간 암호화 동기화 및 자동 클라우드 백업."
       },
       "householdView": {
-        "title": "가족 계좌 뷰",
-        "description": "가족 구성원과 계좌를 공유합니다."
+        "title": "가족 포트폴리오",
+        "description": "가족의 투자 현황을 함께 확인하세요."
       }
     }
   },

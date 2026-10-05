@@ -287,6 +287,7 @@ impl NativeProfiles {
             .sessions
             .issue(NATIVE_OWNER, id, protected, runtime.generation())
             .map_err(|e| e.to_string())?;
+        runtime.backup_scheduler.wake();
         // Run this for every activated profile, including one opened from the
         // chooser after startup. Issue its scope first so job events are scoped.
         if let Some(context) = runtime.try_context() {

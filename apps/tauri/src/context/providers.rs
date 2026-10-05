@@ -744,7 +744,9 @@ async fn build_context(
     Ok(BuiltContext {
         context: ServiceContext {
             portfolio_tasks: crate::listeners::PortfolioTasks::new(),
+            #[cfg(feature = "device-sync")]
             sync_approvals: Default::default(),
+            backup_scheduler: Arc::default(),
             sync_lifecycle: tokio::sync::Mutex::new(()),
             active: std::sync::atomic::AtomicBool::new(true),
             profile_id,
@@ -806,7 +808,7 @@ async fn build_context(
 }
 
 /// Get a friendly display name for this device based on platform.
-fn get_device_display_name() -> String {
+pub(crate) fn get_device_display_name() -> String {
     #[cfg(target_os = "macos")]
     return "My Mac".to_string();
     #[cfg(target_os = "windows")]

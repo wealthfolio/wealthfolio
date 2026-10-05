@@ -239,7 +239,6 @@ pub async fn generate_snapshot_now_internal(
     let upload_headers = wealthfolio_device_sync::SnapshotUploadHeaders {
         event_id: Some(Uuid::now_v7().to_string()),
         schema_version: SNAPSHOT_SCHEMA_VERSION,
-        covers_tables: APP_SYNC_TABLES.iter().map(|v| v.to_string()).collect(),
         size_bytes: payload.len() as i64,
         checksum,
         metadata_payload,

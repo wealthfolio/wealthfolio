@@ -221,6 +221,7 @@ pub struct DatabaseRuntime {
     startup_error: Mutex<Option<String>>,
     pub backup_imports: db::imports::PendingImports,
     pub backup_export_slot: Arc<tokio::sync::Semaphore>,
+    pub backup_scheduler: Arc<wealthfolio_device_sync::backups::scheduler::BackupScheduler>,
     app_data_dir: String,
     key_provider: Arc<dyn KeyProvider>,
     live: Mutex<Option<Live>>,
@@ -266,6 +267,7 @@ impl DatabaseRuntime {
             startup_error: Mutex::new(None),
             backup_imports: db::imports::PendingImports::default(),
             backup_export_slot: Arc::new(tokio::sync::Semaphore::new(1)),
+            backup_scheduler: Arc::default(),
             app_data_dir: paths.root.to_string_lossy().into_owned(),
             key_provider: Arc::new(KeychainKeyProvider::new(secret_store)),
             live: Mutex::new(None),
@@ -293,6 +295,7 @@ impl DatabaseRuntime {
     }
 
     pub fn suspend(&self) {
+        self.backup_scheduler.wake();
         self.suspended.store(true, Ordering::SeqCst);
         if let Ok(live) = self.live.lock() {
             if let Some(live) = live.as_ref() {
@@ -305,6 +308,7 @@ impl DatabaseRuntime {
         &self,
         handle: &AppHandle<R>,
     ) -> std::result::Result<(), String> {
+        self.backup_scheduler.wake();
         self.suspended.store(true, Ordering::SeqCst);
         if let Some(live) = self.lock(&self.live)?.as_ref() {
             live.context.active.store(false, Ordering::SeqCst);
@@ -608,7 +612,7 @@ impl DatabaseRuntime {
             .lock(&self.owner)?
             .clone()
             .ok_or_else(|| "Database ownership is not available.".to_string())?;
-        let init = initialize_context(
+        let mut init = initialize_context(
             &self.app_data_dir,
             &access,
             owner,
@@ -619,6 +623,7 @@ impl DatabaseRuntime {
         .await
         .map_err(|e| e.to_string())?;
 
+        init.context.backup_scheduler = self.backup_scheduler.clone();
         let context = Arc::new(init.context);
         if let Some(registry) = &self.profile_registry {
             context
@@ -648,6 +653,12 @@ impl DatabaseRuntime {
                         init.event_receiver,
                         init.sync_outbox_wake_receiver,
                     );
+                    #[cfg(any(feature = "device-sync", feature = "connect-sync"))]
+                    workers.push(crate::commands::cloud_backups::start_scheduler(
+                        handle.clone(),
+                        self.profile_id,
+                        self.backup_scheduler.clone(),
+                    ));
                     if let Some(rebuild) = init.final_cash_rebuild {
                         workers.push(tauri::async_runtime::spawn(rebuild));
                     }
@@ -676,7 +687,7 @@ impl DatabaseRuntime {
         std::fs::create_dir_all(&self.app_data_dir).unwrap();
         let owner = Arc::new(DatabaseOwner::acquire(&self.db_path).unwrap());
         let access = DbAccess::new(&self.db_path, key);
-        let init = initialize_context(
+        let mut init = initialize_context(
             &self.app_data_dir,
             &access,
             owner.clone(),
@@ -686,6 +697,7 @@ impl DatabaseRuntime {
         )
         .await
         .unwrap();
+        init.context.backup_scheduler = self.backup_scheduler.clone();
         *self.owner.lock().unwrap() = Some(owner);
         *self.live.lock().unwrap() = Some(Live {
             generation: uuid::Uuid::new_v4(),

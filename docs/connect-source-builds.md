@@ -30,20 +30,33 @@ CONNECT_OAUTH_CALLBACK_URL=https://connect.wealthfolio.app/deeplink
 
 The callback URL returns desktop OAuth sign-ins to the app.
 
+Official packages receive `CONNECT_STORAGE_ALLOWED_HOSTS` from a GitHub Actions
+secret during CI. It is an internal destination-validation setting; people using
+published packages do not configure it. Custom source builds with Connect must
+export this setting into the Cargo build environment using the approved Connect
+transfer hostname(s), separated by commas. Do not include URL schemes, paths, or
+ports. The setting is embedded in the backend, which validates signed transfer
+URLs without exposing them in the interface. Build-time configuration does not
+make the hostname secret in the distributed app.
+
 When running `pnpm tauri dev` or building with `pnpm tauri build`, the frontend
 and Rust backend read the root `.env` during their builds. To build without
 Connect, leave both auth settings empty.
 
 After changing these settings, restart development or rebuild the packaged app.
-Setting environment variables when launching an already-built app does not
-configure Connect.
+Setting authentication environment variables when launching an already-built app
+does not enable Connect. The transfer destination setting can additionally be
+overridden at runtime by custom server deployments.
 
 ## Docker
 
-From the repository root, build your image with both authentication settings:
+From the repository root, build your image with both authentication settings and
+an approved Connect transfer configuration file. The file contains the comma-
+separated hostnames only; keep it outside the build context.
 
 ```bash
 docker build -t wealthfolio-local:connect \
+  --secret id=connect-storage-hosts,src=/private/connect-storage-hosts \
   --build-arg CONNECT_AUTH_URL=https://auth.wealthfolio.app \
   --build-arg CONNECT_AUTH_PUBLISHABLE_KEY=sb_publishable_ZSZbXNtWtnh9i2nqJ2UL4A_NV8ZVutd \
   .
@@ -58,7 +71,12 @@ Setting these variables only at container startup (`docker run -e` or Compose
 `environment`) will not enable Connect in an already-built frontend; rebuild the
 image with both arguments. Local `.env` files are excluded from the Docker build
 context, so pass the arguments explicitly. To build without Connect, omit both
-arguments.
+arguments and the transfer secret. Official Docker CI passes the transfer
+configuration through a BuildKit secret mount rather than a build argument; it
+is consumed only during the Rust build. Secret changes do not invalidate
+Docker's cache. After changing the approved hosts, rebuild with
+`docker buildx build --no-cache-filter backend` and the same arguments above.
+Official CI refreshes this stage on every build.
 
 For web sign-in flows that use redirects, the authentication service must allow
 your deployment's callback URL (`https://your-host/auth/callback`). Supplying

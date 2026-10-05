@@ -28,6 +28,8 @@ const INVOKE_TIMEOUT_OVERRIDES_MS: Record<string, number> = {
 type CommandMap = Record<string, { method: string; path: string }>;
 
 export const COMMANDS: CommandMap = {
+  cloud_backup_action: { method: "POST", path: "/cloud-backups/action" },
+  cloud_backup_capture: { method: "POST", path: "/cloud-backups/capture" },
   get_accounts: { method: "GET", path: "/accounts" },
   create_account: { method: "POST", path: "/accounts" },
   update_account: { method: "PUT", path: "/accounts" },
@@ -466,6 +468,10 @@ export const invoke = async <T>(command: string, payload?: Record<string, unknow
   };
 
   switch (command) {
+    case "cloud_backup_action": {
+      body = JSON.stringify(payload);
+      break;
+    }
     case "update_account": {
       const data = payload as { accountUpdate: { id: string } & Record<string, unknown> };
       url += `/${data.accountUpdate.id}`;
