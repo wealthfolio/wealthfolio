@@ -515,7 +515,7 @@ impl AgentTool for CommitActivityImport {
                 summary: ImportActivitiesSummary {
                     total: checked.len() as u32,
                     imported: 0,
-                    skipped: failed.len() as u32,
+                    skipped: checked.len() as u32,
                     duplicates: 0,
                     assets_created: 0,
                     success: false,

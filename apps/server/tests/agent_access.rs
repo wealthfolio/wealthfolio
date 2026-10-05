@@ -918,8 +918,15 @@ async fn mcp_import_commits_nothing_when_a_row_fails_validation() {
     )
     .await;
     assert_eq!(committed["summary"]["success"], false, "{committed}");
+    assert_eq!(committed["summary"]["total"], 2, "{committed}");
     assert_eq!(committed["summary"]["imported"], 0, "{committed}");
+    assert_eq!(committed["summary"]["skipped"], 2, "{committed}");
     assert_eq!(committed["summary"]["assetsCreated"], 0, "{committed}");
+    assert_eq!(
+        committed["failed"].as_array().unwrap().len(),
+        1,
+        "{committed}"
+    );
     assert_eq!(committed["failed"][0]["symbol"], "ZZQXNOPE", "{committed}");
     assert!(stored_activities(&server, &cookie, &account)
         .await
