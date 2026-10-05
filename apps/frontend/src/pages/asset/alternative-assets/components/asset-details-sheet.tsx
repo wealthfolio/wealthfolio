@@ -7,10 +7,15 @@ import {
 import { LoanInterestMethodSelect } from "./loan-interest-method-select";
 import { LoanFieldInfo } from "./loan-field-info";
 import { LoanDurationInput } from "./loan-duration-input";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import { useAccounts } from "@/hooks/use-accounts";
 import { useLoanSchedulePreview } from "../hooks/use-loan-calculation";
-import { loanErrorField, loanErrorText, type LoanSetupField } from "./loan-error-text";
+import {
+  isLoanRefusal,
+  loanErrorField,
+  loanErrorText,
+  type LoanSetupField,
+} from "./loan-error-text";
 import type { LoanSetup } from "@/adapters/shared/alternative-assets";
 import { useForm, type Resolver } from "react-hook-form";
 import { useTranslation } from "react-i18next";
@@ -765,30 +770,36 @@ function LiabilityFields({
     values.automaticLoan ? liabilityLoanSetup(values) : null,
   );
   const showsMaturity = isMortgage || !!values.renewalMaturity;
-  const previewErrorField =
-    scheduleError != null
-      ? loanErrorField(
-          scheduleError,
-          [
-            "originalAmount",
-            "originationDate",
-            "interestRate",
-            "paymentAmount",
-            "firstPaymentDate",
-            "amortization",
-            ...(showsMaturity ? (["renewalMaturity"] as const) : []),
-          ],
+  // Only the loan rules refuse terms; a request that failed leaves the decision to saving.
+  const refusal = isLoanRefusal(scheduleError) ? scheduleError : null;
+  const previewErrorField = refusal
+    ? loanErrorField(
+        refusal,
+        [
+          "originalAmount",
+          "originationDate",
+          "interestRate",
+          "paymentAmount",
+          "firstPaymentDate",
           "amortization",
-        )
-      : null;
+          ...(showsMaturity ? (["renewalMaturity"] as const) : []),
+        ],
+        "amortization",
+      )
+    : null;
+  const previewErrorId = useId();
   // A field's own validation message comes first; the preview's would repeat it.
+  const showsRefusal = (field: LoanSetupField, name: Parameters<typeof form.getFieldState>[0]) =>
+    previewErrorField === field && !form.getFieldState(name, form.formState).error;
   const previewError = (field: LoanSetupField, name: Parameters<typeof form.getFieldState>[0]) =>
-    previewErrorField === field &&
-    !form.getFieldState(name, form.formState).error && (
-      <p className="text-destructive text-xs" role="alert">
-        {loanErrorText(t, scheduleError, "asset:loanEvents.invalid")}
+    showsRefusal(field, name) && (
+      <p id={previewErrorId} className="text-destructive text-xs" role="alert">
+        {loanErrorText(t, refusal, "asset:loanEvents.invalid")}
       </p>
     );
+  // Links the field a refusal is about to its message, in place of the form's own links.
+  const describedBy = (field: LoanSetupField, name: Parameters<typeof form.getFieldState>[0]) =>
+    showsRefusal(field, name) ? { "aria-describedby": previewErrorId } : {};
   const fieldLabel = (label: string, info?: string) => (
     <div className="flex items-center gap-1.5">
       <FormLabel>{label}</FormLabel>
@@ -874,6 +885,7 @@ function LiabilityFields({
                     name={field.name}
                     value={field.value}
                     onValueChange={(value) => field.onChange(value ?? null)}
+                    {...describedBy("originalAmount", "originalAmount")}
                   />
                 </FormControl>
                 {previewError("originalAmount", "originalAmount")}
@@ -894,6 +906,7 @@ function LiabilityFields({
                   <DatePickerInput
                     value={field.value ?? undefined}
                     onChange={(date) => field.onChange(date ?? null)}
+                    {...describedBy("originationDate", "originationDate")}
                   />
                 </FormControl>
                 {previewError("originationDate", "originationDate")}
@@ -916,6 +929,7 @@ function LiabilityFields({
                       onValueChange={(value) => field.onChange(value ?? null)}
                       maxDecimalPlaces={2}
                       className="pr-8"
+                      {...describedBy("interestRate", "interestRate")}
                     />
                   </FormControl>
                   <span className="text-muted-foreground pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm">
@@ -982,6 +996,7 @@ function LiabilityFields({
                       name={field.name}
                       value={field.value}
                       onValueChange={(value) => field.onChange(value ?? null)}
+                      {...describedBy("paymentAmount", "paymentAmount")}
                     />
                   </FormControl>
                   {previewError("paymentAmount", "paymentAmount")}
@@ -1020,6 +1035,7 @@ function LiabilityFields({
                     <DatePickerInput
                       value={field.value ?? undefined}
                       onChange={(date) => field.onChange(date ?? null)}
+                      {...describedBy("firstPaymentDate", "firstPaymentDate")}
                     />
                   </FormControl>
                   {previewError("firstPaymentDate", "firstPaymentDate")}
@@ -1051,6 +1067,7 @@ function LiabilityFields({
                           shouldDirty: true,
                         })
                       }
+                      {...describedBy("amortization", "amortizationYears")}
                     />
                   </FormControl>
                   {schedule && (
@@ -1084,6 +1101,7 @@ function LiabilityFields({
                       <DatePickerInput
                         value={field.value ?? undefined}
                         onChange={(date) => field.onChange(date ?? null)}
+                        {...describedBy("renewalMaturity", "renewalMaturity")}
                       />
                     </FormControl>
                     {previewError("renewalMaturity", "renewalMaturity")}

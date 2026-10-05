@@ -1,4 +1,9 @@
-import { loanErrorField, loanErrorText, type LoanSetupField } from "./loan-error-text";
+import {
+  isLoanRefusal,
+  loanErrorField,
+  loanErrorText,
+  type LoanSetupField,
+} from "./loan-error-text";
 import { useLoanSchedulePreview } from "../hooks/use-loan-calculation";
 import { parseLocalDate } from "@/lib/utils";
 import { LoanInterestMethodSelect } from "./loan-interest-method-select";
@@ -287,26 +292,29 @@ export function AlternativeAssetQuickAddModal({
     null,
     isLiabilityForm && automaticSchedule && termsEntered ? loanSetup : null,
   );
-  const previewErrorField =
-    schedulePreviewError != null
-      ? loanErrorField(schedulePreviewError, LOAN_FIELDS, "amortization")
-      : null;
+  // Only the loan rules refuse terms; a request that failed leaves the decision to saving.
+  const refusal = isLoanRefusal(schedulePreviewError) ? schedulePreviewError : null;
+  const previewErrorField = refusal ? loanErrorField(refusal, LOAN_FIELDS, "amortization") : null;
   // Less common terms stay folded until needed, or until a refusal is about them.
   useEffect(() => {
     if (previewErrorField === "firstPaymentDate") setMoreOptions(true);
   }, [previewErrorField]);
   const moreOptionsId = useId();
+  const previewErrorId = useId();
   const previewError = (field: LoanSetupField) =>
     previewErrorField === field && (
-      <p className="text-destructive text-xs" role="alert">
-        {loanErrorText(t, schedulePreviewError, "asset:quickAdd.validation.invalid")}
+      <p id={previewErrorId} className="text-destructive text-xs" role="alert">
+        {loanErrorText(t, refusal, "asset:quickAdd.validation.invalid")}
       </p>
     );
+  // Links the field a refusal is about to its message.
+  const describedBy = (field: LoanSetupField) =>
+    previewErrorField === field ? previewErrorId : undefined;
   const firstPaymentDate =
     formData.firstPaymentDate ??
     (schedulePreview ? parseLocalDate(schedulePreview.firstPaymentDate) : undefined);
   // Terms the preview refuses would be refused on save; the reason is shown inline.
-  const refusedTerms = isLiabilityForm && automaticSchedule && schedulePreviewError != null;
+  const refusedTerms = isLiabilityForm && automaticSchedule && refusal != null;
 
   const canProceed = useMemo(() => {
     if (step === 1) return true;
@@ -693,6 +701,7 @@ export function AlternativeAssetQuickAddModal({
                           {t("asset:quickAdd.original_amount")}
                         </Label>
                         <MoneyInput
+                          aria-describedby={describedBy("originalAmount")}
                           value={formData.purchasePrice || ""}
                           onValueChange={(value) => updateFormData("purchasePrice", value)}
                           className="h-11"
@@ -709,6 +718,7 @@ export function AlternativeAssetQuickAddModal({
                           </LoanFieldInfo>
                         </div>
                         <DatePickerInput
+                          aria-describedby={describedBy("originationDate")}
                           value={formData.purchaseDate}
                           onChange={(date) => date && updateFormData("purchaseDate", date)}
                         />
@@ -728,6 +738,7 @@ export function AlternativeAssetQuickAddModal({
                         <div className="relative">
                           <QuantityInput
                             aria-label={t("asset:quickAdd.interest_rate")}
+                            aria-describedby={describedBy("interestRate")}
                             value={formData.interestRate || ""}
                             onValueChange={(v) => updateFormData("interestRate", v)}
                             placeholder="0"
@@ -778,6 +789,7 @@ export function AlternativeAssetQuickAddModal({
                             </div>
                             <LoanDurationInput
                               label={durationLabel}
+                              aria-describedby={describedBy("amortization")}
                               years={formData.loanTerm}
                               months={formData.loanTermMonths}
                               onYearsChange={(value) => updateFormData("loanTerm", value)}
@@ -845,6 +857,7 @@ export function AlternativeAssetQuickAddModal({
                                 {t("asset:loanActions.first_payment_date")}
                               </Label>
                               <DatePickerInput
+                                aria-describedby={describedBy("firstPaymentDate")}
                                 value={firstPaymentDate}
                                 onChange={(date) => updateFormData("firstPaymentDate", date)}
                               />

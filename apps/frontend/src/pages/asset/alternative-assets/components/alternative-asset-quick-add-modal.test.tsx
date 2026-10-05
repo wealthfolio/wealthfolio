@@ -23,13 +23,16 @@ vi.mock("@wealthfolio/ui", () => ({
     value,
     onValueChange,
     "aria-label": label,
+    "aria-describedby": describedBy,
   }: {
     value?: number | string;
     onValueChange: (value: number | undefined) => void;
     "aria-label"?: string;
+    "aria-describedby"?: string;
   }) => (
     <input
       aria-label={label}
+      aria-describedby={describedBy}
       value={value ?? ""}
       onChange={(event) =>
         onValueChange(event.target.value === "" ? undefined : Number(event.target.value))
@@ -265,6 +268,31 @@ it("shows a refusal under the field it is about", async () => {
   fireEvent.change(screen.getByLabelText("Interest Rate (%)"), { target: { value: "5" } });
   const alert = await screen.findByRole("alert");
   expect(alert.parentElement).toContainElement(screen.getByLabelText("Years"));
+  // Screen readers announce the refusal with the field.
+  expect(screen.getByLabelText("Years")).toHaveAccessibleDescription(alert.textContent ?? "");
+});
+
+it("lets a loan be added when the preview cannot reach the backend", async () => {
+  preview.mockRejectedValue(new Error("Failed to fetch"));
+  show(
+    <AlternativeAssetQuickAddModal
+      open
+      onOpenChange={() => undefined}
+      defaultKind={AlternativeAssetKind.LIABILITY}
+      defaultName="Mortgage"
+      defaultOriginationDate={new Date(2025, 5, 1)}
+    />,
+  );
+  await screen.findByRole("combobox", { name: "Select Liability Type" });
+  fireEvent.change(screen.getAllByLabelText("Amount")[0], { target: { value: "400000" } });
+  fireEvent.change(screen.getByLabelText("Years"), { target: { value: "25" } });
+  fireEvent.change(screen.getByLabelText("Interest Rate (%)"), { target: { value: "5" } });
+  await waitFor(() => expect(preview).toHaveBeenCalled());
+  // Only a refusal from the loan rules blocks saving, and the raw error is not shown.
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  expect(screen.queryByRole("alert")).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "Add Liability" }));
+  await waitFor(() => expect(create).toHaveBeenCalled());
 });
 
 it("needs the rate for an estimated loan", async () => {
