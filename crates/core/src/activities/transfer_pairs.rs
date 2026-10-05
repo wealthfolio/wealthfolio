@@ -43,6 +43,39 @@ pub struct InvalidTransferGroup {
     pub reason: String,
 }
 
+/// Where a transfer stands with its other side, from the pairs it resolves.
+/// The Health Center and the unlinked-transfer scan read it, each picking the
+/// states it cares about. Spending's link badge and the internal-pair lookup
+/// behind the transfer editor still decide on their own.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TransferLinkState {
+    /// Paired with its other side.
+    Linked,
+    /// Paired, but a leg is still marked as moving money into or out of the
+    /// portfolio, which contradicts the pair.
+    LinkedButMarkedExternal,
+    /// Not paired, and marked as moving money into or out of the portfolio.
+    /// Imports mark transfers this way unless the source says they are
+    /// internal, and unlinking does too, so one may still have a side to link.
+    External,
+    /// Not paired and not marked external: its other side is missing.
+    NeedsCounterpart,
+    /// In a link group that does not resolve to one pair, such as a group left
+    /// with one leg after the other was deleted. Not marked external.
+    BrokenLink,
+}
+
+impl TransferLinkState {
+    /// Whether the transfer has no linked other side.
+    pub fn is_unlinked(self) -> bool {
+        matches!(
+            self,
+            Self::NeedsCounterpart | Self::BrokenLink | Self::External
+        )
+    }
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct TransferPairResolution {
     pairs: Vec<TransferPair>,
@@ -136,6 +169,28 @@ impl TransferPairResolution {
 
     pub fn is_ungrouped_transfer(&self, activity_id: &str) -> bool {
         self.ungrouped_transfer_ids.contains(activity_id)
+    }
+
+    /// The link state of `activity`, one of the activities the resolution was
+    /// built from; `None` when it is not a transfer.
+    pub fn link_state(&self, activity: &Activity) -> Option<TransferLinkState> {
+        if !is_transfer(activity) {
+            return None;
+        }
+        let external = activity.is_external_transfer();
+        Some(if self.pair_for_activity(&activity.id).is_some() {
+            if external {
+                TransferLinkState::LinkedButMarkedExternal
+            } else {
+                TransferLinkState::Linked
+            }
+        } else if external {
+            TransferLinkState::External
+        } else if self.invalid_group_for_activity(&activity.id).is_some() {
+            TransferLinkState::BrokenLink
+        } else {
+            TransferLinkState::NeedsCounterpart
+        })
     }
 }
 
@@ -377,6 +432,72 @@ mod tests {
             created_at: Utc::now(),
             updated_at: Utc::now(),
         }
+    }
+
+    fn marked_external(mut activity: Activity) -> Activity {
+        activity.metadata = Some(serde_json::json!({ "flow": { "is_external": true } }));
+        activity
+    }
+
+    #[test]
+    fn link_state_covers_every_case() {
+        let activities = [
+            activity("out", ACTIVITY_TYPE_TRANSFER_OUT, "a1", Some("g1"), "USD"),
+            activity("in", ACTIVITY_TYPE_TRANSFER_IN, "a2", Some("g1"), "USD"),
+            marked_external(activity(
+                "ext-out",
+                ACTIVITY_TYPE_TRANSFER_OUT,
+                "a1",
+                Some("g2"),
+                "USD",
+            )),
+            activity("ext-in", ACTIVITY_TYPE_TRANSFER_IN, "a2", Some("g2"), "USD"),
+            marked_external(activity(
+                "outside",
+                ACTIVITY_TYPE_TRANSFER_IN,
+                "a1",
+                None,
+                "USD",
+            )),
+            activity("lonely", ACTIVITY_TYPE_TRANSFER_OUT, "a1", None, "USD"),
+            activity("orphan", ACTIVITY_TYPE_TRANSFER_IN, "a2", Some("g3"), "USD"),
+            marked_external(activity(
+                "orphan-ext",
+                ACTIVITY_TYPE_TRANSFER_IN,
+                "a2",
+                Some("g4"),
+                "USD",
+            )),
+            activity("deposit", "DEPOSIT", "a1", None, "USD"),
+        ];
+        let resolution = TransferPairResolution::from_activities(&activities);
+        let states: Vec<_> = activities
+            .iter()
+            .map(|activity| resolution.link_state(activity))
+            .collect();
+        assert_eq!(
+            states,
+            vec![
+                Some(TransferLinkState::Linked),
+                Some(TransferLinkState::Linked),
+                Some(TransferLinkState::LinkedButMarkedExternal),
+                Some(TransferLinkState::Linked),
+                Some(TransferLinkState::External),
+                Some(TransferLinkState::NeedsCounterpart),
+                Some(TransferLinkState::BrokenLink),
+                Some(TransferLinkState::External),
+                None,
+            ]
+        );
+        let unlinked: Vec<_> = states
+            .iter()
+            .flatten()
+            .map(|state| state.is_unlinked())
+            .collect();
+        assert_eq!(
+            unlinked,
+            vec![false, false, false, false, true, true, true, true]
+        );
     }
 
     #[test]

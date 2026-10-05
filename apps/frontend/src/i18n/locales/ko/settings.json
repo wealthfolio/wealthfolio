@@ -1433,7 +1433,7 @@
       },
       "activities_write": {
         "label": "거래 내역 — 확정/쓰기",
-        "description": "거래를 확정합니다. 초안 범위가 필요합니다."
+        "description": "거래를 확정하고 이체를 연결하거나 연결 해제합니다. 초안 범위가 필요합니다."
       },
       "classification_suggest": {
         "label": "분류 — 제안",

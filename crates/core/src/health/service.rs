@@ -18,7 +18,7 @@ use crate::accounts::{
     account_types, is_liability_account_type, Account, AccountServiceTrait, TrackingMode,
 };
 use crate::activities::{
-    Activity, ActivityServiceTrait, TransferPairResolution, ACTIVITY_TYPE_BUY,
+    Activity, ActivityServiceTrait, TransferLinkState, TransferPairResolution, ACTIVITY_TYPE_BUY,
     ACTIVITY_TYPE_TRANSFER_IN,
 };
 use crate::assets::{Asset, AssetKind, AssetServiceTrait, QuoteMode};
@@ -572,10 +572,27 @@ impl HealthService {
             effective_timezone.unwrap_or_default(),
         ));
         let snapshot_health_accounts = account_service.get_non_archived_accounts()?;
-        let health_activities = activity_service.get_activities().unwrap_or_else(|e| {
-            warn!("Failed to load activities for Health checks: {}", e);
-            Vec::new()
-        });
+        // A transfer's other side can sit in an archived account, so pairs are
+        // resolved over every account; the checks read non-archived accounts.
+        let every_activity = activity_service
+            .get_activities_including_archived_accounts()
+            .unwrap_or_else(|e| {
+                warn!("Failed to load activities for Health checks: {}", e);
+                Vec::new()
+            });
+        let invalid_transfer_groups = invalid_transfer_groups_from_activities(
+            &every_activity,
+            &account_name_map,
+            effective_timezone,
+        );
+        let non_archived_account_ids: HashSet<&str> = snapshot_health_accounts
+            .iter()
+            .map(|account| account.id.as_str())
+            .collect();
+        let health_activities: Vec<Activity> = every_activity
+            .into_iter()
+            .filter(|activity| non_archived_account_ids.contains(activity.account_id.as_str()))
+            .collect();
         consistency_issues.extend(gather_invalid_snapshot_date_issues(
             snapshot_service.as_ref(),
             &snapshot_health_accounts,
@@ -587,11 +604,6 @@ impl HealthService {
             effective_timezone,
             today,
         ));
-        let invalid_transfer_groups = invalid_transfer_groups_from_activities(
-            &health_activities,
-            &account_name_map,
-            effective_timezone,
-        );
         let valuation_quality_issues = gather_valuation_quality_issues(
             valuation_service.as_ref(),
             snapshot_service.as_ref(),
@@ -857,6 +869,12 @@ fn invalid_transfer_groups_from_activities(
     let by_id: HashMap<&str, &Activity> = activities.iter().map(|a| (a.id.as_str(), a)).collect();
     let eligible_account_ids: HashSet<&str> = account_names.keys().map(String::as_str).collect();
 
+    let reported = |activity: &Activity, state: TransferLinkState| {
+        activity.is_posted()
+            && eligible_account_ids.contains(activity.account_id.as_str())
+            && resolution.link_state(activity) == Some(state)
+    };
+
     let mut groups: Vec<InvalidTransferGroupInfo> = resolution
         .invalid_groups()
         .iter()
@@ -865,8 +883,7 @@ fn invalid_transfer_groups_from_activities(
                 .activity_ids
                 .iter()
                 .filter_map(|id| by_id.get(id.as_str()).copied())
-                .filter(|act| act.is_posted() && !act.is_external_transfer())
-                .filter(|act| eligible_account_ids.contains(act.account_id.as_str()))
+                .filter(|act| reported(act, TransferLinkState::BrokenLink))
                 .map(|act| transfer_leg_detail(act, account_names, tz))
                 .collect();
             (!legs.is_empty()).then(|| InvalidTransferGroupInfo {
@@ -877,11 +894,7 @@ fn invalid_transfer_groups_from_activities(
         .collect();
 
     for activity in activities {
-        if activity.is_posted()
-            && resolution.is_ungrouped_transfer(&activity.id)
-            && !activity.is_external_transfer()
-            && eligible_account_ids.contains(activity.account_id.as_str())
-        {
+        if reported(activity, TransferLinkState::NeedsCounterpart) {
             groups.push(InvalidTransferGroupInfo {
                 group_id: format!("ungrouped:{}", activity.id),
                 legs: vec![transfer_leg_detail(activity, account_names, tz)],
@@ -891,10 +904,7 @@ fn invalid_transfer_groups_from_activities(
 
     for pair in resolution.pairs() {
         for activity in [&pair.transfer_in, &pair.transfer_out] {
-            if activity.is_posted()
-                && activity.is_external_transfer()
-                && eligible_account_ids.contains(activity.account_id.as_str())
-            {
+            if reported(activity, TransferLinkState::LinkedButMarkedExternal) {
                 groups.push(InvalidTransferGroupInfo {
                     group_id: format!("conflicting_external_marker:{}", activity.id),
                     legs: vec![transfer_leg_detail(activity, account_names, tz)],

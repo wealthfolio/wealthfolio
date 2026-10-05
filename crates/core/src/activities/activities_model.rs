@@ -11,6 +11,7 @@ use crate::activities::activities_constants::{
     ACTIVITY_TYPE_WITHDRAWAL,
 };
 use crate::activities::csv_parser::ParseConfig;
+use crate::activities::TransferLinkState;
 use crate::assets::NewAsset;
 use crate::Result;
 use crate::{activities::activities_errors::ActivityError, QuoteMode};
@@ -865,6 +866,66 @@ pub struct TransferMatchCandidate {
     pub score: i32,
     pub reasons: Vec<String>,
     pub warnings: Vec<String>,
+}
+
+/// Scope of a scan for posted transfers with no linked other side.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UnlinkedTransfersRequest {
+    /// Look up this one activity instead of scanning.
+    #[serde(default)]
+    pub activity_id: Option<String>,
+    #[serde(default)]
+    pub account_id: Option<String>,
+    /// Inclusive UTC calendar dates of the transfer.
+    #[serde(default)]
+    pub start_date: Option<NaiveDate>,
+    #[serde(default)]
+    pub end_date: Option<NaiveDate>,
+    /// Days a candidate may be from the transfer (default 7, at most 90).
+    #[serde(default)]
+    pub window_days: Option<i64>,
+    /// Candidates per transfer (default 3, at most 25).
+    #[serde(default)]
+    pub candidate_limit: Option<usize>,
+    /// Transfers returned (default 25, at most 100).
+    #[serde(default)]
+    pub limit: Option<usize>,
+    /// Transfers skipped before `limit`, for paging.
+    #[serde(default)]
+    pub offset: Option<usize>,
+    /// Only these unlinked states (default all three).
+    #[serde(default)]
+    pub link_states: Option<Vec<TransferLinkState>>,
+}
+
+/// A posted transfer with no linked other side, its link state, and the
+/// transfers it could pair with, best first.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UnlinkedTransfer {
+    pub activity: Activity,
+    pub link_state: TransferLinkState,
+    pub candidates: Vec<TransferMatchCandidate>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UnlinkedTransfers {
+    /// Newest first, at most the request's `limit`.
+    pub transfers: Vec<UnlinkedTransfer>,
+    /// Unlinked transfers in scope before the offset and limit.
+    pub total: usize,
+    /// For an `activity_id` lookup of a linked transfer: its other side.
+    pub linked: Option<LinkedTransfer>,
+}
+
+/// The other side of a linked transfer, and the transfer's link state.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LinkedTransfer {
+    pub counterpart_id: String,
+    pub link_state: TransferLinkState,
 }
 
 /// Structured error reported for a single bulk mutation entry.

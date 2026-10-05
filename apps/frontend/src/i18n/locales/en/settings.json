@@ -1410,7 +1410,7 @@
       },
       "activities_write": {
         "label": "Activities — commit/write",
-        "description": "Commit activities. Requires the draft scope."
+        "description": "Commit activities and link or unlink transfers. Requires the draft scope."
       },
       "classification_suggest": {
         "label": "Classification — suggest",

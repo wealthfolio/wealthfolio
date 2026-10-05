@@ -353,6 +353,8 @@ pub trait ActivityRepositoryTrait: Send + Sync {
 pub trait ActivityServiceTrait: Send + Sync {
     fn get_activity(&self, activity_id: &str) -> Result<Activity>;
     fn get_activities(&self) -> Result<Vec<Activity>>;
+    /// Returns activities from both active and archived accounts.
+    fn get_activities_including_archived_accounts(&self) -> Result<Vec<Activity>>;
     fn get_activities_by_account_id(&self, account_id: &str) -> Result<Vec<Activity>>;
     fn get_activities_by_account_ids(&self, account_ids: &[String]) -> Result<Vec<Activity>>;
     fn get_trading_activities(&self) -> Result<Vec<Activity>>;
@@ -429,6 +431,14 @@ pub trait ActivityServiceTrait: Send + Sync {
         &self,
         request: TransferMatchCandidateRequest,
     ) -> Result<Vec<TransferMatchCandidate>>;
+    /// Posted transfers in scope with no linked other side, newest first, each
+    /// with its link state and best candidates, in the accounts the Health
+    /// Center checks. One read of the activities serves the scan, which runs
+    /// off the async workers.
+    async fn find_unlinked_transfers(
+        &self,
+        request: UnlinkedTransfersRequest,
+    ) -> Result<UnlinkedTransfers>;
     async fn save_internal_transfer_pair(
         &self,
         request: InternalTransferPairRequest,

@@ -1433,7 +1433,7 @@
       },
       "activities_write": {
         "label": "活动——提交/写入",
-        "description": "提交活动。需要草稿作用域。"
+        "description": "提交活动，并关联或取消关联转账。需要草稿作用域。"
       },
       "classification_suggest": {
         "label": "分类——建议",

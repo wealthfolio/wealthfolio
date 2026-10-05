@@ -17,7 +17,8 @@ use wealthfolio_core::{
         ActivityUpdate, BrokerSyncProfileData, ImportAssetCandidate, ImportAssetPreviewItem,
         ImportMappingData, ImportTemplateData, ImportTemplateScope, InternalTransferPairRequest,
         InternalTransferPairResponse, NewActivity, SaveBrokerSyncProfileRulesRequest, Sort,
-        TransferMatchCandidate, TransferMatchCandidateRequest,
+        TransferMatchCandidate, TransferMatchCandidateRequest, UnlinkedTransfers,
+        UnlinkedTransfersRequest,
     },
     assets::{
         Asset, AssetMetadata, AssetResolutionInput, AssetResolutionOutput, AssetServiceTrait,
@@ -403,6 +404,10 @@ impl ActivityServiceTrait for MockActivityService {
         unimplemented!("MockActivityService::get_activities")
     }
 
+    fn get_activities_including_archived_accounts(&self) -> CoreResult<Vec<Activity>> {
+        unimplemented!("MockActivityService::get_activities_including_archived_accounts")
+    }
+
     fn get_activities_by_account_id(&self, _account_id: &str) -> CoreResult<Vec<Activity>> {
         unimplemented!("MockActivityService::get_activities_by_account_id")
     }
@@ -446,6 +451,13 @@ impl ActivityServiceTrait for MockActivityService {
         _request: TransferMatchCandidateRequest,
     ) -> CoreResult<Vec<TransferMatchCandidate>> {
         Ok(Vec::new())
+    }
+
+    async fn find_unlinked_transfers(
+        &self,
+        _request: UnlinkedTransfersRequest,
+    ) -> CoreResult<UnlinkedTransfers> {
+        Ok(UnlinkedTransfers::default())
     }
 
     fn get_first_activity_date(

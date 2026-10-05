@@ -27,6 +27,7 @@ pub mod portfolios;
 pub mod propose_categories;
 pub mod record_activities;
 pub mod record_activity;
+pub mod transfer_links;
 pub mod valuation;
 
 pub use accounts::{AccountDto, GetAccounts, GetAccountsArgs, GetAccountsOutput};
@@ -106,6 +107,14 @@ pub use commit_categorization_rule::{
     CommitCategorizationRule, CommitCategorizationRuleArgs, CommitCategorizationRuleOutput,
 };
 
+// MCP-only transfer linking tools.
+pub use transfer_links::{
+    FindTransferMatches, FindTransferMatchesArgs, FindTransferMatchesOutput,
+    LinkTransferActivities, LinkTransfersOutput, TransferCandidateDto, TransferDto,
+    TransferPairDto, TransferPairError, UnlinkTransferActivities, UnlinkTransfersOutput,
+    UnlinkedTransferDto,
+};
+
 // MCP-only CSV import tools (validate + dedup-safe import pipeline).
 pub use activity_import::{
     ActivityImportArgs, ActivityImportRow, CommitActivityImport, CommitActivityImportOutput,
@@ -173,6 +182,17 @@ pub fn import_tools() -> Vec<Arc<dyn AgentTool>> {
         Arc::new(GetImportMapping),
         Arc::new(PrepareActivityImport),
         Arc::new(CommitActivityImport),
+    ]
+}
+
+/// The MCP-only transfer linking tools: find unlinked transfers with their
+/// candidates, then link or unlink pairs. Not exposed to the in-app assistant,
+/// which links through the Link Transfer dialog.
+pub fn transfer_link_tools() -> Vec<Arc<dyn AgentTool>> {
+    vec![
+        Arc::new(FindTransferMatches),
+        Arc::new(LinkTransferActivities),
+        Arc::new(UnlinkTransferActivities),
     ]
 }
 

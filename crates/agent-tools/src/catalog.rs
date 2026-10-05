@@ -35,13 +35,15 @@ impl AgentToolCatalog {
         Self::new(tools)
     }
 
-    /// The MCP catalog: read + draft/suggest + commit tools. Scope filtering at
-    /// the boundary (`execute`, `list_tools`) hides whatever a token can't reach.
+    /// The MCP catalog: read + draft/suggest + commit, import and transfer
+    /// linking tools. Scope filtering at the boundary (`execute`, `list_tools`)
+    /// hides whatever a token can't reach.
     pub fn mcp_catalog() -> Self {
         let mut tools = crate::tools::v1_read_tools();
         tools.extend(crate::tools::draft_suggest_tools());
         tools.extend(crate::tools::commit_tools());
         tools.extend(crate::tools::import_tools());
+        tools.extend(crate::tools::transfer_link_tools());
         Self::new(tools)
     }
 
@@ -261,6 +263,9 @@ mod tests {
         assert!(!names.contains(&"prepare_activity_import"));
         assert!(!names.contains(&"commit_activity_import"));
         assert!(!names.contains(&"get_import_mapping"));
+        assert!(!names.contains(&"find_transfer_matches"));
+        assert!(!names.contains(&"link_transfer_activities"));
+        assert!(!names.contains(&"unlink_transfer_activities"));
     }
 
     #[test]
@@ -274,6 +279,9 @@ mod tests {
         assert!(names.contains(&"get_import_mapping"));
         assert!(names.contains(&"prepare_activity_import"));
         assert!(names.contains(&"commit_activity_import"));
+        assert!(names.contains(&"find_transfer_matches"));
+        assert!(names.contains(&"link_transfer_activities"));
+        assert!(names.contains(&"unlink_transfer_activities"));
         // Read-only token still sees exactly 16 read tools.
         assert_eq!(crate::tools::v1_read_tools().len(), 16);
     }
@@ -287,6 +295,9 @@ mod tests {
             "commit_activity_drafts",
             "commit_asset_classification_draft",
             "commit_categorization_rule",
+            "find_transfer_matches",
+            "link_transfer_activities",
+            "unlink_transfer_activities",
         ] {
             let err = catalog
                 .execute(

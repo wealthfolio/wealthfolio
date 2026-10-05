@@ -53,7 +53,8 @@ use crate::activities::activities_model::*;
 use crate::activities::csv_parser::{self, ParseConfig, ParsedCsvResult};
 use crate::activities::idempotency::{compute_activity_idempotency_key, compute_idempotency_key};
 use crate::activities::{
-    ActivityRepositoryTrait, ActivityServiceTrait, TransferPair, TransferPairResolution,
+    ActivityRepositoryTrait, ActivityServiceTrait, TransferLinkState, TransferPair,
+    TransferPairResolution,
 };
 use crate::activities::{
     ImportRun, ImportRunMode, ImportRunRepositoryTrait, ImportRunSummary, ImportRunType, ReviewMode,
@@ -1401,6 +1402,145 @@ impl ActivityService {
             "low"
         };
         (score, confidence.to_string())
+    }
+
+    /// Counterparts `source` could be linked with, best first: posted transfers
+    /// of the opposite direction, not already in a pair, within `window_days`.
+    fn transfer_match_candidates<'a>(
+        source: &Activity,
+        opposite_type: &str,
+        activities: impl IntoIterator<Item = &'a Activity>,
+        transfer_resolution: &TransferPairResolution,
+        window_days: i64,
+        limit: usize,
+    ) -> Vec<TransferMatchCandidate> {
+        let mut candidates: Vec<TransferMatchCandidate> = activities
+            .into_iter()
+            .filter(|candidate| {
+                candidate.id != source.id
+                    && candidate.is_posted()
+                    && transfer_resolution
+                        .pair_for_activity(&candidate.id)
+                        .is_none()
+                    && candidate.effective_type() == opposite_type
+            })
+            .filter_map(|candidate| {
+                let day_diff = Self::transfer_date_diff_days(source, candidate);
+                if day_diff > window_days {
+                    return None;
+                }
+                Self::build_transfer_match_candidate(source, candidate, day_diff)
+            })
+            .collect();
+
+        candidates.sort_by(|left, right| {
+            right
+                .score
+                .cmp(&left.score)
+                .then_with(|| {
+                    left.activity
+                        .activity_date
+                        .cmp(&right.activity.activity_date)
+                })
+                .then_with(|| left.activity.id.cmp(&right.activity.id))
+        });
+        candidates.truncate(limit);
+        candidates
+    }
+
+    /// The scan behind `find_unlinked_transfers`. A pair can cross into an
+    /// archived account, so pairs are resolved over every account. Transfers
+    /// come from the active accounts the Health Center checks, and candidates
+    /// from the non-archived accounts the Link Transfer dialog offers.
+    fn scan_unlinked_transfers(
+        activity_repository: &dyn ActivityRepositoryTrait,
+        account_service: &dyn AccountServiceTrait,
+        request: UnlinkedTransfersRequest,
+    ) -> Result<UnlinkedTransfers> {
+        let every_activity = activity_repository.get_activities_including_archived_accounts()?;
+        let transfer_resolution = TransferPairResolution::from_activities(&every_activity);
+        let account_ids = |accounts: Vec<Account>| -> HashSet<String> {
+            accounts.into_iter().map(|account| account.id).collect()
+        };
+        let active_account_ids = account_ids(account_service.get_active_non_archived_accounts()?);
+        let open_account_ids = account_ids(account_service.get_non_archived_accounts()?);
+        let window_days = request.window_days.unwrap_or(7).clamp(0, 90);
+        let candidate_limit = request.candidate_limit.unwrap_or(3).clamp(1, 25);
+        let limit = request.limit.unwrap_or(25).clamp(1, 100);
+
+        let in_scope = |activity: &Activity, state: TransferLinkState| {
+            let date = activity.activity_date.date_naive();
+            state.is_unlinked()
+                && request
+                    .link_states
+                    .as_deref()
+                    .is_none_or(|states| states.contains(&state))
+                && request
+                    .activity_id
+                    .as_deref()
+                    .is_none_or(|id| activity.id == id)
+                && request
+                    .account_id
+                    .as_deref()
+                    .is_none_or(|id| activity.account_id == id)
+                && request.start_date.is_none_or(|start| date >= start)
+                && request.end_date.is_none_or(|end| date <= end)
+        };
+        let mut sources: Vec<(&Activity, TransferLinkState, &'static str)> = every_activity
+            .iter()
+            .filter(|activity| {
+                activity.is_posted() && active_account_ids.contains(&activity.account_id)
+            })
+            .filter_map(|activity| {
+                let state = transfer_resolution.link_state(activity)?;
+                let opposite_type = Self::opposite_transfer_type(activity.effective_type())?;
+                in_scope(activity, state).then_some((activity, state, opposite_type))
+            })
+            .collect();
+        sources.sort_by(|(left, _, _), (right, _, _)| {
+            right
+                .activity_date
+                .cmp(&left.activity_date)
+                .then_with(|| left.id.cmp(&right.id))
+        });
+
+        let total = sources.len();
+        let transfers = sources
+            .into_iter()
+            .skip(request.offset.unwrap_or(0))
+            .take(limit)
+            .map(|(source, link_state, opposite_type)| UnlinkedTransfer {
+                activity: source.clone(),
+                link_state,
+                candidates: Self::transfer_match_candidates(
+                    source,
+                    opposite_type,
+                    every_activity
+                        .iter()
+                        .filter(|candidate| open_account_ids.contains(&candidate.account_id)),
+                    &transfer_resolution,
+                    window_days,
+                    candidate_limit,
+                ),
+            })
+            .collect();
+        let linked = request.activity_id.as_deref().and_then(|id| {
+            let pair = transfer_resolution.pair_for_activity(id)?;
+            let (activity, counterpart) = if pair.transfer_in.id == id {
+                (&pair.transfer_in, &pair.transfer_out)
+            } else {
+                (&pair.transfer_out, &pair.transfer_in)
+            };
+            Some(LinkedTransfer {
+                counterpart_id: counterpart.id.clone(),
+                link_state: transfer_resolution.link_state(activity)?,
+            })
+        });
+        Ok(UnlinkedTransfers {
+            transfers,
+            total,
+            linked,
+        })
     }
 
     fn build_transfer_match_candidate(
@@ -4483,6 +4623,11 @@ impl ActivityServiceTrait for ActivityService {
         self.activity_repository.get_activities()
     }
 
+    fn get_activities_including_archived_accounts(&self) -> Result<Vec<Activity>> {
+        self.activity_repository
+            .get_activities_including_archived_accounts()
+    }
+
     /// Retrieves activities by account ID
     fn get_activities_by_account_id(&self, account_id: &str) -> Result<Vec<Activity>> {
         self.activity_repository
@@ -4826,41 +4971,30 @@ impl ActivityServiceTrait for ActivityService {
             return Ok(Vec::new());
         }
 
-        let window_days = request.window_days.unwrap_or(7).clamp(0, 90);
-        let limit = request.limit.unwrap_or(25).clamp(1, 100);
+        Ok(Self::transfer_match_candidates(
+            &source,
+            opposite_type,
+            &all_activities,
+            &transfer_resolution,
+            request.window_days.unwrap_or(7).clamp(0, 90),
+            request.limit.unwrap_or(25).clamp(1, 100),
+        ))
+    }
 
-        let mut candidates: Vec<TransferMatchCandidate> = all_activities
-            .into_iter()
-            .filter(|candidate| {
-                candidate.id != source.id
-                    && candidate.is_posted()
-                    && transfer_resolution
-                        .pair_for_activity(&candidate.id)
-                        .is_none()
-                    && candidate.effective_type() == opposite_type
-            })
-            .filter_map(|candidate| {
-                let day_diff = Self::transfer_date_diff_days(&source, &candidate);
-                if day_diff > window_days {
-                    return None;
-                }
-                Self::build_transfer_match_candidate(&source, &candidate, day_diff)
-            })
-            .collect();
-
-        candidates.sort_by(|left, right| {
-            right
-                .score
-                .cmp(&left.score)
-                .then_with(|| {
-                    left.activity
-                        .activity_date
-                        .cmp(&right.activity.activity_date)
-                })
-                .then_with(|| left.activity.id.cmp(&right.activity.id))
-        });
-        candidates.truncate(limit);
-        Ok(candidates)
+    async fn find_unlinked_transfers(
+        &self,
+        request: UnlinkedTransfersRequest,
+    ) -> Result<UnlinkedTransfers> {
+        let activity_repository = Arc::clone(&self.activity_repository);
+        let account_service = Arc::clone(&self.account_service);
+        crate::portfolio::coordinator::blocking(move || {
+            Self::scan_unlinked_transfers(
+                activity_repository.as_ref(),
+                account_service.as_ref(),
+                request,
+            )
+        })
+        .await
     }
 
     async fn save_internal_transfer_pair(

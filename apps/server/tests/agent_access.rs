@@ -288,7 +288,7 @@ async fn mcp_pat_lifecycle() {
     let session = mcp_initialize(&server, &pat).await;
 
     // tools/list -> the read-only catalog: 16 read tools + get_import_mapping
-    // (also activities:read) = 17.
+    // and find_transfer_matches (also activities:read) = 18.
     let response = mcp_post(
         &server,
         Some(&pat),
@@ -301,8 +301,8 @@ async fn mcp_pat_lifecycle() {
     let tools = list["result"]["tools"].as_array().unwrap();
     assert_eq!(
         tools.len(),
-        17,
-        "read-only catalog must expose 17 tools (incl. get_import_mapping): {tools:?}"
+        18,
+        "read-only catalog must expose 18 tools (incl. get_import_mapping): {tools:?}"
     );
 
     // (h) tools/call succeeds and writes an audit row (awaited before the
@@ -490,9 +490,16 @@ async fn mcp_write_scoped_token_sees_write_tools() {
     let names: Vec<&str> = tools.iter().map(|t| t["name"].as_str().unwrap()).collect();
     assert_eq!(
         tools.len(),
-        28,
-        "full-scope token must see all 28 tools: {names:?}"
+        31,
+        "full-scope token must see all 31 tools: {names:?}"
     );
+    for name in [
+        "find_transfer_matches",
+        "link_transfer_activities",
+        "unlink_transfer_activities",
+    ] {
+        assert!(names.contains(&name), "{name} visible");
+    }
     assert!(
         names.contains(&"commit_activity_import"),
         "import tool visible"
@@ -981,6 +988,274 @@ async fn mcp_import_reports_rows_that_fail_while_being_written() {
             .len(),
         1
     );
+}
+
+/// #1698: an agent finds unlinked transfers with the candidates the Link
+/// Transfer dialog suggests, links confirmed pairs (each on its own, so a bad
+/// pair does not block the rest) and unlinks a pair linked by mistake.
+#[tokio::test]
+async fn mcp_finds_links_and_unlinks_transfers() {
+    let server = spawn_server(true, false).await;
+    let cookie = login(&server).await;
+    disable_market_data_providers(&server, &cookie).await;
+    let (pat, session) = activity_writer_session(&server, &cookie).await;
+    let chequing = create_eur_account(&server, &cookie, "Chequing").await;
+    let savings = create_eur_account(&server, &cookie, "Savings").await;
+    let transfer = |account: &serde_json::Value, activity_type: &str, date: &str, amount: &str| {
+        api_post(
+            &server,
+            &cookie,
+            "activities",
+            serde_json::json!({
+                "accountId": account["id"], "activityType": activity_type,
+                "activityDate": date, "currency": "EUR", "amount": amount
+            }),
+        )
+    };
+    let out_id =
+        transfer(&chequing, "TRANSFER_OUT", "2026-04-01T12:00:00Z", "100").await["id"].clone();
+    let in_id =
+        transfer(&savings, "TRANSFER_IN", "2026-04-01T12:00:00Z", "100").await["id"].clone();
+    let other_id =
+        transfer(&savings, "TRANSFER_IN", "2026-04-02T12:00:00Z", "250").await["id"].clone();
+
+    let found = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "find_transfer_matches",
+        serde_json::json!({}),
+    )
+    .await;
+    assert_eq!(found["total"], 3, "{found}");
+    let outgoing = found["transfers"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|transfer| transfer["activity"]["id"] == out_id)
+        .unwrap_or_else(|| panic!("{found}"));
+    assert_eq!(outgoing["activity"]["accountName"], "Chequing");
+    assert_eq!(outgoing["linkState"], "needs_counterpart", "{outgoing}");
+    assert_eq!(
+        outgoing["candidates"][0]["activity"]["id"], in_id,
+        "{outgoing}"
+    );
+    assert_eq!(outgoing["candidates"][0]["confidence"], "high");
+    assert_eq!(
+        outgoing["candidates"].as_array().unwrap().len(),
+        1,
+        "{outgoing}"
+    );
+
+    // The second pair reuses the now-linked outgoing side and fails alone.
+    let linked = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "link_transfer_activities",
+        serde_json::json!({ "pairs": [
+            { "activityAId": out_id, "activityBId": in_id },
+            { "activityAId": other_id, "activityBId": out_id }
+        ]}),
+    )
+    .await;
+    assert_eq!(linked["linked"].as_array().unwrap().len(), 1, "{linked}");
+    assert_eq!(linked["linked"][0]["transferOutId"], out_id);
+    assert_eq!(linked["linked"][0]["transferInId"], in_id);
+    assert_eq!(linked["errors"][0]["index"], 1, "{linked}");
+
+    let lookup = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "find_transfer_matches",
+        serde_json::json!({ "activityId": out_id }),
+    )
+    .await;
+    assert_eq!(lookup["total"], 0, "{lookup}");
+    assert_eq!(lookup["linkedTo"], in_id, "{lookup}");
+    let remaining = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "find_transfer_matches",
+        serde_json::json!({}),
+    )
+    .await;
+    assert_eq!(remaining["total"], 1, "{remaining}");
+
+    let unlinked = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "unlink_transfer_activities",
+        serde_json::json!({ "pairs": [{ "activityAId": in_id, "activityBId": out_id }] }),
+    )
+    .await;
+    assert_eq!(
+        unlinked["unlinked"].as_array().unwrap().len(),
+        1,
+        "{unlinked}"
+    );
+    assert!(
+        unlinked["errors"].as_array().unwrap().is_empty(),
+        "{unlinked}"
+    );
+    let lookup = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "find_transfer_matches",
+        serde_json::json!({ "activityId": out_id }),
+    )
+    .await;
+    assert_eq!(lookup["total"], 1, "{lookup}");
+    assert!(lookup.get("linkedTo").is_none(), "{lookup}");
+    // Unlinking marks both sides as money from or to outside the portfolio.
+    assert_eq!(lookup["transfers"][0]["linkState"], "external", "{lookup}");
+}
+
+/// A lookup names the other side of every linked pair the shared link state
+/// sees: a pair with one leg later marked external, and a pair whose other
+/// side's account was archived, which must not show up as needing a link,
+/// in the scan or in the Health Center. Linking the first pair again repairs it.
+#[tokio::test]
+async fn mcp_transfer_lookups_see_every_linked_pair() {
+    let server = spawn_server(true, false).await;
+    let cookie = login(&server).await;
+    disable_market_data_providers(&server, &cookie).await;
+    let (pat, session) = activity_writer_session(&server, &cookie).await;
+    let chequing = create_eur_account(&server, &cookie, "Chequing").await;
+    let savings = create_eur_account(&server, &cookie, "Savings").await;
+    let closed = create_eur_account(&server, &cookie, "Closed").await;
+    let transfer = |account: &serde_json::Value, activity_type: &str, amount: &str| {
+        api_post(
+            &server,
+            &cookie,
+            "activities",
+            serde_json::json!({
+                "accountId": account["id"], "activityType": activity_type,
+                "activityDate": "2026-04-01T12:00:00Z", "currency": "EUR", "amount": amount
+            }),
+        )
+    };
+    let out_id = transfer(&chequing, "TRANSFER_OUT", "100").await["id"].clone();
+    let in_id = transfer(&savings, "TRANSFER_IN", "100").await["id"].clone();
+    let kept_id = transfer(&chequing, "TRANSFER_OUT", "60").await["id"].clone();
+    let archived_id = transfer(&closed, "TRANSFER_IN", "60").await["id"].clone();
+    let linked = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "link_transfer_activities",
+        serde_json::json!({ "pairs": [
+            { "activityAId": out_id, "activityBId": in_id },
+            { "activityAId": kept_id, "activityBId": archived_id }
+        ]}),
+    )
+    .await;
+    assert_eq!(linked["linked"].as_array().unwrap().len(), 2, "{linked}");
+
+    // Mark one leg of the first pair as money from outside the portfolio.
+    let response = server
+        .client
+        .put(format!("{}/api/v1/activities", server.base))
+        .header(header::COOKIE, format!("wf_session={cookie}"))
+        .json(&serde_json::json!({
+            "id": in_id, "accountId": savings["id"], "activityType": "TRANSFER_IN",
+            "activityDate": "2026-04-01T12:00:00Z", "currency": "EUR", "amount": "100",
+            "metadata": "{\"flow\":{\"is_external\":true}}"
+        }))
+        .send()
+        .await
+        .unwrap();
+    assert!(
+        response.status().is_success(),
+        "{}",
+        response.text().await.unwrap()
+    );
+    // Archive the account holding the other side of the second pair.
+    let response = server
+        .client
+        .put(format!(
+            "{}/api/v1/accounts/{}",
+            server.base,
+            closed["id"].as_str().unwrap()
+        ))
+        .header(header::COOKIE, format!("wf_session={cookie}"))
+        .json(&serde_json::json!({
+            "id": closed["id"], "name": "Closed", "accountType": "SECURITIES",
+            "isDefault": false, "isActive": true, "isArchived": true
+        }))
+        .send()
+        .await
+        .unwrap();
+    let archived: serde_json::Value = response.json().await.unwrap();
+    assert_eq!(archived["isArchived"], true, "{archived}");
+
+    let lookup = |activity_id: serde_json::Value| {
+        mcp_call_tool(
+            &server,
+            &pat,
+            &session,
+            "find_transfer_matches",
+            serde_json::json!({ "activityId": activity_id }),
+        )
+    };
+    for (activity_id, counterpart, state) in [
+        (&out_id, &in_id, "linked"),
+        (&in_id, &out_id, "linked_but_marked_external"),
+        (&kept_id, &archived_id, "linked"),
+    ] {
+        let found = lookup(activity_id.clone()).await;
+        assert_eq!(found["total"], 0, "{found}");
+        assert_eq!(&found["linkedTo"], counterpart, "{found}");
+        assert_eq!(found["linkedState"], state, "{found}");
+    }
+    let scan = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "find_transfer_matches",
+        serde_json::json!({}),
+    )
+    .await;
+    assert_eq!(scan["total"], 0, "{scan}");
+    assert_eq!(transfer_issue_legs(&server, &cookie).await, 1);
+
+    let relinked = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "link_transfer_activities",
+        serde_json::json!({ "pairs": [{ "activityAId": in_id, "activityBId": out_id }] }),
+    )
+    .await;
+    assert_eq!(
+        relinked["linked"].as_array().unwrap().len(),
+        1,
+        "{relinked}"
+    );
+    let found = lookup(in_id.clone()).await;
+    assert_eq!(found["linkedTo"], out_id, "{found}");
+    assert_eq!(found["linkedState"], "linked", "{found}");
+    assert_eq!(transfer_issue_legs(&server, &cookie).await, 0);
+}
+
+/// Runs the Health Center checks and counts the transfer legs they flag.
+async fn transfer_issue_legs(server: &TestServer, cookie: &str) -> u64 {
+    let status = api_post(server, cookie, "health/check", serde_json::json!({})).await;
+    status["issues"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|issue| {
+            issue["id"]
+                .as_str()
+                .is_some_and(|id| id.starts_with("invalid_transfer_group:"))
+        })
+        .map(|issue| issue["affectedCount"].as_u64().unwrap())
+        .sum()
 }
 
 /// Part of #1701: a bare date is a calendar day. West of UTC, UTC midnight

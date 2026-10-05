@@ -1065,13 +1065,22 @@ impl ActivityRepositoryTrait for ActivityRepository {
                         }
                     };
 
-                if source_group_blocks_transfer_link(
+                let in_group_blocks = source_group_blocks_transfer_link(
                     tx.conn(),
                     transfer_in.source_group_id.as_deref(),
-                )? || source_group_blocks_transfer_link(
-                    tx.conn(),
-                    transfer_out.source_group_id.as_deref(),
-                )? {
+                )?;
+                // Linking a pair already linked to each other repairs it: it keeps
+                // the group and clears an external marker left on either leg.
+                let linked_to_each_other = in_group_blocks
+                    && transfer_in.source_group_id.as_deref().map(str::trim)
+                        == transfer_out.source_group_id.as_deref().map(str::trim);
+                if !linked_to_each_other
+                    && (in_group_blocks
+                        || source_group_blocks_transfer_link(
+                            tx.conn(),
+                            transfer_out.source_group_id.as_deref(),
+                        )?)
+                {
                     return Err(Error::from(ActivityError::InvalidData(
                         "One or both activities are already linked to another transfer".to_string(),
                     )));
@@ -1086,7 +1095,10 @@ impl ActivityRepositoryTrait for ActivityRepository {
                 }
                 validate_link_transfer_asset_shape(&transfer_in, &transfer_out)?;
 
-                let group_id = Uuid::new_v4().to_string();
+                let group_id = match transfer_in.source_group_id.as_deref() {
+                    Some(group_id) if linked_to_each_other => group_id.trim().to_string(),
+                    _ => Uuid::new_v4().to_string(),
+                };
                 let now = chrono::Utc::now().to_rfc3339();
 
                 transfer_in.source_group_id = Some(group_id.clone());
@@ -5173,6 +5185,65 @@ mod tests {
                     .and_then(|value| value.as_bool())
             }),
             Some(false)
+        );
+    }
+
+    #[tokio::test]
+    async fn link_transfer_activities_repairs_a_pair_already_linked_to_each_other() {
+        let (pool, writer) = setup_db();
+        let repo = ActivityRepository::new(pool.clone(), writer);
+        let mut conn = get_connection(&pool).expect("conn");
+
+        insert_account(&mut conn, "acc-a");
+        insert_account(&mut conn, "acc-b");
+        insert_account(&mut conn, "acc-c");
+        insert_transfer_activity(
+            &mut conn,
+            "pair-out",
+            "acc-a",
+            "TRANSFER_OUT",
+            Some("pair-group"),
+            Some(r#"{"flow":{"is_external":false}}"#),
+        );
+        insert_transfer_activity(
+            &mut conn,
+            "pair-in",
+            "acc-b",
+            "TRANSFER_IN",
+            Some("pair-group"),
+            Some(r#"{"flow":{"is_external":true}}"#),
+        );
+        insert_transfer_activity(&mut conn, "other-in", "acc-c", "TRANSFER_IN", None, None);
+
+        let (transfer_in, transfer_out) = repo
+            .link_transfer_activities("pair-out".to_string(), "pair-in".to_string())
+            .await
+            .expect("re-linking a linked pair should repair it");
+
+        assert_eq!(transfer_in.id, "pair-in");
+        assert_eq!(transfer_out.id, "pair-out");
+        assert_eq!(transfer_in.source_group_id.as_deref(), Some("pair-group"));
+        assert_eq!(transfer_out.source_group_id.as_deref(), Some("pair-group"));
+        assert_eq!(
+            transfer_in.metadata.as_ref().and_then(|m| {
+                m.get("flow")
+                    .and_then(|flow| flow.get("is_external"))
+                    .and_then(|value| value.as_bool())
+            }),
+            Some(false)
+        );
+        assert_eq!(activity_user_modified(&mut conn, "pair-in"), 1);
+        assert_eq!(activity_user_modified(&mut conn, "pair-out"), 1);
+
+        let error = repo
+            .link_transfer_activities("pair-out".to_string(), "other-in".to_string())
+            .await
+            .expect_err("a leg linked to another transfer cannot be linked again");
+        assert!(
+            error
+                .to_string()
+                .contains("already linked to another transfer"),
+            "{error}"
         );
     }
 

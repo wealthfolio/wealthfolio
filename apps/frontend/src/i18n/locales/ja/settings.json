@@ -1433,7 +1433,7 @@
       },
       "activities_write": {
         "label": "取引 — 確定/書き込み",
-        "description": "取引を確定します。下書きのスコープが必要です。"
+        "description": "取引を確定し、振替をリンクまたはリンク解除します。下書きのスコープが必要です。"
       },
       "classification_suggest": {
         "label": "分類 — 提案",

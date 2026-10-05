@@ -463,6 +463,42 @@ commit_activity_import             -- import through the real pipeline
 `import_csv` remains **assistant/UI-only** — it is not exposed over MCP; the
 agent-facing CSV path is the three import tools above.
 
+### MCP-only Transfer Linking Tools
+
+```text
+find_transfer_matches              -- unlinked transfers + their candidates
+link_transfer_activities           -- link confirmed pairs (batch)
+unlink_transfer_activities         -- unlink pairs linked by mistake (batch)
+```
+
+An unlinked TRANSFER_OUT / TRANSFER_IN pair between owned accounts counts as
+spending and income. `find_transfer_matches` scans posted transfers in active
+accounts with no linked other side
+(`ActivityServiceTrait::find_unlinked_transfers`). The scan reads the activities
+once, off the async workers, and includes archived accounts when resolving
+pairs, so a transfer whose other side sits in an archived account counts as
+linked. Each listed transfer comes with its `TransferLinkState`, the state the
+Health Center also reads (`TransferPairResolution::link_state`), and the
+candidates the Link Transfer dialog suggests, drawn from open accounts. The
+Health Center reports `needs_counterpart` and `broken_link`; the scan also lists
+`external` transfers, because imports mark transfers external unless the source
+says internal, so an internal move can carry the marker. `linkStates` narrows
+the scan, `offset`/`limit` page it, and a lookup by `activityId` of a transfer
+that is already linked returns its other side (`linkedTo`) and state
+(`linkedState`) instead of an entry.
+
+The Health Center resolves pairs over archived accounts the same way and reports
+only transfers in active accounts.
+
+Link and unlink call the same core methods as the dialog, so they apply its
+validation, trigger recalculation and set the user-edit flag that keeps broker
+syncs from undoing them. Linking a pair that is already linked to each other
+repairs it: the pair keeps its group and loses an external marker left on either
+leg, which the Health Center reports as a conflicting marker. Each pair in a
+batch (up to 100) succeeds or fails on its own, and the audit log keeps only the
+pair ids. The in-app assistant has no confirmation card for linking and does not
+get these tools.
+
 For categorization rules, `create_categorization_rule` returns an in-memory
 draft and does not save it. After showing that draft to the user and receiving
 confirmation, an MCP client passes the returned `rule` object to
@@ -512,7 +548,8 @@ accounts:read            get_accounts, get_cash_balances, get_portfolios
 holdings:read            get_holdings, get_asset_allocation,
                          get_valuation_history, get_income, get_net_worth
 performance:read         get_performance
-activities:read          search_activities, get_import_mapping
+activities:read          search_activities, get_import_mapping,
+                         find_transfer_matches
 financial-planning:read  get_goals, get_contribution_limits
 health:read              get_health_status
 classification:read      list_asset_taxonomies, get_asset_taxonomy_assignments,
@@ -526,6 +563,9 @@ activities:draft         record_activity, record_activities,
                          prepare_activity_import
 activities:write         commit_activity_draft / commit_activity_drafts,
                          commit_activity_import  (each also requires
+                         activities:draft),
+                         link_transfer_activities / unlink_transfer_activities
+                         (each also requires activities:read and
                          activities:draft)
 classification:suggest   propose_transaction_categories,
                          create_categorization_rule,

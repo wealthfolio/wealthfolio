@@ -1490,7 +1490,7 @@
       },
       "activities_write": {
         "label": "Movimenti — conferma/scrittura",
-        "description": "Conferma i movimenti. Richiede l'ambito bozza."
+        "description": "Conferma i movimenti e collega o scollega i trasferimenti. Richiede l'ambito bozza."
       },
       "classification_suggest": {
         "label": "Classificazione — suggerisci",

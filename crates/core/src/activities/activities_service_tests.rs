@@ -4,7 +4,7 @@ pub(crate) mod tests {
     use crate::activities::activities_model::*;
     use crate::activities::{
         ActivityRepositoryTrait, ActivityService, ActivityServiceTrait, ImportRun,
-        ImportRunRepositoryTrait, ImportRunStatus, ACTIVITY_TYPE_ADJUSTMENT,
+        ImportRunRepositoryTrait, ImportRunStatus, TransferLinkState, ACTIVITY_TYPE_ADJUSTMENT,
     };
     use crate::assets::{
         normalize_quote_ccy_code, parse_crypto_pair_symbol, parse_symbol_with_exchange_suffix,
@@ -1397,6 +1397,10 @@ pub(crate) mod tests {
         }
 
         fn get_activities(&self) -> Result<Vec<Activity>> {
+            Ok(self.activities.lock().unwrap().clone())
+        }
+
+        fn get_activities_including_archived_accounts(&self) -> Result<Vec<Activity>> {
             Ok(self.activities.lock().unwrap().clone())
         }
 
@@ -11172,6 +11176,274 @@ pub(crate) mod tests {
 
         assert_eq!(candidates.len(), 1);
         assert_eq!(candidates[0].activity.id, "cash-match");
+    }
+
+    /// Unlinked transfers for the scan, one per link state: two that match
+    /// each other and an orphan from a broken pair (all three reported by the
+    /// Health Center), plus an old one and one with no match, both marked
+    /// external, as imports mark them. Left out: a linked pair without the
+    /// internal marker, a pair linked across to an archived account, a draft,
+    /// and a transfer in the archived account (`acc-closed` is not among the
+    /// open accounts).
+    fn unlinked_transfer_service() -> ActivityService {
+        let account_service = Arc::new(MockAccountService::new());
+        account_service.add_account(create_test_account("acc-a", "USD"));
+        account_service.add_account(create_test_account("acc-b", "USD"));
+        let activity_repository = Arc::new(MockActivityRepository::new());
+        // The fixture marks transfers external; these three are not.
+        let internal = |id, account_id, activity_type, date, amount, group: Option<&str>| {
+            let mut transfer =
+                create_cash_transfer_activity(id, account_id, activity_type, date, amount, "USD");
+            transfer.metadata = None;
+            transfer.source_group_id = group.map(str::to_string);
+            transfer
+        };
+        for transfer in [
+            internal(
+                "out-1",
+                "acc-a",
+                "TRANSFER_OUT",
+                "2024-01-15T00:00:00Z",
+                dec!(100),
+                None,
+            ),
+            internal(
+                "in-1",
+                "acc-b",
+                "TRANSFER_IN",
+                "2024-01-15T00:00:00Z",
+                dec!(100),
+                None,
+            ),
+            internal(
+                "orphan-out",
+                "acc-a",
+                "TRANSFER_OUT",
+                "2024-02-01T00:00:00Z",
+                dec!(70),
+                Some("orphan-group"),
+            ),
+            create_cash_transfer_activity(
+                "in-old",
+                "acc-b",
+                "TRANSFER_IN",
+                "2023-06-01T00:00:00Z",
+                dec!(50),
+                "USD",
+            ),
+            create_cash_transfer_activity(
+                "outside-in",
+                "acc-b",
+                "TRANSFER_IN",
+                "2024-01-12T00:00:00Z",
+                dec!(45),
+                "USD",
+            ),
+            create_cash_transfer_activity(
+                "closed-out",
+                "acc-closed",
+                "TRANSFER_OUT",
+                "2024-01-10T00:00:00Z",
+                dec!(40),
+                "USD",
+            ),
+            internal(
+                "paired-out",
+                "acc-a",
+                "TRANSFER_OUT",
+                "2024-01-20T00:00:00Z",
+                dec!(30),
+                Some("pair-group"),
+            ),
+            internal(
+                "paired-in",
+                "acc-b",
+                "TRANSFER_IN",
+                "2024-01-20T00:00:00Z",
+                dec!(30),
+                Some("pair-group"),
+            ),
+        ] {
+            activity_repository.add_activity(transfer);
+        }
+        // Linked across to an account that is now archived.
+        activity_repository.add_activity(internal(
+            "kept-out",
+            "acc-a",
+            "TRANSFER_OUT",
+            "2024-01-25T00:00:00Z",
+            dec!(20),
+            Some("cross-group"),
+        ));
+        activity_repository.add_activity(internal(
+            "archived-in",
+            "acc-closed",
+            "TRANSFER_IN",
+            "2024-01-25T00:00:00Z",
+            dec!(20),
+            Some("cross-group"),
+        ));
+        let mut draft = internal(
+            "draft-in",
+            "acc-b",
+            "TRANSFER_IN",
+            "2024-01-16T00:00:00Z",
+            dec!(100),
+            None,
+        );
+        draft.status = ActivityStatus::Draft;
+        activity_repository.add_activity(draft);
+
+        ActivityService::new(
+            activity_repository,
+            account_service,
+            Arc::new(MockAssetService::new()),
+            Arc::new(MockFxService::new()),
+            Arc::new(MockQuoteService),
+        )
+    }
+
+    fn unlinked_ids(unlinked: &UnlinkedTransfers) -> Vec<&str> {
+        unlinked
+            .transfers
+            .iter()
+            .map(|transfer| transfer.activity.id.as_str())
+            .collect()
+    }
+
+    #[tokio::test]
+    async fn find_unlinked_transfers_lists_unlinked_transfers_with_state_and_candidates() {
+        let service = unlinked_transfer_service();
+        let unlinked = service
+            .find_unlinked_transfers(UnlinkedTransfersRequest::default())
+            .await
+            .expect("scan");
+
+        assert_eq!(unlinked.total, 5);
+        assert_eq!(
+            unlinked_ids(&unlinked),
+            vec!["orphan-out", "in-1", "out-1", "outside-in", "in-old"]
+        );
+        assert_eq!(
+            unlinked
+                .transfers
+                .iter()
+                .map(|transfer| transfer.link_state)
+                .collect::<Vec<_>>(),
+            vec![
+                TransferLinkState::BrokenLink,
+                TransferLinkState::NeedsCounterpart,
+                TransferLinkState::NeedsCounterpart,
+                TransferLinkState::External,
+                TransferLinkState::External,
+            ]
+        );
+        for transfer in &unlinked.transfers {
+            // The same candidates the Link Transfer dialog shows.
+            let dialog = service
+                .find_transfer_match_candidates(TransferMatchCandidateRequest {
+                    activity_id: transfer.activity.id.clone(),
+                    window_days: Some(7),
+                    limit: Some(3),
+                })
+                .expect("candidates");
+            let ids = |candidates: &[TransferMatchCandidate]| {
+                candidates
+                    .iter()
+                    .map(|candidate| candidate.activity.id.clone())
+                    .collect::<Vec<_>>()
+            };
+            assert_eq!(
+                ids(&transfer.candidates),
+                ids(&dialog),
+                "{}",
+                transfer.activity.id
+            );
+        }
+        let out = &unlinked.transfers[2];
+        assert_eq!(out.candidates.len(), 1);
+        assert_eq!(out.candidates[0].activity.id, "in-1");
+        assert!(unlinked.transfers[4].candidates.is_empty());
+    }
+
+    #[tokio::test]
+    async fn find_unlinked_transfers_applies_scope_filters_and_paging() {
+        let service = unlinked_transfer_service();
+        let scan = |request: UnlinkedTransfersRequest| {
+            let service = &service;
+            async move {
+                service
+                    .find_unlinked_transfers(request)
+                    .await
+                    .expect("scan")
+            }
+        };
+
+        let by_account = scan(UnlinkedTransfersRequest {
+            account_id: Some("acc-a".to_string()),
+            ..Default::default()
+        })
+        .await;
+        assert_eq!(unlinked_ids(&by_account), vec!["orphan-out", "out-1"]);
+
+        let by_dates = scan(UnlinkedTransfersRequest {
+            start_date: NaiveDate::from_ymd_opt(2024, 1, 1),
+            end_date: NaiveDate::from_ymd_opt(2024, 1, 31),
+            ..Default::default()
+        })
+        .await;
+        assert_eq!(unlinked_ids(&by_dates), vec!["in-1", "out-1", "outside-in"]);
+
+        let health_reported = scan(UnlinkedTransfersRequest {
+            link_states: Some(vec![
+                TransferLinkState::NeedsCounterpart,
+                TransferLinkState::BrokenLink,
+            ]),
+            ..Default::default()
+        })
+        .await;
+        assert_eq!(
+            unlinked_ids(&health_reported),
+            vec!["orphan-out", "in-1", "out-1"]
+        );
+
+        let page = scan(UnlinkedTransfersRequest {
+            offset: Some(1),
+            limit: Some(2),
+            ..Default::default()
+        })
+        .await;
+        assert_eq!(unlinked_ids(&page), vec!["in-1", "out-1"]);
+        assert_eq!(page.total, 5);
+
+        let one = scan(UnlinkedTransfersRequest {
+            activity_id: Some("out-1".to_string()),
+            ..Default::default()
+        })
+        .await;
+        assert_eq!(unlinked_ids(&one), vec!["out-1"]);
+        assert!(one.linked.is_none());
+    }
+
+    /// A lookup of a linked transfer names its other side from the same pairs
+    /// the scan resolves: a pair without the internal marker, and a pair whose
+    /// other side is in an archived account.
+    #[tokio::test]
+    async fn find_unlinked_transfers_names_the_other_side_of_a_linked_transfer() {
+        let service = unlinked_transfer_service();
+        for (id, counterpart) in [("paired-out", "paired-in"), ("kept-out", "archived-in")] {
+            let lookup = service
+                .find_unlinked_transfers(UnlinkedTransfersRequest {
+                    activity_id: Some(id.to_string()),
+                    ..Default::default()
+                })
+                .await
+                .expect("lookup");
+            assert_eq!(lookup.total, 0, "{id}");
+            let linked = lookup.linked.expect("linked");
+            assert_eq!(linked.counterpart_id, counterpart);
+            assert_eq!(linked.link_state, TransferLinkState::Linked);
+        }
     }
 
     #[test]
