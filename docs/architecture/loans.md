@@ -21,8 +21,8 @@ the portfolio's responsibility.
 `calculate_loan` accepts metadata, closing balance observations, and an explicit
 ISO calendar `asOf` date. It reads neither the clock nor storage. There is no
 second valuation engine in TypeScript and no persisted calculated schedule.
-Frontend level-payment formulas provide previews; saved creation payments and
-recalculation use the shared dated engine.
+Previews, creation, and saved terms use the same Rust setup rules; the frontend
+only reads stored terms back into the form, on calendar days.
 
 ### Data flow
 
@@ -92,7 +92,8 @@ same portfolio recalculation as a manual quote. Dates are checked against today
 in the settings timezone, allowing one day for a device ahead of it. The
 decision, including the engine calculation that checks a repayment or solves a
 payment, runs inside the write transaction on the database writer. Creation and
-Edit loan details still write terms through the alternative-asset metadata API.
+Edit loan details send a loan setup instead of loan fields; see
+[Loan setup](#loan-setup).
 
 ### Implementation map
 
@@ -104,6 +105,7 @@ Paths below are relative to the repository root.
 | Interest conversion and posting precision        | `crates/core/src/assets/loan/interest.rs`                      |
 | Payment solving                                  | `crates/core/src/assets/loan/recalculation.rs`                 |
 | Stored format and balance provenance             | `crates/core/src/assets/loan/model.rs`                         |
+| Loan setup checks, stored terms, and previews    | `crates/core/src/assets/loan/setup.rs`                         |
 | Loan actions and their rules                     | `crates/core/src/assets/loan/actions.rs`                       |
 | Payment allocation, statuses, and suggestions    | `crates/core/src/assets/loan/payments.rs`                      |
 | Linking a withdrawal to a loan                   | `crates/core/src/assets/loan/linking.rs`                       |
@@ -219,6 +221,43 @@ must not change rounding. The final instalment is capped at principal plus
 accrued interest. Extra principal repayment cannot erase accrued interest. A
 confirmed zero balance closes the loan.
 
+### Loan setup
+
+A loan setup is what the user enters: original amount, origination date, and
+interest rate, and for a calculated loan its schedule: frequency, interest
+method, first payment date, amortization in months or a last payment date, the
+payment, renewal maturity, the "Paid from" account, and escrow per payment.
+`apply_loan_setup` in `loan/setup.rs` checks the whole setup and derives the
+stored fields; `preview_loan_terms` runs the same derivation without saving, so
+a preview always matches what is saved.
+
+1. **Manual loans** need no schedule. An entered original amount must be above
+   zero and an entered rate between 0 and 100.
+2. **Calculated loans** require an original amount above zero, an origination
+   date, a frequency, and an amortization above zero. The rate must be between 0
+   and 100; an omitted rate is 0.
+3. **Dates.** The first payment defaults to one period after origination and
+   must fall after it. The last payment cannot fall before the first. Renewal
+   maturity must fall after origination.
+4. **Derived schedule.** Months of amortization give the payment count by
+   frequency and the last payment by the payment calendar. A stored last payment
+   that still matches the entered months is kept, so saving other details never
+   moves an off-cadence contractual end.
+5. **Payment.** An entered payment must be above zero. An omitted payment is
+   solved as at creation, below.
+6. **Paid from and escrow** follow the payment rules: an active, unarchived cash
+   account in the loan's currency, and escrow of zero or more. Paid from is set
+   when editing a loan; creation refuses it.
+7. **One way in.** Creation takes a setup with the asset; Edit loan details
+   saves it with the `set_terms` loan action, in one transaction through the
+   sync outbox. The general metadata API refuses loan fields (`loan_projection`,
+   `loan_events`, `renewal_maturity_date`, `tracking_mode`,
+   `payment_account_id`, `escrow_amount`, `original_amount`, `origination_date`,
+   `interest_rate`) on liabilities with `LOAN_FIELDS_READ_ONLY`.
+
+A refused setup names the rule it broke with a stable code, and nothing is
+written. Every save checks the whole setup.
+
 ### Creation, renewal, and recalculation
 
 Automatically generated creation payments must settle the dated schedule by its
@@ -264,10 +303,11 @@ corrected; changing an incorrect observation is a separate balance edit. Opening
 confirmations must remain independently editable and deletable.
 
 Forms take amortization (mortgages) or loan term (other loans) as years and
-months, as loan agreements state it, and store it as `amortizationEndDate`: the
-last payment counted from the first payment at the selected frequency. A stored
-date that still matches the entered duration is kept, so saving other details
-never moves an end date that is off the payment cadence.
+months, as loan agreements state it; the backend stores it as
+`amortizationEndDate`: the last payment counted from the first payment at the
+selected frequency. A stored date that still matches the entered duration is
+kept, so saving other details never moves an end date that is off the payment
+cadence.
 
 Each action below is one backend call. Refusals are stable codes, such as
 `LOAN_EVENT_CHANGED` or `LOAN_PAYMENT_REQUIRED`, that the UI translates.
@@ -351,9 +391,12 @@ statement remains the truth.
    loans and 6 days for biweekly ones. A tag naming an instalment due date, or
    `extra`, overrides matching.
 8. **Allocation.** Applied to an instalment, the payment covers what remains of
-   that instalment's scheduled payment, its interest and principal. Whatever is
-   left is extra principal on the payment date, applied like a recorded extra
-   repayment. A payment that settles no instalment is entirely extra principal.
+   that instalment's scheduled payment, its interest and principal, and any
+   extra repayment recorded on the due date, so a withdrawal paying both counts
+   the extra once; an extra paid by a separate withdrawal that is not linked
+   leaves the instalment short. Whatever is left is extra principal on the
+   payment date, applied like a recorded extra repayment. A payment that settles
+   no instalment is entirely extra principal.
 9. **Shortfalls and missed payments are flagged, not guessed.** From the first
    counted payment onward, an instalment more than its matching window overdue
    with less than its scheduled payment applied is marked short or missing. The
@@ -379,6 +422,19 @@ statement remains the truth.
     any activity edit.
 14. **One valuation.** The loan page, holdings, net worth and net-worth history
     count the same payments, so they show the same dated principal.
+15. **No double count.** A withdrawal and a recorded extra repayment on the same
+    day for the same amount are taken to be the same money, unless the
+    withdrawal is a regular payment: one the user directed to an instalment, or
+    one matched to the instalment due on its own date, which covers that day's
+    extra repayments (rule 8) so the money counts once. A double-up payment
+    beside an extra of the same amount stays two payments. Linking such a
+    withdrawal is refused with `LOAN_PAYMENT_DUPLICATES_EVENT` unless the user
+    chooses to replace the event, which removes it and links the whole
+    withdrawal, without escrow unless the user names it, as that extra principal
+    in one transaction. Recording or moving an extra repayment onto one a linked
+    withdrawal already made is refused with `LOAN_EXTRA_ALREADY_LINKED`. With
+    "Paid from" set, an extra repayment already recorded is refused before any
+    withdrawal is created.
 
 Matching and allocation run in the shared engine. The engine first builds the
 schedule without derived payments, allocates payments in date order against its
@@ -528,35 +584,43 @@ lender equivalence. Reference observations were captured September 24, 2026.
   beside the calculator. Boundary tests cover pre-origination dates, UTC
   observation dates, deleted opening confirmations, maturity edits, closure, and
   oversized repayments. Net-worth service tests verify integration.
+- Setup tests (`loan/setup_tests.rs`) cover each setup rule, the solved payment,
+  a kept off-cadence end, and a payment calendar that matches the frontend forms
+  it replaced.
 - Rust action tests (`loan/actions_tests.rs`) cover each action's rules: date
   limits, repayments within the balance on their date, occupied balance dates,
   stale event edits, renewal settings and maturity, and manual balances on their
   own calendar day. Storage tests
   (`crates/storage-sqlite/tests/loan_actions.rs`) verify that a write failing
   after the metadata change leaves the loan untouched, that a refused action
-  writes nothing, that a renewal's balance and terms are written together, and
-  that confirming a day replaces its creation quote.
+  writes nothing, that a renewal's balance and terms are written together, that
+  confirming a day replaces its creation quote, that creation takes a setup, and
+  that the general details update refuses loan fields and writes nothing.
 - Payment tests (`loan/payments_tests.rs`, `loan/linking_tests.rs`) cover
   eligibility, escrow, matching windows, directed targets, short and missing
   instalments, suggestions, and confirmations winning. Storage tests verify that
   tagged payments value the loan in holdings, that linking refuses ineligible
-  withdrawals and accounts, and that deleting a loan untags its payments. The
+  withdrawals and accounts, that deleting a loan untags its payments, and that
+  replacing a recorded extra repayment with its withdrawal counts it once. The
   net-worth service test checks that the same payments count in net worth and
   its history.
-- Frontend tests cover preview conventions, input construction, the action each
-  dialog sends, period boundaries, privacy-related presentation, and opening
+- Frontend tests cover the setup each form sends and never loan fields in
+  metadata, showing the backend preview and its refusals, the action each dialog
+  sends, period boundaries, privacy-related presentation, and opening
   confirmations, and that liabilities from earlier releases can opt into
   calculation.
 - [`e2e/23-loan-lifecycle.spec.ts`](../../e2e/23-loan-lifecycle.spec.ts) covers
   the complete fixture, shared actions, net worth with unrelated holdings
-  already present, creation, and cross-asset UI.
+  already present, creation, cross-asset UI, previews, and the backend refusing
+  bad terms and loan fields in metadata.
 - [`e2e/24-loan-editing.spec.ts`](../../e2e/24-loan-editing.spec.ts) covers
   event management, form validation, conventions, confirmation edits, and
   recalculation.
 - [`e2e/25-loan-payments.spec.ts`](../../e2e/25-loan-payments.spec.ts) covers
   Paid from, linking from Spending and from the loan, the payment change
-  suggestion, extra repayments recorded as withdrawals, unlinking, and deleting
-  a loan with tagged payments.
+  suggestion, extra repayments recorded as withdrawals, replacing an extra
+  repayment with its withdrawal, unlinking, and deleting a loan with tagged
+  payments.
 
 Verify accounting conservation, rounding, calendar boundaries, stub periods,
 dated ordering, cadence resets, closure/reopening, residuals, invalid inputs,
