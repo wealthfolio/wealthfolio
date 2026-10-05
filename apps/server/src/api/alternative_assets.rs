@@ -73,6 +73,8 @@ pub struct CreateAlternativeAssetRequest {
     pub purchase_date: Option<String>,
     pub metadata: Option<Value>,
     pub linked_asset_id: Option<String>,
+    #[serde(default)]
+    pub loan: Option<wealthfolio_core::assets::loan::LoanSetup>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -171,6 +173,7 @@ async fn create_alternative_asset(
         purchase_date,
         metadata: request.metadata,
         linked_asset_id: request.linked_asset_id,
+        loan: request.loan,
     };
 
     // Delegate to core service
@@ -401,9 +404,28 @@ pub fn router<S: Clone + Send + Sync + 'static>() -> Router<S> {
         .route("/alternative-holdings", get(get_alternative_holdings))
         .route("/loans/calculate", post(calculate_loan))
         .route("/loans/recalculate", post(recalculate_loan))
+        .route("/loans/preview", post(preview_loan_terms))
         .route("/loans/{id}/actions", post(apply_loan_action))
         .route("/loans/{id}/payments", get(get_loan_payments))
         .route("/loans/payments/{activity_id}", post(link_loan_payment))
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PreviewLoanTermsRequest {
+    #[serde(default)]
+    asset_id: Option<String>,
+    setup: wealthfolio_core::assets::loan::LoanSetup,
+}
+
+async fn preview_loan_terms(
+    axum::Extension(state): axum::Extension<Arc<AppState>>,
+    Json(request): Json<PreviewLoanTermsRequest>,
+) -> ApiResult<Json<Option<wealthfolio_core::assets::loan::LoanSchedulePreview>>> {
+    Ok(Json(state.alternative_asset_service.preview_loan_terms(
+        request.asset_id.as_deref(),
+        &request.setup,
+    )?))
 }
 
 async fn get_loan_payments(

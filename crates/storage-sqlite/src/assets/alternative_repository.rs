@@ -119,6 +119,24 @@ fn read_loan(conn: &mut SqliteConnection, asset_id: &str) -> Result<LoanRecord> 
     })
 }
 
+/// Replaces a loan's metadata and records the change for sync.
+fn write_asset_metadata(
+    tx: &mut DbWriteTx<'_>,
+    asset_id: &str,
+    metadata: &serde_json::Value,
+) -> Result<()> {
+    diesel::update(assets::table.filter(assets::id.eq(asset_id)))
+        .set(assets::metadata.eq(Some(metadata.to_string())))
+        .execute(tx.conn())
+        .map_err(StorageError::from)?;
+    let row = assets::table
+        .filter(assets::id.eq(asset_id))
+        .first::<crate::assets::AssetDB>(tx.conn())
+        .map_err(StorageError::from)?;
+    tx.update(&row)?;
+    Ok(())
+}
+
 /// Writes an activity's metadata and records the change for sync.
 fn write_activity_metadata(
     tx: &mut DbWriteTx<'_>,
@@ -223,8 +241,8 @@ impl AlternativeAssetRepositoryTrait for AlternativeAssetRepository {
                     .map_err(StorageError::from)?;
                 for row in tagged {
                     let activity = Activity::from(row);
-                    let metadata = link_payment(&activity, "", None, &PaymentLink::Unlink)?;
-                    write_activity_metadata(tx, &activity.id, metadata.as_ref())?;
+                    let untagged = link_payment(&activity, "", None, &PaymentLink::Unlink)?;
+                    write_activity_metadata(tx, &activity.id, untagged.activity.as_ref())?;
                 }
 
                 // Step 2: Delete all quotes for this asset with source = 'MANUAL'
@@ -378,11 +396,14 @@ impl AlternativeAssetRepositoryTrait for AlternativeAssetRepository {
                     None => None,
                 };
                 let activity = Activity::from(row);
-                let metadata = change(&activity, &account_type, loan.as_ref())?;
-                if metadata == activity.metadata {
+                let update = change(&activity, &account_type, loan.as_ref())?;
+                if let (Some(metadata), Some(loan)) = (&update.loan, &loan) {
+                    write_asset_metadata(tx, &loan.asset_id, metadata)?;
+                }
+                if update.activity == activity.metadata {
                     return Ok(None);
                 }
-                write_activity_metadata(tx, &activity_id, metadata.as_ref())?;
+                write_activity_metadata(tx, &activity_id, update.activity.as_ref())?;
                 Ok(Some(activity))
             })
             .await
@@ -405,15 +426,7 @@ impl AlternativeAssetRepositoryTrait for AlternativeAssetRepository {
                     std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| change(&record)))
                         .map_err(|_| Error::Unexpected("Loan action failed unexpectedly".into()))??;
                 if let Some(metadata) = &update.metadata {
-                    diesel::update(assets::table.filter(assets::id.eq(&asset_id)))
-                        .set(assets::metadata.eq(Some(metadata.to_string())))
-                        .execute(tx.conn())
-                        .map_err(StorageError::from)?;
-                    let row = assets::table
-                        .filter(assets::id.eq(&asset_id))
-                        .first::<crate::assets::AssetDB>(tx.conn())
-                        .map_err(StorageError::from)?;
-                    tx.update(&row)?;
+                    write_asset_metadata(tx, &asset_id, metadata)?;
                 }
                 for id in &update.delete_balances {
                     let existing = quotes::table

@@ -280,6 +280,7 @@ export {
   calculateLoan,
   getLoanPayments,
   linkLoanPayment,
+  previewLoanTerms,
   recalculateLoan,
   getNetWorth,
   getNetWorthHistory,

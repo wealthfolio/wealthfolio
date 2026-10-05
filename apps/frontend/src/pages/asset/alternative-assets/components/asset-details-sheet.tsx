@@ -12,6 +12,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { applyLoanAction } from "@/adapters";
 import { useAccounts } from "@/hooks/use-accounts";
 import { invalidateAlternativeAssetQueries } from "../hooks/use-alternative-asset-mutations";
+import { useLoanSchedulePreview } from "../hooks/use-loan-calculation";
 import { loanErrorText } from "./loan-error-text";
 import { useForm, type Resolver } from "react-hook-form";
 import { useTranslation } from "react-i18next";
@@ -58,19 +59,18 @@ import {
   type LiabilityDetailsFormValues,
   getDefaultDetailsFormValues,
   formValuesToMetadata,
-  loanAmortizationEnd,
   PROPERTY_TYPES,
   VEHICLE_TYPES,
   COLLECTIBLE_TYPES,
   METAL_TYPES,
   WEIGHT_UNITS,
   LIABILITY_TYPES,
-  paymentAccountAction,
+  loanSetupAction,
+  liabilityLoanSetup,
 } from "./asset-details-sheet-schema";
 import { paymentAccounts } from "../lib/loan-payments";
 import { type LinkableAsset } from "./alternative-asset-quick-add-modal";
 import { AlternativeAssetKind, ALTERNATIVE_ASSET_KIND_DISPLAY_NAMES } from "@/lib/types";
-import { formatDateISO } from "@/lib/utils";
 
 /**
  * Asset data required by the sheet.
@@ -182,15 +182,13 @@ export function AssetDetailsSheet({
       // Only pass name if it changed
       const nameChanged = values.name !== asset.name ? values.name : undefined;
       // Pass notes separately (it goes to asset.notes, not metadata)
-      await onSave(asset.id, metadata, nameChanged, values.notes);
-      const paymentAccount =
-        values.kind === AlternativeAssetKind.LIABILITY
-          ? paymentAccountAction(values, asset.metadata)
-          : null;
-      if (paymentAccount) {
-        await applyLoanAction(asset.id, paymentAccount);
+      // The loan section is checked and saved by the backend in one action,
+      // first, so terms it refuses leave the other details unsaved too.
+      if (values.kind === AlternativeAssetKind.LIABILITY) {
+        await applyLoanAction(asset.id, loanSetupAction(values));
         await invalidateAlternativeAssetQueries(queryClient);
       }
+      await onSave(asset.id, metadata, nameChanged, values.notes);
       toast({
         title: t("asset:detailsSheet.details_saved"),
         variant: "success",
@@ -330,6 +328,7 @@ export function AssetDetailsSheet({
               {isLoan && (
                 <LiabilityFields
                   form={form}
+                  assetId={asset.id}
                   currency={asset.currency}
                   linkableAssetOptions={linkableAssetOptions}
                   linkedAssetName={linkedAssetName}
@@ -734,11 +733,13 @@ function PreciousMetalFields({
 
 function LiabilityFields({
   form,
+  assetId,
   currency,
   linkableAssetOptions,
   linkedAssetName,
 }: {
   form: ReturnType<typeof useForm<AssetDetailsFormValues>>;
+  assetId: string;
   currency: string;
   linkableAssetOptions: ResponsiveSelectOption[];
   linkedAssetName?: string;
@@ -765,7 +766,10 @@ function LiabilityFields({
   const durationLabel = t(
     isMortgage ? "asset:loanActions.amortization" : "asset:loanActions.loan_term",
   );
-  const schedule = loanAmortizationEnd(values);
+  const { data: schedule, error: scheduleError } = useLoanSchedulePreview(
+    assetId,
+    values.automaticLoan ? liabilityLoanSetup(values) : null,
+  );
   const fieldLabel = (label: string, info?: string) => (
     <div className="flex items-center gap-1.5">
       <FormLabel>{label}</FormLabel>
@@ -1025,17 +1029,23 @@ function LiabilityFields({
                       }
                     />
                   </FormControl>
-                  {schedule && (
+                  {schedule ? (
                     <FormDescription className="text-xs">
                       {t("asset:loanActions.last_payment", {
                         count: schedule.paymentCount,
-                        date: dates.formatCalendarDate(formatDateISO(schedule.lastPaymentDate), {
+                        date: dates.formatCalendarDate(schedule.lastPaymentDate, {
                           day: "numeric",
                           month: "short",
                           year: "numeric",
                         }),
                       })}
                     </FormDescription>
+                  ) : (
+                    scheduleError && (
+                      <p className="text-destructive text-xs" role="alert">
+                        {loanErrorText(t, scheduleError, "asset:loanEvents.invalid")}
+                      </p>
+                    )
                   )}
                   <LoanFormMessage />
                 </FormItem>

@@ -984,6 +984,20 @@
     "applies_to": "Counts toward",
     "applies_instalment": "The instalment due near its date",
     "applies_extra": "Extra principal",
-    "escrow_default": "The loan's usual amount"
+    "escrow_default": "The loan's usual amount",
+    "duplicates_event": "An extra repayment of this amount is already recorded on this day. If this withdrawal is that repayment, use it instead so it counts once.",
+    "replace_event": "Use this withdrawal instead",
+    "extra_already_linked": "A linked withdrawal already repaid this amount on this day.",
+    "extra_already_recorded": "An extra repayment of this amount is already recorded on this day."
+  },
+  "loanSetup": {
+    "amount_required": "Enter an original amount above zero.",
+    "origination_required": "Enter the origination date.",
+    "rate_invalid": "Enter an interest rate from 0 to 100.",
+    "amortization_invalid": "Enter an amortization that ends on or after the first payment.",
+    "maturity_after_origination": "Renewal maturity must be after the origination date.",
+    "payment_invalid": "Enter a payment above zero.",
+    "payment_unavailable": "A payment can’t be worked out for these terms. Check the amount, rate, and amortization.",
+    "fields_read_only": "Loan terms can only be changed in the loan’s details."
   }
 }

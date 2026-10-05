@@ -984,6 +984,20 @@
     "applies_to": "적용 대상",
     "applies_instalment": "날짜가 가까운 회차",
     "applies_extra": "추가 원금",
-    "escrow_default": "대출의 기본 금액"
+    "escrow_default": "대출의 기본 금액",
+    "duplicates_event": "이 날짜에 같은 금액의 추가 상환이 이미 기록되어 있습니다. 이 출금이 그 상환이라면 대신 이 출금을 사용해 한 번만 반영되게 하세요.",
+    "replace_event": "대신 이 출금 사용",
+    "extra_already_linked": "연결된 출금이 이 날짜에 이 금액을 이미 상환했습니다.",
+    "extra_already_recorded": "이 날짜에 같은 금액의 추가 상환이 이미 기록되어 있습니다."
+  },
+  "loanSetup": {
+    "amount_required": "원래 금액은 0보다 커야 합니다.",
+    "origination_required": "대출 실행일을 입력하세요.",
+    "rate_invalid": "이자율은 0에서 100 사이로 입력하세요.",
+    "amortization_invalid": "첫 납부일 또는 그 이후에 끝나는 상환 기간을 입력하세요.",
+    "maturity_after_origination": "갱신 만기는 대출 실행일 이후여야 합니다.",
+    "payment_invalid": "납부액은 0보다 커야 합니다.",
+    "payment_unavailable": "이 조건으로는 납부액을 계산할 수 없습니다. 금액, 이자율, 상환 기간을 확인하세요.",
+    "fields_read_only": "대출 조건은 대출 상세에서만 변경할 수 있습니다."
   }
 }

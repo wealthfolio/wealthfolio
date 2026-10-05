@@ -14,6 +14,11 @@ pub const TRACKING_MODE_KEY: &str = "tracking_mode";
 pub const PAYMENT_ACCOUNT_KEY: &str = "payment_account_id";
 /// Escrow usually included in a payment; linking uses it as the default.
 pub const ESCROW_AMOUNT_KEY: &str = "escrow_amount";
+/// Principal at origination, before any payment.
+pub const ORIGINAL_AMOUNT_KEY: &str = "original_amount";
+pub const ORIGINATION_DATE_KEY: &str = "origination_date";
+/// The rate as entered; calculated loans also keep it in their terms.
+pub const INTEREST_RATE_KEY: &str = "interest_rate";
 
 /// The loan's usual escrow per payment, stored as a number or numeric text.
 pub fn escrow_amount(metadata: &Value) -> f64 {

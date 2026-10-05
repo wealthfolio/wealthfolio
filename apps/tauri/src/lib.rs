@@ -485,6 +485,7 @@ pub fn run() {
             commands::alternative_assets::recalculate_loan,
             commands::alternative_assets::apply_loan_action,
             commands::alternative_assets::get_loan_payments,
+            commands::alternative_assets::preview_loan_terms,
             commands::alternative_assets::link_loan_payment,
             // Market data commands
             commands::market_data::search_symbol,

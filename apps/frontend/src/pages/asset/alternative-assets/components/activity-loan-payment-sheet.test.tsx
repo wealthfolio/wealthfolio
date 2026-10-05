@@ -154,4 +154,32 @@ describe("linking a withdrawal from its account", () => {
     );
     expect(onChanged).not.toHaveBeenCalled();
   });
+
+  it("offers to replace an extra repayment recorded for the same money", async () => {
+    mocks.link.mockRejectedValueOnce("LOAN_PAYMENT_DUPLICATES_EVENT");
+    const onChanged = vi.fn();
+    show(withdrawal(), onChanged);
+    fireEvent.change(screen.getByRole("combobox", { name: "Loan" }), {
+      target: { value: "mortgage" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Link" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Use this withdrawal instead" }));
+    await waitFor(() => expect(onChanged).toHaveBeenCalled());
+    expect(mocks.link).toHaveBeenLastCalledWith("act", {
+      type: "link",
+      loanId: "mortgage",
+      replaceEvent: true,
+    });
+  });
+
+  it("drops the replace offer once the link it answers changes", async () => {
+    mocks.link.mockRejectedValueOnce("LOAN_PAYMENT_DUPLICATES_EVENT");
+    show(withdrawal());
+    const loan = screen.getByRole("combobox", { name: "Loan" });
+    fireEvent.change(loan, { target: { value: "mortgage" } });
+    fireEvent.click(screen.getByRole("button", { name: "Link" }));
+    await screen.findByRole("button", { name: "Use this withdrawal instead" });
+    fireEvent.change(loan, { target: { value: "" } });
+    expect(screen.queryByRole("button", { name: "Use this withdrawal instead" })).toBeNull();
+  });
 });

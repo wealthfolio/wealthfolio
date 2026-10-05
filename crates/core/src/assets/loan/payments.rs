@@ -183,6 +183,16 @@ struct Instalment {
     remaining: f64,
 }
 
+/// Rule 15 leaves regular payments alone: one directed to an instalment, or one
+/// matched to the instalment due on its own date. That instalment covers any
+/// extra repayment recorded on the date (rule 8), so the money counts once.
+pub(super) fn is_regular_payment(payment: &LoanPayment, allocations: &[PaymentAllocation]) -> bool {
+    matches!(payment.applies_to, Some(PaymentTarget::Instalment(_)))
+        || allocations
+            .iter()
+            .any(|a| a.activity_id == payment.activity_id && a.instalment == Some(payment.date))
+}
+
 /// The allocation of every payment against a schedule.
 pub(super) struct PaymentPlan {
     pub allocations: Vec<PaymentAllocation>,
@@ -204,6 +214,8 @@ fn instalments(schedule: &LoanCalculation) -> Vec<Instalment> {
         .rows
         .iter()
         .filter(|row| row.scheduled_payment)
+        // An extra repayment recorded on a due date is part of what that day's
+        // payment covers, so a withdrawal paying both counts it once.
         .map(|row| (row.date, row.payment))
         .collect();
     dates

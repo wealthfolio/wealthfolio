@@ -984,6 +984,20 @@
     "applies_to": "Zählt für",
     "applies_instalment": "Die Rate um dieses Datum",
     "applies_extra": "Sondertilgung",
-    "escrow_default": "Der übliche Betrag des Kredits"
+    "escrow_default": "Der übliche Betrag des Kredits",
+    "duplicates_event": "Für diesen Tag ist bereits eine Sondertilgung in dieser Höhe erfasst. Wenn diese Abbuchung diese Tilgung ist, verwenden Sie stattdessen sie, damit sie nur einmal zählt.",
+    "replace_event": "Stattdessen diese Abbuchung verwenden",
+    "extra_already_linked": "Eine verknüpfte Abbuchung hat diesen Betrag an diesem Tag bereits getilgt.",
+    "extra_already_recorded": "Für diesen Tag ist bereits eine Sondertilgung in dieser Höhe erfasst."
+  },
+  "loanSetup": {
+    "amount_required": "Geben Sie einen ursprünglichen Betrag über null ein.",
+    "origination_required": "Geben Sie das Auszahlungsdatum ein.",
+    "rate_invalid": "Geben Sie einen Zinssatz zwischen 0 und 100 ein.",
+    "amortization_invalid": "Geben Sie eine Tilgungsdauer ein, die am oder nach dem ersten Zahlungstermin endet.",
+    "maturity_after_origination": "Das Ende der Zinsbindung muss nach dem Auszahlungsdatum liegen.",
+    "payment_invalid": "Geben Sie eine Rate über null ein.",
+    "payment_unavailable": "Für diese Konditionen lässt sich keine Rate berechnen. Prüfen Sie Betrag, Zinssatz und Tilgungsdauer.",
+    "fields_read_only": "Darlehenskonditionen können nur in den Darlehensdetails geändert werden."
   }
 }

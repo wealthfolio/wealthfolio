@@ -1,5 +1,6 @@
 //! Loan action rules, carried over from the frontend handlers they replace.
 use super::*;
+use crate::assets::loan::LoanSchedule;
 use serde_json::json;
 
 fn date(s: &str) -> NaiveDate {
@@ -756,41 +757,45 @@ fn an_unreadable_event_list_is_refused_rather_than_replaced() {
 }
 
 #[test]
-fn a_payment_account_must_be_one_that_can_pay_the_loan() {
-    let loan = record(json!({ "loan_projection": terms() }), &[]);
-    let set = |account: Option<&str>, escrow: Option<f64>| LoanAction::SetPaymentAccount {
-        account_id: account.map(str::to_string),
-        escrow_amount: escrow,
+fn saving_loan_details_keeps_events_and_checks_the_paid_from_account() {
+    let extra =
+        json!([{ "type": "extra_repayment", "effectiveDate": "2026-04-01", "amount": 100 }]);
+    let loan = record(
+        json!({ "sub_type": "mortgage", "loan_projection": terms(), "loan_events": extra.to_string() }),
+        &[],
+    );
+    let set_terms = |account: Option<&str>, rate: f64| {
+        LoanAction::SetTerms(LoanSetup {
+            original_amount: Some(5_000.0),
+            origination_date: Some(date("2026-01-01")),
+            interest_rate: Some(rate),
+            schedule: Some(LoanSchedule {
+                frequency: LoanFrequency::Monthly,
+                interest_method: InterestMethod::NominalPeriodic,
+                first_payment_date: Some(date("2026-02-01")),
+                amortization_months: Some(60),
+                last_payment_date: None,
+                payment_amount: Some(100.0),
+                renewal_maturity: None,
+                payment_account_id: account.map(str::to_string),
+                escrow_amount: None,
+            }),
+        })
     };
-    let linked = apply(&loan, set(Some("chequing"), Some(250.0)))
+    let saved = apply(&loan, set_terms(Some("chequing"), 4.0))
         .unwrap()
         .metadata
         .unwrap();
-    assert_eq!(linked[PAYMENT_ACCOUNT_KEY], "chequing");
-    assert_eq!(linked[ESCROW_AMOUNT_KEY], "250");
+    assert_eq!(saved["payment_account_id"], "chequing");
+    assert_eq!(saved["sub_type"], "mortgage");
+    assert_eq!(events(&saved).len(), 1);
     assert_eq!(
-        apply(&loan, set(Some("brokerage"), None)).unwrap_err(),
+        apply(&loan, set_terms(Some("brokerage"), 4.0)).unwrap_err(),
         LoanError::PaymentAccountInvalid
     );
     assert_eq!(
-        apply(&loan, set(Some("chequing"), Some(-1.0))).unwrap_err(),
-        LoanError::Invalid
-    );
-    // Clearing both removes the keys.
-    let cleared = apply(&record(linked, &[]), set(None, Some(0.0)))
-        .unwrap()
-        .metadata
-        .unwrap();
-    assert!(cleared.get(PAYMENT_ACCOUNT_KEY).is_none());
-    assert!(cleared.get(ESCROW_AMOUNT_KEY).is_none());
-    // Manual loans take no payments from an account.
-    let manual = record(
-        json!({ "loan_projection": terms(), "tracking_mode": "manual" }),
-        &[],
-    );
-    assert_eq!(
-        apply(&manual, set(Some("chequing"), None)).unwrap_err(),
-        LoanError::Invalid
+        apply(&loan, set_terms(None, 101.0)).unwrap_err(),
+        LoanError::RateInvalid
     );
 }
 
@@ -812,5 +817,126 @@ fn a_payment_change_is_a_dated_event() {
             payment_amount: 110.0,
             note: None,
         }]
+    );
+}
+
+#[test]
+fn an_extra_repayment_a_linked_withdrawal_already_made_is_refused() {
+    let mut loan = record(
+        json!({ "loan_projection": terms() }),
+        &[("2026-04-01", 500.0, None)],
+    );
+    loan.payments.push(crate::assets::loan::LoanPayment {
+        activity_id: "act".into(),
+        account_id: "chequing".into(),
+        date: date("2026-05-10"),
+        amount: 100.0,
+        escrow: 0.0,
+        applies_to: Some(crate::assets::loan::PaymentTarget::Extra),
+    });
+    let repay = |amount| LoanAction::ExtraRepayment {
+        date: date("2026-05-10"),
+        amount,
+    };
+    assert_eq!(
+        apply(&loan, repay(100.0)).unwrap_err(),
+        LoanError::ExtraAlreadyLinked
+    );
+    assert!(apply(&loan, repay(90.0)).is_ok());
+}
+
+#[test]
+fn a_double_up_beside_a_regular_payment_of_the_same_amount_is_recorded() {
+    // The 100.00 instalment due 2026-05-01 was paid by a linked withdrawal.
+    for applies_to in [
+        None,
+        Some(crate::assets::loan::PaymentTarget::Instalment(date(
+            "2026-05-01",
+        ))),
+    ] {
+        let mut loan = record(
+            json!({ "loan_projection": terms() }),
+            &[("2026-04-01", 500.0, None)],
+        );
+        loan.payments.push(crate::assets::loan::LoanPayment {
+            activity_id: "act".into(),
+            account_id: "chequing".into(),
+            date: date("2026-05-01"),
+            amount: 100.0,
+            escrow: 0.0,
+            applies_to,
+        });
+        let double_up = LoanAction::ExtraRepayment {
+            date: date("2026-05-01"),
+            amount: 100.0,
+        };
+        assert!(apply(&loan, double_up).is_ok());
+    }
+}
+
+#[test]
+fn moving_an_extra_repayment_onto_a_linked_withdrawal_is_refused() {
+    let mut loan = record(
+        json!({
+            "loan_projection": terms(),
+            "loan_events": json!([{ "type": "extra_repayment", "effectiveDate": "2026-05-20", "amount": 100 }]).to_string(),
+        }),
+        &[("2026-04-01", 500.0, None)],
+    );
+    loan.payments.push(crate::assets::loan::LoanPayment {
+        activity_id: "act".into(),
+        account_id: "chequing".into(),
+        date: date("2026-05-10"),
+        amount: 100.0,
+        escrow: 0.0,
+        applies_to: Some(crate::assets::loan::PaymentTarget::Extra),
+    });
+    let original = extra("2026-05-20", 100.0);
+    assert_eq!(
+        apply(
+            &loan,
+            edit(0, original.clone(), Some(extra("2026-05-10", 100.0)))
+        )
+        .unwrap_err(),
+        LoanError::ExtraAlreadyLinked
+    );
+    assert!(apply(
+        &loan,
+        edit(0, original.clone(), Some(extra("2026-05-21", 100.0)))
+    )
+    .is_ok());
+}
+
+#[test]
+fn a_linked_payment_on_its_due_date_leaves_room_for_that_days_extra() {
+    // The instalment due 2026-05-01 is 100.00.
+    let linked = |day: &str, amount: f64| {
+        let mut loan = record(
+            json!({ "loan_projection": terms() }),
+            &[("2026-04-01", 500.0, None)],
+        );
+        loan.payments.push(crate::assets::loan::LoanPayment {
+            activity_id: "act".into(),
+            account_id: "chequing".into(),
+            date: date(day),
+            amount,
+            escrow: 0.0,
+            applies_to: None,
+        });
+        apply(
+            &loan,
+            LoanAction::ExtraRepayment {
+                date: date(day),
+                amount,
+            },
+        )
+    };
+    // That day's instalment covers an extra recorded for it, whatever the amount.
+    assert!(linked("2026-05-01", 50.0).is_ok());
+    assert!(linked("2026-05-01", 130.0).is_ok());
+    // A late payment matched to that instalment is not on its due date.
+    assert_eq!(
+        linked("2026-05-10", 130.0).unwrap_err(),
+        LoanError::ExtraAlreadyLinked
     );
 }

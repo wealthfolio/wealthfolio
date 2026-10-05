@@ -1,4 +1,6 @@
-import { initialLoanProjection } from "../lib/loan-schedule";
+import { loanErrorText } from "./loan-error-text";
+import { useLoanSchedulePreview } from "../hooks/use-loan-calculation";
+import { parseLocalDate } from "@/lib/utils";
 import { LoanInterestMethodSelect } from "./loan-interest-method-select";
 import { useState, useMemo, useCallback, useEffect } from "react";
 import { useTranslation } from "react-i18next";
@@ -31,16 +33,9 @@ import {
   LIABILITY_TYPES,
   WEIGHT_UNITS,
   liabilityQuickAddSchema,
+  quickAddLoanSetup,
 } from "./alternative-asset-quick-add-schema";
 import { useAlternativeAssetMutations } from "../hooks/use-alternative-asset-mutations";
-import { addDays, addMonths } from "date-fns";
-import { LOAN_PROJECTION_METADATA_KEY, serializeLoanProjectionMetadata } from "../lib/loan-events";
-import {
-  calculateAmortizationSchedule,
-  calculateLoanEndDate,
-  calculateLoanPayment,
-  calculatePaymentCount,
-} from "../lib/loan-calculator";
 import { LoanFieldInfo } from "./loan-field-info";
 import { LoanDurationInput } from "./loan-duration-input";
 import type { LoanInterestMethod, LoanPaymentFrequency } from "../lib/loan-events";
@@ -264,19 +259,18 @@ export function AlternativeAssetQuickAddModal({
   );
   const loanTermMonths =
     (Number(formData.loanTerm) || 0) * 12 + (Number(formData.loanTermMonths) || 0);
-  const paymentFrequency = formData.paymentFrequency ?? "monthly";
+  // The schedule and its default first payment come from the backend rules that save it.
+  const isLiabilityForm = formData.kind === AlternativeAssetKind.LIABILITY;
+  const loanSetup = useMemo(() => quickAddLoanSetup(formData), [formData]);
+  const { data: schedulePreview, error: schedulePreviewError } = useLoanSchedulePreview(
+    null,
+    isLiabilityForm && automaticSchedule ? loanSetup : null,
+  );
   const firstPaymentDate =
     formData.firstPaymentDate ??
-    (formData.purchaseDate
-      ? paymentFrequency === "monthly"
-        ? addMonths(formData.purchaseDate, 1)
-        : addDays(formData.purchaseDate, 14)
-      : undefined);
-  const amortizationSchedule = calculateAmortizationSchedule(
-    firstPaymentDate,
-    loanTermMonths,
-    paymentFrequency,
-  );
+    (schedulePreview ? parseLocalDate(schedulePreview.firstPaymentDate) : undefined);
+  // Terms the preview refuses would be refused on save; the reason is shown inline.
+  const refusedTerms = isLiabilityForm && automaticSchedule && schedulePreviewError != null;
 
   const canProceed = useMemo(() => {
     if (step === 1) return true;
@@ -302,18 +296,18 @@ export function AlternativeAssetQuickAddModal({
     formData.automaticSchedule,
   ]);
 
-  const [resolvingPayment, setResolvingPayment] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  // A refusal answers what was submitted, not the form as edited since.
+  useEffect(() => setSubmitError(null), [formData]);
   const handleSubmit = async () => {
-    if (!canProceed || resolvingPayment || createMutation.isPending) return;
+    if (!canProceed || refusedTerms || createMutation.isPending) return;
 
     const metadata: Record<string, string> = {};
     const isLiability = formData.kind === AlternativeAssetKind.LIABILITY;
-    const annualRate = formData.interestRate ? parseFloat(formData.interestRate) : 0;
     let currentValue =
       isLiability && !formData.currentValue
         ? (formData.purchasePrice ?? formData.currentValue)
         : formData.currentValue;
-    let totalPaymentCount = 0;
     let balanceQuoteDate = formData.valueDate;
 
     if (isLiability) {
@@ -343,6 +337,7 @@ export function AlternativeAssetQuickAddModal({
       }
     }
     setValidationError(null);
+    setSubmitError(null);
 
     // Use unified 'sub_type' field for all asset types
     if (formData.kind === AlternativeAssetKind.PRECIOUS_METAL) {
@@ -352,66 +347,12 @@ export function AlternativeAssetQuickAddModal({
     }
 
     if (isLiability) {
-      if (!formData.automaticSchedule) metadata.tracking_mode = "manual";
       metadata.sub_type = formData.liabilityType ?? "mortgage";
-      if (formData.purchasePrice) metadata.original_amount = formData.purchasePrice;
-      if (formData.purchaseDate && formData.automaticSchedule) {
-        metadata.origination_date = formatDateToISO(formData.purchaseDate);
-      }
-      if (formData.interestRate) metadata.interest_rate = formData.interestRate;
-      if (formData.automaticSchedule && loanTermMonths > 0 && formData.purchaseDate) {
-        const frequency = paymentFrequency;
-        totalPaymentCount = calculatePaymentCount(loanTermMonths / 12, frequency) ?? 0;
-        if (totalPaymentCount === 0 || !firstPaymentDate) {
-          setValidationError("asset:quickAdd.validation.invalid");
-          return;
-        }
-        if (firstPaymentDate <= formData.purchaseDate) {
-          setValidationError("asset:quickAdd.validation.invalid");
-          return;
-        }
-        const computedEndDate = calculateLoanEndDate(
-          firstPaymentDate,
-          totalPaymentCount,
-          frequency,
-        );
-        if (!computedEndDate) return;
-        // An omitted balance is not a confirmed estimate. Anchor at the original
-        // principal; shared core derives today's balance without storing payments.
-        if (!formData.currentValue.trim()) {
-          currentValue = formData.purchasePrice!;
-          balanceQuoteDate = formData.purchaseDate;
-        }
-        const effectivePayment = calculateLoanPayment({
-          principal: parseFloat(formData.purchasePrice!),
-          annualRate,
-          paymentCount: totalPaymentCount,
-          frequency,
-          interestMethod: formData.interestMethod,
-        });
-        if (effectivePayment === null) {
-          setValidationError("asset:quickAdd.validation.invalid");
-          return;
-        }
-        setResolvingPayment(true);
-        try {
-          const projection = await initialLoanProjection(metadata, {
-            version: 1,
-            annualRate,
-            paymentAmount: effectivePayment,
-            frequency,
-            interestMethod: formData.interestMethod ?? "nominal_periodic",
-            firstPaymentDate: formatDateToISO(firstPaymentDate),
-            paymentCount: totalPaymentCount,
-            amortizationEndDate: formatDateToISO(computedEndDate),
-          });
-          metadata[LOAN_PROJECTION_METADATA_KEY] = serializeLoanProjectionMetadata(projection);
-        } catch {
-          setValidationError("asset:quickAdd.validation.invalid");
-          return;
-        } finally {
-          setResolvingPayment(false);
-        }
+      // An omitted balance is not a confirmed estimate. Anchor at the original
+      // principal; shared core derives today's balance without storing payments.
+      if (formData.automaticSchedule && formData.purchaseDate && !formData.currentValue.trim()) {
+        currentValue = formData.purchasePrice!;
+        balanceQuoteDate = formData.purchaseDate;
       }
     }
 
@@ -428,9 +369,17 @@ export function AlternativeAssetQuickAddModal({
         !isLiability && formData.purchaseDate ? formatDateToISO(formData.purchaseDate) : undefined,
       metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
       linkedAssetId: formData.linkedAssetId || undefined,
+      // Loan fields are derived and checked by the backend from what was entered.
+      loan: isLiability ? loanSetup : undefined,
     };
 
-    const response = await createMutation.mutateAsync(request);
+    let response: Awaited<ReturnType<typeof createMutation.mutateAsync>>;
+    try {
+      response = await createMutation.mutateAsync(request);
+    } catch (cause) {
+      setSubmitError(loanErrorText(t, cause, "asset:quickAdd.validation.invalid"));
+      return;
+    }
 
     onAssetCreated?.(response);
     onOpenChange(false);
@@ -472,7 +421,7 @@ export function AlternativeAssetQuickAddModal({
     }
   };
 
-  const isSubmitting = createMutation.isPending || resolvingPayment;
+  const isSubmitting = createMutation.isPending;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -797,7 +746,7 @@ export function AlternativeAssetQuickAddModal({
                               {t("asset:loanActions.payment_frequency")}
                             </Label>
                             <ResponsiveSelect
-                              value={paymentFrequency}
+                              value={formData.paymentFrequency ?? "monthly"}
                               onValueChange={(value) =>
                                 updateFormData("paymentFrequency", value as LoanPaymentFrequency)
                               }
@@ -817,16 +766,27 @@ export function AlternativeAssetQuickAddModal({
                             value={firstPaymentDate}
                             onChange={(date) => updateFormData("firstPaymentDate", date)}
                           />
-                          {amortizationSchedule && (
+                          {schedulePreview ? (
                             <p className="text-muted-foreground text-xs">
                               {t("asset:loanActions.last_payment", {
-                                count: amortizationSchedule.paymentCount,
-                                date: dates.formatCalendarDate(
-                                  formatDateToISO(amortizationSchedule.lastPaymentDate),
-                                  { day: "numeric", month: "short", year: "numeric" },
-                                ),
+                                count: schedulePreview.paymentCount,
+                                date: dates.formatCalendarDate(schedulePreview.lastPaymentDate, {
+                                  day: "numeric",
+                                  month: "short",
+                                  year: "numeric",
+                                }),
                               })}
                             </p>
+                          ) : (
+                            schedulePreviewError && (
+                              <p className="text-destructive text-xs" role="alert">
+                                {loanErrorText(
+                                  t,
+                                  schedulePreviewError,
+                                  "asset:quickAdd.validation.invalid",
+                                )}
+                              </p>
+                            )
                           )}
                         </div>
                       </>
@@ -908,6 +868,11 @@ export function AlternativeAssetQuickAddModal({
                     {t(validationError)}
                   </p>
                 )}
+                {submitError && (
+                  <p className="text-destructive text-sm" role="alert">
+                    {submitError}
+                  </p>
+                )}
 
                 {/* Mortgage checkbox for property */}
                 {formData.kind === AlternativeAssetKind.PROPERTY && onOpenLiabilityQuickAdd && (
@@ -966,7 +931,7 @@ export function AlternativeAssetQuickAddModal({
             )}
             <Button
               onClick={() => (step === 1 ? setStep(2) : handleSubmit())}
-              disabled={!canProceed || isSubmitting}
+              disabled={!canProceed || (step === 2 && refusedTerms) || isSubmitting}
               size="default"
               className="flex-1 font-medium"
             >

@@ -1000,6 +1000,20 @@
     "applies_to": "S'applique à",
     "applies_instalment": "L'échéance proche de sa date",
     "applies_extra": "Capital supplémentaire",
-    "escrow_default": "Le montant habituel du prêt"
+    "escrow_default": "Le montant habituel du prêt",
+    "duplicates_event": "Un remboursement supplémentaire de ce montant est déjà enregistré ce jour-là. Si ce retrait correspond à ce remboursement, utilisez-le à sa place pour qu’il ne compte qu’une fois.",
+    "replace_event": "Utiliser ce retrait à la place",
+    "extra_already_linked": "Un retrait lié a déjà remboursé ce montant ce jour-là.",
+    "extra_already_recorded": "Un remboursement supplémentaire de ce montant est déjà enregistré ce jour-là."
+  },
+  "loanSetup": {
+    "amount_required": "Saisissez un montant initial supérieur à zéro.",
+    "origination_required": "Saisissez la date d’octroi.",
+    "rate_invalid": "Saisissez un taux d'intérêt compris entre 0 et 100.",
+    "amortization_invalid": "Saisissez un amortissement qui se termine au premier paiement ou après.",
+    "maturity_after_origination": "L’échéance du renouvellement doit suivre la date d’octroi.",
+    "payment_invalid": "Saisissez un paiement supérieur à zéro.",
+    "payment_unavailable": "Aucun paiement ne peut être calculé avec ces conditions. Vérifiez le montant, le taux et l’amortissement.",
+    "fields_read_only": "Les conditions du prêt ne peuvent être modifiées que dans les détails du prêt."
   }
 }

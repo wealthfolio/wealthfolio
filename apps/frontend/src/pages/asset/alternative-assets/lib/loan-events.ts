@@ -161,15 +161,6 @@ export function appendLoanEvent(metadata: LoanMetadata, event: LoanEvent): LoanM
 }
 
 /**
- * Projection parameters are persisted as data, not as a collection of future
- * quotes.  JSON is used because the asset metadata API accepts string values
- * during asset creation as well as structured values when updated later.
- */
-export function serializeLoanProjectionMetadata(projection: LoanProjectionMetadata): string {
-  return JSON.stringify(projection);
-}
-
-/**
  * Terms that drive calculation. A loan switched back to manual keeps its stored
  * terms for later, but nothing should calculate or act on them.
  */

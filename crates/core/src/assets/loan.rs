@@ -16,21 +16,26 @@ mod linking;
 mod model;
 mod payments;
 mod recalculation;
+mod setup;
 pub use actions::{
     apply_loan_action, BalanceEdit, LoanAction, LoanActionResult, LoanError, LoanRecord, LoanUpdate,
 };
 pub use interest::{payment_amount, InterestMethod};
-pub use linking::{link_payment, PaymentLink};
+pub use linking::{link_payment, PaymentLink, PaymentTagUpdate};
 pub use model::{
     balance_notes, balance_user_note, edited_balance_notes, escrow_amount, event_entries,
-    LoanBalanceKind, LoanEvent, LoanTerms, ESCROW_AMOUNT_KEY, LOAN_CLOSED_NOTE, LOAN_EVENTS_KEY,
-    LOAN_PROJECTION_KEY, PAYMENT_ACCOUNT_KEY, RENEWAL_MATURITY_KEY, TRACKING_MODE_KEY,
+    LoanBalanceKind, LoanEvent, LoanTerms, ESCROW_AMOUNT_KEY, INTEREST_RATE_KEY, LOAN_CLOSED_NOTE,
+    LOAN_EVENTS_KEY, LOAN_PROJECTION_KEY, ORIGINAL_AMOUNT_KEY, ORIGINATION_DATE_KEY,
+    PAYMENT_ACCOUNT_KEY, RENEWAL_MATURITY_KEY, TRACKING_MODE_KEY,
 };
 pub use payments::{
     InstalmentStatus, LoanInstalment, LoanPayment, LoanPaymentTag, PaymentAllocation,
     PaymentChangeSuggestion, PaymentTarget, LOAN_PAYMENT_TAG_KEY,
 };
 pub use recalculation::{recalculate_loan, LoanRecalculation, LoanRecalculationRequest};
+pub use setup::{
+    apply_loan_setup, preview_loan_terms, LoanSchedule, LoanSchedulePreview, LoanSetup, LOAN_FIELDS,
+};
 
 const MAX_PAYMENTS: usize = 2600;
 
@@ -200,10 +205,10 @@ fn calculate(
     balances.sort_by_key(|b| b.date);
     let origin = request
         .metadata
-        .get("origination_date")
+        .get(ORIGINATION_DATE_KEY)
         .and_then(Value::as_str)
         .and_then(|s| s.parse::<NaiveDate>().ok());
-    let original = request.metadata.get("original_amount").and_then(|v| {
+    let original = request.metadata.get(ORIGINAL_AMOUNT_KEY).and_then(|v| {
         v.as_f64()
             .or_else(|| v.as_str().and_then(|s| s.parse::<f64>().ok()))
     });

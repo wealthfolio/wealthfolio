@@ -4,10 +4,26 @@ import {
   assetDetailsSchema,
   formValuesToMetadata,
   getDefaultDetailsFormValues,
-  paymentAccountAction,
+  liabilityLoanSetup,
+  loanSetupAction,
   type LiabilityDetailsFormValues,
 } from "./asset-details-sheet-schema";
-import { readLoanProjectionMetadata } from "../lib/loan-events";
+
+/** Fields only the backend writes, from a loan setup or a loan action. */
+const LOAN_FIELDS = [
+  "loan_projection",
+  "loan_events",
+  "renewal_maturity_date",
+  "tracking_mode",
+  "payment_account_id",
+  "escrow_amount",
+  "original_amount",
+  "origination_date",
+  "interest_rate",
+];
+const expectNoLoanFields = (metadata: Record<string, string>) => {
+  for (const field of LOAN_FIELDS) expect(metadata).not.toHaveProperty(field);
+};
 
 const projection = {
   version: 1,
@@ -40,7 +56,7 @@ describe("correcting original loan terms", () => {
     });
   });
 
-  it("keeps an off-cadence stored end until the amortization is changed", () => {
+  it("sends the stored amortization back as months, which the backend matches to its end", () => {
     const stored = {
       ...metadata,
       loan_projection: JSON.stringify({
@@ -51,17 +67,20 @@ describe("correcting original loan terms", () => {
         amortizationEndDate: "2046-06-15",
       }),
     };
-    const values = getDefaultDetailsFormValues(AlternativeAssetKind.LIABILITY, "Mortgage", stored);
+    const values = getDefaultDetailsFormValues(
+      AlternativeAssetKind.LIABILITY,
+      "Mortgage",
+      stored,
+    ) as LiabilityDetailsFormValues;
     expect(values).toMatchObject({ amortizationYears: 25, amortizationMonths: null });
-    const saved = (changes: object) =>
-      readLoanProjectionMetadata(formValuesToMetadata({ ...values, ...changes } as typeof values))
-        ?.amortizationEndDate;
-    // 2046-06-15 is not on the biweekly cadence; re-saving must not move it.
-    expect(saved({})).toBe("2046-06-15");
-    expect(saved({ amortizationYears: 24 })).toBe("2045-06-01");
+    expect(liabilityLoanSetup(values).schedule).toMatchObject({
+      frequency: "biweekly",
+      firstPaymentDate: "2021-07-15",
+      amortizationMonths: 300,
+    });
   });
 
-  it("saves corrected calculation inputs without replacing dated events", () => {
+  it("saves corrected terms as a loan setup, never as loan fields in the metadata", () => {
     const values = assetDetailsSchema.parse({
       ...defaults(),
       interestRate: 6,
@@ -72,20 +91,24 @@ describe("correcting original loan terms", () => {
       amortizationYears: 2,
       amortizationMonths: null,
       originalAmount: 1500,
+    }) as LiabilityDetailsFormValues;
+    expect(loanSetupAction(values)).toEqual({
+      type: "set_terms",
+      originalAmount: 1500,
+      originationDate: "2026-01-01",
+      interestRate: 6,
+      schedule: {
+        frequency: "biweekly",
+        interestMethod: "semiannual",
+        firstPaymentDate: "2026-01-15",
+        amortizationMonths: 24,
+        paymentAmount: 60,
+        renewalMaturity: undefined,
+        paymentAccountId: undefined,
+        escrowAmount: undefined,
+      },
     });
-    const updates = formValuesToMetadata(values);
-    const merged = { ...metadata, ...updates };
-    expect(readLoanProjectionMetadata(merged)).toEqual({
-      version: 1,
-      annualRate: 6,
-      paymentAmount: 60,
-      frequency: "biweekly",
-      interestMethod: "semiannual",
-      firstPaymentDate: "2026-01-15",
-      amortizationEndDate: "2027-12-30",
-    });
-    expect(merged.original_amount).toBe("1500");
-    expect(merged.loan_events).toBe(metadata.loan_events);
+    expectNoLoanFields(formValuesToMetadata(values));
   });
 
   it("rejects missing terms and invalid payment dates", () => {
@@ -101,26 +124,24 @@ describe("correcting original loan terms", () => {
     }
   });
 
-  it("saves and clears renewal maturity separately from amortization", () => {
+  it("sends renewal maturity with the schedule, and none once cleared", () => {
     const values = assetDetailsSchema.parse({
       ...defaults(),
       renewalMaturity: new Date(2026, 5, 15),
-    });
-    const updates = formValuesToMetadata(values);
-    expect(updates.renewal_maturity_date).toBe("2026-06-15");
-    expect(readLoanProjectionMetadata(updates)?.amortizationEndDate).toBe("2027-01-28");
+    }) as LiabilityDetailsFormValues;
+    expect(liabilityLoanSetup(values).schedule?.renewalMaturity).toBe("2026-06-15");
     expect(
-      formValuesToMetadata({ ...values, renewalMaturity: null } as typeof values)
-        .renewal_maturity_date,
-    ).toBe("");
+      liabilityLoanSetup({ ...values, renewalMaturity: null }).schedule?.renewalMaturity,
+    ).toBeUndefined();
   });
 
   it("keeps manual liabilities manual and accepts their optional terms", () => {
     const values = getDefaultDetailsFormValues(AlternativeAssetKind.LIABILITY, "Manual", {
       tracking_mode: "manual",
-    });
+    }) as LiabilityDetailsFormValues;
     expect(assetDetailsSchema.safeParse(values).success).toBe(true);
-    expect(formValuesToMetadata(values)).not.toHaveProperty("loan_projection");
+    expect(liabilityLoanSetup(values).schedule).toBeUndefined();
+    expectNoLoanFields(formValuesToMetadata(values));
   });
 });
 
@@ -145,24 +166,26 @@ it("lets a loan created before payment schedules opt into calculated payments", 
     originalAmount: 1200,
     paymentFrequency: "monthly",
   });
-  expect(formValuesToMetadata(values)).toMatchObject({ tracking_mode: "manual" });
-
-  const scheduled = formValuesToMetadata(
-    assetDetailsSchema.parse({
-      ...values,
-      automaticLoan: true,
-      interestRate: 0,
-      paymentAmount: 100,
-      firstPaymentDate: new Date(2026, 1, 1),
-      amortizationYears: 1,
-    }),
-  );
-  expect(scheduled.tracking_mode).toBe("");
-  expect(readLoanProjectionMetadata(scheduled)).toMatchObject({
-    version: 1,
-    paymentAmount: 100,
-    amortizationEndDate: "2027-01-01",
+  expect(liabilityLoanSetup(values as LiabilityDetailsFormValues)).toEqual({
+    originalAmount: 1200,
+    originationDate: "2026-01-01",
+    interestRate: undefined,
   });
+
+  const scheduled = assetDetailsSchema.parse({
+    ...values,
+    automaticLoan: true,
+    interestRate: 0,
+    paymentAmount: 100,
+    firstPaymentDate: new Date(2026, 1, 1),
+    amortizationYears: 1,
+  }) as LiabilityDetailsFormValues;
+  expect(liabilityLoanSetup(scheduled).schedule).toMatchObject({
+    paymentAmount: 100,
+    firstPaymentDate: "2026-02-01",
+    amortizationMonths: 12,
+  });
+  expectNoLoanFields(formValuesToMetadata(scheduled));
 });
 
 describe("the paid from account", () => {
@@ -180,21 +203,17 @@ describe("the paid from account", () => {
     expect(liability()).toMatchObject({ paymentAccountId: null, escrowAmount: null });
   });
 
-  it("is saved by a loan action only when it changed, never with the metadata", () => {
+  it("is saved with the loan setup, never with the metadata", () => {
     const values = { ...liability(), paymentAccountId: "chequing", escrowAmount: 100 };
-    expect(paymentAccountAction(values, metadata)).toEqual({
-      type: "set_payment_account",
-      accountId: "chequing",
+    expect(liabilityLoanSetup(values).schedule).toMatchObject({
+      paymentAccountId: "chequing",
       escrowAmount: 100,
     });
-    const stored = { ...metadata, payment_account_id: "chequing", escrow_amount: "100" };
-    expect(paymentAccountAction(values, stored)).toBeNull();
-    expect(formValuesToMetadata(values)).not.toHaveProperty("payment_account_id");
-    expect(formValuesToMetadata(values)).not.toHaveProperty("escrow_amount");
+    expectNoLoanFields(formValuesToMetadata(values));
   });
 
-  it("does nothing for a manual loan", () => {
+  it("is not sent for a manual loan", () => {
     const values = { ...liability(), automaticLoan: false, paymentAccountId: "chequing" };
-    expect(paymentAccountAction(values, metadata)).toBeNull();
+    expect(liabilityLoanSetup(values).schedule).toBeUndefined();
   });
 });

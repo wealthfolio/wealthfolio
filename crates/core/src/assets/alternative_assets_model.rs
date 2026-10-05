@@ -13,6 +13,7 @@ use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+use super::loan::LoanSetup;
 use super::AssetKind;
 
 /// Request for creating a new alternative asset.
@@ -47,6 +48,9 @@ pub struct CreateAlternativeAssetRequest {
     pub metadata: Option<Value>,
     /// For liabilities only: ID of the asset this liability finances (UI-only aggregation)
     pub linked_asset_id: Option<String>,
+    /// For liabilities only: the loan as entered. Loan fields are not accepted in `metadata`.
+    #[serde(default)]
+    pub loan: Option<LoanSetup>,
 }
 
 /// Response after creating an alternative asset.

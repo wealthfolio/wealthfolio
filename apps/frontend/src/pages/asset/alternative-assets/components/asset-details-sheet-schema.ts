@@ -1,16 +1,7 @@
 import * as z from "zod";
-import {
-  readActiveLoanProjection,
-  LOAN_PROJECTION_METADATA_KEY,
-  LOAN_RENEWAL_MATURITY_METADATA_KEY,
-  serializeLoanProjectionMetadata,
-} from "../lib/loan-events";
-import {
-  calculateAmortizationMonths,
-  calculateAmortizationSchedule,
-  calculateLoanPaymentDate,
-  countLoanPayments,
-} from "../lib/loan-calculator";
+import type { LoanAction, LoanSetup } from "@/adapters/shared/alternative-assets";
+import { readActiveLoanProjection, LOAN_RENEWAL_MATURITY_METADATA_KEY } from "../lib/loan-events";
+import { calculateAmortizationMonths, calculateLoanPaymentDate } from "../lib/loan-calculator";
 import { AlternativeAssetKind } from "@/lib/types";
 import { parseLocalDate } from "@/lib/utils";
 
@@ -227,36 +218,6 @@ export function totalAmortizationMonths(
   return (values.amortizationYears ?? 0) * 12 + (values.amortizationMonths ?? 0);
 }
 
-/**
- * Last contractual payment for the entered amortization. A stored date that still
- * matches the entered years and months is kept, so saving other details never
- * moves an off-cadence contractual end.
- */
-export function loanAmortizationEnd(
-  values: Pick<
-    LiabilityDetailsFormValues,
-    | "amortizationYears"
-    | "amortizationMonths"
-    | "amortizationEndDate"
-    | "firstPaymentDate"
-    | "paymentFrequency"
-  >,
-): { lastPaymentDate: Date; paymentCount: number } | null {
-  const months = totalAmortizationMonths(values);
-  const { firstPaymentDate, amortizationEndDate, paymentFrequency } = values;
-  if (!firstPaymentDate || months <= 0) return null;
-  if (
-    amortizationEndDate &&
-    calculateAmortizationMonths(firstPaymentDate, amortizationEndDate, paymentFrequency) === months
-  ) {
-    return {
-      lastPaymentDate: amortizationEndDate,
-      paymentCount: countLoanPayments(firstPaymentDate, amortizationEndDate, paymentFrequency),
-    };
-  }
-  return calculateAmortizationSchedule(firstPaymentDate, months, paymentFrequency);
-}
-
 // Type-specific form value types for convenience
 export type PropertyDetailsFormValues = z.infer<typeof propertyDetailsSchema>;
 export type VehicleDetailsFormValues = z.infer<typeof vehicleDetailsSchema>;
@@ -426,37 +387,9 @@ export function formValuesToMetadata(values: AssetDetailsFormValues): Record<str
       break;
 
     case AlternativeAssetKind.LIABILITY: {
+      // The loan section is saved by the backend from a loan setup; see loanSetupAction.
       if (values.liabilityType) metadata.sub_type = values.liabilityType;
-      if (values.originalAmount != null)
-        metadata.original_amount = values.originalAmount.toString();
-      if (values.originationDate)
-        metadata.origination_date = formatDateToISO(values.originationDate);
-      if (values.interestRate != null) metadata.interest_rate = values.interestRate.toString();
       if (values.linkedAssetId) metadata.linked_asset_id = values.linkedAssetId;
-      // An empty value removes the key, switching a manual loan to calculated payments.
-      metadata.tracking_mode = values.automaticLoan ? "" : "manual";
-      const schedule = loanAmortizationEnd(values);
-      if (
-        values.automaticLoan &&
-        values.firstPaymentDate &&
-        schedule &&
-        values.paymentFrequency &&
-        values.paymentAmount != null &&
-        values.interestRate != null
-      ) {
-        metadata[LOAN_RENEWAL_MATURITY_METADATA_KEY] = values.renewalMaturity
-          ? formatDateToISO(values.renewalMaturity)
-          : "";
-        metadata[LOAN_PROJECTION_METADATA_KEY] = serializeLoanProjectionMetadata({
-          version: 1,
-          annualRate: values.interestRate,
-          paymentAmount: values.paymentAmount,
-          frequency: values.paymentFrequency,
-          interestMethod: values.interestMethod ?? "nominal_periodic",
-          firstPaymentDate: formatDateToISO(values.firstPaymentDate),
-          amortizationEndDate: formatDateToISO(schedule.lastPaymentDate),
-        });
-      }
       break;
     }
 
@@ -486,19 +419,32 @@ function storedEscrow(metadata?: Record<string, unknown>): number {
   return Number.isFinite(escrow) && escrow > 0 ? escrow : 0;
 }
 
-/**
- * The "Paid from" settings to save after the details, when they changed. The
- * backend writes them, and only for a calculated loan, so this runs after the
- * details that may switch calculation on.
- */
-export function paymentAccountAction(
-  values: LiabilityDetailsFormValues,
-  metadata?: Record<string, unknown>,
-): { type: "set_payment_account"; accountId: string | null; escrowAmount: number } | null {
-  if (!values.automaticLoan) return null;
-  const accountId = values.paymentAccountId || null;
-  const escrowAmount = values.escrowAmount ?? 0;
-  if (accountId === storedPaymentAccount(metadata) && escrowAmount === storedEscrow(metadata))
-    return null;
-  return { type: "set_payment_account", accountId, escrowAmount };
+/** The loan section as entered; the backend checks it and derives the stored terms. */
+export function liabilityLoanSetup(values: LiabilityDetailsFormValues): LoanSetup {
+  const day = (date?: Date | null) => (date ? formatDateToISO(date) : undefined);
+  const amounts = {
+    originalAmount: values.originalAmount ?? undefined,
+    originationDate: day(values.originationDate),
+    interestRate: values.interestRate ?? undefined,
+  };
+  if (!values.automaticLoan) return amounts;
+  const months = totalAmortizationMonths(values);
+  return {
+    ...amounts,
+    schedule: {
+      frequency: values.paymentFrequency ?? "monthly",
+      interestMethod: values.interestMethod ?? "nominal_periodic",
+      firstPaymentDate: day(values.firstPaymentDate),
+      amortizationMonths: months > 0 ? months : undefined,
+      paymentAmount: values.paymentAmount ?? undefined,
+      renewalMaturity: day(values.renewalMaturity),
+      paymentAccountId: values.paymentAccountId || undefined,
+      escrowAmount: values.escrowAmount ?? undefined,
+    },
+  };
+}
+
+/** Saves the loan section of Edit loan details in one backend action. */
+export function loanSetupAction(values: LiabilityDetailsFormValues): LoanAction {
+  return { type: "set_terms", ...liabilityLoanSetup(values) };
 }

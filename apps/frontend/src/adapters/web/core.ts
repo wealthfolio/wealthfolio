@@ -408,6 +408,7 @@ export const COMMANDS: CommandMap = {
   update_alternative_asset_metadata: { method: "PUT", path: "/alternative-assets" },
   calculate_loan: { method: "POST", path: "/loans/calculate" },
   recalculate_loan: { method: "POST", path: "/loans/recalculate" },
+  preview_loan_terms: { method: "POST", path: "/loans/preview" },
   apply_loan_action: { method: "POST", path: "/loans" },
   get_loan_payments: { method: "GET", path: "/loans" },
   link_loan_payment: { method: "POST", path: "/loans/payments" },
@@ -1882,6 +1883,9 @@ export const invoke = async <T>(command: string, payload?: Record<string, unknow
       body = JSON.stringify(action);
       break;
     }
+    case "preview_loan_terms":
+      body = JSON.stringify(payload);
+      break;
     case "recalculate_loan":
     case "calculate_loan":
     case "create_alternative_asset": {

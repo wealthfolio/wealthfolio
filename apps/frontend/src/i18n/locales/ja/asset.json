@@ -984,6 +984,20 @@
     "applies_to": "充当先",
     "applies_instalment": "日付が近い回の返済",
     "applies_extra": "繰上返済（元金）",
-    "escrow_default": "ローンの通常額"
+    "escrow_default": "ローンの通常額",
+    "duplicates_event": "この日にはすでに同じ金額の追加返済が記録されています。この出金がその返済であれば、代わりにこの出金を使うと一度だけ計上されます。",
+    "replace_event": "代わりにこの出金を使う",
+    "extra_already_linked": "紐付けられた出金がこの日にこの金額をすでに返済しています。",
+    "extra_already_recorded": "この日にはすでに同じ金額の追加返済が記録されています。"
+  },
+  "loanSetup": {
+    "amount_required": "当初金額にはゼロより大きい値を入力してください。",
+    "origination_required": "融資実行日を入力してください。",
+    "rate_invalid": "金利は0から100の間で入力してください。",
+    "amortization_invalid": "初回支払日以降に終わる返済期間を入力してください。",
+    "maturity_after_origination": "更新期限は融資実行日より後にしてください。",
+    "payment_invalid": "支払額にはゼロより大きい値を入力してください。",
+    "payment_unavailable": "この条件では支払額を計算できません。金額、金利、返済期間を確認してください。",
+    "fields_read_only": "ローンの条件はローンの詳細でのみ変更できます。"
   }
 }

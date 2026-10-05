@@ -1,7 +1,17 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import { BASE_URL, completeOnboardingIfNeeded } from "./helpers";
 
 test.use({ actionTimeout: 15_000 });
+
+/** Records loan events as the user would, through loan actions. */
+async function applyLoanActions(page: Page, assetId: string, actions: Record<string, unknown>[]) {
+  for (const action of actions) {
+    const response = await page.request.post(`${BASE_URL}/api/v1/loans/${assetId}/actions`, {
+      data: action,
+    });
+    expect(response.ok(), await response.text()).toBeTruthy();
+  }
+}
 
 test("active mortgage terms, previous terms and event editing stay consistent", async ({
   page,
@@ -16,43 +26,39 @@ test("active mortgage terms, previous terms and event editing stay consistent", 
       currency: "CAD",
       currentValue: "100000",
       valueDate: "2021-06-15",
-      metadata: {
-        sub_type: "mortgage",
-        original_amount: "100000",
-        origination_date: "2021-06-15",
-        interest_rate: "2",
-        renewal_maturity_date: "2029-06-15",
-        loan_projection: JSON.stringify({
-          version: 1,
-          annualRate: 2,
-          paymentAmount: 500,
+      metadata: { sub_type: "mortgage" },
+      loan: {
+        originalAmount: 100000,
+        originationDate: "2021-06-15",
+        interestRate: 2,
+        schedule: {
           frequency: "monthly",
           firstPaymentDate: "2021-07-15",
-          amortizationEndDate: "2046-06-15",
-        }),
-        loan_events: JSON.stringify([
-          {
-            type: "renewal",
-            effectiveDate: "2023-06-15",
-            annualRate: 3,
-            paymentAmount: 550,
-            termEndDate: "2026-06-15",
-          },
-          {
-            type: "renewal",
-            effectiveDate: "2026-06-15",
-            annualRate: 3.94,
-            paymentAmount: 600,
-            frequency: "monthly",
-            termEndDate: "2029-06-15",
-          },
-          { type: "extra_repayment", effectiveDate: "2026-07-01", amount: 1000 },
-        ]),
+          lastPaymentDate: "2046-06-15",
+          paymentAmount: 500,
+        },
       },
     },
   });
   expect(response.ok()).toBeTruthy();
   const { assetId } = await response.json();
+  await applyLoanActions(page, assetId, [
+    {
+      type: "renew",
+      date: "2023-06-15",
+      annualRate: 3,
+      paymentAmount: 550,
+      termEndDate: "2026-06-15",
+    },
+    {
+      type: "renew",
+      date: "2026-06-15",
+      annualRate: 3.94,
+      paymentAmount: 600,
+      termEndDate: "2029-06-15",
+    },
+    { type: "extra_repayment", date: "2026-07-01", amount: 1000 },
+  ]);
   const getHolding = async () =>
     (await (await page.request.get(`${api}/alternative-holdings`)).json()).find(
       (holding: { id: string }) => holding.id === assetId,
@@ -256,18 +262,17 @@ test("extra repayment starts without an error and validates after interaction", 
       currency: "CAD",
       currentValue: "100000",
       valueDate: "2026-01-01",
-      metadata: {
-        sub_type: "mortgage",
-        original_amount: "100000",
-        origination_date: "2026-01-01",
-        loan_projection: JSON.stringify({
-          version: 1,
-          annualRate: 4,
-          paymentAmount: 600,
+      metadata: { sub_type: "mortgage" },
+      loan: {
+        originalAmount: 100000,
+        originationDate: "2026-01-01",
+        interestRate: 4,
+        schedule: {
           frequency: "monthly",
           firstPaymentDate: "2026-02-01",
-          amortizationEndDate: "2046-01-01",
-        }),
+          lastPaymentDate: "2046-01-01",
+          paymentAmount: 600,
+        },
       },
     },
   });
@@ -337,7 +342,19 @@ test("interest convention reaches the shared engine and survives a renewal", asy
       currency: "CAD",
       currentValue: "100000",
       valueDate: "2026-01-01",
-      metadata,
+      metadata: { sub_type: "mortgage" },
+      loan: {
+        originalAmount: 100000,
+        originationDate: "2026-01-01",
+        interestRate: 5,
+        schedule: {
+          frequency: "monthly",
+          interestMethod: "semiannual",
+          firstPaymentDate: "2026-02-01",
+          lastPaymentDate: "2051-01-01",
+          paymentAmount: 581.6,
+        },
+      },
     },
   });
   expect(created.ok()).toBeTruthy();
@@ -379,18 +396,16 @@ test("balance edits preserve notes, reject collisions and delete legacy correcti
       currency: "CAD",
       currentValue: "1200",
       valueDate: "2026-01-01",
-      metadata: {
-        sub_type: "mortgage",
-        original_amount: "1200",
-        origination_date: "2026-01-01",
-        loan_projection: JSON.stringify({
-          version: 1,
-          annualRate: 0,
-          paymentAmount: 100,
+      metadata: { sub_type: "mortgage" },
+      loan: {
+        originalAmount: 1200,
+        originationDate: "2026-01-01",
+        schedule: {
           frequency: "monthly",
           firstPaymentDate: "2026-02-01",
-          amortizationEndDate: "2027-01-01",
-        }),
+          lastPaymentDate: "2027-01-01",
+          paymentAmount: 100,
+        },
       },
     },
   });
@@ -498,33 +513,32 @@ test("backdated renewal inherits historical frequency and interest convention", 
       currency: "CAD",
       currentValue: "1200",
       valueDate: "2026-01-01",
-      metadata: {
-        sub_type: "mortgage",
-        original_amount: "1200",
-        origination_date: "2026-01-01",
-        loan_projection: JSON.stringify({
-          version: 1,
-          annualRate: 0,
-          paymentAmount: 100,
+      metadata: { sub_type: "mortgage" },
+      loan: {
+        originalAmount: 1200,
+        originationDate: "2026-01-01",
+        schedule: {
           frequency: "monthly",
           interestMethod: "semiannual",
           firstPaymentDate: "2026-02-01",
-          amortizationEndDate: "2027-01-01",
-        }),
-        loan_events: JSON.stringify([
-          {
-            type: "renewal",
-            effectiveDate: "2026-06-10",
-            annualRate: 0,
-            frequency: "biweekly",
-            interestMethod: "monthly",
-          },
-        ]),
+          lastPaymentDate: "2027-01-01",
+          paymentAmount: 100,
+        },
       },
     },
   });
   expect(response.ok()).toBeTruthy();
   const { assetId } = await response.json();
+  await applyLoanActions(page, assetId, [
+    {
+      type: "renew",
+      date: "2026-06-10",
+      annualRate: 0,
+      paymentAmount: 50,
+      frequency: "biweekly",
+      interestMethod: "monthly",
+    },
+  ]);
   await page.goto(`${BASE_URL}/holdings/${assetId}?tab=history`);
   await page.getByRole("button", { name: "Add event", exact: true }).click();
   await page.getByRole("menuitem", { name: "Renew mortgage", exact: true }).click();
@@ -572,36 +586,37 @@ test("property deletion and mortgage linking preserve the loan and its history",
       valueDate: "2026-01-01",
     });
   const propertyId = await property();
-  const metadata = {
-    sub_type: "mortgage",
-    original_amount: "1200",
-    origination_date: "2026-01-01",
-    loan_projection: JSON.stringify({
-      version: 1,
-      annualRate: 0,
-      paymentAmount: 100,
-      frequency: "monthly",
-      firstPaymentDate: "2026-02-01",
-      paymentCount: 12,
-    }),
-    loan_events: JSON.stringify([
-      { type: "extra_repayment", effectiveDate: "2026-03-01", amount: 50 },
-    ]),
-  };
   const loanId = await create({
     kind: "liability",
     name: "Preserved mortgage",
     currency: "CAD",
     currentValue: "1200",
     valueDate: "2026-01-01",
-    metadata,
+    metadata: { sub_type: "mortgage" },
+    loan: {
+      originalAmount: 1200,
+      originationDate: "2026-01-01",
+      schedule: {
+        frequency: "monthly",
+        firstPaymentDate: "2026-02-01",
+        amortizationMonths: 12,
+        paymentAmount: 100,
+      },
+    },
     linkedAssetId: propertyId,
   });
+  await applyLoanActions(page, loanId, [
+    { type: "extra_repayment", date: "2026-03-01", amount: 50 },
+  ]);
   const holdings = async () => (await page.request.get(`${api}/alternative-holdings`)).json();
   const loan = async () => (await holdings()).find((entry: { id: string }) => entry.id === loanId);
   const quotes = async () =>
     (await page.request.get(`${api}/market-data/quotes/history?symbol=${loanId}`)).json();
   const before = await loan();
+  // The loan's own fields, which outlive the property it was linked to.
+  const metadata = { ...before.metadata };
+  delete metadata.linked_asset_id;
+  expect(metadata.loan_events).toContain("extra_repayment");
   const beforeQuotes = await quotes();
   await page.goto(`${BASE_URL}/holdings/${propertyId}`);
   await page.locator('button.h-9.w-9[aria-haspopup="dialog"]').click();

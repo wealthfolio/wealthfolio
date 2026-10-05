@@ -1,5 +1,6 @@
 import { importActivitySchema, importMappingSchema, parseConfigSchema } from "@/lib/schemas";
 import * as z from "zod";
+import type { LoanSetup } from "@/adapters/shared/alternative-assets";
 import {
   AccountType,
   ACTIVITY_TYPE_DISPLAY_NAMES,
@@ -1533,6 +1534,8 @@ export interface CreateAlternativeAssetRequest {
   metadata?: Record<string, string>;
   /** For liabilities: optional ID of the financed asset (UI-only linking) */
   linkedAssetId?: string;
+  /** For liabilities: the loan as entered; loan fields are not accepted in `metadata`. */
+  loan?: LoanSetup;
 }
 
 /**

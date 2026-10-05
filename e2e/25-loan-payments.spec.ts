@@ -29,22 +29,10 @@ async function json<T>(response: ApiResponse): Promise<T> {
   return (await response.json()) as T;
 }
 
-test("withdrawals from a cash account pay a loan and keep its balance in step", async ({
-  page,
-}) => {
-  test.setTimeout(240_000);
-  await completeOnboardingIfNeeded(page);
-
-  // A cash account enrolled in Spending, and a monthly 500 mortgage.
-  const { id: accountId } = await json<{ id: string }>(
+async function spendingAccount(page: Page, name: string) {
+  const { id } = await json<{ id: string }>(
     await page.request.post(`${api}/accounts`, {
-      data: {
-        name: ACCOUNT,
-        accountType: "CASH",
-        currency: "CAD",
-        isDefault: false,
-        isActive: true,
-      },
+      data: { name, accountType: "CASH", currency: "CAD", isDefault: false, isActive: true },
     }),
   );
   const settings = await json<{ accountIds: string[] }>(
@@ -52,61 +40,88 @@ test("withdrawals from a cash account pay a loan and keep its balance in step", 
   );
   await ok(
     await page.request.put(`${api}/spending/settings`, {
-      data: { enabled: true, accountIds: [...settings.accountIds, accountId] },
+      data: { enabled: true, accountIds: [...settings.accountIds, id] },
     }),
   );
-  const { assetId: loanId } = await json<{ assetId: string }>(
+  return id;
+}
+
+async function createLoan(page: Page, name: string) {
+  const { assetId } = await json<{ assetId: string }>(
     await page.request.post(`${api}/alternative-assets`, {
       data: {
         kind: "liability",
-        name: LOAN,
+        name,
         currency: "CAD",
         currentValue: "100000",
         valueDate: "2025-01-01",
-        metadata: {
-          sub_type: "mortgage",
-          original_amount: "100000",
-          origination_date: "2025-01-01",
-          interest_rate: "4",
-          loan_projection: JSON.stringify({
-            version: 1,
-            annualRate: 4,
-            paymentAmount: 500,
+        metadata: { sub_type: "mortgage" },
+        loan: {
+          originalAmount: 100000,
+          originationDate: "2025-01-01",
+          interestRate: 4,
+          schedule: {
             frequency: "monthly",
             firstPaymentDate: "2025-02-01",
-            amortizationEndDate: "2050-01-01",
-          }),
+            lastPaymentDate: "2050-01-01",
+            paymentAmount: 500,
+          },
         },
       },
     }),
   );
+  return assetId;
+}
+
+async function withdraw(
+  page: Page,
+  accountId: string,
+  day: string,
+  amount: number,
+  comment: string,
+) {
+  const { id } = await json<{ id: string }>(
+    await page.request.post(`${api}/activities`, {
+      data: {
+        accountId,
+        activityType: "WITHDRAWAL",
+        activityDate: `${day}T12:00:00.000Z`,
+        currency: "CAD",
+        amount,
+        comment,
+        needsReview: false,
+      },
+    }),
+  );
+  return id;
+}
+
+async function loanHolding(page: Page, loanId: string) {
+  return (
+    await json<{ id: string; marketValue: string; metadata: Record<string, unknown> }[]>(
+      await page.request.get(`${api}/alternative-holdings`),
+    )
+  ).find((item) => item.id === loanId)!;
+}
+
+test("withdrawals from a cash account pay a loan and keep its balance in step", async ({
+  page,
+}) => {
+  test.setTimeout(240_000);
+  await completeOnboardingIfNeeded(page);
+
+  // A cash account enrolled in Spending, and a monthly 500 mortgage.
+  const accountId = await spendingAccount(page, ACCOUNT);
+  const loanId = await createLoan(page, LOAN);
   // Each payment is 100 more than the schedule asks for.
   const withdrawals: string[] = [];
   for (const { day, comment } of PAYMENTS) {
-    const { id } = await json<{ id: string }>(
-      await page.request.post(`${api}/activities`, {
-        data: {
-          accountId,
-          activityType: "WITHDRAWAL",
-          activityDate: `${day}T12:00:00.000Z`,
-          currency: "CAD",
-          amount: 600,
-          comment,
-          needsReview: false,
-        },
-      }),
-    );
-    withdrawals.push(id);
+    withdrawals.push(await withdraw(page, accountId, day, 600, comment));
   }
 
   const payments = async () =>
     json<LoanPayment[]>(await page.request.get(`${api}/loans/${loanId}/payments`));
-  const holding = async () =>
-    (
-      await json<{ id: string; marketValue: string; metadata: Record<string, unknown> }[]>(
-        await page.request.get(`${api}/alternative-holdings`),
-      )
-    ).find((item) => item.id === loanId)!;
+  const holding = () => loanHolding(page, loanId);
   const balance = async () => Number((await holding()).marketValue);
   const accountWithdrawals = async () =>
     (
@@ -233,4 +248,50 @@ test("withdrawals from a cash account pay a loan and keep its balance in step", 
     expect.arrayContaining([...withdrawals, extra.activityId]),
   );
   expect(remaining.filter((activity) => activity.metadata?.loan_payment)).toEqual([]);
+});
+
+test("a withdrawal for an extra repayment already recorded counts once", async ({ page }) => {
+  test.setTimeout(120_000);
+  await completeOnboardingIfNeeded(page);
+  const accountId = await spendingAccount(page, "Lump sum chequing");
+  const loanName = "Mortgage with a recorded extra";
+  const loanId = await createLoan(page, loanName);
+  await ok(
+    await page.request.post(`${api}/loans/${loanId}/actions`, {
+      data: { type: "extra_repayment", date: "2025-03-15", amount: 250 },
+    }),
+  );
+  const balance = async () => Number((await loanHolding(page, loanId)).marketValue);
+  const events = async () => {
+    const raw = (await loanHolding(page, loanId)).metadata.loan_events;
+    return (typeof raw === "string" ? JSON.parse(raw) : (raw ?? [])) as { type: string }[];
+  };
+  const payments = async () =>
+    json<LoanPayment[]>(await page.request.get(`${api}/loans/${loanId}/payments`));
+  const recorded = await balance();
+  const comment = "Lump sum to the mortgage";
+  const withdrawal = await withdraw(page, accountId, "2025-03-15", 250, comment);
+
+  await page.goto(`${BASE_URL}/activities?tab=spending&from=2025-03-01&to=2025-03-31`);
+  const row = page.getByRole("row").filter({ hasText: comment });
+  await row.getByRole("button", { name: "Row actions" }).click();
+  await page.getByRole("menuitem", { name: "Loan payment…" }).click();
+  const sheet = page.getByRole("dialog");
+  await sheet.getByRole("combobox", { name: "Loan" }).click();
+  await page.getByRole("option", { name: loanName }).click();
+  await sheet.getByRole("button", { name: "Link", exact: true }).click();
+  // Linking as is would count the same 250 twice, so nothing is saved yet.
+  await expect(sheet.getByRole("alert")).toContainText(
+    "An extra repayment of this amount is already recorded on this day.",
+  );
+  expect(await payments()).toEqual([]);
+  expect((await events()).map((event) => event.type)).toContain("extra_repayment");
+
+  await sheet.getByRole("button", { name: "Use this withdrawal instead", exact: true }).click();
+  await expect(sheet).toHaveCount(0);
+  await expect
+    .poll(async () => (await payments()).map((p) => [p.activityId, p.appliesTo, p.amount]))
+    .toEqual([[withdrawal, "extra", 250]]);
+  expect((await events()).map((event) => event.type)).not.toContain("extra_repayment");
+  await expect.poll(balance).toBeCloseTo(recorded, 2);
 });

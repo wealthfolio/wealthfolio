@@ -231,8 +231,47 @@ export type LoanAction =
       quoteId: string;
       replacement: { date: string; balance: number; note: string } | null;
     }
-  | { type: "set_payment_account"; accountId: string | null; escrowAmount?: number }
+  | ({ type: "set_terms" } & LoanSetup)
   | { type: "change_payment"; date: string; paymentAmount: number };
+
+/** A loan's schedule as entered; omitted values are derived by the backend. */
+export interface LoanSchedule {
+  frequency: "monthly" | "biweekly" | "accelerated_biweekly";
+  interestMethod?: "nominal_periodic" | "monthly" | "semiannual";
+  /** Omitted: one period after origination. */
+  firstPaymentDate?: string;
+  /** Amortization in months, or a last payment date off the payment calendar. */
+  amortizationMonths?: number;
+  lastPaymentDate?: string;
+  /** Omitted: solved as at creation. */
+  paymentAmount?: number;
+  renewalMaturity?: string;
+  paymentAccountId?: string;
+  escrowAmount?: number;
+}
+
+/** The loan section of a liability as entered; the backend checks it and derives the terms. */
+export interface LoanSetup {
+  originalAmount?: number;
+  originationDate?: string;
+  interestRate?: number;
+  /** Omitted: tracked manually from recorded balances. */
+  schedule?: LoanSchedule;
+}
+
+/** What a schedule works out to, from the same rules that save it. */
+export interface LoanSchedulePreview {
+  firstPaymentDate: string;
+  lastPaymentDate: string;
+  paymentCount: number;
+  paymentAmount: number;
+}
+
+/** Previews a setup without saving it; `assetId` names the loan being edited. */
+export const previewLoanTerms = (
+  assetId: string | null,
+  setup: LoanSetup,
+): Promise<LoanSchedulePreview | null> => invoke("preview_loan_terms", { assetId, setup });
 
 export const applyLoanAction = (assetId: string, action: LoanAction): Promise<void> =>
   invoke("apply_loan_action", { assetId, action });
@@ -242,7 +281,14 @@ export const getLoanPayments = (assetId: string): Promise<LoanPayment[]> =>
   invoke("get_loan_payments", { assetId });
 
 export type PaymentLink =
-  | { type: "link"; loanId: string; escrow?: number; appliesTo?: PaymentTarget }
+  | {
+      type: "link";
+      loanId: string;
+      escrow?: number;
+      appliesTo?: PaymentTarget;
+      /** The withdrawal is a recorded extra repayment: replace the event with it. */
+      replaceEvent?: boolean;
+    }
   | { type: "unlink" };
 
 /** Links or unlinks a withdrawal as a loan payment; the backend checks it. */

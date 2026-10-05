@@ -8,7 +8,6 @@ import {
   readActiveLoanProjection,
   readLoanEvents,
   readLoanProjectionMetadata,
-  serializeLoanProjectionMetadata,
   type LoanMetadata,
 } from "./loan-events";
 
@@ -123,7 +122,7 @@ describe("loan events", () => {
       amortizationEndDate: "2050-07-07",
     };
     const metadata: LoanMetadata = {
-      [LOAN_PROJECTION_METADATA_KEY]: serializeLoanProjectionMetadata(projection),
+      [LOAN_PROJECTION_METADATA_KEY]: JSON.stringify(projection),
     };
 
     expect(readLoanProjectionMetadata(metadata)).toEqual(projection);

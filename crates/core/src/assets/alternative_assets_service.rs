@@ -26,7 +26,9 @@ use super::alternative_assets_traits::{
     AlternativeAssetRepositoryTrait, AlternativeAssetServiceTrait,
 };
 use super::loan::{
-    apply_loan_action, link_payment, LoanAction, LoanActionResult, LoanPayment, PaymentLink,
+    apply_loan_action, apply_loan_setup, link_payment, preview_loan_terms, LoanAction,
+    LoanActionResult, LoanError, LoanPayment, LoanSchedulePreview, LoanSetup, PaymentLink,
+    LOAN_FIELDS,
 };
 use super::{AssetKind, AssetRepositoryTrait, NewAsset, QuoteMode};
 use crate::errors::{Error, Result, ValidationError};
@@ -34,6 +36,10 @@ use crate::events::{DomainEvent, DomainEventSink, NoOpDomainEventSink};
 use crate::quotes::constants::DATA_SOURCE_MANUAL;
 use crate::quotes::{Quote, QuoteServiceTrait};
 use crate::utils::time_utils::{parse_user_timezone_or_default, user_today};
+
+fn has_loan_fields<'a>(mut keys: impl Iterator<Item = &'a String>) -> bool {
+    keys.any(|key| LOAN_FIELDS.contains(&key.as_str()))
+}
 
 /// Service for managing alternative assets.
 ///
@@ -141,6 +147,29 @@ impl AlternativeAssetService {
         }
     }
 
+    /// A new liability's metadata with its loan setup applied. The first balance
+    /// cannot predate origination, and Paid from is chosen when editing.
+    fn created_loan_metadata(
+        metadata: Value,
+        setup: &LoanSetup,
+        value_date: chrono::NaiveDate,
+    ) -> Result<Value> {
+        if setup
+            .schedule
+            .as_ref()
+            .is_some_and(|schedule| schedule.payment_account_id.is_some())
+        {
+            return Err(LoanError::PaymentAccountInvalid.into());
+        }
+        if setup
+            .origination_date
+            .is_some_and(|origination| value_date < origination)
+        {
+            return Err(LoanError::BalanceBeforeOrigination.into());
+        }
+        Ok(apply_loan_setup(&metadata, setup)?)
+    }
+
     /// Extracts linked_asset_id from liability metadata.
     #[cfg(test)]
     fn get_linked_asset_id(metadata: &Option<Value>) -> Option<String> {
@@ -237,8 +266,28 @@ impl AlternativeAssetServiceTrait for AlternativeAssetService {
             request.name, request.kind
         );
 
-        // 1. Build asset metadata
-        let metadata = Self::build_asset_metadata(&request);
+        // 1. Build asset metadata; a liability's loan fields come only from its setup.
+        let is_liability = request.kind == AssetKind::Liability;
+        if is_liability
+            && request
+                .metadata
+                .as_ref()
+                .and_then(Value::as_object)
+                .is_some_and(|m| has_loan_fields(m.keys()))
+        {
+            return Err(LoanError::FieldsReadOnly.into());
+        }
+        let mut metadata = Self::build_asset_metadata(&request);
+        if let Some(setup) = &request.loan {
+            if !is_liability {
+                return Err(LoanError::Invalid.into());
+            }
+            metadata = Some(Self::created_loan_metadata(
+                metadata.unwrap_or_else(|| json!({})),
+                setup,
+                request.value_date,
+            )?);
+        }
 
         // 2. Determine display_code from metadata
         let display_code = Self::derive_display_code(&request.kind, &metadata);
@@ -486,6 +535,16 @@ impl AlternativeAssetServiceTrait for AlternativeAssetService {
             ))));
         }
 
+        // Loan fields change only through a loan setup or loan actions.
+        if asset.kind == AssetKind::Liability
+            && request
+                .metadata
+                .as_ref()
+                .is_some_and(|m| has_loan_fields(m.keys()))
+        {
+            return Err(LoanError::FieldsReadOnly.into());
+        }
+
         // Parse existing metadata
         let mut metadata_obj = asset
             .metadata
@@ -652,6 +711,21 @@ impl AlternativeAssetServiceTrait for AlternativeAssetService {
             ));
         }
         Ok(())
+    }
+
+    fn preview_loan_terms(
+        &self,
+        asset_id: Option<&str>,
+        setup: &LoanSetup,
+    ) -> Result<Option<LoanSchedulePreview>> {
+        let stored = match asset_id {
+            Some(id) => self.asset_repository.get_by_id(id)?.metadata,
+            None => None,
+        };
+        Ok(preview_loan_terms(
+            setup,
+            &stored.unwrap_or_else(|| json!({})),
+        )?)
     }
 
     fn get_loan_payments(&self, asset_id: &str) -> Result<Vec<LoanPayment>> {
@@ -1299,6 +1373,7 @@ mod tests {
             purchase_date: Some(chrono::NaiveDate::from_ymd_opt(2020, 3, 1).unwrap()),
             metadata: Some(json!({"sub_type": "residence"})),
             linked_asset_id: None,
+            loan: None,
         };
 
         let metadata = AlternativeAssetService::build_asset_metadata(&request);

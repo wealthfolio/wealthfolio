@@ -62,6 +62,8 @@ pub struct CreateAlternativeAssetRequest {
     pub purchase_date: Option<String>,
     pub metadata: Option<Value>,
     pub linked_asset_id: Option<String>,
+    #[serde(default)]
+    pub loan: Option<wealthfolio_core::assets::loan::LoanSetup>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -232,6 +234,7 @@ pub async fn create_alternative_asset(
         purchase_date,
         metadata: request.metadata,
         linked_asset_id: request.linked_asset_id,
+        loan: request.loan,
     };
 
     // Delegate to core service
@@ -570,6 +573,19 @@ pub async fn apply_loan_action(
         });
     }
     Ok(())
+}
+
+#[tauri::command]
+pub async fn preview_loan_terms(
+    asset_id: Option<String>,
+    setup: wealthfolio_core::assets::loan::LoanSetup,
+    state: ProfileAccess,
+) -> Result<Option<wealthfolio_core::assets::loan::LoanSchedulePreview>, String> {
+    let context = state.context()?;
+    context
+        .alternative_asset_service()
+        .preview_loan_terms(asset_id.as_deref(), &setup)
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]

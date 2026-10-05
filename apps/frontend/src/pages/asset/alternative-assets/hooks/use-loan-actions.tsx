@@ -196,6 +196,15 @@ export function useLoanActions(
     if (start && date < start) throw new Error("LOAN_INVALID");
     const balance = balanceAt(loanBalanceTimeline(calculation, quoteHistory, today), date);
     if (balance != null && amount > balance) throw new Error("LOAN_AMOUNT_EXCEEDS_BALANCE");
+    // Linking would refuse a withdrawal that is an extra repayment already recorded.
+    const cents = (value: number) => Math.round(value * 100);
+    const recorded = readLoanEvents(metadata).some(
+      (event) =>
+        event.type === "extra_repayment" &&
+        event.effectiveDate === date &&
+        cents(event.amount) === cents(amount),
+    );
+    if (recorded) throw new Error("LOAN_EXTRA_ALREADY_RECORDED");
     const withdrawal = await createActivity({
       accountId,
       activityType: "WITHDRAWAL",

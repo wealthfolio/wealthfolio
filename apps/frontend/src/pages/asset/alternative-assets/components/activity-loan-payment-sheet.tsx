@@ -12,7 +12,7 @@ import { QueryKeys } from "@/lib/query-keys";
 import type { ActivityDetails } from "@/lib/types";
 import { invalidateAlternativeAssetQueries } from "../hooks/use-alternative-asset-mutations";
 import { readActiveLoanProjection } from "../lib/loan-events";
-import { loanErrorText } from "./loan-error-text";
+import { isDuplicateEventError, loanErrorText } from "./loan-error-text";
 import {
   LoanSheetBody,
   LoanSheetContent,
@@ -66,6 +66,11 @@ export function ActivityLoanPaymentSheet({
   const [escrow, setEscrow] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // A link that matches a recorded extra repayment, waiting for the user's choice.
+  const [duplicate, setDuplicate] = useState<Extract<
+    Parameters<typeof linkLoanPayment>[1],
+    { type: "link" }
+  > | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -74,10 +79,13 @@ export function ActivityLoanPaymentSheet({
     setEscrow(null);
     setError(null);
   }, [open, linkedTo]);
+  // The replace prompt answers the link it was shown for, not a changed one.
+  useEffect(() => setDuplicate(null), [open, loanId, target, escrow]);
 
   const change = async (link: Parameters<typeof linkLoanPayment>[1]) => {
     setBusy(true);
     setError(null);
+    setDuplicate(null);
     try {
       await linkLoanPayment(activity.id, link);
       await Promise.all([
@@ -87,7 +95,8 @@ export function ActivityLoanPaymentSheet({
       onChanged?.();
       onOpenChange(false);
     } catch (cause) {
-      setError(loanErrorText(t, cause, "asset:loanEvents.failed"));
+      if (isDuplicateEventError(cause) && link.type === "link") setDuplicate(link);
+      else setError(loanErrorText(t, cause, "asset:loanEvents.failed"));
     } finally {
       setBusy(false);
     }
@@ -161,6 +170,18 @@ export function ActivityLoanPaymentSheet({
             <p className="text-destructive text-sm" role="alert">
               {error}
             </p>
+          )}
+          {duplicate && (
+            <div className="space-y-2 rounded-md border px-3 py-2 text-sm" role="alert">
+              <p>{t("asset:loanPayments.duplicates_event")}</p>
+              <Button
+                size="xs"
+                disabled={busy !== false}
+                onClick={() => change({ ...duplicate, replaceEvent: true })}
+              >
+                {t("asset:loanPayments.replace_event")}
+              </Button>
+            </div>
           )}
         </LoanSheetBody>
         <LoanSheetFooter>

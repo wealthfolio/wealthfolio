@@ -328,6 +328,15 @@ describe("extra repayments from the paid from account", () => {
     expect(mocks.link).not.toHaveBeenCalled();
   });
 
+  it("refuses an extra repayment already recorded without recording a withdrawal", async () => {
+    show(holding({ payment_account_id: "chequing" }));
+    await expect(balanceSubmit("extra_repayment")(new Date(2026, 2, 1), 100)).rejects.toThrow(
+      "LOAN_EXTRA_ALREADY_RECORDED",
+    );
+    expect(mocks.create).not.toHaveBeenCalled();
+    expect(mocks.link).not.toHaveBeenCalled();
+  });
+
   it("records an event once the paid from account no longer qualifies", async () => {
     show(holding({ payment_account_id: "closed" }));
     expect(

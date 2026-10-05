@@ -42,7 +42,7 @@ test("loan lifecycle matches the independent fixture in the page and net worth",
         currency: "CAD",
         currentValue: kind === "property" ? "2000" : "200",
         valueDate: "2024-01-01",
-        metadata: { tracking_mode: "manual" },
+        ...(kind === "liability" && { loan: {} }),
       },
     });
     expect(background.ok()).toBeTruthy();
@@ -222,18 +222,16 @@ test("loan estimates, dated actions and net worth stay consistent", async ({ pag
       currency: "CAD",
       currentValue: "1200",
       valueDate: origin,
-      metadata: {
-        sub_type: "mortgage",
-        original_amount: "1200",
-        origination_date: origin,
-        loan_projection: JSON.stringify({
-          version: 1,
-          annualRate: 0,
-          paymentAmount: 100,
+      metadata: { sub_type: "mortgage" },
+      loan: {
+        originalAmount: 1200,
+        originationDate: origin,
+        schedule: {
           frequency: "monthly",
           firstPaymentDate: first,
-          amortizationEndDate: end,
-        }),
+          lastPaymentDate: end,
+          paymentAmount: 100,
+        },
       },
     },
   });
@@ -515,29 +513,43 @@ test("mortgage presentation stays separate from other assets and manual liabilit
   const origin = day(new Date(now.getFullYear(), now.getMonth() - 2, 1));
   const first = day(new Date(now.getFullYear(), now.getMonth() - 1, 1));
   const end = day(new Date(now.getFullYear() + 1, now.getMonth(), 1));
-  const create = async (kind: string, name: string, metadata: Record<string, string>) => {
+  const create = async (
+    kind: string,
+    name: string,
+    metadata: Record<string, string>,
+    loan?: Record<string, unknown>,
+  ) => {
     const response = await page.request.post(`${api}/alternative-assets`, {
-      data: { kind, name, currency: "CAD", currentValue: "1200", valueDate: origin, metadata },
+      data: {
+        kind,
+        name,
+        currency: "CAD",
+        currentValue: "1200",
+        valueDate: origin,
+        metadata,
+        loan,
+      },
     });
     expect(response.ok()).toBeTruthy();
     return (await response.json()).assetId;
   };
-  const loanMetadata = {
-    original_amount: "1200",
-    origination_date: origin,
-    loan_projection: JSON.stringify({
-      version: 1,
-      annualRate: 0,
-      paymentAmount: 100,
+  const loan = (schedule: Record<string, unknown> = {}) => ({
+    originalAmount: 1200,
+    originationDate: origin,
+    schedule: {
       frequency: "monthly",
       firstPaymentDate: first,
-      amortizationEndDate: end,
-    }),
-  };
-  const car = await create("liability", "Car loan UX regression", {
-    ...loanMetadata,
-    sub_type: "auto_loan",
+      lastPaymentDate: end,
+      paymentAmount: 100,
+      ...schedule,
+    },
   });
+  const car = await create(
+    "liability",
+    "Car loan UX regression",
+    { sub_type: "auto_loan" },
+    loan(),
+  );
   await page.goto(`${BASE_URL}/holdings/${car}`);
   await expect(page.getByTestId("loan-overview")).toBeVisible();
   await expect(page.getByRole("button", { name: "Renew mortgage", exact: true })).toHaveCount(0);
@@ -561,10 +573,12 @@ test("mortgage presentation stays separate from other assets and manual liabilit
   ).toBeTruthy();
   await page.setViewportSize({ width: 1280, height: 720 });
 
-  const card = await create("liability", "Manual card UX regression", {
-    sub_type: "credit_card",
-    tracking_mode: "manual",
-  });
+  const card = await create(
+    "liability",
+    "Manual card UX regression",
+    { sub_type: "credit_card" },
+    {},
+  );
   await page.goto(`${BASE_URL}/holdings/${card}`);
   await expect(page.getByTestId("loan-overview")).toBeVisible();
   await expect(page.getByText("Estimated payoff", { exact: true })).toHaveCount(0);
@@ -587,12 +601,107 @@ test("mortgage presentation stays separate from other assets and manual liabilit
   await expect(page.getByRole("button", { name: "Edit Details", exact: true })).toBeVisible();
   await page.keyboard.press("Escape");
 
-  const mortgage = await create("liability", "Expired mortgage UX regression", {
-    ...loanMetadata,
-    sub_type: "mortgage",
-    renewal_maturity_date: origin,
-  });
+  // A renewal maturity must follow origination; last month's has already passed.
+  const mortgage = await create(
+    "liability",
+    "Expired mortgage UX regression",
+    { sub_type: "mortgage" },
+    loan({ renewalMaturity: first }),
+  );
   await page.goto(`${BASE_URL}/holdings/${mortgage}`);
   await expect(page.getByTestId("mortgage-overview")).toBeVisible();
   await expect(page.getByRole("button", { name: "Renew mortgage", exact: true })).toBeVisible();
+});
+
+test("loan terms are previewed and checked by the backend", async ({ page }) => {
+  test.setTimeout(120_000);
+  await completeOnboardingIfNeeded(page);
+  const api = `${BASE_URL}/api/v1`;
+  const named = async (name: string) =>
+    (await (await page.request.get(`${api}/alternative-holdings`)).json()).find(
+      (h: { name: string }) => h.name === name,
+    );
+  // Loan fields come only from a loan setup or a loan action.
+  const raw = await page.request.post(`${api}/alternative-assets`, {
+    data: {
+      kind: "liability",
+      name: "Raw loan fields",
+      currency: "CAD",
+      currentValue: "1200",
+      valueDate: "2026-01-01",
+      metadata: { sub_type: "mortgage", original_amount: "1200" },
+    },
+  });
+  expect(raw.ok()).toBeFalsy();
+  expect(await raw.text()).toContain("LOAN_FIELDS_READ_ONLY");
+  expect(await named("Raw loan fields")).toBeUndefined();
+  const created = await page.request.post(`${api}/alternative-assets`, {
+    data: {
+      kind: "liability",
+      name: "Setup loan",
+      currency: "CAD",
+      currentValue: "1200",
+      valueDate: "2026-01-01",
+      metadata: { sub_type: "mortgage" },
+      loan: {
+        originalAmount: 1200,
+        originationDate: "2026-01-01",
+        schedule: { frequency: "monthly", amortizationMonths: 12 },
+      },
+    },
+  });
+  expect(created.ok()).toBeTruthy();
+  const { assetId } = await created.json();
+  const stored = (await named("Setup loan")).metadata;
+  // No rate means 0%; the payment is solved and the first one falls a month in.
+  expect(JSON.parse(stored.loan_projection)).toMatchObject({
+    annualRate: 0,
+    paymentAmount: 100,
+    firstPaymentDate: "2026-02-01",
+    amortizationEndDate: "2027-01-01",
+  });
+  const edited = await page.request.put(`${api}/alternative-assets/${assetId}/metadata`, {
+    data: { metadata: { interest_rate: "9" } },
+  });
+  expect(edited.ok()).toBeFalsy();
+  expect(await edited.text()).toContain("LOAN_FIELDS_READ_ONLY");
+  expect((await named("Setup loan")).metadata).toEqual(stored);
+
+  const sheet = page.getByRole("dialog");
+  await page.goto(`${BASE_URL}/holdings?tab=assets`);
+  await page.locator('button.h-9.w-9[aria-haspopup="dialog"]').click();
+  await page.getByRole("button", { name: "Add Asset", exact: true }).click();
+  await sheet.getByRole("button", { name: /Liability.*Loans/ }).click();
+  await sheet.getByRole("button", { name: "Continue", exact: true }).click();
+  await sheet.getByPlaceholder("Home Mortgage, Car Loan...").fill("Previewed loan");
+  await sheet
+    .getByText("Original Amount", { exact: true })
+    .locator("..")
+    .getByPlaceholder("0.00")
+    .fill("1200");
+  await sheet.locator('input[type="date"]').first().fill("2026-01-01");
+  await sheet.getByLabel("Years", { exact: true }).fill("1");
+  const firstPayment = sheet.getByText("First payment date", { exact: true }).locator("..");
+  await expect(firstPayment).toContainText("Last payment Jan 1, 2027 · 12 payments");
+  const setFirstPayment = async (month: string) => {
+    await firstPayment.locator('[data-type="month"]').click();
+    await page.keyboard.type(month, { delay: 30 });
+    await page.keyboard.press("Tab");
+  };
+  await setFirstPayment("01");
+  const refusal = "The first payment must be after the origination date.";
+  await expect(firstPayment.getByRole("alert")).toHaveText(refusal);
+  // Terms the backend refuses cannot be submitted; the reason is shown once.
+  await expect(sheet.getByRole("button", { name: "Add Liability", exact: true })).toBeDisabled();
+  await expect(sheet.getByRole("alert").filter({ hasText: refusal })).toHaveCount(1);
+  expect(await named("Previewed loan")).toBeUndefined();
+  await setFirstPayment("03");
+  await expect(firstPayment).toContainText("Last payment Feb 1, 2027 · 12 payments");
+  await sheet.getByRole("button", { name: "Add Liability", exact: true }).click();
+  await expect(sheet).toHaveCount(0);
+  expect(JSON.parse((await named("Previewed loan")).metadata.loan_projection)).toMatchObject({
+    paymentAmount: 100,
+    firstPaymentDate: "2026-03-01",
+    amortizationEndDate: "2027-02-01",
+  });
 });

@@ -984,6 +984,20 @@
     "applies_to": "计入",
     "applies_instalment": "日期附近到期的分期",
     "applies_extra": "额外本金",
-    "escrow_default": "贷款的通常金额"
+    "escrow_default": "贷款的通常金额",
+    "duplicates_event": "该日期已记录了相同金额的额外还款。如果这笔取款就是那次还款，请改用这笔取款，使其只计算一次。",
+    "replace_event": "改用这笔取款",
+    "extra_already_linked": "已关联的取款已在该日期偿还了这笔金额。",
+    "extra_already_recorded": "该日期已记录了相同金额的额外还款。"
+  },
+  "loanSetup": {
+    "amount_required": "请输入大于零的原始金额。",
+    "origination_required": "请输入放款日期。",
+    "rate_invalid": "请输入 0 到 100 之间的利率。",
+    "amortization_invalid": "请输入在首次还款日期当天或之后结束的摊还期限。",
+    "maturity_after_origination": "续期到期日必须晚于放款日期。",
+    "payment_invalid": "请输入大于零的还款额。",
+    "payment_unavailable": "无法根据这些条件计算还款额。请检查金额、利率和摊还期限。",
+    "fields_read_only": "贷款条件只能在贷款详情中更改。"
   }
 }

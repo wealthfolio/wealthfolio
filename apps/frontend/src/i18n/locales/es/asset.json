@@ -1000,6 +1000,20 @@
     "applies_to": "Se aplica a",
     "applies_instalment": "La cuota cercana a su fecha",
     "applies_extra": "Capital extra",
-    "escrow_default": "El importe habitual del préstamo"
+    "escrow_default": "El importe habitual del préstamo",
+    "duplicates_event": "Ya hay una amortización adicional de este importe registrada en este día. Si este retiro es esa amortización, úsalo en su lugar para que cuente una sola vez.",
+    "replace_event": "Usar este retiro en su lugar",
+    "extra_already_linked": "Un retiro vinculado ya amortizó este importe en este día.",
+    "extra_already_recorded": "Ya hay una amortización adicional de este importe registrada en este día."
+  },
+  "loanSetup": {
+    "amount_required": "Introduce un importe original mayor que cero.",
+    "origination_required": "Introduce la fecha de originación.",
+    "rate_invalid": "Introduce un tipo de interés entre 0 y 100.",
+    "amortization_invalid": "Introduce una amortización que termine en el primer pago o después.",
+    "maturity_after_origination": "El vencimiento de la renovación debe ser posterior a la fecha de originación.",
+    "payment_invalid": "Introduce un pago mayor que cero.",
+    "payment_unavailable": "No se puede calcular un pago con estas condiciones. Revisa el importe, el tipo y la amortización.",
+    "fields_read_only": "Las condiciones del préstamo solo se pueden cambiar en los detalles del préstamo."
   }
 }

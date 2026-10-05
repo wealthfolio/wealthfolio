@@ -1,5 +1,8 @@
+import type { LoanSetup } from "@/adapters/shared/alternative-assets";
 import { AlternativeAssetKind } from "@/lib/types";
+import { formatDateISO } from "@/lib/utils";
 import * as z from "zod";
+import type { LoanInterestMethod, LoanPaymentFrequency } from "../lib/loan-events";
 
 // Metal types for precious metals
 export const METAL_TYPES = [
@@ -137,3 +140,44 @@ export const getDefaultFormValues = (): AlternativeAssetQuickAddFormValues => ({
   liabilityType: undefined,
   linkedAssetId: undefined,
 });
+
+/** What the quick-add form holds for a new loan. */
+export interface QuickAddLoanInput {
+  purchasePrice?: string;
+  purchaseDate?: Date;
+  interestRate?: string;
+  automaticSchedule?: boolean;
+  paymentFrequency?: LoanPaymentFrequency;
+  interestMethod?: LoanInterestMethod;
+  loanTerm?: string;
+  loanTermMonths?: string;
+  firstPaymentDate?: Date;
+}
+
+const entered = (value?: string) => {
+  const number = value?.trim() ? Number(value) : NaN;
+  return Number.isFinite(number) ? number : undefined;
+};
+
+/**
+ * A new loan as entered. The backend checks it, derives the schedule and solves
+ * the payment; a manual loan keeps only its amounts, as before.
+ */
+export function quickAddLoanSetup(input: QuickAddLoanInput): LoanSetup {
+  const amounts = {
+    originalAmount: entered(input.purchasePrice),
+    interestRate: entered(input.interestRate),
+  };
+  if (input.automaticSchedule === false) return amounts;
+  const months = (entered(input.loanTerm) ?? 0) * 12 + (entered(input.loanTermMonths) ?? 0);
+  return {
+    ...amounts,
+    originationDate: input.purchaseDate ? formatDateISO(input.purchaseDate) : undefined,
+    schedule: {
+      frequency: input.paymentFrequency ?? "monthly",
+      interestMethod: input.interestMethod ?? "nominal_periodic",
+      amortizationMonths: months > 0 ? months : undefined,
+      firstPaymentDate: input.firstPaymentDate ? formatDateISO(input.firstPaymentDate) : undefined,
+    },
+  };
+}

@@ -15,10 +15,12 @@ use super::alternative_assets_model::{
     LinkLiabilityRequest, LinkLiabilityResponse, UpdateAssetDetailsRequest,
     UpdateAssetDetailsResponse, UpdateValuationRequest, UpdateValuationResponse,
 };
-use super::loan::{LoanAction, LoanActionResult, LoanPayment, LoanRecord, LoanUpdate, PaymentLink};
+use super::loan::{
+    LoanAction, LoanActionResult, LoanPayment, LoanRecord, LoanSchedulePreview, LoanSetup,
+    LoanUpdate, PaymentLink, PaymentTagUpdate,
+};
 use crate::activities::Activity;
 use crate::errors::Result;
-use serde_json::Value;
 use std::collections::HashMap;
 
 /// Decides a loan's writes from what is stored, inside the write transaction.
@@ -27,7 +29,7 @@ pub type LoanChange = Box<dyn FnOnce(&LoanRecord) -> Result<LoanUpdate> + Send>;
 /// Decides a withdrawal's new metadata from the withdrawal, its account type and
 /// the loan it would pay, read inside the write transaction.
 pub type PaymentTagChange =
-    Box<dyn FnOnce(&Activity, &str, Option<&LoanRecord>) -> Result<Option<Value>> + Send>;
+    Box<dyn FnOnce(&Activity, &str, Option<&LoanRecord>) -> Result<PaymentTagUpdate> + Send>;
 
 /// Trait defining the contract for Alternative Asset service operations.
 ///
@@ -148,6 +150,14 @@ pub trait AlternativeAssetServiceTrait: Send + Sync {
 
     /// The tagged withdrawals counted as payments on a loan.
     fn get_loan_payments(&self, asset_id: &str) -> Result<Vec<LoanPayment>>;
+
+    /// What a loan setup works out to without saving it; `asset_id` names the
+    /// loan being edited, whose stored terms the preview builds on.
+    fn preview_loan_terms(
+        &self,
+        asset_id: Option<&str>,
+        setup: &LoanSetup,
+    ) -> Result<Option<LoanSchedulePreview>>;
 }
 
 /// Trait for alternative asset repository operations.

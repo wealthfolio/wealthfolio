@@ -9,12 +9,14 @@ use serde::Deserialize;
 use serde_json::Value;
 use thiserror::Error;
 
-use super::model::{decoded, ESCROW_AMOUNT_KEY, PAYMENT_ACCOUNT_KEY};
+use super::model::{decoded, ORIGINATION_DATE_KEY};
+use super::payments::is_regular_payment;
+use super::setup::apply_loan_setup;
 use super::{
     balance_notes, balance_user_note, calculate_loan, edited_balance_notes, event_entries, money,
     recalculate_loan, valid_amount, InterestMethod, LoanBalance, LoanBalanceKind, LoanCalculation,
     LoanCalculationRequest, LoanEvent, LoanFrequency, LoanPayment, LoanRecalculationRequest,
-    LoanTerms, LOAN_CLOSED_NOTE, LOAN_EVENTS_KEY, RENEWAL_MATURITY_KEY,
+    LoanSetup, LoanTerms, LOAN_CLOSED_NOTE, LOAN_EVENTS_KEY, RENEWAL_MATURITY_KEY,
 };
 use crate::quotes::constants::DATA_SOURCE_MANUAL;
 use crate::quotes::{quote_id, AssetId, Day, Quote, QuoteSource};
@@ -40,6 +42,30 @@ pub enum LoanError {
     PaymentAccountInvalid,
     #[error("LOAN_PAYMENT_NOT_ELIGIBLE")]
     PaymentNotEligible,
+    #[error("LOAN_AMOUNT_REQUIRED")]
+    AmountRequired,
+    #[error("LOAN_ORIGINATION_REQUIRED")]
+    OriginationRequired,
+    #[error("LOAN_RATE_INVALID")]
+    RateInvalid,
+    #[error("LOAN_AMORTIZATION_INVALID")]
+    AmortizationInvalid,
+    #[error("LOAN_FIRST_PAYMENT_BEFORE_ORIGINATION")]
+    FirstPaymentBeforeOrigination,
+    #[error("LOAN_MATURITY_BEFORE_ORIGINATION")]
+    MaturityBeforeOrigination,
+    #[error("LOAN_PAYMENT_AMOUNT_INVALID")]
+    PaymentAmountInvalid,
+    #[error("LOAN_PAYMENT_UNAVAILABLE")]
+    PaymentUnavailable,
+    #[error("LOAN_FIELDS_READ_ONLY")]
+    FieldsReadOnly,
+    #[error("LOAN_BALANCE_BEFORE_ORIGINATION")]
+    BalanceBeforeOrigination,
+    #[error("LOAN_PAYMENT_DUPLICATES_EVENT")]
+    PaymentDuplicatesEvent,
+    #[error("LOAN_EXTRA_ALREADY_LINKED")]
+    ExtraAlreadyLinked,
 }
 
 impl From<LoanError> for crate::errors::Error {
@@ -135,13 +161,8 @@ pub enum LoanAction {
         quote_id: String,
         replacement: Option<BalanceEdit>,
     },
-    /// Where payments are recorded and suggested, and the escrow usually in them.
-    #[serde(rename_all = "camelCase")]
-    SetPaymentAccount {
-        account_id: Option<String>,
-        #[serde(default)]
-        escrow_amount: Option<f64>,
-    },
+    /// The loan section of Edit loan details: amounts, dates and schedule.
+    SetTerms(LoanSetup),
     /// A dated change to the regular payment, as payments suggest.
     #[serde(rename_all = "camelCase")]
     ChangePayment {
@@ -150,9 +171,24 @@ pub enum LoanAction {
     },
 }
 
+/// Rule 15: a linked withdrawal that day for this amount already repaid it,
+/// unless it was a regular payment.
+fn linked_extra(
+    record: &LoanRecord,
+    calculated: &LoanCalculation,
+    date: NaiveDate,
+    amount: f64,
+) -> bool {
+    record.payments.iter().any(|p| {
+        p.date == date
+            && money(p.amount) == money(amount)
+            && !is_regular_payment(p, &calculated.allocations)
+    })
+}
+
 fn origination(metadata: &Value) -> Option<NaiveDate> {
     metadata
-        .get("origination_date")
+        .get(ORIGINATION_DATE_KEY)
         .and_then(Value::as_str)
         .and_then(|s| s.parse().ok())
 }
@@ -190,7 +226,11 @@ fn renewable(metadata: &Value) -> bool {
 }
 
 impl LoanRecord {
-    fn calculation(&self, metadata: &Value, as_of: NaiveDate) -> Option<LoanCalculation> {
+    pub(super) fn calculation(
+        &self,
+        metadata: &Value,
+        as_of: NaiveDate,
+    ) -> Option<LoanCalculation> {
         calculate_loan(&LoanCalculationRequest {
             metadata: metadata.clone(),
             balances: self.balances.iter().map(LoanBalance::from).collect(),
@@ -259,7 +299,7 @@ fn settings_on(metadata: &Value, date: NaiveDate) -> Option<(LoanFrequency, Inte
     Some((frequency, method))
 }
 
-fn with_entries(metadata: &Value, entries: Vec<Value>) -> Value {
+pub(super) fn with_entries(metadata: &Value, entries: Vec<Value>) -> Value {
     let mut next = metadata.clone();
     // Stored as JSON text, as the metadata API has always written it.
     next[LOAN_EVENTS_KEY] = Value::String(Value::Array(entries).to_string());
@@ -410,6 +450,12 @@ pub fn apply_loan_action(
             if *amount <= 0.0 || *amount > at_date {
                 return Err(LoanError::AmountExceedsBalance);
             }
+            if calculated
+                .as_ref()
+                .is_some_and(|c| linked_extra(record, c, *date, *amount))
+            {
+                return Err(LoanError::ExtraAlreadyLinked);
+            }
             // Calculated loans record the repayment; manual ones record the new balance.
             if calculated.is_some() {
                 let event = checked(LoanEvent::ExtraRepayment {
@@ -551,8 +597,23 @@ pub fn apply_loan_action(
                 if LoanTerms::tracked(metadata).is_some() {
                     let without = change_event(metadata, *index, original, None)?;
                     let available = record.calculation(&without, *effective_date);
-                    if available.is_none_or(|c| *amount > c.current_balance) {
+                    if available
+                        .as_ref()
+                        .is_none_or(|c| *amount > c.current_balance)
+                    {
                         return Err(LoanError::AmountExceedsBalance);
+                    }
+                    let unchanged = matches!(
+                        original,
+                        LoanEvent::ExtraRepayment { effective_date: was, amount: had, .. }
+                            if was == effective_date && money(*had) == money(*amount)
+                    );
+                    if !unchanged
+                        && available
+                            .as_ref()
+                            .is_some_and(|c| linked_extra(record, c, *effective_date, *amount))
+                    {
+                        return Err(LoanError::ExtraAlreadyLinked);
                     }
                 }
             }
@@ -593,36 +654,16 @@ pub fn apply_loan_action(
                 update.delete_balances.push(original.id.clone());
             }
         }
-        LoanAction::SetPaymentAccount {
-            account_id,
-            escrow_amount,
-        } => {
-            if LoanTerms::active(metadata).is_none() {
-                return Err(LoanError::Invalid);
-            }
-            if account_id
+        LoanAction::SetTerms(setup) => {
+            if setup
+                .schedule
                 .as_ref()
+                .and_then(|schedule| schedule.payment_account_id.as_ref())
                 .is_some_and(|id| !record.payment_accounts.contains(id))
             {
                 return Err(LoanError::PaymentAccountInvalid);
             }
-            if escrow_amount.is_some_and(|escrow| !valid_amount(escrow)) {
-                return Err(LoanError::Invalid);
-            }
-            let mut next = metadata.clone();
-            set_or_remove(
-                &mut next,
-                PAYMENT_ACCOUNT_KEY,
-                account_id.clone().map(Value::String),
-            );
-            set_or_remove(
-                &mut next,
-                ESCROW_AMOUNT_KEY,
-                escrow_amount
-                    .filter(|escrow| money(*escrow) > 0.0)
-                    .map(|escrow| Value::String(money(escrow).to_string())),
-            );
-            update.metadata = Some(next);
+            update.metadata = Some(apply_loan_setup(metadata, setup)?);
         }
         LoanAction::ChangePayment {
             date,
@@ -643,7 +684,7 @@ pub fn apply_loan_action(
     Ok(update)
 }
 
-fn set_or_remove(metadata: &mut Value, key: &str, value: Option<Value>) {
+pub(super) fn set_or_remove(metadata: &mut Value, key: &str, value: Option<Value>) {
     match value {
         Some(value) => metadata[key] = value,
         None => {

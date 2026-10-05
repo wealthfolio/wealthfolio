@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
-import { calculateLoan, getLoanPayments } from "@/adapters";
-import type { LoanPayment } from "@/adapters/shared/alternative-assets";
+import { calculateLoan, getLoanPayments, previewLoanTerms } from "@/adapters";
+import type { LoanPayment, LoanSetup } from "@/adapters/shared/alternative-assets";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { formatZonedDateKey } from "@/features/spending/lib/timezone";
 import { QueryKeys } from "@/lib/query-keys";
 import { useSettingsContext } from "@/lib/settings-provider";
@@ -101,5 +102,20 @@ export function useLoanCalculation(
     // Only with the payments read: a failed read is not an empty list, and the
     // holding's own value, which counts them, stays in place.
     enabled: calculated && payments.isSuccess,
+  });
+}
+
+/**
+ * What a loan setup works out to, from the backend rules that save it. Typing is
+ * debounced; `assetId` names the loan being edited, null for a new one.
+ */
+export function useLoanSchedulePreview(assetId: string | null, setup: LoanSetup | null) {
+  // Forms rebuild the setup on every render; its text only changes with the input.
+  const entered = useDebouncedValue(setup?.schedule ? JSON.stringify(setup) : null, 300);
+  return useQuery({
+    queryKey: [QueryKeys.ASSET_DATA, assetId ?? "new", "loan-preview", entered],
+    queryFn: () => previewLoanTerms(assetId, JSON.parse(entered!) as LoanSetup),
+    enabled: entered !== null,
+    retry: false,
   });
 }

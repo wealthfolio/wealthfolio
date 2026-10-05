@@ -7,12 +7,14 @@ use rust_decimal::Decimal;
 use serde_json::json;
 use wealthfolio_core::activities::ActivityRepositoryTrait;
 use wealthfolio_core::assets::loan::{
-    event_entries, BalanceEdit, LoanAction, LoanEvent, LoanFrequency, LoanRecord, LoanUpdate,
-    PaymentLink, PaymentTarget, PAYMENT_ACCOUNT_KEY, RENEWAL_MATURITY_KEY,
+    event_entries, BalanceEdit, LoanAction, LoanEvent, LoanFrequency, LoanRecord, LoanSchedule,
+    LoanSetup, LoanTerms, LoanUpdate, PaymentLink, PaymentTarget, PAYMENT_ACCOUNT_KEY,
+    RENEWAL_MATURITY_KEY,
 };
 use wealthfolio_core::assets::{
     AlternativeAssetRepositoryTrait, AlternativeAssetService, AlternativeAssetServiceTrait,
-    AssetKind, AssetRepositoryTrait, NewAsset, QuoteMode,
+    AssetKind, AssetRepositoryTrait, CreateAlternativeAssetRequest, NewAsset, QuoteMode,
+    UpdateAssetDetailsRequest,
 };
 use wealthfolio_core::events::{DomainEvent, MockDomainEventSink};
 use wealthfolio_core::quotes::{Quote, QuoteService, QuoteServiceTrait};
@@ -446,6 +448,7 @@ async fn linking_a_withdrawal_makes_it_a_payment_and_unlinking_undoes_it() {
                 loan_id: "mortgage".into(),
                 escrow: None,
                 applies_to: Some(PaymentTarget::Extra),
+                replace_event: false,
             },
         )
         .await
@@ -512,6 +515,7 @@ async fn a_withdrawal_that_cannot_pay_the_loan_is_not_linked() {
                 loan_id: "mortgage".into(),
                 escrow: None,
                 applies_to: None,
+                replace_event: false,
             },
         )
         .await
@@ -523,17 +527,34 @@ async fn a_withdrawal_that_cannot_pay_the_loan_is_not_linked() {
         .is_none());
 }
 
+/// The fixture loan's terms as entered in Edit loan details.
+fn loan_setup(account: Option<&str>) -> LoanSetup {
+    LoanSetup {
+        original_amount: Some(5_000.0),
+        origination_date: NaiveDate::from_ymd_opt(2026, 1, 1),
+        interest_rate: Some(0.0),
+        schedule: Some(LoanSchedule {
+            frequency: LoanFrequency::Monthly,
+            interest_method: Default::default(),
+            first_payment_date: NaiveDate::from_ymd_opt(2026, 2, 1),
+            amortization_months: None,
+            last_payment_date: NaiveDate::from_ymd_opt(2030, 1, 1),
+            payment_amount: Some(100.0),
+            renewal_maturity: None,
+            payment_account_id: account.map(str::to_string),
+            escrow_amount: None,
+        }),
+    }
+}
+
 #[tokio::test]
 async fn only_a_cash_account_in_the_loans_currency_can_be_paid_from() {
     let loan = fixture().await;
     loan.add_account("chequing", "CASH");
     loan.add_account("card", "CREDIT_CARD");
-    let set = |account: &str| LoanAction::SetPaymentAccount {
-        account_id: Some(account.into()),
-        escrow_amount: None,
-    };
+    let set = |account: Option<&str>| LoanAction::SetTerms(loan_setup(account));
     loan.service
-        .apply_loan_action("mortgage", set("chequing"))
+        .apply_loan_action("mortgage", set(Some("chequing")))
         .await
         .unwrap();
     assert_eq!(loan.metadata()[PAYMENT_ACCOUNT_KEY], "chequing");
@@ -546,7 +567,7 @@ async fn only_a_cash_account_in_the_loans_currency_can_be_paid_from() {
     for account in ["card", "usd", "closed", "inactive", "missing"] {
         let refused = loan
             .service
-            .apply_loan_action("mortgage", set(account))
+            .apply_loan_action("mortgage", set(Some(account)))
             .await
             .unwrap_err();
         assert_eq!(
@@ -557,16 +578,144 @@ async fn only_a_cash_account_in_the_loans_currency_can_be_paid_from() {
     }
     assert_eq!(loan.metadata()[PAYMENT_ACCOUNT_KEY], "chequing");
     loan.service
-        .apply_loan_action(
-            "mortgage",
-            LoanAction::SetPaymentAccount {
-                account_id: None,
-                escrow_amount: None,
-            },
-        )
+        .apply_loan_action("mortgage", set(None))
         .await
         .unwrap();
     assert!(loan.metadata().get(PAYMENT_ACCOUNT_KEY).is_none());
+}
+
+#[tokio::test]
+async fn the_general_details_update_refuses_loan_fields_and_writes_nothing() {
+    let loan = fixture().await;
+    let before = loan.metadata();
+    let update = |key: &str, value: &str| UpdateAssetDetailsRequest {
+        asset_id: "mortgage".into(),
+        name: Some("Renamed".into()),
+        notes: None,
+        metadata: Some([(key.to_string(), Some(value.to_string()))].into()),
+    };
+    for key in [
+        "interest_rate",
+        "loan_projection",
+        "tracking_mode",
+        "loan_events",
+    ] {
+        let refused = loan
+            .service
+            .update_asset_details(update(key, "x"))
+            .await
+            .unwrap_err();
+        assert_eq!(refused.to_string(), "LOAN_FIELDS_READ_ONLY", "{key}");
+    }
+    assert_eq!(loan.metadata(), before);
+    assert_eq!(
+        loan.assets.get_by_id("mortgage").unwrap().name.as_deref(),
+        Some("Mortgage")
+    );
+    // Other details still save there.
+    loan.service
+        .update_asset_details(update("sub_type", "heloc"))
+        .await
+        .unwrap();
+    assert_eq!(loan.metadata()["sub_type"], "heloc");
+}
+
+#[tokio::test]
+async fn creating_a_liability_takes_its_loan_from_a_setup() {
+    let loan = fixture().await;
+    let liabilities = || {
+        loan.assets
+            .list()
+            .unwrap()
+            .into_iter()
+            .filter(|asset| asset.kind == AssetKind::Liability)
+            .count()
+    };
+    let origination = NaiveDate::from_ymd_opt(2026, 1, 1).unwrap();
+    let create = |metadata: serde_json::Value, setup: LoanSetup, value_date: NaiveDate| {
+        CreateAlternativeAssetRequest {
+            kind: AssetKind::Liability,
+            name: "Car loan".into(),
+            currency: "CAD".into(),
+            current_value: Decimal::new(20_000, 0),
+            value_date,
+            purchase_price: None,
+            purchase_date: None,
+            metadata: Some(metadata),
+            linked_asset_id: None,
+            loan: Some(setup),
+        }
+    };
+    let solved = || {
+        let mut setup = loan_setup(None);
+        setup.original_amount = Some(20_000.0);
+        setup.interest_rate = Some(6.0);
+        let schedule = setup.schedule.as_mut().unwrap();
+        schedule.payment_amount = None;
+        schedule.last_payment_date = None;
+        schedule.amortization_months = Some(60);
+        setup
+    };
+    let before = liabilities();
+    let refusals = [
+        (
+            create(json!({ "loan_projection": "{}" }), solved(), origination),
+            "LOAN_FIELDS_READ_ONLY",
+        ),
+        (
+            create(json!({}), solved(), origination.pred_opt().unwrap()),
+            "LOAN_BALANCE_BEFORE_ORIGINATION",
+        ),
+        (
+            create(json!({}), loan_setup(Some("chequing")), origination),
+            "LOAN_PAYMENT_ACCOUNT_INVALID",
+        ),
+        (
+            create(
+                json!({}),
+                LoanSetup {
+                    interest_rate: Some(101.0),
+                    ..solved()
+                },
+                origination,
+            ),
+            "LOAN_RATE_INVALID",
+        ),
+    ];
+    for (request, code) in refusals {
+        let refused = loan
+            .service
+            .create_alternative_asset(request)
+            .await
+            .unwrap_err();
+        assert_eq!(refused.to_string(), code);
+    }
+    assert_eq!(liabilities(), before, "a refused creation writes nothing");
+
+    let created = loan
+        .service
+        .create_alternative_asset(create(
+            json!({ "sub_type": "auto_loan" }),
+            solved(),
+            origination,
+        ))
+        .await
+        .unwrap();
+    let metadata = loan
+        .assets
+        .get_by_id(&created.asset_id)
+        .unwrap()
+        .metadata
+        .unwrap();
+    assert_eq!(metadata["sub_type"], "auto_loan");
+    assert_eq!(metadata["original_amount"], "20000");
+    assert_eq!(metadata["origination_date"], "2026-01-01");
+    let terms = LoanTerms::read(&metadata).unwrap();
+    assert_eq!(
+        terms.amortization_end_date,
+        NaiveDate::from_ymd_opt(2031, 1, 1)
+    );
+    assert!(terms.payment_amount > 0.0, "the payment is solved");
 }
 
 #[tokio::test]
@@ -581,4 +730,72 @@ async fn deleting_the_loan_untags_its_payments_and_keeps_the_withdrawals() {
     let metadata = loan.activity_metadata("pay");
     assert!(metadata.get("loan_payment").is_none());
     assert_eq!(metadata["flow"]["is_external"], true);
+}
+
+#[tokio::test]
+async fn replacing_a_recorded_extra_repayment_with_its_withdrawal_counts_it_once() {
+    let loan = fixture().await;
+    loan.add_account("chequing", "CASH");
+    // Regular payments carry escrow; the replaced extra repayment does not.
+    let mut setup = loan_setup(None);
+    setup.schedule.as_mut().unwrap().escrow_amount = Some(50.0);
+    loan.service
+        .apply_loan_action("mortgage", LoanAction::SetTerms(setup))
+        .await
+        .unwrap();
+    // Mid-month, away from any instalment.
+    let day = NaiveDate::from_ymd_opt(2026, 3, 15).unwrap();
+    loan.service
+        .apply_loan_action(
+            "mortgage",
+            LoanAction::ExtraRepayment {
+                date: day,
+                amount: 600.0,
+            },
+        )
+        .await
+        .unwrap();
+    let with_event = loan.holding_balance();
+    loan.add_withdrawal("pay", "chequing", "2026-03-15", "600", None);
+    let link = |replace_event| PaymentLink::Link {
+        loan_id: "mortgage".into(),
+        escrow: None,
+        applies_to: None,
+        replace_event,
+    };
+
+    let refused = loan
+        .service
+        .link_loan_payment("pay", link(false))
+        .await
+        .unwrap_err();
+    assert_eq!(refused.to_string(), "LOAN_PAYMENT_DUPLICATES_EVENT");
+    assert!(loan.activity_metadata("pay").get("loan_payment").is_none());
+    assert_eq!(event_entries(&loan.metadata()).len(), 1);
+
+    loan.service
+        .link_loan_payment("pay", link(true))
+        .await
+        .unwrap();
+    assert!(event_entries(&loan.metadata()).is_empty());
+    assert_eq!(
+        loan.activity_metadata("pay")["loan_payment"]["applies_to"],
+        "extra"
+    );
+    // The same 600 now comes from the withdrawal instead of the event.
+    assert_eq!(loan.holding_balance(), with_event);
+
+    // Recording it again as an event is refused: the withdrawal already paid it.
+    let again = loan
+        .service
+        .apply_loan_action(
+            "mortgage",
+            LoanAction::ExtraRepayment {
+                date: day,
+                amount: 600.0,
+            },
+        )
+        .await
+        .unwrap_err();
+    assert_eq!(again.to_string(), "LOAN_EXTRA_ALREADY_LINKED");
 }

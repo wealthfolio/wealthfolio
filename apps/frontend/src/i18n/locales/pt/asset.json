@@ -1000,6 +1000,20 @@
     "applies_to": "Aplica-se a",
     "applies_instalment": "A prestação perto da sua data",
     "applies_extra": "Capital extra",
-    "escrow_default": "O valor habitual do empréstimo"
+    "escrow_default": "O valor habitual do empréstimo",
+    "duplicates_event": "Já existe uma amortização adicional deste valor registada neste dia. Se este levantamento é essa amortização, use-o em vez dela para que conte uma só vez.",
+    "replace_event": "Usar este levantamento em vez disso",
+    "extra_already_linked": "Um levantamento associado já amortizou este valor neste dia.",
+    "extra_already_recorded": "Já existe uma amortização adicional deste valor registada neste dia."
+  },
+  "loanSetup": {
+    "amount_required": "Insira um valor original maior que zero.",
+    "origination_required": "Insira a data de originação.",
+    "rate_invalid": "Insira uma taxa de juros entre 0 e 100.",
+    "amortization_invalid": "Insira uma amortização que termine no primeiro pagamento ou depois.",
+    "maturity_after_origination": "O vencimento da renovação deve ser após a data de originação.",
+    "payment_invalid": "Insira um pagamento maior que zero.",
+    "payment_unavailable": "Não é possível calcular um pagamento com estas condições. Verifique o valor, a taxa e a amortização.",
+    "fields_read_only": "As condições do empréstimo só podem ser alteradas nos detalhes do empréstimo."
   }
 }

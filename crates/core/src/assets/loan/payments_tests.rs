@@ -403,3 +403,34 @@ fn tags_serialize_only_what_they_say() {
         json!({"loan_id": "loan"})
     );
 }
+
+#[test]
+fn the_payment_on_a_due_date_covers_an_extra_recorded_for_that_day() {
+    // March's 100.00 instalment with an extra repayment recorded the same day:
+    // however the money was withdrawn, the extra counts once.
+    let with_extra = |extra: f64, payments: Vec<LoanPayment>| {
+        let mut request = monthly(payments);
+        request.metadata["loan_events"] =
+            json!([{ "type": "extra_repayment", "effectiveDate": "2026-03-01", "amount": extra }]);
+        calc(&request)
+    };
+    // One withdrawal for both.
+    let combined = with_extra(40.0, vec![pay("both", "2026-03-01", 140.0)]);
+    assert_eq!(combined.current_balance, 660.0);
+    assert_eq!(
+        status(&combined, "2026-03-01"),
+        Some(InstalmentStatus::Paid)
+    );
+    // The extra and the instalment withdrawn separately.
+    let split = with_extra(
+        40.0,
+        vec![pay("w", "2026-03-01", 40.0), pay("r", "2026-03-01", 100.0)],
+    );
+    assert_eq!(split.current_balance, 660.0);
+    // A double-up of the same amount.
+    let double = with_extra(
+        100.0,
+        vec![pay("a", "2026-03-01", 100.0), pay("u", "2026-03-01", 100.0)],
+    );
+    assert_eq!(double.current_balance, 600.0);
+}
