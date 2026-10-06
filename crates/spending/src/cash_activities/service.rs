@@ -1457,14 +1457,6 @@ mod tests {
                 })
         }
 
-        fn find_transfer_counterpart(
-            &self,
-            _: &str,
-            _: &str,
-        ) -> wealthfolio_core::Result<Option<Activity>> {
-            Ok(None)
-        }
-
         fn get_activities(&self) -> wealthfolio_core::Result<Vec<Activity>> {
             Ok(self.activities.clone())
         }

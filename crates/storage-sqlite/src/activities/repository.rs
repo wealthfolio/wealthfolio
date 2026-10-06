@@ -694,22 +694,6 @@ impl ActivityRepositoryTrait for ActivityRepository {
         Ok(Activity::from(activity_db))
     }
 
-    fn find_transfer_counterpart(
-        &self,
-        group_id: &str,
-        exclude_id: &str,
-    ) -> Result<Option<Activity>> {
-        let mut conn = get_connection(&self.pool)?;
-        let result = activities::table
-            .select(ActivityDB::as_select())
-            .filter(activities::source_group_id.eq(group_id))
-            .filter(activities::id.ne(exclude_id))
-            .first::<ActivityDB>(&mut conn)
-            .optional()
-            .map_err(StorageError::from)?;
-        Ok(result.map(Activity::from))
-    }
-
     fn get_trading_activities(&self) -> Result<Vec<Activity>> {
         let mut conn = get_connection(&self.pool)?;
 

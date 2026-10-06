@@ -3686,14 +3686,6 @@ mod tests {
             unimplemented!("unused in this test")
         }
 
-        fn find_transfer_counterpart(
-            &self,
-            _group_id: &str,
-            _exclude_id: &str,
-        ) -> Result<Option<Activity>> {
-            Ok(None)
-        }
-
         fn get_activities(&self) -> Result<Vec<Activity>> {
             unimplemented!("unused in this test")
         }

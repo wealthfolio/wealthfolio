@@ -10,12 +10,6 @@ use std::collections::{HashMap, HashSet};
 #[async_trait]
 pub trait ActivityRepositoryTrait: Send + Sync {
     fn get_activity(&self, activity_id: &str) -> Result<Activity>;
-    /// Returns the other activity sharing `group_id`, excluding `exclude_id`.
-    fn find_transfer_counterpart(
-        &self,
-        group_id: &str,
-        exclude_id: &str,
-    ) -> Result<Option<Activity>>;
     fn get_activities(&self) -> Result<Vec<Activity>>;
     fn get_activities_by_ids(&self, activity_ids: &[String]) -> Result<Vec<Activity>> {
         if activity_ids.is_empty() {

@@ -310,13 +310,6 @@ mod tests {
         fn get_activity(&self, _: &str) -> Result<Activity> {
             unimplemented!()
         }
-        fn find_transfer_counterpart(
-            &self,
-            _group_id: &str,
-            _exclude_id: &str,
-        ) -> Result<Option<Activity>> {
-            Ok(None)
-        }
         fn get_activities(&self) -> Result<Vec<Activity>> {
             unimplemented!()
         }

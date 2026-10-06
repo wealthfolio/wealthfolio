@@ -1384,18 +1384,6 @@ pub(crate) mod tests {
                 .ok_or_else(|| Error::Unexpected("Activity not found".to_string()))
         }
 
-        fn find_transfer_counterpart(
-            &self,
-            group_id: &str,
-            exclude_id: &str,
-        ) -> Result<Option<Activity>> {
-            let activities = self.activities.lock().unwrap();
-            Ok(activities
-                .iter()
-                .find(|a| a.source_group_id.as_deref() == Some(group_id) && a.id != exclude_id)
-                .cloned())
-        }
-
         fn get_activities(&self) -> Result<Vec<Activity>> {
             Ok(self.activities.lock().unwrap().clone())
         }
@@ -13905,6 +13893,67 @@ pub(crate) mod tests {
             counterpart.activity_type, "TRANSFER_IN",
             "activity_type not changed"
         );
+    }
+
+    #[tokio::test]
+    async fn update_leaves_other_activities_of_its_source_group_alone() {
+        // Broker sync can group rows that are not a linked transfer pair,
+        // such as a deposit and its fee: editing one must not copy onto the
+        // other.
+        let account_service = Arc::new(MockAccountService::new());
+        account_service.add_account(create_test_account("acc-1", "USD"));
+        let activity_repository = Arc::new(MockActivityRepository::new());
+        let mut deposit = create_stored_activity("deposit-1", "acc-1", None);
+        deposit.activity_type = "DEPOSIT".to_string();
+        deposit.quantity = None;
+        deposit.unit_price = None;
+        deposit.source_group_id = Some("broker-group".to_string());
+        let mut fee = deposit.clone();
+        fee.id = "fee-1".to_string();
+        fee.activity_type = "FEE".to_string();
+        fee.amount = Some(dec!(5));
+        fee.notes = Some("broker fee".to_string());
+        fee.activity_date = DateTime::parse_from_rfc3339("2024-01-10T00:00:00Z")
+            .unwrap()
+            .with_timezone(&Utc);
+        activity_repository.add_activity(deposit);
+        activity_repository.add_activity(fee);
+        let activity_service = ActivityService::new(
+            activity_repository.clone(),
+            account_service,
+            Arc::new(MockAssetService::new()),
+            Arc::new(MockFxService::new()),
+            Arc::new(MockQuoteService),
+        );
+        let stored_fee =
+            || serde_json::to_value(activity_repository.get_activity("fee-1").unwrap()).unwrap();
+        let fee_before = stored_fee();
+
+        let updated = activity_service
+            .update_activity(ActivityUpdate {
+                id: "deposit-1".to_string(),
+                account_id: "acc-1".to_string(),
+                asset: None,
+                activity_type: "DEPOSIT".to_string(),
+                subtype: None,
+                activity_date: "2024-02-01T00:00:00Z".to_string(),
+                quantity: None,
+                unit_price: None,
+                currency: "EUR".to_string(),
+                fee: None,
+                tax: None,
+                amount: Some(Some(dec!(150))),
+                status: None,
+                needs_review: None,
+                notes: Some("corrected".to_string()),
+                fx_rate: None,
+                metadata: None,
+            })
+            .await
+            .expect("update");
+
+        assert_eq!(updated.amount, Some(dec!(150)));
+        assert_eq!(stored_fee(), fee_before);
     }
 
     #[tokio::test]

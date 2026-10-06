@@ -2312,21 +2312,6 @@ mod tests {
                 .ok_or_else(|| CoreError::Repository(format!("Activity not found: {activity_id}")))
         }
 
-        fn find_transfer_counterpart(
-            &self,
-            group_id: &str,
-            exclude_id: &str,
-        ) -> Result<Option<Activity>> {
-            Ok(self
-                .activities
-                .iter()
-                .find(|activity| {
-                    activity.source_group_id.as_deref() == Some(group_id)
-                        && activity.id != exclude_id
-                })
-                .cloned())
-        }
-
         fn get_activities(&self) -> Result<Vec<Activity>> {
             Ok(self.activities.clone())
         }

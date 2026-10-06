@@ -4836,39 +4836,9 @@ impl ActivityServiceTrait for ActivityService {
         }
         currencies_set.insert(updated.currency.clone());
 
-        // Propagate date/amount/currency/notes to the transfer counterpart if linked
-        if let Some(ref group_id) = updated.source_group_id {
-            if let Some(counterpart) = self
-                .activity_repository
-                .find_transfer_counterpart(group_id, &updated.id)?
-            {
-                let cp_update = ActivityUpdate {
-                    id: counterpart.id.clone(),
-                    account_id: counterpart.account_id.clone(),
-                    asset: None,
-                    activity_type: counterpart.activity_type.clone(),
-                    subtype: None,
-                    activity_date: updated.activity_date.to_rfc3339(),
-                    quantity: None,
-                    unit_price: None,
-                    currency: updated.currency.clone(),
-                    fee: None,
-                    tax: None,
-                    amount: Some(updated.amount),
-                    status: Some(counterpart.status.clone()),
-                    needs_review: None,
-                    notes: updated.notes.clone(),
-                    fx_rate: None,
-                    metadata: None,
-                };
-                let cp_updated = self.activity_repository.update_activity(cp_update).await?;
-                account_ids_set.insert(cp_updated.account_id.clone());
-                if let Some(ref aid) = cp_updated.asset_id {
-                    asset_ids_set.insert(aid.clone());
-                }
-                currencies_set.insert(cp_updated.currency.clone());
-            }
-        }
+        // Only a linked pair's other leg is kept in step (above). Other rows
+        // sharing the source group, such as a broker's fee row, stay as they
+        // are, as in `bulk_mutate_activities`.
 
         let account_ids: Vec<String> = account_ids_set.into_iter().collect();
         let asset_ids: Vec<String> = asset_ids_set.into_iter().collect();
