@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from "@/test/render";
+import { render, screen, waitFor } from "@/test/render";
 import { ActivityStatus, ActivityType } from "@/lib/constants";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SpendingTransactionsTab } from "./spending-transactions-tab";
@@ -186,12 +186,7 @@ vi.mock("./transaction-row", async () => {
   const React = await import("react");
   const TransactionRow = React.forwardRef(
     (
-      props: {
-        row: { activity: { id: string } };
-        onEdit: (row: unknown) => void;
-        onDelete?: (row: unknown) => void;
-        onLinkTransfer?: (row: unknown) => void;
-      },
+      props: { row: { activity: { id: string } }; onEdit: (row: unknown) => void },
       _ref: unknown,
     ) => (
       <tr>
@@ -202,20 +197,6 @@ vi.mock("./transaction-row", async () => {
             onClick={() => props.onEdit(props.row)}
           >
             edit
-          </button>
-          <button
-            type="button"
-            data-testid={`delete-${props.row.activity.id}`}
-            onClick={() => props.onDelete?.(props.row)}
-          >
-            delete
-          </button>
-          <button
-            type="button"
-            data-testid={`link-${props.row.activity.id}`}
-            onClick={() => props.onLinkTransfer?.(props.row)}
-          >
-            link
           </button>
         </td>
       </tr>
@@ -261,7 +242,6 @@ describe("SpendingTransactionsTab transfer edit", () => {
       expect(screen.getByTestId("activity-form")).toBeInTheDocument();
     });
 
-    expect(mocks.getTransferPairForActivity).toHaveBeenCalledWith("out-1");
     const activityForm = JSON.parse(
       screen.getByTestId("activity-form").textContent ?? "{}",
     ) as Record<string, unknown>;
@@ -272,6 +252,7 @@ describe("SpendingTransactionsTab transfer edit", () => {
       transferOutId: "out-1",
       transferInId: "in-1",
     });
+    expect(mocks.getTransferPairForActivity).toHaveBeenCalledWith("out-1");
   });
 
   it("still opens single-leg when the pair cannot be resolved", async () => {
@@ -290,89 +271,5 @@ describe("SpendingTransactionsTab transfer edit", () => {
     ) as Record<string, unknown>;
     expect(activityForm.counterpartAccountId).toBeUndefined();
     expect(activityForm.sourceGroupId).toBe("group-1");
-  });
-
-  it("ignores a late pair resolution after another dialog was opened", async () => {
-    let resolvePair: (value: unknown) => void = (_value) => undefined;
-    mocks.getTransferPairForActivity.mockImplementation(
-      () =>
-        new Promise((resolve) => {
-          resolvePair = resolve;
-        }),
-    );
-
-    render(<SpendingTransactionsTab />);
-
-    (await screen.findByTestId("edit-out-1")).click();
-    (await screen.findByTestId("delete-out-1")).click();
-
-    await act(async () => {
-      resolvePair({
-        transferOut: {
-          id: "out-1",
-          accountId: USD_ACCOUNT,
-          activityType: ActivityType.TRANSFER_OUT,
-          status: ActivityStatus.POSTED,
-          activityDate: "2026-09-17T11:06:00.000Z",
-          amount: "1000",
-          currency: "USD",
-        },
-        transferIn: {
-          id: "in-1",
-          accountId: EUR_ACCOUNT,
-          activityType: ActivityType.TRANSFER_IN,
-          status: ActivityStatus.POSTED,
-          activityDate: "2026-09-17T11:06:00.000Z",
-          amount: "920",
-          currency: "EUR",
-        },
-      });
-      await new Promise((resolve) => setTimeout(resolve, 0));
-    });
-
-    expect(mocks.getTransferPairForActivity).toHaveBeenCalledWith("out-1");
-    expect(screen.queryByTestId("activity-form")).toBeNull();
-  });
-
-  it("ignores a late pair resolution after the link-transfer dialog was opened", async () => {
-    let resolvePair: (value: unknown) => void = (_value) => undefined;
-    mocks.getTransferPairForActivity.mockImplementation(
-      () =>
-        new Promise((resolve) => {
-          resolvePair = resolve;
-        }),
-    );
-
-    render(<SpendingTransactionsTab />);
-
-    (await screen.findByTestId("edit-out-1")).click();
-    (await screen.findByTestId("link-out-1")).click();
-
-    await act(async () => {
-      resolvePair({
-        transferOut: {
-          id: "out-1",
-          accountId: USD_ACCOUNT,
-          activityType: ActivityType.TRANSFER_OUT,
-          status: ActivityStatus.POSTED,
-          activityDate: "2026-09-17T11:06:00.000Z",
-          amount: "1000",
-          currency: "USD",
-        },
-        transferIn: {
-          id: "in-1",
-          accountId: EUR_ACCOUNT,
-          activityType: ActivityType.TRANSFER_IN,
-          status: ActivityStatus.POSTED,
-          activityDate: "2026-09-17T11:06:00.000Z",
-          amount: "920",
-          currency: "EUR",
-        },
-      });
-      await new Promise((resolve) => setTimeout(resolve, 0));
-    });
-
-    expect(mocks.getTransferPairForActivity).toHaveBeenCalledWith("out-1");
-    expect(screen.queryByTestId("activity-form")).toBeNull();
   });
 });

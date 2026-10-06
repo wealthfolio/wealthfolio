@@ -1,18 +1,8 @@
-import { getTransferPairForActivity } from "@/adapters";
 import { ActivityType } from "@/lib/constants";
 import type { ActivityDetails } from "@/lib/types";
 import { useCallback, useState } from "react";
+import { attachTransferCounterpart, isLinkedInternalTransfer } from "../utils/transfer-counterpart";
 import { useActivityMutations } from "./use-activity-mutations";
-
-function isInternalTransfer(activity: ActivityDetails): boolean {
-  return (
-    (activity.activityType === ActivityType.TRANSFER_IN ||
-      activity.activityType === ActivityType.TRANSFER_OUT) &&
-    !!activity.sourceGroupId &&
-    ((activity.metadata?.flow as { is_external?: boolean } | undefined)?.is_external ?? false) !==
-      true
-  );
-}
 
 export function useActivityActionDialogs() {
   const [selectedActivity, setSelectedActivity] = useState<Partial<ActivityDetails> | undefined>();
@@ -23,29 +13,10 @@ export function useActivityActionDialogs() {
   const { mutateAsync: duplicateActivityAsync } = duplicateActivityMutation;
 
   const openForm = useCallback(async (activity?: ActivityDetails, activityType?: ActivityType) => {
-    if (activity?.id && isInternalTransfer(activity)) {
-      try {
-        const pair = await getTransferPairForActivity(activity.id);
-        if (pair) {
-          const counterpart =
-            activity.activityType === ActivityType.TRANSFER_IN ? pair.transferOut : pair.transferIn;
-
-          setSelectedActivity({
-            ...activity,
-            transferOutId: pair.transferOut.id,
-            transferInId: pair.transferIn.id,
-            counterpartActivityId: counterpart.id,
-            counterpartAccountId: counterpart.accountId,
-            counterpartAmount: counterpart.amount ?? null,
-            counterpartCurrency: counterpart.currency,
-            counterpartFxRate: pair.transferIn.fxRate ?? null,
-          });
-          setFormOpen(true);
-          return;
-        }
-      } catch {
-        // Fall back to single-leg editing for invalid groups.
-      }
+    if (activity?.id && isLinkedInternalTransfer(activity)) {
+      setSelectedActivity(await attachTransferCounterpart(activity));
+      setFormOpen(true);
+      return;
     }
 
     setSelectedActivity(activity ?? { activityType });

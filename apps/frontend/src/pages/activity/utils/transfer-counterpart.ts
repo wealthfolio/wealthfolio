@@ -4,8 +4,8 @@ import type { ActivityDetails, InternalTransferPairResponse } from "@/lib/types"
 
 /**
  * A linked internal transfer leg only knows its counterpart once the pair has
- * been resolved. Callers that open the edit form from a bare activity (the
- * Spending tab) must enrich it first, or `TransferForm` renders an empty
+ * been resolved. Every caller that opens the edit form for an existing
+ * activity must enrich it first, or `TransferForm` renders an empty
  * "To Account" and the save rejects as unpaired — see
  * wealthfolio/wealthfolio#1563.
  *
@@ -24,7 +24,7 @@ export async function attachTransferCounterpart(
     pair = await getTransferPairForActivity(activity.id);
   } catch {
     // Orphaned/invalid groups resolve to null or throw. Fall back to
-    // single-leg editing, matching the behavior before this helper.
+    // single-leg editing.
     return activity;
   }
   if (!pair?.transferOut?.id || !pair?.transferIn?.id) {
@@ -57,10 +57,9 @@ export async function attachTransferCounterpart(
 
 /**
  * A transfer leg that is grouped and not explicitly external — i.e. one that
- * can have a counterpart to resolve. Mirrors the guard the original
- * Investments-path merge used.
+ * can have a counterpart to resolve.
  */
-function isLinkedInternalTransfer(activity: Partial<ActivityDetails>): boolean {
+export function isLinkedInternalTransfer(activity: Partial<ActivityDetails>): boolean {
   const isTransfer =
     activity.activityType === ActivityType.TRANSFER_IN ||
     activity.activityType === ActivityType.TRANSFER_OUT;
