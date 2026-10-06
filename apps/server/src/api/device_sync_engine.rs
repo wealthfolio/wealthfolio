@@ -593,7 +593,7 @@ pub(crate) async fn share_backup_access(state: &Arc<AppState>) {
             client
                 .share_access_best_effort(&token, state.secret_store.as_ref(), None)
                 .await;
-            state.backup_scheduler.wake();
+            state.backup_scheduler.request_check();
         }
     }
 }

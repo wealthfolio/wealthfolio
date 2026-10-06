@@ -285,5 +285,9 @@ mod tests {
             "a competing retry must not cancel the active capture"
         );
         assert_eq!(state.backup_scheduler.status().state, CaptureState::Running);
+        // Pairing/access sharing wakes the due timer without revoking a web capture.
+        state.backup_scheduler.request_check();
+        assert!(state.backup_scheduler.is_current(generation));
+        assert_eq!(state.backup_scheduler.status().state, CaptureState::Running);
     }
 }
