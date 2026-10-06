@@ -2771,6 +2771,7 @@ impl crate::assets::AlternativeAssetRepositoryTrait for TaggedPayments {
     fn loan_payments(
         &self,
         loan_ids: &[String],
+        _: chrono_tz::Tz,
     ) -> Result<HashMap<String, Vec<crate::assets::loan::LoanPayment>>> {
         Ok(self
             .0
@@ -2782,6 +2783,7 @@ impl crate::assets::AlternativeAssetRepositoryTrait for TaggedPayments {
     async fn update_loan(
         &self,
         _: &str,
+        _: chrono_tz::Tz,
         _: crate::assets::LoanChange,
     ) -> Result<crate::assets::loan::LoanUpdate> {
         unimplemented!("not used by net worth")
@@ -2790,6 +2792,7 @@ impl crate::assets::AlternativeAssetRepositoryTrait for TaggedPayments {
         &self,
         _: &str,
         _: Option<&str>,
+        _: chrono_tz::Tz,
         _: crate::assets::PaymentTagChange,
     ) -> Result<Option<crate::activities::Activity>> {
         unimplemented!("not used by net worth")
@@ -2818,10 +2821,13 @@ async fn tagged_loan_payments_count_in_net_worth_and_its_history() {
         vec![],
         vec![create_test_quote("LIAB-paid", dec!(1200), start, "USD")],
     )
-    .with_loan_payments(Arc::new(TaggedPayments(HashMap::from([(
-        "LIAB-paid".to_string(),
-        vec![payment],
-    )]))));
+    .with_loan_payments(
+        Arc::new(TaggedPayments(HashMap::from([(
+            "LIAB-paid".to_string(),
+            vec![payment],
+        )]))),
+        Arc::new(RwLock::new("UTC".to_string())),
+    );
     // The same figures as a recorded extra repayment of 200 on April 10.
     let current = service.get_net_worth(end).await.unwrap();
     let history = service.get_net_worth_history(start, end).unwrap();

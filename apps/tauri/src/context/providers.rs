@@ -613,7 +613,7 @@ async fn build_context(
             valuation_repository.clone(),
             fx_service.clone(),
         )
-        .with_loan_payments(alternative_asset_repository.clone()),
+        .with_loan_payments(alternative_asset_repository.clone(), timezone.clone()),
     );
 
     let alternative_asset_service = Arc::new(

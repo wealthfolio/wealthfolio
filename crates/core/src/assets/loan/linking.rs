@@ -3,10 +3,11 @@ use serde::Deserialize;
 use serde_json::{Map, Value};
 
 use chrono::NaiveDate;
+use chrono_tz::Tz;
 
 use super::actions::with_entries;
 use super::model::escrow_amount;
-use super::payments::{is_regular_payment, payment_amount_of};
+use super::payments::{is_regular_payment, payment_amount_of, payment_date};
 use super::{
     event_entries, money, valid_amount, LoanError, LoanEvent, LoanPayment, LoanPaymentTag,
     LoanRecord, LoanTerms, PaymentTarget, LOAN_PAYMENT_TAG_KEY,
@@ -53,12 +54,14 @@ impl PaymentLink {
 }
 
 /// The writes for linking or unlinking a withdrawal. Linking checks the
-/// withdrawal against the loan as stored; other metadata keys are kept.
+/// withdrawal against the loan as stored, dating it in `timezone` as the loan's
+/// payments are; other metadata keys are kept.
 pub fn link_payment(
     activity: &Activity,
     account_type: &str,
     loan: Option<&LoanRecord>,
     link: &PaymentLink,
+    timezone: Tz,
 ) -> Result<PaymentTagUpdate, LoanError> {
     let mut metadata = match &activity.metadata {
         Some(Value::Object(map)) => map.clone(),
@@ -94,7 +97,7 @@ pub fn link_payment(
             let payment = LoanPayment {
                 activity_id: activity.id.clone(),
                 account_id: activity.account_id.clone(),
-                date: activity.effective_date(),
+                date: payment_date(activity, timezone),
                 amount,
                 escrow,
                 applies_to: *applies_to,

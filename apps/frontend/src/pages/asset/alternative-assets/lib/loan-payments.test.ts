@@ -26,8 +26,11 @@ describe("withdrawals offered as loan payments", () => {
     ).toBe(false);
   });
 
-  it("dates a withdrawal by its UTC day, as the engine does", () => {
-    expect(activityDay(withdrawal())).toBe("2026-03-01");
+  it("dates a withdrawal by its day in the settings time zone, as the engine does", () => {
+    // 8 pm on March 1 in Toronto is already March 2 in UTC.
+    const evening = withdrawal({ date: new Date("2026-03-02T01:00:00Z") });
+    expect(activityDay(evening, "America/Toronto")).toBe("2026-03-01");
+    expect(activityDay(evening, "UTC")).toBe("2026-03-02");
   });
 });
 

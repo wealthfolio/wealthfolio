@@ -97,13 +97,18 @@ impl AlternativeAssetService {
         self
     }
 
-    fn today(&self) -> chrono::NaiveDate {
-        user_today(parse_user_timezone_or_default(
+    /// The settings time zone, which dates today and loan payments.
+    fn timezone(&self) -> chrono_tz::Tz {
+        parse_user_timezone_or_default(
             &self
                 .timezone
                 .read()
                 .unwrap_or_else(|poisoned| poisoned.into_inner()),
-        ))
+        )
+    }
+
+    fn today(&self) -> chrono::NaiveDate {
+        user_today(self.timezone())
     }
 
     /// Sets the domain event sink for this service.
@@ -647,6 +652,7 @@ impl AlternativeAssetServiceTrait for AlternativeAssetService {
                     .alternative_asset_repository
                     .update_loan(
                         &request.asset_id,
+                        self.timezone(),
                         Box::new(move |record| {
                             let edited = LoanRecord {
                                 metadata: merged_details(Some(&record.metadata), changes.as_ref())
@@ -718,6 +724,7 @@ impl AlternativeAssetServiceTrait for AlternativeAssetService {
             .alternative_asset_repository
             .update_loan(
                 asset_id,
+                self.timezone(),
                 Box::new(move |record| Ok(apply_loan_action(record, &action, today)?)),
             )
             .await?;
@@ -728,13 +735,15 @@ impl AlternativeAssetServiceTrait for AlternativeAssetService {
 
     async fn link_loan_payment(&self, activity_id: &str, link: PaymentLink) -> Result<()> {
         let loan_id = link.loan_id().map(str::to_string);
+        let timezone = self.timezone();
         let changed = self
             .alternative_asset_repository
             .update_payment_tag(
                 activity_id,
                 loan_id.as_deref(),
+                timezone,
                 Box::new(move |activity, account_type, loan| {
-                    Ok(link_payment(activity, account_type, loan, &link)?)
+                    Ok(link_payment(activity, account_type, loan, &link, timezone)?)
                 }),
             )
             .await?;
@@ -769,7 +778,7 @@ impl AlternativeAssetServiceTrait for AlternativeAssetService {
     fn get_loan_payments(&self, asset_id: &str) -> Result<Vec<LoanPayment>> {
         Ok(self
             .alternative_asset_repository
-            .loan_payments(&[asset_id.to_string()])?
+            .loan_payments(&[asset_id.to_string()], self.timezone())?
             .remove(asset_id)
             .unwrap_or_default())
     }
@@ -806,7 +815,9 @@ impl AlternativeAssetServiceTrait for AlternativeAssetService {
             .filter(|asset| asset.kind == AssetKind::Liability)
             .map(|asset| asset.id.clone())
             .collect();
-        let mut payments = self.alternative_asset_repository.loan_payments(&loan_ids)?;
+        let mut payments = self
+            .alternative_asset_repository
+            .loan_payments(&loan_ids, self.timezone())?;
         // One calculation per scheduled loan gives both its value and its card summary.
         let mut loan_values = std::collections::HashMap::new();
         let mut loan_summaries = std::collections::HashMap::new();
@@ -1333,6 +1344,7 @@ mod tests {
         async fn update_loan(
             &self,
             _asset_id: &str,
+            _timezone: chrono_tz::Tz,
             _change: crate::assets::LoanChange,
         ) -> Result<crate::assets::loan::LoanUpdate> {
             unimplemented!("not used in this test")
@@ -1341,6 +1353,7 @@ mod tests {
         fn loan_payments(
             &self,
             _loan_ids: &[String],
+            _timezone: chrono_tz::Tz,
         ) -> Result<HashMap<String, Vec<crate::assets::loan::LoanPayment>>> {
             Ok(HashMap::new())
         }
@@ -1349,6 +1362,7 @@ mod tests {
             &self,
             _activity_id: &str,
             _loan_id: Option<&str>,
+            _timezone: chrono_tz::Tz,
             _change: crate::assets::PaymentTagChange,
         ) -> Result<Option<crate::activities::Activity>> {
             unimplemented!("not used in this test")

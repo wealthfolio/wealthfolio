@@ -2,6 +2,7 @@
 //! split into the scheduled payment and extra principal (docs/architecture/loans.md,
 //! "Payments from an account").
 use chrono::NaiveDate;
+use chrono_tz::Tz;
 use rust_decimal::prelude::ToPrimitive;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -9,6 +10,7 @@ use serde_json::Value;
 use super::{money, LoanCalculation};
 use crate::accounts::account_types;
 use crate::activities::{Activity, ACTIVITY_TYPE_WITHDRAWAL};
+use crate::utils::time_utils::activity_date_in_tz;
 
 /// Activity metadata key holding a withdrawal's loan payment tag.
 pub const LOAN_PAYMENT_TAG_KEY: &str = "loan_payment";
@@ -100,12 +102,18 @@ pub(super) fn payment_amount_of(
         .then_some(amount)
 }
 
+/// Rule 5: the day Wealthfolio shows for the withdrawal, in the settings time zone.
+pub(super) fn payment_date(activity: &Activity, timezone: Tz) -> NaiveDate {
+    activity_date_in_tz(activity.activity_date, timezone)
+}
+
 impl LoanPayment {
     /// A tagged withdrawal that still qualifies, with the id of the loan it pays.
     pub fn from_activity(
         activity: &Activity,
         account_type: &str,
         loan_currency: &str,
+        timezone: Tz,
     ) -> Option<(String, Self)> {
         let tag = LoanPaymentTag::read(activity.metadata.as_ref())?;
         let amount = payment_amount_of(activity, account_type, loan_currency)?;
@@ -113,7 +121,7 @@ impl LoanPayment {
             let payment = Self {
                 activity_id: activity.id.clone(),
                 account_id: activity.account_id.clone(),
-                date: activity.effective_date(),
+                date: payment_date(activity, timezone),
                 amount,
                 escrow: tag.escrow,
                 applies_to: tag.applies_to,

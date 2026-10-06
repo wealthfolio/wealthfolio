@@ -8,6 +8,7 @@ import { linkLoanPayment, searchActivities } from "@/adapters";
 import type { PaymentAllocation } from "@/adapters/shared/alternative-assets";
 import { useAccounts } from "@/hooks/use-accounts";
 import { QueryKeys } from "@/lib/query-keys";
+import { useSettingsContext } from "@/lib/settings-provider";
 import { formatDateISO } from "@/lib/utils";
 import { invalidateAlternativeAssetQueries } from "../hooks/use-alternative-asset-mutations";
 import { activityDay, isPaymentCandidate } from "../lib/loan-payments";
@@ -48,6 +49,7 @@ export function LoanPaymentsSheet({
   const dates = useDateFormatting();
   const { formatAmount } = useAmountFormatting();
   const { accounts } = useAccounts({ filterActive: false });
+  const { settings } = useSettingsContext();
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const accountName = (id: string) =>
@@ -164,7 +166,7 @@ export function LoanPaymentsSheet({
                     className="flex items-center justify-between gap-3 rounded-md border px-3 py-2 text-sm"
                   >
                     <span className="min-w-0 truncate">
-                      {day(activityDay(activity))}
+                      {day(activityDay(activity, settings?.timezone))}
                       {activity.comment ? ` · ${activity.comment}` : ""}
                     </span>
                     <span className="flex items-center gap-3">

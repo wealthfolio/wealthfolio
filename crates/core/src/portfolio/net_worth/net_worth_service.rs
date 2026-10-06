@@ -22,6 +22,7 @@ use crate::fx::FxServiceTrait;
 use crate::portfolio::snapshot::SnapshotServiceTrait;
 use crate::portfolio::valuation::{DailyAccountValuation, ValuationRepositoryTrait};
 use crate::quotes::QuoteServiceTrait;
+use crate::utils::time_utils::parse_user_timezone_or_default;
 
 /// Number of days after which a valuation is considered stale.
 const STALENESS_THRESHOLD_DAYS: i64 = 90;
@@ -36,7 +37,13 @@ pub struct NetWorthService {
     valuation_repository: Arc<dyn ValuationRepositoryTrait>,
     fx_service: Arc<dyn FxServiceTrait>,
     /// Source of loan payments from accounts; without one, loans count no payments.
-    loan_payments: Option<Arc<dyn AlternativeAssetRepositoryTrait>>,
+    loan_payments: Option<LoanPaymentSource>,
+}
+
+/// Where loan payments are read, and the settings time zone that dates them.
+struct LoanPaymentSource {
+    repository: Arc<dyn AlternativeAssetRepositoryTrait>,
+    timezone: Arc<RwLock<String>>,
 }
 
 impl NetWorthService {
@@ -63,10 +70,17 @@ impl NetWorthService {
         }
     }
 
-    /// Counts loan payments tagged on account withdrawals, as holdings and the
-    /// loan page do.
-    pub fn with_loan_payments(mut self, source: Arc<dyn AlternativeAssetRepositoryTrait>) -> Self {
-        self.loan_payments = Some(source);
+    /// Counts loan payments tagged on account withdrawals, dated in the settings
+    /// time zone, as holdings and the loan page do.
+    pub fn with_loan_payments(
+        mut self,
+        repository: Arc<dyn AlternativeAssetRepositoryTrait>,
+        timezone: Arc<RwLock<String>>,
+    ) -> Self {
+        self.loan_payments = Some(LoanPaymentSource {
+            repository,
+            timezone,
+        });
         self
     }
 
@@ -79,7 +93,13 @@ impl NetWorthService {
             .filter(|asset| asset.kind == AssetKind::Liability)
             .map(|asset| asset.id.clone())
             .collect();
-        source.loan_payments(&loan_ids)
+        let timezone = parse_user_timezone_or_default(
+            &source
+                .timezone
+                .read()
+                .unwrap_or_else(|poisoned| poisoned.into_inner()),
+        );
+        source.repository.loan_payments(&loan_ids, timezone)
     }
 
     /// Determine the asset category based on account type.

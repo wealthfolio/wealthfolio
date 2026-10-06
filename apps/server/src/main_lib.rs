@@ -672,7 +672,7 @@ async fn initialize_profile_state(
             valuation_repository.clone(),
             fx_service.clone(),
         )
-        .with_loan_payments(alternative_asset_repository.clone()),
+        .with_loan_payments(alternative_asset_repository.clone(), timezone.clone()),
     );
 
     let holdings_valuation_service = Arc::new(HoldingsValuationService::new_with_timezone(

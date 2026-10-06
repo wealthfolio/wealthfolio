@@ -389,7 +389,11 @@ statement remains the truth.
    active, unarchived cash account in the loan's currency; one archived or
    deactivated later is treated as not set.
 5. **Payment date.** A payment is dated by its activity date, the calendar day
-   Wealthfolio shows for that withdrawal.
+   Wealthfolio shows for that withdrawal in the settings timezone. Near midnight
+   that can differ from its date in UTC; the local day is the one that counts. A
+   date stored at UTC midnight (broker sync, and bare dates saved before they
+   were stored on their local day) counts on the day shown, which west of UTC is
+   the day before.
 6. **Escrow first.** The tag's escrow, at most the payment amount, is never
    principal or interest. Linking fills it from the loan's `escrow_amount`, so a
    later change to that amount does not rewrite earlier payments.

@@ -35,7 +35,7 @@ fn activity_after(
     loan: Option<&LoanRecord>,
     link: &PaymentLink,
 ) -> Result<Option<Value>, LoanError> {
-    link_payment(activity, account_type, loan, link).map(|update| update.activity)
+    link_payment(activity, account_type, loan, link, Tz::UTC).map(|update| update.activity)
 }
 
 #[test]
@@ -140,6 +140,28 @@ fn links_read_the_shape_the_frontend_sends() {
 }
 
 #[test]
+fn a_recorded_extra_repayment_is_matched_on_the_withdrawals_local_day() {
+    // 130.00 withdrawn at 8 pm on March 1 in Toronto, already March 2 in UTC.
+    let events =
+        json!([{ "type": "extra_repayment", "effectiveDate": "2026-03-01", "amount": 130 }]);
+    let recorded = loan(json!({ "loan_events": events.to_string() }));
+    let mut activity = withdrawal(None);
+    activity.activity_date = "2026-03-02T01:00:00Z".parse().unwrap();
+    let toronto = chrono_tz::America::Toronto;
+    assert_eq!(
+        link_payment(
+            &activity,
+            "CASH",
+            Some(&recorded),
+            &link(None, None),
+            toronto
+        )
+        .unwrap_err(),
+        LoanError::PaymentDuplicatesEvent
+    );
+}
+
+#[test]
 fn a_withdrawal_matching_a_recorded_extra_repayment_replaces_it_only_when_asked() {
     // The withdrawal is 130.00 on 2026-03-01.
     let events = json!([
@@ -149,7 +171,14 @@ fn a_withdrawal_matching_a_recorded_extra_repayment_replaces_it_only_when_asked(
     let recorded = loan(json!({ "loan_events": events.to_string() }));
     let activity = withdrawal(None);
     assert_eq!(
-        link_payment(&activity, "CASH", Some(&recorded), &link(None, None)).unwrap_err(),
+        link_payment(
+            &activity,
+            "CASH",
+            Some(&recorded),
+            &link(None, None),
+            Tz::UTC
+        )
+        .unwrap_err(),
         LoanError::PaymentDuplicatesEvent
     );
     let replace = PaymentLink::Link {
@@ -158,7 +187,7 @@ fn a_withdrawal_matching_a_recorded_extra_repayment_replaces_it_only_when_asked(
         applies_to: None,
         replace_event: true,
     };
-    let update = link_payment(&activity, "CASH", Some(&recorded), &replace).unwrap();
+    let update = link_payment(&activity, "CASH", Some(&recorded), &replace, Tz::UTC).unwrap();
     // It is that extra repayment, so it counts as extra principal.
     assert_eq!(
         update.activity.unwrap()[LOAN_PAYMENT_TAG_KEY]["applies_to"],
@@ -174,7 +203,14 @@ fn a_withdrawal_matching_a_recorded_extra_repayment_replaces_it_only_when_asked(
         json!({ "type": "extra_repayment", "effectiveDate": "2026-03-02", "amount": 130 }),
     ] {
         let unrelated = loan(json!({ "loan_events": json!([other]).to_string() }));
-        let update = link_payment(&activity, "CASH", Some(&unrelated), &link(None, None)).unwrap();
+        let update = link_payment(
+            &activity,
+            "CASH",
+            Some(&unrelated),
+            &link(None, None),
+            Tz::UTC,
+        )
+        .unwrap();
         assert!(update.activity.is_some());
         assert!(update.loan.is_none());
     }
@@ -192,7 +228,7 @@ fn a_replaced_extra_repayment_keeps_the_whole_withdrawal_as_principal() {
         replace_event: true,
     };
     let tag = |link| {
-        link_payment(&withdrawal(None), "CASH", Some(&recorded), &link)
+        link_payment(&withdrawal(None), "CASH", Some(&recorded), &link, Tz::UTC)
             .unwrap()
             .activity
             .unwrap()[LOAN_PAYMENT_TAG_KEY]
@@ -222,8 +258,14 @@ fn a_regular_payment_beside_an_extra_repayment_of_the_same_amount_is_not_that_re
     let due = chrono::NaiveDate::from_ymd_opt(2026, 3, 1).unwrap();
     // Directed to the instalment, or matched to it in full, it pays that instalment.
     for applies_to in [Some(PaymentTarget::Instalment(due)), None] {
-        let update =
-            link_payment(&activity, "CASH", Some(&recorded), &link(None, applies_to)).unwrap();
+        let update = link_payment(
+            &activity,
+            "CASH",
+            Some(&recorded),
+            &link(None, applies_to),
+            Tz::UTC,
+        )
+        .unwrap();
         assert!(update.loan.is_none());
         assert!(update.activity.is_some());
     }
@@ -233,7 +275,8 @@ fn a_regular_payment_beside_an_extra_repayment_of_the_same_amount_is_not_that_re
             &activity,
             "CASH",
             Some(&recorded),
-            &link(None, Some(PaymentTarget::Extra))
+            &link(None, Some(PaymentTarget::Extra)),
+            Tz::UTC
         )
         .unwrap_err(),
         LoanError::PaymentDuplicatesEvent
@@ -248,7 +291,14 @@ fn a_replacement_smaller_than_the_usual_escrow_is_still_offered() {
     let recorded = loan(json!({ "escrow_amount": "250", "loan_events": events.to_string() }));
     let activity = withdrawal(None);
     assert_eq!(
-        link_payment(&activity, "CASH", Some(&recorded), &link(None, None)).unwrap_err(),
+        link_payment(
+            &activity,
+            "CASH",
+            Some(&recorded),
+            &link(None, None),
+            Tz::UTC
+        )
+        .unwrap_err(),
         LoanError::PaymentDuplicatesEvent
     );
     let replace = PaymentLink::Link {
@@ -257,7 +307,7 @@ fn a_replacement_smaller_than_the_usual_escrow_is_still_offered() {
         applies_to: None,
         replace_event: true,
     };
-    let update = link_payment(&activity, "CASH", Some(&recorded), &replace).unwrap();
+    let update = link_payment(&activity, "CASH", Some(&recorded), &replace, Tz::UTC).unwrap();
     assert_eq!(
         update.activity.unwrap()[LOAN_PAYMENT_TAG_KEY],
         json!({ "loan_id": "loan", "applies_to": "extra" })
@@ -266,11 +316,18 @@ fn a_replacement_smaller_than_the_usual_escrow_is_still_offered() {
     // escrow is checked before anything else.
     let plain = loan(json!({ "escrow_amount": "250" }));
     assert_eq!(
-        link_payment(&activity, "CASH", Some(&plain), &link(None, None)).unwrap_err(),
+        link_payment(&activity, "CASH", Some(&plain), &link(None, None), Tz::UTC).unwrap_err(),
         LoanError::Invalid
     );
     assert_eq!(
-        link_payment(&activity, "CASH", Some(&recorded), &link(Some(200.0), None)).unwrap_err(),
+        link_payment(
+            &activity,
+            "CASH",
+            Some(&recorded),
+            &link(Some(200.0), None),
+            Tz::UTC
+        )
+        .unwrap_err(),
         LoanError::Invalid
     );
 }
@@ -289,7 +346,13 @@ fn a_withdrawal_on_its_due_date_covers_the_extra_recorded_that_day() {
         let mut activity = withdrawal(None);
         activity.amount = Some(rust_decimal::Decimal::from(amount));
         activity.activity_date = format!("{day}T15:00:00Z").parse().unwrap();
-        link_payment(&activity, "CASH", Some(&recorded), &link(None, None))
+        link_payment(
+            &activity,
+            "CASH",
+            Some(&recorded),
+            &link(None, None),
+            Tz::UTC,
+        )
     };
     // That day's instalment covers the extra, so the money counts once.
     for amount in [50, 100, 130] {

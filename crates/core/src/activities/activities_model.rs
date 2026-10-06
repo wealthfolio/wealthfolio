@@ -243,11 +243,6 @@ impl Activity {
         effective_activity_type(&self.activity_type, self.activity_type_override.as_deref())
     }
 
-    /// Returns the effective date for this activity
-    pub fn effective_date(&self) -> NaiveDate {
-        self.activity_date.naive_utc().date()
-    }
-
     /// Check if this activity is posted (should affect calculations)
     pub fn is_posted(&self) -> bool {
         self.status == ActivityStatus::Posted

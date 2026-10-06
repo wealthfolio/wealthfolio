@@ -340,6 +340,7 @@ async fn a_write_that_fails_after_the_metadata_change_leaves_the_loan_untouched(
         .repository
         .update_loan(
             "mortgage",
+            chrono_tz::Tz::UTC,
             Box::new(|record: &LoanRecord| {
                 let mut metadata = record.metadata.clone();
                 metadata["sub_type"] = json!("auto");

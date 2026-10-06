@@ -1,3 +1,4 @@
+import { formatZonedDateKey } from "@/features/spending/lib/timezone";
 import { AccountType, ActivityStatus } from "@/lib/constants";
 import type { Account, ActivityDetails } from "@/lib/types";
 
@@ -24,7 +25,10 @@ export function isPaymentCandidate(activity: ActivityDetails, currency: string):
   );
 }
 
-/** The calendar day a withdrawal counts on: its UTC date, as the engine dates payments. */
-export function activityDay(activity: Pick<ActivityDetails, "date">): string {
-  return new Date(activity.date).toISOString().slice(0, 10);
+/** The day a withdrawal counts on, in the settings time zone, as the engine dates payments. */
+export function activityDay(
+  activity: Pick<ActivityDetails, "date">,
+  timezone: string | null | undefined,
+): string {
+  return formatZonedDateKey(new Date(activity.date), timezone);
 }

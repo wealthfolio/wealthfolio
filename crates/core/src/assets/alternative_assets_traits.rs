@@ -9,6 +9,7 @@
 //! - Just asset record + valuation quotes
 
 use async_trait::async_trait;
+use chrono_tz::Tz;
 
 use super::alternative_assets_model::{
     AlternativeHolding, CreateAlternativeAssetRequest, CreateAlternativeAssetResponse,
@@ -219,20 +220,32 @@ pub trait AlternativeAssetRepositoryTrait: Send + Sync {
         notes: Option<&str>,
     ) -> Result<()>;
 
-    /// Tagged withdrawals counted as payments, by loan id.
-    fn loan_payments(&self, loan_ids: &[String]) -> Result<HashMap<String, Vec<LoanPayment>>>;
+    /// Tagged withdrawals counted as payments, by loan id, each dated by its
+    /// withdrawal's day in `timezone`.
+    fn loan_payments(
+        &self,
+        loan_ids: &[String],
+        timezone: Tz,
+    ) -> Result<HashMap<String, Vec<LoanPayment>>>;
 
-    /// Reads a loan, decides its writes from what is stored and applies them in
-    /// one transaction, so a concurrent edit cannot be overwritten.
-    async fn update_loan(&self, asset_id: &str, change: LoanChange) -> Result<LoanUpdate>;
+    /// Reads a loan, with its payments dated in `timezone`, decides its writes
+    /// from what is stored and applies them in one transaction, so a concurrent
+    /// edit cannot be overwritten.
+    async fn update_loan(
+        &self,
+        asset_id: &str,
+        timezone: Tz,
+        change: LoanChange,
+    ) -> Result<LoanUpdate>;
 
-    /// Reads a withdrawal, its account type and the loan to link, decides the
-    /// withdrawal's metadata and writes it in one transaction. Returns the
-    /// withdrawal when its metadata changed.
+    /// Reads a withdrawal, its account type and the loan to link, with its
+    /// payments dated in `timezone`, decides the withdrawal's metadata and writes
+    /// it in one transaction. Returns the withdrawal when its metadata changed.
     async fn update_payment_tag(
         &self,
         activity_id: &str,
         loan_id: Option<&str>,
+        timezone: Tz,
         change: PaymentTagChange,
     ) -> Result<Option<Activity>>;
 }

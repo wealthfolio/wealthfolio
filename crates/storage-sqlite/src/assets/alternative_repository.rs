@@ -7,6 +7,7 @@
 //! just asset records + valuation quotes.
 
 use async_trait::async_trait;
+use chrono_tz::Tz;
 use diesel::dsl::sql;
 use diesel::prelude::*;
 use diesel::r2d2::{self, Pool};
@@ -36,6 +37,7 @@ use crate::schema::{accounts, activities, assets, quotes};
 fn read_loan_payments(
     conn: &mut SqliteConnection,
     loan_ids: &[String],
+    timezone: Tz,
 ) -> Result<HashMap<String, Vec<LoanPayment>>> {
     let mut payments: HashMap<String, Vec<LoanPayment>> = HashMap::new();
     if loan_ids.is_empty() {
@@ -64,7 +66,7 @@ fn read_loan_payments(
             continue;
         };
         if let Some((loan_id, payment)) =
-            LoanPayment::from_activity(&activity, &account_type, currency)
+            LoanPayment::from_activity(&activity, &account_type, currency, timezone)
         {
             payments.entry(loan_id).or_default().push(payment);
         }
@@ -73,7 +75,7 @@ fn read_loan_payments(
 }
 
 /// A loan's metadata and its manual balance quotes, oldest first.
-fn read_loan(conn: &mut SqliteConnection, asset_id: &str) -> Result<LoanRecord> {
+fn read_loan(conn: &mut SqliteConnection, asset_id: &str, timezone: Tz) -> Result<LoanRecord> {
     let asset = assets::table
         .filter(assets::id.eq(asset_id))
         .first::<crate::assets::AssetDB>(conn)
@@ -99,7 +101,7 @@ fn read_loan(conn: &mut SqliteConnection, asset_id: &str) -> Result<LoanRecord> 
         .into_iter()
         .map(Quote::from)
         .collect();
-    let payments = read_loan_payments(conn, std::slice::from_ref(&asset.id))?
+    let payments = read_loan_payments(conn, std::slice::from_ref(&asset.id), timezone)?
         .remove(&asset.id)
         .unwrap_or_default();
     let payment_accounts = accounts::table
@@ -252,7 +254,9 @@ impl AlternativeAssetRepositoryTrait for AlternativeAssetRepository {
                     .map_err(StorageError::from)?;
                 for row in tagged {
                     let activity = Activity::from(row);
-                    let untagged = link_payment(&activity, "", None, &PaymentLink::Unlink)?;
+                    // Unlinking dates nothing, so any time zone will do.
+                    let untagged =
+                        link_payment(&activity, "", None, &PaymentLink::Unlink, Tz::UTC)?;
                     write_activity_metadata(tx, &activity.id, untagged.activity.as_ref())?;
                 }
 
@@ -380,6 +384,7 @@ impl AlternativeAssetRepositoryTrait for AlternativeAssetRepository {
         &self,
         activity_id: &str,
         loan_id: Option<&str>,
+        timezone: Tz,
         change: PaymentTagChange,
     ) -> Result<Option<Activity>> {
         let activity_id = activity_id.to_string();
@@ -399,7 +404,7 @@ impl AlternativeAssetRepositoryTrait for AlternativeAssetRepository {
                         )))
                     })?;
                 let loan = match &loan_id {
-                    Some(id) => match read_loan(tx.conn(), id) {
+                    Some(id) => match read_loan(tx.conn(), id, timezone) {
                         Ok(record) => Some(record),
                         Err(Error::Database(DatabaseError::NotFound(_))) => None,
                         Err(error) => return Err(error),
@@ -420,19 +425,28 @@ impl AlternativeAssetRepositoryTrait for AlternativeAssetRepository {
             .await
     }
 
-    fn loan_payments(&self, loan_ids: &[String]) -> Result<HashMap<String, Vec<LoanPayment>>> {
+    fn loan_payments(
+        &self,
+        loan_ids: &[String],
+        timezone: Tz,
+    ) -> Result<HashMap<String, Vec<LoanPayment>>> {
         let mut conn = get_connection(&self.pool)?;
-        read_loan_payments(&mut conn, loan_ids)
+        read_loan_payments(&mut conn, loan_ids, timezone)
     }
 
-    async fn update_loan(&self, asset_id: &str, change: LoanChange) -> Result<LoanUpdate> {
+    async fn update_loan(
+        &self,
+        asset_id: &str,
+        timezone: Tz,
+        change: LoanChange,
+    ) -> Result<LoanUpdate> {
         let asset_id = asset_id.to_string();
         self.writer
             .exec_tx(move |tx| -> Result<LoanUpdate> {
                 // Decide from what is stored now, inside the same transaction as the writes.
                 // The decision runs on the shared writer, so a panic becomes an error
                 // instead of stopping every later write.
-                let record = read_loan(tx.conn(), &asset_id)?;
+                let record = read_loan(tx.conn(), &asset_id, timezone)?;
                 let update =
                     std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| change(&record)))
                         .map_err(|_| Error::Unexpected("Loan action failed unexpectedly".into()))??;
