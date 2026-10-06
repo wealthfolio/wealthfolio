@@ -68,19 +68,20 @@ rebuilds safe to run by default.
   supports the lifecycle: `projection_state`.
 - Market-data fetching, broker sync, device sync and the frontend are outside
   this architecture.
-- Cost basis is per account (rules §7); the methods computed are FIFO and WAC. A
-  method is a choice of which lots a disposal relieves and how much of each: one
-  function of the projection (`units_taken`) names the effective units each lot
-  gives, and `relieve` and `split_for_cover` slice the lots by it. Under WAC a
-  position's lots first pool into one (`pool_lots`, rules R7.2), so a sale is
-  one disposal however many purchases built the position. A new method is a
-  variant of `CostBasisMethod` with its branch there, rules entry, fixtures, and
-  every property law passing under it (a code core does not know yet, beyond
-  FIFO, LIFO and WAC, is also added to core's settings). Settings the engine
-  does not compute, or that this version cannot read, fail loudly per account
-  rather than being silently computed as FIFO. Pooling across accounts, rules
-  that look ahead and choosing specific lots per disposal are outside this
-  design (rules R7.3).
+- Cost basis is per account (rules §7); the methods computed are FIFO, WAC, LIFO
+  and HIFO. A method is a choice of which lots a disposal relieves and how much
+  of each: one function of the projection (`units_taken`) names the effective
+  units each lot gives, and `relieve` and `split_for_cover` slice the lots by
+  it. FIFO, LIFO and HIFO are one pass over lots in the method's order
+  (`relief_order`). Under WAC a position's lots first pool into one
+  (`pool_lots`, rules R7.2), so a sale is one disposal however many purchases
+  built the position. A new method is a variant of `CostBasisMethod` with its
+  branch there, rules entry, fixtures, and every property law passing under it
+  (a code core does not know yet, beyond FIFO, LIFO, HIFO and WAC, is also added
+  to core's settings). Settings the engine does not compute, or that this
+  version cannot read, fail loudly per account rather than being silently
+  computed as FIFO. Pooling across accounts, rules that look ahead and choosing
+  specific lots per disposal are outside this design (rules R7.3).
 
 ## 3. System architecture
 

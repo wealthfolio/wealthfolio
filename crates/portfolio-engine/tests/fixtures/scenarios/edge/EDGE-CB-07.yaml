@@ -1,0 +1,31 @@
+id: EDGE-CB-07
+title: HIFO ranks lots by cost per unit after splits
+intent: >
+  Rules R7.2, HIFO, R1.5. A lot bought at 100 is split 2:1, so it costs 50 per
+  unit it now holds; a later lot costs 60. HIFO ranks by cost per unit after
+  splits, so the later lot goes first. Ranked by the price paid per unit
+  acquired (100 against 60), the split lot would have gone first.
+markers: [K]
+policy: { base_currency: USD, timezone: UTC, as_of: 2025-01-10 }
+accounts:
+  - { id: acc-1, currency: USD, cost_basis_method: HIFO }
+assets:
+  - { id: aapl, quote_ccy: USD }
+activities:
+  - { id: dep-1, account: acc-1, type: DEPOSIT, date: 2025-01-02T10:00:00Z, amount: 2000 }
+  - { id: buy-1, account: acc-1, type: BUY, date: 2025-01-03T10:00:00Z, asset: aapl, quantity: 10, unit_price: 100, amount: 1000, fee: 0 }
+  - { id: split, account: acc-1, type: SPLIT, date: 2025-01-06T10:00:00Z, asset: aapl, amount: 2 }
+  - { id: buy-2, account: acc-1, type: BUY, date: 2025-01-07T10:00:00Z, asset: aapl, quantity: 10, unit_price: 60, amount: 600, fee: 0 }
+  - { id: sell-1, account: acc-1, type: SELL, date: 2025-01-08T10:00:00Z, asset: aapl, quantity: 5, unit_price: 70, amount: 350, fee: 0 }
+quotes:
+  - { asset: aapl, day: 2025-01-03, close: 100 }
+  - { asset: aapl, day: 2025-01-06, close: 50 }
+  - { asset: aapl, day: 2025-01-07, close: 60 }
+  - { asset: aapl, day: 2025-01-08, close: 70 }
+  - { asset: aapl, day: 2025-01-10, close: 70 }
+expected_notes: >
+  buy-1: 10 units at 1000; the split makes them 20 units, 50 each. buy-2: 10
+  units at 60 each (600). sell-1 takes 5 of buy-2: cost 300, proceeds 350, P&L
+  50. Left: buy-1 20 units (1000) and buy-2 5 (300): 25 units, 1300. Had HIFO
+  ranked by the price per unit acquired, sell-1 would take 5 units of buy-1
+  (2.5 acquired, cost 250, P&L 100). Cash 2000 - 1600 + 350 = 750.

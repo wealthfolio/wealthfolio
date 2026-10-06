@@ -24,6 +24,10 @@ use crate::scope::transfer_closure;
 /// Positions below this effective quantity are treated as closed.
 pub(crate) const QUANTITY_THRESHOLD: Decimal = Decimal::from_parts(1, 0, 0, false, 8);
 
+/// Significant digits HIFO ranks costs per unit at (`relief_order`): enough to
+/// tell any two prices apart, few enough that a division's last digits do not.
+const UNIT_COST_DIGITS: u32 = 15;
+
 /// A value outside the kernel range rejects the event (architecture §4.3):
 /// the fold keeps the scratch state from before it and reports why.
 fn checked(value: Option<Decimal>, what: &str) -> Result<Decimal, String> {
@@ -2984,7 +2988,8 @@ fn split_for_cover(
 /// `eligible` rejects give none. `units` never exceeds what the eligible
 /// lots hold.
 ///
-/// - FIFO: whole lots in order until the units run out.
+/// - FIFO, LIFO, HIFO: whole lots in the method's order (`relief_order`)
+///   until the units run out.
 /// - WAC: the same share of every lot. The last lot that gives any takes
 ///   what rounding left, so the units taken sum to `units` exactly.
 fn units_taken(
@@ -3001,16 +3006,15 @@ fn units_taken(
         }
     };
     match method {
-        CostBasisMethod::Fifo => {
+        CostBasisMethod::Fifo | CostBasisMethod::Lifo | CostBasisMethod::Hifo => {
+            let mut takes = vec![Decimal::ZERO; lots.len()];
             let mut remaining = units;
-            Ok(lots
-                .iter()
-                .map(|lot| {
-                    let take = held(lot).min(remaining).max(Decimal::ZERO);
-                    remaining -= take;
-                    take
-                })
-                .collect())
+            for index in relief_order(lots, method)? {
+                let take = held(&lots[index]).min(remaining).max(Decimal::ZERO);
+                remaining -= take;
+                takes[index] = take;
+            }
+            Ok(takes)
         }
         CostBasisMethod::Wac => {
             let total: Decimal = lots.iter().map(&held).sum();
@@ -3035,6 +3039,46 @@ fn units_taken(
             Ok(takes)
         }
     }
+}
+
+/// The order an order-based method relieves `lots` in, as indices (rules
+/// R7.2). FIFO keeps the order given: a position's lots by acquisition, or
+/// the order a sender delivered them. LIFO takes the latest acquisition first
+/// (ties in reverse of the order given); a transferred lot keeps the date it
+/// was bought. HIFO takes the highest cost per effective unit first, charges
+/// included and in the position currency, for short lots as for long ones;
+/// ties go to the earliest acquisition, then the order given. Costs per unit
+/// compare at `UNIT_COST_DIGITS` significant digits: equal costs reached by
+/// different divisions differ in their last digits, and that must not reorder
+/// them.
+fn relief_order(lots: &[Lot], method: CostBasisMethod) -> Result<Vec<usize>, String> {
+    let mut order: Vec<usize> = (0..lots.len()).collect();
+    match method {
+        CostBasisMethod::Lifo => {
+            order.reverse();
+            order.sort_by(|&a, &b| lots[b].acquisition.cmp(&lots[a].acquisition));
+        }
+        CostBasisMethod::Hifo => {
+            let unit_costs = lots
+                .iter()
+                .map(|lot| {
+                    let units = lot.effective_quantity().abs();
+                    if units.is_zero() {
+                        return Ok(Decimal::ZERO);
+                    }
+                    let cost = checked(arith::div(lot.cost_basis.abs(), units), "cost per unit")?;
+                    Ok(cost.round_sf(UNIT_COST_DIGITS).unwrap_or(cost))
+                })
+                .collect::<Result<Vec<_>, String>>()?;
+            order.sort_by(|&a, &b| {
+                unit_costs[b]
+                    .cmp(&unit_costs[a])
+                    .then(lots[a].acquisition.cmp(&lots[b].acquisition))
+            });
+        }
+        CostBasisMethod::Fifo | CostBasisMethod::Wac => {}
+    }
+    Ok(order)
 }
 
 /// Lots in storage shape: open lots from the final state plus closed lots,

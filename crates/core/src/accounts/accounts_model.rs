@@ -28,6 +28,7 @@ pub enum CostBasisMethod {
     #[default]
     Fifo,
     Lifo,
+    Hifo,
     Wac,
 }
 
@@ -36,6 +37,7 @@ impl CostBasisMethod {
         match self {
             Self::Fifo => "FIFO",
             Self::Lifo => "LIFO",
+            Self::Hifo => "HIFO",
             Self::Wac => "WAC",
         }
     }
@@ -44,6 +46,7 @@ impl CostBasisMethod {
         match value.trim().to_ascii_uppercase().as_str() {
             "FIFO" => Ok(Self::Fifo),
             "LIFO" => Ok(Self::Lifo),
+            "HIFO" => Ok(Self::Hifo),
             "WAC" => Ok(Self::Wac),
             other => Err(Error::Validation(ValidationError::InvalidInput(format!(
                 "Unknown cost basis method '{}'",

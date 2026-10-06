@@ -1,0 +1,36 @@
+id: EDGE-CB-08
+title: LIFO orders a transferred lot by when it was bought, not when it arrived
+intent: >
+  Rules R7.2, LIFO, R2.4. acc-b (LIFO) buys a lot, then receives an older lot
+  from acc-a (FIFO). The transferred lot keeps its acquisition date, so acc-b's
+  own purchase is still its newest lot and a sale relieves it first. Ordered
+  by arrival, the transferred lot would go first.
+markers: [K]
+policy: { base_currency: USD, timezone: UTC, as_of: 2025-01-10 }
+accounts:
+  - { id: acc-a, currency: USD }
+  - { id: acc-b, currency: USD, cost_basis_method: LIFO }
+assets:
+  - { id: aapl, quote_ccy: USD }
+activities:
+  - { id: dep-1, account: acc-a, type: DEPOSIT, date: 2025-01-02T10:00:00Z, amount: 2000 }
+  - { id: dep-2, account: acc-b, type: DEPOSIT, date: 2025-01-02T11:00:00Z, amount: 3000 }
+  - { id: buy-a, account: acc-a, type: BUY, date: 2025-01-03T10:00:00Z, asset: aapl, quantity: 10, unit_price: 100, amount: 1000, fee: 0 }
+  - { id: buy-b, account: acc-b, type: BUY, date: 2025-01-06T10:00:00Z, asset: aapl, quantity: 10, unit_price: 200, amount: 2000, fee: 0 }
+  - { id: out-1, account: acc-a, type: TRANSFER_OUT, date: 2025-01-07T10:00:00Z, asset: aapl, quantity: 10, unit_price: 210, source_group_id: g1 }
+  - { id: in-1, account: acc-b, type: TRANSFER_IN, date: 2025-01-07T11:00:00Z, asset: aapl, quantity: 10, unit_price: 210, source_group_id: g1 }
+  - { id: sell-1, account: acc-b, type: SELL, date: 2025-01-08T10:00:00Z, asset: aapl, quantity: 5, unit_price: 250, amount: 1250, fee: 0 }
+quotes:
+  - { asset: aapl, day: 2025-01-03, close: 100 }
+  - { asset: aapl, day: 2025-01-06, close: 200 }
+  - { asset: aapl, day: 2025-01-07, close: 210 }
+  - { asset: aapl, day: 2025-01-08, close: 250 }
+  - { asset: aapl, day: 2025-01-10, close: 250 }
+expected_notes: >
+  acc-a sends its lot buy-a (10 at 100, bought 01-03) to acc-b on 01-07 at its
+  cost, 1000. acc-b holds buy-b (10 at 200, bought 01-06) and the transferred
+  lot (10, 1000, acquired 01-03). sell-1 takes 5 of buy-b, the newest by
+  acquisition: cost 1000, proceeds 1250, P&L 250. Left in acc-b: buy-b 5
+  (1000) and the transferred lot 10 (1000): 15 units, 2000; acc-a holds none.
+  Ordered by arrival, sell-1 would take 5 of the transferred lot (cost 500,
+  P&L 750). Cash: acc-a 1000, acc-b 3000 - 2000 + 1250 = 2250.

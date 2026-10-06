@@ -1,0 +1,42 @@
+id: NOM-CB-02
+title: A LIFO account's sales relieve its newest lots first
+intent: >
+  Rules R7.2, LIFO. The sequence of NOM-CB-01 (issue #771) on a LIFO account:
+  two buys, a partial sale, a third buy and a second partial sale. Each sale
+  relieves the most recently acquired lots first, so it realizes less gain
+  than FIFO in a rising market and leaves the oldest, cheapest lots held.
+  Units, cash and the total gain are the same as under FIFO and WAC.
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-10
+accounts:
+  - id: acc-1
+    name: Brokerage
+    currency: USD
+    cost_basis_method: LIFO
+assets:
+  - id: aapl
+    quote_ccy: USD
+activities:
+  - { id: dep-1, account: acc-1, type: DEPOSIT, date: 2025-01-02T10:00:00Z, amount: 3000 }
+  - { id: buy-1, account: acc-1, type: BUY, date: 2025-01-03T10:00:00Z, asset: aapl, quantity: 10, unit_price: 10, amount: 102, fee: 2 }
+  - { id: buy-2, account: acc-1, type: BUY, date: 2025-01-06T10:00:00Z, asset: aapl, quantity: 10, unit_price: 20, amount: 202, fee: 2 }
+  - { id: sell-1, account: acc-1, type: SELL, date: 2025-01-07T10:00:00Z, asset: aapl, quantity: 5, unit_price: 25, amount: 124, fee: 1 }
+  - { id: buy-3, account: acc-1, type: BUY, date: 2025-01-08T10:00:00Z, asset: aapl, quantity: 10, unit_price: 30, amount: 302, fee: 2 }
+  - { id: sell-2, account: acc-1, type: SELL, date: 2025-01-09T10:00:00Z, asset: aapl, quantity: 10, unit_price: 32, amount: 320, fee: 0 }
+quotes:
+  - { asset: aapl, day: 2025-01-03, close: 10 }
+  - { asset: aapl, day: 2025-01-06, close: 20 }
+  - { asset: aapl, day: 2025-01-07, close: 25 }
+  - { asset: aapl, day: 2025-01-08, close: 30 }
+  - { asset: aapl, day: 2025-01-09, close: 32 }
+  - { asset: aapl, day: 2025-01-10, close: 32 }
+expected_notes: >
+  Lots buy-1 (10, basis 102, fee 2) and buy-2 (10, basis 202, fee 2). sell-1
+  takes 5 of buy-2, the newest: cost 101 (fee 1), proceeds 124, P&L 23. Left:
+  buy-1 10 (102) and buy-2 5 (101): 15 units, 203, average 13.53. buy-3 (10,
+  302, fee 2). sell-2 takes all 10 of buy-3: cost 302, proceeds 320, P&L 18.
+  Realized 41. Left: buy-1 10 (102) and buy-2 5 (101): 15 units, 203. At 32:
+  value 480, unrealized 277, total gain 318 as under FIFO (realized 241) and
+  WAC (156). Cash 3000 - 102 - 202 + 124 - 302 + 320 = 2838, as under FIFO.

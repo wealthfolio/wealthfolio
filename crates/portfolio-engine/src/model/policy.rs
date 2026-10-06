@@ -47,17 +47,25 @@ pub enum CostBasisMethod {
     /// the position's average cost and leaves the average unchanged (moving
     /// weighted average).
     Wac,
+    /// Newest lots first, by acquisition: a transferred lot keeps the date it
+    /// was bought.
+    Lifo,
+    /// Lots with the highest cost per unit after splits first, charges
+    /// included; ties go oldest first, as FIFO takes them.
+    Hifo,
 }
 
 impl CostBasisMethod {
     /// Every method the engine computes.
-    pub const ALL: &'static [Self] = &[Self::Fifo, Self::Wac];
+    pub const ALL: &'static [Self] = &[Self::Fifo, Self::Wac, Self::Lifo, Self::Hifo];
 
     /// The code account settings store.
     pub fn as_str(self) -> &'static str {
         match self {
             Self::Fifo => "FIFO",
             Self::Wac => "WAC",
+            Self::Lifo => "LIFO",
+            Self::Hifo => "HIFO",
         }
     }
 

@@ -1570,15 +1570,18 @@ async fn a_changed_transfer_leg_refolds_its_partner() {
     ));
 }
 
+/// Settings this version reads but the engine does not compute: a profile
+/// other than GENERIC.
+const REFUSED_ACCOUNTING: &str =
+    r#"{"accounting":{"costBasisMethod":"FIFO","costBasisProfile":"CANADA_ACB"}}"#;
+
 #[tokio::test]
 async fn unsupported_cost_basis_settings_fail_the_account() {
     let scenario = scenario("NOM-TRADE-01");
     let facts = scenario.facts();
     let account = facts.accounts[0].id.clone();
     let harness = harness(facts).await;
-    harness
-        .account_repo
-        .set_meta(&account, r#"{"accounting":{"costBasisMethod":"LIFO"}}"#);
+    harness.account_repo.set_meta(&account, REFUSED_ACCOUNTING);
     let report = harness
         .coordinator
         .run_job(request(), &SilentObserver)
@@ -1621,6 +1624,60 @@ async fn an_account_set_to_wac_is_computed_and_its_rows_record_it() {
     assert_eq!((lots.len(), disposals.len()), (1, 2));
     assert!(lots.iter().all(|lot| lot.cost_basis_method == "WAC"));
     assert!(disposals.iter().all(|d| d.cost_basis_method == "WAC"));
+}
+
+/// Engine rules R7.2: accounts whose settings name LIFO or HIFO are computed,
+/// each sale relieving the lots its method orders first, and their rows
+/// record the method.
+#[tokio::test]
+async fn accounts_set_to_lifo_or_hifo_are_computed_and_their_rows_record_it() {
+    // (fixture, method, lots, disposals, the lot sell-2 empties)
+    for (fixture, method, lot_count, disposal_count, emptied) in [
+        ("NOM-CB-02", "LIFO", 3, 2, "buy-3"),
+        ("NOM-CB-03", "HIFO", 3, 3, "buy-2"),
+    ] {
+        let facts = scenario(fixture).facts();
+        let account = facts.accounts[0].id.clone();
+        let harness = harness(facts).await;
+        let report = harness
+            .coordinator
+            .run_job(request(), &SilentObserver)
+            .await
+            .unwrap();
+        assert!(
+            report.failures.is_empty(),
+            "{fixture}: {:?}",
+            report.failures
+        );
+        let lots = harness
+            .lot_repo
+            .get_all_lots_for_account(&account)
+            .await
+            .unwrap();
+        let disposals = harness
+            .lot_repo
+            .get_lot_disposals_for_account(&account)
+            .await
+            .unwrap();
+        assert_eq!(
+            (lots.len(), disposals.len()),
+            (lot_count, disposal_count),
+            "{fixture}"
+        );
+        assert!(
+            lots.iter().all(|lot| lot.cost_basis_method == method),
+            "{fixture}"
+        );
+        assert!(
+            disposals.iter().all(|d| d.cost_basis_method == method),
+            "{fixture}"
+        );
+        let emptied_lot = lots
+            .iter()
+            .find(|lot| lot.open_activity_id.as_deref() == Some(emptied))
+            .unwrap_or_else(|| panic!("{fixture}: no lot for {emptied}"));
+        assert!(emptied_lot.is_closed, "{fixture}: {emptied} still open");
+    }
 }
 
 /// Runs EDGE-TXF-02 (acc-a transfers to acc-b) with acc-a's meta set to
@@ -1666,7 +1723,7 @@ async fn assert_acc_a_refused_and_folded_fifo(meta: &str) {
 /// fails alone; folded as a transfer partner it folds FIFO.
 #[tokio::test]
 async fn a_refused_transfer_partner_folds_fifo() {
-    assert_acc_a_refused_and_folded_fifo(r#"{"accounting":{"costBasisMethod":"LIFO"}}"#).await;
+    assert_acc_a_refused_and_folded_fifo(REFUSED_ACCOUNTING).await;
 }
 
 /// Engine rules R7.2: settings this version cannot read (a code it does not

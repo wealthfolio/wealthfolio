@@ -81,6 +81,7 @@ fn explained_and_held(scenario: &Scenario) -> (Decimal, Decimal) {
 fn the_portfolio_attribution_explains_the_whole_gain() {
     // NOM-TXF-02 moves lots bought with a fee; NOM-TXF-04 and EDGE-TXF-15
     // cover a short with such lots: the fee counts once, as a fee.
+    // EDGE-CB-09 covers a LIFO account's short with delivered lots.
     for id in [
         "NOM-OPT-01",
         "EDGE-TXF-10",
@@ -90,6 +91,7 @@ fn the_portfolio_attribution_explains_the_whole_gain() {
         "NOM-TXF-02",
         "NOM-TXF-04",
         "EDGE-TXF-15",
+        "EDGE-CB-09",
     ] {
         let scenario = load_all_scenarios()
             .into_iter()

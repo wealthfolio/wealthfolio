@@ -225,6 +225,19 @@ rates and its source, so realized P&L in base follows from the lots relieved
 
 - FIFO: lots are relieved oldest first, and delivered units cover a short in the
   order the sender gave them.
+- LIFO: lots are relieved newest first, by acquisition. A lot a paired transfer
+  delivers keeps the date it was bought, not the day it arrived (a slice of a
+  WAC pool, the pool's earliest); units that arrive without a lot (an external
+  transfer in, or what a sender lacked, R2.1) open a lot dated on arrival.
+  Delivered units cover a short newest first. Lots acquired at the same instant
+  go in reverse of the order they opened. Fixtures: NOM-CB-02, EDGE-CB-08,
+  EDGE-CB-09.
+- HIFO: lots with the highest cost per unit are relieved first: cost in the
+  position currency, charges included, per unit held after splits, for short
+  lots as for long ones. Costs compare at 15 significant digits, so equal costs
+  reached by different divisions tie. Ties go to the earliest acquisition, then
+  in the order FIFO takes them. Delivered units cover a short in the same order.
+  Fixtures: NOM-CB-03, EDGE-CB-06, EDGE-CB-07.
 - WAC (moving weighted average), as a pool, the way the UK's section 104 holding
   and Italy's _costo medio_ are kept:
   - Before a disposal, a position's lots on the relieved side merge into one
@@ -307,6 +320,11 @@ it (§5). Fixtures: every other fixture is FIFO.
   activities remain). A window's purchase charges in a pool are split between
   realized and unrealized at the pool's charge per unit, not purchase by
   purchase (R7.2).
+- HIFO ranks lots by cost alone, in the position currency: it does not weigh
+  holding periods (long- or short-term), as some brokers' tax optimizers do, and
+  after FX moves the dearest lot in the base currency can be another. On a short
+  position it closes the short sold at the highest price first, which realizes
+  the most gain (R7.2).
 - WAC is per account: the same security in two WAC accounts is two pools.
   Jurisdictions that pool across accounts (Canada's ACB, France's PMP) or match
   later purchases (the UK's 30-day rule) need a tax report over all accounts
@@ -327,10 +345,11 @@ it (§5). Fixtures: every other fixture is FIFO.
 - Each rule's fixtures carry expected values worked out by hand in their
   `expected_notes`, and the goldens pin them.
 - Property laws state rules over every scenario, under every cost basis method
-  the engine computes and with the methods mixed across its accounts, so
-  transfers pair accounts on different methods (R7.3). Where a law compares the
-  engine with itself (determinism, windows, renaming), it proves consistency,
-  not these rules; the fixtures above prove the rules.
+  the engine computes and with the methods mixed across its accounts in every
+  rotation (`@MIXED`, `@MIXED+1`, …), so transfers pair accounts on different
+  methods (R7.3). Where a law compares the engine with itself (determinism,
+  windows, renaming), it proves consistency, not these rules; the fixtures above
+  prove the rules.
 - §5 is checked mechanically: a storage test changes every column the engine
   reads, one at a time, and fails unless the change leaves the marker scope and
   earliest day the table states.

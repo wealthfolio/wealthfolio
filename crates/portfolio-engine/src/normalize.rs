@@ -930,7 +930,19 @@ mod tests {
             CostBasisMethod::Wac
         );
 
-        raw.accounts[1].cost_basis_method = Some("LIFO".into());
+        for (code, method) in [
+            ("lifo", CostBasisMethod::Lifo),
+            ("HIFO", CostBasisMethod::Hifo),
+        ] {
+            raw.accounts[1].cost_basis_method = Some(code.into());
+            let normalized = normalize(raw.clone()).unwrap();
+            assert_eq!(
+                normalized.facts.accounts[&AccountId::new("a2")].cost_basis_method,
+                method
+            );
+        }
+
+        raw.accounts[1].cost_basis_method = Some("ACB".into());
         let refused = normalize(raw).unwrap_err();
         assert!(
             matches!(&refused, EngineError::InvalidAccount { account, .. } if account == "a2"),
