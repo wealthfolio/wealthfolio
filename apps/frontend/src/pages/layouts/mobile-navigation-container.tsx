@@ -6,6 +6,7 @@ import { AnimatePresence } from "motion/react";
 import { useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { Outlet } from "react-router-dom";
+import { PageErrorBoundary } from "./page-error-boundary";
 
 export function MobileNavigationContainer() {
   const { t } = useTranslation();
@@ -24,9 +25,11 @@ export function MobileNavigationContainer() {
         className="lg:px-6 lg:py-0"
         {...pullToRefreshHandlers}
       >
-        <AnimatePresence mode="wait" initial={false}>
-          <Outlet />
-        </AnimatePresence>
+        <PageErrorBoundary>
+          <AnimatePresence mode="wait" initial={false}>
+            <Outlet />
+          </AnimatePresence>
+        </PageErrorBoundary>
       </PageScrollContainer>
 
       {/* Pull progress indicator: shows during pull before activation */}

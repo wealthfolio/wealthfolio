@@ -145,6 +145,7 @@
     "title": "문제가 발생했습니다",
     "description": "예기치 않은 오류가 발생했습니다. 데이터는 안전하니 새로고침하여 다시 시도해 보세요.",
     "refresh": "페이지 새로고침",
+    "goHome": "대시보드로 이동",
     "hideDetails": "오류 세부정보 숨기기",
     "showDetails": "오류 세부정보 보기",
     "errorDetails": "오류 세부정보"

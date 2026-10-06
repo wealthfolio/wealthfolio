@@ -6,6 +6,10 @@ import { ApplicationShell } from "../ui/shell";
 
 interface Props {
   children: ReactNode;
+  /** "page" fits the fallback in a page area, leaving the app's navigation usable. */
+  variant?: "screen" | "page";
+  /** Offers a way out to the dashboard; reloading reopens the page that failed. */
+  onGoHome?: () => void;
 }
 
 interface State {
@@ -13,12 +17,22 @@ interface State {
   error?: Error;
 }
 
-function ErrorFallback({ error }: { error?: Error }) {
+function FallbackFrame({ variant, children }: { variant: Props["variant"]; children: ReactNode }) {
+  return variant === "page" ? (
+    <div role="alert" className="flex min-h-[60vh] w-full items-center justify-center p-6">
+      {children}
+    </div>
+  ) : (
+    <ApplicationShell className="flex h-screen w-full items-center justify-center p-6">{children}</ApplicationShell>
+  );
+}
+
+function ErrorFallback({ error, variant, onGoHome }: Omit<Props, "children"> & { error?: Error }) {
   const { t } = useTranslation();
   const [showDetails, setShowDetails] = useState(false);
 
   return (
-    <ApplicationShell className="flex h-screen w-full items-center justify-center p-6">
+    <FallbackFrame variant={variant}>
       <div className="flex w-full max-w-md flex-col items-center">
         {/* Icon with subtle background */}
         <div className="bg-destructive/10 mb-6 flex h-20 w-20 items-center justify-center rounded-full">
@@ -44,6 +58,13 @@ function ErrorFallback({ error }: { error?: Error }) {
             <Icons.RefreshCw className="mr-2 h-4 w-4" />
             {t("ui:errorBoundary.refresh", "Refresh page")}
           </Button>
+
+          {onGoHome && (
+            <Button variant="outline" onClick={onGoHome} className="w-full">
+              <Icons.Home className="mr-2 h-4 w-4" />
+              {t("ui:errorBoundary.goHome", "Go to Dashboard")}
+            </Button>
+          )}
 
           {error && (
             <Button
@@ -80,7 +101,7 @@ function ErrorFallback({ error }: { error?: Error }) {
           </div>
         )}
       </div>
-    </ApplicationShell>
+    </FallbackFrame>
   );
 }
 
@@ -104,7 +125,7 @@ class ErrorBoundary extends Component<Props, State> {
 
   public render() {
     if (this.state.hasError) {
-      return <ErrorFallback error={this.state.error} />;
+      return <ErrorFallback error={this.state.error} variant={this.props.variant} onGoHome={this.props.onGoHome} />;
     }
 
     return this.props.children;

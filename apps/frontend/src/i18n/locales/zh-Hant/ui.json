@@ -145,6 +145,7 @@
     "title": "發生錯誤",
     "description": "發生未預期的錯誤。你的資料不受影響，請重新整理頁面後再試一次。",
     "refresh": "重新整理頁面",
+    "goHome": "前往儀表板",
     "hideDetails": "隱藏錯誤詳細資料",
     "showDetails": "顯示錯誤詳細資料",
     "errorDetails": "錯誤詳細資料"

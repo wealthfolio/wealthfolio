@@ -145,6 +145,7 @@
     "title": "Algo salió mal",
     "description": "Nos encontramos con un error inesperado. Tus datos están a salvo; intenta actualizar para volver a la normalidad.",
     "refresh": "Actualizar página",
+    "goHome": "Ir al panel",
     "hideDetails": "Ocultar detalles del error",
     "showDetails": "Mostrar detalles del error",
     "errorDetails": "Detalles del error"

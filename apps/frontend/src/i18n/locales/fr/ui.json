@@ -145,6 +145,7 @@
     "title": "Une erreur est survenue",
     "description": "Une erreur inattendue s'est produite. Vos données sont en sécurité — essayez d'actualiser pour reprendre.",
     "refresh": "Actualiser la page",
+    "goHome": "Aller au tableau de bord",
     "hideDetails": "Masquer les détails de l'erreur",
     "showDetails": "Afficher les détails de l'erreur",
     "errorDetails": "Détails de l'erreur"

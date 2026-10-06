@@ -145,6 +145,7 @@
     "title": "Something went wrong",
     "description": "We hit an unexpected error. Your data is safe — try refreshing to get back on track.",
     "refresh": "Refresh page",
+    "goHome": "Go to Dashboard",
     "hideDetails": "Hide error details",
     "showDetails": "Show error details",
     "errorDetails": "Error details"

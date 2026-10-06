@@ -16,6 +16,7 @@ import { AppSidebar } from "./navigation/app-sidebar";
 import { FloatingNavigationBar } from "./navigation/floating-navigation-bar";
 import { MobileNavBar } from "./navigation/mobile-navbar";
 import { NavigationModeProvider, useNavigationMode } from "./navigation/navigation-mode-context";
+import { PageErrorBoundary } from "./page-error-boundary";
 
 const AppLayoutContent = () => {
   const { settings } = useSettingsContext();
@@ -57,7 +58,8 @@ const AppLayoutContent = () => {
   }
 
   return (
-    <ErrorBoundary>
+    // Catches errors outside a page. Going home reloads at the root, away from a route that keeps failing.
+    <ErrorBoundary onGoHome={() => window.location.assign("/")}>
       <ApplicationShell
         className="app-shell h-screen overflow-x-hidden"
         data-mobile-navigation={shouldUseMobileNavigation ? "true" : undefined}
@@ -91,7 +93,9 @@ const AppLayoutContent = () => {
                 key={pageScrollKey}
                 withMobileNavOffset={shouldUseBottomNavigation}
               >
-                <Outlet />
+                <PageErrorBoundary>
+                  <Outlet />
+                </PageErrorBoundary>
               </PageScrollContainer>
             )}
           </main>

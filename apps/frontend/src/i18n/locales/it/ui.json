@@ -145,6 +145,7 @@
     "title": "Qualcosa è andato storto",
     "description": "Abbiamo riscontrato un errore imprevisto. I tuoi dati sono al sicuro — prova ad aggiornare per riprendere da dove eri.",
     "refresh": "Aggiorna pagina",
+    "goHome": "Vai alla Dashboard",
     "hideDetails": "Nascondi dettagli errore",
     "showDetails": "Mostra dettagli errore",
     "errorDetails": "Dettagli errore"
