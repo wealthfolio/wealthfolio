@@ -748,14 +748,14 @@ baseline:
         realized_pnl: "0"
         residual: "0"
         taxes: "0"
-        unrealized_pnl_change: "145"
+        unrealized_pnl_change: "150"
       basis_status: notApplicable
       is_holdings_mode: false
       is_mixed_tracking_mode: false
       method: timeWeighted
       period_end: 2025-01-12
       period_start: 2025-01-02
-      quality: partial
+      quality: ok
       returns:
         annualized_irr: "10.45822307"
         annualized_twr: ~
@@ -794,14 +794,14 @@ baseline:
         - date: 2025-01-12
           value: "0.06904762"
       summary:
-        amount: "140"
+        amount: "145"
         amount_status: complete
         basis: marketValue
         basis_status: notApplicable
         method: timeWeighted
         percent: "0.06904762"
         percent_status: complete
-        quality: partial
+        quality: ok
   portfolio_flows:
     - date: 2025-01-08
       inflow_base: "0"

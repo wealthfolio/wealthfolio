@@ -804,10 +804,10 @@ baseline:
         fees: "5"
         fx_effect: "603"
         income: "0"
-        realized_pnl: "-2"
+        realized_pnl: "0"
         residual: "0"
         taxes: "0"
-        unrealized_pnl_change: "-1206"
+        unrealized_pnl_change: "-1203"
       basis_status: notApplicable
       is_holdings_mode: false
       is_mixed_tracking_mode: false
@@ -853,7 +853,7 @@ baseline:
         - date: 2025-01-12
           value: "0.6975"
       summary:
-        amount: "-610"
+        amount: "-605"
         amount_status: complete
         basis: marketValue
         basis_status: notApplicable

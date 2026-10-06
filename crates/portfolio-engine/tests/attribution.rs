@@ -58,38 +58,79 @@ fn an_option_closed_at_expiry_is_realized() {
     assert_eq!(number(&all_time["summary"]["amount"]), Decimal::from(445));
 }
 
+/// What came in, less what went out, plus the P&L the portfolio's all-time
+/// attribution reports, against what the accounts hold at the end.
+fn explained_and_held(scenario: &Scenario) -> (Decimal, Decimal) {
+    let pipeline = Pipeline::from_scenario(scenario);
+    let body = capture_body(&pipeline, &all_windows(scenario));
+    let held: Decimal = body["accounts"]
+        .as_object()
+        .unwrap()
+        .values()
+        .filter_map(|a| a["valuations"].as_array().and_then(|d| d.last()).cloned())
+        .map(|day| number(&day["total_value_base"]))
+        .sum();
+    let all_time = &body["portfolio"]["all_time"];
+    let attribution = &all_time["attribution"];
+    let explained = number(&attribution["contributions"]) - number(&attribution["distributions"])
+        + number(&all_time["summary"]["amount"]);
+    (explained, held)
+}
+
 #[test]
 fn the_portfolio_attribution_explains_the_whole_gain() {
-    // What came in, less what went out, plus the P&L attribution reports is
-    // what the accounts hold at the end, where every lot that realized was
-    // bought without charges carried across a transfer (rules §8).
+    // NOM-TXF-02 moves lots bought with a fee; NOM-TXF-04 and EDGE-TXF-15
+    // cover a short with such lots: the fee counts once, as a fee.
     for id in [
         "NOM-OPT-01",
         "EDGE-TXF-10",
         "EDGE-TXF-19",
         "EDGE-POS-06",
         "EDGE-CB-04",
+        "NOM-TXF-02",
+        "NOM-TXF-04",
+        "EDGE-TXF-15",
     ] {
         let scenario = load_all_scenarios()
             .into_iter()
             .find(|s| s.id == id)
             .unwrap();
-        let pipeline = Pipeline::from_scenario(&scenario);
-        let body = capture_body(&pipeline, &all_windows(&scenario));
-        let held: Decimal = body["accounts"]
-            .as_object()
-            .unwrap()
-            .values()
-            .filter_map(|a| a["valuations"].as_array().and_then(|d| d.last()).cloned())
-            .map(|day| number(&day["total_value_base"]))
-            .sum();
-        let all_time = &body["portfolio"]["all_time"];
-        let attribution = &all_time["attribution"];
-        let explained = number(&attribution["contributions"])
-            - number(&attribution["distributions"])
-            + number(&all_time["summary"]["amount"]);
+        let (explained, held) = explained_and_held(&scenario);
         assert_eq!(explained, held, "{id}");
     }
+}
+
+#[test]
+fn a_fee_carried_across_a_transfer_counts_once() {
+    // acc-a buys 10 at 100 with a fee of 5 and sends them to acc-b, which
+    // sells 4 at 110: the gain is 10 x 10 - 5 = 95, of which the fee's 2 in
+    // the sold lots and 3 in the held ones are fees, not lower P&L.
+    let scenario: Scenario = serde_yaml::from_str(
+        r#"
+id: INLINE-CARRIED-FEE
+policy: { base_currency: USD, timezone: UTC, as_of: 2025-01-10 }
+accounts:
+  - { id: acc-a, currency: USD }
+  - { id: acc-b, currency: USD }
+assets:
+  - { id: aapl, quote_ccy: USD }
+activities:
+  - { id: dep-1, account: acc-a, type: DEPOSIT, date: 2025-01-02T10:00:00Z, amount: 2000 }
+  - { id: buy-1, account: acc-a, type: BUY, date: 2025-01-03T10:00:00Z, asset: aapl, quantity: 10, unit_price: 100, amount: 1005, fee: 5 }
+  - { id: out-1, account: acc-a, type: TRANSFER_OUT, date: 2025-01-06T10:00:00Z, asset: aapl, quantity: 10, unit_price: 105, source_group_id: g1 }
+  - { id: in-1, account: acc-b, type: TRANSFER_IN, date: 2025-01-06T11:00:00Z, asset: aapl, quantity: 10, unit_price: 105, source_group_id: g1 }
+  - { id: sell-1, account: acc-b, type: SELL, date: 2025-01-08T10:00:00Z, asset: aapl, quantity: 4, unit_price: 110, amount: 440, fee: 0 }
+quotes:
+  - { asset: aapl, day: 2025-01-03, close: 100 }
+  - { asset: aapl, day: 2025-01-06, close: 105 }
+  - { asset: aapl, day: 2025-01-08, close: 110 }
+  - { asset: aapl, day: 2025-01-10, close: 110 }
+"#,
+    )
+    .expect("scenario");
+    let (explained, held) = explained_and_held(&scenario);
+    assert_eq!(held, Decimal::from(2095));
+    assert_eq!(explained, held);
 }
 
 #[test]

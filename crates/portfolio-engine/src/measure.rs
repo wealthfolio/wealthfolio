@@ -1846,6 +1846,42 @@ fn trade_charge_effects(
         .map(|lot| ((&lot.account, lot.id.as_str()), *lot))
         .collect();
 
+    // A lot a transfer moved within the scope keeps the purchase charges it
+    // was bought with (its original date and allocation): they were counted
+    // where they were paid, so the lot gives them back like the lot its
+    // purchase opened (rules R3.5).
+    let moved_pairs: Vec<&PairEffect> = inputs
+        .effects
+        .pairs
+        .iter()
+        .filter(|pair| {
+            pair.security && scope.contains(&pair.in_account) && scope.contains(&pair.out_account)
+        })
+        .collect();
+    let moved_in: HashSet<&str> = moved_pairs
+        .iter()
+        .map(|pair| pair.transfer_in.as_str())
+        .collect();
+    let charged = |lot: &LotRecord| {
+        lot.open_activity.as_ref().is_some_and(|activity| {
+            charge_by_activity.contains_key(activity.as_str())
+                || moved_in.contains(activity.as_str())
+        }) && period.contains(lot.open_date)
+    };
+    // The share of a lot's charges `units` of it carry.
+    let charge_share = |lot: &LotRecord, units: Decimal, cost_base: Decimal| {
+        let charge = lot.fee_allocated_base + lot.tax_allocated_base;
+        let original_quantity = lot.original_quantity.abs();
+        if original_quantity > Decimal::ZERO {
+            arith::proportional(charge, units.abs(), original_quantity).unwrap_or(Decimal::ZERO)
+        } else if lot.original_cost_basis_base.abs() > Decimal::ZERO {
+            arith::proportional(charge, cost_base.abs(), lot.original_cost_basis_base.abs())
+                .unwrap_or(Decimal::ZERO)
+        } else {
+            Decimal::ZERO
+        }
+    };
+
     let mut period_open_charge_by_activity: HashMap<&str, Decimal> = HashMap::new();
     let mut saw_period_open_lots = false;
     let mut remaining_open_from_lots = Decimal::ZERO;
@@ -1853,19 +1889,23 @@ fn trade_charge_effects(
         let Some(open_activity) = lot.open_activity.as_ref() else {
             continue;
         };
-        if !charge_by_activity.contains_key(open_activity.as_str())
-            || !period.contains(lot.open_date)
-        {
+        if !charged(lot) {
             continue;
         }
-        saw_period_open_lots = true;
+        let moved = moved_in.contains(open_activity.as_str());
+        if !moved {
+            saw_period_open_lots = true;
+        }
         let full_charge = lot.fee_allocated_base + lot.tax_allocated_base;
         if full_charge.is_zero() {
             continue;
         }
-        *period_open_charge_by_activity
-            .entry(open_activity.as_str())
-            .or_default() += full_charge;
+        // A moved lot's charges were counted at the lot its purchase opened.
+        if !moved {
+            *period_open_charge_by_activity
+                .entry(open_activity.as_str())
+                .or_default() += full_charge;
+        }
         if lot.remaining_quantity.is_zero() {
             continue;
         }
@@ -1898,33 +1938,39 @@ fn trade_charge_effects(
         let Some(lot) = lot_by_id.get(&(&disposal.account, disposal.lot_id.as_str())) else {
             continue;
         };
-        if !period.contains(lot.open_date) {
-            continue;
-        }
-        let Some(open_activity) = lot.open_activity.as_ref() else {
-            continue;
-        };
-        if !charge_by_activity.contains_key(open_activity.as_str()) {
-            continue;
-        }
-        let charge_allocated = lot.fee_allocated_base + lot.tax_allocated_base;
-        if charge_allocated.is_zero() {
-            continue;
-        }
-        let original_quantity = lot.original_quantity.abs();
-        let disposed_quantity = disposal.quantity.abs();
-        if original_quantity > Decimal::ZERO {
+        if charged(lot) {
             acquisition_charges_disposed +=
-                arith::proportional(charge_allocated, disposed_quantity, original_quantity)
-                    .unwrap_or(Decimal::ZERO);
-        } else if lot.original_cost_basis_base.abs() > Decimal::ZERO {
-            acquisition_charges_disposed += arith::proportional(
-                charge_allocated,
-                disposal.cost_basis_base.abs(),
-                lot.original_cost_basis_base.abs(),
-            )
-            .unwrap_or(Decimal::ZERO);
+                charge_share(lot, disposal.quantity, disposal.cost_basis_base);
         }
+    }
+    // Charges a moved lot carried into a cover leave no lot behind: they are
+    // what the transfer out took from charged lots less what its lots opened
+    // with on arrival.
+    for pair in &moved_pairs {
+        let sent: Decimal = inputs
+            .disposals
+            .iter()
+            .filter(|d| {
+                d.account == pair.out_account
+                    && d.event.as_str() == pair.transfer_out.as_str()
+                    && period.contains(d.date)
+            })
+            .filter_map(|d| {
+                let lot = lot_by_id.get(&(&d.account, d.lot_id.as_str()))?;
+                charged(lot).then(|| charge_share(lot, d.quantity, d.cost_basis_base))
+            })
+            .sum();
+        let arrived: Decimal = lots
+            .iter()
+            .filter(|lot| {
+                lot.open_activity
+                    .as_ref()
+                    .is_some_and(|activity| activity.as_str() == pair.transfer_in.as_str())
+                    && period.contains(lot.open_date)
+            })
+            .map(|lot| lot.fee_allocated_base + lot.tax_allocated_base)
+            .sum();
+        acquisition_charges_disposed += (sent - arrived).max(Decimal::ZERO);
     }
 
     // A WAC account's purchases pool (rules R7.2): a pooled purchase has no

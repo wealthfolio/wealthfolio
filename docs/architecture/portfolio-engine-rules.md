@@ -140,8 +140,12 @@ base currency unknown: it is recorded as zero, with a currency warning.
 sale or cover, an option's expiry, or units a transfer delivers into an opposite
 position (a short covered by arriving shares, or a long closed by an arriving
 short). A transfer out moves its lots at their cost and realizes nothing (R2.4).
-The previous calculator kept BUY and SELL disposals only. Fixtures: NOM-OPT-01,
-NOM-TXF-04, EDGE-TXF-10, EDGE-POS-06.
+The previous calculator kept BUY and SELL disposals only. A purchase's charges
+count once, as fees where they were paid: attribution adds them back to the P&L
+of the lots that carry them, including a lot a transfer moved within the scope
+(it keeps its purchase date and charges) and a cover such a lot makes (the
+charges the transfer out took less those its lots arrived with). Fixtures:
+NOM-OPT-01, NOM-TXF-02, NOM-TXF-04, EDGE-TXF-10, EDGE-POS-06.
 
 ## 4. Dated reads
 
@@ -282,12 +286,6 @@ it (§5). Fixtures: every other fixture is FIFO.
 
 ## 8. Known limits
 
-- Purchase charges carried by lots a transfer moves are not added back to
-  attribution: they count as fees where they were paid, and again inside the
-  moved lots' cost, in the unrealized change of the lots still held and in the
-  realized P&L of a cover they make (R3.5). NOM-TXF-04 reports 38 for a gain
-  of 43. Adding them back needs the charges a cover consumed stored with its
-  disposal.
 - Holdings mode assumes trades and transfers happen at snapshot prices: a price
   move between a trade (or a transfer, R2.3) and the next snapshot reads as
   money in or out.
