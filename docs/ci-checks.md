@@ -108,7 +108,7 @@ release.
 | ---------------------------------- | ----------------------------------------------------------- |
 | Build Android APK                  | Release-mode ARM64 APK, signed with a temporary test key    |
 | Build Linux Packages               | Release-mode x64 AppImage and `.deb`, built on Ubuntu 24.04 |
-| Build Windows Installer (existing) | ARM64 or x64 NSIS installer, optionally Authenticode-signed  |
+| Build Windows Installer (existing) | ARM64 or x64 NSIS installer, optionally Authenticode-signed |
 | Build Mobile                       | Android test APK and unsigned iOS simulator archive         |
 
 Android APKs cannot update store installs or APKs from another run because each
