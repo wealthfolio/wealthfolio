@@ -161,6 +161,10 @@ ignored on read. Invalid loan terms yield no automatic calculation and retain
 manual valuation. Validate dates and numbers at input and calculation
 boundaries.
 
+Loan fields, events included, live in the asset's metadata, so device sync
+treats them as part of the asset row: when two devices change the same loan
+before syncing, the later change wins and the other is lost.
+
 `tracking_mode: "manual"` disables calculation and keeps the quote-based
 valuation used for other alternative assets. Saving details with automatic
 calculation enabled clears it.
@@ -372,6 +376,9 @@ statement remains the truth.
   optional `escrow` (included in this payment) and optional `applies_to` (an
   instalment due date, or `extra`). Only the payment actions write this key;
   ordinary activity edits and imports keep it unchanged.
+- Storage reads tagged withdrawals as stored, with their instants
+  (`StoredPayment`, `StoredLoan`); core dates them in the settings timezone
+  (rule 5), so storage takes no timezone.
 
 ### Rules
 

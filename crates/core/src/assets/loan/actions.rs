@@ -1,6 +1,7 @@
 //! Loan actions: a requested change is checked against the stored loan and
 //! turned into writes that the repository applies in one transaction.
 use chrono::{NaiveDate, NaiveTime, Utc};
+use chrono_tz::Tz;
 use rust_decimal::{
     prelude::{FromPrimitive, ToPrimitive},
     Decimal,
@@ -10,7 +11,7 @@ use serde_json::Value;
 use thiserror::Error;
 
 use super::model::{decoded, ORIGINATION_DATE_KEY};
-use super::payments::is_regular_payment;
+use super::payments::{is_regular_payment, StoredPayment};
 use super::setup::apply_loan_setup;
 use super::{
     balance_notes, balance_user_note, calculate_loan, edited_balance_notes, event_entries, money,
@@ -80,7 +81,36 @@ pub struct LoanActionResult {
     pub balances_changed: bool,
 }
 
-/// A loan's stored inputs, read inside the write transaction.
+/// A loan as stored, read inside the write transaction. `dated` gives the
+/// record the loan rules work on.
+#[derive(Debug, Clone)]
+pub struct StoredLoan {
+    pub asset_id: String,
+    pub currency: String,
+    pub metadata: Value,
+    /// Manual quotes, oldest first.
+    pub balances: Vec<Quote>,
+    /// Tagged withdrawals counted as payments on this loan.
+    pub payments: Vec<StoredPayment>,
+    /// Cash accounts in the loan's currency that can pay it.
+    pub payment_accounts: Vec<String>,
+}
+
+impl StoredLoan {
+    /// The loan with its payments dated in the settings `timezone`.
+    pub fn dated(&self, timezone: Tz) -> LoanRecord {
+        LoanRecord {
+            asset_id: self.asset_id.clone(),
+            currency: self.currency.clone(),
+            metadata: self.metadata.clone(),
+            balances: self.balances.clone(),
+            payments: self.payments.iter().map(|p| p.dated(timezone)).collect(),
+            payment_accounts: self.payment_accounts.clone(),
+        }
+    }
+}
+
+/// A loan's inputs as the loan rules work on them.
 #[derive(Debug, Clone)]
 pub struct LoanRecord {
     pub asset_id: String,

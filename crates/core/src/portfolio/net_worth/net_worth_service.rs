@@ -99,7 +99,15 @@ impl NetWorthService {
                 .read()
                 .unwrap_or_else(|poisoned| poisoned.into_inner()),
         );
-        source.repository.loan_payments(&loan_ids, timezone)
+        Ok(source
+            .repository
+            .loan_payments(&loan_ids)?
+            .into_iter()
+            .map(|(loan_id, payments)| {
+                let dated = payments.iter().map(|p| p.dated(timezone)).collect();
+                (loan_id, dated)
+            })
+            .collect())
     }
 
     /// Determine the asset category based on account type.

@@ -71,12 +71,10 @@ pub fn link_payment(
     let mut loan_metadata = None;
     match link {
         PaymentLink::Unlink => {
-            if metadata.remove(LOAN_PAYMENT_TAG_KEY).is_none() {
-                return Ok(PaymentTagUpdate {
-                    activity: activity.metadata.clone(),
-                    loan: None,
-                });
-            }
+            return Ok(PaymentTagUpdate {
+                activity: untagged(activity),
+                loan: None,
+            });
         }
         PaymentLink::Link {
             loan_id,
@@ -143,6 +141,18 @@ pub fn link_payment(
         activity: (!metadata.is_empty()).then_some(Value::Object(metadata)),
         loan: loan_metadata,
     })
+}
+
+/// The withdrawal's metadata without its loan tag; other keys are kept.
+pub fn untagged(activity: &Activity) -> Option<Value> {
+    let mut metadata = match &activity.metadata {
+        Some(Value::Object(map)) => map.clone(),
+        _ => return activity.metadata.clone(),
+    };
+    if metadata.remove(LOAN_PAYMENT_TAG_KEY).is_none() {
+        return activity.metadata.clone();
+    }
+    (!metadata.is_empty()).then_some(Value::Object(metadata))
 }
 
 /// Whether the withdrawal is a regular payment once allocated with the loan's

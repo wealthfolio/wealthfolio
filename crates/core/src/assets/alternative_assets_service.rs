@@ -648,16 +648,17 @@ impl AlternativeAssetServiceTrait for AlternativeAssetService {
                 let changes = request.metadata.clone();
                 let kind = asset.kind.clone();
                 let today = self.today();
+                let timezone = self.timezone();
                 let update = self
                     .alternative_asset_repository
                     .update_loan(
                         &request.asset_id,
-                        self.timezone(),
-                        Box::new(move |record| {
+                        Box::new(move |stored| {
+                            let record = stored.dated(timezone);
                             let edited = LoanRecord {
                                 metadata: merged_details(Some(&record.metadata), changes.as_ref())
                                     .unwrap_or_else(|| json!({})),
-                                ..record.clone()
+                                ..record
                             };
                             let mut update =
                                 apply_loan_action(&edited, &LoanAction::SetTerms(setup), today)?;
@@ -720,12 +721,14 @@ impl AlternativeAssetServiceTrait for AlternativeAssetService {
             ))));
         }
         let today = self.today();
+        let timezone = self.timezone();
         let update = self
             .alternative_asset_repository
             .update_loan(
                 asset_id,
-                self.timezone(),
-                Box::new(move |record| Ok(apply_loan_action(record, &action, today)?)),
+                Box::new(move |stored| {
+                    Ok(apply_loan_action(&stored.dated(timezone), &action, today)?)
+                }),
             )
             .await?;
         Ok(LoanActionResult {
@@ -741,9 +744,15 @@ impl AlternativeAssetServiceTrait for AlternativeAssetService {
             .update_payment_tag(
                 activity_id,
                 loan_id.as_deref(),
-                timezone,
-                Box::new(move |activity, account_type, loan| {
-                    Ok(link_payment(activity, account_type, loan, &link, timezone)?)
+                Box::new(move |activity, account_type, stored| {
+                    let loan = stored.map(|loan| loan.dated(timezone));
+                    Ok(link_payment(
+                        activity,
+                        account_type,
+                        loan.as_ref(),
+                        &link,
+                        timezone,
+                    )?)
                 }),
             )
             .await?;
@@ -776,11 +785,15 @@ impl AlternativeAssetServiceTrait for AlternativeAssetService {
     }
 
     fn get_loan_payments(&self, asset_id: &str) -> Result<Vec<LoanPayment>> {
+        let timezone = self.timezone();
         Ok(self
             .alternative_asset_repository
-            .loan_payments(&[asset_id.to_string()], self.timezone())?
+            .loan_payments(&[asset_id.to_string()])?
             .remove(asset_id)
-            .unwrap_or_default())
+            .unwrap_or_default()
+            .iter()
+            .map(|payment| payment.dated(timezone))
+            .collect())
     }
 
     fn get_alternative_holdings(&self) -> Result<Vec<AlternativeHolding>> {
@@ -815,9 +828,8 @@ impl AlternativeAssetServiceTrait for AlternativeAssetService {
             .filter(|asset| asset.kind == AssetKind::Liability)
             .map(|asset| asset.id.clone())
             .collect();
-        let mut payments = self
-            .alternative_asset_repository
-            .loan_payments(&loan_ids, self.timezone())?;
+        let mut payments = self.alternative_asset_repository.loan_payments(&loan_ids)?;
+        let timezone = self.timezone();
         // One calculation per scheduled loan gives both its value and its card summary.
         let mut loan_values = std::collections::HashMap::new();
         let mut loan_summaries = std::collections::HashMap::new();
@@ -828,12 +840,13 @@ impl AlternativeAssetServiceTrait for AlternativeAssetService {
             let metadata = asset.metadata.clone().unwrap_or_else(|| json!({}));
             let calculation = if metadata.get(super::loan::LOAN_PROJECTION_KEY).is_some() {
                 let history = self.quote_service.get_historical_quotes(&asset.id)?;
-                super::loan::loan_calculation(
-                    &metadata,
-                    &history,
-                    &payments.remove(&asset.id).unwrap_or_default(),
-                    as_of,
-                )
+                let dated: Vec<LoanPayment> = payments
+                    .remove(&asset.id)
+                    .unwrap_or_default()
+                    .iter()
+                    .map(|payment| payment.dated(timezone))
+                    .collect();
+                super::loan::loan_calculation(&metadata, &history, &dated, as_of)
             } else {
                 None
             };
@@ -1344,7 +1357,6 @@ mod tests {
         async fn update_loan(
             &self,
             _asset_id: &str,
-            _timezone: chrono_tz::Tz,
             _change: crate::assets::LoanChange,
         ) -> Result<crate::assets::loan::LoanUpdate> {
             unimplemented!("not used in this test")
@@ -1353,8 +1365,7 @@ mod tests {
         fn loan_payments(
             &self,
             _loan_ids: &[String],
-            _timezone: chrono_tz::Tz,
-        ) -> Result<HashMap<String, Vec<crate::assets::loan::LoanPayment>>> {
+        ) -> Result<HashMap<String, Vec<crate::assets::loan::StoredPayment>>> {
             Ok(HashMap::new())
         }
 
@@ -1362,7 +1373,6 @@ mod tests {
             &self,
             _activity_id: &str,
             _loan_id: Option<&str>,
-            _timezone: chrono_tz::Tz,
             _change: crate::assets::PaymentTagChange,
         ) -> Result<Option<crate::activities::Activity>> {
             unimplemented!("not used in this test")

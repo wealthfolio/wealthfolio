@@ -1,7 +1,7 @@
 //! Payments from an account: tagged withdrawals matched to instalments and
 //! split into the scheduled payment and extra principal (docs/architecture/loans.md,
 //! "Payments from an account").
-use chrono::NaiveDate;
+use chrono::{DateTime, NaiveDate, Utc};
 use chrono_tz::Tz;
 use rust_decimal::prelude::ToPrimitive;
 use serde::{Deserialize, Serialize};
@@ -107,13 +107,25 @@ pub(super) fn payment_date(activity: &Activity, timezone: Tz) -> NaiveDate {
     activity_date_in_tz(activity.activity_date, timezone)
 }
 
-impl LoanPayment {
+/// A tagged withdrawal that still qualifies, as stored: it keeps the
+/// withdrawal's instant, and `dated` gives the payment the engine counts.
+#[derive(Debug, Clone, PartialEq)]
+pub struct StoredPayment {
+    pub activity_id: String,
+    pub account_id: String,
+    pub paid_at: DateTime<Utc>,
+    /// Total withdrawn, escrow included.
+    pub amount: f64,
+    pub escrow: f64,
+    pub applies_to: Option<PaymentTarget>,
+}
+
+impl StoredPayment {
     /// A tagged withdrawal that still qualifies, with the id of the loan it pays.
     pub fn from_activity(
         activity: &Activity,
         account_type: &str,
         loan_currency: &str,
-        timezone: Tz,
     ) -> Option<(String, Self)> {
         let tag = LoanPaymentTag::read(activity.metadata.as_ref())?;
         let amount = payment_amount_of(activity, account_type, loan_currency)?;
@@ -121,13 +133,25 @@ impl LoanPayment {
             let payment = Self {
                 activity_id: activity.id.clone(),
                 account_id: activity.account_id.clone(),
-                date: payment_date(activity, timezone),
+                paid_at: activity.activity_date,
                 amount,
                 escrow: tag.escrow,
                 applies_to: tag.applies_to,
             };
             (tag.loan_id, payment)
         })
+    }
+
+    /// Rule 5: the payment on the day Wealthfolio shows for it in `timezone`.
+    pub fn dated(&self, timezone: Tz) -> LoanPayment {
+        LoanPayment {
+            activity_id: self.activity_id.clone(),
+            account_id: self.account_id.clone(),
+            date: activity_date_in_tz(self.paid_at, timezone),
+            amount: self.amount,
+            escrow: self.escrow,
+            applies_to: self.applies_to,
+        }
     }
 }
 

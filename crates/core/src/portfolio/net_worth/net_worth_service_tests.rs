@@ -2745,7 +2745,7 @@ async fn loan_history_before_first_confirmation_matches_point_in_time() {
 }
 
 /// Loan payments for net worth, as the account repository would read them.
-struct TaggedPayments(HashMap<String, Vec<crate::assets::loan::LoanPayment>>);
+struct TaggedPayments(HashMap<String, Vec<crate::assets::loan::StoredPayment>>);
 
 #[async_trait]
 impl crate::assets::AlternativeAssetRepositoryTrait for TaggedPayments {
@@ -2771,8 +2771,7 @@ impl crate::assets::AlternativeAssetRepositoryTrait for TaggedPayments {
     fn loan_payments(
         &self,
         loan_ids: &[String],
-        _: chrono_tz::Tz,
-    ) -> Result<HashMap<String, Vec<crate::assets::loan::LoanPayment>>> {
+    ) -> Result<HashMap<String, Vec<crate::assets::loan::StoredPayment>>> {
         Ok(self
             .0
             .iter()
@@ -2783,7 +2782,6 @@ impl crate::assets::AlternativeAssetRepositoryTrait for TaggedPayments {
     async fn update_loan(
         &self,
         _: &str,
-        _: chrono_tz::Tz,
         _: crate::assets::LoanChange,
     ) -> Result<crate::assets::loan::LoanUpdate> {
         unimplemented!("not used by net worth")
@@ -2792,7 +2790,6 @@ impl crate::assets::AlternativeAssetRepositoryTrait for TaggedPayments {
         &self,
         _: &str,
         _: Option<&str>,
-        _: chrono_tz::Tz,
         _: crate::assets::PaymentTagChange,
     ) -> Result<Option<crate::activities::Activity>> {
         unimplemented!("not used by net worth")
@@ -2807,10 +2804,11 @@ async fn tagged_loan_payments_count_in_net_worth_and_its_history() {
     asset.metadata = Some(serde_json::json!({
         "loan_projection": {"version": 1,"annualRate":0,"paymentAmount":100,"frequency":"monthly","firstPaymentDate":"2026-02-01","amortizationEndDate":"2027-01-01"}
     }));
-    let payment = crate::assets::loan::LoanPayment {
+    // 10 pm on April 15 in Toronto, already April 16 in UTC.
+    let payment = crate::assets::loan::StoredPayment {
         activity_id: "extra".into(),
         account_id: "chequing".into(),
-        date: NaiveDate::from_ymd_opt(2026, 4, 10).unwrap(),
+        paid_at: "2026-04-16T02:00:00Z".parse().unwrap(),
         amount: 200.0,
         escrow: 0.0,
         applies_to: Some(crate::assets::loan::PaymentTarget::Extra),
@@ -2826,9 +2824,9 @@ async fn tagged_loan_payments_count_in_net_worth_and_its_history() {
             "LIAB-paid".to_string(),
             vec![payment],
         )]))),
-        Arc::new(RwLock::new("UTC".to_string())),
+        Arc::new(RwLock::new("America/Toronto".to_string())),
     );
-    // The same figures as a recorded extra repayment of 200 on April 10.
+    // The same figures as a recorded extra repayment of 200 on April 15.
     let current = service.get_net_worth(end).await.unwrap();
     let history = service.get_net_worth_history(start, end).unwrap();
     assert_eq!(current.liabilities.total, dec!(700));

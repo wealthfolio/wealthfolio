@@ -7,8 +7,8 @@ use rust_decimal::Decimal;
 use serde_json::json;
 use wealthfolio_core::activities::ActivityRepositoryTrait;
 use wealthfolio_core::assets::loan::{
-    event_entries, BalanceEdit, LoanAction, LoanEvent, LoanFrequency, LoanRecord, LoanSchedule,
-    LoanSetup, LoanTerms, LoanUpdate, PaymentLink, PaymentTarget, PAYMENT_ACCOUNT_KEY,
+    event_entries, BalanceEdit, LoanAction, LoanEvent, LoanFrequency, LoanSchedule, LoanSetup,
+    LoanTerms, LoanUpdate, PaymentLink, PaymentTarget, StoredLoan, PAYMENT_ACCOUNT_KEY,
     RENEWAL_MATURITY_KEY,
 };
 use wealthfolio_core::assets::{
@@ -340,8 +340,7 @@ async fn a_write_that_fails_after_the_metadata_change_leaves_the_loan_untouched(
         .repository
         .update_loan(
             "mortgage",
-            chrono_tz::Tz::UTC,
-            Box::new(|record: &LoanRecord| {
+            Box::new(|record: &StoredLoan| {
                 let mut metadata = record.metadata.clone();
                 metadata["sub_type"] = json!("auto");
                 // A quote for an asset that does not exist fails its foreign key

@@ -377,10 +377,10 @@ fn a_tagged_posted_cash_withdrawal_in_the_loans_currency_is_a_payment() {
     let activity = withdrawal(Some(
         json!({"loan_id": "loan", "escrow": 30, "applies_to": "extra"}),
     ));
-    let (loan, payment) = LoanPayment::from_activity(&activity, "CASH", "CAD", Tz::UTC).unwrap();
+    let (loan, payment) = StoredPayment::from_activity(&activity, "CASH", "CAD").unwrap();
     assert_eq!(loan, "loan");
     assert_eq!(
-        payment,
+        payment.dated(Tz::UTC),
         LoanPayment {
             activity_id: "act".into(),
             account_id: "chequing".into(),
@@ -397,12 +397,8 @@ fn a_payment_is_dated_by_the_day_shown_in_the_settings_time_zone() {
     // 8 pm on March 1 in Toronto is already March 2 in UTC.
     let mut activity = withdrawal(Some(json!({"loan_id": "loan"})));
     activity.activity_date = "2026-03-02T01:00:00Z".parse().unwrap();
-    let day = |timezone| {
-        LoanPayment::from_activity(&activity, "CASH", "CAD", timezone)
-            .unwrap()
-            .1
-            .date
-    };
+    let (_, payment) = StoredPayment::from_activity(&activity, "CASH", "CAD").unwrap();
+    let day = |timezone| payment.dated(timezone).date;
     assert_eq!(day(chrono_tz::America::Toronto), date("2026-03-01"));
     assert_eq!(day(Tz::UTC), date("2026-03-02"));
 }
@@ -412,7 +408,7 @@ fn anything_that_stops_qualifying_is_ignored() {
     use crate::activities::ActivityStatus;
     let tag = || Some(json!({"loan_id": "loan"}));
     let counts = |activity: &Activity, account: &str, currency: &str| {
-        LoanPayment::from_activity(activity, account, currency, Tz::UTC).is_some()
+        StoredPayment::from_activity(activity, account, currency).is_some()
     };
     assert!(counts(&withdrawal(tag()), "CASH", "CAD"));
     assert!(!counts(&withdrawal(None), "CASH", "CAD"));

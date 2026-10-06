@@ -20,10 +20,10 @@ mod setup;
 mod summary;
 pub use actions::{
     apply_loan_action, AssetDetailsChange, BalanceEdit, LoanAction, LoanActionResult, LoanError,
-    LoanRecord, LoanUpdate,
+    LoanRecord, LoanUpdate, StoredLoan,
 };
 pub use interest::{payment_amount, InterestMethod};
-pub use linking::{link_payment, PaymentLink, PaymentTagUpdate};
+pub use linking::{link_payment, untagged, PaymentLink, PaymentTagUpdate};
 pub use model::{
     balance_notes, balance_user_note, edited_balance_notes, escrow_amount, event_entries,
     LoanBalanceKind, LoanEvent, LoanTerms, ESCROW_AMOUNT_KEY, INTEREST_RATE_KEY, LOAN_CLOSED_NOTE,
@@ -32,7 +32,7 @@ pub use model::{
 };
 pub use payments::{
     InstalmentStatus, LoanInstalment, LoanPayment, LoanPaymentTag, PaymentAllocation,
-    PaymentChangeSuggestion, PaymentTarget, LOAN_PAYMENT_TAG_KEY,
+    PaymentChangeSuggestion, PaymentTarget, StoredPayment, LOAN_PAYMENT_TAG_KEY,
 };
 pub use recalculation::{recalculate_loan, LoanRecalculation, LoanRecalculationRequest};
 pub use setup::{
