@@ -18,10 +18,18 @@ on:
         options:
           - aarch64-pc-windows-msvc
           - x86_64-pc-windows-msvc
+      sign:
+        description: "Authenticode-sign (the windows-signing environment must allow this branch)"
+        type: boolean
+        default: false
 
 jobs:
   build:
     runs-on: windows-latest
+    permissions:
+      contents: read
+      id-token: write
+    environment: ${{ inputs.sign && 'windows-signing' || '' }}
     env:
       TARGET: ${{ inputs.target || 'aarch64-pc-windows-msvc' }}
 
@@ -60,6 +68,18 @@ jobs:
       - name: Install frontend dependencies
         run: pnpm install
 
+      - name: Set up Windows code signing
+        if: inputs.sign
+        id: win-signing
+        shell: pwsh
+        env:
+          AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+          ARTIFACT_SIGNING_ENDPOINT: ${{ vars.ARTIFACT_SIGNING_ENDPOINT }}
+          ARTIFACT_SIGNING_ACCOUNT: ${{ vars.ARTIFACT_SIGNING_ACCOUNT }}
+          ARTIFACT_SIGNING_PROFILE: ${{ vars.ARTIFACT_SIGNING_PROFILE }}
+        run: ./.github/scripts/windows-signing.ps1 setup
+
       - name: Build the app (no release)
         uses: tauri-apps/tauri-action@v0
         env:
@@ -69,8 +89,17 @@ jobs:
           CONNECT_OAUTH_CALLBACK_URL: ${{ vars.CONNECT_OAUTH_CALLBACK_URL }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
+          AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
         with:
-          args: --target ${{ env.TARGET }} --bundles nsis -- --locked
+          args:
+            --target ${{ env.TARGET }} --bundles nsis ${{ steps.win-signing.outputs.args }} --
+            --locked
+
+      - name: Verify Authenticode signatures
+        if: inputs.sign
+        shell: pwsh
+        run: ./.github/scripts/windows-signing.ps1 verify
 
       - name: Upload installer artifact
         uses: actions/upload-artifact@v4

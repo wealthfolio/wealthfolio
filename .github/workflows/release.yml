@@ -10,6 +10,10 @@ jobs:
   release:
     permissions:
       contents: write
+      # Windows Authenticode signing authenticates to Azure Artifact Signing with OIDC.
+      id-token: write
+    # The Entra federated credential trusts only this environment's OIDC subject.
+    environment: ${{ contains(matrix.platform, 'windows') && 'windows-signing' || '' }}
     strategy:
       fail-fast: false
       matrix:
@@ -98,6 +102,18 @@ jobs:
           ")
           echo "args=$ARGS" >> "$GITHUB_OUTPUT"
 
+      - name: Set up Windows code signing
+        if: contains(matrix.platform, 'windows')
+        id: win-signing
+        shell: pwsh
+        env:
+          AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+          ARTIFACT_SIGNING_ENDPOINT: ${{ vars.ARTIFACT_SIGNING_ENDPOINT }}
+          ARTIFACT_SIGNING_ACCOUNT: ${{ vars.ARTIFACT_SIGNING_ACCOUNT }}
+          ARTIFACT_SIGNING_PROFILE: ${{ vars.ARTIFACT_SIGNING_PROFILE }}
+        run: ./.github/scripts/windows-signing.ps1 setup
+
       - name: Materialize App Store Connect API key (macOS notarization)
         if: contains(matrix.platform, 'macos')
         shell: bash
@@ -122,13 +138,23 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
+          # Windows Authenticode signCommand (set only in the windows-signing environment)
+          AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
         with:
           tagName: ${{ github.event_name == 'push' && github.ref_name || '' }}
           releaseName: ${{ github.event_name == 'push' && 'Wealthfolio v__VERSION__' || '' }}
           releaseBody: "See the assets to download and install this version."
           releaseDraft: true
           prerelease: false
-          args: ${{ matrix.args }} ${{ steps.win-bundles.outputs.args }} -- --locked
+          args:
+            ${{ matrix.args }} ${{ steps.win-bundles.outputs.args }} ${{
+            steps.win-signing.outputs.args }} -- --locked
+
+      - name: Verify Windows Authenticode signatures
+        if: contains(matrix.platform, 'windows')
+        shell: pwsh
+        run: ./.github/scripts/windows-signing.ps1 verify
 
       # Tauri only notarizes the .app (tauri-bundler macos/app.rs calls notarize()
       # on the app bundle; macos/dmg/mod.rs just codesigns the disk image), so the
