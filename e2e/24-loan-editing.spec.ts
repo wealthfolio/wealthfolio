@@ -88,7 +88,10 @@ test("active mortgage terms, previous terms and event editing stay consistent", 
   await expect(page.getByRole("dialog")).toBeVisible();
   await page.getByRole("dialog").getByRole("button", { name: "Cancel", exact: true }).click();
 
-  await ledger.getByRole("button", { name: "Upcoming", exact: true }).click();
+  const upcoming = ledger.getByRole("button", { name: "Upcoming", exact: true });
+  await upcoming.click();
+  // The past view lists payments too: wait for the upcoming view before checking its rows.
+  await expect(upcoming).toHaveAttribute("aria-pressed", "true");
   await expect(rows.filter({ hasText: "Payment" }).first()).toBeVisible();
   await page.goto(`${BASE_URL}/holdings/${assetId}`);
 
@@ -106,10 +109,15 @@ test("active mortgage terms, previous terms and event editing stay consistent", 
   await sheet.getByRole("button", { name: "Cancel", exact: true }).click();
 
   await page.goto(`${BASE_URL}/holdings/${assetId}?tab=history`);
-  await ledger.getByRole("checkbox", { name: "Events only", exact: true }).click();
+  const eventsOnly = ledger.getByRole("checkbox", { name: "Events only", exact: true });
+  await eventsOnly.click();
+  // Each filter rewrites the URL from the last rendered params, so clicking "Upcoming" before
+  // this renders drops "Events only". The row count cannot tell: on some dates the unfiltered
+  // past view also shows 5 rows.
+  await expect(eventsOnly).toHaveAttribute("aria-checked", "true");
   // Past events exclude the upcoming renewal date.
   await expect(rows).toHaveCount(5);
-  await ledger.getByRole("button", { name: "Upcoming", exact: true }).click();
+  await upcoming.click();
   await expect(rows).toHaveCount(1);
   await expect(rows).toContainText("Next renewal");
   await ledger.getByRole("button", { name: "Past", exact: true }).click();

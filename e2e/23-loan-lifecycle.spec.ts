@@ -30,7 +30,6 @@ test("loan lifecycle matches the independent fixture in the page and net worth",
   page,
 }) => {
   test.setTimeout(240_000);
-  await page.clock.setFixedTime(new Date("2025-01-01T12:00:00"));
   await completeOnboardingIfNeeded(page);
   const api = `${BASE_URL}/api/v1`;
   // The full suite shares a profile: loan assertions must tolerate unrelated holdings.
@@ -52,6 +51,10 @@ test("loan lifecycle matches the independent fixture in the page and net worth",
     baseline.set(date, await netWorthAt(page, date));
   }
   const sheet = page.getByRole("dialog");
+  // Fix the clock only now: each navigation moves the page's performance.now() ahead of the
+  // animation timeline by the time since the first clock call, and motion starts animations
+  // at performance.now(), so the dialog's step transition would wait out the setup above.
+  await page.clock.setFixedTime(new Date("2025-01-01T12:00:00"));
   await page.goto(`${BASE_URL}/holdings?tab=assets`);
   await page.locator('button.h-9.w-9[aria-haspopup="dialog"]').click();
   await page.getByRole("button", { name: "Add Asset", exact: true }).click();
