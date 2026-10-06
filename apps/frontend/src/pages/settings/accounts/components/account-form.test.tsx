@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@/test/render";
+import { fireEvent, render, screen, waitFor, within } from "@/test/render";
 import { Dialog, DialogContent } from "@wealthfolio/ui/components/ui/dialog";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AccountForm } from "./account-form";
@@ -102,6 +102,26 @@ describe("AccountForm cost basis method", () => {
       accounting: { costBasisProfile: "GENERIC", costBasisMethod: "WAC" },
       broker: { note: "kept" },
     });
+  });
+
+  it("offers every method the engine computes, FIFO first", () => {
+    renderForm({ meta: undefined });
+    expand();
+    const options = within(screen.getByLabelText(METHOD_LABEL))
+      .getAllByRole("option")
+      .map((option) => (option as HTMLOptionElement).value);
+    expect(options).toEqual(["FIFO", "LIFO", "HIFO", "WAC"]);
+  });
+
+  it.each([["LIFO"], ["HIFO"]])("stores %s", async (method) => {
+    renderForm({ meta: undefined });
+    expand();
+    fireEvent.change(screen.getByLabelText(METHOD_LABEL), { target: { value: method } });
+    fireEvent.click(screen.getByTestId("account-submit-button"));
+
+    await waitFor(() => expect(mutations.update).toHaveBeenCalledTimes(1));
+    const submitted = mutations.update.mock.calls[0][0] as { meta: string };
+    expect(JSON.parse(submitted.meta)).toEqual({ accounting: { costBasisMethod: method } });
   });
 
   it("stays collapsed on FIFO, the default, showing the method", () => {

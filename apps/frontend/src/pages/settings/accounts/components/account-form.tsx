@@ -90,7 +90,7 @@ function getSelectableCashCategoryFromMeta(meta?: string | null): string {
 
 // The methods the portfolio engine computes (CostBasisMethod::ALL); an account
 // without a method in its meta uses FIFO.
-const COST_BASIS_METHODS: readonly string[] = ["FIFO", "WAC"];
+const COST_BASIS_METHODS: readonly string[] = ["FIFO", "LIFO", "HIFO", "WAC"];
 const DEFAULT_COST_BASIS_METHOD = "FIFO";
 
 function asObject(value: unknown): Record<string, unknown> | null {
