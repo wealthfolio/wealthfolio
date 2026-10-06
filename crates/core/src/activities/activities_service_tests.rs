@@ -14817,4 +14817,206 @@ pub(crate) mod tests {
             checked[1].errors
         );
     }
+
+    // ───────────────────────────────────────────────────────────────────
+    // preview_activity_update
+    // ───────────────────────────────────────────────────────────────────
+
+    fn stored_snapshot(activity_repository: &MockActivityRepository) -> serde_json::Value {
+        serde_json::to_value(&*activity_repository.activities.lock().unwrap()).unwrap()
+    }
+
+    fn preview_test_service(
+        activity_repository: Arc<MockActivityRepository>,
+        fx_service: Arc<MockFxService>,
+    ) -> ActivityService {
+        let account_service = Arc::new(MockAccountService::new());
+        for (id, account_type) in [
+            ("acc-1", "SECURITIES"),
+            ("acc-a", "SECURITIES"),
+            ("acc-b", "SECURITIES"),
+            ("acc-card", crate::accounts::account_types::CREDIT_CARD),
+        ] {
+            let mut account = create_test_account(id, "USD");
+            account.account_type = account_type.to_string();
+            account_service.add_account(account);
+        }
+        let asset_service = Arc::new(MockAssetService::new());
+        asset_service.add_asset(create_test_asset("NESN", "USD"));
+        ActivityService::new(
+            activity_repository,
+            account_service,
+            asset_service,
+            fx_service,
+            Arc::new(MockQuoteService),
+        )
+    }
+
+    fn utc(timestamp: &str) -> DateTime<Utc> {
+        DateTime::parse_from_rfc3339(timestamp)
+            .unwrap()
+            .with_timezone(&Utc)
+    }
+
+    #[tokio::test]
+    async fn preview_activity_update_writes_nothing_that_the_update_writes() {
+        // An EUR edit on a USD account: the update registers EUR/USD, the
+        // preview only reports what would be stored.
+        let activity_repository = Arc::new(MockActivityRepository::new());
+        activity_repository.add_activity(create_stored_activity("buy-1", "acc-1", Some("NESN")));
+        let fx_service = Arc::new(MockFxService::new());
+        let activity_service =
+            preview_test_service(activity_repository.clone(), fx_service.clone());
+        let before = stored_snapshot(&activity_repository);
+
+        let mut update = create_test_activity_update("buy-1", "acc-1", None, "EUR");
+        update.fee = Some(Some(dec!(-2.5)));
+        let preview = activity_service
+            .preview_activity_update(update.clone())
+            .expect("preview");
+
+        let previewed = &preview.activity;
+        assert_eq!(previewed.existing.id, "buy-1");
+        assert_eq!(previewed.update.currency, "EUR");
+        assert_eq!(
+            previewed.update.fee,
+            Some(Some(dec!(2.5))),
+            "stored unsigned"
+        );
+        assert_eq!(
+            previewed
+                .update
+                .asset
+                .as_ref()
+                .and_then(|asset| asset.id.as_deref()),
+            Some("NESN"),
+            "an omitted asset keeps the stored one"
+        );
+        assert_eq!(previewed.activity_date, utc("2024-01-15T00:00:00Z"));
+        assert!(preview.linked.is_none());
+        assert_eq!(stored_snapshot(&activity_repository), before);
+        assert!(fx_service.get_registered_pairs().is_empty());
+
+        activity_service
+            .update_activity(update)
+            .await
+            .expect("update");
+        assert!(fx_service
+            .get_registered_pairs()
+            .contains(&("EUR".to_string(), "USD".to_string())));
+        assert_ne!(stored_snapshot(&activity_repository), before);
+    }
+
+    #[tokio::test]
+    async fn preview_activity_update_places_a_bare_date_on_the_local_day() {
+        let activity_repository = Arc::new(MockActivityRepository::new());
+        activity_repository.add_activity(create_stored_activity("buy-1", "acc-1", Some("NESN")));
+        let activity_service =
+            preview_test_service(activity_repository, Arc::new(MockFxService::new()))
+                .with_timezone(Arc::new(std::sync::RwLock::new(
+                    "America/Toronto".to_string(),
+                )));
+
+        let mut update = create_test_activity_update("buy-1", "acc-1", None, "USD");
+        update.activity_date = "2024-01-15".to_string();
+        let preview = activity_service
+            .preview_activity_update(update)
+            .expect("preview");
+
+        // Midnight in Toronto (EST) is 05:00 UTC.
+        assert_eq!(preview.activity.activity_date, utc("2024-01-15T05:00:00Z"));
+    }
+
+    #[tokio::test]
+    async fn preview_activity_update_mirrors_onto_the_linked_leg() {
+        let activity_repository = Arc::new(MockActivityRepository::new());
+        seed_internal_cash_transfer_pair(&activity_repository, "group-internal");
+        let activity_service =
+            preview_test_service(activity_repository.clone(), Arc::new(MockFxService::new()));
+        let before = stored_snapshot(&activity_repository);
+
+        let update = ActivityUpdate {
+            id: "pair-out".to_string(),
+            account_id: "acc-a".to_string(),
+            asset: None,
+            activity_type: "TRANSFER_OUT".to_string(),
+            subtype: None,
+            activity_date: "2024-02-01T00:00:00Z".to_string(),
+            quantity: None,
+            unit_price: None,
+            currency: "USD".to_string(),
+            fee: None,
+            tax: None,
+            amount: Some(Some(dec!(150))),
+            status: None,
+            needs_review: None,
+            notes: Some("rent".to_string()),
+            fx_rate: None,
+            metadata: None,
+        };
+        let preview = activity_service
+            .preview_activity_update(update)
+            .expect("preview");
+
+        let linked = preview.linked.expect("the other leg");
+        assert_eq!(linked.existing.id, "pair-in");
+        assert_eq!(linked.update.account_id, "acc-b");
+        assert_eq!(linked.activity_date, utc("2024-02-01T00:00:00Z"));
+        assert_eq!(linked.update.amount, Some(Some(dec!(150))));
+        assert_eq!(linked.update.notes.as_deref(), Some("rent"));
+        assert_eq!(stored_snapshot(&activity_repository), before);
+    }
+
+    #[tokio::test]
+    async fn preview_activity_update_rejects_what_the_update_rejects_and_symbols() {
+        let activity_repository = Arc::new(MockActivityRepository::new());
+        activity_repository.add_activity(create_stored_activity("buy-1", "acc-1", Some("NESN")));
+        let activity_service =
+            preview_test_service(activity_repository.clone(), Arc::new(MockFxService::new()));
+        let before = stored_snapshot(&activity_repository);
+        let update = || create_test_activity_update("buy-1", "acc-1", None, "USD");
+        let asset = |id: Option<&str>, symbol: Option<&str>| {
+            Some(AssetResolutionInput {
+                id: id.map(str::to_string),
+                symbol: symbol.map(str::to_string),
+                ..Default::default()
+            })
+        };
+
+        let mut missing_activity = update();
+        missing_activity.id = "missing".to_string();
+        let mut missing_asset = update();
+        missing_asset.asset = asset(Some("NOT-STORED"), None);
+        let mut invalid_date = update();
+        invalid_date.activity_date = "15/01/2024".to_string();
+        let mut card_account = update();
+        card_account.account_id = "acc-card".to_string();
+        for (case, invalid) in [
+            ("missing activity", missing_activity),
+            ("asset not stored", missing_asset),
+            ("invalid date", invalid_date),
+            ("type not allowed for the account", card_account),
+        ] {
+            let preview_error = activity_service
+                .preview_activity_update(invalid.clone())
+                .expect_err(case)
+                .to_string();
+            let update_error = activity_service
+                .update_activity(invalid)
+                .await
+                .expect_err(case)
+                .to_string();
+            assert_eq!(preview_error, update_error, "{case}");
+        }
+
+        // Resolving a symbol may create an asset, so a preview refuses it.
+        let mut symbol = update();
+        symbol.asset = asset(None, Some("AAPL"));
+        let error = activity_service
+            .preview_activity_update(symbol)
+            .expect_err("symbol")
+            .to_string();
+        assert!(error.contains("not by symbol"), "{error}");
+        assert_eq!(stored_snapshot(&activity_repository), before);
+    }
 }

@@ -414,6 +414,10 @@ pub trait ActivityServiceTrait: Send + Sync {
     fn get_import_template(&self, template_id: String) -> Result<ImportTemplateData>;
     async fn create_activity(&self, activity: NewActivity) -> Result<Activity>;
     async fn update_activity(&self, activity: ActivityUpdate) -> Result<Activity>;
+    /// Runs `update_activity`'s validation and returns what it would write,
+    /// for the activity and a linked transfer leg, without writing anything.
+    /// The asset may only be named by id: resolving a symbol may create one.
+    fn preview_activity_update(&self, activity: ActivityUpdate) -> Result<ActivityUpdatePreview>;
     async fn delete_activity(&self, activity_id: String) -> Result<Activity>;
     /// Returns the internal transfer pair for the activity, or `None` when the
     /// activity exists but is not part of a valid internal transfer pair.

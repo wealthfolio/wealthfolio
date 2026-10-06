@@ -14,11 +14,11 @@ use wealthfolio_core::{
     activities::{
         Activity, ActivityBulkMutationRequest, ActivityBulkMutationResult, ActivityDetails,
         ActivityImport, ActivitySearchResponse, ActivitySearchResponseMeta, ActivityServiceTrait,
-        ActivityUpdate, BrokerSyncProfileData, ImportAssetCandidate, ImportAssetPreviewItem,
-        ImportMappingData, ImportTemplateData, ImportTemplateScope, InternalTransferPairRequest,
-        InternalTransferPairResponse, NewActivity, SaveBrokerSyncProfileRulesRequest, Sort,
-        TransferMatchCandidate, TransferMatchCandidateRequest, UnlinkedTransfers,
-        UnlinkedTransfersRequest,
+        ActivityUpdate, ActivityUpdatePreview, BrokerSyncProfileData, ImportAssetCandidate,
+        ImportAssetPreviewItem, ImportMappingData, ImportTemplateData, ImportTemplateScope,
+        InternalTransferPairRequest, InternalTransferPairResponse, NewActivity,
+        SaveBrokerSyncProfileRulesRequest, Sort, TransferMatchCandidate,
+        TransferMatchCandidateRequest, UnlinkedTransfers, UnlinkedTransfersRequest,
     },
     assets::{
         Asset, AssetMetadata, AssetResolutionInput, AssetResolutionOutput, AssetServiceTrait,
@@ -485,6 +485,13 @@ impl ActivityServiceTrait for MockActivityService {
 
     async fn update_activity(&self, _activity: ActivityUpdate) -> CoreResult<Activity> {
         unimplemented!("MockActivityService::update_activity")
+    }
+
+    fn preview_activity_update(
+        &self,
+        _activity: ActivityUpdate,
+    ) -> CoreResult<ActivityUpdatePreview> {
+        unimplemented!("MockActivityService::preview_activity_update")
     }
 
     async fn delete_activity(&self, _activity_id: String) -> CoreResult<Activity> {

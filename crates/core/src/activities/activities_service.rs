@@ -12,6 +12,7 @@
 //! | Form edit | stored total re-sent (custom) or `null` (calculated) | explicit `null` clear, or economics changed with no amount | no - form saves attest; Draft edits are stripped and keep flagging | yes - every submission except Draft edits |
 //! | Grid | only when `_amountEdited` this session | economics cell edited (amount omitted) | yes; silently replacing a custom total always flags | yes (`_amountEdited`, non-Draft) |
 //! | AI confirm / batch / MCP commit | only if the user stated it (drafts never synthesize a total) | absent | no - attested by product decision (review is for imports/sync) | yes |
+//! | MCP update (as the grid) | only when the row states it | economics changed with no amount | yes; silently replacing a custom total always flags | yes (amount stated, non-Draft) |
 //! | CSV import (`ImportApply`) | from the file | absent | yes | no |
 //! | Broker sync (`Sync`) | from the provider | absent | yes; a gross-matching total converts to final | no |
 //! | Migration (one-shot) | preserved, or derived under LEGACY semantics | reliable legacy inputs only | per legacy-shape rules in `activity_cash_migration` | n/a |
@@ -3229,17 +3230,15 @@ impl ActivityService {
         Ok(activity)
     }
 
-    async fn prepare_update_activity(
-        &self,
-        mut activity: ActivityUpdate,
-    ) -> Result<ActivityUpdate> {
+    /// The checks an update passes before its asset is resolved: normalizes
+    /// the date and split ratio, and returns the account currency.
+    fn validate_update_request(&self, activity: &mut ActivityUpdate) -> Result<String> {
         activity.activity_date =
             self.validate_and_normalize_activity_date(&activity.activity_date)?;
         let account: Account = self.account_service.get_account(&activity.account_id)?;
         Self::validate_activity_allowed_for_account(&activity.activity_type, &account)?;
         let base_ccy = self.account_service.get_base_currency().unwrap_or_default();
         let account_currency = resolve_currency(&[&account.currency, &base_ccy]);
-        let currency = resolve_currency(&[&activity.currency, &account_currency]);
 
         if activity.asset.as_ref().is_some_and(|asset| {
             !asset.is_empty()
@@ -3264,6 +3263,106 @@ impl ActivityService {
                 activity.amount,
             )?;
         }
+
+        Ok(account_currency)
+    }
+
+    /// Stores values unsigned (the type sets the direction) and converts
+    /// minor-unit currencies such as GBp to their major unit.
+    fn normalize_update_values(activity: &mut ActivityUpdate) {
+        activity.quantity = activity.quantity.map(|v| v.map(|d| d.abs()));
+        activity.unit_price = activity.unit_price.map(|v| v.map(|d| d.abs()));
+        activity.amount = activity.amount.map(|v| v.map(|d| d.abs()));
+        activity.fee = activity.fee.map(|v| v.map(|d| d.abs()));
+        activity.tax = activity.tax.map(|v| v.map(|d| d.abs()));
+
+        if get_normalization_rule(&activity.currency).is_some() {
+            let input_currency = activity.currency.clone();
+            let mut normalized_currency = activity.currency.clone();
+            if let Some(Some(unit_price)) = activity.unit_price {
+                let (normalized_price, _) = normalize_amount(unit_price, &input_currency);
+                activity.unit_price = Some(Some(normalized_price));
+            }
+            if let Some(Some(amount)) = activity.amount {
+                let (normalized_amount, _) = normalize_amount(amount, &input_currency);
+                activity.amount = Some(Some(normalized_amount));
+            }
+            if let Some(Some(fee)) = activity.fee {
+                let (normalized_fee, currency) = normalize_amount(fee, &input_currency);
+                activity.fee = Some(Some(normalized_fee));
+                normalized_currency = currency.to_string();
+            }
+            if let Some(Some(tax)) = activity.tax {
+                let (normalized_tax, currency) = normalize_amount(tax, &input_currency);
+                activity.tax = Some(Some(normalized_tax));
+                normalized_currency = currency.to_string();
+            }
+            if !matches!(activity.fee, Some(Some(_))) && !matches!(activity.tax, Some(Some(_))) {
+                let (_, currency) = normalize_amount(rust_decimal::Decimal::ZERO, &input_currency);
+                normalized_currency = currency.to_string();
+            }
+            activity.currency = normalized_currency;
+        }
+    }
+
+    /// What `prepare_update_activity` makes of `activity`, without its writes
+    /// (asset creation, quote-mode changes, manual quotes, FX pairs). The
+    /// asset can only be named by id: resolving a symbol may create one.
+    fn preview_prepared_update(
+        &self,
+        mut activity: ActivityUpdate,
+        existing: Activity,
+    ) -> Result<PreviewedActivityUpdate> {
+        let account_currency = self.validate_update_request(&mut activity)?;
+        if activity
+            .get_symbol_code()
+            .is_some_and(|symbol| !symbol.trim().is_empty())
+        {
+            return Err(Self::invalid_activity_data(
+                "An update preview names the asset by its id, not by symbol",
+            ));
+        }
+        let asset = match activity
+            .get_symbol_id()
+            .map(str::trim)
+            .filter(|id| !id.is_empty())
+        {
+            Some(asset_id) => Some(self.asset_service.get_asset_by_id(asset_id)?),
+            None if Self::requires_asset_identity(
+                &activity.activity_type,
+                activity.subtype.as_deref(),
+            ) =>
+            {
+                return Err(Self::invalid_activity_data(
+                    "Asset-backed activities need either asset_id or symbol",
+                ));
+            }
+            None => None,
+        };
+        if activity.currency.is_empty() {
+            activity.currency = match asset {
+                Some(asset) => asset.quote_ccy,
+                None => self.resolve_activity_currency("", None, &account_currency),
+            };
+        }
+        Self::normalize_update_values(&mut activity);
+        activity.validate()?;
+        let activity_date = Self::parse_activity_timestamp_utc(&activity.activity_date)
+            .ok_or_else(|| Self::invalid_activity_data("Invalid activity date"))?;
+
+        Ok(PreviewedActivityUpdate {
+            existing,
+            update: activity,
+            activity_date,
+        })
+    }
+
+    async fn prepare_update_activity(
+        &self,
+        mut activity: ActivityUpdate,
+    ) -> Result<ActivityUpdate> {
+        let account_currency = self.validate_update_request(&mut activity)?;
+        let currency = resolve_currency(&[&activity.currency, &account_currency]);
 
         // Extract asset fields
         let symbol = activity.get_symbol_code().map(|s| s.to_string());
@@ -3593,41 +3692,7 @@ impl ActivityService {
             }
         }
 
-        // Normalize amounts to absolute values (direction is determined by activity type)
-        activity.quantity = activity.quantity.map(|v| v.map(|d| d.abs()));
-        activity.unit_price = activity.unit_price.map(|v| v.map(|d| d.abs()));
-        activity.amount = activity.amount.map(|v| v.map(|d| d.abs()));
-        activity.fee = activity.fee.map(|v| v.map(|d| d.abs()));
-        activity.tax = activity.tax.map(|v| v.map(|d| d.abs()));
-
-        // Normalize minor currency units
-        if get_normalization_rule(&activity.currency).is_some() {
-            let input_currency = activity.currency.clone();
-            let mut normalized_currency = activity.currency.clone();
-            if let Some(Some(unit_price)) = activity.unit_price {
-                let (normalized_price, _) = normalize_amount(unit_price, &input_currency);
-                activity.unit_price = Some(Some(normalized_price));
-            }
-            if let Some(Some(amount)) = activity.amount {
-                let (normalized_amount, _) = normalize_amount(amount, &input_currency);
-                activity.amount = Some(Some(normalized_amount));
-            }
-            if let Some(Some(fee)) = activity.fee {
-                let (normalized_fee, currency) = normalize_amount(fee, &input_currency);
-                activity.fee = Some(Some(normalized_fee));
-                normalized_currency = currency.to_string();
-            }
-            if let Some(Some(tax)) = activity.tax {
-                let (normalized_tax, currency) = normalize_amount(tax, &input_currency);
-                activity.tax = Some(Some(normalized_tax));
-                normalized_currency = currency.to_string();
-            }
-            if !matches!(activity.fee, Some(Some(_))) && !matches!(activity.tax, Some(Some(_))) {
-                let (_, currency) = normalize_amount(rust_decimal::Decimal::ZERO, &input_currency);
-                normalized_currency = currency.to_string();
-            }
-            activity.currency = normalized_currency;
-        }
+        Self::normalize_update_values(&mut activity);
 
         Ok(activity)
     }
@@ -4853,6 +4918,37 @@ impl ActivityServiceTrait for ActivityService {
         self.emit_asset_split_activities_changed([&existing, &updated]);
 
         Ok(updated)
+    }
+
+    fn preview_activity_update(
+        &self,
+        mut activity: ActivityUpdate,
+    ) -> Result<ActivityUpdatePreview> {
+        // The same steps as `update_activity`, up to its writes.
+        let existing = self.activity_repository.get_activity(&activity.id)?;
+        self.hydrate_and_validate_update_against_existing(&mut activity, &existing)?;
+
+        let pair = self.load_internal_transfer_pair_for_activity(&activity.id)?;
+        let counterpart_update = match pair.as_ref() {
+            Some(pair) => self.build_counterpart_update(&activity, &existing, pair)?,
+            None => None,
+        };
+        let activity = self.preview_prepared_update(activity, existing)?;
+        let linked = match counterpart_update {
+            Some(mut counterpart_update) => {
+                let counterpart_existing = self
+                    .activity_repository
+                    .get_activity(&counterpart_update.id)?;
+                self.hydrate_and_validate_update_against_existing(
+                    &mut counterpart_update,
+                    &counterpart_existing,
+                )?;
+                Some(self.preview_prepared_update(counterpart_update, counterpart_existing)?)
+            }
+            None => None,
+        };
+
+        Ok(ActivityUpdatePreview { activity, linked })
     }
 
     /// Deletes an activity

@@ -550,6 +550,50 @@ and counts of the arguments, never prices. As for every tool, an argument that
 fails to parse is recorded in the error message, which may quote it. The in-app
 assistant has no confirmation card for quotes and does not get these tools.
 
+### MCP-only Activity Update Tools
+
+```text
+prepare_activity_updates           -- preview corrections to existing activities (batch)
+commit_activity_updates            -- apply confirmed corrections in place (batch)
+```
+
+These correct an activity already stored, such as adding the acquisition cost
+and fee to a transfer in recorded before they were known, without re-importing
+it. A row names an `activityId` and only the fields to change, from those the
+activity grid edits: date, account, type, subtype, asset, quantity, unit price,
+amount, currency, fee, tax, FX rate, notes, and `approve` (the grid's Approve:
+clears the review flag and posts a draft). Omitted fields keep their stored
+value and `null` clears an optional one; unknown fields are refused.
+
+Both tools go through `ActivityServiceTrait`. The preview calls
+`preview_activity_update`, which runs `update_activity`'s validation and returns
+what it would write for the activity and a linked transfer's other leg, without
+its writes (asset creation, quote-mode changes, manual quotes, FX pair
+registration). Each row lists every field that would change with its current and
+proposed value, including values core derives, and the changes mirrored onto the
+other leg. The commit validates each row again and calls `update_activity`, so a
+bare date lands on that day in the configured timezone, the other leg of a
+linked transfer receives the mirrored date, notes, amount and approval, the
+portfolio recalculates from the earlier date, and the row is marked
+user-modified so broker syncs keep the edit. It reports each changed field as
+stored before and after. Updates never create activities and never use the
+import flow.
+
+The tools refuse, per row:
+
+- an asset named by symbol: the asset changes only by the id of a stored asset,
+  since resolving a symbol can look up or create assets through market-data
+  providers;
+- a change to the account, currency, type or asset of a linked transfer leg (or
+  the quantity of a security transfer leg), which would break the pair; the
+  error says to unlink first with `unlink_transfer_activities`;
+- a missing activity, an invalid value, or a row that changes nothing.
+
+Each row in a batch (up to 100) succeeds or fails on its own. The audit log
+keeps only each row's activity id and the names of the fields it sets, never
+their values. The in-app assistant does not get these tools; users edit in the
+activity grid.
+
 For categorization rules, `create_categorization_rule` returns an in-memory
 draft and does not save it. After showing that draft to the user and receiving
 confirmation, an MCP client passes the returned `rule` object to
@@ -612,11 +656,14 @@ Write / draft / suggest scopes:
 
 ```text
 activities:draft         record_activity, record_activities,
-                         prepare_activity_import
+                         prepare_activity_import,
+                         prepare_activity_updates (also requires
+                         activities:read)
 activities:write         commit_activity_draft / commit_activity_drafts,
                          commit_activity_import  (each also requires
                          activities:draft),
-                         link_transfer_activities / unlink_transfer_activities
+                         link_transfer_activities / unlink_transfer_activities,
+                         commit_activity_updates
                          (each also requires activities:read and
                          activities:draft)
 classification:suggest   propose_transaction_categories,

@@ -1503,7 +1503,7 @@
       },
       "activities_write": {
         "label": "Actividades: confirmar/escribir",
-        "description": "Confirmar actividades y vincular o desvincular transferencias. Requiere el ámbito de borrador."
+        "description": "Confirmar actividades, actualizar las existentes y vincular o desvincular transferencias. Requiere el ámbito de borrador."
       },
       "classification_suggest": {
         "label": "Clasificación: sugerir",

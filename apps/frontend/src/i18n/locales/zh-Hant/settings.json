@@ -1463,7 +1463,7 @@
       },
       "activities_write": {
         "label": "交易紀錄 — 提交／寫入",
-        "description": "提交交易紀錄，並連結或取消連結轉帳。需要草稿範圍。"
+        "description": "提交交易紀錄、更新現有交易紀錄，並連結或取消連結轉帳。需要草稿範圍。"
       },
       "classification_suggest": {
         "label": "分類 — 建議",

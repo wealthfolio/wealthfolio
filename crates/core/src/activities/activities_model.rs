@@ -617,6 +617,27 @@ impl NewActivity {
     }
 }
 
+/// One activity as an update would leave it, computed without writing.
+#[derive(Debug, Clone)]
+pub struct PreviewedActivityUpdate {
+    /// The stored activity.
+    pub existing: Activity,
+    /// The update as it would be written: omitted fields hydrated from
+    /// `existing` (a `None` patch still keeps the stored value), derived
+    /// amount and review flag applied, date and values normalized.
+    pub update: ActivityUpdate,
+    /// The instant `update.activity_date` is stored as.
+    pub activity_date: DateTime<Utc>,
+}
+
+/// What `update_activity` would write for an update, without writing it.
+#[derive(Debug, Clone)]
+pub struct ActivityUpdatePreview {
+    pub activity: PreviewedActivityUpdate,
+    /// The other leg of a linked transfer pair, which the update mirrors onto.
+    pub linked: Option<PreviewedActivityUpdate>,
+}
+
 /// Input model for updating an existing activity
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

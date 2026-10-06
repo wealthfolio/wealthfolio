@@ -1503,7 +1503,7 @@
       },
       "activities_write": {
         "label": "Activités — valider/écrire",
-        "description": "Valider des activités et lier ou délier des transferts. Nécessite la portée brouillon."
+        "description": "Valider des activités, modifier les activités existantes et lier ou délier des transferts. Nécessite la portée brouillon."
       },
       "classification_suggest": {
         "label": "Classification — suggérer",

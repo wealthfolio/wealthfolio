@@ -7,6 +7,7 @@
 pub mod accounts;
 pub mod activities;
 pub mod activity_import;
+pub mod activity_updates;
 pub mod allocation;
 pub mod asset_classification;
 pub mod asset_taxonomies;
@@ -122,6 +123,13 @@ pub use quote_import::{
     QuoteImportArgs, QuoteImportInput, QuoteImportSummary, QuoteRowResult,
 };
 
+// MCP-only activity update tools (preview, then apply in place).
+pub use activity_updates::{
+    ActivityUpdateError, ActivityUpdatePreviewRow, ActivityUpdatePreviewSummary,
+    CommitActivityUpdates, CommitActivityUpdatesOutput, FieldChange, PrepareActivityUpdates,
+    PrepareActivityUpdatesOutput, StoredChange, UpdatedActivity,
+};
+
 // MCP-only CSV import tools (validate + dedup-safe import pipeline).
 pub use activity_import::{
     ActivityImportArgs, ActivityImportRow, CommitActivityImport, CommitActivityImportOutput,
@@ -208,6 +216,16 @@ pub fn transfer_link_tools() -> Vec<Arc<dyn AgentTool>> {
 /// assistant, which has no confirmation card for quotes.
 pub fn quote_import_tools() -> Vec<Arc<dyn AgentTool>> {
     vec![Arc::new(PrepareQuoteImport), Arc::new(CommitQuoteImport)]
+}
+
+/// The MCP-only activity update tools: preview corrections to existing
+/// activities, then apply them in place. Not exposed to the in-app assistant,
+/// which has no confirmation step for them; users edit in the activity grid.
+pub fn activity_update_tools() -> Vec<Arc<dyn AgentTool>> {
+    vec![
+        Arc::new(PrepareActivityUpdates),
+        Arc::new(CommitActivityUpdates),
+    ]
 }
 
 #[cfg(test)]

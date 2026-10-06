@@ -1463,7 +1463,7 @@
       },
       "activities_write": {
         "label": "Aktivitäten — bestätigen/schreiben",
-        "description": "Aktivitäten bestätigen und Transfers verknüpfen oder trennen. Erfordert die Entwurfs-Berechtigung."
+        "description": "Aktivitäten bestätigen, bestehende aktualisieren und Transfers verknüpfen oder trennen. Erfordert die Entwurfs-Berechtigung."
       },
       "classification_suggest": {
         "label": "Klassifizierung — vorschlagen",
