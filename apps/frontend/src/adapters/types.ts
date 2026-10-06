@@ -416,6 +416,20 @@ export interface CreatedAgentAccessToken {
   expiresAt: string | null;
 }
 
+/** A browser push subscription, in the shape `PushSubscription.toJSON()` produces. */
+export interface WebPushSubscriptionInput {
+  endpoint: string;
+  keys: { p256dh: string; auth: string };
+}
+
+/** Outcome of one notification send across every subscribed device. */
+export interface NotificationSendReport {
+  delivered: number;
+  /** Devices the push service reported as gone; the server forgot them. */
+  removed: number;
+  failed: number;
+}
+
 /** One MCP tool-call audit entry. */
 export interface AgentAuditEntry {
   id: string;
