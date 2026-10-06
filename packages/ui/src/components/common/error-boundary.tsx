@@ -10,6 +10,8 @@ interface Props {
   variant?: "screen" | "page";
   /** Offers a way out to the dashboard; reloading reopens the page that failed. */
   onGoHome?: () => void;
+  /** A change, such as the next navigation, clears a caught error without remounting healthy children. */
+  resetKey?: unknown;
 }
 
 interface State {
@@ -113,6 +115,12 @@ class ErrorBoundary extends Component<Props, State> {
 
   public static getDerivedStateFromError(error: Error): State {
     return { hasError: true, error };
+  }
+
+  public componentDidUpdate(previous: Props) {
+    if (this.state.hasError && previous.resetKey !== this.props.resetKey) {
+      this.setState({ hasError: false, error: undefined });
+    }
   }
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {

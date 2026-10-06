@@ -4,16 +4,17 @@ import { useLocation, useNavigate } from "react-router-dom";
 
 /**
  * Keeps the app usable when a page fails to render: the error shows in the page
- * area, navigation stays available, and the next route starts afresh.
+ * area, navigation stays available, and any navigation, even one that changes
+ * only the query, clears the error.
  */
 export function PageErrorBoundary({ children }: { children: ReactNode }) {
-  const { pathname } = useLocation();
+  const { key, pathname, search } = useLocation();
   const navigate = useNavigate();
-  const onDashboard = pathname === "/" || pathname === "/dashboard";
+  const onDashboard = (pathname === "/" || pathname === "/dashboard") && !search;
   return (
     <ErrorBoundary
-      key={pathname}
       variant="page"
+      resetKey={key}
       onGoHome={onDashboard ? undefined : () => navigate("/")}
     >
       {children}
