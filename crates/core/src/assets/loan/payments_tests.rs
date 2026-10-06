@@ -269,6 +269,29 @@ fn a_repeated_difference_suggests_a_payment_change() {
 }
 
 #[test]
+fn an_extra_recorded_on_due_dates_suggests_no_payment_change() {
+    // Extra repayments of 40 recorded on three due dates.
+    let with_extras = |amount| {
+        let mut request = monthly(
+            ["2026-03-01", "2026-04-01", "2026-05-01"]
+                .iter()
+                .map(|day| pay(day, day, amount))
+                .collect(),
+        );
+        request.metadata["loan_events"] = json!(["2026-03-01", "2026-04-01", "2026-05-01"]
+            .iter()
+            .map(|day| json!({ "type": "extra_repayment", "effectiveDate": day, "amount": 40 }))
+            .collect::<Vec<_>>());
+        calc(&request).payment_suggestion
+    };
+    // The regular payment, with the extras paid separately or in the same withdrawal.
+    assert_eq!(with_extras(100.0), None);
+    assert_eq!(with_extras(140.0), None);
+    // Ten more every time is a payment of 110, extras aside.
+    assert_eq!(with_extras(150.0).map(|s| s.payment_amount), Some(110.0));
+}
+
+#[test]
 fn a_confirmed_balance_still_wins_over_payments() {
     let mut request = monthly(vec![pay("mar", "2026-03-01", 150.0)]);
     request.balances.push(LoanBalance {

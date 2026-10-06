@@ -412,14 +412,16 @@ statement remains the truth.
    counted payment onward, an instalment more than its matching window overdue
    with less than its scheduled payment applied is marked short or missing. An
    extra repayment recorded on the due date counts through its own event, so it
-   is not required from the payments. The balance still assumes the scheduled
+   is not required from the payments, though a later payment within the window
+   still counts toward it (rule 8). The balance still assumes the scheduled
    payment until a confirmed balance corrects it, because an import that is late
    or incomplete must not lower debt.
 10. **A repeated difference suggests a payment change.** When the last three
     instalments settled by payments, matched or directed, each differ from the
     scheduled payment by the same amount of at least 1.00, the loan suggests a
-    dated payment change instead of counting the difference every time. Until
-    the user acts, rule 8 applies.
+    dated payment change instead of counting the difference every time. An extra
+    repayment recorded on the due date is no difference, whether paid with the
+    instalment or apart. Until the user acts, rule 8 applies.
 11. **Confirmed balances still win.** A confirmation on or after a payment's
     date overrides the estimate from that date, as before; a payment on the same
     day is already included in it.

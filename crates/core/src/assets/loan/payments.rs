@@ -372,8 +372,12 @@ pub(super) fn payment_suggestion(plan: &PaymentPlan) -> Option<PaymentChangeSugg
         .iter()
         .filter_map(|a| {
             let due = a.instalment?;
-            let scheduled = plan.instalments.iter().find(|i| i.date == due)?.scheduled;
-            Some((due, scheduled, money(a.applied + a.extra - scheduled)))
+            let i = plan.instalments.iter().find(|i| i.date == due)?;
+            // An extra recorded that day may be paid with the instalment or apart
+            // from it, so anything from the regular payment to both is on target.
+            let paid = a.applied + a.extra;
+            let expected = paid.max(i.regular).min(i.scheduled);
+            Some((due, i.regular, money(paid - expected)))
         })
         .collect();
     let run = matched.get(matched.len().checked_sub(SUGGESTION_RUN)?..)?;
