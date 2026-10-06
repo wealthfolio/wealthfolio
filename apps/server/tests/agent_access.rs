@@ -285,6 +285,15 @@ async fn mcp_pat_lifecycle() {
     .await;
     assert_eq!(status, 400);
 
+    // market-data:write without holdings:read is rejected (dependency).
+    let (status, _) = create_pat(
+        &server,
+        &cookie,
+        serde_json::json!({ "name": "quote write only", "scopes": ["market-data:write"] }),
+    )
+    .await;
+    assert_eq!(status, 400);
+
     let session = mcp_initialize(&server, &pat).await;
 
     // tools/list -> the read-only catalog: 16 read tools + get_import_mapping
@@ -449,8 +458,9 @@ async fn mcp_pat_lifecycle() {
 
 /// A write/suggest-scoped token sees the draft, suggest, commit, AND import
 /// tools via `tools/list` — proving scope-gated visibility extends past the
-/// read-only catalog. (Read-only tokens see 17; the full MCP catalog is
-/// 16 read + get_import_mapping + 5 draft/suggest + 3 commit + 2 import = 27.)
+/// read-only catalog. (Read-only tokens see 18; the full MCP catalog is
+/// 16 read + 5 draft/suggest + 4 commit + 3 import + 3 transfer linking +
+/// 2 quote import = 33.)
 #[tokio::test]
 async fn mcp_write_scoped_token_sees_write_tools() {
     let server = spawn_server(true, false).await;
@@ -464,6 +474,7 @@ async fn mcp_write_scoped_token_sees_write_tools() {
             "activities:write",
             "classification:suggest",
             "classification:write",
+            "market-data:write",
         ])
         .collect();
     let (status, created) = create_pat(
@@ -473,7 +484,7 @@ async fn mcp_write_scoped_token_sees_write_tools() {
     )
     .await;
     assert_eq!(status, 201);
-    assert_eq!(created["scopes"].as_array().unwrap().len(), 11);
+    assert_eq!(created["scopes"].as_array().unwrap().len(), 12);
     let pat = created["token"].as_str().unwrap().to_string();
 
     let session = mcp_initialize(&server, &pat).await;
@@ -490,13 +501,15 @@ async fn mcp_write_scoped_token_sees_write_tools() {
     let names: Vec<&str> = tools.iter().map(|t| t["name"].as_str().unwrap()).collect();
     assert_eq!(
         tools.len(),
-        31,
-        "full-scope token must see all 31 tools: {names:?}"
+        33,
+        "full-scope token must see all 33 tools: {names:?}"
     );
     for name in [
         "find_transfer_matches",
         "link_transfer_activities",
         "unlink_transfer_activities",
+        "prepare_quote_import",
+        "commit_quote_import",
     ] {
         assert!(names.contains(&name), "{name} visible");
     }
@@ -1391,6 +1404,273 @@ async fn mcp_writes_place_bare_dates_on_their_local_day() {
         .await;
         assert_eq!(preview["summary"]["duplicates"], 1, "{timezone}: {preview}");
     }
+}
+
+/// The total value of `account` on `date`, polled until it equals `expected`:
+/// the recalculation after a write is queued and debounced.
+async fn await_valuation(
+    server: &TestServer,
+    pat: &str,
+    session: &str,
+    account: &serde_json::Value,
+    date: &str,
+    expected: f64,
+) {
+    let mut last = serde_json::Value::Null;
+    for _ in 0..150 {
+        last = mcp_call_tool(
+            server,
+            pat,
+            session,
+            "get_valuation_history",
+            serde_json::json!({ "accountId": account["id"], "startDate": date, "endDate": date }),
+        )
+        .await;
+        if last["valuations"][0]["totalValue"].as_f64() == Some(expected) {
+            return;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    }
+    panic!("valuation on {date} never reached {expected}: {last}");
+}
+
+/// The stored quote valuations use for `asset_id` on `date`.
+async fn effective_quote(
+    server: &TestServer,
+    cookie: &str,
+    asset_id: &str,
+    date: &str,
+) -> serde_json::Value {
+    let history: Vec<serde_json::Value> = server
+        .client
+        .get(format!("{}/api/v1/market-data/quotes/history", server.base))
+        .query(&[("symbol", asset_id)])
+        .header(header::COOKIE, format!("wf_session={cookie}"))
+        .send()
+        .await
+        .unwrap()
+        .error_for_status()
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    history
+        .into_iter()
+        .find(|quote| quote["timestamp"].as_str().unwrap().starts_with(date))
+        .unwrap_or(serde_json::Value::Null)
+}
+
+/// An EUR account holding two units of a manually priced fund, bought at 10
+/// on 2026-07-27 with deposited cash (the purchase stores its price as a
+/// manual quote), and a session whose token can read holdings and write
+/// quotes. Returns the account, the fund's asset id, the token and the session
+/// once the valuation carries the purchase price to 2026-08-31.
+async fn fund_holding_session(
+    server: &TestServer,
+    cookie: &str,
+) -> (serde_json::Value, String, String, String) {
+    disable_market_data_providers(server, cookie).await;
+    // One currency throughout, so valuations need no exchange rates.
+    let response = server
+        .client
+        .put(format!("{}/api/v1/settings", server.base))
+        .header(header::COOKIE, format!("wf_session={cookie}"))
+        .json(&serde_json::json!({ "baseCurrency": "EUR" }))
+        .send()
+        .await
+        .unwrap();
+    assert!(response.status().is_success(), "{}", response.status());
+    let account = create_eur_account(server, cookie, "Statement").await;
+    let asset = api_post(
+        server,
+        cookie,
+        "assets",
+        serde_json::json!({
+            "kind": "INVESTMENT", "name": "Statement fund", "instrumentSymbol": "ZZFUND",
+            "instrumentType": "EQUITY", "quoteCcy": "EUR", "quoteMode": "MANUAL"
+        }),
+    )
+    .await;
+    let asset_id = asset["id"].as_str().unwrap().to_string();
+    for activity in [
+        serde_json::json!({ "activityType": "DEPOSIT", "amount": "20" }),
+        serde_json::json!({
+            "activityType": "BUY", "quantity": "2", "unitPrice": "10",
+            "asset": { "id": asset_id }
+        }),
+    ] {
+        let mut activity = activity;
+        activity.as_object_mut().unwrap().extend(
+            serde_json::json!({
+                "accountId": account["id"], "activityDate": "2026-07-27T12:00:00Z",
+                "currency": "EUR"
+            })
+            .as_object()
+            .unwrap()
+            .clone(),
+        );
+        api_post(server, cookie, "activities", activity).await;
+    }
+
+    let (status, token) = create_pat(
+        server,
+        cookie,
+        serde_json::json!({
+            "name": "quote writer", "scopes": ["holdings:read", "market-data:write"]
+        }),
+    )
+    .await;
+    assert_eq!(status, 201);
+    let pat = token["token"].as_str().unwrap().to_string();
+    let session = mcp_initialize(server, &pat).await;
+    // The month-end value carries the purchase price until a quote is saved.
+    await_valuation(server, &pat, &session, &account, "2026-08-31", 20.0).await;
+    (account, asset_id, pat, session)
+}
+
+/// Stores a provider-sourced quote, as a market data sync would.
+async fn store_provider_quote(
+    server: &TestServer,
+    cookie: &str,
+    asset_id: &str,
+    date: &str,
+    close: f64,
+) {
+    let response = server
+        .client
+        .put(format!(
+            "{}/api/v1/market-data/quotes/{asset_id}",
+            server.base
+        ))
+        .header(header::COOKIE, format!("wf_session={cookie}"))
+        .json(&serde_json::json!({
+            "id": format!("{asset_id}_{date}_YAHOO"), "assetId": asset_id,
+            "timestamp": format!("{date}T12:00:00Z"), "open": close, "high": close,
+            "low": close, "close": close, "adjclose": close, "volume": 0,
+            "currency": "EUR", "dataSource": "YAHOO", "createdAt": "2026-10-01T00:00:00Z",
+            "notes": null
+        }))
+        .send()
+        .await
+        .unwrap();
+    assert!(response.status().is_success(), "{}", response.status());
+}
+
+/// #1856: an agent saves a statement's closing prices for an existing asset.
+/// The preview reports each row's outcome against the stored quotes, a commit
+/// with a conflicting row saves nothing, an approved commit saves manual
+/// quotes (also over an equal provider price) that the valuation uses once the
+/// queued recalculation has run, and repeating it changes nothing.
+#[tokio::test]
+async fn mcp_quote_import_saves_reviewed_prices_and_revalues() {
+    let server = spawn_server(true, false).await;
+    let cookie = login(&server).await;
+    let (account, asset_id, pat, session) = fund_holding_session(&server, &cookie).await;
+    store_provider_quote(&server, &cookie, &asset_id, "2026-09-30", 13.0).await;
+
+    let statement = serde_json::json!([
+        { "assetId": asset_id, "date": "2026-08-31", "price": 12.5, "currency": "EUR" },
+        { "assetId": asset_id, "date": "2026-07-27", "price": 11, "currency": "EUR" },
+        { "assetId": asset_id, "date": "2026-09-30", "price": 13, "currency": "EUR" }
+    ]);
+    let preview = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "prepare_quote_import",
+        serde_json::json!({ "quotes": statement }),
+    )
+    .await;
+    assert_eq!(preview["summary"]["create"], 2, "{preview}");
+    assert_eq!(preview["summary"]["conflict"], 1, "{preview}");
+    assert_eq!(preview["rows"][0]["outcome"], "create", "{preview}");
+    assert_eq!(preview["rows"][0]["asset"]["symbol"], "ZZFUND", "{preview}");
+    assert_eq!(preview["rows"][1]["outcome"], "conflict", "{preview}");
+    assert_eq!(
+        preview["rows"][1]["existing"]["source"], "MANUAL",
+        "{preview}"
+    );
+    assert_eq!(preview["rows"][1]["existing"]["price"], 10.0, "{preview}");
+    // The provider already has the statement price; it is still saved as manual.
+    assert_eq!(preview["rows"][2]["outcome"], "create", "{preview}");
+    assert_eq!(
+        preview["rows"][2]["existing"]["source"], "YAHOO",
+        "{preview}"
+    );
+
+    // The conflict stops the whole batch.
+    let blocked = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "commit_quote_import",
+        serde_json::json!({ "quotes": statement }),
+    )
+    .await;
+    assert_eq!(blocked["committed"], false, "{blocked}");
+    assert_eq!(blocked["saved"], 0, "{blocked}");
+    assert_eq!(blocked["recalculation"], "none", "{blocked}");
+    assert!(effective_quote(&server, &cookie, &asset_id, "2026-08-31")
+        .await
+        .is_null());
+    assert_eq!(
+        effective_quote(&server, &cookie, &asset_id, "2026-07-27").await["close"],
+        10.0
+    );
+
+    // The user keeps the purchase price and approves the statement's prices.
+    let approved = serde_json::json!({ "quotes": [statement[0].clone(), statement[2].clone()] });
+    let committed = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "commit_quote_import",
+        approved.clone(),
+    )
+    .await;
+    assert_eq!(committed["committed"], true, "{committed}");
+    assert_eq!(committed["saved"], 2, "{committed}");
+    assert_eq!(committed["recalculation"], "queued", "{committed}");
+    await_valuation(&server, &pat, &session, &account, "2026-08-31", 25.0).await;
+
+    // Repeating the commit is a no-op.
+    let repeated = mcp_call_tool(&server, &pat, &session, "commit_quote_import", approved).await;
+    assert_eq!(repeated["committed"], true, "{repeated}");
+    assert_eq!(repeated["saved"], 0, "{repeated}");
+    assert_eq!(repeated["summary"]["skip"], 2, "{repeated}");
+    assert_eq!(repeated["recalculation"], "none", "{repeated}");
+
+    // Provider prices stored later for those days stay beneath the manual ones.
+    for (date, close) in [("2026-08-31", 12.5), ("2026-09-30", 13.0)] {
+        store_provider_quote(&server, &cookie, &asset_id, date, 99.0).await;
+        let effective = effective_quote(&server, &cookie, &asset_id, date).await;
+        assert_eq!(effective["dataSource"], "MANUAL", "{effective}");
+        assert_eq!(effective["close"], close, "{effective}");
+    }
+}
+
+/// The quote CSV import handlers no longer queue their own recalculation:
+/// `import_quotes` emits PriceHistoryChanged, and the valuation still follows.
+#[tokio::test]
+async fn csv_quote_import_still_revalues() {
+    let server = spawn_server(true, false).await;
+    let cookie = login(&server).await;
+    let (account, asset_id, pat, session) = fund_holding_session(&server, &cookie).await;
+
+    let imported = api_post(
+        &server,
+        &cookie,
+        "market-data/quotes/import",
+        serde_json::json!({
+            "quotes": [{
+                "symbol": asset_id, "date": "2026-08-31", "close": 15, "currency": "EUR"
+            }],
+            "overwriteExisting": false
+        }),
+    )
+    .await;
+    assert_eq!(imported[0]["validationStatus"], "valid", "{imported}");
+    await_valuation(&server, &pat, &session, &account, "2026-08-31", 30.0).await;
 }
 
 #[tokio::test]

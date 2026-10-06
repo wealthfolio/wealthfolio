@@ -1425,6 +1425,7 @@
     "dialog_copy_config_aria": "複製用戶端設定",
     "dialog_done": "完成",
     "scope_locked_title": "「交易紀錄 — 提交／寫入」需要此權限",
+    "scope_locked_market_data_title": "「市場資料 — 寫入」需要此權限",
     "dialog_scope_aria": "{{label}}：{{description}}",
     "token_label": "權杖",
     "scope": {
@@ -1471,6 +1472,10 @@
       "classification_write": {
         "label": "分類 — 套用／寫入",
         "description": "套用已審核的分類草稿。需要建議範圍。"
+      },
+      "market_data_write": {
+        "label": "市場資料 — 寫入",
+        "description": "為現有資產儲存已審核的價格（報價）。需要持有部位與價值（讀取）範圍。"
       }
     },
     "preset": {

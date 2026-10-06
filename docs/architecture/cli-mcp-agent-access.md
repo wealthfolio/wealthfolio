@@ -409,8 +409,9 @@ There are **two catalogs** (`crates/agent-tools/src/catalog.rs`):
 - `assistant_catalog()` — read + draft/suggest tools, for the in-app assistant.
   It excludes the commit and CSV-import tools (the assistant persists through
   its own confirmation widget / `import_csv` flow).
-- `mcp_catalog()` — everything (read + draft/suggest + commit + import),
-  scope-filtered at the MCP boundary so a token sees only what its scopes reach.
+- `mcp_catalog()` — everything (read + draft/suggest + commit + import +
+  transfer linking + quote import), scope-filtered at the MCP boundary so a
+  token sees only what its scopes reach.
 
 ### Read Tools
 
@@ -499,6 +500,56 @@ batch (up to 100) succeeds or fails on its own, and the audit log keeps only the
 pair ids. The in-app assistant has no confirmation card for linking and does not
 get these tools.
 
+### MCP-only Quote Import Tools
+
+```text
+prepare_quote_import               -- preview reviewed closing prices
+commit_quote_import                -- save them as manual quotes (batch)
+```
+
+These save the closing prices a statement reports for existing assets, so the
+portfolio's value on the statement date can match it without changing
+activities, quantities or cost basis. Each row names an asset by `assetId`
+(tickers are never resolved; `get_asset_taxonomy_assignments`, under
+`classification:read`, finds an id), a `date` (`YYYY-MM-DD`, not in the future),
+a `price` in the asset's quote currency, that `currency`, and an optional
+`overwrite` flag. Only investment assets are accepted: FX rates, alternative
+assets and liabilities keep their own valuation paths.
+
+`prepare_quote_import` (`QuoteServiceTrait::preview_quote_import`) reports per
+row the asset, the quote valuations use for that day (a manual quote before a
+provider one) with its source, and the outcome: `create` (no quote that day, or
+a provider or broker quote with the same price and currency, which is saved as a
+manual quote so a later refetch cannot change the day), `skip` (a manual quote
+with the same price and currency is stored), `update` (a different price is
+stored and the row sets `overwrite`), `conflict` (a different price without
+`overwrite`) or `invalid` (unknown or non-investment asset, bad or future date,
+non-positive price, a currency other than the asset's quote currency, or a
+second row for the same asset and date).
+
+`commit_quote_import` runs the preview again and saves nothing if any row is
+invalid or a conflict. Otherwise it passes the create and update rows to
+`QuoteServiceTrait::import_quotes`, the pipeline behind the quote CSV import,
+which saves them as `MANUAL` quotes. A manual quote takes precedence over the
+provider quote of its day, and provider syncs skip days that have one. Creating
+or editing a BUY or SELL of a manually priced asset still writes its trade price
+as that day's manual quote, replacing a saved statement price. The batch may
+overwrite only when a row lands on a day that has a quote (an approved update,
+or an equal provider price saved as manual), so in a batch of rows on empty days
+a quote stored after the check is never replaced. Skipped rows make a repeated
+call a no-op. `import_quotes` emits one `PriceHistoryChanged` per batch that
+saves a quote; the runtime planners debounce it and recalculate valuations from
+saved quotes, from each quote's day, without a market sync. The commit reports
+`recalculation: "queued"` so the agent can verify the result with
+`get_valuation_history` or `get_net_worth` a few seconds later. Single-quote
+writes (`add_quote`, `update_quote`, `delete_quote`, used by activities, manual
+snapshots and alternative assets) emit no event.
+
+A batch holds up to 100 rows, and the audit log keeps only the asset ids, dates
+and counts of the arguments, never prices. As for every tool, an argument that
+fails to parse is recorded in the error message, which may quote it. The in-app
+assistant has no confirmation card for quotes and does not get these tools.
+
 For categorization rules, `create_categorization_rule` returns an in-memory
 draft and does not save it. After showing that draft to the user and receiving
 confirmation, an MCP client passes the returned `rule` object to
@@ -510,9 +561,10 @@ existing transactions.
 Rules:
 
 - Draft and import-preview tools never mutate data; activity commits require
-  `activities:write` (which itself requires `activities:draft`), and
-  classification commits require `classification:write` (which itself requires
-  `classification:suggest`).
+  `activities:write` (which itself requires `activities:draft`), classification
+  commits require `classification:write` (which itself requires
+  `classification:suggest`), and quote imports require `market-data:write`
+  (which itself requires `holdings:read`).
 - CSV / activity-row content must not be persisted in raw audit logs: the
   write/import tools redact their `activities`/row arguments to a count
   (`"[N rows]"`) via per-tool audit sanitization.
@@ -573,11 +625,16 @@ classification:suggest   propose_transaction_categories,
 classification:write     commit_asset_classification_draft,
                          commit_categorization_rule
                          (also requires classification:suggest)
+market-data:write        prepare_quote_import, commit_quote_import
+                         (each also requires holdings:read)
 ```
 
 Dependency rules: `activities:write` requires `activities:draft`, and
 `classification:write` requires `classification:suggest` (you cannot commit
-without the matching draft/suggest capability). Token creation validates this.
+without the matching draft/suggest capability). `market-data:write` requires
+`holdings:read`: both quote tools return stored quotes, so the scope reaches no
+tool without it. Token creation validates this, and no preset grants
+`market-data:write`.
 
 Presets (`AgentScopeSet` constructors):
 

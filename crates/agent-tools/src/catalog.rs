@@ -35,15 +35,16 @@ impl AgentToolCatalog {
         Self::new(tools)
     }
 
-    /// The MCP catalog: read + draft/suggest + commit, import and transfer
-    /// linking tools. Scope filtering at the boundary (`execute`, `list_tools`)
-    /// hides whatever a token can't reach.
+    /// The MCP catalog: read + draft/suggest + commit, import, transfer
+    /// linking and quote import tools. Scope filtering at the boundary
+    /// (`execute`, `list_tools`) hides whatever a token can't reach.
     pub fn mcp_catalog() -> Self {
         let mut tools = crate::tools::v1_read_tools();
         tools.extend(crate::tools::draft_suggest_tools());
         tools.extend(crate::tools::commit_tools());
         tools.extend(crate::tools::import_tools());
         tools.extend(crate::tools::transfer_link_tools());
+        tools.extend(crate::tools::quote_import_tools());
         Self::new(tools)
     }
 
@@ -266,6 +267,8 @@ mod tests {
         assert!(!names.contains(&"find_transfer_matches"));
         assert!(!names.contains(&"link_transfer_activities"));
         assert!(!names.contains(&"unlink_transfer_activities"));
+        assert!(!names.contains(&"prepare_quote_import"));
+        assert!(!names.contains(&"commit_quote_import"));
     }
 
     #[test]
@@ -282,6 +285,8 @@ mod tests {
         assert!(names.contains(&"find_transfer_matches"));
         assert!(names.contains(&"link_transfer_activities"));
         assert!(names.contains(&"unlink_transfer_activities"));
+        assert!(names.contains(&"prepare_quote_import"));
+        assert!(names.contains(&"commit_quote_import"));
         // Read-only token still sees exactly 16 read tools.
         assert_eq!(crate::tools::v1_read_tools().len(), 16);
     }
@@ -298,6 +303,8 @@ mod tests {
             "find_transfer_matches",
             "link_transfer_activities",
             "unlink_transfer_activities",
+            "prepare_quote_import",
+            "commit_quote_import",
         ] {
             let err = catalog
                 .execute(
@@ -388,6 +395,59 @@ mod tests {
             matches!(err, AgentToolError::InvalidInput(_)),
             "oversized batch should be rejected with InvalidInput, got: {err}"
         );
+    }
+
+    #[tokio::test]
+    async fn quote_import_needs_holdings_read_and_market_data_write() {
+        // Each set lacks one of the two scopes; PanicEnv proves the denial
+        // happens before any service is reached.
+        let catalog = AgentToolCatalog::mcp_catalog();
+        let args = serde_json::json!({ "quotes": [{
+            "assetId": "a", "date": "2026-06-30", "price": 10, "currency": "EUR"
+        }] });
+        for granted in [
+            AgentScopeSet::read_activity_write_classification_suggest(),
+            AgentScopeSet::from_strs(["market-data:write"]),
+        ] {
+            for name in ["prepare_quote_import", "commit_quote_import"] {
+                let err = catalog
+                    .execute(Arc::new(PanicEnv::default()), &granted, name, args.clone())
+                    .await
+                    .unwrap_err();
+                assert!(
+                    matches!(err, AgentToolError::ScopeDenied { .. }),
+                    "tool {name} should be scope-denied for {granted:?}, got: {err}"
+                );
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn quote_import_rejects_oversized_batch_before_touching_env() {
+        let catalog = AgentToolCatalog::mcp_catalog();
+        let granted = AgentScopeSet::from_strs(["holdings:read", "market-data:write"]);
+        let quotes: Vec<_> = (0..256)
+            .map(|_| {
+                serde_json::json!({
+                    "assetId": "a", "date": "2026-06-30", "price": 10, "currency": "EUR"
+                })
+            })
+            .collect();
+        for name in ["prepare_quote_import", "commit_quote_import"] {
+            let err = catalog
+                .execute(
+                    Arc::new(PanicEnv::default()),
+                    &granted,
+                    name,
+                    serde_json::json!({ "quotes": quotes }),
+                )
+                .await
+                .unwrap_err();
+            assert!(
+                matches!(err, AgentToolError::InvalidInput(_)),
+                "{name}: oversized batch should be rejected with InvalidInput, got: {err}"
+            );
+        }
     }
 
     #[tokio::test]

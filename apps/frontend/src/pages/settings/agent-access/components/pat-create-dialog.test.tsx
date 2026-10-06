@@ -90,4 +90,32 @@ describe("PatCreateDialog scope dependencies", () => {
     expect(suggest).toHaveAttribute("aria-checked", "false");
     expect(suggest).not.toBeDisabled();
   });
+
+  it("derives holdings read from market data write", () => {
+    render(
+      <PatCreateDialog
+        open
+        onOpenChange={vi.fn()}
+        onCreate={vi.fn().mockResolvedValue("wfp_secret")}
+        isCreating={false}
+      />,
+    );
+
+    const write = scopeCheckbox("Market data — write");
+    const holdings = scopeCheckbox("Holdings & value \\(read\\)");
+
+    // Holdings read is on by default; drop it to see it derived.
+    fireEvent.click(holdings);
+    expect(holdings).toHaveAttribute("aria-checked", "false");
+
+    fireEvent.click(write);
+    expect(write).toHaveAttribute("aria-checked", "true");
+    expect(holdings).toHaveAttribute("aria-checked", "true");
+    expect(holdings).toBeDisabled();
+    expect(holdings).toHaveAttribute("title", "Required by Market data — write");
+
+    fireEvent.click(write);
+    expect(holdings).toHaveAttribute("aria-checked", "false");
+    expect(holdings).not.toBeDisabled();
+  });
 });

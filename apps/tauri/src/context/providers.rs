@@ -274,7 +274,8 @@ async fn build_context(
             secret_store.clone(),
             Some(custom_provider_repository.clone()),
         )
-        .await?,
+        .await?
+        .with_event_sink(domain_event_sink.clone()),
     );
 
     // Portfolio service

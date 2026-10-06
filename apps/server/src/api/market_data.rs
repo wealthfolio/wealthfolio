@@ -250,22 +250,11 @@ async fn import_quotes_csv(
     axum::Extension(state): axum::Extension<Arc<AppState>>,
     Json(body): Json<ImportQuotesBody>,
 ) -> ApiResult<Json<Vec<QuoteImport>>> {
+    // The quote service emits PriceHistoryChanged when the batch saves quotes.
     let result = state
         .quote_service
         .import_quotes(body.quotes, body.overwrite_existing)
         .await?;
-
-    // Quote import - no market sync needed, but force full recalculation
-    // so historical valuations are recomputed with the imported quotes
-    enqueue_portfolio_job(
-        state,
-        PortfolioJobConfig {
-            account_ids: None,
-            market_sync_mode: MarketSyncMode::None,
-            force_full: false,
-        },
-    );
-
     Ok(Json(result))
 }
 

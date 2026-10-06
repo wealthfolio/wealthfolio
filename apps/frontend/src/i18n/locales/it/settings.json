@@ -1465,6 +1465,7 @@
     "dialog_copy_config_aria": "Copia la configurazione del client",
     "dialog_done": "Fatto",
     "scope_locked_title": "Richiesto da Movimenti — conferma/scrittura",
+    "scope_locked_market_data_title": "Richiesto da Dati di mercato — scrittura",
     "dialog_scope_aria": "{{label}}: {{description}}",
     "token_label": "Token",
     "scope": {
@@ -1511,6 +1512,10 @@
       "classification_write": {
         "label": "Classificazione — applica/scrittura",
         "description": "Applica le bozze di classificazione revisionate. Richiede l'ambito suggerimento."
+      },
+      "market_data_write": {
+        "label": "Dati di mercato — scrittura",
+        "description": "Salva prezzi (quotazioni) revisionati per asset esistenti. Richiede l'ambito posizioni (lettura)."
       }
     },
     "preset": {

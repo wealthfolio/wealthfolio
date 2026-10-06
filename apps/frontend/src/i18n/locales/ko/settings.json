@@ -1408,6 +1408,7 @@
     "dialog_copy_config_aria": "클라이언트 구성 복사",
     "dialog_done": "완료",
     "scope_locked_title": "활동에 필요 — 확정/쓰기",
+    "scope_locked_market_data_title": "시장 데이터 — 쓰기에 필요",
     "dialog_scope_aria": "{{label}}: {{description}}",
     "token_label": "토큰",
     "scope": {
@@ -1454,6 +1455,10 @@
       "classification_write": {
         "label": "분류 — 적용/쓰기",
         "description": "검토된 분류 초안을 적용합니다. 제안 범위가 필요합니다."
+      },
+      "market_data_write": {
+        "label": "시장 데이터 — 쓰기",
+        "description": "기존 자산의 검토된 가격(시세)을 저장합니다. 보유 종목 및 가치 (읽기) 범위가 필요합니다."
       }
     },
     "preset": {

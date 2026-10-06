@@ -1385,6 +1385,7 @@
     "dialog_copy_config_aria": "Copy client configuration",
     "dialog_done": "Done",
     "scope_locked_title": "Required by Activities — commit/write",
+    "scope_locked_market_data_title": "Required by Market data — write",
     "dialog_scope_aria": "{{label}}: {{description}}",
     "token_label": "Token",
     "scope": {
@@ -1431,6 +1432,10 @@
       "classification_write": {
         "label": "Classification — apply/write",
         "description": "Apply reviewed classification drafts. Requires the suggest scope."
+      },
+      "market_data_write": {
+        "label": "Market data — write",
+        "description": "Save reviewed prices (quotes) for existing assets. Requires the holdings read scope."
       }
     },
     "preset": {

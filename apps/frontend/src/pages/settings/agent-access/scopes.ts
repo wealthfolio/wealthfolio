@@ -1,7 +1,7 @@
 // Canonical agent-access token scopes shared by the web (server PAT) and
 // desktop (Tauri) surfaces. The backend rejects unknown scopes, empty scope
-// sets, and write scopes without their draft/suggest prerequisites; this
-// module keeps the UI in sync with that contract.
+// sets, and write scopes without their prerequisites; this module keeps the
+// UI in sync with that contract.
 
 import type { TFunction } from "i18next";
 
@@ -16,7 +16,8 @@ export type ScopeKey =
   | "activities:draft"
   | "activities:write"
   | "classification:suggest"
-  | "classification:write";
+  | "classification:write"
+  | "market-data:write";
 
 export type ScopeGroup = "read" | "write";
 
@@ -27,7 +28,7 @@ export interface ScopeMeta {
   group: ScopeGroup;
 }
 
-/** Ordered list of all 11 scopes, grouped reads first then write/suggest. */
+/** Ordered list of all 12 scopes, grouped reads first then write/suggest. */
 export const SCOPES: ScopeMeta[] = [
   { key: "accounts:read", i18n: "accounts_read", group: "read" },
   { key: "holdings:read", i18n: "holdings_read", group: "read" },
@@ -40,6 +41,7 @@ export const SCOPES: ScopeMeta[] = [
   { key: "activities:write", i18n: "activities_write", group: "write" },
   { key: "classification:suggest", i18n: "classification_suggest", group: "write" },
   { key: "classification:write", i18n: "classification_write", group: "write" },
+  { key: "market-data:write", i18n: "market_data_write", group: "write" },
 ];
 
 /** The 7 read scopes, in canonical order. */
@@ -113,6 +115,9 @@ export function applyScopeDependencies(scopes: Iterable<string>): ScopeKey[] {
   }
   if (set.has("classification:write")) {
     set.add("classification:suggest");
+  }
+  if (set.has("market-data:write")) {
+    set.add("holdings:read");
   }
   return SCOPES.filter((scope) => set.has(scope.key)).map((scope) => scope.key);
 }

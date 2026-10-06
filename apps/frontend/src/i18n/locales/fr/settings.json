@@ -1465,6 +1465,7 @@
     "dialog_copy_config_aria": "Copier la configuration du client",
     "dialog_done": "Terminé",
     "scope_locked_title": "Requis par Activités — valider/écrire",
+    "scope_locked_market_data_title": "Requis par Données de marché — écrire",
     "dialog_scope_aria": "{{label}} : {{description}}",
     "token_label": "Jeton",
     "scope": {
@@ -1511,6 +1512,10 @@
       "classification_write": {
         "label": "Classification — appliquer/écrire",
         "description": "Appliquer des brouillons de classification révisés. Nécessite la portée suggestion."
+      },
+      "market_data_write": {
+        "label": "Données de marché — écrire",
+        "description": "Enregistrer des cours révisés pour des actifs existants. Nécessite la portée positions (lecture)."
       }
     },
     "preset": {

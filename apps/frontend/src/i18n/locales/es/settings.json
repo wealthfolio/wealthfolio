@@ -1465,6 +1465,7 @@
     "dialog_copy_config_aria": "Copiar la configuración del cliente",
     "dialog_done": "Listo",
     "scope_locked_title": "Requerido por Actividades: confirmar/escribir",
+    "scope_locked_market_data_title": "Requerido por Datos de mercado: escribir",
     "dialog_scope_aria": "{{label}}: {{description}}",
     "token_label": "Token",
     "scope": {
@@ -1511,6 +1512,10 @@
       "classification_write": {
         "label": "Clasificación: aplicar/escribir",
         "description": "Aplicar borradores de clasificación revisados. Requiere el ámbito de sugerencia."
+      },
+      "market_data_write": {
+        "label": "Datos de mercado: escribir",
+        "description": "Guardar precios (cotizaciones) revisados de activos existentes. Requiere el ámbito de posiciones (lectura)."
       }
     },
     "preset": {

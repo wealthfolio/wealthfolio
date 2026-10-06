@@ -1465,6 +1465,7 @@
     "dialog_copy_config_aria": "Copiar a configuração do cliente",
     "dialog_done": "Concluído",
     "scope_locked_title": "Requerido por Atividades: confirmar/gravar",
+    "scope_locked_market_data_title": "Requerido por Dados de mercado: gravar",
     "dialog_scope_aria": "{{label}}: {{description}}",
     "token_label": "Token",
     "scope": {
@@ -1511,6 +1512,10 @@
       "classification_write": {
         "label": "Classificação: aplicar/gravar",
         "description": "Aplicar rascunhos de classificação revisados. Requer o escopo de sugestão."
+      },
+      "market_data_write": {
+        "label": "Dados de mercado: gravar",
+        "description": "Salvar preços (cotações) revisados de ativos existentes. Requer o escopo de posições (leitura)."
       }
     },
     "preset": {

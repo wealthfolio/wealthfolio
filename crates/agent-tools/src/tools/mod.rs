@@ -25,6 +25,7 @@ pub mod net_worth;
 pub mod performance;
 pub mod portfolios;
 pub mod propose_categories;
+pub mod quote_import;
 pub mod record_activities;
 pub mod record_activity;
 pub mod transfer_links;
@@ -115,6 +116,12 @@ pub use transfer_links::{
     UnlinkedTransferDto,
 };
 
+// MCP-only quote import tools.
+pub use quote_import::{
+    CommitQuoteImport, CommitQuoteImportOutput, PrepareQuoteImport, PrepareQuoteImportOutput,
+    QuoteImportArgs, QuoteImportInput, QuoteImportSummary, QuoteRowResult,
+};
+
 // MCP-only CSV import tools (validate + dedup-safe import pipeline).
 pub use activity_import::{
     ActivityImportArgs, ActivityImportRow, CommitActivityImport, CommitActivityImportOutput,
@@ -194,6 +201,13 @@ pub fn transfer_link_tools() -> Vec<Arc<dyn AgentTool>> {
         Arc::new(LinkTransferActivities),
         Arc::new(UnlinkTransferActivities),
     ]
+}
+
+/// The MCP-only quote import tools: preview reviewed closing prices for
+/// existing assets, then save them as manual quotes. Not exposed to the in-app
+/// assistant, which has no confirmation card for quotes.
+pub fn quote_import_tools() -> Vec<Arc<dyn AgentTool>> {
+    vec![Arc::new(PrepareQuoteImport), Arc::new(CommitQuoteImport)]
 }
 
 #[cfg(test)]

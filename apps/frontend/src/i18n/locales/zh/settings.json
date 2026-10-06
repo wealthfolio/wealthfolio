@@ -1408,6 +1408,7 @@
     "dialog_copy_config_aria": "复制客户端配置",
     "dialog_done": "完成",
     "scope_locked_title": "由“活动”所需——提交/写入",
+    "scope_locked_market_data_title": "由“市场数据——写入”所需",
     "dialog_scope_aria": "{{label}}：{{description}}",
     "token_label": "令牌",
     "scope": {
@@ -1454,6 +1455,10 @@
       "classification_write": {
         "label": "分类——应用/写入",
         "description": "应用已审核的分类草稿。需要建议作用域。"
+      },
+      "market_data_write": {
+        "label": "市场数据——写入",
+        "description": "为现有资产保存已审核的价格（报价）。需要持仓与价值（读取）作用域。"
       }
     },
     "preset": {

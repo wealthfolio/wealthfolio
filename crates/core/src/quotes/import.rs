@@ -778,6 +778,74 @@ impl QuoteConverter {
 }
 
 // =============================================================================
+// Reviewed Quote Import (agent tools)
+// =============================================================================
+
+/// A reviewed close price for an existing asset, named by its id.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct QuoteImportRow {
+    pub asset_id: String,
+    /// Date in ISO format (YYYY-MM-DD).
+    pub date: String,
+    pub close: Decimal,
+    /// Must be the asset's quote currency.
+    pub currency: String,
+    /// Replace a stored quote of that day that has a different value.
+    #[serde(default)]
+    pub overwrite: bool,
+}
+
+impl QuoteImportRow {
+    /// The row as `import_quotes` takes it: the asset id goes in `symbol`.
+    pub fn to_import(&self) -> QuoteImport {
+        QuoteImport::new(
+            self.asset_id.clone(),
+            self.date.clone(),
+            self.close,
+            self.currency.clone(),
+        )
+    }
+}
+
+/// What importing a row does to the stored quote of its day.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum QuoteImportOutcome {
+    /// No quote is stored for that day, or a provider or broker quote with
+    /// this value and currency is: a manual quote is saved, so later provider
+    /// writes cannot change the day.
+    Create,
+    /// A different value is stored and the row allows overwriting it.
+    Update,
+    /// A manual quote with this value and currency is already stored.
+    Skip,
+    /// A different value is stored and the row does not allow overwriting it.
+    Conflict,
+    /// The row cannot be imported; see its errors.
+    Invalid,
+}
+
+impl QuoteImportOutcome {
+    /// Whether importing the row writes a quote.
+    pub fn writes(self) -> bool {
+        matches!(self, Self::Create | Self::Update)
+    }
+}
+
+/// A row checked against its asset and the stored quote of its day.
+#[derive(Debug, Clone)]
+pub struct QuoteImportPreview {
+    pub outcome: QuoteImportOutcome,
+    /// The asset the row names, when it exists.
+    pub asset: Option<crate::assets::Asset>,
+    /// The quote valuations use for that day: a manual quote before a
+    /// provider one.
+    pub existing: Option<Quote>,
+    pub errors: Vec<String>,
+}
+
+// =============================================================================
 // Tests
 // =============================================================================
 

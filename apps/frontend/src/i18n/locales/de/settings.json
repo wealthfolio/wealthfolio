@@ -1425,6 +1425,7 @@
     "dialog_copy_config_aria": "Client-Konfiguration kopieren",
     "dialog_done": "Fertig",
     "scope_locked_title": "Erforderlich für Aktivitäten — bestätigen/schreiben",
+    "scope_locked_market_data_title": "Erforderlich für Marktdaten — schreiben",
     "dialog_scope_aria": "{{label}}: {{description}}",
     "token_label": "Token",
     "scope": {
@@ -1471,6 +1472,10 @@
       "classification_write": {
         "label": "Klassifizierung — anwenden/schreiben",
         "description": "Geprüfte Klassifizierungsentwürfe anwenden. Erfordert die Vorschlags-Berechtigung."
+      },
+      "market_data_write": {
+        "label": "Marktdaten — schreiben",
+        "description": "Geprüfte Kurse für vorhandene Vermögenswerte speichern. Erfordert die Berechtigung Bestände & Wert (Lesen)."
       }
     },
     "preset": {
