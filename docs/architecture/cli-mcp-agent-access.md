@@ -585,8 +585,10 @@ The tools refuse, per row:
   since resolving a symbol can look up or create assets through market-data
   providers;
 - a change to the account, currency, type or asset of a linked transfer leg (or
-  the quantity of a security transfer leg), which would break the pair; the
-  error says to unlink first with `unlink_transfer_activities`;
+  the quantity of a security transfer leg, or the FX rate of a cross-currency
+  cash transfer leg, since core mirrors the amount with the pair's stored rate),
+  which would break the pair; the error says to unlink first with
+  `unlink_transfer_activities`;
 - a missing activity, an invalid value, or a row that changes nothing.
 
 Each row in a batch (up to 100) succeeds or fails on its own. The audit log

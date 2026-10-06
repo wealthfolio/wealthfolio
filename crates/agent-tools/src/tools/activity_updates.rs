@@ -13,7 +13,8 @@
 //! - an asset changes only by the id of a stored asset, since resolving a
 //!   symbol can look up or create assets through market-data providers;
 //! - a leg of a linked transfer keeps its account, currency, type and asset
-//!   (and quantity for securities), which would break the pair.
+//!   (the quantity of a security leg, the FX rate of a cross-currency cash
+//!   leg), which would break the pair.
 
 use std::collections::HashSet;
 use std::str::FromStr;
@@ -437,11 +438,21 @@ fn check_guards(preview: &ActivityUpdatePreview, changes: &[FieldChange]) -> Res
     let securities = [existing, &linked.existing]
         .into_iter()
         .any(|leg| is_securities_transfer(leg.effective_type(), leg.asset_id.as_deref()));
+    // Core mirrors a cross-currency cash amount with the pair's stored rate,
+    // not the row's, so a new rate would no longer match the two amounts.
+    let cross_currency_cash = [existing, &linked.existing]
+        .into_iter()
+        .all(|leg| leg.asset_id.is_none())
+        && !existing
+            .currency
+            .eq_ignore_ascii_case(&linked.existing.currency);
     let blocked: Vec<&str> = changes
         .iter()
         .map(|change| change.field)
         .filter(|field| {
-            LINKED_LEG_FIXED_FIELDS.contains(field) || (securities && *field == "quantity")
+            LINKED_LEG_FIXED_FIELDS.contains(field)
+                || (securities && *field == "quantity")
+                || (cross_currency_cash && *field == "fxRate")
         })
         .collect();
     if blocked.is_empty() {
@@ -652,7 +663,7 @@ impl AgentTool for PrepareActivityUpdates {
     }
 
     fn description(&self) -> &'static str {
-        "Preview corrections to existing activities without writing anything. Each row names an activityId (find it with search_activities) and only the fields to change; omitted fields keep their stored value and null clears an optional one. The fields are those the activity grid edits: date, accountId, activityType, subtype, assetId, quantity, unitPrice, amount, currency, fee, tax, fxRate, notes, and approve (approves an activity waiting for review; a draft becomes posted). A bare YYYY-MM-DD date lands on that day in the configured timezone. Change an asset only by the assetId of an asset already stored; symbols are refused. For a security TRANSFER_IN, the cost basis is quantity x unitPrice, or amount without a unit price. Each ready row lists every field that would change with its current and proposed value, including values the app derives (a trade total recalculated from quantity and price, a cleared stale amount, the review flag); for one leg of a linked transfer, linkedChanges lists what the other leg receives (date, notes, amount, approval). An invalid row gives its error: a missing activity, an invalid value, nothing to change, a change to the account, currency, type or asset of a linked transfer leg (or the quantity of a security transfer; unlink the pair first with unlink_transfer_activities). Up to 100 rows. Show the preview to the user, then apply the confirmed rows with commit_activity_updates."
+        "Preview corrections to existing activities without writing anything. Each row names an activityId (find it with search_activities) and only the fields to change; omitted fields keep their stored value and null clears an optional one. The fields are those the activity grid edits: date, accountId, activityType, subtype, assetId, quantity, unitPrice, amount, currency, fee, tax, fxRate, notes, and approve (approves an activity waiting for review; a draft becomes posted). A bare YYYY-MM-DD date lands on that day in the configured timezone. Change an asset only by the assetId of an asset already stored; symbols are refused. For a security TRANSFER_IN, the cost basis is quantity x unitPrice, or amount without a unit price. Each ready row lists every field that would change with its current and proposed value, including values the app derives (a trade total recalculated from quantity and price, a cleared stale amount, the review flag); for one leg of a linked transfer, linkedChanges lists what the other leg receives (date, notes, amount, approval). An invalid row gives its error: a missing activity, an invalid value, nothing to change, a change to the account, currency, type or asset of a linked transfer leg (or the quantity of a security transfer, or the fxRate of a cross-currency cash transfer; unlink the pair first with unlink_transfer_activities). Up to 100 rows. Show the preview to the user, then apply the confirmed rows with commit_activity_updates."
     }
 
     fn input_schema(&self) -> Value {
@@ -1226,6 +1237,18 @@ mod tests {
         let securities = preview(btc_transfer_in(), security_out);
         assert!(check_guards(&securities, &[change("quantity")]).is_err());
         assert!(check_guards(&securities, &[change("unitPrice")]).is_ok());
+
+        // A cross-currency cash pair is mirrored with its stored rate; on a
+        // same-currency pair or a security leg the rate is a valuation rate.
+        let mut usd_out = cash_leg("out", "chequing", "TRANSFER_OUT");
+        usd_out.currency = "USD".to_string();
+        let cross_currency = preview(cash_leg("in", "savings", "TRANSFER_IN"), usd_out);
+        let error =
+            check_guards(&cross_currency, &[change("amount"), change("fxRate")]).unwrap_err();
+        assert!(error.contains("fxRate"), "{error}");
+        assert!(check_guards(&cross_currency, &[change("amount")]).is_ok());
+        assert!(check_guards(&cash, &[change("fxRate")]).is_ok());
+        assert!(check_guards(&securities, &[change("fxRate")]).is_ok());
 
         let unlinked = ActivityUpdatePreview {
             activity: previewed(cash_leg("in", "savings", "TRANSFER_IN")),

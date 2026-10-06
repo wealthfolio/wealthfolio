@@ -2015,6 +2015,97 @@ async fn mcp_updates_keep_linked_transfers_paired() {
     assert_eq!(found["linkedTo"], out_id, "still linked: {found}");
 }
 
+/// Core mirrors a linked cross-currency cash transfer with the pair's stored
+/// rate, so a leg keeps its FX rate: a new rate would no longer match the two
+/// amounts. An amount alone is mirrored at the stored rate.
+#[tokio::test]
+async fn mcp_updates_keep_the_rate_of_a_cross_currency_pair() {
+    let server = spawn_server(true, false).await;
+    let cookie = login(&server).await;
+    disable_market_data_providers(&server, &cookie).await;
+    let (pat, session) = activity_writer_session(&server, &cookie).await;
+    let euros = create_eur_account(&server, &cookie, "Euros").await;
+    let dollars = api_post(
+        &server,
+        &cookie,
+        "accounts",
+        serde_json::json!({
+            "name": "Dollars", "accountType": "SECURITIES", "currency": "USD",
+            "isDefault": false, "isActive": true, "trackingMode": "TRANSACTIONS"
+        }),
+    )
+    .await;
+    let transfer = |account: &serde_json::Value, row: serde_json::Value| {
+        let mut row = row;
+        row.as_object_mut().unwrap().extend(
+            serde_json::json!({
+                "accountId": account["id"], "activityDate": "2026-04-01T12:00:00Z"
+            })
+            .as_object()
+            .unwrap()
+            .clone(),
+        );
+        api_post(&server, &cookie, "activities", row)
+    };
+    let out_id = transfer(
+        &euros,
+        serde_json::json!({ "activityType": "TRANSFER_OUT", "currency": "EUR", "amount": "100" }),
+    )
+    .await["id"]
+        .clone();
+    let incoming = transfer(
+        &dollars,
+        serde_json::json!({
+            "activityType": "TRANSFER_IN", "currency": "USD", "amount": "110", "fxRate": "1.1"
+        }),
+    )
+    .await;
+    assert_eq!(incoming["fxRate"], "1.1", "{incoming}");
+    let in_id = incoming["id"].clone();
+    let linked = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "link_transfer_activities",
+        serde_json::json!({ "pairs": [{ "activityAId": out_id, "activityBId": in_id }] }),
+    )
+    .await;
+    assert_eq!(linked["errors"], serde_json::json!([]), "{linked}");
+
+    let preview = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "prepare_activity_updates",
+        serde_json::json!({ "updates": [
+            { "activityId": in_id, "amount": "120", "fxRate": "1.2" },
+            { "activityId": out_id, "notes": "rent" }
+        ]}),
+    )
+    .await;
+    let repriced = &preview["rows"][0];
+    assert_eq!(repriced["status"], "invalid", "{preview}");
+    let error = repriced["error"].as_str().unwrap();
+    assert!(error.contains("fxRate"), "{error}");
+    assert!(error.contains("unlink_transfer_activities"), "{error}");
+    assert_eq!(preview["rows"][1]["status"], "ready", "{preview}");
+
+    // An amount alone is mirrored at the stored rate: 121 / 1.1 = 110.
+    let preview = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "prepare_activity_updates",
+        serde_json::json!({ "updates": [{ "activityId": in_id, "amount": "121" }] }),
+    )
+    .await;
+    assert_eq!(
+        preview["rows"][0]["linkedChanges"],
+        serde_json::json!([{ "field": "amount", "current": "100", "proposed": "110" }]),
+        "{preview}"
+    );
+}
+
 /// Broker sync can group rows that are not a linked transfer pair, such as a
 /// deposit and its fee. Updating one, through the app's update (the activity
 /// form, addons) or MCP, leaves the other as it was: only the other leg of a
