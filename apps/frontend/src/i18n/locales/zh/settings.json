@@ -1637,6 +1637,7 @@
   "cloud_backup_hint_locked": "通过关联设备或恢复码访问备份。",
   "cloud_backup_hint_paused": "新的备份已暂停。已保存的副本仍可使用。",
   "cloud_backup_hint_other": "其他设备正在创建备份。如要移至此处，请在设置时选择此设备。",
+  "cloud_backup_recovery_deadline": "请在 {{date}} 前下载您要保留的副本。恢复期限结束后，云端副本将被删除。",
   "cloud_backup_hint_plan": "当前套餐暂不允许创建新的云备份。",
   "cloud_backup_hint_waiting": "上传首份备份时，请保持 Wealthfolio 打开并解锁配置文件。",
   "cloud_backup_hint_due": "备份设备在线、Wealthfolio 已打开且解锁时，将运行下次备份。",

@@ -1661,6 +1661,7 @@
   "cloud_backup_hint_locked": "Erhalte Backup-Zugriff über ein verknüpftes Gerät oder deinen Wiederherstellungscode.",
   "cloud_backup_hint_paused": "Neue Backups sind pausiert. Gespeicherte Kopien bleiben verfügbar.",
   "cloud_backup_hint_other": "Ein anderes Gerät erstellt deine Backups. Wähle dieses Gerät bei der Einrichtung, um sie hierher zu verlegen.",
+  "cloud_backup_recovery_deadline": "Laden Sie alle Kopien, die Sie behalten möchten, bis {{date}} herunter. Die Cloud-Kopien werden nach Ablauf Ihres Wiederherstellungszeitraums gelöscht.",
   "cloud_backup_hint_plan": "Dein Tarif erlaubt derzeit keine neuen Cloud-Backups.",
   "cloud_backup_hint_waiting": "Lass Wealthfolio geöffnet und dein Profil entsperrt, während das erste Backup hochgeladen wird.",
   "cloud_backup_hint_due": "Das nächste Backup läuft, sobald das Backup-Gerät online und Wealthfolio geöffnet und entsperrt ist.",

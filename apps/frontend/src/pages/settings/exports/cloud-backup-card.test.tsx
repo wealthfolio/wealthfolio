@@ -406,6 +406,42 @@ it("keeps expired subscribers' saved copies recoverable without allowing new upl
   expect(mocks.capture).not.toHaveBeenCalled();
 });
 
+it.each([false, true])(
+  "shows the recovery deadline in backup settings and Connect (summary=%s)",
+  async (summary) => {
+    mocks.action.mockResolvedValue({
+      ...status,
+      hasKey: true,
+      keyReady: true,
+      policy: {
+        ...status.policy,
+        uploadEntitled: false,
+        readGraceExpiresAt: "2026-12-31T12:00:00Z",
+      },
+      history: [{ backupId: "saved", publishedAt: "2026-10-01T00:00:00Z", sizeBytes: 123 }],
+    });
+    mount(summary);
+    const notice = await screen.findByText(/Download any copies you want to keep by/);
+    expect(notice).toHaveTextContent("2026");
+    expect(notice).not.toHaveTextContent("{{date}}");
+    expect(notice).toHaveTextContent("Cloud copies will be deleted");
+    expect(mocks.capture).not.toHaveBeenCalled();
+  },
+);
+
+it("does not show a recovery deadline for renewed paid access", async () => {
+  mocks.action.mockResolvedValue({
+    ...status,
+    hasKey: true,
+    keyReady: true,
+    policy: { ...status.policy, readGraceExpiresAt: "2026-12-31T12:00:00Z" },
+    history: [{ backupId: "saved", publishedAt: "2026-10-01T00:00:00Z", sizeBytes: 123 }],
+  });
+  mount();
+  await screen.findByRole("list", { name: copy.cloud_backup_history });
+  expect(screen.queryByText(/Download any copies you want to keep by/)).not.toBeInTheDocument();
+});
+
 it("shows pending only during an explicit access attempt and gives missing-wrapper instructions", async () => {
   const locked = { ...status, hasKey: true };
   let finish: (value: string) => void = () => {};

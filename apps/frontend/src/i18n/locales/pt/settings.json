@@ -1708,6 +1708,7 @@
   "cloud_backup_hint_locked": "Aceda às cópias através de um dispositivo associado ou do código de recuperação.",
   "cloud_backup_hint_paused": "Novos backups estão pausados. As cópias salvas continuam disponíveis.",
   "cloud_backup_hint_other": "Outro dispositivo cria seus backups. Para transferir essa tarefa para cá, escolha este dispositivo na configuração.",
+  "cloud_backup_recovery_deadline": "Baixe as cópias que deseja manter até {{date}}. As cópias na nuvem serão excluídas após o fim do período de recuperação.",
   "cloud_backup_hint_plan": "Seu plano não permite novos backups na nuvem no momento.",
   "cloud_backup_hint_waiting": "Mantenha o Wealthfolio aberto e seu perfil desbloqueado durante o primeiro envio.",
   "cloud_backup_hint_due": "O próximo backup será feito quando o dispositivo estiver online, com o Wealthfolio aberto e desbloqueado.",

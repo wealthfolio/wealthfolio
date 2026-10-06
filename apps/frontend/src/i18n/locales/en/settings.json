@@ -1661,6 +1661,7 @@
   "cloud_backup_hint_locked": "Get backup access from a linked device, or use your recovery code.",
   "cloud_backup_hint_paused": "New backups are paused. Your saved copies are still available.",
   "cloud_backup_hint_other": "Another device creates your backups. To move them here, choose this device during setup.",
+  "cloud_backup_recovery_deadline": "Download any copies you want to keep by {{date}}. Cloud copies will be deleted after your recovery period ends.",
   "cloud_backup_hint_plan": "Your plan does not currently allow new cloud backups.",
   "cloud_backup_hint_waiting": "Keep Wealthfolio open and your profile unlocked while your first backup uploads.",
   "cloud_backup_hint_due": "The next backup will run when the backup device is online with Wealthfolio open and unlocked.",

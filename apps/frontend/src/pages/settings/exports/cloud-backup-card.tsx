@@ -62,12 +62,23 @@ function BackupOverview({ data, profileName }: { data: CloudBackupStatus; profil
   const { isMobile } = usePlatform();
   const formatting = useDateFormatting();
   const last = backupDate(data.policy.lastBackupAt);
+  const recoveryDeadline = backupDate(data.policy.readGraceExpiresAt ?? null);
   const due = backupDate(
     data.capture?.state === "failed" ? (data.capture.retryAt ?? null) : data.policy.nextDueAt,
   );
   const state = backupState(data);
   return (
     <>
+      {!data.policy.uploadEntitled && data.history.length > 0 && recoveryDeadline && (
+        <p role="status" className="bg-muted/60 rounded-lg p-3 text-sm leading-relaxed">
+          {t("settings:cloud_backup_recovery_deadline", {
+            date: formatting.formatDateTime(recoveryDeadline, {
+              dateStyle: "medium",
+              timeStyle: "short",
+            }),
+          })}
+        </p>
+      )}
       <p className="text-muted-foreground text-sm leading-relaxed">
         {t(
           state === "on" && !isDesktop

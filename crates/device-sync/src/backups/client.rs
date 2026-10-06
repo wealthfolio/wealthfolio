@@ -19,6 +19,8 @@ pub struct BackupPolicy {
     pub next_due_at: Option<String>,
     pub last_backup_at: Option<String>,
     #[serde(default)]
+    pub read_grace_expires_at: Option<String>,
+    #[serde(default)]
     pub upload_entitled: bool,
 }
 impl BackupPolicy {
@@ -798,6 +800,24 @@ pub enum BackupAccess {
 #[cfg(test)]
 mod access_tests {
     use super::*;
+    #[test]
+    fn policy_preserves_recovery_deadline_in_runtime_status_and_accepts_older_responses() {
+        let mut response = json!({
+            "userId": "owner", "enabled": true, "sourceId": "source", "revision": 1,
+            "teamId": null, "nextDueAt": null, "lastBackupAt": null,
+            "uploadEntitled": false, "readGraceExpiresAt": "2026-12-31T12:00:00Z"
+        });
+        let policy: BackupPolicy = serde_json::from_value(response.clone()).unwrap();
+        assert_eq!(
+            serde_json::to_value(policy).unwrap()["readGraceExpiresAt"],
+            response["readGraceExpiresAt"]
+        );
+        response
+            .as_object_mut()
+            .unwrap()
+            .remove("readGraceExpiresAt");
+        assert!(serde_json::from_value::<BackupPolicy>(response).is_ok());
+    }
     use std::sync::{
         atomic::{AtomicUsize, Ordering},
         Arc, Mutex,

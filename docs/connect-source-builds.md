@@ -72,6 +72,12 @@ Subscription expiry preserves the user's backup consent and checks eligibility
 again after a relevant action or at the next daily check. Local database
 encryption, sync enrollment and explicit backup opt-in stay separate boundaries.
 
+After paid access ends, Settings and the Connect overview show the existing
+recovery-period deadline while saved cloud copies remain available. Download any
+copies to keep before that date. The optional policy field is preserved through
+both runtime adapters; this adds no network call or client persistence. Renewal
+clears the deadline without changing the user's source consent.
+
 Automatic backups capture the complete selected profile database when due, even
 when its contents match an earlier backup. Quotes, manual prices, preferences
 and addon data remain included. A successful publication schedules the next

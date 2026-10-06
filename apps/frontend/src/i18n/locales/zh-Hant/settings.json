@@ -1661,6 +1661,7 @@
   "cloud_backup_hint_locked": "透過連結裝置或復原碼存取備份。",
   "cloud_backup_hint_paused": "新的備份已暫停。已儲存的副本仍可使用。",
   "cloud_backup_hint_other": "其他裝置正在建立備份。如要移至此處，請在設定時選擇此裝置。",
+  "cloud_backup_recovery_deadline": "請在 {{date}} 前下載您要保留的副本。復原期限結束後，雲端副本將被刪除。",
   "cloud_backup_hint_plan": "目前方案暫不允許建立新的雲端備份。",
   "cloud_backup_hint_waiting": "上傳第一份備份時，請保持 Wealthfolio 開啟並解鎖設定檔。",
   "cloud_backup_hint_due": "備份裝置連線、Wealthfolio 已開啟且解鎖時，將執行下次備份。",

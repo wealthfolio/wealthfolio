@@ -1708,6 +1708,7 @@
   "cloud_backup_hint_locked": "Accédez aux sauvegardes depuis un appareil lié, ou utilisez votre code de récupération.",
   "cloud_backup_hint_paused": "Les nouvelles sauvegardes sont suspendues. Vos copies restent disponibles.",
   "cloud_backup_hint_other": "Un autre appareil crée vos sauvegardes. Pour les déplacer ici, choisissez cet appareil lors de la configuration.",
+  "cloud_backup_recovery_deadline": "Téléchargez les copies que vous souhaitez conserver avant le {{date}}. Les copies dans le cloud seront supprimées après la fin de votre période de récupération.",
   "cloud_backup_hint_plan": "Votre abonnement ne permet pas actuellement de nouvelles sauvegardes cloud.",
   "cloud_backup_hint_waiting": "Gardez Wealthfolio ouvert et votre profil déverrouillé pendant l’envoi de la première sauvegarde.",
   "cloud_backup_hint_due": "La prochaine sauvegarde démarrera lorsque l’appareil de sauvegarde sera connecté, avec Wealthfolio ouvert et déverrouillé.",

@@ -1637,6 +1637,7 @@
   "cloud_backup_hint_locked": "연결된 기기 또는 복구 코드로 백업에 접근하세요.",
   "cloud_backup_hint_paused": "새 백업은 일시 중지되었습니다. 저장된 사본은 계속 이용할 수 있습니다.",
   "cloud_backup_hint_other": "다른 기기가 백업을 만듭니다. 이곳으로 옮기려면 설정 시 이 기기를 선택하세요.",
+  "cloud_backup_recovery_deadline": "보관할 사본은 {{date}}까지 다운로드하세요. 복구 기간이 끝나면 클라우드 사본이 삭제됩니다.",
   "cloud_backup_hint_plan": "현재 요금제는 새 클라우드 백업을 허용하지 않습니다.",
   "cloud_backup_hint_waiting": "첫 백업 업로드 동안 Wealthfolio를 열고 프로필을 잠금 해제해 두세요.",
   "cloud_backup_hint_due": "백업 기기가 온라인이고 Wealthfolio가 열려 잠금 해제되면 다음 백업이 실행됩니다.",

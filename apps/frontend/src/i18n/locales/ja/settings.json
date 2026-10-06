@@ -1637,6 +1637,7 @@
   "cloud_backup_hint_locked": "連携済み端末または復旧コードでバックアップにアクセスできます。",
   "cloud_backup_hint_paused": "新しいバックアップは一時停止中です。保存済みコピーは引き続き利用できます。",
   "cloud_backup_hint_other": "別の端末がバックアップを作成しています。この端末に切り替えるには、設定時にこの端末を選択してください。",
+  "cloud_backup_recovery_deadline": "保存しておきたいコピーは {{date}} までにダウンロードしてください。復元期間が終了すると、クラウド上のコピーは削除されます。",
   "cloud_backup_hint_plan": "現在のプランでは新しいクラウドバックアップを作成できません。",
   "cloud_backup_hint_waiting": "最初のアップロード中はWealthfolioを開き、プロファイルのロックを解除しておいてください。",
   "cloud_backup_hint_due": "バックアップ端末がオンラインになり、Wealthfolioが開いてロックが解除されると、次のバックアップを実行します。",

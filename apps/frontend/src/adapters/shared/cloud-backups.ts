@@ -24,6 +24,7 @@ export interface CloudBackupStatus {
     uploadEntitled: boolean;
     nextDueAt: string | null;
     lastBackupAt: string | null;
+    readGraceExpiresAt?: string | null;
   };
   history: CloudBackupPoint[];
 }
