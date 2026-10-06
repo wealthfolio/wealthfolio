@@ -1731,8 +1731,10 @@ fn activity_effects(
     set
 }
 
-/// Disposals of the period whose disposing event is a BUY/SELL dated inside
-/// the period (legacy filters lot disposals by trade activity ids).
+/// Disposals of the period whose disposing event realizes (a trade, an
+/// option's expiry, or units a transfer delivered into a short) and is dated
+/// inside the period. The previous calculator kept trades only, which left
+/// out the P&L of an expiry or a transfer cover.
 fn period_disposals<'a>(
     inputs: &'a MeasureInputs<'a>,
     result: &PerformanceResult,
@@ -1742,18 +1744,18 @@ fn period_disposals<'a>(
     let Some(period) = Period::of(result, baseline) else {
         return Vec::new();
     };
-    let trade_ids: HashSet<&str> = inputs
+    let realizing: HashSet<&str> = inputs
         .effects
         .events
         .iter()
-        .filter(|e| e.trade && scope.contains(&e.account) && period.contains(e.date))
+        .filter(|e| e.realizes && scope.contains(&e.account) && period.contains(e.date))
         .map(|e| e.id.as_str())
         .collect();
     inputs
         .disposals
         .iter()
         .filter(|d| scope.contains(&d.account) && period.contains(d.date))
-        .filter(|d| trade_ids.contains(d.event.as_str()))
+        .filter(|d| realizing.contains(d.event.as_str()))
         .collect()
 }
 

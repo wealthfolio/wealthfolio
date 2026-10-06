@@ -548,7 +548,7 @@ baseline:
             fees: "0"
             fx_effect: "0"
             income: "0"
-            realized_pnl: "0"
+            realized_pnl: "-120"
             residual: "0"
             taxes: "0"
             unrealized_pnl_change: "-900"
@@ -593,7 +593,7 @@ baseline:
             - date: 2025-01-10
               value: "-0.22733668"
           summary:
-            amount: "-900"
+            amount: "-1020"
             amount_status: complete
             basis: marketValue
             basis_status: notApplicable
@@ -794,7 +794,7 @@ baseline:
         fees: "0"
         fx_effect: "0"
         income: "0"
-        realized_pnl: "0"
+        realized_pnl: "-120"
         residual: "0"
         taxes: "0"
         unrealized_pnl_change: "-900"
@@ -839,7 +839,7 @@ baseline:
         - date: 2025-01-10
           value: "-0.255"
       summary:
-        amount: "-900"
+        amount: "-1020"
         amount_status: complete
         basis: marketValue
         basis_status: notApplicable

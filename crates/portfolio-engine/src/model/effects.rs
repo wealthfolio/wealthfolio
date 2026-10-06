@@ -71,8 +71,10 @@ pub struct EventEffect {
     pub fee: Option<Decimal>,
     #[serde(default, with = "crate::model::decimal_serde::option")]
     pub tax: Option<Decimal>,
-    /// A trade: its disposals are realised P&L.
-    pub trade: bool,
+    /// Its disposals are realised P&L: a trade, an option's expiry, or a
+    /// transfer in (the units it delivers cover a short). A transfer out
+    /// moves lots at their cost and realizes nothing (rules R2.4).
+    pub realizes: bool,
     /// The charges of a BUY or SELL row, in base, when it has any and they
     /// convert.
     pub trade_charge: Option<TradeCharge>,

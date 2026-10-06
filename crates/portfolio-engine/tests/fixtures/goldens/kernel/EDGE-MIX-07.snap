@@ -275,7 +275,7 @@ baseline:
             fees: "0"
             fx_effect: "0"
             income: "0"
-            realized_pnl: "0"
+            realized_pnl: "20"
             residual: "0"
             taxes: "0"
             unrealized_pnl_change: "0"
@@ -312,7 +312,7 @@ baseline:
             - date: 2025-01-05
               value: "0.02360656"
           summary:
-            amount: "0"
+            amount: "20"
             amount_status: complete
             basis: marketValue
             basis_status: notApplicable
@@ -432,7 +432,7 @@ baseline:
         fees: "0"
         fx_effect: "0"
         income: "0"
-        realized_pnl: "0"
+        realized_pnl: "20"
         residual: "0"
         taxes: "0"
         unrealized_pnl_change: "0"
@@ -449,7 +449,7 @@ baseline:
         annualized_value_return: ~
         irr: ~
         twr: ~
-        value_return: "0"
+        value_return: "0.01818182"
       risk:
         drawdown_duration_days: ~
         max_drawdown: ~
@@ -459,12 +459,12 @@ baseline:
         volatility: ~
       series: []
       summary:
-        amount: "0"
+        amount: "20"
         amount_status: complete
         basis: mixed
         basis_status: notApplicable
         method: valueReturn
-        percent: "0"
+        percent: "0.01818182"
         percent_status: complete
         quality: partial
   portfolio_flows:

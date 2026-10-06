@@ -193,7 +193,7 @@ baseline:
             fees: "5"
             fx_effect: "0"
             income: "0"
-            realized_pnl: "150"
+            realized_pnl: "450"
             residual: "0"
             taxes: "0"
             unrealized_pnl_change: "0"
@@ -203,7 +203,7 @@ baseline:
           method: timeWeighted
           period_end: 2025-01-12
           period_start: 2025-01-02
-          quality: partial
+          quality: ok
           returns:
             annualized_irr: "21.51351511"
             annualized_twr: ~
@@ -242,14 +242,14 @@ baseline:
             - date: 2025-01-12
               value: "0.089"
           summary:
-            amount: "145"
+            amount: "445"
             amount_status: complete
             basis: marketValue
             basis_status: notApplicable
             method: timeWeighted
             percent: "0.089"
             percent_status: complete
-            quality: partial
+            quality: ok
       tracking_mode: TRANSACTIONS
       valuations:
         - basis_status: notApplicable
@@ -481,7 +481,7 @@ baseline:
         fees: "5"
         fx_effect: "0"
         income: "0"
-        realized_pnl: "150"
+        realized_pnl: "450"
         residual: "0"
         taxes: "0"
         unrealized_pnl_change: "0"
@@ -491,7 +491,7 @@ baseline:
       method: timeWeighted
       period_end: 2025-01-12
       period_start: 2025-01-02
-      quality: partial
+      quality: ok
       returns:
         annualized_irr: "21.51351511"
         annualized_twr: ~
@@ -530,13 +530,13 @@ baseline:
         - date: 2025-01-12
           value: "0.089"
       summary:
-        amount: "145"
+        amount: "445"
         amount_status: complete
         basis: marketValue
         basis_status: notApplicable
         method: timeWeighted
         percent: "0.089"
         percent_status: complete
-        quality: partial
+        quality: ok
   portfolio_flows: []
 scenario: NOM-OPT-01

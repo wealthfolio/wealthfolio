@@ -84,5 +84,8 @@ expected_notes: >
   (covered short basis relieved) + 603 (residual lots), while acc-a gave up
   1005: the pair is asymmetric by the -2 cover P&L, which leaks into the
   contribution instead of staying in performance. Candidate for the
-  divergence ledger. Attribution diagnostics: acc-a difference 50, acc-b
-  difference -47 (transfer valued at market vs lots at basis).
+  divergence ledger. Attribution: acc-b realizes the cover's -2 (rules
+  R3.5). The portfolio reports 38 against a true gain of 43 (4043 held,
+  4000 deposited): the lots acc-a sent carry 5 of fees, 2 inside the
+  cover's -2 and 3 in the residual lot's basis, which attribution also
+  counts as fees (rules §8).

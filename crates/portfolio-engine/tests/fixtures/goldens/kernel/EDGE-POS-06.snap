@@ -248,7 +248,7 @@ baseline:
             fees: "0"
             fx_effect: "0"
             income: "0"
-            realized_pnl: "4"
+            realized_pnl: "6"
             residual: "0"
             taxes: "0"
             unrealized_pnl_change: "0"
@@ -258,7 +258,7 @@ baseline:
           method: timeWeighted
           period_end: 2025-01-08
           period_start: 2025-01-01
-          quality: partial
+          quality: ok
           returns:
             annualized_irr: "22.19036688"
             annualized_twr: ~
@@ -291,14 +291,14 @@ baseline:
             - date: 2025-01-08
               value: "0.06"
           summary:
-            amount: "4"
+            amount: "6"
             amount_status: complete
             basis: marketValue
             basis_status: notApplicable
             method: timeWeighted
             percent: "0.06"
             percent_status: complete
-            quality: partial
+            quality: ok
       tracking_mode: TRANSACTIONS
       valuations:
         - basis_status: notApplicable
@@ -865,7 +865,7 @@ baseline:
         fees: "0"
         fx_effect: "0"
         income: "0"
-        realized_pnl: "4"
+        realized_pnl: "6"
         residual: "0"
         taxes: "0"
         unrealized_pnl_change: "0"
@@ -875,7 +875,7 @@ baseline:
       method: timeWeighted
       period_end: 2025-01-08
       period_start: 2025-01-01
-      quality: partial
+      quality: ok
       returns:
         annualized_irr: "3.67549982"
         annualized_twr: ~
@@ -908,14 +908,14 @@ baseline:
         - date: 2025-01-08
           value: "0.03"
       summary:
-        amount: "4"
+        amount: "6"
         amount_status: complete
         basis: marketValue
         basis_status: notApplicable
         method: timeWeighted
         percent: "0.03"
         percent_status: complete
-        quality: partial
+        quality: ok
   portfolio_flows:
     - date: 2025-01-05
       inflow_base: "0"

@@ -136,6 +136,13 @@ path with the fewest hops (equal paths in currency-code order), each hop at its
 own nearest observation. Only when no path exists at all is an amount in the
 base currency unknown: it is recorded as zero, with a currency warning.
 
+**R3.5** Realized P&L is every disposal that realizes, whatever closed it: a
+sale or cover, an option's expiry, or units a transfer delivers into an opposite
+position (a short covered by arriving shares, or a long closed by an arriving
+short). A transfer out moves its lots at their cost and realizes nothing (R2.4).
+The previous calculator kept BUY and SELL disposals only. Fixtures: NOM-OPT-01,
+NOM-TXF-04, EDGE-TXF-10, EDGE-POS-06.
+
 ## 4. Dated reads
 
 **R4.1** A dated read equals the full read on every day after its first; its
@@ -275,6 +282,12 @@ it (§5). Fixtures: every other fixture is FIFO.
 
 ## 8. Known limits
 
+- Purchase charges carried by lots a transfer moves are not added back to
+  attribution: they count as fees where they were paid, and again inside the
+  moved lots' cost, in the unrealized change of the lots still held and in the
+  realized P&L of a cover they make (R3.5). NOM-TXF-04 reports 38 for a gain
+  of 43. Adding them back needs the charges a cover consumed stored with its
+  disposal.
 - Holdings mode assumes trades and transfers happen at snapshot prices: a price
   move between a trade (or a transfer, R2.3) and the next snapshot reads as
   money in or out.

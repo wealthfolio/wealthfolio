@@ -1571,7 +1571,15 @@ fn priced_events(
             income: convert(attributed.income, &event.currency, event.date),
             fee: convert(attributed.fee, &event.currency, event.date),
             tax: convert(attributed.tax, &event.currency, event.date),
-            trade: matches!(event.action, Action::Trade { .. }),
+            realizes: matches!(
+                event.action,
+                Action::Trade { .. }
+                    | Action::OptionExpiry { .. }
+                    | Action::SecurityTransfer {
+                        direction: Direction::In,
+                        ..
+                    }
+            ),
             trade_charge,
             marked_external: marked_external.contains(event.source.as_str()),
         });
