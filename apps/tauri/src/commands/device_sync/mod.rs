@@ -38,7 +38,7 @@ pub(crate) async fn share_backup_access(context: &Arc<ServiceContext>) {
             client
                 .share_access_best_effort(&token, context.secret_store.as_ref(), None)
                 .await;
-            context.backup_scheduler.wake();
+            context.backup_scheduler.request_check();
         }
     }
 }

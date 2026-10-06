@@ -22,7 +22,11 @@ pub async fn cloud_backup_action(
     if matches!(operation, BackupOperation::RuntimeStatus) {
         return serde_json::to_value(runtime.backup_scheduler.status()).map_err(|e| e.to_string());
     }
-    if !matches!(operation, BackupOperation::Status) {
+    let cancels_capture = matches!(
+        operation,
+        BackupOperation::Enable { .. } | BackupOperation::Disable | BackupOperation::Delete { .. }
+    );
+    if cancels_capture {
         runtime.backup_scheduler.wake();
     }
     let context = runtime.context()?;
@@ -32,8 +36,10 @@ pub async fn cloud_backup_action(
         .management(&token, runtime.secret_store.as_ref(), &operation)
         .await
         .map_err(|e| e.to_string())?;
-    if !matches!(operation, BackupOperation::Status) {
+    if cancels_capture {
         runtime.backup_scheduler.wake();
+    } else if !matches!(operation, BackupOperation::Status) {
+        runtime.backup_scheduler.request_check();
     }
     Ok(result)
 }
@@ -41,7 +47,7 @@ pub async fn cloud_backup_action(
 pub async fn cloud_backup_capture(runtime: ProfileAccess) -> Result<Option<BackupPoint>, String> {
     let result = check_and_capture(&runtime.0).await?;
     if result.0.is_some() {
-        runtime.backup_scheduler.wake();
+        runtime.backup_scheduler.request_check();
     }
     Ok(result.0)
 }

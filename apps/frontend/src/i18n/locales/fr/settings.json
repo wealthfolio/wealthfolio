@@ -1704,7 +1704,7 @@
   "cloud_backup_state_waiting": "Première sauvegarde en attente",
   "cloud_backup_state_due": "En attente de cet appareil",
   "cloud_backup_state_on": "Sauvegardes automatiques activées",
-  "cloud_backup_hint_new": "Configurez une fois, puis Wealthfolio s’occupe de vos sauvegardes quotidiennes.",
+  "cloud_backup_hint_new": "Enregistrez un code de récupération et choisissez l’appareil qui effectuera vos sauvegardes.",
   "cloud_backup_hint_locked": "Accédez aux sauvegardes depuis un appareil lié, ou utilisez votre code de récupération.",
   "cloud_backup_hint_paused": "Les nouvelles sauvegardes sont suspendues. Vos copies restent disponibles.",
   "cloud_backup_hint_other": "Un autre appareil crée vos sauvegardes. Pour les déplacer ici, choisissez cet appareil lors de la configuration.",

@@ -154,7 +154,7 @@ pub trait RestorePorts: CredentialStore + SyncTransport + Send + Sync + 'static 
     async fn clear_freshness_gate(&self, device_id: &str);
     /// Rows in the synced tables that a replacement would overwrite.
     fn local_rows(&self) -> Result<i64, String>;
-    fn snapshot_is_empty(&self, image: &[u8]) -> Result<bool, String>;
+    async fn snapshot_is_empty(&self, image: Vec<u8>) -> Result<bool, String>;
     /// Record that no snapshot is required for this device.
     async fn mark_restore_not_needed(
         &self,
@@ -204,7 +204,7 @@ struct RestoreEntry {
 /// A downloaded and validated snapshot, still encrypted. It stays in memory
 /// while the user decides; a readable copy exists only during replacement.
 struct PreparedSnapshot {
-    is_empty: bool,
+    is_empty: Option<bool>,
     ciphertext: Vec<u8>,
     tables: Vec<String>,
     oplog_seq: i64,
@@ -580,7 +580,7 @@ impl DeviceSyncRuntimeState {
         let prepared = download_snapshot(ports, &session, &selected).await?;
         self.with_entry(operation_id, |entry| {
             if let Some(snapshot) = &mut entry.operation.snapshot {
-                snapshot.is_empty = Some(prepared.is_empty);
+                snapshot.is_empty = prepared.is_empty;
             }
             entry.prepared = Some(Arc::new(prepared));
         })
@@ -1132,13 +1132,13 @@ async fn download_snapshot<P: RestorePorts>(
             message,
         )
     })?;
-    let is_empty = ports.snapshot_is_empty(&image).map_err(|message| {
-        failure(
-            RestoreErrorCode::SnapshotInvalid,
-            RestoreRetry::NewAttempt,
-            message,
-        )
-    })?;
+    let is_empty = match ports.snapshot_is_empty(image).await {
+        Ok(value) => Some(value),
+        Err(_) => {
+            warn!("[DeviceSync] Optional snapshot emptiness inspection unavailable");
+            None
+        }
+    };
 
     // Plaintext cloud metadata cannot narrow the authenticated snapshot's restore.
     // Storage checks each locally known table in the decrypted image and skips absent tables.

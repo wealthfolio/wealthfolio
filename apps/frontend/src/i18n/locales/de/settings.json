@@ -1657,7 +1657,7 @@
   "cloud_backup_state_waiting": "Erstes Backup ausstehend",
   "cloud_backup_state_due": "Wartet auf dieses Gerät",
   "cloud_backup_state_on": "Automatische Sicherungen aktiv",
-  "cloud_backup_hint_new": "Einmal einrichten, dann kümmert sich Wealthfolio um deine täglichen Backups.",
+  "cloud_backup_hint_new": "Speichere einen Wiederherstellungscode und wähle das Gerät für deine Backups.",
   "cloud_backup_hint_locked": "Erhalte Backup-Zugriff über ein verknüpftes Gerät oder deinen Wiederherstellungscode.",
   "cloud_backup_hint_paused": "Neue Backups sind pausiert. Gespeicherte Kopien bleiben verfügbar.",
   "cloud_backup_hint_other": "Ein anderes Gerät erstellt deine Backups. Wähle dieses Gerät bei der Einrichtung, um sie hierher zu verlegen.",

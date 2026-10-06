@@ -40,8 +40,11 @@ URLs without exposing them in the interface. Build-time configuration does not
 make the hostname secret in the distributed app.
 
 When running `pnpm tauri dev` or building with `pnpm tauri build`, the frontend
-and Rust backend read the root `.env` during their builds. To build without
-Connect, leave both auth settings empty.
+and Rust backend read the authentication/API entries in root `.env` during their
+builds. `CONNECT_STORAGE_ALLOWED_HOSTS` is different: it must be exported into
+the Cargo process environment, not merely written in `.env`, because the shared
+Rust transfer crate embeds it during compilation. To build without Connect,
+leave both auth settings empty.
 
 After changing these settings, restart development or rebuild the packaged app.
 Setting authentication environment variables when launching an already-built app
@@ -143,3 +146,11 @@ The shared transport verifies it against the ciphertext before PUT. Storage
 validates the checksum; cloud completion compares the provider checksum through
 HEAD, falling back to full streaming verification for older objects without one.
 Released legacy binary clients remain compatible.
+
+**Architecture impact of review fixes:** optional snapshot-emptiness inspection
+runs on the existing blocking pool and falls back to the normal replacement
+consent when inspection is unavailable. Access-sharing and non-destructive
+backup actions notify the existing due timer without cancelling a running
+capture. Policy changes, deletion, account/profile changes and mobile suspension
+still revoke admitted work. No cloud calls, background worker, persisted state
+or retry mechanism are added.

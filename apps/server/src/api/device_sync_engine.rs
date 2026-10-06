@@ -975,12 +975,14 @@ impl RestorePorts for ServerEnginePorts {
         }
     }
 
-    fn snapshot_is_empty(&self, image: &[u8]) -> Result<bool, String> {
-        wealthfolio_storage_sqlite::db::cloud_backups::snapshot_is_empty(
-            image,
-            &self.scratch_dir()?,
-        )
-        .map_err(|e| e.to_string())
+    async fn snapshot_is_empty(&self, image: Vec<u8>) -> Result<bool, String> {
+        let scratch = self.scratch_dir()?;
+        tokio::task::spawn_blocking(move || {
+            wealthfolio_storage_sqlite::db::cloud_backups::snapshot_is_empty(&image, &scratch)
+                .map_err(|e| e.to_string())
+        })
+        .await
+        .map_err(|e| e.to_string())?
     }
 
     fn local_rows(&self) -> Result<i64, String> {

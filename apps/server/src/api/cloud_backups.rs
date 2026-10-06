@@ -38,7 +38,11 @@ async fn action(
                 .map_err(|_| ApiError::Internal("Backup status unavailable".into()))?,
         ));
     }
-    if !matches!(input.operation, BackupOperation::Status) {
+    let cancels_capture = matches!(
+        input.operation,
+        BackupOperation::Enable { .. } | BackupOperation::Disable | BackupOperation::Delete { .. }
+    );
+    if cancels_capture {
         state.backup_scheduler.wake();
     }
     let _lifecycle = state.profile_lifecycle.lock().await;
@@ -47,8 +51,10 @@ async fn action(
         .management(&token, state.secret_store.as_ref(), &input.operation)
         .await
         .map_err(|e| ApiError::BadRequest(e.to_string()))?;
-    if !matches!(input.operation, BackupOperation::Status) {
+    if cancels_capture {
         state.backup_scheduler.wake();
+    } else if !matches!(input.operation, BackupOperation::Status) {
+        state.backup_scheduler.request_check();
     }
     Ok(Json(result))
 }
@@ -184,7 +190,7 @@ async fn capture_route(
 ) -> ApiResult<Json<Option<BackupPoint>>> {
     let result = check_and_capture(&state).await?;
     if result.0.is_some() {
-        state.backup_scheduler.wake();
+        state.backup_scheduler.request_check();
     }
     Ok(Json(result.0))
 }

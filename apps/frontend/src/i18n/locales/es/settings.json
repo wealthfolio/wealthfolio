@@ -1704,7 +1704,7 @@
   "cloud_backup_state_waiting": "Primera copia pendiente",
   "cloud_backup_state_due": "Esperando este dispositivo",
   "cloud_backup_state_on": "Copias automáticas activadas",
-  "cloud_backup_hint_new": "Configúralo una vez y Wealthfolio se ocupará de tus copias diarias.",
+  "cloud_backup_hint_new": "Guarda un código de recuperación y elige desde qué dispositivo se harán tus copias de seguridad.",
   "cloud_backup_hint_locked": "Accede a las copias desde un dispositivo vinculado o con tu código de recuperación.",
   "cloud_backup_hint_paused": "Las nuevas copias están en pausa. Tus copias guardadas siguen disponibles.",
   "cloud_backup_hint_other": "Otro dispositivo crea tus copias. Para trasladarlas aquí, elige este dispositivo durante la configuración.",

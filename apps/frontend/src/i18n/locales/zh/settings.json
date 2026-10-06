@@ -1633,7 +1633,7 @@
   "cloud_backup_state_waiting": "等待首次备份",
   "cloud_backup_state_due": "等待此设备",
   "cloud_backup_state_on": "自动备份已开启",
-  "cloud_backup_hint_new": "只需设置一次，Wealthfolio 即会负责每日备份。",
+  "cloud_backup_hint_new": "保存恢复代码，并选择用于创建备份的设备。",
   "cloud_backup_hint_locked": "通过关联设备或恢复码访问备份。",
   "cloud_backup_hint_paused": "新的备份已暂停。已保存的副本仍可使用。",
   "cloud_backup_hint_other": "其他设备正在创建备份。如要移至此处，请在设置时选择此设备。",

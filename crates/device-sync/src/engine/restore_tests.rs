@@ -51,6 +51,7 @@ struct FakePorts {
     snapshot_missing: AtomicBool,
     local_rows: AtomicI64,
     remote_empty: AtomicBool,
+    empty_check_fails: AtomicBool,
     needs_bootstrap: AtomicBool,
     backup_fails: AtomicBool,
     replace_fails: AtomicBool,
@@ -87,6 +88,7 @@ impl FakePorts {
             snapshot_missing: AtomicBool::new(false),
             local_rows: AtomicI64::new(local_rows),
             remote_empty: AtomicBool::new(false),
+            empty_check_fails: AtomicBool::new(false),
             needs_bootstrap: AtomicBool::new(true),
             backup_fails: AtomicBool::new(false),
             replace_fails: AtomicBool::new(false),
@@ -321,7 +323,10 @@ impl RestorePorts for FakePorts {
 
     async fn clear_freshness_gate(&self, _device_id: &str) {}
 
-    fn snapshot_is_empty(&self, _: &[u8]) -> Result<bool, String> {
+    async fn snapshot_is_empty(&self, _: Vec<u8>) -> Result<bool, String> {
+        if self.empty_check_fails.load(Ordering::SeqCst) {
+            return Err("scratch directory unavailable".to_string());
+        }
         Ok(self.remote_empty.load(Ordering::SeqCst))
     }
 
@@ -1075,4 +1080,16 @@ async fn restore_ignores_plaintext_table_list_when_selecting_local_tables() {
                 .collect::<Vec<_>>()
         );
     }
+}
+
+#[tokio::test]
+async fn optional_empty_snapshot_inspection_failure_still_requires_replacement_consent() {
+    let runtime = runtime();
+    let ports = Arc::new(FakePorts::new(12));
+    ports.empty_check_fails.store(true, Ordering::SeqCst);
+    start(&runtime, &ports, StartRestore::Pairing).await;
+    let operation = wait_for_phase(&runtime, RestorePhase::AwaitingConsent).await;
+    assert_eq!(operation.snapshot.unwrap().is_empty, None);
+    assert!(ports.replacements().is_empty());
+    assert_eq!(ports.backups.load(Ordering::SeqCst), 0);
 }

@@ -122,6 +122,11 @@ impl BackupScheduler {
             status.completed = status.completed.wrapping_add(1);
         }
     }
+    /// Recheck access/due time without revoking an already admitted capture.
+    pub fn request_check(&self) {
+        self.wake.notify_one();
+    }
+
     pub fn wake(&self) {
         // Existing lifecycle/user notifications also invalidate an admitted capture.
         // An upload may finish, but an obsolete account/profile must not publish it.
@@ -621,5 +626,26 @@ mod resume_tests {
             "catch up after suspend even if Instant barely advances"
         );
         task.abort();
+    }
+}
+
+#[cfg(test)]
+mod notification_tests {
+    use super::*;
+    #[tokio::test]
+    async fn access_notification_preserves_active_capture_and_wakes_due_check() {
+        let scheduler = BackupScheduler::default();
+        let generation = scheduler.generation();
+        scheduler.started(generation);
+        scheduler.request_check();
+        assert!(scheduler.is_current(generation));
+        assert_eq!(scheduler.status().state, CaptureState::Running);
+        assert_eq!(
+            scheduler.until_changed(generation, async { 42 }).await,
+            Some(42)
+        );
+        tokio::time::timeout(Duration::from_millis(100), scheduler.wake.notified())
+            .await
+            .unwrap();
     }
 }

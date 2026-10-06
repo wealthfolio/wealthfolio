@@ -1633,7 +1633,7 @@
   "cloud_backup_state_waiting": "最初のバックアップ待ち",
   "cloud_backup_state_due": "この端末を待機中",
   "cloud_backup_state_on": "自動バックアップ有効",
-  "cloud_backup_hint_new": "一度設定すれば、Wealthfolioが毎日のバックアップを行います。",
+  "cloud_backup_hint_new": "復元コードを保存し、バックアップを作成するデバイスを選んでください。",
   "cloud_backup_hint_locked": "連携済み端末または復旧コードでバックアップにアクセスできます。",
   "cloud_backup_hint_paused": "新しいバックアップは一時停止中です。保存済みコピーは引き続き利用できます。",
   "cloud_backup_hint_other": "別の端末がバックアップを作成しています。この端末に切り替えるには、設定時にこの端末を選択してください。",
