@@ -113,9 +113,13 @@ describe("linking a withdrawal from its account", () => {
       "Mortgage",
     ]);
     fireEvent.change(loan, { target: { value: "mortgage" } });
+    const escrow = screen.getByLabelText("Escrow per payment");
+    expect(escrow).toHaveAttribute("placeholder", "The loan's usual amount");
     fireEvent.change(screen.getByRole("combobox", { name: "Counts toward" }), {
       target: { value: "extra" },
     });
+    // Extra principal includes no escrow unless one is entered.
+    expect(escrow).toHaveAttribute("placeholder", "None unless you enter it");
     fireEvent.click(screen.getByRole("button", { name: "Link" }));
     await waitFor(() =>
       expect(mocks.link).toHaveBeenCalledWith("act", {

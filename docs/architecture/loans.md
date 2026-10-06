@@ -396,7 +396,8 @@ statement remains the truth.
    the day before.
 6. **Escrow first.** The tag's escrow, at most the payment amount, is never
    principal or interest. Linking fills it from the loan's `escrow_amount`, so a
-   later change to that amount does not rewrite earlier payments.
+   later change to that amount does not rewrite earlier payments. A payment
+   linked as extra principal has no escrow unless the user names it.
 7. **Matching an instalment.** Unless the tag names a target, a payment settles
    the unpaid instalment whose due date is nearest, within 10 days for monthly
    loans and 6 days for biweekly ones. A tag naming an instalment due date, or

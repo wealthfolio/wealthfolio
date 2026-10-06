@@ -71,6 +71,18 @@ fn escrow_defaults_to_the_loans_usual_escrow() {
 }
 
 #[test]
+fn extra_principal_has_no_escrow_unless_it_is_named() {
+    let loan = loan(json!({"escrow_amount": "30"}));
+    let tagged = |escrow| {
+        let extra = link(escrow, Some(PaymentTarget::Extra));
+        activity_after(&withdrawal(None), "CASH", Some(&loan), &extra)
+            .map(|metadata| metadata.unwrap()[LOAN_PAYMENT_TAG_KEY]["escrow"].clone())
+    };
+    assert_eq!(tagged(None), Ok(Value::Null));
+    assert_eq!(tagged(Some(12.5)), Ok(json!(12.5)));
+}
+
+#[test]
 fn only_a_qualifying_withdrawal_can_be_linked() {
     let loan = loan(json!({}));
     let refused = |activity: &Activity, account: &str| {

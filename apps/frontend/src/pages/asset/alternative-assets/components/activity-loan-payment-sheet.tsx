@@ -160,9 +160,10 @@ export function ActivityLoanPaymentSheet({
                 <MoneyInput
                   id={escrowId}
                   value={escrow}
-                  // A replaced extra repayment has no escrow unless one is entered.
+                  // Extra principal, including a replaced extra repayment, has no
+                  // escrow unless one is entered.
                   placeholder={t(
-                    duplicate
+                    duplicate || target === "extra"
                       ? "asset:loanPayments.escrow_none"
                       : "asset:loanPayments.escrow_default",
                   )}

@@ -21,7 +21,8 @@ pub enum PaymentLink {
     #[serde(rename_all = "camelCase")]
     Link {
         loan_id: String,
-        /// Escrow included in this payment; the loan's usual escrow when omitted.
+        /// Escrow included in this payment; when omitted, the loan's usual escrow,
+        /// or none for extra principal.
         #[serde(default)]
         escrow: Option<f64>,
         #[serde(default)]
@@ -93,7 +94,12 @@ pub fn link_payment(
             if link_escrow.is_some_and(|escrow| !fits(escrow)) {
                 return Err(LoanError::Invalid);
             }
-            let mut escrow = link_escrow.unwrap_or_else(|| escrow_amount(&loan.metadata));
+            // Extra principal includes no escrow unless named, as when the loan
+            // records an extra repayment itself.
+            let mut escrow = link_escrow.unwrap_or_else(|| match applies_to {
+                Some(PaymentTarget::Extra) => 0.0,
+                _ => escrow_amount(&loan.metadata),
+            });
             let payment = LoanPayment {
                 activity_id: activity.id.clone(),
                 account_id: activity.account_id.clone(),
