@@ -6,7 +6,7 @@ Authenticode signing for Windows builds through Azure Artifact Signing.
                Emits `args=--config <overlay>` as a step output.
   sign <file>  Run by the Tauri bundler for each binary, NSIS plugin, uninstaller,
                installer, and MSI, before it creates the updater .sig files.
-  verify       Fail unless the installers and main binary have a valid, timestamped
+  verify       Fail unless every NSIS and MSI installer has a valid, timestamped
                Authenticode signature.
 
 Authentication uses GitHub OIDC with an Entra federated credential, so no client
@@ -119,12 +119,13 @@ function Invoke-Sign([string]$Path) {
 }
 
 function Invoke-Verify {
+  # Only installers: the bundler restores the unsigned target/*/release/Wealthfolio.exe
+  # after packaging, while the signed copy ships inside each installer.
   $files = @(Get-ChildItem -Path @(
       'target/*/release/bundle/nsis/*.exe',
-      'target/*/release/bundle/msi/*.msi',
-      'target/*/release/Wealthfolio.exe'
+      'target/*/release/bundle/msi/*.msi'
     ) -ErrorAction SilentlyContinue)
-  if ($files.Count -eq 0) { throw 'No Windows build outputs found under target/*/release' }
+  if ($files.Count -eq 0) { throw 'No Windows installers found under target/*/release/bundle' }
 
   $unsigned = @()
   foreach ($file in $files) {
