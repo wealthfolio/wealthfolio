@@ -1557,7 +1557,10 @@
       "taiwan": "Taïwan",
       "japan": "Japon",
       "southKorea": "Corée du Sud",
-      "italy": "Italie"
+      "italy": "Italie",
+      "austria": "Autriche",
+      "romania": "Roumanie",
+      "bulgaria": "Bulgarie"
     }
   },
   "appearance_navigation_title": "Navigation",
