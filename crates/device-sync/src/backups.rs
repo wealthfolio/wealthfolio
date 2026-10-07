@@ -68,11 +68,14 @@ impl MasterKey {
         store
             .get_secret(&format!("{MASTER_KEY_PREFIX}{user_id}"))
             .map_err(|_| BackupError::SecretStore)?
-            .map(|s| decode_key(s.split_once(':').map_or(s.as_str(), |(_, key)| key)).map(Self))
+            .map(|s| {
+                let value = zeroize::Zeroizing::new(s);
+                Self::parse_bound(&value).map(|(_, key)| key)
+            })
             .transpose()
     }
-    /// Old unbound keys remain readable. New writes bind the key ID in the same
-    /// protected secret value, so a changed cloud record cannot relabel local bytes.
+    /// A local key always belongs to one cloud key ID. Unbound development keys
+    /// cannot establish access; recover them explicitly using the recovery code.
     pub fn load_for_key(store: &dyn SecretStore, user: &str, key_id: &str) -> Result<Option<Self>> {
         let Some(value) = store
             .get_secret(&format!("{MASTER_KEY_PREFIX}{user}"))
@@ -81,30 +84,22 @@ impl MasterKey {
             return Ok(None);
         };
         let value = zeroize::Zeroizing::new(value);
-        let key = if let Some((id, key)) = value.split_once(':') {
-            if id != key_id {
-                return Err(BackupError::KeyConflict);
-            }
-            key
-        } else {
-            value.as_str()
-        };
-        Ok(Some(Self(decode_key(key)?)))
+        let (id, key) = Self::parse_bound(&value)?;
+        if id != key_id {
+            return Err(BackupError::KeyConflict);
+        }
+        Ok(Some(key))
+    }
+    fn parse_bound(value: &str) -> Result<(&str, Self)> {
+        let (id, key) = value.split_once(':').ok_or(BackupError::KeyConflict)?;
+        uuid::Uuid::parse_str(id).map_err(|_| BackupError::KeyConflict)?;
+        Ok((id, Self(decode_key(key)?)))
     }
     pub fn save_for_key(&self, store: &dyn SecretStore, user: &str, key_id: &str) -> Result<()> {
         uuid::Uuid::parse_str(key_id).map_err(|_| BackupError::Invalid)?;
         let value = zeroize::Zeroizing::new(format!("{key_id}:{}", BASE64.encode(self.0)));
         store
             .set_secret(&format!("{MASTER_KEY_PREFIX}{user}"), &value)
-            .map_err(|_| BackupError::SecretStore)
-    }
-    /// Call only after create-if-absent succeeds or the server's existing envelope is unwrapped.
-    pub fn save(&self, store: &dyn SecretStore, user_id: &str) -> Result<()> {
-        store
-            .set_secret(
-                &format!("{MASTER_KEY_PREFIX}{user_id}"),
-                &BASE64.encode(self.0),
-            )
             .map_err(|_| BackupError::SecretStore)
     }
 }
@@ -918,8 +913,8 @@ mod tests {
         let user = uuid::Uuid::new_v4().to_string();
         let source = source_id(&store, &user).unwrap();
         let master = MasterKey::generate();
-        master.save(&store, &user).unwrap();
         let key_id = uuid::Uuid::new_v4().to_string();
+        master.save_for_key(&store, &user, &key_id).unwrap();
         let key = client::KeyRecord {
             key_id: key_id.clone(),
             recovery_envelope: wrap_recovery(&master, &generate_recovery_code(), &user, &key_id)

@@ -822,7 +822,12 @@ pub async fn generate_snapshot_now(
 
     let upload_result = create_client()
         .upload_snapshot_with_cancel_flag(
-            &token,
+            || async {
+                crate::api::connect::mint_access_token(&state)
+                    .await
+                    .map_err(|e| e.to_string())
+                    .map_err(wealthfolio_device_sync::DeviceSyncError::Auth)
+            },
             &device_id,
             upload_headers,
             payload,

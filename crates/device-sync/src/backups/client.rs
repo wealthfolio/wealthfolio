@@ -367,10 +367,7 @@ impl BackupClient {
         let local = material
             .master
             .as_ref()
-            .map(|value| {
-                decode_key(value.split_once(':').map_or(value.as_str(), |(_, key)| key))
-                    .map(MasterKey)
-            })
+            .map(|value| MasterKey::parse_bound(value).map(|(_, key)| key))
             .transpose()
             .map_err(crypto_error)?;
         let Some((identity, team)) = identity.zip(policy.team_id.as_deref()) else {
@@ -604,13 +601,18 @@ impl BackupClient {
             "encrypted_metadata": encrypted_metadata, "trigger": trigger });
         Ok(EncodedCapture { body, encrypted })
     }
-    pub async fn prepare_capture(
+    pub async fn prepare_capture<F, Fut>(
         &self,
-        token: &str,
+        token: F,
         encoded: EncodedCapture,
-    ) -> ApiResult<CaptureUpload> {
+    ) -> ApiResult<CaptureUpload>
+    where
+        F: Fn() -> Fut,
+        Fut: std::future::Future<Output = ApiResult<String>>,
+    {
+        let token = token().await?;
         let prepared: Prepared = self
-            .send(token, Method::POST, "/prepare-upload", encoded.body)
+            .send(&token, Method::POST, "/prepare-upload", encoded.body)
             .await?;
         if let Some(point) = prepared.published {
             return Ok(CaptureUpload::Published(point));
@@ -647,11 +649,15 @@ impl BackupClient {
             }
         })
     }
-    pub async fn complete_capture(
+    pub async fn complete_capture<F, Fut>(
         &self,
-        token: &str,
+        token: F,
         completion: CaptureCompletion,
-    ) -> ApiResult<BackupPoint> {
+    ) -> ApiResult<BackupPoint>
+    where
+        F: Fn() -> Fut,
+        Fut: std::future::Future<Output = ApiResult<String>>,
+    {
         let (ticket, upload_error) = match completion {
             CaptureCompletion::Published(point) => return Ok(*point),
             CaptureCompletion::Ticket {
@@ -661,8 +667,9 @@ impl BackupClient {
         };
         let body = json!({ "ticket": ticket });
         for attempt in 0..3 {
+            let token = token().await?;
             match self
-                .send(token, Method::POST, "/complete-upload", body.clone())
+                .send(&token, Method::POST, "/complete-upload", body.clone())
                 .await
             {
                 Ok(point) => return Ok(point),
@@ -682,24 +689,6 @@ impl BackupClient {
             }
         }
         Err(DeviceSyncError::invalid_request("Backup completion failed"))
-    }
-    /// Convenience for callers without a mutable runtime lifecycle.
-    pub async fn capture<R: Read + Send + 'static>(
-        &self,
-        token: &str,
-        store: &dyn SecretStore,
-        policy: &BackupPolicy,
-        database: R,
-        trigger: &str,
-        metadata: BackupMetadata,
-    ) -> ApiResult<BackupPoint> {
-        self.share_access_best_effort(token, store, Some(policy))
-            .await?;
-        let material = self.capture_material(token, store, policy).await?;
-        let encoded = Self::encode_capture(material, database, trigger, metadata).await?;
-        let upload = self.prepare_capture(token, encoded).await?;
-        let completion = self.upload_capture(upload).await?;
-        self.complete_capture(token, completion).await
     }
     pub async fn package(&self, token: &str, backup_id: &str) -> ApiResult<Vec<u8>> {
         uuid::Uuid::parse_str(backup_id)
@@ -771,11 +760,10 @@ impl BackupClient {
         if !policy.upload_entitled {
             return Ok(BackupSource::SubscriptionRequired);
         }
-        if MasterKey::load(store, &policy.user_id)
-            .map_err(crypto_error)?
-            .is_none()
-        {
-            return Ok(BackupSource::AccessRequired);
+        match MasterKey::load(store, &policy.user_id) {
+            Ok(None) | Err(BackupError::KeyConflict) => return Ok(BackupSource::AccessRequired),
+            Err(error) => return Err(crypto_error(error)),
+            Ok(Some(_)) => {}
         }
         if policy.next_due_at.is_none() {
             return Ok(BackupSource::Inactive);
@@ -1041,12 +1029,13 @@ mod access_tests {
         linked(&holder, &root);
         linked(&joiner, &root);
         let master = MasterKey::generate();
-        master.save(&holder, &user).unwrap();
+        master.save_for_key(&holder, &user, &key).unwrap();
         let puts = Arc::new(AtomicUsize::new(0));
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let url = format!("http://{}", listener.local_addr().unwrap());
         let server = tokio::spawn({
             let puts = puts.clone();
+            let key = key.clone();
             async move {
                 let mut envelope = serde_json::Value::Null;
                 let mut revision = 0;
@@ -1143,7 +1132,9 @@ mod access_tests {
         assert_eq!(puts.load(Ordering::SeqCst), 1, "joining device reads only");
         let conflicting = Store::default();
         linked(&conflicting, &root);
-        MasterKey::generate().save(&conflicting, &user).unwrap();
+        MasterKey::generate()
+            .save_for_key(&conflicting, &user, &key)
+            .unwrap();
         let error = client
             .ensure_access("test", &conflicting, Some(&policy))
             .await
@@ -1161,7 +1152,9 @@ mod access_tests {
         let store = Store::default();
         let user = "synthetic-user";
         let master = MasterKey::generate();
-        master.save(&store, user).unwrap();
+        master
+            .save_for_key(&store, user, &uuid::Uuid::new_v4().to_string())
+            .unwrap();
         let policy: BackupPolicy = serde_json::from_value(json!({"userId":user,"teamId":"team","enabled":false,"sourceId":null,"revision":1,"nextDueAt":null,"lastBackupAt":null})).unwrap();
         let client = BackupClient::new("http://127.0.0.1:1").unwrap();
         assert_eq!(
@@ -1231,13 +1224,21 @@ mod access_tests {
 
     #[tokio::test]
     async fn expected_source_waits_preserve_consent_without_reporting_a_failure() {
-        for entitled in [false, true] {
+        for (entitled, unbound) in [(false, false), (true, false), (true, true)] {
             let store = Store::default();
             let user = uuid::Uuid::new_v4().to_string();
             store
                 .set_secret(wealthfolio_core::secrets::CLOUD_BACKUP_CONSENT_KEY, &user)
                 .unwrap();
             let source = source_id(&store, &user).unwrap();
+            if unbound {
+                store
+                    .set_secret(
+                        &format!("{MASTER_KEY_PREFIX}{user}"),
+                        &BASE64.encode(MasterKey::generate().0),
+                    )
+                    .unwrap();
+            }
             let policy = json!({"userId":user,"enabled":true,"uploadEntitled":entitled,"sourceId":source,"revision":1,"nextDueAt":"2026-01-01T00:00:00Z","lastBackupAt":null}).to_string();
             let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
             let url = format!("http://{}", listener.local_addr().unwrap());
@@ -1327,7 +1328,9 @@ mod access_tests {
         let store = Store::default();
         let user = uuid::Uuid::new_v4().to_string();
         let master = MasterKey::generate();
-        master.save(&store, &user).unwrap();
+        master
+            .save_for_key(&store, &user, &uuid::Uuid::new_v4().to_string())
+            .unwrap();
         linked(&store, &crate::crypto::generate_root_key());
         store
             .set_secret(wealthfolio_core::secrets::CLOUD_BACKUP_CONSENT_KEY, &user)
@@ -1454,7 +1457,7 @@ mod access_tests {
             let client = BackupClient::new(&url).unwrap();
             let result = client
                 .complete_capture(
-                    "token",
+                    || std::future::ready(Ok("token".into())),
                     CaptureCompletion::Ticket {
                         ticket: "same-attempt".into(),
                         upload_error: Some(DeviceSyncError::api(503, "Secure upload failed")),
@@ -1488,5 +1491,204 @@ mod access_tests {
             Err(BackupError::KeyConflict)
         ));
         assert_eq!(MasterKey::load(&store, &user).unwrap().unwrap().0, master.0);
+    }
+
+    #[tokio::test]
+    async fn capture_phases_refresh_expired_credentials_and_keep_the_publication_ticket() {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("http://{}", listener.local_addr().unwrap());
+        let current = Arc::new(AtomicUsize::new(1));
+        let server = tokio::spawn({
+            let current = current.clone();
+            async move {
+                for (index, path) in ["prepare-upload", "complete-upload", "complete-upload"]
+                    .iter()
+                    .enumerate()
+                {
+                    let (mut socket, _) = listener.accept().await.unwrap();
+                    let mut data = Vec::new();
+                    let (headers, input) = loop {
+                        let mut buffer = [0; 4096];
+                        let n = socket.read(&mut buffer).await.unwrap();
+                        assert!(n > 0);
+                        data.extend_from_slice(&buffer[..n]);
+                        if let Some(end) = data.windows(4).position(|x| x == b"\r\n\r\n") {
+                            let headers = String::from_utf8_lossy(&data[..end]).to_lowercase();
+                            let length = headers
+                                .lines()
+                                .find_map(|l| l.strip_prefix("content-length:"))
+                                .unwrap()
+                                .trim()
+                                .parse::<usize>()
+                                .unwrap();
+                            if data.len() >= end + 4 + length {
+                                break (
+                                    headers,
+                                    serde_json::from_slice::<serde_json::Value>(
+                                        &data[end + 4..end + 4 + length],
+                                    )
+                                    .unwrap(),
+                                );
+                            }
+                        }
+                    };
+                    assert!(headers.starts_with(&format!("post /api/v1/backups/{path} ")));
+                    assert!(
+                        headers.contains(&format!(
+                            "authorization: bearer current-{}",
+                            current.load(Ordering::SeqCst)
+                        )),
+                        "stale credential reused"
+                    );
+                    if index > 0 {
+                        assert_eq!(input["ticket"], "same-attempt");
+                    }
+                    let (status, body) = match index {
+                        0 => (
+                            "200 OK",
+                            json!({"ticket":"same-attempt", "transfer":{"url":"https://storage.test/object", "method":"PUT", "headers":{}, "expires_at":"2099-01-01T00:00:00Z"}}),
+                        ),
+                        1 => (
+                            "503 Service Unavailable",
+                            json!({"code":"UNAVAILABLE","message":"retry"}),
+                        ),
+                        _ => (
+                            "200 OK",
+                            json!({"backupId":"published", "keyId":"key", "userId":"user", "sourceId":"source", "sizeBytes":3,"checksum":"unused","format":1,"publishedAt":"2026-01-01T00:00:00Z","encryptedMetadata":"opaque"}),
+                        ),
+                    };
+                    if index == 1 {
+                        current.store(3, Ordering::SeqCst);
+                    }
+                    let body = body.to_string();
+                    socket.write_all(format!("HTTP/1.1 {status}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",body.len()).as_bytes()).await.unwrap();
+                }
+            }
+        });
+        let client = BackupClient::new(&url).unwrap();
+        let token =
+            || std::future::ready(Ok(format!("current-{}", current.load(Ordering::SeqCst))));
+        let prepared = client
+            .prepare_capture(
+                &token,
+                EncodedCapture {
+                    body: json!({"request_id":"same-request"}),
+                    encrypted: vec![1, 2, 3],
+                },
+            )
+            .await
+            .unwrap();
+        let CaptureUpload::Upload { ticket, .. } = prepared else {
+            panic!("expected transfer");
+        };
+        current.store(2, Ordering::SeqCst); // Credential used before export/upload is now expired.
+        let result = client
+            .complete_capture(
+                &token,
+                CaptureCompletion::Ticket {
+                    ticket,
+                    upload_error: Some(DeviceSyncError::api(503, "lost upload response")),
+                },
+            )
+            .await
+            .unwrap();
+        assert_eq!(result.backup_id, "published");
+        server.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn revoked_capture_session_does_not_prepare_or_publish() {
+        let client = BackupClient::new("http://127.0.0.1:1").unwrap();
+        let token = || std::future::ready(Err(DeviceSyncError::Auth("Session ended".into())));
+        assert!(matches!(
+            client
+                .prepare_capture(
+                    &token,
+                    EncodedCapture {
+                        body: json!({}),
+                        encrypted: vec![1]
+                    }
+                )
+                .await,
+            Err(DeviceSyncError::Auth(_))
+        ));
+        assert!(matches!(
+            client
+                .complete_capture(
+                    &token,
+                    CaptureCompletion::Ticket {
+                        ticket: "attempt".into(),
+                        upload_error: None
+                    }
+                )
+                .await,
+            Err(DeviceSyncError::Auth(_))
+        ));
+    }
+
+    #[test]
+    fn resolved_access_rejects_each_changed_credential_without_overwriting_it() {
+        for changed in [
+            wealthfolio_core::secrets::SYNC_IDENTITY_KEY.to_string(),
+            wealthfolio_core::secrets::CLOUD_REFRESH_TOKEN_KEY.to_string(),
+            format!("{MASTER_KEY_PREFIX}user"),
+        ] {
+            let store = Store::default();
+            let policy: BackupPolicy = serde_json::from_value(json!({"userId":"user","enabled":false,"sourceId":null,"revision":1,"nextDueAt":null,"lastBackupAt":null})).unwrap();
+            let material = BackupClient::access_material(&store, &policy).unwrap();
+            let resolved = ResolvedBackupAccess {
+                material,
+                access: BackupAccess::Ready,
+                key: Some((uuid::Uuid::new_v4().to_string(), MasterKey::generate())),
+            };
+            store.set_secret(&changed, "changed concurrently").unwrap();
+            assert!(resolved.apply(&store).is_err());
+            assert_eq!(
+                store.get_secret(&changed).unwrap().as_deref(),
+                Some("changed concurrently")
+            );
+            assert_eq!(
+                store.0.lock().unwrap().len(),
+                1,
+                "no stale key may be written"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn unbound_keys_cannot_be_relabelled_or_shared() {
+        let store = Store::default();
+        let user = uuid::Uuid::new_v4().to_string();
+        let key_id = uuid::Uuid::new_v4().to_string();
+        let raw = BASE64.encode(MasterKey::generate().0);
+        store
+            .set_secret(&format!("{MASTER_KEY_PREFIX}{user}"), &raw)
+            .unwrap();
+        assert!(matches!(
+            MasterKey::load_for_key(&store, &user, &key_id),
+            Err(BackupError::KeyConflict)
+        ));
+        let policy: BackupPolicy = serde_json::from_value(json!({"userId":user,"teamId":"team","enabled":false,"sourceId":null,"revision":1,"nextDueAt":null,"lastBackupAt":null})).unwrap();
+        linked(&store, &crate::crypto::generate_root_key());
+        let client = BackupClient::new("http://127.0.0.1:1").unwrap();
+        let error = client
+            .resolve_access(
+                "test",
+                BackupClient::access_material(&store, &policy).unwrap(),
+            )
+            .await
+            .err()
+            .unwrap();
+        assert!(
+            BackupClient::is_key_conflict(&error),
+            "reject before network access"
+        );
+        assert_eq!(
+            store
+                .get_secret(&format!("{MASTER_KEY_PREFIX}{user}"))
+                .unwrap()
+                .as_deref(),
+            Some(raw.as_str())
+        );
     }
 }

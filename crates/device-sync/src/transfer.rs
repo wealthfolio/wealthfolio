@@ -11,10 +11,8 @@ use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, sync::LazyLock, time::Duration};
 
 // Share connection pools without retaining capabilities, credentials, or profile state.
-static SNAPSHOT_CLIENT: LazyLock<std::result::Result<reqwest::Client, String>> =
+static TRANSFER_CLIENT: LazyLock<std::result::Result<reqwest::Client, String>> =
     LazyLock::new(|| transfer_client(SNAPSHOT_TRANSFER_TIMEOUT_SECONDS));
-static BACKUP_CLIENT: LazyLock<std::result::Result<reqwest::Client, String>> =
-    LazyLock::new(|| transfer_client(BACKUP_TRANSFER_TIMEOUT_SECONDS));
 fn transfer_client(seconds: u64) -> std::result::Result<reqwest::Client, String> {
     wealthfolio_http::client_builder()
         .redirect(reqwest::redirect::Policy::none())
@@ -53,13 +51,15 @@ impl std::fmt::Debug for ConnectTransferTransport {
     }
 }
 impl ConnectTransferTransport {
-    pub fn new(hosts: Vec<String>) -> Result<Self> {
+    #[cfg(test)]
+    fn new(hosts: Vec<String>) -> Result<Self> {
         Self::with_limits(
             hosts,
             MAX_ENCRYPTED_SNAPSHOT_BYTES,
             SNAPSHOT_TRANSFER_TIMEOUT_SECONDS,
         )
     }
+    #[cfg(test)]
     fn with_limits(hosts: Vec<String>, max_bytes: usize, timeout_seconds: u64) -> Result<Self> {
         let client = wealthfolio_http::client_builder()
             .redirect(reqwest::redirect::Policy::none())
@@ -87,11 +87,6 @@ impl ConnectTransferTransport {
             .ok()
             .or_else(|| option_env!("CONNECT_STORAGE_ALLOWED_HOSTS").map(str::to_string))
             .unwrap_or_default();
-        let client = if max_bytes == MAX_ENCRYPTED_BACKUP_BYTES {
-            &*BACKUP_CLIENT
-        } else {
-            &*SNAPSHOT_CLIENT
-        };
         Ok(Self {
             hosts: hosts
                 .split(',')
@@ -99,7 +94,9 @@ impl ConnectTransferTransport {
                 .filter(|s| !s.is_empty())
                 .map(str::to_string)
                 .collect(),
-            client: client.clone().map_err(DeviceSyncError::invalid_request)?,
+            client: TRANSFER_CLIENT
+                .clone()
+                .map_err(DeviceSyncError::invalid_request)?,
             max_bytes,
             timeout: Duration::from_secs(timeout_seconds),
         })
@@ -109,6 +106,11 @@ impl ConnectTransferTransport {
         descriptor: &TransferDescriptor,
         method: &str,
     ) -> Result<reqwest::RequestBuilder> {
+        if self.hosts.is_empty() {
+            return Err(DeviceSyncError::invalid_request(
+                "Connect transfer destinations are not configured in this build",
+            ));
+        }
         let url = reqwest::Url::parse(&descriptor.url)
             .map_err(|_| DeviceSyncError::invalid_request("Invalid transfer descriptor"))?;
         if descriptor.method != method
@@ -129,14 +131,17 @@ impl ConnectTransferTransport {
         // reject an otherwise valid signed capability before trying it.
         chrono::DateTime::parse_from_rfc3339(&descriptor.expires_at)
             .map_err(|_| DeviceSyncError::invalid_request("Invalid transfer expiration"))?;
-        let mut request = self.client.request(
-            if method == "GET" {
-                reqwest::Method::GET
-            } else {
-                reqwest::Method::PUT
-            },
-            url,
-        );
+        let mut request = self
+            .client
+            .request(
+                if method == "GET" {
+                    reqwest::Method::GET
+                } else {
+                    reqwest::Method::PUT
+                },
+                url,
+            )
+            .timeout(self.timeout);
         for (name, value) in &descriptor.headers {
             if !matches!(
                 name.as_str(),
@@ -301,6 +306,16 @@ mod tests {
             expires_at: (chrono::Utc::now() + chrono::Duration::minutes(5)).to_rfc3339(),
         }
     }
+    #[test]
+    fn missing_destinations_have_a_distinct_configuration_error() {
+        let transport = ConnectTransferTransport::new(vec![]).unwrap();
+        assert!(transport
+            .request(&descriptor("https://storage.test/object"), "GET")
+            .unwrap_err()
+            .to_string()
+            .contains("not configured"));
+    }
+
     #[test]
     fn signed_expiry_is_enforced_by_storage_not_the_device_clock() {
         let transport = ConnectTransferTransport::new(vec!["storage.test".into()]).unwrap();

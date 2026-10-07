@@ -60,6 +60,27 @@ async fn action(
     }
     Ok(Json(result))
 }
+// Account admission is held by each API phase; check revocation again after refresh.
+async fn capture_token(
+    state: &Arc<AppState>,
+    generation: u64,
+) -> wealthfolio_device_sync::Result<String> {
+    if !state.backup_scheduler.is_current(generation) {
+        return Err(wealthfolio_device_sync::DeviceSyncError::invalid_request(
+            "Backup capture cancelled",
+        ));
+    }
+    let token = super::connect::mint_access_token(state)
+        .await
+        .map_err(|e| wealthfolio_device_sync::DeviceSyncError::Auth(e.to_string()))?;
+    if !state.backup_scheduler.is_current(generation) {
+        return Err(wealthfolio_device_sync::DeviceSyncError::invalid_request(
+            "Backup capture cancelled",
+        ));
+    }
+    Ok(token)
+}
+
 async fn check_and_capture(
     state: &Arc<AppState>,
 ) -> ApiResult<(Option<BackupPoint>, Option<std::time::Duration>)> {
@@ -179,7 +200,7 @@ async fn capture_in_phases(
             return Ok((None, None));
         }
         client
-            .prepare_capture(&token, encoded)
+            .prepare_capture(|| capture_token(state, generation), encoded)
             .await
             .map_err(|e| ApiError::BadRequest(e.to_string()))?
     };
@@ -192,7 +213,7 @@ async fn capture_in_phases(
         return Ok((None, None));
     }
     let point = client
-        .complete_capture(&token, completion)
+        .complete_capture(|| capture_token(state, generation), completion)
         .await
         .map_err(|e| ApiError::BadRequest(e.to_string()))?;
     state.backup_scheduler.published(generation);
@@ -279,6 +300,16 @@ mod tests {
             mcp_allowed_hosts: None,
         };
         let state = crate::build_state(&config).await.unwrap();
+        let stale_generation = state.backup_scheduler.generation();
+        state.backup_scheduler.wake();
+        assert!(
+            capture_token(&state, stale_generation)
+                .await
+                .unwrap_err()
+                .to_string()
+                .contains("cancelled"),
+            "revoked captures must not refresh credentials"
+        );
         let generation = state.backup_scheduler.generation();
         state.backup_scheduler.finished(generation, true);
         let _lifecycle = state.profile_lifecycle.lock().await;

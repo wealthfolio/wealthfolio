@@ -662,11 +662,11 @@ pub async fn complete_pairing(
     // Snapshot upload is now handled by the frontend issuer flow BEFORE calling
     // this command, so complete_pairing only sends the key bundle.
 
-    let token = get_access_token(&context).await?;
     let device_id =
         get_device_id_from_store(&context).ok_or_else(|| "No device ID configured".to_string())?;
 
     let _ = share_backup_access(&context).await;
+    let token = get_access_token(&context).await?;
     let result = create_client()?
         .complete_pairing(
             &token,

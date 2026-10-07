@@ -267,7 +267,11 @@ pub async fn generate_snapshot_now_internal(
     let runtime = context.device_sync_runtime();
     let upload_result = create_client()?
         .upload_snapshot_with_cancel_flag(
-            &token,
+            || async {
+                get_access_token(&context)
+                    .await
+                    .map_err(wealthfolio_device_sync::DeviceSyncError::Auth)
+            },
             &device_id,
             upload_headers,
             payload,

@@ -5,11 +5,7 @@ use std::{
     path::Path,
 };
 use wealthfolio_core::secrets::SecretStore;
-use wealthfolio_device_sync::backups::{
-    self,
-    client::{BackupClient, BackupPoint, BackupPolicy},
-    MasterKey,
-};
+use wealthfolio_device_sync::backups::{self, MasterKey};
 use wealthfolio_device_sync::limits::MAX_DATABASE_IMAGE_BYTES;
 
 /// Own the private export until its reader is dropped, including failed/cancelled encoding.
@@ -81,20 +77,6 @@ pub fn snapshot_is_empty(image: &[u8]) -> anyhow::Result<bool> {
     let has_accounts: bool =
         connection.query_row("SELECT EXISTS(SELECT 1 FROM accounts)", [], |r| r.get(0))?;
     Ok(!has_accounts)
-}
-pub async fn capture(
-    client: &BackupClient,
-    token: &str,
-    store: &dyn SecretStore,
-    policy: &BackupPolicy,
-    source: DbAccess,
-    root: std::path::PathBuf,
-    trigger: &str,
-) -> anyhow::Result<BackupPoint> {
-    let image = tokio::task::spawn_blocking(move || portable_reader(&source, &root)).await??;
-    Ok(client
-        .capture(token, store, policy, image, trigger, Default::default())
-        .await?)
 }
 /// Private temporary plaintext is consumed by the existing immutable prepared-import path.
 pub fn decoded_package(

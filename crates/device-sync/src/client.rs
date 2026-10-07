@@ -833,14 +833,18 @@ impl DeviceSyncClient {
         }
     }
 
-    async fn upload_snapshot_direct(
+    async fn upload_snapshot_direct<F, Fut>(
         &self,
-        token: &str,
+        token: &F,
         device: &str,
         headers: &SnapshotUploadHeaders,
         bytes: Vec<u8>,
         cancel_flag: Option<&AtomicBool>,
-    ) -> Result<SnapshotUploadResponse> {
+    ) -> Result<SnapshotUploadResponse>
+    where
+        F: Fn() -> Fut,
+        Fut: std::future::Future<Output = Result<String>>,
+    {
         #[derive(Deserialize)]
         struct Prepared {
             published: Option<SnapshotUploadResponse>,
@@ -866,11 +870,13 @@ impl DeviceSyncClient {
         let prepared: Prepared = loop {
             check_cancel()?;
             attempt += 1;
+            let access_token = token().await?;
+            check_cancel()?;
             match self
                 .send_json_body(
                     Method::POST,
                     "/api/v1/sync/snapshots/prepare-upload".into(),
-                    token,
+                    &access_token,
                     Some(device),
                     &input,
                 )
@@ -914,14 +920,40 @@ impl DeviceSyncClient {
             Err(error @ DeviceSyncError::InvalidRequest(_)) => return Err(error),
             result => result,
         };
+        self.complete_snapshot_upload(token, device, &ticket, put, cancel_flag)
+            .await
+    }
+
+    async fn complete_snapshot_upload<F, Fut>(
+        &self,
+        token: &F,
+        device: &str,
+        ticket: &str,
+        put: Result<()>,
+        cancel_flag: Option<&AtomicBool>,
+    ) -> Result<SnapshotUploadResponse>
+    where
+        F: Fn() -> Fut,
+        Fut: std::future::Future<Output = Result<String>>,
+    {
         let mut last = None;
         for attempt in 0..3 {
-            check_cancel()?;
+            if cancel_flag.is_some_and(|flag| flag.load(Ordering::Relaxed)) {
+                return Err(DeviceSyncError::invalid_request(
+                    "Snapshot upload cancelled",
+                ));
+            }
+            let access_token = token().await?;
+            if cancel_flag.is_some_and(|flag| flag.load(Ordering::Relaxed)) {
+                return Err(DeviceSyncError::invalid_request(
+                    "Snapshot upload cancelled",
+                ));
+            }
             match self
                 .send_json_body(
                     Method::POST,
                     "/api/v1/sync/snapshots/complete-upload".into(),
-                    token,
+                    &access_token,
                     Some(device),
                     &serde_json::json!({ "ticket": ticket }),
                 )
@@ -1001,26 +1033,37 @@ impl DeviceSyncClient {
     /// - retries transient/unknown-outcome failures with exponential backoff + jitter
     ///
     /// POST /api/v1/sync/snapshots/prepare-upload and complete-upload
-    pub async fn upload_snapshot(
+    #[cfg(test)]
+    async fn upload_snapshot(
         &self,
         token: &str,
         device_id: &str,
         upload_headers: SnapshotUploadHeaders,
         payload: Vec<u8>,
     ) -> Result<SnapshotUploadResponse> {
-        self.upload_snapshot_with_cancel_flag(token, device_id, upload_headers, payload, None)
-            .await
+        self.upload_snapshot_with_cancel_flag(
+            || std::future::ready(Ok(token.to_string())),
+            device_id,
+            upload_headers,
+            payload,
+            None,
+        )
+        .await
     }
 
     /// Upload a snapshot blob with cooperative cancellation support.
-    pub async fn upload_snapshot_with_cancel_flag(
+    pub async fn upload_snapshot_with_cancel_flag<F, Fut>(
         &self,
-        token: &str,
+        token: F,
         device_id: &str,
         mut upload_headers: SnapshotUploadHeaders,
         payload: Vec<u8>,
         cancel_flag: Option<&AtomicBool>,
-    ) -> Result<SnapshotUploadResponse> {
+    ) -> Result<SnapshotUploadResponse>
+    where
+        F: Fn() -> Fut,
+        Fut: std::future::Future<Output = Result<String>>,
+    {
         if payload.len() > i64::MAX as usize {
             return Err(DeviceSyncError::invalid_request(
                 "Snapshot payload is too large for size header",
@@ -1077,7 +1120,7 @@ impl DeviceSyncClient {
         }
 
         let result = self
-            .upload_snapshot_direct(token, device_id, &upload_headers, payload, cancel_flag)
+            .upload_snapshot_direct(&token, device_id, &upload_headers, payload, cancel_flag)
             .await;
 
         let mut in_flight = snapshot_upload_in_flight().lock().await;
@@ -1306,6 +1349,7 @@ mod tests {
 
     #[derive(Debug, Clone)]
     struct CapturedUploadRequest {
+        authorization: Option<String>,
         event_id: Option<String>,
         client_request_id: Option<String>,
         request_id: Option<String>,
@@ -1472,6 +1516,7 @@ mod tests {
                     let device_id = headers.get("x-wf-device-id").cloned();
 
                     captured_inner.lock().await.push(CapturedUploadRequest {
+                        authorization: headers.get("authorization").cloned(),
                         event_id,
                         client_request_id,
                         request_id,
@@ -1681,9 +1726,114 @@ mod tests {
             .upload_snapshot("token", "device", build_upload_headers(None, &bytes), bytes)
             .await;
         assert!(
-            matches!(result, Err(DeviceSyncError::InvalidRequest(message)) if message == "Unapproved transfer destination")
+            matches!(result, Err(DeviceSyncError::InvalidRequest(message)) if message == "Unapproved transfer destination" || message == "Connect transfer destinations are not configured in this build")
         );
         assert_eq!(captured.lock().await.len(), 1);
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn snapshot_api_phases_and_retries_acquire_current_credentials() {
+        use std::sync::atomic::AtomicUsize;
+        let (url, captured, server) = start_mock_upload_server(vec![
+            MockUploadOutcome::Respond {
+                status: 503,
+                body: api_error_body("UNAVAILABLE", "retry"),
+                delay_ms: 0,
+            },
+            MockUploadOutcome::Respond {
+                status: 200,
+                body: success_upload_body("already-published"),
+                delay_ms: 0,
+            },
+            MockUploadOutcome::Respond {
+                status: 503,
+                body: api_error_body("UNAVAILABLE", "retry"),
+                delay_ms: 0,
+            },
+            MockUploadOutcome::Respond {
+                status: 200,
+                body: serde_json::from_str::<serde_json::Value>(&success_upload_body("published"))
+                    .unwrap()["published"]
+                    .to_string(),
+                delay_ms: 0,
+            },
+        ])
+        .await;
+        let calls = AtomicUsize::new(0);
+        let token = || {
+            std::future::ready(Ok(format!(
+                "current-{}",
+                calls.fetch_add(1, Ordering::SeqCst)
+            )))
+        };
+        let client = DeviceSyncClient::new(&url);
+        let payload = b"encrypted".to_vec();
+        client
+            .upload_snapshot_with_cancel_flag(
+                &token,
+                "device",
+                build_upload_headers(None, &payload),
+                payload,
+                None,
+            )
+            .await
+            .unwrap();
+        // Simulate the transfer boundary: the first two credentials have expired.
+        // Completion must resolve publication with the same ticket, without a new prepare/export.
+        let result = client
+            .complete_snapshot_upload(
+                &token,
+                "device",
+                "same-attempt",
+                Err(DeviceSyncError::api(503, "lost upload response")),
+                None,
+            )
+            .await
+            .unwrap();
+        assert_eq!(result.snapshot_id, "published");
+        let requests = captured.lock().await;
+        assert_eq!(
+            requests
+                .iter()
+                .map(|r| r.authorization.as_deref().unwrap())
+                .collect::<Vec<_>>(),
+            [
+                "Bearer current-0",
+                "Bearer current-1",
+                "Bearer current-2",
+                "Bearer current-3"
+            ]
+        );
+        assert_eq!(requests[0].event_id, requests[1].event_id);
+        assert_eq!(requests[2].input, requests[3].input);
+        assert_eq!(requests[2].input["ticket"], "same-attempt");
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn snapshot_session_revocation_or_cancellation_during_refresh_prevents_publication() {
+        let (url, captured, server) = start_mock_upload_server(vec![]).await;
+        let client = DeviceSyncClient::new(&url);
+        let revoked = || std::future::ready(Err(DeviceSyncError::Auth("Session ended".into())));
+        assert!(matches!(
+            client
+                .complete_snapshot_upload(&revoked, "device", "attempt", Ok(()), None)
+                .await,
+            Err(DeviceSyncError::Auth(_))
+        ));
+        let cancelled = AtomicBool::new(false);
+        let token = || {
+            cancelled.store(true, Ordering::Relaxed);
+            std::future::ready(Ok("current".into()))
+        };
+        assert!(client
+            .complete_snapshot_upload(&token, "device", "attempt", Ok(()), Some(&cancelled))
+            .await
+            .unwrap_err()
+            .to_string()
+            .contains("cancelled"));
+        assert!(captured.lock().await.is_empty());
         server.abort();
     }
 
@@ -1694,7 +1844,7 @@ mod tests {
         let cancelled = AtomicBool::new(true);
         let result = DeviceSyncClient::new(&base_url)
             .upload_snapshot_with_cancel_flag(
-                "token",
+                || std::future::ready(Ok("token".into())),
                 "device",
                 build_upload_headers(None, &bytes),
                 bytes,

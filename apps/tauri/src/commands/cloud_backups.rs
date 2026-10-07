@@ -54,6 +54,31 @@ pub async fn cloud_backup_capture(runtime: ProfileAccess) -> Result<Option<Backu
     Ok(result.0)
 }
 
+// Account admission is held by each API phase; check revocation again after refresh.
+async fn capture_token(
+    runtime: &Arc<crate::database::DatabaseRuntime>,
+    generation: u64,
+) -> wealthfolio_device_sync::Result<String> {
+    if !runtime.backup_scheduler.is_current(generation) {
+        return Err(wealthfolio_device_sync::DeviceSyncError::invalid_request(
+            "Backup capture cancelled",
+        ));
+    }
+    let token = runtime
+        .context()
+        .map_err(|e| wealthfolio_device_sync::DeviceSyncError::Auth(e.to_string()))?
+        .connect_service()
+        .get_valid_access_token()
+        .await
+        .map_err(wealthfolio_device_sync::DeviceSyncError::Auth)?;
+    if !runtime.backup_scheduler.is_current(generation) {
+        return Err(wealthfolio_device_sync::DeviceSyncError::invalid_request(
+            "Backup capture cancelled",
+        ));
+    }
+    Ok(token)
+}
+
 async fn check_and_capture(
     runtime: &Arc<crate::database::DatabaseRuntime>,
 ) -> Result<(Option<BackupPoint>, Option<std::time::Duration>), String> {
@@ -189,7 +214,7 @@ async fn capture_in_phases(
             return Ok((None, None));
         }
         client
-            .prepare_capture(&token, encoded)
+            .prepare_capture(|| capture_token(runtime, generation), encoded)
             .await
             .map_err(|e| e.to_string())?
     };
@@ -207,7 +232,7 @@ async fn capture_in_phases(
         return Ok((None, None));
     }
     let point = client
-        .complete_capture(&token, completion)
+        .complete_capture(|| capture_token(runtime, generation), completion)
         .await
         .map_err(|e| e.to_string())?;
     runtime.backup_scheduler.published(generation);
@@ -284,11 +309,9 @@ pub async fn cloud_backup_restore_preview(
     }
     let code = code.map(zeroize::Zeroizing::new);
     let context = runtime.context()?;
+    #[cfg(feature = "device-sync")]
+    crate::commands::device_sync::share_backup_access(&context).await?;
     let token = context.connect_service().get_valid_access_token().await?;
-    client()?
-        .share_access_best_effort(&token, runtime.secret_store.as_ref(), None)
-        .await
-        .map_err(|e| e.to_string())?;
     let package = client()?
         .package(&token, &backup_id)
         .await

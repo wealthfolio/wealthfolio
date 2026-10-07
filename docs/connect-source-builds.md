@@ -154,3 +154,39 @@ backup actions notify the existing due timer without cancelling a running
 capture. Policy changes, deletion, account/profile changes and mobile suspension
 still revoke admitted work. No cloud calls, background worker, persisted state
 or retry mechanism are added.
+
+## Transfer and recovery review invariants
+
+Changes to backup, snapshot, authentication or restore code must trace both the
+Tauri and server callers against these boundaries. Exercise failures between
+phases, including retries; a successful small upload does not cover them.
+
+| Boundary                             | Required guarantee                                                                                                                                                                          | Regression coverage                                                                                                                                                       |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Export → prepare → upload → complete | Acquire a current profile-bound token immediately before preparation and each completion attempt. Payload requests never carry a Connect token.                                             | `capture_phases_refresh_expired_credentials_and_keep_the_publication_ticket`, `snapshot_api_phases_and_retries_acquire_current_credentials`, transfer header restrictions |
+| Session or capture revocation        | Recheck cancellation after token refresh; revoked work cannot prepare or publish.                                                                                                           | `revoked_capture_session_does_not_prepare_or_publish`, `snapshot_session_revocation_or_cancellation_during_refresh_prevents_publication`, server handler admission tests  |
+| Protected backup-key storage         | Every local master key is bound to its cloud key ID. Unbound development values require recovery; they cannot be relabelled or published.                                                   | `unbound_keys_cannot_be_relabelled_or_shared`, `bound_keys_reject_a_different_cloud_key_id_without_relabeling`, expected source-wait tests                                |
+| Linked-device key application        | Runtime callers snapshot and apply under the lifecycle lock, with network work outside it. Identity, master key and session must still match. Restore preview uses the same guarded helper. | `resolved_access_rejects_each_changed_credential_without_overwriting_it`, sign-out/access-sharing tests; both runtimes must compile                                       |
+| Transfer destination configuration   | Missing configuration is distinct from an unapproved destination; neither sends payload bytes.                                                                                              | `missing_destinations_have_a_distinct_configuration_error`, destination/header restrictions                                                                               |
+| Uncertain upload outcomes            | Reuse the publication ticket. A lost payload response or transient completion error must not force a new export.                                                                            | Backup/snapshot completion tests and transfer retry tests                                                                                                                 |
+
+**Architecture impact:** current-token callbacks use the existing token
+lifecycle and account admission; no global authentication retry, new scheduler,
+channel, state or migration is added. Both runtimes check capture generation
+before and after refresh. The guarded restore-preview helper snapshots/apply
+credentials under the existing lifecycle lock and releases it for cloud I/O. The
+unbound master-key fallback and unused fixed-token capture entry points are
+removed. Destination validation stays strict; identical payload HTTP pools are
+shared, with the request-specific timeout and size bound retained.
+
+Related sync behavior must also be reviewed explicitly: enrollment can resume a
+restored orphaned installation; pairing candidates exclude the current device;
+restore retains installation identifiers but clears old credentials and requires
+reconnection; snapshot restoration uses the known tables actually present in the
+decrypted image rather than a plaintext cloud table list. The latter preserves
+the existing empty-list fallback for released clients.
+
+Before publishing, separately validate the deployed cloud contracts and a full
+256 MiB transfer, desktop sleep/resume, physical mobile
+opening/resume/suspension, and native restore followed by reconnect/pairing.
+Unit tests, compilation and CI approval do not replace these release checks.
