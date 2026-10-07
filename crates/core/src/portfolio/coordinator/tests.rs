@@ -6,6 +6,7 @@ use std::sync::{Arc, RwLock};
 
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
+use serde::Deserialize;
 
 use super::*;
 use crate::accounts::AccountRepositoryTrait;
@@ -624,8 +625,27 @@ fn kernel_golden(id: &str) -> Option<serde_yaml::Value> {
         .join("../portfolio-engine/tests/fixtures/goldens/kernel")
         .join(format!("{id}.snap"));
     let text = std::fs::read_to_string(path).ok()?;
-    let body = text.splitn(3, "---\n").nth(2)?;
-    serde_yaml::from_str(body).ok()
+    parse_kernel_golden(&text)
+}
+
+fn parse_kernel_golden(text: &str) -> Option<serde_yaml::Value> {
+    // Insta stores YAML metadata in the first document and the snapshot in the second.
+    let snapshot = serde_yaml::Deserializer::from_str(text).nth(1)?;
+    serde_yaml::Value::deserialize(snapshot).ok()
+}
+
+#[test]
+fn kernel_golden_parses_lf_and_crlf() {
+    let body = "baseline:\n  total_value_base: \"100\"\n";
+    let snapshot = format!("---\nsource: tests/goldens.rs\n---\n{body}");
+    let expected: serde_yaml::Value = serde_yaml::from_str(body).unwrap();
+
+    assert_eq!(parse_kernel_golden(&snapshot), Some(expected.clone()));
+    assert_eq!(
+        parse_kernel_golden(&snapshot.replace('\n', "\r\n")),
+        Some(expected)
+    );
+    assert!(parse_kernel_golden(body).is_none());
 }
 
 fn golden_str(value: &serde_yaml::Value, key: &str) -> String {
