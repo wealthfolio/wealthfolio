@@ -670,7 +670,9 @@ fn detect_html_elements(body: &str, locale: Option<&str>) -> Vec<DetectedHtmlEle
             None => continue,
         };
 
-        let selector = build_css_selector(element_ref);
+        let Some(selector) = build_unique_css_selector(&document, element_ref) else {
+            continue;
+        };
         if seen_selectors.contains(&selector) {
             continue;
         }
@@ -753,6 +755,48 @@ fn build_css_selector(el: scraper::ElementRef) -> String {
     }
 
     self_part
+}
+
+/// Keep compact selectors when unique, otherwise qualify the detected element
+/// with ancestor context and sibling positions so extraction selects that element.
+fn build_unique_css_selector(document: &scraper::Html, el: scraper::ElementRef) -> Option<String> {
+    let selects_target = |candidate: &str| {
+        scraper::Selector::parse(candidate)
+            .ok()
+            .is_some_and(|selector| document.select(&selector).eq(std::iter::once(el)))
+    };
+    let mut path = String::new();
+
+    for node in std::iter::once(el).chain(el.ancestors().filter_map(scraper::ElementRef::wrap)) {
+        let compact = build_css_selector(node);
+        let candidate = if path.is_empty() {
+            compact
+        } else {
+            format!("{compact} > {path}")
+        };
+        if selects_target(&candidate) {
+            return Some(candidate);
+        }
+
+        let tag = node.value().name();
+        let position = node
+            .prev_siblings()
+            .filter_map(scraper::ElementRef::wrap)
+            .filter(|sibling| sibling.value().name() == tag)
+            .count()
+            + 1;
+        let part = format!("{tag}:nth-of-type({position})");
+        path = if path.is_empty() {
+            part
+        } else {
+            format!("{part} > {path}")
+        };
+        if selects_target(&path) {
+            return Some(path);
+        }
+    }
+
+    None
 }
 
 /// Find nearby text that describes what a numeric element represents.
@@ -1280,6 +1324,70 @@ pub fn detect_html_locale(body: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn detected_html_selectors_extract_the_detected_element() {
+        let body = r#"<html><body>
+            <table class="prices"><tr><td><span class="t-text -right"></span></td></tr>
+                <tr><td>Reference price</td><td><span class="t-text -right">98,21</span></td></tr>
+                <tr><td>High</td><td><span class="t-text -right">101,50</span></td></tr>
+            </table>
+            <table class="prices"><tr><td>Another price</td><td><span class="t-text -right">97,67</span></td></tr></table>
+        </body></html>"#;
+        let document = scraper::Html::parse_document(body);
+        let detected = detect_html_elements(body, Some("it"));
+
+        // Authored selectors still use their first match; detection must avoid
+        // generating this ambiguous selector for the later numeric elements.
+        assert_eq!(
+            extract_html_value(body, "td > span.t-text.-right", Some("it")),
+            None
+        );
+        assert_eq!(detected.len(), 3);
+        for element in detected {
+            let selector = scraper::Selector::parse(&element.selector).unwrap();
+            assert_eq!(
+                document.select(&selector).count(),
+                1,
+                "{}",
+                element.selector
+            );
+            assert_eq!(
+                extract_html_value(body, &element.selector, Some("it")),
+                Some(element.value),
+                "{}",
+                element.selector
+            );
+        }
+    }
+
+    #[test]
+    fn detected_html_selectors_preserve_unique_ids_and_parent_context() {
+        let body = r#"<html><body>
+            <div><span id="reference-price">98.21</span></div>
+            <div id="high"><span>101.50</span></div>
+        </body></html>"#;
+        let detected = detect_html_elements(body, None);
+
+        assert_eq!(detected.len(), 2);
+        assert_eq!(detected[0].selector, "#reference-price");
+        assert_eq!(detected[1].selector, "#high > span");
+    }
+
+    #[test]
+    fn detected_html_selectors_disambiguate_duplicate_ids() {
+        let body = r#"<html><body>
+            <div><span id="price"></span></div>
+            <div><span id="price">98.21</span></div>
+        </body></html>"#;
+        let detected = detect_html_elements(body, None);
+
+        assert_eq!(detected.len(), 1);
+        assert_eq!(
+            extract_html_value(body, &detected[0].selector, None),
+            Some(98.21)
+        );
+    }
 
     #[test]
     fn extracts_json_values_from_unicode_keys() {
