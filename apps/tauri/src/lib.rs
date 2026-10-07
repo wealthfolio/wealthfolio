@@ -812,6 +812,7 @@ pub fn run() {
                     .and_then(|profiles| profiles.try_context())
                 {
                     listeners::refresh_portfolio_on_resume(_handle.clone(), context.clone());
+                    #[cfg(feature = "device-sync")]
                     tauri::async_runtime::spawn(async move {
                         let _guard = context.sync_lifecycle.lock().await;
                         if context.is_active() {
