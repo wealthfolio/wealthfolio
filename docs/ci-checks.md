@@ -131,8 +131,11 @@ The jobs use the `windows-signing` GitHub environment. Its variables are
 `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `ARTIFACT_SIGNING_ENDPOINT`,
 `ARTIFACT_SIGNING_ACCOUNT`, and `ARTIFACT_SIGNING_PROFILE`. There is no client
 secret: the Entra app's federated credential trusts the subject
-`repo:wealthfolio/wealthfolio:environment:windows-signing`. A Windows release
-fails if signing is not configured or an installer is not validly signed.
+`repo:wealthfolio@183885451/wealthfolio@806618581:environment:windows-signing`.
+The repository uses GitHub's immutable OIDC subjects, which include the owner
+and repository IDs, so a recreated credential must use this exact value. A
+Windows release fails if signing is not configured or an installer is not
+validly signed.
 
 To test signing from a branch, allow the branch in the environment's deployment
 rules, then run **Build Windows Installer** with **sign** checked. Artifact
