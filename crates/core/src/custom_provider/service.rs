@@ -631,7 +631,6 @@ fn detect_html_elements(body: &str, locale: Option<&str>) -> Vec<DetectedHtmlEle
 
     let document = scraper::Html::parse_document(body);
     let mut results = Vec::new();
-    let mut seen_selectors = std::collections::HashSet::new();
 
     let skip_tags: &[&str] = &[
         "script", "style", "meta", "link", "noscript", "head", "title",
@@ -673,10 +672,6 @@ fn detect_html_elements(body: &str, locale: Option<&str>) -> Vec<DetectedHtmlEle
         let Some(selector) = build_unique_css_selector(&document, element_ref) else {
             continue;
         };
-        if seen_selectors.contains(&selector) {
-            continue;
-        }
-        seen_selectors.insert(selector.clone());
 
         let label = find_context_label(element_ref);
         let html_context = extract_html_context(element_ref);
