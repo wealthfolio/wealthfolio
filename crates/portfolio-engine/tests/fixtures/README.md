@@ -17,7 +17,7 @@ the rule names the fixture.
 cargo test -p wealthfolio-portfolio-engine --test goldens
 # property laws, over the fixtures and generated scenarios (GEN-*)
 cargo test -p wealthfolio-portfolio-engine --test properties
-# impact soundness (P-IMPACT)
+# impact soundness (P-IMPACT) and revaluability (P-REVALUE)
 cargo test -p wealthfolio-portfolio-engine --test impact
 # freshness detection, and the lifecycle (LIFE) runner
 cargo test -p wealthfolio-core coordinator
@@ -134,7 +134,7 @@ not-applicable reasons, failures) is never parity-gated. Decimals are strings at
 | Properties | `cargo test -p wealthfolio-portfolio-engine --test properties` | Determinism, chunk/replay equivalence, cash and lot conservation, split neutrality, transfer cancellation, an independent re-derivation of complete days from keyframes and surfaces, exact scope aggregation with ledger-classified transfer days, degradation reporting, override transparency, no panics under mutation. |
 | Book cost | `cargo test -p wealthfolio-portfolio-engine --test book_cost` | P-BOOK: every keyframe's cost basis equals its day's valuation cost basis; a minor-unit lot without a stored rate converts through its major unit. |
 | Policies | `cargo test -p wealthfolio-portfolio-engine --test policies` | The rules for ambiguous data, each with the diagnostic that names it: disagreeing FX directions (and the 1% tolerance), a sale beyond the position, a posted row without an amount. |
-| Impact | `cargo test -p wealthfolio-portfolio-engine --test impact` | P-IMPACT: for single-fact changes of every scenario (a close, the closes around a split, an FX rate, an activity changed, moved or removed, an observed snapshot, an asset's quote currency) and a day moving on, recorded as the store's triggers record them, a full run differs from the one before only where `impact` says. |
+| Impact | `cargo test -p wealthfolio-portfolio-engine --test impact` | P-IMPACT: for single-fact changes of every scenario and generated scenario (a close, the closes around a split, an FX rate, an activity changed, moved, removed or rescheduled after `as_of`, a deposit added to each account inside the range and after it, an observed snapshot, an asset's quote currency) and a day moving on, recorded as the store's triggers record them, a full run differs from the one before only where `impact` says. P-REVALUE: an account `impact` only revalues, valued again from what the run before stored (its keyframes, lots, disposals and rejections), yields the full run's rows from its stale day. |
 | Coordinator | `cargo test -p wealthfolio-core coordinator` | Every parity scenario through the real fact loading, row mapping and persistence, compared field by field with the kernel golden; freshness (facts, market data by content, partner legs, a new day); per-account failures (invalid snapshot dates, unsupported cost basis); the LIFE lifecycle runner (each step's incremental projection, taken through the resume and revalue paths with a two-day checkpoint cadence, equals a fresh rebuild); the plan chosen for quote changes, new days, backdated edits, deletions, split edits, scheduled activities coming due, forced rebuilds and retried failures. |
 | SCALE-01 | `cargo bench -p wealthfolio-portfolio-engine --bench scale` | The six stages over a generated 20k-activity portfolio. |
 

@@ -5,18 +5,40 @@
 //! kernel said: nothing before an account's first stale day, nothing in an
 //! account it did not name, and no fold output of an account it only
 //! revalues.
+//!
+//! P-REVALUE: what `impact` only revalues can be revalued. Valued again from
+//! what the last run stored, as the shell revalues it, such an account yields
+//! the full rebuild's rows from its stale day.
 #![allow(clippy::unwrap_used, clippy::panic, reason = "test code")]
 
 mod support;
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
-use chrono::NaiveDate;
+use chrono::{NaiveDate, TimeZone, Utc};
 use rust_decimal::Decimal;
 use serde_json::Value;
 use support::*;
 use wealthfolio_portfolio_engine::model::*;
-use wealthfolio_portfolio_engine::{impact, FactChange, Impact, BEGINNING};
+use wealthfolio_portfolio_engine::{
+    impact, value_window, Diagnostic, DiagnosticCode, FactChange, Impact, Resolved, ValueInputs,
+    BEGINNING,
+};
+
+/// The fixtures (but shell-level ones) under every cost basis method, and the
+/// generated scenarios under the default one: they add account shapes, not
+/// methods.
+fn corpus() -> Vec<Scenario> {
+    let fixtures = under_every_method(
+        load_all_scenarios()
+            .into_iter()
+            .filter(|s| !s.markers.iter().any(|m| m == "S") && scenario_selected(&s.id)),
+    );
+    let generated = generated_scenarios()
+        .into_iter()
+        .filter(|s| scenario_selected(&s.id));
+    fixtures.chain(generated).collect()
+}
 
 struct Mutation {
     label: String,
@@ -61,7 +83,14 @@ fn activity_changes(all: &[RawActivity], activities: &[&RawActivity]) -> Vec<Fac
     changes
 }
 
-fn mutations(raw: &RawFacts) -> Vec<Mutation> {
+/// Activities a generated scenario mutates, spread over its history: they
+/// repeat the fixtures' kinds of change, and mutating every one would make
+/// the law slow.
+const GENERATED_ACTIVITY_MUTATIONS: usize = 6;
+
+/// The single-fact changes of `raw`; `activities` caps how many activities
+/// are changed, moved, removed and rescheduled (`None`: every one).
+fn mutations(raw: &RawFacts, activities: Option<usize>) -> Vec<Mutation> {
     let mut out = Vec::new();
     let scale = |value: Decimal, factor: Decimal| (value * factor).round_dp(8);
 
@@ -218,7 +247,8 @@ fn mutations(raw: &RawFacts) -> Vec<Mutation> {
 
     // Activities: change the amount (or quantity), move it three days later,
     // or remove it.
-    for (index, activity) in raw.activities.iter().enumerate() {
+    let step = activities.map_or(1, |cap| raw.activities.len().div_ceil(cap.max(1)).max(1));
+    for (index, activity) in raw.activities.iter().enumerate().step_by(step) {
         let mut changed = raw.clone();
         let row = &mut changed.activities[index];
         match (row.amount, row.quantity) {
@@ -253,6 +283,64 @@ fn mutations(raw: &RawFacts) -> Vec<Mutation> {
             raw: removed,
             changes,
         });
+
+        // Rescheduled after `as_of`: its account may be left with nothing
+        // to fold.
+        let later = raw.policy.as_of + chrono::Duration::days(5);
+        if activity.timestamp.date_naive() <= later {
+            let mut scheduled = raw.clone();
+            scheduled.activities[index].timestamp =
+                Utc.from_utc_datetime(&later.and_hms_opt(12, 0, 0).unwrap());
+            let after = scheduled.activities[index].clone();
+            out.push(Mutation {
+                label: format!("activity {} rescheduled after as_of", activity.id),
+                raw: scheduled,
+                changes: activity_changes(&raw.activities, &[activity, &after]),
+            });
+        }
+    }
+
+    // Every account gains a deposit: inside the range (for an account without
+    // activity, its first) and after `as_of` (scheduled).
+    let as_of = raw.policy.as_of;
+    for account in &raw.accounts {
+        for (label, day) in [
+            ("dated", as_of - chrono::Duration::days(2)),
+            ("scheduled", as_of + chrono::Duration::days(5)),
+        ] {
+            let instant = Utc.from_utc_datetime(&day.and_hms_opt(12, 0, 0).unwrap());
+            let deposit = RawActivity {
+                id: format!("{}-{label}-deposit", account.id),
+                account_id: account.id.clone(),
+                asset_id: None,
+                activity_type: "DEPOSIT".to_string(),
+                activity_type_override: None,
+                subtype: None,
+                status: "POSTED".to_string(),
+                timestamp: instant,
+                created_at: instant,
+                quantity: None,
+                unit_price: None,
+                amount: Some(Decimal::ONE_HUNDRED),
+                fee: None,
+                tax: None,
+                currency: account.currency.clone(),
+                fx_rate: None,
+                source_group_id: None,
+                external_transfer: None,
+                fx_conversion: None,
+                source_system: None,
+                is_user_modified: false,
+                updated_at: instant,
+            };
+            let mut added = raw.clone();
+            added.activities.push(deposit.clone());
+            out.push(Mutation {
+                label: format!("{label} deposit added to {}", account.id),
+                raw: added,
+                changes: activity_changes(&raw.activities, &[&deposit]),
+            });
+        }
     }
 
     // Observed snapshots: the snapshot triggers record the account from the
@@ -380,20 +468,153 @@ fn unsound(before: &Pipeline, after: &Pipeline, impact: &Impact) -> Option<Strin
     None
 }
 
+/// The first account `impact` only revalues whose rows, valued again from
+/// what `before` stored (as the shell's revalue reads it), differ from
+/// `after`'s from its stale day: its keyframes from that day, the last one
+/// before as the seed, the stored lots and disposals of the revalued accounts
+/// and the activities the last fold rejected, against the facts and surfaces
+/// as they are now. A holdings account's keyframes are its observed snapshots.
+fn unrevaluable(before: &Pipeline, after: &Pipeline, impact: &Impact) -> Option<String> {
+    let revalued: BTreeSet<&AccountId> = impact
+        .revalue
+        .keys()
+        .filter(|id| !impact.refold.contains_key(*id))
+        .collect();
+    if revalued.is_empty() {
+        return None;
+    }
+    let owner: BTreeMap<&str, &AccountId> = before
+        .facts()
+        .activities()
+        .iter()
+        .map(|a| (a.id.as_str(), &a.account))
+        .collect();
+    let rejected: Vec<Diagnostic> = before
+        .ledger()
+        .diagnostics
+        .iter()
+        .chain(&before.bundle.diagnostics)
+        .filter(|d| {
+            d.code == DiagnosticCode::ActivityRejected
+                && owner
+                    .get(d.source.as_str())
+                    .is_some_and(|account| revalued.contains(account))
+        })
+        .cloned()
+        .collect();
+    let disposals: Vec<LotDisposal> = before
+        .bundle
+        .disposals
+        .iter()
+        .filter(|d| revalued.contains(&d.account))
+        .cloned()
+        .collect();
+    let lots: Vec<LotRecord> = before
+        .lots()
+        .into_iter()
+        .filter(|lot| revalued.contains(&lot.account))
+        .collect();
+    let facts = after.facts();
+    let as_of = facts.policy().as_of;
+    // The shell's range starts at the first fact, clamped to `as_of`.
+    let genesis = facts
+        .activities()
+        .iter()
+        .map(|a| a.date)
+        .chain(facts.observed_snapshots().iter().map(|s| s.date))
+        .min()
+        .unwrap_or(as_of)
+        .min(as_of);
+    for id in revalued {
+        let from = impact.revalue[id];
+        let start = from.max(genesis).min(as_of);
+        let mut keyframes = BTreeMap::new();
+        let mut seed = BTreeMap::new();
+        if facts
+            .accounts()
+            .get(id)
+            .is_some_and(|a| a.tracking != TrackingMode::Holdings)
+        {
+            let stored = before
+                .bundle
+                .keyframes
+                .get(id)
+                .map(Vec::as_slice)
+                .unwrap_or_default();
+            if let Some(last) = stored.iter().rev().find(|f| f.date < start) {
+                seed.insert(id.clone(), last.state.clone());
+            }
+            keyframes.insert(
+                id.clone(),
+                stored
+                    .iter()
+                    .filter(|f| f.date >= start && f.date <= as_of)
+                    .cloned()
+                    .collect::<Vec<_>>(),
+            );
+        }
+        let bundle = ProjectionBundle {
+            keyframes,
+            final_state: ProjectionState {
+                date: as_of,
+                accounts: BTreeMap::new(),
+                transfer_cache: BTreeMap::new(),
+            },
+            disposals: disposals.clone(),
+            closures: Vec::new(),
+            diagnostics: rejected.clone(),
+        };
+        let only = BTreeSet::from([id.clone()]);
+        let series = value_window(
+            &ValueInputs {
+                resolved: Resolved {
+                    facts,
+                    ledger: after.ledger(),
+                    surfaces: after.surfaces(),
+                    range: DateRange { start, end: as_of },
+                },
+                bundle: &bundle,
+                lots: Some(&lots),
+            },
+            &seed,
+            Some(&only),
+        );
+        let first = from.max(start);
+        let days = |series: &BTreeMap<AccountId, ValuationSeries>| -> Vec<Value> {
+            values(
+                series
+                    .get(id)
+                    .into_iter()
+                    .flat_map(|s| s.days.iter())
+                    .filter(|d| d.date >= first),
+            )
+        };
+        let (revalued, rebuilt) = (days(&series), days(&after.series));
+        if revalued != rebuilt {
+            return Some(format!(
+                "{id}: revalued from {from}, {} rows from what was stored, {} in a full run",
+                revalued.len(),
+                rebuilt.len()
+            ));
+        }
+    }
+    None
+}
+
 #[test]
 fn p_impact_names_every_output_a_change_can_move() {
     let mut checked = 0;
     let mut failures = Vec::new();
-    for scenario in under_every_method(
-        load_all_scenarios()
-            .into_iter()
-            .filter(|s| !s.markers.iter().any(|m| m == "S") && scenario_selected(&s.id)),
-    ) {
+    for scenario in corpus() {
         let raw = scenario.raw_facts();
         let Ok(before) = Pipeline::run(raw.clone()) else {
             continue;
         };
-        for mutation in mutations(&raw) {
+        let cap = scenario
+            .id
+            .starts_with("GEN-")
+            .then_some(GENERATED_ACTIVITY_MUTATIONS);
+        for mutation in mutations(&raw, cap) {
             let Ok(after) = Pipeline::run(mutation.raw) else {
                 continue;
             };
@@ -401,6 +622,12 @@ fn p_impact_names_every_output_a_change_can_move() {
             checked += 1;
             if let Some(problem) = unsound(&before, &after, &impact) {
                 failures.push(format!("{} / {}: {problem}", scenario.id, mutation.label));
+            }
+            if let Some(problem) = unrevaluable(&before, &after, &impact) {
+                failures.push(format!(
+                    "{} / {}: P-REVALUE {problem}",
+                    scenario.id, mutation.label
+                ));
             }
         }
     }
@@ -420,11 +647,7 @@ fn p_impact_names_every_output_a_change_can_move() {
 fn p_impact_covers_a_moving_day() {
     let mut checked = 0;
     let mut failures = Vec::new();
-    for scenario in under_every_method(
-        load_all_scenarios()
-            .into_iter()
-            .filter(|s| !s.markers.iter().any(|m| m == "S") && scenario_selected(&s.id)),
-    ) {
+    for scenario in corpus() {
         let raw = scenario.raw_facts();
         for shift in [1, 4, 10] {
             let mut earlier = raw.clone();
@@ -454,6 +677,12 @@ fn p_impact_covers_a_moving_day() {
             checked += 1;
             if let Some(problem) = unsound(&before, &after, &impact) {
                 failures.push(format!("{} (+{shift} days): {problem}", scenario.id));
+            }
+            if let Some(problem) = unrevaluable(&before, &after, &impact) {
+                failures.push(format!(
+                    "{} (+{shift} days): P-REVALUE {problem}",
+                    scenario.id
+                ));
             }
         }
     }

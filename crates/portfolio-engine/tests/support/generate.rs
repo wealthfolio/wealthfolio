@@ -1,9 +1,10 @@
 //! Generated scenarios: random combinations of the inputs the hand-written
 //! fixtures cover one at a time (archived and holdings accounts, activities
 //! and transfers recorded on holdings accounts, accounts opening after the
-//! others, sparse, invalid and missing quotes, splits
-//! adjusted or not by the provider, transfers across days and both ways,
-//! shorts, minor units, options, FX), written as YAML in
+//! others, accounts without activity or with only scheduled activity, a
+//! holdings account without a snapshot, sparse, invalid and missing quotes,
+//! splits adjusted or not by the provider, transfers across days and both
+//! ways, shorts, minor units, options, FX), written as YAML in
 //! the fixture schema. The engine's property laws and the app parity test
 //! (`crates/core`, which includes this file by path) both run over them, so
 //! it uses the standard library only.
@@ -524,6 +525,58 @@ pub fn scenario_yaml(seed: u64) -> String {
             );
             day += 5 + rng.below(15);
         }
+    }
+
+    // Accounts with nothing to fold or observe yet, drawn from their own
+    // stream so the rest of the scenario stays as it was: one without
+    // activity, one whose only activity is scheduled after `as_of`, and a
+    // holdings account without a snapshot. The first account sometimes has a
+    // deposit scheduled too.
+    let mut extra = Rng::new(seed ^ 0xACC0_FFEE);
+    if extra.chance(20) {
+        accounts.push(Account {
+            id: "acc-idle".to_string(),
+            currency: extra.pick(&["USD", "CAD", "GBP"]),
+            holdings: false,
+            archived: false,
+        });
+    }
+    if extra.chance(20) {
+        let currency = *extra.pick(&["USD", "CAD", "GBP"]);
+        accounts.push(Account {
+            id: "acc-scheduled".to_string(),
+            currency,
+            holdings: false,
+            archived: false,
+        });
+        ledger.row(
+            as_of + 1 + extra.below(20),
+            "acc-scheduled",
+            &format!(
+                "type: DEPOSIT, amount: {}, currency: {currency}",
+                100 + extra.below(1_000)
+            ),
+        );
+    }
+    if extra.chance(10) {
+        accounts.push(Account {
+            id: "acc-unobserved".to_string(),
+            currency: extra.pick(&["USD", "CAD", "GBP"]),
+            holdings: true,
+            archived: false,
+        });
+    }
+    if extra.chance(15) {
+        let account = &accounts[0];
+        ledger.row(
+            as_of + 1 + extra.below(20),
+            &account.id,
+            &format!(
+                "type: DEPOSIT, amount: {}, currency: {}",
+                100 + extra.below(1_000),
+                account.currency
+            ),
+        );
     }
 
     let mut yaml = String::new();

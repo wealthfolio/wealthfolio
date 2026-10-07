@@ -552,7 +552,8 @@ fn keyframes_for(
             .unwrap_or_default();
         // An account with no events has no keyframes: present its (empty)
         // final state on the range end, as one row (in a chunked run, only
-        // the last window's end is the range end).
+        // the last window's end is the range end). No stored keyframe can
+        // value it again, so `impact` refolds it whole.
         let last_window = seed.is_none() || resolved.range.end == resolved.facts.policy.as_of;
         let synthetic = (own.is_empty() && seeded.is_none() && last_window)
             .then(|| inputs.bundle.final_state.accounts.get(account_id))

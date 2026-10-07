@@ -55,12 +55,18 @@ pub fn impact(
     surfaces: &ResolvedSurfaces,
     changes: &[FactChange],
 ) -> Impact {
+    let as_of = facts.policy.as_of;
     let mut holders: BTreeMap<&AssetId, BTreeSet<&AccountId>> = BTreeMap::new();
     let mut last_activity: BTreeMap<&AccountId, NaiveDate> = BTreeMap::new();
+    // Accounts with an activity in the range: the fold keyframes them.
+    let mut folded: BTreeSet<&AccountId> = BTreeSet::new();
     // Days of each account's activities and observed snapshots.
     let mut fact_days: BTreeMap<&AccountId, BTreeSet<NaiveDate>> = BTreeMap::new();
     let mut splits: BTreeMap<&AssetId, BTreeSet<NaiveDate>> = BTreeMap::new();
     for activity in &facts.activities {
+        if activity.date <= as_of {
+            folded.insert(&activity.account);
+        }
         if let Some(asset) = &activity.asset {
             holders.entry(asset).or_default().insert(&activity.account);
             if activity.kind == ActivityKind::Split {
@@ -143,7 +149,6 @@ pub fn impact(
                 // every fact is that recent, the stored days were only the
                 // placeholder of a range that had not started.
                 lower(&mut impact.revalue, account, *from);
-                let as_of = facts.policy.as_of;
                 let new_days = *from..=as_of;
                 if let Some(days) = fact_days
                     .get(account)
@@ -207,6 +212,19 @@ pub fn impact(
     for id in observed {
         if let Some(day) = impact.refold.remove(&id) {
             lower(&mut impact.revalue, &id, day);
+        }
+    }
+    // A transactions account with no activity in the range has no keyframe:
+    // valuation presents the fold's (empty) final state as one row on
+    // `as_of`, which moves with it. A revalue reads stored keyframes only and
+    // a rewrite from a later day would leave that row behind, so whatever
+    // reaches such an account refolds it whole (P-REVALUE).
+    for (id, account) in &facts.accounts {
+        if account.archived || account.tracking == TrackingMode::Holdings || folded.contains(id) {
+            continue;
+        }
+        if impact.revalue.remove(id).is_some() || impact.refold.contains_key(id) {
+            impact.refold.insert(id.clone(), BEGINNING);
         }
     }
     // A refold rewrites valuations too.

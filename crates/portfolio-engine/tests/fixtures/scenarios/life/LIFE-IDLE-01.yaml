@@ -1,0 +1,97 @@
+id: LIFE-IDLE-01
+title: Accounts without activity through rate changes, new days and a first deposit
+intent: >
+  A CAD portfolio with a funded USD account, a EUR account without activity
+  and a CAD account whose only deposit is scheduled after as_of. A
+  transactions account with no activity in the range has no keyframe: a run
+  presents its empty state as one row on as_of, so that row moves with as_of
+  and no stored keyframe can value it again. Each step reaches the two
+  accounts the way the app does: a EUR/CAD rate (every account revalues),
+  the next day, three days with two skipped, a backdated first deposit on the
+  idle account and its removal, then the day the scheduled deposit comes due.
+  After every step the incremental projection must equal a fresh rebuild and
+  leave no account stale (`impact` refolds such an account whole).
+policy:
+  base_currency: CAD
+  timezone: UTC
+  as_of: 2025-01-10
+accounts:
+  - id: acc-trade
+    name: Trading
+    currency: USD
+  - id: acc-idle
+    name: Idle
+    currency: EUR
+  - id: acc-scheduled
+    name: Scheduled
+    currency: CAD
+assets:
+  - id: aapl
+    quote_ccy: USD
+activities:
+  - id: dep-trade
+    account: acc-trade
+    type: DEPOSIT
+    date: 2025-01-02T10:00:00Z
+    amount: 1000
+  - id: buy-trade
+    account: acc-trade
+    type: BUY
+    date: 2025-01-03T10:00:00Z
+    asset: aapl
+    quantity: 5
+    unit_price: 100
+    amount: 500
+    fee: 0
+  - id: dep-scheduled
+    account: acc-scheduled
+    type: DEPOSIT
+    date: 2025-01-20T10:00:00Z
+    amount: 300
+quotes:
+  - { asset: aapl, day: 2025-01-02, close: 100 }
+  - { asset: aapl, day: 2025-01-06, close: 110 }
+  - { asset: aapl, day: 2025-01-10, close: 120 }
+  - { asset: aapl, day: 2025-01-14, close: 125 }
+  - { asset: aapl, day: 2025-01-21, close: 130 }
+fx_rates:
+  - { from: USD, to: CAD, day: 2025-01-02, rate: 1.4 }
+  - { from: EUR, to: CAD, day: 2025-01-02, rate: 1.5 }
+lifecycle:
+  - label: eur_rate_changes
+    add_fx_rates:
+      - { from: EUR, to: CAD, day: 2025-01-08, rate: 1.6 }
+    recalc: { snapshots: INCREMENTAL_FROM_LAST, valuations: SINCE_DATE, since: 2025-01-08 }
+  - label: next_day
+    as_of: 2025-01-11
+    recalc: { snapshots: INCREMENTAL_FROM_LAST, valuations: INCREMENTAL_FROM_LAST }
+  - label: two_days_skipped
+    as_of: 2025-01-14
+    recalc: { snapshots: INCREMENTAL_FROM_LAST, valuations: INCREMENTAL_FROM_LAST }
+  - label: first_deposit_on_idle_account
+    add_activities:
+      - id: dep-idle
+        account: acc-idle
+        type: DEPOSIT
+        date: 2025-01-12T10:00:00Z
+        amount: 200
+    recalc: { snapshots: SINCE_DATE, valuations: SINCE_DATE, since: 2025-01-12 }
+  - label: idle_again
+    remove_activities: [dep-idle]
+    recalc: { snapshots: SINCE_DATE, valuations: SINCE_DATE, since: 2025-01-12 }
+  - label: scheduled_deposit_comes_due
+    as_of: 2025-01-21
+    recalc: { snapshots: INCREMENTAL_FROM_LAST, valuations: INCREMENTAL_FROM_LAST }
+expected_notes: >
+  Baseline (as_of 01-10): acc-trade deposits 1000 USD on 01-02 and buys 5
+  aapl at 100 on 01-03 (cash 500); on 01-10 it holds 5 x 120 + 500 = 1100
+  USD, 1540 CAD at 1.4. acc-idle and acc-scheduled have no keyframe, no lot
+  and one valuation row each, on 01-10, of zero value (acc-scheduled's
+  deposit is after as_of). Step 1 (EUR/CAD 1.6 from 01-08): acc-idle is
+  still one zero row on 01-10, now converted at 1.6. Steps 2-3: acc-idle and
+  acc-scheduled are one zero row on 01-11, then on 01-14, and on no earlier
+  day. Step 4: acc-idle has a keyframe on 01-12 (cash 200 EUR) and rows
+  01-12..01-14 worth 320 CAD. Step 5: acc-idle is one zero row on 01-14
+  again. Step 6 (as_of 01-21): acc-scheduled's deposit is in range, rows
+  01-20 and 01-21 of 300 CAD; acc-idle is one zero row on 01-21; acc-trade
+  holds 5 x 130 + 500 = 1150 USD on 01-21.
