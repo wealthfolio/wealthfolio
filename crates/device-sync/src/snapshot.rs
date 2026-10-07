@@ -5,13 +5,11 @@ use std::io::{Read, Write};
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use flate2::{read::GzDecoder, write::GzEncoder, Compression};
 
-use crate::crypto;
+use crate::{crypto, limits::MAX_DATABASE_IMAGE_BYTES};
 
 // The first byte cannot occur in legacy Base64 ciphertext.
 const MAGIC: &[u8] = b"\x89WFSNAP\x01";
 const SQLITE_HEADER: &[u8] = b"SQLite format 3\0";
-// Bound expansion before allocating an image from an external snapshot.
-const MAX_IMAGE_BYTES: u64 = 512 * 1024 * 1024;
 
 fn snapshot_key(root_key: &str, key_version: i32) -> Result<String, String> {
     if key_version <= 0 {
@@ -40,7 +38,7 @@ pub fn decode(blob: &[u8], root_key: &str, key_version: i32) -> Result<Vec<u8>, 
     let image = if let Some(ciphertext) = blob.strip_prefix(MAGIC) {
         // Authenticate before attempting decompression.
         let compressed = crypto::decrypt_bytes(&dek, ciphertext)?;
-        decompress(&compressed, MAX_IMAGE_BYTES)?
+        decompress(&compressed, MAX_DATABASE_IMAGE_BYTES as u64)?
     } else {
         let ciphertext =
             std::str::from_utf8(blob).map_err(|_| "Unknown snapshot format".to_string())?;
@@ -64,7 +62,7 @@ fn decompress(compressed: &[u8], limit: u64) -> Result<Vec<u8>, String> {
 }
 
 fn validate_image(image: &[u8]) -> Result<(), String> {
-    if image.len() as u64 > MAX_IMAGE_BYTES {
+    if image.len() > MAX_DATABASE_IMAGE_BYTES {
         return Err("Snapshot exceeds the uncompressed size limit".to_string());
     }
     if !image.starts_with(SQLITE_HEADER) {

@@ -1,5 +1,7 @@
 //! Isolated ciphertext transport: no API authorization, cookies, redirects, or URL logging.
-use crate::{crypto::sha256_checksum, DeviceSyncError, Result};
+use crate::{
+    crypto::sha256_checksum, limits::MAX_ENCRYPTED_TRANSFER_BYTES, DeviceSyncError, Result,
+};
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, time::Duration};
 
@@ -112,7 +114,7 @@ impl ConnectTransferTransport {
         size: usize,
         checksum: &str,
     ) -> Result<Vec<u8>> {
-        if size == 0 || size > crate::backups::MAX_ENCRYPTED_BYTES {
+        if size == 0 || size > MAX_ENCRYPTED_TRANSFER_BYTES {
             return Err(DeviceSyncError::invalid_request(
                 "Transfer size exceeds limit",
             ));
@@ -154,7 +156,7 @@ impl ConnectTransferTransport {
     }
     pub async fn upload(&self, descriptor: &TransferDescriptor, bytes: Vec<u8>) -> Result<()> {
         if bytes.is_empty()
-            || bytes.len() > crate::backups::MAX_ENCRYPTED_BYTES
+            || bytes.len() > MAX_ENCRYPTED_TRANSFER_BYTES
             || descriptor.headers.get("content-length") != Some(&bytes.len().to_string())
         {
             return Err(DeviceSyncError::invalid_request("Transfer size mismatch"));

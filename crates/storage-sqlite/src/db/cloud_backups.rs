@@ -10,6 +10,7 @@ use wealthfolio_device_sync::backups::{
     client::{BackupClient, BackupPoint, BackupPolicy},
     MasterKey,
 };
+use wealthfolio_device_sync::limits::MAX_DATABASE_IMAGE_BYTES;
 
 pub fn portable_image(
     source: &DbAccess,
@@ -18,7 +19,7 @@ pub fn portable_image(
     let export = portable::export(source, root, None)?;
     let size = std::fs::metadata(&export.path)?.len();
     anyhow::ensure!(
-        size <= backups::MAX_DECODED_BYTES as u64,
+        size <= MAX_DATABASE_IMAGE_BYTES as u64,
         "Database exceeds cloud backup size limit"
     );
     // Export is an owned immutable private file; allocate its exact length once.

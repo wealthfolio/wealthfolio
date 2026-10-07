@@ -1,5 +1,6 @@
 //! Versioned, personal database backup encryption. Independent of sync enrollment.
 //! No recovery code or wrapping key is persisted by this module.
+use crate::limits::{MAX_DATABASE_IMAGE_BYTES, MAX_ENCRYPTED_TRANSFER_BYTES};
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use chacha20poly1305::{
     aead::{Aead, KeyInit, Payload},
@@ -16,8 +17,6 @@ use wealthfolio_core::secrets::SecretStore;
 pub mod client;
 pub mod scheduler;
 
-pub const MAX_ENCRYPTED_BYTES: usize = 120 * 1024 * 1024;
-pub const MAX_DECODED_BYTES: usize = 512 * 1024 * 1024;
 // Demo measurements: ~13% fewer bytes than level 1 without level 6/9's CPU cost.
 // Standard gzip remains readable by every existing backup reader.
 pub const BACKUP_COMPRESSION_LEVEL: u32 = 3;
@@ -357,7 +356,9 @@ fn backup_aad(context: &BackupContext) -> Result<Vec<u8>> {
 struct BoundedCompression(Vec<u8>);
 impl Write for BoundedCompression {
     fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
-        if self.0.len().saturating_add(bytes.len()) > MAX_ENCRYPTED_BYTES - MAGIC.len() - 40 {
+        if self.0.len().saturating_add(bytes.len())
+            > MAX_ENCRYPTED_TRANSFER_BYTES - MAGIC.len() - 40
+        {
             return Err(std::io::Error::other("Backup exceeds the supported size"));
         }
         self.0.extend_from_slice(bytes);
@@ -373,7 +374,7 @@ pub fn encrypt_database(
     ctx: &BackupContext,
     database: &[u8],
 ) -> Result<Vec<u8>> {
-    if database.len() > MAX_DECODED_BYTES || !database.starts_with(b"SQLite format 3\0") {
+    if database.len() > MAX_DATABASE_IMAGE_BYTES || !database.starts_with(b"SQLite format 3\0") {
         return Err(BackupError::Invalid);
     }
     let aad = backup_aad(ctx)?;
@@ -384,7 +385,7 @@ pub fn encrypt_database(
     gzip.write_all(database)?;
     let compressed = zeroize::Zeroizing::new(gzip.finish()?.0);
     let ciphertext = seal(&derive(&master.0, &aad), &compressed, &aad)?;
-    if MAGIC.len() + ciphertext.len() > MAX_ENCRYPTED_BYTES {
+    if MAGIC.len() + ciphertext.len() > MAX_ENCRYPTED_TRANSFER_BYTES {
         return Err(BackupError::SizeLimit);
     }
     let mut output = MAGIC.to_vec();
@@ -408,7 +409,7 @@ pub fn decrypt_database_to_writer(
     encrypted: &[u8],
     mut output: impl Write,
 ) -> Result<()> {
-    if encrypted.len() > MAX_ENCRYPTED_BYTES {
+    if encrypted.len() > MAX_ENCRYPTED_TRANSFER_BYTES {
         return Err(BackupError::SizeLimit);
     }
     if !encrypted.starts_with(MAGIC) {
@@ -435,7 +436,7 @@ pub fn decrypt_database_to_writer(
             break;
         }
         count = count.checked_add(size).ok_or(BackupError::SizeLimit)?;
-        if count > MAX_DECODED_BYTES {
+        if count > MAX_DATABASE_IMAGE_BYTES {
             return Err(BackupError::SizeLimit);
         }
         output.write_all(&chunk[..size])?;
@@ -487,7 +488,7 @@ pub fn read_recovery_package(mut input: impl Read) -> Result<(RecoveryPackageHea
         serde_json::from_slice(&json).map_err(|_| BackupError::Invalid)?;
     let mut encrypted = Vec::new();
     input
-        .take((MAX_ENCRYPTED_BYTES + 1) as u64)
+        .take((MAX_ENCRYPTED_TRANSFER_BYTES + 1) as u64)
         .read_to_end(&mut encrypted)?;
     validate_package(&header, &encrypted)?;
     Ok((header, encrypted))
@@ -497,7 +498,7 @@ fn validate_package(header: &RecoveryPackageHeader, encrypted: &[u8]) -> Result<
         return Err(BackupError::UnsupportedVersion);
     }
     backup_aad(&header.context)?;
-    if encrypted.len() > MAX_ENCRYPTED_BYTES {
+    if encrypted.len() > MAX_ENCRYPTED_TRANSFER_BYTES {
         return Err(BackupError::SizeLimit);
     }
     if header.size_bytes != encrypted.len()
@@ -615,9 +616,13 @@ mod tests {
     }
     #[test]
     fn compression_writer_stops_before_object_limit() {
-        let mut writer = BoundedCompression(vec![0; MAX_ENCRYPTED_BYTES - MAGIC.len() - 40]);
+        let mut writer =
+            BoundedCompression(vec![0; MAX_ENCRYPTED_TRANSFER_BYTES - MAGIC.len() - 40]);
         assert!(writer.write(&[1]).is_err());
-        assert_eq!(writer.0.len(), MAX_ENCRYPTED_BYTES - MAGIC.len() - 40);
+        assert_eq!(
+            writer.0.len(),
+            MAX_ENCRYPTED_TRANSFER_BYTES - MAGIC.len() - 40
+        );
     }
     #[test]
     #[ignore = "local compression benchmark; needs CONNECT_BACKUP_BENCHMARK_EXPORT"]
@@ -680,7 +685,7 @@ mod tests {
         let mut gzip = GzEncoder::new(Vec::new(), Compression::fast());
         gzip.write_all(b"SQLite format 3\0").unwrap();
         let zeros = [0; 64 * 1024];
-        for _ in 0..MAX_DECODED_BYTES / zeros.len() {
+        for _ in 0..MAX_DATABASE_IMAGE_BYTES / zeros.len() {
             gzip.write_all(&zeros).unwrap();
         }
         let compressed = gzip.finish().unwrap();
@@ -701,7 +706,7 @@ mod tests {
             decrypt_database_to_writer(&master, &ctx, &encrypted, &mut output),
             Err(BackupError::SizeLimit)
         ));
-        assert!(output.0 <= MAX_DECODED_BYTES);
+        assert!(output.0 <= MAX_DATABASE_IMAGE_BYTES);
     }
     #[derive(Default)]
     struct Store(std::sync::Mutex<std::collections::HashMap<String, String>>);
