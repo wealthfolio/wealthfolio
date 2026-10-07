@@ -919,14 +919,15 @@ pub async fn complete_pairing_with_transfer(
 
     let _ = share_backup_access(&state).await;
 
-    // 4. Complete pairing (send encrypted key bundle)
-    let token = crate::api::connect::mint_access_token(&state)
-        .await
-        .map_err(|e| e.to_string())?;
+    // 4. Complete pairing (send encrypted key bundle with current credentials)
     tracing::info!("[DeviceSync] complete_pairing_with_transfer: completing pairing");
     client
         .complete_pairing(
-            &token,
+            || async {
+                crate::api::connect::mint_access_token(&state)
+                    .await
+                    .map_err(|e| wealthfolio_device_sync::DeviceSyncError::Auth(e.to_string()))
+            },
             &device_id,
             &pairing_id,
             wealthfolio_device_sync::CompletePairingRequest {

@@ -324,7 +324,7 @@ function CloudBackupPanel({ backup }: { backup: ReturnType<typeof useCloudBackup
       }
       if (operation.action === "recover") {
         setCode("");
-        setFlow(data?.policy.uploadEntitled ? "resume" : undefined);
+        setFlow(undefined);
       }
       if (operation.action === "enable") {
         setRecoveryCode("");

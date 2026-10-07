@@ -336,14 +336,17 @@ async fn complete_pairing(
     // Snapshot upload is now handled by the frontend issuer flow BEFORE calling
     // this endpoint, so complete_pairing only sends the key bundle.
 
-    let token = get_access_token(&state).await?;
     let device_id = get_device_id(&state)
         .ok_or_else(|| ApiError::BadRequest("No device ID configured".to_string()))?;
 
     let _ = device_sync_engine::share_backup_access(&state).await;
     let result = create_client()
         .complete_pairing(
-            &token,
+            || async {
+                get_access_token(&state)
+                    .await
+                    .map_err(|e| wealthfolio_device_sync::DeviceSyncError::Auth(e.to_string()))
+            },
             &device_id,
             &pairing_id,
             CompletePairingRequest {

@@ -54,29 +54,21 @@ pub async fn cloud_backup_capture(runtime: ProfileAccess) -> Result<Option<Backu
     Ok(result.0)
 }
 
-// Account admission is held by each API phase; check revocation again after refresh.
+// Account admission is held by each API phase; shared logic gates the refresh result.
 async fn capture_token(
     runtime: &Arc<crate::database::DatabaseRuntime>,
     generation: u64,
 ) -> wealthfolio_device_sync::Result<String> {
-    if !runtime.backup_scheduler.is_current(generation) {
-        return Err(wealthfolio_device_sync::DeviceSyncError::invalid_request(
-            "Backup capture cancelled",
-        ));
-    }
-    let token = runtime
-        .context()
-        .map_err(|e| wealthfolio_device_sync::DeviceSyncError::Auth(e.to_string()))?
-        .connect_service()
-        .get_valid_access_token()
-        .await
-        .map_err(wealthfolio_device_sync::DeviceSyncError::Auth)?;
-    if !runtime.backup_scheduler.is_current(generation) {
-        return Err(wealthfolio_device_sync::DeviceSyncError::invalid_request(
-            "Backup capture cancelled",
-        ));
-    }
-    Ok(token)
+    BackupClient::capture_token(&runtime.backup_scheduler, generation, || async {
+        runtime
+            .context()
+            .map_err(|e| wealthfolio_device_sync::DeviceSyncError::Auth(e.to_string()))?
+            .connect_service()
+            .get_valid_access_token()
+            .await
+            .map_err(wealthfolio_device_sync::DeviceSyncError::Auth)
+    })
+    .await
 }
 
 async fn check_and_capture(

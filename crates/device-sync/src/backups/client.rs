@@ -601,6 +601,28 @@ impl BackupClient {
             "encrypted_metadata": encrypted_metadata, "trigger": trigger });
         Ok(EncodedCapture { body, encrypted })
     }
+    /// Reuse the capture generation around a short credential refresh. The outer
+    /// capture owns cancellation; no additional polling or worker is introduced.
+    pub async fn capture_token<F, Fut>(
+        scheduler: &super::scheduler::BackupScheduler,
+        generation: u64,
+        refresh: F,
+    ) -> ApiResult<String>
+    where
+        F: FnOnce() -> Fut,
+        Fut: std::future::Future<Output = ApiResult<String>>,
+    {
+        let cancelled = || DeviceSyncError::invalid_request("Backup capture cancelled");
+        if !scheduler.is_current(generation) {
+            return Err(cancelled());
+        }
+        let result = refresh().await;
+        if !scheduler.is_current(generation) {
+            return Err(cancelled());
+        }
+        result
+    }
+
     pub async fn prepare_capture<F, Fut>(
         &self,
         token: F,
@@ -1594,6 +1616,61 @@ mod access_tests {
             .unwrap();
         assert_eq!(result.backup_id, "published");
         server.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn capture_generation_is_checked_before_and_after_an_in_flight_refresh() {
+        use super::super::scheduler::BackupScheduler;
+        let scheduler = Arc::new(BackupScheduler::default());
+        let generation = scheduler.generation();
+        scheduler.wake();
+        let error = BackupClient::capture_token(
+            &scheduler,
+            generation,
+            || -> std::future::Ready<ApiResult<String>> {
+                panic!("revoked captures must not start credential refresh")
+            },
+        )
+        .await
+        .unwrap_err();
+        assert!(error.to_string().contains("cancelled"));
+        for succeeds in [true, false] {
+            let generation = scheduler.generation();
+            let (started, started_rx) = tokio::sync::oneshot::channel();
+            let (release, release_rx) = tokio::sync::oneshot::channel();
+            let pending = tokio::spawn({
+                let scheduler = scheduler.clone();
+                async move {
+                    BackupClient::capture_token(&scheduler, generation, || async move {
+                        started.send(()).unwrap();
+                        release_rx.await.unwrap();
+                        if succeeds {
+                            Ok("fresh credential".into())
+                        } else {
+                            Err(DeviceSyncError::Auth("refresh failed".into()))
+                        }
+                    })
+                    .await
+                }
+            });
+            started_rx.await.unwrap();
+            scheduler.wake();
+            release.send(()).unwrap();
+            assert!(pending
+                .await
+                .unwrap()
+                .unwrap_err()
+                .to_string()
+                .contains("cancelled"));
+        }
+        assert_eq!(
+            BackupClient::capture_token(&scheduler, scheduler.generation(), || std::future::ready(
+                Ok("current".into())
+            ))
+            .await
+            .unwrap(),
+            "current"
+        );
     }
 
     #[tokio::test]

@@ -1196,20 +1196,25 @@ impl DeviceSyncClient {
     /// Complete a pairing session with key bundle.
     ///
     /// POST /api/v1/sync/team/devices/{deviceId}/pairings/{pairingId}/complete
-    pub async fn complete_pairing(
+    pub async fn complete_pairing<F, Fut>(
         &self,
-        token: &str,
+        token: F,
         device_id: &str,
         pairing_id: &str,
         req: CompletePairingRequest,
-    ) -> Result<CompletePairingResponse> {
+    ) -> Result<CompletePairingResponse>
+    where
+        F: FnOnce() -> Fut,
+        Fut: std::future::Future<Output = Result<String>>,
+    {
+        let token = token().await?;
         self.send_json_body(
             Method::POST,
             format!(
                 "/api/v1/sync/team/devices/{}/pairings/{}/complete",
                 device_id, pairing_id
             ),
-            token,
+            &token,
             Some(device_id),
             &req,
         )
@@ -1729,6 +1734,46 @@ mod tests {
             matches!(result, Err(DeviceSyncError::InvalidRequest(message)) if message == "Unapproved transfer destination" || message == "Connect transfer destinations are not configured in this build")
         );
         assert_eq!(captured.lock().await.len(), 1);
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn pairing_completion_acquires_credentials_after_optional_sharing() {
+        use std::sync::atomic::AtomicUsize;
+        let (url, captured, server) = start_mock_upload_server(vec![MockUploadOutcome::Respond {
+            status: 200,
+            body: serde_json::json!({"success":true}).to_string(),
+            delay_ms: 0,
+        }])
+        .await;
+        let epoch = AtomicUsize::new(0);
+        let token = || std::future::ready(Ok(format!("current-{}", epoch.load(Ordering::SeqCst))));
+        // The provider is created before sharing, but execution belongs to the
+        // final control request. Credentials retained before sharing are stale.
+        epoch.store(1, Ordering::SeqCst);
+        DeviceSyncClient::new(&url)
+            .complete_pairing(
+                token,
+                "device",
+                "pairing",
+                CompletePairingRequest {
+                    encrypted_key_bundle: "opaque".into(),
+                    sas_proof: serde_json::json!({}),
+                    signature: "signature".into(),
+                },
+            )
+            .await
+            .unwrap();
+        let requests = captured.lock().await;
+        assert_eq!(requests.len(), 1);
+        assert_eq!(
+            requests[0].authorization.as_deref(),
+            Some("Bearer current-1")
+        );
+        assert_eq!(
+            requests[0].path,
+            "/api/v1/sync/team/devices/device/pairings/pairing/complete"
+        );
         server.abort();
     }
 

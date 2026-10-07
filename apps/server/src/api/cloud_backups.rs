@@ -60,25 +60,17 @@ async fn action(
     }
     Ok(Json(result))
 }
-// Account admission is held by each API phase; check revocation again after refresh.
+// Account admission is held by each API phase; shared logic gates the refresh result.
 async fn capture_token(
     state: &Arc<AppState>,
     generation: u64,
 ) -> wealthfolio_device_sync::Result<String> {
-    if !state.backup_scheduler.is_current(generation) {
-        return Err(wealthfolio_device_sync::DeviceSyncError::invalid_request(
-            "Backup capture cancelled",
-        ));
-    }
-    let token = super::connect::mint_access_token(state)
-        .await
-        .map_err(|e| wealthfolio_device_sync::DeviceSyncError::Auth(e.to_string()))?;
-    if !state.backup_scheduler.is_current(generation) {
-        return Err(wealthfolio_device_sync::DeviceSyncError::invalid_request(
-            "Backup capture cancelled",
-        ));
-    }
-    Ok(token)
+    BackupClient::capture_token(&state.backup_scheduler, generation, || async {
+        super::connect::mint_access_token(state)
+            .await
+            .map_err(|e| wealthfolio_device_sync::DeviceSyncError::Auth(e.to_string()))
+    })
+    .await
 }
 
 async fn check_and_capture(

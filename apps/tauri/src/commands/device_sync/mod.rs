@@ -666,10 +666,13 @@ pub async fn complete_pairing(
         get_device_id_from_store(&context).ok_or_else(|| "No device ID configured".to_string())?;
 
     let _ = share_backup_access(&context).await;
-    let token = get_access_token(&context).await?;
     let result = create_client()?
         .complete_pairing(
-            &token,
+            || async {
+                get_access_token(&context)
+                    .await
+                    .map_err(wealthfolio_device_sync::DeviceSyncError::Auth)
+            },
             &device_id,
             &pairing_id,
             CompletePairingRequest {
@@ -820,12 +823,15 @@ pub async fn complete_pairing_with_transfer(
 
     let _ = share_backup_access(&context).await;
 
-    // 4. Complete pairing
-    let token = get_access_token(&context).await?;
+    // 4. Complete pairing with current credentials
     info!("[DeviceSync] complete_pairing_with_transfer: completing pairing");
     client
         .complete_pairing(
-            &token,
+            || async {
+                get_access_token(&context)
+                    .await
+                    .map_err(wealthfolio_device_sync::DeviceSyncError::Auth)
+            },
             &device_id,
             &pairing_id,
             wealthfolio_device_sync::CompletePairingRequest {

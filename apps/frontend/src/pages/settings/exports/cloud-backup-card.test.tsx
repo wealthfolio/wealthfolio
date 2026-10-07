@@ -578,3 +578,37 @@ it("refreshes history after a capture that completes between progress reads", as
   );
   expect(mocks.action.mock.calls.filter(([op]) => op.action === "status")).toHaveLength(2);
 });
+
+it.each([
+  { enabled: true, isSource: true, sourceConsented: true },
+  { enabled: true, isSource: false, sourceConsented: false },
+  { enabled: false, isSource: true, sourceConsented: false },
+])("recovers access without asking to enable or move backups (%j)", async (source) => {
+  let recovered = false;
+  mocks.action.mockImplementation((op) => {
+    if (op.action === "recover") {
+      recovered = true;
+      return Promise.resolve({});
+    }
+    return Promise.resolve({
+      ...status,
+      hasKey: true,
+      keyReady: recovered,
+      isSource: source.isSource,
+      sourceConsented: source.sourceConsented,
+      policy: { ...status.policy, enabled: source.enabled },
+    });
+  });
+  mount();
+  fireEvent.click(await screen.findByRole("button", { name: copy.cloud_backup_unlock }));
+  fireEvent.change(screen.getByLabelText(copy.cloud_backup_code), {
+    target: { value: "synthetic" },
+  });
+  fireEvent.click(screen.getAllByRole("button", { name: copy.cloud_backup_unlock }).at(-1)!);
+  await waitFor(() =>
+    expect(mocks.action).toHaveBeenCalledWith({ action: "recover", code: "synthetic" }),
+  );
+  await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  expect(mocks.action.mock.calls.some(([op]) => op.action === "enable")).toBe(false);
+  expect(mocks.capture).not.toHaveBeenCalled();
+});
