@@ -12,8 +12,8 @@ use serde_json::Value;
 use support::*;
 use wealthfolio_portfolio_engine::model::*;
 use wealthfolio_portfolio_engine::{
-    aggregate_scope, project, project_accounts, value_window, DiagnosticCode, QuoteSurface,
-    Resolved, ResolvedSurfaces, ValueInputs, Window,
+    aggregate_scope, project, project_accounts, value_window, DiagnosticCode, EngineError,
+    QuoteSurface, Resolved, ResolvedSurfaces, ValueInputs, Window,
 };
 
 const DUST: Decimal = Decimal::from_parts(1, 0, 0, false, 8);
@@ -1054,15 +1054,9 @@ fn p_agg_scope_aggregation_is_exact() {
                 continue;
             };
             let id = format!("{}: {account}", scenario.id);
-            // A transactions account without activity up to `as_of` has not
-            // started: it takes no part in a scope (P-IDLE).
-            let started = pipeline.facts().accounts()[account].tracking == TrackingMode::Holdings
-                || pipeline
-                    .facts()
-                    .activities()
-                    .iter()
-                    .any(|a| a.account == *account && a.date <= pipeline.range().end);
-            if !started {
+            // An account that has not started takes no part in a scope
+            // (P-IDLE).
+            if !has_started(&pipeline, account) {
                 assert!(single.days.is_empty(), "{id}: a scope of it alone");
                 continue;
             }
@@ -1454,6 +1448,61 @@ fn p_agg_add_an_unrelated_deposit_adds_only_itself() {
     assert!(
         filtered() || checked > 50,
         "only {checked} portfolios made busy"
+    );
+}
+
+/// Whether `account` has started by `as_of`, from the facts alone: a
+/// transactions account has an activity, a holdings account an observed
+/// snapshot.
+fn has_started(pipeline: &Pipeline, account: &AccountId) -> bool {
+    let facts = pipeline.facts();
+    let as_of = facts.policy().as_of;
+    if facts.accounts()[account].tracking == TrackingMode::Holdings {
+        facts
+            .observed_snapshots()
+            .iter()
+            .any(|s| s.account == *account && s.date <= as_of)
+    } else {
+        facts
+            .activities()
+            .iter()
+            .any(|a| a.account == *account && a.date <= as_of)
+    }
+}
+
+/// P-STRICT: a scope never leaves out the missing history of an account that
+/// has started. With any such account's stored rows gone (a rebuild that
+/// failed or skipped it), the portfolio scope is refused, never a smaller
+/// total.
+#[test]
+fn p_strict_a_missing_history_of_a_started_account_fails_its_scope() {
+    let mut checked = 0usize;
+    for scenario in corpus() {
+        let pipeline = Pipeline::from_scenario(&scenario);
+        let effects = pipeline.effects(
+            &pipeline.bundle.disposals,
+            &pipeline.lots(),
+            &pipeline.bundle.rejected_activities(),
+        );
+        let scope = pipeline.portfolio_scope();
+        for account in &scope {
+            if !has_started(&pipeline, account) || !pipeline.series.contains_key(account) {
+                continue;
+            }
+            let mut lost = pipeline.series.clone();
+            lost.remove(account);
+            let result = aggregate_scope(&effects, &lost, &scope, Window::default());
+            assert!(
+                matches!(result, Err(EngineError::ScopeHistoryCount { .. })),
+                "{}: {account}'s missing history was left out of the portfolio",
+                scenario.id
+            );
+            checked += 1;
+        }
+    }
+    assert!(
+        filtered() || checked > 100,
+        "only {checked} histories dropped"
     );
 }
 

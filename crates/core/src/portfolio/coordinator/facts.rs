@@ -87,7 +87,9 @@ impl FactSources {
 
     /// Facts for the read path (`measure`): the scope's transfer closure,
     /// every FX observation, and quotes only where security-transfer legs
-    /// are priced. No observed snapshots: holdings valuations are stored.
+    /// are priced. Holdings valuations are stored, so of a holdings account's
+    /// observed snapshots only the first on or before `as_of` is read: it
+    /// tells whether the account has started (P-IDLE, P-STRICT).
     pub fn load_for_measure(
         &self,
         account_ids: &[String],
@@ -168,6 +170,15 @@ impl FactSources {
             .map(raw_account)
             .collect();
         accounts.extend(split_accounts(&all_accounts, &closure, &foreign));
+        let mut observed_snapshots = Vec::new();
+        for account in all_accounts
+            .iter()
+            .filter(|a| closure.contains(&a.id) && a.tracking_mode == TrackingMode::Holdings)
+        {
+            if let Some(first) = self.first_observed_snapshot(&account.id, as_of)? {
+                observed_snapshots.push(raw_observed_snapshot(&first));
+            }
+        }
 
         Ok(RawFacts {
             policy: policy(base_currency, timezone, as_of)?,
@@ -185,8 +196,36 @@ impl FactSources {
                 .iter()
                 .map(raw_fx_rate)
                 .collect(),
-            observed_snapshots: Vec::new(),
+            observed_snapshots,
         })
+    }
+
+    /// A holdings account's first observed snapshot on or before `as_of`.
+    /// Its earliest day is one indexed read; only when that day holds
+    /// calculated rows alone (left from a time in transactions mode) are the
+    /// later days read.
+    fn first_observed_snapshot(
+        &self,
+        account_id: &str,
+        as_of: NaiveDate,
+    ) -> Result<Option<crate::portfolio::snapshot::AccountStateSnapshot>> {
+        let Some(earliest) = self.snapshots.get_earliest_snapshot_date(account_id)? else {
+            return Ok(None);
+        };
+        if earliest > as_of {
+            return Ok(None);
+        }
+        let observed = |end: NaiveDate| -> Result<_> {
+            Ok(self
+                .snapshots
+                .get_snapshots_by_account(account_id, Some(earliest), Some(end))?
+                .into_iter()
+                .find(|s| s.source != SnapshotSource::Calculated))
+        };
+        match observed(earliest)? {
+            Some(first) => Ok(Some(first)),
+            None => observed(as_of),
+        }
     }
 
     /// The FX pairs whose two directions disagree in the stored rates.

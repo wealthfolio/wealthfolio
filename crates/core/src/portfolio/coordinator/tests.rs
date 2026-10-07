@@ -1464,6 +1464,117 @@ async fn an_out_of_policy_observed_snapshot_fails_only_its_account() {
     );
 }
 
+/// The scoped history the dashboard reads and the performance of `scope`.
+async fn scope_reads(
+    h: &Harness,
+    scope: &[String],
+) -> (
+    Result<Vec<crate::portfolio::valuation::DailyAccountValuation>>,
+    crate::portfolio::performance::PerformanceResult,
+) {
+    use crate::portfolio::performance::{
+        PerformanceService, PerformanceServiceTrait, PerformanceSummaryProfile,
+    };
+    use crate::portfolio::valuation::{ValuationService, ValuationServiceTrait};
+    let base_currency = h.base_currency.read().unwrap().clone();
+    let history = ValuationService::new(
+        h.valuation_repo.clone(),
+        h.sources.clone(),
+        h.lot_repo.clone(),
+        h.timezone.clone(),
+    )
+    .get_historical_valuations_for_accounts("portfolio", scope, &base_currency, None, None)
+    .await;
+    let performance = PerformanceService::new(
+        h.base_currency.clone(),
+        h.timezone.clone(),
+        h.sources.clone(),
+        h.valuation_repo.clone(),
+        h.lot_repo.clone(),
+    )
+    .calculate_performance_summary_for_accounts(
+        "portfolio",
+        scope,
+        "",
+        &Default::default(),
+        &Default::default(),
+        None,
+        None,
+        PerformanceSummaryProfile::Full,
+    )
+    .await
+    .unwrap();
+    (history, performance)
+}
+
+/// A holdings account without a snapshot has not started: the portfolio
+/// reads as it does without it, with no history gap and no mix of tracking
+/// modes.
+#[tokio::test]
+async fn a_holdings_account_without_a_snapshot_changes_no_figure() {
+    let mut facts = scenario("NOM-TRADE-01").facts();
+    let others: Vec<String> = facts.accounts.iter().map(|a| a.id.clone()).collect();
+    let mut unobserved = facts.accounts[0].clone();
+    unobserved.id = "acc-unobserved".to_string();
+    unobserved.tracking_mode = crate::accounts::TrackingMode::Holdings;
+    facts.accounts.push(unobserved);
+    let h = harness(facts).await;
+    h.coordinator
+        .run_job(request(), &SilentObserver)
+        .await
+        .unwrap();
+    let mut all = others.clone();
+    all.push("acc-unobserved".to_string());
+
+    let (history, performance) = scope_reads(&h, &all).await;
+    let (reference_history, reference) = scope_reads(&h, &others).await;
+    let values = |rows: Vec<crate::portfolio::valuation::DailyAccountValuation>| -> Vec<_> {
+        rows.into_iter()
+            .map(|r| (r.valuation_date, r.total_value_base))
+            .collect()
+    };
+    assert_eq!(
+        values(history.expect("history with the account")),
+        values(reference_history.unwrap())
+    );
+    assert!(reference.returns.twr.is_some());
+    assert_eq!(
+        serde_json::to_value(&performance.returns).unwrap(),
+        serde_json::to_value(&reference.returns).unwrap()
+    );
+    assert_eq!(
+        performance.data_quality.warnings,
+        reference.data_quality.warnings
+    );
+}
+
+/// A holdings account with snapshots has started, whether or not it could be
+/// projected: when its rows are missing (here an out-of-policy snapshot made
+/// its rebuild fail), the scope's history is refused rather than read
+/// without it (P-STRICT).
+#[tokio::test]
+async fn a_started_holdings_account_without_rows_is_not_left_out() {
+    let facts = scenario("NOM-MIX-01").facts();
+    let scope: Vec<String> = facts.accounts.iter().map(|a| a.id.clone()).collect();
+    let h = harness(facts).await;
+    let bad_date = chrono::NaiveDate::from_ymd_opt(224, 7, 20).unwrap();
+    h.snapshot_repo
+        .save_snapshots(&[manual_snapshot("acc-h", bad_date)])
+        .await
+        .unwrap();
+    let report = h
+        .coordinator
+        .run_job(request(), &SilentObserver)
+        .await
+        .unwrap();
+    assert_eq!(report.failures.len(), 1, "{:?}", report.failures);
+    assert!(h.rows("acc-h").is_empty());
+
+    let (history, _) = scope_reads(&h, &scope).await;
+    let error = history.expect_err("a history without acc-h");
+    assert!(error.to_string().contains("count mismatch"), "{error}");
+}
+
 /// An account that cannot be projected keeps only its own markers: the
 /// others are consumed, so later runs do not rebuild the healthy accounts
 /// again, and a price change made meanwhile still reaches the failing

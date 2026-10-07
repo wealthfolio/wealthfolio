@@ -279,7 +279,7 @@ pub fn measure_scope(
     // part, in the scope's mix of tracking modes either (P-IDLE).
     let started: Vec<AccountId> = scope
         .iter()
-        .filter(|a| has_started(&inputs.effects, inputs.series, a))
+        .filter(|a| has_started(&inputs.effects, a))
         .cloned()
         .collect();
     let scope = started.as_slice();

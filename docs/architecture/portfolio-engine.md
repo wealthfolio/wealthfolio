@@ -624,7 +624,10 @@ product shows when the inputs are imperfect.
   one empty row on `as_of`; a holdings account without a snapshot has no row.
   Neither holds nor moves anything, so a scope's aggregation and its mix of
   tracking modes leave it out, and adding one changes no figure (P-IDLE). Read
-  alone, it keeps its own row.
+  alone, it keeps its own row. Whether an account has started comes from its
+  facts, never from its stored rows (the read path loads each holdings account's
+  first observed snapshot for it): a started account whose rows are missing
+  still fails its scope's history (P-STRICT).
 - **Units beyond a position have no lot.** A sell, transfer-out or expiry of
   more units than held disposes the held units; a sell realises only their share
   of the proceeds, books its stored cash in full, and reports the shortfall

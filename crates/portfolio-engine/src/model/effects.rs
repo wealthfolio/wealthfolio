@@ -46,6 +46,10 @@ pub struct AccountProfile {
     /// (rules R7.2).
     #[serde(default)]
     pub cost_basis_method: CostBasisMethod,
+    /// Whether it has started by `as_of`: a transactions account has an
+    /// activity, a holdings account an observed snapshot. One that has not
+    /// holds and moves nothing, so a scope leaves it out (P-IDLE).
+    pub started: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

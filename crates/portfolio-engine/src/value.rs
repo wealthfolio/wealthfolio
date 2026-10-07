@@ -222,25 +222,14 @@ fn value_series(
     series
 }
 
-/// Whether `account` has started by `as_of` (the end of the priced range): a
-/// transactions account has an activity, a holdings account a stored row (it
-/// starts at its first snapshot). One that has not holds and moves nothing,
-/// so a scope leaves it out (P-IDLE).
-pub(crate) fn has_started(
-    effects: &Effects,
-    series: &BTreeMap<AccountId, ValuationSeries>,
-    account: &AccountId,
-) -> bool {
-    match effects.account(account) {
-        Some(profile) if profile.tracking == TrackingMode::Holdings => series
-            .get(account)
-            .is_some_and(|history| !history.days.is_empty()),
-        Some(_) => effects
-            .events
-            .iter()
-            .any(|event| event.account == *account && event.date <= effects.range.end),
-        None => true,
-    }
+/// Whether `account` has started by `as_of`, from its facts (see
+/// [`AccountProfile::started`]). Its stored rows never decide it: a started
+/// account whose rows are missing is a gap the scope must refuse (P-STRICT).
+/// An account the facts do not know is taken as started.
+pub(crate) fn has_started(effects: &Effects, account: &AccountId) -> bool {
+    effects
+        .account(account)
+        .is_none_or(|profile| profile.started)
 }
 
 /// The scoped read performance consumes (legacy
@@ -270,7 +259,7 @@ pub fn aggregate_scope(
         .join(",");
     let scope: Vec<AccountId> = scope
         .iter()
-        .filter(|id| has_started(effects, series, id))
+        .filter(|id| has_started(effects, id))
         .cloned()
         .collect();
     let scope = scope.as_slice();
@@ -1612,6 +1601,28 @@ fn priced_events(
             marked_external: marked_external.contains(event.source.as_str()),
         });
     }
+    // An account starts at its first fact on or before `as_of`: an activity,
+    // or for a holdings account an observed snapshot.
+    let as_of = facts.policy.as_of;
+    let holdings = |id: &AccountId| {
+        facts
+            .accounts
+            .get(id)
+            .is_some_and(|account| account.tracking == TrackingMode::Holdings)
+    };
+    let started: BTreeSet<&AccountId> = facts
+        .activities
+        .iter()
+        .filter(|a| a.date <= as_of && !holdings(&a.account))
+        .map(|a| &a.account)
+        .chain(
+            facts
+                .observed_snapshots
+                .iter()
+                .filter(|s| s.date <= as_of && holdings(&s.account))
+                .map(|s| &s.account),
+        )
+        .collect();
     let effects = Effects {
         base_currency: base.clone(),
         range,
@@ -1627,6 +1638,7 @@ fn priced_events(
                         kind: account.kind,
                         archived: account.archived,
                         cost_basis_method: account.cost_basis_method,
+                        started: started.contains(id),
                     },
                 )
             })
