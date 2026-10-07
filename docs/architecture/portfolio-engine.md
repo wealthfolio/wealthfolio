@@ -477,7 +477,7 @@ pub fn effects(resolved: &Resolved<'_>, disposals: &[LotDisposal]) -> Effects;
 /// share of units when quoted, the cost it removed when at cost). A transfer with a holdings account is not netted as a pair: its
 /// side shows up in that account's snapshots. An account opening inside the
 /// scope adds the money that opened it: a holdings account its first
-/// snapshot's value.
+/// snapshot's value. An account that has not started takes no part.
 pub fn aggregate_scope(
     effects: &Effects,
     series: &BTreeMap<AccountId, ValuationSeries>,
@@ -619,6 +619,12 @@ product shows when the inputs are imperfect.
   boundary. Measuring a scope that names an archived account is refused with
   `ArchivedAccountInScope`: a total without one of its accounts would be
   silently wrong.
+- **An account that has not started takes no part in a scope.** A transactions
+  account without activity up to `as_of` (none yet, or only scheduled ones) is
+  one empty row on `as_of`; a holdings account without a snapshot has no row.
+  Neither holds nor moves anything, so a scope's aggregation and its mix of
+  tracking modes leave it out, and adding one changes no figure (P-IDLE). Read
+  alone, it keeps its own row.
 - **Units beyond a position have no lot.** A sell, transfer-out or expiry of
   more units than held disposes the held units; a sell realises only their share
   of the proceeds, books its stored cash in full, and reports the shortfall

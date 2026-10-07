@@ -222,10 +222,32 @@ fn value_series(
     series
 }
 
+/// Whether `account` has started by `as_of` (the end of the priced range): a
+/// transactions account has an activity, a holdings account a stored row (it
+/// starts at its first snapshot). One that has not holds and moves nothing,
+/// so a scope leaves it out (P-IDLE).
+pub(crate) fn has_started(
+    effects: &Effects,
+    series: &BTreeMap<AccountId, ValuationSeries>,
+    account: &AccountId,
+) -> bool {
+    match effects.account(account) {
+        Some(profile) if profile.tracking == TrackingMode::Holdings => series
+            .get(account)
+            .is_some_and(|history| !history.days.is_empty()),
+        Some(_) => effects
+            .events
+            .iter()
+            .any(|event| event.account == *account && event.date <= effects.range.end),
+        None => true,
+    }
+}
+
 /// The scoped read performance consumes (legacy
 /// `get_historical_valuations_for_accounts`): per-day sums in base currency
 /// of the accounts' stored rows, flows included, less the legs of transfer
-/// pairs whose accounts are both in scope.
+/// pairs whose accounts are both in scope. An account that has not started
+/// takes no part (a holdings account without a snapshot has no rows).
 pub fn aggregate_scope(
     effects: &Effects,
     series: &BTreeMap<AccountId, ValuationSeries>,
@@ -241,6 +263,17 @@ pub fn aggregate_scope(
             archived.as_str().to_string(),
         ));
     }
+    let label = scope
+        .iter()
+        .map(|id| id.as_str())
+        .collect::<Vec<_>>()
+        .join(",");
+    let scope: Vec<AccountId> = scope
+        .iter()
+        .filter(|id| has_started(effects, series, id))
+        .cloned()
+        .collect();
+    let scope = scope.as_slice();
     // Stored rows inside the window, as the persisted read returns them.
     let histories: Vec<ValuationSeries> = scope
         .iter()
@@ -339,13 +372,7 @@ pub fn aggregate_scope(
     }
 
     Ok(ValuationSeries {
-        account: AccountId::new(
-            scope
-                .iter()
-                .map(|id| id.as_str())
-                .collect::<Vec<_>>()
-                .join(","),
-        ),
+        account: AccountId::new(label),
         currency: base,
         days,
         diagnostics: Vec::new(),

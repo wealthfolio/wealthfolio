@@ -16,7 +16,7 @@ use rust_decimal_macros::dec;
 use crate::arith;
 use crate::error::EngineError;
 use crate::model::*;
-use crate::value::{aggregate_scope, Window};
+use crate::value::{aggregate_scope, has_started, Window};
 
 const DAYS_PER_YEAR: Decimal = dec!(365.25);
 const MIN_ANNUALIZATION_DAYS: i64 = 30;
@@ -275,6 +275,14 @@ pub fn measure_scope(
             QualityNote::NoAccountsSelected,
         ));
     }
+    // An account that has not started holds and moves nothing: it takes no
+    // part, in the scope's mix of tracking modes either (P-IDLE).
+    let started: Vec<AccountId> = scope
+        .iter()
+        .filter(|a| has_started(&inputs.effects, inputs.series, a))
+        .cloned()
+        .collect();
+    let scope = started.as_slice();
     let has_holdings = scope
         .iter()
         .any(|a| inputs.tracking(a) == TrackingMode::Holdings);
