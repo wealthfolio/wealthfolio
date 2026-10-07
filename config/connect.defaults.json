@@ -1,0 +1,5 @@
+{
+  "apiUrl": "https://api.wealthfolio.app",
+  "oauthCallbackUrl": "https://connect.wealthfolio.app/deeplink",
+  "storageAllowedHosts": ["377625edb227053687fc5f3b35d23824.r2.cloudflarestorage.com"]
+}

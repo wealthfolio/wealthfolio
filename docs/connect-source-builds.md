@@ -1,204 +1,107 @@
 # Wealthfolio Connect in source builds
 
-Connect is optional when building Wealthfolio from source. Desktop and Docker
-builds can use the same public authentication settings as the official app.
+Connect is optional. Source builds can use the official public authentication
+settings and the public production defaults in
+[`config/connect.defaults.json`](../config/connect.defaults.json). No access to
+Wealthfolio's private repositories, CI settings or storage credentials is
+needed. Sign in with your Wealthfolio account; paid features require an eligible
+Connect subscription.
 
-The auth URL and publishable key identify Wealthfolio's authentication service;
-they are public application settings, not personal subscription credentials. Use
-the values below rather than keys from your own Supabase project. Never replace
-the publishable key with a secret or service-role key: these settings are
-embedded in the frontend bundle. Sign in with your Wealthfolio account; paid
-features require an eligible Connect subscription.
+The auth URL and publishable key are public application settings. Use the values
+below rather than credentials from your own Supabase project. Never use a secret
+or service-role key: these settings are embedded in the frontend.
 
-Both auth settings must be present at build time. If either is missing, Connect
-is disabled and Settings shows "Wealthfolio Connect is not configured for this
-build." The feature flag checks the build-time environment variables before the
-authentication code can use its fallback values. Placeholder values do not
-provide a working connection.
+Both auth settings must be present at build time. Otherwise Connect is disabled,
+even though public API, callback and transfer-host defaults are available.
 
 ## Desktop
 
-Follow the [source-build setup](../README.md#building-from-source), then replace
-the Connect entries in the repository root `.env` with:
+Follow the [source-build setup](../README.md#building-from-source), then set
+these entries in the repository root `.env`:
 
 ```dotenv
 CONNECT_AUTH_URL=https://auth.wealthfolio.app
 CONNECT_AUTH_PUBLISHABLE_KEY=sb_publishable_ZSZbXNtWtnh9i2nqJ2UL4A_NV8ZVutd
-CONNECT_API_URL=https://api.wealthfolio.app
-CONNECT_OAUTH_CALLBACK_URL=https://connect.wealthfolio.app/deeplink
 ```
 
-The callback URL returns desktop OAuth sign-ins to the app.
+Run `pnpm tauri dev` or build with `pnpm tauri build`. The API URL, desktop
+OAuth callback and approved transfer hosts default to the shared production
+settings; no storage-host export is required. To build without Connect, leave
+both auth settings empty.
 
-Official packages receive `CONNECT_STORAGE_ALLOWED_HOSTS` from a GitHub Actions
-secret during CI. It is an internal destination-validation setting; people using
-published packages do not configure it. Custom source builds with Connect must
-export this setting into the Cargo build environment using the approved Connect
-transfer hostname(s), separated by commas. Do not include URL schemes, paths, or
-ports. The setting is embedded in the backend, which validates signed transfer
-URLs without exposing them in the interface. Build-time configuration does not
-make the hostname secret in the distributed app.
-
-When running `pnpm tauri dev` or building with `pnpm tauri build`, the frontend
-and Rust backend read the authentication/API entries in root `.env` during their
-builds. `CONNECT_STORAGE_ALLOWED_HOSTS` is different: it must be exported into
-the Cargo process environment, not merely written in `.env`, because the shared
-Rust transfer crate embeds it during compilation. To build without Connect,
-leave both auth settings empty.
-
-After changing these settings, restart development or rebuild the packaged app.
-Setting authentication environment variables when launching an already-built app
-does not enable Connect. The transfer destination setting can additionally be
-overridden at runtime by custom server deployments.
-
-## Cloud compatibility and backup behavior
-
-Builds using direct snapshot transfers require the updated Connect API to be
-deployed first, with its database migrations applied. Released apps continue to
-use the existing binary snapshot routes; updated apps use the direct routes. See
-the
-[cloud rollout runbook](https://github.com/wealthfolio/wealthfolio-cloud/blob/develop/docs/connect-cloud-backups-rollout.md)
-for migration, staging and supported-client checks before releasing a build.
-
-Cloud backups remain off until the user enables them for a profile and saves a
-recovery code. The selected backup device checks at startup and while the app is
-running. Mobile also checks when the app resumes; it does not capture backups
-while suspended. The web server owns its timer, so keeping a browser open is
-unnecessary. Linked-device backup access uses the existing pairing lifecycle;
-the recovery code provides access when no reachable device has the backup key.
-
-Architecture impact: capture uses the existing profile-owned timer and secret
-store. Export, encryption and upload release Connect lifecycle locks; account or
-profile changes cancel obsolete captures. Capture progress and failures are
-ephemeral local status, not additional cloud polling or persisted retry state.
-Subscription expiry preserves the user's backup consent and checks eligibility
-again after a relevant action or at the next daily check. Local database
-encryption, sync enrollment and explicit backup opt-in stay separate boundaries.
-
-After paid access ends, Settings and the Connect overview show the existing
-recovery-period deadline while saved cloud copies remain available. Download any
-copies to keep before that date. The optional policy field is preserved through
-both runtime adapters; this adds no network call or client persistence. Renewal
-clears the deadline without changing the user's source consent.
-
-Automatic backups capture the complete selected profile database when due, even
-when its contents match an earlier backup. Quotes, manual prices, preferences
-and addon data remain included. A successful publication schedules the next
-capture 24 hours later; an unavailable source captures when it next becomes
-available. Mobile checks on opening/resume and has no suspended background jobs.
-
-**Architecture impact:** the logical fingerprint, due-time history read and
-separate unchanged-check status have been removed. Capture uses the existing
-portable export, scheduler, lifecycle cancellation and cloud publication policy.
-There is no new persisted state, migration or scheduler. Gzip level 3 reduces
-bytes with the existing format, and provider-enforced SHA-256 verification
-avoids a second payload transfer. Native/mobile timing and sleep/resume still
-need the release checks.
-
-A local compression benchmark can be run after exporting a disposable portable
-database; its contents must never be logged or uploaded by the benchmark:
-
-```bash
-CONNECT_BACKUP_BENCHMARK_EXPORT=/private/disposable-export.db \
-  cargo test --locked --release -p wealthfolio-device-sync \
-  demo_compression_benchmark -- --ignored --nocapture
-```
-
-It compares levels 1, 3, 6 and 9, checks decode compatibility, and reports only
-sizes and timings.
+After changing build-time settings, restart development or rebuild the app.
+Setting auth variables only when launching an already-built app does not enable
+Connect.
 
 ## Docker
 
-From the repository root, build your image with both authentication settings and
-an approved Connect transfer configuration file. The file contains the comma-
-separated hostnames only; keep it outside the build context.
+From the repository root:
 
 ```bash
 docker build -t wealthfolio-local:connect \
+  --build-arg CONNECT_AUTH_URL=https://auth.wealthfolio.app \
+  --build-arg CONNECT_AUTH_PUBLISHABLE_KEY=sb_publishable_ZSZbXNtWtnh9i2nqJ2UL4A_NV8ZVutd \
+  .
+```
+
+Use that image in your existing deployment, keeping your volumes and runtime
+configuration. No transfer secret is required for a production source build. For
+deployment configuration, see the [self-hosting guide](self-host/README.md).
+
+Auth settings passed only to `docker run` or Compose cannot enable Connect in an
+already-built frontend. Local `.env` files are excluded from the build context,
+so pass both build arguments explicitly. To build without Connect, omit them.
+
+For web OAuth sign-in, the auth service must allow your deployment's callback
+URL (`https://your-host/auth/callback`). Build arguments do not register a new
+redirect URL; the web callback uses your deployment's origin.
+
+## Staging and custom overrides
+
+`CONNECT_API_URL` and `CONNECT_OAUTH_CALLBACK_URL` override the production
+settings. Desktop builds read them from root `.env`; the web server supports a
+runtime `CONNECT_API_URL` override. Configure the matching auth service too.
+
+For another approved transfer destination, export a comma-separated list of
+exact hostnames before compiling Rust:
+
+```bash
+export CONNECT_STORAGE_ALLOWED_HOSTS=approved-storage.example.com
+pnpm tauri build
+```
+
+Do not include schemes, paths or ports. The override replaces the production
+allowlist. Putting it only in `.env` does not embed it in the shared Rust crate.
+An explicitly blank override produces a configuration error. The server can also
+override the compiled list through its process environment.
+
+For Docker, pass a file containing hostnames through the optional BuildKit
+mount:
+
+```bash
+docker build -t wealthfolio-local:custom \
   --secret id=connect-storage-hosts,src=/private/connect-storage-hosts \
   --build-arg CONNECT_AUTH_URL=https://auth.wealthfolio.app \
   --build-arg CONNECT_AUTH_PUBLISHABLE_KEY=sb_publishable_ZSZbXNtWtnh9i2nqJ2UL4A_NV8ZVutd \
   .
 ```
 
-Use `wealthfolio-local:connect` as the image in your existing Docker or Compose
-deployment, keeping your volume and runtime configuration. The Connect API
-defaults to `https://api.wealthfolio.app`. For general deployment configuration,
-see the [self-hosting guide](self-host/README.md).
+An empty file is rejected. BuildKit secret changes do not invalidate cached
+layers; after changing hosts, use
+`docker buildx build --no-cache-filter backend` with the same arguments.
+Official CI supplies its override and refreshes this stage on every build.
 
-Setting these variables only at container startup (`docker run -e` or Compose
-`environment`) will not enable Connect in an already-built frontend; rebuild the
-image with both arguments. Local `.env` files are excluded from the Docker build
-context, so pass the arguments explicitly. To build without Connect, omit both
-arguments and the transfer secret. Official Docker CI passes the transfer
-configuration through a BuildKit secret mount rather than a build argument; it
-is consumed only during the Rust build. Secret changes do not invalidate
-Docker's cache. After changing the approved hosts, rebuild with
-`docker buildx build --no-cache-filter backend` and the same arguments above.
-Official CI refreshes this stage on every build.
+## Cloud backups
 
-For web sign-in flows that use redirects, the authentication service must allow
-your deployment's callback URL (`https://your-host/auth/callback`). Supplying
-the build arguments does not register a new redirect URL.
+Cloud backups remain off until you enable them for a profile and save a recovery
+code. The selected device checks at startup and while running. Mobile also
+checks on resume, with no suspended background jobs. For self-hosted web
+deployments, the server creates backups without keeping the browser open.
 
-The direct-upload descriptor includes a signed `x-amz-checksum-sha256` header.
-The shared transport verifies it against the ciphertext before PUT. Storage
-validates the checksum; cloud completion compares the provider checksum through
-HEAD, falling back to full streaming verification for older objects without one.
-Released legacy binary clients remain compatible.
+Linked devices can receive encrypted backup access through pairing. Recovery
+restores access when no reachable device holds the key; it does not enable
+backups or move the backup source. After paid access ends, Settings shows the
+recovery deadline. Download any saved copies you want to keep before that date.
 
-**Architecture impact of review fixes:** optional snapshot-emptiness inspection
-runs on the existing blocking pool and falls back to the normal replacement
-consent when inspection is unavailable. Access-sharing and non-destructive
-backup actions notify the existing due timer without cancelling a running
-capture. Policy changes, deletion, account/profile changes and mobile suspension
-still revoke admitted work. No cloud calls, background worker, persisted state
-or retry mechanism are added.
-
-## Transfer and recovery review invariants
-
-Changes to backup, snapshot, authentication or restore code must trace both the
-Tauri and server callers against these boundaries. Exercise failures between
-phases, including retries; a successful small upload does not cover them.
-
-| Boundary                             | Required guarantee                                                                                                                                                                                         | Regression coverage                                                                                                                                                                                                                             |
-| ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Export → prepare → upload → complete | Acquire a current profile-bound token immediately before preparation and each completion attempt. Payload requests never carry a Connect token.                                                            | `capture_phases_refresh_expired_credentials_and_keep_the_publication_ticket`, `snapshot_api_phases_and_retries_acquire_current_credentials`, transfer header restrictions                                                                       |
-| Session or capture revocation        | Recheck cancellation after token refresh; revoked work cannot prepare or publish.                                                                                                                          | `revoked_capture_session_does_not_prepare_or_publish`, `snapshot_session_revocation_or_cancellation_during_refresh_prevents_publication`, `capture_generation_is_checked_before_and_after_an_in_flight_refresh`, server handler admission tests |
-| Protected backup-key storage         | Every local master key is bound to its cloud key ID. Unbound development values require recovery; they cannot be relabelled or published.                                                                  | `unbound_keys_cannot_be_relabelled_or_shared`, `bound_keys_reject_a_different_cloud_key_id_without_relabeling`, expected source-wait tests                                                                                                      |
-| Linked-device key application        | Lifecycle-triggered sharing snapshots and applies under the lifecycle lock, with network work outside it. Identity, master key and session must still match. Restore preview uses the same guarded helper. | `resolved_access_rejects_each_changed_credential_without_overwriting_it`, sign-out/access-sharing tests; both runtimes must compile                                                                                                             |
-| Transfer destination configuration   | Missing configuration is distinct from an unapproved destination; neither sends payload bytes.                                                                                                             | `missing_destinations_have_a_distinct_configuration_error`, destination/header restrictions                                                                                                                                                     |
-| Uncertain upload outcomes            | Reuse the publication ticket. A lost payload response or transient completion error must not force a new export.                                                                                           | Backup/snapshot completion tests and transfer retry tests                                                                                                                                                                                       |
-
-**Architecture impact:** current-token callbacks use the existing token
-lifecycle and account admission; no global authentication retry, new scheduler,
-channel, state or migration is added. Both runtimes use the same tested
-capture-generation check before and after refresh; pairing completion also
-requires a current-token callback. The guarded restore-preview helper snapshots
-and applies credentials under the existing lifecycle lock and releases it for
-cloud I/O. The unbound master-key fallback and unused fixed-token capture entry
-points are removed. Destination validation stays strict; identical payload HTTP
-pools are shared, with the request-specific timeout and size bound retained.
-
-Explicit key/policy management commands retain their existing lifecycle
-serialization across control calls to protect compound secret/consent updates
-and pending-key reconciliation. The lock-free local runtime-health read is
-separate. Capture payload work and optional lifecycle-triggered key sharing
-release the lifecycle lock for network I/O; this fix does not redesign
-management operations.
-
-Recovery restores backup access without enabling uploads or changing the source.
-An already opted-in source resumes through its existing scheduler. A device
-without consent can choose to back up this device separately after recovery.
-
-Related sync behavior must also be reviewed explicitly: enrollment can resume a
-restored orphaned installation; pairing candidates exclude the current device;
-restore retains installation identifiers but clears old credentials and requires
-reconnection; snapshot restoration uses the known tables actually present in the
-decrypted image rather than a plaintext cloud table list. The latter preserves
-the existing empty-list fallback for released clients.
-
-Before publishing, separately validate the deployed cloud contracts and a full
-256 MiB transfer, desktop sleep/resume, physical mobile
-opening/resume/suspension, and native restore followed by reconnect/pairing.
-Unit tests, compilation and CI approval do not replace these release checks.
+For app architecture, compatibility boundaries and developer validation, see
+[Connect transfers and cloud backups](architecture/connect-transfers-and-cloud-backups.md).

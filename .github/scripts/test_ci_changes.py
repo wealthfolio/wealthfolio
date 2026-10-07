@@ -20,6 +20,9 @@ class ChangeDetectionTests(unittest.TestCase):
     def test_docs_only(self):
         self.assert_jobs(["docs/design.md", "AGENTS.md"], "formatting")
 
+    def test_connect_defaults_cover_every_consumer(self):
+        self.assert_jobs(["config/connect.defaults.json"], "frontend", "rust", "formatting", "android", "ios")
+
     def test_native_paths(self):
         for path in ["apps/tauri/src/lib.rs", "Cargo.lock", "Cargo.toml", ".cargo/config.toml"]:
             with self.subTest(path=path):

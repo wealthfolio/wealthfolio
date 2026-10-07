@@ -6,8 +6,8 @@
 use std::sync::Arc;
 
 use wealthfolio_connect::{
-    ensure_valid_access_token, ConnectApiClient, TokenLifecycleConfig, TokenLifecycleState,
-    DEFAULT_CLOUD_API_URL,
+    default_cloud_api_url, ensure_valid_access_token, ConnectApiClient, TokenLifecycleConfig,
+    TokenLifecycleState,
 };
 use wealthfolio_core::{secrets::SecretStore, settings::SettingsServiceTrait};
 
@@ -35,7 +35,7 @@ pub fn cloud_api_base_url() -> Option<String> {
     option_env!("CONNECT_API_URL")
         .map(|v| v.trim().trim_end_matches('/').to_string())
         .filter(|v| !v.is_empty())
-        .or_else(|| Some(DEFAULT_CLOUD_API_URL.to_string()))
+        .or_else(|| Some(default_cloud_api_url().to_string()))
 }
 
 fn connect_auth_url() -> Option<String> {

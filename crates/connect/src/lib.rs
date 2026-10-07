@@ -24,7 +24,7 @@ pub use broker::{
 };
 
 // Re-export the HTTP client and public functions
-pub use client::{fetch_subscription_plans_public, ConnectApiClient, DEFAULT_CLOUD_API_URL};
+pub use client::{default_cloud_api_url, fetch_subscription_plans_public, ConnectApiClient};
 pub use post_login_bootstrap::{
     acquire_broker_sync_guard, BrokerSyncRunGuard, PostLoginBootstrapReason,
     PostLoginBootstrapResult, PostLoginBootstrapStatus, PostLoginBootstrapSyncResult,

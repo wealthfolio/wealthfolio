@@ -13,6 +13,19 @@ use std::{collections::BTreeMap, sync::LazyLock, time::Duration};
 // Share connection pools without retaining capabilities, credentials, or profile state.
 static TRANSFER_CLIENT: LazyLock<std::result::Result<reqwest::Client, String>> =
     LazyLock::new(|| transfer_client(SNAPSHOT_TRANSFER_TIMEOUT_SECONDS));
+fn configured_hosts(runtime: Option<&str>, compiled: Option<&str>) -> Vec<String> {
+    match runtime.or(compiled) {
+        Some(hosts) => hosts
+            .split(',')
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(str::to_string)
+            .collect(),
+        None => wealthfolio_core::connect_config::connect_defaults()
+            .storage_allowed_hosts
+            .clone(),
+    }
+}
 fn transfer_client(seconds: u64) -> std::result::Result<reqwest::Client, String> {
     wealthfolio_http::client_builder()
         .redirect(reqwest::redirect::Policy::none())
@@ -83,17 +96,12 @@ impl ConnectTransferTransport {
         Self::configured_with_limits(MAX_ENCRYPTED_BACKUP_BYTES, BACKUP_TRANSFER_TIMEOUT_SECONDS)
     }
     fn configured_with_limits(max_bytes: usize, timeout_seconds: u64) -> Result<Self> {
-        let hosts = std::env::var("CONNECT_STORAGE_ALLOWED_HOSTS")
-            .ok()
-            .or_else(|| option_env!("CONNECT_STORAGE_ALLOWED_HOSTS").map(str::to_string))
-            .unwrap_or_default();
+        let runtime_hosts = std::env::var("CONNECT_STORAGE_ALLOWED_HOSTS").ok();
         Ok(Self {
-            hosts: hosts
-                .split(',')
-                .map(str::trim)
-                .filter(|s| !s.is_empty())
-                .map(str::to_string)
-                .collect(),
+            hosts: configured_hosts(
+                runtime_hosts.as_deref(),
+                option_env!("CONNECT_STORAGE_ALLOWED_HOSTS"),
+            ),
             client: TRANSFER_CLIENT
                 .clone()
                 .map_err(DeviceSyncError::invalid_request)?,
@@ -306,6 +314,40 @@ mod tests {
             expires_at: (chrono::Utc::now() + chrono::Duration::minutes(5)).to_rfc3339(),
         }
     }
+    #[test]
+    fn public_defaults_and_explicit_host_overrides_keep_exact_destination_validation() {
+        let defaults = wealthfolio_core::connect_config::connect_defaults();
+        let hosts = configured_hosts(None, None);
+        assert_eq!(hosts, defaults.storage_allowed_hosts);
+        let transport = ConnectTransferTransport::new(hosts).unwrap();
+        let approved = &defaults.storage_allowed_hosts[0];
+        assert!(transport
+            .request(&descriptor(&format!("https://{approved}/object")), "GET")
+            .is_ok());
+        for url in [
+            format!("https://{approved}.untrusted.test/object"),
+            format!("http://{approved}/object"),
+            "https://untrusted.test/object".to_string(),
+        ] {
+            assert!(transport.request(&descriptor(&url), "GET").is_err());
+        }
+        assert_eq!(configured_hosts(None, Some(" build.test ")), ["build.test"]);
+        assert_eq!(
+            configured_hosts(Some("runtime.test, second.test"), Some("build.test")),
+            ["runtime.test", "second.test"]
+        );
+        let overridden =
+            ConnectTransferTransport::new(configured_hosts(Some("runtime.test"), None)).unwrap();
+        assert!(overridden
+            .request(&descriptor("https://runtime.test/object"), "GET")
+            .is_ok());
+        assert!(overridden
+            .request(&descriptor(&format!("https://{approved}/object")), "GET")
+            .is_err());
+        assert!(configured_hosts(Some(" , "), Some("build.test")).is_empty());
+        assert!(configured_hosts(None, Some("")).is_empty());
+    }
+
     #[test]
     fn missing_destinations_have_a_distinct_configuration_error() {
         let transport = ConnectTransferTransport::new(vec![]).unwrap();

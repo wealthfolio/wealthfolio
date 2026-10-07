@@ -28,8 +28,16 @@ class ConnectBuildTests(unittest.TestCase):
     def test_build_without_connect_does_not_require_transfer_configuration(self):
         self.assertEqual(self.run_check().returncode, 0)
 
-    def test_connect_build_rejects_missing_or_blank_transfer_configuration(self):
-        for hosts in ("", "  "):
+    def test_connect_build_uses_public_defaults_without_transfer_override(self):
+        result = self.run_check(
+            CONNECT_AUTH_URL="https://auth.test",
+            CONNECT_AUTH_PUBLISHABLE_KEY="synthetic-public-key",
+        )
+        self.assertEqual(result.returncode, 0)
+        self.assertEqual(result.stdout + result.stderr, "")
+
+    def test_connect_build_rejects_explicitly_blank_transfer_configuration(self):
+        for hosts in ("", "  ", " , "):
             with self.subTest(hosts=hosts):
                 result = self.run_check(
                     CONNECT_AUTH_URL="https://auth.test",

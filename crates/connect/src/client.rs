@@ -29,7 +29,9 @@ const TRACKING_MODE_HEADER_NAME: HeaderName =
     HeaderName::from_static("x-wealthfolio-tracking-mode");
 
 /// Default base URL for Wealthfolio Connect cloud service.
-pub const DEFAULT_CLOUD_API_URL: &str = "https://api.wealthfolio.app";
+pub fn default_cloud_api_url() -> &'static str {
+    &wealthfolio_core::connect_config::connect_defaults().api_url
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // API Response Types (internal, for parsing cloud API responses)

@@ -18,7 +18,7 @@ import {
 } from "@/adapters";
 import { useAuth } from "@/context/auth-context";
 import { getPlatform } from "@/hooks/use-platform";
-import { CONNECT_ENABLED } from "@/lib/connect-config";
+import { CONNECT_ENABLED, CONNECT_OAUTH_CALLBACK_URL } from "@/lib/connect-config";
 import { QueryKeys } from "@/lib/query-keys";
 import { useQueryClient } from "@tanstack/react-query";
 import { createClient, Session, SupabaseClient, User } from "@supabase/supabase-js";
@@ -69,9 +69,7 @@ const getWebRedirectUrl = () => {
 // For OAuth on desktop, we use a hosted callback page that redirects to the deep link
 // This is necessary because browsers block direct navigation to custom URL schemes
 // Uses env variable in dev, falls back to production URL for bundled builds
-const HOSTED_OAUTH_CALLBACK_URL =
-  (import.meta.env.CONNECT_OAUTH_CALLBACK_URL as string) ||
-  "https://connect.wealthfolio.app/deeplink";
+const HOSTED_OAUTH_CALLBACK_URL = CONNECT_OAUTH_CALLBACK_URL;
 
 const parseConfiguredAuthCallbackUrl = (url: string) =>
   parseAuthCallbackUrl(url, { hostedCallbackUrl: HOSTED_OAUTH_CALLBACK_URL });

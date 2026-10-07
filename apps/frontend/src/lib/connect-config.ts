@@ -1,3 +1,8 @@
+import connectDefaults from "../../../../config/connect.defaults.json";
+
+export const CONNECT_OAUTH_CALLBACK_URL =
+  (import.meta.env.CONNECT_OAUTH_CALLBACK_URL as string) || connectDefaults.oauthCallbackUrl;
+
 /**
  * Wealthfolio Connect feature flag.
  *

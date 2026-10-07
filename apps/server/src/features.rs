@@ -1,4 +1,4 @@
-use wealthfolio_connect::DEFAULT_CLOUD_API_URL;
+use wealthfolio_connect::default_cloud_api_url;
 
 pub fn connect_sync_enabled() -> bool {
     cfg!(feature = "connect-sync")
@@ -21,5 +21,5 @@ pub fn cloud_api_base_url() -> Option<String> {
         .ok()
         .map(|v| v.trim().trim_end_matches('/').to_string())
         .filter(|v| !v.is_empty())
-        .or_else(|| Some(DEFAULT_CLOUD_API_URL.to_string()))
+        .or_else(|| Some(default_cloud_api_url().to_string()))
 }
