@@ -518,48 +518,49 @@ fn performance_core(
         None
     };
 
-    let (method, value_return, value_return_reason) = if holdings {
-        let (_, all_time_return) = holdings_value_return.unwrap();
-        let ret = if start_opt.is_none() {
-            all_time_return
-        } else {
-            holdings_chained
-        };
-        let reason = ret.is_none().then(|| {
-            if holdings_out_of_range && start_opt.is_some() {
-                QualityNote::HoldingsReturnOutOfRange
-            } else if holdings_flows_unavailable {
-                QualityNote::FlowsNotInferred {
-                    metric: Metric::ValueReturn,
-                    subject: Subject::HoldingsScope,
-                }
-            } else if start_opt.is_none() {
-                holdings_all_time_unavailable_reason(
-                    end_point,
-                    Metric::ValueReturn,
-                    Subject::HoldingsScope,
-                )
-                .unwrap_or(QualityNote::HoldingsValueReturnUnavailable)
+    // Some exactly when `holdings`.
+    let (method, value_return, value_return_reason) =
+        if let Some((_, all_time_return)) = holdings_value_return {
+            let ret = if start_opt.is_none() {
+                all_time_return
             } else {
-                QualityNote::HoldingsNonPositiveStart
-            }
-        });
-        (ReturnMethod::ValueReturn, ret, reason)
-    } else if coverage_unavailable {
-        (
-            ReturnMethod::TimeWeighted,
-            None,
-            Some(QualityNote::CoverageUnavailable {
-                metric: Metric::ValueReturn,
-            }),
-        )
-    } else {
-        let value_return = simple_value_return(history, &flows);
-        let reason = value_return
-            .is_none()
-            .then_some(QualityNote::TransactionNonPositiveStart);
-        (ReturnMethod::TimeWeighted, value_return, reason)
-    };
+                holdings_chained
+            };
+            let reason = ret.is_none().then(|| {
+                if holdings_out_of_range && start_opt.is_some() {
+                    QualityNote::HoldingsReturnOutOfRange
+                } else if holdings_flows_unavailable {
+                    QualityNote::FlowsNotInferred {
+                        metric: Metric::ValueReturn,
+                        subject: Subject::HoldingsScope,
+                    }
+                } else if start_opt.is_none() {
+                    holdings_all_time_unavailable_reason(
+                        end_point,
+                        Metric::ValueReturn,
+                        Subject::HoldingsScope,
+                    )
+                    .unwrap_or(QualityNote::HoldingsValueReturnUnavailable)
+                } else {
+                    QualityNote::HoldingsNonPositiveStart
+                }
+            });
+            (ReturnMethod::ValueReturn, ret, reason)
+        } else if coverage_unavailable {
+            (
+                ReturnMethod::TimeWeighted,
+                None,
+                Some(QualityNote::CoverageUnavailable {
+                    metric: Metric::ValueReturn,
+                }),
+            )
+        } else {
+            let value_return = simple_value_return(history, &flows);
+            let reason = value_return
+                .is_none()
+                .then_some(QualityNote::TransactionNonPositiveStart);
+            (ReturnMethod::TimeWeighted, value_return, reason)
+        };
     let holdings_pnl_reason = holdings_value_return.and_then(|(amount, _)| {
         if amount.is_none() && start_opt.is_none() {
             holdings_all_time_unavailable_reason(end_point, Metric::Pnl, Subject::HoldingsScope)
@@ -1730,8 +1731,10 @@ fn activity_effects(
     set
 }
 
-/// Disposals of the period whose disposing event is a BUY/SELL dated inside
-/// the period (legacy filters lot disposals by trade activity ids).
+/// Disposals of the period whose disposing event realizes (a trade, an
+/// option's expiry, or units a transfer delivered into a short) and is dated
+/// inside the period. The previous calculator kept trades only, which left
+/// out the P&L of an expiry or a transfer cover.
 fn period_disposals<'a>(
     inputs: &'a MeasureInputs<'a>,
     result: &PerformanceResult,
@@ -1741,18 +1744,18 @@ fn period_disposals<'a>(
     let Some(period) = Period::of(result, baseline) else {
         return Vec::new();
     };
-    let trade_ids: HashSet<&str> = inputs
+    let realizing: HashSet<&str> = inputs
         .effects
         .events
         .iter()
-        .filter(|e| e.trade && scope.contains(&e.account) && period.contains(e.date))
+        .filter(|e| e.realizes && scope.contains(&e.account) && period.contains(e.date))
         .map(|e| e.id.as_str())
         .collect();
     inputs
         .disposals
         .iter()
         .filter(|d| scope.contains(&d.account) && period.contains(d.date))
-        .filter(|d| trade_ids.contains(d.event.as_str()))
+        .filter(|d| realizing.contains(d.event.as_str()))
         .collect()
 }
 
@@ -1843,6 +1846,42 @@ fn trade_charge_effects(
         .map(|lot| ((&lot.account, lot.id.as_str()), *lot))
         .collect();
 
+    // A lot a transfer moved within the scope keeps the purchase charges it
+    // was bought with (its original date and allocation): they were counted
+    // where they were paid, so the lot gives them back like the lot its
+    // purchase opened (rules R3.5).
+    let moved_pairs: Vec<&PairEffect> = inputs
+        .effects
+        .pairs
+        .iter()
+        .filter(|pair| {
+            pair.security && scope.contains(&pair.in_account) && scope.contains(&pair.out_account)
+        })
+        .collect();
+    let moved_in: HashSet<&str> = moved_pairs
+        .iter()
+        .map(|pair| pair.transfer_in.as_str())
+        .collect();
+    let charged = |lot: &LotRecord| {
+        lot.open_activity.as_ref().is_some_and(|activity| {
+            charge_by_activity.contains_key(activity.as_str())
+                || moved_in.contains(activity.as_str())
+        }) && period.contains(lot.open_date)
+    };
+    // The share of a lot's charges `units` of it carry.
+    let charge_share = |lot: &LotRecord, units: Decimal, cost_base: Decimal| {
+        let charge = lot.fee_allocated_base + lot.tax_allocated_base;
+        let original_quantity = lot.original_quantity.abs();
+        if original_quantity > Decimal::ZERO {
+            arith::proportional(charge, units.abs(), original_quantity).unwrap_or(Decimal::ZERO)
+        } else if lot.original_cost_basis_base.abs() > Decimal::ZERO {
+            arith::proportional(charge, cost_base.abs(), lot.original_cost_basis_base.abs())
+                .unwrap_or(Decimal::ZERO)
+        } else {
+            Decimal::ZERO
+        }
+    };
+
     let mut period_open_charge_by_activity: HashMap<&str, Decimal> = HashMap::new();
     let mut saw_period_open_lots = false;
     let mut remaining_open_from_lots = Decimal::ZERO;
@@ -1850,19 +1889,23 @@ fn trade_charge_effects(
         let Some(open_activity) = lot.open_activity.as_ref() else {
             continue;
         };
-        if !charge_by_activity.contains_key(open_activity.as_str())
-            || !period.contains(lot.open_date)
-        {
+        if !charged(lot) {
             continue;
         }
-        saw_period_open_lots = true;
+        let moved = moved_in.contains(open_activity.as_str());
+        if !moved {
+            saw_period_open_lots = true;
+        }
         let full_charge = lot.fee_allocated_base + lot.tax_allocated_base;
         if full_charge.is_zero() {
             continue;
         }
-        *period_open_charge_by_activity
-            .entry(open_activity.as_str())
-            .or_default() += full_charge;
+        // A moved lot's charges were counted at the lot its purchase opened.
+        if !moved {
+            *period_open_charge_by_activity
+                .entry(open_activity.as_str())
+                .or_default() += full_charge;
+        }
         if lot.remaining_quantity.is_zero() {
             continue;
         }
@@ -1895,44 +1938,111 @@ fn trade_charge_effects(
         let Some(lot) = lot_by_id.get(&(&disposal.account, disposal.lot_id.as_str())) else {
             continue;
         };
-        if !period.contains(lot.open_date) {
-            continue;
+        if charged(lot) {
+            acquisition_charges_disposed +=
+                charge_share(lot, disposal.quantity, disposal.cost_basis_base);
         }
-        let Some(open_activity) = lot.open_activity.as_ref() else {
+    }
+    // Charges a moved lot carried into a cover leave no lot behind: they are
+    // what the transfer out took from charged lots less what its lots opened
+    // with on arrival.
+    for pair in &moved_pairs {
+        let sent: Decimal = inputs
+            .disposals
+            .iter()
+            .filter(|d| {
+                d.account == pair.out_account
+                    && d.event.as_str() == pair.transfer_out.as_str()
+                    && period.contains(d.date)
+            })
+            .filter_map(|d| {
+                let lot = lot_by_id.get(&(&d.account, d.lot_id.as_str()))?;
+                charged(lot).then(|| charge_share(lot, d.quantity, d.cost_basis_base))
+            })
+            .sum();
+        let arrived: Decimal = lots
+            .iter()
+            .filter(|lot| {
+                lot.open_activity
+                    .as_ref()
+                    .is_some_and(|activity| activity.as_str() == pair.transfer_in.as_str())
+                    && period.contains(lot.open_date)
+            })
+            .map(|lot| lot.fee_allocated_base + lot.tax_allocated_base)
+            .sum();
+        acquisition_charges_disposed += (sent - arrived).max(Decimal::ZERO);
+    }
+
+    // A WAC account's purchases pool (rules R7.2): a pooled purchase has no
+    // lot of its own, so its charge (what of it opened units) counts here,
+    // and a sale from a pool relieves the pool's charge per unit, of these
+    // charges at most.
+    let wac = |account: &AccountId| {
+        inputs
+            .effects
+            .account(account)
+            .is_some_and(|profile| profile.cost_basis_method == CostBasisMethod::Wac)
+    };
+    let lot_activities: HashSet<&str> = lots
+        .iter()
+        .filter_map(|lot| lot.open_activity.as_ref().map(ActivityId::as_str))
+        .collect();
+    let mut pooled_charges = Decimal::ZERO;
+    for (event, trade) in inputs
+        .effects
+        .events
+        .iter()
+        .filter(|e| scope.contains(&e.account) && period.contains(e.date) && wac(&e.account))
+        .filter_map(|e| e.trade_charge.map(|trade| (e, trade)))
+        .filter(|(e, trade)| trade.buy && !lot_activities.contains(e.source.as_str()))
+    {
+        let covered = disposed_quantity_by_activity
+            .get(event.source.as_str())
+            .copied()
+            .unwrap_or_default();
+        pooled_charges += if trade.quantity > Decimal::ZERO {
+            let opened = (trade.quantity - covered).max(Decimal::ZERO);
+            arith::proportional(trade.charge, opened, trade.quantity).unwrap_or(Decimal::ZERO)
+        } else {
+            trade.charge
+        };
+    }
+    let mut pool_charges_relieved = Decimal::ZERO;
+    for disposal in disposals.iter().filter(|d| wac(&d.account)) {
+        let Some(pool) = lot_by_id.get(&(&disposal.account, disposal.lot_id.as_str())) else {
             continue;
         };
-        if !charge_by_activity.contains_key(open_activity.as_str()) {
+        if pool.open_activity.is_some() {
             continue;
         }
-        let charge_allocated = lot.fee_allocated_base + lot.tax_allocated_base;
-        if charge_allocated.is_zero() {
-            continue;
-        }
-        let original_quantity = lot.original_quantity.abs();
-        let disposed_quantity = disposal.quantity.abs();
-        if original_quantity > Decimal::ZERO {
-            acquisition_charges_disposed +=
-                arith::proportional(charge_allocated, disposed_quantity, original_quantity)
-                    .unwrap_or(Decimal::ZERO);
-        } else if lot.original_cost_basis_base.abs() > Decimal::ZERO {
-            acquisition_charges_disposed += arith::proportional(
-                charge_allocated,
-                disposal.cost_basis_base.abs(),
-                lot.original_cost_basis_base.abs(),
+        let units = arith::mul(pool.original_quantity, pool.split_ratio)
+            .unwrap_or(Decimal::ZERO)
+            .abs();
+        if units > Decimal::ZERO {
+            pool_charges_relieved += arith::proportional(
+                pool.fee_allocated_base + pool.tax_allocated_base,
+                disposal.quantity.abs(),
+                units,
             )
             .unwrap_or(Decimal::ZERO);
         }
     }
+    let pooled_relieved = pool_charges_relieved.min(pooled_charges);
 
     let r = |v: Decimal| v.round_dp(STORED_PRECISION);
     let mut period_open_charges = r(period_open_charge_by_activity.values().copied().sum());
     if period_open_charges.is_zero() && !saw_period_open_lots {
+        // The window's purchases, pooled ones included.
         period_open_charges = r(fallback_buy_charge
             .iter()
             .filter(|(id, _)| !disposal_activity_ids.contains(*id))
             .map(|(_, charge)| *charge)
             .sum());
+    } else {
+        period_open_charges = r(period_open_charges + pooled_charges);
+        remaining_open_from_lots += pooled_charges - pooled_relieved;
     }
+    acquisition_charges_disposed += pooled_relieved;
     let period_disposal_charges = r(disposed_quantity_by_activity
         .iter()
         .filter_map(|(id, disposed)| {

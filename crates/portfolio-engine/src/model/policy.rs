@@ -35,24 +35,37 @@ pub struct MinorUnitRule {
 /// How an account's disposals choose the lots they relieve (rules §7). Each
 /// variant is a method the engine computes; the stored code of any other is
 /// refused (`parse` returns `None`). A new method is a variant here, its
-/// branches in the projection's `relieve` and `split_for_cover`, its rules
-/// entry and fixtures, and every property law passing under it.
+/// branch in the projection's `units_taken`, its rules entry and fixtures,
+/// and every property law passing under it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum CostBasisMethod {
     /// Oldest lots first.
     #[default]
     Fifo,
+    /// Every lot gives the same share of its units, so a disposal relieves
+    /// the position's average cost and leaves the average unchanged (moving
+    /// weighted average).
+    Wac,
+    /// Newest lots first, by acquisition: a transferred lot keeps the date it
+    /// was bought.
+    Lifo,
+    /// Lots with the highest cost per unit after splits first, charges
+    /// included; ties go oldest first, as FIFO takes them.
+    Hifo,
 }
 
 impl CostBasisMethod {
     /// Every method the engine computes.
-    pub const ALL: &'static [Self] = &[Self::Fifo];
+    pub const ALL: &'static [Self] = &[Self::Fifo, Self::Wac, Self::Lifo, Self::Hifo];
 
     /// The code account settings store.
     pub fn as_str(self) -> &'static str {
         match self {
             Self::Fifo => "FIFO",
+            Self::Wac => "WAC",
+            Self::Lifo => "LIFO",
+            Self::Hifo => "HIFO",
         }
     }
 

@@ -235,5 +235,24 @@
   "category_breakdown": "Detalhamento por categoria",
   "personal_assets": "Ativos pessoais",
   "health_filter_active": "Exibindo posições sinalizadas pelo Centro de saúde",
-  "closing_cash_flow": "Fluxo de caixa no fechamento"
+  "closing_cash_flow": "Fluxo de caixa no fechamento",
+  "liability_cards": {
+    "owed": "Devido",
+    "paid_down": "Amortizado",
+    "overall": "Geral",
+    "monthly": "Mensal",
+    "paid_off": "Quitado",
+    "owed_of": "devido de {{amount}}",
+    "owed_now": "devido",
+    "manual": "Manual",
+    "manual_hint": "saldo atualizado manualmente",
+    "debt_free": "Sem dívida em {{date}}",
+    "updated": "Atualizado {{date}}",
+    "status_paid_off": "Quitado",
+    "status_renewal_due": "Renovação pendente",
+    "status_renew_soon": "Renovar em breve",
+    "status_update_balance": "Atualizar saldo",
+    "update_balance": "Atualizar saldo",
+    "schedule": "Cronograma"
+  }
 }

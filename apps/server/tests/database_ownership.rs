@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used, clippy::panic, reason = "test code")]
 use std::{net::SocketAddr, time::Duration};
 use tempfile::tempdir;
 use wealthfolio_server::{build_state, config::Config};

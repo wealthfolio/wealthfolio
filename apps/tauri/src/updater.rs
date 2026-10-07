@@ -175,8 +175,8 @@ pub async fn install_update(app_handle: AppHandle) -> Result<(), String> {
     {
         Ok(_) => {
             info!("Update installed successfully, restarting");
-            app_handle.restart();
-            #[allow(unreachable_code)]
+            // `restart` would park this async worker; see finish_database_maintenance.
+            app_handle.request_restart();
             Ok(())
         }
         Err(e) => {

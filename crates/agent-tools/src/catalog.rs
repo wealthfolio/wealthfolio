@@ -35,13 +35,17 @@ impl AgentToolCatalog {
         Self::new(tools)
     }
 
-    /// The MCP catalog: read + draft/suggest + commit tools. Scope filtering at
-    /// the boundary (`execute`, `list_tools`) hides whatever a token can't reach.
+    /// The MCP catalog: read + draft/suggest + commit, import, transfer
+    /// linking, quote import and activity update tools. Scope filtering at the
+    /// boundary (`execute`, `list_tools`) hides whatever a token can't reach.
     pub fn mcp_catalog() -> Self {
         let mut tools = crate::tools::v1_read_tools();
         tools.extend(crate::tools::draft_suggest_tools());
         tools.extend(crate::tools::commit_tools());
         tools.extend(crate::tools::import_tools());
+        tools.extend(crate::tools::transfer_link_tools());
+        tools.extend(crate::tools::quote_import_tools());
+        tools.extend(crate::tools::activity_update_tools());
         Self::new(tools)
     }
 
@@ -261,6 +265,13 @@ mod tests {
         assert!(!names.contains(&"prepare_activity_import"));
         assert!(!names.contains(&"commit_activity_import"));
         assert!(!names.contains(&"get_import_mapping"));
+        assert!(!names.contains(&"find_transfer_matches"));
+        assert!(!names.contains(&"link_transfer_activities"));
+        assert!(!names.contains(&"unlink_transfer_activities"));
+        assert!(!names.contains(&"prepare_quote_import"));
+        assert!(!names.contains(&"commit_quote_import"));
+        assert!(!names.contains(&"prepare_activity_updates"));
+        assert!(!names.contains(&"commit_activity_updates"));
     }
 
     #[test]
@@ -274,6 +285,13 @@ mod tests {
         assert!(names.contains(&"get_import_mapping"));
         assert!(names.contains(&"prepare_activity_import"));
         assert!(names.contains(&"commit_activity_import"));
+        assert!(names.contains(&"find_transfer_matches"));
+        assert!(names.contains(&"link_transfer_activities"));
+        assert!(names.contains(&"unlink_transfer_activities"));
+        assert!(names.contains(&"prepare_quote_import"));
+        assert!(names.contains(&"commit_quote_import"));
+        assert!(names.contains(&"prepare_activity_updates"));
+        assert!(names.contains(&"commit_activity_updates"));
         // Read-only token still sees exactly 16 read tools.
         assert_eq!(crate::tools::v1_read_tools().len(), 16);
     }
@@ -287,6 +305,13 @@ mod tests {
             "commit_activity_drafts",
             "commit_asset_classification_draft",
             "commit_categorization_rule",
+            "find_transfer_matches",
+            "link_transfer_activities",
+            "unlink_transfer_activities",
+            "prepare_quote_import",
+            "commit_quote_import",
+            "prepare_activity_updates",
+            "commit_activity_updates",
         ] {
             let err = catalog
                 .execute(
@@ -377,6 +402,156 @@ mod tests {
             matches!(err, AgentToolError::InvalidInput(_)),
             "oversized batch should be rejected with InvalidInput, got: {err}"
         );
+    }
+
+    #[tokio::test]
+    async fn quote_import_needs_holdings_read_and_market_data_write() {
+        // Each set lacks one of the two scopes; PanicEnv proves the denial
+        // happens before any service is reached.
+        let catalog = AgentToolCatalog::mcp_catalog();
+        let args = serde_json::json!({ "quotes": [{
+            "assetId": "a", "date": "2026-06-30", "price": 10, "currency": "EUR"
+        }] });
+        for granted in [
+            AgentScopeSet::read_activity_write_classification_suggest(),
+            AgentScopeSet::from_strs(["market-data:write"]),
+        ] {
+            for name in ["prepare_quote_import", "commit_quote_import"] {
+                let err = catalog
+                    .execute(Arc::new(PanicEnv::default()), &granted, name, args.clone())
+                    .await
+                    .unwrap_err();
+                assert!(
+                    matches!(err, AgentToolError::ScopeDenied { .. }),
+                    "tool {name} should be scope-denied for {granted:?}, got: {err}"
+                );
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn quote_import_rejects_oversized_batch_before_touching_env() {
+        let catalog = AgentToolCatalog::mcp_catalog();
+        let granted = AgentScopeSet::from_strs(["holdings:read", "market-data:write"]);
+        let quotes: Vec<_> = (0..256)
+            .map(|_| {
+                serde_json::json!({
+                    "assetId": "a", "date": "2026-06-30", "price": 10, "currency": "EUR"
+                })
+            })
+            .collect();
+        for name in ["prepare_quote_import", "commit_quote_import"] {
+            let err = catalog
+                .execute(
+                    Arc::new(PanicEnv::default()),
+                    &granted,
+                    name,
+                    serde_json::json!({ "quotes": quotes }),
+                )
+                .await
+                .unwrap_err();
+            assert!(
+                matches!(err, AgentToolError::InvalidInput(_)),
+                "{name}: oversized batch should be rejected with InvalidInput, got: {err}"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn activity_update_tools_need_their_scopes() {
+        let catalog = AgentToolCatalog::mcp_catalog();
+        // Rejected while parsing, so no service is reached (PanicEnv).
+        let args = serde_json::json!({ "updates": [{ "activityId": "a", "symbol": "BTC" }] });
+        let cases = [
+            ("prepare_activity_updates", vec!["activities:read"], false),
+            ("prepare_activity_updates", vec!["activities:draft"], false),
+            (
+                "prepare_activity_updates",
+                vec!["activities:read", "activities:draft"],
+                true,
+            ),
+            (
+                "commit_activity_updates",
+                vec!["activities:read", "activities:draft"],
+                false,
+            ),
+            (
+                "commit_activity_updates",
+                vec!["activities:draft", "activities:write"],
+                false,
+            ),
+            (
+                "commit_activity_updates",
+                vec!["activities:read", "activities:draft", "activities:write"],
+                true,
+            ),
+        ];
+        for (name, scopes, allowed) in cases {
+            let result = catalog
+                .execute(
+                    Arc::new(PanicEnv::default()),
+                    &AgentScopeSet::from_strs(scopes.clone()),
+                    name,
+                    args.clone(),
+                )
+                .await;
+            assert_eq!(
+                !matches!(result, Err(AgentToolError::ScopeDenied { .. })),
+                allowed,
+                "{name} with {scopes:?}"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn activity_updates_refuse_symbols_and_bad_batches_before_touching_env() {
+        let catalog = AgentToolCatalog::mcp_catalog();
+        let granted =
+            AgentScopeSet::from_strs(["activities:read", "activities:draft", "activities:write"]);
+        let rows = serde_json::json!({ "updates": [
+            { "activityId": "a", "symbol": "BTC" },
+            { "activityId": "b", "assetId": "x", "ticker": "BTC" },
+            { "activityId": "c", "unitprice": 1 }
+        ]});
+        let preview = catalog
+            .execute(
+                Arc::new(PanicEnv::default()),
+                &granted,
+                "prepare_activity_updates",
+                rows.clone(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(
+            preview.content["summary"]["invalid"], 3,
+            "{}",
+            preview.content
+        );
+        let committed = catalog
+            .execute(
+                Arc::new(PanicEnv::default()),
+                &granted,
+                "commit_activity_updates",
+                rows,
+            )
+            .await
+            .unwrap();
+        assert_eq!(committed.content["updated"], serde_json::json!([]));
+        assert_eq!(committed.content["errors"].as_array().unwrap().len(), 3);
+
+        let oversized: Vec<_> = (0..101)
+            .map(|index| serde_json::json!({ "activityId": format!("a{index}"), "fee": 1 }))
+            .collect();
+        let err = catalog
+            .execute(
+                Arc::new(PanicEnv::default()),
+                &granted,
+                "commit_activity_updates",
+                serde_json::json!({ "updates": oversized }),
+            )
+            .await
+            .unwrap_err();
+        assert!(matches!(err, AgentToolError::InvalidInput(_)), "{err}");
     }
 
     #[tokio::test]

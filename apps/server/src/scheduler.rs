@@ -45,7 +45,11 @@ pub fn start_broker_sync_scheduler(state: Arc<AppState>) {
             run_scheduled_sync(&runtime).await;
         }
     });
-    state.workers.lock().unwrap().push(worker);
+    state
+        .workers
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .push(worker);
 }
 
 /// Starts the background broker sync scheduler.
@@ -175,7 +179,11 @@ pub fn start_background_workers(state: Arc<AppState>) {
                 }
             }
         });
-        state.workers.lock().unwrap().push(worker);
+        state
+            .workers
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .push(worker);
     }
 
     // Start background broker sync scheduler (4-hour interval)
@@ -184,7 +192,11 @@ pub fn start_background_workers(state: Arc<AppState>) {
     // Periodic market data sync plus portfolio update (6h interval, 2min
     // initial delay): the coordinator rebuilds whatever the sync made stale.
     let worker = crate::api::shared::spawn_periodic_update(state.clone());
-    state.workers.lock().unwrap().push(worker);
+    state
+        .workers
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .push(worker);
 }
 
 #[cfg(all(test, feature = "device-sync"))]

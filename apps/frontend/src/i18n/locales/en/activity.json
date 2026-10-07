@@ -502,6 +502,9 @@
     "label_to_account": "To Account",
     "label_sent": "Sent ({{currency}})",
     "label_received": "Received ({{currency}})",
+    "source_currency": "Source currency",
+    "destination_currency": "Destination currency",
+    "label_transfer_rate": "Transfer exchange rate",
     "label_fx_rate": "FX Rate",
     "placeholder_note": "Add an optional note...",
     "placeholder_search_option_ticker": "Search option or ticker...",
@@ -699,6 +702,7 @@
       "jump_hint_other": "Enter a page number between 1 and {{count}}"
     },
     "duplicated_comment": "Duplicated",
+    "edit_transfer_pair": "Use Edit to change both accounts and currencies in the transfer form. Save pending changes first.",
     "save_edits_first": "Save edits first",
     "save_before_link": "Save or discard pending edits before linking this transfer.",
     "save_before_unlink": "Save or discard pending edits before unlinking this transfer.",

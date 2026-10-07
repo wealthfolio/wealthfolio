@@ -507,6 +507,9 @@
     "label_to_account": "Compte destinataire",
     "label_sent": "Envoyé ({{currency}})",
     "label_received": "Reçu ({{currency}})",
+    "source_currency": "Devise envoyée",
+    "destination_currency": "Devise reçue",
+    "label_transfer_rate": "Taux de change du transfert",
     "label_fx_rate": "Taux de change",
     "placeholder_note": "Ajouter une note facultative...",
     "placeholder_search_option_ticker": "Rechercher une option ou un symbole...",
@@ -708,6 +711,7 @@
       "jump_hint_many": "Saisissez un numéro de page entre 1 et {{count}}"
     },
     "duplicated_comment": "Dupliqué",
+    "edit_transfer_pair": "Utilisez Modifier pour changer les comptes et les devises dans le formulaire de transfert. Enregistrez d’abord les modifications en cours.",
     "save_edits_first": "Enregistrez d'abord les modifications",
     "save_before_link": "Enregistrez ou annulez les modifications en attente avant de lier ce transfert.",
     "save_before_unlink": "Enregistrez ou annulez les modifications en attente avant de dissocier ce transfert.",

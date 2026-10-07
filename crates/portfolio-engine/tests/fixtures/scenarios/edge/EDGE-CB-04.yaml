@@ -1,0 +1,36 @@
+id: EDGE-CB-04
+title: Units delivered into a WAC account's short cover it from every delivered lot alike
+intent: >
+  Rules R7.1, R2.4. acc-a (FIFO) transfers two lots at different costs,
+  without a quote, to acc-b (WAC), which is short. The receiver's method
+  decides which delivered units cover the short: under WAC each delivered
+  lot covers the same share, so the cover's proceeds are the delivered
+  average cost; the rest opens lots. The incoming leg still flows the cost
+  of every unit it delivered.
+markers: [K]
+policy: { base_currency: USD, timezone: UTC, as_of: 2025-01-10 }
+accounts:
+  - { id: acc-a, currency: USD }
+  - { id: acc-b, currency: USD, cost_basis_method: WAC }
+assets:
+  - { id: aapl, quote_ccy: USD }
+activities:
+  - { id: dep-1, account: acc-a, type: DEPOSIT, date: 2025-01-02T10:00:00Z, amount: 2000 }
+  - { id: dep-2, account: acc-b, type: DEPOSIT, date: 2025-01-02T11:00:00Z, amount: 2000 }
+  - { id: buy-1, account: acc-a, type: BUY, date: 2025-01-03T10:00:00Z, asset: aapl, quantity: 5, unit_price: 100, amount: 500, fee: 0 }
+  - { id: short-1, account: acc-b, type: SELL, subtype: POSITION_OPEN, date: 2025-01-03T11:00:00Z, asset: aapl, quantity: 4, unit_price: 120, amount: 480, fee: 0 }
+  - { id: buy-2, account: acc-a, type: BUY, date: 2025-01-06T10:00:00Z, asset: aapl, quantity: 5, unit_price: 200, amount: 1000, fee: 0 }
+  - { id: out-1, account: acc-a, type: TRANSFER_OUT, date: 2025-01-08T10:00:00Z, asset: aapl, quantity: 10, unit_price: 150, source_group_id: g1 }
+  - { id: in-1, account: acc-b, type: TRANSFER_IN, date: 2025-01-08T11:00:00Z, asset: aapl, quantity: 10, unit_price: 150, source_group_id: g1 }
+expected_notes: >
+  acc-a: out-1 removes both lots whole, buy-1 5 at 500 and buy-2 5 at 1000;
+  outflow 1500 on 01-08. acc-b: short 4 at 120 (cost -480). in-1 delivers
+  10 units, 4 of which cover the short: under WAC each delivered lot covers
+  0.4 of its units, 2 of buy-1 (200) and 2 of buy-2 (400), so the cover's
+  proceeds are -600 against the short's cost -480: P&L -120. The rest opens
+  lots: 3 of buy-1 at 300 (acquired 01-03) and 3 of buy-2 at 600 (acquired
+  01-06), 6 units, 900, average 150. Inflow 1500 (900 opened + 600
+  covering) on 01-08; the pair nets to zero at portfolio scope. Cash acc-a
+  2000 - 500 - 1000 = 500; acc-b 2000 + 480 = 2480. Were acc-b FIFO, buy-1's
+  units would cover first (proceeds -400, P&L 80) and it would open 1 at 100
+  and 5 at 1000.

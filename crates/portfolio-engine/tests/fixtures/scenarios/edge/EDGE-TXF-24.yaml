@@ -1,0 +1,42 @@
+id: EDGE-TXF-24
+title: A pair whose sender's slices fall short of the units sent by a rounding nets whole
+intent: >
+  Rules R2.1. After a 3-for-1 split, relieving one effective unit of a lot
+  bought before it relieves 1/3 of an acquired unit, which is
+  0.3333333333333333333333333333 at the kernel's precision: three of those are
+  0.9999999999999999999999999999 units, not 1. The sender's units for a
+  transfer are the slices it relieved, so they fall short of the 4 units the
+  receiver books by 1e-28. That is a rounding, not units the sender lacked:
+  the pair nets whole at portfolio scope. Read as a shortfall, the incoming
+  leg would net only the outgoing leg's cost, and their difference (each
+  leg's costs rounded at a different point) would remain as money in.
+markers: [K]
+policy: { base_currency: USD, timezone: UTC, as_of: 2025-01-10 }
+accounts:
+  - { id: acc-a, currency: EUR }
+  - { id: acc-b, currency: EUR }
+assets:
+  - { id: x, quote_ccy: EUR }
+activities:
+  - { id: dep-1, account: acc-a, type: DEPOSIT, date: 2025-01-02T09:00:00Z, amount: 200 }
+  - { id: dep-2, account: acc-b, type: DEPOSIT, date: 2025-01-02T09:30:00Z, amount: 100 }
+  - { id: buy-1, account: acc-a, type: BUY, date: 2025-01-02T10:00:00Z, asset: x, quantity: 1, unit_price: 49, amount: 49, fee: 0 }
+  - { id: buy-2, account: acc-a, type: BUY, date: 2025-01-03T10:00:00Z, asset: x, quantity: 1, unit_price: 75, amount: 75, fee: 0 }
+  - { id: split-1, account: acc-a, type: SPLIT, date: 2025-01-06T10:00:00Z, asset: x, amount: 3 }
+  - { id: out-1, account: acc-a, type: TRANSFER_OUT, date: 2025-01-08T10:00:00Z, asset: x, quantity: 4, unit_price: 40, source_group_id: g1 }
+  - { id: in-1, account: acc-b, type: TRANSFER_IN, date: 2025-01-08T11:00:00Z, asset: x, quantity: 4, unit_price: 40, source_group_id: g1 }
+fx_rates:
+  - { from: USD, to: EUR, day: 2025-01-02, rate: 0.75 }
+expected_notes: >
+  EUR to USD is the inverse of 0.75, 1.3333333333333333333333333333. buy-1:
+  1 unit at 49 EUR (65.33333333 USD); buy-2: 1 unit at 75 EUR (100 USD).
+  split-1 makes each 3 effective units. out-1 (FIFO) relieves buy-1 whole (3
+  units, 49 EUR, 65.33333333 USD as stored) and 1 unit of buy-2 (1/3 of an
+  acquired unit, 24.999999999999999999999999998 EUR, 33.33333333 USD as
+  stored): outflow 98.66666666 USD, from 3.9999999999999999999999999999
+  units. in-1 books both slices at their cost, 98.66666666666666666666666666
+  USD unrounded, inflow 98.66666667 USD for 4 units. The 1e-28 unit
+  difference is below the fold's dust, so the sender gave every unit: both
+  legs net whole and the portfolio has no flow on 01-08. Before the fix the
+  pair read as a shortfall and the portfolio showed an inflow of 0.00000001.
+  Cash: acc-a 200 - 49 - 75 = 76 EUR; acc-b 100 EUR.

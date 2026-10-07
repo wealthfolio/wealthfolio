@@ -1,0 +1,30 @@
+id: EDGE-CB-06
+title: HIFO ranks lots by cost per unit with charges, and breaks ties oldest first
+intent: >
+  Rules R7.2, HIFO. Three buys at the same price; the second paid a fee, so
+  its cost per unit (charges included) is the highest and it goes first. The
+  other two cost the same per unit: the older one goes next, as FIFO would
+  take them.
+markers: [K]
+policy: { base_currency: USD, timezone: UTC, as_of: 2025-01-10 }
+accounts:
+  - { id: acc-1, currency: USD, cost_basis_method: HIFO }
+assets:
+  - { id: aapl, quote_ccy: USD }
+activities:
+  - { id: dep-1, account: acc-1, type: DEPOSIT, date: 2025-01-02T10:00:00Z, amount: 4000 }
+  - { id: buy-1, account: acc-1, type: BUY, date: 2025-01-03T10:00:00Z, asset: aapl, quantity: 10, unit_price: 100, amount: 1000, fee: 0 }
+  - { id: buy-2, account: acc-1, type: BUY, date: 2025-01-06T10:00:00Z, asset: aapl, quantity: 10, unit_price: 100, amount: 1005, fee: 5 }
+  - { id: buy-3, account: acc-1, type: BUY, date: 2025-01-07T10:00:00Z, asset: aapl, quantity: 10, unit_price: 100, amount: 1000, fee: 0 }
+  - { id: sell-1, account: acc-1, type: SELL, date: 2025-01-08T10:00:00Z, asset: aapl, quantity: 15, unit_price: 120, amount: 1800, fee: 0 }
+quotes:
+  - { asset: aapl, day: 2025-01-03, close: 100 }
+  - { asset: aapl, day: 2025-01-06, close: 100 }
+  - { asset: aapl, day: 2025-01-07, close: 100 }
+  - { asset: aapl, day: 2025-01-08, close: 120 }
+  - { asset: aapl, day: 2025-01-10, close: 120 }
+expected_notes: >
+  Costs per unit: buy-1 100, buy-2 100.5 (1005 / 10), buy-3 100. sell-1 takes
+  all 10 of buy-2 (1005, fee 5), then 5 of buy-1, the older of the two at 100
+  (500): cost 1505, proceeds 1800, P&L 295, two disposals. Left: buy-1 5 (500)
+  and buy-3 10 (1000): 15 units, 1500. Cash 4000 - 3005 + 1800 = 2795.

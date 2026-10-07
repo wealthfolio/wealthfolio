@@ -1,7 +1,6 @@
 import { useSettings } from "@/hooks/use-settings";
 import { isSecuritiesTransfer } from "@/lib/activity-utils";
 import { ActivityType, isLiabilityAccountType, QuoteMode } from "@/lib/constants";
-import {} from "@/lib/utils";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   FormControl,
@@ -23,6 +22,12 @@ import { useEffect, useMemo } from "react";
 import { FormProvider, useForm, type Resolver } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { z } from "zod";
+import {
+  getCalculationRate,
+  getTransferRate,
+  useInternalTransferCurrencies,
+} from "../../hooks/use-internal-transfer-currencies";
+import { InternalTransferCurrencyFields } from "./fields/internal-transfer-currency-fields";
 import { useActivityCurrency } from "../../hooks/use-activity-currency";
 import {
   AccountSelect,
@@ -112,6 +117,7 @@ export const createTransferFormSchema = (t?: TFunction) =>
         })
         .optional()
         .nullable(),
+      transferRate: z.coerce.number().positive().optional().nullable(),
       sourceCurrency: z.string().optional(),
       destinationCurrency: z.string().optional(),
       // Fields for security transfers
@@ -173,6 +179,17 @@ export const createTransferFormSchema = (t?: TFunction) =>
       symbolInstrumentType: z.string().nullable().optional(),
       // Asset metadata for custom assets (name, etc.)
       assetMetadata: assetMetadataSchema,
+    })
+    .superRefine((data, ctx) => {
+      if (data.isExternal || data.transferMode !== "cash") return;
+      for (const field of ["sourceCurrency", "destinationCurrency"] as const) {
+        if (!data[field]?.trim())
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: [field],
+            message: msg(t, "activity:form.err_currency_required", "Currency is required."),
+          });
+      }
     })
     // External transfer requires accountId
     .refine(
@@ -418,7 +435,7 @@ export function TransferForm({
     },
   });
 
-  const { watch, setValue } = form;
+  const { getValues, watch, setValue } = form;
   const isExternal = watch("isExternal");
   useActivityCurrency(form, accounts, {
     isEditing,
@@ -436,7 +453,7 @@ export function TransferForm({
   const sourceAmount = watch("sourceAmount");
   const sourceCurrency = watch("sourceCurrency");
   const destinationCurrency = watch("destinationCurrency");
-  const fxRate = watch("fxRate");
+  const transferRate = watch("transferRate");
   const assetId = watch("assetId");
   const quantity = watch("quantity");
   const isManualAsset = quoteMode === QuoteMode.MANUAL;
@@ -474,13 +491,18 @@ export function TransferForm({
   const roundTransferValue = (value: number, precision = 6) =>
     Number(Number(value).toFixed(precision));
 
-  const handleSourceAmountChange = (value: number | null | undefined) => {
+  const handleSourceAmountChange = (value: number | null | undefined, isUserEdit = true) => {
+    if (!isUserEdit) return;
+    const rate = getCalculationRate(
+      transferRate,
+      getValues("sourceAmount"),
+      getValues("destinationAmount"),
+    );
     setValue("sourceAmount", value, { shouldDirty: true, shouldValidate: false });
     setValue("amount", value, { shouldDirty: true, shouldValidate: false });
     if (!value || value <= 0) return;
     if (isCrossCurrencyInternalCash) {
-      const rate = Number(fxRate);
-      if (Number.isFinite(rate) && rate > 0) {
+      if (rate) {
         setValue("destinationAmount", roundTransferValue(value * rate), {
           shouldDirty: true,
           shouldValidate: false,
@@ -491,20 +513,22 @@ export function TransferForm({
     }
   };
 
-  const handleDestinationAmountChange = (value: number | null | undefined) => {
+  const handleDestinationAmountChange = (value: number | null | undefined, isUserEdit = true) => {
+    if (!isUserEdit) return;
     setValue("destinationAmount", value, { shouldDirty: true, shouldValidate: false });
     const sent = Number(sourceAmount);
     const received = Number(value);
     if (sent > 0 && received > 0) {
-      setValue("fxRate", roundTransferValue(received / sent, 8), {
+      setValue("transferRate", getTransferRate(sent, received), {
         shouldDirty: true,
         shouldValidate: false,
       });
     }
   };
 
-  const handleFxRateChange = (value: number | null | undefined) => {
-    setValue("fxRate", value ?? undefined, { shouldDirty: true, shouldValidate: false });
+  const handleFxRateChange = (value: number | null | undefined, isUserEdit = true) => {
+    if (!isUserEdit) return;
+    setValue("transferRate", value ?? undefined, { shouldDirty: true, shouldValidate: false });
     const sent = Number(sourceAmount);
     const rate = Number(value);
     if (sent > 0 && rate > 0) {
@@ -515,23 +539,19 @@ export function TransferForm({
     }
   };
 
+  useInternalTransferCurrencies(form, accounts, {
+    enabled: isInternalCashTransfer,
+    isEditing,
+    sourceAccountField: "fromAccountId",
+  });
+
+  // Securities keep their existing account-currency behavior; independent
+  // source/destination cash currencies are retained when switching modes.
   useEffect(() => {
-    if (!accountCurrency) return;
-    if (!isExternal) {
-      setValue("sourceCurrency", accountCurrency, { shouldDirty: false, shouldValidate: false });
-    }
-    if (!currency || (!isExternal && currency !== accountCurrency)) {
+    if (!isExternal && !isCashMode && accountCurrency && currency !== accountCurrency) {
       setValue("currency", accountCurrency, { shouldDirty: false, shouldValidate: false });
     }
-  }, [accountCurrency, currency, isExternal, setValue]);
-
-  useEffect(() => {
-    if (!destinationAccount?.currency) return;
-    setValue("destinationCurrency", destinationAccount.currency, {
-      shouldDirty: false,
-      shouldValidate: false,
-    });
-  }, [destinationAccount?.currency, setValue]);
+  }, [accountCurrency, currency, isCashMode, isExternal, setValue]);
 
   useEffect(() => {
     if (isCashMode) return;
@@ -642,7 +662,9 @@ export function TransferForm({
 
     const displayAmount = isInternalCashTransfer ? sourceAmount : amount;
     if (isCashMode && displayAmount && displayAmount > 0) {
-      const displayCurrency = initialCurrency || accountCurrency || baseCurrency;
+      const displayCurrency = isInternalCashTransfer
+        ? effectiveSourceCurrency
+        : currency || accountCurrency || baseCurrency;
       return `${actionPrefix} ${formatting.formatAmount(displayAmount, displayCurrency, false)}`;
     }
 
@@ -858,7 +880,9 @@ export function TransferForm({
                     name="sourceAmount"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>{t("activity:form.label_amount")}</FormLabel>
+                        <FormLabel>
+                          {t("activity:form.label_amount")} ({effectiveSourceCurrency})
+                        </FormLabel>
                         <FormControl>
                           <MoneyInput
                             ref={field.ref}
@@ -878,11 +902,11 @@ export function TransferForm({
                 {isCrossCurrencyInternalCash && (
                   <FormField
                     control={form.control}
-                    name="fxRate"
+                    name="transferRate"
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>
-                          {t("activity:form.label_fx_rate")}
+                          {t("activity:form.label_transfer_rate")}
                           <span className="text-muted-foreground ml-2 text-xs font-normal">
                             {t("activity:form.fx_conversion", {
                               from: effectiveSourceCurrency,
@@ -899,7 +923,7 @@ export function TransferForm({
                             onValueChange={handleFxRateChange}
                             placeholder="1.0000"
                             maxDecimalPlaces={8}
-                            aria-label={t("activity:form.label_fx_rate")}
+                            aria-label={t("activity:form.label_transfer_rate")}
                             data-testid="fx-rate-input"
                           />
                         </FormControl>
@@ -932,6 +956,7 @@ export function TransferForm({
           showCurrency={isExternal}
           showFxRate={isExternal}
         >
+          {isInternalCashTransfer && <InternalTransferCurrencyFields />}
           <NotesInput
             name="comment"
             label={t("activity:form.label_notes")}

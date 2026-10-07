@@ -1570,15 +1570,18 @@ async fn a_changed_transfer_leg_refolds_its_partner() {
     ));
 }
 
+/// Settings this version reads but the engine does not compute: a profile
+/// other than GENERIC.
+const REFUSED_ACCOUNTING: &str =
+    r#"{"accounting":{"costBasisMethod":"FIFO","costBasisProfile":"CANADA_ACB"}}"#;
+
 #[tokio::test]
 async fn unsupported_cost_basis_settings_fail_the_account() {
     let scenario = scenario("NOM-TRADE-01");
     let facts = scenario.facts();
     let account = facts.accounts[0].id.clone();
     let harness = harness(facts).await;
-    harness
-        .account_repo
-        .set_meta(&account, r#"{"accounting":{"costBasisMethod":"LIFO"}}"#);
+    harness.account_repo.set_meta(&account, REFUSED_ACCOUNTING);
     let report = harness
         .coordinator
         .run_job(request(), &SilentObserver)
@@ -1592,6 +1595,89 @@ async fn unsupported_cost_basis_settings_fail_the_account() {
         .await
         .unwrap()
         .is_empty());
+}
+
+/// Engine rules R7.2: an account whose settings name WAC is computed, not
+/// refused, its purchases pool (one lot, one disposal per sale), and its lot
+/// and disposal rows record the method they were computed with.
+#[tokio::test]
+async fn an_account_set_to_wac_is_computed_and_its_rows_record_it() {
+    let facts = scenario("NOM-CB-01").facts();
+    let account = facts.accounts[0].id.clone();
+    let harness = harness(facts).await;
+    let report = harness
+        .coordinator
+        .run_job(request(), &SilentObserver)
+        .await
+        .unwrap();
+    assert!(report.failures.is_empty(), "{:?}", report.failures);
+    let lots = harness
+        .lot_repo
+        .get_all_lots_for_account(&account)
+        .await
+        .unwrap();
+    let disposals = harness
+        .lot_repo
+        .get_lot_disposals_for_account(&account)
+        .await
+        .unwrap();
+    assert_eq!((lots.len(), disposals.len()), (1, 2));
+    assert!(lots.iter().all(|lot| lot.cost_basis_method == "WAC"));
+    assert!(disposals.iter().all(|d| d.cost_basis_method == "WAC"));
+}
+
+/// Engine rules R7.2: accounts whose settings name LIFO or HIFO are computed,
+/// each sale relieving the lots its method orders first, and their rows
+/// record the method.
+#[tokio::test]
+async fn accounts_set_to_lifo_or_hifo_are_computed_and_their_rows_record_it() {
+    // (fixture, method, lots, disposals, the lot sell-2 empties)
+    for (fixture, method, lot_count, disposal_count, emptied) in [
+        ("NOM-CB-02", "LIFO", 3, 2, "buy-3"),
+        ("NOM-CB-03", "HIFO", 3, 3, "buy-2"),
+    ] {
+        let facts = scenario(fixture).facts();
+        let account = facts.accounts[0].id.clone();
+        let harness = harness(facts).await;
+        let report = harness
+            .coordinator
+            .run_job(request(), &SilentObserver)
+            .await
+            .unwrap();
+        assert!(
+            report.failures.is_empty(),
+            "{fixture}: {:?}",
+            report.failures
+        );
+        let lots = harness
+            .lot_repo
+            .get_all_lots_for_account(&account)
+            .await
+            .unwrap();
+        let disposals = harness
+            .lot_repo
+            .get_lot_disposals_for_account(&account)
+            .await
+            .unwrap();
+        assert_eq!(
+            (lots.len(), disposals.len()),
+            (lot_count, disposal_count),
+            "{fixture}"
+        );
+        assert!(
+            lots.iter().all(|lot| lot.cost_basis_method == method),
+            "{fixture}"
+        );
+        assert!(
+            disposals.iter().all(|d| d.cost_basis_method == method),
+            "{fixture}"
+        );
+        let emptied_lot = lots
+            .iter()
+            .find(|lot| lot.open_activity_id.as_deref() == Some(emptied))
+            .unwrap_or_else(|| panic!("{fixture}: no lot for {emptied}"));
+        assert!(emptied_lot.is_closed, "{fixture}: {emptied} still open");
+    }
 }
 
 /// Runs EDGE-TXF-02 (acc-a transfers to acc-b) with acc-a's meta set to
@@ -1637,7 +1723,7 @@ async fn assert_acc_a_refused_and_folded_fifo(meta: &str) {
 /// fails alone; folded as a transfer partner it folds FIFO.
 #[tokio::test]
 async fn a_refused_transfer_partner_folds_fifo() {
-    assert_acc_a_refused_and_folded_fifo(r#"{"accounting":{"costBasisMethod":"LIFO"}}"#).await;
+    assert_acc_a_refused_and_folded_fifo(REFUSED_ACCOUNTING).await;
 }
 
 /// Engine rules R7.2: settings this version cannot read (a code it does not
@@ -2036,7 +2122,23 @@ fn reference(harness: &Harness, facts: &ScenarioFacts) -> Reference {
                 facts.timezone.parse().unwrap_or(chrono_tz::Tz::UTC),
                 facts.as_of,
             ),
-            accounts: facts.accounts.iter().map(facts::raw_account).collect(),
+            // Each account folds by the method its settings name, as the job
+            // reads them (engine rules R7.2).
+            accounts: facts
+                .accounts
+                .iter()
+                .map(|account| engine::model::RawAccount {
+                    cost_basis_method: Some(
+                        account
+                            .accounting_settings()
+                            .unwrap()
+                            .cost_basis_method
+                            .as_str()
+                            .to_string(),
+                    ),
+                    ..facts::raw_account(account)
+                })
+                .collect(),
             assets: facts.assets.iter().map(facts::raw_asset).collect(),
             activities: facts.activities.iter().map(facts::raw_activity).collect(),
             quotes,
@@ -2461,4 +2563,245 @@ async fn the_app_matches_one_kernel_run_on_generated_scenarios() {
         found.len(),
         found.join("\n")
     );
+}
+
+/// Valuation rows whose history reads hold their thread until another task
+/// has run. On a runtime's only async worker that task could not run, so the
+/// read would wait out its timeout instead.
+struct GatedValuations {
+    inner: Arc<dyn ValuationRepositoryTrait>,
+    started: std::sync::Mutex<Option<tokio::sync::oneshot::Sender<()>>>,
+    release: std::sync::Mutex<std::sync::mpsc::Receiver<()>>,
+    released_in_time: std::sync::atomic::AtomicBool,
+}
+
+impl GatedValuations {
+    fn new(
+        inner: Arc<dyn ValuationRepositoryTrait>,
+    ) -> (
+        Arc<Self>,
+        tokio::sync::oneshot::Receiver<()>,
+        std::sync::mpsc::Sender<()>,
+    ) {
+        let (started_tx, started_rx) = tokio::sync::oneshot::channel();
+        let (release_tx, release_rx) = std::sync::mpsc::channel();
+        let gate = Arc::new(Self {
+            inner,
+            started: std::sync::Mutex::new(Some(started_tx)),
+            release: std::sync::Mutex::new(release_rx),
+            released_in_time: std::sync::atomic::AtomicBool::new(false),
+        });
+        (gate, started_rx, release_tx)
+    }
+
+    fn hold(&self) {
+        let Some(started) = self.started.lock().unwrap().take() else {
+            return;
+        };
+        let _ = started.send(());
+        let released = self
+            .release
+            .lock()
+            .unwrap()
+            .recv_timeout(std::time::Duration::from_secs(5))
+            .is_ok();
+        self.released_in_time
+            .store(released, std::sync::atomic::Ordering::SeqCst);
+    }
+
+    /// Ends the wait of a releaser whose read never reached the rows.
+    fn close(&self) {
+        self.started.lock().unwrap().take();
+    }
+
+    fn released_in_time(&self) -> bool {
+        self.released_in_time
+            .load(std::sync::atomic::Ordering::SeqCst)
+    }
+}
+
+#[async_trait]
+impl ValuationRepositoryTrait for GatedValuations {
+    async fn replace_valuations_for_account(
+        &self,
+        account_id: &str,
+        since_date: Option<NaiveDate>,
+        valuation_records: &[crate::portfolio::valuation::DailyAccountValuation],
+    ) -> Result<()> {
+        self.inner
+            .replace_valuations_for_account(account_id, since_date, valuation_records)
+            .await
+    }
+
+    fn get_historical_valuations(
+        &self,
+        account_id: &str,
+        start_date: Option<NaiveDate>,
+        end_date: Option<NaiveDate>,
+    ) -> Result<Vec<crate::portfolio::valuation::DailyAccountValuation>> {
+        self.hold();
+        self.inner
+            .get_historical_valuations(account_id, start_date, end_date)
+    }
+
+    fn get_historical_valuations_for_accounts(
+        &self,
+        account_ids: &[String],
+        start_date: Option<NaiveDate>,
+        end_date: Option<NaiveDate>,
+    ) -> Result<Vec<crate::portfolio::valuation::DailyAccountValuation>> {
+        self.hold();
+        self.inner
+            .get_historical_valuations_for_accounts(account_ids, start_date, end_date)
+    }
+
+    async fn delete_valuations_for_account(
+        &self,
+        account_id: &str,
+        since_date: Option<NaiveDate>,
+    ) -> Result<()> {
+        self.inner
+            .delete_valuations_for_account(account_id, since_date)
+            .await
+    }
+
+    fn get_latest_valuations(
+        &self,
+        account_ids: &[String],
+    ) -> Result<Vec<crate::portfolio::valuation::DailyAccountValuation>> {
+        self.inner.get_latest_valuations(account_ids)
+    }
+
+    fn get_valuations_on_date(
+        &self,
+        account_ids: &[String],
+        date: NaiveDate,
+    ) -> Result<Vec<crate::portfolio::valuation::DailyAccountValuation>> {
+        self.inner.get_valuations_on_date(account_ids, date)
+    }
+
+    fn get_accounts_with_negative_balance(
+        &self,
+        account_ids: &[String],
+    ) -> Result<Vec<crate::portfolio::valuation::NegativeBalanceInfo>> {
+        self.inner.get_accounts_with_negative_balance(account_ids)
+    }
+}
+
+/// Releases the gated read once it has started. This task needs the async
+/// worker the read would hold if it ran there.
+fn release_when_started(
+    started: tokio::sync::oneshot::Receiver<()>,
+    release: std::sync::mpsc::Sender<()>,
+) -> tokio::task::JoinHandle<()> {
+    tokio::spawn(async move {
+        if started.await.is_ok() {
+            let _ = release.send(());
+        }
+    })
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn performance_reads_leave_the_async_worker_free() {
+    use crate::portfolio::performance::{PerformanceService, PerformanceServiceTrait};
+    let harness = harness(scenario("NOM-TXF-01").facts()).await;
+    let (gate, started, release) = GatedValuations::new(harness.valuation_repo.clone());
+    let service = PerformanceService::new(
+        harness.base_currency.clone(),
+        harness.timezone.clone(),
+        harness.sources.clone(),
+        gate.clone(),
+        harness.lot_repo.clone(),
+    );
+
+    let read = tokio::spawn(async move {
+        service
+            .calculate_performance_history("account", "acc-a", None, None, None, None)
+            .await
+            .map(|_| ())
+    });
+    let releaser = release_when_started(started, release);
+    read.await.expect("read task").expect("performance read");
+    gate.close();
+    releaser.await.expect("releaser task");
+
+    assert!(gate.released_in_time(), "the read held the async worker");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn scoped_valuation_reads_leave_the_async_worker_free() {
+    use crate::portfolio::valuation::{ValuationService, ValuationServiceTrait};
+    let harness = harness(scenario("NOM-TXF-01").facts()).await;
+    // The scope's aggregation reads the stored histories of both accounts.
+    harness
+        .coordinator
+        .run_job(request(), &SilentObserver)
+        .await
+        .expect("projection");
+    let (gate, started, release) = GatedValuations::new(harness.valuation_repo.clone());
+    let service = ValuationService::new(
+        gate.clone(),
+        harness.sources.clone(),
+        harness.lot_repo.clone(),
+        harness.timezone.clone(),
+    );
+    let base_currency = harness.base_currency.read().unwrap().clone();
+
+    let read = tokio::spawn(async move {
+        let accounts = ["acc-a".to_string(), "acc-b".to_string()];
+        service
+            .get_historical_valuations_for_accounts(
+                "portfolio",
+                &accounts,
+                &base_currency,
+                None,
+                None,
+            )
+            .await
+            .map(|_| ())
+    });
+    let releaser = release_when_started(started, release);
+    read.await
+        .expect("read task")
+        .expect("scoped valuation read");
+    gate.close();
+    releaser.await.expect("releaser task");
+
+    assert!(gate.released_in_time(), "the read held the async worker");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn valuation_totals_leave_the_async_worker_free() {
+    use crate::portfolio::valuation::{ValuationService, ValuationServiceTrait};
+    let harness = harness(scenario("NOM-TXF-01").facts()).await;
+    let (gate, started, release) = GatedValuations::new(harness.valuation_repo.clone());
+    let service = ValuationService::new(
+        gate.clone(),
+        harness.sources.clone(),
+        harness.lot_repo.clone(),
+        harness.timezone.clone(),
+    );
+    let base_currency = harness.base_currency.read().unwrap().clone();
+
+    let read = tokio::spawn(async move {
+        let accounts = ["acc-a".to_string(), "acc-b".to_string()];
+        service
+            .get_historical_valuation_totals_for_accounts(
+                "portfolio",
+                &accounts,
+                &base_currency,
+                None,
+                None,
+            )
+            .await
+            .map(|_| ())
+    });
+    let releaser = release_when_started(started, release);
+    read.await
+        .expect("read task")
+        .expect("valuation totals read");
+    gate.close();
+    releaser.await.expect("releaser task");
+
+    assert!(gate.released_in_time(), "the read held the async worker");
 }

@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used, clippy::panic, reason = "test code")]
 use axum::{
     body::{to_bytes, Body},
     http::{Request, StatusCode},

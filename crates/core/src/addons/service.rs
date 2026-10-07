@@ -1412,7 +1412,7 @@ pub fn read_addon_files_recursive(
             // Recursively read subdirectories
             read_addon_files_recursive(&file_path, base_dir, files)?;
         } else if file_path.is_file() {
-            let file_name = file_path.file_name().unwrap().to_string_lossy().to_string();
+            let file_name = entry.file_name().to_string_lossy().to_string();
 
             // Skip the manifest file
             if file_name == "manifest.json" {

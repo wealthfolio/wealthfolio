@@ -671,11 +671,38 @@ describe("Form Schemas Validation", () => {
           amount: 1000,
           comment: "Transfer to savings",
           currency: "USD",
+          sourceCurrency: "HKD",
+          destinationCurrency: "HKD",
         };
 
         const result = transferFormSchema.safeParse(validData);
         expect(result.success).toBe(true);
       });
+
+      it.each(["sourceCurrency", "destinationCurrency"] as const)(
+        "requires %s for internal cash transfers",
+        (field) => {
+          for (const currency of [undefined, "", "   "]) {
+            const result = transferFormSchema.safeParse({
+              fromAccountId: "acc-123",
+              toAccountId: "acc-456",
+              activityDate: new Date(),
+              transferMode: "cash",
+              sourceAmount: 1000,
+              currency: "HKD",
+              sourceCurrency: "HKD",
+              destinationCurrency: "HKD",
+              [field]: currency,
+            });
+            expect(result.success).toBe(false);
+            if (!result.success) {
+              expect(result.error.issues).toEqual(
+                expect.arrayContaining([expect.objectContaining({ path: [field] })]),
+              );
+            }
+          }
+        },
+      );
 
       it("fails when fromAccountId is empty for internal transfer", () => {
         const invalidData = {

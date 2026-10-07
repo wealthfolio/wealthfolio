@@ -145,6 +145,7 @@
     "title": "Algo deu errado",
     "description": "Encontramos um erro inesperado. Seus dados estão seguros; tente atualizar para voltar ao normal.",
     "refresh": "Atualizar página",
+    "goHome": "Ir para o painel",
     "hideDetails": "Ocultar detalhes do erro",
     "showDetails": "Mostrar detalhes do erro",
     "errorDetails": "Detalhes do erro"

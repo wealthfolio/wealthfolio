@@ -8,6 +8,7 @@
 //!
 //! Kept in its own file on purpose: each integration-test file is a separate
 //! process, which isolates the process-global env vars from `tests/oidc.rs`.
+#![allow(clippy::unwrap_used, clippy::panic, reason = "test code")]
 
 use std::net::SocketAddr;
 use std::sync::{Arc, RwLock};

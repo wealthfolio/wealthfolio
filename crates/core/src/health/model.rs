@@ -640,8 +640,9 @@ pub struct HealthDiagnostic {
     /// Optional user-visible impact for this specific cause.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub impact: Option<HealthImpact>,
-    /// Typed entities used by the UI and fingerprinting.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    /// Typed entities used by the UI and fingerprinting. Lists are always sent,
+    /// empty or not, because the UI reads them on every diagnostic.
+    #[serde(default)]
     pub entities: Vec<HealthEntityRef>,
     /// Optional primary date for this diagnostic (YYYY-MM-DD).
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -650,10 +651,10 @@ pub struct HealthDiagnostic {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub date_range: Option<HealthDateRange>,
     /// Supporting evidence rows.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[serde(default)]
     pub evidence: Vec<Evidence>,
     /// Ordered remediation actions (primary first by convention).
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[serde(default)]
     pub actions: Vec<DiagnosticAction>,
 }
 
@@ -1508,6 +1509,15 @@ mod tests {
         // Round-trips back to the same enum variant.
         let parsed: DiagnosticAction = serde_json::from_value(json).unwrap();
         assert_eq!(parsed, nav);
+    }
+
+    #[test]
+    fn a_diagnostic_sends_its_lists_even_when_empty() {
+        // The Health Center reads these lists on every diagnostic.
+        let json = serde_json::to_value(HealthDiagnostic::new("CODE", "Title", "Why")).unwrap();
+        for list in ["entities", "evidence", "actions"] {
+            assert_eq!(json[list], serde_json::json!([]), "{list}");
+        }
     }
 
     #[test]

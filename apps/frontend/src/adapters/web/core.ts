@@ -406,6 +406,12 @@ export const COMMANDS: CommandMap = {
   link_liability: { method: "POST", path: "/alternative-assets" },
   unlink_liability: { method: "DELETE", path: "/alternative-assets" },
   update_alternative_asset_metadata: { method: "PUT", path: "/alternative-assets" },
+  calculate_loan: { method: "POST", path: "/loans/calculate" },
+  recalculate_loan: { method: "POST", path: "/loans/recalculate" },
+  preview_loan_terms: { method: "POST", path: "/loans/preview" },
+  apply_loan_action: { method: "POST", path: "/loans" },
+  get_loan_payments: { method: "GET", path: "/loans" },
+  link_loan_payment: { method: "POST", path: "/loans/payments" },
   get_alternative_holdings: { method: "GET", path: "/alternative-holdings" },
   // Agent Access (PATs + audit log)
   get_agent_access_status: { method: "GET", path: "/agent-access/status" },
@@ -1860,6 +1866,28 @@ export const invoke = async <T>(command: string, payload?: Record<string, unknow
       break;
     }
     // Alternative Assets commands
+    case "get_loan_payments": {
+      const { assetId } = payload as { assetId: string };
+      url += `/${encodeURIComponent(assetId)}/payments`;
+      break;
+    }
+    case "link_loan_payment": {
+      const { activityId, link } = payload as { activityId: string; link: Record<string, unknown> };
+      url += `/${encodeURIComponent(activityId)}`;
+      body = JSON.stringify(link);
+      break;
+    }
+    case "apply_loan_action": {
+      const { assetId, action } = payload as { assetId: string; action: Record<string, unknown> };
+      url += `/${encodeURIComponent(assetId)}/actions`;
+      body = JSON.stringify(action);
+      break;
+    }
+    case "preview_loan_terms":
+      body = JSON.stringify(payload);
+      break;
+    case "recalculate_loan":
+    case "calculate_loan":
     case "create_alternative_asset": {
       const { request } = payload as { request: Record<string, unknown> };
       body = JSON.stringify(request);
@@ -1891,14 +1919,15 @@ export const invoke = async <T>(command: string, payload?: Record<string, unknow
       break;
     }
     case "update_alternative_asset_metadata": {
-      const { assetId, metadata, name, notes } = payload as {
+      const { assetId, metadata, name, notes, loan } = payload as {
         assetId: string;
         metadata: Record<string, string>;
         name?: string;
         notes?: string | null;
+        loan?: unknown;
       };
       url += `/${encodeURIComponent(assetId)}/metadata`;
-      body = JSON.stringify({ metadata, name, notes });
+      body = JSON.stringify({ metadata, name, notes, loan });
       break;
     }
     case "get_alternative_holdings":

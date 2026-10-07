@@ -1,5 +1,6 @@
 import { importActivitySchema, importMappingSchema, parseConfigSchema } from "@/lib/schemas";
 import * as z from "zod";
+import type { LoanSetup } from "@/adapters/shared/alternative-assets";
 import {
   AccountType,
   ACTIVITY_TYPE_DISPLAY_NAMES,
@@ -380,6 +381,10 @@ export interface InternalTransferPairRequest {
   destinationAmount: string | number;
   sourceCurrency: string;
   destinationCurrency: string;
+  /** @deprecated Execution-rate hint accepted for compatibility; cash amounts are authoritative.
+   * Never stored in Activity.fxRate (the activity-to-account valuation override).
+   * Derive the transfer rate from destinationAmount / sourceAmount instead.
+   */
   fxRate?: string | number | null;
   notes?: string | null;
   transferMode?: "cash";
@@ -1533,6 +1538,8 @@ export interface CreateAlternativeAssetRequest {
   metadata?: Record<string, string>;
   /** For liabilities: optional ID of the financed asset (UI-only linking) */
   linkedAssetId?: string;
+  /** For liabilities: the loan as entered; loan fields are not accepted in `metadata`. */
+  loan?: LoanSetup;
 }
 
 /**
@@ -1718,6 +1725,21 @@ export interface AlternativeAssetHolding {
   linkedAssetId?: string;
   /** Asset notes */
   notes?: string | null;
+  /** For liabilities: what the card shows, from the calculation that values it */
+  loan?: LoanSummary | null;
+}
+
+/** A liability's terms in effect and its milestones, as Holdings values it. */
+export interface LoanSummary {
+  /** The balance follows a payment schedule rather than manual updates. */
+  scheduled: boolean;
+  originalAmount: number | null;
+  annualRate: number | null;
+  paymentAmount: number | null;
+  frequency: "monthly" | "biweekly" | "accelerated_biweekly" | null;
+  /** When principal and accrued interest are settled; null while a residual remains. */
+  payoffDate: string | null;
+  renewalMaturity: string | null;
 }
 
 /**

@@ -196,6 +196,7 @@ impl OpenFigiProvider {
         }
         // ISIN: 2 letter country code + 10 alphanumeric
         if q.len() == 12
+            && q.is_ascii()
             && q[..2].chars().all(|c| c.is_ascii_alphabetic())
             && q[2..].chars().all(|c| c.is_ascii_alphanumeric())
         {
@@ -216,11 +217,12 @@ impl OpenFigiProvider {
             .is_some_and(|s| BOND_MARKET_SECTORS.contains(&s))
     }
 
-    /// Convert FigiRecords to SearchResults, using `symbol` as the display symbol.
+    /// Convert supported bond records to SearchResults for either search endpoint.
     fn records_to_search_results(records: Vec<FigiRecord>, symbol: &str) -> Vec<SearchResult> {
         let mut seen = std::collections::HashSet::new();
         records
             .into_iter()
+            .filter(Self::is_bond_sector)
             .filter_map(|d| {
                 let name = d.name.filter(|n| !n.is_empty())?;
                 let display_name = match d.ticker.filter(|t| !t.is_empty()) {
@@ -311,13 +313,9 @@ impl MarketDataProvider for OpenFigiProvider {
             // Mapping failed or returned nothing — fall through to free-text search
         }
 
-        // Free-text search API, filtered to bond sectors
+        // Free-text search API; the shared converter filters to bond sectors.
         let records = self.fetch_search(trimmed).await?;
-        let bond_records: Vec<_> = records.into_iter().filter(Self::is_bond_sector).collect();
-        if bond_records.is_empty() {
-            return Ok(Vec::new());
-        }
-        Ok(Self::records_to_search_results(bond_records, &symbol))
+        Ok(Self::records_to_search_results(records, &symbol))
     }
 
     async fn get_profile(&self, symbol: &str) -> Result<AssetProfile, MarketDataError> {
@@ -391,6 +389,12 @@ mod tests {
     }
 
     #[test]
+    fn test_detect_non_ascii_query() {
+        // 12 bytes, with byte 2 inside the 'é'
+        assert_eq!(OpenFigiProvider::detect_id_types("Bézier Fund"), None);
+    }
+
+    #[test]
     fn test_is_bond_sector() {
         let corp = FigiRecord {
             name: Some("Test".into()),
@@ -445,6 +449,53 @@ mod tests {
         assert_eq!(results[0].name, "JPMORGAN CHASE & CO - JPM 2.069 06/01/29");
         assert_eq!(results[0].exchange, "US");
         assert_eq!(results[0].asset_type, "BOND");
+    }
+
+    #[test]
+    fn test_xetra_gold_mapping_does_not_produce_bonds() {
+        // The ISIN mapping includes both a commodity record and ETP listings.
+        // Neither is a bond, even though they share the requested identifier.
+        let json = r#"[{"data":[
+            {"name":"Xetra Gold for XG","ticker":"AUXG","exchCode":null,
+             "securityType":"Financial commodity spot.","marketSector":"Comdty"},
+            {"name":"XETRA-GOLD","ticker":"4GLD","exchCode":"GY",
+             "securityType":"ETP","marketSector":"Equity"}
+        ]}]"#;
+        let mapping: Vec<MappingResult> = serde_json::from_str(json).unwrap();
+        let records = mapping.into_iter().next().unwrap().data.unwrap();
+
+        let results = OpenFigiProvider::records_to_search_results(records, "DE000A0S9GB0");
+
+        assert!(results.is_empty());
+    }
+
+    #[test]
+    fn test_search_results_require_a_supported_bond_sector() {
+        for (sector, expected_count) in [
+            (None, 0),
+            (Some("Equity"), 0),
+            (Some("Comdty"), 0),
+            (Some("Corp"), 1),
+            (Some("Govt"), 1),
+            (Some("Mtge"), 1),
+            (Some("Muni"), 1),
+            (Some("Pfd"), 1),
+        ] {
+            let record = FigiRecord {
+                name: Some("Test security".into()),
+                ticker: None,
+                exch_code: Some("US".into()),
+                security_type: None,
+                market_sector: sector.map(str::to_string),
+            };
+            let results = OpenFigiProvider::records_to_search_results(vec![record], "XS1234567890");
+
+            assert_eq!(results.len(), expected_count, "sector: {sector:?}");
+            for result in results {
+                assert_eq!(result.symbol, "XS1234567890");
+                assert_eq!(result.asset_type, "BOND");
+            }
+        }
     }
 
     #[test]

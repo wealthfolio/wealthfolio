@@ -1186,16 +1186,17 @@ where
             slot.2 = merge_source(slot.2, entry.source);
         }
     }
+    // `order` holds each key of `by_month` exactly once.
     let mut out: Vec<MonthlyAmount> = order
         .into_iter()
-        .map(|month| {
-            let (amount, full, source) = by_month.remove(&month).unwrap();
-            MonthlyAmount {
+        .filter_map(|month| {
+            let (amount, full, source) = by_month.remove(&month)?;
+            Some(MonthlyAmount {
                 month,
                 amount,
                 full_monthly_amount: full,
                 source,
-            }
+            })
         })
         .collect();
     out.sort_by(|a, b| a.month.cmp(&b.month));
@@ -1236,13 +1237,16 @@ fn months_in_window(start: DateTime<Utc>, end: DateTime<Utc>) -> Vec<String> {
 fn month_bounds(month_key: &str) -> (NaiveDate, NaiveDate) {
     let year: i32 = month_key[0..4].parse().unwrap_or(1970);
     let month: u32 = month_key[5..7].parse().unwrap_or(1);
-    let start = NaiveDate::from_ymd_opt(year, month, 1).unwrap();
+    let start =
+        NaiveDate::from_ymd_opt(year, month, 1).expect("month keys are formatted from real dates");
     let (next_year, next_month) = if month == 12 {
         (year + 1, 1)
     } else {
         (year, month + 1)
     };
-    let end = NaiveDate::from_ymd_opt(next_year, next_month, 1).unwrap() - Duration::days(1);
+    let end = NaiveDate::from_ymd_opt(next_year, next_month, 1)
+        .expect("the month after a valid month is valid")
+        - Duration::days(1);
     (start, end)
 }
 

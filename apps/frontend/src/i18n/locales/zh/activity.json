@@ -499,6 +499,9 @@
     "label_to_account": "转入账户",
     "label_sent": "转出（{{currency}}）",
     "label_received": "收到（{{currency}}）",
+    "source_currency": "转出币种",
+    "destination_currency": "转入币种",
+    "label_transfer_rate": "转账成交汇率",
     "label_fx_rate": "汇率",
     "placeholder_note": "添加可选备注……",
     "placeholder_search_option_ticker": "搜索期权或股票代码……",
@@ -695,6 +698,7 @@
       "jump_hint_other": "输入介于 1 和 {{count}} 之间的页码"
     },
     "duplicated_comment": "已复制",
+    "edit_transfer_pair": "请通过“编辑”在转账表单中修改账户和币种。请先保存尚未提交的更改。",
     "save_edits_first": "请先保存编辑",
     "save_before_link": "在关联此转账之前，请先保存或放弃待处理的编辑。",
     "save_before_unlink": "在取消关联此转账之前，请先保存或放弃待处理的编辑。",

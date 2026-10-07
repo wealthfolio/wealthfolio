@@ -32,6 +32,10 @@ pub fn request_lock(reason: &str) {
     });
 }
 
+#[allow(
+    unsafe_code,
+    reason = "macOS and Windows session notifications are FFI"
+)]
 pub fn install(handle: &AppHandle) {
     let _ = APP.set(handle.clone());
     #[cfg(target_os = "macos")]
@@ -200,6 +204,7 @@ pub fn install(handle: &AppHandle) {
 }
 
 #[cfg(target_os = "windows")]
+#[allow(unsafe_code, reason = "Windows power notifications are FFI")]
 fn install_windows_sleep_notifications() {
     use windows_sys::Win32::System::Power::{
         PowerRegisterSuspendResumeNotification, DEVICE_NOTIFY_SUBSCRIBE_PARAMETERS,

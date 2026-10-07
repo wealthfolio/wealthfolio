@@ -30,6 +30,8 @@ export interface CustomProviderWithSources {
   description: string;
   enabled: boolean;
   priority: number;
+  /** Also try `{SYMBOL}`/`{ISIN}` sources for securities not assigned to this provider. */
+  useAsFallback: boolean;
   sources: CustomProviderSource[];
 }
 
@@ -38,6 +40,7 @@ export interface NewCustomProvider {
   name: string;
   description?: string;
   priority?: number;
+  useAsFallback?: boolean;
   sources: NewCustomProviderSource[];
 }
 
@@ -46,6 +49,7 @@ export interface UpdateCustomProvider {
   description?: string;
   enabled?: boolean;
   priority?: number;
+  useAsFallback?: boolean;
   sources?: NewCustomProviderSource[];
 }
 

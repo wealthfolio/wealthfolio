@@ -13,7 +13,8 @@ use super::net_worth_model::{
 };
 use super::net_worth_traits::NetWorthServiceTrait;
 use crate::accounts::{account_types, is_liability_account_type, AccountRepositoryTrait};
-use crate::assets::{Asset, AssetKind, AssetRepositoryTrait};
+use crate::assets::loan::LoanPayment;
+use crate::assets::{AlternativeAssetRepositoryTrait, Asset, AssetKind, AssetRepositoryTrait};
 use crate::constants::DECIMAL_PRECISION;
 use crate::errors::Result;
 use crate::fx::currency::normalize_amount;
@@ -21,6 +22,7 @@ use crate::fx::FxServiceTrait;
 use crate::portfolio::snapshot::SnapshotServiceTrait;
 use crate::portfolio::valuation::{DailyAccountValuation, ValuationRepositoryTrait};
 use crate::quotes::QuoteServiceTrait;
+use crate::utils::time_utils::parse_user_timezone_or_default;
 
 /// Number of days after which a valuation is considered stale.
 const STALENESS_THRESHOLD_DAYS: i64 = 90;
@@ -34,6 +36,14 @@ pub struct NetWorthService {
     quote_service: Arc<dyn QuoteServiceTrait>,
     valuation_repository: Arc<dyn ValuationRepositoryTrait>,
     fx_service: Arc<dyn FxServiceTrait>,
+    /// Source of loan payments from accounts; without one, loans count no payments.
+    loan_payments: Option<LoanPaymentSource>,
+}
+
+/// Where loan payments are read, and the settings time zone that dates them.
+struct LoanPaymentSource {
+    repository: Arc<dyn AlternativeAssetRepositoryTrait>,
+    timezone: Arc<RwLock<String>>,
 }
 
 impl NetWorthService {
@@ -56,7 +66,48 @@ impl NetWorthService {
             quote_service,
             valuation_repository,
             fx_service,
+            loan_payments: None,
         }
+    }
+
+    /// Counts loan payments tagged on account withdrawals, dated in the settings
+    /// time zone, as holdings and the loan page do.
+    pub fn with_loan_payments(
+        mut self,
+        repository: Arc<dyn AlternativeAssetRepositoryTrait>,
+        timezone: Arc<RwLock<String>>,
+    ) -> Self {
+        self.loan_payments = Some(LoanPaymentSource {
+            repository,
+            timezone,
+        });
+        self
+    }
+
+    fn loan_payments(&self, assets: &[&Asset]) -> Result<HashMap<String, Vec<LoanPayment>>> {
+        let Some(source) = &self.loan_payments else {
+            return Ok(HashMap::new());
+        };
+        let loan_ids: Vec<String> = assets
+            .iter()
+            .filter(|asset| asset.kind == AssetKind::Liability)
+            .map(|asset| asset.id.clone())
+            .collect();
+        let timezone = parse_user_timezone_or_default(
+            &source
+                .timezone
+                .read()
+                .unwrap_or_else(|poisoned| poisoned.into_inner()),
+        );
+        Ok(source
+            .repository
+            .loan_payments(&loan_ids)?
+            .into_iter()
+            .map(|(loan_id, payments)| {
+                let dated = payments.iter().map(|p| p.dated(timezone)).collect();
+                (loan_id, dated)
+            })
+            .collect())
     }
 
     /// Determine the asset category based on account type.
@@ -345,17 +396,16 @@ impl NetWorthService {
 #[async_trait]
 impl NetWorthServiceTrait for NetWorthService {
     async fn get_net_worth(&self, date: NaiveDate) -> Result<NetWorthResponse> {
-        let base_currency = self.base_currency.read().unwrap().clone();
+        let base_currency = self
+            .base_currency
+            .read()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .clone();
 
         debug!("Calculating net worth as of {} in {}", date, base_currency);
 
         // Get all non-archived accounts (includes closed accounts for historical net worth)
         let accounts = self.account_repository.list(None, Some(false), None)?;
-
-        if accounts.is_empty() {
-            debug!("No non-archived accounts found. Returning empty net worth.");
-            return Ok(NetWorthResponse::empty(date, base_currency));
-        }
 
         // Get account IDs
         let account_ids: Vec<String> = accounts.iter().map(|a| a.id.clone()).collect();
@@ -620,6 +670,7 @@ impl NetWorthServiceTrait for NetWorthService {
             .filter(|a| a.kind.is_alternative())
             .collect();
 
+        let mut loan_payments = self.loan_payments(&alternative_assets)?;
         for asset in alternative_assets {
             // Skip if this asset was already processed via a snapshot position
             // (in case there's overlap)
@@ -627,18 +678,30 @@ impl NetWorthServiceTrait for NetWorthService {
                 continue;
             }
 
-            // Get the latest quote for this alternative asset
-            let (price, quote_currency, valuation_date) =
-                match self.get_latest_quote_as_of(&asset.id, date) {
-                    Some((p, c, d)) => (p, c, d),
-                    None => {
-                        debug!(
-                            "No quote found for alternative asset {}, skipping",
-                            asset.id
-                        );
-                        continue;
-                    }
-                };
+            // Automatic loans can have historical estimates before their first
+            // recorded closing quote. Use the same dated calculation as history.
+            let calculated = if asset.kind == AssetKind::Liability
+                && asset
+                    .metadata
+                    .as_ref()
+                    .is_some_and(|m| m.get(crate::assets::loan::LOAN_PROJECTION_KEY).is_some())
+            {
+                let quotes = self.quote_service.get_historical_quotes(&asset.id)?;
+                crate::assets::loan::loan_value(
+                    asset.metadata.as_ref(),
+                    &quotes,
+                    &loan_payments.remove(&asset.id).unwrap_or_default(),
+                    date,
+                )
+                .map(|value| (value, asset.quote_ccy.clone(), date))
+            } else {
+                None
+            };
+            let Some((price, quote_currency, valuation_date)) =
+                calculated.or_else(|| self.get_latest_quote_as_of(&asset.id, date))
+            else {
+                continue;
+            };
 
             // For alternative assets, quantity is always 1 (value-based model)
             let quantity = Decimal::ONE;
@@ -712,7 +775,11 @@ impl NetWorthServiceTrait for NetWorthService {
         start_date: NaiveDate,
         end_date: NaiveDate,
     ) -> Result<Vec<NetWorthHistoryPoint>> {
-        let base_currency = self.base_currency.read().unwrap().clone();
+        let base_currency = self
+            .base_currency
+            .read()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .clone();
 
         debug!(
             "Calculating net worth history from {} to {} in {}",
@@ -803,6 +870,32 @@ impl NetWorthServiceTrait for NetWorthService {
             start_date,
             end_date,
         )?;
+
+        let mut loan_payments = self.loan_payments(&alternative_assets)?;
+        let mut loan_histories = Vec::new();
+        for asset in &alternative_assets {
+            if asset.kind == AssetKind::Liability
+                && asset
+                    .metadata
+                    .as_ref()
+                    .is_some_and(|m| m.get(crate::assets::loan::LOAN_PROJECTION_KEY).is_some())
+            {
+                let quotes = self.quote_service.get_historical_quotes(&asset.id)?;
+                if let Some(calculation) = crate::assets::loan::calculate_loan(
+                    &crate::assets::loan::LoanCalculationRequest {
+                        metadata: asset.metadata.clone().unwrap_or_default(),
+                        balances: quotes
+                            .iter()
+                            .map(crate::assets::loan::LoanBalance::from)
+                            .collect(),
+                        as_of: end_date,
+                        payments: loan_payments.remove(&asset.id).unwrap_or_default(),
+                    },
+                ) {
+                    loan_histories.push((*asset, calculation));
+                }
+            }
+        }
 
         // Organize quotes by date -> asset_id -> value (converted to base currency)
         let mut quotes_by_date: BTreeMap<NaiveDate, HashMap<String, Decimal>> = BTreeMap::new();
@@ -955,6 +1048,17 @@ impl NetWorthServiceTrait for NetWorthService {
             }
         }
 
+        for (_, calculation) in &loan_histories {
+            all_dates.extend(
+                calculation
+                    .rows
+                    .iter()
+                    .map(|r| r.date)
+                    .filter(|d| *d >= history_seed_date && *d <= end_date),
+            );
+            all_dates.push(end_date);
+        }
+
         all_dates.sort();
         all_dates.dedup();
 
@@ -1012,6 +1116,27 @@ impl NetWorthServiceTrait for NetWorthService {
             // Exception: if there's no portfolio data at all, include dates with alt assets
             if !portfolio_initialized && first_portfolio_date.is_some() {
                 continue;
+            }
+
+            for (asset, calculation) in &loan_histories {
+                if let Some(value) = calculation
+                    .rows
+                    .iter()
+                    .rev()
+                    .find(|r| r.date <= date)
+                    .and_then(|r| Decimal::from_f64_retain(r.balance))
+                    .map(|v| v.round_dp(2))
+                {
+                    let (value, currency) = normalize_amount(value, &asset.quote_ccy);
+                    let converted = if currency == base_currency {
+                        value
+                    } else {
+                        self.fx_service
+                            .convert_currency_for_date(value, currency, &base_currency, date)
+                            .unwrap_or(value)
+                    };
+                    current_asset_values.insert(asset.id.clone(), converted);
+                }
             }
 
             // Calculate totals

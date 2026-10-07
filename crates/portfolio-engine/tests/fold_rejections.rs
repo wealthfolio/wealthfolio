@@ -1,5 +1,6 @@
 //! A rejected activity changes no state: not its account's cash, and not
 //! the lots waiting in the transfer cache.
+#![allow(clippy::unwrap_used, clippy::panic, reason = "test code")]
 
 mod support;
 

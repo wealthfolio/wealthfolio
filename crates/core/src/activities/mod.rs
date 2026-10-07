@@ -28,14 +28,15 @@ pub use activities_model::{
     ActivityBulkMutationRequest, ActivityBulkMutationResult, ActivityDetails,
     ActivityFinalCashMigrationResult, ActivityFinalCashMigrationUpdate,
     ActivityFinalCashMigrationWriteResult, ActivityImport, ActivitySearchResponse,
-    ActivitySearchResponseMeta, ActivityStatus, ActivityType, ActivityUpdate, ActivityUpsert,
-    AssetResolutionInput, BrokerActivityProfileConfig, BrokerProfileScope, BrokerSyncProfileData,
-    BulkUpsertResult, FieldMappingValue, ImportActivitiesResult, ImportActivitiesSummary,
-    ImportAssetCandidate, ImportAssetPreviewItem, ImportAssetPreviewStatus, ImportMapping,
-    ImportMappingData, ImportTemplate, ImportTemplateData, ImportTemplateScope, IncomeData,
-    InternalTransferPairRequest, InternalTransferPairResponse, NewActivity,
-    PrepareActivitiesResult, SaveBrokerSyncProfileRulesRequest, Sort, TemplateKind,
-    TransferMatchCandidate, TransferMatchCandidateRequest,
+    ActivitySearchResponseMeta, ActivityStatus, ActivityType, ActivityUpdate,
+    ActivityUpdatePreview, ActivityUpsert, AssetResolutionInput, BrokerActivityProfileConfig,
+    BrokerProfileScope, BrokerSyncProfileData, BulkUpsertResult, FieldMappingValue,
+    ImportActivitiesResult, ImportActivitiesSummary, ImportAssetCandidate, ImportAssetPreviewItem,
+    ImportAssetPreviewStatus, ImportMapping, ImportMappingData, ImportTemplate, ImportTemplateData,
+    ImportTemplateScope, IncomeData, InternalTransferPairRequest, InternalTransferPairResponse,
+    LinkedTransfer, NewActivity, PrepareActivitiesResult, PreviewedActivityUpdate,
+    SaveBrokerSyncProfileRulesRequest, Sort, TemplateKind, TransferMatchCandidate,
+    TransferMatchCandidateRequest, UnlinkedTransfer, UnlinkedTransfers, UnlinkedTransfersRequest,
 };
 pub use activities_service::ActivityService;
 pub use activities_traits::{ActivityRepositoryTrait, ActivityServiceTrait};
@@ -54,5 +55,5 @@ pub use import_run_model::{
 };
 pub use transfer_pairs::{
     is_contribution_neutral_same_account_cash_fx_conversion, is_same_account_cash_fx_conversion,
-    InvalidTransferGroup, TransferPair, TransferPairResolution,
+    InvalidTransferGroup, TransferLinkState, TransferPair, TransferPairResolution,
 };

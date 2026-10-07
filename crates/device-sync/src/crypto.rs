@@ -110,7 +110,8 @@ pub fn derive_session_key(shared_secret_b64: &str, context: &str) -> Result<Stri
         .map_err(|e| format!("Invalid shared secret: {}", e))?;
 
     // Use context as additional info
-    let info = format!("{}-{}", std::str::from_utf8(SESSION_INFO).unwrap(), context);
+    // Lossless: SESSION_INFO is ASCII.
+    let info = format!("{}-{}", String::from_utf8_lossy(SESSION_INFO), context);
 
     let hk = Hkdf::<Sha256>::new(None, &shared_secret);
     let mut session_key = [0u8; ROOT_KEY_SIZE];

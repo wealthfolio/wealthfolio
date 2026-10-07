@@ -213,9 +213,11 @@ fn policy(base_currency: &str, timezone: &str, as_of: NaiveDate) -> Result<Polic
     ))
 }
 
-/// An account's facts without its cost basis method: for facts that are never
-/// folded (measures read the stored lots, split recorders are not projected),
-/// so the method does not matter.
+/// An account's facts for facts that are never folded: measures read the
+/// stored lots, and split recorders are not projected. Measures still read
+/// the method (a WAC account's purchases pool, engine rules R7.2); a method
+/// the engine does not compute, or settings this version cannot read, read
+/// as none, since such an account has no results to measure.
 pub(super) fn raw_account(a: &crate::accounts::Account) -> RawAccount {
     RawAccount {
         id: a.id.clone(),
@@ -223,7 +225,12 @@ pub(super) fn raw_account(a: &crate::accounts::Account) -> RawAccount {
         account_type: a.account_type.clone(),
         tracking_mode: tracking_label(a.tracking_mode).to_string(),
         is_archived: a.is_archived,
-        cost_basis_method: None,
+        cost_basis_method: a
+            .accounting_settings()
+            .ok()
+            .map(|settings| settings.cost_basis_method.as_str())
+            .filter(|code| engine::model::CostBasisMethod::parse(code).is_some())
+            .map(str::to_string),
     }
 }
 

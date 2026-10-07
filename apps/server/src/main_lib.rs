@@ -594,7 +594,8 @@ async fn initialize_profile_state(
             secret_store.clone(),
             Some(custom_provider_repository.clone()),
         )
-        .await?,
+        .await?
+        .with_event_sink(domain_event_sink.clone()),
     );
     let custom_provider_service = Arc::new(
         wealthfolio_core::custom_provider::CustomProviderService::new(
@@ -655,8 +656,15 @@ async fn initialize_profile_state(
         timezone.clone(),
     ));
 
-    let net_worth_service: Arc<dyn NetWorthServiceTrait + Send + Sync> =
-        Arc::new(NetWorthService::new(
+    // Alternative asset repository for alternative assets operations
+    let alternative_asset_repository: Arc<dyn AlternativeAssetRepositoryTrait + Send + Sync> =
+        Arc::new(AlternativeAssetRepository::new(
+            pool.clone(),
+            writer.clone(),
+        ));
+
+    let net_worth_service: Arc<dyn NetWorthServiceTrait + Send + Sync> = Arc::new(
+        NetWorthService::new(
             base_currency.clone(),
             account_repo.clone(),
             asset_repository.clone(),
@@ -664,7 +672,9 @@ async fn initialize_profile_state(
             quote_service.clone(),
             valuation_repository.clone(),
             fx_service.clone(),
-        ));
+        )
+        .with_loan_payments(alternative_asset_repository.clone(), timezone.clone()),
+    );
 
     let holdings_valuation_service = Arc::new(HoldingsValuationService::new_with_timezone(
         fx_service.clone(),
@@ -914,12 +924,6 @@ async fn initialize_profile_state(
         fx_service.clone(),
     ));
 
-    // Alternative asset repository for alternative assets operations
-    let alternative_asset_repository: Arc<dyn AlternativeAssetRepositoryTrait + Send + Sync> =
-        Arc::new(AlternativeAssetRepository::new(
-            pool.clone(),
-            writer.clone(),
-        ));
 
     // Alternative asset service (delegates to core service)
     let alternative_asset_service: Arc<dyn AlternativeAssetServiceTrait + Send + Sync> = Arc::new(
@@ -1171,7 +1175,7 @@ async fn initialize_profile_state(
     });
 
     #[cfg(feature = "device-sync")]
-    state.workers.lock().unwrap().push(start_sync_outbox_wake_worker(sync_outbox_wake_receiver, Arc::clone(&state)));
+    state.workers.lock().unwrap_or_else(|poisoned| poisoned.into_inner()).push(start_sync_outbox_wake_worker(sync_outbox_wake_receiver, Arc::clone(&state)));
 
     crate::api::shared::spawn_portfolio_update(Arc::clone(&state));
 

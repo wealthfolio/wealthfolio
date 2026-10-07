@@ -239,11 +239,11 @@ fn resolve_database_path(
         );
         return Ok(database);
     }
+    // Lossless: root_text and "app.db" are both UTF-8.
     Ok(std::path::Path::new(root_text)
         .join("app.db")
-        .to_str()
-        .unwrap()
-        .to_owned())
+        .to_string_lossy()
+        .into_owned())
 }
 
 /// Resolve existing aliases and new child directories without creating them.

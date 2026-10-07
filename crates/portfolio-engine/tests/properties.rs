@@ -1,5 +1,6 @@
 //! Property suite (architecture §5) driven by the fixture corpus: every scenario is
 //! a generator seed, and each law is checked over all of them.
+#![allow(clippy::unwrap_used, clippy::panic, reason = "test code")]
 
 mod support;
 
@@ -894,8 +895,9 @@ fn p_recon_complete_days_rederive_from_keyframes_and_surfaces() {
 }
 
 /// A holdings snapshot valued on `day` from the public surfaces, by P-RECON's
-/// rule, in `currency`; `None` when a price or rate is missing, or a position
-/// is alternative or split-adjusted.
+/// rule, in `currency`: its units carried across the recorded splits since
+/// (rules R1.5); `None` when a price or rate is missing, or a position is
+/// alternative or split-adjusted.
 fn value_snapshot(
     pipeline: &Pipeline,
     snapshot: &ObservedSnapshot,
@@ -917,8 +919,19 @@ fn value_snapshot(
         let quote = pipeline.surfaces().quotes.latest_on_or_before(asset, day)?;
         let (major, unit) = policy.normalize_currency(quote.currency.as_str());
         let multiplier = facts.map(|a| a.contract_multiplier).unwrap_or(Decimal::ONE);
-        total +=
-            position.quantity * quote.close * unit * multiplier * fx.rate(major, currency, day)?;
+        let split: Decimal = pipeline
+            .surfaces()
+            .recorded_splits
+            .iter()
+            .filter(|s| &s.asset == asset && snapshot.date < s.split_date && s.split_date <= day)
+            .map(|s| s.ratio)
+            .product();
+        total += position.quantity
+            * split
+            * quote.close
+            * unit
+            * multiplier
+            * fx.rate(major, currency, day)?;
     }
     for (bucket, amount) in &snapshot.cash {
         let (major, unit) = policy.normalize_currency(bucket.as_str());
@@ -933,7 +946,8 @@ fn value_snapshot(
 /// snapshot's value less the previous snapshot's holdings at that day's
 /// prices, zero included: a deposit or transfer it records adds no flow of
 /// its own (EDGE-MIX-04, EDGE-MIX-05). Re-derived where the account currency
-/// is the base's, both snapshots are priced, and no asset split.
+/// is the base's, both snapshots are priced, and no split was adjusted for
+/// (EDGE-SPLIT-04).
 #[test]
 fn p_hold_holdings_flows_come_from_snapshots() {
     let mut checked = 0usize;

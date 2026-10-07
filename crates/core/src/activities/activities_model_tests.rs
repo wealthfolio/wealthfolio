@@ -161,13 +161,6 @@ mod tests {
     }
 
     #[test]
-    fn test_effective_date() {
-        let activity = create_test_activity();
-        let date = activity.effective_date();
-        assert_eq!(date.to_string(), "2024-01-15");
-    }
-
-    #[test]
     fn test_is_posted_true() {
         let activity = create_test_activity();
         assert!(activity.is_posted());

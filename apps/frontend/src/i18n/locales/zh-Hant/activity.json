@@ -502,6 +502,9 @@
     "label_to_account": "轉入帳戶",
     "label_sent": "轉出（{{currency}}）",
     "label_received": "收到（{{currency}}）",
+    "source_currency": "轉出幣別",
+    "destination_currency": "轉入幣別",
+    "label_transfer_rate": "轉帳成交匯率",
     "label_fx_rate": "匯率",
     "placeholder_note": "新增選填備註……",
     "placeholder_search_option_ticker": "搜尋選擇權或股票代號……",
@@ -699,6 +702,7 @@
       "jump_hint_one": "請輸入 1 到 {{count}} 之間的頁碼"
     },
     "duplicated_comment": "已複製",
+    "edit_transfer_pair": "請透過「編輯」在轉帳表單中修改帳戶與幣別。請先儲存尚未提交的變更。",
     "save_edits_first": "請先儲存編輯",
     "save_before_link": "配對此轉帳前，請先儲存或放棄待處理的編輯。",
     "save_before_unlink": "取消此轉帳的配對前，請先儲存或放棄待處理的編輯。",

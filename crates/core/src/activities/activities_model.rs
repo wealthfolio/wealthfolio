@@ -11,6 +11,7 @@ use crate::activities::activities_constants::{
     ACTIVITY_TYPE_WITHDRAWAL,
 };
 use crate::activities::csv_parser::ParseConfig;
+use crate::activities::TransferLinkState;
 use crate::assets::NewAsset;
 use crate::Result;
 use crate::{activities::activities_errors::ActivityError, QuoteMode};
@@ -240,11 +241,6 @@ impl Activity {
     /// This is what the compiler and calculator should use.
     pub fn effective_type(&self) -> &str {
         effective_activity_type(&self.activity_type, self.activity_type_override.as_deref())
-    }
-
-    /// Returns the effective date for this activity
-    pub fn effective_date(&self) -> NaiveDate {
-        self.activity_date.naive_utc().date()
     }
 
     /// Check if this activity is posted (should affect calculations)
@@ -621,6 +617,27 @@ impl NewActivity {
     }
 }
 
+/// One activity as an update would leave it, computed without writing.
+#[derive(Debug, Clone)]
+pub struct PreviewedActivityUpdate {
+    /// The stored activity.
+    pub existing: Activity,
+    /// The update as it would be written: omitted fields hydrated from
+    /// `existing` (a `None` patch still keeps the stored value), derived
+    /// amount and review flag applied, date and values normalized.
+    pub update: ActivityUpdate,
+    /// The instant `update.activity_date` is stored as.
+    pub activity_date: DateTime<Utc>,
+}
+
+/// What `update_activity` would write for an update, without writing it.
+#[derive(Debug, Clone)]
+pub struct ActivityUpdatePreview {
+    pub activity: PreviewedActivityUpdate,
+    /// The other leg of a linked transfer pair, which the update mirrors onto.
+    pub linked: Option<PreviewedActivityUpdate>,
+}
+
 /// Input model for updating an existing activity
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -828,6 +845,8 @@ pub struct InternalTransferPairRequest {
     pub destination_amount: Option<Decimal>,
     pub source_currency: String,
     pub destination_currency: String,
+    /// Legacy execution-rate hint. Amounts are authoritative; this is never
+    /// persisted as Activity.fx_rate (an activity-to-account valuation override).
     #[serde(
         default,
         deserialize_with = "decimal_input_format::deserialize_option_decimal"
@@ -865,6 +884,66 @@ pub struct TransferMatchCandidate {
     pub score: i32,
     pub reasons: Vec<String>,
     pub warnings: Vec<String>,
+}
+
+/// Scope of a scan for posted transfers with no linked other side.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UnlinkedTransfersRequest {
+    /// Look up this one activity instead of scanning.
+    #[serde(default)]
+    pub activity_id: Option<String>,
+    #[serde(default)]
+    pub account_id: Option<String>,
+    /// Inclusive UTC calendar dates of the transfer.
+    #[serde(default)]
+    pub start_date: Option<NaiveDate>,
+    #[serde(default)]
+    pub end_date: Option<NaiveDate>,
+    /// Days a candidate may be from the transfer (default 7, at most 90).
+    #[serde(default)]
+    pub window_days: Option<i64>,
+    /// Candidates per transfer (default 3, at most 25).
+    #[serde(default)]
+    pub candidate_limit: Option<usize>,
+    /// Transfers returned (default 25, at most 100).
+    #[serde(default)]
+    pub limit: Option<usize>,
+    /// Transfers skipped before `limit`, for paging.
+    #[serde(default)]
+    pub offset: Option<usize>,
+    /// Only these unlinked states (default all three).
+    #[serde(default)]
+    pub link_states: Option<Vec<TransferLinkState>>,
+}
+
+/// A posted transfer with no linked other side, its link state, and the
+/// transfers it could pair with, best first.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UnlinkedTransfer {
+    pub activity: Activity,
+    pub link_state: TransferLinkState,
+    pub candidates: Vec<TransferMatchCandidate>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UnlinkedTransfers {
+    /// Newest first, at most the request's `limit`.
+    pub transfers: Vec<UnlinkedTransfer>,
+    /// Unlinked transfers in scope before the offset and limit.
+    pub total: usize,
+    /// For an `activity_id` lookup of a linked transfer: its other side.
+    pub linked: Option<LinkedTransfer>,
+}
+
+/// The other side of a linked transfer, and the transfer's link state.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LinkedTransfer {
+    pub counterpart_id: String,
+    pub link_state: TransferLinkState,
 }
 
 /// Structured error reported for a single bulk mutation entry.

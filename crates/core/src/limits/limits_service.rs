@@ -54,7 +54,12 @@ impl ContributionLimitService {
     }
 
     fn user_timezone(&self) -> chrono_tz::Tz {
-        parse_user_timezone_or_default(&self.timezone.read().unwrap())
+        parse_user_timezone_or_default(
+            &self
+                .timezone
+                .read()
+                .unwrap_or_else(|poisoned| poisoned.into_inner()),
+        )
     }
 
     /// Checks if an activity has metadata.flow.is_external = true
@@ -304,13 +309,6 @@ mod tests {
         // Stub implementations for other trait methods
         fn get_activity(&self, _: &str) -> Result<Activity> {
             unimplemented!()
-        }
-        fn find_transfer_counterpart(
-            &self,
-            _group_id: &str,
-            _exclude_id: &str,
-        ) -> Result<Option<Activity>> {
-            Ok(None)
         }
         fn get_activities(&self) -> Result<Vec<Activity>> {
             unimplemented!()

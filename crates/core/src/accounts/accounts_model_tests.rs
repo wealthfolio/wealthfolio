@@ -181,6 +181,19 @@ mod tests {
         }
     }
 
+    /// Engine rules R7.2: every method the engine computes is a code these
+    /// settings store and pass to it, so the form's methods are computed.
+    #[test]
+    fn every_method_the_engine_computes_is_a_settings_code_it_accepts() {
+        for method in wealthfolio_portfolio_engine::model::CostBasisMethod::ALL {
+            let code = method.as_str();
+            let meta = format!(r#"{{"accounting":{{"costBasisMethod":"{code}"}}}}"#);
+            let settings = accounting_settings_of(Some(&meta)).expect(code);
+            assert_eq!(settings.cost_basis_method.as_str(), code);
+            settings.ensure_supported_for_calculation().expect(code);
+        }
+    }
+
     #[test]
     fn test_credit_card_rejects_holdings_tracking_mode() {
         let account = NewAccount {

@@ -499,6 +499,9 @@
     "label_to_account": "도착 계좌",
     "label_sent": "보낸 금액 ({{currency}})",
     "label_received": "받은 금액 ({{currency}})",
+    "source_currency": "출금 통화",
+    "destination_currency": "입금 통화",
+    "label_transfer_rate": "이체 적용 환율",
     "label_fx_rate": "환율",
     "placeholder_note": "메모를 입력하세요(선택 사항)...",
     "placeholder_search_option_ticker": "옵션 또는 종목 코드 검색...",
@@ -695,6 +698,7 @@
       "jump_hint_other": "1에서 {{count}} 사이의 페이지 번호를 입력하세요"
     },
     "duplicated_comment": "중복됨",
+    "edit_transfer_pair": "편집을 눌러 이체 양식에서 계좌와 통화를 변경하세요. 먼저 보류 중인 변경 사항을 저장하세요.",
     "save_edits_first": "먼저 편집 내용을 저장하세요",
     "save_before_link": "이 이체를 연결하기 전에 대기 중인 편집 내용을 저장하거나 취소하세요.",
     "save_before_unlink": "이 이체 연결을 해제하기 전에 대기 중인 편집 내용을 저장하거나 취소하세요.",

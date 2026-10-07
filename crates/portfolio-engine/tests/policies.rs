@@ -2,6 +2,7 @@
 //! one way and reported so the health center can show it: directions of a
 //! pair that disagree, a reduction beyond the position, and a posted row
 //! without a final amount.
+#![allow(clippy::unwrap_used, clippy::panic, reason = "test code")]
 
 mod support;
 
@@ -13,6 +14,74 @@ use wealthfolio_portfolio_engine::{fx_conflicts, normalize_fx_rates, DiagnosticC
 fn scenario(yaml: &str) -> Pipeline {
     let scenario: Scenario = serde_yaml::from_str(yaml).expect("scenario");
     Pipeline::run(scenario.raw_facts()).expect("pipeline")
+}
+
+#[test]
+fn internal_cash_transfers_book_actual_currencies_and_value_them_independently() {
+    let pipeline = scenario(
+        r#"
+id: POLICY-TRANSFER-CURRENCIES
+policy: { base_currency: USD, timezone: UTC, as_of: 2025-01-06 }
+accounts:
+  - { id: a, currency: USD }
+  - { id: b, currency: USD }
+activities:
+  - { id: dep-usd, account: a, type: DEPOSIT, date: 2025-01-02T10:00:00Z, currency: USD, amount: 1000 }
+  - { id: dep-hkd, account: a, type: DEPOSIT, date: 2025-01-02T11:00:00Z, currency: HKD, amount: 1000 }
+  - { id: out-hkd, account: a, type: TRANSFER_OUT, date: 2025-01-03T10:00:00Z, currency: HKD, amount: 500, source_group_id: same }
+  - { id: in-hkd, account: b, type: TRANSFER_IN, date: 2025-01-03T10:00:00Z, currency: HKD, amount: 500, source_group_id: same }
+  - { id: out-usd, account: a, type: TRANSFER_OUT, date: 2025-01-06T10:00:00Z, currency: USD, amount: 100, source_group_id: cross }
+  - { id: in-fx, account: b, type: TRANSFER_IN, date: 2025-01-06T10:00:00Z, currency: HKD, amount: 800, source_group_id: cross }
+fx_rates:
+  - { from: HKD, to: USD, day: 2025-01-02, rate: 0.125 }
+  - { from: HKD, to: USD, day: 2025-01-03, rate: 0.125 }
+  - { from: HKD, to: USD, day: 2025-01-06, rate: 0.125 }
+"#,
+    );
+    let a = &pipeline.bundle.final_state.accounts[&AccountId::new("a")];
+    let b = &pipeline.bundle.final_state.accounts[&AccountId::new("b")];
+    let hkd = Currency::parse("HKD").unwrap();
+    let usd = Currency::parse("USD").unwrap();
+    assert_eq!(a.cash[&usd], Decimal::from(900));
+    assert_eq!(a.cash[&hkd], Decimal::from(500));
+    assert_eq!(b.cash[&hkd], Decimal::from(1300));
+    assert_eq!(b.cash.get(&usd).copied().unwrap_or_default(), Decimal::ZERO);
+    // The implied execution rate is 8 HKD/USD, NOT the HKD->USD valuation rate.
+    assert_eq!(b.net_contribution, Decimal::new(1625, 1));
+    assert_eq!(a.net_contribution + b.net_contribution, Decimal::from(1125));
+}
+
+#[test]
+fn a_stored_transfer_rate_on_a_leg_in_its_account_currency_changes_nothing() {
+    // Pairs saved before independent transfer currencies carry the execution
+    // rate on the incoming leg. Each leg is in its account's currency, so the
+    // rate is never read: the projection and valuations match a pair without it.
+    let legacy_pair = |stored_rate: &str| {
+        scenario(&format!(
+            r#"
+id: POLICY-LEGACY-TRANSFER-RATE
+policy: {{ base_currency: USD, timezone: UTC, as_of: 2025-01-06 }}
+accounts:
+  - {{ id: a, currency: USD }}
+  - {{ id: b, currency: EUR }}
+activities:
+  - {{ id: dep, account: a, type: DEPOSIT, date: 2025-01-02T10:00:00Z, currency: USD, amount: 2000 }}
+  - {{ id: out, account: a, type: TRANSFER_OUT, date: 2025-01-03T10:00:00Z, currency: USD, amount: 1000, source_group_id: legacy }}
+  - {{ id: in, account: b, type: TRANSFER_IN, date: 2025-01-03T10:00:00Z, currency: EUR, amount: 920, source_group_id: legacy{stored_rate} }}
+fx_rates:
+  - {{ from: EUR, to: USD, day: 2025-01-02, rate: 1.08 }}
+  - {{ from: EUR, to: USD, day: 2025-01-03, rate: 1.09 }}
+  - {{ from: EUR, to: USD, day: 2025-01-06, rate: 1.1 }}
+"#
+        ))
+    };
+    let with_rate = legacy_pair(", fx_rate: 0.92");
+    let without_rate = legacy_pair("");
+    assert_eq!(
+        with_rate.bundle.final_state,
+        without_rate.bundle.final_state
+    );
+    assert_eq!(with_rate.series, without_rate.series);
 }
 
 fn rate(from: &str, to: &str, day: &str, rate: Decimal) -> RawFxRate {

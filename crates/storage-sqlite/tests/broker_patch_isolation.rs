@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used, clippy::panic, reason = "test code")]
 use db::get_connection;
 use diesel::prelude::*;
 use rust_decimal::Decimal;

@@ -19,7 +19,10 @@ async fn get_net_worth(
 ) -> ApiResult<Json<NetWorthResponse>> {
     let as_of_date = parse_date_optional(q.date, "date")?.unwrap_or_else(|| {
         user_today(parse_user_timezone_or_default(
-            &state.timezone.read().unwrap(),
+            &state
+                .timezone
+                .read()
+                .unwrap_or_else(|poisoned| poisoned.into_inner()),
         ))
     });
     let response = state.net_worth_service.get_net_worth(as_of_date).await?;

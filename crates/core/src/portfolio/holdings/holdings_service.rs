@@ -137,7 +137,12 @@ impl HoldingIncomeServiceTrait for HoldingIncomeService {
         let activities = self
             .activity_repository
             .get_activities_by_account_ids(account_ids)?;
-        let timezone = parse_user_timezone_or_default(&self.timezone.read().unwrap());
+        let timezone = parse_user_timezone_or_default(
+            &self
+                .timezone
+                .read()
+                .unwrap_or_else(|poisoned| poisoned.into_inner()),
+        );
         Ok(calculate_asset_income(
             &activities,
             asset_currencies,
@@ -257,7 +262,12 @@ impl HoldingsService {
     }
 
     fn today_in_user_timezone(&self) -> chrono::NaiveDate {
-        let tz = parse_user_timezone_or_default(&self.timezone.read().unwrap());
+        let tz = parse_user_timezone_or_default(
+            &self
+                .timezone
+                .read()
+                .unwrap_or_else(|poisoned| poisoned.into_inner()),
+        );
         user_today(tz)
     }
 
@@ -2300,21 +2310,6 @@ mod tests {
                 .find(|activity| activity.id == activity_id)
                 .cloned()
                 .ok_or_else(|| CoreError::Repository(format!("Activity not found: {activity_id}")))
-        }
-
-        fn find_transfer_counterpart(
-            &self,
-            group_id: &str,
-            exclude_id: &str,
-        ) -> Result<Option<Activity>> {
-            Ok(self
-                .activities
-                .iter()
-                .find(|activity| {
-                    activity.source_group_id.as_deref() == Some(group_id)
-                        && activity.id != exclude_id
-                })
-                .cloned())
         }
 
         fn get_activities(&self) -> Result<Vec<Activity>> {

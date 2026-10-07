@@ -142,8 +142,8 @@ export function useActivityForm({
                 sourceCurrency === destinationCurrency
                   ? sourceAmount
                   : (transferData.destinationAmount ??
-                    (sourceAmount && transferData.fxRate
-                      ? sourceAmount * transferData.fxRate
+                    (sourceAmount && transferData.transferRate
+                      ? sourceAmount * transferData.transferRate
                       : undefined));
 
               if (!sourceAmount || !destinationAmount || !sourceCurrency || !destinationCurrency) {
@@ -168,10 +168,6 @@ export function useActivityForm({
                 destinationAmount,
                 sourceCurrency,
                 destinationCurrency,
-                fxRate:
-                  sourceCurrency === destinationCurrency
-                    ? undefined
-                    : (transferData.fxRate ?? null),
                 notes: transferData.comment ?? null,
                 transferMode: "cash",
               });

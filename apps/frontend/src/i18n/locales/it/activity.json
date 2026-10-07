@@ -507,6 +507,9 @@
     "label_to_account": "Conto di destinazione",
     "label_sent": "Inviato ({{currency}})",
     "label_received": "Ricevuto ({{currency}})",
+    "source_currency": "Valuta di origine",
+    "destination_currency": "Valuta di destinazione",
+    "label_transfer_rate": "Tasso di cambio del trasferimento",
     "label_fx_rate": "Tasso di cambio",
     "placeholder_note": "Aggiungi una nota facoltativa...",
     "placeholder_search_option_ticker": "Cerca opzione o ticker...",
@@ -708,6 +711,7 @@
       "jump_hint_other": "Inserisci un numero di pagina tra 1 e {{count}}"
     },
     "duplicated_comment": "Duplicato",
+    "edit_transfer_pair": "Usa Modifica per cambiare conti e valute nel modulo di trasferimento. Salva prima le modifiche in sospeso.",
     "save_edits_first": "Salva prima le modifiche",
     "save_before_link": "Salva o annulla le modifiche in sospeso prima di collegare questo trasferimento.",
     "save_before_unlink": "Salva o annulla le modifiche in sospeso prima di scollegare questo trasferimento.",

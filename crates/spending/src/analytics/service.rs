@@ -783,11 +783,14 @@ impl AnalyticsService {
         let today_local =
             wealthfolio_core::utils::time_utils::activity_date_in_user_timezone(now, timezone);
         let year_now = today_local.year();
-        let ytd_start = NaiveDate::from_ymd_opt(year_now, 1, 1).unwrap();
-        let last_year_start = NaiveDate::from_ymd_opt(year_now - 1, 1, 1).unwrap();
-        let last_year_end = NaiveDate::from_ymd_opt(year_now - 1, 12, 31).unwrap();
-        let two_years_ago_start = NaiveDate::from_ymd_opt(year_now - 2, 1, 1).unwrap();
-        let two_years_ago_end = NaiveDate::from_ymd_opt(year_now - 2, 12, 31).unwrap();
+        let jan_1 = |year| NaiveDate::from_ymd_opt(year, 1, 1).expect("every year has January 1");
+        let dec_31 =
+            |year| NaiveDate::from_ymd_opt(year, 12, 31).expect("every year has December 31");
+        let ytd_start = jan_1(year_now);
+        let last_year_start = jan_1(year_now - 1);
+        let last_year_end = dec_31(year_now - 1);
+        let two_years_ago_start = jan_1(year_now - 2);
+        let two_years_ago_end = dec_31(year_now - 2);
 
         // Report currency = caller's base. Per-activity native amounts are
         // FX-converted to this inside build_summary. Previous behavior picked

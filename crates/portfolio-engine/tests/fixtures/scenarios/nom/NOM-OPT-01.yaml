@@ -78,8 +78,8 @@ expected_notes: >
   (basis 201); 01-06 -2 (basis -598, average 299, contract_multiplier 100);
   01-08 -1 (-299); 01-10 no position. Market value: 01-03 200, 01-06 -600,
   01-08 -250, 01-09 -100, 01-10 onward 0. Total value 5445 on 01-10 = 5000
-  + realized 445; TWR 8.9%. LEGACY BEHAVIOR (attribution): realized 150 and
-  fees 5 (summary 145) - the 299 realized on the OPTION_EXPIRY adjustment is
-  excluded because attribution only keeps disposals whose activity is a BUY
-  or SELL, so the diagnostics report "attribution incomplete, difference
-  300". Candidate for the divergence ledger.
+  + realized 445; TWR 8.9%. Attribution: realized 450 before charges (150
+  from the trades, 300 from exp-1: the 299 it realizes plus the 1 opening
+  fee of the contract it closes), fees 5, summary 445: the whole gain. The
+  previous calculator kept only BUY and SELL disposals, so it reported 150
+  and 145 and flagged the attribution incomplete by 300 (rules R3.5).

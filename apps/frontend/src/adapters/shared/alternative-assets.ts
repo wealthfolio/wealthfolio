@@ -85,12 +85,14 @@ export const updateAlternativeAssetMetadata = async (
   metadata: Record<string, string>,
   name?: string,
   notes?: string | null,
+  loan?: LoanSetup,
 ): Promise<void> => {
   return invoke<void>("update_alternative_asset_metadata", {
     assetId,
     name,
     metadata,
     notes,
+    loan,
   });
 };
 
@@ -117,3 +119,180 @@ export const getNetWorthHistory = async (
     endDate,
   });
 };
+
+export interface LoanCalculationRow {
+  date: string;
+  openingBalance: number;
+  scheduledPayment: boolean;
+  balance: number;
+  payment: number;
+  extraPayment: number;
+  principal: number;
+  interest: number;
+  confirmed: boolean;
+  balanceAdjustment: number;
+}
+export interface LoanCalculation {
+  currentBalance: number;
+  annualRate: number;
+  paymentAmount: number;
+  frequency: "monthly" | "biweekly" | "accelerated_biweekly";
+  interestMethod: "nominal_periodic" | "monthly" | "semiannual";
+  calculationStartDate: string;
+  rows: LoanCalculationRow[];
+  remainingPayments: number;
+  interestToDate: number;
+  projectedInterest: number;
+  residualBalance: number;
+  residualInterest: number;
+  payoffDate: string | null;
+  /** How each tagged payment was applied, in date order. */
+  allocations: PaymentAllocation[];
+  /** Due instalments from the first tagged payment onward. */
+  instalments: LoanInstalment[];
+  paymentSuggestion: { effectiveDate: string; paymentAmount: number } | null;
+}
+
+/** Where a payment applies: an instalment due date, or extra principal. */
+export type PaymentTarget = string;
+
+/** A withdrawal tagged as a payment on a loan. */
+export interface LoanPayment {
+  activityId: string;
+  accountId: string;
+  date: string;
+  amount: number;
+  escrow: number;
+  appliesTo: PaymentTarget | null;
+}
+
+export interface PaymentAllocation {
+  activityId: string;
+  accountId: string;
+  date: string;
+  instalment: string | null;
+  escrow: number;
+  applied: number;
+  extra: number;
+}
+
+export type InstalmentStatus = "paid" | "due" | "short" | "missing";
+
+export interface LoanInstalment {
+  dueDate: string;
+  scheduled: number;
+  paid: number;
+  status: InstalmentStatus;
+}
+export const calculateLoan = (request: {
+  metadata: Record<string, unknown>;
+  balances: { date: string; balance: number; notes?: string | null }[];
+  asOf: string;
+  payments?: LoanPayment[];
+}): Promise<LoanCalculation | null> => invoke("calculate_loan", { request });
+
+export interface LoanRecalculation {
+  paymentAmount: number;
+  remainingPayments: number;
+  currentBalance: number;
+}
+export const recalculateLoan = (
+  request: Parameters<typeof calculateLoan>[0] & { annualRate: number },
+): Promise<LoanRecalculation | null> => invoke("recalculate_loan", { request });
+
+/** A recorded loan event as stored; the backend validates every write. */
+export interface StoredLoanEvent {
+  type: string;
+  effectiveDate: string;
+}
+
+/** A change to a loan, checked and applied by the backend in one transaction. */
+export type LoanAction =
+  | { type: "confirm_balance"; date: string; balance: number }
+  | { type: "extra_repayment"; date: string; amount: number }
+  | { type: "close"; date: string }
+  | { type: "recalculate"; date: string; annualRate: number }
+  | {
+      type: "renew";
+      date: string;
+      annualRate: number;
+      paymentAmount?: number;
+      frequency?: "monthly" | "biweekly" | "accelerated_biweekly";
+      interestMethod?: "nominal_periodic" | "monthly" | "semiannual";
+      termEndDate?: string;
+      balance?: number;
+    }
+  | {
+      type: "edit_event";
+      index: number;
+      original: StoredLoanEvent;
+      replacement: StoredLoanEvent | null;
+    }
+  | {
+      type: "edit_balance";
+      quoteId: string;
+      replacement: { date: string; balance: number; note: string } | null;
+    }
+  | ({ type: "set_terms" } & LoanSetup)
+  | { type: "change_payment"; date: string; paymentAmount: number };
+
+/** A loan's schedule as entered; omitted values are derived by the backend. */
+export interface LoanSchedule {
+  frequency: "monthly" | "biweekly" | "accelerated_biweekly";
+  interestMethod?: "nominal_periodic" | "monthly" | "semiannual";
+  /** Omitted: one period after origination. */
+  firstPaymentDate?: string;
+  /** Amortization in months, or a last payment date off the payment calendar. */
+  amortizationMonths?: number;
+  lastPaymentDate?: string;
+  /** Omitted: solved as at creation. */
+  paymentAmount?: number;
+  renewalMaturity?: string;
+  paymentAccountId?: string;
+  escrowAmount?: number;
+}
+
+/** The loan section of a liability as entered; the backend checks it and derives the terms. */
+export interface LoanSetup {
+  originalAmount?: number;
+  originationDate?: string;
+  interestRate?: number;
+  /** Omitted: tracked manually from recorded balances. */
+  schedule?: LoanSchedule;
+}
+
+/** What a schedule works out to, from the same rules that save it. */
+export interface LoanSchedulePreview {
+  firstPaymentDate: string;
+  lastPaymentDate: string;
+  paymentCount: number;
+  paymentAmount: number;
+}
+
+/** Previews a setup without saving it; `assetId` names the loan being edited. */
+export const previewLoanTerms = (
+  assetId: string | null,
+  setup: LoanSetup,
+): Promise<LoanSchedulePreview | null> => invoke("preview_loan_terms", { assetId, setup });
+
+export const applyLoanAction = (assetId: string, action: LoanAction): Promise<void> =>
+  invoke("apply_loan_action", { assetId, action });
+
+/** Withdrawals tagged as payments on a loan; only qualifying ones are returned. */
+export const getLoanPayments = (assetId: string): Promise<LoanPayment[]> =>
+  invoke("get_loan_payments", { assetId });
+
+export type PaymentLink =
+  | {
+      type: "link";
+      loanId: string;
+      escrow?: number;
+      appliesTo?: PaymentTarget;
+      /** The withdrawal is a recorded extra repayment: replace the event with it. */
+      replaceEvent?: boolean;
+    }
+  | { type: "unlink" };
+
+/** Links or unlinks a withdrawal as a loan payment; the backend checks it. */
+export const linkLoanPayment = (activityId: string, link: PaymentLink): Promise<void> =>
+  invoke("link_loan_payment", { activityId, link });

@@ -8,6 +8,7 @@
 //! - Scope filtering hides tools from `tools/list` and denies `tools/call`.
 //! - Missing auth context fails closed.
 //! - Audit entries are recorded with the right outcomes.
+#![allow(clippy::unwrap_used, clippy::panic, reason = "test code")]
 
 use std::sync::Arc;
 
@@ -15,7 +16,8 @@ use axum::body::Body;
 use axum::http::Request;
 use axum::middleware::{self, Next};
 use axum::response::Response;
-use rmcp::transport::streamable_http_server::StreamableHttpServerConfig;
+use rmcp::transport::streamable_http_server::session::local::LocalSessionManager;
+use rmcp::transport::streamable_http_server::{StreamableHttpServerConfig, StreamableHttpService};
 use tokio::sync::Mutex;
 use wealthfolio_agent_tools::{
     AgentEnvironment, AgentScope, AgentScopeSet, AgentTool, AgentToolAccess, AgentToolError,
@@ -355,4 +357,44 @@ async fn missing_auth_context_fails_closed() {
             .contains("missing authentication context"),
         "expected fail-closed error, got: {list}"
     );
+}
+
+#[tokio::test]
+async fn rejected_initial_requests_do_not_allocate_sessions() {
+    let sessions = Arc::new(LocalSessionManager::default());
+    let handler = McpServerBuilder::new(Arc::new(StubEnv)).build_handler();
+    let service = StreamableHttpService::new(
+        move || Ok(handler.clone()),
+        sessions.clone(),
+        StreamableHttpServerConfig::default(),
+    );
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let url = format!("http://{}/mcp", listener.local_addr().unwrap());
+    let server = tokio::spawn(async move {
+        let _ = axum::serve(listener, axum::Router::new().nest_service("/mcp", service)).await;
+    });
+    let client = reqwest::Client::new();
+
+    for body in [
+        serde_json::json!({ "jsonrpc": "2.0", "id": 1, "method": "tools/list" }),
+        serde_json::json!({ "jsonrpc": "2.0", "method": "notifications/initialized" }),
+        serde_json::json!({ "jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {} }),
+    ] {
+        for _ in 0..3 {
+            let response = client
+                .post(&url)
+                .header("Accept", "application/json, text/event-stream")
+                .header("MCP-Protocol-Version", "2025-03-26")
+                .json(&body)
+                .send()
+                .await
+                .unwrap();
+            assert!(response.status().is_client_error());
+            assert!(
+                sessions.sessions.read().await.is_empty(),
+                "rejected initial request allocated a session: {body}"
+            );
+        }
+    }
+    server.abort();
 }

@@ -23,6 +23,7 @@ pub enum AgentScope {
     ActivitiesWrite,
     ClassificationSuggest,
     ClassificationWrite,
+    MarketDataWrite,
 }
 
 impl AgentScope {
@@ -40,6 +41,7 @@ impl AgentScope {
         AgentScope::ActivitiesWrite,
         AgentScope::ClassificationSuggest,
         AgentScope::ClassificationWrite,
+        AgentScope::MarketDataWrite,
     ];
 
     /// The read-only scopes — what the `read-only` preset grants. Kept
@@ -69,6 +71,7 @@ impl AgentScope {
             AgentScope::ActivitiesWrite => "activities:write",
             AgentScope::ClassificationSuggest => "classification:suggest",
             AgentScope::ClassificationWrite => "classification:write",
+            AgentScope::MarketDataWrite => "market-data:write",
         }
     }
 
@@ -167,7 +170,7 @@ impl AgentScopeSet {
 
     /// Validate scope dependencies. Returns a human-readable error when a
     /// granted scope is missing a prerequisite: committing requires the
-    /// matching draft/suggest scope.
+    /// matching draft/suggest scope, and quote writes require holdings reads.
     pub fn dependency_error(&self) -> Option<String> {
         if self.contains(AgentScope::ActivitiesWrite) && !self.contains(AgentScope::ActivitiesDraft)
         {
@@ -180,6 +183,12 @@ impl AgentScopeSet {
         {
             return Some(
                 "classification:write requires classification:suggest (commit needs a draft)"
+                    .to_string(),
+            );
+        }
+        if self.contains(AgentScope::MarketDataWrite) && !self.contains(AgentScope::HoldingsRead) {
+            return Some(
+                "market-data:write requires holdings:read (quote imports show stored quotes)"
                     .to_string(),
             );
         }
@@ -226,6 +235,7 @@ mod tests {
         assert!(!set.contains(AgentScope::ActivitiesWrite));
         assert!(!set.contains(AgentScope::ClassificationSuggest));
         assert!(!set.contains(AgentScope::ClassificationWrite));
+        assert!(!set.contains(AgentScope::MarketDataWrite));
     }
 
     #[test]
@@ -242,6 +252,8 @@ mod tests {
         let full = AgentScopeSet::read_activity_write_classification_suggest();
         assert!(full.contains(AgentScope::ClassificationSuggest));
         assert!(full.contains(AgentScope::ClassificationWrite));
+        // Quote writes are only granted explicitly, never by a preset.
+        assert!(!full.contains(AgentScope::MarketDataWrite));
     }
 
     #[test]
@@ -265,6 +277,15 @@ mod tests {
         assert!(set.dependency_error().is_some());
 
         set.insert(AgentScope::ClassificationSuggest);
+        assert!(set.dependency_error().is_none());
+    }
+
+    #[test]
+    fn dependency_error_flags_market_data_write_without_holdings_read() {
+        let mut set = AgentScopeSet::from_strs(["market-data:write"]);
+        assert!(set.dependency_error().is_some());
+
+        set.insert(AgentScope::HoldingsRead);
         assert!(set.dependency_error().is_none());
     }
 }

@@ -12,6 +12,7 @@ use serde::{Deserialize, Serialize};
 
 use super::canonical::{AccountKind, TrackingMode};
 use super::event::Boundary;
+use super::policy::CostBasisMethod;
 use super::scalar::{AccountId, ActivityId, Currency, EventId};
 use super::state::DateRange;
 use super::valuation::FlowSource;
@@ -41,6 +42,10 @@ pub struct AccountProfile {
     pub tracking: TrackingMode,
     pub kind: AccountKind,
     pub archived: bool,
+    /// How its disposals chose their lots: a WAC account's purchases pool
+    /// (rules R7.2).
+    #[serde(default)]
+    pub cost_basis_method: CostBasisMethod,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -66,8 +71,10 @@ pub struct EventEffect {
     pub fee: Option<Decimal>,
     #[serde(default, with = "crate::model::decimal_serde::option")]
     pub tax: Option<Decimal>,
-    /// A trade: its disposals are realised P&L.
-    pub trade: bool,
+    /// Its disposals are realised P&L: a trade, an option's expiry, or a
+    /// transfer in (the units it delivers cover a short). A transfer out
+    /// moves lots at their cost and realizes nothing (rules R2.4).
+    pub realizes: bool,
     /// The charges of a BUY or SELL row, in base, when it has any and they
     /// convert.
     pub trade_charge: Option<TradeCharge>,

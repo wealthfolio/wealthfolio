@@ -1,0 +1,42 @@
+id: NOM-CB-03
+title: A HIFO account's sales relieve its dearest lots first
+intent: >
+  Rules R7.2, HIFO. Three buys at 100, 200 and 150, then two sales. Each sale
+  relieves the lots with the highest cost per unit first, whatever their age,
+  so it realizes the least gain while prices rise. The dearest lot is not the
+  newest here, so HIFO and LIFO part ways: the notes give both, and FIFO.
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-10
+accounts:
+  - id: acc-1
+    name: Brokerage
+    currency: USD
+    cost_basis_method: HIFO
+assets:
+  - id: aapl
+    quote_ccy: USD
+activities:
+  - { id: dep-1, account: acc-1, type: DEPOSIT, date: 2025-01-02T10:00:00Z, amount: 5000 }
+  - { id: buy-1, account: acc-1, type: BUY, date: 2025-01-03T10:00:00Z, asset: aapl, quantity: 10, unit_price: 100, amount: 1000, fee: 0 }
+  - { id: buy-2, account: acc-1, type: BUY, date: 2025-01-06T10:00:00Z, asset: aapl, quantity: 10, unit_price: 200, amount: 2000, fee: 0 }
+  - { id: buy-3, account: acc-1, type: BUY, date: 2025-01-07T10:00:00Z, asset: aapl, quantity: 10, unit_price: 150, amount: 1500, fee: 0 }
+  - { id: sell-1, account: acc-1, type: SELL, date: 2025-01-08T10:00:00Z, asset: aapl, quantity: 5, unit_price: 250, amount: 1250, fee: 0 }
+  - { id: sell-2, account: acc-1, type: SELL, date: 2025-01-09T10:00:00Z, asset: aapl, quantity: 10, unit_price: 250, amount: 2500, fee: 0 }
+quotes:
+  - { asset: aapl, day: 2025-01-03, close: 100 }
+  - { asset: aapl, day: 2025-01-06, close: 200 }
+  - { asset: aapl, day: 2025-01-07, close: 150 }
+  - { asset: aapl, day: 2025-01-08, close: 250 }
+  - { asset: aapl, day: 2025-01-09, close: 250 }
+  - { asset: aapl, day: 2025-01-10, close: 250 }
+expected_notes: >
+  Lots buy-1 (10 at 100), buy-2 (10 at 200), buy-3 (10 at 150). sell-1 takes 5
+  of buy-2, the dearest: cost 1000, proceeds 1250, P&L 250. sell-2 takes the
+  other 5 of buy-2 (1000), then 5 of buy-3 (750): cost 1750, proceeds 2500,
+  P&L 750, two disposals. Realized 1000. Left: buy-1 10 (1000) and buy-3 5
+  (750): 15 units, 1750. At 250: value 3750, unrealized 2000, total gain 3000.
+  Under LIFO: sell-1 takes 5 of buy-3 (P&L 500), sell-2 the other 5 of buy-3
+  and 5 of buy-2 (P&L 750); realized 1250, left 2000. Under FIFO: realized
+  1750, left 2500. Cash 5000 - 4500 + 3750 = 4250 under every method.

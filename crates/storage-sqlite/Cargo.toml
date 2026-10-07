@@ -46,3 +46,6 @@ r2d2 = { workspace = true }
 
 [target.'cfg(target_os = "android")'.dependencies]
 libc = "0.2"
+
+[lints]
+workspace = true

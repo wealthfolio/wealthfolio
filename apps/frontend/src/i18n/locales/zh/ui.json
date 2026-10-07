@@ -145,6 +145,7 @@
     "title": "出现问题",
     "description": "我们遇到了意外错误。您的数据是安全的——请尝试刷新以恢复正常。",
     "refresh": "刷新页面",
+    "goHome": "前往仪表盘",
     "hideDetails": "隐藏错误详情",
     "showDetails": "显示错误详情",
     "errorDetails": "错误详情"

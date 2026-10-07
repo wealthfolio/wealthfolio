@@ -14,6 +14,7 @@
 //!   tool calls hard-fail when the schema changes underneath them.
 
 #![cfg(feature = "test-utils")]
+#![allow(clippy::unwrap_used, clippy::panic, reason = "test code")]
 
 use rig::tool::PortableTool as Tool;
 use std::sync::Arc;

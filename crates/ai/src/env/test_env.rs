@@ -1,6 +1,7 @@
 //! Test/eval-only mock implementations of the AiEnvironment trait and
 //! every service it returns. Gated behind the `test-utils` feature so the
 //! eval binary (`cargo run --bin eval --features eval`) can construct one.
+#![allow(clippy::unwrap_used, clippy::panic, reason = "test fixture")]
 
 use super::*;
 use async_trait::async_trait;
@@ -13,10 +14,11 @@ use wealthfolio_core::{
     activities::{
         Activity, ActivityBulkMutationRequest, ActivityBulkMutationResult, ActivityDetails,
         ActivityImport, ActivitySearchResponse, ActivitySearchResponseMeta, ActivityServiceTrait,
-        ActivityUpdate, BrokerSyncProfileData, ImportAssetCandidate, ImportAssetPreviewItem,
-        ImportMappingData, ImportTemplateData, ImportTemplateScope, InternalTransferPairRequest,
-        InternalTransferPairResponse, NewActivity, SaveBrokerSyncProfileRulesRequest, Sort,
-        TransferMatchCandidate, TransferMatchCandidateRequest,
+        ActivityUpdate, ActivityUpdatePreview, BrokerSyncProfileData, ImportAssetCandidate,
+        ImportAssetPreviewItem, ImportMappingData, ImportTemplateData, ImportTemplateScope,
+        InternalTransferPairRequest, InternalTransferPairResponse, NewActivity,
+        SaveBrokerSyncProfileRulesRequest, Sort, TransferMatchCandidate,
+        TransferMatchCandidateRequest, UnlinkedTransfers, UnlinkedTransfersRequest,
     },
     assets::{
         Asset, AssetMetadata, AssetResolutionInput, AssetResolutionOutput, AssetServiceTrait,
@@ -402,6 +404,10 @@ impl ActivityServiceTrait for MockActivityService {
         unimplemented!("MockActivityService::get_activities")
     }
 
+    fn get_activities_including_archived_accounts(&self) -> CoreResult<Vec<Activity>> {
+        unimplemented!("MockActivityService::get_activities_including_archived_accounts")
+    }
+
     fn get_activities_by_account_id(&self, _account_id: &str) -> CoreResult<Vec<Activity>> {
         unimplemented!("MockActivityService::get_activities_by_account_id")
     }
@@ -447,6 +453,13 @@ impl ActivityServiceTrait for MockActivityService {
         Ok(Vec::new())
     }
 
+    async fn find_unlinked_transfers(
+        &self,
+        _request: UnlinkedTransfersRequest,
+    ) -> CoreResult<UnlinkedTransfers> {
+        Ok(UnlinkedTransfers::default())
+    }
+
     fn get_first_activity_date(
         &self,
         _account_ids: Option<&[String]>,
@@ -472,6 +485,13 @@ impl ActivityServiceTrait for MockActivityService {
 
     async fn update_activity(&self, _activity: ActivityUpdate) -> CoreResult<Activity> {
         unimplemented!("MockActivityService::update_activity")
+    }
+
+    fn preview_activity_update(
+        &self,
+        _activity: ActivityUpdate,
+    ) -> CoreResult<ActivityUpdatePreview> {
+        unimplemented!("MockActivityService::preview_activity_update")
     }
 
     async fn delete_activity(&self, _activity_id: String) -> CoreResult<Activity> {
@@ -736,7 +756,7 @@ impl ValuationServiceTrait for MockValuationService {
         Ok(self.valuations.clone())
     }
 
-    fn get_historical_valuation_totals_for_accounts(
+    async fn get_historical_valuation_totals_for_accounts(
         &self,
         _scope_id: &str,
         _account_ids: &[String],

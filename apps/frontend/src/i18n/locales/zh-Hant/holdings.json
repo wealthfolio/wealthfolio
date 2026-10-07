@@ -234,5 +234,24 @@
   "category_breakdown": "類別明細",
   "personal_assets": "個人資產",
   "health_filter_active": "正在顯示健康中心標記的持有部位",
-  "closing_cash_flow": "平倉現金流"
+  "closing_cash_flow": "平倉現金流",
+  "liability_cards": {
+    "owed": "未償還",
+    "paid_down": "已償還",
+    "overall": "整體",
+    "monthly": "每月",
+    "paid_off": "已還清",
+    "owed_of": "共 {{amount}} 中未還",
+    "owed_now": "未還",
+    "manual": "手動",
+    "manual_hint": "手動更新餘額",
+    "debt_free": "{{date}} 還清",
+    "updated": "更新於 {{date}}",
+    "status_paid_off": "已還清",
+    "status_renewal_due": "需要續期",
+    "status_renew_soon": "即將續期",
+    "status_update_balance": "更新餘額",
+    "update_balance": "更新餘額",
+    "schedule": "還款計畫"
+  }
 }

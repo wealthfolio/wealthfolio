@@ -147,9 +147,15 @@ export function PatCreateDialog({
     const checked = selectedScopes.includes(scope.key);
     const label = scopeLabel(t, scope.key);
     const description = scopeDescription(t, scope.key);
+    const lockedByMarketData =
+      scope.key === "holdings:read" && selectedScopes.includes("market-data:write");
     const locked =
+      lockedByMarketData ||
       (scope.key === "activities:draft" && selectedScopes.includes("activities:write")) ||
       (scope.key === "classification:suggest" && selectedScopes.includes("classification:write"));
+    const lockedTitle = lockedByMarketData
+      ? t("settings:agentAccess.scope_locked_market_data_title")
+      : t("settings:agentAccess.scope_locked_title");
     return (
       <button
         key={scope.key}
@@ -158,7 +164,7 @@ export function PatCreateDialog({
         aria-checked={checked}
         aria-label={t("settings:agentAccess.dialog_scope_aria", { label, description })}
         disabled={locked}
-        title={locked ? t("settings:agentAccess.scope_locked_title") : description}
+        title={locked ? lockedTitle : description}
         onClick={() => toggleScope(scope.key)}
         className={cn(
           "flex w-full items-center justify-between gap-2 rounded-md border px-3 py-2 text-left text-sm transition-colors",

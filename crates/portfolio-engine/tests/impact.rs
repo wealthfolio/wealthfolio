@@ -5,6 +5,7 @@
 //! kernel said: nothing before an account's first stale day, nothing in an
 //! account it did not name, and no fold output of an account it only
 //! revalues.
+#![allow(clippy::unwrap_used, clippy::panic, reason = "test code")]
 
 mod support;
 

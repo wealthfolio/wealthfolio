@@ -507,6 +507,9 @@
     "label_to_account": "Conta de destino",
     "label_sent": "Enviado ({{currency}})",
     "label_received": "Recebido ({{currency}})",
+    "source_currency": "Moeda de origem",
+    "destination_currency": "Moeda de destino",
+    "label_transfer_rate": "Taxa de câmbio da transferência",
     "label_fx_rate": "Taxa de câmbio",
     "placeholder_note": "Adicione uma nota opcional...",
     "placeholder_search_option_ticker": "Buscar opção ou ticker...",
@@ -708,6 +711,7 @@
       "jump_hint_many": "Insira um número de página entre 1 e {{count}}"
     },
     "duplicated_comment": "Duplicada",
+    "edit_transfer_pair": "Use Editar para alterar as contas e moedas no formulário de transferência. Salve primeiro as alterações pendentes.",
     "save_edits_first": "Salve primeiro as edições",
     "save_before_link": "Salve ou descarte as edições pendentes antes de vincular esta transferência.",
     "save_before_unlink": "Salve ou descarte as edições pendentes antes de desvincular esta transferência.",

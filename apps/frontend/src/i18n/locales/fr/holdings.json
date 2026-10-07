@@ -235,5 +235,24 @@
   "category_breakdown": "Répartition par catégorie",
   "personal_assets": "Actifs personnels",
   "health_filter_active": "Affichage des positions signalées par le Centre de santé",
-  "closing_cash_flow": "Flux de trésorerie à la clôture"
+  "closing_cash_flow": "Flux de trésorerie à la clôture",
+  "liability_cards": {
+    "owed": "Dû",
+    "paid_down": "Remboursé",
+    "overall": "Global",
+    "monthly": "Mensuel",
+    "paid_off": "Remboursé",
+    "owed_of": "dû sur {{amount}}",
+    "owed_now": "dû",
+    "manual": "Manuel",
+    "manual_hint": "solde mis à jour à la main",
+    "debt_free": "Sans dette en {{date}}",
+    "updated": "Mis à jour {{date}}",
+    "status_paid_off": "Remboursé",
+    "status_renewal_due": "Renouvellement dû",
+    "status_renew_soon": "Renouveler bientôt",
+    "status_update_balance": "Mettre à jour le solde",
+    "update_balance": "Mettre à jour le solde",
+    "schedule": "Échéancier"
+  }
 }

@@ -2,6 +2,7 @@
 //!
 //! These tests verify that universal properties hold across all valid inputs,
 //! using the `proptest` crate for random test case generation.
+#![allow(clippy::unwrap_used, clippy::panic, reason = "test code")]
 
 use proptest::prelude::*;
 use std::collections::HashSet;

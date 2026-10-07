@@ -25,3 +25,6 @@ wealthfolio-spending = { path = "../spending" }
 [dev-dependencies]
 anyhow = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+
+[lints]
+workspace = true

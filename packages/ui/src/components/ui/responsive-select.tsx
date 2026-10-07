@@ -15,6 +15,8 @@ export interface ResponsiveSelectOption {
 }
 
 interface ResponsiveSelectProps {
+  "aria-label"?: string;
+  id?: string;
   value?: string;
   onValueChange?: (value: string) => void;
   options: ResponsiveSelectOption[];
@@ -30,6 +32,8 @@ interface ResponsiveSelectProps {
 }
 
 export function ResponsiveSelect({
+  "aria-label": ariaLabel,
+  id,
   value,
   onValueChange,
   options,
@@ -63,6 +67,8 @@ export function ResponsiveSelect({
     return (
       <>
         <Button
+          id={id}
+          aria-label={ariaLabel}
           type="button"
           variant="outline"
           disabled={disabled}
@@ -129,7 +135,7 @@ export function ResponsiveSelect({
 
   return (
     <Select value={value} onValueChange={handleSelect} disabled={disabled}>
-      <SelectTrigger className={cn("w-full", triggerClassName)}>
+      <SelectTrigger id={id} aria-label={ariaLabel} className={cn("w-full", triggerClassName)}>
         <SelectValue placeholder={placeholder} />
       </SelectTrigger>
       <SelectContent className={contentClassName}>

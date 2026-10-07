@@ -1,6 +1,7 @@
 //! SCALE-01 (architecture §5): the six stages over a generated portfolio — 10
 //! accounts, 40 assets, five years of daily quotes and ~20k activities.
 //! Run with `cargo bench -p wealthfolio-portfolio-engine`.
+#![allow(clippy::unwrap_used, clippy::panic, reason = "test code")]
 
 use std::time::Duration;
 

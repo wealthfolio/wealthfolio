@@ -212,8 +212,10 @@ const AccountPage = () => {
   } = useActivityActionDialogs();
 
   const recalculatePortfolioMutation = useRecalculatePortfolioMutation();
-  const { accounts, isLoading: isAccountsLoading } = useAccounts();
-  const account = useMemo(() => accounts?.find((acc) => acc.id === id), [accounts, id]);
+  // Hidden accounts stay reachable by URL and keep their activities editable here,
+  // so the page works from every non-archived account; only the switcher hides them.
+  const { accounts, isLoading: isAccountsLoading } = useAccounts({ filterActive: false });
+  const account = useMemo(() => accounts.find((acc) => acc.id === id), [accounts, id]);
   const isLiabilityAccount = isLiabilityAccountType(account?.accountType);
   const isCashOnlyAccount = account?.accountType === AccountType.CASH || isLiabilityAccount;
   const supportsPerformance = accountSupportsPurpose(account, AccountPurpose.PERFORMANCE);
@@ -420,17 +422,19 @@ const AccountPage = () => {
     enabled: isActivitySheetOpen && !!selectedActivityDate,
   });
 
-  // Group accounts by type for the selector
+  // Group accounts by type for the selector: visible accounts, plus this one if hidden
   const accountsByType = useMemo(() => {
     const grouped: Record<string, Account[]> = {};
-    accounts.forEach((acc) => {
-      if (!grouped[acc.accountType]) {
-        grouped[acc.accountType] = [];
-      }
-      grouped[acc.accountType].push(acc);
-    });
+    accounts
+      .filter((acc) => acc.isActive || acc.id === id)
+      .forEach((acc) => {
+        if (!grouped[acc.accountType]) {
+          grouped[acc.accountType] = [];
+        }
+        grouped[acc.accountType].push(acc);
+      });
     return Object.entries(grouped);
-  }, [accounts]);
+  }, [accounts, id]);
 
   const accountTrackedItem: TrackedItem | undefined = useMemo(() => {
     if (account && supportsPerformance) {

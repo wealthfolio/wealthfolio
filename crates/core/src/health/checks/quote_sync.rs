@@ -368,7 +368,7 @@ fn build_error_details(errors: &[&QuoteSyncErrorInfo]) -> String {
 /// Truncates an error message to a reasonable length.
 fn truncate_error(msg: &str) -> &str {
     if msg.len() > 80 {
-        &msg[..80]
+        &msg[..msg.floor_char_boundary(80)]
     } else {
         msg
     }
@@ -565,5 +565,12 @@ mod tests {
         let has_error = issues.iter().any(|i| i.severity == Severity::Error);
         assert!(has_warning);
         assert!(has_error);
+    }
+
+    #[test]
+    fn test_truncate_error_non_ascii() {
+        // 81 bytes, with byte 80 inside the 'é'
+        let msg = format!("{}é", "x".repeat(79));
+        assert_eq!(truncate_error(&msg), "x".repeat(79));
     }
 }

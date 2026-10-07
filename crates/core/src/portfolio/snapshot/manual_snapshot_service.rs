@@ -328,7 +328,11 @@ impl ManualSnapshotService {
         date: NaiveDate,
         data_source: String,
     ) {
-        let timestamp = Utc.from_utc_datetime(&date.and_hms_opt(12, 0, 0).unwrap());
+        let timestamp = Utc.from_utc_datetime(
+            &date
+                .and_hms_opt(12, 0, 0)
+                .expect("12:00:00 is a valid time"),
+        );
 
         let quote_id = if data_source == DATA_SOURCE_MANUAL {
             let date_part = timestamp.format("%Y%m%d").to_string();

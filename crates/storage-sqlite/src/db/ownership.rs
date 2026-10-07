@@ -67,6 +67,10 @@ impl DatabaseOwner {
 // Rust's standard File lock API is unsupported on Android. Bionic supplies
 // flock, with the same open-file lifetime and crash-release behavior.
 #[cfg(target_os = "android")]
+#[allow(
+    unsafe_code,
+    reason = "flock FFI; std's File lock is unsupported on Android"
+)]
 fn try_lock(file: &File) -> std::io::Result<()> {
     use std::os::fd::AsRawFd;
     // SAFETY: the borrowed File keeps its descriptor valid for this call.

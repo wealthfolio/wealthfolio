@@ -73,6 +73,8 @@ pub struct CreateAlternativeAssetRequest {
     pub purchase_date: Option<String>,
     pub metadata: Option<Value>,
     pub linked_asset_id: Option<String>,
+    #[serde(default)]
+    pub loan: Option<wealthfolio_core::assets::loan::LoanSetup>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -121,6 +123,8 @@ pub struct AlternativeHoldingResponse {
     pub metadata: Option<Value>,
     pub linked_asset_id: Option<String>,
     pub notes: Option<String>,
+    /// For liabilities: what the card shows, from the calculation that values it.
+    pub loan: Option<wealthfolio_core::assets::loan::LoanSummary>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -129,6 +133,9 @@ pub struct UpdateAssetDetailsRequest {
     pub name: Option<String>,
     pub metadata: std::collections::HashMap<String, String>,
     pub notes: Option<String>,
+    /// A liability's loan section, saved with the other details.
+    #[serde(default)]
+    pub loan: Option<wealthfolio_core::assets::loan::LoanSetup>,
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -171,6 +178,7 @@ async fn create_alternative_asset(
         purchase_date,
         metadata: request.metadata,
         linked_asset_id: request.linked_asset_id,
+        loan: request.loan,
     };
 
     // Delegate to core service
@@ -266,6 +274,7 @@ async fn update_alternative_asset_metadata(
         name: request.name,
         notes: request.notes,
         metadata: Some(metadata_map),
+        loan: request.loan,
     };
 
     // Delegate to core service
@@ -367,6 +376,7 @@ async fn get_alternative_holdings(
                 metadata: h.metadata,
                 linked_asset_id: h.linked_asset_id,
                 notes: h.notes,
+                loan: h.loan,
             }
         })
         .collect();
@@ -399,4 +409,90 @@ pub fn router<S: Clone + Send + Sync + 'static>() -> Router<S> {
             put(update_alternative_asset_metadata),
         )
         .route("/alternative-holdings", get(get_alternative_holdings))
+        .route("/loans/calculate", post(calculate_loan))
+        .route("/loans/recalculate", post(recalculate_loan))
+        .route("/loans/preview", post(preview_loan_terms))
+        .route("/loans/{id}/actions", post(apply_loan_action))
+        .route("/loans/{id}/payments", get(get_loan_payments))
+        .route("/loans/payments/{activity_id}", post(link_loan_payment))
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PreviewLoanTermsRequest {
+    #[serde(default)]
+    asset_id: Option<String>,
+    setup: wealthfolio_core::assets::loan::LoanSetup,
+}
+
+async fn preview_loan_terms(
+    axum::Extension(state): axum::Extension<Arc<AppState>>,
+    Json(request): Json<PreviewLoanTermsRequest>,
+) -> ApiResult<Json<Option<wealthfolio_core::assets::loan::LoanSchedulePreview>>> {
+    Ok(Json(state.alternative_asset_service.preview_loan_terms(
+        request.asset_id.as_deref(),
+        &request.setup,
+    )?))
+}
+
+async fn get_loan_payments(
+    Path(asset_id): Path<String>,
+    axum::Extension(state): axum::Extension<Arc<AppState>>,
+) -> ApiResult<Json<Vec<wealthfolio_core::assets::loan::LoanPayment>>> {
+    Ok(Json(
+        state
+            .alternative_asset_service
+            .get_loan_payments(&asset_id)?,
+    ))
+}
+
+async fn link_loan_payment(
+    Path(activity_id): Path<String>,
+    axum::Extension(state): axum::Extension<Arc<AppState>>,
+    Json(link): Json<wealthfolio_core::assets::loan::PaymentLink>,
+) -> ApiResult<StatusCode> {
+    state
+        .alternative_asset_service
+        .link_loan_payment(&activity_id, link)
+        .await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+async fn apply_loan_action(
+    Path(asset_id): Path<String>,
+    axum::Extension(state): axum::Extension<Arc<AppState>>,
+    Json(action): Json<wealthfolio_core::assets::loan::LoanAction>,
+) -> ApiResult<StatusCode> {
+    let result = state
+        .alternative_asset_service
+        .apply_loan_action(&asset_id, action)
+        .await?;
+    // Recorded balances change valuations, as a manual quote save does.
+    if result.balances_changed {
+        enqueue_portfolio_job(
+            state.clone(),
+            PortfolioJobConfig {
+                account_ids: None,
+                market_sync_mode: MarketSyncMode::None,
+                force_full: false,
+            },
+        );
+    }
+    Ok(StatusCode::NO_CONTENT)
+}
+
+async fn calculate_loan(
+    Json(request): Json<wealthfolio_core::assets::loan::LoanCalculationRequest>,
+) -> ApiResult<Json<Option<wealthfolio_core::assets::loan::LoanCalculation>>> {
+    Ok(Json(wealthfolio_core::assets::loan::calculate_loan(
+        &request,
+    )))
+}
+
+async fn recalculate_loan(
+    Json(request): Json<wealthfolio_core::assets::loan::LoanRecalculationRequest>,
+) -> ApiResult<Json<Option<wealthfolio_core::assets::loan::LoanRecalculation>>> {
+    Ok(Json(wealthfolio_core::assets::loan::recalculate_loan(
+        &request,
+    )))
 }

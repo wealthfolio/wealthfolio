@@ -10,12 +10,6 @@ use std::collections::{HashMap, HashSet};
 #[async_trait]
 pub trait ActivityRepositoryTrait: Send + Sync {
     fn get_activity(&self, activity_id: &str) -> Result<Activity>;
-    /// Returns the other activity sharing `group_id`, excluding `exclude_id`.
-    fn find_transfer_counterpart(
-        &self,
-        group_id: &str,
-        exclude_id: &str,
-    ) -> Result<Option<Activity>>;
     fn get_activities(&self) -> Result<Vec<Activity>>;
     fn get_activities_by_ids(&self, activity_ids: &[String]) -> Result<Vec<Activity>> {
         if activity_ids.is_empty() {
@@ -353,6 +347,8 @@ pub trait ActivityRepositoryTrait: Send + Sync {
 pub trait ActivityServiceTrait: Send + Sync {
     fn get_activity(&self, activity_id: &str) -> Result<Activity>;
     fn get_activities(&self) -> Result<Vec<Activity>>;
+    /// Returns activities from both active and archived accounts.
+    fn get_activities_including_archived_accounts(&self) -> Result<Vec<Activity>>;
     fn get_activities_by_account_id(&self, account_id: &str) -> Result<Vec<Activity>>;
     fn get_activities_by_account_ids(&self, account_ids: &[String]) -> Result<Vec<Activity>>;
     fn get_trading_activities(&self) -> Result<Vec<Activity>>;
@@ -418,6 +414,10 @@ pub trait ActivityServiceTrait: Send + Sync {
     fn get_import_template(&self, template_id: String) -> Result<ImportTemplateData>;
     async fn create_activity(&self, activity: NewActivity) -> Result<Activity>;
     async fn update_activity(&self, activity: ActivityUpdate) -> Result<Activity>;
+    /// Runs `update_activity`'s validation and returns what it would write,
+    /// for the activity and a linked transfer leg, without writing anything.
+    /// The asset may only be named by id: resolving a symbol may create one.
+    fn preview_activity_update(&self, activity: ActivityUpdate) -> Result<ActivityUpdatePreview>;
     async fn delete_activity(&self, activity_id: String) -> Result<Activity>;
     /// Returns the internal transfer pair for the activity, or `None` when the
     /// activity exists but is not part of a valid internal transfer pair.
@@ -429,6 +429,14 @@ pub trait ActivityServiceTrait: Send + Sync {
         &self,
         request: TransferMatchCandidateRequest,
     ) -> Result<Vec<TransferMatchCandidate>>;
+    /// Posted transfers in scope with no linked other side, newest first, each
+    /// with its link state and best candidates, in the accounts the Health
+    /// Center checks. One read of the activities serves the scan, which runs
+    /// off the async workers.
+    async fn find_unlinked_transfers(
+        &self,
+        request: UnlinkedTransfersRequest,
+    ) -> Result<UnlinkedTransfers>;
     async fn save_internal_transfer_pair(
         &self,
         request: InternalTransferPairRequest,

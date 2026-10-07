@@ -7,18 +7,167 @@
 //! just asset records + valuation quotes.
 
 use async_trait::async_trait;
+use diesel::dsl::sql;
 use diesel::prelude::*;
 use diesel::r2d2::{self, Pool};
+use diesel::sql_types::{Nullable, Text};
 use diesel::sqlite::SqliteConnection;
+use std::collections::HashMap;
 use std::sync::Arc;
 
-use wealthfolio_core::assets::AlternativeAssetRepositoryTrait;
+use wealthfolio_core::activities::Activity;
+use wealthfolio_core::assets::loan::{
+    untagged, AssetDetailsChange, LoanPaymentTag, LoanUpdate, StoredLoan, StoredPayment,
+};
+use wealthfolio_core::assets::{AlternativeAssetRepositoryTrait, LoanChange, PaymentTagChange};
 use wealthfolio_core::errors::DatabaseError;
+use wealthfolio_core::quotes::Quote;
 use wealthfolio_core::{Error, Result};
 
-use crate::db::{get_connection, WriteHandle};
+use crate::activities::ActivityDB;
+use crate::db::{get_connection, write_actor::DbWriteTx, WriteHandle};
 use crate::errors::StorageError;
-use crate::schema::{assets, quotes};
+use crate::market_data::QuoteDB;
+use crate::schema::{accounts, activities, assets, quotes};
+
+/// Tagged withdrawals counted as payments, by loan. The core rule decides
+/// which tagged activities count; this only finds them.
+fn read_loan_payments(
+    conn: &mut SqliteConnection,
+    loan_ids: &[String],
+) -> Result<HashMap<String, Vec<StoredPayment>>> {
+    let mut payments: HashMap<String, Vec<StoredPayment>> = HashMap::new();
+    if loan_ids.is_empty() {
+        return Ok(payments);
+    }
+    let currencies: HashMap<String, String> = assets::table
+        .filter(assets::id.eq_any(loan_ids))
+        .select((assets::id, assets::quote_ccy))
+        .load::<(String, String)>(conn)
+        .map_err(StorageError::from)?
+        .into_iter()
+        .collect();
+    let tagged_loan =
+        sql::<Nullable<Text>>("json_extract(activities.metadata, '$.loan_payment.loan_id')");
+    let rows = activities::table
+        .inner_join(accounts::table)
+        .filter(tagged_loan.eq_any(loan_ids))
+        .select((ActivityDB::as_select(), accounts::account_type))
+        .load::<(ActivityDB, String)>(conn)
+        .map_err(StorageError::from)?;
+    for (row, account_type) in rows {
+        let activity = Activity::from(row);
+        let Some(currency) = LoanPaymentTag::read(activity.metadata.as_ref())
+            .and_then(|tag| currencies.get(&tag.loan_id))
+        else {
+            continue;
+        };
+        if let Some((loan_id, payment)) =
+            StoredPayment::from_activity(&activity, &account_type, currency)
+        {
+            payments.entry(loan_id).or_default().push(payment);
+        }
+    }
+    Ok(payments)
+}
+
+/// A loan's metadata and its manual balance quotes, oldest first.
+fn read_loan(conn: &mut SqliteConnection, asset_id: &str) -> Result<StoredLoan> {
+    let asset = assets::table
+        .filter(assets::id.eq(asset_id))
+        .first::<crate::assets::AssetDB>(conn)
+        .optional()
+        .map_err(StorageError::from)?
+        .ok_or_else(|| {
+            Error::Database(DatabaseError::NotFound(format!(
+                "Asset not found: {asset_id}"
+            )))
+        })?;
+    let metadata = asset
+        .metadata
+        .as_deref()
+        .and_then(|m| serde_json::from_str(m).ok())
+        .unwrap_or_else(|| serde_json::json!({}));
+    let balances = quotes::table
+        .filter(quotes::asset_id.eq(asset_id))
+        .filter(quotes::source.eq("MANUAL"))
+        .order(quotes::day.asc())
+        .select(QuoteDB::as_select())
+        .load::<QuoteDB>(conn)
+        .map_err(StorageError::from)?
+        .into_iter()
+        .map(Quote::from)
+        .collect();
+    let payments = read_loan_payments(conn, std::slice::from_ref(&asset.id))?
+        .remove(&asset.id)
+        .unwrap_or_default();
+    let payment_accounts = accounts::table
+        .filter(accounts::account_type.eq("CASH"))
+        .filter(accounts::currency.eq(&asset.quote_ccy))
+        .filter(accounts::is_active.eq(true))
+        .filter(accounts::is_archived.eq(false))
+        .select(accounts::id)
+        .load::<String>(conn)
+        .map_err(StorageError::from)?;
+    Ok(StoredLoan {
+        asset_id: asset.id,
+        currency: asset.quote_ccy,
+        metadata,
+        balances,
+        payments,
+        payment_accounts,
+    })
+}
+
+/// Replaces a loan's metadata, with any details edited alongside it, and records
+/// the change for sync as one row update.
+fn write_asset_metadata(
+    tx: &mut DbWriteTx<'_>,
+    asset_id: &str,
+    metadata: &serde_json::Value,
+    details: Option<&AssetDetailsChange>,
+) -> Result<()> {
+    let details = details.cloned().unwrap_or_default();
+    diesel::update(assets::table.filter(assets::id.eq(asset_id)))
+        .set((
+            assets::metadata.eq(Some(metadata.to_string())),
+            details.name.map(|name| assets::name.eq(name)),
+            details
+                .display_code
+                .map(|code| assets::display_code.eq(code)),
+            details.notes.map(|notes| assets::notes.eq(Some(notes))),
+        ))
+        .execute(tx.conn())
+        .map_err(StorageError::from)?;
+    let row = assets::table
+        .filter(assets::id.eq(asset_id))
+        .first::<crate::assets::AssetDB>(tx.conn())
+        .map_err(StorageError::from)?;
+    tx.update(&row)?;
+    Ok(())
+}
+
+/// Writes an activity's metadata and records the change for sync.
+fn write_activity_metadata(
+    tx: &mut DbWriteTx<'_>,
+    activity_id: &str,
+    metadata: Option<&serde_json::Value>,
+) -> Result<()> {
+    diesel::update(activities::table.filter(activities::id.eq(activity_id)))
+        .set((
+            activities::metadata.eq(metadata.map(|m| m.to_string())),
+            activities::updated_at.eq(chrono::Utc::now().to_rfc3339()),
+        ))
+        .execute(tx.conn())
+        .map_err(StorageError::from)?;
+    let row = activities::table
+        .filter(activities::id.eq(activity_id))
+        .select(ActivityDB::as_select())
+        .first::<ActivityDB>(tx.conn())
+        .map_err(StorageError::from)?;
+    tx.update(&row)?;
+    Ok(())
+}
 
 /// Repository for managing alternative asset data in the database.
 ///
@@ -87,6 +236,22 @@ impl AlternativeAssetRepositoryTrait for AlternativeAssetRepository {
                             tx.update(&liability_row)?;
                         }
                     }
+                }
+
+                // Step 1b: Untag withdrawals paid toward this loan; they stay in their accounts.
+                let tagged = activities::table
+                    .filter(
+                        sql::<Nullable<Text>>(
+                            "json_extract(activities.metadata, '$.loan_payment.loan_id')",
+                        )
+                        .eq(&asset_id_owned),
+                    )
+                    .select(ActivityDB::as_select())
+                    .load::<ActivityDB>(tx.conn())
+                    .map_err(StorageError::from)?;
+                for row in tagged {
+                    let activity = Activity::from(row);
+                    write_activity_metadata(tx, &activity.id, untagged(&activity).as_ref())?;
                 }
 
                 // Step 2: Delete all quotes for this asset with source = 'MANUAL'
@@ -205,6 +370,114 @@ impl AlternativeAssetRepositoryTrait for AlternativeAssetRepository {
                 tx.update(&updated_row)?;
 
                 Ok(())
+            })
+            .await
+    }
+
+    async fn update_payment_tag(
+        &self,
+        activity_id: &str,
+        loan_id: Option<&str>,
+        change: PaymentTagChange,
+    ) -> Result<Option<Activity>> {
+        let activity_id = activity_id.to_string();
+        let loan_id = loan_id.map(str::to_string);
+        self.writer
+            .exec_tx(move |tx| -> Result<Option<Activity>> {
+                let (row, account_type) = activities::table
+                    .inner_join(accounts::table)
+                    .filter(activities::id.eq(&activity_id))
+                    .select((ActivityDB::as_select(), accounts::account_type))
+                    .first::<(ActivityDB, String)>(tx.conn())
+                    .optional()
+                    .map_err(StorageError::from)?
+                    .ok_or_else(|| {
+                        Error::Database(DatabaseError::NotFound(format!(
+                            "Activity not found: {activity_id}"
+                        )))
+                    })?;
+                let loan = match &loan_id {
+                    Some(id) => match read_loan(tx.conn(), id) {
+                        Ok(record) => Some(record),
+                        Err(Error::Database(DatabaseError::NotFound(_))) => None,
+                        Err(error) => return Err(error),
+                    },
+                    None => None,
+                };
+                let activity = Activity::from(row);
+                let update = change(&activity, &account_type, loan.as_ref())?;
+                if let (Some(metadata), Some(loan)) = (&update.loan, &loan) {
+                    write_asset_metadata(tx, &loan.asset_id, metadata, None)?;
+                }
+                if update.activity == activity.metadata {
+                    return Ok(None);
+                }
+                write_activity_metadata(tx, &activity_id, update.activity.as_ref())?;
+                Ok(Some(activity))
+            })
+            .await
+    }
+
+    fn loan_payments(&self, loan_ids: &[String]) -> Result<HashMap<String, Vec<StoredPayment>>> {
+        let mut conn = get_connection(&self.pool)?;
+        read_loan_payments(&mut conn, loan_ids)
+    }
+
+    async fn update_loan(&self, asset_id: &str, change: LoanChange) -> Result<LoanUpdate> {
+        let asset_id = asset_id.to_string();
+        self.writer
+            .exec_tx(move |tx| -> Result<LoanUpdate> {
+                // Decide from what is stored now, inside the same transaction as the writes.
+                // The decision runs on the shared writer, so a panic becomes an error
+                // instead of stopping every later write.
+                let record = read_loan(tx.conn(), &asset_id)?;
+                let update =
+                    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| change(&record)))
+                        .map_err(|_| Error::Unexpected("Loan action failed unexpectedly".into()))??;
+                if let Some(metadata) = &update.metadata {
+                    write_asset_metadata(tx, &asset_id, metadata, update.details.as_ref())?;
+                }
+                for id in &update.delete_balances {
+                    let existing = quotes::table
+                        .filter(quotes::id.eq(id))
+                        .filter(quotes::asset_id.eq(&asset_id))
+                        .select(QuoteDB::as_select())
+                        .first::<QuoteDB>(tx.conn())
+                        .optional()
+                        .map_err(StorageError::from)?;
+                    if let Some(row) = existing {
+                        diesel::delete(quotes::table.filter(quotes::id.eq(id)))
+                            .execute(tx.conn())
+                            .map_err(StorageError::from)?;
+                        tx.delete_model(&row);
+                    }
+                }
+                // Manual quotes are one per day, as when saved one at a time.
+                for quote in &update.save_balances {
+                    let mut row = QuoteDB::from(quote);
+                    let existing = quotes::table
+                        .filter(quotes::asset_id.eq(&row.asset_id))
+                        .filter(quotes::day.eq(&row.day))
+                        .filter(quotes::source.eq(&row.source))
+                        .select(QuoteDB::as_select())
+                        .first::<QuoteDB>(tx.conn())
+                        .optional()
+                        .map_err(StorageError::from)?;
+                    let is_update = existing.is_some();
+                    if let Some(existing) = existing {
+                        row.id = existing.id;
+                    }
+                    diesel::replace_into(quotes::table)
+                        .values(&row)
+                        .execute(tx.conn())
+                        .map_err(StorageError::from)?;
+                    if is_update {
+                        tx.update(&row)?;
+                    } else {
+                        tx.insert(&row)?;
+                    }
+                }
+                Ok(update)
             })
             .await
     }

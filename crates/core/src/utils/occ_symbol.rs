@@ -36,6 +36,9 @@ pub enum OccSymbolError {
 
     #[error("Empty underlying symbol")]
     EmptyUnderlying,
+
+    #[error("Symbol contains non-ASCII characters")]
+    NonAscii,
 }
 
 /// Represents the option type (Call or Put)
@@ -132,6 +135,10 @@ impl ParsedOccSymbol {
 /// without spaces (minimum 15 characters for 1-char underlying).
 pub fn parse_occ_symbol(symbol: &str) -> std::result::Result<ParsedOccSymbol, OccSymbolError> {
     let symbol = symbol.trim();
+    // OCC symbols are ASCII, so the byte offsets below are character offsets.
+    if !symbol.is_ascii() {
+        return Err(OccSymbolError::NonAscii);
+    }
     let len = symbol.len();
 
     if len < 15 {
@@ -149,7 +156,10 @@ pub fn parse_occ_symbol(symbol: &str) -> std::result::Result<ParsedOccSymbol, Oc
     // Underlying: everything before date
 
     let strike_str = &symbol[len - 8..];
-    let option_type_char = symbol.chars().nth(len - 9).unwrap();
+    let option_type_char = symbol
+        .chars()
+        .nth(len - 9)
+        .expect("an ASCII symbol of 15+ bytes has 15+ characters");
     let date_str = &symbol[len - 15..len - 9];
     let underlying = symbol[..len - 15].trim();
 
@@ -290,7 +300,7 @@ pub fn normalize_option_symbol(symbol: &str) -> Option<String> {
         return None;
     }
 
-    let date_str = &rest[..6];
+    let date_str = rest.get(..6)?;
     if !date_str.chars().all(|c| c.is_ascii_digit()) {
         return None;
     }
@@ -334,8 +344,8 @@ pub fn looks_like_occ_symbol(symbol: &str) -> bool {
     let symbol = symbol.trim();
     let len = symbol.len();
 
-    // Length check: 15-21 characters
-    if !(15..=21).contains(&len) {
+    // ASCII, 15-21 characters
+    if !symbol.is_ascii() || !(15..=21).contains(&len) {
         return false;
     }
 
@@ -607,5 +617,35 @@ mod tests {
     fn test_normalize_plain_equity() {
         // Regular equity symbol should return None
         assert_eq!(normalize_option_symbol("AAPL"), None);
+    }
+
+    // Each input below puts a byte offset the parsers cut at inside a
+    // multi-byte character.
+
+    #[test]
+    fn test_parse_non_ascii_symbol() {
+        assert_eq!(
+            parse_occ_symbol("Société Générale"),
+            Err(OccSymbolError::NonAscii)
+        );
+    }
+
+    #[test]
+    fn test_looks_like_non_ascii_symbol() {
+        assert!(!looks_like_occ_symbol("CAFÉ PÂTÉ CRÈME"));
+    }
+
+    #[test]
+    fn test_normalize_non_ascii_symbol() {
+        assert_eq!(normalize_option_symbol("Fonds 2024 Été"), None);
+    }
+
+    #[test]
+    fn test_normalize_keeps_non_ascii_underlying() {
+        // Only the date cut is guarded; a non-ASCII underlying normalizes as before
+        assert_eq!(
+            normalize_option_symbol("-ÉDF270115C600"),
+            Some("ÉDF270115C00600000".to_string())
+        );
     }
 }

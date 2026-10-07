@@ -47,6 +47,7 @@ export const transferActivitySchema = baseActivitySchema.extend({
   amount: z.coerce.number().positive().optional().nullable(),
   sourceAmount: z.coerce.number().positive().optional().nullable(),
   destinationAmount: z.coerce.number().positive().optional().nullable(),
+  transferRate: z.coerce.number().positive().optional().nullable(),
   sourceCurrency: z.string().optional(),
   destinationCurrency: z.string().optional(),
   fee: z.coerce.number().min(0).default(0).optional(),

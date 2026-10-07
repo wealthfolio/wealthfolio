@@ -36,6 +36,7 @@ import { useIsMobileViewport } from "@/hooks/use-platform";
 import { HoldingsTable } from "./components/holdings-table";
 import { HoldingsTableMobile } from "./components/holdings-table-mobile";
 import { AlternativeHoldingsTable } from "./components/alternative-holdings-table";
+import { LiabilityOverview } from "./components/liability-overview";
 import { AlternativeHoldingsListMobile } from "./components/alternative-holdings-list-mobile";
 import { HoldingsEditMode } from "./components/holdings-edit-mode";
 import {
@@ -66,6 +67,7 @@ import { useUpdatePortfolioMutation } from "@/hooks/use-calculate-portfolio";
 import { useQueryClient } from "@tanstack/react-query";
 import { QueryKeys } from "@/lib/query-keys";
 import { useSettingsContext } from "@/lib/settings-provider";
+import type { LoanSetup } from "@/adapters/shared/alternative-assets";
 
 export const HoldingsPage = () => {
   const { t } = useTranslation();
@@ -227,13 +229,20 @@ export const HoldingsPage = () => {
 
   // Handler to save asset details
   const handleSaveAssetDetails = useCallback(
-    async (assetId: string, metadata: Record<string, string>, name?: string) => {
+    async (
+      assetId: string,
+      metadata: Record<string, string>,
+      name?: string,
+      notes?: string | null,
+      loan?: LoanSetup,
+    ) => {
       setIsSavingDetails(true);
       try {
-        await updateAlternativeAssetMetadata(assetId, metadata, name);
-        // Invalidate queries to refresh the list
+        await updateAlternativeAssetMetadata(assetId, metadata, name, notes, loan);
+        // Invalidate queries to refresh the list and the asset detail page
         queryClient.invalidateQueries({ queryKey: [QueryKeys.ALTERNATIVE_HOLDINGS] });
         queryClient.invalidateQueries({ queryKey: [QueryKeys.NET_WORTH] });
+        queryClient.invalidateQueries({ queryKey: [QueryKeys.ASSET_DATA] });
       } finally {
         setIsSavingDetails(false);
       }
@@ -313,7 +322,7 @@ export const HoldingsPage = () => {
       return liabilitiesHoldings
         .filter((h) => {
           const metadata = h.metadata as Record<string, unknown> | null | undefined;
-          const liabilityType = metadata?.liability_type;
+          const liabilityType = metadata?.sub_type ?? metadata?.liability_type;
           const linkedAssetId = metadata?.linked_asset_id;
           // Only mortgages that are not linked to any asset (or linked to this property for re-linking)
           return (
@@ -655,31 +664,14 @@ export const HoldingsPage = () => {
           </EmptyPlaceholder>
         </div>
       ) : (
-        <>
-          {/* Desktop View */}
-          <div className="hidden md:block">
-            <AlternativeHoldingsTable
-              holdings={liabilitiesHoldings}
-              isLoading={isDataLoading}
-              emptyTitle={t("holdings:empty_no_liabilities")}
-              emptyDescription={t("holdings:empty_add_first_liability_button")}
-              onEdit={handleEditAsset}
-              onUpdateValue={setUpdateValueAsset}
-              onViewHistory={handleViewHistory}
-              onDelete={handleDeleteAsset}
-              onRowClick={handleRowClick}
-              isDeleting={isDeleting}
-            />
-          </div>
-          {/* Mobile View */}
-          <div className="block md:hidden">
-            <AlternativeHoldingsListMobile
-              holdings={liabilitiesHoldings}
-              isLoading={isDataLoading}
-              onRowClick={handleRowClick}
-            />
-          </div>
-        </>
+        <LiabilityOverview
+          holdings={liabilitiesHoldings}
+          isLoading={isDataLoading}
+          onEdit={handleEditAsset}
+          onViewHistory={handleViewHistory}
+          onDelete={handleDeleteAsset}
+          isDeleting={isDeleting}
+        />
       )}
     </>
   );

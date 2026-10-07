@@ -629,16 +629,18 @@ impl MarketDataProvider for CustomScraperProvider {
 
 impl CustomScraperProvider {
     /// Find candidate sources for the given kind.
-    /// If `custom_provider_code` is set, returns that single provider's source.
-    /// Otherwise, returns sources from all enabled custom providers whose URL
-    /// contains an identity placeholder (general-purpose sources that work like built-in providers).
+    /// If the security is assigned to a custom provider, returns that provider's source.
+    /// Otherwise, returns sources from enabled custom providers that allow fallback use and
+    /// whose URL or body contains an identity placeholder (general-purpose sources that work
+    /// like built-in providers).
     fn find_sources(
         &self,
         context: &QuoteContext,
         kind: &str,
     ) -> Result<Vec<CustomProviderSource>, MarketDataError> {
-        // Explicit provider code — use it directly
-        if let Some(code) = context.custom_provider_code.as_deref() {
+        // Assigned provider — use it directly. A leftover code under another chosen
+        // provider is ignored, so only fallback providers can serve that security.
+        if let Some(code) = context.assigned_custom_provider() {
             let source = self
                 .repo
                 .get_source_by_kind(code, kind)
@@ -646,15 +648,19 @@ impl CustomScraperProvider {
                     provider: DATA_SOURCE_CUSTOM_SCRAPER.to_string(),
                     message: format!("Failed to load source config: {}", e),
                 })?
+                // The repository returns nothing for disabled or deleted providers too.
                 .ok_or_else(|| MarketDataError::ProviderError {
                     provider: DATA_SOURCE_CUSTOM_SCRAPER.to_string(),
-                    message: format!("No '{}' source configured for provider '{}'", kind, code),
+                    message: format!(
+                        "Custom provider '{}' is disabled, deleted, or has no '{}' source",
+                        code, kind
+                    ),
                 })?;
             return Ok(vec![source]);
         }
 
         // No explicit code — collect general-purpose sources whose URL or body contains an
-        // identity placeholder from all enabled custom providers, tried in priority order.
+        // identity placeholder from enabled fallback providers, tried in priority order.
         let providers = self
             .repo
             .get_all()
@@ -665,7 +671,7 @@ impl CustomScraperProvider {
 
         let sources: Vec<CustomProviderSource> = providers
             .into_iter()
-            .filter(|p| p.enabled)
+            .filter(|p| p.enabled && p.use_as_fallback)
             .flat_map(|p| p.sources.into_iter().filter(|s| s.kind == kind))
             .filter(Self::source_has_identity_placeholder)
             .collect();
@@ -1363,6 +1369,7 @@ mod tests {
                     description: String::new(),
                     enabled: true,
                     priority: 1,
+                    use_as_fallback: true,
                     sources: vec![source_with_url(
                         "isin-source",
                         "latest",
@@ -1375,6 +1382,7 @@ mod tests {
                     description: String::new(),
                     enabled: true,
                     priority: 2,
+                    use_as_fallback: true,
                     sources: vec![source_with_url(
                         "static-source",
                         "latest",
@@ -1419,6 +1427,7 @@ mod tests {
                 description: String::new(),
                 enabled: true,
                 priority: 1,
+                use_as_fallback: true,
                 sources: vec![body_source],
             }],
         });
@@ -1442,6 +1451,148 @@ mod tests {
 
         assert_eq!(sources.len(), 1);
         assert_eq!(sources[0].provider_id, "body-source");
+    }
+
+    fn provider_with_scope(
+        code: &str,
+        use_as_fallback: bool,
+        url: &str,
+    ) -> crate::custom_provider::CustomProviderWithSources {
+        crate::custom_provider::CustomProviderWithSources {
+            id: code.to_string(),
+            name: code.to_string(),
+            description: String::new(),
+            enabled: true,
+            priority: 1,
+            use_as_fallback,
+            sources: vec![
+                source_with_url(code, "latest", url),
+                source_with_url(code, "historical", url),
+            ],
+        }
+    }
+
+    fn equity_context(custom_provider_code: Option<&str>) -> QuoteContext {
+        QuoteContext {
+            instrument: InstrumentId::Equity {
+                ticker: Arc::from("AAPL"),
+                mic: None,
+            },
+            identifiers: QuoteIdentifiers {
+                isin: Some(Cow::Borrowed("US0378331005")),
+            },
+            overrides: None,
+            currency_hint: Some(Cow::Borrowed("USD")),
+            preferred_provider: custom_provider_code.map(|_| Cow::Borrowed("CUSTOM_SCRAPER")),
+            bond_metadata: None,
+            custom_provider_code: custom_provider_code.map(str::to_string),
+        }
+    }
+
+    #[test]
+    fn find_sources_skips_assigned_only_providers_for_unassigned_assets() {
+        let repo = Arc::new(MockCustomProviderRepository {
+            providers: vec![
+                provider_with_scope("private-fund", false, "https://fund.test/nav/{ISIN}"),
+                provider_with_scope("general", true, "https://general.test/{SYMBOL}"),
+            ],
+        });
+        let provider = CustomScraperProvider::new(repo, Arc::new(MockSecretStore));
+
+        let sources = provider
+            .find_sources(&equity_context(None), "latest")
+            .unwrap();
+
+        assert_eq!(sources.len(), 1);
+        assert_eq!(sources[0].provider_id, "general");
+    }
+
+    #[test]
+    fn find_sources_uses_assigned_only_provider_for_its_assigned_asset() {
+        let repo = Arc::new(MockCustomProviderRepository {
+            providers: vec![provider_with_scope(
+                "private-fund",
+                false,
+                "https://fund.test/nav/{ISIN}",
+            )],
+        });
+        let provider = CustomScraperProvider::new(repo, Arc::new(MockSecretStore));
+
+        let sources = provider
+            .find_sources(&equity_context(Some("private-fund")), "historical")
+            .unwrap();
+
+        assert_eq!(sources.len(), 1);
+        assert_eq!(sources[0].provider_id, "private-fund");
+    }
+
+    #[test]
+    fn find_sources_explains_a_missing_assigned_provider() {
+        let repo = Arc::new(MockCustomProviderRepository { providers: vec![] });
+        let provider = CustomScraperProvider::new(repo, Arc::new(MockSecretStore));
+
+        let error = provider
+            .find_sources(&equity_context(Some("deleted-fund")), "latest")
+            .unwrap_err();
+
+        assert!(error
+            .to_string()
+            .contains("'deleted-fund' is disabled, deleted, or has no 'latest' source"));
+    }
+
+    #[tokio::test]
+    async fn leftover_custom_code_under_another_provider_sends_no_request() {
+        // The security now prefers Yahoo but its config still carries the old code.
+        let repo = Arc::new(MockCustomProviderRepository {
+            providers: vec![provider_with_scope(
+                "private-fund",
+                false,
+                "http://127.0.0.1:9/nav/{SYMBOL}",
+            )],
+        });
+        let provider = CustomScraperProvider::new(repo, Arc::new(MockSecretStore));
+        let mut context = equity_context(Some("private-fund"));
+        context.preferred_provider = Some(Cow::Borrowed("YAHOO"));
+        let instrument = ProviderInstrument::EquitySymbol {
+            symbol: Arc::from("AAPL"),
+        };
+
+        let latest = provider
+            .get_latest_quote(&context, instrument)
+            .await
+            .unwrap_err();
+
+        assert!(matches!(latest, MarketDataError::NotSupported { .. }));
+    }
+
+    #[tokio::test]
+    async fn assigned_only_provider_sends_no_request_for_unassigned_assets() {
+        // Port 9 (discard) is never served here: any request would fail with a network
+        // error instead of the NotSupported that proves no source was tried.
+        let repo = Arc::new(MockCustomProviderRepository {
+            providers: vec![provider_with_scope(
+                "private-fund",
+                false,
+                "http://127.0.0.1:9/nav/{SYMBOL}",
+            )],
+        });
+        let provider = CustomScraperProvider::new(repo, Arc::new(MockSecretStore));
+        let context = equity_context(None);
+        let instrument = ProviderInstrument::EquitySymbol {
+            symbol: Arc::from("AAPL"),
+        };
+
+        let latest = provider
+            .get_latest_quote(&context, instrument.clone())
+            .await
+            .unwrap_err();
+        let history = provider
+            .get_historical_quotes(&context, instrument, Utc::now(), Utc::now())
+            .await
+            .unwrap_err();
+
+        assert!(matches!(latest, MarketDataError::NotSupported { .. }));
+        assert!(matches!(history, MarketDataError::NotSupported { .. }));
     }
 
     #[test]

@@ -2,6 +2,7 @@
 //!
 //! Catches accidental deletions of behaviors we depend on. Substring checks,
 //! not exact wording — phrasing can change, but the *contract* shouldn't.
+#![allow(clippy::unwrap_used, clippy::panic, reason = "test code")]
 
 use wealthfolio_ai::{FINANCIAL_SAFETY_POLICY_VERSION, SYSTEM_PROMPT};
 

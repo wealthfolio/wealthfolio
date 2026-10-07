@@ -15,7 +15,21 @@ use super::alternative_assets_model::{
     LinkLiabilityRequest, LinkLiabilityResponse, UpdateAssetDetailsRequest,
     UpdateAssetDetailsResponse, UpdateValuationRequest, UpdateValuationResponse,
 };
+use super::loan::{
+    LoanAction, LoanActionResult, LoanPayment, LoanSchedulePreview, LoanSetup, LoanUpdate,
+    PaymentLink, PaymentTagUpdate, StoredLoan, StoredPayment,
+};
+use crate::activities::Activity;
 use crate::errors::Result;
+use std::collections::HashMap;
+
+/// Decides a loan's writes from what is stored, inside the write transaction.
+pub type LoanChange = Box<dyn FnOnce(&StoredLoan) -> Result<LoanUpdate> + Send>;
+
+/// Decides a withdrawal's new metadata from the withdrawal, its account type and
+/// the loan it would pay, read inside the write transaction.
+pub type PaymentTagChange =
+    Box<dyn FnOnce(&Activity, &str, Option<&StoredLoan>) -> Result<PaymentTagUpdate> + Send>;
 
 /// Trait defining the contract for Alternative Asset service operations.
 ///
@@ -123,6 +137,27 @@ pub trait AlternativeAssetServiceTrait: Send + Sync {
     /// # Returns
     /// A list of alternative holdings with current valuations and gain calculations
     fn get_alternative_holdings(&self) -> Result<Vec<AlternativeHolding>>;
+
+    /// Applies a loan action against what is stored, in one transaction.
+    async fn apply_loan_action(
+        &self,
+        asset_id: &str,
+        action: LoanAction,
+    ) -> Result<LoanActionResult>;
+
+    /// Links or unlinks a withdrawal as a loan payment, checked against what is stored.
+    async fn link_loan_payment(&self, activity_id: &str, link: PaymentLink) -> Result<()>;
+
+    /// The tagged withdrawals counted as payments on a loan.
+    fn get_loan_payments(&self, asset_id: &str) -> Result<Vec<LoanPayment>>;
+
+    /// What a loan setup works out to without saving it; `asset_id` names the
+    /// loan being edited, whose stored terms the preview builds on.
+    fn preview_loan_terms(
+        &self,
+        asset_id: Option<&str>,
+        setup: &LoanSetup,
+    ) -> Result<Option<LoanSchedulePreview>>;
 }
 
 /// Trait for alternative asset repository operations.
@@ -183,4 +218,21 @@ pub trait AlternativeAssetRepositoryTrait: Send + Sync {
         metadata: Option<serde_json::Value>,
         notes: Option<&str>,
     ) -> Result<()>;
+
+    /// Tagged withdrawals counted as payments, by loan id, as stored.
+    fn loan_payments(&self, loan_ids: &[String]) -> Result<HashMap<String, Vec<StoredPayment>>>;
+
+    /// Reads a loan, decides its writes from what is stored and applies them in
+    /// one transaction, so a concurrent edit cannot be overwritten.
+    async fn update_loan(&self, asset_id: &str, change: LoanChange) -> Result<LoanUpdate>;
+
+    /// Reads a withdrawal, its account type and the loan to link, decides the
+    /// withdrawal's metadata and writes it in one transaction. Returns the
+    /// withdrawal when its metadata changed.
+    async fn update_payment_tag(
+        &self,
+        activity_id: &str,
+        loan_id: Option<&str>,
+        change: PaymentTagChange,
+    ) -> Result<Option<Activity>>;
 }

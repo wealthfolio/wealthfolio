@@ -52,8 +52,9 @@ impl PreparedCustomProviderRequest {
 
 /// Cached regex for formatted date templates: `{DATE:...}`, `{FROM:...}`,
 /// `{TO:...}`, `{TODAY:...}`.
-pub static DATE_TEMPLATE_RE: std::sync::LazyLock<regex::Regex> =
-    std::sync::LazyLock::new(|| regex::Regex::new(r"\{(DATE|FROM|TO|TODAY):([^}]+)\}").unwrap());
+pub static DATE_TEMPLATE_RE: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
+    regex::Regex::new(r"\{(DATE|FROM|TO|TODAY):([^}]+)\}").expect("valid date template regex")
+});
 
 /// Maximum HTTP response body size (10 MB).
 pub const MAX_RESPONSE_BYTES: usize = 10 * 1024 * 1024;
@@ -360,6 +361,9 @@ pub struct CustomProviderWithSources {
     pub description: String,
     pub enabled: bool,
     pub priority: i32,
+    /// Whether sources with a `{SYMBOL}`/`{ISIN}` placeholder are also tried for
+    /// securities not assigned to this provider. `priority` orders those fallbacks.
+    pub use_as_fallback: bool,
     pub sources: Vec<CustomProviderSource>,
 }
 
@@ -372,6 +376,9 @@ pub struct NewCustomProvider {
     pub name: String,
     pub description: Option<String>,
     pub priority: Option<i32>,
+    /// Defaults to `false`: new providers serve only the securities assigned to them.
+    #[serde(default)]
+    pub use_as_fallback: Option<bool>,
     pub sources: Vec<NewCustomProviderSource>,
 }
 
@@ -383,6 +390,8 @@ pub struct UpdateCustomProvider {
     pub description: Option<String>,
     pub enabled: Option<bool>,
     pub priority: Option<i32>,
+    #[serde(default)]
+    pub use_as_fallback: Option<bool>,
     pub sources: Option<Vec<NewCustomProviderSource>>,
 }
 

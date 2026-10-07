@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used, clippy::panic, reason = "test code")]
 use axum::{body::to_bytes, body::Body, http::Request};
 use tempfile::tempdir;
 use tower::ServiceExt;

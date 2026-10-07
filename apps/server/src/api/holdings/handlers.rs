@@ -40,7 +40,11 @@ fn resolve_scope(
     filter: &AccountScope,
     state: &AppState,
 ) -> Result<ResolvedAccountScope, crate::error::ApiError> {
-    let base = state.base_currency.read().unwrap().clone();
+    let base = state
+        .base_currency
+        .read()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .clone();
     state
         .portfolio_service
         .resolve_account_scope(filter, &base)
@@ -59,7 +63,11 @@ fn resolve_current_valuation_scope(
     filter: &AccountScope,
     state: &AppState,
 ) -> Result<ResolvedAccountScope, crate::error::ApiError> {
-    let base = state.base_currency.read().unwrap().clone();
+    let base = state
+        .base_currency
+        .read()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .clone();
     let resolved = state
         .portfolio_service
         .resolve_account_scope(filter, &base)
@@ -109,7 +117,11 @@ async fn load_holdings_for_filter(
     filter: &AccountScope,
     include_closed: bool,
 ) -> ApiResult<Vec<Holding>> {
-    let base = state.base_currency.read().unwrap().clone();
+    let base = state
+        .base_currency
+        .read()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .clone();
     let resolved = resolve_scope(filter, state)?;
     let account_ids = holdings_account_ids(state, &resolved.account_ids)?;
     let holdings = if account_ids.is_empty() {
@@ -138,7 +150,11 @@ pub async fn get_holdings_for_account(
     axum::Extension(state): axum::Extension<Arc<AppState>>,
     Query(q): Query<AccountIdQuery>,
 ) -> ApiResult<Json<Vec<Holding>>> {
-    let base = state.base_currency.read().unwrap().clone();
+    let base = state
+        .base_currency
+        .read()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .clone();
     let account_ids = holdings_account_ids(&state, std::slice::from_ref(&q.account_id))?;
     if account_ids.is_empty() {
         return Ok(Json(Vec::new()));
@@ -155,7 +171,11 @@ pub async fn get_holdings_list_for_account(
     axum::Extension(state): axum::Extension<Arc<AppState>>,
     Query(q): Query<AccountIdQuery>,
 ) -> ApiResult<Json<Vec<HoldingListItem>>> {
-    let base = state.base_currency.read().unwrap().clone();
+    let base = state
+        .base_currency
+        .read()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .clone();
     let account_ids = holdings_account_ids(&state, std::slice::from_ref(&q.account_id))?;
     if account_ids.is_empty() {
         return Ok(Json(Vec::new()));
@@ -174,7 +194,11 @@ pub async fn get_allocations_for_account(
     axum::Extension(state): axum::Extension<Arc<AppState>>,
     Query(q): Query<AccountIdQuery>,
 ) -> ApiResult<Json<PortfolioAllocations>> {
-    let base = state.base_currency.read().unwrap().clone();
+    let base = state
+        .base_currency
+        .read()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .clone();
     let account_ids = holdings_account_ids(&state, std::slice::from_ref(&q.account_id))?;
     let allocations = if account_ids.len() == 1 {
         state
@@ -192,7 +216,11 @@ pub async fn get_holdings_by_allocation_for_account(
     axum::Extension(state): axum::Extension<Arc<AppState>>,
     Query(q): Query<AllocationHoldingsQuery>,
 ) -> ApiResult<Json<AllocationHoldings>> {
-    let base = state.base_currency.read().unwrap().clone();
+    let base = state
+        .base_currency
+        .read()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .clone();
     let account_ids = holdings_account_ids(&state, std::slice::from_ref(&q.account_id))?;
     let result = if account_ids.len() == 1 {
         state
@@ -218,7 +246,11 @@ pub async fn get_holding(
     axum::Extension(state): axum::Extension<Arc<AppState>>,
     Query(q): Query<HoldingItemQuery>,
 ) -> ApiResult<Json<Option<Holding>>> {
-    let base = state.base_currency.read().unwrap().clone();
+    let base = state
+        .base_currency
+        .read()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .clone();
     let holding = state
         .holdings_service
         .get_holding(&q.account_id, &q.asset_id, &base)
@@ -230,7 +262,11 @@ pub async fn get_asset_holdings(
     axum::Extension(state): axum::Extension<Arc<AppState>>,
     Query(q): Query<AssetHoldingsQuery>,
 ) -> ApiResult<Json<Vec<Holding>>> {
-    let base = state.base_currency.read().unwrap().clone();
+    let base = state
+        .base_currency
+        .read()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .clone();
     let accounts = state.account_service.get_active_accounts()?;
 
     let mut result = Vec::new();
@@ -323,7 +359,8 @@ pub async fn get_historical_valuations_for_scope(
                 &resolved.base_currency,
                 start,
                 end,
-            )?
+            )
+            .await?
     };
     Ok(Json(vals))
 }
@@ -366,8 +403,16 @@ pub async fn get_current_valuation(
     axum::Extension(state): axum::Extension<Arc<AppState>>,
     Json(body): Json<CurrentValuationBody>,
 ) -> ApiResult<Json<CurrentValuationResponse>> {
-    let base_currency = state.base_currency.read().unwrap().clone();
-    let timezone = state.timezone.read().unwrap().clone();
+    let base_currency = state
+        .base_currency
+        .read()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .clone();
+    let timezone = state
+        .timezone
+        .read()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .clone();
     let latest_snapshot_cutoff = user_today(parse_user_timezone_or_default(&timezone));
     let resolved = resolve_current_valuation_scope(&body.filter, &state)?;
     let service = CurrentAccountValuationService::new(
@@ -393,7 +438,11 @@ pub async fn get_portfolio_allocations(
     axum::Extension(state): axum::Extension<Arc<AppState>>,
     Json(body): Json<FilterBody>,
 ) -> ApiResult<Json<PortfolioAllocations>> {
-    let base = state.base_currency.read().unwrap().clone();
+    let base = state
+        .base_currency
+        .read()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .clone();
     let resolved = resolve_scope(&body.filter, &state)?;
     let account_ids = holdings_account_ids(&state, &resolved.account_ids)?;
     let allocations = if account_ids.len() == 1 {
@@ -414,7 +463,11 @@ pub async fn get_holdings_by_allocation(
     axum::Extension(state): axum::Extension<Arc<AppState>>,
     Json(body): Json<AllocationFilterBody>,
 ) -> ApiResult<Json<AllocationHoldings>> {
-    let base = state.base_currency.read().unwrap().clone();
+    let base = state
+        .base_currency
+        .read()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .clone();
     let resolved = resolve_scope(&body.filter, &state)?;
     let account_ids = holdings_account_ids(&state, &resolved.account_ids)?;
     let result = if account_ids.len() == 1 {
@@ -491,7 +544,11 @@ pub async fn get_snapshot_by_date(
         .ok_or_else(|| anyhow::anyhow!("No snapshot found for date {}", q.date))?;
 
     // Convert snapshot to holdings using core service
-    let base_currency = state.base_currency.read().unwrap().clone();
+    let base_currency = state
+        .base_currency
+        .read()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .clone();
     let holdings = state
         .holdings_service
         .holdings_from_snapshot(&snapshot, &base_currency)
@@ -520,7 +577,11 @@ pub async fn delete_snapshot_handler(
 
     let target_date = NaiveDate::parse_from_str(&snapshot.snapshot_date, "%Y-%m-%d").ok();
     let account = state.account_service.get_account(&q.account_id)?;
-    let timezone = state.timezone.read().unwrap().clone();
+    let timezone = state
+        .timezone
+        .read()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .clone();
     let today = user_today(parse_user_timezone_or_default(&timezone));
     let requires_remediation = target_date
         .map(|date| snapshot_date_requires_remediation(date, today))
@@ -612,10 +673,18 @@ pub async fn save_manual_holdings_handler(
     let account = state.account_service.get_account(&req.account_id)?;
 
     // Get base currency for FX pair registration
-    let base_currency = state.base_currency.read().unwrap().clone();
+    let base_currency = state
+        .base_currency
+        .read()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .clone();
 
     // Parse the snapshot date or use today in the configured user timezone.
-    let timezone = state.timezone.read().unwrap().clone();
+    let timezone = state
+        .timezone
+        .read()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .clone();
     let date = match req.snapshot_date {
         Some(date_str) => NaiveDate::parse_from_str(&date_str, "%Y-%m-%d")
             .map_err(|e| anyhow::anyhow!("Invalid date format: {}", e))?,
@@ -706,7 +775,11 @@ pub async fn check_holdings_import_handler(
 
     // Verify account exists
     let account = state.account_service.get_account(&req.account_id)?;
-    let timezone = state.timezone.read().unwrap().clone();
+    let timezone = state
+        .timezone
+        .read()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .clone();
     let today = user_today(parse_user_timezone_or_default(&timezone));
 
     let validation_snapshots: Vec<_> = req
@@ -783,7 +856,11 @@ pub async fn import_holdings_csv_handler(
     let account = state.account_service.get_account(&req.account_id)?;
 
     // Get base currency for FX pair registration
-    let base_currency = state.base_currency.read().unwrap().clone();
+    let base_currency = state
+        .base_currency
+        .read()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .clone();
 
     let mut snapshots_imported = 0;
     let mut snapshots_failed = 0;
@@ -863,7 +940,11 @@ async fn import_single_snapshot_impl(
             })
             .collect(),
     };
-    let timezone = state.timezone.read().unwrap().clone();
+    let timezone = state
+        .timezone
+        .read()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .clone();
     let today = user_today(parse_user_timezone_or_default(&timezone));
     let date = validate_holdings_import_snapshot(account_id, today, &validation_input)
         .map_err(|errors| anyhow::anyhow!(errors.join(" ")))?;

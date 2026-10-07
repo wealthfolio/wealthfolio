@@ -61,6 +61,17 @@ impl r2d2::ManageConnection for BlockingManager {
     }
 }
 
+// r2d2 drops the manager after the customizer and before the idle connections,
+// so pausing here holds a dropping pool between those two steps.
+impl Drop for BlockingManager {
+    fn drop(&mut self) {
+        let _ = self.started.send(());
+        if let Ok(release) = self.release.lock() {
+            let _ = release.recv();
+        }
+    }
+}
+
 #[test]
 fn failed_pool_build_retains_owner_until_internal_connector_finishes() {
     let root = tempfile::tempdir().unwrap();
@@ -81,7 +92,7 @@ fn failed_pool_build_retains_owner_until_internal_connector_finishes() {
             .connection_timeout(Duration::from_millis(100))
             .connection_customizer(Box::new(ConnectionCustomizer {
                 key: None,
-                _owner: Some(owner),
+                owner: Some(owner),
             }))
             .build(manager)
     });
@@ -91,9 +102,54 @@ fn failed_pool_build_retains_owner_until_internal_connector_finishes() {
     assert!(lifetime.upgrade().is_some());
     assert!(DatabaseOwner::acquire(&path).is_err());
     release_tx.send(()).unwrap();
+    // The connector, now the pool's last owner, drops it on an r2d2 worker.
+    started_rx.recv_timeout(Duration::from_secs(5)).unwrap();
+    // The customizer is gone, but its idle connection is still open.
+    assert!(lifetime.upgrade().is_some());
+    assert!(DatabaseOwner::acquire(&path).is_err());
+    release_tx.send(()).unwrap();
     wait_for_release(&lifetime);
     let _owner = DatabaseOwner::acquire(&path).unwrap();
     maintenance::check_sqlite_locks(&DbAccess::plaintext(&path)).unwrap();
+}
+
+/// Pins the diesel behavior `ConnectionOwnership` relies on: a connection's
+/// instrumentation is dropped only after its SQLite handle is closed.
+#[test]
+fn connection_instrumentation_is_dropped_after_the_connection_closes() {
+    struct Probe {
+        wal: PathBuf,
+        closed: mpsc::Sender<bool>,
+    }
+    impl Instrumentation for Probe {
+        fn on_connection_event(&mut self, _event: InstrumentationEvent<'_>) {}
+    }
+    impl Drop for Probe {
+        fn drop(&mut self) {
+            // Closing the last connection removes the WAL file.
+            let _ = self.closed.send(!self.wal.exists());
+        }
+    }
+
+    let root = tempfile::tempdir().unwrap();
+    let access = DbAccess::plaintext(root.path().join("app.db").to_str().unwrap());
+    let mut connection = access.connect().unwrap();
+    connection
+        .batch_execute("PRAGMA journal_mode=WAL; CREATE TABLE probe (id INTEGER);")
+        .unwrap();
+    let wal = root.path().join("app.db-wal");
+    assert!(wal.exists());
+    let (closed_tx, closed_rx) = mpsc::channel();
+    let probe = |closed: &mpsc::Sender<bool>| Probe {
+        wal: wal.clone(),
+        closed: closed.clone(),
+    };
+    connection.set_instrumentation(probe(&closed_tx));
+    // Replacing the probe drops it while the connection is still open.
+    connection.set_instrumentation(probe(&closed_tx));
+    assert!(!closed_rx.recv().unwrap());
+    drop(connection);
+    assert!(closed_rx.recv().unwrap());
 }
 
 #[test]

@@ -37,6 +37,11 @@ export function useSettingsMutation(
         queryClient.invalidateQueries({ queryKey: [QueryKeys.RETIREMENT_OVERVIEW] });
         queryClient.invalidateQueries({ queryKey: [QueryKeys.SAVE_UP_OVERVIEW] });
         queryClient.invalidateQueries({ queryKey: [QueryKeys.SAVE_UP_PREVIEW] });
+        // Loan payments are dated by their day in that zone, as are the date
+        // ranges of activity searches, including a loan's payment candidates.
+        queryClient.invalidateQueries({ queryKey: [QueryKeys.ALTERNATIVE_HOLDINGS] });
+        queryClient.invalidateQueries({ queryKey: [QueryKeys.ASSET_DATA] });
+        queryClient.invalidateQueries({ queryKey: [QueryKeys.ACTIVITIES] });
       }
       setSettings(updatedSettings);
       await applySettingsToDocument(updatedSettings);

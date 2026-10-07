@@ -266,6 +266,7 @@ fn parse_mic_symbol(
 /// Check if a string looks like an ISIN (2 uppercase letters + 10 alphanumeric).
 fn looks_like_isin(s: &str) -> bool {
     s.len() == 12
+        && s.is_ascii()
         && s[..2].chars().all(|c| c.is_ascii_uppercase())
         && s[2..].chars().all(|c| c.is_ascii_alphanumeric())
 }
@@ -765,6 +766,12 @@ mod tests {
         assert!(!looks_like_isin("ie00btjrmp35")); // lowercase
         assert!(!looks_like_isin("IE00BTJRMP3")); // too short
         assert!(!looks_like_isin("IE00BTJRMP355")); // too long
+    }
+
+    #[test]
+    fn test_looks_like_isin_non_ascii() {
+        // 12 bytes, with byte 2 inside the 'é'
+        assert!(!looks_like_isin("Bézier Fund"));
     }
 
     #[test]

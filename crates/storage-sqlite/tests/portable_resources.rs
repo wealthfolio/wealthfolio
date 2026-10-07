@@ -1,4 +1,5 @@
 //! Opt-in storage workload; run the compiled test under the OS memory profiler.
+#![allow(clippy::unwrap_used, clippy::panic, reason = "test code")]
 use std::{
     fs,
     io::Read,

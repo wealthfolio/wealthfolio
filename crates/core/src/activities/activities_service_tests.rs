@@ -4,7 +4,7 @@ pub(crate) mod tests {
     use crate::activities::activities_model::*;
     use crate::activities::{
         ActivityRepositoryTrait, ActivityService, ActivityServiceTrait, ImportRun,
-        ImportRunRepositoryTrait, ImportRunStatus, ACTIVITY_TYPE_ADJUSTMENT,
+        ImportRunRepositoryTrait, ImportRunStatus, TransferLinkState, ACTIVITY_TYPE_ADJUSTMENT,
     };
     use crate::assets::{
         normalize_quote_ccy_code, parse_crypto_pair_symbol, parse_symbol_with_exchange_suffix,
@@ -1384,19 +1384,11 @@ pub(crate) mod tests {
                 .ok_or_else(|| Error::Unexpected("Activity not found".to_string()))
         }
 
-        fn find_transfer_counterpart(
-            &self,
-            group_id: &str,
-            exclude_id: &str,
-        ) -> Result<Option<Activity>> {
-            let activities = self.activities.lock().unwrap();
-            Ok(activities
-                .iter()
-                .find(|a| a.source_group_id.as_deref() == Some(group_id) && a.id != exclude_id)
-                .cloned())
+        fn get_activities(&self) -> Result<Vec<Activity>> {
+            Ok(self.activities.lock().unwrap().clone())
         }
 
-        fn get_activities(&self) -> Result<Vec<Activity>> {
+        fn get_activities_including_archived_accounts(&self) -> Result<Vec<Activity>> {
             Ok(self.activities.lock().unwrap().clone())
         }
 
@@ -2542,6 +2534,66 @@ pub(crate) mod tests {
         // replaced custom total is surfaced for review.
         assert_eq!(updated.amount, Some(dec!(100)));
         assert!(updated.needs_review);
+    }
+
+    #[tokio::test]
+    async fn test_update_never_changes_a_loan_payment_tag() {
+        // An edit form sends back the metadata it loaded; a stale copy of the
+        // loan tag must not undo a link made in the meantime.
+        let account_service = Arc::new(MockAccountService::new());
+        let asset_service = Arc::new(MockAssetService::new());
+        let activity_repository = Arc::new(MockActivityRepository::new());
+        account_service.add_account(create_test_account("acc-usd", "USD"));
+        asset_service.add_asset(create_test_asset_with_instrument(
+            "asset-opt",
+            "XSP240119C00500000",
+            Some("XCBO"),
+            Some(InstrumentType::Option),
+            "USD",
+        ));
+        let mut existing = create_stored_activity("activity-tag", "acc-usd", Some("asset-opt"));
+        existing.metadata = Some(serde_json::json!({ "loan_payment": { "loan_id": "current" } }));
+        activity_repository.add_activity(existing);
+        let activity_service = ActivityService::new(
+            activity_repository,
+            account_service,
+            asset_service,
+            Arc::new(MockFxService::new()),
+            Arc::new(MockQuoteService),
+        );
+
+        let updated = activity_service
+            .update_activity(ActivityUpdate {
+                id: "activity-tag".to_string(),
+                account_id: "acc-usd".to_string(),
+                asset: Some(AssetResolutionInput {
+                    id: Some("asset-opt".to_string()),
+                    ..Default::default()
+                }),
+                activity_type: "BUY".to_string(),
+                subtype: None,
+                activity_date: "2024-01-15".to_string(),
+                quantity: Some(Some(dec!(1))),
+                unit_price: Some(Some(dec!(100))),
+                currency: "USD".to_string(),
+                fee: None,
+                tax: None,
+                amount: None,
+                status: None,
+                needs_review: None,
+                notes: None,
+                fx_rate: None,
+                metadata: Some(
+                    r#"{"loan_payment": {"loan_id": "stale"}, "contract_multiplier": 10}"#
+                        .to_string(),
+                ),
+            })
+            .await
+            .expect("update should succeed");
+
+        let metadata = updated.metadata.expect("metadata should be stored");
+        assert_eq!(metadata["loan_payment"]["loan_id"], "current");
+        assert_eq!(metadata["contract_multiplier"], 10);
     }
 
     #[tokio::test]
@@ -11114,6 +11166,274 @@ pub(crate) mod tests {
         assert_eq!(candidates[0].activity.id, "cash-match");
     }
 
+    /// Unlinked transfers for the scan, one per link state: two that match
+    /// each other and an orphan from a broken pair (all three reported by the
+    /// Health Center), plus an old one and one with no match, both marked
+    /// external, as imports mark them. Left out: a linked pair without the
+    /// internal marker, a pair linked across to an archived account, a draft,
+    /// and a transfer in the archived account (`acc-closed` is not among the
+    /// open accounts).
+    fn unlinked_transfer_service() -> ActivityService {
+        let account_service = Arc::new(MockAccountService::new());
+        account_service.add_account(create_test_account("acc-a", "USD"));
+        account_service.add_account(create_test_account("acc-b", "USD"));
+        let activity_repository = Arc::new(MockActivityRepository::new());
+        // The fixture marks transfers external; these three are not.
+        let internal = |id, account_id, activity_type, date, amount, group: Option<&str>| {
+            let mut transfer =
+                create_cash_transfer_activity(id, account_id, activity_type, date, amount, "USD");
+            transfer.metadata = None;
+            transfer.source_group_id = group.map(str::to_string);
+            transfer
+        };
+        for transfer in [
+            internal(
+                "out-1",
+                "acc-a",
+                "TRANSFER_OUT",
+                "2024-01-15T00:00:00Z",
+                dec!(100),
+                None,
+            ),
+            internal(
+                "in-1",
+                "acc-b",
+                "TRANSFER_IN",
+                "2024-01-15T00:00:00Z",
+                dec!(100),
+                None,
+            ),
+            internal(
+                "orphan-out",
+                "acc-a",
+                "TRANSFER_OUT",
+                "2024-02-01T00:00:00Z",
+                dec!(70),
+                Some("orphan-group"),
+            ),
+            create_cash_transfer_activity(
+                "in-old",
+                "acc-b",
+                "TRANSFER_IN",
+                "2023-06-01T00:00:00Z",
+                dec!(50),
+                "USD",
+            ),
+            create_cash_transfer_activity(
+                "outside-in",
+                "acc-b",
+                "TRANSFER_IN",
+                "2024-01-12T00:00:00Z",
+                dec!(45),
+                "USD",
+            ),
+            create_cash_transfer_activity(
+                "closed-out",
+                "acc-closed",
+                "TRANSFER_OUT",
+                "2024-01-10T00:00:00Z",
+                dec!(40),
+                "USD",
+            ),
+            internal(
+                "paired-out",
+                "acc-a",
+                "TRANSFER_OUT",
+                "2024-01-20T00:00:00Z",
+                dec!(30),
+                Some("pair-group"),
+            ),
+            internal(
+                "paired-in",
+                "acc-b",
+                "TRANSFER_IN",
+                "2024-01-20T00:00:00Z",
+                dec!(30),
+                Some("pair-group"),
+            ),
+        ] {
+            activity_repository.add_activity(transfer);
+        }
+        // Linked across to an account that is now archived.
+        activity_repository.add_activity(internal(
+            "kept-out",
+            "acc-a",
+            "TRANSFER_OUT",
+            "2024-01-25T00:00:00Z",
+            dec!(20),
+            Some("cross-group"),
+        ));
+        activity_repository.add_activity(internal(
+            "archived-in",
+            "acc-closed",
+            "TRANSFER_IN",
+            "2024-01-25T00:00:00Z",
+            dec!(20),
+            Some("cross-group"),
+        ));
+        let mut draft = internal(
+            "draft-in",
+            "acc-b",
+            "TRANSFER_IN",
+            "2024-01-16T00:00:00Z",
+            dec!(100),
+            None,
+        );
+        draft.status = ActivityStatus::Draft;
+        activity_repository.add_activity(draft);
+
+        ActivityService::new(
+            activity_repository,
+            account_service,
+            Arc::new(MockAssetService::new()),
+            Arc::new(MockFxService::new()),
+            Arc::new(MockQuoteService),
+        )
+    }
+
+    fn unlinked_ids(unlinked: &UnlinkedTransfers) -> Vec<&str> {
+        unlinked
+            .transfers
+            .iter()
+            .map(|transfer| transfer.activity.id.as_str())
+            .collect()
+    }
+
+    #[tokio::test]
+    async fn find_unlinked_transfers_lists_unlinked_transfers_with_state_and_candidates() {
+        let service = unlinked_transfer_service();
+        let unlinked = service
+            .find_unlinked_transfers(UnlinkedTransfersRequest::default())
+            .await
+            .expect("scan");
+
+        assert_eq!(unlinked.total, 5);
+        assert_eq!(
+            unlinked_ids(&unlinked),
+            vec!["orphan-out", "in-1", "out-1", "outside-in", "in-old"]
+        );
+        assert_eq!(
+            unlinked
+                .transfers
+                .iter()
+                .map(|transfer| transfer.link_state)
+                .collect::<Vec<_>>(),
+            vec![
+                TransferLinkState::BrokenLink,
+                TransferLinkState::NeedsCounterpart,
+                TransferLinkState::NeedsCounterpart,
+                TransferLinkState::External,
+                TransferLinkState::External,
+            ]
+        );
+        for transfer in &unlinked.transfers {
+            // The same candidates the Link Transfer dialog shows.
+            let dialog = service
+                .find_transfer_match_candidates(TransferMatchCandidateRequest {
+                    activity_id: transfer.activity.id.clone(),
+                    window_days: Some(7),
+                    limit: Some(3),
+                })
+                .expect("candidates");
+            let ids = |candidates: &[TransferMatchCandidate]| {
+                candidates
+                    .iter()
+                    .map(|candidate| candidate.activity.id.clone())
+                    .collect::<Vec<_>>()
+            };
+            assert_eq!(
+                ids(&transfer.candidates),
+                ids(&dialog),
+                "{}",
+                transfer.activity.id
+            );
+        }
+        let out = &unlinked.transfers[2];
+        assert_eq!(out.candidates.len(), 1);
+        assert_eq!(out.candidates[0].activity.id, "in-1");
+        assert!(unlinked.transfers[4].candidates.is_empty());
+    }
+
+    #[tokio::test]
+    async fn find_unlinked_transfers_applies_scope_filters_and_paging() {
+        let service = unlinked_transfer_service();
+        let scan = |request: UnlinkedTransfersRequest| {
+            let service = &service;
+            async move {
+                service
+                    .find_unlinked_transfers(request)
+                    .await
+                    .expect("scan")
+            }
+        };
+
+        let by_account = scan(UnlinkedTransfersRequest {
+            account_id: Some("acc-a".to_string()),
+            ..Default::default()
+        })
+        .await;
+        assert_eq!(unlinked_ids(&by_account), vec!["orphan-out", "out-1"]);
+
+        let by_dates = scan(UnlinkedTransfersRequest {
+            start_date: NaiveDate::from_ymd_opt(2024, 1, 1),
+            end_date: NaiveDate::from_ymd_opt(2024, 1, 31),
+            ..Default::default()
+        })
+        .await;
+        assert_eq!(unlinked_ids(&by_dates), vec!["in-1", "out-1", "outside-in"]);
+
+        let health_reported = scan(UnlinkedTransfersRequest {
+            link_states: Some(vec![
+                TransferLinkState::NeedsCounterpart,
+                TransferLinkState::BrokenLink,
+            ]),
+            ..Default::default()
+        })
+        .await;
+        assert_eq!(
+            unlinked_ids(&health_reported),
+            vec!["orphan-out", "in-1", "out-1"]
+        );
+
+        let page = scan(UnlinkedTransfersRequest {
+            offset: Some(1),
+            limit: Some(2),
+            ..Default::default()
+        })
+        .await;
+        assert_eq!(unlinked_ids(&page), vec!["in-1", "out-1"]);
+        assert_eq!(page.total, 5);
+
+        let one = scan(UnlinkedTransfersRequest {
+            activity_id: Some("out-1".to_string()),
+            ..Default::default()
+        })
+        .await;
+        assert_eq!(unlinked_ids(&one), vec!["out-1"]);
+        assert!(one.linked.is_none());
+    }
+
+    /// A lookup of a linked transfer names its other side from the same pairs
+    /// the scan resolves: a pair without the internal marker, and a pair whose
+    /// other side is in an archived account.
+    #[tokio::test]
+    async fn find_unlinked_transfers_names_the_other_side_of_a_linked_transfer() {
+        let service = unlinked_transfer_service();
+        for (id, counterpart) in [("paired-out", "paired-in"), ("kept-out", "archived-in")] {
+            let lookup = service
+                .find_unlinked_transfers(UnlinkedTransfersRequest {
+                    activity_id: Some(id.to_string()),
+                    ..Default::default()
+                })
+                .await
+                .expect("lookup");
+            assert_eq!(lookup.total, 0, "{id}");
+            let linked = lookup.linked.expect("linked");
+            assert_eq!(linked.counterpart_id, counterpart);
+            assert_eq!(linked.link_state, TransferLinkState::Linked);
+        }
+    }
+
     #[test]
     fn find_transfer_match_candidates_matches_security_by_asset_and_quantity() {
         let account_service = Arc::new(MockAccountService::new());
@@ -11368,7 +11688,7 @@ pub(crate) mod tests {
         assert_eq!(result.transfer_in.account_id, "acc-usd");
         assert_eq!(result.transfer_in.currency, "USD");
         assert_eq!(result.transfer_in.amount, Some(dec!(31.20)));
-        assert_eq!(result.transfer_in.fx_rate, Some(dec!(0.0312)));
+        assert_eq!(result.transfer_in.fx_rate, None);
         assert_eq!(
             result.transfer_out.source_group_id,
             result.transfer_in.source_group_id
@@ -11413,8 +11733,8 @@ pub(crate) mod tests {
                 activity_date: "2026-06-03T20:20:00Z".to_string(),
                 source_amount: Some(dec!(100)),
                 destination_amount: Some(dec!(90)),
-                source_currency: "USD".to_string(),
-                destination_currency: "USD".to_string(),
+                source_currency: "HKD".to_string(),
+                destination_currency: "HKD".to_string(),
                 fx_rate: Some(dec!(0.9)),
                 notes: None,
                 transfer_mode: Some("cash".to_string()),
@@ -11424,6 +11744,8 @@ pub(crate) mod tests {
 
         assert_eq!(result.transfer_out.amount, Some(dec!(100)));
         assert_eq!(result.transfer_in.amount, Some(dec!(100)));
+        assert_eq!(result.transfer_out.currency, "HKD");
+        assert_eq!(result.transfer_in.currency, "HKD");
         assert_eq!(result.transfer_in.fx_rate, None);
     }
 
@@ -11510,6 +11832,388 @@ pub(crate) mod tests {
         assert_eq!(updated.transfer_out.fee, Some(dec!(3)));
         assert_eq!(updated.transfer_in.fee, Some(dec!(2)));
         assert_eq!(updated.transfer_out.fx_rate, Some(dec!(2)));
+    }
+
+    fn independent_transfer_fixture() -> (
+        ActivityService,
+        Arc<MockActivityRepository>,
+        InternalTransferPairRequest,
+    ) {
+        let accounts = Arc::new(MockAccountService::new());
+        accounts.add_account(create_test_account("from", "USD"));
+        accounts.add_account(create_test_account("to", "USD"));
+        accounts.add_account(create_test_account("other", "EUR"));
+        let repository = Arc::new(MockActivityRepository::new());
+        let service = ActivityService::new(
+            repository.clone(),
+            accounts,
+            Arc::new(MockAssetService::new()),
+            Arc::new(MockFxService::new()),
+            Arc::new(MockQuoteService),
+        );
+        let request = InternalTransferPairRequest {
+            transfer_out_id: None,
+            transfer_in_id: None,
+            source_group_id: None,
+            from_account_id: "from".into(),
+            to_account_id: "to".into(),
+            activity_date: "2026-06-03T20:20:00Z".into(),
+            source_amount: Some(dec!(780)),
+            destination_amount: Some(dec!(100)),
+            source_currency: "HKD".into(),
+            destination_currency: "USD".into(),
+            fx_rate: Some(dec!(99)),
+            notes: None,
+            transfer_mode: Some("cash".into()),
+        };
+        (service, repository, request)
+    }
+
+    #[tokio::test]
+    async fn independent_cash_transfer_normalizes_units_and_uses_amounts_without_balance_checks() {
+        for (source, destination, expected_source, expected_amount) in [
+            ("HKD", "USD", "HKD", dec!(780)),
+            ("USD", "HKD", "USD", dec!(780)),
+            ("HKD", "EUR", "HKD", dec!(780)),
+            ("GBp", "USD", "GBP", dec!(7.8)),
+            ("GBX", "GBP", "GBP", dec!(7.8)),
+            ("POINTS", "USD", "POINTS", dec!(780)),
+        ] {
+            let (service, repository, mut request) = independent_transfer_fixture();
+            request.source_currency = source.into();
+            request.destination_currency = destination.into();
+            let saved = service.save_internal_transfer_pair(request).await.unwrap();
+            assert_eq!(saved.transfer_out.currency, expected_source);
+            assert_eq!(saved.transfer_out.amount, Some(expected_amount));
+            assert_eq!(
+                saved.transfer_in.amount,
+                Some(if expected_source == destination {
+                    expected_amount
+                } else {
+                    dec!(100)
+                })
+            );
+            assert!(saved.transfer_out.fx_rate.is_none());
+            assert!(saved.transfer_in.fx_rate.is_none());
+            // There are no deposits, balances or market quotes in this fixture.
+            assert_eq!(repository.get_activities().unwrap().len(), 2);
+        }
+    }
+
+    #[tokio::test]
+    async fn independent_cash_transfer_preserves_valuation_overrides_until_their_pair_changes() {
+        let (service, repository, mut request) = independent_transfer_fixture();
+        let created = service
+            .save_internal_transfer_pair(request.clone())
+            .await
+            .unwrap();
+        for row in repository.activities.lock().unwrap().iter_mut() {
+            row.fx_rate = Some(dec!(0.125));
+        }
+        request.transfer_out_id = Some(created.transfer_out.id);
+        request.transfer_in_id = Some(created.transfer_in.id);
+        request.notes = Some("notes only".into());
+        let unchanged = service
+            .save_internal_transfer_pair(request.clone())
+            .await
+            .unwrap();
+        assert_eq!(unchanged.transfer_out.fx_rate, Some(dec!(0.125)));
+        assert_eq!(unchanged.transfer_in.fx_rate, Some(dec!(0.125)));
+        assert_eq!(unchanged.transfer_in.amount, Some(dec!(100)));
+        request.source_currency = "GBP".into();
+        request.to_account_id = "other".into();
+        let changed = service.save_internal_transfer_pair(request).await.unwrap();
+        assert!(changed.transfer_out.fx_rate.is_none());
+        assert!(changed.transfer_in.fx_rate.is_none());
+    }
+
+    #[tokio::test]
+    async fn independent_cash_transfer_rejects_single_and_explicit_bulk_currency_changes_atomically(
+    ) {
+        let (service, repository, request) = independent_transfer_fixture();
+        let created = service.save_internal_transfer_pair(request).await.unwrap();
+        for account_change in [false, true] {
+            let mut outgoing =
+                create_test_activity_update(&created.transfer_out.id, "from", None, "HKD");
+            outgoing.activity_type = "TRANSFER_OUT".into();
+            if account_change {
+                outgoing.account_id = "other".into();
+            } else {
+                outgoing.currency = "EUR".into();
+            }
+            assert!(service
+                .update_activity(outgoing.clone())
+                .await
+                .unwrap_err()
+                .to_string()
+                .contains("pair editor"));
+            let mut incoming =
+                create_test_activity_update(&created.transfer_in.id, "to", None, "USD");
+            incoming.activity_type = "TRANSFER_IN".into();
+            incoming.amount = Some(Some(dec!(123)));
+            let result = service
+                .bulk_mutate_activities(ActivityBulkMutationRequest {
+                    creates: vec![],
+                    updates: vec![outgoing, incoming],
+                    delete_ids: vec![],
+                })
+                .await
+                .unwrap();
+            assert!(!result.errors.is_empty());
+            assert!(result.updated.is_empty());
+        }
+        assert_eq!(
+            repository
+                .get_activity(&created.transfer_in.id)
+                .unwrap()
+                .amount,
+            Some(dec!(100))
+        );
+        assert_eq!(
+            repository
+                .get_activity(&created.transfer_out.id)
+                .unwrap()
+                .currency,
+            "HKD"
+        );
+    }
+
+    #[tokio::test]
+    async fn pair_editor_converts_a_cash_pair_to_a_securities_transfer_in_one_bulk_update() {
+        let accounts = Arc::new(MockAccountService::new());
+        accounts.add_account(create_test_account("from", "USD"));
+        accounts.add_account(create_test_account("to", "USD"));
+        accounts.add_account(create_test_account("other", "EUR"));
+        let assets = Arc::new(MockAssetService::new());
+        assets.add_asset(create_test_asset("asset-aapl", "USD"));
+        let repository = Arc::new(MockActivityRepository::new());
+        let service = ActivityService::new(
+            repository.clone(),
+            accounts,
+            assets,
+            Arc::new(MockFxService::new()),
+            Arc::new(MockQuoteService),
+        );
+        // A cash pair in a currency neither account uses, which only the new
+        // independent currencies allow.
+        let (_, _, request) = independent_transfer_fixture();
+        let created = service
+            .save_internal_transfer_pair(InternalTransferPairRequest {
+                destination_currency: "HKD".into(),
+                destination_amount: Some(dec!(780)),
+                ..request
+            })
+            .await
+            .unwrap();
+
+        // The pair editor's securities save: both legs, in their account
+        // currencies, with the incoming leg moved to another account.
+        let securities_leg = |id: &str, account: &str, currency: &str, activity_type: &str| {
+            let mut update = create_test_activity_update(
+                id,
+                account,
+                Some(AssetResolutionInput {
+                    id: Some("asset-aapl".into()),
+                    ..Default::default()
+                }),
+                currency,
+            );
+            update.activity_type = activity_type.into();
+            update.quantity = Some(Some(dec!(10)));
+            update
+        };
+        let result = service
+            .bulk_mutate_activities(ActivityBulkMutationRequest {
+                creates: vec![],
+                updates: vec![
+                    securities_leg(&created.transfer_out.id, "from", "USD", "TRANSFER_OUT"),
+                    securities_leg(&created.transfer_in.id, "other", "EUR", "TRANSFER_IN"),
+                ],
+                delete_ids: vec![],
+            })
+            .await
+            .unwrap();
+        assert!(result.errors.is_empty(), "{:?}", result.errors);
+        let transfer_out = repository.get_activity(&created.transfer_out.id).unwrap();
+        let transfer_in = repository.get_activity(&created.transfer_in.id).unwrap();
+        assert_eq!(transfer_out.asset_id.as_deref(), Some("asset-aapl"));
+        assert_eq!(transfer_in.asset_id.as_deref(), Some("asset-aapl"));
+        assert_eq!(transfer_in.account_id, "other");
+        assert_eq!(transfer_in.currency, "EUR");
+
+        // A single leg is still not converted on its own.
+        let created = service
+            .save_internal_transfer_pair(InternalTransferPairRequest {
+                activity_date: "2026-06-04T20:20:00Z".into(),
+                ..independent_transfer_fixture().2
+            })
+            .await
+            .unwrap();
+        let result = service
+            .bulk_mutate_activities(ActivityBulkMutationRequest {
+                creates: vec![],
+                updates: vec![securities_leg(
+                    &created.transfer_in.id,
+                    "other",
+                    "EUR",
+                    "TRANSFER_IN",
+                )],
+                delete_ids: vec![],
+            })
+            .await
+            .unwrap();
+        assert!(result.errors[0].message.contains("pair editor"));
+    }
+
+    #[tokio::test]
+    async fn independent_cash_transfer_amount_edits_ignore_valuation_rates_and_preserve_explicit_legs(
+    ) {
+        let (service, repository, request) = independent_transfer_fixture();
+        let created = service.save_internal_transfer_pair(request).await.unwrap();
+        for row in repository.activities.lock().unwrap().iter_mut() {
+            row.fx_rate = Some(dec!(7.8));
+        }
+        let mut outgoing =
+            create_test_activity_update(&created.transfer_out.id, "from", None, "HKD");
+        outgoing.activity_type = "TRANSFER_OUT".into();
+        outgoing.amount = Some(Some(dec!(1560)));
+        service.update_activity(outgoing.clone()).await.unwrap();
+        assert_eq!(
+            repository
+                .get_activity(&created.transfer_in.id)
+                .unwrap()
+                .amount,
+            Some(dec!(200))
+        );
+        let mut incoming = create_test_activity_update(&created.transfer_in.id, "to", None, "USD");
+        incoming.activity_type = "TRANSFER_IN".into();
+        incoming.amount = Some(Some(dec!(200)));
+        incoming.fx_rate = Some(Some(dec!(123)));
+        service.update_activity(incoming.clone()).await.unwrap();
+        assert_eq!(
+            repository
+                .get_activity(&created.transfer_out.id)
+                .unwrap()
+                .amount,
+            Some(dec!(1560))
+        );
+        incoming.amount = Some(Some(dec!(50)));
+        service.update_activity(incoming.clone()).await.unwrap();
+        assert_eq!(
+            repository
+                .get_activity(&created.transfer_out.id)
+                .unwrap()
+                .amount,
+            Some(dec!(390))
+        );
+        outgoing.amount = Some(Some(dec!(2000)));
+        incoming.amount = Some(Some(dec!(300)));
+        let result = service
+            .bulk_mutate_activities(ActivityBulkMutationRequest {
+                creates: vec![],
+                updates: vec![outgoing, incoming],
+                delete_ids: vec![],
+            })
+            .await
+            .unwrap();
+        assert!(result.errors.is_empty());
+        assert_eq!(
+            repository
+                .get_activity(&created.transfer_out.id)
+                .unwrap()
+                .amount,
+            Some(dec!(2000))
+        );
+        assert_eq!(
+            repository
+                .get_activity(&created.transfer_in.id)
+                .unwrap()
+                .amount,
+            Some(dec!(300))
+        );
+    }
+
+    #[tokio::test]
+    async fn legacy_pair_with_a_stored_execution_rate_keeps_it_through_leg_edits() {
+        let (service, repository, request) = independent_transfer_fixture();
+        let created = service
+            .save_internal_transfer_pair(InternalTransferPairRequest {
+                to_account_id: "other".into(),
+                source_amount: Some(dec!(1000)),
+                destination_amount: Some(dec!(920)),
+                source_currency: "USD".into(),
+                destination_currency: "EUR".into(),
+                ..request
+            })
+            .await
+            .unwrap();
+        // Saved before independent currencies: each leg in its account's
+        // currency, with the execution rate on the incoming leg.
+        for row in repository.activities.lock().unwrap().iter_mut() {
+            if row.id == created.transfer_in.id {
+                row.fx_rate = Some(dec!(0.92));
+            }
+        }
+        let mut outgoing =
+            create_test_activity_update(&created.transfer_out.id, "from", None, "USD");
+        outgoing.activity_type = "TRANSFER_OUT".into();
+        outgoing.activity_date = "2026-06-03T20:20:00Z".into();
+        outgoing.quantity = None;
+        outgoing.unit_price = None;
+        outgoing.fee = None;
+        outgoing.amount = None;
+        outgoing.notes = Some("notes only".into());
+        service.update_activity(outgoing.clone()).await.unwrap();
+        let incoming = repository.get_activity(&created.transfer_in.id).unwrap();
+        assert_eq!(incoming.amount, Some(dec!(920)));
+        assert_eq!(incoming.fx_rate, Some(dec!(0.92)));
+        assert_eq!(
+            repository
+                .get_activity(&created.transfer_out.id)
+                .unwrap()
+                .amount,
+            Some(dec!(1000))
+        );
+
+        outgoing.amount = Some(Some(dec!(2000)));
+        service.update_activity(outgoing).await.unwrap();
+        let incoming = repository.get_activity(&created.transfer_in.id).unwrap();
+        assert_eq!(incoming.amount, Some(dec!(1840)));
+        assert_eq!(incoming.fx_rate, Some(dec!(0.92)));
+    }
+
+    #[tokio::test]
+    async fn independent_cash_transfer_invalid_legacy_amount_does_not_partially_update() {
+        let (service, repository, request) = independent_transfer_fixture();
+        let created = service.save_internal_transfer_pair(request).await.unwrap();
+        repository
+            .activities
+            .lock()
+            .unwrap()
+            .iter_mut()
+            .find(|row| row.id == created.transfer_out.id)
+            .unwrap()
+            .amount = Some(Decimal::ZERO);
+        let mut update = create_test_activity_update(&created.transfer_out.id, "from", None, "HKD");
+        update.activity_type = "TRANSFER_OUT".into();
+        update.amount = Some(Some(dec!(1000)));
+        let result = service
+            .bulk_mutate_activities(ActivityBulkMutationRequest {
+                creates: vec![],
+                updates: vec![update],
+                delete_ids: vec![],
+            })
+            .await
+            .unwrap();
+        assert_eq!(result.errors.len(), 1);
+        assert!(result.updated.is_empty());
+        assert_eq!(
+            repository
+                .get_activity(&created.transfer_in.id)
+                .unwrap()
+                .amount,
+            Some(dec!(100))
+        );
     }
 
     #[tokio::test]
@@ -11660,7 +12364,7 @@ pub(crate) mod tests {
     }
 
     #[tokio::test]
-    async fn bulk_cross_currency_pair_amount_update_without_fx_returns_error() {
+    async fn bulk_cross_currency_pair_amount_update_uses_existing_amounts_without_fx() {
         let account_service = Arc::new(MockAccountService::new());
         let asset_service = Arc::new(MockAssetService::new());
         let fx_service = Arc::new(MockFxService::new());
@@ -11705,11 +12409,14 @@ pub(crate) mod tests {
             .await
             .expect("bulk mutation should return structured errors");
 
-        assert!(result.updated.is_empty());
-        assert_eq!(result.errors.len(), 1);
-        assert!(result.errors[0]
-            .message
-            .contains("Cross-currency transfer amount updates require a valid FX rate"));
+        assert!(result.errors.is_empty());
+        assert_eq!(result.updated.len(), 2);
+        let incoming = result
+            .updated
+            .iter()
+            .find(|row| row.id == "transfer-in")
+            .unwrap();
+        assert_eq!(incoming.amount, Some(dec!(107.8)));
     }
 
     #[tokio::test]
@@ -13576,6 +14283,67 @@ pub(crate) mod tests {
     }
 
     #[tokio::test]
+    async fn update_leaves_other_activities_of_its_source_group_alone() {
+        // Broker sync can group rows that are not a linked transfer pair,
+        // such as a deposit and its fee: editing one must not copy onto the
+        // other.
+        let account_service = Arc::new(MockAccountService::new());
+        account_service.add_account(create_test_account("acc-1", "USD"));
+        let activity_repository = Arc::new(MockActivityRepository::new());
+        let mut deposit = create_stored_activity("deposit-1", "acc-1", None);
+        deposit.activity_type = "DEPOSIT".to_string();
+        deposit.quantity = None;
+        deposit.unit_price = None;
+        deposit.source_group_id = Some("broker-group".to_string());
+        let mut fee = deposit.clone();
+        fee.id = "fee-1".to_string();
+        fee.activity_type = "FEE".to_string();
+        fee.amount = Some(dec!(5));
+        fee.notes = Some("broker fee".to_string());
+        fee.activity_date = DateTime::parse_from_rfc3339("2024-01-10T00:00:00Z")
+            .unwrap()
+            .with_timezone(&Utc);
+        activity_repository.add_activity(deposit);
+        activity_repository.add_activity(fee);
+        let activity_service = ActivityService::new(
+            activity_repository.clone(),
+            account_service,
+            Arc::new(MockAssetService::new()),
+            Arc::new(MockFxService::new()),
+            Arc::new(MockQuoteService),
+        );
+        let stored_fee =
+            || serde_json::to_value(activity_repository.get_activity("fee-1").unwrap()).unwrap();
+        let fee_before = stored_fee();
+
+        let updated = activity_service
+            .update_activity(ActivityUpdate {
+                id: "deposit-1".to_string(),
+                account_id: "acc-1".to_string(),
+                asset: None,
+                activity_type: "DEPOSIT".to_string(),
+                subtype: None,
+                activity_date: "2024-02-01T00:00:00Z".to_string(),
+                quantity: None,
+                unit_price: None,
+                currency: "EUR".to_string(),
+                fee: None,
+                tax: None,
+                amount: Some(Some(dec!(150))),
+                status: None,
+                needs_review: None,
+                notes: Some("corrected".to_string()),
+                fx_rate: None,
+                metadata: None,
+            })
+            .await
+            .expect("update");
+
+        assert_eq!(updated.amount, Some(dec!(150)));
+        assert_eq!(stored_fee(), fee_before);
+    }
+
+    #[tokio::test]
     async fn ordinary_edit_leaves_draft_counterpart_lifecycle_alone() {
         // The grid echoes the primary's current status on every save. An edit
         // that changes nothing about the primary's lifecycle must neither fail
@@ -14273,5 +15041,369 @@ pub(crate) mod tests {
         let result = activity_service.get_transfer_pair_for_activity("missing".to_string());
 
         assert!(result.is_err());
+    }
+
+    // ───────────────────────────────────────────────────────────────────
+    // Bare activity dates (#1701). A bare `YYYY-MM-DD` is a calendar day and
+    // is stored on that day in the configured timezone: UTC midnight, where it
+    // used to land, falls on the previous day west of UTC.
+    // ───────────────────────────────────────────────────────────────────
+
+    fn bank_account() -> Account {
+        let mut bank = create_test_account("bank-1", "USD");
+        bank.account_type = "CASH".to_string();
+        bank
+    }
+
+    fn dated_service(timezone: &str) -> ActivityService {
+        let account_service = Arc::new(MockAccountService::new());
+        account_service.add_account(bank_account());
+        ActivityService::new(
+            Arc::new(MockActivityRepository::new()),
+            account_service,
+            Arc::new(MockAssetService::new()),
+            Arc::new(MockFxService::new()),
+            Arc::new(MockQuoteService),
+        )
+        .with_timezone(Arc::new(std::sync::RwLock::new(timezone.to_string())))
+    }
+
+    fn dated_deposit(activity_date: &str) -> NewActivity {
+        let mut deposit = create_test_cash_create("deposit", "bank-1", "DEPOSIT", "USD");
+        deposit.activity_date = activity_date.to_string();
+        deposit
+    }
+
+    fn instant(timestamp: &str) -> DateTime<Utc> {
+        DateTime::parse_from_rfc3339(timestamp)
+            .unwrap()
+            .with_timezone(&Utc)
+    }
+
+    /// The in-app assistant's batch confirm sends each draft's bare date to the
+    /// bulk path. With Toronto configured it was stored at UTC midnight, which
+    /// shows there as the day before.
+    #[tokio::test]
+    async fn bulk_create_stores_a_bare_date_on_its_day_in_the_configured_timezone() {
+        let result = dated_service("America/Toronto")
+            .bulk_mutate_activities(ActivityBulkMutationRequest {
+                creates: vec![dated_deposit("2026-04-01")],
+                updates: vec![],
+                delete_ids: vec![],
+            })
+            .await
+            .expect("bulk create");
+        assert!(result.errors.is_empty(), "{:?}", result.errors);
+        assert_eq!(
+            result.created[0].activity_date,
+            instant("2026-04-01T04:00:00Z")
+        );
+    }
+
+    #[tokio::test]
+    async fn activity_dates_keep_timestamps_and_place_bare_dates_by_timezone() {
+        for (timezone, submitted, stored) in [
+            // Timestamps keep their instant, including the CSV wizard's
+            // browser-local midnight.
+            (
+                "America/Toronto",
+                "2026-04-01T09:30:00-04:00",
+                "2026-04-01T13:30:00Z",
+            ),
+            (
+                "America/Toronto",
+                "2026-04-01T04:00:00.000Z",
+                "2026-04-01T04:00:00Z",
+            ),
+            (
+                "Europe/Paris",
+                "2026-03-31T22:00:00.000Z",
+                "2026-03-31T22:00:00Z",
+            ),
+            // West of UTC a bare date is stored at local midnight.
+            ("America/Toronto", "2026-04-01", "2026-04-01T04:00:00Z"),
+            ("Pacific/Honolulu", "2026-04-01", "2026-04-01T10:00:00Z"),
+            // At or east of UTC, or with no timezone, at UTC midnight as before.
+            ("Europe/Paris", "2026-04-01", "2026-04-01T00:00:00Z"),
+            ("UTC", "2026-04-01", "2026-04-01T00:00:00Z"),
+            ("", "2026-04-01", "2026-04-01T00:00:00Z"),
+            // Surrounding whitespace is ignored whatever the timezone.
+            ("America/Toronto", " 2026-04-01\n", "2026-04-01T04:00:00Z"),
+            ("Europe/Paris", " 2026-04-01 ", "2026-04-01T00:00:00Z"),
+            ("", "2026-04-01\n", "2026-04-01T00:00:00Z"),
+            // Chile skips midnight on 2024-09-08: the day starts at 01:00 -03:00.
+            ("America/Santiago", "2024-09-08", "2024-09-08T04:00:00Z"),
+        ] {
+            let created = dated_service(timezone)
+                .create_activity(dated_deposit(submitted))
+                .await
+                .unwrap_or_else(|error| panic!("{timezone} {submitted:?}: {error}"));
+            assert_eq!(
+                created.activity_date,
+                instant(stored),
+                "{timezone} {submitted:?}"
+            );
+        }
+    }
+
+    /// Broker dates follow the broker's own day convention, and a re-sync
+    /// upserts rows already stored, so sync keeps a bare date as received.
+    #[tokio::test]
+    async fn sync_keeps_a_bare_broker_date() {
+        let result = dated_service("America/Toronto")
+            .prepare_activities_for_sync(vec![dated_deposit("2026-04-01")], &bank_account())
+            .await
+            .expect("sync preparation");
+        assert!(result.errors.is_empty(), "{:?}", result.errors);
+        assert_eq!(result.prepared[0].activity.activity_date, "2026-04-01");
+    }
+
+    #[tokio::test]
+    async fn import_stores_a_bare_date_on_its_day_in_the_configured_timezone() {
+        let (service, repository, account) = qa_import_service("USD", Vec::new());
+        let service = service.with_timezone(Arc::new(std::sync::RwLock::new(
+            "America/Toronto".to_string(),
+        )));
+        let mut row = qa_import_row(&account.id, "DEPOSIT", "USD");
+        row.date = "2026-04-01".to_string();
+        row.amount = Some(dec!(100));
+        let result = service.import_activities(vec![row]).await.expect("import");
+        assert_eq!(result.summary.imported, 1, "{:?}", result.summary);
+        let stored = repository.get_activities().expect("stored");
+        assert_eq!(stored[0].activity_date, instant("2026-04-01T04:00:00Z"));
+    }
+
+    /// The import check flags a date the import would reject, so a preview and
+    /// the import agree, and keeps a bare day as submitted.
+    #[tokio::test]
+    async fn import_check_flags_unreadable_dates_and_keeps_bare_days() {
+        let (service, _, account) = qa_import_service("USD", Vec::new());
+        let service = service.with_timezone(Arc::new(std::sync::RwLock::new(
+            "America/Toronto".to_string(),
+        )));
+        let mut readable = qa_import_row(&account.id, "DEPOSIT", "USD");
+        readable.date = " 2026-04-01 ".to_string();
+        readable.amount = Some(dec!(100));
+        let mut unreadable = readable.clone();
+        unreadable.date = "07/28/2026".to_string();
+        unreadable.line_number = Some(2);
+
+        let checked = service
+            .check_activities_import(vec![readable, unreadable])
+            .await
+            .expect("check");
+        assert!(checked[0].is_valid, "{:?}", checked[0].errors);
+        assert_eq!(checked[0].date, "2026-04-01");
+        assert!(!checked[1].is_valid);
+        assert!(
+            checked[1]
+                .errors
+                .as_ref()
+                .is_some_and(|errors| errors.contains_key("activityDate")),
+            "{:?}",
+            checked[1].errors
+        );
+    }
+
+    // ───────────────────────────────────────────────────────────────────
+    // preview_activity_update
+    // ───────────────────────────────────────────────────────────────────
+
+    fn stored_snapshot(activity_repository: &MockActivityRepository) -> serde_json::Value {
+        serde_json::to_value(&*activity_repository.activities.lock().unwrap()).unwrap()
+    }
+
+    fn preview_test_service(
+        activity_repository: Arc<MockActivityRepository>,
+        fx_service: Arc<MockFxService>,
+    ) -> ActivityService {
+        let account_service = Arc::new(MockAccountService::new());
+        for (id, account_type) in [
+            ("acc-1", "SECURITIES"),
+            ("acc-a", "SECURITIES"),
+            ("acc-b", "SECURITIES"),
+            ("acc-card", crate::accounts::account_types::CREDIT_CARD),
+        ] {
+            let mut account = create_test_account(id, "USD");
+            account.account_type = account_type.to_string();
+            account_service.add_account(account);
+        }
+        let asset_service = Arc::new(MockAssetService::new());
+        asset_service.add_asset(create_test_asset("NESN", "USD"));
+        ActivityService::new(
+            activity_repository,
+            account_service,
+            asset_service,
+            fx_service,
+            Arc::new(MockQuoteService),
+        )
+    }
+
+    fn utc(timestamp: &str) -> DateTime<Utc> {
+        DateTime::parse_from_rfc3339(timestamp)
+            .unwrap()
+            .with_timezone(&Utc)
+    }
+
+    #[tokio::test]
+    async fn preview_activity_update_writes_nothing_that_the_update_writes() {
+        // An EUR edit on a USD account: the update registers EUR/USD, the
+        // preview only reports what would be stored.
+        let activity_repository = Arc::new(MockActivityRepository::new());
+        activity_repository.add_activity(create_stored_activity("buy-1", "acc-1", Some("NESN")));
+        let fx_service = Arc::new(MockFxService::new());
+        let activity_service =
+            preview_test_service(activity_repository.clone(), fx_service.clone());
+        let before = stored_snapshot(&activity_repository);
+
+        let mut update = create_test_activity_update("buy-1", "acc-1", None, "EUR");
+        update.fee = Some(Some(dec!(-2.5)));
+        let preview = activity_service
+            .preview_activity_update(update.clone())
+            .expect("preview");
+
+        let previewed = &preview.activity;
+        assert_eq!(previewed.existing.id, "buy-1");
+        assert_eq!(previewed.update.currency, "EUR");
+        assert_eq!(
+            previewed.update.fee,
+            Some(Some(dec!(2.5))),
+            "stored unsigned"
+        );
+        assert_eq!(
+            previewed
+                .update
+                .asset
+                .as_ref()
+                .and_then(|asset| asset.id.as_deref()),
+            Some("NESN"),
+            "an omitted asset keeps the stored one"
+        );
+        assert_eq!(previewed.activity_date, utc("2024-01-15T00:00:00Z"));
+        assert!(preview.linked.is_none());
+        assert_eq!(stored_snapshot(&activity_repository), before);
+        assert!(fx_service.get_registered_pairs().is_empty());
+
+        activity_service
+            .update_activity(update)
+            .await
+            .expect("update");
+        assert!(fx_service
+            .get_registered_pairs()
+            .contains(&("EUR".to_string(), "USD".to_string())));
+        assert_ne!(stored_snapshot(&activity_repository), before);
+    }
+
+    #[tokio::test]
+    async fn preview_activity_update_places_a_bare_date_on_the_local_day() {
+        let activity_repository = Arc::new(MockActivityRepository::new());
+        activity_repository.add_activity(create_stored_activity("buy-1", "acc-1", Some("NESN")));
+        let activity_service =
+            preview_test_service(activity_repository, Arc::new(MockFxService::new()))
+                .with_timezone(Arc::new(std::sync::RwLock::new(
+                    "America/Toronto".to_string(),
+                )));
+
+        let mut update = create_test_activity_update("buy-1", "acc-1", None, "USD");
+        update.activity_date = "2024-01-15".to_string();
+        let preview = activity_service
+            .preview_activity_update(update)
+            .expect("preview");
+
+        // Midnight in Toronto (EST) is 05:00 UTC.
+        assert_eq!(preview.activity.activity_date, utc("2024-01-15T05:00:00Z"));
+    }
+
+    #[tokio::test]
+    async fn preview_activity_update_mirrors_onto_the_linked_leg() {
+        let activity_repository = Arc::new(MockActivityRepository::new());
+        seed_internal_cash_transfer_pair(&activity_repository, "group-internal");
+        let activity_service =
+            preview_test_service(activity_repository.clone(), Arc::new(MockFxService::new()));
+        let before = stored_snapshot(&activity_repository);
+
+        let update = ActivityUpdate {
+            id: "pair-out".to_string(),
+            account_id: "acc-a".to_string(),
+            asset: None,
+            activity_type: "TRANSFER_OUT".to_string(),
+            subtype: None,
+            activity_date: "2024-02-01T00:00:00Z".to_string(),
+            quantity: None,
+            unit_price: None,
+            currency: "USD".to_string(),
+            fee: None,
+            tax: None,
+            amount: Some(Some(dec!(150))),
+            status: None,
+            needs_review: None,
+            notes: Some("rent".to_string()),
+            fx_rate: None,
+            metadata: None,
+        };
+        let preview = activity_service
+            .preview_activity_update(update)
+            .expect("preview");
+
+        let linked = preview.linked.expect("the other leg");
+        assert_eq!(linked.existing.id, "pair-in");
+        assert_eq!(linked.update.account_id, "acc-b");
+        assert_eq!(linked.activity_date, utc("2024-02-01T00:00:00Z"));
+        assert_eq!(linked.update.amount, Some(Some(dec!(150))));
+        assert_eq!(linked.update.notes.as_deref(), Some("rent"));
+        assert_eq!(stored_snapshot(&activity_repository), before);
+    }
+
+    #[tokio::test]
+    async fn preview_activity_update_rejects_what_the_update_rejects_and_symbols() {
+        let activity_repository = Arc::new(MockActivityRepository::new());
+        activity_repository.add_activity(create_stored_activity("buy-1", "acc-1", Some("NESN")));
+        let activity_service =
+            preview_test_service(activity_repository.clone(), Arc::new(MockFxService::new()));
+        let before = stored_snapshot(&activity_repository);
+        let update = || create_test_activity_update("buy-1", "acc-1", None, "USD");
+        let asset = |id: Option<&str>, symbol: Option<&str>| {
+            Some(AssetResolutionInput {
+                id: id.map(str::to_string),
+                symbol: symbol.map(str::to_string),
+                ..Default::default()
+            })
+        };
+
+        let mut missing_activity = update();
+        missing_activity.id = "missing".to_string();
+        let mut missing_asset = update();
+        missing_asset.asset = asset(Some("NOT-STORED"), None);
+        let mut invalid_date = update();
+        invalid_date.activity_date = "15/01/2024".to_string();
+        let mut card_account = update();
+        card_account.account_id = "acc-card".to_string();
+        for (case, invalid) in [
+            ("missing activity", missing_activity),
+            ("asset not stored", missing_asset),
+            ("invalid date", invalid_date),
+            ("type not allowed for the account", card_account),
+        ] {
+            let preview_error = activity_service
+                .preview_activity_update(invalid.clone())
+                .expect_err(case)
+                .to_string();
+            let update_error = activity_service
+                .update_activity(invalid)
+                .await
+                .expect_err(case)
+                .to_string();
+            assert_eq!(preview_error, update_error, "{case}");
+        }
+
+        // Resolving a symbol may create an asset, so a preview refuses it.
+        let mut symbol = update();
+        symbol.asset = asset(None, Some("AAPL"));
+        let error = activity_service
+            .preview_activity_update(symbol)
+            .expect_err("symbol")
+            .to_string();
+        assert!(error.contains("not by symbol"), "{error}");
+        assert_eq!(stored_snapshot(&activity_repository), before);
     }
 }

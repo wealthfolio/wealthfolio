@@ -145,6 +145,7 @@
     "title": "Etwas ist schiefgelaufen",
     "description": "Ein unerwarteter Fehler ist aufgetreten. Ihre Daten sind sicher — versuchen Sie zu aktualisieren, um fortzufahren.",
     "refresh": "Seite aktualisieren",
+    "goHome": "Zur Übersicht",
     "hideDetails": "Fehlerdetails ausblenden",
     "showDetails": "Fehlerdetails anzeigen",
     "errorDetails": "Fehlerdetails"

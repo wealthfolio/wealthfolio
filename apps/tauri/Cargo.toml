@@ -141,3 +141,6 @@ default-features = false
 # blocking calls nest Tokio runtimes and panic during async desktop startup.
 # The async logind API also works with this runtime-independent backend.
 features = ["async-io"]
+
+[lints]
+workspace = true

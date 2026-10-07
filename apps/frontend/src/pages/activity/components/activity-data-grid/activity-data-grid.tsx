@@ -23,7 +23,9 @@ import {
   applyTransactionUpdate,
   createCurrencyResolver,
   createDraftTransaction,
+  isPairedInternalCashTransfer,
   partitionReviewRowsForApproval,
+  requiresTransferPairEditor,
   PINNED_COLUMNS,
   TRACKED_FIELDS,
   valuesAreEqual,
@@ -405,7 +407,21 @@ export function ActivityDataGrid({
   // Column definitions
   const columns = useActivityColumns({
     accounts,
-    onEditActivity,
+    onEditActivity: (activity) => {
+      if (
+        isPairedInternalCashTransfer(toLocalTransaction(activity)) &&
+        (dirtyTransactionIds.has(activity.id) ||
+          (activity.counterpartActivityId &&
+            dirtyTransactionIds.has(activity.counterpartActivityId)))
+      ) {
+        toast({
+          title: t("activity:datagrid.save_edits_first"),
+          description: t("activity:datagrid.edit_transfer_pair"),
+        });
+        return;
+      }
+      onEditActivity(activity);
+    },
     onDuplicate: handleDuplicate,
     onDelete: handleDelete,
     onLinkTransfer: handleRowLinkTransfer,
@@ -418,6 +434,18 @@ export function ActivityDataGrid({
   // Data change handler - processes changes from the data grid
   const onDataChange = useCallback(
     (nextData: LocalTransaction[]) => {
+      const previousById = new Map(localTransactions.map((row) => [row.id, row]));
+      if (
+        nextData.some((row) => {
+          const previous = previousById.get(row.id);
+          return previous && requiresTransferPairEditor(previous, row);
+        })
+      ) {
+        // This is also the paste/clear entry point. Reject the operation intact
+        // instead of applying amounts whose currency change was rejected.
+        toast({ description: t("activity:datagrid.edit_transfer_pair") });
+        return;
+      }
       setLocalTransactions((prev) => {
         const prevById = new Map(prev.map((t) => [t.id, t]));
         const changedIds: string[] = [];
@@ -465,9 +493,11 @@ export function ActivityDataGrid({
       accountLookup,
       assetCurrencyLookup,
       fallbackCurrency,
+      localTransactions,
       markDirtyBatch,
       resolveTransactionCurrency,
       setLocalTransactions,
+      t,
     ],
   );
 

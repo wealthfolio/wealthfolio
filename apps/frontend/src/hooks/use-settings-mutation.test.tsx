@@ -126,6 +126,10 @@ describe("useSettingsMutation", () => {
     expect(invalidated).toContain(QueryKeys.RETIREMENT_OVERVIEW);
     expect(invalidated).toContain(QueryKeys.SAVE_UP_OVERVIEW);
     expect(invalidated).toContain(QueryKeys.SAVE_UP_PREVIEW);
+    // Loan payments and activity searches are dated in the zone too.
+    expect(invalidated).toContain(QueryKeys.ALTERNATIVE_HOLDINGS);
+    expect(invalidated).toContain(QueryKeys.ASSET_DATA);
+    expect(invalidated).toContain(QueryKeys.ACTIVITIES);
   });
 
   it("leaves spending caches alone for an unrelated setting", async () => {
@@ -150,5 +154,6 @@ describe("useSettingsMutation", () => {
     expect(invalidated).not.toContain(QueryKeys.RETIREMENT_OVERVIEW);
     expect(invalidated).not.toContain(QueryKeys.SAVE_UP_OVERVIEW);
     expect(invalidated).not.toContain(QueryKeys.SAVE_UP_PREVIEW);
+    expect(invalidated).not.toContain(QueryKeys.ALTERNATIVE_HOLDINGS);
   });
 });

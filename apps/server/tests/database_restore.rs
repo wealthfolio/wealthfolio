@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used, clippy::panic, reason = "test code")]
 use sha2::{Digest, Sha256};
 use std::{
     fs,

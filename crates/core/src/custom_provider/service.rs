@@ -69,6 +69,7 @@ impl CustomProviderService {
             name: payload.name,
             description: payload.description,
             priority: payload.priority,
+            use_as_fallback: payload.use_as_fallback,
             sources: payload.sources,
         };
 
@@ -112,8 +113,9 @@ impl CustomProviderService {
         let asset_count = self.repo.get_asset_count_for_provider(provider_id)?;
         if asset_count > 0 {
             return Err(ValidationError::InvalidInput(format!(
-                "Cannot delete '{}': {} asset(s) still use it as preferred provider. \
-                 Change their preferred provider first, then try again.",
+                "Cannot delete '{}': {} asset(s) still use it as their market data provider \
+                 or in a symbol mapping. Change their provider or remove the mapping first, \
+                 then try again.",
                 provider_id, asset_count
             ))
             .into());
@@ -253,7 +255,11 @@ impl CustomProviderService {
                 price: None,
                 currency: None,
                 date: None,
-                error: Some(format!("HTTP {}: {}", status, &body[..body.len().min(500)])),
+                error: Some(format!(
+                    "HTTP {}: {}",
+                    status,
+                    &body[..body.floor_char_boundary(500)]
+                )),
                 raw_response: Some(body),
                 detected_elements: None,
                 detected_tables: None,
@@ -960,9 +966,9 @@ pub fn parse_number_string(s: &str, locale: Option<&str>) -> Option<f64> {
 
             if has_european_comma && !has_trailing_dot {
                 stripped.replace('.', "").replace(',', ".")
-            } else if stripped.contains(',') && !stripped.contains('.') {
+            } else if let Some(last_comma) = stripped.rfind(',').filter(|_| !stripped.contains('.'))
+            {
                 // Check if comma is a thousands separator (exactly 3 digits after last comma)
-                let last_comma = stripped.rfind(',').unwrap();
                 let digits_after = stripped.len() - last_comma - 1;
                 if digits_after == 3
                     && stripped[last_comma + 1..]
@@ -1045,9 +1051,9 @@ fn detect_html_tables(body: &str) -> Vec<DetectedHtmlTable> {
         Ok(s) => s,
         Err(_) => return Vec::new(),
     };
-    let tr_sel = scraper::Selector::parse("tr").unwrap();
-    let th_sel = scraper::Selector::parse("th").unwrap();
-    let td_sel = scraper::Selector::parse("td").unwrap();
+    let tr_sel = scraper::Selector::parse("tr").expect("valid CSS selector 'tr'");
+    let th_sel = scraper::Selector::parse("th").expect("valid CSS selector 'th'");
+    let td_sel = scraper::Selector::parse("td").expect("valid CSS selector 'td'");
 
     let mut tables = Vec::new();
     for (table_idx, table_el) in document.select(&table_sel).take(10).enumerate() {
@@ -1268,7 +1274,7 @@ pub fn detect_html_locale(body: &str) -> Option<String> {
     let sel = scraper::Selector::parse("html").ok()?;
     let el = document.select(&sel).next()?;
     let lang = el.value().attr("lang")?;
-    Some(lang[..2.min(lang.len())].to_lowercase())
+    Some(lang.get(..2.min(lang.len()))?.to_lowercase())
 }
 
 #[cfg(test)]
@@ -1370,5 +1376,15 @@ mod tests {
             Some(1234.56)
         );
         assert_eq!(parse_number_string("0,5", Some("pt-BR")), Some(0.5));
+    }
+
+    #[test]
+    fn detect_html_locale_skips_lang_cut_inside_a_character() {
+        assert_eq!(
+            detect_html_locale(r#"<html lang="fr-FR"></html>"#),
+            Some("fr".to_string())
+        );
+        // Byte 2 falls inside '中'
+        assert_eq!(detect_html_locale(r#"<html lang="中文"></html>"#), None);
     }
 }

@@ -2,6 +2,7 @@ import { memo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { Account } from "@/lib/types";
+import { AccountType } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { Card, Icons, PrivacyAmount, useDateFormatting } from "@wealthfolio/ui";
 
@@ -40,6 +41,8 @@ interface TransactionCardProps {
   onDelete: (row: TransactionRowVM) => void;
   onLinkTransfer?: (row: TransactionRowVM) => void;
   onUnlinkTransfer?: (row: TransactionRowVM) => void;
+  /** Count a withdrawal as a loan payment, or stop counting it. */
+  onLoanPayment?: (row: TransactionRowVM) => void;
 }
 
 /**
@@ -70,6 +73,7 @@ function TransactionCardImpl({
   onDelete,
   onLinkTransfer,
   onUnlinkTransfer,
+  onLoanPayment,
 }: TransactionCardProps) {
   const { formatTime } = useDateFormatting();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -86,6 +90,9 @@ function TransactionCardImpl({
   const transferLinkStatus = getTransferLinkStatus(a);
   const canMarkReimbursement =
     isIncome && !isCreditCardAccountType(account?.accountType) && activityType !== "CREDIT";
+  // Loans take payments only as withdrawals from a cash account.
+  const canPayLoan =
+    !!onLoanPayment && activityType === "WITHDRAWAL" && account?.accountType === AccountType.CASH;
   // Minutes only, matching the desktop row — the seconds-bearing formatDateTime
   // is too verbose for a line that now carries just the time and the account.
   const time = formatTime(a.activityDate, {
@@ -300,6 +307,15 @@ function TransactionCardImpl({
                         icon: Icons.Link,
                         label: t("spending:transactions.linkTransfer"),
                         onClick: () => onLinkTransfer(row),
+                      },
+                    ]
+                  : []),
+                ...(canPayLoan
+                  ? [
+                      {
+                        icon: Icons.Link,
+                        label: t("asset:loanPayments.menu"),
+                        onClick: () => onLoanPayment(row),
                       },
                     ]
                   : []),

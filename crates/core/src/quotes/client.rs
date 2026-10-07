@@ -132,6 +132,10 @@ impl MarketDataClient {
         let mut custom_priorities: HashMap<String, i32> = HashMap::new();
 
         for config in &enabled_providers {
+            // Extra providers arrive pre-built; only their priority comes from settings.
+            if extra_providers.iter().any(|ep| ep.id() == config.id) {
+                continue;
+            }
             match Self::create_provider(&config.id, &secret_store).await {
                 Ok(Some(provider)) => {
                     info!("Initialized market data provider: {}", config.id);
@@ -163,6 +167,9 @@ impl MarketDataClient {
             // Append extra providers (e.g., CustomScraperProvider)
             for ep in extra_providers {
                 info!("Registered extra provider: {}", ep.id());
+                if let Some(config) = enabled_providers.iter().find(|c| c.id == ep.id()) {
+                    custom_priorities.insert(config.id.clone(), config.priority);
+                }
                 providers.push(ep);
             }
         }
@@ -373,11 +380,7 @@ impl MarketDataClient {
         let market_quotes = match market_result {
             Ok(quotes) => quotes,
             Err(error) => {
-                let provider_id = diagnostics
-                    .errors()
-                    .into_iter()
-                    .last()
-                    .map(|(provider_id, _)| provider_id.to_string());
+                let provider_id = diagnostics.error_provider.map(|id| id.to_string());
                 return Err(HistoricalQuoteFetchError {
                     error: MarketDataClientError::MarketData(error).into(),
                     provider_id,
@@ -1219,6 +1222,116 @@ mod tests {
         );
         assert!(client.get_profile(&asset).await.is_err());
         assert!(client.fetch_latest_quote(&asset).await.is_err());
+    }
+
+    struct FailingProvider {
+        id: &'static str,
+        priority: u8,
+    }
+
+    impl FailingProvider {
+        fn error(&self) -> wealthfolio_market_data::errors::MarketDataError {
+            wealthfolio_market_data::errors::MarketDataError::ProviderError {
+                provider: self.id.to_string(),
+                message: "unavailable".to_string(),
+            }
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl wealthfolio_market_data::MarketDataProvider for FailingProvider {
+        fn id(&self) -> &'static str {
+            self.id
+        }
+
+        fn priority(&self) -> u8 {
+            self.priority
+        }
+
+        fn capabilities(&self) -> wealthfolio_market_data::ProviderCapabilities {
+            wealthfolio_market_data::ProviderCapabilities {
+                instrument_kinds: &[wealthfolio_market_data::InstrumentKind::Equity],
+                coverage: wealthfolio_market_data::Coverage::global_best_effort(),
+                supports_latest: true,
+                supports_historical: true,
+                supports_search: false,
+                supports_profile: false,
+                supports_dividends: false,
+            }
+        }
+
+        fn rate_limit(&self) -> wealthfolio_market_data::RateLimit {
+            wealthfolio_market_data::RateLimit::default()
+        }
+
+        async fn get_latest_quote(
+            &self,
+            _context: &QuoteContext,
+            _instrument: wealthfolio_market_data::ProviderInstrument,
+        ) -> std::result::Result<MarketQuote, wealthfolio_market_data::errors::MarketDataError>
+        {
+            Err(self.error())
+        }
+
+        async fn get_historical_quotes(
+            &self,
+            _context: &QuoteContext,
+            _instrument: wealthfolio_market_data::ProviderInstrument,
+            _start: DateTime<Utc>,
+            _end: DateTime<Utc>,
+        ) -> std::result::Result<Vec<MarketQuote>, wealthfolio_market_data::errors::MarketDataError>
+        {
+            Err(self.error())
+        }
+    }
+
+    struct NoSecrets;
+
+    impl SecretStore for NoSecrets {
+        fn set_secret(&self, _service: &str, _secret: &str) -> Result<()> {
+            Ok(())
+        }
+
+        fn get_secret(&self, _service: &str) -> Result<Option<String>> {
+            Ok(None)
+        }
+
+        fn delete_secret(&self, _service: &str) -> Result<()> {
+            Ok(())
+        }
+    }
+
+    #[tokio::test]
+    async fn custom_scraper_uses_its_stored_priority_and_errors_name_the_first_provider() {
+        // The custom scraper arrives pre-built with the trait's default priority (10).
+        // Its stored priority (50) must still order it after a provider ranked 20.
+        let client = MarketDataClient::new_with_extra(
+            Arc::new(NoSecrets),
+            vec![ProviderConfig {
+                id: DATA_SOURCE_CUSTOM_SCRAPER.to_string(),
+                priority: 50,
+            }],
+            vec![
+                Arc::new(FailingProvider {
+                    id: DATA_SOURCE_CUSTOM_SCRAPER,
+                    priority: 10,
+                }),
+                Arc::new(FailingProvider {
+                    id: "ALPHA_VANTAGE",
+                    priority: 20,
+                }),
+            ],
+        )
+        .await
+        .unwrap();
+        let asset = create_test_asset(AssetKind::Investment, "AAPL", "USD");
+
+        let error = client
+            .fetch_historical_quotes_with_context(&asset, Utc::now(), Utc::now())
+            .await
+            .unwrap_err();
+
+        assert_eq!(error.provider_id.as_deref(), Some("ALPHA_VANTAGE"));
     }
 
     #[test]

@@ -8,6 +8,7 @@ import {
   createDraftTransaction,
   hasFinalCashAmountForApproval,
   partitionReviewRowsForApproval,
+  requiresTransferPairEditor,
   resolveAssetIdForTransaction,
   TRACKED_FIELDS,
   validateTransactionsForSave,
@@ -55,6 +56,33 @@ const createMockTransaction = (overrides: Partial<LocalTransaction> = {}): Local
 });
 
 describe("activity-utils", () => {
+  it("routes paired cash account/currency edits through the pair editor, including paste/clear", () => {
+    const previous = createMockTransaction({
+      activityType: ActivityType.TRANSFER_OUT,
+      assetId: "",
+      assetSymbol: "CASH",
+      sourceGroupId: "pair",
+      counterpartActivityId: "other",
+      counterpartAccountId: "account-2",
+    });
+    for (const patch of [{ accountId: "account-3" }, { currency: "HKD" }, { currency: "" }]) {
+      expect(requiresTransferPairEditor(previous, { ...previous, ...patch })).toBe(true);
+    }
+    expect(requiresTransferPairEditor(previous, { ...previous, amount: "5" })).toBe(false);
+    for (const patch of [
+      { sourceGroupId: undefined },
+      { counterpartAccountId: previous.accountId },
+      { assetSymbol: "AAPL", assetId: "AAPL" },
+      { isNew: true },
+    ]) {
+      expect(
+        requiresTransferPairEditor(
+          { ...previous, ...patch },
+          { ...previous, ...patch, currency: "HKD" },
+        ),
+      ).toBe(false);
+    }
+  });
   it("clears the old rate when the transaction currency changes", () => {
     const updated = applyTransactionUpdate({
       transaction: createMockTransaction({ currency: "EUR", fxRate: "1.2" }),

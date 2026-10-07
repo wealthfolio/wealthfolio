@@ -21,6 +21,27 @@ import type {
 import { generateTempActivityId } from "./use-activity-grid-state";
 import { calculateIncomeFinalAmount, calculateTradeFinalAmount } from "@/lib/activity-final-amount";
 
+export function isPairedInternalCashTransfer(transaction: LocalTransaction): boolean {
+  return Boolean(
+    !transaction.isNew &&
+    transaction.sourceGroupId &&
+    transaction.counterpartActivityId &&
+    transaction.counterpartAccountId &&
+    transaction.counterpartAccountId !== transaction.accountId &&
+    transaction.isExternal !== true &&
+    (transaction.activityType === ActivityType.TRANSFER_IN ||
+      transaction.activityType === ActivityType.TRANSFER_OUT) &&
+    !isSecuritiesTransfer(transaction.activityType, transaction.assetSymbol, transaction.assetId),
+  );
+}
+
+export function requiresTransferPairEditor(previous: LocalTransaction, next: LocalTransaction) {
+  return (
+    isPairedInternalCashTransfer(previous) &&
+    (previous.accountId !== next.accountId || previous.currency !== next.currency)
+  );
+}
+
 /**
  * Set of numeric field names for value comparison
  */

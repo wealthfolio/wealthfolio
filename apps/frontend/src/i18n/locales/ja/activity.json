@@ -499,6 +499,9 @@
     "label_to_account": "振替先口座",
     "label_sent": "送金額({{currency}})",
     "label_received": "受取額({{currency}})",
+    "source_currency": "出金通貨",
+    "destination_currency": "入金通貨",
+    "label_transfer_rate": "振替の約定為替レート",
     "label_fx_rate": "為替レート",
     "placeholder_note": "メモを任意で追加...",
     "placeholder_search_option_ticker": "オプションまたはティッカーを検索...",
@@ -695,6 +698,7 @@
       "jump_hint_other": "1から{{count}}までのページ番号を入力してください"
     },
     "duplicated_comment": "複製",
+    "edit_transfer_pair": "「編集」から振替フォームで口座と通貨を変更してください。未保存の変更を先に保存してください。",
     "save_edits_first": "先に編集を保存してください",
     "save_before_link": "この振替をリンクする前に、未保存の編集を保存または破棄してください。",
     "save_before_unlink": "この振替のリンクを解除する前に、未保存の編集を保存または破棄してください。",

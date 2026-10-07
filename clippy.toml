@@ -1,0 +1,3 @@
+# Tests may unwrap and panic; production code may not ([workspace.lints] in Cargo.toml).
+allow-unwrap-in-tests = true
+allow-panic-in-tests = true

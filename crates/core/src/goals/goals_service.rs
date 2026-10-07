@@ -429,7 +429,10 @@ impl<T: GoalRepositoryTrait> GoalService<T> {
 
     fn today(&self) -> chrono::NaiveDate {
         user_today(parse_user_timezone_or_default(
-            &self.timezone.read().unwrap(),
+            &self
+                .timezone
+                .read()
+                .unwrap_or_else(|poisoned| poisoned.into_inner()),
         ))
     }
 

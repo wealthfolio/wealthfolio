@@ -392,13 +392,18 @@ impl PortfolioCoordinator {
             return Ok((Vec::new(), Vec::new(), Vec::new()));
         }
 
-        let loaded = facts::load(
-            &self.deps.sources,
-            &scope,
-            &self.base_currency(),
-            &self.timezone(),
-            today,
-        )?;
+        // Loading every activity, then normalising and compiling it, grows
+        // with history: keep both off the async workers, like the folds below.
+        let sources = self.deps.sources.clone();
+        let base_currency = self.base_currency();
+        let timezone = self.timezone();
+        let (loaded, resolved) = blocking(move || {
+            let loaded = facts::load(&sources, &scope, &base_currency, &timezone, today)?;
+            let resolved = persist::resolve(&loaded)?;
+            Ok((loaded, resolved))
+        })
+        .await?;
+        let resolved = Arc::new(resolved);
         let mut failures = Vec::new();
         let mut excluded = BTreeSet::new();
         for (account_id, date) in &loaded.invalid_snapshot_dates {
@@ -426,11 +431,6 @@ impl PortfolioCoordinator {
             .cloned()
             .collect();
 
-        // Normalising and compiling every activity is CPU work: keep it off
-        // the async workers, like the folds below.
-        let loaded = Arc::new(loaded);
-        let job_facts = Arc::clone(&loaded);
-        let resolved = Arc::new(blocking(move || persist::resolve(&job_facts)).await?);
         let plan = run::plan(
             &resolved,
             &loaded.fx_pairs,
@@ -561,14 +561,15 @@ impl PortfolioCoordinator {
     }
 }
 
-/// CPU-bound kernel work on the blocking pool, so it never holds an async
-/// worker. A panic's payload is not surfaced (it may carry figures).
+/// Work that grows with history (kernel runs, full-history reads) on the
+/// blocking pool, so it never holds an async worker. A panic's payload is not
+/// surfaced (it may carry figures).
 pub(crate) async fn blocking<T: Send + 'static>(
     work: impl FnOnce() -> Result<T> + Send + 'static,
 ) -> Result<T> {
     tokio::task::spawn_blocking(work).await.unwrap_or_else(|_| {
         Err(Error::Unexpected(
-            "Portfolio projection stopped unexpectedly".to_string(),
+            "Portfolio calculation stopped unexpectedly".to_string(),
         ))
     })
 }

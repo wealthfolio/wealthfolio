@@ -22,7 +22,11 @@ use crate::resolve::FxResolver;
 use crate::scope::transfer_closure;
 
 /// Positions below this effective quantity are treated as closed.
-const QUANTITY_THRESHOLD: Decimal = Decimal::from_parts(1, 0, 0, false, 8);
+pub(crate) const QUANTITY_THRESHOLD: Decimal = Decimal::from_parts(1, 0, 0, false, 8);
+
+/// Significant digits HIFO ranks costs per unit at (`relief_order`): enough to
+/// tell any two prices apart, few enough that a division's last digits do not.
+const UNIT_COST_DIGITS: u32 = 15;
 
 /// A value outside the kernel range rejects the event (architecture §4.3):
 /// the fold keeps the scratch state from before it and reports why.
@@ -74,6 +78,28 @@ pub fn project_accounts(
             .events
             .iter()
             .map(|e| (e.source.as_str(), e.date))
+            .collect(),
+        split_days: ledger
+            .events
+            .iter()
+            .filter_map(|e| match &e.action {
+                Action::Split { asset, .. } => Some((e.account.clone(), asset.clone(), e.date)),
+                _ => None,
+            })
+            .collect(),
+        transfers_in: ledger
+            .events
+            .iter()
+            .filter(|e| {
+                matches!(
+                    e.action,
+                    Action::SecurityTransfer {
+                        direction: Direction::In,
+                        ..
+                    }
+                )
+            })
+            .map(|e| e.id.clone())
             .collect(),
     };
     let mut state = start.unwrap_or_else(|| ProjectionState {
@@ -342,6 +368,10 @@ struct Projector<'a> {
     fx: &'a FxResolver<'a>,
     /// Business date of every event's source activity (transfer staging).
     event_dates: HashMap<&'a str, NaiveDate>,
+    /// The days each account records a split of an asset (`pool_lots`).
+    split_days: BTreeSet<(AccountId, AssetId, NaiveDate)>,
+    /// Incoming security transfer legs, whose lots never pool (`pool_lots`).
+    transfers_in: BTreeSet<EventId>,
 }
 
 struct Reduction {
@@ -490,6 +520,164 @@ impl Projector<'_> {
             .get(account)
             .map(|facts| facts.cost_basis_method)
             .unwrap_or_default()
+    }
+
+    /// Relieves `requested` units of a position's long (or `negative`) lots
+    /// as the account's method chooses them (`relieve`); under WAC the lots
+    /// pool first (`pool_lots`).
+    fn relieve_lots(
+        &self,
+        account: &AccountId,
+        account_currency: &str,
+        event: &EconomicEvent,
+        position: &mut Position,
+        requested: Decimal,
+        negative: bool,
+    ) -> Result<Reduction, String> {
+        let method = self.method(account);
+        if method == CostBasisMethod::Wac {
+            self.pool_lots(account, account_currency, event, position, negative)?;
+        }
+        relieve(position, requested, negative, method)
+    }
+
+    /// A WAC position's lots on one side are one pool (rules R7.2). Before a
+    /// disposal, the lots no disposal has relieved merge into the one a
+    /// disposal has (the pool), or into the earliest when none has; the pool
+    /// keeps that lot's id, so the disposals naming it stay valid, and each
+    /// disposal relieves one lot however many purchases built it. The pool
+    /// holds the members' units after their splits, cost, charges, and book
+    /// cost in the account and base currency (its rates are their book cost
+    /// over its cost); it keeps their earliest acquisition and no source, and
+    /// what it holds when it forms is its original. A
+    /// lot stays apart when merging would change what it is worth or what
+    /// reads it: one whose book cost has no rate, one bought on the day of a
+    /// split the account records (that split must not reach it), one a
+    /// transfer delivered (the transfer is valued from the lots it opened),
+    /// or a second relieved lot.
+    fn pool_lots(
+        &self,
+        account: &AccountId,
+        account_currency: &str,
+        event: &EconomicEvent,
+        position: &mut Position,
+        negative: bool,
+    ) -> Result<(), String> {
+        sort_lots(position);
+        let position_currency = position.currency.clone();
+        let base = self.facts.policy.base_currency.clone();
+        let split_today =
+            self.split_days
+                .contains(&(account.clone(), position.asset.clone(), event.date));
+        // Members in book order, with their book cost in the account and
+        // base currency.
+        let mut members: Vec<(usize, Decimal, Decimal)> = Vec::new();
+        let mut anchor = None;
+        for (index, lot) in position.lots.iter().enumerate() {
+            let on_side = if negative {
+                lot.quantity < Decimal::ZERO
+            } else {
+                lot.quantity > Decimal::ZERO
+            };
+            let delivered = lot
+                .source_event
+                .as_ref()
+                .is_some_and(|source| self.transfers_in.contains(source));
+            if !on_side || delivered || (split_today && lot.acquisition_date == event.date) {
+                continue;
+            }
+            let book = |target: &str| self.lot_book_cost(lot, position_currency.as_str(), target);
+            let (Some(in_account), Some(in_base)) = (book(account_currency), book(base.as_str()))
+            else {
+                continue;
+            };
+            if lot.quantity != lot.original_quantity {
+                if anchor.is_some() {
+                    continue;
+                }
+                anchor = Some(index);
+            }
+            members.push((index, in_account, in_base));
+        }
+        if members.len() < 2 {
+            return Ok(());
+        }
+        let anchor = anchor.unwrap_or(members[0].0);
+
+        let mut quantity = Decimal::ZERO;
+        let mut cost_basis = Decimal::ZERO;
+        let mut fees = Decimal::ZERO;
+        let mut taxes = Decimal::ZERO;
+        let (mut in_account, mut in_base) = (Decimal::ZERO, Decimal::ZERO);
+        let mut acquisition = position.lots[anchor].acquisition;
+        let mut acquisition_date = position.lots[anchor].acquisition_date;
+        for (index, account_cost, base_cost) in &members {
+            let lot = &position.lots[*index];
+            quantity += checked(arith::mul(lot.quantity, lot.split_ratio), "pooled units")?;
+            cost_basis += lot.cost_basis;
+            fees += lot.fees;
+            taxes += lot.taxes;
+            in_account += account_cost;
+            in_base += base_cost;
+            acquisition = acquisition.min(lot.acquisition);
+            acquisition_date = acquisition_date.min(lot.acquisition_date);
+        }
+        let rate = |book: Decimal, stored: Option<Decimal>| {
+            if cost_basis.is_zero() {
+                Ok(stored)
+            } else {
+                checked(arith::div(book, cost_basis), "pooled rate").map(Some)
+            }
+        };
+        // A lot's cost is its price times its units plus its charges, and a
+        // disposal scales all four alike: the pool's price is its cost less
+        // charges per unit, and what it holds now is its original, so the
+        // slices it gives carry their cost.
+        let kept = &position.lots[anchor];
+        let pool = Lot {
+            id: kept.id.clone(),
+            acquisition,
+            acquisition_date,
+            quantity,
+            original_quantity: quantity,
+            cost_basis,
+            acquisition_price: if quantity.is_zero() {
+                kept.acquisition_price
+            } else {
+                checked(
+                    arith::div(cost_basis - fees - taxes, quantity),
+                    "pooled price",
+                )?
+            },
+            fees,
+            original_fees: fees,
+            taxes,
+            original_taxes: taxes,
+            fx_rate_to_position: None,
+            fx_rate_to_account: rate(in_account, kept.fx_rate_to_account)?,
+            account_currency: Currency::parse(account_currency).or(kept.account_currency.clone()),
+            fx_rate_to_base: rate(in_base, kept.fx_rate_to_base)?,
+            base_currency: Some(base),
+            source_event: None,
+            split_ratio: Decimal::ONE,
+        };
+        let pooled: BTreeSet<usize> = members.iter().map(|(index, ..)| *index).collect();
+        let lots = std::mem::take(&mut position.lots);
+        position.lots = lots
+            .into_iter()
+            .enumerate()
+            .filter_map(|(index, lot)| {
+                if index == anchor {
+                    Some(pool.clone())
+                } else if pooled.contains(&index) {
+                    None
+                } else {
+                    Some(lot)
+                }
+            })
+            .collect();
+        sort_lots(position);
+        Ok(())
     }
 
     fn asset_facts(&self, asset: &AssetId, currency: &Currency) -> AssetFacts {
@@ -1080,7 +1268,14 @@ impl Projector<'_> {
                 position_currency.as_str(),
                 account_currency.as_str(),
             )?;
-            let reduction = relieve_long_lots(position, quantity, self.method(&account_id))?;
+            let reduction = self.relieve_lots(
+                &account_id,
+                account_currency.as_str(),
+                event,
+                position,
+                quantity,
+                false,
+            )?;
             // The proceeds belong to every unit sold: units beyond the
             // position have no lot, so only their share of the proceeds is
             // realised against the lots that were held.
@@ -1151,13 +1346,27 @@ impl Projector<'_> {
                     checked(arith::mul(close_quantity, price), "cover cost")?
                         + close_fee
                         + close_tax,
-                    relieve_short_lots(position, close_quantity, self.method(account_id))?,
+                    self.relieve_lots(
+                        account_id,
+                        account_currency,
+                        event,
+                        position,
+                        close_quantity,
+                        true,
+                    )?,
                 ),
                 Side::Sell => (
                     checked(arith::mul(close_quantity, price), "sale proceeds")?
                         - close_fee
                         - close_tax,
-                    relieve_long_lots(position, close_quantity, self.method(account_id))?,
+                    self.relieve_lots(
+                        account_id,
+                        account_currency,
+                        event,
+                        position,
+                        close_quantity,
+                        false,
+                    )?,
                 ),
             };
             self.record_reduction(
@@ -1346,6 +1555,16 @@ impl Projector<'_> {
         let (to_add, cover) = if cover_abs > Decimal::ZERO {
             let (cover_lots, residual) =
                 split_for_cover(&lots, cover_abs, self.method(&account_id))?;
+            // A rest below the fold's dust (a split's rounding: the covered
+            // position held 0.999…9 units) opens nothing, as a shortfall
+            // below it is none: a lot that small could never be closed, and
+            // the position would hold both signs (I5).
+            let rest: Decimal = residual.iter().map(|l| l.effective_quantity().abs()).sum();
+            let residual = if is_significant(rest) {
+                residual
+            } else {
+                Vec::new()
+            };
             let cover_proceeds: Decimal = cover_lots
                 .iter()
                 .map(|l| l.cost_basis)
@@ -1357,9 +1576,23 @@ impl Projector<'_> {
                 .historical_base_cost(&cover_lots, position_currency.as_str())
                 .map(|total| total.abs());
             let reduction = if incoming_negative {
-                relieve_long_lots(position, cover_abs, self.method(&account_id))?
+                self.relieve_lots(
+                    &account_id,
+                    account_currency.as_str(),
+                    event,
+                    position,
+                    cover_abs,
+                    false,
+                )?
             } else {
-                relieve_short_lots(position, cover_abs, self.method(&account_id))?
+                self.relieve_lots(
+                    &account_id,
+                    account_currency.as_str(),
+                    event,
+                    position,
+                    cover_abs,
+                    true,
+                )?
             };
             (
                 residual,
@@ -1536,9 +1769,23 @@ impl Projector<'_> {
         let position_currency = position.currency.clone();
         let short = position.quantity.is_sign_negative();
         let reduction = if short {
-            relieve_short_lots(position, quantity, self.method(&account_id))?
+            self.relieve_lots(
+                &account_id,
+                account_currency.as_str(),
+                event,
+                position,
+                quantity,
+                true,
+            )?
         } else {
-            relieve_long_lots(position, quantity, self.method(&account_id))?
+            self.relieve_lots(
+                &account_id,
+                account_currency.as_str(),
+                event,
+                position,
+                quantity,
+                false,
+            )?
         };
         self.record_reduction(
             &account_id,
@@ -1630,6 +1877,7 @@ impl Projector<'_> {
         run: &mut RunLog,
     ) -> Result<(), String> {
         let account_id = state.account.clone();
+        let account_currency = state.currency.clone();
         let Some(position) = state.positions.get_mut(asset) else {
             run.diagnostics.push(Diagnostic::warning(
                 DiagnosticCode::NoPositionToReduce,
@@ -1640,9 +1888,23 @@ impl Projector<'_> {
         };
         let position_currency = position.currency.clone();
         let reduction = if position.quantity < Decimal::ZERO {
-            relieve_short_lots(position, quantity, self.method(&account_id))?
+            self.relieve_lots(
+                &account_id,
+                account_currency.as_str(),
+                event,
+                position,
+                quantity,
+                true,
+            )?
         } else {
-            relieve_long_lots(position, quantity, self.method(&account_id))?
+            self.relieve_lots(
+                &account_id,
+                account_currency.as_str(),
+                event,
+                position,
+                quantity,
+                false,
+            )?
         };
         self.record_reduction(
             &account_id,
@@ -2532,26 +2794,25 @@ fn add_transferred_lots(
     Ok(total)
 }
 
-/// Splits single-signed lots into (cover, residual) by effective units.
-fn split_lots_by_cover(lots: &[Lot], cover_abs: Decimal) -> Result<(Vec<Lot>, Vec<Lot>), String> {
+/// Splits single-signed lots into (cover, residual), each lot covering the
+/// effective units `taken` names for it.
+fn split_lots_by_cover(lots: &[Lot], taken: &[Decimal]) -> Result<(Vec<Lot>, Vec<Lot>), String> {
     let mut cover = Vec::new();
     let mut residual = Vec::new();
-    let mut remaining = cover_abs;
-    for lot in lots {
+    for (lot, &take) in lots.iter().zip(taken) {
         let effective_abs = lot.effective_quantity().abs();
-        if remaining <= Decimal::ZERO || effective_abs.is_zero() {
+        if take <= Decimal::ZERO || effective_abs.is_zero() {
             residual.push(lot.clone());
             continue;
         }
-        if effective_abs <= remaining {
-            remaining -= effective_abs;
+        if effective_abs <= take {
             cover.push(lot.clone());
             continue;
         }
         let consumed_acquired = if lot.split_ratio.is_zero() {
-            remaining
+            take
         } else {
-            checked(arith::div(remaining, lot.split_ratio), "covered quantity")?
+            checked(arith::div(take, lot.split_ratio), "covered quantity")?
         };
         let consumed_signed = if lot.quantity.is_sign_negative() {
             -consumed_acquired
@@ -2577,61 +2838,21 @@ fn split_lots_by_cover(lots: &[Lot], cover_abs: Decimal) -> Result<(Vec<Lot>, Ve
         residual_lot.original_taxes = residual_lot.taxes;
         cover.push(cover_lot);
         residual.push(residual_lot);
-        remaining = Decimal::ZERO;
     }
     Ok((cover, residual))
-}
-
-/// Relieves long lots in effective units (`relieve`).
-fn relieve_long_lots(
-    position: &mut Position,
-    requested: Decimal,
-    method: CostBasisMethod,
-) -> Result<Reduction, String> {
-    relieve(position, requested, false, method)
-}
-
-fn relieve_short_lots(
-    position: &mut Position,
-    requested: Decimal,
-    method: CostBasisMethod,
-) -> Result<Reduction, String> {
-    relieve(position, requested, true, method)
 }
 
 /// Relieves `requested` units from a position's long (or `negative`) lots
 /// as the account's cost basis method chooses them (rules §7): every sale,
 /// cover, transfer out and expiry goes through here. A method decides which
-/// lots and how much of each, and returns what it removed; it never changes
-/// units held, cash or prices. The cost removed is what a transfer carries.
+/// lots and how much of each (`units_taken`), and returns what it removed;
+/// it never changes units held, cash or prices. The cost removed is what a
+/// transfer carries.
 fn relieve(
     position: &mut Position,
     requested: Decimal,
     negative: bool,
     method: CostBasisMethod,
-) -> Result<Reduction, String> {
-    match method {
-        CostBasisMethod::Fifo => reduce_fifo(position, requested, negative),
-    }
-}
-
-/// Splits the lots a transfer delivers into those that cover `cover_abs`
-/// units of an opposite position and the rest, as the receiving account's
-/// cost basis method chooses them (rules §7).
-fn split_for_cover(
-    lots: &[Lot],
-    cover_abs: Decimal,
-    method: CostBasisMethod,
-) -> Result<(Vec<Lot>, Vec<Lot>), String> {
-    match method {
-        CostBasisMethod::Fifo => split_lots_by_cover(lots, cover_abs),
-    }
-}
-
-fn reduce_fifo(
-    position: &mut Position,
-    requested: Decimal,
-    negative: bool,
 ) -> Result<Reduction, String> {
     if !requested.is_sign_positive() || requested.is_zero() {
         return Err("quantity to reduce must be positive".to_string());
@@ -2658,26 +2879,25 @@ fn reduce_fifo(
     if !is_significant(available) || available <= Decimal::ZERO {
         return Ok(empty);
     }
-    let mut to_reduce = requested.min(available);
     sort_lots(position);
+    let to_reduce = requested.min(available);
+    let taken = units_taken(&position.lots, side_ok, to_reduce, method)?;
+    // A lot left with less than the dust closes. Under WAC every lot keeps a
+    // share, so dust is the side's: its lots close only when what the side
+    // keeps is dust.
+    let lot_dust_closes = method != CostBasisMethod::Wac || !is_significant(available - to_reduce);
 
     let mut removed_lots = Vec::new();
     let mut fully_consumed = Vec::new();
     let mut quantity_reduced = Decimal::ZERO;
     let mut cost_removed = Decimal::ZERO;
     let mut keep: Vec<Lot> = Vec::with_capacity(position.lots.len());
-    for mut lot in position.lots.drain(..) {
-        if to_reduce <= Decimal::ZERO || !side_ok(&lot) {
+    for (mut lot, consume) in position.lots.drain(..).zip(taken) {
+        if consume <= Decimal::ZERO {
             keep.push(lot);
             continue;
         }
         let ratio = lot.split_ratio;
-        let effective_abs = lot.effective_quantity().abs();
-        if effective_abs <= Decimal::ZERO {
-            keep.push(lot);
-            continue;
-        }
-        let consume = effective_abs.min(to_reduce);
         let acquired_abs = if ratio.is_zero() {
             consume
         } else {
@@ -2695,35 +2915,40 @@ fn reduce_fifo(
         } else {
             acquired_abs
         };
-        removed_lots.push(Lot {
-            id: lot.id.clone(),
-            acquisition: lot.acquisition,
-            acquisition_date: lot.acquisition_date,
-            quantity: removed_signed,
-            original_quantity: removed_signed,
-            cost_basis: basis_removed,
-            acquisition_price: lot.acquisition_price,
-            fees: fees_removed,
-            original_fees: fees_removed,
-            taxes: taxes_removed,
-            original_taxes: taxes_removed,
-            fx_rate_to_position: lot.fx_rate_to_position,
-            fx_rate_to_account: lot.fx_rate_to_account,
-            account_currency: lot.account_currency.clone(),
-            fx_rate_to_base: lot.fx_rate_to_base,
-            base_currency: lot.base_currency.clone(),
-            source_event: lot.source_event.clone(),
-            split_ratio: ratio,
-        });
+        // What a split's rounding leaves of a request (a third of a unit
+        // split 3:1 holds 0.999…9) can be too small to take any of this
+        // lot's as-acquired units: that slice removes nothing, so no
+        // disposal records it.
+        if !acquired_abs.is_zero() {
+            removed_lots.push(Lot {
+                id: lot.id.clone(),
+                acquisition: lot.acquisition,
+                acquisition_date: lot.acquisition_date,
+                quantity: removed_signed,
+                original_quantity: removed_signed,
+                cost_basis: basis_removed,
+                acquisition_price: lot.acquisition_price,
+                fees: fees_removed,
+                original_fees: fees_removed,
+                taxes: taxes_removed,
+                original_taxes: taxes_removed,
+                fx_rate_to_position: lot.fx_rate_to_position,
+                fx_rate_to_account: lot.fx_rate_to_account,
+                account_currency: lot.account_currency.clone(),
+                fx_rate_to_base: lot.fx_rate_to_base,
+                base_currency: lot.base_currency.clone(),
+                source_event: lot.source_event.clone(),
+                split_ratio: ratio,
+            });
+        }
         quantity_reduced += consume;
         cost_removed += basis_removed;
-        to_reduce -= consume;
         let remaining = lot.quantity - removed_signed;
         let consumed = if negative {
             remaining >= Decimal::ZERO
         } else {
             remaining <= Decimal::ZERO
-        } || !is_significant(remaining);
+        } || (lot_dust_closes && !is_significant(remaining));
         if consumed {
             fully_consumed.push(lot);
         } else {
@@ -2743,6 +2968,117 @@ fn reduce_fifo(
         removed_lots,
         fully_consumed,
     })
+}
+
+/// Splits the lots a transfer delivers into those that cover `cover_abs`
+/// units of an opposite position and the rest, as the receiving account's
+/// cost basis method chooses them (rules §7), in the order the sender gave
+/// them.
+fn split_for_cover(
+    lots: &[Lot],
+    cover_abs: Decimal,
+    method: CostBasisMethod,
+) -> Result<(Vec<Lot>, Vec<Lot>), String> {
+    let taken = units_taken(lots, |_| true, cover_abs, method)?;
+    split_lots_by_cover(lots, &taken)
+}
+
+/// The effective units each of `lots` gives to a disposal of `units`, in
+/// the order given: what a cost basis method decides (rules R7.1). Lots
+/// `eligible` rejects give none. `units` never exceeds what the eligible
+/// lots hold.
+///
+/// - FIFO, LIFO, HIFO: whole lots in the method's order (`relief_order`)
+///   until the units run out.
+/// - WAC: the same share of every lot. The last lot that gives any takes
+///   what rounding left, so the units taken sum to `units` exactly.
+fn units_taken(
+    lots: &[Lot],
+    eligible: impl Fn(&Lot) -> bool,
+    units: Decimal,
+    method: CostBasisMethod,
+) -> Result<Vec<Decimal>, String> {
+    let held = |lot: &Lot| {
+        if eligible(lot) {
+            lot.effective_quantity().abs()
+        } else {
+            Decimal::ZERO
+        }
+    };
+    match method {
+        CostBasisMethod::Fifo | CostBasisMethod::Lifo | CostBasisMethod::Hifo => {
+            let mut takes = vec![Decimal::ZERO; lots.len()];
+            let mut remaining = units;
+            for index in relief_order(lots, method)? {
+                let take = held(&lots[index]).min(remaining).max(Decimal::ZERO);
+                remaining -= take;
+                takes[index] = take;
+            }
+            Ok(takes)
+        }
+        CostBasisMethod::Wac => {
+            let total: Decimal = lots.iter().map(&held).sum();
+            if units >= total {
+                return Ok(lots.iter().map(held).collect());
+            }
+            let last = lots.iter().rposition(|lot| held(lot) > Decimal::ZERO);
+            let mut taken = Decimal::ZERO;
+            let mut takes = Vec::with_capacity(lots.len());
+            for (index, lot) in lots.iter().enumerate() {
+                let lot_units = held(lot);
+                let take = if lot_units.is_zero() {
+                    Decimal::ZERO
+                } else if Some(index) == last {
+                    (units - taken).max(Decimal::ZERO).min(lot_units)
+                } else {
+                    proportional(lot_units, units, total)?
+                };
+                taken += take;
+                takes.push(take);
+            }
+            Ok(takes)
+        }
+    }
+}
+
+/// The order an order-based method relieves `lots` in, as indices (rules
+/// R7.2). FIFO keeps the order given: a position's lots by acquisition, or
+/// the order a sender delivered them. LIFO takes the latest acquisition first
+/// (ties in reverse of the order given); a transferred lot keeps the date it
+/// was bought. HIFO takes the highest cost per effective unit first, charges
+/// included and in the position currency, for short lots as for long ones;
+/// ties go to the earliest acquisition, then the order given. Costs per unit
+/// compare at `UNIT_COST_DIGITS` significant digits: equal costs reached by
+/// different divisions differ in their last digits, and that must not reorder
+/// them.
+fn relief_order(lots: &[Lot], method: CostBasisMethod) -> Result<Vec<usize>, String> {
+    let mut order: Vec<usize> = (0..lots.len()).collect();
+    match method {
+        CostBasisMethod::Lifo => {
+            order.reverse();
+            order.sort_by(|&a, &b| lots[b].acquisition.cmp(&lots[a].acquisition));
+        }
+        CostBasisMethod::Hifo => {
+            let unit_costs = lots
+                .iter()
+                .map(|lot| {
+                    let units = lot.effective_quantity().abs();
+                    if units.is_zero() {
+                        return Ok(Decimal::ZERO);
+                    }
+                    let cost = checked(arith::div(lot.cost_basis.abs(), units), "cost per unit")?;
+                    Ok(cost.round_sf(UNIT_COST_DIGITS).unwrap_or(cost))
+                })
+                .collect::<Result<Vec<_>, String>>()?;
+            order.sort_by(|&a, &b| {
+                unit_costs[b]
+                    .cmp(&unit_costs[a])
+                    .then(lots[a].acquisition.cmp(&lots[b].acquisition))
+            });
+        }
+        CostBasisMethod::Fifo | CostBasisMethod::Wac => {}
+    }
+    Ok(order)
 }
 
 /// Lots in storage shape: open lots from the final state plus closed lots,

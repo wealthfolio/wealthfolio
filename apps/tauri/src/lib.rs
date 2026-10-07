@@ -481,6 +481,12 @@ pub fn run() {
             commands::alternative_assets::get_net_worth,
             commands::alternative_assets::get_net_worth_history,
             commands::alternative_assets::get_alternative_holdings,
+            commands::alternative_assets::calculate_loan,
+            commands::alternative_assets::recalculate_loan,
+            commands::alternative_assets::apply_loan_action,
+            commands::alternative_assets::get_loan_payments,
+            commands::alternative_assets::preview_loan_terms,
+            commands::alternative_assets::link_loan_payment,
             // Market data commands
             commands::market_data::search_symbol,
             commands::market_data::resolve_symbol_quote,
@@ -778,33 +784,13 @@ pub fn run() {
                 }
             }
 
+            // Desktop quits and restarts end here, including macOS Quit, which
+            // skips ExitRequested. The Windows updater does not: its installer
+            // step exits the process itself. Releasing the database also stops
+            // the MCP server (deleting mcp.lock) and the device sync engine.
             #[cfg(desktop)]
-            if matches!(
-                event,
-                tauri::RunEvent::ExitRequested { .. } | tauri::RunEvent::Exit
-            ) {
-                // Stop the embedded MCP server and delete mcp.lock.
-                if _handle.try_state::<mcp::McpServerState>().is_some() {
-                    let mcp_handle = _handle.clone();
-                    tauri::async_runtime::block_on(async move {
-                        mcp::stop_server(&mcp_handle).await;
-                    });
-                }
-
-                #[cfg(feature = "device-sync")]
-                if let Some(context) = _handle
-                    .try_state::<profiles::NativeProfiles>()
-                    .and_then(|runtime| runtime.try_context())
-                {
-                    tauri::async_runtime::block_on(async move {
-                        if let Err(err) =
-                            crate::commands::device_sync::ensure_background_engine_stopped(context)
-                                .await
-                        {
-                            warn!("Failed to stop background device sync engine: {}", err);
-                        }
-                    });
-                }
+            if matches!(event, tauri::RunEvent::Exit) {
+                profiles::release_for_exit(_handle);
             }
         });
 }

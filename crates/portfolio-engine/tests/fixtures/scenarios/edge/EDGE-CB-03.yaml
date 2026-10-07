@@ -1,0 +1,32 @@
+id: EDGE-CB-03
+title: A WAC position pools by units held after a split, not units acquired
+intent: >
+  Rules R7.2, I6. A 2-for-1 split doubles the effective units of the lot
+  bought before it. Before the WAC sale the lots pool by their units after
+  the split, so the split lot counts its 20 units, not the 10 it acquired.
+policy: { base_currency: USD, timezone: UTC, as_of: 2025-01-10 }
+accounts:
+  - { id: acc-1, currency: USD, cost_basis_method: WAC }
+assets:
+  - { id: aapl, quote_ccy: USD }
+activities:
+  - { id: dep-1, account: acc-1, type: DEPOSIT, date: 2025-01-02T10:00:00Z, amount: 3000 }
+  - { id: buy-1, account: acc-1, type: BUY, date: 2025-01-03T10:00:00Z, asset: aapl, quantity: 10, unit_price: 100, amount: 1000, fee: 0 }
+  - { id: split-1, account: acc-1, type: SPLIT, date: 2025-01-06T10:00:00Z, asset: aapl, amount: 2 }
+  - { id: buy-2, account: acc-1, type: BUY, date: 2025-01-07T10:00:00Z, asset: aapl, quantity: 20, unit_price: 70, amount: 1400, fee: 0 }
+  - { id: sell-1, account: acc-1, type: SELL, date: 2025-01-08T10:00:00Z, asset: aapl, quantity: 10, unit_price: 80, amount: 800, fee: 0 }
+quotes:
+  - { asset: aapl, day: 2025-01-03, close: 100 }
+  - { asset: aapl, day: 2025-01-06, close: 50 }
+  - { asset: aapl, day: 2025-01-07, close: 70 }
+  - { asset: aapl, day: 2025-01-08, close: 80 }
+  - { asset: aapl, day: 2025-01-10, close: 80 }
+expected_notes: >
+  buy-1: 10 units acquired, 1000; split-1 makes them 20 effective units
+  (ratio 2). buy-2: 20 units, 1400. sell-1 pools them into buy-1: 40
+  units (ratio 1), 2400, average 60. It takes 10 of 40: cost 600 = 10 x 60,
+  proceeds 800, P&L 200, one disposal. Left: 30 units, 1800, average 60.
+  Pooling by acquired units (10 vs 20) would hold 30 units at 80 instead.
+  Under FIFO sell-1 would relieve
+  buy-1's 10 effective units (5 acquired) at 500: P&L 300. Cash 3000 - 1000
+  - 1400 + 800 = 1400.

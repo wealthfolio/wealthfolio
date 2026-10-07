@@ -452,17 +452,46 @@ impl Scenario {
         }
         scenario
     }
+
+    /// The scenario with its accounts on the methods in turn, starting
+    /// `offset` methods into `CostBasisMethod::ALL`, so transfers pair
+    /// accounts on different methods; suffixed `@MIXED`, or `@MIXED+offset`.
+    /// `None` with one account.
+    pub fn with_mixed_cost_basis_methods(&self, offset: usize) -> Option<Self> {
+        if self.accounts.len() < 2 {
+            return None;
+        }
+        let mut scenario = self.clone();
+        let methods = CostBasisMethod::ALL;
+        for (index, account) in scenario.accounts.iter_mut().enumerate() {
+            let method = methods[(index + offset) % methods.len()];
+            account.cost_basis_method = Some(method.as_str().to_string());
+        }
+        scenario.id = match offset {
+            0 => format!("{}@MIXED", scenario.id),
+            _ => format!("{}@MIXED+{offset}", scenario.id),
+        };
+        Some(scenario)
+    }
 }
 
-/// Each scenario under every cost basis method the engine computes: a
-/// property law holds whatever the method (rules R7.3, §9).
+/// Each scenario under every cost basis method the engine computes, and with
+/// its accounts on different methods: a property law holds whatever the
+/// methods (rules R7.3, §9). One mixed run per rotation of the methods, so in
+/// two-account scenarios each method sends to and receives from its
+/// neighbours in `CostBasisMethod::ALL`.
 pub fn under_every_method(
     scenarios: impl IntoIterator<Item = Scenario>,
 ) -> impl Iterator<Item = Scenario> {
     scenarios.into_iter().flat_map(|scenario| {
+        let mixed = (0..CostBasisMethod::ALL.len())
+            .filter_map(|offset| scenario.with_mixed_cost_basis_methods(offset))
+            .collect::<Vec<_>>();
         CostBasisMethod::ALL
             .iter()
-            .map(move |method| scenario.with_cost_basis_method(*method))
+            .map(|method| scenario.with_cost_basis_method(*method))
+            .chain(mixed)
+            .collect::<Vec<_>>()
     })
 }
 

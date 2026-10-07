@@ -1,5 +1,7 @@
 //! Router-level tests for the embedded MCP server: health, bearer auth,
 //! Origin validation, and a stateful-mode MCP initialize round-trip.
+// Clippy's test exemption doesn't recognise `cfg(all(test, desktop))`.
+#![allow(clippy::unwrap_used, clippy::panic, reason = "test code")]
 
 use std::sync::Arc;
 

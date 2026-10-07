@@ -2,6 +2,7 @@ import { memo, type Ref } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { Account } from "@/lib/types";
+import { AccountType } from "@/lib/constants";
 import { TruncatedText } from "@/components/truncated-text";
 import { HOVER_SLOT } from "@/lib/hover-slot";
 import { cn } from "@/lib/utils";
@@ -49,6 +50,8 @@ interface TransactionRowProps {
   onDelete: (row: TransactionRowVM) => void;
   onLinkTransfer?: (row: TransactionRowVM) => void;
   onUnlinkTransfer?: (row: TransactionRowVM) => void;
+  /** Count a withdrawal as a loan payment, or stop counting it. */
+  onLoanPayment?: (row: TransactionRowVM) => void;
   /**
    * Virtualizer wiring: it measures the rendered row through the ref and
    * identifies it by `data-index`. Both are unset when the list renders
@@ -80,6 +83,7 @@ function TransactionRowImpl({
   onDelete,
   onLinkTransfer,
   onUnlinkTransfer,
+  onLoanPayment,
 }: TransactionRowProps) {
   const { formatTime } = useDateFormatting();
 
@@ -98,6 +102,9 @@ function TransactionRowImpl({
   const transferLinkStatus = getTransferLinkStatus(a);
   const canMarkReimbursement =
     isIncome && !isCreditCardAccountType(account?.accountType) && activityType !== "CREDIT";
+  // Loans take payments only as withdrawals from a cash account.
+  const canPayLoan =
+    !!onLoanPayment && activityType === "WITHDRAWAL" && account?.accountType === AccountType.CASH;
   const time = formatTime(a.activityDate, {
     hour: "numeric",
     minute: "numeric",
@@ -304,6 +311,12 @@ function TransactionRowImpl({
                 </DropdownMenuItem>
               ) : null
             ) : null}
+            {canPayLoan && (
+              <DropdownMenuItem onClick={() => onLoanPayment(row)}>
+                <Icons.Link className="mr-2 h-4 w-4" aria-hidden="true" />
+                {t("asset:loanPayments.menu")}
+              </DropdownMenuItem>
+            )}
             <DropdownMenuItem className="text-destructive" onClick={() => onDelete(row)}>
               <Icons.Trash className="mr-2 h-4 w-4" aria-hidden="true" />
               {t("common:delete")}

@@ -9,6 +9,7 @@
 //!
 //! Drift between either of these and the registered tools is the most common
 //! cause of "I added a tool and the agent never calls it."
+#![allow(clippy::unwrap_used, clippy::panic, reason = "test code")]
 
 use wealthfolio_ai::types::{normalize_tools_allowlist, DEFAULT_TOOLS_ALLOWLIST};
 

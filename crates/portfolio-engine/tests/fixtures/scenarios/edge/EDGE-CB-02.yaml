@@ -1,0 +1,33 @@
+id: EDGE-CB-02
+title: A WAC account's unquoted transfer carries the average cost to a FIFO account as one lot
+intent: >
+  Rules R7.2, R2.4. acc-a (WAC) holds two lots at different costs and
+  transfers part of its position, without a quote, to acc-b (FIFO). The
+  sender's lots pool first, so the transfer carries the average cost as one
+  lot dated at the pool's earliest acquisition, as a broker moving an
+  average-cost holding does. The receiver books it at that cost and disposes
+  of it by its own method.
+markers: [K]
+policy: { base_currency: USD, timezone: UTC, as_of: 2025-01-10 }
+accounts:
+  - { id: acc-a, currency: USD, cost_basis_method: WAC }
+  - { id: acc-b, currency: USD }
+assets:
+  - { id: aapl, quote_ccy: USD }
+activities:
+  - { id: dep-1, account: acc-a, type: DEPOSIT, date: 2025-01-02T10:00:00Z, amount: 4000 }
+  - { id: dep-2, account: acc-b, type: DEPOSIT, date: 2025-01-02T11:00:00Z, amount: 1000 }
+  - { id: buy-1, account: acc-a, type: BUY, date: 2025-01-03T10:00:00Z, asset: aapl, quantity: 10, unit_price: 100, amount: 1000, fee: 0 }
+  - { id: buy-2, account: acc-a, type: BUY, date: 2025-01-06T10:00:00Z, asset: aapl, quantity: 10, unit_price: 200, amount: 2000, fee: 0 }
+  - { id: out-1, account: acc-a, type: TRANSFER_OUT, date: 2025-01-08T10:00:00Z, asset: aapl, quantity: 4, unit_price: 150, source_group_id: g1 }
+  - { id: in-1, account: acc-b, type: TRANSFER_IN, date: 2025-01-08T11:00:00Z, asset: aapl, quantity: 4, unit_price: 150, source_group_id: g1 }
+  - { id: sell-1, account: acc-b, type: SELL, date: 2025-01-09T10:00:00Z, asset: aapl, quantity: 2, unit_price: 250, amount: 500, fee: 0 }
+expected_notes: >
+  acc-a: 20 units, 3000, average 150. out-1 pools the lots into buy-1
+  (acquired 01-03) and takes 4 of 20 at cost: 4 units, 600 = 4 x 150, P&L 0,
+  one disposal; outflow 600 on 01-08. Left: buy-1 16 units, 2400, average
+  150. acc-b: books one lot in-1, 4 units at 600 acquired 01-03, inflow 600
+  on 01-08; the pair nets to zero at portfolio scope. sell-1 (FIFO) relieves
+  2 of in-1: cost 300, proceeds 500, P&L 200. Left in acc-b: 2 units at 300.
+  Cash acc-a 4000 - 1000 - 2000 = 1000; acc-b 1000 + 500 = 1500. Were acc-a
+  FIFO, out-1 would carry 4 of buy-1 at 400.

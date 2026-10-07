@@ -370,13 +370,14 @@ impl MarketDataProvider for MarketDataAppProvider {
         let end_date = end.date_naive();
         let last_candle_date = quotes.last().map(|q| q.timestamp.date_naive());
 
-        if end_date >= today && last_candle_date.is_some_and(|d| d < today) {
+        if let Some(last_candle_date) = last_candle_date.filter(|d| end_date >= today && *d < today)
+        {
             match self.get_latest_quote(context, instrument).await {
                 Ok(latest) => {
                     // Avoid duplicates: only append if the real-time quote is
                     // newer than the last candle (e.g., skip on weekends when
                     // the prices endpoint returns the same day as the last candle).
-                    if latest.timestamp.date_naive() > last_candle_date.unwrap() {
+                    if latest.timestamp.date_naive() > last_candle_date {
                         quotes.push(latest);
                     }
                 }

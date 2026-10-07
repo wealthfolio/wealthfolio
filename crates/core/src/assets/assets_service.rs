@@ -137,7 +137,10 @@ fn merge_bond_profile(
     let bond = bond
         .as_object_mut()
         .ok_or_else(|| Error::Asset("Invalid bond metadata object".into()))?;
-    for (key, value) in values.as_object().unwrap() {
+    let values = values
+        .as_object()
+        .ok_or_else(|| Error::Asset("Invalid bond profile object".into()))?;
+    for (key, value) in values {
         if key == "treasuryType" && !compatible {
             continue;
         }

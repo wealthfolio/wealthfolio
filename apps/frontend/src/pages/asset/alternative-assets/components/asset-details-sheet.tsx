@@ -1,4 +1,22 @@
-import { useEffect, useMemo, useState } from "react";
+import {
+  LoanSheetContent,
+  LoanSheetHeader,
+  LoanSheetBody,
+  LoanSheetFooter,
+} from "./loan-sheet-content";
+import { LoanInterestMethodSelect } from "./loan-interest-method-select";
+import { LoanFieldInfo } from "./loan-field-info";
+import { LoanDurationInput } from "./loan-duration-input";
+import { useEffect, useId, useMemo, useState } from "react";
+import { useAccounts } from "@/hooks/use-accounts";
+import { useLoanSchedulePreview } from "../hooks/use-loan-calculation";
+import {
+  isLoanRefusal,
+  loanErrorField,
+  loanErrorText,
+  type LoanSetupField,
+} from "./loan-error-text";
+import type { LoanSetup } from "@/adapters/shared/alternative-assets";
 import { useForm, type Resolver } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
@@ -14,12 +32,15 @@ import {
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
   FormMessage,
+  useFormField,
 } from "@wealthfolio/ui/components/ui/form";
 import { Button } from "@wealthfolio/ui/components/ui/button";
+import { Switch } from "@wealthfolio/ui/components/ui/switch";
 import { Input } from "@wealthfolio/ui/components/ui/input";
 import { Textarea } from "@wealthfolio/ui/components/ui/textarea";
 import { Separator } from "@wealthfolio/ui/components/ui/separator";
@@ -31,12 +52,14 @@ import {
   DatePickerInput,
   ResponsiveSelect,
   type ResponsiveSelectOption,
+  useDateFormatting,
 } from "@wealthfolio/ui";
 import { toast } from "@wealthfolio/ui/components/ui/use-toast";
 
 import {
   assetDetailsSchema,
   type AssetDetailsFormValues,
+  type LiabilityDetailsFormValues,
   getDefaultDetailsFormValues,
   formValuesToMetadata,
   PROPERTY_TYPES,
@@ -45,7 +68,9 @@ import {
   METAL_TYPES,
   WEIGHT_UNITS,
   LIABILITY_TYPES,
+  liabilityLoanSetup,
 } from "./asset-details-sheet-schema";
+import { paymentAccounts } from "../lib/loan-payments";
 import { type LinkableAsset } from "./alternative-asset-quick-add-modal";
 import { AlternativeAssetKind, ALTERNATIVE_ASSET_KIND_DISPLAY_NAMES } from "@/lib/types";
 
@@ -82,6 +107,7 @@ interface AssetDetailsSheetProps {
     metadata: Record<string, string>,
     name?: string,
     notes?: string | null,
+    loan?: LoanSetup,
   ) => Promise<void>;
   /** Optional: For displaying linked asset name for liabilities */
   linkedAssetName?: string;
@@ -157,28 +183,43 @@ export function AssetDetailsSheet({
       const metadata = formValuesToMetadata(values);
       // Only pass name if it changed
       const nameChanged = values.name !== asset.name ? values.name : undefined;
-      // Pass notes separately (it goes to asset.notes, not metadata)
-      await onSave(asset.id, metadata, nameChanged, values.notes);
+      // Pass notes separately (it goes to asset.notes, not metadata). A liability's
+      // loan section goes with them: the backend saves the edit in one transaction.
+      const loan =
+        values.kind === AlternativeAssetKind.LIABILITY ? liabilityLoanSetup(values) : undefined;
+      await onSave(asset.id, metadata, nameChanged, values.notes, loan);
       toast({
         title: t("asset:detailsSheet.details_saved"),
         variant: "success",
       });
       onOpenChange(false);
-    } catch (_error) {
+    } catch (error) {
       toast({
         title: t("asset:detailsSheet.save_failed"),
-        description: t("asset:detailsSheet.save_failed_description"),
+        description: loanErrorText(t, error, "asset:detailsSheet.save_failed_description"),
         variant: "destructive",
       });
     }
   };
 
+  const DetailsContent =
+    asset.kind === AlternativeAssetKind.LIABILITY ? LoanSheetContent : SheetContent;
+  const isLoan = asset.kind === AlternativeAssetKind.LIABILITY;
+  const DetailsHeader = isLoan ? LoanSheetHeader : SheetHeader;
+  const DetailsBody = isLoan ? LoanSheetBody : "div";
+  const DetailsFooter = isLoan ? LoanSheetFooter : SheetFooter;
   const kindDisplayName = ALTERNATIVE_ASSET_KIND_DISPLAY_NAMES[asset.kind] || asset.kind;
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-lg">
-        <SheetHeader className="pb-4">
+      <DetailsContent
+        className={
+          asset.kind === AlternativeAssetKind.LIABILITY
+            ? undefined
+            : "w-full overflow-y-auto sm:max-w-lg"
+        }
+      >
+        <DetailsHeader className="pb-4">
           <div className="flex items-center gap-3">
             <div className="bg-primary/10 flex h-10 w-10 items-center justify-center rounded-full">
               <AssetKindIcon kind={asset.kind} className="text-primary" size={20} />
@@ -197,160 +238,178 @@ export function AssetDetailsSheet({
               </SheetDescription>
             </div>
           </div>
-        </SheetHeader>
+        </DetailsHeader>
 
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6 pb-8">
-            {/* Name Field */}
-            <FormField
-              control={form.control}
-              name="name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t("asset:detailsSheet.name")}</FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder={t("asset:detailsSheet.name_placeholder")}
-                      value={field.value}
-                      onChange={field.onChange}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <Separator />
-
-            {/* Purchase Information - only for assets, not liabilities */}
-            {asset.kind !== AlternativeAssetKind.LIABILITY && (
-              <>
-                <div className="space-y-4">
-                  <SectionHeader
-                    title={t("asset:detailsSheet.purchase_information")}
-                    description={t("asset:detailsSheet.purchase_information_description")}
-                  />
-
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <FormField
-                      control={form.control}
-                      name="purchasePrice"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>
-                            {asset.kind === AlternativeAssetKind.PRECIOUS_METAL
-                              ? t("asset:detailsSheet.purchase_price_per_unit")
-                              : t("asset:detailsSheet.purchase_price")}
-                          </FormLabel>
-                          <FormControl>
-                            <MoneyInput
-                              ref={field.ref}
-                              name={field.name}
-                              value={field.value}
-                              onValueChange={(value) => field.onChange(value ?? null)}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="purchaseDate"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>{t("asset:detailsSheet.purchase_date")}</FormLabel>
-                          <FormControl>
-                            <DatePickerInput
-                              value={field.value ?? undefined}
-                              onChange={(date) => field.onChange(date ?? null)}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-                </div>
-
-                <Separator />
-              </>
-            )}
-
-            {/* Type-specific Fields */}
-            <div className="space-y-4">
-              <SectionHeader
-                title={t("asset:detailsSheet.kind_details", { kind: kindDisplayName })}
-                description={getTypeSpecificDescription(asset.kind, t)}
-              />
-
-              {/* Property-specific fields */}
-              {asset.kind === AlternativeAssetKind.PROPERTY && <PropertyFields form={form} />}
-
-              {/* Vehicle-specific fields */}
-              {asset.kind === AlternativeAssetKind.VEHICLE && <VehicleFields form={form} />}
-
-              {/* Collectible-specific fields */}
-              {asset.kind === AlternativeAssetKind.COLLECTIBLE && <CollectibleFields form={form} />}
-
-              {/* Precious Metal-specific fields */}
-              {asset.kind === AlternativeAssetKind.PRECIOUS_METAL && (
-                <PreciousMetalFields form={form} />
-              )}
-
-              {/* Liability-specific fields */}
-              {asset.kind === AlternativeAssetKind.LIABILITY && (
-                <LiabilityFields
-                  form={form}
-                  linkableAssetOptions={linkableAssetOptions}
-                  linkedAssetName={linkedAssetName}
-                />
-              )}
-
-              {/* Other asset fields */}
-              {asset.kind === AlternativeAssetKind.OTHER && <OtherFields form={form} />}
-            </div>
-
-            {/* Linked Liabilities Display (for properties) */}
-            {asset.kind === AlternativeAssetKind.PROPERTY && (
-              <PropertyMortgageSection
-                linkedLiabilities={linkedLiabilities}
-                availableMortgages={availableMortgages}
-                onLinkMortgage={onLinkMortgage}
-                onUnlinkMortgage={onUnlinkMortgage}
-              />
-            )}
-
-            <Separator />
-
-            {/* Notes Section */}
-            <div className="space-y-4">
-              <SectionHeader
-                title={t("asset:detailsSheet.notes")}
-                description={t("asset:detailsSheet.notes_description")}
-              />
-
+          <form
+            onSubmit={form.handleSubmit(handleSubmit)}
+            className={isLoan ? "flex min-h-0 flex-1 flex-col" : "space-y-6 pb-8"}
+          >
+            <DetailsBody className="space-y-6">
+              {/* Name Field */}
               <FormField
                 control={form.control}
-                name="notes"
+                name="name"
                 render={({ field }) => (
                   <FormItem>
+                    <FormLabel>{t("asset:detailsSheet.name")}</FormLabel>
                     <FormControl>
-                      <Textarea
-                        placeholder={t("asset:detailsSheet.notes_placeholder")}
-                        className="min-h-[100px] resize-none"
-                        value={field.value ?? ""}
-                        onChange={(e) => field.onChange(e.target.value || null)}
+                      <Input
+                        placeholder={t("asset:detailsSheet.name_placeholder")}
+                        value={field.value}
+                        onChange={field.onChange}
                       />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-            </div>
 
-            <SheetFooter className="gap-2 pt-4">
+              {!isLoan && <Separator />}
+
+              {/* Purchase Information - only for assets, not liabilities */}
+              {asset.kind !== AlternativeAssetKind.LIABILITY && (
+                <>
+                  <div className="space-y-4">
+                    <SectionHeader
+                      title={t("asset:detailsSheet.purchase_information")}
+                      description={t("asset:detailsSheet.purchase_information_description")}
+                    />
+
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <FormField
+                        control={form.control}
+                        name="purchasePrice"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>
+                              {asset.kind === AlternativeAssetKind.PRECIOUS_METAL
+                                ? t("asset:detailsSheet.purchase_price_per_unit")
+                                : t("asset:detailsSheet.purchase_price")}
+                            </FormLabel>
+                            <FormControl>
+                              <MoneyInput
+                                ref={field.ref}
+                                name={field.name}
+                                value={field.value}
+                                onValueChange={(value) => field.onChange(value ?? null)}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name="purchaseDate"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>{t("asset:detailsSheet.purchase_date")}</FormLabel>
+                            <FormControl>
+                              <DatePickerInput
+                                value={field.value ?? undefined}
+                                onChange={(date) => field.onChange(date ?? null)}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                  </div>
+
+                  <Separator />
+                </>
+              )}
+
+              {/* Liability-specific sections */}
+              {isLoan && (
+                <LiabilityFields
+                  form={form}
+                  assetId={asset.id}
+                  currency={asset.currency}
+                  linkableAssetOptions={linkableAssetOptions}
+                  linkedAssetName={linkedAssetName}
+                />
+              )}
+
+              {/* Type-specific Fields */}
+              {!isLoan && (
+                <div className="space-y-4">
+                  <SectionHeader
+                    title={t("asset:detailsSheet.kind_details", { kind: kindDisplayName })}
+                    description={getTypeSpecificDescription(asset.kind, t)}
+                  />
+
+                  {/* Property-specific fields */}
+                  {asset.kind === AlternativeAssetKind.PROPERTY && <PropertyFields form={form} />}
+
+                  {/* Vehicle-specific fields */}
+                  {asset.kind === AlternativeAssetKind.VEHICLE && <VehicleFields form={form} />}
+
+                  {/* Collectible-specific fields */}
+                  {asset.kind === AlternativeAssetKind.COLLECTIBLE && (
+                    <CollectibleFields form={form} />
+                  )}
+
+                  {/* Precious Metal-specific fields */}
+                  {asset.kind === AlternativeAssetKind.PRECIOUS_METAL && (
+                    <PreciousMetalFields form={form} />
+                  )}
+
+                  {/* Other asset fields */}
+                  {asset.kind === AlternativeAssetKind.OTHER && <OtherFields form={form} />}
+                </div>
+              )}
+
+              {/* Linked Liabilities Display (for properties) */}
+              {asset.kind === AlternativeAssetKind.PROPERTY && (
+                <PropertyMortgageSection
+                  linkedLiabilities={linkedLiabilities}
+                  availableMortgages={availableMortgages}
+                  onLinkMortgage={onLinkMortgage}
+                  onUnlinkMortgage={onUnlinkMortgage}
+                />
+              )}
+
+              <Separator />
+
+              {/* Notes Section */}
+              <div className="space-y-4">
+                <SectionHeader
+                  title={t("asset:detailsSheet.notes")}
+                  description={t(
+                    isLoan
+                      ? "asset:detailsSheet.notes_description_liability"
+                      : "asset:detailsSheet.notes_description",
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="notes"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormControl>
+                        <Textarea
+                          placeholder={t(
+                            isLoan
+                              ? "asset:detailsSheet.notes_placeholder_liability"
+                              : "asset:detailsSheet.notes_placeholder",
+                          )}
+                          className="min-h-[100px] resize-none"
+                          value={field.value ?? ""}
+                          onChange={(e) => field.onChange(e.target.value || null)}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+            </DetailsBody>
+            <DetailsFooter className="gap-2 pt-4">
               <Button
                 type="button"
                 variant="outline"
@@ -367,10 +426,10 @@ export function AssetDetailsSheet({
                 )}
                 {t("asset:detailsSheet.save_details")}
               </Button>
-            </SheetFooter>
+            </DetailsFooter>
           </form>
         </Form>
-      </SheetContent>
+      </DetailsContent>
     </Sheet>
   );
 }
@@ -379,10 +438,21 @@ export function AssetDetailsSheet({
 // Helper Components
 // ============================================================================
 
-function SectionHeader({ title, description }: { title: string; description?: string }) {
+function SectionHeader({
+  title,
+  description,
+  info,
+}: {
+  title: string;
+  description?: string;
+  info?: string;
+}) {
   return (
     <div className="space-y-1">
-      <h4 className="text-sm font-semibold">{title}</h4>
+      <div className="flex items-center gap-1.5">
+        <h4 className="text-sm font-semibold">{title}</h4>
+        {info && <LoanFieldInfo label={title}>{info}</LoanFieldInfo>}
+      </div>
       {description && <p className="text-muted-foreground text-xs">{description}</p>}
     </div>
   );
@@ -662,127 +732,453 @@ function PreciousMetalFields({
 
 function LiabilityFields({
   form,
+  assetId,
+  currency,
   linkableAssetOptions,
   linkedAssetName,
 }: {
   form: ReturnType<typeof useForm<AssetDetailsFormValues>>;
+  assetId: string;
+  currency: string;
   linkableAssetOptions: ResponsiveSelectOption[];
   linkedAssetName?: string;
 }) {
   const { t } = useTranslation();
-  return (
-    <div className="space-y-4">
-      <FormField
-        control={form.control}
-        name="liabilityType"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>{t("asset:detailsSheet.liability_type")}</FormLabel>
-            <FormControl>
-              <ResponsiveSelect
-                value={field.value ?? ""}
-                onValueChange={(val) => field.onChange(val || null)}
-                options={LIABILITY_TYPES.map((opt) => ({ value: opt.value, label: opt.label }))}
-                placeholder={t("asset:detailsSheet.select_liability_type")}
-                sheetTitle={t("asset:detailsSheet.liability_type")}
-              />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
+  const { accounts, isLoading: accountsLoading } = useAccounts();
+  const eligibleAccounts = useMemo(() => paymentAccounts(accounts, currency), [accounts, currency]);
+  const paymentAccountOptions: ResponsiveSelectOption[] = [
+    { value: "__none__", label: t("asset:loanPayments.no_account") },
+    ...eligibleAccounts.map((account) => ({ value: account.id, label: account.name })),
+  ];
+  const dates = useDateFormatting();
+  const values = form.watch() as LiabilityDetailsFormValues;
+  // An account archived or deactivated since it was chosen no longer pays the loan.
+  const storedPaymentAccount = values.paymentAccountId;
+  useEffect(() => {
+    if (accountsLoading || !storedPaymentAccount) return;
+    if (!eligibleAccounts.some((account) => account.id === storedPaymentAccount)) {
+      form.setValue("paymentAccountId", null, { shouldDirty: true });
+    }
+  }, [accountsLoading, eligibleAccounts, form, storedPaymentAccount]);
+  const automatic = values.automaticLoan === true;
+  const isMortgage = values.liabilityType === "mortgage";
+  const durationLabel = t(
+    isMortgage ? "asset:loanActions.amortization" : "asset:loanActions.loan_term",
+  );
+  const { data: schedule, error: scheduleError } = useLoanSchedulePreview(
+    assetId,
+    values.automaticLoan ? liabilityLoanSetup(values) : null,
+  );
+  const showsMaturity = isMortgage || !!values.renewalMaturity;
+  // Only the loan rules refuse terms; a request that failed leaves the decision to saving.
+  const refusal = isLoanRefusal(scheduleError) ? scheduleError : null;
+  const previewErrorField = refusal
+    ? loanErrorField(
+        refusal,
+        [
+          "originalAmount",
+          "originationDate",
+          "interestRate",
+          "paymentAmount",
+          "firstPaymentDate",
+          "amortization",
+          ...(showsMaturity ? (["renewalMaturity"] as const) : []),
+        ],
+        "amortization",
+      )
+    : null;
+  const previewErrorId = useId();
+  // A field's own validation message comes first; the preview's would repeat it.
+  const showsRefusal = (field: LoanSetupField, name: Parameters<typeof form.getFieldState>[0]) =>
+    previewErrorField === field && !form.getFieldState(name, form.formState).error;
+  const previewError = (field: LoanSetupField, name: Parameters<typeof form.getFieldState>[0]) =>
+    showsRefusal(field, name) && (
+      <p id={previewErrorId} className="text-destructive text-xs" role="alert">
+        {loanErrorText(t, refusal, "asset:loanEvents.invalid")}
+      </p>
+    );
+  // Links the field a refusal is about to its message, in place of the form's own links.
+  const describedBy = (field: LoanSetupField, name: Parameters<typeof form.getFieldState>[0]) =>
+    showsRefusal(field, name) ? { "aria-describedby": previewErrorId } : {};
+  const fieldLabel = (label: string, info?: string) => (
+    <div className="flex items-center gap-1.5">
+      <FormLabel>{label}</FormLabel>
+      {info && <LoanFieldInfo label={label}>{info}</LoanFieldInfo>}
+    </div>
+  );
 
+  return (
+    <>
       <div className="grid gap-4 sm:grid-cols-2">
         <FormField
           control={form.control}
-          name="originalAmount"
+          name="liabilityType"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>{t("asset:detailsSheet.original_amount")}</FormLabel>
+              <FormLabel>{t("asset:detailsSheet.liability_type")}</FormLabel>
               <FormControl>
-                <MoneyInput
-                  ref={field.ref}
-                  name={field.name}
-                  value={field.value}
-                  onValueChange={(value) => field.onChange(value ?? null)}
+                <ResponsiveSelect
+                  value={field.value ?? ""}
+                  onValueChange={(val) => field.onChange(val || null)}
+                  options={LIABILITY_TYPES.map((opt) => ({
+                    value: opt.value,
+                    label: opt.label,
+                  }))}
+                  placeholder={t("asset:detailsSheet.select_liability_type")}
+                  sheetTitle={t("asset:detailsSheet.liability_type")}
                 />
               </FormControl>
-              <FormMessage />
+              <LoanFormMessage />
             </FormItem>
           )}
         />
-
         <FormField
           control={form.control}
-          name="interestRate"
+          name="linkedAssetId"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>{t("asset:detailsSheet.interest_rate")}</FormLabel>
-              <FormControl>
-                <QuantityInput
-                  ref={field.ref}
-                  name={field.name}
-                  value={field.value}
-                  onValueChange={(value) => field.onChange(value ?? null)}
-                  maxDecimalPlaces={2}
-                />
-              </FormControl>
-              <FormMessage />
+              <FormLabel>{t("asset:detailsSheet.linked_asset")}</FormLabel>
+              {linkableAssetOptions.length > 1 ? (
+                <FormControl>
+                  <ResponsiveSelect
+                    value={field.value ?? "__none__"}
+                    onValueChange={(val) => field.onChange(val === "__none__" ? null : val)}
+                    options={linkableAssetOptions}
+                    placeholder={t("asset:detailsSheet.select_asset_to_link")}
+                    sheetTitle={t("asset:detailsSheet.link_to_asset")}
+                    sheetDescription={t("asset:detailsSheet.link_to_asset_description")}
+                  />
+                </FormControl>
+              ) : linkedAssetName ? (
+                <div className="bg-muted/30 flex h-9 items-center gap-2 rounded-md border px-3">
+                  <Icons.Link className="text-muted-foreground h-4 w-4" />
+                  <span className="truncate text-sm font-medium">{linkedAssetName}</span>
+                </div>
+              ) : (
+                <p className="text-muted-foreground text-sm">
+                  {t("asset:detailsSheet.no_assets_to_link")}
+                </p>
+              )}
+              <LoanFormMessage />
             </FormItem>
           )}
         />
       </div>
 
-      <FormField
-        control={form.control}
-        name="originationDate"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>{t("asset:detailsSheet.origination_date")}</FormLabel>
-            <FormControl>
-              <DatePickerInput
-                value={field.value ?? undefined}
-                onChange={(date) => field.onChange(date ?? null)}
-              />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
+      <Separator />
 
-      {/* Linked Asset Display/Selector */}
-      <FormField
-        control={form.control}
-        name="linkedAssetId"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>{t("asset:detailsSheet.linked_asset")}</FormLabel>
-            {linkableAssetOptions.length > 1 ? (
+      <div className="space-y-4">
+        <SectionHeader
+          title={t("asset:loanActions.original_terms")}
+          info={automatic ? t("asset:loanActions.edit_terms_hint") : undefined}
+        />
+        <div className="grid gap-4 sm:grid-cols-2">
+          <FormField
+            control={form.control}
+            name="originalAmount"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t("asset:detailsSheet.original_amount")}</FormLabel>
+                <FormControl>
+                  <MoneyInput
+                    ref={field.ref}
+                    name={field.name}
+                    value={field.value}
+                    onValueChange={(value) => field.onChange(value ?? null)}
+                    {...describedBy("originalAmount", "originalAmount")}
+                  />
+                </FormControl>
+                {previewError("originalAmount", "originalAmount")}
+                <LoanFormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="originationDate"
+            render={({ field }) => (
+              <FormItem>
+                {fieldLabel(
+                  t("asset:detailsSheet.origination_date"),
+                  t("asset:loanActions.origination_hint"),
+                )}
+                <FormControl>
+                  <DatePickerInput
+                    value={field.value ?? undefined}
+                    onChange={(date) => field.onChange(date ?? null)}
+                    {...describedBy("originationDate", "originationDate")}
+                  />
+                </FormControl>
+                {previewError("originationDate", "originationDate")}
+                <LoanFormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="interestRate"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t("asset:detailsSheet.interest_rate")}</FormLabel>
+                <div className="relative">
+                  <FormControl>
+                    <QuantityInput
+                      ref={field.ref}
+                      name={field.name}
+                      value={field.value}
+                      onValueChange={(value) => field.onChange(value ?? null)}
+                      maxDecimalPlaces={2}
+                      className="pr-8"
+                      {...describedBy("interestRate", "interestRate")}
+                    />
+                  </FormControl>
+                  <span className="text-muted-foreground pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm">
+                    %
+                  </span>
+                </div>
+                {previewError("interestRate", "interestRate")}
+                <LoanFormMessage />
+              </FormItem>
+            )}
+          />
+          {automatic && (
+            <FormField
+              control={form.control}
+              name="interestMethod"
+              render={({ field }) => (
+                <FormItem>
+                  {fieldLabel(t("asset:loanInterest.method"), t("asset:loanInterest.hint"))}
+                  <LoanInterestMethodSelect value={field.value} onChange={field.onChange} />
+                  <LoanFormMessage />
+                </FormItem>
+              )}
+            />
+          )}
+        </div>
+      </div>
+
+      <Separator />
+
+      <div className="space-y-4">
+        <SectionHeader title={t("asset:loanActions.payments")} />
+        <FormField
+          control={form.control}
+          name="automaticLoan"
+          render={({ field }) => (
+            <FormItem className="flex flex-row items-center justify-between gap-4 space-y-0 rounded-lg border p-3">
+              <div className="space-y-1">
+                <FormLabel>{t("asset:loanActions.automatic_schedule")}</FormLabel>
+                <FormDescription className="text-xs">
+                  {t("asset:loanActions.automatic_schedule_description")}
+                </FormDescription>
+              </div>
               <FormControl>
-                <ResponsiveSelect
-                  value={field.value ?? "__none__"}
-                  onValueChange={(val) => field.onChange(val === "__none__" ? null : val)}
-                  options={linkableAssetOptions}
-                  placeholder={t("asset:detailsSheet.select_asset_to_link")}
-                  sheetTitle={t("asset:detailsSheet.link_to_asset")}
-                  sheetDescription={t("asset:detailsSheet.link_to_asset_description")}
+                <Switch
+                  checked={field.value === true}
+                  onCheckedChange={(checked) => field.onChange(checked)}
                 />
               </FormControl>
-            ) : linkedAssetName ? (
-              <div className="bg-muted/30 flex items-center gap-2 rounded-lg border p-3">
-                <Icons.Link className="text-muted-foreground h-4 w-4" />
-                <span className="text-sm font-medium">{linkedAssetName}</span>
-              </div>
-            ) : (
-              <p className="text-muted-foreground text-sm">
-                {t("asset:detailsSheet.no_assets_to_link")}
-              </p>
+            </FormItem>
+          )}
+        />
+
+        {automatic && (
+          <div className="grid gap-4 sm:grid-cols-2">
+            <FormField
+              control={form.control}
+              name="paymentAmount"
+              render={({ field }) => (
+                <FormItem>
+                  {fieldLabel(t("asset:valueHistory.payment"), t("asset:loanActions.payment_hint"))}
+                  <FormControl>
+                    <MoneyInput
+                      ref={field.ref}
+                      name={field.name}
+                      value={field.value}
+                      onValueChange={(value) => field.onChange(value ?? null)}
+                      {...describedBy("paymentAmount", "paymentAmount")}
+                    />
+                  </FormControl>
+                  {previewError("paymentAmount", "paymentAmount")}
+                  <LoanFormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="paymentFrequency"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t("asset:loanActions.payment_frequency")}</FormLabel>
+                  <FormControl>
+                    <ResponsiveSelect
+                      value={field.value ?? "monthly"}
+                      onValueChange={field.onChange}
+                      options={["monthly", "biweekly", "accelerated_biweekly"].map((value) => ({
+                        value,
+                        label: t(`asset:loanActions.${value}`),
+                      }))}
+                      sheetTitle={t("asset:loanActions.payment_frequency")}
+                    />
+                  </FormControl>
+                  <LoanFormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="firstPaymentDate"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t("asset:loanActions.first_payment_date")}</FormLabel>
+                  <FormControl>
+                    <DatePickerInput
+                      value={field.value ?? undefined}
+                      onChange={(date) => field.onChange(date ?? null)}
+                      {...describedBy("firstPaymentDate", "firstPaymentDate")}
+                    />
+                  </FormControl>
+                  {previewError("firstPaymentDate", "firstPaymentDate")}
+                  <LoanFormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="amortizationYears"
+              render={({ field }) => (
+                <FormItem>
+                  {fieldLabel(
+                    durationLabel,
+                    t(
+                      isMortgage
+                        ? "asset:loanActions.amortization_hint"
+                        : "asset:loanActions.loan_term_hint",
+                    ),
+                  )}
+                  <FormControl>
+                    <LoanDurationInput
+                      label={durationLabel}
+                      years={field.value}
+                      months={values.amortizationMonths}
+                      onYearsChange={(value) => field.onChange(value ?? null)}
+                      onMonthsChange={(value) =>
+                        form.setValue("amortizationMonths", value ?? null, {
+                          shouldDirty: true,
+                        })
+                      }
+                      {...describedBy("amortization", "amortizationYears")}
+                    />
+                  </FormControl>
+                  {schedule && (
+                    <FormDescription className="text-xs">
+                      {t("asset:loanActions.last_payment", {
+                        count: schedule.paymentCount,
+                        date: dates.formatCalendarDate(schedule.lastPaymentDate, {
+                          day: "numeric",
+                          month: "short",
+                          year: "numeric",
+                        }),
+                      })}
+                    </FormDescription>
+                  )}
+                  {previewError("amortization", "amortizationYears")}
+                  <LoanFormMessage />
+                </FormItem>
+              )}
+            />
+            {showsMaturity && (
+              <FormField
+                control={form.control}
+                name="renewalMaturity"
+                render={({ field }) => (
+                  <FormItem>
+                    {fieldLabel(
+                      t("asset:loanActions.renewal_maturity"),
+                      t("asset:loanActions.renewal_maturity_hint"),
+                    )}
+                    <FormControl>
+                      <DatePickerInput
+                        value={field.value ?? undefined}
+                        onChange={(date) => field.onChange(date ?? null)}
+                        {...describedBy("renewalMaturity", "renewalMaturity")}
+                      />
+                    </FormControl>
+                    {previewError("renewalMaturity", "renewalMaturity")}
+                    <LoanFormMessage />
+                  </FormItem>
+                )}
+              />
             )}
-            <FormMessage />
-          </FormItem>
+            <FormField
+              control={form.control}
+              name="paymentAccountId"
+              render={({ field }) => (
+                <FormItem>
+                  {fieldLabel(
+                    t("asset:loanPayments.paid_from"),
+                    t("asset:loanPayments.paid_from_hint"),
+                  )}
+                  <FormControl>
+                    <ResponsiveSelect
+                      // A value missing from the options would be reported back as empty.
+                      value={
+                        eligibleAccounts.find((account) => account.id === field.value)?.id ??
+                        "__none__"
+                      }
+                      onValueChange={(value) =>
+                        field.onChange(value && value !== "__none__" ? value : null)
+                      }
+                      options={paymentAccountOptions}
+                      sheetTitle={t("asset:loanPayments.paid_from")}
+                      aria-label={t("asset:loanPayments.paid_from")}
+                    />
+                  </FormControl>
+                  <LoanFormMessage />
+                </FormItem>
+              )}
+            />
+            {values.paymentAccountId && (
+              <FormField
+                control={form.control}
+                name="escrowAmount"
+                render={({ field }) => (
+                  <FormItem>
+                    {fieldLabel(
+                      t("asset:loanPayments.escrow"),
+                      t("asset:loanPayments.escrow_hint"),
+                    )}
+                    <FormControl>
+                      <MoneyInput
+                        ref={field.ref}
+                        name={field.name}
+                        value={field.value}
+                        aria-label={t("asset:loanPayments.escrow")}
+                        onValueChange={(value) => field.onChange(value ?? null)}
+                      />
+                    </FormControl>
+                    <LoanFormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
+          </div>
         )}
-      />
-    </div>
+      </div>
+    </>
+  );
+}
+
+/** Shows a field error, translating the loan schema's message keys. */
+function LoanFormMessage() {
+  const { t } = useTranslation();
+  const { error, formMessageId } = useFormField();
+  const message = error?.message;
+  if (!message) return null;
+  return (
+    <p id={formMessageId} className="text-destructive text-xs font-light">
+      {message.startsWith("asset:") ? t(message) : message}
+    </p>
   );
 }
 

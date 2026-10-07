@@ -1,0 +1,38 @@
+id: EDGE-CB-09
+title: Delivered lots cover a LIFO account's short newest first
+intent: >
+  Rules R7.2, LIFO, R2.4. acc-b (LIFO) is short 5 when acc-a (FIFO) delivers
+  three lots bought at 100, 200 and 150. The delivered units cover the short
+  first, choosing lots by acc-b's method, so the newest delivered lot (150)
+  covers it and the other two open as longs. FIFO would cover with the 100
+  lot, HIFO with the 200 lot.
+markers: [K]
+policy: { base_currency: USD, timezone: UTC, as_of: 2025-01-10 }
+accounts:
+  - { id: acc-a, currency: USD }
+  - { id: acc-b, currency: USD, cost_basis_method: LIFO }
+assets:
+  - { id: aapl, quote_ccy: USD }
+activities:
+  - { id: dep-1, account: acc-a, type: DEPOSIT, date: 2025-01-02T10:00:00Z, amount: 3000 }
+  - { id: dep-2, account: acc-b, type: DEPOSIT, date: 2025-01-02T11:00:00Z, amount: 1000 }
+  - { id: buy-1, account: acc-a, type: BUY, date: 2025-01-03T10:00:00Z, asset: aapl, quantity: 5, unit_price: 100, amount: 500, fee: 0 }
+  - { id: buy-2, account: acc-a, type: BUY, date: 2025-01-04T10:00:00Z, asset: aapl, quantity: 5, unit_price: 200, amount: 1000, fee: 0 }
+  - { id: buy-3, account: acc-a, type: BUY, date: 2025-01-05T10:00:00Z, asset: aapl, quantity: 5, unit_price: 150, amount: 750, fee: 0 }
+  - { id: short-1, account: acc-b, type: SELL, subtype: POSITION_OPEN, date: 2025-01-05T11:00:00Z, asset: aapl, quantity: 5, unit_price: 180, amount: 900, fee: 0 }
+  - { id: out-1, account: acc-a, type: TRANSFER_OUT, date: 2025-01-07T10:00:00Z, asset: aapl, quantity: 15, unit_price: 190, source_group_id: g1 }
+  - { id: in-1, account: acc-b, type: TRANSFER_IN, date: 2025-01-07T11:00:00Z, asset: aapl, quantity: 15, unit_price: 190, source_group_id: g1 }
+quotes:
+  - { asset: aapl, day: 2025-01-03, close: 100 }
+  - { asset: aapl, day: 2025-01-04, close: 200 }
+  - { asset: aapl, day: 2025-01-05, close: 150 }
+  - { asset: aapl, day: 2025-01-07, close: 190 }
+  - { asset: aapl, day: 2025-01-10, close: 190 }
+expected_notes: >
+  acc-a sends all three lots at their cost: buy-1 5 (500, 01-03), buy-2 5
+  (1000, 01-04), buy-3 5 (750, 01-05). acc-b is short 5 (short-1, proceeds
+  900). Under LIFO the newest delivered lot, buy-3's, covers the short: the
+  short closes against its cost, 750. The other two open as longs. Left in
+  acc-b: 5 from buy-1 (500) and 5 from buy-2 (1000): 10 units, 1500, no short
+  lot. FIFO would cover with buy-1's lot (left 1750), HIFO with buy-2's (left
+  1250). acc-a holds none.

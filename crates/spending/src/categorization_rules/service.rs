@@ -811,13 +811,6 @@ mod tests {
         fn get_activity(&self, _: &str) -> wealthfolio_core::Result<Activity> {
             unimplemented!()
         }
-        fn find_transfer_counterpart(
-            &self,
-            _group_id: &str,
-            _exclude_id: &str,
-        ) -> wealthfolio_core::Result<Option<Activity>> {
-            Ok(None)
-        }
         fn get_activities(&self) -> wealthfolio_core::Result<Vec<Activity>> {
             Ok(self.activities.clone())
         }

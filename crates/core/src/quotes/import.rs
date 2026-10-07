@@ -590,7 +590,12 @@ impl QuoteImportService {
         let id = quote_id(&validation.asset_id, validation.day, &source);
 
         // Convert Day to DateTime<Utc> at noon UTC
-        let timestamp = validation.day.0.and_hms_opt(12, 0, 0).unwrap().and_utc();
+        let timestamp = validation
+            .day
+            .0
+            .and_hms_opt(12, 0, 0)
+            .expect("12:00:00 is a valid time")
+            .and_utc();
 
         Quote {
             id,
@@ -669,7 +674,8 @@ impl QuoteImportService {
         start: Option<Day>,
         end: Option<Day>,
     ) -> Result<Vec<QuoteExport>> {
-        let start_day = start.unwrap_or_else(|| Day::from_ymd(1900, 1, 1).unwrap());
+        let start_day =
+            start.unwrap_or_else(|| Day::from_ymd(1900, 1, 1).expect("1900-01-01 is a valid date"));
         let end_day = end.unwrap_or_else(Day::today);
 
         let quotes = self.quote_store.range(asset_id, start_day, end_day, None)?;
@@ -769,6 +775,74 @@ impl QuoteConverter {
 
         Ok(timestamp)
     }
+}
+
+// =============================================================================
+// Reviewed Quote Import (agent tools)
+// =============================================================================
+
+/// A reviewed close price for an existing asset, named by its id.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct QuoteImportRow {
+    pub asset_id: String,
+    /// Date in ISO format (YYYY-MM-DD).
+    pub date: String,
+    pub close: Decimal,
+    /// Must be the asset's quote currency.
+    pub currency: String,
+    /// Replace a stored quote of that day that has a different value.
+    #[serde(default)]
+    pub overwrite: bool,
+}
+
+impl QuoteImportRow {
+    /// The row as `import_quotes` takes it: the asset id goes in `symbol`.
+    pub fn to_import(&self) -> QuoteImport {
+        QuoteImport::new(
+            self.asset_id.clone(),
+            self.date.clone(),
+            self.close,
+            self.currency.clone(),
+        )
+    }
+}
+
+/// What importing a row does to the stored quote of its day.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum QuoteImportOutcome {
+    /// No quote is stored for that day, or a provider or broker quote with
+    /// this value and currency is: a manual quote is saved, so later provider
+    /// writes cannot change the day.
+    Create,
+    /// A different value is stored and the row allows overwriting it.
+    Update,
+    /// A manual quote with this value and currency is already stored.
+    Skip,
+    /// A different value is stored and the row does not allow overwriting it.
+    Conflict,
+    /// The row cannot be imported; see its errors.
+    Invalid,
+}
+
+impl QuoteImportOutcome {
+    /// Whether importing the row writes a quote.
+    pub fn writes(self) -> bool {
+        matches!(self, Self::Create | Self::Update)
+    }
+}
+
+/// A row checked against its asset and the stored quote of its day.
+#[derive(Debug, Clone)]
+pub struct QuoteImportPreview {
+    pub outcome: QuoteImportOutcome,
+    /// The asset the row names, when it exists.
+    pub asset: Option<crate::assets::Asset>,
+    /// The quote valuations use for that day: a manual quote before a
+    /// provider one.
+    pub existing: Option<Quote>,
+    pub errors: Vec<String>,
 }
 
 // =============================================================================

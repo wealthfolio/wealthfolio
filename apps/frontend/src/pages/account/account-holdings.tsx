@@ -52,7 +52,7 @@ const AccountHoldings = ({
     [...DEFAULT_HOLDINGS_VISIBILITY],
   );
 
-  const { accounts } = useAccounts();
+  const { accounts } = useAccounts({ filterActive: false });
 
   const selectedAccount = useMemo(() => {
     return accounts?.find((acc) => acc.id === accountId) ?? null;

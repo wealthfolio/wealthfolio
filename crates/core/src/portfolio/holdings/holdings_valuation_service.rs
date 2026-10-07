@@ -61,7 +61,12 @@ impl HoldingsValuationService {
     }
 
     fn today_in_user_timezone(&self) -> chrono::NaiveDate {
-        let tz = parse_user_timezone_or_default(&self.timezone.read().unwrap());
+        let tz = parse_user_timezone_or_default(
+            &self
+                .timezone
+                .read()
+                .unwrap_or_else(|poisoned| poisoned.into_inner()),
+        );
         user_today(tz)
     }
 

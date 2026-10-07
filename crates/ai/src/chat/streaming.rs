@@ -620,11 +620,15 @@ impl ThinkTagParser {
                     && !self.buffer.ends_with("</")
                 {
                     // Safe to emit most of the buffer as reasoning
-                    let safe_len = self.buffer.len().saturating_sub(8);
-                    segments.push(ParsedThinkSegment::Reasoning(
-                        self.buffer[..safe_len].to_string(),
-                    ));
-                    self.buffer = self.buffer[safe_len..].to_string();
+                    let safe_len = self
+                        .buffer
+                        .floor_char_boundary(self.buffer.len().saturating_sub(8));
+                    if safe_len > 0 {
+                        segments.push(ParsedThinkSegment::Reasoning(
+                            self.buffer[..safe_len].to_string(),
+                        ));
+                        self.buffer = self.buffer[safe_len..].to_string();
+                    }
                     break;
                 } else {
                     break;
@@ -639,11 +643,15 @@ impl ThinkTagParser {
                 self.in_think_block = true;
             } else if self.buffer.len() > 7 && !self.buffer.ends_with('<') {
                 // Safe to emit most of the buffer as text
-                let safe_len = self.buffer.len().saturating_sub(7);
-                segments.push(ParsedThinkSegment::Text(
-                    self.buffer[..safe_len].to_string(),
-                ));
-                self.buffer = self.buffer[safe_len..].to_string();
+                let safe_len = self
+                    .buffer
+                    .floor_char_boundary(self.buffer.len().saturating_sub(7));
+                if safe_len > 0 {
+                    segments.push(ParsedThinkSegment::Text(
+                        self.buffer[..safe_len].to_string(),
+                    ));
+                    self.buffer = self.buffer[safe_len..].to_string();
+                }
                 break;
             } else {
                 break;
@@ -1369,5 +1377,54 @@ mod tests {
         let flushed = parser.flush();
         assert_eq!(flushed.len(), 1);
         assert!(matches!(&flushed[0], ParsedThinkSegment::Text(text) if text == "world"));
+    }
+
+    fn joined(segments: &[ParsedThinkSegment]) -> String {
+        segments
+            .iter()
+            .map(|segment| match segment {
+                ParsedThinkSegment::Text(text) | ParsedThinkSegment::Reasoning(text) => {
+                    text.as_str()
+                }
+            })
+            .collect()
+    }
+
+    #[test]
+    fn test_think_parser_holds_back_non_ascii_reasoning() {
+        // 10 bytes, with byte 2 (eight from the end) inside the 'é'
+        let mut parser = ThinkTagParser::default();
+        assert!(parser.process("<think>").is_empty());
+        let mut segments = parser.process("réflexion");
+        segments.extend(parser.flush());
+
+        assert!(segments
+            .iter()
+            .all(|segment| matches!(segment, ParsedThinkSegment::Reasoning(_))));
+        assert_eq!(joined(&segments), "réflexion");
+    }
+
+    #[test]
+    fn test_think_parser_emits_no_empty_segment() {
+        // 9 bytes: the cut at byte 1 floors to 0, so nothing is emitted yet
+        let mut parser = ThinkTagParser::default();
+        assert!(parser.process("<think>").is_empty());
+        assert!(parser.process("思考一").is_empty());
+
+        let flushed = parser.flush();
+        assert_eq!(joined(&flushed), "思考一");
+    }
+
+    #[test]
+    fn test_think_parser_holds_back_non_ascii_text() {
+        // 15 bytes, with byte 8 (seven from the end) inside the 'é'
+        let mut parser = ThinkTagParser::default();
+        let mut segments = parser.process("1 < 2 déjà vu");
+        segments.extend(parser.flush());
+
+        assert!(segments
+            .iter()
+            .all(|segment| matches!(segment, ParsedThinkSegment::Text(_))));
+        assert_eq!(joined(&segments), "1 < 2 déjà vu");
     }
 }

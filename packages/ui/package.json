@@ -118,7 +118,6 @@
     "@types/react-dom": "^19.2.3",
     "i18next": "^25.6.0",
     "react-i18next": "^16.0.0",
-    "shadcn": "^3.8.4",
     "tsup": "^8.5.1",
     "typescript": "^5.9.3",
     "vite": "^7.3.6"

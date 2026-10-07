@@ -23,3 +23,6 @@ base64 = "0.22"
 [features]
 default = ["broker"]
 broker = []
+
+[lints]
+workspace = true

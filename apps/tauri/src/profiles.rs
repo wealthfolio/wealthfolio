@@ -16,6 +16,10 @@ use zeroize::Zeroizing;
 pub const NATIVE_OWNER: &str = "main";
 pub const PROFILE_CHANGED: &str = "profile-session-changed";
 const CONNECT_TRANSITION_WAIT: std::time::Duration = std::time::Duration::from_secs(3);
+/// The longest quitting waits for the active profile to release its database.
+/// Exit proceeds after it even if the release is still running.
+#[cfg(desktop)]
+const EXIT_WAIT: std::time::Duration = std::time::Duration::from_secs(5);
 
 pub struct NativeProfiles {
     pub registry: Arc<ProfileRegistry>,
@@ -297,7 +301,7 @@ impl NativeProfiles {
         Ok(session)
     }
 
-    pub async fn lock(&self, handle: &AppHandle) -> Result<(), String> {
+    pub async fn lock<R: tauri::Runtime>(&self, handle: &AppHandle<R>) -> Result<(), String> {
         self.lock_epoch.fetch_add(1, Ordering::SeqCst);
         self.registry
             .sessions
@@ -702,6 +706,41 @@ pub fn start_lock_monitor(handle: AppHandle) {
     });
 }
 
+/// Locks the active profile before the process exits, so its database is
+/// closed and its ownership released first.
+///
+/// Tauri ends the process with `std::process::exit` right after
+/// `RunEvent::Exit`. A pool that is still open then races SQLCipher's
+/// exit-time cleanup on r2d2's threads, which can crash the process.
+#[cfg(desktop)]
+pub fn release_for_exit<R: tauri::Runtime>(handle: &AppHandle<R>) {
+    release_within(handle, EXIT_WAIT);
+}
+
+// The lock runs on the async runtime while this thread waits on a plain
+// channel, so a stuck transition, command or worker cannot stop the app from
+// quitting. A lock that misses the deadline keeps running until the exit.
+#[cfg(desktop)]
+fn release_within<R: tauri::Runtime>(handle: &AppHandle<R>, limit: std::time::Duration) {
+    let (released, wait) = std::sync::mpsc::sync_channel(1);
+    let handle = handle.clone();
+    tauri::async_runtime::spawn(async move {
+        if let Some(profiles) = handle.try_state::<NativeProfiles>() {
+            if let Err(error) = profiles.lock(&handle).await {
+                log::warn!("Profile database was not released before exit: {error}");
+            }
+        }
+        // Teardown stops the MCP server only while a profile runtime exists.
+        if handle.try_state::<crate::mcp::McpServerState>().is_some() {
+            crate::mcp::stop_server(&handle).await;
+        }
+        let _ = released.send(());
+    });
+    if wait.recv_timeout(limit).is_err() {
+        log::warn!("Exiting before the profile database was released");
+    }
+}
+
 #[tauri::command]
 pub fn profile_auth_storage(
     handle: AppHandle,
@@ -822,7 +861,7 @@ mod sync_state_tests {
         use tauri::test::{get_ipc_response, mock_builder, mock_context, noop_assets};
 
         let (_directory, profiles, runtime, scope) = connect_profile();
-        runtime.initialize_for_test().await;
+        runtime.initialize_for_test(None).await;
         let scope = profiles
             .registry
             .sessions
@@ -1001,5 +1040,66 @@ mod sync_state_tests {
             2,
             "reopening must reuse the original state"
         );
+    }
+
+    #[cfg(desktop)]
+    mod exit_tests {
+        use super::*;
+        use std::time::{Duration, Instant};
+        use wealthfolio_storage_sqlite::db::{
+            maintenance, DatabaseOwner, DbAccess, DbEncryptionKey,
+        };
+
+        /// The managed state that exit teardown reaches, with the app directories
+        /// kept inside the test's own directory.
+        fn exit_app(
+            profiles: NativeProfiles,
+            root: &std::path::Path,
+        ) -> tauri::App<tauri::test::MockRuntime> {
+            let mut context = tauri::test::mock_context(tauri::test::noop_assets());
+            context.config_mut().app.app_directories_override = Some(
+                tauri::utils::config::AppDirectoriesOverride::Root(root.to_path_buf()),
+            );
+            tauri::test::mock_builder()
+                .manage(profiles)
+                .manage(crate::mcp::McpServerState::default())
+                .build(context)
+                .unwrap()
+        }
+
+        #[test]
+        fn quitting_releases_the_profile_database_before_the_process_exits() {
+            let (directory, profiles, runtime, _scope) = connect_profile();
+            let key = Arc::new(DbEncryptionKey::generate());
+            tauri::async_runtime::block_on(runtime.initialize_for_test(Some(key.clone())));
+            let database = DbAccess::encrypted(runtime.database_path(), key);
+            drop(runtime);
+            let app = exit_app(profiles, directory.path());
+            assert!(DatabaseOwner::acquire(database.path()).is_err());
+
+            release_for_exit(app.handle());
+
+            // Tauri calls `std::process::exit` next. Ownership is released only
+            // once every pooled connection has closed.
+            DatabaseOwner::acquire(database.path()).expect("quitting must release the database");
+            maintenance::check_sqlite_locks(&database).unwrap();
+            assert!(app.state::<NativeProfiles>().active().unwrap().is_none());
+        }
+
+        #[test]
+        fn quitting_does_not_wait_for_a_stuck_profile_transition() {
+            let (directory, profiles, _runtime, _scope) = connect_profile();
+            let app = exit_app(profiles, directory.path());
+            let profiles = app.state::<NativeProfiles>();
+            // An unlock or deletion that never finishes keeps the lifecycle lock.
+            let transition = profiles.lifecycle.try_lock().unwrap();
+
+            let started = Instant::now();
+            release_within(app.handle(), Duration::from_millis(200));
+
+            assert!(started.elapsed() < Duration::from_secs(2));
+            assert!(profiles.active().unwrap().is_some());
+            drop(transition);
+        }
     }
 }

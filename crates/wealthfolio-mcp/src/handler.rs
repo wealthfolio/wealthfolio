@@ -10,7 +10,7 @@ use std::sync::Arc;
 
 use rmcp::handler::server::ServerHandler;
 use rmcp::model::{
-    CallToolRequestParams, CallToolResult, Content, ErrorData as McpError, Implementation,
+    CallToolRequestParams, CallToolResult, ContentBlock, ErrorData as McpError, Implementation,
     ListToolsResult, PaginatedRequestParams, ServerCapabilities, ServerInfo, Tool,
 };
 use rmcp::service::{RequestContext, RoleServer};
@@ -196,7 +196,7 @@ impl ServerHandler for WealthfolioMcpHandler {
                 .await;
                 let text =
                     serde_json::to_string(&output.content).unwrap_or_else(|_| "{}".to_string());
-                let mut result = CallToolResult::success(vec![Content::text(text)]);
+                let mut result = CallToolResult::success(vec![ContentBlock::text(text)]);
                 result.structured_content = Some(output.content);
                 Ok(result)
             }
@@ -211,7 +211,7 @@ impl ServerHandler for WealthfolioMcpHandler {
                     Some(message.clone()),
                 ))
                 .await;
-                Ok(CallToolResult::error(vec![Content::text(message)]))
+                Ok(CallToolResult::error(vec![ContentBlock::text(message)]))
             }
             Err(err) => {
                 let message = err.to_string();
@@ -224,7 +224,7 @@ impl ServerHandler for WealthfolioMcpHandler {
                     Some(message.clone()),
                 ))
                 .await;
-                Ok(CallToolResult::error(vec![Content::text(message)]))
+                Ok(CallToolResult::error(vec![ContentBlock::text(message)]))
             }
         }
     }

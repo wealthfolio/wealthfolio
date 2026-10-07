@@ -1,7 +1,40 @@
 import { describe, expect, it } from "vitest";
 import { ActivityType } from "@/lib/constants";
 import { mapActivityTypeToPicker } from "../utils/activity-form-utils";
-import { hasActivityForm } from "./activity-form-config";
+import { ACTIVITY_FORM_CONFIG, hasActivityForm } from "./activity-form-config";
+
+describe("cash transfer defaults", () => {
+  it.each([ActivityType.TRANSFER_OUT, ActivityType.TRANSFER_IN])(
+    "derives the execution rate from actual amounts when editing %s",
+    (activityType) => {
+      const incoming = activityType === ActivityType.TRANSFER_IN;
+      const defaults = ACTIVITY_FORM_CONFIG.TRANSFER.getDefaults(
+        {
+          activityType,
+          accountId: incoming ? "b" : "a",
+          counterpartAccountId: incoming ? "a" : "b",
+          amount: incoming ? "100" : "780",
+          counterpartAmount: incoming ? "780" : "100",
+          currency: incoming ? "USD" : "HKD",
+          counterpartCurrency: incoming ? "HKD" : "USD",
+          fxRate: "0.13",
+          counterpartFxRate: "7.8",
+        },
+        [],
+      );
+      expect(defaults).toMatchObject({
+        fromAccountId: "a",
+        toAccountId: "b",
+        sourceCurrency: "HKD",
+        destinationCurrency: "USD",
+        sourceAmount: 780,
+        destinationAmount: 100,
+        transferRate: 0.12820513,
+        fxRate: 0.13,
+      });
+    },
+  );
+});
 
 describe("hasActivityForm", () => {
   it("accepts every type the picker can offer", () => {

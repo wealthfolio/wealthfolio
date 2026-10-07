@@ -1,0 +1,44 @@
+id: EDGE-POS-05
+title: A split's rounding left in a request does not reach the next lot
+intent: >
+  Kernel-only. A lot keeps its as-acquired units and its split ratio, so a
+  third of a unit split 3:1 holds 0.999…9 units (28 decimal places), not 1.
+  acc-a buys 1 x on 01-02 and 1 x on 01-03; x splits 3:1 on 01-04 (quotes
+  not adjusted: 36, then 12); acc-a sells 2 on 01-05, two thirds of buy-1,
+  which keeps a third. On 01-06 acc-a sends 1 to acc-b. FIFO relieves
+  buy-1's 0.999…9 units; the 1e-28 left of the request is below the fold's
+  dust (1e-8), as a lot left below it is closed (EDGE-POS-03), so buy-2
+  gives none of it.
+markers: [K]
+policy: { base_currency: USD, timezone: UTC, as_of: 2025-01-07 }
+accounts:
+  - { id: acc-a, currency: USD }
+  - { id: acc-b, currency: USD }
+assets:
+  - { id: x, quote_ccy: USD }
+activities:
+  - { id: dep-a, account: acc-a, type: DEPOSIT, date: 2025-01-01T10:00:00Z, amount: 1000 }
+  - { id: dep-b, account: acc-b, type: DEPOSIT, date: 2025-01-01T11:00:00Z, amount: 100 }
+  - { id: buy-1, account: acc-a, type: BUY, date: 2025-01-02T10:00:00Z, asset: x, quantity: 1, unit_price: 30, amount: 30 }
+  - { id: buy-2, account: acc-a, type: BUY, date: 2025-01-03T10:00:00Z, asset: x, quantity: 1, unit_price: 36, amount: 36 }
+  - { id: split, account: acc-a, type: SPLIT, date: 2025-01-04T10:00:00Z, asset: x, amount: 3 }
+  - { id: sell-1, account: acc-a, type: SELL, date: 2025-01-05T10:00:00Z, asset: x, quantity: 2, unit_price: 12, amount: 24 }
+  - { id: out-1, account: acc-a, type: TRANSFER_OUT, date: 2025-01-06T10:00:00Z, asset: x, quantity: 1, unit_price: 12, source_group_id: g1 }
+  - { id: in-1, account: acc-b, type: TRANSFER_IN, date: 2025-01-06T11:00:00Z, asset: x, quantity: 1, unit_price: 12, source_group_id: g1 }
+quotes:
+  - { asset: x, day: 2025-01-02, close: 30 }
+  - { asset: x, day: 2025-01-03, close: 36 }
+  - { asset: x, day: 2025-01-04, close: 12 }
+expected_notes: >
+  sell-1 (01-05) disposes 2 of buy-1's 3 units at 10 each: cost 20,
+  proceeds 24, realized 4; buy-1 keeps 0.333…3 as acquired, 0.999…9 units
+  (1 at 8 dp), cost 10. out-1 (01-06) writes ONE disposal, of buy-1: 1 unit,
+  cost 10, realized 0, and closes it. buy-2 stays open untouched: 1 as
+  acquired, 3 units, cost 36. acc-b opens lot in-1, acquired 01-02 (buy-1's
+  date), 0.333…3 as acquired (0.33333333 at 8 dp) with buy-1's ratio, so 1
+  unit, at cost 10. Cash: acc-a 1000 - 30 - 36 + 24 = 958, acc-b 100. From 01-06
+  acc-a is worth 958 + 3 x 12 = 994 and acc-b 100 + 12 = 112; the pair
+  flows 12 out of acc-a and 12 into acc-b and nets at portfolio scope.
+  Before the fix out-1 also wrote a disposal of buy-2 of 0 units and 0 cost
+  (1e-28 / 3 rounds to nothing), so P-TXF-LEGS read buy-2's 01-03 as an
+  acquisition date sent that acc-b never received.

@@ -694,22 +694,6 @@ impl ActivityRepositoryTrait for ActivityRepository {
         Ok(Activity::from(activity_db))
     }
 
-    fn find_transfer_counterpart(
-        &self,
-        group_id: &str,
-        exclude_id: &str,
-    ) -> Result<Option<Activity>> {
-        let mut conn = get_connection(&self.pool)?;
-        let result = activities::table
-            .select(ActivityDB::as_select())
-            .filter(activities::source_group_id.eq(group_id))
-            .filter(activities::id.ne(exclude_id))
-            .first::<ActivityDB>(&mut conn)
-            .optional()
-            .map_err(StorageError::from)?;
-        Ok(result.map(Activity::from))
-    }
-
     fn get_trading_activities(&self) -> Result<Vec<Activity>> {
         let mut conn = get_connection(&self.pool)?;
 
@@ -1065,13 +1049,26 @@ impl ActivityRepositoryTrait for ActivityRepository {
                         }
                     };
 
-                if source_group_blocks_transfer_link(
+                let in_group_blocks = source_group_blocks_transfer_link(
                     tx.conn(),
                     transfer_in.source_group_id.as_deref(),
-                )? || source_group_blocks_transfer_link(
-                    tx.conn(),
-                    transfer_out.source_group_id.as_deref(),
-                )? {
+                )?;
+                // Linking a pair already linked to each other repairs it: it keeps
+                // the group and clears an external marker left on either leg. Both
+                // legs store the same trimmed group id, and that group is a valid
+                // pair, so it holds exactly these two.
+                let shared_group = transfer_in.source_group_id.clone().filter(|group_id| {
+                    group_id.trim() == group_id.as_str()
+                        && transfer_out.source_group_id.as_deref() == Some(group_id.as_str())
+                });
+                let linked_to_each_other = in_group_blocks && shared_group.is_some();
+                if !linked_to_each_other
+                    && (in_group_blocks
+                        || source_group_blocks_transfer_link(
+                            tx.conn(),
+                            transfer_out.source_group_id.as_deref(),
+                        )?)
+                {
                     return Err(Error::from(ActivityError::InvalidData(
                         "One or both activities are already linked to another transfer".to_string(),
                     )));
@@ -1086,7 +1083,10 @@ impl ActivityRepositoryTrait for ActivityRepository {
                 }
                 validate_link_transfer_asset_shape(&transfer_in, &transfer_out)?;
 
-                let group_id = Uuid::new_v4().to_string();
+                let group_id = match shared_group {
+                    Some(group_id) if linked_to_each_other => group_id,
+                    _ => Uuid::new_v4().to_string(),
+                };
                 let now = chrono::Utc::now().to_rfc3339();
 
                 transfer_in.source_group_id = Some(group_id.clone());
@@ -5174,6 +5174,132 @@ mod tests {
             }),
             Some(false)
         );
+    }
+
+    #[tokio::test]
+    async fn link_transfer_activities_repairs_a_pair_already_linked_to_each_other() {
+        let (pool, writer) = setup_db();
+        let repo = ActivityRepository::new(pool.clone(), writer);
+        let mut conn = get_connection(&pool).expect("conn");
+
+        insert_account(&mut conn, "acc-a");
+        insert_account(&mut conn, "acc-b");
+        insert_account(&mut conn, "acc-c");
+        insert_transfer_activity(
+            &mut conn,
+            "pair-out",
+            "acc-a",
+            "TRANSFER_OUT",
+            Some("pair-group"),
+            Some(r#"{"flow":{"is_external":false}}"#),
+        );
+        insert_transfer_activity(
+            &mut conn,
+            "pair-in",
+            "acc-b",
+            "TRANSFER_IN",
+            Some("pair-group"),
+            Some(r#"{"flow":{"is_external":true}}"#),
+        );
+        insert_transfer_activity(&mut conn, "other-in", "acc-c", "TRANSFER_IN", None, None);
+
+        let (transfer_in, transfer_out) = repo
+            .link_transfer_activities("pair-out".to_string(), "pair-in".to_string())
+            .await
+            .expect("re-linking a linked pair should repair it");
+
+        assert_eq!(transfer_in.id, "pair-in");
+        assert_eq!(transfer_out.id, "pair-out");
+        assert_eq!(transfer_in.source_group_id.as_deref(), Some("pair-group"));
+        assert_eq!(transfer_out.source_group_id.as_deref(), Some("pair-group"));
+        assert_eq!(
+            transfer_in.metadata.as_ref().and_then(|m| {
+                m.get("flow")
+                    .and_then(|flow| flow.get("is_external"))
+                    .and_then(|value| value.as_bool())
+            }),
+            Some(false)
+        );
+        assert_eq!(activity_user_modified(&mut conn, "pair-in"), 1);
+        assert_eq!(activity_user_modified(&mut conn, "pair-out"), 1);
+
+        let error = repo
+            .link_transfer_activities("pair-out".to_string(), "other-in".to_string())
+            .await
+            .expect_err("a leg linked to another transfer cannot be linked again");
+        assert!(
+            error
+                .to_string()
+                .contains("already linked to another transfer"),
+            "{error}"
+        );
+    }
+
+    #[tokio::test]
+    async fn link_transfer_activities_does_not_merge_pairs_whose_groups_differ_by_whitespace() {
+        let (pool, writer) = setup_db();
+        let repo = ActivityRepository::new(pool.clone(), writer);
+        let mut conn = get_connection(&pool).expect("conn");
+
+        insert_account(&mut conn, "acc-a");
+        insert_account(&mut conn, "acc-b");
+        let internal = Some(r#"{"flow":{"is_external":false}}"#);
+        insert_transfer_activity(
+            &mut conn,
+            "out-1",
+            "acc-a",
+            "TRANSFER_OUT",
+            Some("g"),
+            internal,
+        );
+        insert_transfer_activity(
+            &mut conn,
+            "in-1",
+            "acc-b",
+            "TRANSFER_IN",
+            Some("g"),
+            internal,
+        );
+        insert_transfer_activity(
+            &mut conn,
+            "out-2",
+            "acc-a",
+            "TRANSFER_OUT",
+            Some(" g "),
+            internal,
+        );
+        insert_transfer_activity(
+            &mut conn,
+            "in-2",
+            "acc-b",
+            "TRANSFER_IN",
+            Some(" g "),
+            internal,
+        );
+
+        let error = repo
+            .link_transfer_activities("in-1".to_string(), "out-2".to_string())
+            .await
+            .expect_err("legs of two different pairs are not linked to each other");
+        assert!(
+            error
+                .to_string()
+                .contains("already linked to another transfer"),
+            "{error}"
+        );
+        for (id, group) in [
+            ("out-1", "g"),
+            ("in-1", "g"),
+            ("out-2", " g "),
+            ("in-2", " g "),
+        ] {
+            let stored: Option<String> = activities::table
+                .filter(activities::id.eq(id))
+                .select(activities::source_group_id)
+                .first(&mut conn)
+                .expect("stored source group");
+            assert_eq!(stored.as_deref(), Some(group), "{id}");
+        }
     }
 
     #[tokio::test]

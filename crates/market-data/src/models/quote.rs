@@ -72,6 +72,19 @@ pub struct QuoteContext {
     pub custom_provider_code: Option<String>,
 }
 
+impl QuoteContext {
+    /// The custom provider this security is assigned to. The code counts only while the
+    /// custom scraper is the chosen provider, so a code left behind under another
+    /// provider can't route requests to an assigned-only source.
+    pub fn assigned_custom_provider(&self) -> Option<&str> {
+        if self.preferred_provider.as_deref() == Some(crate::provider::DATA_SOURCE_CUSTOM_SCRAPER) {
+            self.custom_provider_code.as_deref()
+        } else {
+            None
+        }
+    }
+}
+
 /// Market data quote
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Quote {

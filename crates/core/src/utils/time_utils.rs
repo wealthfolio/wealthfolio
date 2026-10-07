@@ -1,5 +1,7 @@
 use crate::errors::{Error, Result, ValidationError};
-use chrono::{DateTime, Datelike, Duration, LocalResult, NaiveDate, TimeZone, Utc, Weekday};
+use chrono::{
+    DateTime, Datelike, Duration, LocalResult, NaiveDate, NaiveTime, TimeZone, Utc, Weekday,
+};
 use chrono_tz::Tz;
 use wealthfolio_market_data::resolver::exchange_metadata;
 
@@ -112,12 +114,32 @@ pub fn local_date_range_utc_bounds(
     Ok((start_utc, end_exclusive_utc))
 }
 
-fn local_date_start_utc(date: NaiveDate, tz: Tz) -> Result<DateTime<Utc>> {
-    let local = resolve_local_datetime(
-        tz.with_ymd_and_hms(date.year(), date.month(), date.day(), 0, 0, 0),
-        date.year(),
-    )?;
-    Ok(local.with_timezone(&Utc))
+/// The first instant of a local calendar day, in UTC. When a DST change skips
+/// local midnight, the day starts where the skipped time ends. A day that never
+/// existed locally (a date-line jump) is an error.
+pub fn local_date_start_utc(date: NaiveDate, tz: Tz) -> Result<DateTime<Utc>> {
+    let midnight = date.and_time(NaiveTime::MIN);
+    // Gaps last at most a few hours and end on a quarter hour.
+    (0..=12)
+        .find_map(|quarter| {
+            tz.from_local_datetime(&(midnight + Duration::minutes(15 * quarter)))
+                .earliest()
+        })
+        .map(|start| start.with_timezone(&Utc))
+        .ok_or_else(|| {
+            Error::Validation(ValidationError::InvalidInput(format!(
+                "{date} does not exist in {tz}"
+            )))
+        })
+}
+
+/// The instant a bare calendar date is stored at: the later of UTC midnight and
+/// the start of that day in `tz`. It falls on `date` both in UTC and in `tz`, so
+/// readers that work in either see the same day. West of UTC that is local
+/// midnight; at or east of UTC, UTC midnight.
+pub fn calendar_day_instant(date: NaiveDate, tz: Tz) -> DateTime<Utc> {
+    let utc_midnight = date.and_time(NaiveTime::MIN).and_utc();
+    local_date_start_utc(date, tz).map_or(utc_midnight, |start| start.max(utc_midnight))
 }
 
 fn resolve_local_datetime(
@@ -313,6 +335,68 @@ mod tests {
         assert_eq!(
             end_exclusive_utc,
             Utc.with_ymd_and_hms(2026, 12, 31, 10, 0, 0).unwrap()
+        );
+    }
+
+    fn day(year: i32, month: u32, day: u32) -> NaiveDate {
+        NaiveDate::from_ymd_opt(year, month, day).unwrap()
+    }
+
+    #[test]
+    fn local_date_start_utc_starts_a_gap_day_where_the_gap_ends() {
+        // Chile springs forward at midnight: 2024-09-08 00:00 does not exist,
+        // the day starts at 01:00 -03:00.
+        let start = local_date_start_utc(day(2024, 9, 8), chrono_tz::America::Santiago).unwrap();
+        assert_eq!(start, Utc.with_ymd_and_hms(2024, 9, 8, 4, 0, 0).unwrap());
+        // Samoa skipped 2011-12-30 entirely.
+        assert!(local_date_start_utc(day(2011, 12, 30), chrono_tz::Pacific::Apia).is_err());
+    }
+
+    #[test]
+    fn local_date_range_utc_bounds_accept_a_dst_gap_day() {
+        let tz = chrono_tz::America::Santiago;
+        let (start_utc, end_exclusive_utc) =
+            local_date_range_utc_bounds(Some(day(2024, 9, 8)), Some(day(2024, 9, 8)), tz).unwrap();
+        assert_eq!(
+            start_utc,
+            Some(Utc.with_ymd_and_hms(2024, 9, 8, 4, 0, 0).unwrap())
+        );
+        assert_eq!(
+            end_exclusive_utc,
+            Some(Utc.with_ymd_and_hms(2024, 9, 9, 3, 0, 0).unwrap())
+        );
+    }
+
+    #[test]
+    fn calendar_day_instant_falls_on_the_day_in_utc_and_locally() {
+        let utc = |h| Utc.with_ymd_and_hms(2026, 4, 1, h, 0, 0).unwrap();
+        // West of UTC: local midnight.
+        assert_eq!(
+            calendar_day_instant(day(2026, 4, 1), chrono_tz::America::Toronto),
+            utc(4)
+        );
+        assert_eq!(
+            calendar_day_instant(day(2026, 4, 1), chrono_tz::Pacific::Honolulu),
+            utc(10)
+        );
+        // At or east of UTC: UTC midnight.
+        for tz in [
+            chrono_tz::UTC,
+            chrono_tz::Europe::Paris,
+            chrono_tz::Asia::Tokyo,
+            chrono_tz::Pacific::Kiritimati,
+        ] {
+            assert_eq!(calendar_day_instant(day(2026, 4, 1), tz), utc(0), "{tz}");
+        }
+        // A DST gap at midnight west of UTC: where the gap ends.
+        assert_eq!(
+            calendar_day_instant(day(2024, 9, 8), chrono_tz::America::Santiago),
+            Utc.with_ymd_and_hms(2024, 9, 8, 4, 0, 0).unwrap()
+        );
+        // A day that never existed locally keeps UTC midnight.
+        assert_eq!(
+            calendar_day_instant(day(2011, 12, 30), chrono_tz::Pacific::Apia),
+            Utc.with_ymd_and_hms(2011, 12, 30, 0, 0, 0).unwrap()
         );
     }
 

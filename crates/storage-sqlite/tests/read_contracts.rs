@@ -14,6 +14,7 @@
 //! The scan matches calls by name, so it catches a reader that calls a
 //! repository's read method or the lot view directly; it cannot see raw SQL
 //! over the snapshot tables, or code after a file's first `#[cfg(test)]`.
+#![allow(clippy::unwrap_used, clippy::panic, reason = "test code")]
 
 use std::fs;
 use std::path::{Path, PathBuf};

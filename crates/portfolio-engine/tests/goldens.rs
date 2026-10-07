@@ -1,6 +1,7 @@
 //! Kernel golden runner (architecture §5): every scenario that is not
 //! shell-level runs through the five stages and lands in `goldens/kernel/`
 //! as a reviewed insta snapshot. Regenerate with `INSTA_UPDATE=always`.
+#![allow(clippy::unwrap_used, clippy::panic, reason = "test code")]
 
 mod support;
 

@@ -15,6 +15,7 @@ mod assets_traits;
 mod auto_classification;
 mod bond_identity;
 mod classification_service;
+pub mod loan;
 
 #[cfg(test)]
 mod assets_model_tests;
@@ -27,7 +28,7 @@ pub use alternative_assets_model::{
 };
 pub use alternative_assets_service::AlternativeAssetService;
 pub use alternative_assets_traits::{
-    AlternativeAssetRepositoryTrait, AlternativeAssetServiceTrait,
+    AlternativeAssetRepositoryTrait, AlternativeAssetServiceTrait, LoanChange, PaymentTagChange,
 };
 pub use asset_id::{
     parse_crypto_pair_symbol, parse_symbol_with_exchange_suffix, parse_symbol_with_known_exchange,

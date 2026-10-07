@@ -65,3 +65,6 @@ tempfile = "3"
 proptest = "1.4"
 insta = { version = "1", features = ["yaml"] }
 serde_yaml = "0.9"
+
+[lints]
+workspace = true

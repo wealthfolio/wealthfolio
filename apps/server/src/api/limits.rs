@@ -97,7 +97,11 @@ async fn calculate_deposits_for_contribution_limit(
     Path(id): Path<String>,
     axum::Extension(state): axum::Extension<Arc<AppState>>,
 ) -> ApiResult<Json<DepositsCalculation>> {
-    let base = state.base_currency.read().unwrap().clone();
+    let base = state
+        .base_currency
+        .read()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .clone();
     let calc = state
         .limits_service
         .calculate_deposits_for_contribution_limit(&id, &base)?;

@@ -107,7 +107,7 @@ async fn stream_chat(
         .header(header::CACHE_CONTROL, "no-cache")
         .header(header::CONNECTION, "keep-alive")
         .body(body)
-        .unwrap())
+        .expect("constant status and headers are valid"))
 }
 
 // ============================================================================

@@ -60,7 +60,11 @@ async fn build_data_export_content(
             Ok(format_records(&records, format)?)
         }
         ExportDataType::Holdings => {
-            let base = state.base_currency.read().unwrap().clone();
+            let base = state
+                .base_currency
+                .read()
+                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                .clone();
             let resolved = state
                 .portfolio_service
                 .resolve_account_scope(&AccountScope::All, &base)?;
@@ -91,7 +95,11 @@ async fn build_data_export_content(
             Ok(format_records(&records, format)?)
         }
         ExportDataType::PortfolioHistory => {
-            let base = state.base_currency.read().unwrap().clone();
+            let base = state
+                .base_currency
+                .read()
+                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                .clone();
             let resolved = state
                 .portfolio_service
                 .resolve_account_scope(&AccountScope::All, &base)?;

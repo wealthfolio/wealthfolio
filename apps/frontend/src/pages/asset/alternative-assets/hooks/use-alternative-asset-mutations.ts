@@ -1,4 +1,4 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { toast } from "@wealthfolio/ui/components/ui/use-toast";
 import {
   createAlternativeAsset,
@@ -17,6 +17,8 @@ import type {
   UpdateValuationRequest,
   LinkLiabilityRequest,
 } from "@/lib/types";
+import type { LoanSetup } from "@/adapters/shared/alternative-assets";
+import { isLoanRefusal } from "../components/loan-error-text";
 
 interface UseAlternativeAssetMutationsOptions {
   onCreateSuccess?: (response: CreateAlternativeAssetResponse) => void;
@@ -25,23 +27,27 @@ interface UseAlternativeAssetMutationsOptions {
   onMetadataUpdateSuccess?: () => void;
 }
 
+export async function invalidateAlternativeAssetQueries(queryClient: QueryClient): Promise<void> {
+  invalidatePerformanceCaches(queryClient);
+  await Promise.all([
+    queryClient.invalidateQueries({ queryKey: [QueryKeys.HOLDINGS] }),
+    queryClient.invalidateQueries({ queryKey: [QueryKeys.ACCOUNTS] }),
+    queryClient.invalidateQueries({ queryKey: [QueryKeys.NET_WORTH] }),
+    queryClient.invalidateQueries({ queryKey: [QueryKeys.NET_WORTH_HISTORY] }),
+    queryClient.invalidateQueries({ queryKey: [QueryKeys.ALTERNATIVE_HOLDINGS] }),
+    queryClient.invalidateQueries({ queryKey: [QueryKeys.ASSET_DATA] }),
+  ]);
+}
+
 export function useAlternativeAssetMutations(options: UseAlternativeAssetMutationsOptions = {}) {
   const queryClient = useQueryClient();
 
-  const invalidateQueries = () => {
-    queryClient.invalidateQueries({ queryKey: [QueryKeys.HOLDINGS] });
-    queryClient.invalidateQueries({ queryKey: [QueryKeys.ACCOUNTS] });
-    queryClient.invalidateQueries({ queryKey: [QueryKeys.NET_WORTH] });
-    queryClient.invalidateQueries({ queryKey: [QueryKeys.NET_WORTH_HISTORY] });
-    queryClient.invalidateQueries({ queryKey: [QueryKeys.ALTERNATIVE_HOLDINGS] });
-    queryClient.invalidateQueries({ queryKey: [QueryKeys.ASSET_DATA] });
-    invalidatePerformanceCaches(queryClient);
-  };
+  const invalidateQueries = () => invalidateAlternativeAssetQueries(queryClient);
 
   const createMutation = useMutation({
     mutationFn: (request: CreateAlternativeAssetRequest) => createAlternativeAsset(request),
-    onSuccess: (response) => {
-      invalidateQueries();
+    onSuccess: async (response) => {
+      await invalidateQueries();
       toast({
         title: "Asset created successfully",
         variant: "success",
@@ -61,8 +67,8 @@ export function useAlternativeAssetMutations(options: UseAlternativeAssetMutatio
   const updateValuationMutation = useMutation({
     mutationFn: ({ assetId, request }: { assetId: string; request: UpdateValuationRequest }) =>
       updateAlternativeAssetValuation(assetId, request),
-    onSuccess: () => {
-      invalidateQueries();
+    onSuccess: async () => {
+      await invalidateQueries();
       toast({
         title: "Valuation updated successfully",
         variant: "success",
@@ -81,8 +87,8 @@ export function useAlternativeAssetMutations(options: UseAlternativeAssetMutatio
 
   const deleteMutation = useMutation({
     mutationFn: (assetId: string) => deleteAlternativeAsset(assetId),
-    onSuccess: () => {
-      invalidateQueries();
+    onSuccess: async () => {
+      await invalidateQueries();
       toast({
         title: "Asset deleted successfully",
         variant: "success",
@@ -107,8 +113,8 @@ export function useAlternativeAssetMutations(options: UseAlternativeAssetMutatio
       liabilityId: string;
       request: LinkLiabilityRequest;
     }) => linkLiability(liabilityId, request),
-    onSuccess: () => {
-      invalidateQueries();
+    onSuccess: async () => {
+      await invalidateQueries();
       toast({
         title: "Liability linked successfully",
         variant: "success",
@@ -126,8 +132,8 @@ export function useAlternativeAssetMutations(options: UseAlternativeAssetMutatio
 
   const unlinkLiabilityMutation = useMutation({
     mutationFn: (liabilityId: string) => unlinkLiability(liabilityId),
-    onSuccess: () => {
-      invalidateQueries();
+    onSuccess: async () => {
+      await invalidateQueries();
       toast({
         title: "Liability unlinked successfully",
         variant: "success",
@@ -149,18 +155,22 @@ export function useAlternativeAssetMutations(options: UseAlternativeAssetMutatio
       metadata,
       name,
       notes,
+      loan,
     }: {
       assetId: string;
       metadata: Record<string, string>;
       name?: string;
       notes?: string | null;
-    }) => updateAlternativeAssetMetadata(assetId, metadata, name, notes),
-    onSuccess: () => {
-      invalidateQueries();
+      loan?: LoanSetup;
+    }) => updateAlternativeAssetMetadata(assetId, metadata, name, notes, loan),
+    onSuccess: async () => {
+      await invalidateQueries();
       options.onMetadataUpdateSuccess?.();
     },
     onError: (error) => {
       logger.error(`Error updating asset metadata: ${error}`);
+      // The details sheet explains a refused loan setup itself.
+      if (isLoanRefusal(error)) return;
       toast({
         title: "Failed to save details",
         description: "Please try again or report an issue if the problem persists.",

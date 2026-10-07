@@ -72,6 +72,11 @@ vi.mock("../fields", () => ({
   createValidatedSubmit: vi.fn((_form, handler) => handler),
 }));
 
+// The unmocked currency controls are covered by transfer-currencies.test.tsx.
+vi.mock("../fields/internal-transfer-currency-fields", () => ({
+  InternalTransferCurrencyFields: () => null,
+}));
+
 // Mock UI components
 vi.mock("@wealthfolio/ui/components/ui/button", () => ({
   Button: ({

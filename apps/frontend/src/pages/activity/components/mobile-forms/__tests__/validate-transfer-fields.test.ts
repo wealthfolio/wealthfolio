@@ -13,6 +13,8 @@ const base: TransferValidationInput = {
   direction: "out",
   toAccountId: "",
   amount: 1000,
+  sourceCurrency: "USD",
+  destinationCurrency: "USD",
   assetId: null,
   quantity: null,
   unitPrice: null,
@@ -54,6 +56,8 @@ describe("validateTransferFields", () => {
         activityType: "TRANSFER_OUT",
         amount: 500,
         toAccountId: "acc-2",
+        sourceCurrency: "USD",
+        destinationCurrency: "USD",
       });
       expect(result).toBeNull();
     });

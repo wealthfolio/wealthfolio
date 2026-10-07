@@ -18,7 +18,7 @@ use crate::accounts::{Account, TrackingMode};
 use crate::constants::DECIMAL_PRECISION;
 use crate::errors::{Error, Result, ValidationError};
 use crate::lots::LotRepositoryTrait;
-use crate::portfolio::coordinator::{rows, FactSources};
+use crate::portfolio::coordinator::{blocking, rows, FactSources};
 use crate::portfolio::economic_events::BasisStatus;
 use crate::portfolio::valuation::{DailyAccountValuation, ValuationRepositoryTrait};
 use crate::quotes::QuoteServiceTrait;
@@ -155,37 +155,19 @@ where
                 let tracking_composition =
                     performance_tracking_composition(&tracking_modes, &account_ids);
                 let requested_account_count = scope.account_ids.len();
-                let handle = tokio::runtime::Handle::current();
-                let key_for_task = key.clone();
-                let account_ids_for_task = account_ids.clone();
-                let base_currency_for_task = base_currency.clone();
-                let tracking_modes_for_task = tracking_modes.clone();
-                let account_types_for_task = account_types.clone();
-                let calculation = match tokio::task::spawn_blocking(move || {
-                    handle.block_on(async move {
-                        performance_service
-                            .calculate_performance_summary_for_accounts(
-                                &key_for_task,
-                                &account_ids_for_task,
-                                &base_currency_for_task,
-                                &tracking_modes_for_task,
-                                &account_types_for_task,
-                                start_date,
-                                end_date,
-                                profile,
-                            )
-                            .await
-                    })
-                })
-                .await
-                {
-                    Ok(result) => result
-                        .map_err(|e| format!("Failed to calculate performance summary: {}", e)),
-                    Err(error) => Err(format!(
-                        "Failed to join performance summary calculation for {}: {}",
-                        key, error
-                    )),
-                };
+                let calculation = performance_service
+                    .calculate_performance_summary_for_accounts(
+                        &key,
+                        &account_ids,
+                        &base_currency,
+                        &tracking_modes,
+                        &account_types,
+                        start_date,
+                        end_date,
+                        profile,
+                    )
+                    .await
+                    .map_err(|e| format!("Failed to calculate performance summary: {}", e));
 
                 let mut result = match calculation {
                     Ok(result) => result,
@@ -268,12 +250,20 @@ where
 }
 
 /// What `measure` evaluates: one account's own history, or a scope.
-#[derive(Clone, Copy)]
-enum MeasureTarget<'a> {
-    Account(&'a str),
-    Scope { id: &'a str, accounts: &'a [String] },
+enum MeasureTarget {
+    Account(String),
+    Scope { id: String, accounts: Vec<String> },
 }
 
+/// The settings one `measure` uses, read together before it leaves the
+/// caller's thread.
+struct ReadSettings {
+    base_currency: String,
+    timezone: String,
+    as_of: NaiveDate,
+}
+
+#[derive(Clone)]
 pub struct PerformanceService {
     base_currency: Arc<RwLock<String>>,
     timezone: Arc<RwLock<String>>,
@@ -335,31 +325,59 @@ impl PerformanceService {
     /// `Scope` the scoped aggregation (legacy always routed `_for_accounts`
     /// through the scoped path, even for one account, so same-account FX
     /// transfer pairs keep their attribution).
+    ///
+    /// The read loads the accounts' whole history, so it runs off the async
+    /// workers. The settings and "today" are read here, together, on the
+    /// caller's thread, where tests pin the clock.
     async fn measure(
         &self,
-        target: MeasureTarget<'_>,
+        target: MeasureTarget,
         start: Option<NaiveDate>,
         end: Option<NaiveDate>,
         profile: PerformanceSummaryProfile,
         include_series: bool,
     ) -> Result<PerformanceResult> {
-        let single;
+        Self::validate_window(start, end)?;
+        let timezone = self.timezone();
+        let settings = ReadSettings {
+            base_currency: self.base_currency(),
+            as_of: user_today(parse_user_timezone_or_default(&timezone)),
+            timezone,
+        };
+        let service = self.clone();
+        let handle = tokio::runtime::Handle::current();
+        blocking(move || {
+            handle.block_on(service.measure_rows(
+                &target,
+                start,
+                end,
+                profile,
+                include_series,
+                &settings,
+            ))
+        })
+        .await
+    }
+
+    async fn measure_rows(
+        &self,
+        target: &MeasureTarget,
+        start: Option<NaiveDate>,
+        end: Option<NaiveDate>,
+        profile: PerformanceSummaryProfile,
+        include_series: bool,
+        settings: &ReadSettings,
+    ) -> Result<PerformanceResult> {
         let account_ids: &[String] = match target {
-            MeasureTarget::Account(id) => {
-                single = [id.to_string()];
-                &single
-            }
+            MeasureTarget::Account(id) => std::slice::from_ref(id),
             MeasureTarget::Scope { accounts, .. } => accounts,
         };
-        Self::validate_window(start, end)?;
-        let base_currency = self.base_currency();
-        let as_of = self.today();
         let measured = rows::measure_engine(
             &self.sources,
             account_ids,
-            &base_currency,
-            &self.timezone(),
-            as_of,
+            &settings.base_currency,
+            &settings.timezone,
+            settings.as_of,
         )?;
 
         let mut valuation_rows: Vec<DailyAccountValuation> = Vec::new();
@@ -620,7 +638,7 @@ impl PerformanceServiceTrait for PerformanceService {
         match item_type {
             "account" => {
                 self.measure(
-                    MeasureTarget::Account(item_id),
+                    MeasureTarget::Account(item_id.to_string()),
                     start_date,
                     end_date,
                     PerformanceSummaryProfile::Full,
@@ -656,8 +674,8 @@ impl PerformanceServiceTrait for PerformanceService {
         }
         self.measure(
             MeasureTarget::Scope {
-                id: scope_id,
-                accounts: account_ids,
+                id: scope_id.to_string(),
+                accounts: account_ids.to_vec(),
             },
             start_date,
             end_date,
@@ -680,7 +698,7 @@ impl PerformanceServiceTrait for PerformanceService {
         match item_type {
             "account" => {
                 self.measure(
-                    MeasureTarget::Account(item_id),
+                    MeasureTarget::Account(item_id.to_string()),
                     start_date,
                     end_date,
                     profile,
@@ -724,8 +742,8 @@ impl PerformanceServiceTrait for PerformanceService {
         }
         self.measure(
             MeasureTarget::Scope {
-                id: scope_id,
-                accounts: account_ids,
+                id: scope_id.to_string(),
+                accounts: account_ids.to_vec(),
             },
             start_date,
             end_date,

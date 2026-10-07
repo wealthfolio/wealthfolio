@@ -1,4 +1,5 @@
 //! Opt-in upstream smoke test; never reads portfolio data or credentials.
+#![allow(clippy::unwrap_used, clippy::panic, reason = "test code")]
 use chrono::{Duration, TimeZone, Utc};
 use rust_decimal::Decimal;
 use wealthfolio_market_data::{

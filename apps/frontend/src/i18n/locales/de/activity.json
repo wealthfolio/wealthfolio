@@ -397,6 +397,9 @@
     "label_to_account": "Auf Konto",
     "label_sent": "Gesendet ({{currency}})",
     "label_received": "Erhalten ({{currency}})",
+    "source_currency": "Ausgangswährung",
+    "destination_currency": "Zielwährung",
+    "label_transfer_rate": "Wechselkurs der Überweisung",
     "label_fx_rate": "Wechselkurs",
     "placeholder_note": "Optionale Notiz hinzufügen...",
     "placeholder_search_option_ticker": "Option oder Symbol suchen...",
@@ -594,6 +597,7 @@
       "jump_hint_other": "Geben Sie eine Seitenzahl zwischen 1 und {{count}} ein"
     },
     "duplicated_comment": "Dupliziert",
+    "edit_transfer_pair": "Ändern Sie Konten und Währungen über Bearbeiten im Überweisungsformular. Speichern Sie zuerst ausstehende Änderungen.",
     "save_edits_first": "Änderungen zuerst speichern",
     "save_before_link": "Speichern oder verwerfen Sie ausstehende Änderungen, bevor Sie diesen Transfer verknüpfen.",
     "save_before_unlink": "Speichern oder verwerfen Sie ausstehende Änderungen, bevor Sie diesen Transfer trennen.",

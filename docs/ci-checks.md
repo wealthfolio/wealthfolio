@@ -108,7 +108,7 @@ release.
 | ---------------------------------- | ----------------------------------------------------------- |
 | Build Android APK                  | Release-mode ARM64 APK, signed with a temporary test key    |
 | Build Linux Packages               | Release-mode x64 AppImage and `.deb`, built on Ubuntu 24.04 |
-| Build Windows Installer (existing) | ARM64 or x64 NSIS installer                                 |
+| Build Windows Installer (existing) | ARM64 or x64 NSIS installer, optionally Authenticode-signed |
 | Build Mobile                       | Android test APK and unsigned iOS simulator archive         |
 
 Android APKs cannot update store installs or APKs from another run because each
@@ -119,3 +119,24 @@ uploaded. These APKs are for sideload testing, not store distribution.
 Linux test packages disable updater artifact signing and require a compatible
 system with the runtime libraries. Android and Linux use the repository's
 existing Connect variables and require no production signing secrets.
+
+## Windows code signing
+
+Windows release jobs Authenticode-sign the app, NSIS and MSI installers through
+Azure Artifact Signing. Tauri runs `.github/scripts/windows-signing.ps1` as its
+`signCommand`, so signatures are applied before updater `.sig` files are made;
+re-signing a release asset afterwards breaks its updater signature.
+
+The jobs use the `windows-signing` GitHub environment. Its variables are
+`AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `ARTIFACT_SIGNING_ENDPOINT`,
+`ARTIFACT_SIGNING_ACCOUNT`, and `ARTIFACT_SIGNING_PROFILE`. There is no client
+secret: the Entra app's federated credential trusts the subject
+`repo:wealthfolio@183885451/wealthfolio@806618581:environment:windows-signing`.
+The repository uses GitHub's immutable OIDC subjects, which include the owner
+and repository IDs, so a recreated credential must use this exact value. A
+Windows release fails if signing is not configured or an installer is not
+validly signed.
+
+To test signing from a branch, allow the branch in the environment's deployment
+rules, then run **Build Windows Installer** with **sign** checked. Artifact
+Signing identity validation expires; Azure emails reminders 60 days ahead.

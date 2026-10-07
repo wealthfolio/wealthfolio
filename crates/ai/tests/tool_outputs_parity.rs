@@ -11,6 +11,7 @@
 //! tool behavior — fix the migration, do not accept the snapshot.
 
 #![cfg(feature = "test-utils")]
+#![allow(clippy::unwrap_used, clippy::panic, reason = "test code")]
 
 use chrono::{DateTime, NaiveDate, Utc};
 

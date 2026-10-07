@@ -468,6 +468,7 @@ pub async fn get_historical_valuations(
                     from_date_opt,
                     to_date_opt,
                 )
+                .await
                 .map_err(|e| e.to_string())
         }
     } else if let Some(account_id) = account_id {
@@ -499,6 +500,7 @@ pub async fn get_historical_valuations(
                 from_date_opt,
                 to_date_opt,
             )
+            .await
             .map_err(|e| e.to_string())
     };
 
@@ -852,38 +854,20 @@ pub async fn calculate_performance_summary(
             performance_account_tracking_modes_from_map(&accounts_by_id, &account_ids);
         let account_types = performance_account_types_from_map(&accounts_by_id, &account_ids);
         let tracking_composition = performance_tracking_composition(&tracking_modes, &account_ids);
-        let task_context = Arc::clone(&context);
-        let handle = tokio::runtime::Handle::current();
-        let scope_id_for_task = resolved.scope_id.clone();
-        let base_currency_for_task = resolved.base_currency.clone();
-        let account_ids_for_task = account_ids.clone();
-        let tracking_modes_for_task = tracking_modes.clone();
-        let account_types_for_task = account_types.clone();
-        let mut result = tokio::task::spawn_blocking(move || {
-            handle.block_on(async move {
-                task_context
-                    .performance_service()
-                    .calculate_performance_summary_for_accounts(
-                        &scope_id_for_task,
-                        &account_ids_for_task,
-                        &base_currency_for_task,
-                        &tracking_modes_for_task,
-                        &account_types_for_task,
-                        start_date_opt,
-                        end_date_opt,
-                        profile,
-                    )
-                    .await
-            })
-        })
-        .await
-        .map_err(|e| {
-            format!(
-                "Failed to join performance summary calculation for {}: {}",
-                resolved.scope_id, e
+        let mut result = context
+            .performance_service()
+            .calculate_performance_summary_for_accounts(
+                &resolved.scope_id,
+                &account_ids,
+                &resolved.base_currency,
+                &tracking_modes,
+                &account_types,
+                start_date_opt,
+                end_date_opt,
+                profile,
             )
-        })?
-        .map_err(|e| format!("Failed to calculate performance: {}", e))?;
+            .await
+            .map_err(|e| format!("Failed to calculate performance: {}", e))?;
         debug!(
             "Performance summary timing: item_type={}, scope_id={}, profile={:?}, account_count={}, tracking_composition={}, start={:?}, end={:?}, elapsed_ms={:.1}",
             item_type,

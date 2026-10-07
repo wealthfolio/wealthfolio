@@ -13,6 +13,7 @@ use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+use super::loan::{LoanSetup, LoanSummary};
 use super::AssetKind;
 
 /// Request for creating a new alternative asset.
@@ -47,6 +48,9 @@ pub struct CreateAlternativeAssetRequest {
     pub metadata: Option<Value>,
     /// For liabilities only: ID of the asset this liability finances (UI-only aggregation)
     pub linked_asset_id: Option<String>,
+    /// For liabilities only: the loan as entered. Loan fields are not accepted in `metadata`.
+    #[serde(default)]
+    pub loan: Option<LoanSetup>,
 }
 
 /// Response after creating an alternative asset.
@@ -140,6 +144,8 @@ pub struct AlternativeHolding {
     pub linked_asset_id: Option<String>,
     /// Asset notes
     pub notes: Option<String>,
+    /// For liabilities: what the card shows, from the calculation that values it.
+    pub loan: Option<LoanSummary>,
 }
 
 /// Request for updating an alternative asset's details.
@@ -158,6 +164,9 @@ pub struct UpdateAssetDetailsRequest {
     /// Optional new metadata (merged with existing)
     /// Keys with None values are removed
     pub metadata: Option<std::collections::HashMap<String, Option<String>>>,
+    /// A liability's loan section, saved with the other details in one transaction.
+    #[serde(default)]
+    pub loan: Option<LoanSetup>,
 }
 
 /// Response after updating asset details.

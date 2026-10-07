@@ -1,6 +1,7 @@
 //! One book-cost rule: the fold's account total and the valuation's cost
 //! basis are the same figure, and a lot converts by its stored rate, else by
 //! its acquisition date's rate with minor units applied.
+#![allow(clippy::unwrap_used, clippy::panic, reason = "test code")]
 
 mod support;
 

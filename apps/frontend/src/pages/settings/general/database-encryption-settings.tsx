@@ -31,7 +31,7 @@ export function DatabaseEncryptionSettings() {
   const changeEncryption = useMutation({
     mutationFn: setDatabaseEncryptionEnabled,
     onSuccess: () => {
-      // Desktop restarts before this resolves; mobile continues over the rebuilt
+      // Desktop restarts once this succeeds; mobile continues over the rebuilt
       // runtime, so refetch everything that came from the old database.
       queryClient.invalidateQueries();
     },

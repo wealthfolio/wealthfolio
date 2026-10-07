@@ -48,7 +48,13 @@ async fn create_goal(
     axum::Extension(state): axum::Extension<Arc<AppState>>,
     Json(mut goal): Json<NewGoal>,
 ) -> ApiResult<Json<Goal>> {
-    goal.currency = Some(state.base_currency.read().unwrap().clone());
+    goal.currency = Some(
+        state
+            .base_currency
+            .read()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .clone(),
+    );
     let g = state.goal_service.create_goal(goal).await?;
     Ok(Json(g))
 }
@@ -57,7 +63,13 @@ async fn update_goal(
     axum::Extension(state): axum::Extension<Arc<AppState>>,
     Json(mut goal): Json<Goal>,
 ) -> ApiResult<Json<Goal>> {
-    goal.currency = Some(state.base_currency.read().unwrap().clone());
+    goal.currency = Some(
+        state
+            .base_currency
+            .read()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .clone(),
+    );
     let g = state.goal_service.update_goal(goal).await?;
     Ok(Json(g))
 }
@@ -101,7 +113,11 @@ async fn save_goal_plan(
     Json(mut plan): Json<SaveGoalPlan>,
 ) -> ApiResult<Json<GoalPlan>> {
     let goal_id = plan.goal_id.clone();
-    let base_currency = state.base_currency.read().unwrap().clone();
+    let base_currency = state
+        .base_currency
+        .read()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .clone();
     normalize_plan_currency_to_base(&mut plan, &base_currency);
     let result = state.goal_service.save_goal_plan(plan).await?;
     refresh_goal_summary_after_save(&state, &goal_id).await;
@@ -187,8 +203,16 @@ async fn refresh_all_goal_summaries(
 async fn build_valuation_map(state: &AppState) -> ApiResult<HashMap<String, f64>> {
     let accounts = state.account_service.get_active_non_archived_accounts()?;
     let account_ids: Vec<String> = accounts.into_iter().map(|a| a.id).collect();
-    let base_currency = state.base_currency.read().unwrap().clone();
-    let timezone = state.timezone.read().unwrap().clone();
+    let base_currency = state
+        .base_currency
+        .read()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .clone();
+    let timezone = state
+        .timezone
+        .read()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .clone();
     let latest_snapshot_cutoff = user_today(parse_user_timezone_or_default(&timezone));
     let service = CurrentAccountValuationService::new(
         state.account_service.as_ref(),
@@ -249,7 +273,10 @@ async fn preview_save_up_overview(
     Json(input): Json<SaveUpInput>,
 ) -> ApiResult<Json<SaveUpOverview>> {
     let as_of = user_today(parse_user_timezone_or_default(
-        &state.timezone.read().unwrap(),
+        &state
+            .timezone
+            .read()
+            .unwrap_or_else(|poisoned| poisoned.into_inner()),
     ));
     validate_save_up_input(&input, as_of)?;
     Ok(Json(compute_save_up_overview(&input, as_of)))
@@ -363,7 +390,10 @@ async fn retirement_projection(
     Json(req): Json<RetirementSimulationRequest>,
 ) -> ApiResult<Json<fire::FireProjection>> {
     let as_of = user_today(parse_user_timezone_or_default(
-        &state.timezone.read().unwrap(),
+        &state
+            .timezone
+            .read()
+            .unwrap_or_else(|poisoned| poisoned.into_inner()),
     ));
     let (plan, current_portfolio, planner_mode) = resolve_retirement_inputs(
         &state,
@@ -383,7 +413,10 @@ async fn retirement_monte_carlo(
     Json(req): Json<RetirementMonteCarloRequest>,
 ) -> ApiResult<Json<MonteCarloResult>> {
     let as_of = user_today(parse_user_timezone_or_default(
-        &state.timezone.read().unwrap(),
+        &state
+            .timezone
+            .read()
+            .unwrap_or_else(|poisoned| poisoned.into_inner()),
     ));
     let n = normalize_sim_count(req.n_sims);
     let (plan, current_portfolio, planner_mode) = resolve_retirement_inputs(
@@ -413,7 +446,10 @@ async fn retirement_stress_tests(
     Json(req): Json<RetirementSimulationRequest>,
 ) -> ApiResult<Json<Vec<StressTestResult>>> {
     let as_of = user_today(parse_user_timezone_or_default(
-        &state.timezone.read().unwrap(),
+        &state
+            .timezone
+            .read()
+            .unwrap_or_else(|poisoned| poisoned.into_inner()),
     ));
     let (plan, current_portfolio, planner_mode) = resolve_retirement_inputs(
         &state,
@@ -436,7 +472,10 @@ async fn retirement_scenario_analysis(
     Json(req): Json<RetirementSimulationRequest>,
 ) -> ApiResult<Json<Vec<ScenarioResult>>> {
     let as_of = user_today(parse_user_timezone_or_default(
-        &state.timezone.read().unwrap(),
+        &state
+            .timezone
+            .read()
+            .unwrap_or_else(|poisoned| poisoned.into_inner()),
     ));
     let (plan, current_portfolio, planner_mode) = resolve_retirement_inputs(
         &state,
@@ -459,7 +498,10 @@ async fn retirement_decision_sensitivity_map(
     Json(req): Json<RetirementDecisionSensitivityMapRequest>,
 ) -> ApiResult<Json<DecisionSensitivityMatrix>> {
     let as_of = user_today(parse_user_timezone_or_default(
-        &state.timezone.read().unwrap(),
+        &state
+            .timezone
+            .read()
+            .unwrap_or_else(|poisoned| poisoned.into_inner()),
     ));
     let (plan, current_portfolio, planner_mode) = resolve_retirement_inputs(
         &state,
@@ -488,7 +530,10 @@ async fn retirement_sequence_of_returns(
     Json(req): Json<RetirementSorrRequest>,
 ) -> ApiResult<Json<Vec<SorrScenario>>> {
     let as_of = user_today(parse_user_timezone_or_default(
-        &state.timezone.read().unwrap(),
+        &state
+            .timezone
+            .read()
+            .unwrap_or_else(|poisoned| poisoned.into_inner()),
     ));
     let plan = if let Some(goal_id) = &req.goal_id {
         let valuation_map = build_valuation_map(&state).await?;

@@ -1,0 +1,33 @@
+id: EDGE-SPLIT-04
+title: A holdings snapshot is carried across a split its prices were not adjusted for
+intent: >
+  Kernel-only. Rules R1.5: a holdings snapshot's quantities are carried
+  across every recorded split, whether the provider adjusted its prices or
+  not, and the next snapshot is compared with them that way. EDGE-SPLIT-03
+  holds this case beside an adjusted split; here it stands alone. acc-h's
+  first snapshot, on 01-01, holds 10 y and 50 USD. y splits 2:1 on 01-03,
+  recorded on acc-h, and its quotes are not adjusted (10, then 5). The
+  second snapshot, on 01-04, holds 20 y and 50 USD.
+markers: [K]
+policy: { base_currency: USD, timezone: UTC, as_of: 2025-01-04 }
+accounts:
+  - { id: acc-h, currency: USD, tracking_mode: HOLDINGS }
+assets:
+  - { id: y, quote_ccy: USD }
+observed_snapshots:
+  - { account: acc-h, date: 2025-01-01, cash: { USD: 50 }, positions: [{ asset: y, quantity: 10, average_cost: 5 }] }
+  - { account: acc-h, date: 2025-01-04, cash: { USD: 50 }, positions: [{ asset: y, quantity: 20, average_cost: 2.5 }] }
+activities:
+  - { id: split-y, account: acc-h, type: SPLIT, date: 2025-01-03T10:00:00Z, asset: y, quantity: 2 }
+quotes:
+  - { asset: y, day: 2025-01-01, close: 10 }
+  - { asset: y, day: 2025-01-03, close: 5 }
+expected_notes: >
+  y's closes fall by the split's ratio (10, then 5): the provider did not
+  adjust them, so they are read as they are. acc-h is worth 150 every day:
+  10 x 10 + 50 on 01-01 and 01-02; from 01-03 the first snapshot's 10 units
+  are carried to 20, 20 x 5 + 50. On 01-04 the second snapshot, 20 x 5 + 50
+  = 150, equals the first snapshot's holdings carried across the split at
+  that day's prices, 150: no flow. P-HOLD re-derives that flow;
+  before its fix it valued the first snapshot uncarried, 10 x 5 + 50 = 100,
+  and expected a flow of 50 in.

@@ -234,5 +234,24 @@
   "category_breakdown": "カテゴリ別内訳",
   "personal_assets": "個人資産",
   "health_filter_active": "ヘルスセンターが指摘した保有資産を表示しています",
-  "closing_cash_flow": "決済キャッシュフロー"
+  "closing_cash_flow": "決済キャッシュフロー",
+  "liability_cards": {
+    "owed": "残高",
+    "paid_down": "返済済み",
+    "overall": "全体",
+    "monthly": "月額",
+    "paid_off": "返済済み",
+    "owed_of": "{{amount}}のうち残高",
+    "owed_now": "残高",
+    "manual": "手動",
+    "manual_hint": "残高を手動で更新",
+    "debt_free": "{{date}}に完済",
+    "updated": "{{date}}更新",
+    "status_paid_off": "完済",
+    "status_renewal_due": "更新期限",
+    "status_renew_soon": "まもなく更新",
+    "status_update_balance": "残高を更新",
+    "update_balance": "残高を更新",
+    "schedule": "返済予定"
+  }
 }

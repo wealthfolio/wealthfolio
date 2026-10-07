@@ -1,0 +1,575 @@
+{
+  "fcac": {
+    "capturedOn": "2026-09-24",
+    "cases": [
+      {
+        "id": "fcac-monthly",
+        "principal": 100000,
+        "annualRate": 5,
+        "amortizationYears": 25,
+        "termYears": 5,
+        "frequency": "monthly",
+        "extraAtFirstPayment": 0,
+        "payment": 581.6,
+        "termPayments": 60,
+        "termPrincipal": 11492.5,
+        "termInterest": 23403.8,
+        "totalInterest": 74481.5,
+        "schedule": [
+          {
+            "period": 1,
+            "principal": 169.21,
+            "interest": 412.39,
+            "payment": 581.6,
+            "balance": 99830.79
+          },
+          {
+            "period": 2,
+            "principal": 169.91,
+            "interest": 411.69,
+            "payment": 581.6,
+            "balance": 99660.88
+          },
+          {
+            "period": 60,
+            "principal": 215.72,
+            "interest": 365.89,
+            "payment": 581.6,
+            "balance": 88507.51
+          },
+          {
+            "period": 300,
+            "principal": 579.22,
+            "interest": 2.39,
+            "payment": 581.6,
+            "balance": 0.0
+          }
+        ],
+        "sourceHtmlSha256": "111b7fd263f95012cf0e6abdabfbfaf04298a80bd2335f8bb00c752b4cea858e"
+      },
+      {
+        "id": "fcac-biweekly",
+        "principal": 100000,
+        "annualRate": 5,
+        "amortizationYears": 25,
+        "termYears": 5,
+        "frequency": "biweekly",
+        "extraAtFirstPayment": 0,
+        "payment": 268.28,
+        "termPayments": 130,
+        "termPrincipal": 11484.69,
+        "termInterest": 23392.04,
+        "totalInterest": 74383.67,
+        "schedule": [
+          {
+            "period": 1,
+            "principal": 77.95,
+            "interest": 190.33,
+            "payment": 268.28,
+            "balance": 99922.05
+          },
+          {
+            "period": 2,
+            "principal": 78.1,
+            "interest": 190.19,
+            "payment": 268.28,
+            "balance": 99843.96
+          },
+          {
+            "period": 130,
+            "principal": 99.62,
+            "interest": 168.66,
+            "payment": 268.28,
+            "balance": 88515.31
+          },
+          {
+            "period": 650,
+            "principal": 267.77,
+            "interest": 0.51,
+            "payment": 268.28,
+            "balance": 0.0
+          }
+        ],
+        "sourceHtmlSha256": "fd89bee9b6eeb014b4418dff9d7385fb9c4d9d2b92f38ad4be8f80ca085d47bd"
+      },
+      {
+        "id": "fcac-accelerated-biweekly",
+        "principal": 100000,
+        "annualRate": 5,
+        "amortizationYears": 25,
+        "termYears": 5,
+        "frequency": "accelerated_biweekly",
+        "extraAtFirstPayment": 0,
+        "payment": 290.8,
+        "termPayments": 130,
+        "termPrincipal": 14831.7,
+        "termInterest": 22972.62,
+        "totalInterest": 62394.64,
+        "schedule": [
+          {
+            "period": 1,
+            "principal": 100.68,
+            "interest": 190.12,
+            "payment": 290.8,
+            "balance": 99899.32
+          },
+          {
+            "period": 2,
+            "principal": 100.87,
+            "interest": 189.93,
+            "payment": 290.8,
+            "balance": 99798.45
+          },
+          {
+            "period": 130,
+            "principal": 128.63,
+            "interest": 162.17,
+            "payment": 290.8,
+            "balance": 85168.3
+          },
+          {
+            "period": 559,
+            "principal": 126.29,
+            "interest": 0.55,
+            "payment": 126.84,
+            "balance": 0.0
+          }
+        ],
+        "sourceHtmlSha256": "0f8cc241c8e11821cec67b7fbd5b40cfe4bff0a6e59c2ae774650883a3117674"
+      },
+      {
+        "id": "fcac-monthly-extra",
+        "principal": 100000,
+        "annualRate": 5,
+        "amortizationYears": 25,
+        "termYears": 5,
+        "frequency": "monthly",
+        "extraAtFirstPayment": 1000,
+        "payment": 581.6,
+        "termPayments": 60,
+        "termPrincipal": 12767.32,
+        "termInterest": 23128.98,
+        "totalInterest": 72094.56,
+        "schedule": [
+          {
+            "period": 1,
+            "principal": 1169.21,
+            "interest": 412.39,
+            "payment": 1581.6,
+            "balance": 98830.79
+          },
+          {
+            "period": 2,
+            "principal": 174.04,
+            "interest": 407.57,
+            "payment": 581.6,
+            "balance": 98656.75
+          },
+          {
+            "period": 60,
+            "principal": 220.95,
+            "interest": 360.65,
+            "payment": 581.6,
+            "balance": 87232.68
+          },
+          {
+            "period": 295,
+            "principal": 100.31,
+            "interest": 2.39,
+            "payment": 102.69,
+            "balance": 0.0
+          }
+        ],
+        "sourceHtmlSha256": "361f4064e8cce2802640c3c6735e19b63191fa0ef6de430248ee2c9399203faf"
+      }
+    ]
+  },
+  "cfpb": {
+    "sourceType": "Public regulator specimen, not a customer statement",
+    "capturedOn": "2026-09-24",
+    "statementDate": "2012-03-20",
+    "paymentDueDate": "2012-04-01",
+    "outstandingPrincipal": 264776.43,
+    "annualRate": 4.75,
+    "principalDue": 386.46,
+    "interestDue": 1048.07,
+    "escrowDue": 235.18,
+    "regularPayment": 1669.71,
+    "fees": 160.0,
+    "previousPrincipalPaid": 384.93,
+    "previousInterestPaid": 1049.6
+  },
+  "nationwide": {
+    "sourceType": "Lender-published example mortgage transactions page, page 9",
+    "capturedOn": "2026-09-24",
+    "year": 2025,
+    "openingBalance": 128751.2,
+    "monthlyPayment": 752.11,
+    "payments": 12,
+    "termChangeFee": 20.0,
+    "interestCharged": 3132.91,
+    "insurancePremium": 160.16,
+    "closingBalance": 123038.95
+  },
+  "lifecycle": {
+    "description": "Independent Decimal worksheet; see docs/architecture/loans.md. Expected values are checked in, never generated by the application.",
+    "currency": "CAD",
+    "metadata": {
+      "original_amount": "1200",
+      "origination_date": "2025-01-01",
+      "interest_rate": "12",
+      "end_date": "2026-01-01",
+      "loan_projection": {
+        "version": 1,
+        "annualRate": 12,
+        "paymentAmount": 106.62,
+        "frequency": "monthly",
+        "interestMethod": "nominal_periodic",
+        "firstPaymentDate": "2025-02-01",
+        "paymentCount": 12,
+        "amortizationEndDate": "2026-01-01"
+      }
+    },
+    "events": {
+      "extra": {
+        "type": "extra_repayment",
+        "effectiveDate": "2025-03-01",
+        "amount": 100
+      },
+      "extraEdited": {
+        "type": "extra_repayment",
+        "effectiveDate": "2025-03-01",
+        "amount": 150
+      },
+      "renewal": {
+        "type": "renewal",
+        "effectiveDate": "2025-05-01",
+        "annualRate": 6,
+        "paymentAmount": 110,
+        "termEndDate": "2025-10-01"
+      },
+      "olderRenewal": {
+        "type": "renewal",
+        "effectiveDate": "2025-03-15",
+        "annualRate": 18,
+        "termEndDate": "2025-05-01"
+      }
+    },
+    "stages": [
+      {
+        "id": "created",
+        "asOf": "2025-01-01",
+        "events": [],
+        "balances": [
+          {
+            "date": "2025-01-01",
+            "balance": 1200
+          }
+        ],
+        "expected": {
+          "balance": 1200,
+          "netWorth": -1200,
+          "interestToDate": 0.0,
+          "payoffDate": "2026-01-01"
+        }
+      },
+      {
+        "id": "payments",
+        "asOf": "2025-03-01",
+        "events": [],
+        "balances": [
+          {
+            "date": "2025-01-01",
+            "balance": 1200
+          }
+        ],
+        "expected": {
+          "balance": 1009.81,
+          "netWorth": -1009.81,
+          "interestToDate": 23.05,
+          "payoffDate": "2026-01-01"
+        }
+      },
+      {
+        "id": "extra",
+        "asOf": "2025-03-01",
+        "events": [
+          "extra"
+        ],
+        "balances": [
+          {
+            "date": "2025-01-01",
+            "balance": 1200
+          }
+        ],
+        "expected": {
+          "balance": 909.81,
+          "netWorth": -909.81,
+          "interestToDate": 23.05,
+          "payoffDate": "2025-12-01"
+        }
+      },
+      {
+        "id": "confirmed",
+        "asOf": "2025-04-01",
+        "events": [
+          "extra"
+        ],
+        "balances": [
+          {
+            "date": "2025-01-01",
+            "balance": 1200
+          },
+          {
+            "date": "2025-04-01",
+            "balance": 800
+          }
+        ],
+        "expected": {
+          "balance": 800.0,
+          "netWorth": -800.0,
+          "interestToDate": 32.15,
+          "payoffDate": "2025-12-01"
+        }
+      },
+      {
+        "id": "renewed",
+        "asOf": "2025-06-15",
+        "events": [
+          "extra",
+          "renewal"
+        ],
+        "balances": [
+          {
+            "date": "2025-01-01",
+            "balance": 1200
+          },
+          {
+            "date": "2025-04-01",
+            "balance": 800
+          }
+        ],
+        "expected": {
+          "balance": 591.49,
+          "netWorth": -591.49,
+          "interestToDate": 43.64,
+          "payoffDate": "2025-12-01"
+        }
+      },
+      {
+        "id": "backdated",
+        "asOf": "2025-06-15",
+        "events": [
+          "extra",
+          "renewal",
+          "olderRenewal"
+        ],
+        "balances": [
+          {
+            "date": "2025-01-01",
+            "balance": 1200
+          },
+          {
+            "date": "2025-04-01",
+            "balance": 800
+          }
+        ],
+        "expected": {
+          "balance": 595.51,
+          "netWorth": -595.51,
+          "interestToDate": 50.15,
+          "payoffDate": "2025-12-01"
+        }
+      },
+      {
+        "id": "extraEdited",
+        "asOf": "2025-06-15",
+        "events": [
+          "extraEdited",
+          "renewal",
+          "olderRenewal"
+        ],
+        "balances": [
+          {
+            "date": "2025-01-01",
+            "balance": 1200
+          },
+          {
+            "date": "2025-04-01",
+            "balance": 800
+          }
+        ],
+        "expected": {
+          "balance": 595.51,
+          "netWorth": -595.51,
+          "interestToDate": 49.52,
+          "payoffDate": "2025-12-01"
+        }
+      },
+      {
+        "id": "confirmationDeleted",
+        "asOf": "2025-06-15",
+        "events": [
+          "extraEdited",
+          "renewal",
+          "olderRenewal"
+        ],
+        "balances": [
+          {
+            "date": "2025-01-01",
+            "balance": 1200
+          }
+        ],
+        "expected": {
+          "balance": 558.94,
+          "netWorth": -558.94,
+          "interestToDate": 48.8,
+          "payoffDate": "2025-12-01"
+        }
+      },
+      {
+        "id": "openingEdited",
+        "asOf": "2025-06-15",
+        "events": [
+          "extraEdited",
+          "renewal",
+          "olderRenewal"
+        ],
+        "balances": [
+          {
+            "date": "2025-01-01",
+            "balance": 1300
+          }
+        ],
+        "expected": {
+          "balance": 664.32,
+          "netWorth": -664.32,
+          "interestToDate": 54.18,
+          "payoffDate": "2026-01-01"
+        }
+      },
+      {
+        "id": "openingDeleted",
+        "asOf": "2025-06-15",
+        "events": [
+          "extraEdited",
+          "renewal",
+          "olderRenewal"
+        ],
+        "balances": [],
+        "expected": {
+          "balance": 558.94,
+          "netWorth": -558.94,
+          "interestToDate": 48.8,
+          "payoffDate": "2025-12-01"
+        }
+      },
+      {
+        "id": "paidOff",
+        "asOf": "2025-12-02",
+        "events": [
+          "extraEdited",
+          "renewal",
+          "olderRenewal"
+        ],
+        "balances": [],
+        "expected": {
+          "balance": 0.0,
+          "netWorth": 0.0,
+          "interestToDate": 57.47,
+          "payoffDate": "2025-12-01"
+        },
+        "rows": [
+          {
+            "date": "2025-02-01",
+            "balance": 1105.38,
+            "interest": 12.0,
+            "payment": 106.62,
+            "extraPayment": 0.0,
+            "balanceAdjustment": 0.0
+          },
+          {
+            "date": "2025-03-01",
+            "balance": 859.81,
+            "interest": 11.05,
+            "payment": 106.62,
+            "extraPayment": 150.0,
+            "balanceAdjustment": 0.0
+          },
+          {
+            "date": "2025-04-01",
+            "balance": 764.15,
+            "interest": 10.96,
+            "payment": 106.62,
+            "extraPayment": 0.0,
+            "balanceAdjustment": 0.0
+          },
+          {
+            "date": "2025-05-01",
+            "balance": 665.61,
+            "interest": 11.46,
+            "payment": 110.0,
+            "extraPayment": 0.0,
+            "balanceAdjustment": 0.0
+          },
+          {
+            "date": "2025-06-01",
+            "balance": 558.94,
+            "interest": 3.33,
+            "payment": 110.0,
+            "extraPayment": 0.0,
+            "balanceAdjustment": 0.0
+          },
+          {
+            "date": "2025-07-01",
+            "balance": 451.73,
+            "interest": 2.79,
+            "payment": 110.0,
+            "extraPayment": 0.0,
+            "balanceAdjustment": 0.0
+          },
+          {
+            "date": "2025-08-01",
+            "balance": 343.99,
+            "interest": 2.26,
+            "payment": 110.0,
+            "extraPayment": 0.0,
+            "balanceAdjustment": 0.0
+          },
+          {
+            "date": "2025-09-01",
+            "balance": 235.71,
+            "interest": 1.72,
+            "payment": 110.0,
+            "extraPayment": 0.0,
+            "balanceAdjustment": 0.0
+          },
+          {
+            "date": "2025-10-01",
+            "balance": 126.89,
+            "interest": 1.18,
+            "payment": 110.0,
+            "extraPayment": 0.0,
+            "balanceAdjustment": 0.0
+          },
+          {
+            "date": "2025-11-01",
+            "balance": 17.52,
+            "interest": 0.63,
+            "payment": 110.0,
+            "extraPayment": 0.0,
+            "balanceAdjustment": 0.0
+          },
+          {
+            "date": "2025-12-01",
+            "balance": 0.0,
+            "interest": 0.09,
+            "payment": 17.61,
+            "extraPayment": 0.0,
+            "balanceAdjustment": 0.0
+          }
+        ]
+      }
+    ]
+  }
+}

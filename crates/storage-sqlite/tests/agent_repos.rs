@@ -1,6 +1,7 @@
 //! Integration tests for the agent/MCP storage: verifies the
 //! personal_access_tokens and mcp_audit_log migrations apply cleanly and
 //! the repositories round-trip against a real SQLite database.
+#![allow(clippy::unwrap_used, clippy::panic, reason = "test code")]
 
 use tempfile::tempdir;
 use wealthfolio_storage_sqlite::agent::{

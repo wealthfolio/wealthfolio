@@ -68,6 +68,11 @@ guarantees from unverified assumptions.
   crate; core services live in `crates/core/`, persistence and migrations in
   `crates/storage-sqlite/`. Add schema changes as new migrations in
   `crates/storage-sqlite/migrations/`; never edit a migration already shipped.
+- Portfolio reads in `crates/core` that load a whole history or run the engine
+  (performance, valuation history) run off the async workers inside their
+  service, through `blocking` in `crates/core/src/portfolio/coordinator/mod.rs`,
+  so callers await them directly rather than wrapping them in `spawn_blocking`.
+  Give new history-sized reads the same treatment.
 
 When adding or changing a backend call, trace both runtime paths: the frontend
 adapter/export, Tauri command registration in `apps/tauri/src/lib.rs`, web
@@ -81,7 +86,9 @@ react-hook-form/Zod form patterns, and theme tokens in
 `apps/frontend/src/globals.css`. Prefer interfaces for object shapes, named
 component exports, and lowercase-with-dashes directories; avoid TypeScript
 enums. For Rust domain errors, follow the existing `Result`/`Option` and
-`thiserror` patterns.
+`thiserror` patterns. Clippy rejects `unwrap()` and `panic!` outside tests:
+return an error with `?`, or use `expect("why it cannot fail")` for a proven
+invariant.
 
 ## Persisted identifiers and security
 
