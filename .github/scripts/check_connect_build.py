@@ -19,6 +19,7 @@ if args.github_env or (os.environ.get("CONNECT_AUTH_URL") and os.environ.get("CO
     # means no override; explicitly blank local overrides still fail closed.
     if args.github_env and hosts is not None and not hosts.strip():
         hosts = None
+    is_override = hosts is not None
     if hosts is None:
         hosts = ",".join(defaults["storageAllowedHosts"])
     entries = [host.strip() for host in hosts.split(",") if host.strip()]
@@ -30,5 +31,10 @@ if args.github_env or (os.environ.get("CONNECT_AUTH_URL") and os.environ.get("CO
         output = os.environ.get("GITHUB_ENV")
         if not output:
             sys.exit("GITHUB_ENV is required when exporting CI configuration.")
+        if is_override:
+            # Normalization can change GitHub's original secret match. Mask both
+            # the exported list and each host before subsequent step headers.
+            for value in dict.fromkeys([",".join(entries), *entries]):
+                print(f"::add-mask::{value.replace('%', '%25')}", flush=True)
         with Path(output).open("a", encoding="utf-8") as env_file:
             env_file.write(f"CONNECT_STORAGE_ALLOWED_HOSTS={','.join(entries)}\n")

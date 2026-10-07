@@ -69,7 +69,13 @@ class ConnectBuildTests(unittest.TestCase):
                     settings["CONNECT_STORAGE_ALLOWED_HOSTS"] = override
                 result = self.run_check(cli_args=("--github-env",), **settings)
                 self.assertEqual(result.returncode, 0)
-                self.assertEqual(result.stdout + result.stderr, "")
+                expected_masks = [
+                    "::add-mask::custom.test,second.test",
+                    "::add-mask::custom.test",
+                    "::add-mask::second.test",
+                ] if override else []
+                self.assertEqual(result.stdout.splitlines(), expected_masks)
+                self.assertEqual(result.stderr, "")
                 expected = "custom.test,second.test" if override else ",".join(defaults["storageAllowedHosts"])
                 self.assertEqual(output.read_text(), f"CONNECT_STORAGE_ALLOWED_HOSTS={expected}\n")
 
