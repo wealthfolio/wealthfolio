@@ -14,6 +14,7 @@ import type {
   Settings,
 } from "@/lib/types";
 import { AccountType } from "@/lib/types";
+import { ActivityForm } from "@/pages/activity/components/activity-form";
 import { useActivitySearch } from "@/pages/activity/hooks/use-activity-search";
 import { useCalculatePerformanceHistory } from "@/pages/performance/hooks/use-performance-data";
 import { useQuery } from "@tanstack/react-query";
@@ -73,7 +74,7 @@ vi.mock("@/pages/activity/components/activity-delete-modal", () => ({
 }));
 
 vi.mock("@/pages/activity/components/activity-form", () => ({
-  ActivityForm: () => <div>activity-form</div>,
+  ActivityForm: vi.fn(() => <div>activity-form</div>),
 }));
 
 vi.mock("@/pages/activity/components/activity-pagination", () => ({
@@ -309,6 +310,7 @@ const mockUseValuationHistory = vi.mocked(useValuationHistory);
 const mockUseSettingsContext = vi.mocked(useSettingsContext);
 const mockUseCalculatePerformanceHistory = vi.mocked(useCalculatePerformanceHistory);
 const mockUseActivitySearch = vi.mocked(useActivitySearch);
+const mockActivityForm = vi.mocked(ActivityForm);
 const mockUseQuery = vi.mocked(useQuery);
 const mockUseRecalculatePortfolioMutation = vi.mocked(useRecalculatePortfolioMutation);
 
@@ -475,28 +477,7 @@ describe("AccountPage", () => {
   });
 
   it("scopes activities to a hidden account opened by URL", () => {
-    const hiddenAccount = { ...createAccount(), isActive: false };
-    mockUseAccounts.mockImplementation(
-      (options) =>
-        ({
-          accounts: options?.filterActive === false ? [hiddenAccount] : [],
-          isLoading: false,
-        }) as unknown as ReturnType<typeof useAccounts>,
-    );
-    mockUseValuationHistory.mockReturnValue({
-      valuationHistory: [createHistoricalValuation({ totalValue: 100 })],
-      isLoading: false,
-      error: null,
-    } as unknown as ReturnType<typeof useValuationHistory>);
-    mockUseCurrentValuation.mockReturnValue({
-      currentValuation: {
-        summary: createCurrentSummary({ totalValueBase: 125 }),
-        accounts: [createCurrentAccountValuation({ totalValue: 125 })],
-      },
-      isLoading: false,
-      isFetching: false,
-      error: null,
-    } as unknown as ReturnType<typeof useCurrentValuation>);
+    mockAccountPage([{ ...createAccount(), isActive: false }]);
 
     render(<AccountPage />);
 
@@ -508,6 +489,40 @@ describe("AccountPage", () => {
       mode: "infinite",
       filters: { accountIds: ["account-1"] },
     });
+  });
+
+  it("offers a hidden account in its own activity form and switcher", () => {
+    mockAccountPage([
+      { ...createAccount(), isActive: false },
+      { ...createAccount(), id: "account-2", name: "Savings" },
+      { ...createAccount(), id: "account-3", name: "Old Broker", isActive: false },
+    ]);
+
+    render(<AccountPage />);
+
+    const formProps = mockActivityForm.mock.calls.at(-1)?.[0];
+    const allAccountIds = ["account-1", "account-2", "account-3"];
+    expect(formProps?.accounts.map((option) => option.value)).toEqual(allAccountIds);
+    expect(formProps?.transferAccounts?.map((option) => option.value)).toEqual(allAccountIds);
+
+    expect(screen.getByText("Brokerage (USD)")).toBeInTheDocument();
+    expect(screen.getByText("Savings (USD)")).toBeInTheDocument();
+    expect(screen.queryByText("Old Broker (USD)")).not.toBeInTheDocument();
+  });
+
+  it("loads activity markers for a hidden account", () => {
+    mockAccountPage([{ ...createAccount(), isActive: false }]);
+
+    render(<AccountPage />);
+
+    // The marker toggle is the icon button its tooltip text sits beside.
+    fireEvent.click(screen.getByText("Show snapshot markers").previousElementSibling!);
+
+    const markerQuery = mockUseQuery.mock.calls
+      .map(([options]) => options as { queryKey: unknown[]; enabled?: boolean })
+      .filter((options) => options.queryKey[1] === "markerDates")
+      .at(-1);
+    expect(markerQuery?.enabled).toBe(true);
   });
 
   it("defaults to the snapshots tab for holdings-mode accounts without a holdings tab", () => {
@@ -551,6 +566,33 @@ describe("AccountPage", () => {
     }
   });
 });
+
+// Mocks `useAccounts` like the real hook, which drops hidden accounts unless
+// `filterActive: false`, and gives the page a valuation to render.
+function mockAccountPage(accounts: Account[]) {
+  mockUseAccounts.mockImplementation(
+    (options) =>
+      ({
+        accounts:
+          options?.filterActive === false ? accounts : accounts.filter((acc) => acc.isActive),
+        isLoading: false,
+      }) as unknown as ReturnType<typeof useAccounts>,
+  );
+  mockUseValuationHistory.mockReturnValue({
+    valuationHistory: [createHistoricalValuation({ totalValue: 100 })],
+    isLoading: false,
+    error: null,
+  } as unknown as ReturnType<typeof useValuationHistory>);
+  mockUseCurrentValuation.mockReturnValue({
+    currentValuation: {
+      summary: createCurrentSummary({ totalValueBase: 125 }),
+      accounts: [createCurrentAccountValuation({ totalValue: 125 })],
+    },
+    isLoading: false,
+    isFetching: false,
+    error: null,
+  } as unknown as ReturnType<typeof useCurrentValuation>);
+}
 
 function createSettings(): Settings {
   return {

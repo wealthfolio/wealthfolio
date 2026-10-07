@@ -88,6 +88,34 @@ describe("AccountHoldings", () => {
     expect(screen.queryByTestId("holdings-table")).not.toBeInTheDocument();
   });
 
+  it("resolves a hidden account's tracking mode", () => {
+    const hiddenHoldingsAccount: Account = {
+      ...account,
+      isActive: false,
+      trackingMode: "HOLDINGS",
+    };
+    mocks.useAccounts.mockImplementation((options?: { filterActive?: boolean }) => ({
+      accounts: options?.filterActive === false ? [hiddenHoldingsAccount] : [],
+    }));
+    mocks.useHoldingsWithClosedProbe.mockReturnValue({
+      holdings: [],
+      isLoading: false,
+      hasHiddenClosedPositions: false,
+    });
+
+    render(<AccountHoldings accountId={account.id} showTitle={false} />);
+
+    expect(
+      screen.getByText(
+        "Add your current holdings snapshot or import from a CSV file to get started.",
+      ),
+    ).toBeInTheDocument();
+    expect(mocks.useHoldingsWithClosedProbe).toHaveBeenLastCalledWith(
+      { type: "account", accountId: account.id },
+      expect.objectContaining({ probeClosedWhenEmpty: false }),
+    );
+  });
+
   it("shows cash-only results under the default open status", () => {
     const cashHolding = {
       id: "cash-usd",
