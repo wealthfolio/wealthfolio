@@ -58,6 +58,7 @@ import { toast } from "sonner";
 import { AlternativeAssetContent, useAlternativeAssetActions } from "./alternative-asset-content";
 import { AssetSnapshotHistory, useHasManualSnapshots } from "./asset-account-holdings";
 import { resolveContractMultiplier } from "./asset-contract-multiplier";
+import { getAssetProfileHolding } from "./asset-profile-holding";
 import AssetDetailCard from "./asset-detail-card";
 import { AssetEditSheet } from "./asset-edit-sheet";
 import AssetHistoryCard from "./asset-history-card";
@@ -331,18 +332,11 @@ export const AssetProfilePage = () => {
     holdings: allHoldings,
     isLoading: isHoldingLoading,
     isError: isHoldingError,
-  } = useHoldings({ type: "all" });
+  } = useHoldings({ type: "all" }, { includeClosed: true });
 
   const holding = useMemo<Holding | null>(() => {
     if (!assetId) return null;
-    return (
-      allHoldings.find(
-        (item) =>
-          item.id === assetId ||
-          item.instrument?.id === assetId ||
-          item.instrument?.symbol === assetId,
-      ) ?? null
-    );
+    return getAssetProfileHolding(allHoldings, assetId);
   }, [allHoldings, assetId]);
 
   const {
