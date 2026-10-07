@@ -12,6 +12,28 @@ use wealthfolio_device_sync::backups::{
 };
 use wealthfolio_device_sync::limits::MAX_DATABASE_IMAGE_BYTES;
 
+/// Own the private export until its reader is dropped, including failed/cancelled encoding.
+pub struct PortableBackupReader {
+    file: std::fs::File,
+    _export: portable::PortableExport,
+}
+impl Read for PortableBackupReader {
+    fn read(&mut self, buffer: &mut [u8]) -> std::io::Result<usize> {
+        self.file.read(buffer)
+    }
+}
+pub fn portable_reader(source: &DbAccess, root: &Path) -> anyhow::Result<PortableBackupReader> {
+    let export = portable::export(source, root, None)?;
+    anyhow::ensure!(
+        std::fs::metadata(&export.path)?.len() <= MAX_DATABASE_IMAGE_BYTES as u64,
+        "Database exceeds cloud backup size limit"
+    );
+    Ok(PortableBackupReader {
+        file: std::fs::File::open(&export.path)?,
+        _export: export,
+    })
+}
+
 pub fn portable_image(
     source: &DbAccess,
     root: &Path,
@@ -49,7 +71,7 @@ pub async fn capture(
     root: std::path::PathBuf,
     trigger: &str,
 ) -> anyhow::Result<BackupPoint> {
-    let image = tokio::task::spawn_blocking(move || portable_image(&source, &root)).await??;
+    let image = tokio::task::spawn_blocking(move || portable_reader(&source, &root)).await??;
     Ok(client
         .capture(token, store, policy, image, trigger, Default::default())
         .await?)
@@ -95,6 +117,24 @@ mod tests {
         sync::{Arc, Mutex},
     };
     use wealthfolio_device_sync::backups::{BackupContext, RecoveryPackageHeader};
+    #[test]
+    fn portable_reader_keeps_private_export_alive_until_consumed() {
+        let root = tempfile::tempdir().unwrap();
+        let scratch = tempfile::tempdir().unwrap();
+        let source = DbAccess::encrypted(
+            root.path().join("source.db").to_str().unwrap(),
+            Arc::new(DbEncryptionKey::generate()),
+        );
+        source.prepare().unwrap();
+        source.run_migrations().unwrap();
+        let mut reader = portable_reader(&source, scratch.path()).unwrap();
+        assert_eq!(std::fs::read_dir(scratch.path()).unwrap().count(), 1);
+        let mut header = [0; 16];
+        reader.read_exact(&mut header).unwrap();
+        assert_eq!(&header, b"SQLite format 3\0");
+        drop(reader);
+        assert_eq!(std::fs::read_dir(scratch.path()).unwrap().count(), 0);
+    }
     #[derive(Default)]
     struct Store(Mutex<HashMap<String, String>>);
     impl SecretStore for Store {

@@ -125,7 +125,7 @@ async fn capture_in_phases(
     let access = runtime.access()?;
     let scratch = db::profile_scratch_dir(runtime.app_data_dir()).map_err(|e| e.to_string())?;
     let image = tauri::async_runtime::spawn_blocking(move || {
-        db::cloud_backups::portable_image(&access, &scratch)
+        db::cloud_backups::portable_reader(&access, &scratch)
     })
     .await
     .map_err(|_| "Backup export task failed")?

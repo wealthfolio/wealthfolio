@@ -1,6 +1,11 @@
 //! Isolated ciphertext transport: no API authorization, cookies, redirects, or URL logging.
 use crate::{
-    crypto::sha256_checksum, limits::MAX_ENCRYPTED_TRANSFER_BYTES, DeviceSyncError, Result,
+    crypto::sha256_checksum,
+    limits::{
+        BACKUP_TRANSFER_TIMEOUT_SECONDS, MAX_ENCRYPTED_BACKUP_BYTES, MAX_ENCRYPTED_SNAPSHOT_BYTES,
+        SNAPSHOT_TRANSFER_TIMEOUT_SECONDS,
+    },
+    DeviceSyncError, Result,
 };
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, time::Duration};
@@ -24,6 +29,7 @@ impl std::fmt::Debug for TransferDescriptor {
 pub struct ConnectTransferTransport {
     hosts: Vec<String>,
     client: reqwest::Client,
+    max_bytes: usize,
 }
 impl std::fmt::Debug for ConnectTransferTransport {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -33,25 +39,47 @@ impl std::fmt::Debug for ConnectTransferTransport {
 }
 impl ConnectTransferTransport {
     pub fn new(hosts: Vec<String>) -> Result<Self> {
+        Self::with_limits(
+            hosts,
+            MAX_ENCRYPTED_SNAPSHOT_BYTES,
+            SNAPSHOT_TRANSFER_TIMEOUT_SECONDS,
+        )
+    }
+    fn with_limits(hosts: Vec<String>, max_bytes: usize, timeout_seconds: u64) -> Result<Self> {
         let client = wealthfolio_http::client_builder()
             .redirect(reqwest::redirect::Policy::none())
-            .timeout(Duration::from_secs(300))
+            .timeout(Duration::from_secs(timeout_seconds))
             .connect_timeout(Duration::from_secs(30))
             .build()?;
-        Ok(Self { hosts, client })
+        Ok(Self {
+            hosts,
+            client,
+            max_bytes,
+        })
     }
     pub fn configured() -> Result<Self> {
+        Self::configured_with_limits(
+            MAX_ENCRYPTED_SNAPSHOT_BYTES,
+            SNAPSHOT_TRANSFER_TIMEOUT_SECONDS,
+        )
+    }
+    pub fn configured_for_backups() -> Result<Self> {
+        Self::configured_with_limits(MAX_ENCRYPTED_BACKUP_BYTES, BACKUP_TRANSFER_TIMEOUT_SECONDS)
+    }
+    fn configured_with_limits(max_bytes: usize, timeout_seconds: u64) -> Result<Self> {
         let hosts = std::env::var("CONNECT_STORAGE_ALLOWED_HOSTS")
             .ok()
             .or_else(|| option_env!("CONNECT_STORAGE_ALLOWED_HOSTS").map(str::to_string))
             .unwrap_or_default();
-        Self::new(
+        Self::with_limits(
             hosts
                 .split(',')
                 .map(str::trim)
                 .filter(|s| !s.is_empty())
                 .map(str::to_string)
                 .collect(),
+            max_bytes,
+            timeout_seconds,
         )
     }
     fn request(
@@ -114,7 +142,7 @@ impl ConnectTransferTransport {
         size: usize,
         checksum: &str,
     ) -> Result<Vec<u8>> {
-        if size == 0 || size > MAX_ENCRYPTED_TRANSFER_BYTES {
+        if size == 0 || size > self.max_bytes {
             return Err(DeviceSyncError::invalid_request(
                 "Transfer size exceeds limit",
             ));
@@ -156,7 +184,7 @@ impl ConnectTransferTransport {
     }
     pub async fn upload(&self, descriptor: &TransferDescriptor, bytes: Vec<u8>) -> Result<()> {
         if bytes.is_empty()
-            || bytes.len() > MAX_ENCRYPTED_TRANSFER_BYTES
+            || bytes.len() > self.max_bytes
             || descriptor.headers.get("content-length") != Some(&bytes.len().to_string())
         {
             return Err(DeviceSyncError::invalid_request("Transfer size mismatch"));
@@ -188,6 +216,37 @@ impl ConnectTransferTransport {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[tokio::test]
+    async fn backup_and_snapshot_downloads_keep_distinct_size_bounds() {
+        let snapshot = ConnectTransferTransport::new(vec!["storage.test".into()]).unwrap();
+        let backup = ConnectTransferTransport::with_limits(
+            vec!["storage.test".into()],
+            MAX_ENCRYPTED_BACKUP_BYTES,
+            BACKUP_TRANSFER_TIMEOUT_SECONDS,
+        )
+        .unwrap();
+        let mut expired = descriptor("https://storage.test/object");
+        expired.expires_at = "2000-01-01T00:00:00Z".into();
+        assert!(snapshot
+            .download(&expired, MAX_ENCRYPTED_SNAPSHOT_BYTES + 1, "unused")
+            .await
+            .unwrap_err()
+            .to_string()
+            .contains("Transfer size exceeds limit"));
+        // An admitted size gets as far as the capability check, before any allocation/network I/O.
+        assert!(backup
+            .download(&expired, MAX_ENCRYPTED_BACKUP_BYTES, "unused")
+            .await
+            .unwrap_err()
+            .to_string()
+            .contains("Transfer capability expired"));
+        assert!(backup
+            .download(&expired, MAX_ENCRYPTED_BACKUP_BYTES + 1, "unused")
+            .await
+            .unwrap_err()
+            .to_string()
+            .contains("Transfer size exceeds limit"));
+    }
     fn descriptor(url: &str) -> TransferDescriptor {
         TransferDescriptor {
             url: url.into(),

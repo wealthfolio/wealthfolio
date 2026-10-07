@@ -163,7 +163,7 @@ impl BackupClient {
     pub fn new(api_url: &str) -> ApiResult<Self> {
         Ok(Self {
             api: DeviceSyncClient::new(api_url),
-            transport: ConnectTransferTransport::configured()?,
+            transport: ConnectTransferTransport::configured_for_backups()?,
         })
     }
     async fn get<T: serde::de::DeserializeOwned>(&self, token: &str, path: &str) -> ApiResult<T> {
@@ -425,9 +425,9 @@ impl BackupClient {
             policy: policy.clone(),
         })
     }
-    pub async fn encode_capture(
+    pub async fn encode_capture<R: Read + Send + 'static>(
         material: CaptureMaterial,
-        database: zeroize::Zeroizing<Vec<u8>>,
+        database: R,
         trigger: &str,
         metadata: BackupMetadata,
     ) -> ApiResult<EncodedCapture> {
@@ -441,7 +441,8 @@ impl BackupClient {
         let source = material.source_id.clone();
         let encryption_context = ctx.clone();
         let (encrypted, encrypted_metadata) = tokio::task::spawn_blocking(move || {
-            let encrypted = encrypt_database(&material.master, &encryption_context, &database)?;
+            let encrypted =
+                encrypt_database_reader(&material.master, &encryption_context, database)?;
             let aad = metadata_aad(&encryption_context);
             let labels =
                 serde_json::to_vec(&metadata.bounded()).map_err(|_| BackupError::Invalid)?;
@@ -525,12 +526,12 @@ impl BackupClient {
         Err(DeviceSyncError::invalid_request("Backup completion failed"))
     }
     /// Convenience for callers without a mutable runtime lifecycle.
-    pub async fn capture(
+    pub async fn capture<R: Read + Send + 'static>(
         &self,
         token: &str,
         store: &dyn SecretStore,
         policy: &BackupPolicy,
-        database: zeroize::Zeroizing<Vec<u8>>,
+        database: R,
         trigger: &str,
         metadata: BackupMetadata,
     ) -> ApiResult<BackupPoint> {
@@ -1019,7 +1020,9 @@ mod access_tests {
         store.0.lock().unwrap().clear();
         let encoded = BackupClient::encode_capture(
             material,
-            zeroize::Zeroizing::new(b"SQLite format 3\0immutable portfolio".to_vec()),
+            std::io::Cursor::new(zeroize::Zeroizing::new(
+                b"SQLite format 3\0immutable portfolio".to_vec(),
+            )),
             "scheduled",
             Default::default(),
         )

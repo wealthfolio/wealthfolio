@@ -1,9 +1,9 @@
 //! Versioned, personal database backup encryption. Independent of sync enrollment.
 //! No recovery code or wrapping key is persisted by this module.
-use crate::limits::{MAX_DATABASE_IMAGE_BYTES, MAX_ENCRYPTED_TRANSFER_BYTES};
+use crate::limits::{MAX_DATABASE_IMAGE_BYTES, MAX_ENCRYPTED_BACKUP_BYTES};
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use chacha20poly1305::{
-    aead::{Aead, KeyInit, Payload},
+    aead::{Aead, AeadInPlace, KeyInit, Payload},
     XChaCha20Poly1305, XNonce,
 };
 use flate2::{read::GzDecoder, write::GzEncoder, Compression};
@@ -353,11 +353,10 @@ fn backup_aad(context: &BackupContext) -> Result<Vec<u8>> {
     Ok(serde_json::to_vec(&("database", context)).expect("backup context"))
 }
 // Abort before compressed ciphertext can exceed the object cap. Reserve room for nonce/tag/magic.
-struct BoundedCompression(Vec<u8>);
+struct BoundedCompression(zeroize::Zeroizing<Vec<u8>>);
 impl Write for BoundedCompression {
     fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
-        if self.0.len().saturating_add(bytes.len())
-            > MAX_ENCRYPTED_TRANSFER_BYTES - MAGIC.len() - 40
+        if self.0.len().saturating_add(bytes.len()) > MAX_ENCRYPTED_BACKUP_BYTES - MAGIC.len() - 40
         {
             return Err(std::io::Error::other("Backup exceeds the supported size"));
         }
@@ -374,23 +373,62 @@ pub fn encrypt_database(
     ctx: &BackupContext,
     database: &[u8],
 ) -> Result<Vec<u8>> {
-    if database.len() > MAX_DATABASE_IMAGE_BYTES || !database.starts_with(b"SQLite format 3\0") {
-        return Err(BackupError::Invalid);
-    }
-    let aad = backup_aad(ctx)?;
-    let mut gzip = GzEncoder::new(
-        BoundedCompression(Vec::new()),
-        Compression::new(BACKUP_COMPRESSION_LEVEL),
-    );
-    gzip.write_all(database)?;
-    let compressed = zeroize::Zeroizing::new(gzip.finish()?.0);
-    let ciphertext = seal(&derive(&master.0, &aad), &compressed, &aad)?;
-    if MAGIC.len() + ciphertext.len() > MAX_ENCRYPTED_TRANSFER_BYTES {
+    if database.len() > MAX_DATABASE_IMAGE_BYTES {
         return Err(BackupError::SizeLimit);
     }
-    let mut output = MAGIC.to_vec();
-    output.extend(ciphertext);
-    Ok(output)
+    encrypt_database_reader(master, ctx, std::io::Cursor::new(database))
+}
+/// Compress an immutable private export in chunks; keep only compressed bytes in memory.
+/// The wire format is unchanged: magic, nonce, authenticated gzip ciphertext, tag.
+pub fn encrypt_database_reader(
+    master: &MasterKey,
+    ctx: &BackupContext,
+    mut database: impl Read,
+) -> Result<Vec<u8>> {
+    let aad = backup_aad(ctx)?;
+    let mut header = [0; 16];
+    database.read_exact(&mut header)?;
+    if &header != b"SQLite format 3\0" {
+        return Err(BackupError::Invalid);
+    }
+    let mut gzip = GzEncoder::new(
+        BoundedCompression(zeroize::Zeroizing::new(Vec::new())),
+        Compression::new(BACKUP_COMPRESSION_LEVEL),
+    );
+    gzip.write_all(&header)?;
+    let mut count = header.len();
+    let mut chunk = zeroize::Zeroizing::new([0; 64 * 1024]);
+    loop {
+        let size = database.read(chunk.as_mut())?;
+        if size == 0 {
+            break;
+        }
+        count = count.checked_add(size).ok_or(BackupError::SizeLimit)?;
+        if count > MAX_DATABASE_IMAGE_BYTES {
+            return Err(BackupError::SizeLimit);
+        }
+        gzip.write_all(&chunk[..size])?;
+    }
+    drop(database);
+    let mut output = gzip.finish()?.0;
+    let mut nonce = [0; 24];
+    OsRng.fill_bytes(&mut nonce);
+    let prefix = MAGIC.len() + nonce.len();
+    let compressed_len = output.len();
+    // Reserve once and shift in the same allocation instead of copying full-size buffers.
+    output.reserve_exact(prefix + 16);
+    output.resize(compressed_len + prefix, 0);
+    output.copy_within(0..compressed_len, prefix);
+    output[..MAGIC.len()].copy_from_slice(MAGIC);
+    output[MAGIC.len()..prefix].copy_from_slice(&nonce);
+    let tag = XChaCha20Poly1305::new((&derive(&master.0, &aad)).into())
+        .encrypt_in_place_detached(XNonce::from_slice(&nonce), &aad, &mut output[prefix..])
+        .map_err(|_| BackupError::Authentication)?;
+    output.extend_from_slice(&tag);
+    if output.len() > MAX_ENCRYPTED_BACKUP_BYTES {
+        return Err(BackupError::SizeLimit);
+    }
+    Ok(std::mem::take(&mut *output))
 }
 pub fn decrypt_database(
     master: &MasterKey,
@@ -409,7 +447,7 @@ pub fn decrypt_database_to_writer(
     encrypted: &[u8],
     mut output: impl Write,
 ) -> Result<()> {
-    if encrypted.len() > MAX_ENCRYPTED_TRANSFER_BYTES {
+    if encrypted.len() > MAX_ENCRYPTED_BACKUP_BYTES {
         return Err(BackupError::SizeLimit);
     }
     if !encrypted.starts_with(MAGIC) {
@@ -488,7 +526,7 @@ pub fn read_recovery_package(mut input: impl Read) -> Result<(RecoveryPackageHea
         serde_json::from_slice(&json).map_err(|_| BackupError::Invalid)?;
     let mut encrypted = Vec::new();
     input
-        .take((MAX_ENCRYPTED_TRANSFER_BYTES + 1) as u64)
+        .take((MAX_ENCRYPTED_BACKUP_BYTES + 1) as u64)
         .read_to_end(&mut encrypted)?;
     validate_package(&header, &encrypted)?;
     Ok((header, encrypted))
@@ -498,7 +536,7 @@ fn validate_package(header: &RecoveryPackageHeader, encrypted: &[u8]) -> Result<
         return Err(BackupError::UnsupportedVersion);
     }
     backup_aad(&header.context)?;
-    if encrypted.len() > MAX_ENCRYPTED_TRANSFER_BYTES {
+    if encrypted.len() > MAX_ENCRYPTED_BACKUP_BYTES {
         return Err(BackupError::SizeLimit);
     }
     if header.size_bytes != encrypted.len()
@@ -616,12 +654,15 @@ mod tests {
     }
     #[test]
     fn compression_writer_stops_before_object_limit() {
-        let mut writer =
-            BoundedCompression(vec![0; MAX_ENCRYPTED_TRANSFER_BYTES - MAGIC.len() - 40]);
+        let mut writer = BoundedCompression(zeroize::Zeroizing::new(vec![
+            0;
+            MAX_ENCRYPTED_BACKUP_BYTES - MAGIC.len()
+                - 40
+        ]));
         assert!(writer.write(&[1]).is_err());
         assert_eq!(
             writer.0.len(),
-            MAX_ENCRYPTED_TRANSFER_BYTES - MAGIC.len() - 40
+            MAX_ENCRYPTED_BACKUP_BYTES - MAGIC.len() - 40
         );
     }
     #[test]
@@ -636,10 +677,12 @@ mod tests {
         for level in [1, BACKUP_COMPRESSION_LEVEL, 6, 9] {
             for run in 0..3 {
                 let start = std::time::Instant::now();
-                let mut gzip =
-                    GzEncoder::new(BoundedCompression(Vec::new()), Compression::new(level));
+                let mut gzip = GzEncoder::new(
+                    BoundedCompression(zeroize::Zeroizing::new(Vec::new())),
+                    Compression::new(level),
+                );
                 gzip.write_all(&database).unwrap();
-                let compressed = zeroize::Zeroizing::new(gzip.finish().unwrap().0);
+                let compressed = gzip.finish().unwrap().0;
                 let compress = start.elapsed();
                 let start = std::time::Instant::now();
                 let mut encrypted = MAGIC.to_vec();
@@ -676,6 +719,76 @@ mod tests {
                 start.elapsed().as_millis()
             );
         }
+    }
+    #[test]
+    #[ignore = "large incompressible resource measurement; run explicitly with --ignored --nocapture"]
+    fn large_streamed_capture_resource_probe() {
+        use rand::{rngs::StdRng, SeedableRng};
+        struct RandomReader {
+            remaining: usize,
+            rng: StdRng,
+        }
+        impl Read for RandomReader {
+            fn read(&mut self, output: &mut [u8]) -> std::io::Result<usize> {
+                let size = output.len().min(self.remaining);
+                self.rng.fill_bytes(&mut output[..size]);
+                self.remaining -= size;
+                Ok(size)
+            }
+        }
+        struct HashedReader<R> {
+            input: R,
+            hash: Sha256,
+        }
+        impl<R: Read> Read for HashedReader<R> {
+            fn read(&mut self, output: &mut [u8]) -> std::io::Result<usize> {
+                let size = self.input.read(output)?;
+                self.hash.update(&output[..size]);
+                Ok(size)
+            }
+        }
+        struct HashWriter {
+            hash: Sha256,
+            bytes: usize,
+        }
+        impl Write for HashWriter {
+            fn write(&mut self, input: &[u8]) -> std::io::Result<usize> {
+                self.hash.update(input);
+                self.bytes += input.len();
+                Ok(input.len())
+            }
+            fn flush(&mut self) -> std::io::Result<()> {
+                Ok(())
+            }
+        }
+        let bytes = 255 * 1024 * 1024;
+        let mut input = HashedReader {
+            input: std::io::Cursor::new(b"SQLite format 3\0").chain(RandomReader {
+                remaining: bytes - 16,
+                rng: StdRng::seed_from_u64(42),
+            }),
+            hash: Sha256::new(),
+        };
+        let master = MasterKey::generate();
+        let context = ctx();
+        let start = std::time::Instant::now();
+        let encrypted = encrypt_database_reader(&master, &context, &mut input).unwrap();
+        let encode_ms = start.elapsed().as_millis();
+        assert!(encrypted.len() > crate::limits::MAX_ENCRYPTED_SNAPSHOT_BYTES);
+        assert!(encrypted.len() <= MAX_ENCRYPTED_BACKUP_BYTES);
+        if std::env::var_os("CONNECT_BACKUP_RESOURCE_CAPTURE_ONLY").is_some() {
+            eprintln!("large_streamed_backup_capture decoded_bytes={bytes} encrypted_bytes={} encode_ms={encode_ms}", encrypted.len());
+            return;
+        }
+        let mut output = HashWriter {
+            hash: Sha256::new(),
+            bytes: 0,
+        };
+        let start = std::time::Instant::now();
+        decrypt_database_to_writer(&master, &context, &encrypted, &mut output).unwrap();
+        assert_eq!(output.bytes, bytes);
+        assert_eq!(output.hash.finalize(), input.hash.finalize());
+        eprintln!("large_streamed_backup decoded_bytes={bytes} encrypted_bytes={} encode_ms={encode_ms} restore_ms={}", encrypted.len(), start.elapsed().as_millis());
     }
     #[test]
     fn oversized_decoded_database_is_rejected_before_exceeding_limit() {

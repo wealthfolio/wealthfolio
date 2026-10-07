@@ -122,7 +122,7 @@ async fn capture_in_phases(
     let scratch = db::profile_scratch_dir(&state.data_root)?;
     let image = tokio::task::spawn_blocking(move || {
         let _owner = owner;
-        db::cloud_backups::portable_image(&access, &scratch)
+        db::cloud_backups::portable_reader(&access, &scratch)
     })
     .await
     .map_err(|_| ApiError::Internal("Backup export task failed".into()))??;
