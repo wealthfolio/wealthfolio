@@ -98,6 +98,18 @@ impl BackupScheduler {
             status.retry_at = None;
         }
     }
+    /// Clear health from the previous attempt before admission/network work.
+    /// Preserve a competing capture's Running state; its export slot owns it.
+    pub fn checking(&self, generation: u64) {
+        let mut status = self
+            .status
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        if self.is_current(generation) && status.state != CaptureState::Running {
+            status.state = CaptureState::Idle;
+            status.retry_at = None;
+        }
+    }
     pub fn finished(&self, generation: u64, failed: bool) {
         let mut status = self
             .status
@@ -124,6 +136,18 @@ impl BackupScheduler {
         if self.is_current(generation) {
             status.state = CaptureState::Failed;
             status.retry_at = None;
+        }
+    }
+
+    pub fn capture_error(&self, generation: u64, error: &crate::DeviceSyncError) {
+        if matches!(
+            error,
+            crate::DeviceSyncError::InvalidRequest(_)
+                | crate::DeviceSyncError::Backup(
+                    super::BackupError::SizeLimit | super::BackupError::KeyConflict
+                )
+        ) {
+            self.blocked(generation);
         }
     }
 
@@ -188,6 +212,7 @@ impl BackupScheduler {
                 continue;
             }
             let generation = self.generation();
+            self.checking(generation);
             let result = check().await;
             let mut blocked = false;
             // A manual capture may own the export slot while this check waits.
@@ -243,6 +268,64 @@ impl BackupScheduler {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test(start_paused = true)]
+    async fn a_woken_blocked_check_retries_a_later_transient_failure_before_capture_starts() {
+        let scheduler = std::sync::Arc::new(BackupScheduler::default());
+        let checks = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0));
+        let task = tokio::spawn({
+            let scheduler = scheduler.clone();
+            let checks = checks.clone();
+            async move {
+                scheduler
+                    .run(|| {
+                        let first = checks.fetch_add(1, Ordering::SeqCst) == 0;
+                        let scheduler = &scheduler;
+                        async move {
+                            if first {
+                                scheduler.blocked(scheduler.generation());
+                            }
+                            scheduler.finished(scheduler.generation(), true);
+                            Err::<Option<Duration>, ()>(())
+                        }
+                    })
+                    .await;
+            }
+        });
+        tokio::task::yield_now().await;
+        assert!(scheduler.status().retry_at.is_none());
+        scheduler.request_check();
+        tokio::task::yield_now().await;
+        assert_eq!(checks.load(Ordering::SeqCst), 2);
+        assert!(scheduler.status().retry_at.is_some());
+        task.abort();
+
+        // Manual checks have the same admission reset without waking/revoking work.
+        let generation = scheduler.generation();
+        scheduler.blocked(generation);
+        scheduler.checking(generation);
+        scheduler.finished(generation, true);
+        assert!(scheduler.status().retry_at.is_some());
+    }
+
+    #[test]
+    fn typed_size_failures_wait_for_a_wake_but_io_failures_keep_retrying() {
+        let scheduler = BackupScheduler::default();
+        let generation = scheduler.generation();
+        scheduler.started(generation);
+        scheduler.capture_error(generation, &super::super::BackupError::SizeLimit.into());
+        scheduler.finished(generation, true);
+        assert_eq!(scheduler.status().state, CaptureState::Failed);
+        assert!(scheduler.status().retry_at.is_none());
+
+        scheduler.checking(generation);
+        scheduler.capture_error(
+            generation,
+            &super::super::BackupError::Io(std::io::ErrorKind::Interrupted.into()).into(),
+        );
+        scheduler.finished(generation, true);
+        assert!(scheduler.status().retry_at.is_some());
+    }
 
     #[tokio::test(start_paused = true)]
     async fn definitive_local_failure_waits_for_a_wake_without_reexporting() {

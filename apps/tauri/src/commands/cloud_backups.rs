@@ -63,6 +63,7 @@ async fn check_and_capture(
         return Ok((None, Some(std::time::Duration::from_secs(30 * 60))));
     };
     let generation = runtime.backup_scheduler.generation();
+    runtime.backup_scheduler.checking(generation);
     let result = runtime
         .backup_scheduler
         .until_changed(generation, capture_in_phases(runtime, generation))
@@ -118,9 +119,7 @@ async fn capture_in_phases(
         .capture_material(&token, runtime.secret_store.as_ref(), &policy)
         .await
         .map_err(|e| {
-            if BackupClient::is_key_conflict(&e) {
-                runtime.backup_scheduler.blocked(generation);
-            }
+            runtime.backup_scheduler.capture_error(generation, &e);
             e.to_string()
         })?;
     drop(_lifecycle);
@@ -147,7 +146,15 @@ async fn capture_in_phases(
     })
     .await
     .map_err(|_| "Backup export task failed")?
-    .map_err(|e| e.to_string())?;
+    .map_err(|e| {
+        if matches!(
+            e.downcast_ref::<wealthfolio_device_sync::backups::BackupError>(),
+            Some(wealthfolio_device_sync::backups::BackupError::SizeLimit)
+        ) {
+            runtime.backup_scheduler.blocked(generation);
+        }
+        e.to_string()
+    })?;
     let encoded = BackupClient::encode_capture(
         material,
         image,
@@ -167,7 +174,10 @@ async fn capture_in_phases(
         },
     )
     .await
-    .map_err(|e| e.to_string())?;
+    .map_err(|e| {
+        runtime.backup_scheduler.capture_error(generation, &e);
+        e.to_string()
+    })?;
     let upload = {
         let _connect = runtime
             .connect_transition
@@ -184,12 +194,7 @@ async fn capture_in_phases(
             .map_err(|e| e.to_string())?
     };
     let completion = client.upload_capture(upload).await.map_err(|e| {
-        if matches!(
-            e,
-            wealthfolio_device_sync::DeviceSyncError::InvalidRequest(_)
-        ) {
-            runtime.backup_scheduler.blocked(generation);
-        }
+        runtime.backup_scheduler.capture_error(generation, &e);
         e.to_string()
     })?;
     let _connect = runtime

@@ -26,7 +26,7 @@ pub fn portable_reader(source: &DbAccess, root: &Path) -> anyhow::Result<Portabl
     let export = portable::export(source, root, None)?;
     anyhow::ensure!(
         std::fs::metadata(&export.path)?.len() <= MAX_DATABASE_IMAGE_BYTES as u64,
-        "Database exceeds cloud backup size limit"
+        backups::BackupError::SizeLimit
     );
     Ok(PortableBackupReader {
         file: std::fs::File::open(&export.path)?,

@@ -635,6 +635,13 @@ pub(crate) async fn share_backup_access(state: &Arc<AppState>) -> Result<(), Str
 }
 
 pub async fn ensure_background_engine_started(state: Arc<AppState>) -> Result<(), String> {
+    if start_background_engine_if_ready(Arc::clone(&state)).await? {
+        let _ = share_backup_access(&state).await;
+    }
+    Ok(())
+}
+
+async fn start_background_engine_if_ready(state: Arc<AppState>) -> Result<bool, String> {
     let _lifecycle = state.profile_lifecycle.lock().await;
     if let Some((registry, id)) = state.profile_binding.get() {
         registry.profile(*id).map_err(|e| e.to_string())?;
@@ -645,20 +652,20 @@ pub async fn ensure_background_engine_started(state: Arc<AppState>) -> Result<()
         .requires_cloud_reconnect()
         .map_err(|e| e.to_string())?
     {
-        return Ok(());
+        return Ok(false);
     }
     let has_session = state
         .token_lifecycle
         .is_session_configured(state.secret_store.as_ref())
         .map_err(|err| err.to_string())?;
     if !has_session {
-        return Ok(());
+        return Ok(false);
     }
     let Some(identity) = get_sync_identity_from_store(&state) else {
-        return Ok(());
+        return Ok(false);
     };
     if !sync_identity_can_run_background(&identity) {
-        return Ok(());
+        return Ok(false);
     }
     let starting = !state.device_sync_runtime.is_background_running().await;
     let ports = Arc::new(ServerEnginePorts::new(Arc::clone(&state)));
@@ -667,10 +674,7 @@ pub async fn ensure_background_engine_started(state: Arc<AppState>) -> Result<()
         .ensure_background_started(ports)
         .await;
     drop(_lifecycle);
-    if starting {
-        let _ = share_backup_access(&state).await;
-    }
-    Ok(())
+    Ok(starting)
 }
 
 pub async fn ensure_background_engine_stopped(state: Arc<AppState>) -> Result<(), String> {
@@ -1083,7 +1087,6 @@ impl RestorePorts for ServerEnginePorts {
     }
 
     async fn resume_sync(&self, restored: bool) -> Result<(), String> {
-        let _ = share_backup_access(&self.state).await;
         if restored {
             // The snapshot is committed; a failed initial cycle must not prevent
             // the background engine from starting and retrying sync.
@@ -1091,7 +1094,9 @@ impl RestorePorts for ServerEnginePorts {
                 tracing::warn!("[DeviceSync] Post-restore sync cycle failed: {}", error);
             }
         }
-        ensure_background_engine_started(Arc::clone(&self.state)).await
+        start_background_engine_if_ready(Arc::clone(&self.state)).await?;
+        let _ = share_backup_access(&self.state).await;
+        Ok(())
     }
 
     fn refresh_portfolio(&self) {

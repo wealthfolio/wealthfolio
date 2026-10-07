@@ -69,6 +69,7 @@ async fn check_and_capture(
         return Ok((None, Some(std::time::Duration::from_secs(30 * 60))));
     };
     let generation = state.backup_scheduler.generation();
+    state.backup_scheduler.checking(generation);
     let result = state
         .backup_scheduler
         .until_changed(generation, capture_in_phases(state, generation))
@@ -113,9 +114,7 @@ async fn capture_in_phases(
         .capture_material(&token, state.secret_store.as_ref(), &policy)
         .await
         .map_err(|e| {
-            if BackupClient::is_key_conflict(&e) {
-                state.backup_scheduler.blocked(generation);
-            }
+            state.backup_scheduler.capture_error(generation, &e);
             ApiError::BadRequest(e.to_string())
         })?;
     drop(_lifecycle);
@@ -141,7 +140,16 @@ async fn capture_in_phases(
         db::cloud_backups::portable_reader(&access, &scratch)
     })
     .await
-    .map_err(|_| ApiError::Internal("Backup export task failed".into()))??;
+    .map_err(|_| ApiError::Internal("Backup export task failed".into()))?
+    .map_err(|e| {
+        if matches!(
+            e.downcast_ref::<wealthfolio_device_sync::backups::BackupError>(),
+            Some(wealthfolio_device_sync::backups::BackupError::SizeLimit)
+        ) {
+            state.backup_scheduler.blocked(generation);
+        }
+        ApiError::from(e)
+    })?;
     let encoded = BackupClient::encode_capture(
         material,
         image,
@@ -161,7 +169,10 @@ async fn capture_in_phases(
         },
     )
     .await
-    .map_err(|e| ApiError::BadRequest(e.to_string()))?;
+    .map_err(|e| {
+        state.backup_scheduler.capture_error(generation, &e);
+        ApiError::BadRequest(e.to_string())
+    })?;
     let upload = {
         let _guard = crate::profiles::connect_guard(state).map_err(ApiError::Forbidden)?;
         if !state.backup_scheduler.is_current(generation) {
@@ -173,12 +184,7 @@ async fn capture_in_phases(
             .map_err(|e| ApiError::BadRequest(e.to_string()))?
     };
     let completion = client.upload_capture(upload).await.map_err(|e| {
-        if matches!(
-            e,
-            wealthfolio_device_sync::DeviceSyncError::InvalidRequest(_)
-        ) {
-            state.backup_scheduler.blocked(generation);
-        }
+        state.backup_scheduler.capture_error(generation, &e);
         ApiError::BadRequest(e.to_string())
     })?;
     let _guard = crate::profiles::connect_guard(state).map_err(ApiError::Forbidden)?;
@@ -313,5 +319,34 @@ mod tests {
         state.backup_scheduler.request_check();
         assert!(state.backup_scheduler.is_current(generation));
         assert_eq!(state.backup_scheduler.status().state, CaptureState::Running);
+        drop(_lifecycle);
+        // Cancellation is decided locally before authentication; no cloud
+        // credentials are needed to exercise the actual handler's admission.
+        assert!(action(
+            Extension(state.clone()),
+            Json(OperationRequest {
+                operation: BackupOperation::Delete {
+                    backup_id: Some(uuid::Uuid::new_v4().to_string())
+                }
+            })
+        )
+        .await
+        .is_err());
+        assert!(state.backup_scheduler.is_current(generation));
+        assert_eq!(state.backup_scheduler.status().state, CaptureState::Running);
+        for operation in [
+            BackupOperation::Delete { backup_id: None },
+            BackupOperation::Disable,
+        ] {
+            let previous = state.backup_scheduler.generation();
+            state.backup_scheduler.started(previous);
+            assert!(action(
+                Extension(state.clone()),
+                Json(OperationRequest { operation })
+            )
+            .await
+            .is_err());
+            assert!(!state.backup_scheduler.is_current(previous));
+        }
     }
 }

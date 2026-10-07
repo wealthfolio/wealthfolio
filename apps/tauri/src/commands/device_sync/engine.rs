@@ -361,19 +361,30 @@ pub(super) async fn run_sync_cycle(
 }
 
 pub async fn ensure_background_engine_started(context: Arc<ServiceContext>) -> Result<(), String> {
+    if start_background_engine_if_ready(Arc::clone(&context)).await? {
+        let _ = super::share_backup_access(&context).await;
+    }
+    Ok(())
+}
+
+/// Separate engine admission from optional key access so restore can share once
+/// even when the engine was already running during bootstrap.
+pub(super) async fn start_background_engine_if_ready(
+    context: Arc<ServiceContext>,
+) -> Result<bool, String> {
     let _guard = context.sync_lifecycle.lock().await;
     if !context.is_active() {
         return Err("PROFILE_LOCKED".into());
     }
     let has_session = context.connect_service().is_session_configured()?;
     if !has_session {
-        return Ok(());
+        return Ok(false);
     }
     let Some(identity) = get_sync_identity_from_store(&context) else {
-        return Ok(());
+        return Ok(false);
     };
     if !sync_identity_can_run_background(&identity) {
-        return Ok(());
+        return Ok(false);
     }
 
     let runtime = context.device_sync_runtime();
@@ -381,10 +392,7 @@ pub async fn ensure_background_engine_started(context: Arc<ServiceContext>) -> R
     let ports = Arc::new(TauriEnginePorts::new(context.clone()));
     runtime.ensure_background_started(ports).await;
     drop(_guard);
-    if starting {
-        let _ = super::share_backup_access(&context).await;
-    }
-    Ok(())
+    Ok(starting)
 }
 
 pub async fn ensure_background_engine_stopped(context: Arc<ServiceContext>) -> Result<(), String> {

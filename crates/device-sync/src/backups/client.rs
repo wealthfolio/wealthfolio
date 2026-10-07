@@ -523,7 +523,7 @@ impl BackupClient {
         Ok(())
     }
     pub fn is_key_conflict(error: &DeviceSyncError) -> bool {
-        matches!(error, DeviceSyncError::InvalidRequest(message) if message.contains("BACKUP_KEY_CONFLICT"))
+        matches!(error, DeviceSyncError::Backup(BackupError::KeyConflict))
     }
     pub async fn reissue_code(&self, token: &str, store: &dyn SecretStore) -> ApiResult<String> {
         let policy = self.policy(token).await?;
@@ -934,7 +934,7 @@ impl BackupClient {
     }
 }
 fn crypto_error(error: BackupError) -> DeviceSyncError {
-    DeviceSyncError::invalid_request(error.to_string())
+    DeviceSyncError::Backup(error)
 }
 
 #[derive(Deserialize, Serialize)]

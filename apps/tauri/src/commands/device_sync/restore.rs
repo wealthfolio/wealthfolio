@@ -17,8 +17,7 @@ use wealthfolio_device_sync::{SnapshotDownloadHeaders, SnapshotLatestResponse};
 use wealthfolio_storage_sqlite::db;
 
 use super::engine::{
-    ensure_background_engine_started, run_sync_cycle, transport_err_from_sync,
-    transport_err_permanent, RestoreHost, TauriEnginePorts,
+    run_sync_cycle, transport_err_from_sync, transport_err_permanent, RestoreHost, TauriEnginePorts,
 };
 use super::{
     clear_min_snapshot_created_at_from_store, create_client, get_access_token,
@@ -173,7 +172,6 @@ impl RestorePorts for TauriEnginePorts {
     }
 
     async fn resume_sync(&self, restored: bool) -> Result<(), String> {
-        let _ = super::share_backup_access(&self.context).await;
         if restored {
             // The snapshot is committed; a failed initial cycle must not prevent
             // the background engine from starting and retrying sync.
@@ -181,7 +179,9 @@ impl RestorePorts for TauriEnginePorts {
                 warn!("[DeviceSync] Post-restore sync cycle failed: {}", error);
             }
         }
-        ensure_background_engine_started(Arc::clone(&self.context)).await
+        super::engine::start_background_engine_if_ready(Arc::clone(&self.context)).await?;
+        let _ = super::share_backup_access(&self.context).await;
+        Ok(())
     }
 
     fn refresh_portfolio(&self) {
