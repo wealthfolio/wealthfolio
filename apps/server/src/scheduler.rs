@@ -39,6 +39,7 @@ pub fn start_broker_sync_scheduler(state: Arc<AppState>) {
 
         // Set up periodic sync - first tick is immediate, subsequent ticks are 4h apart
         let mut sync_interval = interval(Duration::from_secs(SYNC_INTERVAL_SECS));
+
         loop {
             sync_interval.tick().await;
             run_scheduled_sync(&runtime).await;

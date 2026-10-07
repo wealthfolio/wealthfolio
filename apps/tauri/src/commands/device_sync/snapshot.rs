@@ -166,7 +166,12 @@ pub async fn generate_snapshot_now_internal(
         ));
     }
 
-    let local_cursor = context.app_sync_repository().get_cursor().ok();
+    let local_cursor = Some(
+        context
+            .app_sync_repository()
+            .get_cursor()
+            .map_err(|e| format!("Snapshot cursor unavailable: {e}"))?,
+    );
     let server_cursor = create_client()?
         .get_events_cursor(&token, &device_id)
         .await

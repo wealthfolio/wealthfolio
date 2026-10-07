@@ -10,6 +10,9 @@ pub const CLOUD_REFRESH_TOKEN_KEY: &str = "sync_refresh_token";
 pub const CLOUD_ACCESS_TOKEN_KEY: &str = "sync_access_token";
 
 pub const CLOUD_BACKUP_CONSENT_KEY: &str = "cloud_backup_local_consent_v1";
+pub const CLOUD_BACKUP_MASTER_KEY_PREFIX: &str = "cloud_backup_master_v1:";
+pub const CLOUD_BACKUP_PENDING_MASTER_PREFIX: &str = "cloud_backup_pending_master_v1:";
+pub const CLOUD_BACKUP_SOURCE_ID_PREFIX: &str = "cloud_backup_source_v1:";
 
 pub const SYNC_IDENTITY_KEY: &str = "sync_identity";
 
@@ -96,9 +99,9 @@ pub fn validate_unscoped_secret_service_id(service: &str) -> std::result::Result
         return Err("Addon-scoped secrets must use the addon secret API".to_string());
     }
 
-    if normalized.starts_with("cloud_backup_master_v1:")
-        || normalized.starts_with("cloud_backup_pending_master_v1:")
-        || normalized.starts_with("cloud_backup_source_v1:")
+    if normalized.starts_with(CLOUD_BACKUP_MASTER_KEY_PREFIX)
+        || normalized.starts_with(CLOUD_BACKUP_PENDING_MASTER_PREFIX)
+        || normalized.starts_with(CLOUD_BACKUP_SOURCE_ID_PREFIX)
         || normalized.starts_with("profile:")
         || [
             crate::profiles::PROFILE_LOCK_KEY,

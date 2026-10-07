@@ -41,22 +41,19 @@ fn start_sync_outbox_wake_worker(
     tauri::async_runtime::spawn(async move {
         while receiver.recv().await.is_some() {
             while receiver.try_recv().is_ok() {}
+            let was_running = context.device_sync_runtime().is_background_running().await;
+            if let Err(err) =
+                crate::commands::device_sync::ensure_background_engine_started(Arc::clone(&context))
+                    .await
             {
-                let was_running = context.device_sync_runtime().is_background_running().await;
-                if let Err(err) = crate::commands::device_sync::ensure_background_engine_started(
-                    Arc::clone(&context),
-                )
-                .await
-                {
-                    warn!(
+                warn!(
                     "Failed to start background device sync engine after local outbox write: {}",
                     err
                 );
-                    continue;
-                }
-                if was_running {
-                    context.device_sync_runtime().notify_sync_work_available();
-                }
+                continue;
+            }
+            if was_running {
+                context.device_sync_runtime().notify_sync_work_available();
             }
         }
     })
@@ -814,9 +811,8 @@ pub fn run() {
                     listeners::refresh_portfolio_on_resume(_handle.clone(), context.clone());
                     #[cfg(feature = "device-sync")]
                     tauri::async_runtime::spawn(async move {
-                        let _guard = context.sync_lifecycle.lock().await;
                         if context.is_active() {
-                            commands::device_sync::share_backup_access(&context).await;
+                            let _ = commands::device_sync::share_backup_access(&context).await;
                         }
                     });
                 }

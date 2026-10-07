@@ -23,12 +23,18 @@ pub const BACKUP_COMPRESSION_LEVEL: u32 = 3;
 const MAGIC: &[u8; 8] = b"WFBACK\x00\x01";
 const PACKAGE_MAGIC: &[u8; 8] = b"WFRECV\x00\x01";
 const MAX_HEADER_BYTES: usize = 16 * 1024;
-pub const MASTER_KEY_PREFIX: &str = "cloud_backup_master_v1:";
-pub const PENDING_MASTER_PREFIX: &str = "cloud_backup_pending_master_v1:";
-pub const SOURCE_ID_PREFIX: &str = "cloud_backup_source_v1:";
+pub use wealthfolio_core::secrets::{
+    CLOUD_BACKUP_MASTER_KEY_PREFIX as MASTER_KEY_PREFIX,
+    CLOUD_BACKUP_PENDING_MASTER_PREFIX as PENDING_MASTER_PREFIX,
+    CLOUD_BACKUP_SOURCE_ID_PREFIX as SOURCE_ID_PREFIX,
+};
 
 #[derive(thiserror::Error, Debug)]
 pub enum BackupError {
+    #[error(
+        "BACKUP_KEY_CONFLICT: Backup key does not match; use the recovery code for these backups"
+    )]
+    KeyConflict,
     #[error("Backup format requires a newer application")]
     UnsupportedVersion,
     #[error("Backup exceeds the supported size")]
@@ -62,8 +68,35 @@ impl MasterKey {
         store
             .get_secret(&format!("{MASTER_KEY_PREFIX}{user_id}"))
             .map_err(|_| BackupError::SecretStore)?
-            .map(|s| decode_key(&s).map(Self))
+            .map(|s| decode_key(s.split_once(':').map_or(s.as_str(), |(_, key)| key)).map(Self))
             .transpose()
+    }
+    /// Old unbound keys remain readable. New writes bind the key ID in the same
+    /// protected secret value, so a changed cloud record cannot relabel local bytes.
+    pub fn load_for_key(store: &dyn SecretStore, user: &str, key_id: &str) -> Result<Option<Self>> {
+        let Some(value) = store
+            .get_secret(&format!("{MASTER_KEY_PREFIX}{user}"))
+            .map_err(|_| BackupError::SecretStore)?
+        else {
+            return Ok(None);
+        };
+        let value = zeroize::Zeroizing::new(value);
+        let key = if let Some((id, key)) = value.split_once(':') {
+            if id != key_id {
+                return Err(BackupError::KeyConflict);
+            }
+            key
+        } else {
+            value.as_str()
+        };
+        Ok(Some(Self(decode_key(key)?)))
+    }
+    pub fn save_for_key(&self, store: &dyn SecretStore, user: &str, key_id: &str) -> Result<()> {
+        uuid::Uuid::parse_str(key_id).map_err(|_| BackupError::Invalid)?;
+        let value = zeroize::Zeroizing::new(format!("{key_id}:{}", BASE64.encode(self.0)));
+        store
+            .set_secret(&format!("{MASTER_KEY_PREFIX}{user}"), &value)
+            .map_err(|_| BackupError::SecretStore)
     }
     /// Call only after create-if-absent succeeds or the server's existing envelope is unwrapped.
     pub fn save(&self, store: &dyn SecretStore, user_id: &str) -> Result<()> {
@@ -114,7 +147,7 @@ fn resolve_pending_master(store: &dyn SecretStore, user: &str, cloud_key_id: &st
     };
     let matches = id == cloud_key_id;
     if matches {
-        master.save(store, user)?;
+        master.save_for_key(store, user, cloud_key_id)?;
     }
     store
         .delete_secret(&format!("{PENDING_MASTER_PREFIX}{user}"))

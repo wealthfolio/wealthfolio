@@ -134,7 +134,8 @@ it("status and recovery setup never send the database before explicit source con
   await waitFor(() =>
     expect(mocks.action).toHaveBeenCalledWith({ action: "enable", confirmed: true }),
   );
-  await waitFor(() => expect(mocks.capture).toHaveBeenCalledTimes(1));
+  expect(mocks.capture).not.toHaveBeenCalled();
+  await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
 });
 it("never reuses backup history or recovery-code display across profiles", async () => {
   mocks.action.mockImplementation((op) =>
@@ -233,7 +234,7 @@ it("mobile exposes explicit backup activation with foreground requirements", asy
   await waitFor(() =>
     expect(mocks.action).toHaveBeenCalledWith({ action: "enable", confirmed: true }),
   );
-  await waitFor(() => expect(mocks.capture).toHaveBeenCalledTimes(1));
+  expect(mocks.capture).not.toHaveBeenCalled();
 });
 
 it("mobile offers recovery-package downloads while replacement remains gated", async () => {

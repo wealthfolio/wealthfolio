@@ -273,13 +273,7 @@ fn app_router_with_profiles(
             let ordinary_timeout = config.request_timeout;
             move |request: axum::extract::Request, next: middleware::Next| async move {
                 use axum::response::IntoResponse;
-                let path = request.uri().path();
-                let timeout =
-                    if path.contains("/utilities/database/backups/") && path.ends_with("/export") {
-                        std::time::Duration::from_secs(30 * 60)
-                    } else {
-                        ordinary_timeout
-                    };
+                let timeout = request_timeout(request.uri().path(), ordinary_timeout);
                 tokio::time::timeout(timeout, next.run(request))
                     .await
                     .unwrap_or_else(|_| axum::http::StatusCode::REQUEST_TIMEOUT.into_response())
@@ -309,6 +303,56 @@ fn app_router_with_profiles(
                 .on_request(DefaultOnRequest::new().level(Level::INFO))
                 .on_response(DefaultOnResponse::new().level(Level::INFO)),
         ))
+}
+
+fn request_timeout(path: &str, ordinary: std::time::Duration) -> std::time::Duration {
+    // Accept either the outer URI or Axum's prefix-stripped nested route URI.
+    let path = path.strip_prefix("/api/v1").unwrap_or(path);
+    if matches!(
+        path,
+        "/cloud-backups/capture"
+            | "/connect/device/generate-snapshot"
+            | "/sync/pairing/complete-with-transfer"
+    ) || (path.starts_with("/cloud-backups/") && path.ends_with("/package"))
+        || (path.starts_with("/utilities/database/backups/") && path.ends_with("/export"))
+    {
+        std::time::Duration::from_secs(
+            wealthfolio_device_sync::limits::BACKUP_CAPTURE_TIMEOUT_SECONDS,
+        )
+    } else {
+        ordinary
+    }
+}
+
+#[cfg(test)]
+mod request_timeout_tests {
+    use super::*;
+    #[test]
+    fn transfer_routes_include_preparation_time_without_changing_ordinary_routes() {
+        let ordinary = std::time::Duration::from_secs(300);
+        let transfer = std::time::Duration::from_secs(
+            wealthfolio_device_sync::limits::BACKUP_TRANSFER_TIMEOUT_SECONDS,
+        );
+        for path in [
+            "/cloud-backups/capture",
+            "/cloud-backups/id/package",
+            "/connect/device/generate-snapshot",
+            "/sync/pairing/complete-with-transfer",
+        ] {
+            assert!(request_timeout(path, ordinary) > transfer);
+            assert_eq!(
+                request_timeout(path, ordinary),
+                request_timeout(&format!("/api/v1{path}"), ordinary)
+            );
+        }
+        for path in [
+            "/api/v1/accounts",
+            "/api/v1/cloud-backups/action",
+            "/api/v1/connect/device/status",
+        ] {
+            assert_eq!(request_timeout(path, ordinary), ordinary);
+        }
+    }
 }
 
 #[cfg(test)]

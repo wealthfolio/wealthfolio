@@ -329,8 +329,7 @@ function CloudBackupPanel({ backup }: { backup: ReturnType<typeof useCloudBackup
       if (operation.action === "enable") {
         setRecoveryCode("");
         setFlow(undefined);
-        // Source consent is committed before capture. A failed first upload stays retryable.
-        await captureCloudBackup();
+        // Enabling wakes the profile scheduler; its first capture has separate status.
       }
       if (operation.action === "delete") setDeleteId(undefined);
       if (operation.action === "disable") setFlow(undefined);

@@ -120,6 +120,53 @@ pub struct BackupClient {
     api: DeviceSyncClient,
     transport: ConnectTransferTransport,
 }
+/// Ephemeral credentials captured under the runtime's lifecycle lock. Network
+/// work uses this immutable material; applying a result requires the same lock.
+pub struct BackupAccessMaterial {
+    policy: BackupPolicy,
+    identity: Option<zeroize::Zeroizing<String>>,
+    master: Option<zeroize::Zeroizing<String>>,
+    session: Option<zeroize::Zeroizing<String>>,
+}
+pub struct ResolvedBackupAccess {
+    material: BackupAccessMaterial,
+    access: BackupAccess,
+    key: Option<(String, MasterKey)>,
+}
+impl ResolvedBackupAccess {
+    pub fn apply(self, store: &dyn SecretStore) -> ApiResult<BackupAccess> {
+        for (name, expected) in [
+            (
+                wealthfolio_core::secrets::SYNC_IDENTITY_KEY.to_string(),
+                &self.material.identity,
+            ),
+            (
+                format!("{MASTER_KEY_PREFIX}{}", self.material.policy.user_id),
+                &self.material.master,
+            ),
+            (
+                wealthfolio_core::secrets::CLOUD_REFRESH_TOKEN_KEY.to_string(),
+                &self.material.session,
+            ),
+        ] {
+            let current = store
+                .get_secret(&name)
+                .map_err(|_| crypto_error(BackupError::SecretStore))?
+                .map(zeroize::Zeroizing::new);
+            if current != *expected {
+                return Err(DeviceSyncError::invalid_request(
+                    "Backup access changed during key sharing",
+                ));
+            }
+        }
+        if let Some((key_id, master)) = self.key {
+            master
+                .save_for_key(store, &self.material.policy.user_id, &key_id)
+                .map_err(crypto_error)?;
+        }
+        Ok(self.access)
+    }
+}
 pub struct CaptureMaterial {
     master: MasterKey,
     key_id: String,
@@ -140,7 +187,10 @@ pub enum CaptureUpload {
 }
 pub enum CaptureCompletion {
     Published(Box<BackupPoint>),
-    Ticket(String),
+    Ticket {
+        ticket: String,
+        upload_error: Option<DeviceSyncError>,
+    },
 }
 
 pub enum BackupSource {
@@ -257,7 +307,9 @@ impl BackupClient {
             &record.key_id,
         )
         .map_err(crypto_error)?;
-        master.save(store, &policy.user_id).map_err(crypto_error)
+        master
+            .save_for_key(store, &policy.user_id, &record.key_id)
+            .map_err(crypto_error)
     }
     /// Explicit lifecycle/action step. Status reads never publish an envelope.
     /// Runtime owners serialize this with their existing profile lifecycle lock.
@@ -267,10 +319,6 @@ impl BackupClient {
         store: &dyn SecretStore,
         policy: Option<&BackupPolicy>,
     ) -> ApiResult<BackupAccess> {
-        let identity = store
-            .get_secret(wealthfolio_core::secrets::SYNC_IDENTITY_KEY)
-            .map_err(|_| DeviceSyncError::invalid_request("Backup access unavailable"))?
-            .and_then(|value| serde_json::from_str::<crate::SyncIdentity>(&value).ok());
         let owned_policy;
         let policy = match policy {
             Some(policy) => policy,
@@ -279,12 +327,56 @@ impl BackupClient {
                 &owned_policy
             }
         };
-        let local = MasterKey::load(store, &policy.user_id).map_err(crypto_error)?;
+        self.resolve_access(token, Self::access_material(store, policy)?)
+            .await?
+            .apply(store)
+    }
+    pub fn access_material(
+        store: &dyn SecretStore,
+        policy: &BackupPolicy,
+    ) -> ApiResult<BackupAccessMaterial> {
+        let read = |name: &str| {
+            store
+                .get_secret(name)
+                .map(|value| value.map(zeroize::Zeroizing::new))
+                .map_err(|_| crypto_error(BackupError::SecretStore))
+        };
+        Ok(BackupAccessMaterial {
+            policy: policy.clone(),
+            identity: read(wealthfolio_core::secrets::SYNC_IDENTITY_KEY)?,
+            master: read(&format!("{MASTER_KEY_PREFIX}{}", policy.user_id))?,
+            session: read(wealthfolio_core::secrets::CLOUD_REFRESH_TOKEN_KEY)?,
+        })
+    }
+    pub async fn resolve_access(
+        &self,
+        token: &str,
+        material: BackupAccessMaterial,
+    ) -> ApiResult<ResolvedBackupAccess> {
+        let policy = &material.policy;
+        let identity = material
+            .identity
+            .as_ref()
+            .and_then(|value| serde_json::from_str::<crate::SyncIdentity>(value).ok());
+        let local = material
+            .master
+            .as_ref()
+            .map(|value| {
+                decode_key(value.split_once(':').map_or(value.as_str(), |(_, key)| key))
+                    .map(MasterKey)
+            })
+            .transpose()
+            .map_err(crypto_error)?;
         let Some((identity, team)) = identity.zip(policy.team_id.as_deref()) else {
-            return Ok(if local.is_some() {
+            let access = if local.is_some() {
                 BackupAccess::Ready
             } else {
                 BackupAccess::NotLinked
+            };
+            return Ok(ResolvedBackupAccess {
+                material,
+                access,
+                key: None,
             });
         };
         let (Some(device), Some(root), Some(version)) = (
@@ -292,10 +384,15 @@ impl BackupClient {
             identity.root_key,
             identity.key_version.filter(|v| *v > 0),
         ) else {
-            return Ok(if local.is_some() {
+            let access = if local.is_some() {
                 BackupAccess::Ready
             } else {
                 BackupAccess::NotLinked
+            };
+            return Ok(ResolvedBackupAccess {
+                material,
+                access,
+                key: None,
             });
         };
         for attempt in 0..2 {
@@ -311,10 +408,22 @@ impl BackupClient {
             {
                 Ok(record) => record,
                 Err(error) if error.error_code() == Some("BACKUP_SETUP_REQUIRED") => {
-                    return Ok(BackupAccess::Unavailable)
+                    return Ok(ResolvedBackupAccess {
+                        material,
+                        access: BackupAccess::Unavailable,
+                        key: None,
+                    })
                 }
                 Err(error) => return Err(error),
             };
+            if material
+                .master
+                .as_ref()
+                .and_then(|value| value.split_once(':'))
+                .is_some_and(|(id, _)| id != record.key_id)
+            {
+                return Err(crypto_error(BackupError::KeyConflict));
+            }
             let unwrapped = record.envelope.as_ref().and_then(|envelope| {
                 unwrap_trusted(
                     envelope,
@@ -328,13 +437,28 @@ impl BackupClient {
             });
             match (&local, unwrapped) {
                 (None, Some(master)) => {
-                    master.save(store, &policy.user_id).map_err(crypto_error)?;
-                    return Ok(BackupAccess::Ready);
+                    return Ok(ResolvedBackupAccess {
+                        material,
+                        access: BackupAccess::Ready,
+                        key: Some((record.key_id, master)),
+                    });
                 }
-                (None, None) => return Ok(BackupAccess::Unavailable),
+                (None, None) => {
+                    return Ok(ResolvedBackupAccess {
+                        material,
+                        access: BackupAccess::Unavailable,
+                        key: None,
+                    })
+                }
                 (Some(master), Some(shared)) if master.0 == shared.0 => {
-                    return Ok(BackupAccess::Ready)
+                    let master = MasterKey(master.0);
+                    return Ok(ResolvedBackupAccess {
+                        material,
+                        access: BackupAccess::Ready,
+                        key: Some((record.key_id, master)),
+                    });
                 }
+                (Some(_), Some(_)) => return Err(crypto_error(BackupError::KeyConflict)),
                 (Some(master), _) => {
                     let envelope = wrap_trusted(
                         master,
@@ -356,7 +480,14 @@ impl BackupClient {
                         )
                         .await;
                     match result {
-                        Ok(_) => return Ok(BackupAccess::Ready),
+                        Ok(_) => {
+                            let master = MasterKey(master.0);
+                            return Ok(ResolvedBackupAccess {
+                                material,
+                                access: BackupAccess::Ready,
+                                key: Some((record.key_id, master)),
+                            });
+                        }
                         Err(error)
                             if attempt == 0
                                 && error.error_code() == Some("BACKUP_TRUSTED_CONFLICT") =>
@@ -376,18 +507,27 @@ impl BackupClient {
         token: &str,
         store: &dyn SecretStore,
         policy: Option<&BackupPolicy>,
-    ) {
-        if self.ensure_access(token, store, policy).await.is_err() {
+    ) -> ApiResult<()> {
+        if let Err(error) = self.ensure_access(token, store, policy).await {
+            if Self::is_key_conflict(&error) {
+                return Err(error);
+            }
             log::warn!("Backup access could not be shared; retry on a linked device or use a recovery code");
         }
+        Ok(())
+    }
+    pub fn is_key_conflict(error: &DeviceSyncError) -> bool {
+        matches!(error, DeviceSyncError::InvalidRequest(message) if message.contains("BACKUP_KEY_CONFLICT"))
     }
     pub async fn reissue_code(&self, token: &str, store: &dyn SecretStore) -> ApiResult<String> {
         let policy = self.policy(token).await?;
+        self.share_access_best_effort(token, store, Some(&policy))
+            .await?;
         let record = self
             .key(token)
             .await?
             .ok_or_else(|| DeviceSyncError::invalid_request("BACKUP_SETUP_REQUIRED"))?;
-        let master = MasterKey::load(store, &policy.user_id)
+        let master = MasterKey::load_for_key(store, &policy.user_id, &record.key_id)
             .map_err(crypto_error)?
             .ok_or_else(|| DeviceSyncError::invalid_request("BACKUP_RECOVERY_CODE_REQUIRED"))?;
         let code = generate_recovery_code();
@@ -415,7 +555,7 @@ impl BackupClient {
             .key(token)
             .await?
             .ok_or_else(|| DeviceSyncError::invalid_request("BACKUP_SETUP_REQUIRED"))?;
-        let master = MasterKey::load(store, &policy.user_id)
+        let master = MasterKey::load_for_key(store, &policy.user_id, &record.key_id)
             .map_err(crypto_error)?
             .ok_or_else(|| DeviceSyncError::invalid_request("BACKUP_RECOVERY_CODE_REQUIRED"))?;
         Ok(CaptureMaterial {
@@ -480,8 +620,8 @@ impl BackupClient {
         })
     }
     /// No mutable local credentials are read, and no lifecycle lock is needed for PUT.
-    pub async fn upload_capture(&self, upload: CaptureUpload) -> CaptureCompletion {
-        match upload {
+    pub async fn upload_capture(&self, upload: CaptureUpload) -> ApiResult<CaptureCompletion> {
+        Ok(match upload {
             CaptureUpload::Published(point) => CaptureCompletion::Published(Box::new(point)),
             CaptureUpload::Upload {
                 ticket,
@@ -490,19 +630,28 @@ impl BackupClient {
             } => {
                 // A lost PUT response may still have stored the entire object.
                 // Completion is authoritative, including for conditional PUT failures.
-                let _ = self.transport.upload(&descriptor, encrypted).await;
-                CaptureCompletion::Ticket(ticket)
+                let upload_error = match self.transport.upload(&descriptor, encrypted).await {
+                    Err(error @ DeviceSyncError::InvalidRequest(_)) => return Err(error),
+                    result => result.err(),
+                };
+                CaptureCompletion::Ticket {
+                    ticket,
+                    upload_error,
+                }
             }
-        }
+        })
     }
     pub async fn complete_capture(
         &self,
         token: &str,
         completion: CaptureCompletion,
     ) -> ApiResult<BackupPoint> {
-        let ticket = match completion {
+        let (ticket, upload_error) = match completion {
             CaptureCompletion::Published(point) => return Ok(*point),
-            CaptureCompletion::Ticket(ticket) => ticket,
+            CaptureCompletion::Ticket {
+                ticket,
+                upload_error,
+            } => (ticket, upload_error),
         };
         let body = json!({ "ticket": ticket });
         for attempt in 0..3 {
@@ -512,6 +661,9 @@ impl BackupClient {
             {
                 Ok(point) => return Ok(point),
                 Err(error) => {
+                    if error.error_code() == Some("TRANSFER_OBJECT_MISSING") {
+                        return Err(upload_error.unwrap_or(error));
+                    }
                     let retry = error
                         .status_code()
                         .is_none_or(|s| s >= 500 || s == 408 || s == 429);
@@ -535,10 +687,12 @@ impl BackupClient {
         trigger: &str,
         metadata: BackupMetadata,
     ) -> ApiResult<BackupPoint> {
+        self.share_access_best_effort(token, store, Some(policy))
+            .await?;
         let material = self.capture_material(token, store, policy).await?;
         let encoded = Self::encode_capture(material, database, trigger, metadata).await?;
         let upload = self.prepare_capture(token, encoded).await?;
-        let completion = self.upload_capture(upload).await;
+        let completion = self.upload_capture(upload).await?;
         self.complete_capture(token, completion).await
     }
     pub async fn package(&self, token: &str, backup_id: &str) -> ApiResult<Vec<u8>> {
@@ -620,8 +774,6 @@ impl BackupClient {
         if policy.next_due_at.is_none() {
             return Ok(BackupSource::Inactive);
         }
-        self.share_access_best_effort(token, store, Some(&policy))
-            .await;
         Ok(BackupSource::Ready(policy))
     }
     pub async fn management(
@@ -640,12 +792,12 @@ impl BackupClient {
             }
             BackupOperation::Setup => {
                 let code = self.setup(token, store).await?;
-                self.share_access_best_effort(token, store, None).await;
+                self.share_access_best_effort(token, store, None).await?;
                 Ok(json!({ "recoveryCode": code }))
             }
             BackupOperation::Recover { code } => {
                 self.recover_key(token, store, code).await?;
-                self.share_access_best_effort(token, store, None).await;
+                self.share_access_best_effort(token, store, None).await?;
                 Ok(json!({ "recovered": true }))
             }
             BackupOperation::Reissue => self
@@ -666,7 +818,7 @@ impl BackupClient {
                     self.ensure_access(token, store, Some(&policy)).await?;
                 } else {
                     self.share_access_best_effort(token, store, Some(&policy))
-                        .await;
+                        .await?;
                 }
                 if MasterKey::load(store, &policy.user_id)
                     .map_err(crypto_error)?
@@ -700,22 +852,32 @@ impl BackupClient {
             }
             BackupOperation::Status => {
                 let policy = self.policy(token).await?;
-                let (has_key, mut history) = match self.key(token).await {
+                let (master, has_key, mut history) = match self.key(token).await {
                     Ok(key) => {
                         if let Some(record) = &key {
                             resolve_pending_master(store, &policy.user_id, &record.key_id)
                                 .map_err(crypto_error)?;
                         }
-                        (key.is_some(), self.history(token).await?)
+                        let master = match &key {
+                            Some(record) => match MasterKey::load_for_key(
+                                store,
+                                &policy.user_id,
+                                &record.key_id,
+                            ) {
+                                Ok(master) => master,
+                                Err(BackupError::KeyConflict) => None,
+                                Err(error) => return Err(crypto_error(error)),
+                            },
+                            None => None,
+                        };
+                        (master, key.is_some(), self.history(token).await?)
                     }
                     Err(error) if error.error_code() == Some("BACKUP_READ_GRACE_EXPIRED") => {
-                        (false, Vec::new())
+                        (None, false, Vec::new())
                     }
                     Err(error) => return Err(error),
                 };
-                if let Some(master) =
-                    MasterKey::load(store, &policy.user_id).map_err(crypto_error)?
-                {
+                if let Some(master) = &master {
                     for point in &mut history {
                         if point.user_id != policy.user_id {
                             continue;
@@ -740,7 +902,7 @@ impl BackupClient {
                     .as_deref()
                     == Some(policy.user_id.as_str());
                 Ok(
-                    json!({ "hasKey": has_key, "keyReady": MasterKey::load(store, &policy.user_id).map_err(crypto_error)?.is_some(), "isSource": policy.source_id.as_deref() == Some(&source_id(store, &policy.user_id).map_err(crypto_error)?), "sourceConsented": source_consented, "policy": policy, "history": history }),
+                    json!({ "hasKey": has_key, "keyReady": master.is_some(), "isSource": policy.source_id.as_deref() == Some(&source_id(store, &policy.user_id).map_err(crypto_error)?), "sourceConsented": source_consented, "policy": policy, "history": history }),
                 )
             }
         }
@@ -973,6 +1135,19 @@ mod access_tests {
             master.0
         );
         assert_eq!(puts.load(Ordering::SeqCst), 1, "joining device reads only");
+        let conflicting = Store::default();
+        linked(&conflicting, &root);
+        MasterKey::generate().save(&conflicting, &user).unwrap();
+        let error = client
+            .ensure_access("test", &conflicting, Some(&policy))
+            .await
+            .unwrap_err();
+        assert!(error.to_string().contains("BACKUP_KEY_CONFLICT"));
+        assert_eq!(
+            puts.load(Ordering::SeqCst),
+            1,
+            "a valid different key must never be overwritten"
+        );
         server.abort();
     }
     #[tokio::test]
@@ -993,7 +1168,8 @@ mod access_tests {
         linked(&store, &crate::crypto::generate_root_key());
         client
             .share_access_best_effort("test", &store, Some(&policy))
-            .await;
+            .await
+            .unwrap();
         assert_eq!(
             MasterKey::load(&store, user).unwrap().unwrap().0,
             master.0,
@@ -1084,7 +1260,64 @@ mod access_tests {
     }
 
     #[tokio::test]
-    async fn source_due_check_is_not_blocked_by_a_sharing_failure() {
+    async fn status_does_not_report_a_key_bound_to_another_backup_record_as_ready() {
+        let store = Store::default();
+        let user = uuid::Uuid::new_v4().to_string();
+        let master = MasterKey::generate();
+        master
+            .save_for_key(&store, &user, &uuid::Uuid::new_v4().to_string())
+            .unwrap();
+        let source = source_id(&store, &user).unwrap();
+        let key_id = uuid::Uuid::new_v4().to_string();
+        let record = KeyRecord {
+            recovery_envelope: wrap_recovery(&master, &generate_recovery_code(), &user, &key_id)
+                .unwrap(),
+            key_id,
+            recovery_revision: 1,
+            trusted_revision: 0,
+            created: false,
+        };
+        let responses = [
+            (
+                "policy",
+                json!({"userId":user,"teamId":null,"enabled":false,"sourceId":source,"revision":1,"nextDueAt":null,"lastBackupAt":null}),
+            ),
+            ("key", serde_json::to_value(record).unwrap()),
+            ("history", json!([])),
+        ];
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("http://{}", listener.local_addr().unwrap());
+        let server = tokio::spawn(async move {
+            for (path, body) in responses {
+                let (mut socket, _) = listener.accept().await.unwrap();
+                let mut buffer = [0; 8192];
+                let n = socket.read(&mut buffer).await.unwrap();
+                let path = if path.is_empty() {
+                    "/api/v1/backups".into()
+                } else {
+                    format!("/api/v1/backups/{path}")
+                };
+                assert!(String::from_utf8_lossy(&buffer[..n]).starts_with(&format!("GET {path} ")));
+                let body = body.to_string();
+                socket.write_all(format!("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len()).as_bytes()).await.unwrap();
+            }
+        });
+        let status = BackupClient::new(&url)
+            .unwrap()
+            .management("test", &store, &BackupOperation::Status)
+            .await
+            .unwrap();
+        assert_eq!(status["hasKey"], true);
+        assert_eq!(status["keyReady"], false);
+        assert!(
+            MasterKey::load(&store, &user).unwrap().is_some(),
+            "status preserves the local key"
+        );
+        server.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn source_check_does_not_share_keys_before_checking_due_time() {
         let store = Store::default();
         let user = uuid::Uuid::new_v4().to_string();
         let master = MasterKey::generate();
@@ -1094,11 +1327,12 @@ mod access_tests {
             .set_secret(wealthfolio_core::secrets::CLOUD_BACKUP_CONSENT_KEY, &user)
             .unwrap();
         let source = source_id(&store, &user).unwrap();
-        let policy = json!({"userId":user,"teamId":uuid::Uuid::new_v4(),"enabled":true,"uploadEntitled":true,"sourceId":source,"revision":1,"nextDueAt":"2026-01-01T00:00:00Z","lastBackupAt":null}).to_string();
+        let tomorrow = (chrono::Utc::now() + chrono::Duration::days(1)).to_rfc3339();
+        let policy = json!({"userId":user,"teamId":uuid::Uuid::new_v4(),"enabled":true,"uploadEntitled":true,"sourceId":source,"revision":1,"nextDueAt":tomorrow,"lastBackupAt":null}).to_string();
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let url = format!("http://{}", listener.local_addr().unwrap());
         let server = tokio::spawn(async move {
-            for path in ["policy", "key/trusted-envelope"] {
+            for path in ["policy"] {
                 let (mut socket, _) = listener.accept().await.unwrap();
                 let mut buffer = [0; 8192];
                 let n = socket.read(&mut buffer).await.unwrap();
@@ -1120,6 +1354,7 @@ mod access_tests {
             panic!("source should be ready")
         };
         assert_eq!(due.source_id.as_deref(), Some(source.as_str()));
+        assert!(!due.delay_until_due().unwrap().is_zero());
         assert_eq!(MasterKey::load(&store, &user).unwrap().unwrap().0, master.0);
         assert_eq!(
             store
@@ -1128,5 +1363,107 @@ mod access_tests {
             Some(user)
         );
         server.await.unwrap();
+    }
+    #[tokio::test]
+    async fn rejected_upload_returns_local_validation_without_completing() {
+        let client = BackupClient::new("http://127.0.0.1:1").unwrap();
+        for checksum in [None, Some("invalid")] {
+            let mut headers =
+                std::collections::BTreeMap::from([("content-length".into(), "3".into())]);
+            if let Some(checksum) = checksum {
+                headers.insert("x-amz-checksum-sha256".into(), checksum.into());
+            }
+            let result = client
+                .upload_capture(CaptureUpload::Upload {
+                    ticket: "unused".into(),
+                    encrypted: vec![1, 2, 3],
+                    descriptor: TransferDescriptor {
+                        url: "http://invalid.test/object".into(),
+                        method: "PUT".into(),
+                        headers,
+                        expires_at: "2099-01-01T00:00:00Z".into(),
+                    },
+                })
+                .await;
+            assert!(matches!(result, Err(DeviceSyncError::InvalidRequest(_))));
+        }
+    }
+    #[test]
+    fn resolved_key_access_cannot_recreate_credentials_after_signout() {
+        let store = Store::default();
+        let user = uuid::Uuid::new_v4().to_string();
+        linked(&store, &crate::crypto::generate_root_key());
+        let policy: BackupPolicy = serde_json::from_value(json!({"userId":user,"teamId":"team","enabled":false,"sourceId":null,"revision":1,"nextDueAt":null,"lastBackupAt":null})).unwrap();
+        let material = BackupClient::access_material(&store, &policy).unwrap();
+        let resolved = ResolvedBackupAccess {
+            material,
+            access: BackupAccess::Ready,
+            key: Some((uuid::Uuid::new_v4().to_string(), MasterKey::generate())),
+        };
+        store.0.lock().unwrap().clear();
+        assert!(resolved.apply(&store).is_err());
+        assert!(store.0.lock().unwrap().is_empty());
+    }
+    #[tokio::test]
+    async fn completion_resolves_lost_put_responses_and_preserves_missing_upload_errors() {
+        let backup_id = uuid::Uuid::new_v4().to_string();
+        for published in [false, true] {
+            let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let url = format!("http://{}", listener.local_addr().unwrap());
+            let point = json!({"backupId":backup_id,"keyId":"key","userId":"user","sourceId":"source","sizeBytes":3,"checksum":"unused","format":1,"publishedAt":"2026-01-01T00:00:00Z","encryptedMetadata":"opaque"});
+            let server = tokio::spawn(async move {
+                let (mut socket, _) = listener.accept().await.unwrap();
+                let mut request = [0; 4096];
+                let n = socket.read(&mut request).await.unwrap();
+                assert!(String::from_utf8_lossy(&request[..n])
+                    .starts_with("POST /api/v1/backups/complete-upload "));
+                let (status, body) = if published {
+                    ("200 OK", point)
+                } else {
+                    (
+                        "404 Not Found",
+                        json!({"code":"TRANSFER_OBJECT_MISSING","message":"missing"}),
+                    )
+                };
+                let body = body.to_string();
+                socket.write_all(format!("HTTP/1.1 {status}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",body.len()).as_bytes()).await.unwrap();
+            });
+            let client = BackupClient::new(&url).unwrap();
+            let result = client
+                .complete_capture(
+                    "token",
+                    CaptureCompletion::Ticket {
+                        ticket: "same-attempt".into(),
+                        upload_error: Some(DeviceSyncError::api(503, "Secure upload failed")),
+                    },
+                )
+                .await;
+            if published {
+                assert_eq!(result.unwrap().backup_id, backup_id);
+            } else {
+                assert_eq!(result.unwrap_err().status_code(), Some(503));
+            }
+            server.await.unwrap();
+        }
+    }
+    #[test]
+    fn bound_keys_reject_a_different_cloud_key_id_without_relabeling() {
+        let store = Store::default();
+        let user = uuid::Uuid::new_v4().to_string();
+        let key_id = uuid::Uuid::new_v4().to_string();
+        let master = MasterKey::generate();
+        master.save_for_key(&store, &user, &key_id).unwrap();
+        assert_eq!(
+            MasterKey::load_for_key(&store, &user, &key_id)
+                .unwrap()
+                .unwrap()
+                .0,
+            master.0
+        );
+        assert!(matches!(
+            MasterKey::load_for_key(&store, &user, &uuid::Uuid::new_v4().to_string()),
+            Err(BackupError::KeyConflict)
+        ));
+        assert_eq!(MasterKey::load(&store, &user).unwrap().unwrap().0, master.0);
     }
 }

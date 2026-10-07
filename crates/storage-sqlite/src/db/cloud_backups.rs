@@ -50,14 +50,34 @@ pub fn portable_image(
     Ok(bytes)
 }
 /// Consumer warning for pairing into a populated profile from an empty source.
-pub fn snapshot_is_empty(image: &[u8], root: &Path) -> anyhow::Result<bool> {
-    let mut file = tempfile::NamedTempFile::new_in(root)?;
-    file.write_all(image)?;
-    file.flush()?;
-    let connection = rusqlite::Connection::open_with_flags(
-        file.path(),
-        rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
-    )?;
+#[allow(
+    unsafe_code,
+    reason = "Borrowed read-only SQLite deserialize avoids pre-consent plaintext files"
+)]
+pub fn snapshot_is_empty(image: &[u8]) -> anyhow::Result<bool> {
+    anyhow::ensure!(
+        image.len() <= MAX_DATABASE_IMAGE_BYTES,
+        "Snapshot exceeds database size limit"
+    );
+    let connection = rusqlite::Connection::open_in_memory()?;
+    // SAFETY: READONLY prevents SQLite from modifying the borrowed bytes. The
+    // connection is destroyed inside this function, before the image borrow ends.
+    // FREEONCLOSE and RESIZEABLE are deliberately absent: Rust owns the allocation.
+    let result = unsafe {
+        libsqlite3_sys::sqlite3_deserialize(
+            connection.handle(),
+            c"main".as_ptr(),
+            image.as_ptr().cast_mut(),
+            image.len().try_into()?,
+            image.len().try_into()?,
+            libsqlite3_sys::SQLITE_DESERIALIZE_READONLY,
+        )
+    };
+    anyhow::ensure!(
+        result == libsqlite3_sys::SQLITE_OK,
+        "Cannot inspect snapshot"
+    );
+    connection.execute_batch("PRAGMA trusted_schema=OFF; PRAGMA temp_store=MEMORY;")?;
     let has_accounts: bool =
         connection.query_row("SELECT EXISTS(SELECT 1 FROM accounts)", [], |r| r.get(0))?;
     Ok(!has_accounts)
@@ -92,7 +112,7 @@ pub fn decoded_package(
             &header.context.key_id,
         )?
     } else {
-        MasterKey::load(store, &header.context.user_id)?
+        MasterKey::load_for_key(store, &header.context.user_id, &header.context.key_id)?
             .ok_or_else(|| anyhow::anyhow!("BACKUP_RECOVERY_CODE_REQUIRED"))?
     };
     std::fs::create_dir_all(root)?;
@@ -151,7 +171,7 @@ mod tests {
         }
     }
     #[test]
-    fn snapshot_empty_warning_inspects_accounts_and_cleans_private_scratch() {
+    fn snapshot_empty_warning_inspects_accounts_without_plaintext_scratch() {
         let root = tempfile::tempdir().unwrap();
         let scratch = tempfile::tempdir().unwrap();
         let path = root.path().join("snapshot.db");
@@ -159,11 +179,11 @@ mod tests {
         connection
             .execute_batch("CREATE TABLE accounts(id TEXT PRIMARY KEY)")
             .unwrap();
-        assert!(snapshot_is_empty(&std::fs::read(&path).unwrap(), scratch.path()).unwrap());
+        assert!(snapshot_is_empty(&std::fs::read(&path).unwrap()).unwrap());
         connection
             .execute("INSERT INTO accounts VALUES ('synthetic')", [])
             .unwrap();
-        assert!(!snapshot_is_empty(&std::fs::read(&path).unwrap(), scratch.path()).unwrap());
+        assert!(!snapshot_is_empty(&std::fs::read(&path).unwrap()).unwrap());
         assert!(std::fs::read_dir(scratch.path()).unwrap().next().is_none());
     }
 

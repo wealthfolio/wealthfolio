@@ -104,12 +104,26 @@ impl BackupScheduler {
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
         if self.is_current(generation) {
+            let blocked = status.state == CaptureState::Failed && status.retry_at.is_none();
             status.state = if failed {
                 CaptureState::Failed
             } else {
                 CaptureState::Idle
             };
-            status.retry_at = failed.then(|| chrono::Utc::now() + chrono::Duration::minutes(30));
+            status.retry_at =
+                (failed && !blocked).then(|| chrono::Utc::now() + chrono::Duration::minutes(30));
+        }
+    }
+    /// Definitive local validation cannot improve with another timed export.
+    /// Keep failure visible and wait for an existing user/lifecycle wake.
+    pub fn blocked(&self, generation: u64) {
+        let mut status = self
+            .status
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        if self.is_current(generation) {
+            status.state = CaptureState::Failed;
+            status.retry_at = None;
         }
     }
 
@@ -175,6 +189,7 @@ impl BackupScheduler {
             }
             let generation = self.generation();
             let result = check().await;
+            let mut blocked = false;
             // A manual capture may own the export slot while this check waits.
             // Its status must not be overwritten by the competing due check.
             {
@@ -183,17 +198,23 @@ impl BackupScheduler {
                     .lock()
                     .unwrap_or_else(|poisoned| poisoned.into_inner());
                 if self.is_current(generation) && status.state != CaptureState::Running {
+                    blocked = result.is_err()
+                        && status.state == CaptureState::Failed
+                        && status.retry_at.is_none();
                     status.state = if result.is_err() {
                         CaptureState::Failed
                     } else {
                         CaptureState::Idle
                     };
-                    status.retry_at = result
-                        .is_err()
+                    status.retry_at = (result.is_err() && !blocked)
                         .then(|| chrono::Utc::now() + chrono::Duration::minutes(30));
                 }
             }
-            let next = result.unwrap_or(Some(Duration::from_secs(30 * 60)));
+            let next = result.unwrap_or(if blocked {
+                None
+            } else {
+                Some(Duration::from_secs(30 * 60))
+            });
             match next {
                 Some(delay) => {
                     // Instant may exclude suspended time. Bounded local waits
@@ -222,6 +243,38 @@ impl BackupScheduler {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test(start_paused = true)]
+    async fn definitive_local_failure_waits_for_a_wake_without_reexporting() {
+        let scheduler = std::sync::Arc::new(BackupScheduler::default());
+        let checks = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0));
+        let task = tokio::spawn({
+            let scheduler = scheduler.clone();
+            let checks = checks.clone();
+            async move {
+                scheduler
+                    .run(|| {
+                        checks.fetch_add(1, Ordering::SeqCst);
+                        async {
+                            scheduler.blocked(scheduler.generation());
+                            scheduler.finished(scheduler.generation(), true);
+                            Err::<Option<Duration>, ()>(())
+                        }
+                    })
+                    .await;
+            }
+        });
+        tokio::task::yield_now().await;
+        tokio::time::advance(Duration::from_secs(3600)).await;
+        tokio::task::yield_now().await;
+        assert_eq!(checks.load(Ordering::SeqCst), 1);
+        assert_eq!(scheduler.status().state, CaptureState::Failed);
+        assert!(scheduler.status().retry_at.is_none());
+        scheduler.wake();
+        tokio::task::yield_now().await;
+        assert_eq!(checks.load(Ordering::SeqCst), 2);
+        task.abort();
+    }
 
     #[tokio::test]
     async fn completing_capture_leaves_finalization_to_its_caller() {

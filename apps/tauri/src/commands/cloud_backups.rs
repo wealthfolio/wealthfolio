@@ -24,7 +24,9 @@ pub async fn cloud_backup_action(
     }
     let cancels_capture = matches!(
         operation,
-        BackupOperation::Enable { .. } | BackupOperation::Disable | BackupOperation::Delete { .. }
+        BackupOperation::Enable { .. }
+            | BackupOperation::Disable
+            | BackupOperation::Delete { backup_id: None }
     );
     if cancels_capture {
         runtime.backup_scheduler.wake();
@@ -115,13 +117,30 @@ async fn capture_in_phases(
     let material = client
         .capture_material(&token, runtime.secret_store.as_ref(), &policy)
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| {
+            if BackupClient::is_key_conflict(&e) {
+                runtime.backup_scheduler.blocked(generation);
+            }
+            e.to_string()
+        })?;
     drop(_lifecycle);
     drop(_connect);
     if !runtime.backup_scheduler.is_current(generation) {
         return Ok((None, None));
     }
+    // The due source is an existing retry point for optional key sharing.
+    // This runs after releasing lifecycle/account locks and before exporting bytes.
     runtime.backup_scheduler.started(generation);
+    #[cfg(feature = "device-sync")]
+    crate::commands::device_sync::share_backup_access(&context)
+        .await
+        .map_err(|error| {
+            runtime.backup_scheduler.blocked(generation);
+            error
+        })?;
+    if !runtime.backup_scheduler.is_current(generation) {
+        return Ok((None, None));
+    }
     let access = runtime.access()?;
     let scratch = db::profile_scratch_dir(runtime.app_data_dir()).map_err(|e| e.to_string())?;
     let image = tauri::async_runtime::spawn_blocking(move || {
@@ -165,7 +184,15 @@ async fn capture_in_phases(
             .await
             .map_err(|e| e.to_string())?
     };
-    let completion = client.upload_capture(upload).await;
+    let completion = client.upload_capture(upload).await.map_err(|e| {
+        if matches!(
+            e,
+            wealthfolio_device_sync::DeviceSyncError::InvalidRequest(_)
+        ) {
+            runtime.backup_scheduler.blocked(generation);
+        }
+        e.to_string()
+    })?;
     let _connect = runtime
         .connect_transition
         .clone()
@@ -256,7 +283,8 @@ pub async fn cloud_backup_restore_preview(
     let token = context.connect_service().get_valid_access_token().await?;
     client()?
         .share_access_best_effort(&token, runtime.secret_store.as_ref(), None)
-        .await;
+        .await
+        .map_err(|e| e.to_string())?;
     let package = client()?
         .package(&token, &backup_id)
         .await

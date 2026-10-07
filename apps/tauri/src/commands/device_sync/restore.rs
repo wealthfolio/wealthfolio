@@ -112,9 +112,9 @@ impl RestorePorts for TauriEnginePorts {
     }
 
     async fn snapshot_is_empty(&self, image: Vec<u8>) -> Result<bool, String> {
-        let scratch = self.scratch_dir()?;
         tokio::task::spawn_blocking(move || {
-            wealthfolio_storage_sqlite::db::cloud_backups::snapshot_is_empty(&image, &scratch)
+            let image = zeroize::Zeroizing::new(image);
+            wealthfolio_storage_sqlite::db::cloud_backups::snapshot_is_empty(&image)
                 .map_err(|e| e.to_string())
         })
         .await
@@ -173,7 +173,7 @@ impl RestorePorts for TauriEnginePorts {
     }
 
     async fn resume_sync(&self, restored: bool) -> Result<(), String> {
-        super::share_backup_access(&self.context).await;
+        let _ = super::share_backup_access(&self.context).await;
         if restored {
             // The snapshot is committed; a failed initial cycle must not prevent
             // the background engine from starting and retrying sync.

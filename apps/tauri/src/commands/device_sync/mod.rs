@@ -28,19 +28,50 @@ use wealthfolio_device_sync::{
 pub use engine::{ensure_background_engine_started, ensure_background_engine_stopped};
 
 /// Best-effort explicit lifecycle hook; backup failures never fail sync pairing.
-pub(crate) async fn share_backup_access(context: &Arc<ServiceContext>) {
+pub(crate) async fn share_backup_access(context: &Arc<ServiceContext>) -> Result<(), String> {
     if !get_sync_identity_from_store(context).is_some_and(|i| sync_identity_can_run_background(&i))
     {
-        return;
+        return Ok(());
     }
     if let (Ok(url), Ok(token)) = (cloud_api_base_url(), get_access_token(context).await) {
         if let Ok(client) = wealthfolio_device_sync::backups::client::BackupClient::new(&url) {
-            client
-                .share_access_best_effort(&token, context.secret_store.as_ref(), None)
-                .await;
-            context.backup_scheduler.request_check();
+            let result = async {
+                let policy = client.policy(&token).await?;
+                let material = {
+                    let _guard = context.sync_lifecycle.lock().await;
+                    if !context.is_active()
+                        || !get_sync_identity_from_store(context)
+                            .is_some_and(|i| sync_identity_can_run_background(&i))
+                    {
+                        return Ok(());
+                    }
+                    wealthfolio_device_sync::backups::client::BackupClient::access_material(
+                        context.secret_store.as_ref(),
+                        &policy,
+                    )?
+                };
+                let resolved = client.resolve_access(&token, material).await?;
+                let _guard = context.sync_lifecycle.lock().await;
+                if context.is_active() {
+                    resolved.apply(context.secret_store.as_ref())?;
+                    context.backup_scheduler.request_check();
+                }
+                Ok::<(), wealthfolio_device_sync::DeviceSyncError>(())
+            }
+            .await;
+            if result.is_err() {
+                if let Err(error) = result {
+                    if wealthfolio_device_sync::backups::client::BackupClient::is_key_conflict(
+                        &error,
+                    ) {
+                        return Err(error.to_string());
+                    }
+                }
+                log::warn!("Backup access sharing unavailable; retry on a linked device");
+            }
         }
     }
+    Ok(())
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -632,7 +663,7 @@ pub async fn complete_pairing(
     let device_id =
         get_device_id_from_store(&context).ok_or_else(|| "No device ID configured".to_string())?;
 
-    share_backup_access(&context).await;
+    let _ = share_backup_access(&context).await;
     let result = create_client()?
         .complete_pairing(
             &token,
@@ -784,7 +815,7 @@ pub async fn complete_pairing_with_transfer(
         return Err(format!("Snapshot upload failed: {}", snapshot.message));
     }
 
-    share_backup_access(&context).await;
+    let _ = share_backup_access(&context).await;
 
     // 4. Complete pairing
     let token = get_access_token(&context).await?;

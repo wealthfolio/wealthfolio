@@ -40,7 +40,9 @@ async fn action(
     }
     let cancels_capture = matches!(
         input.operation,
-        BackupOperation::Enable { .. } | BackupOperation::Disable | BackupOperation::Delete { .. }
+        BackupOperation::Enable { .. }
+            | BackupOperation::Disable
+            | BackupOperation::Delete { backup_id: None }
     );
     if cancels_capture {
         state.backup_scheduler.wake();
@@ -110,13 +112,27 @@ async fn capture_in_phases(
     let material = client
         .capture_material(&token, state.secret_store.as_ref(), &policy)
         .await
-        .map_err(|e| ApiError::BadRequest(e.to_string()))?;
+        .map_err(|e| {
+            if BackupClient::is_key_conflict(&e) {
+                state.backup_scheduler.blocked(generation);
+            }
+            ApiError::BadRequest(e.to_string())
+        })?;
     drop(_lifecycle);
     drop(_guard);
     if !state.backup_scheduler.is_current(generation) {
         return Ok((None, None));
     }
     state.backup_scheduler.started(generation);
+    super::device_sync_engine::share_backup_access(state)
+        .await
+        .map_err(|error| {
+            state.backup_scheduler.blocked(generation);
+            ApiError::BadRequest(error)
+        })?;
+    if !state.backup_scheduler.is_current(generation) {
+        return Ok((None, None));
+    }
     let owner = state._database_owner.clone();
     let access = state.db_access.clone();
     let scratch = db::profile_scratch_dir(&state.data_root)?;
@@ -156,7 +172,15 @@ async fn capture_in_phases(
             .await
             .map_err(|e| ApiError::BadRequest(e.to_string()))?
     };
-    let completion = client.upload_capture(upload).await;
+    let completion = client.upload_capture(upload).await.map_err(|e| {
+        if matches!(
+            e,
+            wealthfolio_device_sync::DeviceSyncError::InvalidRequest(_)
+        ) {
+            state.backup_scheduler.blocked(generation);
+        }
+        ApiError::BadRequest(e.to_string())
+    })?;
     let _guard = crate::profiles::connect_guard(state).map_err(ApiError::Forbidden)?;
     if !state.backup_scheduler.is_current(generation) {
         return Ok((None, None));

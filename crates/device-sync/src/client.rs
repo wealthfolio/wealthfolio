@@ -11,7 +11,7 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::OnceLock;
+use std::sync::{LazyLock, OnceLock};
 use std::time::Duration;
 use tokio::sync::Mutex;
 use tokio::time::sleep;
@@ -22,13 +22,20 @@ use crate::types::*;
 
 /// Default timeout for API requests.
 const DEFAULT_TIMEOUT_SECS: u64 = 30;
-const SNAPSHOT_UPLOAD_MAX_ATTEMPTS: usize = 5;
+pub(crate) const SNAPSHOT_UPLOAD_MAX_ATTEMPTS: usize = 5;
 const SNAPSHOT_UPLOAD_BASE_BACKOFF_MS: u64 = 250;
 const SNAPSHOT_UPLOAD_MAX_BACKOFF_MS: u64 = 8_000;
 const CLIENT_REQUEST_ID_HEADER: &str = "x-wf-client-request-id";
 const SERVER_REQUEST_ID_HEADER: &str = "x-request-id";
 
 static SNAPSHOT_UPLOAD_IN_FLIGHT: OnceLock<Mutex<HashSet<String>>> = OnceLock::new();
+static API_CLIENT: LazyLock<reqwest::Client> = LazyLock::new(|| {
+    wealthfolio_http::client_builder()
+        .timeout(Duration::from_secs(DEFAULT_TIMEOUT_SECS))
+        .connect_timeout(Duration::from_secs(DEFAULT_TIMEOUT_SECS))
+        .build()
+        .expect("Failed to build HTTP client")
+});
 
 fn snapshot_upload_in_flight() -> &'static Mutex<HashSet<String>> {
     SNAPSHOT_UPLOAD_IN_FLIGHT.get_or_init(|| Mutex::new(HashSet::new()))
@@ -45,7 +52,7 @@ fn is_valid_sha256_checksum(checksum: &str) -> bool {
     hex.len() == 64 && hex.bytes().all(|b| b.is_ascii_hexdigit())
 }
 
-fn is_retryable_snapshot_status(status: u16) -> bool {
+pub(crate) fn is_retryable_snapshot_status(status: u16) -> bool {
     matches!(status, 408 | 429 | 500..=599)
 }
 
@@ -63,11 +70,11 @@ fn is_retryable_snapshot_error(status: u16, code: Option<&str>, message: Option<
     false
 }
 
-fn is_retryable_transport_error(err: &reqwest::Error) -> bool {
+pub(crate) fn is_retryable_transport_error(err: &reqwest::Error) -> bool {
     err.is_timeout() || err.is_connect() || err.is_request() || err.is_body()
 }
 
-fn snapshot_backoff_with_jitter(attempt: usize) -> Duration {
+pub(crate) fn snapshot_backoff_with_jitter(attempt: usize) -> Duration {
     let exp = (attempt.saturating_sub(1) as u32).min(8);
     let backoff = (SNAPSHOT_UPLOAD_BASE_BACKOFF_MS.saturating_mul(1_u64 << exp))
         .min(SNAPSHOT_UPLOAD_MAX_BACKOFF_MS);
@@ -352,14 +359,8 @@ impl DeviceSyncClient {
     ///
     /// * `base_url` - The base URL of the cloud API (e.g., "https://api.wealthfolio.app")
     pub fn new(base_url: &str) -> Self {
-        let client = wealthfolio_http::client_builder()
-            .timeout(Duration::from_secs(DEFAULT_TIMEOUT_SECS))
-            .connect_timeout(Duration::from_secs(DEFAULT_TIMEOUT_SECS))
-            .build()
-            .expect("Failed to build HTTP client");
-
         Self {
-            client,
+            client: API_CLIENT.clone(),
             base_url: base_url.trim_end_matches('/').to_string(),
         }
     }
@@ -856,7 +857,11 @@ impl DeviceSyncClient {
             }
         };
         check_cancel()?;
-        let input = serde_json::json!({ "event_id": headers.event_id, "snapshot_seq": headers.base_seq.unwrap_or(0), "schema_version": headers.schema_version, "size_bytes": headers.size_bytes, "checksum": headers.checksum, "metadata_payload": headers.metadata_payload, "payload_key_version": headers.payload_key_version });
+        let snapshot_seq = headers
+            .base_seq
+            .filter(|seq| *seq >= 0)
+            .ok_or_else(|| DeviceSyncError::invalid_request("Snapshot cursor unavailable"))?;
+        let input = serde_json::json!({ "event_id": headers.event_id, "snapshot_seq": snapshot_seq, "schema_version": headers.schema_version, "size_bytes": headers.size_bytes, "checksum": headers.checksum, "metadata_payload": headers.metadata_payload, "payload_key_version": headers.payload_key_version });
         let mut attempt = 0usize;
         let prepared: Prepared = loop {
             check_cancel()?;
@@ -924,6 +929,9 @@ impl DeviceSyncClient {
             {
                 Ok(result) => return Ok(result),
                 Err(error) => {
+                    if error.error_code() == Some("TRANSFER_OBJECT_MISSING") {
+                        return Err(put.err().unwrap_or(error));
+                    }
                     if error
                         .status_code()
                         .is_some_and(|status| status < 500 && !matches!(status, 408 | 429))
@@ -937,7 +945,7 @@ impl DeviceSyncClient {
                 }
             }
         }
-        Err(last.or_else(|| put.err()).expect("completion failed"))
+        Err(last.expect("completion failed"))
     }
     /// Authorize and download an encrypted snapshot directly from Connect storage.
     ///
@@ -1341,7 +1349,7 @@ mod tests {
             checksum: compute_sha256_checksum(payload),
             metadata_payload: "meta".to_string(),
             payload_key_version: 1,
-            base_seq: None,
+            base_seq: Some(0),
         }
     }
 
@@ -1700,6 +1708,27 @@ mod tests {
         server.abort();
     }
 
+    #[tokio::test]
+    async fn snapshot_upload_rejects_unknown_cursor_without_network() {
+        let (base_url, captured, server) =
+            start_mock_upload_server(vec![MockUploadOutcome::Respond {
+                status: 201,
+                body: success_upload_body("unused"),
+                delay_ms: 0,
+            }])
+            .await;
+        let payload = b"snapshot".to_vec();
+        let mut headers = build_upload_headers(None, &payload);
+        headers.base_seq = None;
+        let result = DeviceSyncClient::new(&base_url)
+            .upload_snapshot("token", "device", headers, payload)
+            .await;
+        assert!(
+            matches!(result, Err(DeviceSyncError::InvalidRequest(message)) if message.contains("cursor unavailable"))
+        );
+        assert!(captured.lock().await.is_empty());
+        server.abort();
+    }
     #[tokio::test]
     async fn ordinary_api_request_keeps_client_timeout() {
         let (base_url, _, server) = start_mock_upload_server(vec![MockUploadOutcome::Respond {

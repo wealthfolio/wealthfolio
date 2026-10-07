@@ -340,7 +340,7 @@ async fn complete_pairing(
     let device_id = get_device_id(&state)
         .ok_or_else(|| ApiError::BadRequest("No device ID configured".to_string()))?;
 
-    device_sync_engine::share_backup_access(&state).await;
+    let _ = device_sync_engine::share_backup_access(&state).await;
     let result = create_client()
         .complete_pairing(
             &token,

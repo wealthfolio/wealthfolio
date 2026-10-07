@@ -8,7 +8,21 @@ use crate::{
     DeviceSyncError, Result,
 };
 use serde::{Deserialize, Serialize};
-use std::{collections::BTreeMap, time::Duration};
+use std::{collections::BTreeMap, sync::LazyLock, time::Duration};
+
+// Share connection pools without retaining capabilities, credentials, or profile state.
+static SNAPSHOT_CLIENT: LazyLock<std::result::Result<reqwest::Client, String>> =
+    LazyLock::new(|| transfer_client(SNAPSHOT_TRANSFER_TIMEOUT_SECONDS));
+static BACKUP_CLIENT: LazyLock<std::result::Result<reqwest::Client, String>> =
+    LazyLock::new(|| transfer_client(BACKUP_TRANSFER_TIMEOUT_SECONDS));
+fn transfer_client(seconds: u64) -> std::result::Result<reqwest::Client, String> {
+    wealthfolio_http::client_builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .timeout(Duration::from_secs(seconds))
+        .connect_timeout(Duration::from_secs(30))
+        .build()
+        .map_err(|_| "Secure transfer client unavailable".into())
+}
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct TransferDescriptor {
@@ -30,6 +44,7 @@ pub struct ConnectTransferTransport {
     hosts: Vec<String>,
     client: reqwest::Client,
     max_bytes: usize,
+    timeout: Duration,
 }
 impl std::fmt::Debug for ConnectTransferTransport {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -55,6 +70,7 @@ impl ConnectTransferTransport {
             hosts,
             client,
             max_bytes,
+            timeout: Duration::from_secs(timeout_seconds),
         })
     }
     pub fn configured() -> Result<Self> {
@@ -71,16 +87,22 @@ impl ConnectTransferTransport {
             .ok()
             .or_else(|| option_env!("CONNECT_STORAGE_ALLOWED_HOSTS").map(str::to_string))
             .unwrap_or_default();
-        Self::with_limits(
-            hosts
+        let client = if max_bytes == MAX_ENCRYPTED_BACKUP_BYTES {
+            &*BACKUP_CLIENT
+        } else {
+            &*SNAPSHOT_CLIENT
+        };
+        Ok(Self {
+            hosts: hosts
                 .split(',')
                 .map(str::trim)
                 .filter(|s| !s.is_empty())
                 .map(str::to_string)
                 .collect(),
+            client: client.clone().map_err(DeviceSyncError::invalid_request)?,
             max_bytes,
-            timeout_seconds,
-        )
+            timeout: Duration::from_secs(timeout_seconds),
+        })
     }
     fn request(
         &self,
@@ -103,13 +125,10 @@ impl ConnectTransferTransport {
                 "Unapproved transfer destination",
             ));
         }
-        let expiry = chrono::DateTime::parse_from_rfc3339(&descriptor.expires_at)
+        // Storage enforces expiry on its clock. A skewed device clock must not
+        // reject an otherwise valid signed capability before trying it.
+        chrono::DateTime::parse_from_rfc3339(&descriptor.expires_at)
             .map_err(|_| DeviceSyncError::invalid_request("Invalid transfer expiration"))?;
-        if expiry.timestamp() <= chrono::Utc::now().timestamp() {
-            return Err(DeviceSyncError::invalid_request(
-                "Transfer capability expired",
-            ));
-        }
         let mut request = self.client.request(
             if method == "GET" {
                 reqwest::Method::GET
@@ -198,19 +217,47 @@ impl ConnectTransferTransport {
                 ));
             }
         }
-        let response = self
+        let request = self
             .request(descriptor, "PUT")?
             .body(bytes)
-            .send()
-            .await
-            .map_err(|e| DeviceSyncError::Http(e.without_url()))?;
-        if !response.status().is_success() {
-            return Err(DeviceSyncError::api(
-                response.status().as_u16(),
-                "Secure upload failed",
-            ));
-        }
-        Ok(())
+            .build()
+            .map_err(|_| DeviceSyncError::invalid_request("Invalid transfer headers"))?;
+        self.send_upload(request).await
+    }
+    async fn send_upload(&self, request: reqwest::Request) -> Result<()> {
+        // Reuse the existing bounded upload retry policy and the same immutable
+        // body/key. Request clones share the body allocation, including large backups.
+        tokio::time::timeout(self.timeout, async {
+            for attempt in 1..=crate::client::SNAPSHOT_UPLOAD_MAX_ATTEMPTS {
+                let request = request
+                    .try_clone()
+                    .expect("buffered upload body is clonable");
+                let result = match self.client.execute(request).await {
+                    Ok(response) if response.status().is_success() => return Ok(()),
+                    Ok(response) => Err(DeviceSyncError::api(
+                        response.status().as_u16(),
+                        "Secure upload failed",
+                    )),
+                    Err(error) => Err(DeviceSyncError::Http(error.without_url())),
+                };
+                let retry = match &result {
+                    Err(DeviceSyncError::Http(error)) => {
+                        crate::client::is_retryable_transport_error(error)
+                    }
+                    Err(DeviceSyncError::Api { status, .. }) => {
+                        crate::client::is_retryable_snapshot_status(*status)
+                    }
+                    _ => false,
+                };
+                if !retry || attempt == crate::client::SNAPSHOT_UPLOAD_MAX_ATTEMPTS {
+                    return result;
+                }
+                tokio::time::sleep(crate::client::snapshot_backoff_with_jitter(attempt)).await;
+            }
+            unreachable!("bounded upload loop returns on its final attempt")
+        })
+        .await
+        .unwrap_or_else(|_| Err(DeviceSyncError::api(408, "Secure upload timed out")))
     }
 }
 #[cfg(test)]
@@ -225,8 +272,7 @@ mod tests {
             BACKUP_TRANSFER_TIMEOUT_SECONDS,
         )
         .unwrap();
-        let mut expired = descriptor("https://storage.test/object");
-        expired.expires_at = "2000-01-01T00:00:00Z".into();
+        let expired = descriptor("https://blocked.test/object");
         assert!(snapshot
             .download(&expired, MAX_ENCRYPTED_SNAPSHOT_BYTES + 1, "unused")
             .await
@@ -239,7 +285,7 @@ mod tests {
             .await
             .unwrap_err()
             .to_string()
-            .contains("Transfer capability expired"));
+            .contains("Unapproved transfer destination"));
         assert!(backup
             .download(&expired, MAX_ENCRYPTED_BACKUP_BYTES + 1, "unused")
             .await
@@ -254,6 +300,86 @@ mod tests {
             headers: BTreeMap::new(),
             expires_at: (chrono::Utc::now() + chrono::Duration::minutes(5)).to_rfc3339(),
         }
+    }
+    #[test]
+    fn signed_expiry_is_enforced_by_storage_not_the_device_clock() {
+        let transport = ConnectTransferTransport::new(vec!["storage.test".into()]).unwrap();
+        let mut old = descriptor("https://storage.test/object");
+        old.expires_at = "2000-01-01T00:00:00Z".into();
+        assert!(transport.request(&old, "GET").is_ok());
+        old.expires_at = "invalid".into();
+        assert!(transport.request(&old, "GET").is_err());
+    }
+    #[tokio::test]
+    async fn payload_retry_reuses_bytes_and_stops_on_success_or_a_conditional_conflict() {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        for (first_status, final_status) in [(Some(503), 201), (Some(503), 412), (None, 412)] {
+            let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let url = format!("http://{}", listener.local_addr().unwrap());
+            let server = tokio::spawn(async move {
+                let mut bodies = Vec::new();
+                for status in [first_status, Some(final_status)] {
+                    let (mut stream, _) = listener.accept().await.unwrap();
+                    let mut data = Vec::new();
+                    let body = loop {
+                        let mut chunk = [0; 1024];
+                        let n = stream.read(&mut chunk).await.unwrap();
+                        assert!(n > 0);
+                        data.extend_from_slice(&chunk[..n]);
+                        if let Some(end) = data.windows(4).position(|w| w == b"\r\n\r\n") {
+                            if data.len() >= end + 4 + 3 {
+                                break data[end + 4..].to_vec();
+                            }
+                        }
+                    };
+                    bodies.push(body);
+                    if let Some(status) = status {
+                        stream.write_all(format!("HTTP/1.1 {status} response\r\nContent-Length: 0\r\nConnection: close\r\n\r\n").as_bytes()).await.unwrap();
+                    }
+                }
+                bodies
+            });
+            let transport = ConnectTransferTransport::new(vec![]).unwrap();
+            let request = transport
+                .client
+                .put(url)
+                .body(vec![1, 2, 3])
+                .build()
+                .unwrap();
+            let result = transport.send_upload(request).await;
+            if final_status == 201 {
+                assert!(result.is_ok());
+            } else {
+                assert_eq!(result.unwrap_err().status_code(), Some(412));
+            }
+            assert_eq!(server.await.unwrap(), vec![vec![1, 2, 3], vec![1, 2, 3]]);
+        }
+    }
+    #[tokio::test]
+    async fn all_upload_retries_share_one_duration_budget() {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("http://{}", listener.local_addr().unwrap());
+        let server = tokio::spawn(async move {
+            let (_socket, _) = listener.accept().await.unwrap();
+            std::future::pending::<()>().await;
+        });
+        let mut transport = ConnectTransferTransport::new(vec![]).unwrap();
+        transport.timeout = Duration::from_millis(20);
+        let request = transport
+            .client
+            .put(url)
+            .body(vec![1, 2, 3])
+            .build()
+            .unwrap();
+        assert_eq!(
+            transport
+                .send_upload(request)
+                .await
+                .unwrap_err()
+                .status_code(),
+            Some(408)
+        );
+        server.abort();
     }
     #[tokio::test]
     async fn checksum_header_is_bound_to_upload_bytes_before_network_io() {
