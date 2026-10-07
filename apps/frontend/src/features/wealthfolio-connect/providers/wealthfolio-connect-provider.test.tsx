@@ -31,7 +31,10 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@/features/profiles/api", () => ({
   profileCommand: vi.fn(async (_command, payload) => payload?.operation === "validate"),
 }));
-vi.mock("@/lib/connect-config", () => ({ CONNECT_ENABLED: true }));
+vi.mock(import("@/lib/connect-config"), async (importOriginal) => ({
+  ...(await importOriginal()),
+  CONNECT_ENABLED: true,
+}));
 vi.mock("@/context/auth-context", () => ({ useAuth: () => ({ isAuthenticated: true }) }));
 vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: mocks.t }) }));
 vi.mock("@/hooks/use-platform", () => ({

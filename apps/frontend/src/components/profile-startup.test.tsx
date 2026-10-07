@@ -46,7 +46,10 @@ vi.mock("@/context/auth-context", () => ({
 vi.mock("@/hooks/use-settings-mutation", () => ({
   useSettingsMutation: () => ({ mutateAsync: vi.fn() }),
 }));
-vi.mock("@/lib/connect-config", () => ({ CONNECT_ENABLED: false }));
+vi.mock(import("@/lib/connect-config"), async (importOriginal) => ({
+  ...(await importOriginal()),
+  CONNECT_ENABLED: false,
+}));
 vi.mock("@/i18n/i18n", () => ({
   LANGUAGE_STORAGE_KEY: "test-language",
   default: {
