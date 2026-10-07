@@ -605,6 +605,7 @@ pub(crate) async fn share_backup_access(state: &Arc<AppState>) -> Result<(), Str
                     )?
                 };
                 let resolved = client.resolve_access(&token, material).await?;
+                let gained_access = resolved.restores_local_access();
                 let _guard = state.profile_lifecycle.lock().await;
                 if let Some((registry, id)) = state.profile_binding.get() {
                     if registry.profile(*id).is_err() {
@@ -612,7 +613,9 @@ pub(crate) async fn share_backup_access(state: &Arc<AppState>) -> Result<(), Str
                     }
                 }
                 resolved.apply(state.secret_store.as_ref())?;
-                state.backup_scheduler.request_check();
+                if gained_access {
+                    state.backup_scheduler.request_check();
+                }
                 Ok::<(), wealthfolio_device_sync::DeviceSyncError>(())
             }
             .await;

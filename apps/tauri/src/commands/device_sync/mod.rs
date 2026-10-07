@@ -51,10 +51,13 @@ pub(crate) async fn share_backup_access(context: &Arc<ServiceContext>) -> Result
                     )?
                 };
                 let resolved = client.resolve_access(&token, material).await?;
+                let gained_access = resolved.restores_local_access();
                 let _guard = context.sync_lifecycle.lock().await;
                 if context.is_active() {
                     resolved.apply(context.secret_store.as_ref())?;
-                    context.backup_scheduler.request_check();
+                    if gained_access {
+                        context.backup_scheduler.request_check();
+                    }
                 }
                 Ok::<(), wealthfolio_device_sync::DeviceSyncError>(())
             }

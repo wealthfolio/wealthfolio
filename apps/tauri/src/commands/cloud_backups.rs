@@ -134,9 +134,8 @@ async fn capture_in_phases(
     #[cfg(feature = "device-sync")]
     crate::commands::device_sync::share_backup_access(&context)
         .await
-        .map_err(|error| {
+        .inspect_err(|_| {
             runtime.backup_scheduler.blocked(generation);
-            error
         })?;
     if !runtime.backup_scheduler.is_current(generation) {
         return Ok((None, None));

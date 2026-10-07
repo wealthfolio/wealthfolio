@@ -134,6 +134,12 @@ pub struct ResolvedBackupAccess {
     key: Option<(String, MasterKey)>,
 }
 impl ResolvedBackupAccess {
+    /// A due source already has access. Waking its scheduler after an unchanged
+    /// wrapper check would bypass the capture's retry/due delay.
+    pub fn restores_local_access(&self) -> bool {
+        self.material.master.is_none() && self.key.is_some()
+    }
+
     pub fn apply(self, store: &dyn SecretStore) -> ApiResult<BackupAccess> {
         for (name, expected) in [
             (
@@ -1400,9 +1406,26 @@ mod access_tests {
             access: BackupAccess::Ready,
             key: Some((uuid::Uuid::new_v4().to_string(), MasterKey::generate())),
         };
+        assert!(resolved.restores_local_access());
         store.0.lock().unwrap().clear();
         assert!(resolved.apply(&store).is_err());
         assert!(store.0.lock().unwrap().is_empty());
+    }
+    #[test]
+    fn sharing_an_existing_key_does_not_request_another_due_check() {
+        let store = Store::default();
+        let user = uuid::Uuid::new_v4().to_string();
+        let key_id = uuid::Uuid::new_v4().to_string();
+        let master = MasterKey::generate();
+        master.save_for_key(&store, &user, &key_id).unwrap();
+        let policy: BackupPolicy = serde_json::from_value(json!({"userId":user,"teamId":null,"enabled":true,"sourceId":null,"revision":1,"nextDueAt":null,"lastBackupAt":null})).unwrap();
+        let resolved = ResolvedBackupAccess {
+            material: BackupClient::access_material(&store, &policy).unwrap(),
+            access: BackupAccess::Ready,
+            key: Some((key_id, master)),
+        };
+        assert!(!resolved.restores_local_access());
+        assert_eq!(resolved.apply(&store).unwrap(), BackupAccess::Ready);
     }
     #[tokio::test]
     async fn completion_resolves_lost_put_responses_and_preserves_missing_upload_errors() {
