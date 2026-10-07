@@ -12,6 +12,9 @@ on:
       - "crates/core/src/profiles/**"
       - "crates/core/src/secrets/**"
       - "crates/device-sync/**"
+      - "crates/connect/**"
+      - "crates/core/src/connect_config.rs"
+      - "config/**"
       - "Cargo.toml"
       - "Cargo.lock"
       - "rust-toolchain.toml"
@@ -41,6 +44,12 @@ jobs:
       packages: write
     steps:
       - uses: actions/checkout@v4
+      - name: Check Connect build configuration
+        env:
+          CONNECT_AUTH_URL: ${{ vars.CONNECT_AUTH_URL }}
+          CONNECT_AUTH_PUBLISHABLE_KEY: ${{ vars.CONNECT_AUTH_PUBLISHABLE_KEY }}
+          CONNECT_STORAGE_ALLOWED_HOSTS: ${{ secrets.CONNECT_STORAGE_ALLOWED_HOSTS }}
+        run: python3 .github/scripts/check_connect_build.py --github-env
       - uses: docker/setup-buildx-action@v3
       - name: Image metadata
         id: meta
@@ -60,7 +69,7 @@ jobs:
           # Secret values do not invalidate Docker's cache; compile current destinations.
           no-cache-filters: backend
           secrets: |
-            connect-storage-hosts=${{ secrets.CONNECT_STORAGE_ALLOWED_HOSTS }}
+            connect-storage-hosts=${{ env.CONNECT_STORAGE_ALLOWED_HOSTS }}
           build-args: |
             CONNECT_AUTH_URL=${{ vars.CONNECT_AUTH_URL }}
             CONNECT_AUTH_PUBLISHABLE_KEY=${{ vars.CONNECT_AUTH_PUBLISHABLE_KEY }}

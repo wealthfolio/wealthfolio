@@ -48,14 +48,13 @@ jobs:
           CONNECT_AUTH_URL: ${{ vars.CONNECT_AUTH_URL }}
           CONNECT_AUTH_PUBLISHABLE_KEY: ${{ vars.CONNECT_AUTH_PUBLISHABLE_KEY }}
           CONNECT_STORAGE_ALLOWED_HOSTS: ${{ secrets.CONNECT_STORAGE_ALLOWED_HOSTS }}
-        run: python3 .github/scripts/check_connect_build.py
+        run: python3 .github/scripts/check_connect_build.py --github-env
 
       - name: Build release-mode ARM64 APK
         env:
           CONNECT_AUTH_URL: ${{ vars.CONNECT_AUTH_URL }}
           CONNECT_AUTH_PUBLISHABLE_KEY: ${{ vars.CONNECT_AUTH_PUBLISHABLE_KEY }}
           CONNECT_API_URL: ${{ vars.CONNECT_API_URL }}
-          CONNECT_STORAGE_ALLOWED_HOSTS: ${{ secrets.CONNECT_STORAGE_ALLOWED_HOSTS }}
           CONNECT_OAUTH_CALLBACK_URL: ${{ vars.CONNECT_OAUTH_CALLBACK_URL }}
         run: pnpm tauri android build --ci --apk --target aarch64 -- --locked
       - name: Sign APK for testing

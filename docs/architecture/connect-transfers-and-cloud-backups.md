@@ -24,9 +24,12 @@ extend it. An explicitly empty override disables transfers with a configuration
 error. URLs still require HTTPS, exact hostname matching and approved headers,
 without redirects. Never derive the allowlist from a received transfer URL.
 
-Official CI keeps injecting its configured overrides. Docker's optional BuildKit
-mount overrides the defaults; the backend build copies the shared configuration
-file. Changes to the JSON run frontend, Rust and mobile compilation checks.
+Official CI resolves a missing/empty GitHub secret to the public defaults
+through `check_connect_build.py --github-env`, then passes that value to later
+build steps. A non-empty secret remains an intentional override; changing it
+takes precedence over editing the defaults. Docker's optional BuildKit mount
+overrides the defaults; the backend build copies the shared configuration file.
+Changes to the JSON run frontend, Rust and mobile compilation checks.
 
 **Architecture impact:** source builds no longer require a private CI value to
 use direct transfers. Configuration remains local to the build/runtime, with no
