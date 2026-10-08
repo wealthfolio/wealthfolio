@@ -185,6 +185,36 @@ writable vault in a non-writable directory remains supported; creating a new
 vault requires a writable parent directory. The database and other application
 files retain their own directory-access requirements.
 
+### Secrets file cannot be opened
+
+The server logs `SECRET_VAULT_UNAVAILABLE` at startup when `secrets.json` (or
+the `WF_SECRET_FILE` path) exists but cannot be opened with the configured
+master key. The server still starts and leaves the file untouched, but saved
+credentials such as provider API keys and the Connect sign-in are unavailable,
+and deleting a profile fails with "The profile credential store could not be
+accessed." The browser shows the same failure as a secrets-file error. This
+vault belongs to the server: it never uses the host's keyring, so mounting a
+D-Bus or keyring socket into the container has no effect.
+
+The `reason` field names the cause:
+
+| `reason`         | Cause                                                                                                                              | Fix                                                                                                                              |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `cannot_decrypt` | The configured `WF_SECRET_KEY` or `WF_SECRET_KEY_FILE` differs from the key the vault was created with.                            | Configure the original key; see [Preserving the master key](#preserving-the-master-key).                                         |
+| `unreadable`     | The runtime user cannot read the file; `io_kind` and `os_code` give the system error.                                              | Give the runtime user (see [above](#permissions-and-existing-deployments)) read access, and write access for saving credentials. |
+| `not_a_file`     | The path is a directory or another non-file, for example one Docker created for a single-file bind mount whose source was missing. | Remove that mount or point it at the real file.                                                                                  |
+| `malformed`      | The file is not a valid secrets file.                                                                                              | Restore it from a backup made with the same master key.                                                                          |
+
+Restart after the fix. A profile deletion that failed for this reason stays
+pending and finishes at the next startup.
+
+If the original key is lost, no key can decrypt the vault. Stop the server,
+rename the file (for example to `secrets.json.bak`), and start it again; the
+server creates a new vault the next time it saves a credential. Enter provider
+API keys again and sign in to Connect again. Do not restore the original key if
+you enabled database encryption after changing it: the database now requires the
+new key, so move the vault aside instead.
+
 ## Backups and upgrades
 
 For the shared Backups screen, password-protected exports, transfers between
