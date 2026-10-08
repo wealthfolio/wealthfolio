@@ -79,10 +79,10 @@
       "message": "Algunos activos tienen datos de sector/país heredados que pueden migrarse al nuevo sistema de clasificación."
     },
     "data_negative_account_balance": {
-      "title_one": "Una cuenta tiene un saldo de cartera negativo",
-      "title_other": "{{count}} cuentas tienen un saldo de cartera negativo",
-      "title_many": "{{count}} cuentas tienen un saldo de cartera negativo",
-      "message": "Una o varias cuentas muestran un valor total negativo en su historial. Esto suele deberse a transacciones de compra faltantes. Revisa tus actividades para corregirlo."
+      "title_one": "Una cuenta tuvo un saldo negativo",
+      "title_other": "{{count}} cuentas tuvieron un saldo negativo",
+      "title_many": "{{count}} cuentas tuvieron un saldo negativo",
+      "message": "Una o varias cuentas de inversión muestran efectivo negativo o un valor total negativo en su historial, por lo que sus rentabilidades pueden ser incorrectas. Normalmente falta un depósito o una transferencia entrante antes de una compra, o una compra antes de una venta."
     },
     "data_negative_cash_balance": {
       "title_one": "Una cuenta de efectivo tuvo un saldo negativo",

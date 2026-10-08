@@ -499,7 +499,7 @@ impl ValuationStatus {
 #[derive(Debug, Clone)]
 pub struct NegativeBalanceInfo {
     pub account_id: String,
-    /// First date the total_value went negative.
+    /// First date the cash balance or total value went negative.
     pub first_negative_date: NaiveDate,
     /// Cash balance on that date (account currency).
     pub cash_balance: Decimal,

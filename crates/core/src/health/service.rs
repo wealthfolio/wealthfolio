@@ -456,16 +456,9 @@ impl HealthService {
             &holding_mv_map,
         );
 
-        // Detect accounts with negative portfolio balance in their history.
-        // Exclude cash and credit-card accounts; card debt is an expected liability.
+        // Detect accounts whose cash or total value went negative in their history.
         let all_account_ids: Vec<String> = accounts.iter().map(|a| a.id.clone()).collect();
-        let account_ids: Vec<String> = accounts
-            .iter()
-            .filter(|a| {
-                a.account_type != account_types::CASH && !is_liability_account_type(&a.account_type)
-            })
-            .map(|a| a.id.clone())
-            .collect();
+        let account_ids = negative_balance_account_ids(&accounts);
         let account_name_map: std::collections::HashMap<String, String> = accounts
             .iter()
             .map(|a| (a.id.clone(), a.name.clone()))
@@ -747,6 +740,22 @@ impl HealthService {
 
         Ok(filtered)
     }
+}
+
+/// Investment accounts checked for a negative cash balance or total value.
+/// Cash accounts get their own overdraft check, and card or loan debt is an
+/// expected liability. Holdings-mode cash and value come from entered snapshots,
+/// so a negative balance there was typed in, not left by a missing deposit.
+fn negative_balance_account_ids(accounts: &[Account]) -> Vec<String> {
+    accounts
+        .iter()
+        .filter(|a| {
+            a.account_type != account_types::CASH
+                && !is_liability_account_type(&a.account_type)
+                && a.tracking_mode != TrackingMode::Holdings
+        })
+        .map(|a| a.id.clone())
+        .collect()
 }
 
 fn gather_invalid_snapshot_date_issues(
@@ -2263,6 +2272,39 @@ mod tests {
             is_archived: false,
             tracking_mode,
         }
+    }
+
+    #[test]
+    fn negative_balance_check_covers_transaction_investment_accounts_only() {
+        let accounts = vec![
+            health_account(
+                "brokerage",
+                account_types::SECURITIES,
+                TrackingMode::Transactions,
+            ),
+            health_account(
+                "crypto",
+                account_types::CRYPTOCURRENCY,
+                TrackingMode::Transactions,
+            ),
+            health_account("unset", account_types::SECURITIES, TrackingMode::NotSet),
+            health_account(
+                "snapshots",
+                account_types::SECURITIES,
+                TrackingMode::Holdings,
+            ),
+            health_account("bank", account_types::CASH, TrackingMode::Transactions),
+            health_account(
+                "card",
+                account_types::CREDIT_CARD,
+                TrackingMode::Transactions,
+            ),
+        ];
+
+        assert_eq!(
+            negative_balance_account_ids(&accounts),
+            vec!["brokerage", "crypto", "unset"]
+        );
     }
 
     #[test]

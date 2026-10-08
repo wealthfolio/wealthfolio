@@ -311,7 +311,8 @@ impl ValuationRepositoryTrait for ValuationRepository {
             "SELECT account_id, MIN(valuation_date) AS first_negative_date, \
              cash_balance, total_value, account_currency \
              FROM daily_account_valuation \
-             WHERE CAST(total_value AS REAL) < 0 AND account_id IN ({}) \
+             WHERE (CAST(cash_balance AS REAL) < 0 OR CAST(total_value AS REAL) < 0) \
+             AND account_id IN ({}) \
              GROUP BY account_id",
             placeholders
         );
@@ -377,5 +378,143 @@ impl ValuationRepositoryTrait for ValuationRepository {
             .collect();
 
         Ok(history_records)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use chrono::Utc;
+    use rust_decimal::Decimal;
+    use tempfile::tempdir;
+    use wealthfolio_core::portfolio::economic_events::BasisStatus;
+    use wealthfolio_core::portfolio::valuation::{ExternalFlowSource, ValuationStatus};
+
+    use super::*;
+    use crate::db::{create_pool, run_migrations, write_actor::spawn_writer};
+
+    fn date(day: u32) -> NaiveDate {
+        NaiveDate::from_ymd_opt(2025, 1, day).expect("valid test date")
+    }
+
+    fn valuation(account: &str, day: u32, cash: i64, total: i64) -> DailyAccountValuation {
+        DailyAccountValuation {
+            id: format!("{account}_{}", date(day)),
+            account_id: account.to_string(),
+            valuation_date: date(day),
+            account_currency: "USD".to_string(),
+            base_currency: "USD".to_string(),
+            fx_rate_to_base: Decimal::ONE,
+            cash_balance: Decimal::from(cash),
+            investment_market_value: Decimal::from(total - cash),
+            total_value: Decimal::from(total),
+            cost_basis: Decimal::ZERO,
+            book_basis: Decimal::ZERO,
+            net_contribution: Decimal::ZERO,
+            cash_balance_base: Decimal::from(cash),
+            investment_market_value_base: Decimal::from(total - cash),
+            total_value_base: Decimal::from(total),
+            cost_basis_base: Decimal::ZERO,
+            book_basis_base: Decimal::ZERO,
+            net_contribution_base: Decimal::ZERO,
+            external_inflow_base: Decimal::ZERO,
+            external_outflow_base: Decimal::ZERO,
+            external_flow_source: ExternalFlowSource::NoFlow,
+            performance_eligible_value_base: Decimal::from(total),
+            value_status: ValuationStatus::Complete,
+            basis_status: BasisStatus::Complete,
+            calculated_at: Utc::now(),
+        }
+    }
+
+    #[tokio::test]
+    async fn negative_balance_reports_the_first_day_cash_or_value_is_negative() {
+        std::env::set_var("CONNECT_API_URL", "http://test.local");
+        let dir = tempdir().unwrap();
+        let db_path = dir.path().join("test.db").to_string_lossy().to_string();
+        run_migrations(&db_path).unwrap();
+        let pool = create_pool(&db_path).unwrap();
+        let writer = spawn_writer((*pool).clone()).unwrap();
+        let mut conn = get_connection(&pool).unwrap();
+        for account in ["unfunded_buy", "sell_without_buy", "funded"] {
+            sql_query(format!(
+                "INSERT INTO accounts (id, name, account_type, currency, is_default, is_active, \
+                 created_at, updated_at, tracking_mode, is_archived) \
+                 VALUES ('{account}', '{account}', 'SECURITIES', 'USD', 0, 1, datetime('now'), \
+                 datetime('now'), 'TRANSACTIONS', 0)"
+            ))
+            .execute(&mut conn)
+            .unwrap();
+        }
+        let repository = ValuationRepository::new(pool.clone(), writer);
+        // A buy with no deposit: cash is negative while the holding keeps
+        // total value at or above zero.
+        repository
+            .replace_valuations_for_account(
+                "unfunded_buy",
+                None,
+                &[
+                    valuation("unfunded_buy", 1, 0, 0),
+                    valuation("unfunded_buy", 2, -1000, 0),
+                    valuation("unfunded_buy", 3, -1000, 200),
+                ],
+            )
+            .await
+            .unwrap();
+        // A sell with no buy: cash stays positive, total value goes negative.
+        repository
+            .replace_valuations_for_account(
+                "sell_without_buy",
+                None,
+                &[
+                    valuation("sell_without_buy", 1, 100, 100),
+                    valuation("sell_without_buy", 4, 300, -50),
+                ],
+            )
+            .await
+            .unwrap();
+        repository
+            .replace_valuations_for_account(
+                "funded",
+                None,
+                &[
+                    valuation("funded", 1, 1000, 1000),
+                    valuation("funded", 2, 0, 800),
+                ],
+            )
+            .await
+            .unwrap();
+
+        let mut found = repository
+            .get_accounts_with_negative_balance(&[
+                "unfunded_buy".to_string(),
+                "sell_without_buy".to_string(),
+                "funded".to_string(),
+            ])
+            .unwrap();
+        found.sort_by(|a, b| a.account_id.cmp(&b.account_id));
+
+        let summary: Vec<_> = found
+            .iter()
+            .map(|info| {
+                (
+                    info.account_id.as_str(),
+                    info.first_negative_date,
+                    info.cash_balance,
+                    info.total_value,
+                )
+            })
+            .collect();
+        assert_eq!(
+            summary,
+            vec![
+                (
+                    "sell_without_buy",
+                    date(4),
+                    Decimal::from(300),
+                    Decimal::from(-50)
+                ),
+                ("unfunded_buy", date(2), Decimal::from(-1000), Decimal::ZERO),
+            ]
+        );
     }
 }

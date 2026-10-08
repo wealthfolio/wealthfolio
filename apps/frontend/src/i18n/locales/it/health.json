@@ -79,10 +79,10 @@
       "message": "Alcuni asset hanno dati di settore/paese obsoleti che possono essere migrati al nuovo sistema di classificazione."
     },
     "data_negative_account_balance": {
-      "title_one": "Un conto ha un saldo del portafoglio negativo",
-      "title_many": "{{count}} conti hanno un saldo del portafoglio negativo",
-      "title_other": "{{count}} conti hanno un saldo del portafoglio negativo",
-      "message": "Uno o più conti mostrano un valore totale negativo nella loro cronologia. Questo è solitamente causato da transazioni di acquisto mancanti. Rivedi i tuoi movimenti per risolvere il problema."
+      "title_one": "Un conto ha avuto un saldo negativo",
+      "title_many": "{{count}} conti hanno avuto un saldo negativo",
+      "title_other": "{{count}} conti hanno avuto un saldo negativo",
+      "message": "Uno o più conti di investimento mostrano liquidità negativa o un valore totale negativo nella loro cronologia, quindi i loro rendimenti potrebbero essere errati. Di solito manca un deposito o un trasferimento in entrata prima di un acquisto, oppure un acquisto prima di una vendita."
     },
     "data_negative_cash_balance": {
       "title_one": "Un conto in contanti ha avuto un saldo negativo",

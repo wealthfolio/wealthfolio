@@ -83,7 +83,7 @@ pub trait ValuationServiceTrait: Send + Sync {
         date: NaiveDate,
     ) -> CoreResult<Vec<DailyAccountValuation>>;
 
-    /// Accounts with at least one negative total value in their history.
+    /// Accounts whose cash balance or total value was negative on some day.
     fn get_accounts_with_negative_balance(
         &self,
         account_ids: &[String],

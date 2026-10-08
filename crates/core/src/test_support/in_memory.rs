@@ -937,7 +937,7 @@ impl ValuationRepositoryTrait for InMemoryValuationRepository {
             .filter_map(|account_id| {
                 rows.get(account_id)?
                     .values()
-                    .find(|row| row.total_value < Decimal::ZERO)
+                    .find(|row| row.cash_balance < Decimal::ZERO || row.total_value < Decimal::ZERO)
                     .map(|row| NegativeBalanceInfo {
                         account_id: account_id.clone(),
                         first_negative_date: row.valuation_date,

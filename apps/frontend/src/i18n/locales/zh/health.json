@@ -66,9 +66,9 @@
       "message": "部分资产存在可迁移到新分类系统的旧版行业/国家数据。"
     },
     "data_negative_account_balance": {
-      "title_one": "账户的投资组合余额为负",
-      "title_other": "{{count}} 个账户的投资组合余额为负",
-      "message": "一个或多个账户在其历史记录中显示总价值为负。这通常是由于缺少买入交易所致。请检查您的活动记录以修复此问题。"
+      "title_one": "账户曾出现负余额",
+      "title_other": "{{count}} 个账户曾出现负余额",
+      "message": "一个或多个投资账户的历史记录显示现金或总价值为负，因此其收益可能不正确。这通常是买入前缺少存入或转入，或卖出前缺少买入所致。"
     },
     "data_negative_cash_balance": {
       "title_one": "现金账户曾出现负余额",

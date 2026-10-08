@@ -71,7 +71,7 @@ pub trait ValuationRepositoryTrait: Send + Sync {
         date: NaiveDate,
     ) -> Result<Vec<DailyAccountValuation>>;
 
-    /// Returns info about accounts that have at least one negative total_value in their history.
+    /// Returns, per account, the first day its cash balance or total value was negative.
     fn get_accounts_with_negative_balance(
         &self,
         account_ids: &[String],

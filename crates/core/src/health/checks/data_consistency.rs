@@ -488,7 +488,7 @@ impl DataConsistencyCheck {
             );
         }
 
-        // Emit health issue for accounts with negative portfolio balance
+        // Emit health issue for accounts whose cash or total value went negative
         if let Some(negative_balance_issues) =
             by_type.get(&ConsistencyIssueType::NegativeAccountBalance)
         {
@@ -537,6 +537,11 @@ impl DataConsistencyCheck {
                 .collect::<Vec<_>>()
                 .join("\n\n");
 
+            let diagnostics: Vec<HealthDiagnostic> = negative_balance_issues
+                .iter()
+                .map(|i| negative_balance_diagnostic(i, Severity::Warning))
+                .collect();
+
             let mut builder = HealthIssue::builder()
                 .id(format!("negative_account_balance:{}", data_hash))
                 .severity(Severity::Warning)
@@ -544,16 +549,17 @@ impl DataConsistencyCheck {
                 .code("data_negative_account_balance")
                 .param("count", count as u32)
                 .title(if count == 1 {
-                    "Account has negative portfolio balance".to_string()
+                    "Account had a negative balance".to_string()
                 } else {
-                    format!("{} accounts have negative portfolio balance", count)
+                    format!("{} accounts had a negative balance", count)
                 })
                 .message(
-                    "One or more accounts show a negative total value in their history. This is usually caused by missing buy transactions. Review your activities to fix this.",
+                    "One or more investment accounts show negative cash or a negative total value in their history, so their returns can be wrong. This usually means a buy has no deposit or transfer in before it, or a sell has no buy before it.",
                 )
                 .affected_count(count as u32)
                 .affected_items(affected_items)
                 .navigate_action(NavigateAction::to_activities(None))
+                .diagnostics(diagnostics)
                 .data_hash(data_hash);
             if !details.is_empty() {
                 builder = builder.details(details);
@@ -589,6 +595,10 @@ impl DataConsistencyCheck {
                 })
                 .collect::<Vec<_>>()
                 .join("\n\n");
+            let diagnostics: Vec<HealthDiagnostic> = cash_balance_issues
+                .iter()
+                .map(|i| negative_balance_diagnostic(i, Severity::Info))
+                .collect();
 
             let mut builder = HealthIssue::builder()
                 .id(format!("negative_cash_balance:{}", data_hash))
@@ -607,6 +617,7 @@ impl DataConsistencyCheck {
                 .affected_count(count as u32)
                 .affected_items(affected_items)
                 .navigate_action(NavigateAction::to_activities(None))
+                .diagnostics(diagnostics)
                 .data_hash(data_hash);
             if !details.is_empty() {
                 builder = builder.details(details);
@@ -1191,6 +1202,87 @@ fn unknown_transfer_review_query(issues: &[&ConsistencyIssueInfo]) -> serde_json
     }
 
     serde_json::Value::Object(query)
+}
+
+/// Activities on the day an account's balance first went negative.
+fn negative_balance_activities_query(
+    issue: &ConsistencyIssueInfo,
+) -> serde_json::Map<String, serde_json::Value> {
+    let mut query = serde_json::Map::new();
+    if let Some(account_id) = issue.account_id.as_ref() {
+        query.insert("account".to_string(), serde_json::json!(account_id));
+    }
+    if let Some(date) = issue.first_negative_date {
+        let date = date.format("%Y-%m-%d").to_string();
+        query.insert("from".to_string(), serde_json::json!(date.clone()));
+        query.insert("to".to_string(), serde_json::json!(date));
+    }
+    query.insert("healthContext".to_string(), serde_json::json!("activity"));
+    query
+}
+
+fn negative_balance_diagnostic(
+    issue: &ConsistencyIssueInfo,
+    severity: Severity,
+) -> HealthDiagnostic {
+    let query = negative_balance_activities_query(issue);
+    let route = activity_route_from_query(&query);
+    let cash = issue.cash_balance.unwrap_or_default();
+    let holdings = issue.total_value_at_date.unwrap_or_default() - cash;
+
+    let (code, title, explanation) = if issue.issue_type
+        == ConsistencyIssueType::NegativeCashBalance
+    {
+        (
+            "CASH_ACCOUNT_WENT_NEGATIVE",
+            "Balance went below zero",
+            "This may be a normal overdraft. If not, add the missing deposit or transfer, dated on or before this day.",
+        )
+    } else if holdings >= Decimal::ZERO {
+        (
+            "CASH_WENT_NEGATIVE",
+            "Cash went below zero",
+            "A buy or withdrawal used more cash than the account held, so returns for this account can be wrong. Add the deposit or transfer in that paid for it, dated on or before this day.",
+        )
+    } else if cash >= Decimal::ZERO {
+        (
+            "HOLDINGS_WENT_NEGATIVE",
+            "Holdings went below zero",
+            "A sell or transfer out has no matching buy, so the account holds a negative position. Add the missing buy or transfer in, dated on or before this day.",
+        )
+    } else {
+        (
+            "CASH_AND_HOLDINGS_WENT_NEGATIVE",
+            "Cash and holdings went below zero",
+            "Activities on this day used cash and shares the account didn't have. Add the missing deposits, buys or transfers, dated on or before this day.",
+        )
+    };
+
+    let mut diagnostic = HealthDiagnostic::new(code, title, explanation)
+        .domain(DiagnosticDomain::Ledger)
+        .level(DiagnosticLevel::Source)
+        .severity(severity)
+        .entity(
+            HealthEntityRef::new("account", issue.record_id.clone())
+                .label(issue.description.clone())
+                .route(route.clone()),
+        )
+        .evidence(Evidence::new("Account", issue.description.clone()).with_route(route));
+    if let Some(date) = issue.first_negative_date {
+        let date = date.format("%Y-%m-%d").to_string();
+        diagnostic = diagnostic
+            .date(date.clone())
+            .evidence(Evidence::new("Date", date));
+    }
+
+    diagnostic.navigate(
+        true,
+        NavigateAction {
+            route: "/activities".to_string(),
+            query: Some(serde_json::Value::Object(query)),
+            label: "Review activities".to_string(),
+        },
+    )
 }
 
 fn unknown_transfer_issue_query(
@@ -2036,20 +2128,21 @@ mod tests {
         assert_eq!(issues.len(), 2);
     }
 
-    #[test]
-    fn test_negative_account_balance() {
-        let check = DataConsistencyCheck::new();
-        let ctx = HealthContext::new(HealthConfig::default(), "USD", 100_000.0);
-
-        let issues_data = vec![ConsistencyIssueInfo {
-            issue_type: ConsistencyIssueType::NegativeAccountBalance,
-            record_id: "acc_123".to_string(),
-            description: "My Account".to_string(),
-            account_id: Some("acc_123".to_string()),
+    fn negative_balance_info(
+        issue_type: ConsistencyIssueType,
+        account_id: &str,
+        cash: Decimal,
+        total: Decimal,
+    ) -> ConsistencyIssueInfo {
+        ConsistencyIssueInfo {
+            issue_type,
+            record_id: account_id.to_string(),
+            description: format!("{account_id} name"),
+            account_id: Some(account_id.to_string()),
             asset_id: None,
             first_negative_date: Some(chrono::NaiveDate::from_ymd_opt(2025, 1, 10).unwrap()),
-            cash_balance: Some(rust_decimal_macros::dec!(-50.20)),
-            total_value_at_date: Some(rust_decimal_macros::dec!(-50.20)),
+            cash_balance: Some(cash),
+            total_value_at_date: Some(total),
             account_currency: Some("EUR".to_string()),
             activity_date: None,
             asset_symbol: None,
@@ -2062,13 +2155,155 @@ mod tests {
             snapshot_source: None,
             snapshot_min_date: None,
             snapshot_max_date: None,
-        }];
+        }
+    }
+
+    fn primary_navigate(diagnostic: &HealthDiagnostic) -> &NavigateAction {
+        diagnostic
+            .actions
+            .iter()
+            .find(|action| action.primary)
+            .and_then(|action| match &action.action {
+                crate::health::model::ActionRef::Navigate { action } => Some(action),
+                _ => None,
+            })
+            .expect("primary navigate action")
+    }
+
+    #[test]
+    fn test_negative_account_balance() {
+        let check = DataConsistencyCheck::new();
+        let ctx = HealthContext::new(HealthConfig::default(), "USD", 100_000.0);
+
+        // A buy with no deposit: cash is negative while total value is not.
+        let issues_data = vec![negative_balance_info(
+            ConsistencyIssueType::NegativeAccountBalance,
+            "acc_123",
+            rust_decimal_macros::dec!(-1000),
+            rust_decimal_macros::dec!(0),
+        )];
 
         let issues = check.analyze(&issues_data, &ctx);
         assert_eq!(issues.len(), 1);
-        assert_eq!(issues[0].severity, Severity::Warning);
-        assert_eq!(issues[0].category, HealthCategory::DataConsistency);
-        assert!(issues[0].navigate_action.is_some());
+        let issue = &issues[0];
+        assert_eq!(issue.severity, Severity::Warning);
+        assert_eq!(issue.category, HealthCategory::DataConsistency);
+        assert_eq!(issue.title, "Account had a negative balance");
+        assert!(issue
+            .message
+            .contains("a buy has no deposit or transfer in before it"));
+
+        let diagnostics = issue.diagnostics.as_ref().unwrap();
+        assert_eq!(diagnostics.len(), 1);
+        let diagnostic = &diagnostics[0];
+        assert_eq!(diagnostic.code, "CASH_WENT_NEGATIVE");
+        assert_eq!(diagnostic.date.as_deref(), Some("2025-01-10"));
+        let evidence: Vec<(&str, &str)> = diagnostic
+            .evidence
+            .iter()
+            .map(|row| (row.label.as_str(), row.value.as_str()))
+            .collect();
+        assert_eq!(
+            evidence,
+            vec![("Account", "acc_123 name"), ("Date", "2025-01-10")]
+        );
+        let review = primary_navigate(diagnostic);
+        assert_eq!(review.route, "/activities");
+        assert_eq!(
+            review.query,
+            Some(serde_json::json!({
+                "account": "acc_123",
+                "from": "2025-01-10",
+                "to": "2025-01-10",
+                "healthContext": "activity"
+            }))
+        );
+        assert_eq!(
+            diagnostic.evidence[0].route.as_deref(),
+            Some(
+                "/activities?account=acc_123&from=2025-01-10&healthContext=activity&to=2025-01-10"
+            )
+        );
+        assert_eq!(issue.navigate_action.as_ref(), Some(review));
+    }
+
+    #[test]
+    fn negative_account_balance_names_the_cause_and_links_each_account() {
+        let check = DataConsistencyCheck::new();
+        let ctx = HealthContext::new(HealthConfig::default(), "USD", 100_000.0);
+        let issues_data = vec![
+            negative_balance_info(
+                ConsistencyIssueType::NegativeAccountBalance,
+                "unfunded_buy",
+                rust_decimal_macros::dec!(-1000),
+                rust_decimal_macros::dec!(200),
+            ),
+            negative_balance_info(
+                ConsistencyIssueType::NegativeAccountBalance,
+                "sell_without_buy",
+                rust_decimal_macros::dec!(300),
+                rust_decimal_macros::dec!(-50),
+            ),
+            negative_balance_info(
+                ConsistencyIssueType::NegativeAccountBalance,
+                "both",
+                rust_decimal_macros::dec!(-10),
+                rust_decimal_macros::dec!(-30),
+            ),
+        ];
+
+        let issues = check.analyze(&issues_data, &ctx);
+        assert_eq!(issues.len(), 1);
+        assert_eq!(issues[0].title, "3 accounts had a negative balance");
+        let causes: Vec<(&str, &str)> = issues[0]
+            .diagnostics
+            .as_ref()
+            .unwrap()
+            .iter()
+            .map(|diagnostic| {
+                let account = primary_navigate(diagnostic)
+                    .query
+                    .as_ref()
+                    .and_then(|query| query.get("account"))
+                    .and_then(|account| account.as_str())
+                    .unwrap();
+                (account, diagnostic.code.as_str())
+            })
+            .collect();
+        assert_eq!(
+            causes,
+            vec![
+                ("unfunded_buy", "CASH_WENT_NEGATIVE"),
+                ("sell_without_buy", "HOLDINGS_WENT_NEGATIVE"),
+                ("both", "CASH_AND_HOLDINGS_WENT_NEGATIVE"),
+            ]
+        );
+    }
+
+    #[test]
+    fn negative_cash_account_links_its_overdraft_day() {
+        let check = DataConsistencyCheck::new();
+        let ctx = HealthContext::new(HealthConfig::default(), "USD", 100_000.0);
+        let issues_data = vec![negative_balance_info(
+            ConsistencyIssueType::NegativeCashBalance,
+            "bank",
+            rust_decimal_macros::dec!(-100),
+            rust_decimal_macros::dec!(-100),
+        )];
+
+        let issues = check.analyze(&issues_data, &ctx);
+        assert_eq!(issues.len(), 1);
+        assert_eq!(issues[0].severity, Severity::Info);
+        let diagnostic = &issues[0].diagnostics.as_ref().unwrap()[0];
+        assert_eq!(diagnostic.code, "CASH_ACCOUNT_WENT_NEGATIVE");
+        assert_eq!(diagnostic.severity, Severity::Info);
+        assert_eq!(
+            primary_navigate(diagnostic)
+                .query
+                .as_ref()
+                .and_then(|query| query.get("account")),
+            Some(&serde_json::json!("bank"))
+        );
     }
 
     #[test]

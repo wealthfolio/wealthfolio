@@ -66,9 +66,9 @@
       "message": "部分資產含有可移轉至新分類系統的舊版產業／國家資料。"
     },
     "data_negative_account_balance": {
-      "title_one": "帳戶的投資組合餘額為負",
-      "title_other": "{{count}} 個帳戶的投資組合餘額為負",
-      "message": "一個或多個帳戶的歷史紀錄顯示總價值為負。這通常是缺少買入交易所致。請檢查交易紀錄並修正此問題。"
+      "title_one": "帳戶曾出現負餘額",
+      "title_other": "{{count}} 個帳戶曾出現負餘額",
+      "message": "一個或多個投資帳戶的歷史紀錄顯示現金或總價值為負，因此其報酬可能不正確。這通常是買入前缺少存入或轉入，或賣出前缺少買入所致。"
     },
     "data_negative_cash_balance": {
       "title_one": "現金帳戶曾出現負餘額",

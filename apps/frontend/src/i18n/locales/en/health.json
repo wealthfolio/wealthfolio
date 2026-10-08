@@ -66,9 +66,9 @@
       "message": "Some assets have legacy sector/country data that can be migrated to the new classification system."
     },
     "data_negative_account_balance": {
-      "title_one": "Account has negative portfolio balance",
-      "title_other": "{{count}} accounts have negative portfolio balance",
-      "message": "One or more accounts show a negative total value in their history. This is usually caused by missing buy transactions. Review your activities to fix this."
+      "title_one": "Account had a negative balance",
+      "title_other": "{{count}} accounts had a negative balance",
+      "message": "One or more investment accounts show negative cash or a negative total value in their history, so their returns can be wrong. This usually means a buy has no deposit or transfer in before it, or a sell has no buy before it."
     },
     "data_negative_cash_balance": {
       "title_one": "Cash account had a negative balance",

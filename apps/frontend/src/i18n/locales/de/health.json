@@ -66,9 +66,9 @@
       "message": "Einige Anlagen besitzen veraltete Sektor-/Länderdaten, die in das neue Klassifizierungssystem migriert werden können."
     },
     "data_negative_account_balance": {
-      "title_one": "Konto hat negativen Portfoliosaldo",
-      "title_other": "{{count}} Konten haben einen negativen Portfoliosaldo",
-      "message": "Ein oder mehrere Konten weisen in ihrem Verlauf einen negativen Gesamtwert auf. Dies wird normalerweise durch fehlende Kauftransaktionen verursacht. Überprüfen Sie Ihre Aktivitäten, um dies zu beheben."
+      "title_one": "Konto hatte einen negativen Saldo",
+      "title_other": "{{count}} Konten hatten einen negativen Saldo",
+      "message": "Ein oder mehrere Anlagekonten weisen in ihrem Verlauf negatives Bargeld oder einen negativen Gesamtwert auf, daher können ihre Renditen falsch sein. Meist fehlt vor einem Kauf eine Einzahlung oder Einbuchung oder vor einem Verkauf ein Kauf."
     },
     "data_negative_cash_balance": {
       "title_one": "Barkonto hatte einen negativen Saldo",

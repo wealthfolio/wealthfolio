@@ -79,10 +79,10 @@
       "message": "Certains actifs possèdent des données de secteur/pays héritées qui peuvent être migrées vers le nouveau système de classification."
     },
     "data_negative_account_balance": {
-      "title_one": "Un compte a un solde de portefeuille négatif",
-      "title_other": "{{count}} comptes ont un solde de portefeuille négatif",
-      "title_many": "{{count}} comptes ont un solde de portefeuille négatif",
-      "message": "Un ou plusieurs comptes affichent une valeur totale négative dans leur historique. Cela est généralement causé par des transactions d'achat manquantes. Vérifiez vos activités pour corriger cela."
+      "title_one": "Un compte a eu un solde négatif",
+      "title_other": "{{count}} comptes ont eu un solde négatif",
+      "title_many": "{{count}} comptes ont eu un solde négatif",
+      "message": "Un ou plusieurs comptes d'investissement affichent des liquidités négatives ou une valeur totale négative dans leur historique, leurs rendements peuvent donc être erronés. Il manque généralement un dépôt ou un transfert entrant avant un achat, ou un achat avant une vente."
     },
     "data_negative_cash_balance": {
       "title_one": "Un compte de trésorerie a eu un solde négatif",
