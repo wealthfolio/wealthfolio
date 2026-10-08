@@ -49,12 +49,12 @@ export function useGoalMutations() {
     onError: () => toast.error(t("goals:goal_error")),
   });
 
+  // Callers toast success: the save-up plan save also syncs the goal summary through it.
   const updateMutation = useMutation({
     mutationFn: (goal: Goal) => updateGoal(goal),
     onSuccess: (_, goal) => {
       invalidate();
       queryClient.invalidateQueries({ queryKey: QueryKeys.goal(goal.id) });
-      toast.success(t("goals:goal_saved"));
     },
     onError: () => toast.error(t("goals:goal_error")),
   });

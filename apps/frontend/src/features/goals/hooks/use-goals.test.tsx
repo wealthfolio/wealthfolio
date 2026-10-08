@@ -51,22 +51,20 @@ afterEach(async () => {
 describe("goal mutation toasts", () => {
   it("shows goal create, update and delete outcomes in the selected language", async () => {
     mocks.createGoal.mockResolvedValue(goal);
-    mocks.updateGoal.mockResolvedValue(goal);
+    mocks.updateGoal.mockRejectedValueOnce(new Error("locked")).mockResolvedValueOnce(goal);
     mocks.deleteGoal.mockRejectedValueOnce(new Error("locked")).mockResolvedValueOnce(undefined);
     const { result } = renderHook(() => useGoalMutations(), { wrapper });
 
     await result.current.createMutation.mutateAsync(newGoal);
+    await expect(result.current.updateMutation.mutateAsync(goal)).rejects.toThrow();
     await result.current.updateMutation.mutateAsync(goal);
     await expect(result.current.deleteMutation.mutateAsync(goal.id)).rejects.toThrow();
     await result.current.deleteMutation.mutateAsync(goal.id);
 
-    await waitFor(() => expect(mocks.success).toHaveBeenCalledTimes(3));
-    expect(mocks.success.mock.calls).toEqual([
-      [frGoals.goal_saved],
-      [frGoals.goal_saved],
-      [frGoals.goal_deleted],
-    ]);
-    expect(mocks.error).toHaveBeenCalledWith(frGoals.goal_delete_error);
+    // Update success is toasted by the caller.
+    await waitFor(() => expect(mocks.success).toHaveBeenCalledTimes(2));
+    expect(mocks.success.mock.calls).toEqual([[frGoals.goal_saved], [frGoals.goal_deleted]]);
+    expect(mocks.error.mock.calls).toEqual([[frGoals.goal_error], [frGoals.goal_delete_error]]);
   });
 
   it("shows plan and funding outcomes in the selected language", async () => {

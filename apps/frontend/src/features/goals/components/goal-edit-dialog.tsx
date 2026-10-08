@@ -14,6 +14,7 @@ import {
 import { Textarea } from "@wealthfolio/ui/components/ui/textarea";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import { useGoalMutations } from "../hooks/use-goals";
 
 interface Props {
@@ -99,7 +100,12 @@ export function GoalEditDialog({ goal, open, onClose }: Props) {
         description: trimmedDescription || undefined,
         statusLifecycle: lifecycle,
       },
-      { onSuccess: () => onClose() },
+      {
+        onSuccess: () => {
+          toast.success(t("goals:goal_saved"));
+          onClose();
+        },
+      },
     );
   };
 
