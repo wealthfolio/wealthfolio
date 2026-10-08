@@ -50,7 +50,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: "24"
+          node-version-file: .node-version
       - name: Test translation checker
         run: node --test apps/frontend/scripts/check-translations.test.mjs
       - name: Check every language and namespace
@@ -67,7 +67,7 @@ jobs:
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: "24"
+          node-version-file: .node-version
           cache: "pnpm"
       - run: pnpm install --frozen-lockfile --ignore-scripts
       - run: pnpm format:check
@@ -89,7 +89,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "24"
+          node-version-file: .node-version
           cache: "pnpm"
 
       - name: Install dependencies

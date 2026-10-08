@@ -79,7 +79,7 @@ jobs:
       - name: Sync node version and setup cache
         uses: actions/setup-node@v4
         with:
-          node-version: "lts/*"
+          node-version-file: .node-version
           cache: "pnpm" # Set this to npm, yarn or pnpm.
 
       - name: Install frontend dependencies
@@ -257,7 +257,7 @@ jobs:
       - name: Sync node version and setup cache
         uses: actions/setup-node@v4
         with:
-          node-version: "lts/*"
+          node-version-file: .node-version
           cache: "pnpm"
 
       - name: Install frontend dependencies

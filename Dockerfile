@@ -4,6 +4,7 @@ ARG RUST_IMAGE=rust:1.98.1-alpine
 
 # Stage 1: build frontend
 # Use --platform=$BUILDPLATFORM to run on the native runner (fast)
+# Keep the Node major in sync with .node-version
 FROM --platform=$BUILDPLATFORM node:24-alpine AS frontend
 
 # Wealthfolio Connect configuration (baked into JS bundle at build time)
@@ -18,7 +19,7 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY . .
 ENV CI=1
 ENV BUILD_TARGET=web
-RUN npm install -g pnpm@9.9.0 && pnpm install --frozen-lockfile
+RUN npm install -g "$(node -p "require('./package.json').packageManager")" && pnpm install --frozen-lockfile
 # Build only the main app to avoid building workspace addons in this image
 RUN pnpm --filter frontend... build && mv dist /web-dist
 
