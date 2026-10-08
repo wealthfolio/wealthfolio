@@ -1,4 +1,5 @@
 import type { TFunction } from "i18next";
+import { isWeb } from "@/adapters";
 
 /** Normalize codes once for both native string errors and HTTP error messages. */
 export function profileErrorCode(error: unknown): string | undefined {
@@ -51,7 +52,9 @@ export function profileErrorMessage(error: unknown, t: TFunction<"common">): str
       return t("profiles.errors.invalid");
     case "PROFILE_UNAVAILABLE":
       if (raw.includes("Another Wealthfolio process")) return t("profiles.errors.inUse");
-      if (raw.includes("credential store")) return t("profiles.errors.credentials");
+      // The web server keeps credentials in its own secrets file, not the device keychain.
+      if (raw.includes("credential store"))
+        return t(isWeb ? "profiles.errors.serverCredentials" : "profiles.errors.credentials");
       return t("profiles.errors.unavailable");
     case "CONNECT_PROFILE_EXISTS":
       return t("profiles.errors.duplicateAccount");

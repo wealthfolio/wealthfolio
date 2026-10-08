@@ -480,6 +480,7 @@
       "unavailable": "无法打开此个人资料。请重启 Wealthfolio 后重试。",
       "inUse": "此档案已在另一个 Wealthfolio 窗口中打开。请在该窗口中关闭后重试。",
       "credentials": "无法访问已保存的登录信息。请解锁设备后重试。",
+      "serverCredentials": "服务器无法读取其凭据文件 (secrets.json)。请让服务器管理员检查 WF_SECRET_KEY 是否与创建该文件时使用的密钥一致，以及服务器能否读取该文件。",
       "invalid": "请检查个人资料信息后重试。",
       "name": "个人资料名称应为 1–60 个字符。",
       "avatar": "请选择一个可用的头像。",

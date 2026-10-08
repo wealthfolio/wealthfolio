@@ -489,6 +489,7 @@
       "unavailable": "We couldn’t open this profile. Restart Wealthfolio and try again.",
       "inUse": "This profile is open in another Wealthfolio window. Close it there and try again.",
       "credentials": "We couldn’t access your saved sign-in details. Unlock your device and try again.",
+      "serverCredentials": "The server couldn’t read its secrets file (secrets.json). Ask the server administrator to check that WF_SECRET_KEY matches the key the file was created with and that the server can read the file.",
       "invalid": "Check the profile details and try again.",
       "name": "Use a profile name of 1–60 characters.",
       "avatar": "Choose one of the available avatars.",
