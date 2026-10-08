@@ -22,13 +22,7 @@ export function usePortfolioMutations() {
 
   const createMutation = useMutation({
     mutationFn: (portfolio: NewPortfolio) => createPortfolio(portfolio),
-    onSuccess: (created) => {
-      // Make the command result visible before a caller selects the new scope.
-      // Otherwise a still-stale inventory can mistake it for a deleted portfolio.
-      queryClient.setQueryData<PortfolioWithAccounts[]>([QueryKeys.PORTFOLIOS], (portfolios) => [
-        ...(portfolios ?? []).filter((portfolio) => portfolio.id !== created.id),
-        created,
-      ]);
+    onSuccess: () => {
       invalidate();
       toast.success("Portfolio created successfully.");
     },

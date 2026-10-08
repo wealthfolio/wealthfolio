@@ -99,7 +99,6 @@ export default function PortfolioPage() {
       {commonActions}
       <DashboardPortfolioSelector
         scope={dashboardPortfolio.scope}
-        portfolio={dashboardPortfolio.portfolio}
         onSelect={dashboardPortfolio.setPortfolioId}
       />
       <DashboardActions />

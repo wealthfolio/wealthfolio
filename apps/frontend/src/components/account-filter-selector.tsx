@@ -5,6 +5,7 @@ import {
   CommandInput,
   CommandItem,
   CommandList,
+  CommandSeparator,
 } from "@wealthfolio/ui/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@wealthfolio/ui/components/ui/popover";
 import { Button } from "@wealthfolio/ui/components/ui/button";
@@ -31,8 +32,6 @@ interface AccountScopeSelectorProps {
   className?: string;
   triggerVariant?: "default" | "input" | "icon";
   portfoliosOnly?: boolean;
-  onCreatePortfolio?: () => void;
-  onEditPortfolio?: () => void;
   onManagePortfolios?: () => void;
   allowMultiAccount?: boolean;
 }
@@ -139,8 +138,6 @@ function AccountScopeCommand({
   itemClassName,
   groupClassName,
   portfoliosOnly = false,
-  onCreatePortfolio,
-  onEditPortfolio,
   onManagePortfolios,
   t,
 }: {
@@ -154,8 +151,6 @@ function AccountScopeCommand({
   itemClassName?: string;
   groupClassName?: string;
   portfoliosOnly?: boolean;
-  onCreatePortfolio?: () => void;
-  onEditPortfolio?: () => void;
   onManagePortfolios?: () => void;
   t: TFunction;
 }) {
@@ -171,7 +166,9 @@ function AccountScopeCommand({
 
         <CommandGroup className={groupClassName}>
           <CommandItem className={itemClassName} onSelect={() => onSelect({ type: "all" })}>
-            <Icons.Wallet className="mr-1 h-4 w-4" />
+            <Icons.Wallet
+              className={cn("mr-1 h-4 w-4", portfoliosOnly && "text-muted-foreground mr-0")}
+            />
             <span className="min-w-0 flex-1 truncate">{t("common:component.all_accounts")}</span>
             <Icons.Check
               className={cn("ml-auto h-4 w-4", value.type === "all" ? "opacity-100" : "opacity-0")}
@@ -189,7 +186,9 @@ function AccountScopeCommand({
                 className={itemClassName}
                 onSelect={() => onSelect({ type: "portfolio", portfolioId: p.id })}
               >
-                <Icons.Folder className="mr-1 h-4 w-4" />
+                <Icons.Folder
+                  className={cn("mr-1 h-4 w-4", portfoliosOnly && "text-muted-foreground mr-0")}
+                />
                 <span className="min-w-0 flex-1 truncate">{p.name}</span>
                 <Icons.Check
                   className={cn(
@@ -227,27 +226,24 @@ function AccountScopeCommand({
             })}
           </CommandGroup>
         )}
-        {(onCreatePortfolio || onEditPortfolio || onManagePortfolios) && (
-          <CommandGroup className={groupClassName}>
-            {onCreatePortfolio && (
-              <CommandItem className={itemClassName} onSelect={onCreatePortfolio}>
-                <Icons.Plus className="mr-1 h-4 w-4" />
-                {t("settings:portfolios.add_button")}
-              </CommandItem>
-            )}
-            {onEditPortfolio && (
-              <CommandItem className={itemClassName} onSelect={onEditPortfolio}>
-                <Icons.Pencil className="mr-1 h-4 w-4" />
-                {t("settings:portfolios.dialog_edit_title")}
-              </CommandItem>
-            )}
-            {onManagePortfolios && (
+        {onManagePortfolios && (
+          <>
+            <CommandSeparator className="bg-border/70 mx-3 my-1.5" />
+            <CommandGroup className={groupClassName}>
               <CommandItem className={itemClassName} onSelect={onManagePortfolios}>
-                <Icons.Settings className="mr-1 h-4 w-4" />
-                {t("dashboard:portfolio_filter.manage")}
+                {portfolios.length === 0 ? (
+                  <Icons.Plus className="text-muted-foreground mr-1 h-4 w-4" />
+                ) : (
+                  <Icons.Settings className="text-muted-foreground mr-1 h-4 w-4" />
+                )}
+                {t(
+                  portfolios.length === 0
+                    ? "settings:portfolios.add_button"
+                    : "dashboard:portfolio_filter.manage",
+                )}
               </CommandItem>
-            )}
-          </CommandGroup>
+            </CommandGroup>
+          </>
         )}
       </CommandList>
     </Command>
@@ -261,8 +257,6 @@ export function AccountScopeSelector({
   triggerVariant = "default",
   allowMultiAccount = true,
   portfoliosOnly = false,
-  onCreatePortfolio,
-  onEditPortfolio,
   onManagePortfolios,
 }: AccountScopeSelectorProps) {
   const { t } = useTranslation();
@@ -282,8 +276,6 @@ export function AccountScopeSelector({
     });
   const portfolioActions = {
     portfoliosOnly,
-    onCreatePortfolio: runAction(onCreatePortfolio),
-    onEditPortfolio: runAction(onEditPortfolio),
     onManagePortfolios: runAction(onManagePortfolios),
   };
 
@@ -340,7 +332,10 @@ export function AccountScopeSelector({
               sheetTitleRef.current?.focus();
             }
           }}
-          className={cn("rounded-t-4xl mx-1 p-0", portfoliosOnly ? "max-h-[80dvh]" : "h-[80vh]")}
+          className={cn(
+            "mx-1 p-0",
+            portfoliosOnly ? "bg-card max-h-[80dvh] rounded-t-2xl" : "rounded-t-4xl h-[80vh]",
+          )}
           style={portfoliosOnly ? { paddingBottom: "env(safe-area-inset-bottom, 0px)" } : undefined}
         >
           <SheetHeader className="border-border border-b px-6 py-4">
@@ -362,13 +357,17 @@ export function AccountScopeSelector({
             {...portfolioActions}
             commandClassName={cn(
               "rounded-none",
+              portfoliosOnly && "bg-card [&_[data-cmdk-input-wrapper]]:px-6",
               portfoliosOnly
                 ? "h-auto max-h-[calc(80dvh-5rem-env(safe-area-inset-bottom,0px))]"
                 : "h-[calc(80vh-4.5rem)]",
             )}
             listClassName="min-h-0 max-h-none flex-1 px-2 py-2"
             groupClassName="[&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:py-2 [&_[cmdk-group-heading]]:text-[11px] [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider"
-            itemClassName="min-h-12 rounded-xl px-3 py-3 text-base"
+            itemClassName={cn(
+              "min-h-12 rounded-xl px-3 py-3 text-base",
+              portfoliosOnly && "gap-4 font-medium [&_svg]:size-5",
+            )}
           />
         </SheetContent>
       </Sheet>
@@ -388,7 +387,15 @@ export function AccountScopeSelector({
           className={className}
         />
       </PopoverTrigger>
-      <PopoverContent className="w-80 p-0" align="end" sideOffset={8}>
+      <PopoverContent
+        className={cn(
+          "w-80 p-0",
+          portfoliosOnly &&
+            "bg-card border-border/50 overflow-hidden rounded-2xl shadow-lg backdrop-blur-xl dark:border-white/10",
+        )}
+        align="end"
+        sideOffset={8}
+      >
         <AccountScopeCommand
           value={value}
           accounts={accounts}
@@ -397,7 +404,16 @@ export function AccountScopeSelector({
           onToggleAccount={toggleAccount}
           t={t}
           {...portfolioActions}
-          itemClassName="py-2"
+          commandClassName={
+            portfoliosOnly ? "bg-card rounded-none [&_[data-cmdk-input-wrapper]]:px-6" : undefined
+          }
+          listClassName={portfoliosOnly ? "px-3 pb-4 pt-3" : undefined}
+          groupClassName={portfoliosOnly ? "p-0" : undefined}
+          itemClassName={
+            portfoliosOnly
+              ? "cursor-pointer gap-4 rounded-xl px-3 py-3 text-[15px] font-medium transition-colors duration-150 [&_svg]:size-5"
+              : "py-2"
+          }
         />
       </PopoverContent>
     </Popover>

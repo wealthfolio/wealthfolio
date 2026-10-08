@@ -49,6 +49,9 @@ test("dashboard portfolio selection, creation, persistence, deletion and mobile 
   });
   await filter.click();
   await page.getByRole("option", { name: "Add portfolio" }).click();
+  await expect(page).toHaveURL(`${BASE_URL}/settings/portfolios`);
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await page.getByRole("button", { name: "Add portfolio", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "New portfolio" });
   await dialog.getByLabel("Name", { exact: true }).fill("Dashboard savings");
   await dialog
@@ -58,6 +61,13 @@ test("dashboard portfolio selection, creation, persistence, deletion and mobile 
     .click();
   await dialog.getByRole("button", { name: "Save", exact: true }).click();
   await expect(dialog).not.toBeVisible();
+  await page.goto(`${BASE_URL}/dashboard`, { waitUntil: "domcontentloaded" });
+  await expect(filter).toHaveAccessibleName("Choose portfolio: All Accounts");
+  await filter.click();
+  await expect(page.getByRole("option", { name: "Add portfolio" })).toHaveCount(0);
+  await expect(page.getByRole("option", { name: "Edit portfolio" })).toHaveCount(0);
+  await expect(page.getByRole("option", { name: "Manage portfolios" })).toBeVisible();
+  await page.getByRole("option", { name: "Dashboard savings" }).click();
   await expect(filter).toHaveAccessibleName("Choose portfolio: Dashboard savings");
   await expect(balanceValue).toContainText("1,000,000.00", {
     timeout: 30000,
@@ -66,8 +76,14 @@ test("dashboard portfolio selection, creation, persistence, deletion and mobile 
   await expect(page.locator(`a[href="/accounts/${accountIds[1]}"]`)).toHaveCount(0);
   await page.screenshot({ path: testInfo.outputPath("desktop-dashboard.png") });
   await filter.click();
+  await expect
+    .poll(() => page.getByRole("dialog").evaluate((element) => getComputedStyle(element).opacity))
+    .toBe("1");
   await page.screenshot({ path: testInfo.outputPath("desktop-portfolio-filter.png") });
-  await page.getByRole("option", { name: "Edit portfolio" }).click();
+  await page.getByRole("option", { name: "Manage portfolios" }).click();
+  await expect(page).toHaveURL(`${BASE_URL}/settings/portfolios`);
+  await page.getByRole("button", { name: "Open", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Edit", exact: true }).click();
   const editor = page.getByRole("dialog", { name: "Edit portfolio" });
   await editor
     .locator("label")
@@ -76,11 +92,15 @@ test("dashboard portfolio selection, creation, persistence, deletion and mobile 
     .click();
   await editor.getByRole("button", { name: "Save", exact: true }).click();
   await expect(editor).not.toBeVisible();
+  await page.goto(`${BASE_URL}/dashboard`, { waitUntil: "domcontentloaded" });
   await expect(filter).toHaveAccessibleName("Choose portfolio: Dashboard savings");
   await expect(balanceValue).toContainText("1,000,200.00");
   await expect(page.locator(`a[href="/accounts/${accountIds[1]}"]`)).toBeVisible();
   await filter.click();
-  await page.getByRole("option", { name: "Edit portfolio" }).click();
+  await page.getByRole("option", { name: "Manage portfolios" }).click();
+  await expect(page).toHaveURL(`${BASE_URL}/settings/portfolios`);
+  await page.getByRole("button", { name: "Open", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Edit", exact: true }).click();
   await editor
     .locator("label")
     .filter({ hasText: "Portfolio filter checking" })
@@ -88,6 +108,7 @@ test("dashboard portfolio selection, creation, persistence, deletion and mobile 
     .click();
   await editor.getByRole("button", { name: "Save", exact: true }).click();
   await expect(editor).not.toBeVisible();
+  await page.goto(`${BASE_URL}/dashboard`, { waitUntil: "domcontentloaded" });
   await expect(balanceValue).toContainText("1,000,000.00");
   await page.reload();
   await expect(filter).toHaveAccessibleName("Choose portfolio: Dashboard savings");
@@ -114,6 +135,12 @@ test("dashboard portfolio selection, creation, persistence, deletion and mobile 
     expect((sheetBounds?.y ?? 0) + (sheetBounds?.height ?? 0)).toBeLessThanOrEqual(741);
   }).toPass();
   await page.screenshot({ path: testInfo.outputPath("mobile-portfolio-sheet.png") });
+  await sheet.getByRole("option", { name: "Manage portfolios" }).click();
+  await expect(sheet).not.toBeVisible();
+  await expect(page).toHaveURL(`${BASE_URL}/settings/portfolios`);
+  await page.goto(`${BASE_URL}/dashboard`, { waitUntil: "domcontentloaded" });
+  await expect(filter).toHaveAccessibleName("Choose portfolio: Dashboard savings");
+  await filter.click();
   await sheet.getByRole("option", { name: "All Accounts" }).click();
   await expect(sheet).not.toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
