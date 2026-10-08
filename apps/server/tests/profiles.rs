@@ -1066,3 +1066,114 @@ async fn deleting_a_starting_profile_waits_for_startup_and_rejects_queued_opens(
         "A queued open recreated the deleted database"
     );
 }
+
+/// Each phase owns its runtime; shutting it down stands in for a server restart.
+fn phase<F: std::future::Future>(future: F) -> F::Output {
+    let runtime = tokio::runtime::Runtime::new().unwrap();
+    let output = runtime.block_on(future);
+    runtime.shutdown_timeout(Duration::from_secs(5));
+    output
+}
+
+#[test]
+fn deletion_blocked_by_unusable_vault_finishes_after_repair_and_restart() {
+    for move_vault_aside in [false, true] {
+        let dir = tempfile::tempdir().unwrap();
+        let config = test_config(dir.path());
+        let vault = dir.path().join("secrets.json");
+        phase(async {
+            let root = WebProfiles::open(&config).await.unwrap();
+            let profile = root
+                .registry
+                .profile(root.registry.default_id().unwrap())
+                .unwrap();
+            root.registry
+                .secret_store(&profile)
+                .set_secret("provider", "saved")
+                .unwrap();
+        });
+        // A changed master key leaves the existing vault undecryptable.
+        let mut changed = config.clone();
+        changed.raw_secret_key = vec![8; 32];
+        changed.secrets_encryption_key = [8; 32];
+        let id = phase(async {
+            let router = wealthfolio_server::api::app_router_from_config(&changed)
+                .await
+                .unwrap();
+            let (status, _, cookie) = send(
+                &router,
+                "/api/v1/profiles/get_profile_state",
+                json!({}),
+                None,
+                None,
+            )
+            .await;
+            assert_eq!(status, StatusCode::OK);
+            let (status, created, _) = send(
+                &router,
+                "/api/v1/profiles/create_profile",
+                json!({"name":"Second","avatarId":wealthfolio_core::profiles::PROFILE_AVATARS[0]}),
+                cookie.as_deref(),
+                None,
+            )
+            .await;
+            assert_eq!(status, StatusCode::OK, "{created}");
+            let id = created["id"].as_str().unwrap().to_string();
+            let (status, session, _) = send(
+                &router,
+                "/api/v1/profiles/unlock_profile",
+                json!({"profileId":id}),
+                cookie.as_deref(),
+                None,
+            )
+            .await;
+            assert_eq!(status, StatusCode::OK, "{session}");
+            let (status, body, _) = send(
+                &router,
+                "/api/v1/profiles/delete_profile",
+                json!({"profileId":id,"confirmation":"Second"}),
+                cookie.as_deref(),
+                session["scopeId"].as_str(),
+            )
+            .await;
+            assert_eq!(status, StatusCode::LOCKED);
+            assert!(
+                body.as_str().unwrap().contains("credential store"),
+                "{body}"
+            );
+            let (_, state, _) = send(
+                &router,
+                "/api/v1/profiles/get_profile_state",
+                json!({}),
+                cookie.as_deref(),
+                None,
+            )
+            .await;
+            assert_eq!(state["pendingDeletions"][0]["id"], json!(id));
+            id
+        });
+        let profile_dir = dir.path().join("profiles").join(&id);
+        assert!(
+            profile_dir.exists(),
+            "data is kept until credentials are cleaned"
+        );
+        let restarted = if move_vault_aside {
+            std::fs::rename(&vault, dir.path().join("secrets.json.bak")).unwrap();
+            changed
+        } else {
+            config
+        };
+        phase(async {
+            // Startup retries journaled deletions.
+            let root = WebProfiles::open(&restarted).await.unwrap();
+            assert!(root.registry.pending_profiles().unwrap().is_empty());
+            assert!(root
+                .registry
+                .list()
+                .unwrap()
+                .iter()
+                .all(|profile| profile.id.to_string() != id));
+        });
+        assert!(!profile_dir.exists());
+    }
+}
