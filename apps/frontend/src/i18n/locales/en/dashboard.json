@@ -105,5 +105,12 @@
     "try_restarting": "Try again. If the problem persists, restart Wealthfolio or contact support."
   },
   "accounts_count_one": "{{count}} account",
-  "accounts_count_other": "{{count}} accounts"
+  "accounts_count_other": "{{count}} accounts",
+  "portfolio_filter": {
+    "choose": "Choose portfolio",
+    "search": "Search portfolios…",
+    "manage": "Manage portfolios",
+    "unavailable": "The selected portfolio is no longer available. Showing all accounts.",
+    "load_error": "Unable to load the selected portfolio."
+  }
 }

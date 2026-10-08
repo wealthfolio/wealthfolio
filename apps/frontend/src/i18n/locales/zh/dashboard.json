@@ -103,5 +103,12 @@
     "try_restarting": "请重试。如果问题仍然存在，请重启 Wealthfolio 或联系支持团队。"
   },
   "accounts_count_one": "{{count}} 个账户",
-  "accounts_count_other": "{{count}} 个账户"
+  "accounts_count_other": "{{count}} 个账户",
+  "portfolio_filter": {
+    "choose": "选择投资组合",
+    "search": "搜索投资组合…",
+    "manage": "管理投资组合",
+    "unavailable": "所选投资组合已不可用。正在显示所有账户。",
+    "load_error": "无法加载所选投资组合。"
+  }
 }

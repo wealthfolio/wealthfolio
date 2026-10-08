@@ -1,6 +1,8 @@
 import { render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { calculatePerformanceSummary } from "@/adapters";
+import { AccountsSummary } from "./accounts-summary";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useCurrentValuation } from "@/hooks/use-current-account-valuations";
 import { useHoldings } from "@/hooks/use-holdings";
@@ -15,6 +17,10 @@ const uiMocks = vi.hoisted(() => ({
 
 vi.mock("@/adapters", () => ({
   calculatePerformanceSummary: vi.fn(),
+}));
+
+vi.mock("@/components/privacy-toggle", () => ({
+  PrivacyToggle: () => <button>Hide Balance</button>,
 }));
 
 vi.mock("@/components/history-chart", () => ({
@@ -98,7 +104,7 @@ vi.mock("@/pages/dashboard/portfolio-update-trigger", () => ({
 }));
 
 vi.mock("./accounts-summary", () => ({
-  AccountsSummary: () => <div>accounts-summary</div>,
+  AccountsSummary: vi.fn(() => <div>accounts-summary</div>),
 }));
 
 vi.mock("./balance", () => ({
@@ -278,7 +284,7 @@ describe("DashboardContent", () => {
 
     render(<DashboardContent />);
 
-    expect(mockUseValuationHistory).toHaveBeenCalledWith(undefined);
+    expect(mockUseValuationHistory).toHaveBeenCalledWith(undefined, { type: "all" });
   });
 
   it("starts dashboard performance queries while valuation history is loading", () => {
@@ -374,12 +380,41 @@ describe("DashboardContent", () => {
         typeof useQuery
       >);
       render(<DashboardContent />);
-      expect(mockUseValuationHistory).toHaveBeenLastCalledWith({
-        from: new Date(2026, 9, 1),
-        to: new Date(2027, 0, 1),
-      });
+      expect(mockUseValuationHistory).toHaveBeenLastCalledWith(
+        {
+          from: new Date(2026, 9, 1),
+          to: new Date(2027, 0, 1),
+        },
+        { type: "all" },
+      );
     } finally {
       vi.useRealTimers();
     }
+  });
+  it("uses one portfolio scope for valuation, history, holdings, performance and account rows", async () => {
+    mockCurrentValuation();
+    mockUseSettingsContext.mockReturnValue({ settings: { baseCurrency: "USD" } } as ReturnType<
+      typeof useSettingsContext
+    >);
+    mockUseHoldings.mockReturnValue({ holdings: [], isLoading: false } as unknown as ReturnType<
+      typeof useHoldings
+    >);
+    mockUseValuationHistory.mockReturnValue({ valuationHistory: [], isLoading: false });
+    mockUseQuery.mockReturnValue({ data: null, isLoading: false } as ReturnType<typeof useQuery>);
+    const scope = { type: "portfolio", portfolioId: "retirement" } as const;
+    render(<DashboardContent scope={scope} scopeLabel="Retirement" accountIds={["account-1"]} />);
+    expect(mockUseHoldings).toHaveBeenCalledWith(scope);
+    expect(mockUseCurrentValuation).toHaveBeenCalledWith(scope, { includeAccounts: true });
+    expect(mockUseValuationHistory.mock.calls.at(-1)?.[1]).toEqual(scope);
+    expect(vi.mocked(AccountsSummary).mock.calls.at(-1)?.[0]).toMatchObject({
+      accountIds: ["account-1"],
+    });
+    const query = mockUseQuery.mock.calls.at(-1)?.[0];
+    expect(query?.queryKey).toContain("portfolio:retirement");
+    await (query?.queryFn as () => Promise<unknown>)();
+    expect(calculatePerformanceSummary).toHaveBeenCalledWith(
+      expect.objectContaining({ itemId: "portfolio:retirement", filter: scope }),
+    );
+    expect(screen.getByText("Retirement")).toBeInTheDocument();
   });
 });

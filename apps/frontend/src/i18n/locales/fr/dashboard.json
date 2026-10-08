@@ -110,5 +110,12 @@
   },
   "accounts_count_one": "{{count}} compte",
   "accounts_count_other": "{{count}} comptes",
-  "accounts_count_many": "{{count}} comptes"
+  "accounts_count_many": "{{count}} comptes",
+  "portfolio_filter": {
+    "choose": "Choisir un portefeuille",
+    "search": "Rechercher des portefeuilles…",
+    "manage": "Gérer les portefeuilles",
+    "unavailable": "Le portefeuille sélectionné n’est plus disponible. Tous les comptes sont affichés.",
+    "load_error": "Impossible de charger le portefeuille sélectionné."
+  }
 }

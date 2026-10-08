@@ -110,5 +110,12 @@
   },
   "accounts_count_one": "{{count}} conta",
   "accounts_count_other": "{{count}} contas",
-  "accounts_count_many": "{{count}} contas"
+  "accounts_count_many": "{{count}} contas",
+  "portfolio_filter": {
+    "choose": "Escolher carteira",
+    "search": "Pesquisar carteiras…",
+    "manage": "Gerir carteiras",
+    "unavailable": "A carteira selecionada já não está disponível. São apresentadas todas as contas.",
+    "load_error": "Não foi possível carregar a carteira selecionada."
+  }
 }

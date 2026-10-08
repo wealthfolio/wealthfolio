@@ -366,11 +366,13 @@ AccountSummaryComponent.displayName = "AccountSummaryComponent";
 
 export const AccountsSummary = React.memo(
   ({
+    accountIds: selectedAccountIds,
     dateRange,
     isAllTime,
     currentAccountValuations: currentAccountValuationsProp,
     isLoadingCurrentValuations: isLoadingCurrentValuationsProp,
   }: {
+    accountIds?: string[];
     dateRange?: DateRange;
     isAllTime?: boolean;
     currentAccountValuations?: CurrentAccountValuation[];
@@ -387,7 +389,13 @@ export const AccountsSummary = React.memo(
       error: errorAccounts,
     } = useAccounts({ accountPurpose: AccountPurpose.PERFORMANCE });
 
-    const accounts = useMemo(() => allAccounts ?? [], [allAccounts]);
+    const accounts = useMemo(
+      () =>
+        selectedAccountIds === undefined
+          ? allAccounts
+          : allAccounts.filter((account) => selectedAccountIds.includes(account.id)),
+      [allAccounts, selectedAccountIds],
+    );
 
     const accountIds = useMemo(() => accounts?.map((acc) => acc.id) ?? [], [accounts]);
 

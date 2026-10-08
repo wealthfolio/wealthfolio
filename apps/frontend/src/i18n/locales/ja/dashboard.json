@@ -103,5 +103,12 @@
     "try_restarting": "もう一度お試しください。問題が解決しない場合は、Wealthfolioを再起動するか、サポートにお問い合わせください。"
   },
   "accounts_count_one": "{{count}}口座",
-  "accounts_count_other": "{{count}}口座"
+  "accounts_count_other": "{{count}}口座",
+  "portfolio_filter": {
+    "choose": "ポートフォリオを選択",
+    "search": "ポートフォリオを検索…",
+    "manage": "ポートフォリオを管理",
+    "unavailable": "選択したポートフォリオは利用できなくなりました。すべての口座を表示しています。",
+    "load_error": "選択したポートフォリオを読み込めませんでした。"
+  }
 }

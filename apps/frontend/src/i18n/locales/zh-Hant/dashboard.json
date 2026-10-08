@@ -105,5 +105,12 @@
     "try_restarting": "請重試。如果問題持續發生，請重新啟動 Wealthfolio 或聯絡支援團隊。"
   },
   "accounts_count_one": "{{count}} 個帳戶",
-  "accounts_count_other": "{{count}} 個帳戶"
+  "accounts_count_other": "{{count}} 個帳戶",
+  "portfolio_filter": {
+    "choose": "選擇投資組合",
+    "search": "搜尋投資組合…",
+    "manage": "管理投資組合",
+    "unavailable": "所選投資組合已無法使用。正在顯示所有帳戶。",
+    "load_error": "無法載入所選投資組合。"
+  }
 }

@@ -103,5 +103,12 @@
     "try_restarting": "다시 시도해 주세요. 문제가 지속되면 Wealthfolio를 다시 시작하거나 지원팀에 문의하세요."
   },
   "accounts_count_one": "계좌 {{count}}개",
-  "accounts_count_other": "계좌 {{count}}개"
+  "accounts_count_other": "계좌 {{count}}개",
+  "portfolio_filter": {
+    "choose": "포트폴리오 선택",
+    "search": "포트폴리오 검색…",
+    "manage": "포트폴리오 관리",
+    "unavailable": "선택한 포트폴리오를 더 이상 사용할 수 없습니다. 모든 계좌를 표시합니다.",
+    "load_error": "선택한 포트폴리오를 불러올 수 없습니다."
+  }
 }

@@ -18,7 +18,7 @@ import {
 } from "@wealthfolio/ui/components/ui/sheet";
 import { useIsMobileViewport } from "@/hooks";
 import { cn } from "@/lib/utils";
-import { forwardRef, useState, type ComponentPropsWithoutRef } from "react";
+import { forwardRef, useRef, useState, type ComponentPropsWithoutRef } from "react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { useAccounts } from "@/hooks/use-accounts";
@@ -29,7 +29,11 @@ interface AccountScopeSelectorProps {
   value: AccountScope;
   onChange: (filter: AccountScope) => void;
   className?: string;
-  triggerVariant?: "default" | "input";
+  triggerVariant?: "default" | "input" | "icon";
+  portfoliosOnly?: boolean;
+  onCreatePortfolio?: () => void;
+  onEditPortfolio?: () => void;
+  onManagePortfolios?: () => void;
   allowMultiAccount?: boolean;
 }
 
@@ -70,7 +74,7 @@ type SelectorTriggerProps = Omit<ComponentPropsWithoutRef<typeof Button>, "value
   label: string;
   open: boolean;
   isMobile: boolean;
-  triggerVariant: "default" | "input";
+  triggerVariant: "default" | "input" | "icon";
 };
 
 const SelectorTrigger = forwardRef<HTMLButtonElement, SelectorTriggerProps>(
@@ -78,7 +82,7 @@ const SelectorTrigger = forwardRef<HTMLButtonElement, SelectorTriggerProps>(
     { value, label, open, isMobile, triggerVariant, className, ...props },
     ref,
   ) {
-    const compact = isMobile && triggerVariant === "default";
+    const compact = triggerVariant === "icon" || (isMobile && triggerVariant === "default");
 
     return (
       <Button
@@ -91,6 +95,7 @@ const SelectorTrigger = forwardRef<HTMLButtonElement, SelectorTriggerProps>(
           triggerVariant === "input"
             ? "bg-background/70 text-foreground hover:bg-background/70 focus-visible:border-foreground w-full justify-between rounded-lg border px-3 py-2.5 text-[14px] font-semibold shadow-none"
             : "bg-secondary/30 hover:bg-muted/80 rounded-full border-none",
+          triggerVariant === "icon" && "bg-secondary/50 h-8 w-8 justify-center rounded-full p-0",
           triggerVariant === "default" &&
             (isMobile
               ? "h-9 w-9 justify-center p-0"
@@ -133,6 +138,10 @@ function AccountScopeCommand({
   listClassName,
   itemClassName,
   groupClassName,
+  portfoliosOnly = false,
+  onCreatePortfolio,
+  onEditPortfolio,
+  onManagePortfolios,
   t,
 }: {
   value: AccountScope;
@@ -144,11 +153,19 @@ function AccountScopeCommand({
   listClassName?: string;
   itemClassName?: string;
   groupClassName?: string;
+  portfoliosOnly?: boolean;
+  onCreatePortfolio?: () => void;
+  onEditPortfolio?: () => void;
+  onManagePortfolios?: () => void;
   t: TFunction;
 }) {
   return (
     <Command className={commandClassName}>
-      <CommandInput placeholder={t("common:search_accounts")} />
+      <CommandInput
+        placeholder={t(
+          portfoliosOnly ? "dashboard:portfolio_filter.search" : "common:search_accounts",
+        )}
+      />
       <CommandList className={listClassName}>
         <CommandEmpty>{t("common:component.no_results")}</CommandEmpty>
 
@@ -187,7 +204,7 @@ function AccountScopeCommand({
           </CommandGroup>
         )}
 
-        {accounts.length > 0 && (
+        {!portfoliosOnly && accounts.length > 0 && (
           <CommandGroup heading={t("common:component.accounts")} className={groupClassName}>
             {accounts.map((a) => {
               const checked = isAccountChecked(value, a.id);
@@ -210,6 +227,28 @@ function AccountScopeCommand({
             })}
           </CommandGroup>
         )}
+        {(onCreatePortfolio || onEditPortfolio || onManagePortfolios) && (
+          <CommandGroup className={groupClassName}>
+            {onCreatePortfolio && (
+              <CommandItem className={itemClassName} onSelect={onCreatePortfolio}>
+                <Icons.Plus className="mr-1 h-4 w-4" />
+                {t("settings:portfolios.add_button")}
+              </CommandItem>
+            )}
+            {onEditPortfolio && (
+              <CommandItem className={itemClassName} onSelect={onEditPortfolio}>
+                <Icons.Pencil className="mr-1 h-4 w-4" />
+                {t("settings:portfolios.dialog_edit_title")}
+              </CommandItem>
+            )}
+            {onManagePortfolios && (
+              <CommandItem className={itemClassName} onSelect={onManagePortfolios}>
+                <Icons.Settings className="mr-1 h-4 w-4" />
+                {t("dashboard:portfolio_filter.manage")}
+              </CommandItem>
+            )}
+          </CommandGroup>
+        )}
       </CommandList>
     </Command>
   );
@@ -221,14 +260,32 @@ export function AccountScopeSelector({
   className,
   triggerVariant = "default",
   allowMultiAccount = true,
+  portfoliosOnly = false,
+  onCreatePortfolio,
+  onEditPortfolio,
+  onManagePortfolios,
 }: AccountScopeSelectorProps) {
   const { t } = useTranslation();
   const isMobile = useIsMobileViewport();
   const [open, setOpen] = useState(false);
+  const sheetTitleRef = useRef<HTMLHeadingElement>(null);
   const { accounts } = useAccounts({ filterActive: false, includeArchived: false });
   const { data: portfolios = [] } = usePortfolios();
 
   const label = filterLabel(value, accounts, portfolios, t);
+
+  const runAction = (action: (() => void) | undefined) =>
+    action &&
+    (() => {
+      setOpen(false);
+      action();
+    });
+  const portfolioActions = {
+    portfoliosOnly,
+    onCreatePortfolio: runAction(onCreatePortfolio),
+    onEditPortfolio: runAction(onEditPortfolio),
+    onManagePortfolios: runAction(onManagePortfolios),
+  };
 
   const select = (filter: AccountScope) => {
     onChange(filter);
@@ -267,15 +324,33 @@ export function AccountScopeSelector({
           <SelectorTrigger
             value={value}
             label={label}
+            aria-label={`${t(portfoliosOnly ? "dashboard:portfolio_filter.choose" : "common:component.select_account_scope")}: ${label}`}
             open={open}
             isMobile
             triggerVariant={triggerVariant}
             className={className}
           />
         </SheetTrigger>
-        <SheetContent side="bottom" className="rounded-t-4xl mx-1 h-[80vh] p-0">
+        <SheetContent
+          side="bottom"
+          aria-describedby={undefined}
+          onOpenAutoFocus={(event) => {
+            if (portfoliosOnly) {
+              event.preventDefault();
+              sheetTitleRef.current?.focus();
+            }
+          }}
+          className={cn("rounded-t-4xl mx-1 p-0", portfoliosOnly ? "max-h-[80dvh]" : "h-[80vh]")}
+          style={portfoliosOnly ? { paddingBottom: "env(safe-area-inset-bottom, 0px)" } : undefined}
+        >
           <SheetHeader className="border-border border-b px-6 py-4">
-            <SheetTitle>{t("common:component.select_account_scope")}</SheetTitle>
+            <SheetTitle ref={sheetTitleRef} tabIndex={portfoliosOnly ? -1 : undefined}>
+              {t(
+                portfoliosOnly
+                  ? "dashboard:portfolio_filter.choose"
+                  : "common:component.select_account_scope",
+              )}
+            </SheetTitle>
           </SheetHeader>
           <AccountScopeCommand
             value={value}
@@ -284,8 +359,14 @@ export function AccountScopeSelector({
             onSelect={select}
             onToggleAccount={toggleAccount}
             t={t}
-            commandClassName="h-[calc(80vh-4.5rem)] rounded-none"
-            listClassName="max-h-none flex-1 px-2 py-2"
+            {...portfolioActions}
+            commandClassName={cn(
+              "rounded-none",
+              portfoliosOnly
+                ? "h-auto max-h-[calc(80dvh-5rem-env(safe-area-inset-bottom,0px))]"
+                : "h-[calc(80vh-4.5rem)]",
+            )}
+            listClassName="min-h-0 max-h-none flex-1 px-2 py-2"
             groupClassName="[&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:py-2 [&_[cmdk-group-heading]]:text-[11px] [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider"
             itemClassName="min-h-12 rounded-xl px-3 py-3 text-base"
           />
@@ -300,6 +381,7 @@ export function AccountScopeSelector({
         <SelectorTrigger
           value={value}
           label={label}
+          aria-label={`${t(portfoliosOnly ? "dashboard:portfolio_filter.choose" : "common:component.select_account_scope")}: ${label}`}
           open={open}
           isMobile={false}
           triggerVariant={triggerVariant}
@@ -314,6 +396,7 @@ export function AccountScopeSelector({
           onSelect={select}
           onToggleAccount={toggleAccount}
           t={t}
+          {...portfolioActions}
           itemClassName="py-2"
         />
       </PopoverContent>

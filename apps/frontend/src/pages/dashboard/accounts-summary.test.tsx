@@ -258,6 +258,7 @@ function createPerformanceResult(
 }
 
 function renderAccountsSummary({
+  accountIds,
   accounts,
   valuations,
   currentValuations,
@@ -265,6 +266,7 @@ function renderAccountsSummary({
   performanceByScopeKey = {},
   isPerformanceLoading = false,
 }: {
+  accountIds?: string[];
   accounts: Account[];
   valuations: AccountValuation[];
   currentValuations?: CurrentAccountValuation[];
@@ -360,7 +362,7 @@ function renderAccountsSummary({
 
   return render(
     <MemoryRouter>
-      <AccountsSummary />
+      <AccountsSummary accountIds={accountIds} />
     </MemoryRouter>,
   );
 }
@@ -806,5 +808,33 @@ describe("AccountsSummary", () => {
     expect(screen.getByText("Business Investment")).toBeInTheDocument();
     expect(screen.getByText("gain-percent:-0.1923")).toBeInTheDocument();
     expect(screen.queryByText(/backend performance warning/i)).not.toBeInTheDocument();
+  });
+  it("filters both displayed accounts and performance scopes by portfolio membership", () => {
+    renderAccountsSummary({
+      accountIds: ["included"],
+      accounts: [
+        createAccount({ id: "included", name: "Included account" }),
+        createAccount({ id: "excluded", name: "Excluded account" }),
+      ],
+      valuations: [
+        createValuation({ accountId: "included", totalValue: 10 }),
+        createValuation({ accountId: "excluded", totalValue: 20 }),
+      ],
+    });
+    expect(screen.getByText("Included account")).toBeInTheDocument();
+    expect(screen.queryByText("Excluded account")).not.toBeInTheDocument();
+    expect(mockUseCurrentAccountValuations).toHaveBeenCalledWith(["included"], expect.anything());
+    const options = mockUseQuery.mock.calls.at(-1)?.[0];
+    expect(options?.queryKey).toContainEqual([{ accountIds: ["included"] }]);
+  });
+
+  it("does not treat an empty selected membership as all accounts", () => {
+    renderAccountsSummary({
+      accountIds: [],
+      accounts: [createAccount({ name: "Excluded account" })],
+      valuations: [],
+    });
+    expect(screen.queryByText("Excluded account")).not.toBeInTheDocument();
+    expect(mockUseCurrentAccountValuations).toHaveBeenCalledWith([], expect.anything());
   });
 });
