@@ -65,7 +65,12 @@ jobs:
           tags: wealthfolio-smoke:ci
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=docker-${{ matrix.arch }}
-          cache-to: type=gha,mode=max,scope=docker-${{ matrix.arch }}
+          # PRs don't export: their cache is readable only by the same PR, the
+          # backend stage never reuses it, and the export takes ~3 min and
+          # ~1.6 GB of the repo's shared cache budget.
+          cache-to:
+            ${{ github.event_name != 'pull_request' && format('type=gha,mode=max,scope=docker-{0}',
+            matrix.arch) || '' }}
           # Secret values do not invalidate Docker's cache; compile current destinations.
           no-cache-filters: backend
           secrets: |
