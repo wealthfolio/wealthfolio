@@ -1,7 +1,6 @@
 import { calculatePerformanceSummaries } from "@/adapters";
 import { useAccounts } from "@/hooks/use-accounts";
 import { useCurrentAccountValuations } from "@/hooks/use-current-account-valuations";
-import { useLatestValuations } from "@/hooks/use-latest-valuations";
 import { useSettingsContext } from "@/lib/settings-provider";
 import type {
   Account,
@@ -28,10 +27,6 @@ vi.mock("@/adapters", () => ({
 
 vi.mock("@/hooks/use-accounts", () => ({
   useAccounts: vi.fn(),
-}));
-
-vi.mock("@/hooks/use-latest-valuations", () => ({
-  useLatestValuations: vi.fn(),
 }));
 
 vi.mock("@/hooks/use-current-account-valuations", () => ({
@@ -98,7 +93,6 @@ vi.mock("@wealthfolio/ui/components/ui/tooltip", () => ({
 
 const mockCalculatePerformanceSummaries = vi.mocked(calculatePerformanceSummaries);
 const mockUseAccounts = vi.mocked(useAccounts);
-const mockUseLatestValuations = vi.mocked(useLatestValuations);
 const mockUseCurrentAccountValuations = vi.mocked(useCurrentAccountValuations);
 const mockUseSettingsContext = vi.mocked(useSettingsContext);
 const mockUseQuery = vi.mocked(useQuery);
@@ -295,12 +289,6 @@ function renderAccountsSummary({
     isError: false,
     error: null,
     refetch: vi.fn(),
-  });
-
-  mockUseLatestValuations.mockReturnValue({
-    latestValuations: valuations,
-    isLoading: false,
-    error: null,
   });
 
   const defaultCurrentValuations = valuations.map((valuation) =>
