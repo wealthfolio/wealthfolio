@@ -52,6 +52,7 @@
     "clearCategory": "Quitar categoría"
   },
   "activityTypes": {
+    "balanceTransferCashAdvance": "Transferencia de saldo / Adelanto de efectivo",
     "charge": "Cargo",
     "interestCharge": "Cargo por intereses",
     "refundCredit": "Reembolso / Abono",

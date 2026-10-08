@@ -32,6 +32,7 @@ const CREDIT_CARD_ACTIVITY_TYPE_LABEL_KEYS: Partial<Record<CashActivityType, str
   WITHDRAWAL: "spending:activityTypes.charge",
   INTEREST: "spending:activityTypes.interestCharge",
   TRANSFER_IN: "spending:cashForm.payment",
+  TRANSFER_OUT: "spending:activityTypes.balanceTransferCashAdvance",
   CREDIT: "spending:activityTypes.refundCredit",
 };
 

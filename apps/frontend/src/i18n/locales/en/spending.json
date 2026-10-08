@@ -51,6 +51,7 @@
     "clearCategory": "Clear category"
   },
   "activityTypes": {
+    "balanceTransferCashAdvance": "Balance Transfer / Cash Advance",
     "charge": "Charge",
     "interestCharge": "Interest Charge",
     "refundCredit": "Refund / Credit",

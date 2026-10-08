@@ -52,6 +52,7 @@
     "clearCategory": "Effacer la catégorie"
   },
   "activityTypes": {
+    "balanceTransferCashAdvance": "Transfert de solde / Avance de fonds",
     "charge": "Dépense",
     "interestCharge": "Intérêts débiteurs",
     "refundCredit": "Remboursement / Crédit",

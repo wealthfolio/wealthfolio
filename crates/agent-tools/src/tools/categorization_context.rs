@@ -18,6 +18,7 @@ use crate::env::AgentEnvironment;
 use crate::scope::AgentScope;
 use crate::tool::{AgentTool, AgentToolAccess, AgentToolError, AgentToolResult};
 use wealthfolio_core::accounts::account_types;
+use wealthfolio_spending::cash_activities::model::CashFlowBucket;
 use wealthfolio_spending::cash_activities::{
     CashActivity, CashActivitySearchRequest, CashActivityStatusFilter,
 };
@@ -521,8 +522,14 @@ fn is_neutral_visible_target(
         .get(&item.activity.account_id)
         .is_some_and(|account_type| {
             account_type == account_types::CREDIT_CARD
-                && item.activity.effective_type() == "TRANSFER_IN"
+                && matches!(
+                    item.activity.effective_type(),
+                    "TRANSFER_IN" | "TRANSFER_OUT"
+                )
                 && item.activity.source_group_id.is_some()
+                // A card transfer out to an investing account is a saving and
+                // still needs a savings category.
+                && item.cash_flow_bucket == CashFlowBucket::Neutral
         })
 }
 
@@ -732,7 +739,6 @@ mod tests {
     use rust_decimal::Decimal;
     use wealthfolio_core::activities::{Activity, ActivityStatus};
     use wealthfolio_core::taxonomies::Category;
-    use wealthfolio_spending::cash_activities::model::CashFlowBucket;
 
     // ----- normalize_payee -------------------------------------------------
 
@@ -980,6 +986,7 @@ mod tests {
             make_cash_activity("payment", "card-1", "2024-06-15T00:00:00Z", false, false);
         payment.activity.activity_type = "TRANSFER_IN".to_string();
         payment.activity.source_group_id = Some("payment-group".to_string());
+        payment.cash_flow_bucket = CashFlowBucket::Neutral;
         let mut targets = vec![payment];
         let account_type_by_id = HashMap::from([(
             "card-1".to_string(),
@@ -995,6 +1002,43 @@ mod tests {
         .unwrap();
 
         assert!(targets.is_empty());
+    }
+
+    #[test]
+    fn explicit_targets_treat_linked_credit_card_transfers_out_as_categorized() {
+        let mut balance_transfer = make_cash_activity(
+            "balance-transfer",
+            "card-1",
+            "2024-06-15T00:00:00Z",
+            false,
+            false,
+        );
+        balance_transfer.activity.activity_type = "TRANSFER_OUT".to_string();
+        balance_transfer.activity.source_group_id = Some("balance-transfer-group".to_string());
+        balance_transfer.cash_flow_bucket = CashFlowBucket::Neutral;
+        // A card transfer out to an investing account is a saving: it still
+        // needs a savings category.
+        let mut invested =
+            make_cash_activity("invested", "card-1", "2024-06-16T00:00:00Z", false, false);
+        invested.activity.activity_type = "TRANSFER_OUT".to_string();
+        invested.activity.source_group_id = Some("invest-group".to_string());
+        invested.cash_flow_bucket = CashFlowBucket::Saving;
+        let mut targets = vec![balance_transfer, invested];
+        let account_type_by_id = HashMap::from([(
+            "card-1".to_string(),
+            wealthfolio_core::accounts::account_types::CREDIT_CARD.to_string(),
+        )]);
+
+        retain_explicit_targets(
+            &mut targets,
+            &CategorizationFilters::default(),
+            CashActivityStatusFilter::Uncategorized,
+            &account_type_by_id,
+        )
+        .unwrap();
+
+        assert_eq!(targets.len(), 1);
+        assert_eq!(targets[0].activity.id, "invested");
     }
 
     #[test]

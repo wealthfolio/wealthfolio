@@ -207,6 +207,9 @@ describe("getCashActivityLabel", () => {
     expect(getCashActivityLabel(t, "FEE", AccountType.CREDIT_CARD)).toBe("Fee");
     expect(getCashActivityLabel(t, "INTEREST", AccountType.CREDIT_CARD)).toBe("Interest Charge");
     expect(getCashActivityLabel(t, "TRANSFER_IN", AccountType.CREDIT_CARD)).toBe("Payment");
+    expect(getCashActivityLabel(t, "TRANSFER_OUT", AccountType.CREDIT_CARD)).toBe(
+      "Balance Transfer / Cash Advance",
+    );
     expect(getCashActivityLabel(t, "CREDIT", AccountType.CREDIT_CARD, "REIMBURSEMENT")).toBe(
       "Refund / Credit",
     );
@@ -218,5 +221,8 @@ describe("getCashActivityLabel", () => {
     expect(getCashActivityLabel(t, "WITHDRAWAL", AccountType.CASH)).toBe("Retrait");
     expect(getCashActivityLabel(t, "WITHDRAWAL", AccountType.CREDIT_CARD)).toBe("Dépense");
     expect(getCashActivityLabel(t, "TRANSFER_IN", AccountType.CREDIT_CARD)).toBe("Paiement");
+    expect(getCashActivityLabel(t, "TRANSFER_OUT", AccountType.CREDIT_CARD)).toBe(
+      "Transfert de solde / Avance de fonds",
+    );
   });
 });

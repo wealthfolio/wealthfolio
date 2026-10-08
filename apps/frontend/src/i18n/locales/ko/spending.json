@@ -51,6 +51,7 @@
     "clearCategory": "카테고리 지우기"
   },
   "activityTypes": {
+    "balanceTransferCashAdvance": "잔액 이체 / 현금 서비스",
     "charge": "카드 사용",
     "interestCharge": "이자 비용",
     "refundCredit": "환급 / 크레딧",

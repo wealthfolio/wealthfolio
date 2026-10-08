@@ -71,10 +71,10 @@ pub(crate) fn within_spending_transfer_groups(acts: &[&Activity]) -> HashSet<Str
 /// Classify for spending TOTALS, with knowledge of which transfer groups are
 /// fully within the spending set. A linked transfer that *crosses out* of the
 /// spending world (counterpart is a non-spending/investing account → only one
-/// leg in the full spending context) classifies its CASH `TRANSFER_OUT` leg as
-/// `Saving` — its own bucket, like income. The inbound leg and all
-/// within-spending transfers stay neutral. Unlinked transfer-outs fall through
-/// to the plain classifier and can still be Spending.
+/// leg in the full spending context) classifies its `TRANSFER_OUT` leg, from a
+/// cash or card account, as `Saving` — its own bucket, like income. The inbound
+/// leg and all within-spending transfers stay neutral. Unlinked transfer-outs
+/// fall through to the plain classifier and can still be Spending.
 pub(crate) fn classify_activity_for_aggregation(
     activity: &Activity,
     account_type: &str,
@@ -87,7 +87,9 @@ pub(crate) fn classify_activity_for_aggregation(
                 return SpendingClassification::InternalTransfer;
             }
             return match (account_type, activity_type) {
-                (account_types::CASH, "TRANSFER_OUT") => SpendingClassification::Saving,
+                (account_types::CASH | account_types::CREDIT_CARD, "TRANSFER_OUT") => {
+                    SpendingClassification::Saving
+                }
                 _ => SpendingClassification::InternalTransfer,
             };
         }
@@ -507,18 +509,37 @@ mod tests {
     fn credit_card_transfer_out_is_never_spending() {
         // A card's TRANSFER_OUT is money moved, not bought: a balance transfer,
         // a cash advance, a wallet top-up. Unlinked it is Ignored, like a
-        // card's payment in; linked out of the spending set it is still not a
-        // CASH saving (#1227).
+        // card's payment in (#1227).
         assert_eq!(
             classify_activity(&activity("TRANSFER_OUT", None), account_types::CREDIT_CARD),
             SpendingClassification::Ignored
         );
+        // Linked to another spending account (card to card, card to bank) it
+        // is neutral.
         let out = activity("TRANSFER_OUT", Some("pair-card"));
-        let within = within_spending_transfer_groups(&[&out]);
+        let inn = activity("TRANSFER_IN", Some("pair-card"));
+        let within = within_spending_transfer_groups(&[&out, &inn]);
         assert_eq!(
             classify_activity_for_aggregation(&out, account_types::CREDIT_CARD, &within),
             SpendingClassification::InternalTransfer
         );
+        // Linked out of the spending set (card to brokerage) it is a saving,
+        // as from a cash account.
+        let invested = activity("TRANSFER_OUT", Some("pair-invest"));
+        let within_invest = within_spending_transfer_groups(&[&invested]);
+        let c = classify_activity_for_aggregation(
+            &invested,
+            account_types::CREDIT_CARD,
+            &within_invest,
+        );
+        assert_eq!(c, SpendingClassification::Saving);
+        assert_eq!(c.spending_amount(Decimal::new(100, 0)), Decimal::ZERO);
+        // Either way it raises what the card owes, like a charge.
+        let card = HashMap::from([(
+            "account-1".to_string(),
+            account_types::CREDIT_CARD.to_string(),
+        )]);
+        assert_eq!(net_amount(&out, &card), Decimal::new(-100, 0));
     }
 
     #[test]

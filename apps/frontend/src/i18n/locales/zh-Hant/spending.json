@@ -51,6 +51,7 @@
     "clearCategory": "清除類別"
   },
   "activityTypes": {
+    "balanceTransferCashAdvance": "餘額轉移／預借現金",
     "charge": "消費",
     "interestCharge": "利息費用",
     "refundCredit": "退款／回饋",

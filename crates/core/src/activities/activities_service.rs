@@ -927,12 +927,19 @@ impl ActivityService {
         }
     }
 
+    /// `asset` is the request's asset id or symbol, before resolution.
     fn account_activity_validation_message(
         activity_type: &str,
+        asset: Option<&str>,
         account: &Account,
     ) -> Option<String> {
         if account.account_type != account_types::CREDIT_CARD {
             return None;
+        }
+
+        // A card holds no positions, so a transfer on it moves cash only.
+        if is_securities_transfer(activity_type, asset) {
+            return Some("Securities transfers are not supported for credit card accounts".into());
         }
 
         // Charges, payments, refunds, fees and interest, plus TRANSFER_OUT for
@@ -952,8 +959,14 @@ impl ActivityService {
         }
     }
 
-    fn validate_activity_allowed_for_account(activity_type: &str, account: &Account) -> Result<()> {
-        if let Some(message) = Self::account_activity_validation_message(activity_type, account) {
+    fn validate_activity_allowed_for_account(
+        activity_type: &str,
+        asset: Option<&str>,
+        account: &Account,
+    ) -> Result<()> {
+        if let Some(message) =
+            Self::account_activity_validation_message(activity_type, asset, account)
+        {
             return Err(ActivityError::InvalidData(message).into());
         }
         Ok(())
@@ -2881,7 +2894,11 @@ impl ActivityService {
         );
         Self::normalize_new_activity_economic_signs(&mut activity);
         let account: Account = self.account_service.get_account(&activity.account_id)?;
-        Self::validate_activity_allowed_for_account(&activity.activity_type, &account)?;
+        Self::validate_activity_allowed_for_account(
+            &activity.activity_type,
+            activity.get_symbol_id().or(activity.get_symbol_code()),
+            &account,
+        )?;
         let base_ccy = self.account_service.get_base_currency().unwrap_or_default();
         let account_currency = resolve_currency(&[&account.currency, &base_ccy]);
 
@@ -3344,7 +3361,11 @@ impl ActivityService {
         activity.activity_date =
             self.validate_and_normalize_activity_date(&activity.activity_date)?;
         let account: Account = self.account_service.get_account(&activity.account_id)?;
-        Self::validate_activity_allowed_for_account(&activity.activity_type, &account)?;
+        Self::validate_activity_allowed_for_account(
+            &activity.activity_type,
+            activity.get_symbol_id().or(activity.get_symbol_code()),
+            &account,
+        )?;
         let base_ccy = self.account_service.get_base_currency().unwrap_or_default();
         let account_currency = resolve_currency(&[&account.currency, &base_ccy]);
 
@@ -4301,8 +4322,11 @@ impl ActivityService {
             if activity.account_id.is_none() {
                 activity.account_id = Some(account_id.clone());
             }
+            // Only the type here: the symbol is checked once the row is known
+            // to resolve an asset, so a cash placeholder ("-", "$CASH") is not
+            // mistaken for a security.
             if let Some(message) =
-                Self::account_activity_validation_message(&activity.activity_type, &account)
+                Self::account_activity_validation_message(&activity.activity_type, None, &account)
             {
                 Self::add_activity_error(&mut activity, "activityType", &message);
                 activities_with_status.push(activity);
@@ -4388,6 +4412,15 @@ impl ActivityService {
                             )],
                         );
                         activity.errors = Some(errors);
+                        activities_with_status.push(activity);
+                        continue;
+                    }
+                    if let Some(message) = Self::account_activity_validation_message(
+                        &activity.activity_type,
+                        Some(&symbol),
+                        &account,
+                    ) {
+                        Self::add_activity_error(&mut activity, "symbol", &message);
                         activities_with_status.push(activity);
                         continue;
                     }
@@ -6948,9 +6981,11 @@ impl ActivityService {
         let mut sync_review_indices: HashSet<usize> = HashSet::new();
 
         for (idx, activity) in activities.iter().enumerate() {
-            if let Err(e) =
-                Self::validate_activity_allowed_for_account(&activity.activity_type, account)
-            {
+            if let Err(e) = Self::validate_activity_allowed_for_account(
+                &activity.activity_type,
+                activity.get_symbol_id().or(activity.get_symbol_code()),
+                account,
+            ) {
                 if mode.is_sync() {
                     warn!(
                         "Broker sync activity at index {} is not allowed for this account and will be imported for review: {}",

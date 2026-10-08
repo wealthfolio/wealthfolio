@@ -4374,6 +4374,234 @@ pub(crate) mod tests {
             .contains("DEPOSIT activities are not supported for credit card accounts"));
     }
 
+    /// A security transfer on a card account: TRANSFER_IN/OUT with an asset.
+    fn create_test_card_security_transfer(id: &str, activity_type: &str) -> NewActivity {
+        NewActivity {
+            asset: Some(AssetResolutionInput {
+                id: Some("AAPL".to_string()),
+                ..Default::default()
+            }),
+            quantity: Some(dec!(10)),
+            ..create_test_cash_create(id, "card-1", activity_type, "USD")
+        }
+    }
+
+    const CARD_SECURITY_TRANSFER_ERROR: &str =
+        "Securities transfers are not supported for credit card accounts";
+
+    /// A card holds no positions: transfers on it move cash only, whichever
+    /// direction, on every write path.
+    #[tokio::test]
+    async fn credit_card_accounts_reject_security_transfers() {
+        let asset_service = Arc::new(MockAssetService::new());
+        asset_service.add_asset(create_test_asset("AAPL", "USD"));
+        let activity_repository = Arc::new(MockActivityRepository::new());
+        activity_repository.add_activity(create_stored_activity(
+            "activity-1",
+            "card-1",
+            Some("AAPL"),
+        ));
+        let activity_service = ActivityService::new(
+            activity_repository,
+            mixed_account_service(),
+            asset_service,
+            Arc::new(MockFxService::new()),
+            Arc::new(MockQuoteService),
+        );
+
+        for activity_type in ["TRANSFER_OUT", "TRANSFER_IN"] {
+            let err = activity_service
+                .create_activity(create_test_card_security_transfer(
+                    "card-security",
+                    activity_type,
+                ))
+                .await
+                .expect_err("credit cards should reject security transfers");
+            assert!(
+                err.to_string().contains(CARD_SECURITY_TRANSFER_ERROR),
+                "{activity_type}: {err}"
+            );
+        }
+
+        let mut update = create_test_activity_update(
+            "activity-1",
+            "card-1",
+            Some(AssetResolutionInput {
+                id: Some("AAPL".to_string()),
+                ..Default::default()
+            }),
+            "USD",
+        );
+        update.activity_type = "TRANSFER_OUT".to_string();
+        let err = activity_service
+            .update_activity(update)
+            .await
+            .expect_err("credit cards should reject security transfer updates");
+        assert!(err.to_string().contains(CARD_SECURITY_TRANSFER_ERROR));
+
+        let result = activity_service
+            .bulk_mutate_activities(ActivityBulkMutationRequest {
+                creates: vec![create_test_card_security_transfer(
+                    "card-security",
+                    "TRANSFER_OUT",
+                )],
+                updates: vec![],
+                delete_ids: vec![],
+            })
+            .await
+            .expect("bulk mutation reports row errors");
+        assert!(result.created.is_empty());
+        assert!(
+            result
+                .errors
+                .iter()
+                .any(|error| error.message.contains(CARD_SECURITY_TRANSFER_ERROR)),
+            "expected the security transfer to be refused, got {:?}",
+            result.errors
+        );
+    }
+
+    fn create_test_card_import(
+        activity_type: &str,
+        symbol: &str,
+        quantity: Option<Decimal>,
+    ) -> ActivityImport {
+        ActivityImport {
+            id: None,
+            date: "2024-01-15".to_string(),
+            symbol: symbol.to_string(),
+            activity_type: activity_type.to_string(),
+            quantity,
+            unit_price: None,
+            currency: "USD".to_string(),
+            fee: Some(dec!(0)),
+            tax: None,
+            amount: if quantity.is_some() {
+                None
+            } else {
+                Some(dec!(100))
+            },
+            comment: None,
+            account_id: Some("card-1".to_string()),
+            account_name: None,
+            symbol_name: None,
+            exchange_mic: None,
+            quote_ccy: None,
+            instrument_type: None,
+            quote_mode: None,
+            provider_id: None,
+            provider_symbol: None,
+            errors: None,
+            warnings: None,
+            duplicate_of_id: None,
+            duplicate_of_line_number: None,
+            is_draft: false,
+            is_valid: true,
+            line_number: Some(1),
+            fx_rate: None,
+            subtype: None,
+            asset_id: None,
+            isin: None,
+            force_import: false,
+            is_external: None,
+        }
+    }
+
+    fn card_import_check_service() -> ActivityService {
+        let asset_service = Arc::new(MockAssetService::new());
+        asset_service.add_asset(create_test_asset("AAPL", "USD"));
+        ActivityService::new(
+            Arc::new(MockActivityRepository::new()),
+            mixed_account_service(),
+            asset_service,
+            Arc::new(MockFxService::new()),
+            Arc::new(MockQuoteService),
+        )
+    }
+
+    #[tokio::test]
+    async fn credit_card_import_check_flags_security_transfers() {
+        let result = card_import_check_service()
+            .check_activities_import(vec![create_test_card_import(
+                "TRANSFER_OUT",
+                "AAPL",
+                Some(dec!(10)),
+            )])
+            .await
+            .expect("import check should succeed");
+
+        assert_eq!(result.len(), 1);
+        assert!(!result[0].is_valid);
+        assert!(result[0]
+            .errors
+            .as_ref()
+            .and_then(|errors| errors.get("symbol"))
+            .is_some_and(|messages| messages
+                .iter()
+                .any(|message| message == CARD_SECURITY_TRANSFER_ERROR)));
+    }
+
+    /// A cash placeholder in the symbol column is cleared on import, so it must
+    /// not read as a security on a card.
+    #[tokio::test]
+    async fn credit_card_import_check_accepts_cash_transfers_with_placeholder_symbols() {
+        let service = card_import_check_service();
+        for activity_type in ["TRANSFER_IN", "TRANSFER_OUT"] {
+            for symbol in ["", "-", "--", "$CASH", "$USD", "$CASH-USD", "CASH:USD"] {
+                let result = service
+                    .check_activities_import(vec![create_test_card_import(
+                        activity_type,
+                        symbol,
+                        None,
+                    )])
+                    .await
+                    .expect("import check should succeed");
+
+                assert!(
+                    result[0].is_valid,
+                    "{activity_type} with symbol {symbol:?}: {:?}",
+                    result[0].errors
+                );
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn sync_prepare_marks_credit_card_security_transfer_as_review_draft() {
+        let account_service = mixed_account_service();
+        let account = account_service
+            .get_account("card-1")
+            .expect("card account exists");
+        let asset_service = Arc::new(MockAssetService::new());
+        asset_service.add_asset(create_test_asset("AAPL", "USD"));
+        let activity_service = ActivityService::new(
+            Arc::new(MockActivityRepository::new()),
+            account_service,
+            asset_service,
+            Arc::new(MockFxService::new()),
+            Arc::new(MockQuoteService),
+        );
+
+        let result = activity_service
+            .prepare_activities_for_sync(
+                vec![NewActivity {
+                    status: Some(ActivityStatus::Posted),
+                    needs_review: Some(false),
+                    source_system: Some("SNAPTRADE".to_string()),
+                    ..create_test_card_security_transfer("card-security", "TRANSFER_OUT")
+                }],
+                &account,
+            )
+            .await
+            .expect("sync preparation should keep the row for review");
+
+        assert!(result.errors.is_empty());
+        assert_eq!(result.prepared.len(), 1);
+        let prepared = &result.prepared[0].activity;
+        assert_eq!(prepared.needs_review, Some(true));
+        assert_eq!(prepared.status, Some(ActivityStatus::Draft));
+    }
+
     /// Cash-only create for the mixed-account bulk tests below. `currency` is
     /// passed through verbatim so a test can leave it empty and observe which
     /// account currency preparation falls back to.
