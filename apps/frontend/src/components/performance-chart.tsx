@@ -13,6 +13,11 @@ import { differenceInDays, differenceInMonths, parseISO } from "date-fns";
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, XAxis, YAxis } from "recharts";
 import { NameType, ValueType } from "recharts/types/component/DefaultTooltipContent";
 
+// Recharts computes vertical grid positions even with `vertical={false}`. On a
+// new chart's first render it does so with default axis settings, measuring one
+// tick label per data point in the DOM (~1 s for 1,300 points in Chromium).
+const noVerticalGridPoints = () => [];
+
 interface PerformanceChartProps {
   data: {
     id: string;
@@ -100,7 +105,7 @@ export function PerformanceChart({ data }: PerformanceChartProps) {
       <ChartContainer config={chartConfig} className="h-full w-full">
         <ResponsiveContainer width="100%" height="100%" aspect={undefined}>
           <LineChart data={formattedData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-            <CartesianGrid vertical={false} />
+            <CartesianGrid vertical={false} verticalCoordinatesGenerator={noVerticalGridPoints} />
             <XAxis
               dataKey="date"
               tickLine={false}
