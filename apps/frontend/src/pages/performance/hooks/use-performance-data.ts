@@ -1,10 +1,20 @@
 import { calculatePerformanceHistory } from "@/adapters";
 import { QueryKeys } from "@/lib/query-keys";
-import { TrackedItem } from "@/lib/types";
-import { keepPreviousData, useQueries } from "@tanstack/react-query";
+import { PerformanceResult, TrackedItem } from "@/lib/types";
+import { keepPreviousData, useQueries, type UseQueryResult } from "@tanstack/react-query";
 import { calendarDateFromLocalDate, useDateFormatting } from "@wealthfolio/ui";
 import { format } from "date-fns";
 import { DateRange } from "react-day-picker";
+
+/** The first date of the earliest series among the loaded results. */
+function earliestSeriesDate(queries: UseQueryResult<PerformanceResult>[]): string | undefined {
+  const firstDates = queries.flatMap((query) =>
+    query.isSuccess && query.data.series.length ? [query.data.series[0].date] : [],
+  );
+  return firstDates.length
+    ? firstDates.reduce((earliest, date) => (date < earliest ? date : earliest))
+    : undefined;
+}
 
 /**
  * Hook to calculate cumulative returns for a list of comparison items.
@@ -42,44 +52,79 @@ export function useCalculatePerformanceHistory({
   // inception semantics instead of treating "ALL" as an explicit bounded range.
   const startDate = dateRange?.from ? format(dateRange.from, "yyyy-MM-dd") : undefined;
   const endDate = dateRange?.to ? format(dateRange.to, "yyyy-MM-dd") : undefined;
+  const isAllTime = dateRange === undefined;
+  // Enable query for all-time (`dateRange === undefined`) or valid bounded ranges.
+  const enabled = isAllTime || (!!startDate && !!endDate);
 
-  const performanceQueries = useQueries({
-    queries: validItems.map((item) => {
-      const accountFilter = item.type === "account" ? item.accountScope : undefined;
+  const performanceQuery = (
+    item: TrackedItem,
+    itemStartDate: string | undefined,
+    itemEnabled: boolean,
+  ) => {
+    const accountFilter = item.type === "account" ? item.accountScope : undefined;
 
-      return {
-        queryKey: [
-          QueryKeys.PERFORMANCE_HISTORY,
+    return {
+      queryKey: [
+        QueryKeys.PERFORMANCE_HISTORY,
+        item.type,
+        item.id,
+        accountFilter,
+        itemStartDate,
+        endDate,
+        trackingMode,
+      ],
+      queryFn: () =>
+        calculatePerformanceHistory(
           item.type,
           item.id,
-          accountFilter,
-          startDate,
+          itemStartDate,
           endDate,
-          trackingMode,
-        ],
-        queryFn: () =>
-          calculatePerformanceHistory(
-            item.type,
-            item.id,
-            startDate,
-            endDate,
-            // Only pass trackingMode for accounts, not for symbols
-            item.type === "account" ? trackingMode : undefined,
-            accountFilter,
-          ),
-        // Enable query for all-time (`dateRange === undefined`) or valid bounded ranges.
-        enabled: dateRange === undefined || (!!startDate && !!endDate),
-        staleTime: 30 * 1000,
-        retry: false,
-        placeholderData: keepPreviousData,
-      };
-    }),
+          // Only pass trackingMode for accounts, not for symbols
+          item.type === "account" ? trackingMode : undefined,
+          accountFilter,
+        ),
+      enabled: itemEnabled,
+      staleTime: 30 * 1000,
+      retry: false,
+      placeholderData: keepPreviousData,
+    };
+  };
+
+  const accountItems = validItems.filter((item) => item.type !== "symbol");
+  const symbolItems = validItems.filter((item) => item.type === "symbol");
+
+  const accountQueries = useQueries({
+    queries: accountItems.map((item) => performanceQuery(item, startDate, enabled)),
   });
 
-  const isLoading = performanceQueries.some((query) => query.isLoading);
-  const hasErrors = performanceQueries.some((query) => query.isError);
-  const errorMessages = performanceQueries
-    .filter((query) => query.isError)
+  // All-time benchmarks start where the accounts' history starts. Without a start
+  // date the backend gives a symbol only its last year, which would clip the chart.
+  const waitingForAccounts =
+    isAllTime && !accountQueries.every((query) => query.isSuccess || query.isError);
+  const symbolStartDate = isAllTime ? earliestSeriesDate(accountQueries) : startDate;
+
+  const symbolQueries = useQueries({
+    queries: symbolItems.map((item) =>
+      performanceQuery(item, symbolStartDate, enabled && !waitingForAccounts),
+    ),
+  });
+
+  // Results in the order the items were selected.
+  const performanceQueries = validItems.map((item) =>
+    item.type === "symbol"
+      ? symbolQueries[symbolItems.indexOf(item)]
+      : accountQueries[accountItems.indexOf(item)],
+  );
+  // A waiting benchmark sits on its start-less key, which can hold an earlier
+  // one-year result or error: report it as loading and leave it out.
+  const isWaiting = (index: number) => waitingForAccounts && validItems[index].type === "symbol";
+
+  const isLoading = performanceQueries.some((query, index) => query.isLoading || isWaiting(index));
+  const failedQueries = performanceQueries.filter(
+    (query, index) => query.isError && !isWaiting(index),
+  );
+  const hasErrors = failedQueries.length > 0;
+  const errorMessages = failedQueries
     .map((query) => query.error)
     .filter(Boolean)
     .map((error) => (error instanceof Error ? error.message : String(error)));
@@ -87,7 +132,7 @@ export function useCalculatePerformanceHistory({
   // Format chart data directly from query results
   const chartData = performanceQueries
     .map((query, index) => {
-      if (query.isError || !query.data) return null;
+      if (isWaiting(index) || query.isError || !query.data) return null;
 
       const item = validItems[index];
       const symbolName =
