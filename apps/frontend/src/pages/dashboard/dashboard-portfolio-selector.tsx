@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { AccountScopeSelector } from "@/components/account-filter-selector";
 import { useAccounts } from "@/hooks/use-accounts";
@@ -12,6 +12,10 @@ interface DashboardPortfolioSelectorProps {
   onSelect: (portfolioId: string | null) => void;
 }
 
+interface DashboardPortfolioDialog {
+  portfolio: PortfolioWithAccounts | null;
+}
+
 export function DashboardPortfolioSelector({
   scope,
   portfolio,
@@ -23,8 +27,14 @@ export function DashboardPortfolioSelector({
     includeArchived: true,
   });
   const { createMutation, updateMutation } = usePortfolioMutations();
-  const [dialog, setDialog] = useState<"create" | "edit" | null>(null);
-  const editing = dialog === "edit" ? (portfolio ?? null) : null;
+  const [dialog, setDialog] = useState<DashboardPortfolioDialog | null>(null);
+  const editing = dialog?.portfolio ?? null;
+
+  useEffect(() => {
+    if (editing && (scope.type !== "portfolio" || scope.portfolioId !== editing.id)) {
+      setDialog(null);
+    }
+  }, [editing, scope]);
 
   return (
     <>
@@ -33,8 +43,8 @@ export function DashboardPortfolioSelector({
         onChange={(next) => onSelect(next.type === "portfolio" ? next.portfolioId : null)}
         triggerVariant="icon"
         portfoliosOnly
-        onCreatePortfolio={() => setDialog("create")}
-        onEditPortfolio={portfolio ? () => setDialog("edit") : undefined}
+        onCreatePortfolio={() => setDialog({ portfolio: null })}
+        onEditPortfolio={portfolio ? () => setDialog({ portfolio }) : undefined}
         onManagePortfolios={() => navigate("/settings/portfolios")}
       />
       {dialog && !isAccountsLoading && (

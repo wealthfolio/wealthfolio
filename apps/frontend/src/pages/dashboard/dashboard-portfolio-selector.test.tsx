@@ -61,3 +61,38 @@ it("waits for accounts before initialising an editor's existing membership", asy
   expect(within(editor).getByRole("button", { name: "Save" })).toBeEnabled();
   expect(within(editor).queryByText(/deleted account/i)).not.toBeInTheDocument();
 });
+
+it("keeps the edit target stable and closes it when the selected portfolio disappears", async () => {
+  const portfolio: PortfolioWithAccounts = {
+    id: "retirement",
+    name: "Retirement",
+    accountIds: ["brokerage"],
+    sortOrder: 0,
+    createdAt: "2026-01-01",
+    updatedAt: "2026-01-01",
+  };
+  vi.mocked(useAccounts).mockReturnValue({
+    accounts: [{ id: "brokerage", name: "Brokerage", currency: "USD" }],
+    isLoading: false,
+    isError: false,
+    error: null,
+    refetch: vi.fn(),
+  } as unknown as ReturnType<typeof useAccounts>);
+  const props = {
+    scope: { type: "portfolio" as const, portfolioId: portfolio.id },
+    portfolio,
+    onSelect: vi.fn(),
+  };
+  const { rerender } = render(<DashboardPortfolioSelector {...props} />);
+  await userEvent.click(screen.getByRole("button", { name: "Edit portfolio" }));
+  await userEvent.type(screen.getByLabelText("Name"), " edited");
+
+  // Inventory can disappear before the saved selection is reconciled.
+  rerender(<DashboardPortfolioSelector {...props} portfolio={undefined} />);
+  expect(screen.getByRole("dialog", { name: "Edit portfolio" })).toBeVisible();
+  expect(screen.getByLabelText("Name")).toHaveValue("Retirement edited");
+  expect(screen.queryByRole("dialog", { name: "New portfolio" })).not.toBeInTheDocument();
+
+  rerender(<DashboardPortfolioSelector {...props} portfolio={undefined} scope={{ type: "all" }} />);
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+});
