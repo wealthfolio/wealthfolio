@@ -4,19 +4,29 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AccountScopeSelector } from "./account-filter-selector";
 
 const viewport = vi.hoisted(() => ({ mobile: false }));
-const inventory = vi.hoisted(() => ({ portfolios: [{ id: "retirement", name: "Retirement" }] }));
+const inventory = vi.hoisted(() => ({
+  portfolios: [{ id: "retirement", name: "Retirement" }] as
+    | { id: string; name: string }[]
+    | undefined,
+  status: "success" as "success" | "pending" | "error",
+}));
 vi.mock("@/hooks", () => ({ useIsMobileViewport: () => viewport.mobile }));
 vi.mock("@/hooks/use-accounts", () => ({
   useAccounts: () => ({ accounts: [{ id: "bank", name: "Everyday bank", currency: "USD" }] }),
 }));
 vi.mock("@/hooks/use-portfolios", () => ({
-  usePortfolios: () => ({ data: inventory.portfolios }),
+  usePortfolios: () => ({
+    data: inventory.portfolios,
+    isSuccess: inventory.status === "success",
+    isPending: inventory.status === "pending",
+  }),
 }));
 
 describe("AccountScopeSelector", () => {
   beforeEach(() => {
     viewport.mobile = false;
     inventory.portfolios = [{ id: "retirement", name: "Retirement" }];
+    inventory.status = "success";
     vi.stubGlobal(
       "ResizeObserver",
       class {
@@ -92,4 +102,26 @@ describe("AccountScopeSelector", () => {
     expect(onManage).toHaveBeenCalledOnce();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
+
+  it.each(["pending", "error"] as const)(
+    "offers Manage portfolios when inventory is %s rather than confirmed empty",
+    async (status) => {
+      inventory.portfolios = undefined;
+      inventory.status = status;
+      render(
+        <AccountScopeSelector
+          value={{ type: "all" }}
+          onChange={vi.fn()}
+          portfoliosOnly
+          triggerVariant="icon"
+          onManagePortfolios={vi.fn()}
+        />,
+      );
+      await userEvent.click(
+        screen.getByRole("combobox", { name: "Choose portfolio: All Accounts" }),
+      );
+      expect(screen.getByRole("option", { name: "Manage portfolios" })).toBeVisible();
+      expect(screen.queryByRole("option", { name: "Add portfolio" })).not.toBeInTheDocument();
+    },
+  );
 });

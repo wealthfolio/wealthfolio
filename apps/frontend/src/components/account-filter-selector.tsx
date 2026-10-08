@@ -138,6 +138,7 @@ function AccountScopeCommand({
   itemClassName,
   groupClassName,
   portfoliosOnly = false,
+  showAddPortfolio = false,
   onManagePortfolios,
   t,
 }: {
@@ -151,6 +152,7 @@ function AccountScopeCommand({
   itemClassName?: string;
   groupClassName?: string;
   portfoliosOnly?: boolean;
+  showAddPortfolio?: boolean;
   onManagePortfolios?: () => void;
   t: TFunction;
 }) {
@@ -231,13 +233,13 @@ function AccountScopeCommand({
             <CommandSeparator className="bg-border/70 mx-3 my-1.5" />
             <CommandGroup className={groupClassName}>
               <CommandItem className={itemClassName} onSelect={onManagePortfolios}>
-                {portfolios.length === 0 ? (
+                {showAddPortfolio ? (
                   <Icons.Plus className="text-muted-foreground mr-1 h-4 w-4" />
                 ) : (
                   <Icons.Settings className="text-muted-foreground mr-1 h-4 w-4" />
                 )}
                 {t(
-                  portfolios.length === 0
+                  showAddPortfolio
                     ? "settings:portfolios.add_button"
                     : "dashboard:portfolio_filter.manage",
                 )}
@@ -264,7 +266,7 @@ export function AccountScopeSelector({
   const [open, setOpen] = useState(false);
   const sheetTitleRef = useRef<HTMLHeadingElement>(null);
   const { accounts } = useAccounts({ filterActive: false, includeArchived: false });
-  const { data: portfolios = [] } = usePortfolios();
+  const { data: portfolios = [], isSuccess } = usePortfolios();
 
   const label = filterLabel(value, accounts, portfolios, t);
 
@@ -276,6 +278,7 @@ export function AccountScopeSelector({
     });
   const portfolioActions = {
     portfoliosOnly,
+    showAddPortfolio: isSuccess && portfolios.length === 0,
     onManagePortfolios: runAction(onManagePortfolios),
   };
 
