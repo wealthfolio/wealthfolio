@@ -1398,6 +1398,70 @@ mod tests {
         assert!(!updated_rule.preset_modified);
     }
 
+    #[tokio::test]
+    async fn french_preset_upgrade_preserves_user_edits_and_is_idempotent() {
+        let preset = presets::load_preset("fr").unwrap();
+        assert_ne!(preset.preset_version, "2026-09.1");
+        let mut electronics = mk_rule(
+            "installed-electronics",
+            "(?i)boulanger",
+            "spending_categories",
+            "shopping_electronics",
+            82,
+        );
+        electronics.match_type = RuleMatchType::Regex;
+        electronics.preset_id = Some("fr".to_string());
+        electronics.preset_rule_key = Some("fr.electronics".to_string());
+        electronics.preset_version = Some("2026-09.1".to_string());
+
+        let mut edited = mk_rule(
+            "edited-home",
+            "CUSTOM ACTION RULE",
+            "spending_categories",
+            "shopping_home",
+            99,
+        );
+        edited.preset_id = Some("fr".to_string());
+        edited.preset_rule_key = Some("fr.home_goods".to_string());
+        edited.preset_version = Some("2026-09.1".to_string());
+        edited.preset_modified = true;
+
+        let (svc, repo, _) = mk_svc(vec![electronics, edited.clone()], vec![]);
+        let resolver = preset
+            .rules
+            .iter()
+            .map(|rule| {
+                (
+                    rule.category_key.clone(),
+                    ("spending_categories".to_string(), rule.category_key.clone()),
+                )
+            })
+            .collect();
+
+        let result = svc.import_preset("fr", &resolver).await.unwrap();
+        assert_eq!(result.added, preset.rules.len() - 2);
+        assert_eq!(result.updated, 1);
+        assert_eq!(result.skipped_existing, 1);
+        assert_eq!(result.skipped_unknown_category, 0);
+
+        let upgraded = repo.get("installed-electronics").await.unwrap().unwrap();
+        assert_eq!(
+            upgraded.preset_version.as_deref(),
+            Some(preset.preset_version.as_str())
+        );
+        assert!(upgraded.pattern.contains(r"\bboulanger\b"));
+        let preserved = repo.get("edited-home").await.unwrap().unwrap();
+        assert_eq!(preserved.pattern, edited.pattern);
+        assert_eq!(preserved.priority, edited.priority);
+        assert_eq!(preserved.preset_version, edited.preset_version);
+        assert!(preserved.preset_modified);
+
+        let repeated = svc.import_preset("fr", &resolver).await.unwrap();
+        assert_eq!(repeated.added, 0);
+        assert_eq!(repeated.updated, 0);
+        assert_eq!(repeated.skipped_existing, preset.rules.len());
+    }
+
     fn dec(s: &str) -> Decimal {
         s.parse().unwrap()
     }

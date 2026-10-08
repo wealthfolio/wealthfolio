@@ -152,10 +152,10 @@ mod tests {
     use crate::categorization_rules::{match_rules, CategorizationRule, RuleMatchType};
     use chrono::Utc;
 
-    fn match_swedish_preset(notes: &str) -> Option<String> {
+    fn match_preset(preset_id: &str, notes: &str) -> Option<String> {
         let now = Utc::now().naive_utc();
-        let rules = load_preset("se")
-            .expect("Swedish preset should load")
+        let rules = load_preset(preset_id)
+            .expect("preset should load")
             .rules
             .into_iter()
             .map(|rule| CategorizationRule {
@@ -173,7 +173,7 @@ mod tests {
                 priority: rule.priority,
                 is_global: true,
                 account_id: None,
-                preset_id: Some("se".to_string()),
+                preset_id: Some(preset_id.to_string()),
                 preset_rule_key: None,
                 preset_version: None,
                 preset_modified: false,
@@ -184,6 +184,82 @@ mod tests {
 
         match_rules(&rules, notes, "WITHDRAWAL", "account", None)
             .and_then(|matched| matched.rule.category_id.clone())
+    }
+
+    fn match_swedish_preset(notes: &str) -> Option<String> {
+        match_preset("se", notes)
+    }
+
+    #[test]
+    fn french_bakeries_do_not_match_electronics_retailer() {
+        for notes in ["CB BOULANGERIE DU CENTRE", "CB BOULANGERIE ANGE"] {
+            assert_eq!(
+                match_preset("fr", notes).as_deref(),
+                Some("food_coffee"),
+                "{notes}"
+            );
+        }
+        assert_eq!(
+            match_preset("fr", "CB BOULANGER").as_deref(),
+            Some("shopping_electronics")
+        );
+    }
+
+    #[test]
+    fn french_transaction_descriptors_do_not_match_action_retailer() {
+        for (notes, category) in [
+            ("TRANSACTION AMAZON", "shopping_online"),
+            ("TRANSACTION MCDONALDS", "food_restaurants"),
+            ("CB ACTION", "shopping_home"),
+        ] {
+            assert_eq!(
+                match_preset("fr", notes).as_deref(),
+                Some(category),
+                "{notes}"
+            );
+        }
+        assert_eq!(match_preset("fr", "TRANSACTION 123"), None);
+    }
+
+    #[test]
+    fn french_additional_merchants_match_specific_categories() {
+        for (notes, category) in [
+            ("cb naturalia paris", "groceries"),
+            ("CB La Vie Claire", "groceries"),
+            ("PRLV HELLOFRESH", "groceries"),
+            ("CB HELLO FRESH", "groceries"),
+            ("CB QUITOQUE", "groceries"),
+            ("CB FLIXBUS", "transport_public"),
+            ("CB BLABLACAR BUS", "transport_public"),
+            ("CB BLABLACARBUS", "transport_public"),
+            ("CB OUIBUS", "transport_public"),
+            ("CB BIOGROUP LCD", "health_medical"),
+            ("CB CERBALLIANCE", "health_medical"),
+        ] {
+            assert_eq!(
+                match_preset("fr", notes).as_deref(),
+                Some(category),
+                "{notes}"
+            );
+        }
+    }
+
+    #[test]
+    fn french_additional_merchants_require_complete_names() {
+        for notes in [
+            "NATURALIANA",
+            "LA VIE CLAIREMENT",
+            "HELLOFRESHNESS",
+            "QUITOQUETTE",
+            "FLIXBUSINESS",
+            "BLABLACAR BUSINESS",
+            "BLABLACAR",
+            "OUIBUSINESS",
+            "BIOGROUPAGE",
+            "CERBALLIANCES",
+        ] {
+            assert_eq!(match_preset("fr", notes), None, "{notes}");
+        }
     }
 
     #[test]

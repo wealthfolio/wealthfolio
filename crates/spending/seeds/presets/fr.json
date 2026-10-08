@@ -1,6 +1,6 @@
 {
   "presetId": "fr",
-  "presetVersion": "2026-09.1",
+  "presetVersion": "2026-10.1",
   "name": "France",
   "description": "Rules for common French household transactions, including supermarkets, transport, telecom, utilities, shopping, healthcare, subscriptions, and fees.",
   "language": "fr-FR",
@@ -232,7 +232,7 @@
     {
       "key": "fr.electronics",
       "name": "Electronics retailers",
-      "pattern": "(?i)fnac|darty|boulanger|\\bldlc\\b|materiel\\.net|apple store",
+      "pattern": "(?i)fnac|darty|\\bboulanger\\b|\\bldlc\\b|materiel\\.net|apple store",
       "matchType": "regex",
       "categoryKey": "shopping_electronics",
       "priority": 82
@@ -248,7 +248,7 @@
     {
       "key": "fr.home_goods",
       "name": "Home & DIY stores",
-      "pattern": "(?i)ikea|leroy merlin|castorama|bricomarch[eé]|\\bbut\\b|conforama|maisons du monde|action",
+      "pattern": "(?i)ikea|leroy merlin|castorama|bricomarch[eé]|\\bbut\\b|conforama|maisons du monde|\\baction\\b",
       "matchType": "regex",
       "categoryKey": "shopping_home",
       "priority": 78
@@ -380,6 +380,38 @@
       "matchType": "regex",
       "categoryKey": "gifts",
       "priority": 82
+    },
+    {
+      "key": "fr.groceries.organic_chains",
+      "name": "Organic grocery chains",
+      "pattern": "(?i)\\b(naturalia|la vie claire)\\b",
+      "matchType": "regex",
+      "categoryKey": "groceries",
+      "priority": 80
+    },
+    {
+      "key": "fr.groceries.meal_kits",
+      "name": "Meal kits to cook at home",
+      "pattern": "(?i)\\b(hello ?fresh|quitoque)\\b",
+      "matchType": "regex",
+      "categoryKey": "groceries",
+      "priority": 80
+    },
+    {
+      "key": "fr.public_transit.coaches",
+      "name": "Intercity coaches",
+      "pattern": "(?i)\\b(flixbus|blablacar ?bus|ouibus)\\b",
+      "matchType": "regex",
+      "categoryKey": "transport_public",
+      "priority": 84
+    },
+    {
+      "key": "fr.medical.laboratories",
+      "name": "Medical laboratories",
+      "pattern": "(?i)\\b(biogroup|cerballiance)\\b",
+      "matchType": "regex",
+      "categoryKey": "health_medical",
+      "priority": 84
     }
   ]
 }
