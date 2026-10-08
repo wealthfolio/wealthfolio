@@ -1,6 +1,7 @@
 import { render, screen, waitFor } from "@/test/render";
 import { ActivityStatus, ActivityType } from "@/lib/constants";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { TransactionRowVM } from "../lib/transactions-helpers";
 import { SpendingTransactionsTab } from "./spending-transactions-tab";
 
 const USD_ACCOUNT = "acct-usd";
@@ -67,11 +68,13 @@ const mocks = vi.hoisted(() => {
     mutation,
     getTransferPairForActivity: vi.fn(),
     invalidateQueries: vi.fn(),
+    createActivity: vi.fn(),
+    useMutation: vi.fn(),
   };
 });
 
 vi.mock("@/adapters", () => ({
-  createActivity: vi.fn(),
+  createActivity: mocks.createActivity,
   deleteActivity: vi.fn(),
   updateActivity: vi.fn(),
   logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn() },
@@ -88,7 +91,7 @@ vi.mock("react-router-dom", () => ({
 
 vi.mock("@tanstack/react-query", () => ({
   useQueryClient: () => ({ invalidateQueries: mocks.invalidateQueries }),
-  useMutation: () => mocks.mutation,
+  useMutation: mocks.useMutation,
 }));
 
 vi.mock("@tanstack/react-virtual", () => ({
@@ -209,7 +212,51 @@ vi.mock("./transaction-row", async () => {
 describe("SpendingTransactionsTab transfer edit", () => {
   beforeEach(() => {
     mocks.getTransferPairForActivity.mockReset();
+    mocks.createActivity.mockReset();
+    mocks.useMutation.mockReset().mockReturnValue(mocks.mutation);
   });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it.each(["Original notes\nSecond line", "", undefined])(
+    "duplicates with today's date and preserves notes %j",
+    async (notes) => {
+      vi.useFakeTimers({ toFake: ["Date"] });
+      const now = new Date(2026, 9, 8, 23, 30);
+      vi.setSystemTime(now);
+      render(<SpendingTransactionsTab />);
+      const duplicateOptions = mocks.useMutation.mock.calls[0][0] as {
+        mutationFn: (row: TransactionRowVM) => Promise<unknown>;
+      };
+      const source = { ...mocks.transferOut, notes };
+
+      await duplicateOptions.mutationFn({
+        activity: {
+          ...source,
+          activityType: ActivityType.TRANSFER_OUT,
+          status: ActivityStatus.POSTED,
+          cashFlowBucket: "neutral",
+        },
+        category: null,
+        splitCount: 0,
+        needsReview: false,
+      });
+
+      expect(mocks.createActivity).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({
+          activityDate: now.toISOString(),
+          comment: notes,
+          accountId: source.accountId,
+          amount: source.amount,
+          metadata: { flow: { is_external: false } },
+        }),
+      );
+      expect(source.activityDate).toBe("2026-09-17T11:06:00.000Z");
+      expect(source.notes).toBe(notes);
+    },
+  );
 
   it("loads the counterpart leg when editing a linked transfer (#1563)", async () => {
     mocks.getTransferPairForActivity.mockResolvedValue({

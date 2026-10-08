@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ActivityType } from "@/lib/constants";
 import type { ActivityDetails } from "@/lib/types";
 import { useActivityMutations } from "./use-activity-mutations";
@@ -43,6 +43,45 @@ describe("useActivityMutations", () => {
     adapterMocks.createActivity.mockResolvedValue({ id: "activity-created" });
     adapterMocks.updateActivity.mockResolvedValue({ id: "activity-updated" });
   });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it.each(["Original notes\nSecond line", "", undefined])(
+    "duplicates with today's date and preserves notes %j",
+    async (comment) => {
+      vi.useFakeTimers({ toFake: ["Date"] });
+      const now = new Date(2026, 9, 8, 23, 30);
+      vi.setSystemTime(now);
+      const source = {
+        id: "activity-original",
+        accountId: "acc-1",
+        activityType: ActivityType.DEPOSIT,
+        date: new Date("2024-01-15T10:00:00Z"),
+        amount: "100",
+        currency: "USD",
+        comment,
+      } as ActivityDetails;
+      const { result } = renderHook(() => useActivityMutations(), { wrapper: createWrapper() });
+
+      await act(async () => {
+        await result.current.duplicateActivityMutation.mutateAsync(source);
+      });
+
+      expect(adapterMocks.createActivity).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({
+          activityDate: now,
+          comment,
+          accountId: source.accountId,
+          amount: source.amount,
+        }),
+      );
+      expect(source.date).toEqual(new Date("2024-01-15T10:00:00Z"));
+      expect(source.comment).toBe(comment);
+      expect(adapterMocks.updateActivity).not.toHaveBeenCalled();
+    },
+  );
 
   it("does not send a stale selected asset id after the symbol is cleared", async () => {
     const { result } = renderHook(() => useActivityMutations(), { wrapper: createWrapper() });

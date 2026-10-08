@@ -630,9 +630,8 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
           currency: a.currency,
           fxRate: a.fxRate ?? undefined,
           amount: a.amount,
-          activityDate:
-            typeof a.activityDate === "string" ? a.activityDate : new Date().toISOString(),
-          comment: t("spending:txTab.duplicatedComment"),
+          activityDate: new Date().toISOString(),
+          comment: a.notes,
           metadata:
             activityType === ActivityType.CREDIT
               ? cashActivityFlowMetadata(activityType, a.subtype, boundaryMetadata)

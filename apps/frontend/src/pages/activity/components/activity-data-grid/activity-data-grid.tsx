@@ -172,13 +172,12 @@ export function ActivityDataGrid({
         createdAt: now,
         updatedAt: now,
         isNew: true,
-        comment: t("activity:datagrid.duplicated_comment"),
         idempotencyKey: generateId("manual-duplicate"),
       };
       setLocalTransactions((prev) => [duplicated, ...prev]);
       markDirtyBatch([duplicated.id]);
     },
-    [markDirtyBatch, setLocalTransactions, t],
+    [markDirtyBatch, setLocalTransactions],
   );
 
   const [pendingDeleteActivity, setPendingDeleteActivity] = useState<ActivityDetails | null>(null);
