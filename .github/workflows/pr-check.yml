@@ -144,6 +144,12 @@ jobs:
 
       - name: Rust cache
         uses: Swatinem/rust-cache@v2
+        with:
+          # cache-warm.yml seeds this key on main. A PR's own copy (~2 GB) is
+          # readable only by that PR and evicts the shared caches, so PRs
+          # restore without saving.
+          shared-key: pr-rust-check
+          save-if: false
 
       - name: Install system dependencies
         run: |

@@ -11,6 +11,9 @@ name: Warm Rust Cache
 #
 # macOS release jobs (~18 min cold) are deliberately not warmed to stay under
 # the 10 GB per-repo cache limit; Linux and Windows are the expensive ones.
+#
+# warm-pr-check seeds the cache that pr-check.yml's Rust Check restores; PR
+# runs restore it without saving.
 
 on:
   push:
@@ -127,3 +130,44 @@ jobs:
           # built - must match the release job.
           OPENSSL_STATIC: "1"
         run: cargo build --locked --release --manifest-path apps/server/Cargo.toml
+
+  warm-pr-check:
+    # Keep runs-on, env, toolchain setup, cache inputs and cargo builds in sync
+    # with the rust-check job in pr-check.yml; any drift makes PRs build cold.
+    runs-on: ubuntu-latest
+    env:
+      CARGO_INCREMENTAL: 0
+      CARGO_TERM_COLOR: always
+      RUSTFLAGS: "-C debuginfo=0"
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Rust setup
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          shared-key: pr-rust-check
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev librsvg2-dev
+
+      - name: Stub frontend dist
+        run:
+          mkdir -p dist && echo '<!DOCTYPE html><html><head></head><body></body></html>' >
+          dist/index.html
+
+      - name: Build PR check dependencies
+        # Rust Check's builds without running tests. Lint and test flags only
+        # affect workspace crates, which rust-cache prunes.
+        run: |
+          cargo clippy --locked --workspace --all-targets --all-features
+          CONNECT_API_URL=http://test.local cargo test --locked --workspace --no-run
+          cargo test --locked -p wealthfolio-ai --features test-utils --no-run
+          cargo check --locked -p wealthfolio-server --release
