@@ -198,15 +198,20 @@ D-Bus or keyring socket into the container has no effect.
 
 The `reason` field names the cause:
 
-| `reason`         | Cause                                                                                                                              | Fix                                                                                                                              |
-| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| `cannot_decrypt` | The configured `WF_SECRET_KEY` or `WF_SECRET_KEY_FILE` differs from the key the vault was created with.                            | Configure the original key; see [Preserving the master key](#preserving-the-master-key).                                         |
-| `unreadable`     | The runtime user cannot read the file; `io_kind` and `os_code` give the system error.                                              | Give the runtime user (see [above](#permissions-and-existing-deployments)) read access, and write access for saving credentials. |
-| `not_a_file`     | The path is a directory or another non-file, for example one Docker created for a single-file bind mount whose source was missing. | Remove that mount or point it at the real file.                                                                                  |
-| `malformed`      | The file is not a valid secrets file.                                                                                              | Restore it from a backup made with the same master key.                                                                          |
+| `reason`         | Cause                                                                                                                                     | Fix                                                                                                                                                        |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `cannot_decrypt` | The configured `WF_SECRET_KEY` or `WF_SECRET_KEY_FILE` differs from the key the vault was created with, or the encrypted data is damaged. | Configure the original key; see [Preserving the master key](#preserving-the-master-key). If the key is right, restore the file from a backup made with it. |
+| `unreadable`     | The runtime user cannot read the file; `io_kind` and `os_code` give the system error.                                                     | Give the runtime user (see [above](#permissions-and-existing-deployments)) read access, and write access for saving credentials.                           |
+| `not_a_file`     | The path is a directory or another non-file, for example one Docker created for a single-file bind mount whose source was missing.        | Remove that mount or point it at the real file.                                                                                                            |
+| `malformed`      | The file is not a valid secrets file.                                                                                                     | Restore it from a backup made with the same master key.                                                                                                    |
 
 Restart after the fix. A profile deletion that failed for this reason stays
 pending and finishes at the next startup.
+
+A read-only vault starts without a log entry, because startup only reads it.
+Deleting a profile also removes that profile's saved credentials, so when it has
+any, deletion fails with the same error until the runtime user can write the
+file. After granting write access, retry the deletion or restart the server.
 
 If the original key is lost, no key can decrypt the vault. Stop the server,
 rename the file (for example to `secrets.json.bak`), and start it again; the
