@@ -489,7 +489,7 @@
       "unavailable": "Dieses Profil konnte nicht geöffnet werden. Starte Wealthfolio neu und versuche es erneut.",
       "inUse": "Dieses Profil ist in einem anderen Wealthfolio-Fenster geöffnet. Schließe es dort und versuche es erneut.",
       "credentials": "Auf deine gespeicherten Anmeldedaten konnte nicht zugegriffen werden. Entsperre dein Gerät und versuche es erneut.",
-      "serverCredentials": "Der Server konnte seine Datei mit gespeicherten Zugangsdaten (secrets.json) nicht lesen. Bitte den Serveradministrator zu prüfen, ob WF_SECRET_KEY dem Schlüssel entspricht, mit dem die Datei erstellt wurde, und ob der Server die Datei lesen kann.",
+      "serverCredentials": "Der Server konnte nicht auf seine Datei mit gespeicherten Zugangsdaten (secrets.json) zugreifen. Bitte den Serveradministrator zu prüfen, ob WF_SECRET_KEY dem Schlüssel entspricht, mit dem die Datei erstellt wurde, und ob der Server die Datei lesen und schreiben kann.",
       "invalid": "Prüfe die Profilangaben und versuche es erneut.",
       "name": "Verwende einen Profilnamen mit 1–60 Zeichen.",
       "avatar": "Wähle einen der verfügbaren Avatare.",

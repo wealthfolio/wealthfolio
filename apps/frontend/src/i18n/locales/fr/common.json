@@ -503,7 +503,7 @@
       "unavailable": "Impossible d’ouvrir ce profil. Redémarrez Wealthfolio et réessayez.",
       "inUse": "Ce profil est ouvert dans une autre fenêtre Wealthfolio. Fermez-le et réessayez.",
       "credentials": "Impossible d’accéder à vos informations de connexion enregistrées. Déverrouillez votre appareil et réessayez.",
-      "serverCredentials": "Le serveur n’a pas pu lire son fichier de secrets (secrets.json). Demandez à l’administrateur du serveur de vérifier que WF_SECRET_KEY correspond à la clé utilisée pour créer le fichier et que le serveur peut le lire.",
+      "serverCredentials": "Le serveur n’a pas pu accéder à son fichier de secrets (secrets.json). Demandez à l’administrateur du serveur de vérifier que WF_SECRET_KEY correspond à la clé utilisée pour créer le fichier et que le serveur peut le lire et y écrire.",
       "invalid": "Vérifiez les informations du profil et réessayez.",
       "name": "Utilisez un nom de profil de 1 à 60 caractères.",
       "avatar": "Choisissez l’un des avatars disponibles.",

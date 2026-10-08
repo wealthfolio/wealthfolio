@@ -59,7 +59,7 @@ describe("credential store failures", () => {
     [false, "We couldn’t access your saved sign-in details. Unlock your device and try again."],
     [
       true,
-      "The server couldn’t read its secrets file (secrets.json). Ask the server administrator to check that WF_SECRET_KEY matches the key the file was created with and that the server can read the file.",
+      "The server couldn’t access its secrets file (secrets.json). Ask the server administrator to check that WF_SECRET_KEY matches the key the file was created with and that the server can read and write the file.",
     ],
   ])("name the platform's credential store (web: %s)", (web, message) => {
     platform.isWeb = web;
