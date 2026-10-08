@@ -222,6 +222,7 @@ describe("useCalculatePerformanceHistory all-time benchmarks", () => {
   const TODAY = "2026-10-08";
   // The backend gives a symbol requested without a start date its last year.
   const YEAR_AGO = "2025-10-08";
+  const ONE_YEAR: DateRange = { from: new Date(2025, 9, 8), to: new Date(2026, 9, 8) };
   const ACCOUNT: TrackedItem = { id: "acc-1", type: "account", name: "Brokerage" };
   const ACCOUNT_2: TrackedItem = { id: "acc-2", type: "account", name: "Savings" };
   const BENCHMARK: TrackedItem = { id: "^GSPC", type: "symbol", name: "S&P 500" };
@@ -280,8 +281,9 @@ describe("useCalculatePerformanceHistory all-time benchmarks", () => {
     dateRange: DateRange | undefined;
   }
 
-  function renderAllTime(selectedItems: TrackedItem[]) {
-    const initialProps: HookProps = { selectedItems, dateRange: undefined };
+  /** Renders the hook for ALL unless another range is given. */
+  function renderHistory(selectedItems: TrackedItem[], dateRange?: DateRange) {
+    const initialProps: HookProps = { selectedItems, dateRange };
     return renderHook((props: HookProps) => useCalculatePerformanceHistory(props), {
       initialProps,
       wrapper: createWrapper(),
@@ -298,7 +300,7 @@ describe("useCalculatePerformanceHistory all-time benchmarks", () => {
       "^GSPC": benchmarkFrom("2020-01-01"),
     });
 
-    renderAllTime([ACCOUNT, BENCHMARK]);
+    renderHistory([ACCOUNT, BENCHMARK]);
 
     await waitFor(() => expect(symbolStarts()).toHaveLength(1));
     expect(symbolStarts()).toEqual(["2023-03-28"]);
@@ -311,7 +313,7 @@ describe("useCalculatePerformanceHistory all-time benchmarks", () => {
       "^GSPC": benchmarkFrom("2010-01-01"),
     });
 
-    renderAllTime([ACCOUNT, ACCOUNT_2, BENCHMARK]);
+    renderHistory([ACCOUNT, ACCOUNT_2, BENCHMARK]);
 
     await waitFor(() => expect(symbolStarts()).toHaveLength(1));
     expect(symbolStarts()).toEqual(["2015-06-01"]);
@@ -320,7 +322,7 @@ describe("useCalculatePerformanceHistory all-time benchmarks", () => {
   it("keeps the backend default when only benchmarks are selected", async () => {
     backend({ "^GSPC": benchmarkFrom("2020-01-01") });
 
-    renderAllTime([BENCHMARK]);
+    renderHistory([BENCHMARK]);
 
     await waitFor(() => expect(symbolStarts()).toHaveLength(1));
     expect(symbolStarts()).toEqual([undefined]);
@@ -366,7 +368,7 @@ describe("useCalculatePerformanceHistory all-time benchmarks", () => {
       "^GSPC": benchmarkFrom("2010-01-01"),
     });
 
-    const { result } = renderAllTime([ACCOUNT, ACCOUNT_2, BENCHMARK]);
+    const { result } = renderHistory([ACCOUNT, ACCOUNT_2, BENCHMARK]);
 
     await waitFor(() => expect(result.current.isLoading).toBe(false));
     expect(symbolStarts()).toEqual(["2020-02-03"]);
@@ -379,7 +381,7 @@ describe("useCalculatePerformanceHistory all-time benchmarks", () => {
   ])("keeps the backend default when %s", async (_case, accountResponse) => {
     backend({ "acc-1": accountResponse, "^GSPC": benchmarkFrom("2020-01-01") });
 
-    const { result } = renderAllTime([ACCOUNT, BENCHMARK]);
+    const { result } = renderHistory([ACCOUNT, BENCHMARK]);
 
     await waitFor(() => expect(result.current.isLoading).toBe(false));
     expect(symbolStarts()).toEqual([undefined]);
@@ -393,7 +395,7 @@ describe("useCalculatePerformanceHistory all-time benchmarks", () => {
       "^NDX": benchmarkFrom("2021-01-01"),
     });
 
-    const { result } = renderAllTime([BENCHMARK, ACCOUNT, BENCHMARK_2, ACCOUNT_2]);
+    const { result } = renderHistory([BENCHMARK, ACCOUNT, BENCHMARK_2, ACCOUNT_2]);
 
     await waitFor(() => expect(result.current.isLoading).toBe(false));
     expect(result.current.data.map((item) => item?.id)).toEqual([
@@ -414,7 +416,7 @@ describe("useCalculatePerformanceHistory all-time benchmarks", () => {
     const account = deferred();
     backend({ "acc-1": account.promise, "^GSPC": benchmarkFrom("2020-01-01") });
 
-    const { result, rerender } = renderAllTime([BENCHMARK]);
+    const { result, rerender } = renderHistory([BENCHMARK]);
     await waitFor(() => expect(result.current.data).toHaveLength(1));
 
     rerender({ selectedItems: [ACCOUNT, BENCHMARK], dateRange: undefined });
@@ -432,7 +434,7 @@ describe("useCalculatePerformanceHistory all-time benchmarks", () => {
     const account = deferred();
     backend({ "acc-1": account.promise, "^GSPC": new Error("benchmark failed") });
 
-    const { result, rerender } = renderAllTime([BENCHMARK]);
+    const { result, rerender } = renderHistory([BENCHMARK]);
     await waitFor(() => expect(result.current.hasErrors).toBe(true));
 
     rerender({ selectedItems: [ACCOUNT, BENCHMARK], dateRange: undefined });
@@ -442,32 +444,55 @@ describe("useCalculatePerformanceHistory all-time benchmarks", () => {
     expect(result.current.isLoading).toBe(true);
   });
 
-  it.each([
-    ["the all-time account result is not cached", false],
-    ["the all-time account result is cached", true],
-  ])(
-    "never requests the benchmark without the account start when switching to ALL and %s",
-    async (_case, visitAllTimeFirst) => {
-      backend({
-        "acc-1": performanceResult(["2023-03-28", "2023-03-29"]),
-        "^GSPC": benchmarkFrom("2020-01-01"),
-      });
-      const oneYear = { from: new Date(2025, 9, 8), to: new Date(2026, 9, 8) };
-      const { result, rerender } = renderAllTime([ACCOUNT, BENCHMARK]);
-      if (visitAllTimeFirst) {
-        await waitFor(() => expect(result.current.isLoading).toBe(false));
-      }
+  it("waits for the account's all-time result when switching from 1Y to ALL", async () => {
+    const allTimeAccount = deferred();
+    backend({
+      "acc-1": (startDate) =>
+        startDate ? performanceResult(["2025-10-08", "2025-10-09"]) : allTimeAccount.promise,
+      "^GSPC": benchmarkFrom("2020-01-01"),
+    });
+    const { result, rerender } = renderHistory([ACCOUNT, BENCHMARK], ONE_YEAR);
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(symbolStarts()).toEqual(["2025-10-08"]);
 
-      rerender({ selectedItems: [ACCOUNT, BENCHMARK], dateRange: oneYear });
-      await waitFor(() => expect(symbolStarts()).toContain("2025-10-08"));
-      rerender({ selectedItems: [ACCOUNT, BENCHMARK], dateRange: undefined });
-      await waitFor(() => expect(result.current.isLoading).toBe(false));
+    rerender({ selectedItems: [ACCOUNT, BENCHMARK], dateRange: undefined });
+    await waitFor(() =>
+      expect(mocks.calculatePerformanceHistory).toHaveBeenCalledWith(
+        "account",
+        "acc-1",
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+      ),
+    );
+    expect(result.current.isLoading).toBe(true);
+    expect(symbolStarts()).toEqual(["2025-10-08"]);
 
-      expect(symbolStarts()).not.toContain(undefined);
-      const benchmark = result.current.data.find((item) => item?.id === "^GSPC");
-      expect(benchmark?.series[0]?.date).toBe("2023-03-28");
-    },
-  );
+    allTimeAccount.resolve(performanceResult(["2023-03-28", "2023-03-29"]));
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(symbolStarts()).toEqual(["2025-10-08", "2023-03-28"]);
+    const benchmark = result.current.data.find((item) => item?.id === "^GSPC");
+    expect(benchmark?.series[0]?.date).toBe("2023-03-28");
+  });
+
+  it("reuses the cached all-time results when switching back to ALL", async () => {
+    backend({
+      "acc-1": performanceResult(["2023-03-28", "2023-03-29"]),
+      "^GSPC": benchmarkFrom("2020-01-01"),
+    });
+    const { result, rerender } = renderHistory([ACCOUNT, BENCHMARK]);
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    rerender({ selectedItems: [ACCOUNT, BENCHMARK], dateRange: ONE_YEAR });
+    await waitFor(() => expect(symbolStarts()).toContain("2025-10-08"));
+    rerender({ selectedItems: [ACCOUNT, BENCHMARK], dateRange: undefined });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    expect(symbolStarts()).toEqual(["2023-03-28", "2025-10-08"]);
+    const benchmark = result.current.data.find((item) => item?.id === "^GSPC");
+    expect(benchmark?.series[0]?.date).toBe("2023-03-28");
+  });
 
   it.each([
     ["on a weekday", "2023-03-28", "2020-01-01", "2023-03-28"],
@@ -481,7 +506,7 @@ describe("useCalculatePerformanceHistory all-time benchmarks", () => {
         "^GSPC": benchmarkFrom(benchmarkInception),
       });
 
-      const { result } = renderAllTime([ACCOUNT, BENCHMARK]);
+      const { result } = renderHistory([ACCOUNT, BENCHMARK]);
       await waitFor(() => expect(result.current.isLoading).toBe(false));
 
       const chart = comparablePerformanceChartData(result.current.data, "twr", ACCOUNT.id);
