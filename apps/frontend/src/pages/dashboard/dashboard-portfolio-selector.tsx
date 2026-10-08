@@ -37,7 +37,7 @@ export function DashboardPortfolioSelector({
         onEditPortfolio={portfolio ? () => setDialog("edit") : undefined}
         onManagePortfolios={() => navigate("/settings/portfolios")}
       />
-      {dialog && (
+      {dialog && !isAccountsLoading && (
         <PortfolioDialog
           key={editing?.id ?? "new"}
           open
@@ -56,7 +56,7 @@ export function DashboardPortfolioSelector({
               });
             }
           }}
-          isSaving={isAccountsLoading || createMutation.isPending || updateMutation.isPending}
+          isSaving={createMutation.isPending || updateMutation.isPending}
         />
       )}
     </>

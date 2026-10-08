@@ -37,7 +37,7 @@ export function useDashboardPortfolio() {
     portfolio,
     setPortfolioId,
     isLoading: Boolean(portfolioId && isPending),
-    error: portfolioId ? error : null,
+    error: portfolioId && !portfolio ? error : null,
     refetch,
   };
 }

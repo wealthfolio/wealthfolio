@@ -70,6 +70,16 @@ describe("useDashboardPortfolio", () => {
     expect(localStorage.getItem(key)).toBe(JSON.stringify(portfolio.id));
     expect(toast.info).not.toHaveBeenCalled();
   });
+  it("keeps the cached selected portfolio visible if a background inventory refresh fails", () => {
+    localStorage.setItem(key, JSON.stringify(portfolio.id));
+    inventory({ isSuccess: false, error: new Error("Offline") });
+    const { result } = renderHook(useDashboardPortfolio);
+    expect(result.current.scope).toEqual({ type: "portfolio", portfolioId: portfolio.id });
+    expect(result.current.portfolio).toEqual(portfolio);
+    expect(result.current.error).toBeNull();
+    expect(localStorage.getItem(key)).toBe(JSON.stringify(portfolio.id));
+    expect(toast.info).not.toHaveBeenCalled();
+  });
   it("returns to all accounts only after confirming the selected portfolio is missing", () => {
     localStorage.setItem(key, JSON.stringify(portfolio.id));
     inventory({ data: [] });
