@@ -48,6 +48,21 @@ struct EncryptedSecrets {
     ciphertext: String,
 }
 
+impl EncryptedSecrets {
+    /// Errors here mean a damaged file; only decryption itself depends on the key.
+    fn decode(self) -> Result<([u8; 12], Vec<u8>)> {
+        let nonce = BASE64
+            .decode(self.nonce)
+            .map_err(|e| Error::Secret(format!("Failed to decode nonce: {e}")))?
+            .try_into()
+            .map_err(|_| Error::Secret("Invalid nonce length in secrets file".into()))?;
+        let ciphertext = BASE64
+            .decode(self.ciphertext)
+            .map_err(|e| Error::Secret(format!("Failed to decode ciphertext: {e}")))?;
+        Ok((nonce, ciphertext))
+    }
+}
+
 impl FileSecretStore {
     #[cfg(test)]
     pub fn new(path: PathBuf, encryption_key: Option<&str>) -> Result<Self> {
@@ -118,14 +133,7 @@ impl FileSecretStore {
                 Error::Secret("WF_SECRET_KEY must be set to decrypt the secrets file".into())
             })?;
             let enc: EncryptedSecrets = serde_json::from_value(value)?;
-            let nonce_bytes: [u8; 12] = BASE64
-                .decode(enc.nonce)
-                .map_err(|e| Error::Secret(format!("Failed to decode nonce: {e}")))?
-                .try_into()
-                .map_err(|_| Error::Secret("Invalid nonce length in secrets file".into()))?;
-            let cipher_bytes = BASE64
-                .decode(enc.ciphertext)
-                .map_err(|e| Error::Secret(format!("Failed to decode ciphertext: {e}")))?;
+            let (nonce_bytes, cipher_bytes) = enc.decode()?;
 
             let cipher = ChaCha20Poly1305::new((&key).into());
             let nonce = Nonce::from(nonce_bytes);
@@ -270,8 +278,12 @@ fn diagnose_unusable_vault(path: &Path) -> UnusableVault {
     };
     match raw {
         Err(error) => UnusableVault::Unreadable(error.kind(), error.raw_os_error()),
-        // A well-formed envelope that fails to open was most likely sealed with another key.
-        Ok(raw) if serde_json::from_slice::<EncryptedSecrets>(&raw).is_ok() => {
+        // A well-formed envelope that still fails to open was sealed with another key,
+        // or its ciphertext is damaged; the two are indistinguishable without the key.
+        Ok(raw)
+            if serde_json::from_slice::<EncryptedSecrets>(&raw)
+                .is_ok_and(|envelope| envelope.decode().is_ok()) =>
+        {
             UnusableVault::CannotDecrypt
         }
         Ok(_) => UnusableVault::Malformed,
@@ -298,7 +310,7 @@ fn report_unusable_vault(path: &Path) {
             "cannot_decrypt",
             None,
             None,
-            "WF_SECRET_KEY or WF_SECRET_KEY_FILE does not decrypt it; configure the key it was created with.",
+            "WF_SECRET_KEY or WF_SECRET_KEY_FILE does not decrypt it; configure the key it was created with, or restore the file from a backup if the key is right.",
         ),
         UnusableVault::Malformed => (
             "malformed",

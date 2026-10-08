@@ -442,24 +442,42 @@ fn captured_logs(run: impl FnOnce()) -> String {
 #[test]
 fn unusable_existing_vault_is_reported_once_without_contents() {
     use std::os::unix::fs::PermissionsExt;
-    for reason in [
-        "absent",
-        "valid",
-        "cannot_decrypt",
-        "malformed",
-        "not_a_file",
-        "unreadable",
+    let envelope_with = |field: &str, value: serde_json::Value| {
+        let mut envelope: serde_json::Value =
+            serde_json::from_slice(&encrypted_fixture(&KEY, &legacy_payload())).unwrap();
+        envelope[field] = value;
+        serde_json::to_vec(&envelope).unwrap()
+    };
+    for (case, reason) in [
+        ("absent", None),
+        ("valid", None),
+        ("other key", Some("cannot_decrypt")),
+        ("not json", Some("malformed")),
+        ("invalid nonce", Some("malformed")),
+        ("short nonce", Some("malformed")),
+        ("invalid ciphertext", Some("malformed")),
+        ("directory", Some("not_a_file")),
+        ("no permission", Some("unreadable")),
     ] {
         let dir = tempdir().unwrap();
         let path = dir.path().join("secrets.json");
-        match reason {
+        match case {
             "absent" => {}
             "valid" => fs::write(&path, encrypted_fixture(&KEY, &legacy_payload())).unwrap(),
-            "cannot_decrypt" => {
+            "other key" => {
                 fs::write(&path, encrypted_fixture(&[99; 32], &legacy_payload())).unwrap()
             }
-            "malformed" => fs::write(&path, b"{").unwrap(),
-            "not_a_file" => fs::create_dir(&path).unwrap(),
+            "not json" => fs::write(&path, b"{").unwrap(),
+            "invalid nonce" => {
+                fs::write(&path, envelope_with("nonce", "!invalid!".into())).unwrap()
+            }
+            "short nonce" => {
+                fs::write(&path, envelope_with("nonce", BASE64.encode([0; 11]).into())).unwrap()
+            }
+            "invalid ciphertext" => {
+                fs::write(&path, envelope_with("ciphertext", "!invalid!".into())).unwrap()
+            }
+            "directory" => fs::create_dir(&path).unwrap(),
             _ => {
                 fs::write(&path, encrypted_fixture(&KEY, &legacy_payload())).unwrap();
                 fs::set_permissions(&path, fs::Permissions::from_mode(0o000)).unwrap();
@@ -471,17 +489,20 @@ fn unusable_existing_vault_is_reported_once_without_contents() {
         let logs = captured_logs(|| {
             build_secret_store(path.clone(), Some(KEY), Some(&[8; 32])).unwrap();
         });
-        if matches!(reason, "absent" | "valid") {
-            assert!(logs.is_empty(), "{logs}");
+        let Some(reason) = reason else {
+            assert!(logs.is_empty(), "{case}: {logs}");
             continue;
-        }
+        };
         assert_eq!(
             logs.matches("SECRET_VAULT_UNAVAILABLE").count(),
             1,
-            "{logs}"
+            "{case}: {logs}"
         );
-        assert!(logs.contains(&format!("reason=\"{reason}\"")), "{logs}");
-        assert!(!logs.contains("fixture-token"), "{logs}");
+        assert!(
+            logs.contains(&format!("reason=\"{reason}\"")),
+            "{case}: {logs}"
+        );
+        assert!(!logs.contains("fixture-token"), "{case}: {logs}");
         if reason == "unreadable" {
             assert!(logs.contains("io_kind=Some(PermissionDenied)"), "{logs}");
             fs::set_permissions(&path, fs::Permissions::from_mode(0o600)).unwrap();
