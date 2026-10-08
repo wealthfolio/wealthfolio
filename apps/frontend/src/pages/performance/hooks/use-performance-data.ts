@@ -6,6 +6,8 @@ import { calendarDateFromLocalDate, useDateFormatting } from "@wealthfolio/ui";
 import { format } from "date-fns";
 import { DateRange } from "react-day-picker";
 
+const SYMBOL_ALL_TIME_START_DATE = "1970-01-01";
+
 /**
  * Hook to calculate cumulative returns for a list of comparison items.
  * Uses the user-selected date range directly for queries, except when the
@@ -46,6 +48,8 @@ export function useCalculatePerformanceHistory({
   const performanceQueries = useQueries({
     queries: validItems.map((item) => {
       const accountFilter = item.type === "account" ? item.accountScope : undefined;
+      const effectiveStartDate =
+        dateRange === undefined && item.type === "symbol" ? SYMBOL_ALL_TIME_START_DATE : startDate;
 
       return {
         queryKey: [
@@ -53,7 +57,7 @@ export function useCalculatePerformanceHistory({
           item.type,
           item.id,
           accountFilter,
-          startDate,
+          effectiveStartDate,
           endDate,
           trackingMode,
         ],
@@ -61,7 +65,7 @@ export function useCalculatePerformanceHistory({
           calculatePerformanceHistory(
             item.type,
             item.id,
-            startDate,
+            effectiveStartDate,
             endDate,
             // Only pass trackingMode for accounts, not for symbols
             item.type === "account" ? trackingMode : undefined,
