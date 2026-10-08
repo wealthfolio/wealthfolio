@@ -5,8 +5,8 @@ name: Warm Rust Cache
 # on main and saves it under the shared-keys that release.yml restores.
 #
 # Dependency artifacts (the only thing rust-cache keeps - workspace crates are
-# pruned) only change when Cargo.lock or the toolchain changes, hence the
-# narrow path filter. The weekly run keeps caches alive (GitHub evicts caches
+# pruned) only change when Cargo.lock, a manifest's features or profiles, or
+# the toolchain changes, hence the narrow path filter. The weekly run keeps caches alive (GitHub evicts caches
 # unused for 7 days) and re-warms after stable rustc bumps.
 #
 # macOS release jobs (~18 min cold) are deliberately not warmed to stay under
@@ -20,6 +20,7 @@ on:
     branches: [main]
     paths:
       - "Cargo.lock"
+      - "**/Cargo.toml"
       - "rust-toolchain*"
       - ".github/workflows/cache-warm.yml"
   schedule:
