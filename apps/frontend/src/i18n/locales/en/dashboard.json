@@ -111,6 +111,7 @@
     "search": "Search portfolios…",
     "manage": "Manage portfolios",
     "unavailable": "The selected portfolio is no longer available. Showing all accounts.",
-    "load_error": "Unable to load the selected portfolio."
+    "load_error": "Unable to load the selected portfolio.",
+    "empty": "No accounts to display in this portfolio."
   }
 }

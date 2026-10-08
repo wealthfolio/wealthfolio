@@ -828,6 +828,20 @@ describe("AccountsSummary", () => {
     expect(options?.queryKey).toContainEqual([{ accountIds: ["included"] }]);
   });
 
+  it("offers portfolio management when none of its members are eligible for reporting", () => {
+    renderAccountsSummary({
+      accountIds: ["archived"],
+      accounts: [createAccount({ id: "active", name: "Active account" })],
+      valuations: [createValuation({ accountId: "active", totalValue: 10 })],
+    });
+    expect(screen.queryByText("Active account")).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Add your first account/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Manage portfolios/ })).toHaveAttribute(
+      "href",
+      "/settings/portfolios",
+    );
+  });
+
   it("does not treat an empty selected membership as all accounts", () => {
     renderAccountsSummary({
       accountIds: [],

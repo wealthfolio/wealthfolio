@@ -545,14 +545,25 @@ export const AccountsSummary = React.memo(
       }
 
       if (!combinedAccountViews || combinedAccountViews.length === 0) {
+        const isPortfolioScope = selectedAccountIds !== undefined;
         return (
           <div className="border-border/50 bg-success/10 rounded-xl border p-6 text-center md:p-8">
-            <p className="text-sm">{t("dashboard:no_accounts_found")}</p>
+            <p className="text-sm">
+              {t(
+                isPortfolioScope
+                  ? "dashboard:portfolio_filter.empty"
+                  : "dashboard:no_accounts_found",
+              )}
+            </p>
             <Link
-              to="/settings/accounts"
+              to={isPortfolioScope ? "/settings/portfolios" : "/settings/accounts"}
               className="text-muted-foreground hover:text-foreground mt-2 inline-flex items-center gap-1 text-xs underline-offset-4 hover:underline"
             >
-              {t("dashboard:add_first_account")}
+              {t(
+                isPortfolioScope
+                  ? "dashboard:portfolio_filter.manage"
+                  : "dashboard:add_first_account",
+              )}
               <Icons.ChevronRight className="h-3 w-3" />
             </Link>
           </div>
@@ -697,6 +708,7 @@ export const AccountsSummary = React.memo(
       }
     }, [
       combinedAccountViews,
+      selectedAccountIds,
       accountsGrouped,
       expandedGroups,
       toggleGroup,

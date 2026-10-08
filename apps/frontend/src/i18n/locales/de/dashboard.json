@@ -111,6 +111,7 @@
     "search": "Portfolios suchen…",
     "manage": "Portfolios verwalten",
     "unavailable": "Das ausgewählte Portfolio ist nicht mehr verfügbar. Alle Konten werden angezeigt.",
-    "load_error": "Das ausgewählte Portfolio konnte nicht geladen werden."
+    "load_error": "Das ausgewählte Portfolio konnte nicht geladen werden.",
+    "empty": "In diesem Portfolio gibt es keine Konten zum Anzeigen."
   }
 }

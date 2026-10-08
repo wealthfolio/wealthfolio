@@ -128,6 +128,31 @@ test("dashboard portfolio selection, creation, persistence, deletion and mobile 
     (item) => item.name === "Dashboard savings",
   );
   expect(saved).toBeDefined();
+  const card = await page.request.post(`${BASE_URL}/api/v1/accounts`, {
+    data: {
+      name: "Portfolio filter credit card",
+      accountType: "CREDIT_CARD",
+      currency: "CAD",
+      isDefault: false,
+      isActive: true,
+      trackingMode: "TRANSACTIONS",
+    },
+  });
+  expect(card.ok()).toBe(true);
+  const { id: cardId } = (await card.json()) as { id: string };
+  const changed = await page.request.put(`${BASE_URL}/api/v1/portfolios/${saved?.id}`, {
+    data: { ...saved, accountIds: [cardId] },
+  });
+  expect(changed.ok()).toBe(true);
+  await page.reload();
+  await expect(filter).toHaveAccessibleName("Choose portfolio: Dashboard savings");
+  await expect(balanceValue).toHaveText("$0.00", { timeout: 30000 });
+  await expect(page.getByText("No accounts to display in this portfolio.")).toBeVisible();
+  await expect(page.getByRole("link", { name: "Manage portfolios" })).toHaveAttribute(
+    "href",
+    "/settings/portfolios",
+  );
+  await expect(page.getByRole("link", { name: "Add your first account" })).toHaveCount(0);
   const deleted = await page.request.delete(`${BASE_URL}/api/v1/portfolios/${saved?.id}`);
   expect(deleted.ok()).toBe(true);
   await page.reload();
