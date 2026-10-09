@@ -262,6 +262,7 @@ mod tests {
         assert!(!names.contains(&"commit_activity_drafts"));
         assert!(!names.contains(&"commit_asset_classification_draft"));
         assert!(!names.contains(&"commit_categorization_rule"));
+        assert!(!names.contains(&"commit_transaction_categories"));
         assert!(!names.contains(&"prepare_activity_import"));
         assert!(!names.contains(&"commit_activity_import"));
         assert!(!names.contains(&"get_import_mapping"));
@@ -282,6 +283,7 @@ mod tests {
         assert!(names.contains(&"commit_activity_drafts"));
         assert!(names.contains(&"commit_asset_classification_draft"));
         assert!(names.contains(&"commit_categorization_rule"));
+        assert!(names.contains(&"commit_transaction_categories"));
         assert!(names.contains(&"get_import_mapping"));
         assert!(names.contains(&"prepare_activity_import"));
         assert!(names.contains(&"commit_activity_import"));
@@ -305,6 +307,7 @@ mod tests {
             "commit_activity_drafts",
             "commit_asset_classification_draft",
             "commit_categorization_rule",
+            "commit_transaction_categories",
             "find_transfer_matches",
             "link_transfer_activities",
             "unlink_transfer_activities",
@@ -325,6 +328,71 @@ mod tests {
             assert!(
                 matches!(err, AgentToolError::ScopeDenied { .. }),
                 "tool {name} should be scope-denied, got: {err}"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn category_commit_requires_both_classification_scopes() {
+        let catalog = AgentToolCatalog::mcp_catalog();
+        for scopes in [
+            vec!["classification:read"],
+            vec!["classification:suggest"],
+            vec!["classification:write"],
+        ] {
+            let error = catalog
+                .execute(
+                    Arc::new(PanicEnv::default()),
+                    &AgentScopeSet::from_strs(scopes),
+                    "commit_transaction_categories",
+                    serde_json::json!({"assignments": []}),
+                )
+                .await
+                .unwrap_err();
+            assert!(
+                matches!(error, AgentToolError::ScopeDenied { .. }),
+                "{error}"
+            );
+        }
+    }
+
+    /// Generated duplicate pairs must be rejected before any service access,
+    /// regardless of category, batch position, Unicode or delimiter-containing IDs.
+    #[tokio::test]
+    async fn category_commit_rejects_generated_duplicate_pairs_before_service_access() {
+        let catalog = AgentToolCatalog::mcp_catalog();
+        let scopes = AgentScopeSet::from_strs(["classification:suggest", "classification:write"]);
+        let mut seed = 0x6a09_e667_f3bc_c909_u64;
+        for _ in 0..256 {
+            seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1);
+            let count = 2 + (seed as usize % 99);
+            let mut assignments: Vec<_> = (0..count)
+                .map(|index| {
+                    let ch = char::from_u32((seed.wrapping_add(index as u64) % 0x110000) as u32)
+                        .unwrap_or('\0');
+                    serde_json::json!({
+                        "activityId": format!("{index}:{ch}:{seed}"),
+                        "taxonomyId": format!("{ch}:taxonomy:{seed}"),
+                        "categoryId": format!("category:{index}")
+                    })
+                })
+                .collect();
+            let original = seed as usize % count;
+            let duplicate = (original + 1 + (seed >> 32) as usize % (count - 1)) % count;
+            assignments[duplicate]["activityId"] = assignments[original]["activityId"].clone();
+            assignments[duplicate]["taxonomyId"] = assignments[original]["taxonomyId"].clone();
+            let error = catalog
+                .execute(
+                    Arc::new(PanicEnv::default()),
+                    &scopes,
+                    "commit_transaction_categories",
+                    serde_json::json!({"assignments": assignments}),
+                )
+                .await
+                .unwrap_err();
+            assert!(
+                matches!(error, AgentToolError::InvalidInput(_)),
+                "seed {seed}: {error}"
             );
         }
     }

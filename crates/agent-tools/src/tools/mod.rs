@@ -16,6 +16,7 @@ pub mod categorization_context;
 pub mod commit_activity;
 pub mod commit_asset_classification;
 pub mod commit_categorization_rule;
+pub mod commit_transaction_categories;
 pub mod contribution_limits;
 pub mod create_categorization_rule;
 pub mod goals;
@@ -108,6 +109,9 @@ pub use commit_asset_classification::{
 pub use commit_categorization_rule::{
     CommitCategorizationRule, CommitCategorizationRuleArgs, CommitCategorizationRuleOutput,
 };
+pub use commit_transaction_categories::{
+    CommitTransactionCategories, CommitTransactionCategoriesArgs, CommitTransactionCategoriesOutput,
+};
 
 // MCP-only transfer linking tools.
 pub use transfer_links::{
@@ -186,6 +190,7 @@ pub fn commit_tools() -> Vec<Arc<dyn AgentTool>> {
         Arc::new(CommitActivityDrafts),
         Arc::new(CommitAssetClassificationDraft),
         Arc::new(CommitCategorizationRule),
+        Arc::new(CommitTransactionCategories),
     ]
 }
 

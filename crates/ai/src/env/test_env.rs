@@ -1579,6 +1579,14 @@ pub struct MockCashActivityService {
 
 #[async_trait]
 impl CashActivityServiceTrait for MockCashActivityService {
+    async fn bulk_assign_categories(
+        &self,
+        _: &[wealthfolio_spending::activity_assignments::BulkCategoryAssignment],
+    ) -> anyhow::Result<Vec<wealthfolio_spending::activity_assignments::ActivityTaxonomyAssignment>>
+    {
+        anyhow::bail!("Category commits are not supported by assistant fixtures")
+    }
+
     async fn search(
         &self,
         req: wealthfolio_spending::cash_activities::CashActivitySearchRequest,
