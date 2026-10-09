@@ -22,6 +22,7 @@ export const FUNCTION_DISPLAY_NAMES: Record<string, string> = {
   "portfolio.getIncomeSummary": "View income and dividends",
   "portfolio.getHistoricalValuations": "View historical portfolio values",
   "portfolio.getLatestValuations": "View current portfolio values",
+  "portfolio.getNetWorth": "View net worth, including credit card balances",
 
   // ActivitiesAPI functions
   "activities.getAll": "View all transactions",

@@ -15,6 +15,7 @@ import type {
   ActivitySearchResponse,
   ActivityUpdate,
   AccountValuation,
+  NetWorthResponse,
   CheckSnapshotImportResult,
   CashActivitySearchRequest,
   CashActivitySearchResponse,
@@ -140,6 +141,15 @@ export interface PortfolioAPI {
    * @returns Promise resolving to array of latest account valuations
    */
   getLatestValuations(accountIds: string[]): Promise<AccountValuation[]>;
+
+  /**
+   * Get net worth as a balance sheet for a date (default: today). Unlike
+   * valuations, it covers every account type, so it is where a credit card's
+   * balance is read: what a card owes is a liabilities item with assetId
+   * `CREDIT_CARD:<accountId>`.
+   * @param date Optional as-of date (YYYY-MM-DD)
+   */
+  getNetWorth(date?: string): Promise<NetWorthResponse>;
 }
 
 /**
