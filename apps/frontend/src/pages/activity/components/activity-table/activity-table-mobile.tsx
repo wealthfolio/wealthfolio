@@ -184,6 +184,9 @@ export const ActivityTableMobile = ({
       : null;
     const formattedDate = formatDateTime(activity.date, dateFormatting, appTimezone);
     const displayValue = calculateActivityValue(activity);
+    const displayGross = isIncomeActivity(activity.activityType)
+      ? displayValue + Number(activity.tax ?? 0)
+      : displayValue;
 
     // Compact View
     if (isCompactView) {
@@ -206,7 +209,7 @@ export const ActivityTableMobile = ({
                       <p className="truncate font-semibold">{displaySymbol}</p>
                       {activity.activityType !== "SPLIT" && (
                         <AmountDisplay
-                          value={displayValue}
+                          value={displayGross}
                           currency={activity.currency}
                           isHidden={isBalanceHidden}
                           className="shrink-0 text-sm font-semibold"
@@ -353,26 +356,32 @@ export const ActivityTableMobile = ({
               <span className="text-muted-foreground">
                 {activity.activityType === "SPLIT"
                   ? t("activity:table.ratio")
-                  : (isCashActivity(activity.activityType) &&
-                        !isAssetBackedIncome &&
-                        !isSecuritiesTransfer(activity.activityType, symbol, activity.assetId)) ||
-                      isCashTransfer(activity.activityType, symbol, activity.assetId) ||
-                      (isIncomeActivity(activity.activityType) && !isAssetBackedIncome)
+                  : isIncomeActivity(activity.activityType)
                     ? t("activity:form.label_amount")
-                    : isOptionActivity
-                      ? t("activity:table.premium")
-                      : t("activity:field_price")}
+                    : (isCashActivity(activity.activityType) &&
+                          !isAssetBackedIncome &&
+                          !isSecuritiesTransfer(activity.activityType, symbol, activity.assetId)) ||
+                        isCashTransfer(activity.activityType, symbol, activity.assetId)
+                      ? t("activity:form.label_amount")
+                      : isOptionActivity
+                        ? t("activity:table.premium")
+                        : t("activity:field_price")}
               </span>
               <span className="font-medium">
                 {activity.activityType === "FEE" ? (
                   "-"
                 ) : activity.activityType === "SPLIT" ? (
                   formatSplitRatio(Number(activity.amount))
+                ) : isIncomeActivity(activity.activityType) ? (
+                  <AmountDisplay
+                    value={Number(activity.amount) + Number(activity.tax ?? 0)}
+                    currency={activity.currency}
+                    isHidden={isBalanceHidden}
+                  />
                 ) : (isCashActivity(activity.activityType) &&
                     !isAssetBackedIncome &&
                     !isSecuritiesTransfer(activity.activityType, symbol, activity.assetId)) ||
-                  isCashTransfer(activity.activityType, symbol, activity.assetId) ||
-                  (isIncomeActivity(activity.activityType) && !isAssetBackedIncome) ? (
+                  isCashTransfer(activity.activityType, symbol, activity.assetId) ? (
                   <AmountDisplay
                     value={Number(activity.amount)}
                     currency={activity.currency}
