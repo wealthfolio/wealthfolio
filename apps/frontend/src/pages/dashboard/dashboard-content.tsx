@@ -187,9 +187,11 @@ export function DashboardContent({
     <div className="flex min-h-full flex-col">
       <div className="px-4 pb-1 pt-2 md:px-6 lg:px-8">
         <div className="min-w-0">
-          <p className="text-muted-foreground mb-1 truncate text-xs" title={scopeLabel}>
-            {scopeLabel ?? t("common:component.all_accounts")}
-          </p>
+          {scope.type === "portfolio" && scopeLabel && (
+            <p className="text-muted-foreground mb-1 truncate text-xs" title={scopeLabel}>
+              {scopeLabel}
+            </p>
+          )}
           <div className="flex flex-wrap items-center gap-2">
             <PortfolioUpdateTrigger
               lastCalculatedAt={portfolioSourceDataAsOf}

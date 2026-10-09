@@ -136,9 +136,7 @@ export default function PortfolioPage() {
               <DashboardContent
                 key={dashboardPortfolio.portfolio?.id ?? "all"}
                 scope={dashboardPortfolio.scope}
-                scopeLabel={
-                  dashboardPortfolio.portfolio?.name ?? t("common:component.all_accounts")
-                }
+                scopeLabel={dashboardPortfolio.portfolio?.name}
                 accountIds={dashboardPortfolio.portfolio?.accountIds}
               />
             )}

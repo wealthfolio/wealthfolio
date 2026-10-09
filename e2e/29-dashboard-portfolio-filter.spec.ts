@@ -44,6 +44,9 @@ test("dashboard portfolio selection, creation, persistence, deletion and mobile 
     .locator("..");
   const balanceValue = headlineContainer.getByTestId("portfolio-balance-value");
   await expect(filter).toHaveAccessibleName("Choose portfolio: All Accounts");
+  await expect(
+    headlineContainer.locator("..").getByText("All Accounts", { exact: true }),
+  ).toHaveCount(0);
   await expect(balanceValue).toContainText("1,000,200.00", {
     timeout: 30000,
   });
@@ -84,6 +87,9 @@ test("dashboard portfolio selection, creation, persistence, deletion and mobile 
   await expect(page.getByRole("button", { name: "Manage portfolios" })).toBeVisible();
   await page.getByRole("option", { name: "Dashboard savings" }).click();
   await expect(filter).toHaveAccessibleName("Choose portfolio: Dashboard savings");
+  await expect(
+    headlineContainer.locator("..").getByText("Dashboard savings", { exact: true }),
+  ).toBeVisible();
   await expect(balanceValue).toContainText("1,000,000.00", {
     timeout: 30000,
   });
@@ -181,6 +187,9 @@ test("dashboard portfolio selection, creation, persistence, deletion and mobile 
   await filter.click();
   await sheet.getByRole("option", { name: "All Accounts" }).click();
   await expect(sheet).not.toBeVisible();
+  await expect(
+    headlineContainer.locator("..").getByText("All Accounts", { exact: true }),
+  ).toHaveCount(0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.getByRole("button", { name: "Hide Balance", exact: true }).click();
   await expect(headlineContainer.getByTestId("portfolio-balance")).toContainText("•••");

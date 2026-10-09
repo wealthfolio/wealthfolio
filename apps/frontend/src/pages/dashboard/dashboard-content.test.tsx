@@ -442,7 +442,8 @@ describe("DashboardContent", () => {
     >);
     mockUseValuationHistory.mockReturnValue({ valuationHistory: [], isLoading: false });
     mockUseQuery.mockReturnValue({ data: null, isLoading: false } as ReturnType<typeof useQuery>);
-    render(<DashboardContent />);
+    render(<DashboardContent scopeLabel="All Accounts" />);
+    expect(screen.queryByText("All Accounts")).not.toBeInTheDocument();
 
     const privacy = screen.getByRole("button", { name: "Hide Balance" });
     expect(privacy.closest("a")).toBeNull();
