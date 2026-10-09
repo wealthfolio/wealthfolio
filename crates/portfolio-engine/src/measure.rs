@@ -21,6 +21,14 @@ use crate::value::{aggregate_scope, has_started, Window};
 const DAYS_PER_YEAR: Decimal = dec!(365.25);
 const MIN_ANNUALIZATION_DAYS: i64 = 30;
 const MIN_RETURN_BASE: Decimal = Decimal::ONE;
+/// One in every `N` observations falls in the tail at each VaR confidence level,
+/// so a series shorter than `N` has no observation there and no historical
+/// estimate to report.
+const VAR_95_TAIL_DENOMINATOR: usize = 20;
+const VAR_99_TAIL_DENOMINATOR: usize = 100;
+/// The classic Sterling adjustment. Adding it to the drawdown is the only thing
+/// that separates the Sterling ratio from Calmar.
+const STERLING_DRAWDOWN_ADJUSTMENT: Decimal = dec!(0.10);
 const RESIDUAL_TOLERANCE_RATE: Decimal = dec!(0.002);
 
 /// Inputs of the read path, all plain data: the priced events
@@ -1030,8 +1038,21 @@ fn volatility(samples: &[RiskSample]) -> Option<Decimal> {
 }
 
 fn risk_from_samples(samples: &[RiskSample], opening_date: Option<NaiveDate>) -> Risk {
+    let returns: Vec<Decimal> = samples.iter().map(|sample| sample.simple_return).collect();
+    let mut sorted_returns = returns.clone();
+    sorted_returns.sort();
+    let tail_95 = historical_var_cvar(&sorted_returns, VAR_95_TAIL_DENOMINATOR);
+    let tail_99 = historical_var_cvar(&sorted_returns, VAR_99_TAIL_DENOMINATOR);
     let mut risk = Risk {
         volatility: volatility(samples),
+        var_95: tail_95.map(|(value_at_risk, _)| value_at_risk),
+        var_99: tail_99.map(|(value_at_risk, _)| value_at_risk),
+        cvar_95: tail_95.map(|(_, conditional)| conditional),
+        cvar_99: tail_99.map(|(_, conditional)| conditional),
+        var_method: (tail_95.is_some() || tail_99.is_some()).then_some(VarMethod::Historical),
+        skewness: skewness(&returns),
+        excess_kurtosis: excess_kurtosis(&returns),
+        period_count: Some(returns.len()),
         ..Risk::default()
     };
     if samples.is_empty() {
@@ -1045,6 +1066,7 @@ fn risk_from_samples(samples: &[RiskSample], opening_date: Option<NaiveDate>) ->
     let mut trough_date = samples[0].date;
     let mut recovery_date = None;
     let mut in_max_drawdown = false;
+    let mut sum_squared_drawdown = Decimal::ZERO;
     for sample in samples {
         // A path outside the kernel range has no drawdown to report.
         let Some(next) = arith::mul(cumulative, Decimal::ONE + sample.simple_return) else {
@@ -1060,6 +1082,7 @@ fn risk_from_samples(samples: &[RiskSample], opening_date: Option<NaiveDate>) ->
         }
         if peak_value > Decimal::ZERO {
             let drawdown = (cumulative - peak_value) / peak_value;
+            sum_squared_drawdown += drawdown * drawdown;
             if drawdown < max_drawdown {
                 max_drawdown = drawdown;
                 max_peak_date = peak_date;
@@ -1075,7 +1098,141 @@ fn risk_from_samples(samples: &[RiskSample], opening_date: Option<NaiveDate>) ->
     risk.trough_date = Some(trough_date);
     risk.recovery_date = recovery_date;
     risk.drawdown_duration_days = Some((duration_end - max_peak_date).num_days());
+    // Every sample contributes a drawdown term: `peak_value` starts at one and
+    // only ever rises, so the guard above never skips one.
+    risk.ulcer_index = (sum_squared_drawdown / Decimal::from(samples.len()))
+        .sqrt()
+        .map(|value| value.round_dp(STORED_PRECISION));
+    // Calmar and Sterling annualise the series the drawdown was measured on, so
+    // both halves of each ratio come from one series. Windows too short to
+    // annualise honestly have neither, on the threshold the reported annualised
+    // returns already use.
+    let start_date = opening_date.unwrap_or(samples[0].date);
+    let end_date = samples[samples.len() - 1].date;
+    if (end_date - start_date).num_days() >= MIN_ANNUALIZATION_DAYS {
+        if let Some(annualized) = annualized_return(start_date, end_date, cumulative - Decimal::ONE)
+        {
+            let (calmar, sterling) = drawdown_ratios(annualized, max_drawdown);
+            risk.calmar_ratio = calmar;
+            risk.sterling_ratio = sterling;
+        }
+    }
     risk
+}
+
+/// Historical VaR and the conditional loss beyond it, read off the sorted
+/// return series. `tail_denominator` is the reciprocal of the tail
+/// probability - 20 for 95%, 100 for 99%.
+///
+/// A series shorter than that denominator has no observation in the tail at
+/// all, so there is nothing to measure and the answer is `None` rather than
+/// the worst return dressed up as a quantile.
+fn historical_var_cvar(
+    sorted_returns: &[Decimal],
+    tail_denominator: usize,
+) -> Option<(Decimal, Decimal)> {
+    let count = sorted_returns.len();
+    if count < tail_denominator {
+        return None;
+    }
+    let tail_size = count.div_ceil(tail_denominator);
+    let tail = &sorted_returns[..tail_size];
+    let value_at_risk = *tail.last()?;
+    let conditional = arith::div(tail.iter().sum::<Decimal>(), Decimal::from(tail_size))?;
+    Some((
+        value_at_risk.round_dp(STORED_PRECISION),
+        conditional.round_dp(STORED_PRECISION),
+    ))
+}
+
+/// Calmar and Sterling, both annualised return over drawdown depth. Calmar is
+/// undefined without a drawdown to divide by; Sterling stays defined because
+/// its adjustment keeps the denominator away from zero.
+fn drawdown_ratios(
+    annualized_return: Decimal,
+    max_drawdown: Decimal,
+) -> (Option<Decimal>, Option<Decimal>) {
+    let depth = max_drawdown.abs();
+    let calmar = (!depth.is_zero())
+        .then(|| arith::div(annualized_return, depth))
+        .flatten()
+        .map(|value| value.round_dp(STORED_PRECISION));
+    let sterling = arith::div(annualized_return, depth + STERLING_DRAWDOWN_ADJUSTMENT)
+        .map(|value| value.round_dp(STORED_PRECISION));
+    (calmar, sterling)
+}
+
+/// Sample standard deviation of the raw returns, on an n-1 divisor. `None` for
+/// a flat series, where the standardised moments below have nothing to divide
+/// by.
+fn sample_standard_deviation(returns: &[Decimal], mean: Decimal) -> Option<Decimal> {
+    if returns.len() < 2 {
+        return None;
+    }
+    let sum_squared_diff: Decimal = returns
+        .iter()
+        .map(|value| {
+            let diff = *value - mean;
+            diff * diff
+        })
+        .sum();
+    let variance = sum_squared_diff / (Decimal::from(returns.len()) - Decimal::ONE);
+    if variance.is_sign_negative() {
+        return None;
+    }
+    let deviation = variance.sqrt()?;
+    (!deviation.is_zero()).then_some(deviation)
+}
+
+/// Sum of the standardised deviations raised to `power`. Checked throughout:
+/// a near-flat series with one outlier produces a large standardised value,
+/// and the fourth power of one can leave the range a `Decimal` holds.
+fn standardized_moment_sum(
+    returns: &[Decimal],
+    mean: Decimal,
+    deviation: Decimal,
+    power: u32,
+) -> Option<Decimal> {
+    returns.iter().try_fold(Decimal::ZERO, |acc, value| {
+        let standardized = (*value - mean).checked_div(deviation)?;
+        let mut term = Decimal::ONE;
+        for _ in 0..power {
+            term = term.checked_mul(standardized)?;
+        }
+        acc.checked_add(term)
+    })
+}
+
+/// Sample skewness, adjusted Fisher-Pearson - the estimator Excel `SKEW`
+/// reports, chosen to match the n-1 divisor volatility uses.
+fn skewness(returns: &[Decimal]) -> Option<Decimal> {
+    if returns.len() < 3 {
+        return None;
+    }
+    let count = Decimal::from(returns.len());
+    let mean = returns.iter().sum::<Decimal>() / count;
+    let deviation = sample_standard_deviation(returns, mean)?;
+    let cubed = standardized_moment_sum(returns, mean, deviation, 3)?;
+    let factor = count / ((count - Decimal::ONE) * (count - dec!(2)));
+    Some((factor * cubed).round_dp(STORED_PRECISION))
+}
+
+/// Sample excess kurtosis, matching Excel `KURT`. Already net of the 3.0 a
+/// normal distribution carries, so zero means normal-tailed and positive
+/// means a normal tail assumption is optimistic.
+fn excess_kurtosis(returns: &[Decimal]) -> Option<Decimal> {
+    if returns.len() < 4 {
+        return None;
+    }
+    let count = Decimal::from(returns.len());
+    let mean = returns.iter().sum::<Decimal>() / count;
+    let deviation = sample_standard_deviation(returns, mean)?;
+    let quartic = standardized_moment_sum(returns, mean, deviation, 4)?;
+    let scale = (count * (count + Decimal::ONE))
+        / ((count - Decimal::ONE) * (count - dec!(2)) * (count - dec!(3)));
+    let normal_correction = (dec!(3) * (count - Decimal::ONE) * (count - Decimal::ONE))
+        / ((count - dec!(2)) * (count - dec!(3)));
+    Some((scale * quartic - normal_correction).round_dp(STORED_PRECISION))
 }
 
 fn simple_value_return(history: &[DailyValuation], flows: &[PeriodFlow]) -> Option<Decimal> {
@@ -3030,5 +3187,196 @@ mod tests {
             .data_quality
             .warnings
             .contains(&QualityNote::NetContributionFlows));
+    }
+
+    fn date(value: &str) -> NaiveDate {
+        NaiveDate::parse_from_str(value, "%Y-%m-%d").unwrap()
+    }
+
+    fn risk_samples_from(returns: &[Decimal], opening_date: NaiveDate) -> Vec<RiskSample> {
+        returns
+            .iter()
+            .enumerate()
+            .map(|(index, simple_return)| RiskSample {
+                date: opening_date + chrono::Days::new(index as u64 + 1),
+                simple_return: *simple_return,
+                period_days: 1,
+            })
+            .collect()
+    }
+
+    #[test]
+    fn historical_var_reads_the_worst_observation_in_the_tail() {
+        let mut returns = vec![dec!(-0.05)];
+        returns.extend(std::iter::repeat_n(dec!(0.01), 19));
+        let samples = risk_samples_from(&returns, date("2026-01-01"));
+
+        let risk = risk_from_samples(&samples, Some(date("2026-01-01")));
+
+        // One observation in twenty falls in the 95% tail, so the threshold and the
+        // mean beyond it are both the single worst return.
+        assert_eq!(risk.var_95, Some(dec!(-0.05)));
+        assert_eq!(risk.cvar_95, Some(dec!(-0.05)));
+        assert_eq!(risk.var_method, Some(VarMethod::Historical));
+        // Twenty observations put nothing in the 99% tail.
+        assert_eq!(risk.var_99, None);
+        assert_eq!(risk.cvar_99, None);
+    }
+
+    #[test]
+    fn conditional_var_averages_the_whole_tail() {
+        let mut returns = vec![dec!(-0.05), dec!(-0.03)];
+        returns.extend(std::iter::repeat_n(dec!(0.01), 38));
+        let samples = risk_samples_from(&returns, date("2026-01-01"));
+
+        let risk = risk_from_samples(&samples, Some(date("2026-01-01")));
+
+        // Two of forty observations reach the 95% tail: VaR is the better of the
+        // two, CVaR the mean of both.
+        assert_eq!(risk.var_95, Some(dec!(-0.03)));
+        assert_eq!(risk.cvar_95, Some(dec!(-0.04)));
+    }
+
+    #[test]
+    fn each_var_level_sizes_its_own_tail() {
+        let mut returns = vec![dec!(-0.08), dec!(-0.06), dec!(-0.04), dec!(-0.02)];
+        returns.extend(std::iter::repeat_n(dec!(0.001), 96));
+        let samples = risk_samples_from(&returns, date("2026-01-01"));
+
+        let risk = risk_from_samples(&samples, Some(date("2026-01-01")));
+
+        assert_eq!(risk.var_99, Some(dec!(-0.08)));
+        assert_eq!(risk.cvar_99, Some(dec!(-0.08)));
+        // Five of a hundred observations reach the 95% tail and only four are
+        // losses, so the threshold itself is a gain while the mean past it is not.
+        assert_eq!(risk.var_95, Some(dec!(0.001)));
+        assert_eq!(risk.cvar_95, Some(dec!(-0.0398)));
+        assert_eq!(risk.period_count, Some(100));
+    }
+
+    #[test]
+    fn var_is_absent_when_no_observation_reaches_the_tail() {
+        let samples = risk_samples_from(&[dec!(-0.01); 19], date("2026-01-01"));
+
+        let risk = risk_from_samples(&samples, Some(date("2026-01-01")));
+
+        assert_eq!(risk.var_95, None);
+        assert_eq!(risk.cvar_95, None);
+        assert_eq!(risk.var_method, None);
+        assert_eq!(risk.period_count, Some(19));
+    }
+
+    #[test]
+    fn ulcer_index_weights_a_drawdown_by_its_duration() {
+        let opening = date("2026-04-30");
+        let short_decline = risk_samples_from(&[dec!(0.1), dec!(-0.2), dec!(-0.1)], opening);
+        let long_decline = risk_samples_from(
+            &[
+                dec!(0.1),
+                dec!(-0.2),
+                dec!(-0.1),
+                Decimal::ZERO,
+                Decimal::ZERO,
+                Decimal::ZERO,
+            ],
+            opening,
+        );
+
+        let short = risk_from_samples(&short_decline, Some(opening));
+        let long = risk_from_samples(&long_decline, Some(opening));
+
+        // Identical depth, different time spent under water. Volatility cannot tell
+        // these apart; the ulcer index is the figure that can.
+        assert_eq!(short.max_drawdown, long.max_drawdown);
+        assert_eq!(short.ulcer_index, Some(dec!(0.19866219)));
+        assert_eq!(long.ulcer_index, Some(dec!(0.24276189)));
+    }
+
+    #[test]
+    fn calmar_and_sterling_divide_annualized_return_by_drawdown_depth() {
+        let samples = vec![
+            RiskSample {
+                date: date("2025-07-01"),
+                simple_return: dec!(0.2),
+                period_days: 181,
+            },
+            RiskSample {
+                date: date("2025-12-31"),
+                simple_return: dec!(-0.1),
+                period_days: 183,
+            },
+        ];
+
+        let risk = risk_from_samples(&samples, Some(date("2025-01-01")));
+
+        // 1.2 x 0.9 compounds to 1.08, which over 364 days annualises to 8.0285%,
+        // against a 10% drawdown.
+        assert_eq!(risk.max_drawdown, Some(dec!(-0.1)));
+        assert_eq!(risk.calmar_ratio.unwrap().round_dp(6), dec!(0.802855));
+        // Sterling adds ten points to the same denominator, doubling it here.
+        assert_eq!(risk.sterling_ratio.unwrap().round_dp(6), dec!(0.401427));
+    }
+
+    #[test]
+    fn calmar_is_absent_without_a_drawdown_to_divide_by() {
+        let samples = risk_samples_from(&[Decimal::ZERO; 40], date("2026-01-01"));
+
+        let risk = risk_from_samples(&samples, Some(date("2026-01-01")));
+
+        assert_eq!(risk.max_drawdown, Some(Decimal::ZERO));
+        assert_eq!(risk.ulcer_index, Some(Decimal::ZERO));
+        assert_eq!(risk.calmar_ratio, None);
+        // Sterling stays defined: its adjustment keeps the denominator off zero.
+        assert_eq!(risk.sterling_ratio, Some(Decimal::ZERO));
+    }
+
+    #[test]
+    fn drawdown_ratios_need_a_window_long_enough_to_annualize() {
+        let samples = vec![
+            RiskSample {
+                date: date("2026-05-02"),
+                simple_return: dec!(0.1),
+                period_days: 1,
+            },
+            RiskSample {
+                date: date("2026-05-20"),
+                simple_return: dec!(-0.2),
+                period_days: 18,
+            },
+        ];
+
+        let risk = risk_from_samples(&samples, Some(date("2026-05-01")));
+
+        assert!(risk.max_drawdown.is_some());
+        assert_eq!(risk.calmar_ratio, None);
+        assert_eq!(risk.sterling_ratio, None);
+    }
+
+    #[test]
+    fn skewness_and_excess_kurtosis_use_the_sample_estimators() {
+        let returns = [dec!(0.01), dec!(-0.02), dec!(0.03), dec!(-0.04), dec!(0.1)];
+
+        assert_eq!(skewness(&returns).unwrap().round_dp(6), dec!(0.979827));
+        assert_eq!(
+            excess_kurtosis(&returns).unwrap().round_dp(6),
+            dec!(0.931519)
+        );
+    }
+
+    #[test]
+    fn a_symmetric_series_has_no_skew() {
+        let returns = [dec!(-0.02), dec!(-0.01), dec!(0.01), dec!(0.02)];
+
+        assert_eq!(skewness(&returns).unwrap().round_dp(6), Decimal::ZERO);
+        assert_eq!(excess_kurtosis(&returns).unwrap().round_dp(6), dec!(-3.3));
+    }
+
+    #[test]
+    fn moments_need_enough_observations_and_some_dispersion() {
+        assert_eq!(skewness(&[dec!(0.01), dec!(0.02)]), None);
+        assert_eq!(excess_kurtosis(&[dec!(0.01), dec!(0.02), dec!(0.03)]), None);
+        // A flat series has no dispersion to standardise the deviations by.
+        assert_eq!(skewness(&[Decimal::ZERO; 5]), None);
+        assert_eq!(excess_kurtosis(&[Decimal::ZERO; 5]), None);
     }
 }
