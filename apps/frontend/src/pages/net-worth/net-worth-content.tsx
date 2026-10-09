@@ -1,4 +1,5 @@
 import { useNetWorth, useNetWorthHistory } from "@/hooks/use-alternative-assets";
+import { usePeriodOffset } from "@/hooks/use-period-offset";
 import { usePortfolioAllocations } from "@/hooks/use-portfolio-allocations";
 import { useIsMobileViewport } from "@/hooks/use-platform";
 import { getNetWorthCategoryLabel } from "@/lib/net-worth-category-label";
@@ -8,10 +9,12 @@ import Balance from "@/pages/dashboard/balance";
 import { AllocationDetailSheet } from "@/pages/holdings/components/allocation-detail-sheet";
 import { DashboardCard } from "@/components/dashboard-card";
 import {
+  formatPeriodRangeLabel,
   GainAmount,
   GainPercent,
   IntervalSelector,
   getInitialIntervalData,
+  PeriodStepArrows,
   useNumberFormatting,
   type TimePeriod,
 } from "@wealthfolio/ui";
@@ -74,9 +77,11 @@ export function NetWorthContent() {
   );
   // A local Date carries the configured calendar day for the date-only interval helper.
   const currentDate = useMemo(() => parseLocalDate(currentDateISO), [currentDateISO]);
+  const { offset, anchor, canStepBackward, canStepForward, stepBackward, stepForward } =
+    usePeriodOffset(periodCode, currentDate);
   const dateRange = useMemo(
-    () => getInitialIntervalData(periodCode, currentDate).range,
-    [periodCode, currentDate],
+    () => getInitialIntervalData(periodCode, anchor).range,
+    [periodCode, anchor],
   );
 
   // ISO date strings for the selected-range history query.
@@ -112,6 +117,9 @@ export function NetWorthContent() {
     enabled: !!longHistoryDates,
   });
 
+  // Offset resets to the current window automatically (see usePeriodOffset),
+  // and dateRange is derived from periodCode, so picking a period just
+  // needs the code.
   const handleIntervalSelect = (code: TimePeriod) => {
     setPeriodCode(code);
   };
@@ -302,8 +310,18 @@ export function NetWorthContent() {
                 </>
               )}
               {periodCode && (
-                <span className="lg:text-md text-muted-foreground ml-1 text-sm font-light">
-                  {t(`ui:interval.${periodCode}`)}
+                <span className="lg:text-md text-muted-foreground ml-1 flex items-center gap-1 text-sm font-light">
+                  {offset > 0
+                    ? (formatPeriodRangeLabel(dateRange) ?? t(`ui:interval.${periodCode}`))
+                    : t(`ui:interval.${periodCode}`)}
+                  <PeriodStepArrows
+                    onPrevious={stepBackward}
+                    onNext={stepForward}
+                    previousDisabled={!canStepBackward}
+                    nextDisabled={!canStepForward}
+                    previousLabel={t("ui:interval.previousPeriod")}
+                    nextLabel={t("ui:interval.nextPeriod")}
+                  />
                 </span>
               )}
             </div>

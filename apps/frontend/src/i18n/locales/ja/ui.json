@@ -176,7 +176,9 @@
       "1Y": "1Y",
       "5Y": "5Y",
       "ALL": "ALL"
-    }
+    },
+    "previousPeriod": "前の期間",
+    "nextPeriod": "次の期間"
   },
   "search": {
     "clear": "検索をクリア",

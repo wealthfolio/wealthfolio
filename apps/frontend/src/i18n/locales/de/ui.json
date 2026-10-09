@@ -176,7 +176,9 @@
       "1Y": "1J",
       "5Y": "5J",
       "ALL": "Max"
-    }
+    },
+    "previousPeriod": "Vorheriger Zeitraum",
+    "nextPeriod": "Nächster Zeitraum"
   },
   "search": {
     "clear": "Suche löschen",

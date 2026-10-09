@@ -5,6 +5,7 @@ import { HistoryChart } from "@/components/history-chart";
 import { useHapticFeedback } from "@/hooks";
 import { useCurrentValuation } from "@/hooks/use-current-account-valuations";
 import { useHoldings } from "@/hooks/use-holdings";
+import { usePeriodOffset } from "@/hooks/use-period-offset";
 import { useValuationHistory } from "@/hooks/use-valuation-history";
 import { HoldingType, isAlternativeAssetKind } from "@/lib/constants";
 import { performancePeriodPnl, performanceSummaryReturn } from "@/lib/performance";
@@ -13,7 +14,14 @@ import { useSettingsContext } from "@/lib/settings-provider";
 import { PortfolioUpdateTrigger } from "@/pages/dashboard/portfolio-update-trigger";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import type { TimePeriod as UITimePeriod } from "@wealthfolio/ui";
-import { GainAmount, GainPercent, getInitialIntervalData, IntervalSelector } from "@wealthfolio/ui";
+import {
+  formatPeriodRangeLabel,
+  GainAmount,
+  GainPercent,
+  getInitialIntervalData,
+  IntervalSelector,
+  PeriodStepArrows,
+} from "@wealthfolio/ui";
 import { usePersistentState } from "@/hooks/use-persistent-state";
 import { Skeleton } from "@wealthfolio/ui/components/ui/skeleton";
 import { format } from "date-fns";
@@ -71,13 +79,16 @@ export function DashboardContent() {
   const { t } = useTranslation();
   const { settings } = useSettingsContext();
   const todayISO = formatZonedDateKey(new Date(), settings?.timezone);
+  const today = useMemo(() => parseLocalDate(todayISO), [todayISO]);
   const [selectedInterval, setSelectedInterval] = usePersistentState<UITimePeriod>(
     INTERVAL_STORAGE_KEY,
     DEFAULT_INTERVAL,
   );
+  const { offset, anchor, canStepBackward, canStepForward, stepBackward, stepForward } =
+    usePeriodOffset(selectedInterval, today);
   const dateRange = useMemo(
-    () => getInitialIntervalData(selectedInterval, parseLocalDate(todayISO)).range,
-    [selectedInterval, todayISO],
+    () => getInitialIntervalData(selectedInterval, anchor).range,
+    [selectedInterval, anchor],
   );
   const isAllTime = selectedInterval === "ALL";
 
@@ -219,8 +230,18 @@ export function DashboardContent() {
                   </>
                 )}
                 {selectedInterval && (
-                  <span className="lg:text-md text-muted-foreground ml-1 text-sm font-light">
-                    {t(`ui:interval.${selectedInterval}`)}
+                  <span className="lg:text-md text-muted-foreground ml-1 flex items-center gap-1 text-sm font-light">
+                    {offset > 0
+                      ? (formatPeriodRangeLabel(dateRange) ?? t(`ui:interval.${selectedInterval}`))
+                      : t(`ui:interval.${selectedInterval}`)}
+                    <PeriodStepArrows
+                      onPrevious={stepBackward}
+                      onNext={stepForward}
+                      previousDisabled={!canStepBackward}
+                      nextDisabled={!canStepForward}
+                      previousLabel={t("ui:interval.previousPeriod")}
+                      nextLabel={t("ui:interval.nextPeriod")}
+                    />
                   </span>
                 )}
               </div>

@@ -176,7 +176,9 @@
       "1Y": "1Y",
       "5Y": "5Y",
       "ALL": "ALL"
-    }
+    },
+    "previousPeriod": "上一個週期",
+    "nextPeriod": "下一個週期"
   },
   "search": {
     "clear": "清除搜尋內容",

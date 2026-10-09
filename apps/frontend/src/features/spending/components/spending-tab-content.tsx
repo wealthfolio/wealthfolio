@@ -22,7 +22,9 @@ import { cn, formatDateISO } from "@/lib/utils";
 import Balance from "@/pages/dashboard/balance";
 
 import {
+  formatPeriodRangeLabel,
   Icons,
+  PeriodStepArrows,
   PrivacyAmount,
   Skeleton,
   useAmountFormatting,
@@ -87,7 +89,7 @@ const SPENDING_TAXONOMY = "spending_categories";
 type SpendingDashboardPeriod = "MTD" | "LAST_MONTH" | "3M" | "6M" | "YTD" | "1Y";
 
 type SpendingSelection =
-  | { kind: "period"; code: SpendingDashboardPeriod }
+  | { kind: "period"; code: SpendingDashboardPeriod; offset: number }
   | { kind: "month"; monthKey: string; restoreCode: SpendingDashboardPeriod }
   | { kind: "range"; range: SpendingDateRange; restoreCode: SpendingDashboardPeriod };
 
@@ -99,6 +101,18 @@ const SPENDING_DASHBOARD_PERIODS: SpendingDashboardPeriod[] = [
   "YTD",
   "1Y",
 ];
+
+// How many months a single "step" back/forward covers for each period, so
+// paging a rolling window (e.g. 1Y) lands on the equivalent prior window
+// rather than an arbitrary jump.
+const PERIOD_STEP_MONTHS: Record<SpendingDashboardPeriod, number> = {
+  MTD: 1,
+  LAST_MONTH: 1,
+  "3M": 3,
+  "6M": 6,
+  YTD: 12,
+  "1Y": 12,
+};
 
 const DEFAULT_INTERVAL: SpendingDashboardPeriod = "MTD";
 const INTERVAL_STORAGE_KEY = "spending-interval";
@@ -157,8 +171,9 @@ function normalizeSpendingDashboardPeriod(
   return DEFAULT_INTERVAL;
 }
 
-function spendingIntervalData(code: SpendingDashboardPeriod, timezone?: string | null) {
-  const today = getZonedDateParts(new Date(), timezone);
+function spendingIntervalData(code: SpendingDashboardPeriod, timezone?: string | null, offset = 0) {
+  const now = getZonedDateParts(new Date(), timezone);
+  const today = offset > 0 ? addCalendarMonths(now, -offset * PERIOD_STEP_MONTHS[code]) : now;
   const { start, end } = (() => {
     switch (code) {
       case "MTD":
@@ -185,13 +200,17 @@ function spendingIntervalData(code: SpendingDashboardPeriod, timezone?: string |
     }
   })();
 
+  const range = { from: localDateFromParts(start), to: localDateFromParts(end) };
+
   return {
     code,
-    description: INTERVAL_DESCRIPTIONS[code],
-    range: {
-      from: localDateFromParts(start),
-      to: localDateFromParts(end),
-    },
+    // "This month"/"past year" only makes sense for the current window;
+    // once paged away via the period arrows, show the concrete month(s).
+    description:
+      offset > 0
+        ? (formatPeriodRangeLabel(range) ?? INTERVAL_DESCRIPTIONS[code])
+        : INTERVAL_DESCRIPTIONS[code],
+    range,
   };
 }
 
@@ -212,7 +231,9 @@ function selectionFromParams(
   if (customRange) return { kind: "range", range: customRange, restoreCode };
   const monthKey = monthParam ?? (intervalParam === null ? persistedMonth : null);
   if (monthKey && parseMonthKey(monthKey)) return { kind: "month", monthKey, restoreCode };
-  return { kind: "period", code: restoreCode };
+  const offsetParam = Number(params.get("spendingOffset"));
+  const offset = Number.isFinite(offsetParam) && offsetParam > 0 ? Math.floor(offsetParam) : 0;
+  return { kind: "period", code: restoreCode, offset };
 }
 
 function budgetMonthStateForSelection(
@@ -220,7 +241,10 @@ function budgetMonthStateForSelection(
   currentMonthKey: string,
 ): { monthKey: string; touched: boolean } {
   if (selection.kind === "period" && selection.code === "LAST_MONTH") {
-    return { monthKey: addMonthsToMonthKey(currentMonthKey, -1), touched: true };
+    return { monthKey: addMonthsToMonthKey(currentMonthKey, -1 - selection.offset), touched: true };
+  }
+  if (selection.kind === "period" && selection.code === "MTD" && selection.offset > 0) {
+    return { monthKey: addMonthsToMonthKey(currentMonthKey, -selection.offset), touched: true };
   }
   if (selection.kind === "month" && selection.monthKey <= currentMonthKey) {
     return { monthKey: selection.monthKey, touched: true };
@@ -233,7 +257,9 @@ function budgetSelectionSyncKey(selection: SpendingSelection, currentMonthKey: s
   if (selection.kind === "range") {
     return `range:${formatDateISO(selection.range.from)}:${formatDateISO(selection.range.to)}`;
   }
-  if (selection.code === "LAST_MONTH") return `period:${selection.code}:${currentMonthKey}`;
+  if (selection.code === "LAST_MONTH" || selection.code === "MTD") {
+    return `period:${selection.code}:${selection.offset}:${currentMonthKey}`;
+  }
   return `period:${selection.code}`;
 }
 
@@ -265,7 +291,7 @@ function selectionData(
     };
   }
 
-  const interval = spendingIntervalData(selection.code, timezone);
+  const interval = spendingIntervalData(selection.code, timezone, selection.offset);
   return {
     range: interval.range,
     description: interval.description,
@@ -615,6 +641,7 @@ export default function SpendingTabContent() {
         const p = new URLSearchParams(prev);
         p.set("spendingInterval", code);
         p.delete(SPENDING_MONTH_PARAM);
+        p.delete("spendingOffset");
         p.delete(SPENDING_RANGE_FROM_PARAM);
         p.delete(SPENDING_RANGE_TO_PARAM);
         return p;
@@ -628,6 +655,25 @@ export default function SpendingTabContent() {
       setBudgetMonthKey(currentBudgetMonthKey);
       setBudgetMonthTouched(false);
     }
+  };
+
+  // Steps the current rolling period backward/forward by one window (e.g.
+  // 1Y pages a year at a time). Offset only applies to "period" selections;
+  // custom months are already navigable via the month picker.
+  const handlePeriodStep = (direction: 1 | -1) => {
+    if (selection.kind !== "period") return;
+    const nextOffset = Math.max(0, selection.offset + direction);
+    if (nextOffset === selection.offset) return;
+    setSearchParams(
+      (prev) => {
+        const p = new URLSearchParams(prev);
+        p.set("spendingInterval", selection.code);
+        if (nextOffset > 0) p.set("spendingOffset", String(nextOffset));
+        else p.delete("spendingOffset");
+        return p;
+      },
+      { replace: true },
+    );
   };
 
   const handleCustomMonthSelect = (monthKey: string | null) => {
@@ -645,6 +691,7 @@ export default function SpendingTabContent() {
           p.set("spendingInterval", restoreCode);
           p.delete(SPENDING_MONTH_PARAM);
         }
+        p.delete("spendingOffset");
         return p;
       },
       { replace: true },
@@ -959,23 +1006,35 @@ export default function SpendingTabContent() {
       <div className="px-4 pb-6 pt-2 md:px-6 md:pb-2 lg:px-8">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between sm:gap-8">
           <div>
-            <div className="text-muted-foreground/80 text-[11px] font-semibold uppercase tracking-[0.12em]">
-              {t("spending:tabContent.spentLabel")}
-              {selectedIntervalDescription
-                ? ` · ${selectedIntervalDescription.startsWith("spending:") ? t(selectedIntervalDescription) : selectedIntervalDescription}`
-                : ""}
-              {excludedCategoryCount > 0 && (
-                <>
-                  {" · "}
-                  <Link
-                    to="/settings/spending/categories"
-                    className="hover:text-foreground hover:underline"
-                  >
-                    {t("spending:tabContent.excludedCategoriesHint", {
-                      count: excludedCategoryCount,
-                    })}
-                  </Link>
-                </>
+            <div className="text-muted-foreground/80 flex items-center gap-1 text-[11px] font-semibold uppercase tracking-[0.12em]">
+              <span>
+                {t("spending:tabContent.spentLabel")}
+                {selectedIntervalDescription
+                  ? ` · ${selectedIntervalDescription.startsWith("spending:") ? t(selectedIntervalDescription) : selectedIntervalDescription}`
+                  : ""}
+                {excludedCategoryCount > 0 && (
+                  <>
+                    {" · "}
+                    <Link
+                      to="/settings/spending/categories"
+                      className="hover:text-foreground hover:underline"
+                    >
+                      {t("spending:tabContent.excludedCategoriesHint", {
+                        count: excludedCategoryCount,
+                      })}
+                    </Link>
+                  </>
+                )}
+              </span>
+              {selection.kind === "period" && (
+                <PeriodStepArrows
+                  className="ml-0.5"
+                  onPrevious={() => handlePeriodStep(1)}
+                  onNext={() => handlePeriodStep(-1)}
+                  nextDisabled={selection.offset === 0}
+                  previousLabel={t("ui:interval.previousPeriod")}
+                  nextLabel={t("ui:interval.nextPeriod")}
+                />
               )}
             </div>
             <Balance

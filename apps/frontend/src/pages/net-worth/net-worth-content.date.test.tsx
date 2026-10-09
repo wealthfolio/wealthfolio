@@ -41,7 +41,7 @@ vi.mock("./components/velocity-card", () => ({
 }));
 vi.mock("./net-worth-chart", () => ({ NetWorthChart: () => null }));
 vi.mock("@wealthfolio/ui", async () => {
-  const { getInitialIntervalData } =
+  const { getInitialIntervalData, shiftPeriodAnchor, PERIOD_STEP } =
     await import("@wealthfolio/ui/components/financial/interval-selector");
   return {
     GainAmount: ({ value }: { value: number }) => <span data-testid="change-amount">{value}</span>,
@@ -63,13 +63,19 @@ vi.mock("@wealthfolio/ui", async () => {
       </button>
     ),
     getInitialIntervalData,
+    PeriodStepArrows: () => <div>period-step-arrows</div>,
+    formatPeriodRangeLabel: () => null,
+    shiftPeriodAnchor,
+    PERIOD_STEP,
     useNumberFormatting: () => ({
       formatDecimal: (value: number) =>
         new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 }).format(value),
     }),
-    usePersistentState: () => useState(intervalMocks.period),
   };
 });
+vi.mock("@/hooks/use-persistent-state", () => ({
+  usePersistentState: () => useState(intervalMocks.period),
+}));
 vi.mock("@wealthfolio/ui/components/ui/icons", () => ({
   Icons: { TrendingUp: () => null },
 }));
