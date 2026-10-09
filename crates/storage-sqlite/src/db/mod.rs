@@ -1484,6 +1484,62 @@ mod migration_tests {
         );
     }
 
+    #[derive(QueryableByName)]
+    struct CountryRow {
+        #[diesel(sql_type = diesel::sql_types::Text)]
+        id: String,
+        #[diesel(sql_type = diesel::sql_types::Text)]
+        name: String,
+    }
+
+    /// The regions seed and `to_iso_alpha2`'s tables are meant to agree by
+    /// construction: a country the providers normalise to is a country the
+    /// taxonomy can place. Checked against the migrated database so a country
+    /// added to one side and not the other fails here.
+    #[test]
+    fn regions_taxonomy_places_every_country_the_resolver_knows() {
+        let dir = tempfile::tempdir().unwrap();
+        let db_path = dir.path().join("regions.db");
+        let access = DbAccess::plaintext(db_path.to_str().unwrap());
+        access.run_migrations().unwrap();
+        let mut conn = access.connect().unwrap();
+
+        let countries = diesel::sql_query(
+            "SELECT id, name FROM taxonomy_categories \
+             WHERE taxonomy_id = 'regions' AND id LIKE 'country\\_%' ESCAPE '\\'",
+        )
+        .load::<CountryRow>(&mut conn)
+        .unwrap();
+        // ISO 3166-1's 249 assigned codes, less Antarctica, which UN M49 places in
+        // no region.
+        assert_eq!(countries.len(), 248);
+
+        for country in &countries {
+            let code = country.id.strip_prefix("country_").unwrap();
+            assert_eq!(
+                wealthfolio_market_data::to_iso_alpha2(&country.name),
+                Some(code),
+                "{} ({}) does not resolve to its own code",
+                country.name,
+                country.id
+            );
+            assert_eq!(wealthfolio_market_data::to_iso_alpha2(code), Some(code));
+        }
+
+        // Every country hangs off a seeded sub-region, never the root or a continent.
+        assert_eq!(
+            count(
+                &mut conn,
+                "SELECT COUNT(*) AS count FROM taxonomy_categories c \
+                 JOIN taxonomy_categories p \
+                   ON p.taxonomy_id = c.taxonomy_id AND p.id = c.parent_id \
+                 WHERE c.taxonomy_id = 'regions' AND c.id LIKE 'country\\_%' ESCAPE '\\' \
+                   AND p.parent_id IS NOT NULL AND p.id NOT LIKE 'country\\_%' ESCAPE '\\'"
+            ),
+            248
+        );
+    }
+
     /// Diesel keys pending migrations by version (the directory name before
     /// the first `_`), so two directories sharing a version silently skip one
     /// of them on every database that has not applied it yet.
