@@ -8,8 +8,8 @@ use log::{debug, error};
 use std::sync::Arc;
 
 const SUPPORTED_FORMATTING_REGIONS: &[&str] = &[
-    "system", "CA", "US", "GB", "FR", "DE", "CH", "ES", "MX", "BR", "PT", "CN", "TW", "JP", "KR",
-    "IT",
+    "system", "CA", "US", "GB", "FR", "DE", "AT", "CH", "ES", "MX", "BR", "PT", "CN", "TW", "JP",
+    "KR", "IT", "RO", "BG",
 ];
 const SUPPORTED_UI_LANGUAGES: &[&str] = &[
     "en", "fr", "de", "es", "pt", "zh", "zh-Hant", "ja", "ko", "it",
@@ -360,6 +360,9 @@ mod tests {
         assert!(validate_formatting_region("TW").is_ok());
         assert!(validate_formatting_region("IT").is_ok());
         assert!(validate_formatting_region("CH").is_ok());
+        assert!(validate_formatting_region("AT").is_ok());
+        assert!(validate_formatting_region("RO").is_ok());
+        assert!(validate_formatting_region("BG").is_ok());
         assert!(validate_formatting_region("de-DE").is_err());
     }
 }

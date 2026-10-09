@@ -1507,7 +1507,10 @@
       "taiwan": "台湾",
       "japan": "日本",
       "southKorea": "韩国",
-      "italy": "意大利"
+      "italy": "意大利",
+      "austria": "奥地利",
+      "romania": "罗马尼亚",
+      "bulgaria": "保加利亚"
     }
   },
   "appearance_navigation_title": "导航",
