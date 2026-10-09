@@ -181,15 +181,11 @@ export function ContributionLimitForm({
                             {t("settings:limits_form_year_label")}
                           </FormLabel>
                           <FormControl>
-                            <Input
-                              type="number"
+                            <MoneyInput
                               placeholder={t("settings:limits_form_year_placeholder")}
-                              value={field.value || ""}
-                              onChange={(e) => {
-                                const numValue =
-                                  e.target.value === "" ? undefined : Number(e.target.value);
-                                field.onChange(numValue);
-                              }}
+                              maxDecimalPlaces={0}
+                              value={field.value}
+                              onValueChange={(value) => field.onChange(value)}
                             />
                           </FormControl>
 

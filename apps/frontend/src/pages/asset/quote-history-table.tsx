@@ -18,7 +18,6 @@ import {
   calendarDateFromLocalDate,
   DatePickerInput,
   Icons,
-  Input,
   Label,
   MoneyInput,
   Popover,
@@ -475,37 +474,33 @@ export const QuoteHistoryTable: React.FC<QuoteHistoryTableProps> = ({
                     />
                   </TableCell>
                   <TableCell>
-                    <Input
-                      type="number"
+                    <MoneyInput
                       value={newQuote.open}
                       onChange={(e) => handleInputChange("open", e.target.value, true)}
                     />
                   </TableCell>
                   <TableCell>
-                    <Input
-                      type="number"
+                    <MoneyInput
                       value={newQuote.high}
                       onChange={(e) => handleInputChange("high", e.target.value, true)}
                     />
                   </TableCell>
                   <TableCell>
-                    <Input
-                      type="number"
+                    <MoneyInput
                       value={newQuote.low}
                       onChange={(e) => handleInputChange("low", e.target.value, true)}
                     />
                   </TableCell>
                   <TableCell>
-                    <Input
-                      type="number"
+                    <MoneyInput
                       value={newQuote.close}
                       onChange={(e) => handleInputChange("close", e.target.value, true)}
                     />
                   </TableCell>
                   <TableCell>
-                    <Input
-                      type="number"
+                    <MoneyInput
                       value={newQuote.volume}
+                      maxDecimalPlaces={0}
                       onChange={(e) => handleInputChange("volume", e.target.value, true)}
                     />
                   </TableCell>
