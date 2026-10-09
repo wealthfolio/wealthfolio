@@ -352,6 +352,7 @@ impl<P: SyncProgressReporter> SyncOrchestrator<P> {
                 &job.account_name,
                 &job.broker_account_id,
                 job.tracking_mode,
+                &job.account_context,
                 query_window.start_date.as_deref(),
                 Some(query_window.end_date.as_str()),
                 result.activity_import_run_id.clone(),

@@ -44,6 +44,7 @@ pub(super) struct AccountSyncJob {
     account_name: String,
     broker_account_id: String,
     tracking_mode: BrokerTrackingMode,
+    account_context: super::traits::BrokerAccountContext,
 }
 
 impl AccountSyncJob {
@@ -60,6 +61,7 @@ impl AccountSyncJob {
             }
         };
         Some(Self {
+            account_context: super::traits::BrokerAccountContext::from_account(&account),
             account_id: account.id,
             account_name: account.name,
             broker_account_id: account.provider_account_id?,
@@ -503,6 +505,7 @@ mod tests {
         broker_accounts: Vec<BrokerAccount>,
         activity_pages: Mutex<Vec<PaginatedUniversalActivity>>,
         activity_calls: Mutex<Vec<BrokerTrackingMode>>,
+        activity_contexts: Mutex<Vec<super::super::traits::BrokerAccountContext>>,
         holdings_calls: Mutex<Vec<BrokerTrackingMode>>,
     }
 
@@ -538,6 +541,22 @@ mod tests {
                 return Ok(PaginatedUniversalActivity::default());
             }
             Ok(pages.remove(0))
+        }
+
+        #[allow(clippy::too_many_arguments)]
+        async fn get_account_activities_with_context(
+            &self,
+            account_id: &str,
+            mode: BrokerTrackingMode,
+            context: &super::super::traits::BrokerAccountContext,
+            start: Option<&str>,
+            end: Option<&str>,
+            offset: Option<i64>,
+            limit: Option<i64>,
+        ) -> Result<PaginatedUniversalActivity> {
+            self.activity_contexts.lock().unwrap().push(context.clone());
+            self.get_account_activities(account_id, mode, start, end, offset, limit)
+                .await
         }
 
         async fn get_account_holdings(
@@ -837,6 +856,63 @@ mod tests {
         let calls = service.calls.lock().unwrap();
         assert_eq!(calls.activity_successes.len(), 0);
         assert_eq!(calls.activity_needs_review.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn every_activity_page_receives_the_accounts_original_context() {
+        let context = super::super::traits::BrokerAccountContext {
+            account_type: Some("SECURITIES".into()),
+            raw_type: Some("TFSA".into()),
+        };
+        let account = Account {
+            account_type: "SECURITIES".into(),
+            meta: Some(r#"{"broker_raw_type":"TFSA","raw_type":"RRSP"}"#.into()),
+            ..synced_account("account-1", "broker-1", TrackingMode::Transactions)
+        };
+        let service = Arc::new(MockSyncService {
+            accounts: vec![account],
+            ..MockSyncService::default()
+        });
+        let api = MockBrokerApiClient {
+            activity_pages: Mutex::new(vec![
+                PaginatedUniversalActivity {
+                    data: vec![AccountUniversalActivity {
+                        id: Some("activity-1".into()),
+                        ..AccountUniversalActivity::default()
+                    }],
+                    pagination: Some(PaginationDetails {
+                        has_more: Some(true),
+                        total: Some(2),
+                        ..PaginationDetails::default()
+                    }),
+                },
+                PaginatedUniversalActivity {
+                    data: vec![AccountUniversalActivity {
+                        id: Some("activity-2".into()),
+                        ..AccountUniversalActivity::default()
+                    }],
+                    pagination: Some(PaginationDetails {
+                        has_more: Some(false),
+                        total: Some(2),
+                        ..PaginationDetails::default()
+                    }),
+                },
+            ]),
+            ..MockBrokerApiClient::default()
+        };
+        orchestrator(service)
+            .sync_account_data(
+                &api,
+                &HashSet::from(["broker-1".into()]),
+                &HashMap::from([("broker-1".into(), ready_status("2026-05-22", None))]),
+                &HashMap::new(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(
+            *api.activity_contexts.lock().unwrap(),
+            vec![context.clone(), context]
+        );
     }
 
     #[tokio::test]

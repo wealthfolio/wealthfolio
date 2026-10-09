@@ -29,6 +29,41 @@ impl BrokerTrackingMode {
     }
 }
 
+/// Local account classification and the original provider label, used for diagnostics only.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct BrokerAccountContext {
+    pub account_type: Option<String>,
+    pub raw_type: Option<String>,
+}
+
+impl BrokerAccountContext {
+    pub fn from_account(account: &Account) -> Self {
+        let metadata = account
+            .meta
+            .as_deref()
+            .and_then(|value| serde_json::from_str::<serde_json::Value>(value).ok());
+        let raw_type = metadata.as_ref().and_then(|meta| {
+            ["broker_raw_type", "raw_type"].iter().find_map(|key| {
+                meta.get(key)
+                    .and_then(serde_json::Value::as_str)
+                    .map(str::trim)
+                    .filter(|value| !value.is_empty())
+                    .map(String::from)
+            })
+        });
+        let account_type = match account.account_type.as_str() {
+            "SECURITIES" | "CASH" | "CREDIT_CARD" | "CRYPTOCURRENCY" => {
+                Some(account.account_type.clone())
+            }
+            _ => None,
+        };
+        Self {
+            account_type,
+            raw_type,
+        }
+    }
+}
+
 /// Trait for fetching data from the cloud broker API
 #[async_trait]
 pub trait BrokerApiClient: Send + Sync {
@@ -62,6 +97,29 @@ pub trait BrokerApiClient: Send + Sync {
         offset: Option<i64>,
         limit: Option<i64>,
     ) -> Result<PaginatedUniversalActivity>;
+
+    /// Backward-compatible extension: clients without diagnostic headers keep the same behavior.
+    #[allow(clippy::too_many_arguments)]
+    async fn get_account_activities_with_context(
+        &self,
+        account_id: &str,
+        tracking_mode: BrokerTrackingMode,
+        _context: &BrokerAccountContext,
+        start_date: Option<&str>,
+        end_date: Option<&str>,
+        offset: Option<i64>,
+        limit: Option<i64>,
+    ) -> Result<PaginatedUniversalActivity> {
+        self.get_account_activities(
+            account_id,
+            tracking_mode,
+            start_date,
+            end_date,
+            offset,
+            limit,
+        )
+        .await
+    }
 
     /// Fetch current holdings for a broker account.
     ///
@@ -182,4 +240,45 @@ pub trait BrokerSyncServiceTrait: Send + Sync {
         positions: Vec<HoldingsPosition>,
         option_positions: Vec<HoldingsOptionPosition>,
     ) -> Result<(HoldingsDiff, usize, Vec<String>)>;
+}
+
+#[cfg(test)]
+mod account_context_tests {
+    use super::*;
+
+    #[test]
+    fn account_context_uses_local_type_and_original_broker_label() {
+        let account = Account { account_type: "CASH".into(),
+            meta: Some(r#"{"broker_account_type":"SECURITIES","broker_raw_type":"TFSA","raw_type":"RRSP"}"#.into()),
+            ..Account::default() };
+        let context = BrokerAccountContext::from_account(&account);
+        assert_eq!(context.account_type.as_deref(), Some("CASH"));
+        assert_eq!(context.raw_type.as_deref(), Some("TFSA"));
+    }
+
+    #[test]
+    fn account_context_falls_back_only_to_raw_type_and_tolerates_old_metadata() {
+        for (meta, expected) in [
+            (
+                Some(r#"{"broker_raw_type":"  ","raw_type":" RRSP "}"#),
+                Some("RRSP"),
+            ),
+            (
+                Some(r#"{"broker_raw_type":4,"raw_type":"IRA"}"#),
+                Some("IRA"),
+            ),
+            (Some(r#"{"broker_account_type":"SECURITIES"}"#), None),
+            (Some("invalid json"), None),
+            (None, None),
+        ] {
+            let account = Account {
+                account_type: "unknown".into(),
+                meta: meta.map(str::to_owned),
+                ..Account::default()
+            };
+            let context = BrokerAccountContext::from_account(&account);
+            assert_eq!(context.raw_type.as_deref(), expected);
+            assert!(context.account_type.is_none());
+        }
+    }
 }
