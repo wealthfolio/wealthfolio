@@ -1,11 +1,10 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { HoldingType } from "@/lib/constants";
 import type { Holding } from "@/lib/types";
-import { PlannerInput } from "./rebalance-tab";
 import { EligibleHoldingsSelector } from "./eligible-holdings-selector";
 import { getEligibleHoldings, groupEligibleHoldings } from "./eligible-holdings";
 
@@ -34,10 +33,11 @@ function holding(
   holdingType: Holding["holdingType"] = HoldingType.SECURITY,
   currency = "USD",
   exchangeMic?: string,
+  accountId = "account-1",
 ): Holding {
   return {
-    id: `${assetId}-${symbol}`,
-    accountId: "account-1",
+    id: `${assetId}-${symbol}-${accountId}`,
+    accountId,
     holdingType,
     instrument: {
       id: assetId,
@@ -50,6 +50,11 @@ function holding(
     },
   } as Holding;
 }
+
+const ACCOUNT_NAMES = new Map([
+  ["account-1", "Brokerage"],
+  ["account-2", "Retirement"],
+]);
 
 function Harness({ holdings }: { holdings: Holding[] }) {
   const [excludedAssetIds, setExcludedAssetIds] = useState<Set<string>>(new Set());
@@ -69,6 +74,7 @@ function Harness({ holdings }: { holdings: Holding[] }) {
       onClear={() =>
         setExcludedAssetIds(new Set(getEligibleHoldings(holdings).map((row) => row.assetId)))
       }
+      accountNames={ACCOUNT_NAMES}
     />
   );
 }
@@ -77,7 +83,16 @@ describe("EligibleHoldingsSelector", () => {
   const holdings = [
     holding("asset-bond", "BND", "Bond fund", "BOND"),
     holding("asset-vti", "VTI", "Vanguard Total Stock", "EQUITY"),
-    holding("asset-vti", "VTI", "Vanguard Total Stock", "EQUITY", HoldingType.SECURITY),
+    holding(
+      "asset-vti",
+      "VTI",
+      "Vanguard Total Stock",
+      "EQUITY",
+      HoldingType.SECURITY,
+      "USD",
+      undefined,
+      "account-2",
+    ),
     holding("asset-unknown", "MYST", "Mystery asset"),
     holding("cash-usd", "USD", "Cash", undefined, HoldingType.CASH),
   ];
@@ -85,8 +100,8 @@ describe("EligibleHoldingsSelector", () => {
   it("selects each unique non-cash instrument initially and groups it by type", () => {
     render(<Harness holdings={holdings} />);
 
-    expect(screen.getByRole("button", { name: /Eligible holdings/ })).toHaveTextContent(
-      "All holdings selected",
+    expect(screen.getByRole("button", { name: /Eligible securities/ })).toHaveTextContent(
+      "All securities selected",
     );
 
     expect(groupEligibleHoldings(getEligibleHoldings(holdings)).map((group) => group.key)).toEqual([
@@ -98,16 +113,28 @@ describe("EligibleHoldingsSelector", () => {
     expect(screen.queryByText("Equity")).not.toBeInTheDocument();
   });
 
+  it("says which accounts hold a security, merging its rows into one choice", async () => {
+    const user = userEvent.setup();
+    render(<Harness holdings={holdings} />);
+    await user.click(screen.getByRole("button", { name: /Eligible securities/ }));
+
+    expect(
+      getEligibleHoldings(holdings).find((row) => row.assetId === "asset-vti")?.accountIds,
+    ).toEqual(["account-1", "account-2"]);
+    expect(screen.getByText("In Brokerage · Retirement")).toBeInTheDocument();
+    expect(screen.getAllByRole("option", { name: /VTI/ })).toHaveLength(1);
+  });
+
   it("announces selection state on the trigger and rows", async () => {
     const user = userEvent.setup();
     render(<Harness holdings={holdings} />);
 
     expect(
-      screen.getByRole("button", { name: /Eligible holdings.*All holdings selected/i }),
+      screen.getByRole("button", { name: /Eligible securities.*All securities selected/i }),
     ).toBeInTheDocument();
 
     await user.click(
-      screen.getByRole("button", { name: /Eligible holdings.*All holdings selected/i }),
+      screen.getByRole("button", { name: /Eligible securities.*All securities selected/i }),
     );
     const vti = screen.getByRole("option", { name: /VTI.*selected/i });
     expect(vti).toHaveAccessibleName(/selected/i);
@@ -119,19 +146,19 @@ describe("EligibleHoldingsSelector", () => {
   it("opens grouped rows, searches by name, and toggles individual holdings", async () => {
     const user = userEvent.setup();
     render(<Harness holdings={holdings} />);
-    await user.click(screen.getByRole("button", { name: /Eligible holdings/ }));
+    await user.click(screen.getByRole("button", { name: /Eligible securities/ }));
 
     expect(screen.getByText("Equity")).not.toBeInstanceOf(HTMLButtonElement);
     expect(screen.getByText("Bond")).toBeInTheDocument();
     expect(screen.getByText("Other")).toBeInTheDocument();
 
-    const search = screen.getByPlaceholderText("Search holdings");
+    const search = screen.getByPlaceholderText("Search securities");
     await user.type(search, "Vanguard");
     expect(screen.getByText("VTI")).toBeInTheDocument();
     expect(screen.queryByText("BND")).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("option", { name: /VTI.*Vanguard Total Stock/i }));
-    expect(screen.getByRole("button", { name: /Eligible holdings/ })).toHaveTextContent(
+    expect(screen.getByRole("button", { name: /Eligible securities/ })).toHaveTextContent(
       "2 of 3 selected",
     );
   });
@@ -147,7 +174,7 @@ describe("EligibleHoldingsSelector", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: /Eligible holdings/ }));
+    await user.click(screen.getByRole("button", { name: /Eligible securities/ }));
     expect(
       screen.getByRole("option", { name: /ABC.*Acme Corp.*XNAS.*USD.*selected/i }),
     ).toBeInTheDocument();
@@ -162,13 +189,13 @@ describe("EligibleHoldingsSelector", () => {
         .filter((option) => option.getAttribute("aria-selected") === "true"),
     ).toHaveLength(1);
 
-    await user.click(screen.getByPlaceholderText("Search holdings"));
+    await user.click(screen.getByPlaceholderText("Search securities"));
     await user.keyboard("{ArrowDown}{Enter}");
 
     expect(
       screen.getByRole("option", { name: /ABC.*Acme Corp.*XTSE.*CAD.*not selected/i }),
     ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Eligible holdings/ })).toHaveTextContent(
+    expect(screen.getByRole("button", { name: /Eligible securities/ })).toHaveTextContent(
       "1 of 2 selected",
     );
   });
@@ -176,47 +203,21 @@ describe("EligibleHoldingsSelector", () => {
   it("supports Clear and Select all and explains the empty state", async () => {
     const user = userEvent.setup();
     render(<Harness holdings={holdings} />);
-    await user.click(screen.getByRole("button", { name: /Eligible holdings/ }));
+    await user.click(screen.getByRole("button", { name: /Eligible securities/ }));
     await user.click(screen.getByRole("button", { name: "Clear" }));
 
-    expect(screen.getByRole("button", { name: /Eligible holdings/ })).toHaveTextContent(
+    expect(screen.getByRole("button", { name: /Eligible securities/ })).toHaveTextContent(
       "0 of 3 selected",
     );
     expect(
-      screen.getByText("Select at least one holding to calculate a plan."),
+      screen.getByText(
+        "No security selected. Increases that cannot be placed will show as unresolved amounts.",
+      ),
     ).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Select all" }));
-    expect(screen.getByRole("button", { name: /Eligible holdings/ })).toHaveTextContent(
-      "All holdings selected",
+    expect(screen.getByRole("button", { name: /Eligible securities/ })).toHaveTextContent(
+      "All securities selected",
     );
-  });
-
-  it("disables Calculate and Enter when no holding is eligible", () => {
-    const onCalculate = vi.fn();
-    render(
-      <PlannerInput
-        description=""
-        cashValue="100"
-        availableCash={100}
-        currency="USD"
-        onCashChange={vi.fn()}
-        onCalculate={onCalculate}
-        hasPlan={false}
-        isCalculating={false}
-        isSourceLoading={false}
-        hasEligibleHoldings={false}
-        eligibleHoldingsSelector={<p>Select at least one holding to calculate a plan.</p>}
-      />,
-    );
-
-    const calculate = screen.getByRole("button", { name: "Calculate plan" });
-    expect(calculate).toBeDisabled();
-    expect(
-      screen.getByText("Select at least one holding to calculate a plan."),
-    ).toBeInTheDocument();
-
-    fireEvent.keyDown(screen.getByRole("textbox"), { key: "Enter" });
-    expect(onCalculate).not.toHaveBeenCalled();
   });
 });

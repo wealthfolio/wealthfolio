@@ -12,7 +12,7 @@ interface OverviewTabProps {
   taxonomyId: string;
   targetName?: string;
   target?: AllocationTarget | null;
-  onRebalanceClick?: () => void;
+  onWorksheetClick?: () => void;
 }
 
 export function OverviewTab({
@@ -20,7 +20,7 @@ export function OverviewTab({
   taxonomyId,
   targetName,
   target,
-  onRebalanceClick,
+  onWorksheetClick,
 }: OverviewTabProps) {
   const { t } = useTranslation();
   const { data: taxonomy } = useTaxonomy(taxonomyId);
@@ -65,7 +65,7 @@ export function OverviewTab({
           report={resolvedReport}
           statusDescription={gapStatus}
           bandLabel={bandLabel}
-          onRebalanceClick={onRebalanceClick}
+          onWorksheetClick={onWorksheetClick}
         />
       </div>
 
