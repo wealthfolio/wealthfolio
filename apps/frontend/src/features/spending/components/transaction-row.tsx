@@ -5,6 +5,7 @@ import type { Account } from "@/lib/types";
 import { AccountType } from "@/lib/constants";
 import { TruncatedText } from "@/components/truncated-text";
 import { HOVER_SLOT } from "@/lib/hover-slot";
+import { isRowBodyClick } from "@/lib/row-click";
 import { cn } from "@/lib/utils";
 import {
   Button,
@@ -116,9 +117,10 @@ function TransactionRowImpl({
       ref={ref}
       data-index={dataIndex}
       data-state={isSelected ? "selected" : undefined}
-      className={cn("group/row", row.needsReview && "bg-amber-500/5")}
+      className={cn("group/row cursor-pointer", row.needsReview && "bg-amber-500/5")}
+      onClick={(e) => isRowBodyClick(e) && onEdit(row)}
     >
-      <TableCell className="relative w-10 px-3 py-2">
+      <TableCell className="relative w-10 px-3 py-2" data-row-click-ignore>
         {row.needsReview && (
           <span className="absolute inset-y-0 left-0 w-[3px] bg-amber-500" aria-hidden="true" />
         )}
@@ -263,7 +265,7 @@ function TransactionRowImpl({
         {sign}
         <PrivacyAmount value={Math.abs(safeAmount)} currency={a.currency} />
       </TableCell>
-      <TableCell className="w-10 px-3 py-2">
+      <TableCell className="w-10 px-3 py-2" data-row-click-ignore>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button

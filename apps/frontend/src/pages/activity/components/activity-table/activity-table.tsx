@@ -15,6 +15,7 @@ import {
 } from "@/lib/activity-utils";
 import { ActivityType, getExchangeDisplayName } from "@/lib/constants";
 import { formatOptionSubtitle, parseOccSymbol } from "@/lib/occ-symbol";
+import { isRowBodyClick } from "@/lib/row-click";
 import { useSettingsContext } from "@/lib/settings-provider";
 import { ActivityDetails } from "@/lib/types";
 import { formatDateTime } from "@/lib/utils";
@@ -798,10 +799,14 @@ export const ActivityTable = ({
                   key={virtualItem.key}
                   ref={virtualizer.measureElement}
                   data-index={virtualItem.index}
-                  className="group/row"
+                  className="group/row cursor-pointer"
+                  onClick={(e) => isRowBodyClick(e) && handleEdit(row.original)}
                 >
                   {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id}>
+                    <TableCell
+                      key={cell.id}
+                      data-row-click-ignore={cell.column.id === "actions" || undefined}
+                    >
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </TableCell>
                   ))}
