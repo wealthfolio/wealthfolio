@@ -35,8 +35,9 @@ pub use activities_model::{
     ImportAssetPreviewStatus, ImportMapping, ImportMappingData, ImportTemplate, ImportTemplateData,
     ImportTemplateScope, IncomeData, InternalTransferPairRequest, InternalTransferPairResponse,
     LinkedTransfer, NewActivity, PrepareActivitiesResult, PreviewedActivityUpdate,
-    SaveBrokerSyncProfileRulesRequest, Sort, TemplateKind, TransferMatchCandidate,
-    TransferMatchCandidateRequest, UnlinkedTransfer, UnlinkedTransfers, UnlinkedTransfersRequest,
+    SaveBrokerSyncProfileRulesRequest, Sort, SuppressedActivity, TemplateKind,
+    TransferMatchCandidate, TransferMatchCandidateRequest, UnlinkedTransfer, UnlinkedTransfers,
+    UnlinkedTransfersRequest,
 };
 pub use activities_service::ActivityService;
 pub use activities_traits::{ActivityRepositoryTrait, ActivityServiceTrait};
