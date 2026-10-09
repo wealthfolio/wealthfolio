@@ -50,6 +50,8 @@ interface TransactionDayHeaderProps {
    * are pending, since that day is still missing rows.
    */
   isPartial: boolean;
+  /** Columns between the checkbox and the amount, which the date label spans. */
+  labelColSpan?: number;
   /**
    * Virtualizer wiring: it measures the rendered header through the ref and
    * identifies it by `data-index`. Both are unset when the list renders
@@ -67,6 +69,7 @@ function TransactionDayHeaderImpl({
   selectionState,
   onToggleDay,
   isPartial,
+  labelColSpan = 3,
 }: TransactionDayHeaderProps) {
   const { t } = useTranslation();
   const label = useDayLabel(group, appTimezone);
@@ -88,7 +91,7 @@ function TransactionDayHeaderImpl({
           }
         />
       </TableCell>
-      <TableCell colSpan={3} className="px-3 py-1.5">
+      <TableCell colSpan={labelColSpan} className="px-3 py-1.5">
         <div className="flex items-baseline gap-2">
           <span className="text-xs font-medium">{label}</span>
           {/* "1 transaction" restates the single row below it, so the count
