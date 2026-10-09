@@ -21,12 +21,16 @@ use crate::request_metadata::{
 use wealthfolio_core::errors::{Error, Result};
 
 use super::broker::{BrokerApiClient, BrokerTrackingMode};
+use crate::broker::BrokerAccountContext;
 
 /// Default timeout for API requests.
 const DEFAULT_TIMEOUT_SECS: u64 = 30;
 
 const TRACKING_MODE_HEADER_NAME: HeaderName =
     HeaderName::from_static("x-wealthfolio-tracking-mode");
+const ACCOUNT_TYPE_HEADER_NAME: HeaderName = HeaderName::from_static("x-wealthfolio-account-type");
+const ACCOUNT_RAW_TYPE_HEADER_NAME: HeaderName =
+    HeaderName::from_static("x-wealthfolio-account-raw-type");
 
 /// Default base URL for Wealthfolio Connect cloud service.
 pub fn default_cloud_api_url() -> &'static str {
@@ -197,18 +201,36 @@ impl ConnectApiClient {
         &self,
         client_request_id: &str,
         tracking_mode: BrokerTrackingMode,
+        account_context: Option<&BrokerAccountContext>,
     ) -> Result<HeaderMap> {
         let mut headers = self.headers(client_request_id)?;
         headers.insert(
             TRACKING_MODE_HEADER_NAME,
             HeaderValue::from_static(tracking_mode.as_header_value()),
         );
+        if let Some(context) = account_context {
+            for (name, value) in [
+                (ACCOUNT_TYPE_HEADER_NAME, context.account_type.as_deref()),
+                (ACCOUNT_RAW_TYPE_HEADER_NAME, context.raw_type.as_deref()),
+            ] {
+                if let Some(value) = value
+                    .filter(|value| !value.bytes().any(|byte| byte.is_ascii_control()))
+                    .map(str::trim)
+                    .filter(|value| !value.is_empty() && value.len() <= 64 && value.is_ascii())
+                {
+                    // Malformed optional metadata must never stop a brokerage sync.
+                    if let Ok(value) = HeaderValue::from_str(value) {
+                        headers.insert(name, value);
+                    }
+                }
+            }
+        }
         Ok(headers)
     }
 
     /// Make a GET request and parse the response.
     async fn get<T: DeserializeOwned>(&self, path: &str) -> Result<T> {
-        self.get_with_tracking_mode(path, None).await
+        self.get_with_tracking_mode(path, None, None).await
     }
 
     /// Make an account-scoped GET request with the account's configured tracking mode.
@@ -217,19 +239,21 @@ impl ConnectApiClient {
         path: &str,
         tracking_mode: BrokerTrackingMode,
     ) -> Result<T> {
-        self.get_with_tracking_mode(path, Some(tracking_mode)).await
+        self.get_with_tracking_mode(path, Some(tracking_mode), None)
+            .await
     }
 
     async fn get_with_tracking_mode<T: DeserializeOwned>(
         &self,
         path: &str,
         tracking_mode: Option<BrokerTrackingMode>,
+        account_context: Option<&BrokerAccountContext>,
     ) -> Result<T> {
         let context = CloudRequestContext::new("GET", path, None);
         let url = format!("{}{}", self.base_url, path);
         let headers = match tracking_mode {
             Some(tracking_mode) => {
-                self.account_headers(&context.client_request_id, tracking_mode)?
+                self.account_headers(&context.client_request_id, tracking_mode, account_context)?
             }
             None => self.headers(&context.client_request_id)?,
         };
@@ -330,6 +354,29 @@ impl ConnectApiClient {
         offset: Option<i64>,
         limit: Option<i64>,
     ) -> Result<PaginatedUniversalActivity> {
+        self.get_account_activities_with_context(
+            account_id,
+            tracking_mode,
+            &BrokerAccountContext::default(),
+            start_date,
+            end_date,
+            offset,
+            limit,
+        )
+        .await
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub async fn get_account_activities_with_context(
+        &self,
+        account_id: &str,
+        tracking_mode: BrokerTrackingMode,
+        account_context: &BrokerAccountContext,
+        start_date: Option<&str>,
+        end_date: Option<&str>,
+        offset: Option<i64>,
+        limit: Option<i64>,
+    ) -> Result<PaginatedUniversalActivity> {
         let mut path = format!("/api/v1/sync/brokerage/accounts/{}/activities", account_id);
 
         // Build query parameters
@@ -352,7 +399,8 @@ impl ConnectApiClient {
 
         debug!("[ConnectApi] Fetching activities from: {}", path);
 
-        self.get_account_scoped(&path, tracking_mode).await
+        self.get_with_tracking_mode(&path, Some(tracking_mode), Some(account_context))
+            .await
     }
 
     /// Fetch current holdings for a broker account.
@@ -561,6 +609,30 @@ impl BrokerApiClient for ConnectApiClient {
         .await
     }
 
+    #[allow(clippy::too_many_arguments)]
+    async fn get_account_activities_with_context(
+        &self,
+        account_id: &str,
+        tracking_mode: BrokerTrackingMode,
+        context: &BrokerAccountContext,
+        start_date: Option<&str>,
+        end_date: Option<&str>,
+        offset: Option<i64>,
+        limit: Option<i64>,
+    ) -> Result<PaginatedUniversalActivity> {
+        ConnectApiClient::get_account_activities_with_context(
+            self,
+            account_id,
+            tracking_mode,
+            context,
+            start_date,
+            end_date,
+            offset,
+            limit,
+        )
+        .await
+    }
+
     /// Fetch current holdings for a broker account.
     async fn get_account_holdings(
         &self,
@@ -761,6 +833,72 @@ mod tests {
             );
             handle.join().expect("server thread");
         }
+    }
+
+    #[tokio::test]
+    async fn activity_request_sends_account_context_without_changing_tracking_mode() {
+        let (base_url, captured, handle) =
+            start_one_request_server(200, r#"{"data":[],"pagination":{}}"#, None);
+        let client = ConnectApiClient::new(&base_url, "test-token").unwrap();
+        client
+            .get_account_activities_with_context(
+                "broker-account",
+                BrokerTrackingMode::Transactions,
+                &BrokerAccountContext {
+                    account_type: Some("SECURITIES".into()),
+                    raw_type: Some("TFSA".into()),
+                },
+                None,
+                None,
+                Some(500),
+                Some(500),
+            )
+            .await
+            .unwrap();
+        let headers = captured.lock().unwrap().clone().expect("captured request");
+        assert_eq!(
+            headers
+                .get(ACCOUNT_TYPE_HEADER_NAME.as_str())
+                .map(String::as_str),
+            Some("SECURITIES")
+        );
+        assert_eq!(
+            headers
+                .get(ACCOUNT_RAW_TYPE_HEADER_NAME.as_str())
+                .map(String::as_str),
+            Some("TFSA")
+        );
+        assert_eq!(
+            headers
+                .get(TRACKING_MODE_HEADER_NAME.as_str())
+                .map(String::as_str),
+            Some("transactions")
+        );
+        handle.join().expect("server thread");
+    }
+
+    #[test]
+    fn optional_account_context_never_breaks_request_headers() {
+        let client = ConnectApiClient::new("https://api.wealthfolio.app", "test-token").unwrap();
+        for raw_type in ["", "\r\ninjected: value", "épargne", &"X".repeat(65)] {
+            let headers = client
+                .account_headers(
+                    "app:request",
+                    BrokerTrackingMode::Holdings,
+                    Some(&BrokerAccountContext {
+                        account_type: None,
+                        raw_type: Some(raw_type.into()),
+                    }),
+                )
+                .unwrap();
+            assert!(!headers.contains_key(ACCOUNT_RAW_TYPE_HEADER_NAME));
+            assert_eq!(headers.get(TRACKING_MODE_HEADER_NAME).unwrap(), "holdings");
+        }
+        let headers = client
+            .account_headers("app:request", BrokerTrackingMode::Holdings, None)
+            .unwrap();
+        assert!(!headers.contains_key(ACCOUNT_TYPE_HEADER_NAME));
+        assert!(!headers.contains_key(ACCOUNT_RAW_TYPE_HEADER_NAME));
     }
 
     #[tokio::test]

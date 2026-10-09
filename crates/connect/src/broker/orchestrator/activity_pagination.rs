@@ -15,6 +15,7 @@ impl<P: SyncProgressReporter> SyncOrchestrator<P> {
         account_name: &str,
         broker_account_id: &str,
         tracking_mode: BrokerTrackingMode,
+        account_context: &super::super::traits::BrokerAccountContext,
         start_date: Option<&str>,
         end_date: Option<&str>,
         import_run_id: Option<String>,
@@ -40,9 +41,10 @@ impl<P: SyncProgressReporter> SyncOrchestrator<P> {
             }
 
             let page = api_client
-                .get_account_activities(
+                .get_account_activities_with_context(
                     broker_account_id,
                     tracking_mode,
+                    account_context,
                     start_date,
                     end_date,
                     Some(offset),
