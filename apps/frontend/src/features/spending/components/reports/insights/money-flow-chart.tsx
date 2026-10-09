@@ -180,7 +180,8 @@ export function MoneyFlowChart({
       ? Math.min(MIDDLE_LABEL_WIDTH[device], columnGap - LABEL_GAP * 3)
       : MIDDLE_LABEL_WIDTH[device];
 
-  // Touch has no hover: there a tap opens the tooltip instead (see `onClick`).
+  // Hover only: touch has none (a tap opens the tooltip, see `onClick`).
+  // Keyboard focus sets the tooltip directly, at every width.
   const activate = (next: ActiveNode | null) => {
     if (!isMobile) setActive(next);
   };
@@ -261,7 +262,7 @@ export function MoneyFlowChart({
           // A click focuses the node too; only keyboard focus pins the tooltip.
           if (!event.currentTarget.matches(":focus-visible")) return;
           focused.current = { node, ...box };
-          activate(focused.current);
+          setActive(focused.current);
         }}
         onBlur={() => {
           focused.current = null;

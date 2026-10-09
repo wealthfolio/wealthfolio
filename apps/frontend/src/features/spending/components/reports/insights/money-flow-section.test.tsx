@@ -329,6 +329,17 @@ describe("MoneyFlowSection", () => {
     expect(container.textContent).not.toMatch(/\$\d/);
   });
 
+  it("shows tooltips on keyboard focus at narrow widths too", () => {
+    setup({ isMobile: true });
+
+    const total = screen.getByRole("img", { name: "Total, $2,500" });
+    act(() => total.focus());
+
+    const tooltip = screen.getByRole("tooltip");
+    expect(total).toHaveAttribute("aria-describedby", tooltip.id);
+    expect(tooltip).toHaveTextContent("Money in, plus net refunds and any shortfall.");
+  });
+
   it("stops at groups on mobile and shows a tooltip on tap", () => {
     setup({ isMobile: true });
 
