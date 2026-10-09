@@ -186,15 +186,15 @@ export function DashboardContent({
   return (
     <div className="flex min-h-full flex-col">
       <div className="px-4 pb-1 pt-2 md:px-6 lg:px-8">
-        <div className="flex flex-wrap items-center gap-2">
-          <PortfolioUpdateTrigger
-            lastCalculatedAt={portfolioSourceDataAsOf}
-            notices={portfolioCurrentValuation?.summary.warnings}
-          >
-            <div className="min-w-0">
-              <p className="text-muted-foreground mb-1 truncate text-xs" title={scopeLabel}>
-                {scopeLabel ?? t("common:component.all_accounts")}
-              </p>
+        <div className="min-w-0">
+          <p className="text-muted-foreground mb-1 truncate text-xs" title={scopeLabel}>
+            {scopeLabel ?? t("common:component.all_accounts")}
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <PortfolioUpdateTrigger
+              lastCalculatedAt={portfolioSourceDataAsOf}
+              notices={portfolioCurrentValuation?.summary.warnings}
+            >
               <Balance
                 isLoading={isCurrentValuationLoading}
                 isUnavailable={isCurrentValuationUnavailable}
@@ -202,50 +202,46 @@ export function DashboardContent({
                 currency={baseCurrency}
                 displayCurrency={true}
               />
-              <div className="text-md flex min-h-5 items-center space-x-3">
-                {isPortfolioPerformanceLoading ? (
-                  <div className="flex items-center gap-3">
-                    <Skeleton className="h-4 w-24" />
-                    <div className="border-secondary my-1 border-r pr-2" />
-                    <Skeleton className="h-4 w-16" />
-                  </div>
-                ) : (
-                  <>
-                    {gainLossAmount == null ? (
-                      <span className="text-muted-foreground lg:text-md text-sm font-light">
-                        N/A
-                      </span>
-                    ) : (
-                      <GainAmount
-                        className="lg:text-md text-sm font-light"
-                        value={gainLossAmount}
-                        currency={baseCurrency}
-                        displayCurrency={false}
-                      />
-                    )}
-                    <div className="border-secondary my-1 border-r pr-2" />
-                    {simpleReturn == null ? (
-                      <span className="text-muted-foreground lg:text-md text-sm font-light">
-                        N/A
-                      </span>
-                    ) : (
-                      <GainPercent
-                        className="lg:text-md text-sm font-light"
-                        value={simpleReturn}
-                        animated={true}
-                      />
-                    )}
-                  </>
-                )}
-                {selectedInterval && (
-                  <span className="lg:text-md text-muted-foreground ml-1 text-sm font-light">
-                    {t(`ui:interval.${selectedInterval}`)}
-                  </span>
-                )}
+            </PortfolioUpdateTrigger>
+            <PrivacyToggle className="hover:bg-muted/50 bg-transparent" />
+          </div>
+          <div className="text-md flex min-h-5 items-center space-x-3">
+            {isPortfolioPerformanceLoading ? (
+              <div className="flex items-center gap-3">
+                <Skeleton className="h-4 w-24" />
+                <div className="border-secondary my-1 border-r pr-2" />
+                <Skeleton className="h-4 w-16" />
               </div>
-            </div>
-          </PortfolioUpdateTrigger>
-          <PrivacyToggle className="hover:bg-muted/50 bg-transparent" />
+            ) : (
+              <>
+                {gainLossAmount == null ? (
+                  <span className="text-muted-foreground lg:text-md text-sm font-light">N/A</span>
+                ) : (
+                  <GainAmount
+                    className="lg:text-md text-sm font-light"
+                    value={gainLossAmount}
+                    currency={baseCurrency}
+                    displayCurrency={false}
+                  />
+                )}
+                <div className="border-secondary my-1 border-r pr-2" />
+                {simpleReturn == null ? (
+                  <span className="text-muted-foreground lg:text-md text-sm font-light">N/A</span>
+                ) : (
+                  <GainPercent
+                    className="lg:text-md text-sm font-light"
+                    value={simpleReturn}
+                    animated={true}
+                  />
+                )}
+              </>
+            )}
+            {selectedInterval && (
+              <span className="lg:text-md text-muted-foreground ml-1 text-sm font-light">
+                {t(`ui:interval.${selectedInterval}`)}
+              </span>
+            )}
+          </div>
         </div>
       </div>
 

@@ -225,4 +225,42 @@ test("dashboard portfolio selection, creation, persistence, deletion and mobile 
   await expect(balanceValue).toContainText("1,000,200.00", {
     timeout: 30000,
   });
+  const longName = "Long-term savings and fixed income — retirement investment portfolio";
+  const longPortfolio = await page.request.post(`${BASE_URL}/api/v1/portfolios`, {
+    data: { name: longName, accountIds: [accountIds[0]] },
+  });
+  expect(longPortfolio.ok()).toBe(true);
+  await page.reload();
+  await filter.click();
+  await page.getByRole("option", { name: longName }).click();
+  for (const viewport of [
+    { width: 1440, height: 900 },
+    { width: 320, height: 740 },
+    { width: 390, height: 844 },
+  ]) {
+    await page.setViewportSize(viewport);
+    await expect(filter).toHaveAccessibleName(`Choose portfolio: ${longName}`);
+    await expect(balanceValue).toContainText("1,000,000.00");
+    await expect(async () => {
+      const layout = await page
+        .getByRole("button", { name: "Hide Balance", exact: true })
+        .evaluate((element) => {
+          const eye = element.getBoundingClientRect();
+          const balance = element
+            .parentElement!.querySelector('[data-testid="portfolio-balance"]')!
+            .getBoundingClientRect();
+          return {
+            centerDifference: Math.abs(eye.y + eye.height / 2 - balance.y - balance.height / 2),
+            gap: eye.x - balance.right,
+            overflow: document.documentElement.scrollWidth > innerWidth,
+            nestedInAnchor: Boolean(element.closest("a")),
+          };
+        });
+      expect(layout.centerDifference).toBeLessThan(2);
+      expect(layout.gap).toBeCloseTo(8, 0);
+      expect(layout.overflow).toBe(false);
+      expect(layout.nestedInAnchor).toBe(false);
+    }).toPass();
+    await page.screenshot({ path: testInfo.outputPath(`long-name-${viewport.width}.png`) });
+  }
 });
