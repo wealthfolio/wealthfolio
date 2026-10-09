@@ -112,6 +112,17 @@ impl RulesResolver {
             ));
         }
 
+        // ISS addresses a MOEX security by its bare SECID; coverage already
+        // limits this provider to MISX, so the ticker is not a guess.
+        if provider.as_ref() == "MOEX" {
+            return Some((
+                ProviderInstrument::EquitySymbol {
+                    symbol: ticker.clone(),
+                },
+                ResolutionSource::Rules,
+            ));
+        }
+
         let provider_ticker = if provider.as_ref() == "YAHOO" && !has_unverified_dotted_suffix {
             yahoo_equity_base_to_provider(ticker)
         } else {
@@ -777,7 +788,7 @@ mod tests {
     }
 
     /// The registry has no Alpha Vantage suffix for the Korea Exchange - 42 of
-    /// its 75 venues carry a Yahoo entry only - so an AV lookup there is a guess
+    /// its 76 venues carry a Yahoo entry only - so an AV lookup there is a guess
     /// even though the MIC itself is known.
     #[test]
     fn test_resolve_known_mic_without_provider_mapping_is_a_fallback() {
@@ -871,6 +882,20 @@ mod tests {
             identified.instrument.to_symbol_string(),
             "XETR:US0378331005"
         );
+    }
+
+    #[test]
+    fn test_resolve_equity_moex_uses_trusted_secid() {
+        let resolver = RulesResolver::new();
+        let context = make_equity_context("AFLT", Some("MISX"));
+
+        let resolved = resolver.resolve(&"MOEX".into(), &context).unwrap().unwrap();
+
+        assert_eq!(resolved.source, ResolutionSource::Rules);
+        match resolved.instrument {
+            ProviderInstrument::EquitySymbol { symbol } => assert_eq!(symbol.as_ref(), "AFLT"),
+            _ => panic!("Expected EquitySymbol"),
+        }
     }
 
     #[test]
