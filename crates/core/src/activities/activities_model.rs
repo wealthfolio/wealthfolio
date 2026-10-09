@@ -1290,7 +1290,8 @@ fn default_config_version() -> i32 {
 }
 
 /// A field mapping value: either a single column name or an ordered list of
-/// fallback columns (first non-empty value per row wins).
+/// columns. A list is joined for the comment field and used as fallbacks for
+/// other fields (first non-empty value per row wins).
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(untagged)]
 pub enum FieldMappingValue {

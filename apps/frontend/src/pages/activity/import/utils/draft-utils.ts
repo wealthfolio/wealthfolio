@@ -54,6 +54,28 @@ export function isFieldMapped(value: string | string[] | undefined, headers: str
   return headers.includes(value);
 }
 
+/** Separator between the values of several columns mapped to the comment. */
+export const COMMENT_COLUMN_SEPARATOR = " | ";
+
+/**
+ * Resolve a field's value from a row. Several columns mapped to the comment
+ * are joined; for any other field they are fallbacks (first non-empty wins).
+ */
+export function resolveMappedValue(
+  field: ImportFormat,
+  mappedHeader: string | string[] | undefined,
+  getValue: (header: string) => string | undefined,
+): string | undefined {
+  if (!mappedHeader) return undefined;
+  if (!Array.isArray(mappedHeader)) return getValue(mappedHeader);
+
+  const values = mappedHeader
+    .map((header) => getValue(header)?.trim())
+    .filter((value): value is string => Boolean(value));
+  if (field !== ImportFormat.COMMENT) return values[0];
+  return values.length > 0 ? values.join(COMMENT_COLUMN_SEPARATOR) : undefined;
+}
+
 export function mergeIssueMaps(
   current: Record<string, string[]>,
   incoming: Record<string, string[]>,
@@ -681,26 +703,11 @@ export function createDraftActivities(
     headerIndex[header] = idx;
   });
 
-  // Get column value — supports fallback columns when mapping is an array
-  const getColumnValue = (row: string[], field: ImportFormat): string | undefined => {
-    const csvHeader = fieldMappings[field];
-    if (!csvHeader) return undefined;
-
-    if (Array.isArray(csvHeader)) {
-      for (const h of csvHeader) {
-        const idx = headerIndex[h];
-        if (idx !== undefined) {
-          const val = row[idx]?.trim();
-          if (val) return val;
-        }
-      }
-      return undefined;
-    }
-
-    const idx = headerIndex[csvHeader];
-    if (idx === undefined) return undefined;
-    return row[idx];
-  };
+  const getColumnValue = (row: string[], field: ImportFormat): string | undefined =>
+    resolveMappedValue(field, fieldMappings[field], (header) => {
+      const idx = headerIndex[header];
+      return idx === undefined ? undefined : row[idx];
+    });
 
   // Numeric dates are ambiguous per row but usually not per column: one
   // "26/06/2026" among them fixes the day/month order for every other row.
