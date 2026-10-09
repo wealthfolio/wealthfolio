@@ -18,6 +18,7 @@ import {
   useDateFormatting,
   useNumberFormatting,
   type FormattingApi,
+  useIsMobile,
   useLocalizationSettings,
 } from "@wealthfolio/ui";
 
@@ -28,9 +29,9 @@ import type { ReportsRange } from "../../../lib/reports-period";
 import type { BudgetCategoryRow, BudgetSnapshot } from "../../../types/budget";
 import type { PaceState } from "../../../types/insight";
 import type { CategoryBreakdownRow, MonthBucket, MonthlyReport } from "../../../types/report";
-import { CategoryIcon } from "../../category-chips";
 import { CategoryHierarchyTable, type CategorySort } from "../category-hierarchy-table";
 import { formatMonthDay, formatMonthName, formatPercentValue } from "./format";
+import { MoneyFlowSection } from "./money-flow-section";
 
 // ─── shared chrome ────────────────────────────────────────────────────────
 
@@ -83,6 +84,13 @@ export function WhereIAmStage({
   reconciledPace,
   onCategoryClick,
 }: WhereIAmStageProps) {
+  const dateFormatting = useDateFormatting();
+  const isMobile = useIsMobile();
+  const periodLabel = useMemo(
+    () => buildPeriodSubtitle(range, dateFormatting),
+    [range, dateFormatting],
+  );
+
   return (
     <div className="flex flex-col gap-6">
       <div className="grid gap-4 md:grid-cols-3">
@@ -106,13 +114,18 @@ export function WhereIAmStage({
         />
         <NetCashflowCard months={months} currency={currency} isLoading={isLoading} />
       </div>
-      <CashflowOverview
-        range={range}
+      <MoneyFlowSection
+        // A new date range starts the flow fresh (no zoom carried over).
+        key={`${range.start.getTime()}:${range.end.getTime()}`}
+        periodLabel={periodLabel}
         currentReport={currentReport}
+        budget={budget}
         incomeCategories={incomeCategories}
         savingsCategories={savingsCategories}
         currency={currency}
         isLoading={isLoading}
+        isMobile={!!isMobile}
+        onCategoryClick={onCategoryClick}
       />
       <BreakdownCanvas
         currentReport={currentReport}
@@ -836,214 +849,6 @@ const NetCashflowCard: FC<NetCashflowCardProps> = ({ months, currency, isLoading
     </div>
   );
 };
-
-// ═════════════════════════════════════════════════════════════════════════
-// Cashflow detail — compact income/saving support for the headline card
-// ═════════════════════════════════════════════════════════════════════════
-
-interface CashflowOverviewProps {
-  range: ReportsRange;
-  currentReport: MonthlyReport | undefined;
-  incomeCategories: TaxonomyCategory[];
-  savingsCategories: TaxonomyCategory[];
-  currency: string;
-  isLoading: boolean;
-}
-
-function CashflowOverview({
-  range,
-  currentReport,
-  incomeCategories,
-  savingsCategories,
-  currency,
-  isLoading,
-}: CashflowOverviewProps) {
-  const dateFormatting = useDateFormatting();
-
-  const { t } = useTranslation();
-  const periodLabel = useMemo(
-    () => buildPeriodSubtitle(range, dateFormatting),
-    [range, dateFormatting],
-  );
-  const incomeRows = useMemo(
-    () => buildCashflowRows(currentReport?.incomeBreakdown ?? [], incomeCategories, t),
-    [currentReport?.incomeBreakdown, incomeCategories, t],
-  );
-  const savingsRows = useMemo(
-    () => buildCashflowRows(currentReport?.savingsBreakdown ?? [], savingsCategories, t),
-    [currentReport?.savingsBreakdown, savingsCategories, t],
-  );
-  const hasIncome = incomeRows.length > 0;
-  const hasSaving = savingsRows.length > 0;
-
-  if (!isLoading && !hasIncome && !hasSaving) return null;
-
-  return (
-    <section id="cashflow">
-      <header className="mb-3">
-        <h2 className="text-foreground text-base font-semibold tracking-tight">
-          {t("spending:whereIAm.incomeSaving")}
-        </h2>
-        <p className="text-muted-foreground text-xs">
-          {t("spending:whereIAm.nonSpendingCashflow", { period: periodLabel })}
-        </p>
-      </header>
-      <div className="border-border/60 bg-card/40 overflow-hidden rounded-2xl border backdrop-blur-xl">
-        {isLoading ? (
-          <div className="grid gap-4 p-4 md:grid-cols-2">
-            {Array.from({ length: 2 }).map((_, i) => (
-              <div key={i} className="space-y-2">
-                <Skeleton className="h-3 w-24" />
-                <Skeleton className="h-8 w-full" />
-                <Skeleton className="h-8 w-4/5" />
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div
-            className={cn(
-              "grid",
-              hasIncome &&
-                hasSaving &&
-                "divide-border/40 divide-y md:grid-cols-2 md:divide-x md:divide-y-0",
-            )}
-          >
-            {hasIncome && (
-              <CashflowGroup
-                label={t("spending:whereIAm.moneyIn")}
-                sublabel={t("spending:whereIAm.incomeSources")}
-                rows={incomeRows}
-                currency={currency}
-              />
-            )}
-            {hasSaving && (
-              <CashflowGroup
-                label={t("spending:whereIAm.setAside")}
-                sublabel={t("spending:whereIAm.savingDestinations")}
-                rows={savingsRows}
-                currency={currency}
-              />
-            )}
-          </div>
-        )}
-      </div>
-    </section>
-  );
-}
-
-interface CashflowGroupProps {
-  label: string;
-  sublabel: string;
-  rows: CashflowRow[];
-  currency: string;
-}
-
-function CashflowGroup({ label, sublabel, rows, currency }: CashflowGroupProps) {
-  const { t } = useTranslation();
-  const numberFormatting = useNumberFormatting();
-  const visibleRows = rows.slice(0, 4);
-  const hiddenCount = Math.max(0, rows.length - visibleRows.length);
-
-  return (
-    <div className="p-4">
-      <div className="mb-3">
-        <div className={LABEL_CLASS}>{label}</div>
-        <div className="text-muted-foreground/70 mt-0.5 text-xs">{sublabel}</div>
-      </div>
-      <div className="space-y-2">
-        {visibleRows.map((row) => (
-          <div key={row.id}>
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex min-w-0 items-center gap-2">
-                <span
-                  className="flex size-6 shrink-0 items-center justify-center rounded-full"
-                  style={{
-                    backgroundColor: `${row.color}24`,
-                    color: row.color,
-                  }}
-                >
-                  <CategoryIcon icon={row.icon} fallback={row.name} className="size-3" />
-                </span>
-                <span className="truncate text-sm font-medium">{row.name}</span>
-              </div>
-              <span className="text-sm font-semibold tabular-nums">
-                <PrivacyAmount value={row.amount} currency={currency} />
-              </span>
-            </div>
-            {visibleRows.length > 1 && (
-              <div className="mt-2 flex items-center gap-2">
-                <div className="bg-foreground/5 h-1 flex-1 overflow-hidden rounded-full">
-                  <div
-                    className="h-full rounded-full transition-all"
-                    style={{
-                      width: `${row.share}%`,
-                      backgroundColor: row.color,
-                    }}
-                  />
-                </div>
-                <span className="text-muted-foreground/70 w-9 text-right text-[11px] tabular-nums">
-                  {formatPercentValue(row.share, numberFormatting, { digits: 0 })}
-                </span>
-              </div>
-            )}
-          </div>
-        ))}
-        {hiddenCount > 0 && (
-          <div className="text-muted-foreground/70 text-xs tabular-nums">
-            {t("spending:whereIAm.moreCount", { count: hiddenCount })}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-interface CashflowRow {
-  id: string;
-  name: string;
-  color: string;
-  icon: string | null;
-  amount: number;
-  count: number;
-  share: number;
-}
-
-function buildCashflowRows(
-  breakdown: CategoryBreakdownRow[],
-  taxonomyCategories: TaxonomyCategory[],
-  t: TFunction,
-): CashflowRow[] {
-  const meta = new Map(taxonomyCategories.map((c) => [c.id, c]));
-  const byTop = new Map<string, CashflowRow>();
-  for (const row of breakdown) {
-    if (row.amount === 0) continue;
-    const topId =
-      row.categoryId === "__uncategorized__" ? row.categoryId : topCategoryId(row.categoryId, meta);
-    const top = meta.get(topId);
-    const existing = byTop.get(topId) ?? {
-      id: topId,
-      name:
-        topId === "__uncategorized__"
-          ? t("spending:insightsPage.uncategorized")
-          : (top?.name ?? topId),
-      color: topId === "__uncategorized__" ? "#9CA3AF" : (top?.color ?? "#9CA3AF"),
-      icon: top?.icon ?? null,
-      amount: 0,
-      count: 0,
-      share: 0,
-    };
-    existing.amount += row.amount;
-    existing.count += row.count;
-    byTop.set(topId, existing);
-  }
-
-  const rows = Array.from(byTop.values()).sort((a, b) => b.amount - a.amount);
-  const total = rows.reduce((sum, row) => sum + Math.max(0, row.amount), 0);
-  return rows.map((row) => ({
-    ...row,
-    share: total > 0 ? (Math.max(0, row.amount) / total) * 100 : 0,
-  }));
-}
 
 // ═════════════════════════════════════════════════════════════════════════
 // Breakdown canvas — chips + sort + footer wrapping the table
