@@ -14,8 +14,14 @@ export interface ProviderTemplate {
   lowPath?: string;
   volumePath?: string;
   headers?: string;
+  /** Defaults to GET. A POST template sends `body`, a JSON request template. */
+  method?: "GET" | "POST";
+  body?: string;
   testSymbol: string;
 }
+
+/** TMX Money's GraphQL API: TSX symbols and Fundserv mutual fund codes. */
+const TMX_MONEY_GRAPHQL = "https://app-money.tmx.com/graphql";
 
 export const LATEST_TEMPLATES: ProviderTemplate[] = [
   {
@@ -77,6 +83,26 @@ export const LATEST_TEMPLATES: ProviderTemplate[] = [
     url: "https://www.borsaitaliana.it/borsa/obbligazioni/mot/btp/scheda/{SYMBOL}.html?lang=en",
     pricePath: ".summary-value strong",
     testSymbol: "IT0001174611",
+  },
+  {
+    name: "TMX Money",
+    description: "Canadian stocks & funds (TSX symbol or Fundserv code)",
+    format: "json",
+    url: TMX_MONEY_GRAPHQL,
+    method: "POST",
+    body: JSON.stringify(
+      {
+        operationName: "getQuoteBySymbol",
+        variables: { symbol: "{SYMBOL}", locale: "en" },
+        query:
+          "query getQuoteBySymbol($symbol: String, $locale: String) { getQuoteBySymbol(symbol: $symbol, locale: $locale) { price datetime } }",
+      },
+      null,
+      2,
+    ),
+    pricePath: "$.data.getQuoteBySymbol.price",
+    datePath: "$.data.getQuoteBySymbol.datetime",
+    testSymbol: "RBF556",
   },
 ];
 
@@ -142,5 +168,40 @@ export const HISTORICAL_TEMPLATES: ProviderTemplate[] = [
     datePath: "$.prices[*][0]",
     volumePath: "$.total_volumes[*][1]",
     testSymbol: "bitcoin",
+  },
+  {
+    name: "TMX Money",
+    description: "Canadian stock & fund history (TSX symbol or Fundserv code)",
+    format: "json",
+    url: TMX_MONEY_GRAPHQL,
+    method: "POST",
+    // getCompanyPriceHistory returns about a month whatever the range; the
+    // download query returns the whole range, up to `limit` rows. Without
+    // `adjusted: false, unadjusted: true` closes before a split are rescaled.
+    body: JSON.stringify(
+      {
+        operationName: "getCompanyPriceHistoryForDownload",
+        variables: {
+          symbol: "{SYMBOL}",
+          start: "{FROM}",
+          end: "{TO}",
+          limit: 10000,
+          adjusted: false,
+          unadjusted: true,
+        },
+        query:
+          "query getCompanyPriceHistoryForDownload($symbol: String!, $start: String, $end: String, $limit: Int, $adjusted: Boolean, $unadjusted: Boolean) { getCompanyPriceHistoryForDownload(symbol: $symbol, start: $start, end: $end, limit: $limit, adjusted: $adjusted, unadjusted: $unadjusted) { datetime openPrice high low closePrice volume } }",
+      },
+      null,
+      2,
+    ),
+    pricePath: "$.data.getCompanyPriceHistoryForDownload[*].closePrice",
+    datePath: "$.data.getCompanyPriceHistoryForDownload[*].datetime",
+    dateFormat: "%Y-%m-%d",
+    openPath: "$.data.getCompanyPriceHistoryForDownload[*].openPrice",
+    highPath: "$.data.getCompanyPriceHistoryForDownload[*].high",
+    lowPath: "$.data.getCompanyPriceHistoryForDownload[*].low",
+    volumePath: "$.data.getCompanyPriceHistoryForDownload[*].volume",
+    testSymbol: "RBF556",
   },
 ];
