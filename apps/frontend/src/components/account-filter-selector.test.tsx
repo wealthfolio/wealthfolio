@@ -50,9 +50,9 @@ describe("AccountScopeSelector", () => {
     );
     await userEvent.click(screen.getByRole("combobox", { name: "Choose portfolio: All Accounts" }));
     expect(screen.getByRole("option", { name: "All Accounts" })).toBeVisible();
-    expect(screen.getByRole("option", { name: "Manage portfolios" })).toBeVisible();
-    expect(screen.queryByRole("option", { name: "Add portfolio" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("option", { name: "Edit portfolio" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Manage portfolios" })).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Add portfolio" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Edit portfolio" })).not.toBeInTheDocument();
     expect(screen.queryByRole("option", { name: /Everyday bank/ })).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole("option", { name: "Retirement" }));
     expect(onChange).toHaveBeenCalledWith({ type: "portfolio", portfolioId: "retirement" });
@@ -76,9 +76,9 @@ describe("AccountScopeSelector", () => {
       />,
     );
     await userEvent.click(screen.getByRole("combobox", { name: "Choose portfolio: All Accounts" }));
-    expect(screen.getAllByRole("option")).toHaveLength(2);
-    expect(screen.queryByRole("option", { name: "Manage portfolios" })).not.toBeInTheDocument();
-    await userEvent.click(screen.getByRole("option", { name: "Add portfolio" }));
+    expect(screen.getAllByRole("option")).toHaveLength(1);
+    expect(screen.queryByRole("button", { name: "Manage portfolios" })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Add portfolio" }));
     expect(onManage).toHaveBeenCalledOnce();
     expect(screen.queryByRole("option")).not.toBeInTheDocument();
   });
@@ -98,7 +98,7 @@ describe("AccountScopeSelector", () => {
     await userEvent.click(screen.getByRole("combobox", { name: "Choose portfolio: All Accounts" }));
     const sheet = screen.getByRole("dialog", { name: "Choose portfolio" });
     expect(within(sheet).getByRole("option", { name: "Retirement" })).toBeVisible();
-    await userEvent.click(within(sheet).getByRole("option", { name: "Manage portfolios" }));
+    await userEvent.click(within(sheet).getByRole("button", { name: "Manage portfolios" }));
     expect(onManage).toHaveBeenCalledOnce();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
@@ -120,8 +120,75 @@ describe("AccountScopeSelector", () => {
       await userEvent.click(
         screen.getByRole("combobox", { name: "Choose portfolio: All Accounts" }),
       );
-      expect(screen.getByRole("option", { name: "Manage portfolios" })).toBeVisible();
-      expect(screen.queryByRole("option", { name: "Add portfolio" })).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Manage portfolios" })).toBeVisible();
+      expect(screen.queryByRole("button", { name: "Add portfolio" })).not.toBeInTheDocument();
+    },
+  );
+
+  it.each([
+    { mobile: false, empty: false, action: "Manage portfolios" },
+    { mobile: true, empty: false, action: "Manage portfolios" },
+    { mobile: false, empty: true, action: "Add portfolio" },
+    { mobile: true, empty: true, action: "Add portfolio" },
+  ])("keeps $action available during an unmatched search (mobile: $mobile)", async (scenario) => {
+    viewport.mobile = scenario.mobile;
+    if (scenario.empty) inventory.portfolios = [];
+    const onManage = vi.fn();
+    render(
+      <AccountScopeSelector
+        value={{ type: "all" }}
+        onChange={vi.fn()}
+        portfoliosOnly
+        triggerVariant="icon"
+        onManagePortfolios={onManage}
+      />,
+    );
+    await userEvent.click(screen.getByRole("combobox", { name: "Choose portfolio: All Accounts" }));
+    await userEvent.type(screen.getByPlaceholderText("Search portfolios…"), "unmatched xyz");
+    expect(screen.getByText("No results.")).toBeVisible();
+    expect(screen.getByRole("separator")).toBeVisible();
+    expect(screen.queryByRole("option", { name: "All Accounts" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "Retirement" })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: scenario.action }));
+    expect(onManage).toHaveBeenCalledOnce();
+    expect(screen.queryByRole("option")).not.toBeInTheDocument();
+  });
+
+  it.each([false, true])(
+    "keeps matching results above the keyboard-accessible footer (mobile: %s)",
+    async (mobile) => {
+      viewport.mobile = mobile;
+      const onChange = vi.fn();
+      const onManage = vi.fn();
+      render(
+        <AccountScopeSelector
+          value={{ type: "all" }}
+          onChange={onChange}
+          portfoliosOnly
+          triggerVariant="icon"
+          onManagePortfolios={onManage}
+        />,
+      );
+      await userEvent.click(
+        screen.getByRole("combobox", { name: "Choose portfolio: All Accounts" }),
+      );
+      await userEvent.type(screen.getByPlaceholderText("Search portfolios…"), "Retirement");
+      const result = screen.getByRole("option", { name: "Retirement" });
+      const separator = screen.getByRole("separator");
+      const manage = screen.getByRole("button", { name: "Manage portfolios" });
+      expect(
+        result.compareDocumentPosition(separator) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+      expect(
+        separator.compareDocumentPosition(manage) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+      expect(screen.getByRole("listbox")).not.toContainElement(manage);
+      await userEvent.tab();
+      expect(manage).toHaveFocus();
+      await userEvent.keyboard("{Enter}");
+      expect(onManage).toHaveBeenCalledOnce();
+      expect(onChange).not.toHaveBeenCalled();
+      expect(screen.queryByRole("option")).not.toBeInTheDocument();
     },
   );
 });

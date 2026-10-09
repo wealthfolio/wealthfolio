@@ -48,7 +48,7 @@ test("dashboard portfolio selection, creation, persistence, deletion and mobile 
     timeout: 30000,
   });
   await filter.click();
-  await page.getByRole("option", { name: "Add portfolio" }).click();
+  await page.getByRole("button", { name: "Add portfolio" }).click();
   await expect(page).toHaveURL(`${BASE_URL}/settings/portfolios`);
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await page.getByRole("button", { name: "Add portfolio", exact: true }).click();
@@ -64,9 +64,9 @@ test("dashboard portfolio selection, creation, persistence, deletion and mobile 
   await page.goto(`${BASE_URL}/dashboard`, { waitUntil: "domcontentloaded" });
   await expect(filter).toHaveAccessibleName("Choose portfolio: All Accounts");
   await filter.click();
-  await expect(page.getByRole("option", { name: "Add portfolio" })).toHaveCount(0);
-  await expect(page.getByRole("option", { name: "Edit portfolio" })).toHaveCount(0);
-  await expect(page.getByRole("option", { name: "Manage portfolios" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Add portfolio" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Edit portfolio" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Manage portfolios" })).toBeVisible();
   await page.getByRole("option", { name: "Dashboard savings" }).click();
   await expect(filter).toHaveAccessibleName("Choose portfolio: Dashboard savings");
   await expect(balanceValue).toContainText("1,000,000.00", {
@@ -80,7 +80,14 @@ test("dashboard portfolio selection, creation, persistence, deletion and mobile 
     .poll(() => page.getByRole("dialog").evaluate((element) => getComputedStyle(element).opacity))
     .toBe("1");
   await page.screenshot({ path: testInfo.outputPath("desktop-portfolio-filter.png") });
-  await page.getByRole("option", { name: "Manage portfolios" }).click();
+  await page.getByPlaceholder("Search portfolios…").fill("unmatched xyz");
+  await expect(page.getByText("No results.", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Manage portfolios" })).toBeVisible();
+  await page.getByPlaceholder("Search portfolios…").fill("Dashboard savings");
+  await expect(page.getByRole("option", { name: "Dashboard savings" })).toBeVisible();
+  await page.keyboard.press("Tab");
+  await expect(page.getByRole("button", { name: "Manage portfolios" })).toBeFocused();
+  await page.keyboard.press("Enter");
   await expect(page).toHaveURL(`${BASE_URL}/settings/portfolios`);
   await page.getByRole("button", { name: "Open", exact: true }).click();
   await page.getByRole("menuitem", { name: "Edit", exact: true }).click();
@@ -97,7 +104,7 @@ test("dashboard portfolio selection, creation, persistence, deletion and mobile 
   await expect(balanceValue).toContainText("1,000,200.00");
   await expect(page.locator(`a[href="/accounts/${accountIds[1]}"]`)).toBeVisible();
   await filter.click();
-  await page.getByRole("option", { name: "Manage portfolios" }).click();
+  await page.getByRole("button", { name: "Manage portfolios" }).click();
   await expect(page).toHaveURL(`${BASE_URL}/settings/portfolios`);
   await page.getByRole("button", { name: "Open", exact: true }).click();
   await page.getByRole("menuitem", { name: "Edit", exact: true }).click();
@@ -135,7 +142,10 @@ test("dashboard portfolio selection, creation, persistence, deletion and mobile 
     expect((sheetBounds?.y ?? 0) + (sheetBounds?.height ?? 0)).toBeLessThanOrEqual(741);
   }).toPass();
   await page.screenshot({ path: testInfo.outputPath("mobile-portfolio-sheet.png") });
-  await sheet.getByRole("option", { name: "Manage portfolios" }).click();
+  await sheet.getByPlaceholder("Search portfolios…").fill("unmatched xyz");
+  await expect(sheet.getByText("No results.", { exact: true })).toBeVisible();
+  await expect(sheet.getByRole("button", { name: "Manage portfolios" })).toBeVisible();
+  await sheet.getByRole("button", { name: "Manage portfolios" }).click();
   await expect(sheet).not.toBeVisible();
   await expect(page).toHaveURL(`${BASE_URL}/settings/portfolios`);
   await page.goto(`${BASE_URL}/dashboard`, { waitUntil: "domcontentloaded" });

@@ -137,6 +137,7 @@ function AccountScopeCommand({
   listClassName,
   itemClassName,
   groupClassName,
+  footerClassName,
   portfoliosOnly = false,
   showAddPortfolio = false,
   onManagePortfolios,
@@ -151,6 +152,7 @@ function AccountScopeCommand({
   listClassName?: string;
   itemClassName?: string;
   groupClassName?: string;
+  footerClassName?: string;
   portfoliosOnly?: boolean;
   showAddPortfolio?: boolean;
   onManagePortfolios?: () => void;
@@ -228,26 +230,31 @@ function AccountScopeCommand({
             })}
           </CommandGroup>
         )}
-        {onManagePortfolios && (
-          <>
-            <CommandSeparator className="bg-border/70 mx-3 my-1.5" />
-            <CommandGroup className={groupClassName}>
-              <CommandItem className={itemClassName} onSelect={onManagePortfolios}>
-                {showAddPortfolio ? (
-                  <Icons.Plus className="text-muted-foreground mr-1 h-4 w-4" />
-                ) : (
-                  <Icons.Settings className="text-muted-foreground mr-1 h-4 w-4" />
-                )}
-                {t(
-                  showAddPortfolio
-                    ? "settings:portfolios.add_button"
-                    : "dashboard:portfolio_filter.manage",
-                )}
-              </CommandItem>
-            </CommandGroup>
-          </>
-        )}
       </CommandList>
+      {onManagePortfolios && (
+        <div className={cn("shrink-0", footerClassName)}>
+          <CommandSeparator alwaysRender className="bg-border/70 mx-3 my-1.5" />
+          <Button
+            variant="ghost"
+            className={cn("h-auto w-full justify-start", itemClassName)}
+            onClick={onManagePortfolios}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" || event.key === " ") event.stopPropagation();
+            }}
+          >
+            {showAddPortfolio ? (
+              <Icons.Plus className="text-muted-foreground mr-1 h-4 w-4" />
+            ) : (
+              <Icons.Settings className="text-muted-foreground mr-1 h-4 w-4" />
+            )}
+            {t(
+              showAddPortfolio
+                ? "settings:portfolios.add_button"
+                : "dashboard:portfolio_filter.manage",
+            )}
+          </Button>
+        </div>
+      )}
     </Command>
   );
 }
@@ -367,6 +374,7 @@ export function AccountScopeSelector({
             )}
             listClassName="min-h-0 max-h-none flex-1 px-2 py-2"
             groupClassName="[&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:py-2 [&_[cmdk-group-heading]]:text-[11px] [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider"
+            footerClassName="px-2 pb-2"
             itemClassName={cn(
               "min-h-12 rounded-xl px-3 py-3 text-base",
               portfoliosOnly && "gap-4 font-medium [&_svg]:size-5",
@@ -410,8 +418,9 @@ export function AccountScopeSelector({
           commandClassName={
             portfoliosOnly ? "bg-card rounded-none [&_[data-cmdk-input-wrapper]]:px-6" : undefined
           }
-          listClassName={portfoliosOnly ? "px-3 pb-4 pt-3" : undefined}
+          listClassName={portfoliosOnly ? "px-3 pt-3" : undefined}
           groupClassName={portfoliosOnly ? "p-0" : undefined}
+          footerClassName="px-3 pb-4"
           itemClassName={
             portfoliosOnly
               ? "cursor-pointer gap-4 rounded-xl px-3 py-3 text-[15px] font-medium transition-colors duration-150 [&_svg]:size-5"
