@@ -9,6 +9,20 @@ use std::{
 use wealthfolio_server::{config::Config, profiles::WebProfiles};
 use wealthfolio_storage_sqlite::db::{maintenance, DatabaseOwner, DbAccess, DbEncryptionKey};
 
+/// env_clear() drops SYSTEMROOT on Windows; SQLCipher needs it to seed OpenSSL's RNG.
+trait KeepSystemRoot {
+    fn keep_systemroot(&mut self) -> &mut Self;
+}
+
+impl KeepSystemRoot for std::process::Command {
+    fn keep_systemroot(&mut self) -> &mut Self {
+        if let Some(root) = std::env::var_os("SYSTEMROOT") {
+            self.env("SYSTEMROOT", root);
+        }
+        self
+    }
+}
+
 const KEY: &str = "--------------------------------";
 
 fn worker(directory: &Path, mode: &str) -> Command {
@@ -17,6 +31,7 @@ fn worker(directory: &Path, mode: &str) -> Command {
         .args(["--exact", "storage_worker", "--nocapture"])
         .current_dir(directory)
         .env_clear()
+        .keep_systemroot()
         .env("WF_STORAGE_TEST_MODE", mode)
         .env("WF_LISTEN_ADDR", "127.0.0.1:0")
         .env("WF_SECRET_KEY", KEY)
@@ -94,7 +109,11 @@ fn conflicting_paths_fail_in_startup_and_offline_commands_without_writes() {
         vec!["db", "restore", "missing.wfbackup", "--yes"],
     ] {
         let mut command = Command::new(env!("CARGO_BIN_EXE_wealthfolio-server"));
-        command.args(args).current_dir(temp.path()).env_clear();
+        command
+            .args(args)
+            .current_dir(temp.path())
+            .env_clear()
+            .keep_systemroot();
         commands.push(command);
     }
     for command in &mut commands {
