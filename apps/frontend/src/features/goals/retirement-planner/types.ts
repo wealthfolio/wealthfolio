@@ -244,4 +244,10 @@ export interface TaxBucketBalances {
   taxable: number;
   taxDeferred: number;
   taxFree: number;
+  /**
+   * Aggregate cost basis (already-taxed principal) within the taxable bucket.
+   * Only the gain above this is taxed on withdrawal instead of the full amount.
+   * Defaults to 0 ("fully gain") when unset, matching the prior all-taxable behavior.
+   */
+  taxableCostBasis?: number;
 }
