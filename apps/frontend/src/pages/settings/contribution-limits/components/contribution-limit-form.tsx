@@ -23,6 +23,7 @@ import {
   FormDescription,
   DatePickerInput,
   Input,
+  Switch,
 } from "@wealthfolio/ui";
 
 import { newContributionLimitSchema } from "@/lib/schemas";
@@ -247,6 +248,26 @@ export function ContributionLimitForm({
                     {t("settings:limits_form_date_description")}
                   </p>
                 </div>
+
+                <FormField
+                  control={form.control}
+                  name="isRecurring"
+                  render={({ field }) => (
+                    <FormItem className="border-border/60 flex items-center justify-between rounded-lg border p-4">
+                      <div className="space-y-0.5">
+                        <FormLabel className="text-base font-medium">
+                          {t("settings:limits_form_recurring_label")}
+                        </FormLabel>
+                        <FormDescription className="text-muted-foreground text-sm">
+                          {t("settings:limits_form_recurring_description")}
+                        </FormDescription>
+                      </div>
+                      <FormControl>
+                        <Switch checked={field.value ?? false} onCheckedChange={field.onChange} />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
               </div>
             </CardContent>
           </Card>
