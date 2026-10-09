@@ -7,6 +7,7 @@ mod asset_id;
 mod asset_logo_model;
 mod asset_logo_service;
 mod asset_logo_traits;
+mod asset_merge;
 mod asset_resolution;
 mod assets_constants;
 mod assets_model;
@@ -41,6 +42,7 @@ pub use asset_logo_model::{
 };
 pub use asset_logo_service::AssetLogoService;
 pub use asset_logo_traits::{AssetLogoRepositoryTrait, AssetLogoServiceTrait};
+pub use asset_merge::{AssetMergePreview, AssetMergeReport, SharedSourceSnapshot};
 pub(crate) use asset_resolution::asset_provider_alias_symbols;
 pub use asset_resolution::{AssetResolutionInput, AssetResolutionOutput};
 pub use assets_model::{

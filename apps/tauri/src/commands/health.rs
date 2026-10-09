@@ -226,6 +226,21 @@ pub async fn execute_health_fix(
         return Ok(());
     }
 
+    // Handle merge_split_asset - merge a legacy-MIC duplicate asset into its
+    // canonical twin. The core fix re-validates every requested pair.
+    if action.id == "merge_split_asset" {
+        let reports = wealthfolio_core::health::merge_split_assets(
+            context.asset_service().as_ref(),
+            context.activity_service().as_ref(),
+            &action.payload,
+        )
+        .await
+        .map_err(|e| e.to_string())?;
+        info!("Merged {} split asset pair(s)", reports.len());
+        context.health_service().clear_cache().await;
+        return Ok(());
+    }
+
     context
         .health_service()
         .execute_fix(&action)

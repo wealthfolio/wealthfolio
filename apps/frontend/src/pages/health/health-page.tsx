@@ -109,7 +109,10 @@ function HealthIssueRow({
   const categoryLabel = t(`health:${CATEGORY_LABEL_KEYS[issue.category]}`);
   const hasDiagnosticActions =
     issue.diagnostics?.some((diagnostic) => diagnostic.actions.length > 0) ?? false;
-  const showQuickFix = Boolean(issue.fixAction && !hasDiagnosticActions);
+  // A fix that needs confirmation runs from the detail sheet, which shows the prompt.
+  const showQuickFix = Boolean(
+    issue.fixAction && !issue.fixAction.confirm && !hasDiagnosticActions,
+  );
 
   return (
     <div

@@ -55,6 +55,11 @@
       "title_other": "{{count}} 筆交易引用了不存在的資產",
       "message": "部分交易指向已不存在的資產。這可能導致計算錯誤。"
     },
+    "data_split_asset_identity": {
+      "title_one": "{{symbol}} 分散在兩筆資產紀錄中",
+      "title_other": "{{count}} 項投資分散在兩筆資產紀錄中",
+      "message": "某個交易所代碼已更名，但這些投資在新代碼下已有紀錄。它們的交易紀錄和價格歷史分散在兩筆紀錄中。請將每一組合併為一筆紀錄。"
+    },
     "data_negative_position": {
       "title_one": "持有部位數量為負",
       "title_other": "{{count}} 項持有部位數量為負",
@@ -267,6 +272,9 @@
       "title": "忽略此問題？",
       "message": "這會在你的健康中心隱藏該問題。如果原始資料有變更，問題會再次出現。",
       "pendingText": "正在忽略……"
+    },
+    "fixConfirm": {
+      "pendingText": "正在套用……"
     },
     "affectedItems_other": "受影響的項目（{{count}}）",
     "affectedItems_one": "受影響項目（{{count}}）"
