@@ -236,16 +236,20 @@ function AccountScopeCommand({
           <CommandSeparator alwaysRender className="bg-border/70 mx-3 my-1.5" />
           <Button
             variant="ghost"
-            className={cn("h-auto w-full justify-start", itemClassName)}
+            className={cn("h-auto w-full justify-start has-[>svg]:px-3", itemClassName)}
             onClick={onManagePortfolios}
             onKeyDown={(event) => {
               if (event.key === "Enter" || event.key === " ") event.stopPropagation();
             }}
           >
             {showAddPortfolio ? (
-              <Icons.Plus className="text-muted-foreground mr-1 h-4 w-4" />
+              <Icons.Plus
+                className={cn("text-muted-foreground", portfoliosOnly ? "size-5" : "mr-1 h-4 w-4")}
+              />
             ) : (
-              <Icons.Settings className="text-muted-foreground mr-1 h-4 w-4" />
+              <Icons.Settings
+                className={cn("text-muted-foreground", portfoliosOnly ? "size-5" : "mr-1 h-4 w-4")}
+              />
             )}
             {t(
               showAddPortfolio

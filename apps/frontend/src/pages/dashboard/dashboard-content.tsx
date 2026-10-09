@@ -186,25 +186,22 @@ export function DashboardContent({
   return (
     <div className="flex min-h-full flex-col">
       <div className="px-4 pb-1 pt-2 md:px-6 lg:px-8">
-        <PortfolioUpdateTrigger
-          lastCalculatedAt={portfolioSourceDataAsOf}
-          notices={portfolioCurrentValuation?.summary.warnings}
-        >
-          <div className="flex items-start gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <PortfolioUpdateTrigger
+            lastCalculatedAt={portfolioSourceDataAsOf}
+            notices={portfolioCurrentValuation?.summary.warnings}
+          >
             <div className="min-w-0">
               <p className="text-muted-foreground mb-1 truncate text-xs" title={scopeLabel}>
                 {scopeLabel ?? t("common:component.all_accounts")}
               </p>
-              <div className="flex flex-wrap items-center gap-2">
-                <Balance
-                  isLoading={isCurrentValuationLoading}
-                  isUnavailable={isCurrentValuationUnavailable}
-                  targetValue={totalValue}
-                  currency={baseCurrency}
-                  displayCurrency={true}
-                />
-                <PrivacyToggle className="hover:bg-muted/50 bg-transparent" />
-              </div>
+              <Balance
+                isLoading={isCurrentValuationLoading}
+                isUnavailable={isCurrentValuationUnavailable}
+                targetValue={totalValue}
+                currency={baseCurrency}
+                displayCurrency={true}
+              />
               <div className="text-md flex min-h-5 items-center space-x-3">
                 {isPortfolioPerformanceLoading ? (
                   <div className="flex items-center gap-3">
@@ -247,8 +244,9 @@ export function DashboardContent({
                 )}
               </div>
             </div>
-          </div>
-        </PortfolioUpdateTrigger>
+          </PortfolioUpdateTrigger>
+          <PrivacyToggle className="hover:bg-muted/50 bg-transparent" />
+        </div>
       </div>
 
       <div

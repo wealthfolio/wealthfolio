@@ -50,7 +50,7 @@ export function PortfolioUpdateTrigger({
 
   return (
     <HoverCard>
-      <HoverCardTrigger className="inline-flex cursor-pointer items-center">
+      <HoverCardTrigger className="inline-flex min-w-0 cursor-pointer items-center">
         {children}
       </HoverCardTrigger>
       <HoverCardContent align="start" className="w-80 shadow-none">

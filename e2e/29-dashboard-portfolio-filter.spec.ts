@@ -47,6 +47,21 @@ test("dashboard portfolio selection, creation, persistence, deletion and mobile 
   await expect(balanceValue).toContainText("1,000,200.00", {
     timeout: 30000,
   });
+  const privacy = page.getByRole("button", { name: /^(Hide|Show) Balance$/ });
+  expect(await privacy.evaluate((element) => element.closest("a"))).toBeNull();
+  await privacy.focus();
+  await expect(privacy).toBeFocused();
+  // Focus used to open the update hover card after its 700ms delay.
+  await page.waitForTimeout(800);
+  await expect(page.getByRole("button", { name: "Update prices", exact: true })).toHaveCount(0);
+  await privacy.press("Enter");
+  await expect(headlineContainer.getByTestId("portfolio-balance")).toContainText("•••");
+  await privacy.press("Enter");
+  await expect(balanceValue).toContainText("1,000,200.00");
+  await headlineContainer.getByTestId("portfolio-balance").hover();
+  await expect(page.getByRole("button", { name: "Update prices", exact: true })).toBeVisible();
+  await page.mouse.move(0, 0);
+  await expect(page.getByRole("button", { name: "Update prices", exact: true })).not.toBeVisible();
   await filter.click();
   await page.getByRole("button", { name: "Add portfolio" }).click();
   await expect(page).toHaveURL(`${BASE_URL}/settings/portfolios`);
@@ -79,6 +94,19 @@ test("dashboard portfolio selection, creation, persistence, deletion and mobile 
   await expect
     .poll(() => page.getByRole("dialog").evaluate((element) => getComputedStyle(element).opacity))
     .toBe("1");
+  const optionIcon = await page
+    .getByRole("option", { name: "Dashboard savings" })
+    .locator("svg")
+    .first()
+    .boundingBox();
+  const footerIcon = await page
+    .getByRole("button", { name: "Manage portfolios" })
+    .locator("svg")
+    .first()
+    .boundingBox();
+  expect(optionIcon).not.toBeNull();
+  expect(footerIcon).not.toBeNull();
+  expect(footerIcon!.x).toBeCloseTo(optionIcon!.x, 0);
   await page.screenshot({ path: testInfo.outputPath("desktop-portfolio-filter.png") });
   await page.getByPlaceholder("Search portfolios…").fill("unmatched xyz");
   await expect(page.getByText("No results.", { exact: true })).toBeVisible();
