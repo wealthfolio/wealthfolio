@@ -370,7 +370,7 @@ export default function DashboardPage({
       portfolioEnd: scaleForModeAtAge(Math.max(0, pt.portfolioEnd), pt.age),
       target:
         pt.requiredCapital == null ? undefined : scaleForModeAtAge(pt.requiredCapital, pt.age),
-      withdrawal: scaleForModeAtAge(pt.netWithdrawalFromPortfolio, pt.age),
+      withdrawal: scaleForModeAtAge(pt.grossWithdrawal ?? pt.netWithdrawalFromPortfolio, pt.age),
       phase: pt.phase,
       annualContribution: scaleForModeAtAge(pt.annualContribution, pt.age),
       annualIncome: scaleForModeAtAge(pt.annualIncome, pt.age),
