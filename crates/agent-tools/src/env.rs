@@ -81,7 +81,7 @@ pub trait AgentEnvironment: Send + Sync {
     /// Get the contribution-limit service for contribution-room reads.
     fn contribution_limit_service(&self) -> Arc<dyn ContributionLimitServiceTrait>;
 
-    /// Get the cash-activity service for spending-tracker reads.
+    /// Get the cash-activity service for spending reads and category assignments.
     fn cash_activity_service(&self) -> Arc<dyn CashActivityServiceTrait>;
 
     /// Get the categorization-rules service for the rules-first pass in category proposals.

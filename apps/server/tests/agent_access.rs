@@ -459,8 +459,8 @@ async fn mcp_pat_lifecycle() {
 /// A write/suggest-scoped token sees the draft, suggest, commit, AND import
 /// tools via `tools/list` — proving scope-gated visibility extends past the
 /// read-only catalog. (Read-only tokens see 18; the full MCP catalog is
-/// 16 read + 5 draft/suggest + 4 commit + 3 import + 3 transfer linking +
-/// 2 quote import = 33.)
+/// 16 read + 5 draft/suggest + 5 commit + 3 import + 3 transfer linking +
+/// 2 quote import + 2 activity updates = 36.)
 #[tokio::test]
 async fn mcp_write_scoped_token_sees_write_tools() {
     let server = spawn_server(true, false).await;
@@ -501,8 +501,8 @@ async fn mcp_write_scoped_token_sees_write_tools() {
     let names: Vec<&str> = tools.iter().map(|t| t["name"].as_str().unwrap()).collect();
     assert_eq!(
         tools.len(),
-        35,
-        "full-scope token must see all 35 tools: {names:?}"
+        36,
+        "full-scope token must see all 36 tools: {names:?}"
     );
     for name in [
         "find_transfer_matches",
@@ -524,6 +524,7 @@ async fn mcp_write_scoped_token_sees_write_tools() {
         names.contains(&"commit_categorization_rule"),
         "categorization rule commit tool visible"
     );
+    assert!(names.contains(&"commit_transaction_categories"));
     assert!(
         names.contains(&"prepare_asset_classification"),
         "suggest tool visible"
@@ -2405,4 +2406,507 @@ async fn profile_deletion_closes_initialized_mcp_sessions() {
     )
     .await;
     assert!(!response.status().is_success());
+}
+
+async fn category_api_get(server: &TestServer, cookie: &str, path: &str) -> serde_json::Value {
+    let response = server
+        .client
+        .get(format!("{}/api/v1/{path}", server.base))
+        .header(header::COOKIE, format!("wf_session={cookie}"))
+        .send()
+        .await
+        .unwrap();
+    let status = response.status();
+    let value = response.json().await.unwrap();
+    assert!(status.is_success(), "{path}: {status} {value}");
+    value
+}
+
+/// Synthetic spending rows and categories, independent of bundled merchant rules.
+async fn category_save_fixture(
+    server: &TestServer,
+    cookie: &str,
+) -> (
+    serde_json::Value,
+    Vec<serde_json::Value>,
+    String,
+    String,
+    String,
+) {
+    disable_market_data_providers(server, cookie).await;
+    let account = api_post(
+        server,
+        cookie,
+        "accounts",
+        serde_json::json!({
+            "name": "Synthetic spending", "accountType": "CASH", "currency": "EUR",
+            "isDefault": false, "isActive": true, "trackingMode": "TRANSACTIONS"
+        }),
+    )
+    .await;
+    api_put(
+        server,
+        cookie,
+        "spending/settings",
+        serde_json::json!({
+            "enabled": true, "accountIds": [account["id"]]
+        }),
+    )
+    .await;
+    let mut activities = Vec::new();
+    for day in [1, 2] {
+        activities.push(
+            api_post(
+                server,
+                cookie,
+                "activities",
+                serde_json::json!({
+                    "accountId": account["id"], "activityType": "WITHDRAWAL",
+                    "activityDate": format!("2026-04-0{day}T12:00:00Z"), "currency": "EUR",
+                    "amount": "12.50", "notes": format!("Synthetic merchant {day}")
+                }),
+            )
+            .await,
+        );
+    }
+    let mut categories = Vec::new();
+    for (taxonomy, key) in [
+        ("spending_categories", "synthetic_first"),
+        ("spending_categories", "synthetic_second"),
+        ("income_sources", "synthetic_income"),
+    ] {
+        let category = api_post(
+            server,
+            cookie,
+            "taxonomies/categories",
+            serde_json::json!({
+                "taxonomyId": taxonomy, "name": key, "key": key, "color": "#123456",
+                "sortOrder": 0
+            }),
+        )
+        .await;
+        categories.push(category["id"].as_str().unwrap().to_string());
+    }
+    (
+        account,
+        activities,
+        categories[0].clone(),
+        categories[1].clone(),
+        categories[2].clone(),
+    )
+}
+
+async fn category_writer_session(server: &TestServer, cookie: &str) -> (String, String) {
+    let (status, token) = create_pat(
+        server,
+        cookie,
+        serde_json::json!({
+            "name": "category writer",
+            "scopes": ["activities:read", "classification:read", "classification:suggest", "classification:write"]
+        }),
+    )
+    .await;
+    assert_eq!(status, 201);
+    let pat = token["token"].as_str().unwrap().to_string();
+    let session = mcp_initialize(server, &pat).await;
+    (pat, session)
+}
+
+fn category_assignment(activity: &serde_json::Value, category: &str) -> serde_json::Value {
+    serde_json::json!({
+        "activityId": activity["id"], "taxonomyId": "spending_categories", "categoryId": category
+    })
+}
+
+async fn category_rows(
+    server: &TestServer,
+    cookie: &str,
+    activity: &serde_json::Value,
+) -> serde_json::Value {
+    category_api_get(
+        server,
+        cookie,
+        &format!(
+            "spending/activities/{}/assignments",
+            activity["id"].as_str().unwrap()
+        ),
+    )
+    .await
+}
+
+async fn category_splits(
+    server: &TestServer,
+    cookie: &str,
+    activity: &serde_json::Value,
+) -> serde_json::Value {
+    category_api_get(
+        server,
+        cookie,
+        &format!(
+            "spending/activities/{}/splits",
+            activity["id"].as_str().unwrap()
+        ),
+    )
+    .await
+}
+
+#[tokio::test]
+async fn mcp_category_save_persists_reviewed_proposals_and_retries() {
+    let server = spawn_server(true, false).await;
+    let cookie = login(&server).await;
+    let (account, activities, first, second, _) = category_save_fixture(&server, &cookie).await;
+    let (pat, session) = category_writer_session(&server, &cookie).await;
+    let before = stored_activities(&server, &cookie, &account).await;
+    let filters = serde_json::json!({"activityIds": [activities[0]["id"], activities[1]["id"]]});
+    let context = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "list_categorization_context",
+        filters.clone(),
+    )
+    .await;
+    assert_eq!(context["summary"]["total"], 2, "{context}");
+    let proposed = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "propose_transaction_categories",
+        serde_json::json!({
+            "activityIds": filters["activityIds"],
+            "aiProposals": activities.iter().map(|a| serde_json::json!({
+                "activityId": a["id"], "taxonomyId": "spending_categories",
+                "categoryKey": "synthetic_first", "confidence": 0.9
+            })).collect::<Vec<_>>()
+        }),
+    )
+    .await;
+    assert_eq!(proposed["draftStatus"], "draft");
+    let assignments: Vec<_> = proposed["proposals"].as_array().unwrap().iter().map(|p| {
+        serde_json::json!({"activityId": p["activityId"], "taxonomyId": p["taxonomyId"], "categoryId": p["categoryId"]})
+    }).collect();
+    assert_eq!(assignments.len(), 2, "{proposed}");
+    assert!(category_rows(&server, &cookie, &activities[0])
+        .await
+        .as_array()
+        .unwrap()
+        .is_empty());
+    let args = serde_json::json!({"assignments": assignments});
+    let saved = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "commit_transaction_categories",
+        args.clone(),
+    )
+    .await;
+    assert_eq!(saved["draftStatus"], "applied");
+    assert_eq!(saved["assignmentCount"], 2);
+    for a in &activities {
+        let rows = category_rows(&server, &cookie, a).await;
+        assert_eq!(rows.as_array().unwrap().len(), 1);
+        assert_eq!(rows[0]["categoryId"], first);
+        assert_eq!(rows[0]["taxonomyId"], "spending_categories");
+        assert_eq!(rows[0]["weight"], 10000);
+        assert_eq!(rows[0]["source"], "manual");
+        assert!(saved["assignments"].as_array().unwrap().contains(&rows[0]));
+    }
+    // Imported assignments can carry noncanonical IDs. Replacement must keep
+    // that identity rather than generating a new assignment row.
+    let stored_id = serde_json::json!("synthetic-imported-assignment");
+    let profile = api_post(
+        &server,
+        &cookie,
+        "profiles/get_profile_state",
+        serde_json::json!({}),
+    )
+    .await;
+    let database = server
+        ._tmp
+        .path()
+        .join("profiles")
+        .join(profile["session"]["profileId"].as_str().unwrap())
+        .join("app.db");
+    assert!(database.is_file());
+    let db = wealthfolio_storage_sqlite::db::DbAccess::plaintext(database.to_str().unwrap())
+        .connect_rusqlite()
+        .unwrap();
+    let changed = db
+        .execute(
+            "UPDATE activity_taxonomy_assignments SET id = ?1 WHERE activity_id = ?2",
+            [
+                stored_id.as_str().unwrap(),
+                activities[0]["id"].as_str().unwrap(),
+            ],
+        )
+        .unwrap();
+    assert_eq!(changed, 1);
+    drop(db);
+    let repeated = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "commit_transaction_categories",
+        args.clone(),
+    )
+    .await;
+    assert_eq!(repeated["assignmentCount"], 2);
+    assert_eq!(
+        category_rows(&server, &cookie, &activities[0]).await[0]["id"],
+        stored_id
+    );
+    let fresh_session = mcp_initialize(&server, &pat).await;
+    let fresh = mcp_call_tool(
+        &server,
+        &pat,
+        &fresh_session,
+        "list_categorization_context",
+        filters,
+    )
+    .await;
+    assert_eq!(fresh["summary"]["total"], 0, "{fresh}");
+    assert_eq!(stored_activities(&server, &cookie, &account).await, before);
+
+    // Like the native Apply action, a confirmed delayed draft replaces current
+    // assignments. A retry is not optimistic locking against intervening edits.
+    api_put(
+        &server,
+        &cookie,
+        &format!(
+            "spending/activities/{}/assignments",
+            activities[0]["id"].as_str().unwrap()
+        ),
+        serde_json::json!({"taxonomyId": "spending_categories", "categoryId": second}),
+    )
+    .await;
+    mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "commit_transaction_categories",
+        args,
+    )
+    .await;
+    let rows = category_rows(&server, &cookie, &activities[0]).await;
+    assert_eq!(rows[0]["categoryId"], first);
+    assert_eq!(rows[0]["id"], stored_id);
+}
+
+#[tokio::test]
+async fn mcp_category_save_rolls_back_assignments_and_split_clearing() {
+    let server = spawn_server(true, false).await;
+    let cookie = login(&server).await;
+    let (_, activities, first, second, income) = category_save_fixture(&server, &cookie).await;
+    let (pat, session) = category_writer_session(&server, &cookie).await;
+    api_put(
+        &server,
+        &cookie,
+        &format!(
+            "spending/activities/{}/assignments",
+            activities[1]["id"].as_str().unwrap()
+        ),
+        serde_json::json!({"taxonomyId": "spending_categories", "categoryId": first}),
+    )
+    .await;
+    let split_path = format!(
+        "spending/activities/{}/splits",
+        activities[0]["id"].as_str().unwrap()
+    );
+    api_put(
+        &server,
+        &cookie,
+        &split_path,
+        serde_json::json!([
+            {"taxonomyId": "spending_categories", "categoryId": first, "amount": "5.00"},
+            {"taxonomyId": "spending_categories", "categoryId": second, "amount": "7.50"}
+        ]),
+    )
+    .await;
+    let prior_rows = category_rows(&server, &cookie, &activities[1]).await;
+    let prior_splits = category_splits(&server, &cookie, &activities[0]).await;
+    assert_eq!(prior_splits.as_array().unwrap().len(), 2);
+
+    // The second category exists, but in another taxonomy. This fails the FK
+    // after the first assignment and split deletion enter the write transaction.
+    let error = mcp_call_tool_error(
+        &server,
+        &pat,
+        &session,
+        "commit_transaction_categories",
+        serde_json::json!({"assignments": [
+            category_assignment(&activities[0], &second),
+            category_assignment(&activities[1], &income)
+        ]}),
+    )
+    .await;
+    assert!(!error.is_empty());
+    assert!(category_rows(&server, &cookie, &activities[0])
+        .await
+        .as_array()
+        .unwrap()
+        .is_empty());
+    assert_eq!(
+        category_rows(&server, &cookie, &activities[1]).await,
+        prior_rows
+    );
+    assert_eq!(
+        category_splits(&server, &cookie, &activities[0]).await,
+        prior_splits
+    );
+
+    for invalid in [
+        serde_json::json!({"activityId": "missing-activity", "taxonomyId": "spending_categories", "categoryId": first}),
+        serde_json::json!({"activityId": activities[1]["id"], "taxonomyId": "income_sources", "categoryId": income}),
+        category_assignment(&activities[1], "missing-category"),
+        serde_json::json!({"activityId": activities[1]["id"], "taxonomyId": "missing-taxonomy", "categoryId": first}),
+    ] {
+        mcp_call_tool_error(&server, &pat, &session, "commit_transaction_categories",
+            serde_json::json!({"assignments": [category_assignment(&activities[0], &second), invalid]})).await;
+        assert_eq!(
+            category_rows(&server, &cookie, &activities[1]).await,
+            prior_rows
+        );
+        assert_eq!(
+            category_splits(&server, &cookie, &activities[0]).await,
+            prior_splits
+        );
+    }
+    mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "commit_transaction_categories",
+        serde_json::json!({"assignments": [category_assignment(&activities[0], &second)]}),
+    )
+    .await;
+    assert!(category_splits(&server, &cookie, &activities[0])
+        .await
+        .as_array()
+        .unwrap()
+        .is_empty());
+    assert_eq!(
+        category_rows(&server, &cookie, &activities[0]).await[0]["categoryId"],
+        second
+    );
+}
+
+#[tokio::test]
+async fn mcp_category_save_denies_insufficient_scopes_and_redacts_audit_errors() {
+    let server = spawn_server(true, true).await;
+    let cookie = login(&server).await;
+    let (_, activities, first, _, _) = category_save_fixture(&server, &cookie).await;
+    let (pat, session) = category_writer_session(&server, &cookie).await;
+    api_put(
+        &server,
+        &cookie,
+        &format!(
+            "spending/activities/{}/splits",
+            activities[0]["id"].as_str().unwrap()
+        ),
+        serde_json::json!([{
+            "taxonomyId": "spending_categories", "categoryId": first, "amount": "12.50"
+        }]),
+    )
+    .await;
+    let prior_splits = category_splits(&server, &cookie, &activities[0]).await;
+    let args = serde_json::json!({"assignments": [category_assignment(&activities[0], &first)]});
+    for scopes in [
+        serde_json::json!(["classification:read"]),
+        serde_json::json!(["classification:read", "classification:suggest"]),
+    ] {
+        let (status, token) = create_pat(
+            &server,
+            &cookie,
+            serde_json::json!({"name": "limited", "scopes": scopes}),
+        )
+        .await;
+        assert_eq!(status, 201);
+        let limited_pat = token["token"].as_str().unwrap();
+        let limited_session = mcp_initialize(&server, limited_pat).await;
+        let list = mcp_post(
+            &server,
+            Some(limited_pat),
+            Some(&limited_session),
+            serde_json::json!({"jsonrpc": "2.0", "id": 2, "method": "tools/list"}),
+        )
+        .await;
+        let list = parse_sse_data(&list.text().await.unwrap());
+        assert!(!list["result"]["tools"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|t| t["name"] == "commit_transaction_categories"));
+        let error = mcp_call_tool_error(
+            &server,
+            limited_pat,
+            &limited_session,
+            "commit_transaction_categories",
+            args.clone(),
+        )
+        .await;
+        assert!(error.contains("Scope denied"), "{error}");
+        assert_eq!(
+            category_splits(&server, &cookie, &activities[0]).await,
+            prior_splits
+        );
+        assert!(category_rows(&server, &cookie, &activities[0])
+            .await
+            .as_array()
+            .unwrap()
+            .is_empty());
+    }
+    for malformed in [
+        serde_json::json!({"assignments": "sensitive-sentinel"}),
+        serde_json::json!({"assignments": [{"activityId": {"sensitive-sentinel": true}, "taxonomyId": "spending_categories", "categoryId": first}]}),
+        serde_json::json!({"assignments": [{"activityId": activities[0]["id"], "taxonomyId": "spending_categories"}], "sensitive-sentinel": true}),
+    ] {
+        let error = mcp_call_tool_error(
+            &server,
+            &pat,
+            &session,
+            "commit_transaction_categories",
+            malformed,
+        )
+        .await;
+        assert!(!error.contains("sensitive-sentinel"), "{error}");
+    }
+    mcp_call_tool_error(
+        &server,
+        &pat,
+        &session,
+        "commit_transaction_categories",
+        serde_json::json!({"assignments": [{
+            "activityId": "sensitive-sentinel", "taxonomyId": "spending_categories",
+            "categoryId": first
+        }]}),
+    )
+    .await;
+    let mut valid = args;
+    valid["sensitive-sentinel"] = serde_json::json!("private extra value");
+    mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "commit_transaction_categories",
+        valid,
+    )
+    .await;
+    let audit = category_api_get(&server, &cookie, "agent-access/audit").await;
+    let rows: Vec<_> = audit["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|r| r["tool"] == "commit_transaction_categories")
+        .collect();
+    assert_eq!(rows.len(), 7, "{audit}");
+    for row in rows {
+        let text = row.to_string();
+        assert!(!text.contains("sensitive-sentinel"), "{row}");
+        assert!(!text.contains("private extra value"), "{row}");
+        assert!(
+            !text.contains(activities[0]["id"].as_str().unwrap()),
+            "{row}"
+        );
+        assert!(!text.contains(&first), "{row}");
+    }
 }

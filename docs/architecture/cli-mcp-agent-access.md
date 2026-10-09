@@ -451,6 +451,7 @@ commit_activity_draft              -- persist one reviewed draft
 commit_activity_drafts             -- persist a batch
 commit_asset_classification_draft  -- persist one reviewed classification draft
 commit_categorization_rule         -- persist one reviewed categorization rule draft
+commit_transaction_categories     -- persist reviewed transaction category assignments
 ```
 
 ### MCP-only CSV Import Tools
@@ -596,6 +597,40 @@ keeps only each row's activity id and the names of the fields it sets, never
 their values. The in-app assistant does not get these tools; users edit in the
 activity grid.
 
+For transaction categories, show the proposals from
+`propose_transaction_categories` to the user first. After confirmation, pass the
+selected `activityId`, `taxonomyId`, and `categoryId` values to
+`commit_transaction_categories`:
+
+```json
+{
+  "assignments": [
+    {
+      "activityId": "activity-1",
+      "taxonomyId": "spending_categories",
+      "categoryId": "category-1"
+    }
+  ]
+}
+```
+
+The tool accepts 1–100 assignments and rejects blank IDs or duplicate
+activity/taxonomy pairs. It calls the same bulk spending service as the in-app
+Apply action. Activities must belong to eligible, opted-in spending accounts
+with spending enabled; each taxonomy must match the activity's cash-flow bucket,
+and each category must belong to that taxonomy. The entire batch succeeds or
+fails together, including split removal.
+
+Each confirmed assignment replaces the current category for its
+activity/taxonomy pair and clears splits for that activity. Financial activity
+fields stay unchanged. The result includes `draftStatus: "applied"`,
+`assignmentCount`, the stored `assignments` (source `manual`, weight `10000`),
+and `appliedAt`. Repeating the same payload keeps one assignment with its
+existing ID; timestamps may change. There is no draft-version check: a delayed
+commit or retry can overwrite an intervening category edit or clear newly added
+splits. Refresh the proposals and reconfirm when the intended assignment
+changes. Audit arguments retain only the assignment count.
+
 For categorization rules, `create_categorization_rule` returns an in-memory
 draft and does not save it. After showing that draft to the user and receiving
 confirmation, an MCP client passes the returned `rule` object to
@@ -672,7 +707,8 @@ classification:suggest   propose_transaction_categories,
                          create_categorization_rule,
                          prepare_asset_classification
 classification:write     commit_asset_classification_draft,
-                         commit_categorization_rule
+                         commit_categorization_rule,
+                         commit_transaction_categories
                          (also requires classification:suggest)
 market-data:write        prepare_quote_import, commit_quote_import
                          (each also requires holdings:read)
