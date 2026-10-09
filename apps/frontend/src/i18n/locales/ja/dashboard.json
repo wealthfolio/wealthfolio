@@ -2,6 +2,7 @@
   "title": "ダッシュボード",
   "welcome_message": "Wealthfolioへようこそ",
   "total_value": "評価額合計",
+  "book_cost": "取得原価",
   "total_gain": "累計損益",
   "total_gain_percent": "累計損益率",
   "today_gain": "本日の損益",

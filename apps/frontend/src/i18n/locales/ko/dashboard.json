@@ -2,6 +2,7 @@
   "title": "대시보드",
   "welcome_message": "Wealthfolio에 오신 것을 환영합니다",
   "total_value": "총 자산 가치",
+  "book_cost": "장부 원가",
   "total_gain": "총 수익",
   "total_gain_percent": "총 수익률",
   "today_gain": "오늘의 수익",
