@@ -786,6 +786,35 @@
     "moreCount_many": "+{{count}} más",
     "vsRange": "frente a {{from}} – {{to}}"
   },
+  "moneyFlow": {
+    "title": "Flujo de dinero",
+    "subtitle": "De dónde vino tu dinero y a dónde fue para {{period}}.",
+    "focusSubtitle": "Todas las categorías para {{period}}.",
+    "back": "Todos los flujos",
+    "chartLabel": "Diagrama del flujo de dinero. Usa las flechas para moverte entre los flujos.",
+    "nodeAria": "{{name}}, {{amount}}",
+    "shareOfIncome": "{{pct}} de los ingresos",
+    "shareOfTotal": "{{pct}} del total",
+    "clickTransactions": "Haz clic para ver las transacciones",
+    "clickCategories": "Haz clic para ver todas las categorías",
+    "node": {
+      "total": "Total",
+      "shortfall": "Déficit",
+      "refunds": "Reembolsos netos",
+      "surplus": "Sobrante",
+      "uncategorizedIncome": "Ingresos sin categorizar"
+    },
+    "hint": {
+      "total": "Dinero entrante más reembolsos netos y cualquier déficit. Siempre igual al dinero saliente.",
+      "totalOut": "Todo lo gastado y reservado, antes de reembolsos.",
+      "shortfall": "Gastos y ahorro por encima de lo que entró.",
+      "refunds": "Categorías donde los reembolsos superaron el gasto.",
+      "saved": "Transferido a cuentas de ahorro e inversión.",
+      "surplus": "Entró, pero no se gastó ni se reservó.",
+      "uncategorized": "Gastos que aún no tienen categoría."
+    },
+    "groupRefunds": "Antes de restar {{amount}} en reembolsos netos."
+  },
   "budgetChart": {
     "overBudget": "Presupuesto excedido",
     "trendingHigh": "Tendencia al alza",

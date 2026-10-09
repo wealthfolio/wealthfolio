@@ -736,6 +736,35 @@
     "moreCount_other": "+{{count}} 더보기",
     "vsRange": "{{from}} – {{to}} 대비"
   },
+  "moneyFlow": {
+    "title": "돈의 흐름",
+    "subtitle": "{{period}} 동안 돈이 어디서 들어와 어디로 나갔는지 보여줍니다.",
+    "focusSubtitle": "{{period}}의 모든 카테고리입니다.",
+    "back": "전체 흐름",
+    "chartLabel": "돈의 흐름 차트. 화살표 키로 항목 사이를 이동할 수 있습니다.",
+    "nodeAria": "{{name}}, {{amount}}",
+    "shareOfIncome": "수입의 {{pct}}",
+    "shareOfTotal": "합계의 {{pct}}",
+    "clickTransactions": "클릭하여 거래 내역 보기",
+    "clickCategories": "클릭하여 모든 카테고리 보기",
+    "node": {
+      "total": "합계",
+      "shortfall": "부족분",
+      "refunds": "순 환불",
+      "surplus": "남은 금액",
+      "uncategorizedIncome": "미분류 수입"
+    },
+    "hint": {
+      "total": "들어온 돈에 순 환불과 부족분을 더한 합계입니다. 항상 나간 돈과 같습니다.",
+      "totalOut": "환불 전의 지출과 따로 모은 금액 합계입니다.",
+      "shortfall": "들어온 돈을 넘어선 지출과 저축입니다.",
+      "refunds": "환불이 지출보다 많았던 카테고리입니다.",
+      "saved": "저축 및 투자 계좌로 옮긴 금액입니다.",
+      "surplus": "들어왔지만 쓰거나 따로 모으지 않은 금액입니다.",
+      "uncategorized": "아직 카테고리가 없는 지출입니다."
+    },
+    "groupRefunds": "순 환불 {{amount}} 차감 전 금액입니다."
+  },
   "budgetChart": {
     "overBudget": "예산 초과",
     "trendingHigh": "증가 추세",

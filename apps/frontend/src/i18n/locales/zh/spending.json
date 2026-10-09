@@ -736,6 +736,35 @@
     "moreCount_other": "+{{count}} 项",
     "vsRange": "对比 {{from}} – {{to}}"
   },
+  "moneyFlow": {
+    "title": "资金流向",
+    "subtitle": "{{period}} 的资金来源与去向。",
+    "focusSubtitle": "{{period}} 的所有类别。",
+    "back": "全部流向",
+    "chartLabel": "资金流向图。使用方向键在各项之间移动。",
+    "nodeAria": "{{name}}，{{amount}}",
+    "shareOfIncome": "占收入的 {{pct}}",
+    "shareOfTotal": "占总额的 {{pct}}",
+    "clickTransactions": "点击查看交易",
+    "clickCategories": "点击查看所有类别",
+    "node": {
+      "total": "总额",
+      "shortfall": "缺口",
+      "refunds": "净退款",
+      "surplus": "剩余",
+      "uncategorizedIncome": "未归类收入"
+    },
+    "hint": {
+      "total": "流入加上净退款和任何缺口，始终等于流出。",
+      "totalOut": "退款前的全部支出与预留金额。",
+      "shortfall": "超出流入的支出与储蓄。",
+      "refunds": "退款超过支出的类别。",
+      "saved": "转入储蓄和投资账户的资金。",
+      "surplus": "已流入但未支出或预留的资金。",
+      "uncategorized": "尚未归类的支出。"
+    },
+    "groupRefunds": "未扣除 {{amount}} 净退款。"
+  },
   "budgetChart": {
     "overBudget": "超出预算",
     "trendingHigh": "趋势偏高",

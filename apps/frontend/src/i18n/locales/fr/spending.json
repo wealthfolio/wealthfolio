@@ -786,6 +786,35 @@
     "moreCount_many": "+{{count}} de plus",
     "vsRange": "par rapport à {{from}} – {{to}}"
   },
+  "moneyFlow": {
+    "title": "Flux d'argent",
+    "subtitle": "D'où vient votre argent et où il est allé pour {{period}}.",
+    "focusSubtitle": "Toutes les catégories pour {{period}}.",
+    "back": "Tous les flux",
+    "chartLabel": "Diagramme des flux d'argent. Utilisez les flèches pour passer d'un flux à l'autre.",
+    "nodeAria": "{{name}}, {{amount}}",
+    "shareOfIncome": "{{pct}} des revenus",
+    "shareOfTotal": "{{pct}} du total",
+    "clickTransactions": "Cliquez pour voir les transactions",
+    "clickCategories": "Cliquez pour voir toutes les catégories",
+    "node": {
+      "total": "Total",
+      "shortfall": "Déficit",
+      "refunds": "Remboursements nets",
+      "surplus": "Reste",
+      "uncategorizedIncome": "Revenus non catégorisés"
+    },
+    "hint": {
+      "total": "Les entrées, plus les remboursements nets et un éventuel déficit. Toujours égal aux sorties.",
+      "totalOut": "Tout ce qui a été dépensé et mis de côté, avant remboursements.",
+      "shortfall": "Dépenses et épargne au-delà de ce qui est entré.",
+      "refunds": "Catégories où les remboursements ont dépassé les dépenses.",
+      "saved": "Transféré vers des comptes d'épargne et d'investissement.",
+      "surplus": "Entré, mais ni dépensé ni mis de côté.",
+      "uncategorized": "Dépenses qui n'ont pas encore de catégorie."
+    },
+    "groupRefunds": "Avant déduction de {{amount}} de remboursements nets."
+  },
   "budgetChart": {
     "overBudget": "Budget dépassé",
     "trendingHigh": "Tendance à la hausse",

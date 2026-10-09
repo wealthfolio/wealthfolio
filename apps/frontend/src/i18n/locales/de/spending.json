@@ -744,6 +744,35 @@
     "moreCount_other": "+{{count}} weitere",
     "vsRange": "gegenüber {{from}} – {{to}}"
   },
+  "moneyFlow": {
+    "title": "Geldfluss",
+    "subtitle": "Woher Ihr Geld kam und wohin es ging für {{period}}.",
+    "focusSubtitle": "Alle Kategorien für {{period}}.",
+    "back": "Alle Flüsse",
+    "chartLabel": "Geldflussdiagramm. Mit den Pfeiltasten zwischen den Flüssen wechseln.",
+    "nodeAria": "{{name}}, {{amount}}",
+    "shareOfIncome": "{{pct}} der Einnahmen",
+    "shareOfTotal": "{{pct}} der Summe",
+    "clickTransactions": "Klicken, um Transaktionen zu sehen",
+    "clickCategories": "Klicken, um alle Kategorien zu sehen",
+    "node": {
+      "total": "Summe",
+      "shortfall": "Fehlbetrag",
+      "refunds": "Nettoerstattungen",
+      "surplus": "Übrig",
+      "uncategorizedIncome": "Nicht kategorisierte Einnahmen"
+    },
+    "hint": {
+      "total": "Eingänge plus Nettoerstattungen und ein etwaiger Fehlbetrag. Entspricht immer den Ausgängen.",
+      "totalOut": "Alles Ausgegebene und Zurückgelegte, vor Erstattungen.",
+      "shortfall": "Ausgaben und Sparen über die Eingänge hinaus.",
+      "refunds": "Kategorien, in denen Erstattungen die Ausgaben überstiegen.",
+      "saved": "Auf Spar- und Anlagekonten übertragen.",
+      "surplus": "Eingegangen, aber weder ausgegeben noch zurückgelegt.",
+      "uncategorized": "Ausgaben, die noch keine Kategorie haben."
+    },
+    "groupRefunds": "Vor Abzug von {{amount}} Nettoerstattungen."
+  },
   "budgetChart": {
     "overBudget": "Über Budget",
     "trendingHigh": "Steigende Tendenz",
