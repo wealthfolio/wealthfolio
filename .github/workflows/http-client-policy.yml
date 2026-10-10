@@ -33,5 +33,9 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
+        with:
+          # Restore only: a PR's copy is readable only by that PR and competes
+          # with the shared caches cache-warm.yml seeds on main.
+          save-if: false
       - name: Test certificate policy and HTTP behavior
         run: cargo test --locked -p wealthfolio-http
