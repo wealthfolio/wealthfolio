@@ -196,7 +196,10 @@ jobs:
           rustup target add aarch64-linux-android
       - uses: Swatinem/rust-cache@v2
         with:
+          # Restore only: a PR's copy is readable only by that PR and competes
+          # with the shared caches cache-warm.yml seeds on main.
           key: android
+          save-if: false
       - name: Install Android NDK
         run: |
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;28.2.13676358"
@@ -230,7 +233,10 @@ jobs:
           rustup target add aarch64-apple-ios aarch64-apple-ios-sim
       - uses: Swatinem/rust-cache@v2
         with:
+          # Restore only: a PR's copy is readable only by that PR and competes
+          # with the shared caches cache-warm.yml seeds on main.
           key: ios
+          save-if: false
       - name: Check iOS device and simulator compilation
         run: |
           mkdir -p dist
