@@ -58,6 +58,7 @@ import { AlternativeAssetContent, useAlternativeAssetActions } from "./alternati
 import { AssetSnapshotHistory, useHasManualSnapshots } from "./asset-account-holdings";
 import { resolveContractMultiplier } from "./asset-contract-multiplier";
 import { getAssetProfileHolding } from "./asset-profile-holding";
+import { resolveAssetPerformance } from "./asset-performance";
 import AssetDetailCard from "./asset-detail-card";
 import { AssetEditSheet } from "./asset-edit-sheet";
 import AssetHistoryCard from "./asset-history-card";
@@ -795,16 +796,20 @@ export const AssetProfilePage = () => {
         ? Number(holding.unrealizedGain.base) -
           Number(holding.unrealizedGain.local) * Number(holding.fxRate)
         : null;
-    const totalPnl =
-      holding?.totalGain?.local != null ? Number(holding.totalGain.local) : realizedPnl;
-    const totalPnlPercent =
-      holding?.totalGainPct != null ? Number(holding.totalGainPct) : realizedPnlPercent;
-    const totalReturn =
-      holding?.totalReturn?.local != null
-        ? Number(holding.totalReturn.local)
-        : totalPnl != null && income != null
-          ? totalPnl + income
-          : null;
+    const { totalPnl, totalPnlPercent, totalReturn } = resolveAssetPerformance({
+      holdingTotalGain: holding?.totalGain?.local != null ? Number(holding.totalGain.local) : null,
+      holdingTotalGainPercent: holding?.totalGainPct != null ? Number(holding.totalGainPct) : null,
+      holdingTotalReturn:
+        holding?.totalReturn?.local != null ? Number(holding.totalReturn.local) : null,
+      holdingRealizedGain:
+        holding?.realizedGain?.local != null ? Number(holding.realizedGain.local) : null,
+      holdingUnrealizedGain:
+        holding?.unrealizedGain?.local != null ? Number(holding.unrealizedGain.local) : null,
+      realizedGainFromLots: realizedLots.length > 0 ? realizedPnlFromLots : null,
+      realizedCostBasisFromLots,
+      openCostBasis: holding?.costBasis?.local != null ? Number(holding.costBasis.local) : null,
+      income,
+    });
     const fallbackReturnBasis =
       holding?.returnBasis?.base != null
         ? Number(holding.returnBasis.base)
