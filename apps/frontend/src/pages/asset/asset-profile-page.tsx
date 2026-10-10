@@ -58,6 +58,7 @@ import { AlternativeAssetContent, useAlternativeAssetActions } from "./alternati
 import { AssetSnapshotHistory, useHasManualSnapshots } from "./asset-account-holdings";
 import { resolveContractMultiplier } from "./asset-contract-multiplier";
 import { getAssetProfileHolding } from "./asset-profile-holding";
+import { resolveAssetPerformance } from "./asset-performance";
 import AssetDetailCard from "./asset-detail-card";
 import { AssetEditSheet } from "./asset-edit-sheet";
 import AssetHistoryCard from "./asset-history-card";
@@ -760,25 +761,33 @@ export const AssetProfilePage = () => {
     const realizedLots = assetLots.filter(
       (lot) => lot.source === "TRANSACTION_LOT" && lot.valuationRealizedPnl != null,
     );
-    const realizedPnlFromLots = realizedLots.reduce(
+    const realizedLotsComparable =
+      realizedLots.length > 0 &&
+      realizedLots.every(
+        (lot) =>
+          (lot.valuationCurrency ?? displayCurrency).trim().toUpperCase() ===
+          displayCurrency.trim().toUpperCase(),
+      );
+    const comparableRealizedLots = realizedLotsComparable ? realizedLots : [];
+    const realizedPnlFromLots = comparableRealizedLots.reduce(
       (sum, lot) => sum + Number(lot.valuationRealizedPnl ?? 0),
       0,
     );
-    const realizedCostBasisFromLots = realizedLots.reduce(
+    const realizedCostBasisFromLots = comparableRealizedLots.reduce(
       (sum, lot) => sum + Number(lot.valuationDisposalCostBasis ?? 0),
       0,
     );
     const realizedPnl =
       holding?.realizedGain?.local != null
         ? Number(holding.realizedGain.local)
-        : realizedLots.length > 0
+        : comparableRealizedLots.length > 0
           ? realizedPnlFromLots
           : null;
     const realizedPnlPercent =
       holding?.realizedGainPct != null
         ? Number(holding.realizedGainPct)
-        : realizedLots.length > 0 && realizedCostBasisFromLots > 0
-          ? realizedPnlFromLots / realizedCostBasisFromLots
+        : comparableRealizedLots.length > 0 && realizedCostBasisFromLots !== 0
+          ? realizedPnlFromLots / Math.abs(realizedCostBasisFromLots)
           : null;
     const hasOpenTransactionLotWithBase = assetLots.some(
       (lot) => lot.source === "TRANSACTION_LOT" && !lot.isClosed && lot.costBasisBase != null,
@@ -795,29 +804,25 @@ export const AssetProfilePage = () => {
         ? Number(holding.unrealizedGain.base) -
           Number(holding.unrealizedGain.local) * Number(holding.fxRate)
         : null;
-    const totalPnl =
-      holding?.totalGain?.local != null ? Number(holding.totalGain.local) : realizedPnl;
-    const totalPnlPercent =
-      holding?.totalGainPct != null ? Number(holding.totalGainPct) : realizedPnlPercent;
-    const totalReturn =
-      holding?.totalReturn?.local != null
-        ? Number(holding.totalReturn.local)
-        : totalPnl != null && income != null
-          ? totalPnl + income
-          : null;
-    const fallbackReturnBasis =
-      holding?.returnBasis?.base != null
-        ? Number(holding.returnBasis.base)
-        : realizedCostBasisFromLots;
-    const canUseFallbackTotalReturnPercent =
-      holding == null && displayCurrency.toUpperCase() === baseCurrency.toUpperCase();
-    const totalReturnPercent =
-      holding?.totalReturnPct != null
-        ? Number(holding.totalReturnPct)
-        : totalReturn != null && fallbackReturnBasis > 0 && canUseFallbackTotalReturnPercent
-          ? totalReturn / fallbackReturnBasis
-          : null;
-
+    const { totalPnl, totalPnlPercent, totalReturn, totalReturnPercent } = resolveAssetPerformance({
+      holdingTotalGain: holding?.totalGain?.local != null ? Number(holding.totalGain.local) : null,
+      holdingTotalGainPercent: holding?.totalGainPct != null ? Number(holding.totalGainPct) : null,
+      holdingTotalReturn:
+        holding?.totalReturn?.local != null ? Number(holding.totalReturn.local) : null,
+      holdingTotalReturnPercent:
+        holding?.totalReturnPct != null ? Number(holding.totalReturnPct) : null,
+      holdingRealizedGain:
+        holding?.realizedGain?.local != null ? Number(holding.realizedGain.local) : null,
+      holdingUnrealizedGain:
+        holding?.unrealizedGain?.local != null ? Number(holding.unrealizedGain.local) : null,
+      realizedGainFromLots: comparableRealizedLots.length > 0 ? realizedPnlFromLots : null,
+      realizedCostBasisFromLots,
+      realizedLotsComparable,
+      openCostBasis: holding?.costBasis?.local != null ? Number(holding.costBasis.local) : null,
+      holdingReturnBasis:
+        holding?.returnBasis?.local != null ? Number(holding.returnBasis.local) : null,
+      income,
+    });
     return {
       numShares: quantity,
       marketValue: Number(holding?.marketValue.local ?? 0),
