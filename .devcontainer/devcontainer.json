@@ -117,6 +117,7 @@
   // Features to add to the dev container. More info: https://containers.dev/features.
   "features": {
     "ghcr.io/stuartleeks/dev-container-features/shell-history:0": {}, // Shell history persistence
+    "ghcr.io/devcontainers/features/node:2": { "version": "24", "pnpmVersion": "none" }, // Keep in sync with .node-version
     "ghcr.io/rocker-org/devcontainer-features/apt-packages:1": {
       // Install required packages
       "packages": [
