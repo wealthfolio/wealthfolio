@@ -14,6 +14,12 @@ name: Warm Rust Cache
 #
 # warm-pr-check seeds the cache that pr-check.yml's Rust Check restores; PR
 # runs restore it without saving.
+#
+# warm-docker-deps exports the Dockerfile's dependency layers to the
+# wealthfolio-build-cache GHCR package, outside the Actions cache budget.
+# docker-publish.yml imports it without logging in, so the package must stay
+# public, or Docker builds compile every dependency. Dockerfile changes also
+# rewarm it.
 
 on:
   push:
@@ -23,6 +29,8 @@ on:
       - "**/Cargo.toml"
       - "rust-toolchain*"
       - ".github/workflows/cache-warm.yml"
+      - "Dockerfile"
+      - ".dockerignore"
   schedule:
     - cron: "0 3 * * 1"
   workflow_dispatch:
@@ -172,3 +180,51 @@ jobs:
           CONNECT_API_URL=http://test.local cargo test --locked --workspace --no-run
           cargo test --locked -p wealthfolio-ai --features test-utils --no-run
           cargo check --locked -p wealthfolio-server --release
+
+  warm-docker-deps:
+    # Unlike Actions caches, these registry tags are shared by every ref, so
+    # only main writes them.
+    if: github.ref == 'refs/heads/main'
+    # Keep the cache refs, platforms and runners in sync with docker-publish.yml,
+    # which imports these layers; any drift makes Docker builds cold.
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log into GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Export Docker dependency layers
+        # Builds only the deps stage: no Connect build args or secrets reach it.
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          platforms: linux/${{ matrix.arch }}
+          target: deps
+          outputs: type=cacheonly
+          cache-from:
+            type=registry,ref=ghcr.io/${{ github.repository_owner
+            }}/wealthfolio-build-cache:deps-${{ matrix.arch }}
+          cache-to:
+            type=registry,ref=ghcr.io/${{ github.repository_owner
+            }}/wealthfolio-build-cache:deps-${{ matrix.arch
+            }},mode=max,image-manifest=true,oci-mediatypes=true
