@@ -403,6 +403,8 @@ mod tests {
         currency: &str,
     ) -> Activity {
         Activity {
+            destination_amount: None,
+            destination_currency: None,
             id: id.to_string(),
             account_id: account_id.to_string(),
             asset_id: None,

@@ -122,6 +122,11 @@ function computeSummary(draftActivities: DraftActivity[]): ImportSummary {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const ACTIVITY_TYPE_CONFIG: Record<ActivityType, ActivityTypeDisplayConfig> = {
+  FX_EXCHANGE: {
+    labelKey: "activity:type_fx_exchange",
+    icon: Icons.ArrowLeftRight,
+    color: "text-muted-foreground",
+  },
   BUY: {
     labelKey: "activity:import.confirm.typeBuy",
     icon: Icons.TrendingUp,

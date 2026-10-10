@@ -58,7 +58,7 @@ assets:
 activities:
   - id: buy-1
     account: acc-1
-    type: BUY               # one of the 14 canonical types
+    type: BUY               # one of the 15 canonical types
     date: 2025-01-02T10:00:00Z  # RFC 3339; bare YYYY-MM-DD means 12:00 UTC.
     created_at: 2025-01-02T10:00:00Z  # optional row-creation instant (default: date).
                                 # Same-instant rows fold by created_at, then id (legacy
@@ -71,7 +71,9 @@ activities:
     fee: 5
     tax: 0
     currency: USD           # default: account currency; may be "" for EDGE-CUR scenarios
-    fx_rate: 1.35           # optional activity→account rate
+    destination_amount: 92 # FX_EXCHANGE only: actual credited amount
+    destination_currency: EUR # FX_EXCHANGE only; currency/amount are the debit
+    fx_rate: 1.35           # optional activity→account rate (not for FX_EXCHANGE)
     subtype: DRIP           # optional (DRIP, STAKING_REWARD, DIVIDEND_IN_KIND, BONUS, ...)
     status: POSTED          # POSTED | PENDING | DRAFT | VOID
     override: DIVIDEND      # activity_type_override

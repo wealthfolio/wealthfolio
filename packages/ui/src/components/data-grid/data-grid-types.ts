@@ -136,6 +136,7 @@ declare module "@tanstack/react-table" {
     renderKey?: string | number | boolean;
     /** Row-derived primitive used when a renderer depends on fields outside its accessor value. */
     getRenderKey?: (rowData: TData) => string | number | boolean | null | undefined;
+    isReadOnly?: (rowData: TData) => boolean;
     cell?: CellOpts;
   }
 

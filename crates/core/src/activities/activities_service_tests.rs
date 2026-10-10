@@ -1447,6 +1447,8 @@ pub(crate) mod tests {
                 format!("test-id-{}", self.activities.lock().unwrap().len() + 1)
             });
             let activity = Activity {
+                destination_amount: new_activity.destination_amount,
+                destination_currency: new_activity.destination_currency,
                 id: generated_id,
                 account_id: new_activity.account_id,
                 asset_id,
@@ -1504,6 +1506,12 @@ pub(crate) mod tests {
             existing.quantity = activity_update.quantity.unwrap_or(existing.quantity);
             existing.unit_price = activity_update.unit_price.unwrap_or(existing.unit_price);
             existing.amount = activity_update.amount.unwrap_or(existing.amount);
+            existing.destination_amount = activity_update
+                .destination_amount
+                .unwrap_or(existing.destination_amount);
+            existing.destination_currency = activity_update
+                .destination_currency
+                .or(existing.destination_currency.take());
             existing.fee = activity_update.fee.unwrap_or(existing.fee);
             existing.tax = activity_update.tax.unwrap_or(existing.tax);
             existing.status = activity_update.status.unwrap_or(existing.status.clone());
@@ -1637,6 +1645,8 @@ pub(crate) mod tests {
                     .and_then(|metadata| serde_json::from_str(metadata).ok());
                 let activity_date = parse_test_activity_datetime(&new_activity.activity_date);
                 stored.push(Activity {
+                    destination_amount: new_activity.destination_amount,
+                    destination_currency: new_activity.destination_currency,
                     id: new_activity.id.unwrap_or_else(|| "test-id".to_string()),
                     account_id: new_activity.account_id,
                     asset_id,
@@ -1876,6 +1886,8 @@ pub(crate) mod tests {
 
     fn create_stored_activity(id: &str, account_id: &str, asset_id: Option<&str>) -> Activity {
         Activity {
+            destination_amount: None,
+            destination_currency: None,
             id: id.to_string(),
             account_id: account_id.to_string(),
             asset_id: asset_id.map(|s| s.to_string()),
@@ -1921,6 +1933,8 @@ pub(crate) mod tests {
 
     fn create_transfer_activity(seed: TransferActivitySeed<'_>) -> Activity {
         Activity {
+            destination_amount: None,
+            destination_currency: None,
             id: seed.id.to_string(),
             account_id: seed.account_id.to_string(),
             asset_id: seed.asset_id.map(str::to_string),
@@ -2002,6 +2016,8 @@ pub(crate) mod tests {
         currency: &str,
     ) -> ActivityUpdate {
         ActivityUpdate {
+            destination_amount: None,
+            destination_currency: None,
             id: id.to_string(),
             account_id: account_id.to_string(),
             asset,
@@ -2051,6 +2067,8 @@ pub(crate) mod tests {
 
         let created = activity_service
             .create_activity(NewActivity {
+                destination_amount: None,
+                destination_currency: None,
                 id: Some("transfer-1".to_string()),
                 account_id: "acc-1".to_string(),
                 asset: Some(AssetResolutionInput {
@@ -2129,6 +2147,8 @@ pub(crate) mod tests {
 
         let updated = activity_service
             .update_activity(ActivityUpdate {
+                destination_amount: None,
+                destination_currency: None,
                 id: "activity-1".to_string(),
                 account_id: "acc-cad".to_string(),
                 asset: Some(AssetResolutionInput {
@@ -2187,6 +2207,8 @@ pub(crate) mod tests {
 
         let updated = activity_service
             .update_activity(ActivityUpdate {
+                destination_amount: None,
+                destination_currency: None,
                 id: "activity-recalc".to_string(),
                 account_id: "acc-usd".to_string(),
                 asset: Some(AssetResolutionInput {
@@ -2258,6 +2280,8 @@ pub(crate) mod tests {
 
         let updated = activity_service
             .update_activity(ActivityUpdate {
+                destination_amount: None,
+                destination_currency: None,
                 id: "activity-1".to_string(),
                 account_id: "acc-cad".to_string(),
                 asset: Some(AssetResolutionInput {
@@ -2319,6 +2343,8 @@ pub(crate) mod tests {
 
         let updated = activity_service
             .update_activity(ActivityUpdate {
+                destination_amount: None,
+                destination_currency: None,
                 id: "activity-mini".to_string(),
                 account_id: "acc-usd".to_string(),
                 asset: Some(AssetResolutionInput {
@@ -2380,6 +2406,8 @@ pub(crate) mod tests {
 
         let created = activity_service
             .create_activity(NewActivity {
+                destination_amount: None,
+                destination_currency: None,
                 id: None,
                 account_id: "acc-cad".to_string(),
                 asset: Some(AssetResolutionInput {
@@ -2439,6 +2467,8 @@ pub(crate) mod tests {
 
         let created = activity_service
             .create_activity(NewActivity {
+                destination_amount: None,
+                destination_currency: None,
                 id: None,
                 account_id: "acc-usd".to_string(),
                 asset: Some(AssetResolutionInput {
@@ -2505,6 +2535,8 @@ pub(crate) mod tests {
 
         let updated = activity_service
             .update_activity(ActivityUpdate {
+                destination_amount: None,
+                destination_currency: None,
                 id: "activity-swap".to_string(),
                 account_id: "acc-usd".to_string(),
                 asset: Some(AssetResolutionInput {
@@ -2564,6 +2596,8 @@ pub(crate) mod tests {
 
         let updated = activity_service
             .update_activity(ActivityUpdate {
+                destination_amount: None,
+                destination_currency: None,
                 id: "activity-tag".to_string(),
                 account_id: "acc-usd".to_string(),
                 asset: Some(AssetResolutionInput {
@@ -2626,6 +2660,8 @@ pub(crate) mod tests {
 
         let updated = activity_service
             .update_activity(ActivityUpdate {
+                destination_amount: None,
+                destination_currency: None,
                 id: "activity-meta".to_string(),
                 account_id: "acc-usd".to_string(),
                 asset: Some(AssetResolutionInput {
@@ -2691,6 +2727,8 @@ pub(crate) mod tests {
 
         let created = activity_service
             .create_activity(NewActivity {
+                destination_amount: None,
+                destination_currency: None,
                 id: None,
                 account_id: "acc-cad".to_string(),
                 asset: Some(AssetResolutionInput {
@@ -2749,6 +2787,8 @@ pub(crate) mod tests {
 
         let created = activity_service
             .create_activity(NewActivity {
+                destination_amount: None,
+                destination_currency: None,
                 id: None,
                 account_id: "acc-cad".to_string(),
                 asset: Some(AssetResolutionInput {
@@ -2813,6 +2853,8 @@ pub(crate) mod tests {
 
         let updated = activity_service
             .update_activity(ActivityUpdate {
+                destination_amount: None,
+                destination_currency: None,
                 id: "activity-1".to_string(),
                 account_id: "acc-usd".to_string(),
                 asset: Some(AssetResolutionInput {
@@ -2980,6 +3022,8 @@ pub(crate) mod tests {
         );
 
         let update = ActivityUpdate {
+            destination_amount: None,
+            destination_currency: None,
             id: "deposit-draft".to_string(),
             account_id: "acc-usd".to_string(),
             asset: None,
@@ -3027,6 +3071,8 @@ pub(crate) mod tests {
 
         let approved = activity_service
             .update_activity(ActivityUpdate {
+                destination_amount: None,
+                destination_currency: None,
                 id: "deposit-draft".to_string(),
                 account_id: "acc-usd".to_string(),
                 asset: None,
@@ -3079,6 +3125,8 @@ pub(crate) mod tests {
 
         let approved = activity_service
             .update_activity(ActivityUpdate {
+                destination_amount: None,
+                destination_currency: None,
                 id: "buy-custom".to_string(),
                 account_id: "acc-usd".to_string(),
                 asset: Some(AssetResolutionInput {
@@ -3130,6 +3178,8 @@ pub(crate) mod tests {
 
         let updated = activity_service
             .update_activity(ActivityUpdate {
+                destination_amount: None,
+                destination_currency: None,
                 id: "buy-edited".to_string(),
                 account_id: "acc-usd".to_string(),
                 asset: Some(AssetResolutionInput {
@@ -3177,6 +3227,8 @@ pub(crate) mod tests {
         );
 
         let mut new_activity = NewActivity {
+            destination_amount: None,
+            destination_currency: None,
             id: Some("buy-attested".to_string()),
             account_id: "acc-usd".to_string(),
             asset: Some(AssetResolutionInput {
@@ -3243,6 +3295,8 @@ pub(crate) mod tests {
         );
 
         let mut new_activity = NewActivity {
+            destination_amount: None,
+            destination_currency: None,
             id: Some("buy-gross-attested".to_string()),
             account_id: "acc-usd".to_string(),
             asset: Some(AssetResolutionInput {
@@ -3310,6 +3364,8 @@ pub(crate) mod tests {
         let result = activity_service
             .prepare_activities_for_sync(
                 vec![NewActivity {
+                    destination_amount: None,
+                    destination_currency: None,
                     id: Some("sync-buy".to_string()),
                     account_id: "acc-usd".to_string(),
                     asset: Some(AssetResolutionInput {
@@ -3377,6 +3433,8 @@ pub(crate) mod tests {
             let activities = [("XTSE", "CAD"), ("XNYS", "USD")]
                 .into_iter()
                 .map(|(mic, currency)| NewActivity {
+                    destination_amount: None,
+                    destination_currency: None,
                     id: Some(format!("buy-{mic}")),
                     account_id: account.id.clone(),
                     asset: Some(AssetResolutionInput {
@@ -3467,6 +3525,8 @@ pub(crate) mod tests {
                 Arc::new(MockQuoteService),
             );
             let activity = NewActivity {
+                destination_amount: None,
+                destination_currency: None,
                 id: Some("bond-buy".to_string()),
                 account_id: "acc-usd".to_string(),
                 asset: Some(AssetResolutionInput {
@@ -3548,6 +3608,8 @@ pub(crate) mod tests {
         );
         let isin = crate::utils::cusip::cusip_to_isin("135087D27", "CA");
         let make_activity = |symbol: &str| NewActivity {
+            destination_amount: None,
+            destination_currency: None,
             id: None,
             account_id: account.id.clone(),
             asset: Some(AssetResolutionInput {
@@ -3621,6 +3683,8 @@ pub(crate) mod tests {
 
         let created = activity_service
             .create_activity(NewActivity {
+                destination_amount: None,
+                destination_currency: None,
                 id: Some("bond-buy".to_string()),
                 account_id: "acc-bonds".to_string(),
                 asset: Some(AssetResolutionInput {
@@ -3673,6 +3737,8 @@ pub(crate) mod tests {
         let result = activity_service
             .prepare_activities_for_sync(
                 vec![NewActivity {
+                    destination_amount: None,
+                    destination_currency: None,
                     id: Some("sync-mini-buy".to_string()),
                     account_id: "acc-cad".to_string(),
                     asset: Some(AssetResolutionInput {
@@ -3742,6 +3808,8 @@ pub(crate) mod tests {
         let result = activity_service
             .prepare_activities_for_sync(
                 vec![NewActivity {
+                    destination_amount: None,
+                    destination_currency: None,
                     id: Some("sync-gross-buy".to_string()),
                     account_id: "acc-usd".to_string(),
                     asset: Some(AssetResolutionInput {
@@ -3830,6 +3898,8 @@ pub(crate) mod tests {
 
         let updated = activity_service
             .update_activity(ActivityUpdate {
+                destination_amount: None,
+                destination_currency: None,
                 id: "buy-custom-econ".to_string(),
                 account_id: "acc-usd".to_string(),
                 asset: Some(AssetResolutionInput {
@@ -3882,6 +3952,8 @@ pub(crate) mod tests {
 
         let updated = activity_service
             .update_activity(ActivityUpdate {
+                destination_amount: None,
+                destination_currency: None,
                 id: "buy-calc-econ".to_string(),
                 account_id: "acc-usd".to_string(),
                 asset: Some(AssetResolutionInput {
@@ -3936,6 +4008,8 @@ pub(crate) mod tests {
 
         let updated = activity_service
             .update_activity(ActivityUpdate {
+                destination_amount: None,
+                destination_currency: None,
                 id: "buy-fee-waived".to_string(),
                 account_id: "acc-usd".to_string(),
                 asset: Some(AssetResolutionInput {
@@ -3990,6 +4064,8 @@ pub(crate) mod tests {
 
         let updated = activity_service
             .update_activity(ActivityUpdate {
+                destination_amount: None,
+                destination_currency: None,
                 id: "buy-reviewed".to_string(),
                 account_id: "acc-usd".to_string(),
                 asset: Some(AssetResolutionInput {
@@ -4044,6 +4120,8 @@ pub(crate) mod tests {
 
         let updated = activity_service
             .update_activity(ActivityUpdate {
+                destination_amount: None,
+                destination_currency: None,
                 id: "buy-to-option".to_string(),
                 account_id: "acc-usd".to_string(),
                 asset: Some(AssetResolutionInput {
@@ -4094,6 +4172,8 @@ pub(crate) mod tests {
         );
 
         let new_activity = NewActivity {
+            destination_amount: None,
+            destination_currency: None,
             id: Some("split-1".to_string()),
             account_id: "acc-1".to_string(),
             asset: Some(AssetResolutionInput {
@@ -4151,6 +4231,8 @@ pub(crate) mod tests {
         .with_event_sink(event_sink.clone());
 
         let new_activity = NewActivity {
+            destination_amount: None,
+            destination_currency: None,
             id: Some("split-1".to_string()),
             account_id: "acc-1".to_string(),
             asset: Some(AssetResolutionInput {
@@ -4302,6 +4384,8 @@ pub(crate) mod tests {
         );
 
         let new_activity = NewActivity {
+            destination_amount: None,
+            destination_currency: None,
             id: Some("activity-1".to_string()),
             account_id: "card-1".to_string(),
             asset: None,
@@ -4612,6 +4696,8 @@ pub(crate) mod tests {
         currency: &str,
     ) -> NewActivity {
         NewActivity {
+            destination_amount: None,
+            destination_currency: None,
             id: Some(id.to_string()),
             account_id: account_id.to_string(),
             asset: None,
@@ -4882,6 +4968,8 @@ pub(crate) mod tests {
         let result = activity_service
             .prepare_activities_for_sync(
                 vec![NewActivity {
+                    destination_amount: None,
+                    destination_currency: None,
                     id: Some("card-buy".to_string()),
                     account_id: "card-1".to_string(),
                     asset: Some(AssetResolutionInput {
@@ -4957,6 +5045,8 @@ pub(crate) mod tests {
 
         // Create activity with USD currency (same as account) but for EUR asset
         let new_activity = NewActivity {
+            destination_amount: None,
+            destination_currency: None,
             id: Some("activity-1".to_string()),
             account_id: "acc-1".to_string(),
             asset: Some(AssetResolutionInput {
@@ -5031,6 +5121,8 @@ pub(crate) mod tests {
 
         // Create activity with EUR currency (different from account USD)
         let new_activity = NewActivity {
+            destination_amount: None,
+            destination_currency: None,
             id: Some("activity-1".to_string()),
             account_id: "acc-1".to_string(),
             asset: Some(AssetResolutionInput {
@@ -5096,6 +5188,8 @@ pub(crate) mod tests {
         );
 
         let duplicate_activity = NewActivity {
+            destination_amount: None,
+            destination_currency: None,
             id: None,
             account_id: "acc-1".to_string(),
             asset: Some(AssetResolutionInput {
@@ -5159,6 +5253,8 @@ pub(crate) mod tests {
         );
 
         let taxable_activity = NewActivity {
+            destination_amount: None,
+            destination_currency: None,
             id: None,
             account_id: "acc-1".to_string(),
             asset: Some(AssetResolutionInput {
@@ -5236,6 +5332,8 @@ pub(crate) mod tests {
         );
 
         let trade = NewActivity {
+            destination_amount: None,
+            destination_currency: None,
             id: None,
             account_id: "acc-1".to_string(),
             asset: Some(AssetResolutionInput {
@@ -5307,6 +5405,8 @@ pub(crate) mod tests {
         );
 
         let provider_activity_one = NewActivity {
+            destination_amount: None,
+            destination_currency: None,
             id: None,
             account_id: "acc-1".to_string(),
             asset: Some(AssetResolutionInput {
@@ -5368,6 +5468,8 @@ pub(crate) mod tests {
 
         let request = ActivityBulkMutationRequest {
             creates: vec![NewActivity {
+                destination_amount: None,
+                destination_currency: None,
                 id: Some("temp-1".to_string()),
                 account_id: "acc-1".to_string(),
                 asset: Some(AssetResolutionInput {
@@ -5739,6 +5841,8 @@ pub(crate) mod tests {
 
         // Create activity with USD currency (same as account and asset)
         let new_activity = NewActivity {
+            destination_amount: None,
+            destination_currency: None,
             id: Some("activity-1".to_string()),
             account_id: "acc-1".to_string(),
             asset: Some(AssetResolutionInput {
@@ -5816,6 +5920,8 @@ pub(crate) mod tests {
         );
 
         let new_activity = NewActivity {
+            destination_amount: None,
+            destination_currency: None,
             id: Some("activity-1".to_string()),
             account_id: "acc-1".to_string(),
             asset: Some(AssetResolutionInput {
@@ -5885,6 +5991,8 @@ pub(crate) mod tests {
         );
 
         let new_activity = NewActivity {
+            destination_amount: None,
+            destination_currency: None,
             id: Some("activity-1".to_string()),
             account_id: "acc-1".to_string(),
             asset: Some(AssetResolutionInput {
@@ -5943,6 +6051,8 @@ pub(crate) mod tests {
         );
 
         let new_activity = NewActivity {
+            destination_amount: None,
+            destination_currency: None,
             id: Some("activity-missing-quote".to_string()),
             account_id: "acc-1".to_string(),
             asset: Some(AssetResolutionInput {
@@ -6001,6 +6111,8 @@ pub(crate) mod tests {
         );
 
         let new_activity = NewActivity {
+            destination_amount: None,
+            destination_currency: None,
             id: Some("staking-reward-1".to_string()),
             account_id: "acc-1".to_string(),
             asset: None,
@@ -6061,6 +6173,8 @@ pub(crate) mod tests {
 
         let activity = activity_service
             .create_activity(NewActivity {
+                destination_amount: None,
+                destination_currency: None,
                 id: Some("staking-reward-lowercase".to_string()),
                 account_id: "acc-1".to_string(),
                 asset: Some(AssetResolutionInput {
@@ -6120,6 +6234,8 @@ pub(crate) mod tests {
 
         let activity = activity_service
             .create_activity(NewActivity {
+                destination_amount: None,
+                destination_currency: None,
                 id: Some("staking-reward-negative".to_string()),
                 account_id: "acc-1".to_string(),
                 asset: Some(AssetResolutionInput {
@@ -6176,6 +6292,8 @@ pub(crate) mod tests {
         let result = activity_service
             .prepare_activities_for_sync(
                 vec![NewActivity {
+                    destination_amount: None,
+                    destination_currency: None,
                     id: Some("option-buy".to_string()),
                     account_id: "acc-1".to_string(),
                     asset: Some(AssetResolutionInput {
@@ -6237,6 +6355,8 @@ pub(crate) mod tests {
         let result = activity_service
             .prepare_activities_for_import(
                 vec![NewActivity {
+                    destination_amount: None,
+                    destination_currency: None,
                     id: Some("gbp-tax-import".to_string()),
                     account_id: "acc-1".to_string(),
                     asset: Some(AssetResolutionInput {
@@ -6302,6 +6422,8 @@ pub(crate) mod tests {
         let result = activity_service
             .prepare_activities_for_sync(
                 vec![NewActivity {
+                    destination_amount: None,
+                    destination_currency: None,
                     id: Some("staking-cash-only".to_string()),
                     account_id: "acc-1".to_string(),
                     asset: None,
@@ -6369,6 +6491,8 @@ pub(crate) mod tests {
         let result = activity_service
             .prepare_activities_for_sync(
                 vec![NewActivity {
+                    destination_amount: None,
+                    destination_currency: None,
                     id: Some("activity-staking-sol".to_string()),
                     account_id: "acc-1".to_string(),
                     asset: Some(AssetResolutionInput {
@@ -6433,6 +6557,8 @@ pub(crate) mod tests {
         let result = activity_service
             .prepare_activities_for_sync(
                 vec![NewActivity {
+                    destination_amount: None,
+                    destination_currency: None,
                     id: Some("staking-invalid-symbol".to_string()),
                     account_id: "acc-1".to_string(),
                     asset: Some(AssetResolutionInput {
@@ -6495,6 +6621,8 @@ pub(crate) mod tests {
         let result = activity_service
             .prepare_activities_for_sync(
                 vec![NewActivity {
+                    destination_amount: None,
+                    destination_currency: None,
                     id: Some("interest-drip-label".to_string()),
                     account_id: "acc-1".to_string(),
                     asset: None,
@@ -6551,6 +6679,8 @@ pub(crate) mod tests {
         let result = activity_service
             .prepare_activities_for_sync(
                 vec![NewActivity {
+                    destination_amount: None,
+                    destination_currency: None,
                     id: Some("credit-staking-label".to_string()),
                     account_id: "acc-1".to_string(),
                     asset: None,
@@ -6610,6 +6740,8 @@ pub(crate) mod tests {
 
         let request = ActivityBulkMutationRequest {
             creates: vec![NewActivity {
+                destination_amount: None,
+                destination_currency: None,
                 id: Some("temp-1".to_string()),
                 account_id: "acc-1".to_string(),
                 asset: Some(AssetResolutionInput {
@@ -6689,6 +6821,8 @@ pub(crate) mod tests {
         );
 
         let new_activity = NewActivity {
+            destination_amount: None,
+            destination_currency: None,
             id: Some("activity-1".to_string()),
             account_id: "acc-1".to_string(),
             asset: Some(AssetResolutionInput {
@@ -6864,6 +6998,8 @@ pub(crate) mod tests {
         );
 
         let new_activity = NewActivity {
+            destination_amount: None,
+            destination_currency: None,
             id: Some("activity-missing-asset".to_string()),
             account_id: "acc-1".to_string(),
             asset: Some(AssetResolutionInput {
@@ -6929,6 +7065,8 @@ pub(crate) mod tests {
         );
 
         let new_activity = NewActivity {
+            destination_amount: None,
+            destination_currency: None,
             id: Some("activity-aapl".to_string()),
             account_id: "acc-1".to_string(),
             asset: Some(AssetResolutionInput {
@@ -7007,6 +7145,8 @@ pub(crate) mod tests {
         );
 
         let new_activity = NewActivity {
+            destination_amount: None,
+            destination_currency: None,
             id: Some("activity-zaaa".to_string()),
             account_id: "acc-1".to_string(),
             asset: Some(AssetResolutionInput {
@@ -7080,6 +7220,8 @@ pub(crate) mod tests {
         );
 
         let new_activity = NewActivity {
+            destination_amount: None,
+            destination_currency: None,
             id: Some("activity-shop".to_string()),
             account_id: "acc-1".to_string(),
             asset: Some(AssetResolutionInput {
@@ -7140,6 +7282,8 @@ pub(crate) mod tests {
         );
 
         let new_activity = NewActivity {
+            destination_amount: None,
+            destination_currency: None,
             id: Some("activity-transient".to_string()),
             account_id: "acc-1".to_string(),
             asset: Some(AssetResolutionInput {
@@ -7204,6 +7348,8 @@ pub(crate) mod tests {
         );
 
         let new_activity = NewActivity {
+            destination_amount: None,
+            destination_currency: None,
             id: Some("activity-1".to_string()),
             account_id: "acc-1".to_string(),
             asset: None,
@@ -7256,6 +7402,8 @@ pub(crate) mod tests {
 
         let created = activity_service
             .create_activity(NewActivity {
+                destination_amount: None,
+                destination_currency: None,
                 id: Some("cash-adjustment".to_string()),
                 account_id: "acc-1".to_string(),
                 asset: None,
@@ -7301,6 +7449,8 @@ pub(crate) mod tests {
 
         let error = activity_service
             .create_activity(NewActivity {
+                destination_amount: None,
+                destination_currency: None,
                 id: Some("option-expiry".to_string()),
                 account_id: "acc-1".to_string(),
                 asset: None,
@@ -7345,6 +7495,8 @@ pub(crate) mod tests {
 
             let error = activity_service
                 .create_activity(NewActivity {
+                    destination_amount: None,
+                    destination_currency: None,
                     id: Some("cost-adjustment".to_string()),
                     account_id: "acc-1".to_string(),
                     asset: None,
@@ -7399,6 +7551,8 @@ pub(crate) mod tests {
         );
 
         let new_activity = NewActivity {
+            destination_amount: None,
+            destination_currency: None,
             id: Some("activity-1".to_string()),
             account_id: "acc-1".to_string(),
             asset: None,
@@ -7491,6 +7645,8 @@ pub(crate) mod tests {
         );
 
         let new_activity = NewActivity {
+            destination_amount: None,
+            destination_currency: None,
             id: Some("activity-1".to_string()),
             account_id: "acc-1".to_string(),
             asset: None, // No asset info
@@ -7553,6 +7709,8 @@ pub(crate) mod tests {
         );
 
         let new_activity = NewActivity {
+            destination_amount: None,
+            destination_currency: None,
             id: Some("activity-1".to_string()),
             account_id: "acc-1".to_string(),
             asset: Some(AssetResolutionInput {
@@ -7622,6 +7780,8 @@ pub(crate) mod tests {
         );
 
         let new_activity = NewActivity {
+            destination_amount: None,
+            destination_currency: None,
             id: Some("activity-1".to_string()),
             account_id: "acc-1".to_string(),
             asset: Some(AssetResolutionInput {
@@ -7692,6 +7852,8 @@ pub(crate) mod tests {
         );
 
         let new_activity = NewActivity {
+            destination_amount: None,
+            destination_currency: None,
             id: Some("activity-1".to_string()),
             account_id: "acc-1".to_string(),
             asset: Some(AssetResolutionInput {
@@ -7763,6 +7925,8 @@ pub(crate) mod tests {
 
         // ETH would be inferred as crypto, but exchange_mic forces security
         let new_activity = NewActivity {
+            destination_amount: None,
+            destination_currency: None,
             id: Some("activity-1".to_string()),
             account_id: "acc-1".to_string(),
             asset: Some(AssetResolutionInput {
@@ -7834,6 +7998,8 @@ pub(crate) mod tests {
             );
 
             let new_activity = NewActivity {
+                destination_amount: None,
+                destination_currency: None,
                 id: Some(format!("activity-{}", activity_type)),
                 account_id: "acc-1".to_string(),
                 asset: None,
@@ -7904,6 +8070,8 @@ pub(crate) mod tests {
         // Create bulk mutation request
         let request = ActivityBulkMutationRequest {
             creates: vec![NewActivity {
+                destination_amount: None,
+                destination_currency: None,
                 id: Some("activity-1".to_string()),
                 account_id: "acc-1".to_string(),
                 asset: Some(AssetResolutionInput {
@@ -11220,6 +11388,8 @@ pub(crate) mod tests {
             .lock()
             .unwrap()
             .push(Activity {
+                destination_amount: None,
+                destination_currency: None,
                 id: "existing-transfer-in".to_string(),
                 account_id: "acc-1".to_string(),
                 asset_id: None,
@@ -11896,6 +12066,8 @@ pub(crate) mod tests {
             .with_timezone(&Utc);
         activity_repository.activities.lock().unwrap().extend([
             Activity {
+                destination_amount: None,
+                destination_currency: None,
                 id: "transfer-in".to_string(),
                 account_id: "acc-in".to_string(),
                 asset_id: Some("asset-in".to_string()),
@@ -11926,6 +12098,8 @@ pub(crate) mod tests {
                 updated_at: earlier,
             },
             Activity {
+                destination_amount: None,
+                destination_currency: None,
                 id: "transfer-out".to_string(),
                 account_id: "acc-out".to_string(),
                 asset_id: Some("asset-out".to_string()),
@@ -12815,6 +12989,8 @@ pub(crate) mod tests {
             .bulk_mutate_activities(ActivityBulkMutationRequest {
                 creates: vec![],
                 updates: vec![ActivityUpdate {
+                    destination_amount: None,
+                    destination_currency: None,
                     id: "cash-activity".to_string(),
                     account_id: "acc-usd".to_string(),
                     asset: None,
@@ -13099,6 +13275,8 @@ pub(crate) mod tests {
             .lock()
             .unwrap()
             .push(Activity {
+                destination_amount: None,
+                destination_currency: None,
                 id: "existing-dup".to_string(),
                 account_id: "acc-1".to_string(),
                 asset_id: None,
@@ -13313,6 +13491,8 @@ pub(crate) mod tests {
             .lock()
             .unwrap()
             .push(Activity {
+                destination_amount: None,
+                destination_currency: None,
                 id: "existing-dup".to_string(),
                 account_id: "acc-1".to_string(),
                 asset_id: None,
@@ -13633,6 +13813,8 @@ pub(crate) mod tests {
 
         // User submits activity in GBp (pence) - 14082 pence per share
         let new_activity = NewActivity {
+            destination_amount: None,
+            destination_currency: None,
             id: Some("activity-1".to_string()),
             account_id: "acc-1".to_string(),
             asset: Some(AssetResolutionInput {
@@ -13725,6 +13907,8 @@ pub(crate) mod tests {
         );
 
         let new_activity = NewActivity {
+            destination_amount: None,
+            destination_currency: None,
             id: Some("activity-1".to_string()),
             account_id: "acc-1".to_string(),
             asset: Some(AssetResolutionInput {
@@ -13789,6 +13973,8 @@ pub(crate) mod tests {
         );
 
         let new_activity = NewActivity {
+            destination_amount: None,
+            destination_currency: None,
             id: Some("activity-1".to_string()),
             account_id: "acc-1".to_string(),
             asset: Some(AssetResolutionInput {
@@ -13853,6 +14039,8 @@ pub(crate) mod tests {
         );
 
         let new_activity = NewActivity {
+            destination_amount: None,
+            destination_currency: None,
             id: Some("activity-1".to_string()),
             account_id: "acc-1".to_string(),
             asset: Some(AssetResolutionInput {
@@ -14459,6 +14647,8 @@ pub(crate) mod tests {
 
         // OCC symbol with no explicit kind input — should be inferred as OPTION
         let new_activity = NewActivity {
+            destination_amount: None,
+            destination_currency: None,
             id: Some("activity-occ-1".to_string()),
             account_id: "acc-1".to_string(),
             asset: Some(AssetResolutionInput {
@@ -14528,6 +14718,8 @@ pub(crate) mod tests {
 
         activity_repository.activities.lock().unwrap().extend([
             Activity {
+                destination_amount: None,
+                destination_currency: None,
                 id: "transfer-out".to_string(),
                 account_id: "acc-out".to_string(),
                 asset_id: None,
@@ -14558,6 +14750,8 @@ pub(crate) mod tests {
                 updated_at: date_original,
             },
             Activity {
+                destination_amount: None,
+                destination_currency: None,
                 id: "transfer-in".to_string(),
                 account_id: "acc-in".to_string(),
                 asset_id: None,
@@ -14590,6 +14784,8 @@ pub(crate) mod tests {
         ]);
 
         let update = crate::activities::ActivityUpdate {
+            destination_amount: None,
+            destination_currency: None,
             id: "transfer-out".to_string(),
             account_id: "acc-out".to_string(),
             asset: None,
@@ -14677,6 +14873,8 @@ pub(crate) mod tests {
 
         let updated = activity_service
             .update_activity(ActivityUpdate {
+                destination_amount: None,
+                destination_currency: None,
                 id: "deposit-1".to_string(),
                 account_id: "acc-1".to_string(),
                 asset: None,
@@ -14744,6 +14942,8 @@ pub(crate) mod tests {
 
         activity_service
             .update_activity(crate::activities::ActivityUpdate {
+                destination_amount: None,
+                destination_currency: None,
                 id: "transfer-out".to_string(),
                 account_id: "acc-out".to_string(),
                 asset: None,
@@ -14813,6 +15013,8 @@ pub(crate) mod tests {
 
         activity_service
             .update_activity(crate::activities::ActivityUpdate {
+                destination_amount: None,
+                destination_currency: None,
                 id: "transfer-out".to_string(),
                 account_id: "acc-out".to_string(),
                 asset: None,
@@ -14866,6 +15068,8 @@ pub(crate) mod tests {
 
         activity_repository.activities.lock().unwrap().extend([
             Activity {
+                destination_amount: None,
+                destination_currency: None,
                 id: "transfer-out".to_string(),
                 account_id: "acc-out".to_string(),
                 asset_id: None,
@@ -14896,6 +15100,8 @@ pub(crate) mod tests {
                 updated_at: date,
             },
             Activity {
+                destination_amount: None,
+                destination_currency: None,
                 id: "transfer-in".to_string(),
                 account_id: "acc-in".to_string(),
                 asset_id: None,
@@ -15682,6 +15888,8 @@ pub(crate) mod tests {
         let before = stored_snapshot(&activity_repository);
 
         let update = ActivityUpdate {
+            destination_amount: None,
+            destination_currency: None,
             id: "pair-out".to_string(),
             account_id: "acc-a".to_string(),
             asset: None,
@@ -15764,5 +15972,195 @@ pub(crate) mod tests {
             .to_string();
         assert!(error.contains("not by symbol"), "{error}");
         assert_eq!(stored_snapshot(&activity_repository), before);
+    }
+    #[tokio::test]
+    async fn fx_exchange_deduplication_includes_both_sides_for_single_and_bulk_creates() {
+        let accounts = Arc::new(MockAccountService::new());
+        accounts.add_account(create_test_account("account", "USD"));
+        let service = ActivityService::new(
+            Arc::new(MockActivityRepository::new()),
+            accounts,
+            Arc::new(MockAssetService::new()),
+            Arc::new(MockFxService::new()),
+            Arc::new(MockQuoteService),
+        );
+        let input = |amount: &str, currency: &str| -> NewActivity {
+            serde_json::from_value(json!({
+                "accountId": "account", "activityType": "FX_EXCHANGE",
+                "activityDate": "2025-01-02", "amount": "100", "currency": "USD",
+                "destinationAmount": amount, "destinationCurrency": currency
+            }))
+            .unwrap()
+        };
+        for (amount, currency) in [("92", "EUR"), ("93", "EUR"), ("92", "GBP")] {
+            let created = service
+                .create_activity(input(amount, currency))
+                .await
+                .unwrap();
+            assert_eq!(
+                created.idempotency_key,
+                Some(super::super::idempotency::compute_activity_idempotency_key(
+                    &created
+                ))
+            );
+        }
+        assert!(service
+            .create_activity(input("92.00", "EUR"))
+            .await
+            .is_err());
+        let bulk = service
+            .bulk_mutate_activities(ActivityBulkMutationRequest {
+                creates: vec![input("92", "JPY"), input("93", "JPY")],
+                updates: vec![],
+                delete_ids: vec![],
+            })
+            .await
+            .unwrap();
+        assert!(bulk.errors.is_empty());
+        assert_eq!(bulk.created.len(), 2);
+        assert_ne!(
+            bulk.created[0].idempotency_key,
+            bulk.created[1].idempotency_key
+        );
+        for created in bulk.created {
+            assert_eq!(
+                created.idempotency_key,
+                Some(super::super::idempotency::compute_activity_idempotency_key(
+                    &created
+                ))
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn fx_exchange_rejects_holdings_and_credit_card_accounts_before_writing() {
+        let accounts = Arc::new(MockAccountService::new());
+        accounts.add_account(create_test_account("allowed", "USD"));
+        let mut holdings = create_test_account("holdings", "USD");
+        holdings.tracking_mode = crate::accounts::TrackingMode::Holdings;
+        accounts.add_account(holdings);
+        let mut card = create_test_account("card", "USD");
+        card.account_type = crate::accounts::account_types::CREDIT_CARD.into();
+        accounts.add_account(card);
+        let repo = Arc::new(MockActivityRepository::new());
+        let events = Arc::new(MockDomainEventSink::new());
+        let service = ActivityService::new(
+            repo.clone(),
+            accounts,
+            Arc::new(MockAssetService::new()),
+            Arc::new(MockFxService::new()),
+            Arc::new(RecordingQuoteService::default()),
+        )
+        .with_event_sink(events.clone());
+        let input: NewActivity = serde_json::from_value(json!({
+            "id": "exchange", "accountId": "allowed", "activityType": "FX_EXCHANGE",
+            "activityDate": "2025-01-02", "amount": "100", "currency": "USD",
+            "destinationAmount": "92", "destinationCurrency": "EUR"
+        }))
+        .unwrap();
+        for account in ["holdings", "card"] {
+            let mut invalid = input.clone();
+            invalid.account_id = account.into();
+            assert!(service.create_activity(invalid).await.is_err());
+        }
+        assert!(repo.get_activities().unwrap().is_empty());
+        assert!(events.events().is_empty());
+        service.create_activity(input).await.unwrap();
+        for account in ["holdings", "card"] {
+            let patch = serde_json::from_value(json!({
+                "id": "exchange", "accountId": account, "activityType": "FX_EXCHANGE",
+                "activityDate": "2025-01-02", "currency": "USD"
+            }))
+            .unwrap();
+            assert!(service.update_activity(patch).await.is_err());
+        }
+        assert_eq!(repo.get_activities().unwrap()[0].account_id, "allowed");
+        assert_eq!(events.events().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn fx_exchange_crud_preserves_both_sides_and_only_registers_local_pairs() {
+        let accounts = Arc::new(MockAccountService::new());
+        accounts.add_account(create_test_account("fx-account", "CAD"));
+        let assets = Arc::new(MockAssetService::new());
+        let fx = Arc::new(MockFxService::new());
+        let quotes = Arc::new(RecordingQuoteService::default());
+        let repo = Arc::new(MockActivityRepository::new());
+        let events = Arc::new(MockDomainEventSink::new());
+        let service = ActivityService::new(
+            repo.clone(),
+            accounts,
+            assets.clone(),
+            fx.clone(),
+            quotes.clone(),
+        )
+        .with_event_sink(events.clone());
+        let input: NewActivity = serde_json::from_value(json!({
+            "id": "exchange", "accountId": "fx-account", "activityType": "FX_EXCHANGE",
+            "activityDate": "2025-01-02", "amount": "100", "currency": " usd ",
+            "destinationAmount": "92.12345678", "destinationCurrency": "EUR"
+        }))
+        .unwrap();
+        let created = service.create_activity(input.clone()).await.unwrap();
+        assert_eq!(created.currency, "USD");
+        assert_eq!(created.destination_amount, Some(dec!(92.12345678)));
+        assert!(created.asset_id.is_none());
+        assert!(created.fx_rate.is_none());
+        assert_eq!(repo.get_activities().unwrap().len(), 1);
+        assert!(fx
+            .get_registered_pairs()
+            .contains(&("EUR".into(), "CAD".into())));
+        assert!(fx
+            .get_registered_pairs()
+            .contains(&("USD".into(), "CAD".into())));
+        assert!(quotes.updated_quotes().is_empty());
+        assert_eq!(assets.resolve_import_asset_call_count(), 0);
+        let patch: ActivityUpdate = serde_json::from_value(json!({
+            "id": "exchange", "accountId": "fx-account", "activityType": "FX_EXCHANGE",
+            "activityDate": "2025-01-02", "currency": "", "destinationAmount": "93"
+        }))
+        .unwrap();
+        let edited = service.update_activity(patch.clone()).await.unwrap();
+        assert_eq!(edited.amount, Some(dec!(100)));
+        assert_eq!(edited.currency, "USD");
+        assert_eq!(edited.destination_currency.as_deref(), Some("EUR"));
+        assert_eq!(edited.destination_amount, Some(dec!(93)));
+        let mut invalid_patch = patch.clone();
+        invalid_patch.destination_currency = Some("USD".into());
+        assert!(service.update_activity(invalid_patch).await.is_err());
+        let mut invalid_patch = patch;
+        invalid_patch.activity_type = "WITHDRAWAL".into();
+        assert!(service.update_activity(invalid_patch).await.is_err());
+        for bad in [
+            json!({"amount": "-1"}),
+            json!({"destinationAmount": "0"}),
+            json!({"fxRate": "1.2"}),
+            json!({"fee": "1"}),
+        ] {
+            let mut value = serde_json::to_value(&input).unwrap();
+            value
+                .as_object_mut()
+                .unwrap()
+                .extend(bad.as_object().unwrap().clone());
+            let input = serde_json::from_value(value).unwrap();
+            assert!(service.create_activity(input).await.is_err());
+        }
+        service
+            .delete_activity("exchange".to_string())
+            .await
+            .unwrap();
+        assert!(repo.get_activities().unwrap().is_empty());
+        let changes: Vec<_> = events
+            .events()
+            .into_iter()
+            .filter_map(|event| match event {
+                DomainEvent::ActivitiesChanged { currencies, .. } => Some(currencies),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(changes.len(), 3);
+        assert!(changes
+            .iter()
+            .all(|ccys| ccys.contains(&"USD".to_string()) && ccys.contains(&"EUR".to_string())));
     }
 }

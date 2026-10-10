@@ -110,7 +110,7 @@ fn normalize_description(s: &str) -> String {
 
 /// Compute idempotency key from an Activity struct
 pub fn compute_activity_idempotency_key(activity: &crate::activities::Activity) -> String {
-    compute_idempotency_key(
+    let key = compute_idempotency_key(
         &activity.account_id,
         activity.effective_type(),
         &activity.activity_date,
@@ -122,7 +122,38 @@ pub fn compute_activity_idempotency_key(activity: &crate::activities::Activity) 
         &activity.currency,
         activity.source_record_id.as_deref(),
         activity.notes.as_deref(),
+    );
+    with_fx_exchange_destination(
+        key,
+        activity.effective_type(),
+        activity.destination_amount,
+        activity.destination_currency.as_deref(),
     )
+}
+
+/// An exchange's identity includes both cash sides. Extend only the new type's
+/// fingerprint, leaving every legacy activity key unchanged. Writers call this
+/// after normalizing the actual amounts and currencies.
+pub(crate) fn with_fx_exchange_destination(
+    key: String,
+    activity_type: &str,
+    destination_amount: Option<Decimal>,
+    destination_currency: Option<&str>,
+) -> String {
+    if activity_type != crate::activities::ACTIVITY_TYPE_FX_EXCHANGE {
+        return key;
+    }
+    let mut hasher = Sha256::new();
+    hasher.update(key.as_bytes());
+    hasher.update(b"\x1ffx-exchange\x1f");
+    if let Some(amount) = destination_amount {
+        hasher.update(normalize_decimal(amount).as_bytes());
+    }
+    hasher.update(b"\x1f");
+    if let Some(currency) = destination_currency {
+        hasher.update(currency.as_bytes());
+    }
+    hex::encode(hasher.finalize())
 }
 
 /// Generate idempotency key for manual activities
@@ -137,6 +168,16 @@ mod tests {
     use super::*;
     use chrono::TimeZone;
     use rust_decimal::prelude::FromStr;
+
+    #[test]
+    fn fx_exchange_destination_keeps_legacy_keys_unchanged() {
+        for activity_type in ["BUY", "DEPOSIT", "TRANSFER_IN", "TRANSFER_OUT"] {
+            assert_eq!(
+                with_fx_exchange_destination("legacy-key".into(), activity_type, None, None),
+                "legacy-key"
+            );
+        }
+    }
 
     #[test]
     fn test_compute_idempotency_key_basic() {

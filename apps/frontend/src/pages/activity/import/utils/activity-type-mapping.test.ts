@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { ActivityType } from "@/lib/constants";
+import { IMPORTABLE_ACTIVITY_TYPES } from "./activity-import-profile";
 import { createDefaultActivityTemplate } from "./default-activity-template";
 import { findMappedActivityType } from "./activity-type-mapping";
 
 describe("activity-type-mapping", () => {
-  it.each(Object.values(ActivityType).filter((type) => type !== ActivityType.UNKNOWN))(
+  it.each(IMPORTABLE_ACTIVITY_TYPES)(
     "treats exact canonical %s labels as explicit identity mappings",
     (type) => {
       expect(findMappedActivityType(type, createDefaultActivityTemplate().activityMappings)).toBe(
@@ -12,6 +13,15 @@ describe("activity-type-mapping", () => {
       );
     },
   );
+
+  it("does not map two-sided exchanges from the default template", () => {
+    expect(
+      findMappedActivityType(
+        ActivityType.FX_EXCHANGE,
+        createDefaultActivityTemplate().activityMappings,
+      ),
+    ).toBeNull();
+  });
 
   it("does not infer non-canonical labels without explicit mappings", () => {
     expect(findMappedActivityType("TRANSFER OUT", {})).toBeNull();

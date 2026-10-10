@@ -1,3 +1,4 @@
+import { FxExchangeAmount } from "@/pages/activity/components/fx-exchange-amount";
 import { memo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -155,7 +156,11 @@ function TransactionCardImpl({
               )}
             >
               {sign}
-              <PrivacyAmount value={Math.abs(safeAmount)} currency={a.currency} />
+              {a.activityType === "FX_EXCHANGE" ? (
+                <FxExchangeAmount activity={{ ...a, amount: a.amount ?? null }} />
+              ) : (
+                <PrivacyAmount value={Math.abs(safeAmount)} currency={a.currency} />
+              )}
             </span>
           </div>
 

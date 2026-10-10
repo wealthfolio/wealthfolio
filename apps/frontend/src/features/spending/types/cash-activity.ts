@@ -85,7 +85,7 @@ export interface CashActivity extends Activity {
    * Signed cash movement in this row's own currency — positive when money
    * entered the account, negative when it left, zero when the row moved none.
    * Never converted. Produced by the same resolver that builds account cash
-   * balances, so summing these agrees with the account page.
+   * balances. For exchanges this is zero; use cashMovements instead.
    */
   netAmount: number;
   /**
@@ -93,6 +93,11 @@ export interface CashActivity extends Activity {
    * Absent when no conversion was asked for, or this currency has no rate.
    */
   netAmountBase?: number | null;
+  /**
+   * Replaces the scalar net fields for exchanges, with both server-derived legs.
+   * Empty for unposted/invalid exchanges; absent for ordinary rows.
+   */
+  cashMovements?: CashMovement[] | null;
   /**
    * Signed contribution to spending totals in this row's own currency — the
    * spending-bucket amount with excluded-category portions removed, computed
@@ -106,6 +111,11 @@ export interface CashActivity extends Activity {
 export interface CurrencyNet {
   currency: string;
   amount: number;
+}
+
+/** One native cash leg, optionally valued in the response's base currency. */
+export interface CashMovement extends CurrencyNet {
+  amountBase?: number | null;
 }
 
 /** The net of a set of rows: always per currency, optionally also converted. */

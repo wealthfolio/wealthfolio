@@ -1,3 +1,4 @@
+import { FxExchangeAmount } from "../fx-exchange-amount";
 import { searchTicker } from "@/adapters";
 import {
   isAssetBackedIncomeSubtype,
@@ -116,10 +117,12 @@ export function useActivityColumns({
 
   const activityTypeOptions = useMemo(
     () =>
-      (Object.values(ActivityType) as ActivityType[]).map((type) => ({
-        value: type,
-        label: localizeActivityTypeName(t, type),
-      })),
+      (Object.values(ActivityType) as ActivityType[])
+        .filter((type) => type !== ActivityType.FX_EXCHANGE)
+        .map((type) => ({
+          value: type,
+          label: localizeActivityTypeName(t, type),
+        })),
     [t],
   );
 
@@ -399,6 +402,18 @@ export function useActivityColumns({
         enableSorting: false,
         meta: { cell: { variant: "number", step: 0.000001, valueType: "string" } },
       },
+      {
+        id: "destinationAmount",
+        header: () => t("activity:fx_exchange.received"),
+        size: 230,
+        enableSorting: false,
+        cell: ({ row }) =>
+          row.original.activityType === ActivityType.FX_EXCHANGE ? (
+            <FxExchangeAmount activity={row.original} />
+          ) : (
+            "—"
+          ),
+      },
       // 11. Currency
       {
         accessorKey: "currency",
@@ -501,5 +516,15 @@ export function useActivityColumns({
     ],
   );
 
-  return columns;
+  return useMemo(
+    () =>
+      columns.map((column) => ({
+        ...column,
+        meta: {
+          ...column.meta,
+          isReadOnly: (row: LocalTransaction) => row.activityType === ActivityType.FX_EXCHANGE,
+        },
+      })),
+    [columns],
+  );
 }

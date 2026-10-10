@@ -1,3 +1,4 @@
+import { FxExchangeAmount } from "./fx-exchange-amount";
 import { localizeActivitySubtypeName, localizeActivityTypeName } from "@/lib/activity-utils";
 import { ActivityStatus, ActivityType } from "@/lib/constants";
 import { formatOptionExpiration, parseOccSymbol } from "@/lib/occ-symbol";
@@ -24,6 +25,8 @@ import { getProviderMappingReasons } from "./activity-data-grid/types";
 /** An activity with no stored amount booked no cash; rendering `Number(null)`
  * would claim it moved exactly zero. */
 function StoredAmount({ activity, isHidden }: { activity: ActivityDetails; isHidden: boolean }) {
+  if (activity.activityType === "FX_EXCHANGE")
+    return <FxExchangeAmount activity={activity} isHidden={isHidden} />;
   if (activity.amount === null || activity.amount.trim() === "") {
     return <span className="text-muted-foreground">—</span>;
   }

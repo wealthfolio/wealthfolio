@@ -197,6 +197,8 @@ mod tests {
 
     fn create_test_activity() -> Activity {
         Activity {
+            destination_amount: None,
+            destination_currency: None,
             id: "test-1".to_string(),
             account_id: "account-1".to_string(),
             asset_id: Some("AAPL".to_string()),

@@ -8677,6 +8677,65 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn fx_exchange_incremental_replay_and_snapshot_preserve_both_sides() {
+        let (pool, writer) = setup_db();
+        let repo = AppSyncRepository::new(pool.clone(), writer);
+        let mut conn = get_connection(&pool).unwrap();
+        insert_account_for_test(&mut conn, "fx-account").unwrap();
+        let payload = serde_json::json!({
+            "id":"fx-replay", "account_id":"fx-account", "activity_type":"FX_EXCHANGE",
+            "activity_date":"2025-01-02T00:00:00Z", "amount":"100", "currency":"USD",
+            "destination_amount":"92.12345678", "destination_currency":"EUR",
+            "created_at":"2025-01-02T00:00:00Z", "updated_at":"2025-01-02T00:00:00Z"
+        });
+        assert!(repo
+            .apply_remote_event_lww(
+                SyncEntity::Activity,
+                "fx-replay".into(),
+                SyncOperation::Create,
+                "evt-fx".into(),
+                "2025-01-02T00:00:00Z".into(),
+                1,
+                payload
+            )
+            .await
+            .unwrap());
+        let row: crate::activities::ActivityDB = crate::schema::activities::table
+            .find("fx-replay")
+            .first(&mut conn)
+            .unwrap();
+        assert_eq!(row.destination_amount.as_deref(), Some("92.12345678"));
+        assert_eq!(row.destination_currency.as_deref(), Some("EUR"));
+        // Generic snapshot export is the real SQLite representation, not a lossy DTO.
+        let snapshot = repo
+            .export_snapshot_sqlite_image(vec!["accounts".into(), "activities".into()])
+            .await
+            .unwrap();
+        let root = tempfile::tempdir().unwrap();
+        let path = root.path().join("fx-snapshot.db");
+        std::fs::write(&path, snapshot).unwrap();
+        let (restore_pool, restore_writer) = setup_db();
+        let restored = AppSyncRepository::new(restore_pool.clone(), restore_writer);
+        restored
+            .restore_snapshot_tables_from_file(
+                path.to_string_lossy().to_string(),
+                vec!["accounts".into(), "activities".into()],
+                1,
+                "fx-device".into(),
+                Some(1),
+            )
+            .await
+            .unwrap();
+        let mut conn = get_connection(&restore_pool).unwrap();
+        let copy: crate::activities::ActivityDB = crate::schema::activities::table
+            .find("fx-replay")
+            .first(&mut conn)
+            .unwrap();
+        assert_eq!(copy.destination_amount, row.destination_amount);
+        assert_eq!(copy.destination_currency, row.destination_currency);
+    }
+
+    #[tokio::test]
     async fn replay_rejects_unknown_columns() {
         let (pool, writer) = setup_db();
         let repo = AppSyncRepository::new(pool, writer);

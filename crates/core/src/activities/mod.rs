@@ -18,6 +18,9 @@ pub(crate) mod activities_service_tests;
 #[cfg(test)]
 mod activities_model_tests;
 
+mod fx_exchange;
+pub use fx_exchange::validate_fx_exchange;
+
 pub use activities_constants::*;
 pub use activities_errors::ActivityError;
 pub use activities_model::import_type;

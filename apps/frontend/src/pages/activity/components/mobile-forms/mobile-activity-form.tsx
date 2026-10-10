@@ -79,6 +79,7 @@ const TRANSFER_ACTIVITY_TYPES: readonly string[] = [
   ActivityType.TRANSFER_OUT,
 ];
 const MOBILE_ACTIVITY_TYPES: readonly string[] = [
+  ActivityType.FX_EXCHANGE,
   ActivityType.BUY,
   ActivityType.SELL,
   ActivityType.DEPOSIT,
@@ -376,14 +377,22 @@ export function MobileActivityForm({
         : undefined,
       amount: activity?.amount != null ? Number(activity.amount) : undefined,
       sourceAmount,
-      destinationAmount,
+      destinationAmount:
+        activity?.activityType === ActivityType.FX_EXCHANGE
+          ? activity.destinationAmount == null
+            ? undefined
+            : Number(activity.destinationAmount)
+          : destinationAmount,
       transferRate: getTransferRate(sourceAmount, destinationAmount),
       sourceCurrency: editingTransferIn
         ? (activity?.counterpartCurrency ?? activity?.currency)
         : activity?.currency,
-      destinationCurrency: editingTransferIn
-        ? activity?.currency
-        : (activity?.counterpartCurrency ?? activity?.currency),
+      destinationCurrency:
+        activity?.activityType === ActivityType.FX_EXCHANGE
+          ? (activity.destinationCurrency ?? "")
+          : editingTransferIn
+            ? activity?.currency
+            : (activity?.counterpartCurrency ?? activity?.currency),
       quantity:
         isTransferType && !isSecurityTransferActivity
           ? undefined
@@ -438,7 +447,7 @@ export function MobileActivityForm({
         assetKind: "BOND",
         symbolQuoteCcy: activity?.currency ?? undefined,
       }),
-    };
+    } as Partial<NewActivityFormValues>;
   }, [activity]);
 
   const form = useForm<NewActivityFormValues>({
@@ -474,7 +483,9 @@ export function MobileActivityForm({
     }
   }, [form, watchedActivityType]);
   const effectiveAccounts =
-    transferAccounts && TRANSFER_ACTIVITY_TYPES.includes(watchedActivityType ?? "")
+    transferAccounts &&
+    (watchedActivityType === ActivityType.FX_EXCHANGE ||
+      TRANSFER_ACTIVITY_TYPES.includes(watchedActivityType ?? ""))
       ? transferAccounts
       : accounts;
 
@@ -845,9 +856,7 @@ export function MobileActivityForm({
       toast.error(t("activity:mobile_form.save_failed"), {
         description: extractErrorMessage(error, t),
       });
-      logger.error(
-        `Mobile Activity Form Submit Error: ${JSON.stringify({ error, formValues: form.getValues() })}`,
-      );
+      logger.error("Mobile activity form submission failed");
       return;
     }
   };

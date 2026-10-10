@@ -13,6 +13,7 @@ import { ActivityType as CanonicalActivityType } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 
 export type PrimaryActivityType =
+  | typeof CanonicalActivityType.FX_EXCHANGE
   | typeof CanonicalActivityType.BUY
   | typeof CanonicalActivityType.SELL
   | typeof CanonicalActivityType.DEPOSIT
@@ -37,6 +38,11 @@ interface ActivityTypeConfig<T extends string> {
 }
 
 const PRIMARY_ACTIVITY_TYPES: ActivityTypeConfig<PrimaryActivityType>[] = [
+  {
+    value: CanonicalActivityType.FX_EXCHANGE,
+    labelKey: "activity:type_fx_exchange",
+    icon: "ArrowLeftRight",
+  },
   { value: CanonicalActivityType.BUY, labelKey: "activity:type_buy", icon: "TrendingUp" },
   { value: CanonicalActivityType.SELL, labelKey: "activity:type_sell", icon: "TrendingDown" },
   {
@@ -305,7 +311,10 @@ export function ActivityTypePicker({
   }, []);
 
   const availableTypes: ActivityTypeConfig<ActivityType>[] = includeReclassificationTypes
-    ? [...ALL_ACTIVITY_TYPES, ...RECLASSIFICATION_ACTIVITY_TYPES]
+    ? [
+        ...ALL_ACTIVITY_TYPES.filter((type) => type.value !== CanonicalActivityType.FX_EXCHANGE),
+        ...RECLASSIFICATION_ACTIVITY_TYPES,
+      ]
     : ALL_ACTIVITY_TYPES;
 
   // Filter types if allowedTypes is provided

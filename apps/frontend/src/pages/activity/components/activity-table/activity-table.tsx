@@ -1,3 +1,4 @@
+import { FxExchangeAmount } from "../fx-exchange-amount";
 import React from "react";
 
 import { TickerAvatar } from "@/components/ticker-avatar";
@@ -388,6 +389,8 @@ export const ActivityTable = ({
             row.original.assetId,
           );
 
+          if (activityType === "FX_EXCHANGE")
+            return <FxExchangeAmount activity={row.original} isHidden={isBalanceHidden} />;
           if (activityType === "FEE") {
             return <div className="pr-4 text-right">-</div>;
           }
@@ -513,6 +516,8 @@ export const ActivityTable = ({
             return <div className="pr-4 text-right">-</div>;
           }
 
+          if (activityType === "FX_EXCHANGE")
+            return <FxExchangeAmount activity={activity} isHidden={isBalanceHidden} />;
           const displayValue = calculateActivityValue(activity);
           return (
             <div className="pr-4 text-right">

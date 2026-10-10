@@ -120,6 +120,9 @@ export interface ActivityLegacy {
  * Activity interface matching the new backend model
  */
 export interface Activity {
+  /** Actual credited cash for FX_EXCHANGE; amount/currency are the debit. */
+  destinationAmount?: string | null;
+  destinationCurrency?: string | null;
   // Identity
   id: string;
   accountId: string;
@@ -223,6 +226,9 @@ export function getActivityDisplayName(activity: Activity): string {
 }
 
 export interface ActivityDetails {
+  /** Actual credited cash for FX_EXCHANGE; amount/currency are the debit. */
+  destinationAmount?: string | null;
+  destinationCurrency?: string | null;
   id: string;
   activityType: ActivityType;
   subtype?: string | null;
@@ -296,6 +302,9 @@ export interface AssetResolutionInput {
 export type SymbolInput = AssetResolutionInput;
 
 export interface ActivityCreate {
+  /** Actual credited cash for FX_EXCHANGE; amount/currency are the debit. */
+  destinationAmount?: string | number | null;
+  destinationCurrency?: string | null;
   id?: string;
   idempotencyKey?: string;
   accountId: string;
@@ -324,6 +333,9 @@ export interface ActivityCreate {
  * Payload for updating an EXISTING activity.
  */
 export interface ActivityUpdate {
+  /** Actual credited cash for FX_EXCHANGE; amount/currency are the debit. */
+  destinationAmount?: string | number | null;
+  destinationCurrency?: string | null;
   id: string;
   accountId: string;
   activityType: string;

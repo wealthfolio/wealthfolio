@@ -23,6 +23,7 @@ import {
 import type { DraftActivity, DraftActivityStatus } from "../context";
 import {
   getAllowedActivityTypesForAccountType,
+  IMPORTABLE_ACTIVITY_TYPES,
   isTransactionImportProfile,
   type ActivityImportProfile,
 } from "./activity-import-profile";
@@ -33,9 +34,7 @@ import {
 
 /** Sentinel value for activity types the user chooses to skip during import. */
 export const ACTIVITY_SKIP = "_SKIP_";
-const IMPORTABLE_ACTIVITY_TYPES = new Set<string>(
-  Object.values(ActivityType).filter((type) => type !== ActivityType.UNKNOWN),
-);
+const importableActivityTypes = new Set<string>(IMPORTABLE_ACTIVITY_TYPES);
 
 // ---------------------------------------------------------------------------
 // Fallback-column helpers — support `string | string[]` in fieldMappings
@@ -478,7 +477,7 @@ export function validateDraft(
 
   if (!draft.activityType) {
     errors.activityType = ["Activity type is required"];
-  } else if (!IMPORTABLE_ACTIVITY_TYPES.has(draft.activityType.toUpperCase() as ActivityType)) {
+  } else if (!importableActivityTypes.has(draft.activityType.toUpperCase())) {
     errors.activityType = ["Map the CSV activity type before continuing"];
   }
 

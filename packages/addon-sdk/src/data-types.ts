@@ -3,7 +3,7 @@
  * These types mirror the main application types to ensure compatibility
  */
 
-// Canonical activity types (closed set of 14)
+// Canonical activity types (closed set of 15)
 export const ActivityType = {
   BUY: 'BUY',
   SELL: 'SELL',
@@ -14,6 +14,7 @@ export const ActivityType = {
   WITHDRAWAL: 'WITHDRAWAL',
   TRANSFER_IN: 'TRANSFER_IN',
   TRANSFER_OUT: 'TRANSFER_OUT',
+  FX_EXCHANGE: 'FX_EXCHANGE',
   FEE: 'FEE',
   TAX: 'TAX',
   CREDIT: 'CREDIT',
@@ -25,6 +26,7 @@ export type ActivityType = (typeof ActivityType)[keyof typeof ActivityType];
 
 // Array of all activity types for iteration
 export const ACTIVITY_TYPES = [
+  ActivityType.FX_EXCHANGE,
   'BUY',
   'SELL',
   'SPLIT',
@@ -173,13 +175,16 @@ export interface Account {
  * Activity interface matching the v3 backend model
  */
 export interface Activity {
+  /** Actual credited cash for FX_EXCHANGE; amount/currency are the debit. */
+  destinationAmount?: string | null;
+  destinationCurrency?: string | null;
   // Identity
   id: string;
   accountId: string;
   assetId?: string; // NOW OPTIONAL for pure cash events
 
   // Classification
-  activityType: string; // Canonical type (closed set of 14)
+  activityType: string; // Canonical type (closed set of 15)
   activityTypeOverride?: string; // User override (never touched by sync)
   sourceType?: string; // Raw provider label (REI, DIV, etc.)
   subtype?: string; // Semantic variation (DRIP, STAKING_REWARD, etc.)
@@ -235,6 +240,9 @@ export function hasUserOverride(activity: Activity): boolean {
 }
 
 export interface ActivityDetails {
+  /** Actual credited cash for FX_EXCHANGE; amount/currency are the debit. */
+  destinationAmount?: string | null;
+  destinationCurrency?: string | null;
   id: string;
   activityType: ActivityType;
   subtype?: string | null;
@@ -293,6 +301,9 @@ export interface AssetResolutionInput {
 export type SymbolInput = AssetResolutionInput;
 
 export interface ActivityCreate {
+  /** Actual credited cash for FX_EXCHANGE; amount/currency are the debit. */
+  destinationAmount?: string | number | null;
+  destinationCurrency?: string | null;
   id?: string;
   accountId: string;
   activityType: string;
@@ -316,6 +327,9 @@ export interface ActivityCreate {
 }
 
 export interface ActivityUpdate {
+  /** Actual credited cash for FX_EXCHANGE; amount/currency are the debit. */
+  destinationAmount?: string | number | null;
+  destinationCurrency?: string | null;
   id: string;
   accountId: string;
   activityType: string;

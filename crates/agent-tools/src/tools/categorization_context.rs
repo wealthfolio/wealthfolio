@@ -861,6 +861,8 @@ mod tests {
         };
         CashActivity {
             activity: Activity {
+                destination_amount: None,
+                destination_currency: None,
                 id: id.to_string(),
                 account_id: account_id.to_string(),
                 asset_id: None,
@@ -897,6 +899,7 @@ mod tests {
             transfer_link_status: None,
             net_amount: -10.0,
             net_amount_base: None,
+            cash_movements: None,
             visible_spending_amount: 0.0,
         }
     }

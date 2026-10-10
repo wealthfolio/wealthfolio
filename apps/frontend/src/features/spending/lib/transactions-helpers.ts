@@ -186,13 +186,11 @@ export interface TransactionDayGroup {
 }
 
 /**
- * Signed sum of `rows`, split per currency and matching what the rows render:
- * outflows subtract, income and refunds add, and neutral rows — which show no
- * sign at all — contribute nothing and never introduce a currency of their own.
+ * Signed sum of server-derived cash movements, independent of the cash-flow
+ * bucket: neutral transfers/exchanges still move cash. Exchanges contribute
+ * both native legs rather than the legacy single-currency scalar.
  *
- * There is no FX here by design. Each row lands in its own currency's bucket,
- * so a mixed set reports one total per currency instead of a single number that
- * silently assumes a rate.
+ * No client-side FX lookup: optional converted amounts come from the server.
  */
 export function netSummary(rows: TransactionRowVM[], baseCurrency?: string): NetSummary {
   // Tallied per currency, mirroring the server: a currency whose rows cancel is
@@ -205,29 +203,40 @@ export function netSummary(rows: TransactionRowVM[], baseCurrency?: string): Net
   >();
 
   for (const row of rows) {
-    const net = row.activity.netAmount;
-    if (!Number.isFinite(net) || net === 0) continue;
+    const movements = row.activity.cashMovements ?? [
+      {
+        currency: row.activity.currency,
+        amount: row.activity.netAmount,
+        amountBase: row.activity.netAmountBase,
+      },
+    ];
+    for (const movement of movements) {
+      const net = movement.amount;
+      if (!Number.isFinite(net) || net === 0) continue;
 
-    const tally = tallies.get(row.activity.currency) ?? {
-      native: 0,
-      compensation: 0,
-      gross: 0,
-      converted: 0,
-    };
-    // Neumaier: each addition loses the low bits of whichever operand is
-    // smaller, so they are recovered and carried in `compensation` rather than
-    // left to accumulate as error.
-    const sum = tally.native + net;
-    tally.compensation +=
-      Math.abs(tally.native) >= Math.abs(net) ? tally.native - sum + net : net - sum + tally.native;
-    tally.native = sum;
-    tally.gross += Math.abs(net);
-    if (tally.converted !== null) {
-      const base = row.activity.netAmountBase;
-      tally.converted =
-        typeof base === "number" && Number.isFinite(base) ? tally.converted + base : null;
+      const tally = tallies.get(movement.currency) ?? {
+        native: 0,
+        compensation: 0,
+        gross: 0,
+        converted: 0,
+      };
+      // Neumaier: each addition loses the low bits of whichever operand is
+      // smaller, so they are recovered and carried in `compensation` rather than
+      // left to accumulate as error.
+      const sum = tally.native + net;
+      tally.compensation +=
+        Math.abs(tally.native) >= Math.abs(net)
+          ? tally.native - sum + net
+          : net - sum + tally.native;
+      tally.native = sum;
+      tally.gross += Math.abs(net);
+      if (tally.converted !== null) {
+        const base = movement.amountBase;
+        tally.converted =
+          typeof base === "number" && Number.isFinite(base) ? tally.converted + base : null;
+      }
+      tallies.set(movement.currency, tally);
     }
-    tallies.set(row.activity.currency, tally);
   }
 
   // The server nets in decimal, so its cancellations are exact; the f64 sum

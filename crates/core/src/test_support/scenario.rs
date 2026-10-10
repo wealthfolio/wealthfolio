@@ -197,6 +197,10 @@ pub struct ActivitySpec {
     #[serde(default)]
     pub amount: Option<Dec>,
     #[serde(default)]
+    pub destination_amount: Option<Dec>,
+    #[serde(default)]
+    pub destination_currency: Option<String>,
+    #[serde(default)]
     pub fee: Option<Dec>,
     #[serde(default)]
     pub tax: Option<Dec>,
@@ -790,6 +794,8 @@ impl FactLookup<'_> {
             .clone()
             .unwrap_or_else(|| self.account_currency[spec.account.as_str()].to_string());
         Activity {
+            destination_amount: spec.destination_amount.map(|v| v.0),
+            destination_currency: spec.destination_currency.clone(),
             id: spec.id.clone(),
             account_id: spec.account.clone(),
             asset_id: spec.asset.clone(),

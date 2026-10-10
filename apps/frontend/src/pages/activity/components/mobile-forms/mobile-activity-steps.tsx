@@ -1,3 +1,5 @@
+import { FxExchangeFields } from "../forms/fx-exchange-form";
+import { restrictionAllowsType } from "@/lib/activity-restrictions";
 import type { RefObject } from "react";
 import { useFormContext } from "react-hook-form";
 import type { AccountSelectOption } from "../forms/fields";
@@ -27,6 +29,19 @@ export function MobileActivitySteps({
 }: MobileActivityStepsProps) {
   const { watch } = useFormContext<NewActivityFormValues>();
   const activityType = watch("activityType");
+
+  if (activityType === "FX_EXCHANGE" && ((isEditing && !needsTypeSelection) || currentStep === 2)) {
+    return (
+      <div className="space-y-4 overflow-y-auto p-1">
+        <FxExchangeFields
+          accounts={accounts.filter((account) =>
+            restrictionAllowsType(account.restrictionLevel, "FX_EXCHANGE"),
+          )}
+          isEditing={isEditing}
+        />
+      </div>
+    );
+  }
 
   if (isEditing && !needsTypeSelection) {
     return (

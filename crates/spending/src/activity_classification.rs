@@ -3,7 +3,8 @@ use std::collections::{HashMap, HashSet};
 use rust_decimal::prelude::ToPrimitive;
 use rust_decimal::Decimal;
 use wealthfolio_core::accounts::account_types;
-use wealthfolio_core::activities::Activity;
+use wealthfolio_core::activities::{validate_fx_exchange, Activity, ACTIVITY_TYPE_FX_EXCHANGE};
+use wealthfolio_core::fx::currency::normalize_amount;
 use wealthfolio_core::portfolio::economic_events::ActivityEconomicsResolver;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -100,6 +101,9 @@ pub(crate) fn classify_activity_for_aggregation(
 pub(crate) fn classify_activity(activity: &Activity, account_type: &str) -> SpendingClassification {
     let activity_type = activity.effective_type();
 
+    if activity_type == wealthfolio_core::activities::ACTIVITY_TYPE_FX_EXCHANGE {
+        return SpendingClassification::InternalTransfer;
+    }
     if matches!(activity_type, "TRANSFER_IN" | "TRANSFER_OUT") && activity.source_group_id.is_some()
     {
         return SpendingClassification::InternalTransfer;
@@ -163,6 +167,60 @@ pub(crate) fn net_amount(activity: &Activity, account_types: &HashMap<String, St
     )
     .signed_cash_effect
     .unwrap_or(Decimal::ZERO)
+}
+
+/// Cash totals are independent of income/spending classification. Exchanges
+/// cannot use the single-currency resolver: they move two native cash balances.
+/// Validate both legs together, matching the engine's all-or-nothing projection.
+pub(crate) fn cash_movements(
+    activity: &Activity,
+    account_types: &HashMap<String, String>,
+) -> Vec<(String, Decimal)> {
+    if activity.effective_type() != ACTIVITY_TYPE_FX_EXCHANGE {
+        return vec![(
+            activity.currency.clone(),
+            net_amount(activity, account_types),
+        )];
+    }
+    let cash_only = activity.asset_id.is_none()
+        && [
+            activity.quantity,
+            activity.unit_price,
+            activity.fee,
+            activity.tax,
+        ]
+        .iter()
+        .all(|value| value.is_none_or(|v| v.is_zero()))
+        && activity.fx_rate.is_none();
+    if !activity.is_posted()
+        || validate_fx_exchange(
+            ACTIVITY_TYPE_FX_EXCHANGE,
+            activity.amount,
+            &activity.currency,
+            activity.destination_amount,
+            activity.destination_currency.as_deref(),
+            cash_only,
+        )
+        .is_err()
+    {
+        return Vec::new();
+    }
+    match (
+        activity.amount,
+        activity.destination_amount,
+        activity.destination_currency.as_deref(),
+    ) {
+        (Some(source), Some(destination), Some(currency)) => {
+            let (source, source_currency) = normalize_amount(source, activity.currency.trim());
+            let (destination, destination_currency) =
+                normalize_amount(destination, currency.trim());
+            vec![
+                (source_currency.to_ascii_uppercase(), -source),
+                (destination_currency.to_ascii_uppercase(), destination),
+            ]
+        }
+        _ => Vec::new(),
+    }
 }
 
 #[cfg(test)]
@@ -261,6 +319,8 @@ mod tests {
         source_group_id: Option<&str>,
     ) -> Activity {
         Activity {
+            destination_amount: None,
+            destination_currency: None,
             id: "activity-1".to_string(),
             account_id: "account-1".to_string(),
             asset_id: None,
@@ -570,5 +630,17 @@ mod tests {
             ),
             SpendingClassification::InternalTransfer
         );
+    }
+    #[test]
+    fn fx_exchange_is_neutral_in_spending_income_and_saving() {
+        let exchange = activity("FX_EXCHANGE", None);
+        let classified =
+            classify_activity_for_aggregation(&exchange, account_types::CASH, &HashSet::new());
+        assert_eq!(classified, SpendingClassification::InternalTransfer);
+        for amount in [Decimal::new(100, 0), Decimal::new(92, 0)] {
+            assert_eq!(classified.spending_amount(amount), Decimal::ZERO);
+            assert_eq!(classified.income_amount(amount), Decimal::ZERO);
+            assert_eq!(classified.saving_amount(amount), Decimal::ZERO);
+        }
     }
 }

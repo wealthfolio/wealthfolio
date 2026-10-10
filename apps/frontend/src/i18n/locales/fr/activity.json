@@ -1,4 +1,16 @@
 {
+  "type_fx_exchange": "Change de devises",
+  "fx_exchange": {
+    "sent": "Montant débité",
+    "received": "Montant reçu",
+    "rate": "Taux appliqué",
+    "add": "Enregistrer le change",
+    "help": "Saisissez le débit et le crédit réels sur un même compte, frais compris. Aucun taux de marché ne sera récupéré.",
+    "positive": "Saisissez un montant positif",
+    "different": "Choisissez une devise différente",
+    "full_editor": "Modifiez les opérations de change dans le formulaire complet.",
+    "cash_audit_note": "Cette journée comprend un change de devises. Les deux montants sont affichés ; aucun solde courant dans une seule devise n’est calculé ici."
+  },
   "needs_review_alert": {
     "title_one": "{{count}} activité doit être révisée",
     "title_other": "{{count}} activités doivent être révisées",

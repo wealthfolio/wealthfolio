@@ -1,3 +1,4 @@
+import { FxExchangeAmount } from "../fx-exchange-amount";
 import { useCallback } from "react";
 
 import { TickerAvatar } from "@/components/ticker-avatar";
@@ -204,13 +205,17 @@ export const ActivityTableMobile = ({
                   <div className="min-w-0 flex-1">
                     <div className="flex items-baseline justify-between gap-2">
                       <p className="truncate font-semibold">{displaySymbol}</p>
-                      {activity.activityType !== "SPLIT" && (
-                        <AmountDisplay
-                          value={displayValue}
-                          currency={activity.currency}
-                          isHidden={isBalanceHidden}
-                          className="shrink-0 text-sm font-semibold"
-                        />
+                      {activity.activityType === "FX_EXCHANGE" ? (
+                        <FxExchangeAmount activity={activity} isHidden={isBalanceHidden} />
+                      ) : (
+                        activity.activityType !== "SPLIT" && (
+                          <AmountDisplay
+                            value={displayValue}
+                            currency={activity.currency}
+                            isHidden={isBalanceHidden}
+                            className="shrink-0 text-sm font-semibold"
+                          />
+                        )
                       )}
                     </div>
                     <p className="text-muted-foreground text-xs">
@@ -364,7 +369,9 @@ export const ActivityTableMobile = ({
                       : t("activity:field_price")}
               </span>
               <span className="font-medium">
-                {activity.activityType === "FEE" ? (
+                {activity.activityType === "FX_EXCHANGE" ? (
+                  <FxExchangeAmount activity={activity} isHidden={isBalanceHidden} />
+                ) : activity.activityType === "FEE" ? (
                   "-"
                 ) : activity.activityType === "SPLIT" ? (
                   formatSplitRatio(Number(activity.amount))
@@ -413,18 +420,22 @@ export const ActivityTableMobile = ({
             )}
 
             {/* Total Value */}
-            {activity.activityType !== "SPLIT" && (
-              <div className="flex items-center justify-between border-t pt-1.5">
-                <span className="text-muted-foreground font-medium">
-                  {t("activity:table.total_value")}
-                </span>
-                <AmountDisplay
-                  value={displayValue}
-                  currency={activity.currency}
-                  isHidden={isBalanceHidden}
-                  className="font-semibold"
-                />
-              </div>
+            {activity.activityType === "FX_EXCHANGE" ? (
+              <FxExchangeAmount activity={activity} isHidden={isBalanceHidden} />
+            ) : (
+              activity.activityType !== "SPLIT" && (
+                <div className="flex items-center justify-between border-t pt-1.5">
+                  <span className="text-muted-foreground font-medium">
+                    {t("activity:table.total_value")}
+                  </span>
+                  <AmountDisplay
+                    value={displayValue}
+                    currency={activity.currency}
+                    isHidden={isBalanceHidden}
+                    className="font-semibold"
+                  />
+                </div>
+              )
             )}
 
             {/* Account */}

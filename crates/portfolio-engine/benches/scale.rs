@@ -53,6 +53,8 @@ fn generated_facts() -> RawFacts {
     let mut activities = Vec::with_capacity(ACTIVITIES + ACCOUNTS);
     for (i, account) in accounts.iter().enumerate() {
         activities.push(RawActivity {
+            destination_amount: None,
+            destination_currency: None,
             id: format!("dep-{i}"),
             account_id: account.id.clone(),
             asset_id: None,
@@ -88,6 +90,8 @@ fn generated_facts() -> RawFacts {
         let timestamp = Utc.from_utc_datetime(&day.and_hms_opt(10, 0, 0).unwrap())
             + chrono::Duration::seconds(n as i64 % 3600);
         activities.push(RawActivity {
+            destination_amount: None,
+            destination_currency: None,
             id: format!("act-{n}"),
             account_id: account.id.clone(),
             asset_id: Some(asset.id.clone()),

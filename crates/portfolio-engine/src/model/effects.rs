@@ -54,6 +54,8 @@ pub struct AccountProfile {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct EventEffect {
+    #[serde(default, with = "crate::model::decimal_serde::option")]
+    pub fx_effect: Option<Decimal>,
     pub id: EventId,
     pub source: ActivityId,
     pub account: AccountId,

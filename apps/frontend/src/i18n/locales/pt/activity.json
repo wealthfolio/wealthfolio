@@ -1,4 +1,16 @@
 {
+  "type_fx_exchange": "Câmbio de moedas",
+  "fx_exchange": {
+    "sent": "Valor debitado",
+    "received": "Valor recebido",
+    "rate": "Taxa aplicada",
+    "add": "Registrar câmbio",
+    "help": "Informe o débito e o crédito reais na mesma conta, incluindo as tarifas. Nenhuma taxa de mercado será consultada.",
+    "positive": "Informe um valor positivo",
+    "different": "Escolha uma moeda diferente",
+    "full_editor": "Edite as operações de câmbio no formulário completo.",
+    "cash_audit_note": "Este dia inclui uma operação de câmbio. Os dois valores são apresentados; não é calculado aqui um saldo acumulado numa única moeda."
+  },
   "needs_review_alert": {
     "title_one": "{{count}} atividade precisa de revisão",
     "title_other": "{{count}} atividades precisam de revisão",

@@ -124,9 +124,9 @@ export function useActivityMutations(
         direction: _direction,
         toAccountId: _toAccountId,
         sourceAmount: _sourceAmount,
-        destinationAmount: _destinationAmount,
+        destinationAmount,
         sourceCurrency: _sourceCurrency,
-        destinationCurrency: _destinationCurrency,
+        destinationCurrency,
         ...rest
       } = data as NewActivityFormValues & {
         assetId?: string;
@@ -166,6 +166,10 @@ export function useActivityMutations(
         quantity: toDecimalPayload(quantity),
         unitPrice: toDecimalPayload(unitPrice),
         amount: toDecimalPayload(amount),
+        ...(rest.activityType === ActivityType.FX_EXCHANGE && {
+          destinationAmount: toDecimalPayload(destinationAmount),
+          destinationCurrency,
+        }),
         fee: toDecimalPayload(fee),
         tax: toDecimalPayload(tax),
         fxRate: toDecimalPayload(fxRate),
@@ -209,9 +213,9 @@ export function useActivityMutations(
         direction: _direction2,
         toAccountId: _toAccountId2,
         sourceAmount: _sourceAmount2,
-        destinationAmount: _destinationAmount2,
+        destinationAmount,
         sourceCurrency: _sourceCurrency2,
-        destinationCurrency: _destinationCurrency2,
+        destinationCurrency,
         ...rest
       } = data as NewActivityFormValues & {
         id: string;
@@ -255,6 +259,10 @@ export function useActivityMutations(
         quantity: toDecimalPayload(quantity),
         unitPrice: toDecimalPayload(unitPrice),
         amount: toDecimalPayload(amount),
+        ...(rest.activityType === ActivityType.FX_EXCHANGE && {
+          destinationAmount: toDecimalPayload(destinationAmount),
+          destinationCurrency,
+        }),
         fee: toDecimalPayload(fee),
         tax: toDecimalPayload(tax),
         fxRate: toDecimalPayload(fxRate),
@@ -373,6 +381,10 @@ export function useActivityMutations(
       quantity: restOfActivityData.quantity,
       unitPrice: restOfActivityData.unitPrice,
       amount: shouldCopyAmount ? restOfActivityData.amount : undefined,
+      ...(restOfActivityData.activityType === ActivityType.FX_EXCHANGE && {
+        destinationAmount: restOfActivityData.destinationAmount,
+        destinationCurrency: restOfActivityData.destinationCurrency,
+      }),
       fee: restOfActivityData.fee,
       tax: restOfActivityData.tax,
       fxRate: restOfActivityData.fxRate ?? undefined,

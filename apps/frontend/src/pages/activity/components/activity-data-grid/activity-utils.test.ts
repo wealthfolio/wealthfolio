@@ -14,7 +14,7 @@ import {
   validateTransactionsForSave,
   valuesAreEqual,
 } from "./activity-utils";
-import type { LocalTransaction } from "./types";
+import { toLocalTransaction, type LocalTransaction } from "./types";
 
 // Helper to create mock account
 const createMockAccount = (overrides: Partial<Account> = {}): Account => ({
@@ -404,6 +404,66 @@ describe("activity-utils", () => {
     const mockResolveTransactionCurrency = () => "USD";
     const dirtyCurrencyLookup = new Map<string, string>();
     const assetCurrencyLookup = new Map<string, string>();
+
+    it("preserves both cash sides and the intentional duplicate key for a copied exchange", () => {
+      const source = toLocalTransaction(
+        createMockTransaction({
+          activityType: ActivityType.FX_EXCHANGE,
+          assetId: "",
+          assetSymbol: "",
+          quantity: null,
+          unitPrice: null,
+          fee: null,
+          amount: "100.12345678",
+          currency: "USD",
+          destinationAmount: "92.87654321",
+          destinationCurrency: "EUR",
+          accountCurrency: "GBP",
+        }),
+      );
+      const duplicate = {
+        ...source,
+        id: "temp-duplicate",
+        isNew: true,
+        idempotencyKey: "manual-duplicate-test",
+      };
+      const result = buildSavePayload(
+        [duplicate],
+        new Set([duplicate.id]),
+        new Set(),
+        createCurrencyResolver(new Map(), "GBP"),
+        dirtyCurrencyLookup,
+        assetCurrencyLookup,
+        "GBP",
+      );
+
+      expect(result.creates).toHaveLength(1);
+      expect(result.creates[0]).toMatchObject({
+        activityType: ActivityType.FX_EXCHANGE,
+        amount: "100.12345678",
+        currency: "USD",
+        destinationAmount: "92.87654321",
+        destinationCurrency: "EUR",
+        idempotencyKey: "manual-duplicate-test",
+      });
+      expect(result.creates[0].asset).toBeUndefined();
+      expect(source._amountEdited).toBe(false);
+    });
+
+    it("does not send destination fields for ordinary activities", () => {
+      const transaction = createMockTransaction({ isNew: true });
+      const result = buildSavePayload(
+        [transaction],
+        new Set([transaction.id]),
+        new Set(),
+        mockResolveTransactionCurrency,
+        dirtyCurrencyLookup,
+        assetCurrencyLookup,
+        "USD",
+      );
+      expect(result.creates[0]).not.toHaveProperty("destinationAmount");
+      expect(result.creates[0]).not.toHaveProperty("destinationCurrency");
+    });
 
     it("should separate new and existing transactions", () => {
       const transactions: LocalTransaction[] = [

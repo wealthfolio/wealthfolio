@@ -4,6 +4,7 @@ import {
   createDraftActivities,
   draftToActivityImport,
   reconcileExpenseReversalBoundary,
+  validateDraft,
 } from "./draft-utils";
 import { getActivityImportProfileForAccountType } from "./activity-import-profile";
 import { applyAssetResolution } from "./asset-review-utils";
@@ -52,6 +53,45 @@ function createSingleDraftWithMapping(row: string[], activityMappings: Record<st
   expect(draft).toBeDefined();
   return draft;
 }
+
+describe("exchange CSV rejection", () => {
+  it.each(["FX_EXCHANGE", "fx_exchange"])("rejects a canonical %s import draft", (type) => {
+    const draft = validateDraft({
+      activityDate: "2026-01-15",
+      accountId: "account-1",
+      activityType: type,
+      amount: "100",
+      currency: "USD",
+    });
+    expect(draft.status).toBe("error");
+    expect(draft.errors.activityType).toEqual(["Map the CSV activity type before continuing"]);
+  });
+
+  it("rejects exchange aliases in stale mappings and revalidated drafts", () => {
+    const draft = createSingleDraftWithMapping(["2026-01-15", "CONVERSION", "100", "USD"], {
+      [ActivityType.FX_EXCHANGE]: ["CONVERSION"],
+    });
+    expect(draft.status).toBe("error");
+    expect(draft.errors.activityType).toBeDefined();
+    const deposit = createSingleDraftWithMapping(["2026-01-15", "DEPOSIT", "100", "USD"], {
+      [ActivityType.DEPOSIT]: ["DEPOSIT"],
+    });
+    expect(deposit.status).toBe("valid");
+    expect(
+      validateDraft({ ...deposit, activityType: ActivityType.FX_EXCHANGE }).errors.activityType,
+    ).toEqual(["Map the CSV activity type before continuing"]);
+  });
+
+  it("preserves legacy signed FX CSV legs as transfers, not two-sided exchanges", () => {
+    for (const amount of ["100", "-100"]) {
+      const draft = createSingleDraft(["2026-01-15", "FX_EXCHANGE", amount, "USD"]);
+      expect(draft.status).toBe("valid");
+      expect(draft.activityType).toBe(
+        amount.startsWith("-") ? ActivityType.TRANSFER_OUT : ActivityType.TRANSFER_IN,
+      );
+    }
+  });
+});
 
 describe("expense reversal boundary reconciliation", () => {
   const accountTypes = new Map([

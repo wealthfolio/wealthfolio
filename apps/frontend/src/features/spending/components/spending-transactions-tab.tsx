@@ -189,6 +189,8 @@ function toActivityDetails(row: TransactionRowVM, account?: Account): Partial<Ac
     quantity: activity.quantity ?? null,
     unitPrice: activity.unitPrice ?? null,
     amount: activity.amount ?? null,
+    destinationAmount: activity.destinationAmount,
+    destinationCurrency: activity.destinationCurrency,
     fee: activity.fee ?? null,
     currency: activity.currency,
     needsReview: activity.needsReview,
@@ -789,7 +791,10 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
 
     const handleEditRow = useCallback(
       async (row: TransactionRowVM) => {
-        if (isTransferCashActivity(row.activity)) {
+        if (
+          isTransferCashActivity(row.activity) ||
+          getEffectiveCashActivityType(row.activity) === ActivityType.FX_EXCHANGE
+        ) {
           setEditingActivity(undefined);
           setShowForm(false);
           // Load the paired leg so the form pre-fills "To Account" (#1563).

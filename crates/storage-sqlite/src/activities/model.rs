@@ -130,6 +130,12 @@ pub struct ActivityDB {
     // Audit
     pub created_at: String,
     pub updated_at: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[diesel(treat_none_as_null = true)]
+    pub destination_amount: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[diesel(treat_none_as_null = true)]
+    pub destination_currency: Option<String>,
 }
 
 /// Model for activity details including related data
@@ -327,6 +333,8 @@ impl From<ActivityDetailsDB> for wealthfolio_core::activities::ActivityDetails {
             fee: db.fee,
             tax: db.tax,
             amount: db.amount,
+            destination_amount: None,
+            destination_currency: None,
             needs_review: db.needs_review != 0,
             comment: db.notes,
             fx_rate: db.fx_rate,
@@ -447,6 +455,11 @@ impl From<ActivityDB> for Activity {
                 .as_ref()
                 .and_then(|s| parse_db_datetime(s)),
 
+            destination_amount: db
+                .destination_amount
+                .as_deref()
+                .and_then(|s| Decimal::from_str(s).ok()),
+            destination_currency: db.destination_currency,
             // Quantities
             quantity: db
                 .quantity
@@ -565,6 +578,8 @@ impl From<NewActivity> for ActivityDB {
             quantity: domain.quantity.map(|d| d.to_string()),
             unit_price: domain.unit_price.map(|d| d.to_string()),
             amount: domain.amount.map(|d| d.to_string()),
+            destination_amount: domain.destination_amount.map(|d| d.to_string()),
+            destination_currency: domain.destination_currency,
             fee: domain.fee.map(|d| d.to_string()),
             tax: domain.tax.map(|d| d.to_string()),
             currency: domain.currency,
@@ -655,6 +670,8 @@ impl From<ActivityUpdate> for ActivityDB {
             quantity: domain.quantity.flatten().map(|d| d.to_string()),
             unit_price: domain.unit_price.flatten().map(|d| d.to_string()),
             amount: domain.amount.flatten().map(|d| d.to_string()),
+            destination_amount: domain.destination_amount.flatten().map(|d| d.to_string()),
+            destination_currency: domain.destination_currency,
             fee: domain.fee.flatten().map(|d| d.to_string()),
             tax: domain.tax.flatten().map(|d| d.to_string()),
             currency: domain.currency,
@@ -723,6 +740,8 @@ impl From<ActivityUpsert> for ActivityDB {
             .to_string();
 
         Self {
+            destination_amount: None,
+            destination_currency: None,
             id: domain.id,
             account_id: domain.account_id,
             asset_id: domain.asset_id,

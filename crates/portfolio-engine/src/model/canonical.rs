@@ -134,6 +134,7 @@ pub enum ActivityKind {
     Withdrawal,
     TransferIn,
     TransferOut,
+    FxExchange,
     Fee,
     Tax,
     Split,
@@ -153,6 +154,7 @@ impl ActivityKind {
             "WITHDRAWAL" => Self::Withdrawal,
             "TRANSFER_IN" => Self::TransferIn,
             "TRANSFER_OUT" => Self::TransferOut,
+            "FX_EXCHANGE" => Self::FxExchange,
             "FEE" => Self::Fee,
             "TAX" => Self::Tax,
             "SPLIT" => Self::Split,
@@ -231,6 +233,10 @@ pub struct Activity {
     pub source_system: Option<String>,
     pub is_user_modified: bool,
     pub updated_at: DateTime<Utc>,
+    #[serde(default, with = "crate::model::decimal_serde::option")]
+    pub destination_amount: Option<Decimal>,
+    #[serde(default)]
+    pub destination_currency: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

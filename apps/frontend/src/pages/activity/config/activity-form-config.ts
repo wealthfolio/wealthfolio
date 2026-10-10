@@ -1,3 +1,4 @@
+import { FxExchangeForm, type FxExchangeFormValues } from "../components/forms/fx-exchange-form";
 import { getTransferRate } from "../hooks/use-internal-transfer-currencies";
 import type { ComponentType } from "react";
 import {
@@ -27,6 +28,7 @@ import type { NewActivityFormValues } from "../components/forms/schemas";
 
 // Picker activity types (TRANSFER_IN/OUT merged into TRANSFER)
 export type PickerActivityType =
+  | typeof ActivityType.FX_EXCHANGE
   | typeof ActivityType.BUY
   | typeof ActivityType.SELL
   | typeof ActivityType.DEPOSIT
@@ -42,6 +44,7 @@ export type PickerActivityType =
 
 // Form values union type
 export type ActivityFormValues =
+  | FxExchangeFormValues
   | BuyFormValues
   | SellFormValues
   | DepositFormValues
@@ -125,6 +128,19 @@ export const ACTIVITY_FORM_CONFIG: Record<
   PickerActivityType,
   ActivityTypeConfig<ActivityFormValues>
 > = {
+  FX_EXCHANGE: {
+    component: FxExchangeForm as ComponentType<ActivityFormComponentProps<ActivityFormValues>>,
+    activityType: ActivityType.FX_EXCHANGE,
+    getDefaults: (activity, accounts) => ({
+      ...getBaseDefaults(activity, accounts),
+      currency: activity?.currency,
+      amount: activity?.amount == null ? undefined : Number(activity.amount),
+      destinationCurrency: activity?.destinationCurrency ?? "",
+      destinationAmount:
+        activity?.destinationAmount == null ? undefined : Number(activity.destinationAmount),
+    }),
+    toPayload: (data) => ({ ...(data as FxExchangeFormValues) }),
+  },
   BUY: {
     component: BuyForm as ComponentType<ActivityFormComponentProps<ActivityFormValues>>,
     activityType: ActivityType.BUY,

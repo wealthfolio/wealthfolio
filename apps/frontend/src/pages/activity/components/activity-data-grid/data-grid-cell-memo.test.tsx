@@ -148,4 +148,12 @@ describe("DataGridCell memoization", () => {
 
     expect(valueRenderer).toHaveBeenCalledTimes(1);
   });
+  it("keeps FX rows read-only even if keyboard navigation requests editing", () => {
+    const props = cellProps({ variant: "short-text" }, { activityType: "FX_EXCHANGE" }, false);
+    props.isEditing = true;
+    props.cell.column.columnDef.meta!.isReadOnly = (row) => row.activityType === "FX_EXCHANGE";
+    render(<DataGridCell {...props} />);
+    expect(screen.getByRole("textbox")).toHaveAttribute("contenteditable", "false");
+    expect(screen.getByText("FX_EXCHANGE")).toBeInTheDocument();
+  });
 });

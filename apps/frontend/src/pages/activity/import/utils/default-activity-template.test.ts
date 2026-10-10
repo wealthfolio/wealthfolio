@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { ActivityType } from "@/lib/constants";
 import type { ImportTemplateData } from "@/lib/types";
+import { IMPORTABLE_ACTIVITY_TYPES } from "./activity-import-profile";
 import {
   DEFAULT_ACTIVITY_TEMPLATE_ID,
   createDefaultActivityMapping,
@@ -11,10 +12,14 @@ import {
 } from "./default-activity-template";
 
 describe("default-activity-template", () => {
-  it.each(Object.values(ActivityType).filter((type) => type !== ActivityType.UNKNOWN))(
-    "includes canonical %s identity mappings",
+  it.each(IMPORTABLE_ACTIVITY_TYPES)("includes canonical %s identity mappings", (type) => {
+    expect(createDefaultActivityTemplate().activityMappings[type]).toEqual([type]);
+  });
+
+  it.each([ActivityType.UNKNOWN, ActivityType.FX_EXCHANGE])(
+    "excludes %s identity mappings",
     (type) => {
-      expect(createDefaultActivityTemplate().activityMappings[type]).toEqual([type]);
+      expect(createDefaultActivityTemplate().activityMappings[type]).toBeUndefined();
     },
   );
 

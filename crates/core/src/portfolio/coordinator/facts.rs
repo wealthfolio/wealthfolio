@@ -300,6 +300,8 @@ pub(crate) fn raw_activity(a: &Activity) -> RawActivity {
         quantity: a.quantity,
         unit_price: a.unit_price,
         amount: a.amount,
+        destination_amount: a.destination_amount,
+        destination_currency: a.destination_currency.clone(),
         fee: a.fee,
         tax: a.tax,
         currency: a.currency.clone(),

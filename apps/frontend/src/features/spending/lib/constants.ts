@@ -6,6 +6,7 @@ import { AccountPurpose, accountSupportsPurpose, isLiabilityAccountType } from "
 
 /** Cash/card activity types tracked by the spending module. */
 export const CASH_ACTIVITY_TYPES = [
+  "FX_EXCHANGE",
   "DEPOSIT",
   "WITHDRAWAL",
   "TRANSFER_IN",
@@ -18,7 +19,7 @@ export const CASH_ACTIVITY_TYPES = [
 
 export type CashActivityType = (typeof CASH_ACTIVITY_TYPES)[number];
 
-export const CREDIT_CARD_ACTIVITY_TYPES: CashActivityType[] = [
+export const CREDIT_CARD_ACTIVITY_TYPES: Exclude<CashActivityType, "FX_EXCHANGE">[] = [
   "WITHDRAWAL",
   "FEE",
   "INTEREST",
@@ -50,10 +51,12 @@ export function isCreditCardAccountType(accountType: string | undefined): boolea
   return isLiabilityAccountType(accountType);
 }
 
-export function getActivityTypesForAccount(accountType: string | undefined): CashActivityType[] {
+export function getActivityTypesForAccount(
+  accountType: string | undefined,
+): Exclude<CashActivityType, "FX_EXCHANGE">[] {
   return isCreditCardAccountType(accountType)
     ? CREDIT_CARD_ACTIVITY_TYPES
-    : [...CASH_ACTIVITY_TYPES];
+    : CASH_ACTIVITY_TYPES.filter((type) => type !== "FX_EXCHANGE");
 }
 
 export function getCashActivityLabel(

@@ -10,7 +10,7 @@ import {
   isSplitActivity,
   localizeActivityTypeName,
 } from "@/lib/activity-utils";
-import { ActivityType } from "@/lib/constants";
+import { ActivityStatus, ActivityType } from "@/lib/constants";
 import { formatOptionSubtitle, parseOccSymbol } from "@/lib/occ-symbol";
 import { useSettingsContext } from "@/lib/settings-provider";
 import type { ActivityDetails } from "@/lib/types";
@@ -30,6 +30,7 @@ import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import { buildActivityFilterUrl } from "../utils/activity-links";
+import { FxExchangeAmount } from "./fx-exchange-amount";
 
 type CashAuditFilter = "all" | "cash-impacting" | "possible-missing";
 
@@ -64,9 +65,17 @@ export function ActivityDateList({
     () => buildCashLedger(activities, endingCashBalance, isCreditCardAccount),
     [activities, endingCashBalance, isCreditCardAccount],
   );
+  // The audit below sums native amounts, not backend-valued cash effects. A
+  // two-currency exchange cannot be represented by one signed amount here.
+  const hasFxExchange = activities.some(
+    (activity) =>
+      activity.activityType === ActivityType.FX_EXCHANGE &&
+      (!activity.status || activity.status === ActivityStatus.POSTED),
+  );
   const hasCashContext =
     cashLedger.startingCashBalance !== undefined &&
-    cashAuditTarget?.hasExplainingActivity !== false;
+    cashAuditTarget?.hasExplainingActivity !== false &&
+    !hasFxExchange;
 
   const filteredLedgerRows = useMemo(() => {
     if (!hasCashContext) return cashLedger.rows;
@@ -105,6 +114,11 @@ export function ActivityDateList({
 
   return (
     <div className="space-y-3">
+      {hasFxExchange && endingCashBalance !== undefined ? (
+        <p className="text-muted-foreground rounded-md border p-3 text-sm" role="note">
+          {t("activity:fx_exchange.cash_audit_note")}
+        </p>
+      ) : null}
       {hasCashContext ? (
         <CashAuditSummary
           startingCashBalance={cashLedger.startingCashBalance}
@@ -222,7 +236,9 @@ function ActivityDateListItem({
         />
         <div className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_auto] gap-x-3">
           <p className="truncate text-base font-semibold leading-5">{displaySymbol}</p>
-          {activity.activityType !== ActivityType.SPLIT ? (
+          {activity.activityType === ActivityType.FX_EXCHANGE ? (
+            <FxExchangeAmount activity={activity} />
+          ) : activity.activityType !== ActivityType.SPLIT ? (
             <p className="text-right text-base font-semibold leading-5">
               {formatting.formatAmount(displayValue, activity.currency)}
             </p>

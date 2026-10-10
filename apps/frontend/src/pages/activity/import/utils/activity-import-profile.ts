@@ -43,8 +43,10 @@ export interface ActivityImportProfile {
 
 type AccountProfileOption = { id: string; accountType?: string | null };
 
-const IMPORTABLE_ACTIVITY_TYPES = Object.values(ActivityType).filter(
-  (type): type is ActivityType => type !== ActivityType.UNKNOWN,
+// ActivityImport has no destination cash fields, so exchanges cannot be imported.
+export const IMPORTABLE_ACTIVITY_TYPES = Object.values(ActivityType).filter(
+  (type): type is ActivityType =>
+    type !== ActivityType.UNKNOWN && type !== ActivityType.FX_EXCHANGE,
 );
 
 const CASH_ACTIVITY_TYPES = [

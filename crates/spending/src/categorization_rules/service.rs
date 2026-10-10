@@ -775,6 +775,8 @@ mod tests {
 
     fn mk_activity(id: &str, account: &str, notes: &str) -> Activity {
         Activity {
+            destination_amount: None,
+            destination_currency: None,
             id: id.to_string(),
             account_id: account.to_string(),
             asset_id: None,

@@ -154,6 +154,7 @@ impl fmt::Display for Subject {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum Component {
+    Fx,
     Income,
     Fee,
     Tax,
@@ -162,6 +163,7 @@ pub enum Component {
 impl fmt::Display for Component {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(match self {
+            Self::Fx => "FX",
             Self::Income => "Income",
             Self::Fee => "Fee",
             Self::Tax => "Tax",

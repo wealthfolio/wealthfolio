@@ -40,6 +40,12 @@ function areDataGridCellPropsEqual<TData>(prev: DataGridCellProps<TData>, next: 
     return false;
   }
 
+  if (
+    prev.cell.column.columnDef.meta?.isReadOnly?.(prev.cell.row.original) !==
+    next.cell.column.columnDef.meta?.isReadOnly?.(next.cell.row.original)
+  )
+    return false;
+
   // Check cell/row identity
   if (prev.cell.row.id !== next.cell.row.id) return false;
 
@@ -72,6 +78,8 @@ function DataGridCellImpl<TData>({
   rowHeight,
   cellState,
 }: DataGridCellProps<TData>) {
+  readOnly = readOnly || (cell.column.columnDef.meta?.isReadOnly?.(cell.row.original) ?? false);
+  isEditing = isEditing && !readOnly;
   const cellOpts = cell.column.columnDef.meta?.cell;
   const variant = cellOpts?.variant ?? "text";
 

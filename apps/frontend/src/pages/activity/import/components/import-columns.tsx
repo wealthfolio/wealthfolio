@@ -100,10 +100,12 @@ export function useImportColumns<T extends ImportRowData>({
 
   const activityTypeOptions = useMemo(
     () =>
-      Object.values(ActivityType).map((type) => ({
-        value: type,
-        label: localizeActivityTypeName(t, type),
-      })),
+      Object.values(ActivityType)
+        .filter((type) => type !== ActivityType.FX_EXCHANGE)
+        .map((type) => ({
+          value: type,
+          label: localizeActivityTypeName(t, type),
+        })),
     [t],
   );
 

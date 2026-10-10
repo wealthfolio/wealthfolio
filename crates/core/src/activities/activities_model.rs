@@ -211,6 +211,11 @@ pub struct Activity {
     pub created_at: DateTime<Utc>,
     #[serde(with = "timestamp_format")]
     pub updated_at: DateTime<Utc>,
+    /// Actual cash received by an FX_EXCHANGE; absent on other activity types.
+    #[serde(default, with = "optional_decimal_format")]
+    pub destination_amount: Option<Decimal>,
+    #[serde(default)]
+    pub destination_currency: Option<String>,
 }
 
 /// An activity's type override, when it is not blank: a blank override is
@@ -408,6 +413,13 @@ pub struct NewActivity {
     pub source_group_id: Option<String>,  // Provider grouping key
     pub idempotency_key: Option<String>,  // Stable hash for dedupe
     pub import_run_id: Option<String>,    // Import batch identifier
+    #[serde(
+        default,
+        deserialize_with = "decimal_input_format::deserialize_option_decimal"
+    )]
+    pub destination_amount: Option<Decimal>,
+    #[serde(default)]
+    pub destination_currency: Option<String>,
 }
 
 impl NewActivity {
@@ -561,6 +573,20 @@ impl NewActivity {
         }
 
         validate_activity_date(&self.activity_date)?;
+        super::validate_fx_exchange(
+            &self.activity_type,
+            self.amount,
+            &self.currency,
+            self.destination_amount,
+            self.destination_currency.as_deref(),
+            self.asset
+                .as_ref()
+                .is_none_or(AssetResolutionInput::is_empty)
+                && self.fx_rate.is_none()
+                && [self.quantity, self.unit_price, self.fee, self.tax]
+                    .iter()
+                    .all(|value| value.is_none_or(|v| v.is_zero())),
+        )?;
 
         let subtype =
             Self::canonicalize_subtype_for_activity(&self.activity_type, self.subtype.as_deref());
@@ -720,6 +746,14 @@ pub struct ActivityUpdate {
     )]
     pub fx_rate: Option<Option<Decimal>>,
     pub metadata: Option<String>, // JSON blob for metadata (e.g., flow.is_external)
+    #[serde(
+        default,
+        deserialize_with = "decimal_input_format::deserialize_patch_decimal"
+    )]
+    pub destination_amount: Option<Option<Decimal>>,
+    /// Omission preserves the destination currency; an empty value is invalid for FX.
+    #[serde(default)]
+    pub destination_currency: Option<String>,
 }
 
 impl ActivityUpdate {
@@ -1027,6 +1061,10 @@ pub struct ActivityDetails {
     pub import_run_id: Option<String>,
     pub is_user_modified: bool,
     pub metadata: Option<Value>,
+    #[serde(default)]
+    pub destination_amount: Option<String>,
+    #[serde(default)]
+    pub destination_currency: Option<String>,
 }
 
 impl ActivityDetails {
@@ -1693,6 +1731,7 @@ pub enum ActivityType {
     Withdrawal,
     TransferIn,
     TransferOut,
+    FxExchange,
     Fee,
     Tax,
     Split,
@@ -1713,6 +1752,7 @@ impl ActivityType {
             ActivityType::Withdrawal => ACTIVITY_TYPE_WITHDRAWAL,
             ActivityType::TransferIn => ACTIVITY_TYPE_TRANSFER_IN,
             ActivityType::TransferOut => ACTIVITY_TYPE_TRANSFER_OUT,
+            ActivityType::FxExchange => ACTIVITY_TYPE_FX_EXCHANGE,
             ActivityType::Fee => ACTIVITY_TYPE_FEE,
             ActivityType::Tax => ACTIVITY_TYPE_TAX,
             ActivityType::Split => ACTIVITY_TYPE_SPLIT,
@@ -1737,6 +1777,7 @@ impl FromStr for ActivityType {
             s if s == ACTIVITY_TYPE_WITHDRAWAL => Ok(ActivityType::Withdrawal),
             s if s == ACTIVITY_TYPE_TRANSFER_IN => Ok(ActivityType::TransferIn),
             s if s == ACTIVITY_TYPE_TRANSFER_OUT => Ok(ActivityType::TransferOut),
+            s if s == ACTIVITY_TYPE_FX_EXCHANGE => Ok(ActivityType::FxExchange),
             s if s == ACTIVITY_TYPE_FEE => Ok(ActivityType::Fee),
             s if s == ACTIVITY_TYPE_TAX => Ok(ActivityType::Tax),
             s if s == ACTIVITY_TYPE_SPLIT => Ok(ActivityType::Split),
@@ -2082,6 +2123,8 @@ impl From<ActivityImport> for NewActivity {
         };
 
         NewActivity {
+            destination_amount: None,
+            destination_currency: None,
             id: import.id,
             account_id: import.account_id.unwrap_or_default(),
             asset,

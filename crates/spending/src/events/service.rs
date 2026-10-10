@@ -378,6 +378,8 @@ mod tests {
 
     fn mk_activity(id: &str, date: DateTime<Utc>) -> Activity {
         Activity {
+            destination_amount: None,
+            destination_currency: None,
             id: id.to_string(),
             account_id: "acct1".to_string(),
             asset_id: None,

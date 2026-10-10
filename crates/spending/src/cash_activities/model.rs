@@ -147,8 +147,8 @@ pub struct CashActivity {
     /// cash (an unposted row, for instance).
     ///
     /// Produced by the same resolver that builds account cash balances, so a
-    /// client can sum these directly rather than re-deriving a sign, and the
-    /// figures it shows agree with the account page by construction.
+    /// client need not re-derive a sign. For multi-currency exchanges this stays
+    /// zero; use `cash_movements` instead, never add both representations.
     pub net_amount: f64,
     /// `net_amount` in the caller's base currency, converted at this row's own
     /// date. `None` when the caller asked for no conversion, or when this row's
@@ -156,6 +156,10 @@ pub struct CashActivity {
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub net_amount_base: Option<f64>,
+    /// Replaces the scalar net fields for exchanges, with both server-derived
+    /// cash legs. Empty for unposted/invalid exchanges; absent for ordinary rows.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cash_movements: Option<Vec<CashMovement>>,
     /// Signed contribution of this row to spending totals, in the row's own
     /// currency: the spending-bucket amount (positive for charges, negative
     /// for refunds) with the portions allocated to excluded categories
@@ -174,6 +178,16 @@ pub struct CashActivity {
 pub struct CurrencyNet {
     pub currency: String,
     pub amount: f64,
+}
+
+/// One native cash leg, optionally valued at the activity's date in the base currency.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CashMovement {
+    pub currency: String,
+    pub amount: f64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub amount_base: Option<f64>,
 }
 
 /// The net of a filtered set, summed before pagination so it describes the

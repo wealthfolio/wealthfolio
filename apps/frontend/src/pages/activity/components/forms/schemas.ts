@@ -256,6 +256,15 @@ export const adjustmentActivitySchema = baseActivitySchema.extend({
   quoteMode: z.enum([QuoteMode.MARKET, QuoteMode.MANUAL]).default(QuoteMode.MARKET),
 });
 
+export const fxExchangeActivitySchema = baseActivitySchema.extend({
+  activityType: z.literal(ActivityType.FX_EXCHANGE),
+  amount: z.coerce.number().finite().positive(),
+  currency: z.string().regex(/^[A-Z]{3}$/),
+  destinationAmount: z.coerce.number().finite().positive(),
+  destinationCurrency: z.string().regex(/^[A-Z]{3}$/),
+  fxRate: z.null().optional(),
+});
+
 export const newActivitySchema = z
   .discriminatedUnion("activityType", [
     tradeActivitySchema,
@@ -265,6 +274,7 @@ export const newActivitySchema = z
     creditActivitySchema,
     adjustmentActivitySchema,
     transferActivitySchema,
+    fxExchangeActivitySchema,
   ])
   .and(
     z.object({
@@ -272,6 +282,16 @@ export const newActivitySchema = z
     }),
   )
   .superRefine((activity, ctx) => {
+    if (
+      activity.activityType === ActivityType.FX_EXCHANGE &&
+      activity.currency === activity.destinationCurrency
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["destinationCurrency"],
+        message: "Choose a different currency",
+      });
+    }
     if (activity.activityType !== ActivityType.ADJUSTMENT || activity.assetId?.trim()) return;
 
     const amount = Number(activity.amount);

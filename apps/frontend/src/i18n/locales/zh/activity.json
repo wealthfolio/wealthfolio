@@ -1,4 +1,16 @@
 {
+  "type_fx_exchange": "换汇",
+  "fx_exchange": {
+    "sent": "实际转出金额",
+    "received": "实际到账金额",
+    "rate": "成交汇率",
+    "add": "记录换汇",
+    "help": "记录同一账户中实际扣除和到账的金额。金额应包含所有费用；不会获取市场汇率。",
+    "positive": "请输入大于零的金额",
+    "different": "请选择不同的币种",
+    "full_editor": "请在完整表单中编辑换汇。",
+    "cash_audit_note": "当天包含换汇。此处显示两侧现金金额，不推算单币种逐笔余额。"
+  },
   "needs_review_alert": {
     "title_other": "{{count}} 条活动需要审核",
     "description": "请确认每笔交易的资产、类型和最终金额。",

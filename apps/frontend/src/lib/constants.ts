@@ -313,6 +313,7 @@ export const ActivityType = {
   WITHDRAWAL: "WITHDRAWAL",
   TRANSFER_IN: "TRANSFER_IN",
   TRANSFER_OUT: "TRANSFER_OUT",
+  FX_EXCHANGE: "FX_EXCHANGE",
   FEE: "FEE",
   TAX: "TAX",
   CREDIT: "CREDIT",
@@ -324,6 +325,7 @@ export type ActivityType = (typeof ActivityType)[keyof typeof ActivityType];
 
 // Array of all activity types for iteration
 export const ACTIVITY_TYPES = [
+  ActivityType.FX_EXCHANGE,
   ActivityType.BUY,
   ActivityType.SELL,
   ActivityType.SPLIT,
@@ -358,6 +360,7 @@ export const INCOME_ACTIVITY_TYPES = [ActivityType.DIVIDEND, ActivityType.INTERE
 
 // Zod schema for activity type validation
 export const activityTypeSchema = z.enum([
+  ActivityType.FX_EXCHANGE,
   ActivityType.BUY,
   ActivityType.SELL,
   ActivityType.SPLIT,
@@ -376,6 +379,7 @@ export const activityTypeSchema = z.enum([
 
 // Display names for activity types
 export const ActivityTypeNames: Record<ActivityType, string> = {
+  [ActivityType.FX_EXCHANGE]: "Currency Exchange",
   [ActivityType.BUY]: "Buy",
   [ActivityType.SELL]: "Sell",
   [ActivityType.SPLIT]: "Split",

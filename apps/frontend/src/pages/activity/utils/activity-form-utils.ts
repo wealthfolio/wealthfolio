@@ -2,6 +2,7 @@ import { ActivityType } from "@/lib/constants";
 import type { PickerActivityType } from "../config/activity-form-config";
 
 const PURE_CASH_ACTIVITY_TYPES: readonly string[] = [
+  ActivityType.FX_EXCHANGE,
   ActivityType.DEPOSIT,
   ActivityType.WITHDRAWAL,
   ActivityType.FEE,

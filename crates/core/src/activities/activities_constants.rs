@@ -33,6 +33,9 @@ pub const ACTIVITY_TYPE_TRANSFER_IN: &str = "TRANSFER_IN";
 /// Decreases cash or quantity.
 pub const ACTIVITY_TYPE_TRANSFER_OUT: &str = "TRANSFER_OUT";
 
+/// Same-account exchange of cash between two currencies. One activity, two cash effects.
+pub const ACTIVITY_TYPE_FX_EXCHANGE: &str = "FX_EXCHANGE";
+
 /// Stand-alone brokerage or platform fee not tied to a trade. Decreases cash.
 pub const ACTIVITY_TYPE_FEE: &str = "FEE";
 
@@ -126,7 +129,8 @@ pub fn is_garbage_symbol(symbol: &str) -> bool {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Activity types that are always pure cash — they never reference an asset.
-pub const NEVER_ASSET_TYPES: [&str; 5] = [
+pub const NEVER_ASSET_TYPES: [&str; 6] = [
+    ACTIVITY_TYPE_FX_EXCHANGE,
     ACTIVITY_TYPE_DEPOSIT,
     ACTIVITY_TYPE_WITHDRAWAL,
     ACTIVITY_TYPE_FEE,
@@ -303,6 +307,7 @@ pub fn requires_final_cash_amount(activity_type: &str, is_security_transfer: boo
         && matches!(
             activity_type,
             ACTIVITY_TYPE_BUY
+                | ACTIVITY_TYPE_FX_EXCHANGE
                 | ACTIVITY_TYPE_SELL
                 | ACTIVITY_TYPE_DEPOSIT
                 | ACTIVITY_TYPE_WITHDRAWAL

@@ -67,6 +67,8 @@ mod tests {
 
     fn create_test_activity() -> Activity {
         Activity {
+            destination_amount: None,
+            destination_currency: None,
             id: "test-id".to_string(),
             account_id: "account-1".to_string(),
             asset_id: Some("AAPL".to_string()),
@@ -306,6 +308,8 @@ mod tests {
 
     fn create_test_new_activity() -> NewActivity {
         NewActivity {
+            destination_amount: None,
+            destination_currency: None,
             id: None,
             account_id: "account-1".to_string(),
             asset: Some(AssetResolutionInput {
@@ -648,6 +652,8 @@ mod tests {
 
     fn create_test_activity_update() -> ActivityUpdate {
         ActivityUpdate {
+            destination_amount: None,
+            destination_currency: None,
             id: "activity-1".to_string(),
             account_id: "account-1".to_string(),
             asset: Some(AssetResolutionInput {
@@ -951,6 +957,8 @@ mod tests {
     #[test]
     fn test_new_activity_symbol_helpers() {
         let activity = NewActivity {
+            destination_amount: None,
+            destination_currency: None,
             id: Some("a1".to_string()),
             account_id: "acc-1".to_string(),
             asset: Some(AssetResolutionInput {

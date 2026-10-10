@@ -40,6 +40,22 @@ pub fn compile(facts: &CanonicalFacts) -> CompiledLedger {
             ));
             continue;
         };
+        if activity.kind == ActivityKind::FxExchange {
+            match compile_exchange(activity, facts) {
+                Some(legs) => {
+                    for mut event in legs {
+                        event.sequence = events.len() as u32;
+                        events.push(event);
+                    }
+                }
+                None => diagnostics.push(Diagnostic::error(
+                    DiagnosticCode::ActivityRejected,
+                    activity.id.as_str(),
+                    "invalid currency exchange; neither cash leg was booked",
+                )),
+            }
+            continue;
+        }
         for leg in expand(activity) {
             let mut event = compile_leg(&leg, account, facts);
             event.sequence = events.len() as u32;
@@ -51,6 +67,70 @@ pub fn compile(facts: &CanonicalFacts) -> CompiledLedger {
         events,
         diagnostics,
     }
+}
+
+/// One stored exchange, two cash postings. Both share a source so the projector's
+/// existing activity savepoint applies or rejects the complete exchange.
+fn compile_exchange(activity: &Activity, facts: &CanonicalFacts) -> Option<Vec<EconomicEvent>> {
+    let source_amount = activity.amount.filter(|a| *a > Decimal::ZERO)?;
+    let destination_amount = activity.destination_amount.filter(|a| *a > Decimal::ZERO)?;
+    let source = activity.currency.as_str();
+    let destination = activity.destination_currency.as_deref()?.trim();
+    if [source, destination]
+        .iter()
+        .any(|code| code.len() != 3 || !code.bytes().all(|c| c.is_ascii_alphabetic()))
+    {
+        return None;
+    }
+    let (source, source_factor) = facts.policy.normalize_currency(source);
+    let (destination, destination_factor) = facts.policy.normalize_currency(destination);
+    let source = Currency::parse(&source.to_ascii_uppercase())?;
+    let destination = Currency::parse(&destination.to_ascii_uppercase())?;
+    if source == destination
+        || activity.asset.is_some()
+        || !activity.fee.is_zero()
+        || !activity.tax.is_zero()
+        || !activity.quantity.is_zero()
+        || !activity.unit_price.is_zero()
+        || activity.fx_rate.is_some()
+    {
+        return None;
+    }
+    let source_amount = arith::mul(source_amount, source_factor)?;
+    let destination_amount = arith::mul(destination_amount, destination_factor)?;
+    Some(
+        [
+            ("fx-out", source, -source_amount),
+            ("fx-in", destination, destination_amount),
+        ]
+        .into_iter()
+        .map(|(suffix, currency, amount)| EconomicEvent {
+            id: EventId::new(format!("{}:{suffix}", activity.id)),
+            source: activity.id.clone(),
+            kind: ActivityKind::FxExchange,
+            account: activity.account.clone(),
+            date: activity.date,
+            timestamp: activity.timestamp,
+            sequence: 0,
+            currency,
+            fx_rate: None,
+            cash: Some(CashEffect {
+                amount,
+                gross: None,
+                booking: Booking::ActivityCurrency,
+            }),
+            charges: Charges::default(),
+            action: Action::None,
+            contribution: Contribution::None,
+            flow: Flow::NONE,
+            attribution: Attributed {
+                fx_effect: amount,
+                ..Attributed::default()
+            },
+            diagnostics: Vec::new(),
+        })
+        .collect(),
+    )
 }
 
 /// A leg of a possibly composite activity, with its own event id.
@@ -417,6 +497,7 @@ fn attribution_for(activity: &Activity, account: &AccountFacts, action: &Action)
                 .unwrap_or(Decimal::ZERO),
             fee,
             tax,
+            ..Attributed::default()
         },
         Fee => Attributed {
             fee: amount,
@@ -549,6 +630,8 @@ mod tests {
 
     fn raw(id: &str, account: &str, kind: &str, ts: &str) -> RawActivity {
         RawActivity {
+            destination_amount: None,
+            destination_currency: None,
             id: id.into(),
             account_id: account.into(),
             asset_id: None,
@@ -719,6 +802,7 @@ mod tests {
         assert_eq!(
             ledger.events[0].attribution,
             Attributed {
+                fx_effect: dec!(0),
                 income: dec!(0),
                 fee: dec!(0),
                 tax: dec!(5),

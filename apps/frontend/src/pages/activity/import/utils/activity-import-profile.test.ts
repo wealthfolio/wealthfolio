@@ -8,10 +8,28 @@ import {
   getActivityTypeLabelForImportProfile,
   getDefaultActivityMappingsForImportProfile,
   mergeActivityMappingsForImportProfile,
+  sanitizeActivityMappingsForImportProfile,
   sanitizeImportMappingForProfile,
 } from "./activity-import-profile";
 
 describe("activity import profiles", () => {
+  it.each([undefined, AccountType.SECURITIES, AccountType.CASH, AccountType.CREDIT_CARD])(
+    "excludes exchanges from CSV options and saved mappings for %s accounts",
+    (accountType) => {
+      const profile = getActivityImportProfileForAccountType(accountType);
+      const stale = { [ActivityType.FX_EXCHANGE]: ["CONVERSION"] };
+      expect(profile.allowedActivityTypes).not.toContain(ActivityType.FX_EXCHANGE);
+      expect(activityTypeAllowedForImportProfile(ActivityType.FX_EXCHANGE, profile)).toBe(false);
+      expect(
+        getDefaultActivityMappingsForImportProfile(profile)[ActivityType.FX_EXCHANGE],
+      ).toBeUndefined();
+      expect(sanitizeActivityMappingsForImportProfile(stale, profile)).toEqual({});
+      expect(
+        mergeActivityMappingsForImportProfile(stale, profile)[ActivityType.FX_EXCHANGE],
+      ).toBeUndefined();
+    },
+  );
+
   it("keeps investment imports as the default profile", () => {
     const profile = getActivityImportProfileForAccountType(AccountType.SECURITIES);
 

@@ -496,6 +496,7 @@ pub(crate) fn activity_out_of_range(raw: &RawActivity) -> Option<String> {
         ("quantity", raw.quantity),
         ("unit_price", raw.unit_price),
         ("amount", raw.amount),
+        ("destination_amount", raw.destination_amount),
         ("fee", raw.fee),
         ("tax", raw.tax),
     ];
@@ -591,7 +592,13 @@ fn canonical_activity(
         created_at: raw.created_at,
         quantity: abs(raw.quantity),
         unit_price: abs(raw.unit_price),
-        amount: raw.amount.map(|value| value.abs()),
+        amount: if kind == ActivityKind::FxExchange {
+            raw.amount
+        } else {
+            raw.amount.map(|value| value.abs())
+        },
+        destination_amount: raw.destination_amount,
+        destination_currency: raw.destination_currency,
         fee: abs(raw.fee),
         tax: abs(raw.tax),
         currency,
@@ -873,6 +880,8 @@ mod tests {
 
     fn activity(id: &str, account: &str, kind: &str, ts: &str) -> RawActivity {
         RawActivity {
+            destination_amount: None,
+            destination_currency: None,
             id: id.into(),
             account_id: account.into(),
             asset_id: None,

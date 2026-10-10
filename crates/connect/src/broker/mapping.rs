@@ -616,6 +616,8 @@ pub fn map_broker_activity(
         };
 
     Some(NewActivity {
+        destination_amount: None,
+        destination_currency: None,
         id: Some(activity_id),
         account_id: account_id.to_string(),
         asset: asset_resolution_input,

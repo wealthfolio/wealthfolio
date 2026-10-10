@@ -1,4 +1,16 @@
 {
+  "type_fx_exchange": "Currency Exchange",
+  "fx_exchange": {
+    "sent": "Amount sent",
+    "received": "Amount received",
+    "rate": "Execution rate",
+    "add": "Record exchange",
+    "help": "Enter the actual debit and credit in one account. Include any charges in these amounts; no market rate is fetched.",
+    "positive": "Enter a positive amount",
+    "different": "Choose a different currency",
+    "full_editor": "Edit currency exchanges in the full form.",
+    "cash_audit_note": "This day includes a currency exchange. Both cash amounts are shown; a single-currency running balance is not calculated here."
+  },
   "needs_review_alert": {
     "title_one": "{{count}} activity needs review",
     "title_other": "{{count}} activities need review",

@@ -7,6 +7,8 @@ use serde_json::Value;
 pub(super) fn withdrawal(metadata: Option<Value>) -> Activity {
     let now = chrono::Utc::now();
     Activity {
+        destination_amount: None,
+        destination_currency: None,
         id: "act".into(),
         account_id: "chequing".into(),
         asset_id: None,

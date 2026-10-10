@@ -1,0 +1,33 @@
+id: NOM-FX-EXCHANGE
+title: One same-account currency exchange with two neutral cash postings
+intent: Actual debited and credited amounts drive native cash; valuation rates do not change contributions.
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-01-04
+accounts:
+  - id: fx-account
+    currency: USD
+activities:
+  - id: deposit
+    account: fx-account
+    type: DEPOSIT
+    date: 2025-01-02
+    amount: 1000
+    currency: USD
+  - id: exchange
+    account: fx-account
+    type: FX_EXCHANGE
+    date: 2025-01-03
+    amount: 100
+    currency: USD
+    destination_amount: 92
+    destination_currency: EUR
+fx_rates:
+  - { from: EUR, to: USD, day: 2025-01-02, rate: 1.10 }
+  - { from: EUR, to: USD, day: 2025-01-03, rate: 1.10 }
+  - { from: EUR, to: USD, day: 2025-01-04, rate: 1.10 }
+expected_notes: >
+  Cash is 900 USD plus 92 EUR, valued at 1001.2 USD. Contributions stay
+  1000 USD. Gain is 1.2 USD and TWR is 0.12%. No lots, external flows,
+  income, charges or execution-rate override are created by the exchange.

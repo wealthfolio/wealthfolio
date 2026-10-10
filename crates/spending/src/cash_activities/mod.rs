@@ -15,6 +15,7 @@ pub use traits::CashActivityServiceTrait;
 
 /// The activity_type values considered spending activities by the spending module.
 pub const CASH_ACTIVITY_TYPES: &[&str] = &[
+    wealthfolio_core::activities::ACTIVITY_TYPE_FX_EXCHANGE,
     "DEPOSIT",
     "WITHDRAWAL",
     "TRANSFER_IN",

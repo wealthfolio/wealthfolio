@@ -80,10 +80,11 @@ pub const APP_SYNC_TABLES: &[&str] = &[
     "allocation_target_constraints",
 ];
 
+/// Version 5 adds FX_EXCHANGE and its destination cash fields.
 /// Schema version stamped on uploaded snapshots. Version 4 uses compressed binary
 /// encryption and includes broker holdings, activities and their import records.
 /// Older clients must not restore it with their manual-only import filters.
-pub const SNAPSHOT_SCHEMA_VERSION: i32 = 4;
+pub const SNAPSHOT_SCHEMA_VERSION: i32 = 5;
 
 /// A remote snapshot is reusable only when it covers the required event cursor
 /// and contains at least the schema required by the local client.

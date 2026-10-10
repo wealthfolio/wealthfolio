@@ -38,6 +38,16 @@ export function MobileActivityTypeStep({
     {
       category: t("activity:mobile_type_category.cash"),
       types: [
+        ...(!includeReclassificationTypes
+          ? [
+              {
+                value: ActivityType.FX_EXCHANGE,
+                label: t("activity:type_fx_exchange"),
+                icon: "ArrowLeftRight" as const,
+                description: t("activity:fx_exchange.help"),
+              },
+            ]
+          : []),
         {
           value: ActivityType.DEPOSIT,
           label: t("activity:type_deposit"),
@@ -143,6 +153,7 @@ export function MobileActivityTypeStep({
                               <div key={type.value}>
                                 <RadioGroupItem
                                   value={type.value}
+                                  aria-label={type.label}
                                   id={type.value}
                                   className="peer sr-only"
                                 />

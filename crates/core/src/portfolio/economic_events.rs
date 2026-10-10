@@ -390,6 +390,8 @@ mod cash_tests {
 
     fn stored_activity(activity_type: &str) -> Activity {
         Activity {
+            destination_amount: None,
+            destination_currency: None,
             id: "activity-1".to_string(),
             account_id: "account-1".to_string(),
             asset_id: Some("asset-1".to_string()),

@@ -566,6 +566,8 @@ fn fixture_cash_activity(
         .unwrap_or_default();
     CashActivity {
         activity: Activity {
+            destination_amount: None,
+            destination_currency: None,
             id: id.to_string(),
             account_id: account_id.to_string(),
             asset_id: None,
@@ -605,6 +607,7 @@ fn fixture_cash_activity(
         // does not describe.
         net_amount: -12.5,
         net_amount_base: None,
+        cash_movements: None,
         visible_spending_amount: 0.0,
     }
 }

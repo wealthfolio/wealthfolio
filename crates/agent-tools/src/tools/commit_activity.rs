@@ -143,6 +143,8 @@ fn draft_to_new_activity(draft: &ActivityDraft) -> Result<NewActivity, AgentTool
     };
 
     Ok(NewActivity {
+        destination_amount: None,
+        destination_currency: None,
         id: None,
         account_id,
         asset,

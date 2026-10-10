@@ -1586,6 +1586,7 @@ fn priced_events(
                 buy: event.kind == ActivityKind::Buy,
             });
         events.push(EventEffect {
+            fx_effect: convert(attributed.fx_effect, &event.currency, event.date),
             id: event.id.clone(),
             source: event.source.clone(),
             account: event.account.clone(),

@@ -310,6 +310,8 @@ fn mutations(raw: &RawFacts, activities: Option<usize>) -> Vec<Mutation> {
         ] {
             let instant = Utc.from_utc_datetime(&day.and_hms_opt(12, 0, 0).unwrap());
             let deposit = RawActivity {
+                destination_amount: None,
+                destination_currency: None,
                 id: format!("{}-{label}-deposit", account.id),
                 account_id: account.id.clone(),
                 asset_id: None,

@@ -27,6 +27,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { findMappedActivityType } from "../utils/activity-type-mapping";
 import { ACTIVITY_SKIP } from "../utils/draft-utils";
+import { IMPORTABLE_ACTIVITY_TYPES } from "../utils/activity-import-profile";
 
 const SKIP_FIELD_VALUE = "__skip__";
 
@@ -177,13 +178,9 @@ function ActivityTypeDisplayCell({
         ) : (
           <SearchableSelect
             options={[
-              ...Object.values(ActivityType)
-                .filter(
-                  (t) =>
-                    t !== ActivityType.UNKNOWN &&
-                    (!allowedActivityTypes || allowedActivityTypes.includes(t)),
-                )
-                .map((type) => ({ value: type, label: getActivityTypeLabel(type) })),
+              ...IMPORTABLE_ACTIVITY_TYPES.filter(
+                (type) => !allowedActivityTypes || allowedActivityTypes.includes(type),
+              ).map((type) => ({ value: type, label: getActivityTypeLabel(type) })),
               {
                 value: ACTIVITY_SKIP,
                 label: t("activity:import.mapping.skip"),

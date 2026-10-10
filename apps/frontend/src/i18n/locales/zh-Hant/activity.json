@@ -1,4 +1,16 @@
 {
+  "type_fx_exchange": "換匯",
+  "fx_exchange": {
+    "sent": "實際轉出金額",
+    "received": "實際到帳金額",
+    "rate": "成交匯率",
+    "add": "記錄換匯",
+    "help": "記錄同一帳戶中實際扣除和到帳的金額。金額應包含所有費用；不會取得市場匯率。",
+    "positive": "請輸入大於零的金額",
+    "different": "請選擇不同的幣別",
+    "full_editor": "請在完整表單中編輯換匯。",
+    "cash_audit_note": "當天包含換匯。此處顯示兩側現金金額，不推算單一幣種的逐筆餘額。"
+  },
   "needs_review_alert": {
     "title_one": "{{count}} 筆交易紀錄需要檢查",
     "title_other": "{{count}} 筆交易紀錄需要檢查",

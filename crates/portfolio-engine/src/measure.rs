@@ -1705,12 +1705,19 @@ fn activity_effects(
         return EffectSet::default();
     };
     let mut set = EffectSet::default();
+    let mut exchanges: HashMap<&ActivityId, Vec<Option<Decimal>>> = HashMap::new();
     for event in inputs
         .effects
         .events
         .iter()
         .filter(|e| scope.contains(&e.account) && period.contains(e.date))
     {
+        if event.fx_effect != Some(Decimal::ZERO) {
+            exchanges
+                .entry(&event.source)
+                .or_default()
+                .push(event.fx_effect);
+        }
         let mut effect = Effect::default();
         let mut has_effect = false;
         for (component, priced, slot) in [
@@ -1734,6 +1741,23 @@ fn activity_effects(
         }
         if has_effect {
             set.effects.push(effect);
+        }
+    }
+    // Both postings share one source/account/date. Never attribute only the
+    // priced side of an exchange when the other side lacks valuation FX.
+    for (source, legs) in exchanges {
+        match legs
+            .into_iter()
+            .try_fold(Decimal::ZERO, |total, leg| leg.map(|value| total + value))
+        {
+            Some(fx_effect) => set.effects.push(Effect {
+                fx_effect,
+                ..Effect::default()
+            }),
+            None => set.warnings.push(QualityNote::AttributionSkipped {
+                component: Component::Fx,
+                activity: source.as_str().to_string(),
+            }),
         }
     }
     set

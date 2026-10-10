@@ -6,11 +6,11 @@ use chrono::{DateTime, Utc};
 use chrono_tz::Tz;
 use rust_decimal::{prelude::ToPrimitive, Decimal};
 use wealthfolio_core::accounts::{
-    account_supports_purpose, AccountPurpose, AccountRepositoryTrait,
+    account_supports_purpose, account_types, AccountPurpose, AccountRepositoryTrait,
 };
 use wealthfolio_core::activities::{
-    Activity, ActivityRepositoryTrait, TransferPairResolution, ACTIVITY_TYPE_TRANSFER_IN,
-    ACTIVITY_TYPE_TRANSFER_OUT,
+    Activity, ActivityRepositoryTrait, TransferPairResolution, ACTIVITY_TYPE_FX_EXCHANGE,
+    ACTIVITY_TYPE_TRANSFER_IN, ACTIVITY_TYPE_TRANSFER_OUT,
 };
 use wealthfolio_core::taxonomies::TaxonomyServiceTrait;
 use wealthfolio_core::utils::time_utils::{activity_date_in_tz, parse_user_timezone_or_default};
@@ -18,8 +18,8 @@ use wealthfolio_core::utils::time_utils::{activity_date_in_tz, parse_user_timezo
 use super::{
     model::{
         CashActivity, CashActivityFilter, CashActivitySearchRequest, CashActivitySearchResponse,
-        CashActivitySortField, CashActivityStatusFilter, CashFlowBucket, CurrencyNet, NetSummary,
-        SortDirection, TransferLinkStatus,
+        CashActivitySortField, CashActivityStatusFilter, CashFlowBucket, CashMovement, CurrencyNet,
+        NetSummary, SortDirection, TransferLinkStatus,
     },
     CASH_ACTIVITY_TYPES,
 };
@@ -31,8 +31,8 @@ use crate::activity_assignments::{
     ActivityTaxonomyAssignment, ActivityTaxonomyAssignmentService, BulkCategoryAssignment,
 };
 use crate::activity_classification::{
-    activity_abs_amount, classify_activity, classify_activity_for_aggregation, decimal_to_f64,
-    net_amount, within_spending_transfer_groups, SpendingClassification,
+    activity_abs_amount, cash_movements, classify_activity, classify_activity_for_aggregation,
+    decimal_to_f64, net_amount, within_spending_transfer_groups, SpendingClassification,
 };
 use crate::activity_splits::{ActivitySplit, ActivitySplitRepositoryTrait, NewActivitySplit};
 use crate::category_exclusions::{excluded_spending_native, ExclusionIndex};
@@ -211,6 +211,8 @@ impl CashActivityService {
                 let cash_flow_bucket = cash_flow_bucket_for(&a, &account_types, &transfer_groups);
                 let transfer_link_status = transfer_link_status_for(&a, &transfer_link_resolution);
                 let net_amount = decimal_to_f64(net_amount(&a, &account_types));
+                let cash_movements =
+                    self.exchange_cash_movements(&a, &account_types, None, chrono_tz::UTC);
                 CashActivity {
                     activity: a,
                     cash_flow_bucket,
@@ -220,6 +222,7 @@ impl CashActivityService {
                     transfer_link_status,
                     net_amount,
                     net_amount_base: None,
+                    cash_movements,
                     visible_spending_amount,
                 }
             })
@@ -227,7 +230,7 @@ impl CashActivityService {
         Ok(items)
     }
 
-    /// `net_amount` in `base`, converted at the activity's own date.
+    /// A native cash leg in `base`, converted at the activity's own date.
     ///
     /// A transaction list reports what a row cost at the time, so each row uses
     /// its own date rather than one snapshot rate for the whole set — see the
@@ -241,15 +244,20 @@ impl CashActivityService {
     /// *account's* currency though, so it only answers this question when the
     /// account is denominated in the base currency; otherwise it would need
     /// chaining and the lookup is the simpler truth.
+    /// Exchanges value each leg independently; their execution ratio is not an override.
     fn net_amount_in_base(
         &self,
         activity: &Activity,
         net: Decimal,
+        currency: &str,
         base: &str,
         account_currency: Option<&str>,
         timezone: Tz,
     ) -> Option<Decimal> {
-        if account_currency == Some(base) && activity.currency != base {
+        if activity.effective_type() != ACTIVITY_TYPE_FX_EXCHANGE
+            && account_currency == Some(base)
+            && currency != base
+        {
             if let Some(rate) = activity.fx_rate.filter(|rate| !rate.is_zero()) {
                 return Some(net * rate);
             }
@@ -257,7 +265,7 @@ impl CashActivityService {
         crate::fx::convert(
             self.fx.as_ref(),
             net,
-            &activity.currency,
+            currency,
             base,
             // The user's day, not UTC: a late-evening activity is displayed
             // under — and valued by the holdings engine on — its local date, so
@@ -265,6 +273,36 @@ impl CashActivityService {
             // either side of midnight.
             activity_date_in_tz(activity.activity_date, timezone),
         )
+    }
+
+    /// Add both legs to the read DTO so selected/day totals use server economics,
+    /// just like the full filtered total. Legacy reads request no FX conversion.
+    fn exchange_cash_movements(
+        &self,
+        activity: &Activity,
+        account_types: &HashMap<String, String>,
+        base_currency: Option<&str>,
+        timezone: Tz,
+    ) -> Option<Vec<CashMovement>> {
+        (activity.effective_type() == ACTIVITY_TYPE_FX_EXCHANGE).then(|| {
+            cash_movements(activity, account_types)
+                .into_iter()
+                .map(|(currency, amount)| {
+                    let amount_base = base_currency
+                        .and_then(|base| {
+                            self.net_amount_in_base(
+                                activity, amount, &currency, base, None, timezone,
+                            )
+                        })
+                        .map(decimal_to_f64);
+                    CashMovement {
+                        currency,
+                        amount: decimal_to_f64(amount),
+                        amount_base,
+                    }
+                })
+                .collect()
+        })
     }
 
     /// Nets `activities` per currency, and adds a single converted figure when
@@ -285,37 +323,42 @@ impl CashActivityService {
         let mut tallies: Vec<CurrencyTally> = Vec::new();
 
         for activity in activities {
-            let net = net_amount(activity, account_types);
-            if net.is_zero() {
-                continue;
-            }
-
-            let index = match tallies
-                .iter()
-                .position(|tally| tally.currency == activity.currency)
-            {
-                Some(index) => index,
-                None => {
-                    tallies.push(CurrencyTally {
-                        currency: activity.currency.clone(),
-                        native: Decimal::ZERO,
-                        converted: Some(Decimal::ZERO),
-                    });
-                    tallies.len() - 1
+            for (currency, net) in cash_movements(activity, account_types) {
+                if net.is_zero() {
+                    continue;
                 }
-            };
-            tallies[index].native += net;
 
-            // Once a currency has failed to convert the answer cannot change, so
-            // stop asking: every further attempt is a repository round-trip and a
-            // warning for a figure already known to be unavailable.
-            if let (Some(base), Some(running)) = (base_currency, tallies[index].converted) {
-                let account_currency = account_currencies
-                    .get(&activity.account_id)
-                    .map(String::as_str);
-                tallies[index].converted = self
-                    .net_amount_in_base(activity, net, base, account_currency, timezone)
-                    .map(|converted| running + converted);
+                let index = match tallies.iter().position(|tally| tally.currency == currency) {
+                    Some(index) => index,
+                    None => {
+                        tallies.push(CurrencyTally {
+                            currency: currency.clone(),
+                            native: Decimal::ZERO,
+                            converted: Some(Decimal::ZERO),
+                        });
+                        tallies.len() - 1
+                    }
+                };
+                tallies[index].native += net;
+
+                // Once a currency has failed to convert the answer cannot change, so
+                // stop asking: every further attempt is a repository round-trip and a
+                // warning for a figure already known to be unavailable.
+                if let (Some(base), Some(running)) = (base_currency, tallies[index].converted) {
+                    let account_currency = account_currencies
+                        .get(&activity.account_id)
+                        .map(String::as_str);
+                    tallies[index].converted = self
+                        .net_amount_in_base(
+                            activity,
+                            net,
+                            &currency,
+                            base,
+                            account_currency,
+                            timezone,
+                        )
+                        .map(|converted| running + converted);
+                }
             }
         }
 
@@ -656,9 +699,18 @@ impl CashActivityService {
                     .and_then(|base| {
                         let account_currency =
                             account_currencies.get(&a.account_id).map(String::as_str);
-                        self.net_amount_in_base(&a, net, base, account_currency, timezone)
+                        self.net_amount_in_base(
+                            &a,
+                            net,
+                            &a.currency,
+                            base,
+                            account_currency,
+                            timezone,
+                        )
                     })
                     .map(decimal_to_f64);
+                let cash_movements =
+                    self.exchange_cash_movements(&a, &account_types, base_currency, timezone);
                 CashActivity {
                     activity: a,
                     cash_flow_bucket,
@@ -668,6 +720,7 @@ impl CashActivityService {
                     transfer_link_status,
                     net_amount: decimal_to_f64(net),
                     net_amount_base,
+                    cash_movements,
                     visible_spending_amount,
                 }
             })
@@ -743,6 +796,8 @@ impl CashActivityService {
                 let transfer_link_status =
                     transfer_link_status_for(&activity, &transfer_link_resolution);
                 let net_amount = decimal_to_f64(net_amount(&activity, &account_types));
+                let cash_movements =
+                    self.exchange_cash_movements(&activity, &account_types, None, chrono_tz::UTC);
                 CashActivity {
                     activity,
                     cash_flow_bucket,
@@ -752,6 +807,7 @@ impl CashActivityService {
                     transfer_link_status,
                     net_amount,
                     net_amount_base: None,
+                    cash_movements,
                     visible_spending_amount,
                 }
             })
@@ -1228,12 +1284,16 @@ fn is_visible_cash_activity(activity: &Activity, account_type: &str) -> bool {
 }
 
 fn is_neutral_visible_cash_activity(activity: &Activity, account_type: &str) -> bool {
+    let activity_type = activity.effective_type();
+    if account_type == account_types::CASH && activity_type == ACTIVITY_TYPE_FX_EXCHANGE {
+        return true;
+    }
     // Transfers on a spending account — card payments, balance transfers and
     // cash advances, savings moves to investing accounts, internal moves.
     // Always shown in the ledger (we never hide an account's transactions);
     // the totals layer decides saving vs neutral via
     // classify_activity_for_aggregation.
-    matches!(activity.effective_type(), "TRANSFER_IN" | "TRANSFER_OUT")
+    matches!(activity_type, "TRANSFER_IN" | "TRANSFER_OUT")
         && account_supports_purpose(account_type, AccountPurpose::Spending)
 }
 
@@ -1323,6 +1383,8 @@ mod tests {
 
     fn activity(activity_type: &str) -> Activity {
         Activity {
+            destination_amount: None,
+            destination_currency: None,
             id: "activity-1".to_string(),
             account_id: "account-1".to_string(),
             asset_id: None,
@@ -2458,6 +2520,196 @@ mod tests {
         }
     }
 
+    fn exchange_row() -> Activity {
+        Activity {
+            destination_amount: Some(Decimal::new(92, 0)),
+            destination_currency: Some("EUR".to_string()),
+            ..cash_row("exchange", "FX_EXCHANGE", 100, "USD")
+        }
+    }
+
+    #[tokio::test]
+    async fn fx_exchange_nets_both_native_legs_before_pagination_and_stays_neutral() {
+        let (service, _, _) = make_service_with_fx(
+            vec![cash_row("deposit", "DEPOSIT", 1000, "USD"), exchange_row()],
+            MockFx::with(&[("EUR", 11, 1)]),
+        );
+        let response = service
+            .search(
+                CashActivitySearchRequest {
+                    limit: 1,
+                    ..Default::default()
+                },
+                Some("USD"),
+                "UTC",
+            )
+            .await
+            .unwrap();
+        let net = response.net.unwrap();
+        assert_eq!(net.by_currency.len(), 2);
+        assert!(net.by_currency.contains(&CurrencyNet {
+            currency: "USD".into(),
+            amount: 900.0
+        }));
+        assert!(net.by_currency.contains(&CurrencyNet {
+            currency: "EUR".into(),
+            amount: 92.0
+        }));
+        // The execution ratio is not a valuation rate: 92 EUR at 1.1 USD/EUR is 101.2 USD.
+        assert_eq!(
+            net.converted,
+            Some(CurrencyNet {
+                currency: "USD".into(),
+                amount: 1001.2
+            })
+        );
+        assert_eq!(response.items.len(), 1);
+
+        let filtered = service
+            .search(
+                CashActivitySearchRequest {
+                    activity_types: Some(vec!["FX_EXCHANGE".into()]),
+                    limit: 50,
+                    ..Default::default()
+                },
+                Some("USD"),
+                "UTC",
+            )
+            .await
+            .unwrap();
+        assert_eq!(filtered.total_count, 1);
+        let row = &filtered.items[0];
+        assert_eq!(row.cash_flow_bucket, CashFlowBucket::Neutral);
+        assert_eq!(row.visible_spending_amount, 0.0);
+        let json = serde_json::to_value(row).unwrap();
+        assert_eq!(
+            json["cashMovements"],
+            serde_json::json!([
+                { "currency": "USD", "amount": -100.0, "amountBase": -100.0 },
+                { "currency": "EUR", "amount": 92.0, "amountBase": 101.2 },
+            ])
+        );
+    }
+
+    #[tokio::test]
+    async fn fx_exchange_keeps_native_legs_when_valuation_is_missing() {
+        // Use a reporting currency distinct from both legs, and omit each rate in turn.
+        for rates in [vec![("USD", 2, 0)], vec![("EUR", 3, 0)]] {
+            let (service, _, _) = make_service_with_fx(vec![exchange_row()], MockFx::with(&rates));
+            let net = search_net(&service, Some("CAD")).await;
+            assert_eq!(net.by_currency.len(), 2);
+            assert!(net.converted.is_none());
+        }
+    }
+
+    #[tokio::test]
+    async fn fx_exchange_values_both_legs_on_the_user_day_in_the_reporting_currency() {
+        let fx = Arc::new(DateCapturingFx::default());
+        let (service, _, _) = make_service_with_fx(
+            vec![Activity {
+                activity_date: DateTime::parse_from_rfc3339("2026-06-07T02:00:00Z")
+                    .unwrap()
+                    .with_timezone(&Utc),
+                ..exchange_row()
+            }],
+            fx.clone(),
+        );
+        let response = service
+            .search(
+                CashActivitySearchRequest {
+                    limit: 50,
+                    ..Default::default()
+                },
+                Some("CAD"),
+                "America/New_York",
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.base_currency.as_deref(), Some("CAD"));
+        assert_eq!(
+            response.net.unwrap().converted,
+            Some(CurrencyNet {
+                currency: "CAD".into(),
+                amount: -8.0,
+            })
+        );
+        let movements = response.items[0].cash_movements.as_ref().unwrap();
+        assert_eq!(movements[0].amount_base, Some(-100.0));
+        assert_eq!(movements[1].amount_base, Some(92.0));
+        let dates = fx.dates.lock().unwrap();
+        assert!(!dates.is_empty());
+        assert!(dates
+            .iter()
+            .all(|date| *date == NaiveDate::from_ymd_opt(2026, 6, 6).unwrap()));
+    }
+
+    #[tokio::test]
+    async fn fx_exchange_read_paths_return_both_legs_without_requesting_conversion() {
+        let fx = Arc::new(DateCapturingFx::default());
+        let (service, _, _) = make_service_with_fx(vec![exchange_row()], fx.clone());
+        let listed = service.list(CashActivityFilter::default()).await.unwrap();
+        let fetched = service
+            .get_by_activity_ids(&["exchange".into()])
+            .await
+            .unwrap();
+        let searched = service
+            .search(
+                CashActivitySearchRequest {
+                    limit: 50,
+                    ..Default::default()
+                },
+                None,
+                "UTC",
+            )
+            .await
+            .unwrap()
+            .items;
+        for rows in [listed, fetched, searched] {
+            assert_eq!(rows.len(), 1);
+            let json = serde_json::to_value(&rows[0]).unwrap();
+            assert_eq!(
+                json["cashMovements"],
+                serde_json::json!([
+                    { "currency": "USD", "amount": -100.0 },
+                    { "currency": "EUR", "amount": 92.0 },
+                ])
+            );
+        }
+        assert!(
+            fx.dates.lock().unwrap().is_empty(),
+            "Native totals must not request FX valuation"
+        );
+    }
+
+    #[tokio::test]
+    async fn fx_exchange_unposted_or_incomplete_rows_never_contribute_half_an_exchange() {
+        for status in [
+            ActivityStatus::Draft,
+            ActivityStatus::Pending,
+            ActivityStatus::Void,
+        ] {
+            let (service, _, _) = make_service_with(vec![Activity {
+                status,
+                ..exchange_row()
+            }]);
+            assert!(search_net(&service, Some("USD"))
+                .await
+                .by_currency
+                .is_empty());
+            let rows = service.list(CashActivityFilter::default()).await.unwrap();
+            let json = serde_json::to_value(&rows[0]).unwrap();
+            assert_eq!(json["cashMovements"], serde_json::json!([]));
+        }
+        let (service, _, _) = make_service_with(vec![Activity {
+            destination_amount: None,
+            ..exchange_row()
+        }]);
+        assert!(search_net(&service, Some("USD"))
+            .await
+            .by_currency
+            .is_empty());
+    }
+
     #[tokio::test]
     async fn search_nets_the_filtered_set_in_its_own_currency() {
         let (service, _, _) = make_service_with(vec![
@@ -2979,6 +3231,19 @@ mod tests {
             Some(&same_end)
         ));
         assert!(!activity_date_in_range(&after_end, None, Some(&same_end)));
+    }
+
+    #[test]
+    fn fx_exchange_is_visible_as_neutral_cash_activity_only_on_cash_accounts() {
+        let exchange = exchange_row();
+        assert!(is_neutral_visible_cash_activity(
+            &exchange,
+            account_types::CASH
+        ));
+        assert!(is_visible_cash_activity(&exchange, account_types::CASH));
+        for account_type in [account_types::CREDIT_CARD, account_types::SECURITIES] {
+            assert!(!is_visible_cash_activity(&exchange, account_type));
+        }
     }
 
     #[test]

@@ -86,6 +86,19 @@ a gain; otherwise each leg moves net contribution at the market rate (legacy)
 and the difference reads as an estimated flow. Fixtures: EDGE-TXF-05,
 EDGE-TXF-13.
 
+**R2.2a A manually recorded `FX_EXCHANGE`.** One stored row debits `amount` in
+`currency` and credits `destination_amount` in `destination_currency` on one
+transaction-tracked account. Both amounts are positive actual cash, inclusive of
+charges; the currencies must differ after minor-unit normalization. It has no
+asset, lots, fees, tax, activity-to-account `fx_rate`, contribution or boundary
+flow. Both compiled postings share one source and the projection's savepoint:
+neither is applied when the exchange is invalid. Their signed values at the
+valuation FX rates on that day sum to FX gain/loss, not income or contributions;
+both rates are required for that attribution. The execution rate is derived for
+display only. Old transfer pairs retain R2.2; no historical data is rewritten.
+Fixture: NOM-FX-EXCHANGE (1000 USD deposit, 100 USD → 92 EUR at EURUSD 1.10: 900
+USD + 92 EUR, value 1001.2 USD, contribution 1000 USD, gain 1.2 USD, TWR 0.12%).
+
 **R2.3 A transfer between a transactions account and a holdings account** is not
 netted as a pair. The transactions side is money (or shares) leaving or entering
 the scope on its day, as a transfer to or from outside: the fold does not wait

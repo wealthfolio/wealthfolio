@@ -163,6 +163,10 @@ pub struct ActivitySpec {
     #[serde(default)]
     pub amount: Option<Dec>,
     #[serde(default)]
+    pub destination_amount: Option<Dec>,
+    #[serde(default)]
+    pub destination_currency: Option<String>,
+    #[serde(default)]
     pub fee: Option<Dec>,
     #[serde(default)]
     pub tax: Option<Dec>,
@@ -302,6 +306,8 @@ impl Scenario {
                         quantity: a.quantity.map(|d| d.0),
                         unit_price: a.unit_price.map(|d| d.0),
                         amount: a.amount.map(|d| d.0),
+                        destination_amount: a.destination_amount.map(|d| d.0),
+                        destination_currency: a.destination_currency.clone(),
                         fee: a.fee.map(|d| d.0),
                         tax: a.tax.map(|d| d.0),
                         currency: a

@@ -51,6 +51,8 @@ diesel::table! {
         needs_review -> Integer,
         created_at -> Text,
         updated_at -> Text,
+        destination_amount -> Nullable<Text>,
+        destination_currency -> Nullable<Text>,
     }
 }
 

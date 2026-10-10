@@ -96,6 +96,14 @@ pub fn facts_needed(facts: &CanonicalFacts, scope: &[AccountId], range: DateRang
             pair(activity.currency.as_str(), account.currency.as_str());
         }
         pair(activity.currency.as_str(), &base);
+        if activity.kind == ActivityKind::FxExchange {
+            if let Some(destination) = activity.destination_currency.as_deref() {
+                pair(destination, &base);
+                if let Some(account) = facts.accounts.get(&activity.account) {
+                    pair(destination, account.currency.as_str());
+                }
+            }
+        }
         if let Some(asset) = &activity.asset {
             assets.insert(asset.clone());
         }
@@ -154,6 +162,8 @@ mod tests {
     fn transfer(id: &str, account: &str, kind: &str, group: &str, day: u32) -> RawActivity {
         let at = Utc.with_ymd_and_hms(2025, 1, day, 12, 0, 0).unwrap();
         RawActivity {
+            destination_amount: None,
+            destination_currency: None,
             id: id.into(),
             account_id: account.into(),
             asset_id: None,

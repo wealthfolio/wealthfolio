@@ -296,4 +296,51 @@ describe("useActivityMutations", () => {
       }),
     );
   });
+  it("preserves both FX amounts on create, edit and duplicate without creating an asset or fxRate", async () => {
+    const { result } = renderHook(() => useActivityMutations(), { wrapper: createWrapper() });
+    const input = {
+      accountId: "acc-1",
+      activityType: ActivityType.FX_EXCHANGE,
+      activityDate: new Date("2025-01-02T12:00:00Z"),
+      currency: "USD",
+      amount: 100,
+      destinationAmount: 92.12345678,
+      destinationCurrency: "EUR",
+    };
+    await act(async () => {
+      await result.current.addActivityMutation.mutateAsync(input);
+      await result.current.updateActivityMutation.mutateAsync({ ...input, id: "exchange" });
+      await result.current.duplicateActivityMutation.mutateAsync({
+        ...input,
+        id: "exchange",
+        date: input.activityDate,
+        amount: "100",
+        destinationAmount: "92.12345678",
+        quantity: null,
+        unitPrice: null,
+        fee: null,
+        needsReview: false,
+        createdAt: input.activityDate,
+        updatedAt: input.activityDate,
+        assetId: "",
+        assetSymbol: "",
+        accountName: "Account",
+        accountCurrency: "USD",
+      } as ActivityDetails);
+    });
+    for (const payload of [
+      ...adapterMocks.createActivity.mock.calls,
+      ...adapterMocks.updateActivity.mock.calls,
+    ].map(([payload]) => payload)) {
+      expect(payload).toMatchObject({
+        activityType: "FX_EXCHANGE",
+        amount: "100",
+        destinationAmount: "92.12345678",
+        destinationCurrency: "EUR",
+        currency: "USD",
+      });
+      expect(payload.asset).toBeUndefined();
+      expect(payload.fxRate).toBeUndefined();
+    }
+  });
 });

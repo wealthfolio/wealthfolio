@@ -437,6 +437,19 @@ export function ActivityDataGrid({
       if (
         nextData.some((row) => {
           const previous = previousById.get(row.id);
+          return (
+            (row.activityType === "FX_EXCHANGE" || previous?.activityType === "FX_EXCHANGE") &&
+            (!previous ||
+              TRACKED_FIELDS.some((field) => !valuesAreEqual(field, previous[field], row[field])))
+          );
+        })
+      ) {
+        toast({ description: t("activity:fx_exchange.full_editor") });
+        return;
+      }
+      if (
+        nextData.some((row) => {
+          const previous = previousById.get(row.id);
           return previous && requiresTransferPairEditor(previous, row);
         })
       ) {

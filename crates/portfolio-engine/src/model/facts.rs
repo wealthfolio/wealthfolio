@@ -87,6 +87,10 @@ pub struct RawActivity {
     pub source_system: Option<String>,
     pub is_user_modified: bool,
     pub updated_at: DateTime<Utc>,
+    #[serde(default, with = "crate::model::decimal_serde::option")]
+    pub destination_amount: Option<Decimal>,
+    #[serde(default)]
+    pub destination_currency: Option<String>,
 }
 
 /// The FX pair an importer linked two cash legs with (`metadata.fx`).

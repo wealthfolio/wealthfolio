@@ -984,6 +984,82 @@ mod migration_tests {
     use diesel::prelude::*;
     use diesel::sql_types::BigInt;
 
+    #[test]
+    fn fx_exchange_migration_preserves_rows_dependencies_indexes_and_triggers() {
+        let root = tempfile::tempdir().unwrap();
+        let access = DbAccess::plaintext(root.path().join("migration.db").to_str().unwrap());
+        access.run_migrations().unwrap();
+        let mut conn = access.connect().unwrap();
+        // Start from the immediately preceding schema, with a real dependent
+        // table so accidental ON DELETE CASCADE loss is observable.
+        conn.batch_execute("PRAGMA foreign_keys = OFF;").unwrap();
+        conn.batch_execute(include_str!(
+            "../../migrations/2026-10-07-000001_fx_exchange/down.sql"
+        ))
+        .unwrap();
+        conn.batch_execute("INSERT INTO accounts (id,name,account_type,currency,created_at,updated_at) VALUES ('fx','FX','CASH','USD',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP);
+            INSERT INTO activities (id,account_id,activity_type,activity_date,amount,currency,notes,created_at,updated_at) VALUES ('old','fx','DEPOSIT','2025-01-01','1000','USD','keep me',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP);
+            CREATE TABLE fx_dependency (activity_id TEXT REFERENCES activities(id) ON DELETE CASCADE);
+            INSERT INTO fx_dependency VALUES ('old');").unwrap();
+        let objects = count(&mut conn, "SELECT COUNT(*) AS count FROM sqlite_master WHERE tbl_name='activities' AND type IN ('index','trigger')");
+        conn.transaction::<_, diesel::result::Error, _>(|conn| {
+            conn.batch_execute(include_str!(
+                "../../migrations/2026-10-07-000001_fx_exchange/up.sql"
+            ))
+        })
+        .unwrap();
+        assert_eq!(count(&mut conn, "SELECT COUNT(*) AS count FROM activities WHERE id='old' AND amount='1000' AND notes='keep me' AND destination_amount IS NULL"), 1);
+        assert_eq!(
+            count(&mut conn, "SELECT COUNT(*) AS count FROM fx_dependency"),
+            1
+        );
+        assert_eq!(count(&mut conn, "SELECT COUNT(*) AS count FROM sqlite_master WHERE tbl_name='activities' AND type IN ('index','trigger')"), objects);
+        assert_eq!(
+            count(
+                &mut conn,
+                "SELECT COUNT(*) AS count FROM pragma_foreign_key_check"
+            ),
+            0
+        );
+        conn.batch_execute("PRAGMA foreign_keys = ON; DELETE FROM projection_state;
+            INSERT INTO activities (id,account_id,activity_type,activity_date,amount,currency,destination_amount,destination_currency,created_at,updated_at) VALUES ('exchange','fx','FX_EXCHANGE','2025-01-03','100','USD','92','EUR',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP);").unwrap();
+        assert_eq!(count(&mut conn, "SELECT COUNT(*) AS count FROM projection_state WHERE scope='fx' AND dirty_from='2025-01-02'"), 1);
+        assert!(conn
+            .batch_execute("UPDATE activities SET destination_amount='0' WHERE id='exchange'")
+            .is_err());
+        conn.batch_execute("PRAGMA foreign_keys = OFF;").unwrap();
+        assert!(conn
+            .transaction::<_, diesel::result::Error, _>(|conn| conn.batch_execute(include_str!(
+                "../../migrations/2026-10-07-000001_fx_exchange/down.sql"
+            )))
+            .is_err());
+        assert_eq!(
+            count(
+                &mut conn,
+                "SELECT COUNT(*) AS count FROM activities WHERE id='exchange'"
+            ),
+            1
+        );
+        conn.batch_execute("DELETE FROM activities WHERE id='exchange'")
+            .unwrap();
+        conn.transaction::<_, diesel::result::Error, _>(|conn| {
+            conn.batch_execute(include_str!(
+                "../../migrations/2026-10-07-000001_fx_exchange/down.sql"
+            ))
+        })
+        .unwrap();
+        assert_eq!(
+            count(&mut conn, "SELECT COUNT(*) AS count FROM fx_dependency"),
+            1
+        );
+        assert_eq!(
+            count(
+                &mut conn,
+                "SELECT COUNT(*) AS count FROM pragma_foreign_key_check"
+            ),
+            0
+        );
+    }
     #[derive(QueryableByName)]
     struct CountRow {
         #[diesel(sql_type = BigInt)]

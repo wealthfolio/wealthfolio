@@ -226,6 +226,85 @@ describe("netSummary", () => {
     return toRowVM(cashActivity(overrides), new Map());
   }
 
+  const exchange = () =>
+    row({
+      id: "exchange",
+      activityType: "FX_EXCHANGE",
+      cashFlowBucket: "neutral",
+      amount: "100",
+      currency: "USD",
+      destinationAmount: "92",
+      destinationCurrency: "EUR",
+      netAmount: 0,
+      cashMovements: [
+        { currency: "USD", amount: -100, amountBase: -100 },
+        { currency: "EUR", amount: 92, amountBase: 101.2 },
+      ],
+    });
+
+  it("includes both exchange legs in selected totals without treating them as spending", () => {
+    const fx = exchange();
+    const deposit = row({
+      id: "deposit",
+      cashFlowBucket: "income",
+      netAmount: 1000,
+      netAmountBase: 1000,
+    });
+    expect(netSummary([deposit, fx], "USD")).toEqual({
+      byCurrency: [
+        { currency: "USD", amount: 900 },
+        { currency: "EUR", amount: 92 },
+      ],
+      converted: { currency: "USD", amount: 1001.2 },
+    });
+    const selected = netSummary([fx], "USD");
+    expect(selected.byCurrency).toEqual([
+      { currency: "USD", amount: -100 },
+      { currency: "EUR", amount: 92 },
+    ]);
+    expect(selected.converted?.amount).toBeCloseTo(1.2);
+    expect(fx.activity.cashFlowBucket).toBe("neutral");
+  });
+
+  it("counts exchange legs when choosing a daily total rather than showing a source-only total", () => {
+    const deposit = row({ id: "deposit", netAmount: 1000 });
+    expect(groupRowsByDay([deposit, exchange()], "UTC")[0].net).toBeNull();
+    const canceledSource = row({ id: "deposit", netAmount: 100 });
+    expect(groupRowsByDay([canceledSource, exchange()], "UTC")[0].net).toEqual({
+      currency: "EUR",
+      amount: 92,
+    });
+  });
+
+  it("keeps native exchange totals but withholds conversion if either leg has no rate", () => {
+    const fx = exchange();
+    fx.activity.cashMovements![1].amountBase = null;
+    const totals = netSummary([fx], "USD");
+    expect(totals.byCurrency).toHaveLength(2);
+    expect(totals.converted).toBeNull();
+  });
+
+  it("does not let a canceled exchange currency veto the remaining converted total", () => {
+    const fx = exchange();
+    fx.activity.cashMovements![1].amountBase = null;
+    const withdrawal = row({ currency: "EUR", netAmount: -92 });
+    const deposit = row({ currency: "GBP", netAmount: 10, netAmountBase: 12 });
+    expect(netSummary([fx, withdrawal, deposit], "USD")).toEqual({
+      byCurrency: [
+        { currency: "USD", amount: -100 },
+        { currency: "GBP", amount: 10 },
+      ],
+      converted: { currency: "USD", amount: -88 },
+    });
+  });
+
+  it("uses empty server movements for unposted exchanges without deriving cash from their amounts", () => {
+    const fx = exchange();
+    fx.activity.status = "DRAFT";
+    fx.activity.cashMovements = [];
+    expect(netSummary([fx], "USD")).toEqual({ byCurrency: [], converted: null });
+  });
+
   it("nets outflows against income within one currency", () => {
     expect(
       netSummary([

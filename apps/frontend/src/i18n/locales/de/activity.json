@@ -1,4 +1,16 @@
 {
+  "type_fx_exchange": "Währungswechsel",
+  "fx_exchange": {
+    "sent": "Abgebuchter Betrag",
+    "received": "Erhaltener Betrag",
+    "rate": "Ausführungskurs",
+    "add": "Währungswechsel erfassen",
+    "help": "Erfassen Sie die tatsächliche Abbuchung und Gutschrift in einem Konto einschließlich aller Gebühren. Es wird kein Marktkurs abgerufen.",
+    "positive": "Geben Sie einen positiven Betrag ein",
+    "different": "Wählen Sie eine andere Währung",
+    "full_editor": "Bearbeiten Sie Währungswechsel im vollständigen Formular.",
+    "cash_audit_note": "Dieser Tag enthält einen Währungsumtausch. Beide Geldbeträge werden angezeigt; ein laufender Saldo in einer einzigen Währung wird hier nicht berechnet."
+  },
   "needs_review_alert": {
     "title_one": "{{count}} Aktivität muss geprüft werden",
     "title_other": "{{count}} Aktivitäten müssen geprüft werden",

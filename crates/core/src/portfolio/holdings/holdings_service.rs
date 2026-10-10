@@ -2918,6 +2918,8 @@ mod tests {
     ) -> Activity {
         let now = Utc::now();
         Activity {
+            destination_amount: None,
+            destination_currency: None,
             id: id.to_string(),
             account_id: account_id.to_string(),
             asset_id: asset_id.map(str::to_string),

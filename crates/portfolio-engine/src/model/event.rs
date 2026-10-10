@@ -49,6 +49,9 @@ pub struct EconomicEvent {
 /// Decided once here so no later stage re-reads the raw activity.
 #[derive(Debug, Clone, Copy, PartialEq, Default, Serialize, Deserialize)]
 pub struct Attributed {
+    /// Signed exchange cash leg; both legs together are the execution FX gain/loss.
+    #[serde(default, with = "crate::model::decimal_serde")]
+    pub fx_effect: Decimal,
     #[serde(with = "crate::model::decimal_serde")]
     pub income: Decimal,
     #[serde(with = "crate::model::decimal_serde")]

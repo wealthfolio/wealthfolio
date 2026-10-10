@@ -280,6 +280,8 @@ fn build_update(row: &UpdateRow, existing: &Activity) -> Result<ActivityUpdate, 
     };
 
     Ok(ActivityUpdate {
+        destination_amount: None,
+        destination_currency: None,
         id: existing.id.clone(),
         account_id: non_empty(&row.account_id, "accountId")?
             .unwrap_or_else(|| existing.account_id.clone()),
@@ -901,6 +903,8 @@ mod tests {
     /// A BTC transfer in recorded before its cost was known.
     fn btc_transfer_in() -> Activity {
         Activity {
+            destination_amount: None,
+            destination_currency: None,
             id: "btc-in".to_string(),
             account_id: "wallet".to_string(),
             asset_id: Some("btc-asset".to_string()),

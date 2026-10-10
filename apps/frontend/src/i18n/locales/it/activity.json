@@ -1,4 +1,16 @@
 {
+  "type_fx_exchange": "Cambio valuta",
+  "fx_exchange": {
+    "sent": "Importo addebitato",
+    "received": "Importo ricevuto",
+    "rate": "Tasso applicato",
+    "add": "Registra cambio",
+    "help": "Inserisci addebito e accredito effettivi sullo stesso conto, incluse le commissioni. Non viene recuperato alcun tasso di mercato.",
+    "positive": "Inserisci un importo positivo",
+    "different": "Scegli una valuta diversa",
+    "full_editor": "Modifica i cambi valuta nel modulo completo.",
+    "cash_audit_note": "Questa giornata include un cambio valuta. Sono mostrati entrambi gli importi; qui non viene calcolato un saldo progressivo in una sola valuta."
+  },
   "needs_review_alert": {
     "title_one": "{{count}} movimento da rivedere",
     "title_many": "{{count}} movimenti da rivedere",

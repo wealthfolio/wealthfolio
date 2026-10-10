@@ -578,33 +578,44 @@ impl ActivityRepository {
                     activities::metadata,
                 ),
                 assets::metadata.nullable(),
+                activities::destination_amount,
+                activities::destination_currency,
             ))
             .limit(page_size)
             .offset(offset)
-            .load::<(ActivityDetailsDB, Option<String>)>(&mut conn)
+            .load::<(
+                ActivityDetailsDB,
+                Option<String>,
+                Option<String>,
+                Option<String>,
+            )>(&mut conn)
             .map_err(StorageError::from)?;
 
         let results: Vec<ActivityDetails> = results_db
             .into_iter()
-            .map(|(db, asset_metadata)| {
-                let has_asset = db.asset_id.is_some();
-                let instrument_type = db
-                    .instrument_type
-                    .as_deref()
-                    .and_then(InstrumentType::from_db_str);
-                let asset_metadata: Option<serde_json::Value> = asset_metadata
-                    .as_deref()
-                    .and_then(|value| serde_json::from_str(value).ok());
-                let mut activity = ActivityDetails::from(db);
-                activity.asset_contract_multiplier = has_asset.then(|| {
-                    contract_multiplier_from_asset_metadata(
-                        instrument_type.as_ref(),
-                        asset_metadata.as_ref(),
-                    )
-                    .to_string()
-                });
-                activity
-            })
+            .map(
+                |(db, asset_metadata, destination_amount, destination_currency)| {
+                    let has_asset = db.asset_id.is_some();
+                    let instrument_type = db
+                        .instrument_type
+                        .as_deref()
+                        .and_then(InstrumentType::from_db_str);
+                    let asset_metadata: Option<serde_json::Value> = asset_metadata
+                        .as_deref()
+                        .and_then(|value| serde_json::from_str(value).ok());
+                    let mut activity = ActivityDetails::from(db);
+                    activity.destination_amount = destination_amount;
+                    activity.destination_currency = destination_currency;
+                    activity.asset_contract_multiplier = has_asset.then(|| {
+                        contract_multiplier_from_asset_metadata(
+                            instrument_type.as_ref(),
+                            asset_metadata.as_ref(),
+                        )
+                        .to_string()
+                    });
+                    activity
+                },
+            )
             .collect();
 
         Ok(ActivitySearchResponse {
@@ -660,6 +671,27 @@ fn final_cash_legacy_metadata(existing: Option<&str>, legacy_amount: &str) -> Le
 /// design (its rewrites always flag the rows they cannot verify).
 fn assert_final_cash_floor(activity_db: &ActivityDB) -> Result<()> {
     let effective_type = effective_activity_type(activity_db);
+    let decimal = |v: &Option<String>| v.as_deref().and_then(|v| Decimal::from_str(v).ok());
+    wealthfolio_core::activities::validate_fx_exchange(
+        effective_type,
+        decimal(&activity_db.amount),
+        &activity_db.currency,
+        decimal(&activity_db.destination_amount),
+        activity_db.destination_currency.as_deref(),
+        activity_db.asset_id.is_none()
+            && activity_db.fx_rate.is_none()
+            && [
+                &activity_db.quantity,
+                &activity_db.unit_price,
+                &activity_db.fee,
+                &activity_db.tax,
+            ]
+            .iter()
+            .all(|v| {
+                v.as_deref()
+                    .is_none_or(|s| Decimal::from_str(s).is_ok_and(|n| n.is_zero()))
+            }),
+    )?;
     let has_amount = activity_db
         .amount
         .as_deref()
@@ -872,6 +904,8 @@ impl ActivityRepositoryTrait for ActivityRepository {
                     quantity,
                     unit_price,
                     amount,
+                    destination_amount,
+                    destination_currency,
                     fee,
                     tax,
                     status,
@@ -889,6 +923,14 @@ impl ActivityRepositoryTrait for ActivityRepository {
                     apply_decimal_patch(unit_price, activity_update_owned.unit_price);
                 activity_to_update.amount =
                     apply_decimal_patch(amount, activity_update_owned.amount);
+                activity_to_update.destination_amount = apply_decimal_patch(
+                    destination_amount,
+                    activity_update_owned.destination_amount,
+                );
+                activity_to_update.destination_currency = activity_update_owned
+                    .destination_currency
+                    .clone()
+                    .or(destination_currency);
                 activity_to_update.fee = apply_decimal_patch(fee, activity_update_owned.fee);
                 activity_to_update.tax = apply_decimal_patch(tax, activity_update_owned.tax);
                 if activity_update_owned.status.is_none() {
@@ -1317,6 +1359,8 @@ impl ActivityRepositoryTrait for ActivityRepository {
                         quantity,
                         unit_price,
                         amount,
+                        destination_amount,
+                        destination_currency,
                         fee,
                         tax,
                         fx_rate,
@@ -1333,6 +1377,12 @@ impl ActivityRepositoryTrait for ActivityRepository {
                     activity_db.unit_price =
                         apply_decimal_patch(unit_price, update_owned.unit_price);
                     activity_db.amount = apply_decimal_patch(amount, update_owned.amount);
+                    activity_db.destination_amount =
+                        apply_decimal_patch(destination_amount, update_owned.destination_amount);
+                    activity_db.destination_currency = update_owned
+                        .destination_currency
+                        .clone()
+                        .or(destination_currency);
                     activity_db.fee = apply_decimal_patch(fee, update_owned.fee);
                     activity_db.tax = apply_decimal_patch(tax, update_owned.tax);
                     activity_db.fx_rate = apply_decimal_patch(fx_rate, update_owned.fx_rate);
@@ -3438,6 +3488,8 @@ mod tests {
         currency: &str,
     ) {
         let activity = ActivityDB {
+            destination_amount: None,
+            destination_currency: None,
             id: id.to_string(),
             account_id: account_id.to_string(),
             asset_id: None,
@@ -3523,6 +3575,8 @@ mod tests {
         }
 
         repo.update_activity(ActivityUpdate {
+            destination_amount: None,
+            destination_currency: None,
             id: "broker-local-activity".to_string(),
             account_id: "broker-local-account".to_string(),
             asset: None,
@@ -3940,6 +3994,8 @@ mod tests {
         }
 
         repo.update_activity(ActivityUpdate {
+            destination_amount: None,
+            destination_currency: None,
             id: "broker-activity-with-override".to_string(),
             account_id: "broker-local-account".to_string(),
             asset: None,
@@ -3976,6 +4032,8 @@ mod tests {
         assert_eq!(type_row.2.as_deref(), Some("New note"));
 
         repo.update_activity(ActivityUpdate {
+            destination_amount: None,
+            destination_currency: None,
             id: "broker-activity-with-override".to_string(),
             account_id: "broker-local-account".to_string(),
             asset: None,
@@ -4029,6 +4087,8 @@ mod tests {
         }
 
         repo.update_activity(ActivityUpdate {
+            destination_amount: None,
+            destination_currency: None,
             id: "broker-owned-local-edit".to_string(),
             account_id: "broker-local-account".to_string(),
             asset: None,
@@ -4070,6 +4130,8 @@ mod tests {
         subtype: Option<&str>,
     ) {
         let activity = ActivityDB {
+            destination_amount: None,
+            destination_currency: None,
             id: id.to_string(),
             account_id: account_id.to_string(),
             asset_id: asset_id.map(str::to_string),
@@ -4326,6 +4388,8 @@ mod tests {
             .expect("flag activity for review");
 
         let mut patch = ActivityUpdate {
+            destination_amount: None,
+            destination_currency: None,
             id: "activity-subtype".to_string(),
             account_id: "acc-subtype".to_string(),
             asset: None,
@@ -4401,6 +4465,8 @@ mod tests {
         drop(conn);
 
         let omitted_update = || ActivityUpdate {
+            destination_amount: None,
+            destination_currency: None,
             id: "security-adjustment".to_string(),
             account_id: "acc-adjustment".to_string(),
             asset: None,
@@ -4439,6 +4505,8 @@ mod tests {
 
         let updated = repo
             .update_activity(ActivityUpdate {
+                destination_amount: None,
+                destination_currency: None,
                 id: "security-adjustment".to_string(),
                 account_id: "acc-adjustment".to_string(),
                 asset: Some(wealthfolio_core::activities::AssetResolutionInput::default()),
@@ -4639,6 +4707,8 @@ mod tests {
         }
 
         let mut amount_update = ActivityUpdate {
+            destination_amount: None,
+            destination_currency: None,
             id: "activity-with-splits".to_string(),
             account_id: "acc-splits".to_string(),
             asset: None,
@@ -4971,6 +5041,8 @@ mod tests {
             insert_spending_split(&mut conn, &format!("{id}-split"), id);
         }
         let notes_edit = |id: &str| ActivityUpdate {
+            destination_amount: None,
+            destination_currency: None,
             id: id.to_string(),
             account_id: "acc-override".to_string(),
             asset: None,
@@ -5378,6 +5450,8 @@ mod tests {
 
         let updated = repo
             .update_activity(ActivityUpdate {
+                destination_amount: None,
+                destination_currency: None,
                 id: "orphan-in".to_string(),
                 account_id: "acc-a".to_string(),
                 asset: None,
@@ -6385,6 +6459,8 @@ mod tests {
     }
     fn qa_floor_new_activity(activity_type: &str) -> NewActivity {
         NewActivity {
+            destination_amount: None,
+            destination_currency: None,
             id: None,
             account_id: "acc-floor".to_string(),
             asset: None,
@@ -6521,5 +6597,65 @@ mod tests {
                 .expect("security transfer with no amount is legal"),
             1
         );
+    }
+    #[tokio::test]
+    async fn fx_exchange_round_trips_patch_search_export_and_outbox() {
+        let (pool, writer) = setup_db();
+        let repo = ActivityRepository::new(pool.clone(), writer);
+        let mut conn = get_connection(&pool).unwrap();
+        insert_account(&mut conn, "fx-account");
+        let input: NewActivity = serde_json::from_value(serde_json::json!({
+            "id": "exchange", "accountId": "fx-account", "activityType": "FX_EXCHANGE",
+            "activityDate": "2025-01-02", "amount": "100", "currency": "USD",
+            "destinationAmount": "92.12345678", "destinationCurrency": "EUR"
+        }))
+        .unwrap();
+        let created = repo.create_activity(input).await.unwrap();
+        assert_eq!(
+            created.destination_amount,
+            Some(Decimal::new(9212345678, 8))
+        );
+        let patch: ActivityUpdate = serde_json::from_value(serde_json::json!({
+            "id": created.id, "accountId": "fx-account", "activityType": "FX_EXCHANGE",
+            "activityDate": "2025-01-02", "currency": "USD", "destinationAmount": "93"
+        }))
+        .unwrap();
+        let edited = repo.update_activity(patch.clone()).await.unwrap();
+        assert_eq!(edited.amount, Some(Decimal::new(100, 0)));
+        assert_eq!(edited.destination_amount, Some(Decimal::new(93, 0)));
+        assert_eq!(edited.destination_currency.as_deref(), Some("EUR"));
+        let mut invalid = patch;
+        invalid.destination_amount = Some(None);
+        assert!(repo.update_activity(invalid).await.is_err());
+        assert_eq!(
+            repo.get_activity(&created.id).unwrap().destination_amount,
+            edited.destination_amount
+        );
+        let details = repo
+            .search_activities(0, 10, None, None, None, None, None, None, None, None, None)
+            .unwrap()
+            .data;
+        assert_eq!(details.len(), 1);
+        assert_eq!(details[0].destination_amount.as_deref(), Some("93"));
+        let exported = serde_json::to_value(&details).unwrap();
+        assert_eq!(exported[0]["destinationCurrency"], "EUR");
+        let stored: ActivityDB = activities::table
+            .find(&created.id)
+            .first(&mut conn)
+            .unwrap();
+        let payload = serde_json::to_value(&stored).unwrap();
+        assert_eq!(payload["destination_amount"], "93");
+        assert_eq!(payload["destination_currency"], "EUR");
+        let replay: ActivityDB = serde_json::from_value(payload).unwrap();
+        assert_eq!(replay, stored);
+        let outbox: Vec<String> = sync_outbox::table
+            .select(sync_outbox::payload)
+            .load(&mut conn)
+            .unwrap();
+        assert!(outbox
+            .iter()
+            .any(|payload| payload.contains("destination_amount") && payload.contains("EUR")));
+        repo.delete_activity(created.id.clone()).await.unwrap();
+        assert!(repo.get_activity(&created.id).is_err());
     }
 }

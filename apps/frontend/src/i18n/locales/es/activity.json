@@ -1,4 +1,16 @@
 {
+  "type_fx_exchange": "Cambio de divisas",
+  "fx_exchange": {
+    "sent": "Importe enviado",
+    "received": "Importe recibido",
+    "rate": "Tipo de cambio aplicado",
+    "add": "Registrar cambio",
+    "help": "Introduzca el cargo y el abono reales en una misma cuenta, incluidos los gastos. No se consulta el tipo de cambio de mercado.",
+    "positive": "Introduzca un importe positivo",
+    "different": "Elija una moneda diferente",
+    "full_editor": "Edite los cambios de divisas en el formulario completo.",
+    "cash_audit_note": "Este día incluye un cambio de divisas. Se muestran ambos importes; aquí no se calcula un saldo acumulado en una sola moneda."
+  },
   "needs_review_alert": {
     "title_one": "{{count}} actividad requiere revisión",
     "title_other": "{{count}} actividades requieren revisión",

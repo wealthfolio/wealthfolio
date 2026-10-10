@@ -2018,6 +2018,8 @@ mod tests {
             amount: rust_decimal::Decimal,
         ) -> wealthfolio_core::activities::Activity {
             Activity {
+                destination_amount: None,
+                destination_currency: None,
                 id: format!("act-{}", date.timestamp()),
                 account_id: "account-1".to_string(),
                 asset_id: None,
@@ -2061,6 +2063,8 @@ mod tests {
         use wealthfolio_core::taxonomies::Category;
 
         let categorized = Activity {
+            destination_amount: None,
+            destination_currency: None,
             id: "a1".to_string(),
             account_id: "acct".to_string(),
             asset_id: None,
@@ -2193,6 +2197,8 @@ mod tests {
 
         fn activity(id: &str, activity_type: &str, amount: i64, currency: &str) -> Activity {
             Activity {
+                destination_amount: None,
+                destination_currency: None,
                 id: id.to_string(),
                 account_id: "acct".to_string(),
                 asset_id: None,
@@ -2429,6 +2435,8 @@ mod tests {
         use wealthfolio_core::taxonomies::Category;
 
         let excluded_spend = Activity {
+            destination_amount: None,
+            destination_currency: None,
             id: "a-travel".to_string(),
             account_id: "acct".to_string(),
             asset_id: None,
@@ -2622,6 +2630,8 @@ mod tests {
         use wealthfolio_core::activities::{Activity, ActivityStatus};
 
         let income = Activity {
+            destination_amount: None,
+            destination_currency: None,
             id: "income".to_string(),
             account_id: "acct".to_string(),
             asset_id: None,
@@ -2740,6 +2750,8 @@ mod tests {
         use wealthfolio_core::activities::{Activity, ActivityStatus};
 
         let activity = Activity {
+            destination_amount: None,
+            destination_currency: None,
             id: "foreign-spend".to_string(),
             account_id: "acct".to_string(),
             asset_id: None,

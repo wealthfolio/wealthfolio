@@ -164,6 +164,8 @@ interface ActivityBasePayload {
   unitPrice?: string | null;
   amount?: string | null;
   currency?: string;
+  destinationAmount?: string | null;
+  destinationCurrency?: string | null;
   fee?: string | null;
   tax?: string | null;
   status?: ActivityStatus;

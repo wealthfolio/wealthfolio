@@ -89,7 +89,10 @@ export function ActivityForm({
   // Transfers use the full account list so spending/saving accounts are valid counterparties.
   const filteredAccounts = useMemo(() => {
     const base =
-      effectiveSelectedType === "TRANSFER" && transferAccounts ? transferAccounts : accounts;
+      (effectiveSelectedType === "TRANSFER" || effectiveSelectedType === "FX_EXCHANGE") &&
+      transferAccounts
+        ? transferAccounts
+        : accounts;
     if (!effectiveSelectedType) return base;
     const currentAccountId = isEditing ? activity?.accountId : undefined;
     if (effectiveSelectedType === "TRANSFER") {

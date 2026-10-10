@@ -631,6 +631,10 @@ export function buildSavePayload(
       unitPrice: toDecimalString(transaction.unitPrice),
       amount: toDecimalString(transaction.amount),
       currency: currencyForPayload,
+      ...(transaction.activityType === ActivityType.FX_EXCHANGE && {
+        destinationAmount: toDecimalString(transaction.destinationAmount),
+        destinationCurrency: transaction.destinationCurrency,
+      }),
       fee: toDecimalString(transaction.fee),
       tax: toDecimalString(transaction.tax),
       status: transaction.status,
@@ -651,8 +655,11 @@ export function buildSavePayload(
     // Asset-backed income composites are the exception: their amount tracks
     // quantity x price client-side (as in the dividend/interest forms)
     // because the backend only derives composite amounts that are missing.
+    // Exchanges also always carry both final cash amounts, including duplicates
+    // created from read-only rows that have no session-local amount edits.
     const sendsAmount =
       transaction._amountEdited ||
+      transaction.activityType === ActivityType.FX_EXCHANGE ||
       isAssetBackedIncomeSubtype(transaction.activityType, transaction.subtype);
 
     // A trade total the user typed into the grid is already confirmed;
