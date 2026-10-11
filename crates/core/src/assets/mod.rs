@@ -41,7 +41,7 @@ pub use asset_logo_model::{
 };
 pub use asset_logo_service::AssetLogoService;
 pub use asset_logo_traits::{AssetLogoRepositoryTrait, AssetLogoServiceTrait};
-pub(crate) use asset_resolution::asset_provider_alias_symbols;
+pub(crate) use asset_resolution::{asset_provider_alias_symbols, custom_provider_code};
 pub use asset_resolution::{AssetResolutionInput, AssetResolutionOutput};
 pub use assets_model::{
     build_asset_metadata, build_option_metadata, canonicalize_market_identity,
