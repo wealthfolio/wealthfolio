@@ -47,6 +47,21 @@ function normalizeQuoteImport(quote: QuoteImport): QuoteImport {
   };
 }
 
+// Tauri commands reject with the backend's message as a plain string.
+function errorMessage(err: unknown, fallback: string): string {
+  if (typeof err === "string" && err.trim()) return err;
+  if (
+    err &&
+    typeof err === "object" &&
+    "message" in err &&
+    typeof err.message === "string" &&
+    err.message.trim()
+  ) {
+    return err.message;
+  }
+  return fallback;
+}
+
 export function useQuoteImport(): QuoteImportState & QuoteImportActions {
   const queryClient = useQueryClient();
   const [file, setFile] = useState<File | null>(null);
@@ -98,7 +113,7 @@ export function useQuoteImport(): QuoteImportState & QuoteImportActions {
 
       return true;
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to validate CSV");
+      setError(errorMessage(err, "Failed to validate CSV"));
       return false;
     } finally {
       setIsValidating(false);
@@ -161,7 +176,7 @@ export function useQuoteImport(): QuoteImportState & QuoteImportActions {
 
       return true;
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to import quotes");
+      setError(errorMessage(err, "Failed to import quotes"));
       return false;
     } finally {
       setIsImporting(false);
