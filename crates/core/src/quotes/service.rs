@@ -30,9 +30,10 @@ use super::sync_state::{QuoteSyncState, SymbolSyncPlan, SyncCategory, SyncMode, 
 use super::types::{quote_id, AssetId, Day, QuoteSource};
 use crate::activities::ActivityRepositoryTrait;
 use crate::assets::{
-    asset_provider_alias_symbols, canonicalize_market_identity, normalize_quote_ccy_code,
-    parse_crypto_pair_symbol, parse_symbol_with_exchange_suffix, symbol_resolution_candidates,
-    Asset, AssetKind, AssetRepositoryTrait, AssetSpec, InstrumentType, ProviderProfile, QuoteMode,
+    asset_provider_alias_symbols, canonicalize_market_identity, custom_provider_code,
+    normalize_quote_ccy_code, parse_crypto_pair_symbol, parse_symbol_with_exchange_suffix,
+    symbol_resolution_candidates, Asset, AssetKind, AssetRepositoryTrait, AssetSpec,
+    InstrumentType, ProviderProfile, QuoteMode,
 };
 use crate::errors::{Error, Result};
 use crate::events::{DomainEvent, DomainEventSink, NoOpDomainEventSink};
@@ -294,6 +295,16 @@ fn provider_config_for_symbol_resolution(
             serde_json::to_value(overrides).expect("provider overrides serialize"),
         );
     Some(config)
+}
+
+/// Provider id for an existing asset, in the `CUSTOM:<code>` form that
+/// `provider_config_for_symbol_resolution` reads for custom scrapers.
+fn asset_resolution_provider_id(asset: &Asset) -> Option<String> {
+    let provider = asset.preferred_provider()?;
+    if provider != DATA_SOURCE_CUSTOM_SCRAPER {
+        return Some(provider);
+    }
+    Some(custom_provider_code(asset).map_or(provider, |code| format!("CUSTOM:{code}")))
 }
 
 fn resolved_provider_matches_requested(
@@ -913,12 +924,13 @@ where
             .or_else(|| asset.instrument_symbol.clone())
             .unwrap_or_default();
         let display = asset_search_display_symbol(asset);
+        let provider_id = asset_resolution_provider_id(asset);
 
         SymbolSearchResult {
             symbol: display.clone(),
             canonical_symbol: asset.instrument_symbol.clone(),
             canonical_exchange_mic: asset.instrument_exchange_mic.clone(),
-            provider_id: asset.preferred_provider(),
+            provider_id: provider_id.clone(),
             provider_symbol: None,
             short_name: asset.name.clone().unwrap_or_else(|| stored_display.clone()),
             long_name: asset.name.clone().unwrap_or(stored_display),
@@ -932,7 +944,7 @@ where
             data_source: if asset.quote_mode == QuoteMode::Manual {
                 Some(DATA_SOURCE_MANUAL.to_string())
             } else {
-                asset.preferred_provider()
+                provider_id
             },
             quote_mode: Some(asset.quote_mode.as_db_str().to_string()),
             is_existing: true,
@@ -2921,6 +2933,45 @@ mod tests {
     fn test_mic_to_yahoo_suffix_uses_market_data_registry() {
         assert_eq!(mic_to_yahoo_suffix("CXE").as_deref(), Some("XC"));
         assert_eq!(mic_to_yahoo_suffix("XETR").as_deref(), Some("DE"));
+    }
+
+    #[test]
+    fn test_asset_search_summary_uses_custom_provider_code() {
+        let asset = Asset {
+            id: "moe-fund".to_string(),
+            name: Some("Moe Fund".to_string()),
+            display_code: Some("MOE".to_string()),
+            instrument_symbol: Some("MOE".to_string()),
+            instrument_type: Some(InstrumentType::Equity),
+            quote_ccy: "USD".to_string(),
+            provider_config: Some(serde_json::json!({
+                "preferred_provider": "CUSTOM_SCRAPER",
+                "custom_provider_code": "moe"
+            })),
+            ..Default::default()
+        };
+
+        let result = QuoteService::<
+            NoopQuoteStore,
+            MockSyncStateStore,
+            MockProviderSettingsStore,
+            NoopAssetRepository,
+            NoopActivityRepository,
+        >::asset_to_quote_summary(&asset);
+
+        assert_eq!(result.provider_id.as_deref(), Some("CUSTOM:moe"));
+        assert_eq!(result.data_source.as_deref(), Some("CUSTOM:moe"));
+        assert_eq!(
+            provider_config_for_symbol_resolution(result.provider_id.as_deref(), None, None, None),
+            Some(serde_json::json!({
+                "preferred_provider": "CUSTOM_SCRAPER",
+                "custom_provider_code": "moe"
+            }))
+        );
+        assert!(resolved_provider_matches_requested(
+            "CUSTOM_SCRAPER:moe",
+            result.provider_id.as_deref()
+        ));
     }
 
     #[test]

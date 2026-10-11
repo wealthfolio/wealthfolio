@@ -102,7 +102,7 @@ fn provider_overrides_for_asset(asset: &Asset) -> Option<ProviderOverrides> {
         .and_then(|json| ProviderOverrides::from_json(json).ok())
 }
 
-fn custom_provider_code(asset: &Asset) -> Option<String> {
+pub(crate) fn custom_provider_code(asset: &Asset) -> Option<String> {
     asset
         .provider_config
         .as_ref()
