@@ -762,12 +762,13 @@ export function MappingStepUnified() {
         title={t("activity:import.mapping.noCsvTitle")}
         description={t("activity:import.mapping.noCsvDescription")}
         icon={Icons.AlertCircle}
+        className="shrink-0"
       />
     );
   }
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex min-h-0 flex-1 flex-col">
       <div className="bg-muted/20 mb-4 rounded-lg border p-4">
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
           <div className="space-y-1.5">
@@ -839,7 +840,7 @@ export function MappingStepUnified() {
       </div>
 
       {/* Summary Cards */}
-      <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mb-4 grid shrink-0 grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <ImportAlert
           variant={requiredFieldsMapped ? "success" : "destructive"}
           size="sm"
@@ -905,12 +906,13 @@ export function MappingStepUnified() {
                   })
                 : t("activity:import.mapping.accountAssignmentDefault")
             }
+            className="shrink-0"
           />
         )}
 
       {/* Mapping Editor with Preview Toggle */}
-      <div className="flex flex-1 flex-col overflow-hidden">
-        <Tabs defaultValue="preview" className="flex flex-1 flex-col">
+      <div className="flex min-h-80 flex-1 flex-col overflow-hidden">
+        <Tabs defaultValue="preview" className="flex min-h-0 flex-1 flex-col">
           <div className="py-2">
             <div className="flex items-center justify-between">
               <div className="text-muted-foreground hidden px-3 text-sm md:block">
@@ -935,8 +937,8 @@ export function MappingStepUnified() {
             </div>
           </div>
 
-          <CardContent className="flex-1 overflow-y-auto p-0">
-            <TabsContent value="preview" className="m-0 flex flex-col border-0 p-0">
+          <CardContent className="flex flex-1 flex-col overflow-y-auto p-0">
+            <TabsContent value="preview" className="m-0 flex min-h-0 flex-1 flex-col border-0 p-0">
               <MappingTable
                 mapping={displayMapping}
                 headers={headers}
@@ -953,12 +955,12 @@ export function MappingStepUnified() {
                 requiredFields={importProfile.requiredMappingFields}
                 allowedActivityTypes={importProfile.allowedActivityTypes}
                 getActivityTypeLabel={getActivityTypeLabel}
-                className="max-h-[50vh]"
+                className="min-h-0 flex-1"
               />
             </TabsContent>
 
-            <TabsContent value="raw" className="m-0 flex-1 border-0 p-0">
-              <CSVFileViewer data={csvData} className="w-full" maxHeight="50vh" />
+            <TabsContent value="raw" className="m-0 flex min-h-0 flex-1 flex-col border-0 p-0">
+              <CSVFileViewer data={csvData} className="min-h-0 w-full flex-1" />
             </TabsContent>
           </CardContent>
         </Tabs>

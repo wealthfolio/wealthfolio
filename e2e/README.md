@@ -165,6 +165,7 @@ npx playwright test && npx playwright show-report
 | `36-phone-taps-and-swipes.spec.ts`     | Phone: Spending's Next doesn't save, Performance's Plus stays on screen, swipes scroll period rows                          |
 | `38-account-section-scroll.spec.ts`    | Phone, in WebKit: switching an account between Holdings and Activities keeps the page's scroll position                     |
 | `34-import-mapping-sticky.spec.ts`     | CSV import Mapping step: the Activity Preview's header row and # column stay pinned as it scrolls (#2010)                   |
+| `33-import-mapping-layout.spec.ts`     | CSV import Mapping step: both previews fit the step area; on a phone, the step's blocks keep their height (#2002)           |
 
 ---
 
