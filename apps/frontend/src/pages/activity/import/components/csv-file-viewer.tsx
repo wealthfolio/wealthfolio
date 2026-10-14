@@ -200,7 +200,7 @@ export function CSVFileViewer({ data, className, maxHeight }: CSVFileViewerProps
           </span>
         </div>
 
-        <div style={{ maxHeight }} className="min-h-0 flex-1 overflow-auto">
+        <div style={{ maxHeight }} className="min-h-0 flex-1 overflow-auto [&>div]:overflow-visible">
           <Table>
             <TableBody className="text-xs">
               {table.getRowModel().rows?.length ? (
