@@ -207,3 +207,37 @@ covers, OS lifecycle events, and native OAuth require device testing.
 See the
 [profile architecture](../docs/architecture/multi-profile-and-app-lock.md) for
 access boundaries and additional release verification requirements.
+
+## UI primitive guardrails (on demand)
+
+`e2e/design-system/` checks the `@wealthfolio/ui` primitives on a synthetic
+gallery (`apps/frontend/e2e/design-system/`): screenshots of every component and
+open overlay (light and dark, 390 and 1440 px), overlay and keyboard behaviour,
+and an axe WCAG 2.1 A/AA scan. It runs in Chromium and WebKit, only when asked;
+it is not part of CI.
+
+Screenshots and accessibility results compare against a baseline recorded on the
+same machine from the code before a change, kept in `.local/design-system/`
+(never committed, so baselines never cross platforms):
+
+```bash
+git switch main
+pnpm test:e2e:design-system:baseline   # record the "before" state
+git switch <your-branch>
+pnpm test:e2e:design-system            # compare; differences fail with a diff
+```
+
+The accessibility scan records which rules fail on how many elements, because
+the primitives do not pass cleanly yet (low-contrast secondary badges, selected
+toggle items and inactive tabs; a ScrollArea region keyboard users cannot reach;
+menus and selects that hide still-focusable content). The forced-colors focus
+test is marked as an expected failure: the focus ring is a box-shadow, which
+forced colors removes. RTL is not covered because no shipped locale is
+right-to-left.
+
+Each test is retried once in a fresh browser: late in a long run WebKit
+sometimes stalls a page load without sending a request. Playwright reports a
+test that only passes on retry as flaky; a real difference fails both attempts.
+
+`pnpm ui:radix-imports` lists the files that import Radix and fails if a new one
+appears; run it with `--update` after moving files to Base UI.

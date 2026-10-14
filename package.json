@@ -26,6 +26,9 @@
     "test:coverage": "pnpm --filter frontend test:coverage",
     "test:e2e": "node scripts/run-e2e.mjs",
     "test:e2e:net-worth": "playwright test --config playwright.net-worth.config.ts",
+    "test:e2e:design-system": "playwright test --config playwright.design-system.config.ts",
+    "test:e2e:design-system:baseline": "playwright test --config playwright.design-system.config.ts --update-snapshots=all",
+    "ui:radix-imports": "node scripts/radix-imports.mjs",
     "test:e2e:addon-sandbox": "node scripts/run-addon-sandbox-e2e.mjs",
     "test:e2e:ui": "node scripts/run-e2e.mjs --ui",
     "lint": "pnpm -r lint",
@@ -45,6 +48,7 @@
     "addon:dev": "cd packages/addon-dev-tools && node dev-server.js"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
     "@eslint/compat": "^1.4.1",
     "@eslint/js": "^9.39.2",
     "@playwright/test": "^1.58.2",
