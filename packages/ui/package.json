@@ -58,6 +58,7 @@
     "build:types": "tsc -p tsconfig.json"
   },
   "dependencies": {
+    "@base-ui/react": "1.8.0",
     "@internationalized/date": "^3.11.0",
     "@internationalized/number": "^3.6.5",
     "@number-flow/react": "^0.6.1",
