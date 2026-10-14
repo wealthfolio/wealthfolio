@@ -27,12 +27,12 @@ describe("CSVFileViewer scroll ownership", () => {
   });
 
   it("keeps short files and empty input in the same scroll box", () => {
-    const { rerender } = render(<CSVFileViewer data={data.slice(0, 2)} />);
+    const { rerender } = render(<CSVFileViewer data={data.slice(0, 2)} maxHeight="50vh" />);
     expect(screen.getByRole("table").querySelectorAll("tbody tr")).toHaveLength(2);
     expect(screen.getByRole("table").parentElement!.parentElement!).toHaveStyle({
-      maxHeight: "400px",
+      maxHeight: "50vh",
     });
-    rerender(<CSVFileViewer data={[]} />);
+    rerender(<CSVFileViewer data={[]} maxHeight="50vh" />);
     expect(screen.getByText(/No content found/i)).toBeInTheDocument();
   });
 });
