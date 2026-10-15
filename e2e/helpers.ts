@@ -245,6 +245,22 @@ export async function selectActivityType(page: Page, type: string) {
   await page.waitForTimeout(200);
 }
 
+/**
+ * Toasts stay clickable above dialogs, and a loading toast such as "Calculating
+ * portfolio performance…" can cover a dialog's buttons for a while. Before each
+ * action, wait for a visible loading toast to finish, as a person would.
+ */
+export async function waitOutLoadingToasts(page: Page) {
+  const loadingToasts = page.locator('[data-sonner-toast][data-type="loading"]');
+  await page.addLocatorHandler(
+    loadingToasts.first(),
+    async () => {
+      await expect(loadingToasts).toHaveCount(0, { timeout: 120_000 });
+    },
+    { noWaitAfter: true },
+  );
+}
+
 // A select mounts its options, hidden, once its trigger has had focus, and a
 // select that just closed keeps showing them while it animates out, so options are
 // looked up in the open popup.

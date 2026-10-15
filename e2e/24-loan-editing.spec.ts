@@ -1,5 +1,9 @@
 import { expect, test, type Page } from "@playwright/test";
-import { BASE_URL, completeOnboardingIfNeeded } from "./helpers";
+import { BASE_URL, completeOnboardingIfNeeded, waitOutLoadingToasts } from "./helpers";
+
+test.beforeEach(async ({ page }) => {
+  await waitOutLoadingToasts(page);
+});
 
 test.use({ actionTimeout: 15_000 });
 
