@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import {
@@ -43,6 +43,7 @@ export function QuoteHistoryToolbar({
 }: QuoteHistoryToolbarProps) {
   const { t } = useTranslation();
   const [popoverOpen, setPopoverOpen] = useState(false);
+  const trackingRef = useRef<HTMLDivElement>(null);
 
   return (
     <div className="flex items-center justify-between gap-2">
@@ -95,16 +96,25 @@ export function QuoteHistoryToolbar({
 
       {/* Right: manual tracking toggle */}
       <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
-        <PopoverTrigger
-          nativeButton={false}
-          render={<div className="flex shrink-0 cursor-pointer items-center space-x-2" />}
-        >
-          <Switch id="manual-tracking" checked={isManualDataSource} />
-          <Label htmlFor="manual-tracking" className="cursor-pointer text-xs sm:text-sm">
+        <div ref={trackingRef} className="flex shrink-0 items-center space-x-2">
+          {/* The switch shows the mode and opens the confirmation; it never
+              toggles itself, so it is read-only. The trigger would make it a
+              button, so it keeps its switch role. */}
+          <PopoverTrigger
+            nativeButton={false}
+            render={
+              <Switch id="manual-tracking" role="switch" checked={isManualDataSource} readOnly />
+            }
+          />
+          <Label
+            htmlFor="manual-tracking"
+            className="cursor-pointer text-xs sm:text-sm"
+            onClick={() => setPopoverOpen(true)}
+          >
             {t("asset:quoteToolbar.manual")}
           </Label>
-        </PopoverTrigger>
-        <PopoverContent className="w-[320px] p-4 sm:w-[360px]" align="end">
+        </div>
+        <PopoverContent className="w-[320px] p-4 sm:w-[360px]" align="end" anchor={trackingRef}>
           <div className="space-y-4">
             <h4 className="font-medium">{t("asset:quoteToolbar.change_tracking_mode")}</h4>
             {isManualDataSource ? (
