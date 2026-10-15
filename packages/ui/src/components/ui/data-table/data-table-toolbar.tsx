@@ -156,7 +156,7 @@ function SearchInput({
         className={cn(
           "shadow-inner-xs bg-muted/90 hover:bg-muted/80 h-8 w-full rounded-md pl-8 pr-8 text-sm outline-none transition-colors",
           "placeholder:text-muted-foreground",
-          "focus:ring-ring/50 focus:ring-2",
+          "focus-visible:outline-solid focus-visible:outline-ring focus-visible:outline-2 focus-visible:outline-offset-2",
         )}
       />
       {value && (

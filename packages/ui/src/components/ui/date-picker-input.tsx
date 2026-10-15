@@ -123,8 +123,8 @@ export function DatePickerInput({
     >
       <Group
         className={cn(
-          "dark:bg-input/30 border-input ring-offset-background bg-input-bg h-input-height flex w-full flex-nowrap items-center whitespace-nowrap rounded-md border px-3 py-1 text-sm",
-          "focus-within:ring-ring focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2",
+          "dark:bg-input/30 border-input bg-input-bg h-input-height flex w-full flex-nowrap items-center whitespace-nowrap rounded-md border px-3 py-1 text-sm",
+          "has-[input:focus-visible]:outline-solid has-[input:focus-visible]:outline-ring has-[input:focus-visible]:outline-2 has-[input:focus-visible]:outline-offset-2",
           disabled && "cursor-not-allowed opacity-50",
         )}
         data-testid={testId}
@@ -135,7 +135,7 @@ export function DatePickerInput({
         />
         <Button
           className={cn(
-            "text-muted-foreground/80 hover:text-foreground focus-visible:ring-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2",
+            "text-muted-foreground/80 hover:text-foreground focus-visible:outline-solid focus-visible:outline-ring focus-visible:outline-2 focus-visible:outline-offset-2",
             "flex h-6 w-6 items-center justify-center rounded-sm transition-[color]",
             disabled && "pointer-events-none",
           )}

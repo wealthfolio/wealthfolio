@@ -33,7 +33,7 @@ const animatedToggleVariants = cva("relative inline-flex items-center scrollbar-
 });
 
 const animatedToggleItemVariants = cva(
-  "relative z-10 flex-shrink-0 font-medium transition-colors cursor-pointer touch-manipulation select-none focus-visible:ring-ring focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none",
+  "relative z-10 flex-shrink-0 font-medium transition-colors cursor-pointer touch-manipulation select-none focus-visible:outline-solid focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring",
   {
     variants: {
       size: {

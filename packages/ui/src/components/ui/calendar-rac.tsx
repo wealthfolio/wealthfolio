@@ -31,7 +31,7 @@ function CalendarHeader() {
       <Button
         slot="previous"
         aria-label={t("ui:datePicker.previousMonth", "Previous month")}
-        className="text-muted-foreground/80 hover:bg-accent hover:text-foreground focus-visible:ring-ring/50 flex size-9 items-center justify-center rounded-md outline-none transition-[color,box-shadow] focus-visible:ring-[3px]"
+        className="text-muted-foreground/80 hover:bg-accent hover:text-foreground focus-visible:outline-solid focus-visible:outline-ring flex size-9 items-center justify-center rounded-md outline-none transition-[color,box-shadow] focus-visible:outline-2 focus-visible:outline-offset-2"
       >
         <Icons.ChevronLeft size={16} />
       </Button>
@@ -39,7 +39,7 @@ function CalendarHeader() {
       <Button
         slot="next"
         aria-label={t("ui:datePicker.nextMonth", "Next month")}
-        className="text-muted-foreground/80 hover:bg-accent hover:text-foreground focus-visible:ring-ring/50 flex size-9 items-center justify-center rounded-md outline-none transition-[color,box-shadow] focus-visible:ring-[3px]"
+        className="text-muted-foreground/80 hover:bg-accent hover:text-foreground focus-visible:outline-solid focus-visible:outline-ring flex size-9 items-center justify-center rounded-md outline-none transition-[color,box-shadow] focus-visible:outline-2 focus-visible:outline-offset-2"
       >
         <Icons.ChevronRight size={16} />
       </Button>
@@ -67,7 +67,7 @@ function CalendarGridComponent({ isRange = false }: { isRange?: boolean }) {
               isOutsideMonth ? (
                 <div
                   className={cn(
-                    "data-hovered:bg-accent data-selected:bg-primary data-hovered:text-foreground data-selected:text-primary-foreground data-focus-visible:ring-ring/50 text-secondary data-disabled:pointer-events-none data-disabled:opacity-30 data-focus-visible:z-10 data-focus-visible:ring-[3px] data-unavailable:pointer-events-none data-unavailable:line-through data-unavailable:opacity-30 relative flex size-9 cursor-default items-center justify-center whitespace-nowrap rounded-md p-0 text-sm font-normal outline-none",
+                    "data-hovered:bg-accent data-selected:bg-primary data-hovered:text-foreground data-selected:text-primary-foreground data-focus-visible:outline-solid data-focus-visible:outline-2 data-focus-visible:-outline-offset-2 data-focus-visible:outline-ring text-secondary data-disabled:pointer-events-none data-disabled:opacity-30 data-focus-visible:z-10 data-unavailable:pointer-events-none data-unavailable:line-through data-unavailable:opacity-30 relative flex size-9 cursor-default items-center justify-center whitespace-nowrap rounded-md p-0 text-sm font-normal outline-none",
                   )}
                 >
                   {formattedDate}
@@ -75,7 +75,7 @@ function CalendarGridComponent({ isRange = false }: { isRange?: boolean }) {
               ) : (
                 <div
                   className={cn(
-                    "data-hovered:bg-accent data-selected:bg-primary data-hovered:text-foreground data-selected:text-primary-foreground data-focus-visible:ring-ring/50 text-foreground hover:bg-secondary data-disabled:pointer-events-none data-disabled:opacity-30 data-focus-visible:z-10 data-focus-visible:ring-[3px] data-unavailable:pointer-events-none data-unavailable:line-through data-unavailable:opacity-30 relative flex size-9 items-center justify-center whitespace-nowrap rounded-md p-0 text-sm font-normal outline-none transition-colors duration-150",
+                    "data-hovered:bg-accent data-selected:bg-primary data-hovered:text-foreground data-selected:text-primary-foreground data-focus-visible:outline-solid data-focus-visible:outline-2 data-focus-visible:-outline-offset-2 data-focus-visible:outline-ring text-foreground hover:bg-secondary data-disabled:pointer-events-none data-disabled:opacity-30 data-focus-visible:z-10 data-unavailable:pointer-events-none data-unavailable:line-through data-unavailable:opacity-30 relative flex size-9 items-center justify-center whitespace-nowrap rounded-md p-0 text-sm font-normal outline-none transition-colors duration-150",
                     isRange &&
                       "data-selected:bg-accent data-selected:text-foreground data-invalid:data-selection-end:bg-destructive data-invalid:data-selection-start:bg-destructive data-selection-end:bg-primary data-selection-start:bg-primary data-selection-end:text-primary-foreground data-selection-start:text-primary-foreground data-invalid:bg-red-100 data-selected:rounded-none data-selection-end:rounded-e-md data-invalid:data-selection-end:text-white data-selection-start:rounded-s-md data-invalid:data-selection-start:text-white",
                     date.compare(now) === 0 &&

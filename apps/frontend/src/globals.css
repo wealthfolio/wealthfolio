@@ -450,7 +450,10 @@
   --border: hsl(var(--flexoki-ui));
   --input: hsl(var(--flexoki-ui));
   --input-bg: hsl(var(--flexoki-bg));
-  --ring: hsl(var(--flexoki-ui-3));
+  /* Focus indicator colour. Controls draw it as a 2px outline 2px out
+     (focus-visible:outline-solid outline-2 outline-offset-2 outline-ring),
+     which forced-colors mode keeps; it needs 3:1 against the page and cards. */
+  --ring: hsl(var(--flexoki-tx-2));
 
   /* Charts (allocation palette: forest / sage / sand / clay / plum + stone) */
   --chart-1: #355c4c;
@@ -472,7 +475,7 @@
   --sidebar-accent: hsl(var(--flexoki-ui));
   --sidebar-accent-foreground: hsl(var(--flexoki-tx-2));
   --sidebar-border: hsl(var(--flexoki-ui));
-  --sidebar-ring: hsl(var(--flexoki-ui-3));
+  --sidebar-ring: hsl(var(--flexoki-tx-2));
 
   --liquid-glass-bg: rgba(255, 255, 255, 0.05);
   --liquid-glass-border: rgba(255, 255, 255, 0.1);

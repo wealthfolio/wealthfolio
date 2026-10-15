@@ -231,9 +231,8 @@ The accessibility scan records which rules fail on how many elements, because
 the primitives do not pass cleanly yet: low-contrast secondary badges, selected
 toggle items and inactive tabs, and low-contrast text in the open select. In
 WebKit it also counts the focus guards Base UI keeps around open popups, which
-Safari exposes as buttons without a name. The forced-colors focus test is marked
-as an expected failure: the focus ring is a box-shadow, which forced colors
-removes. RTL is not covered because no shipped locale is right-to-left.
+Safari exposes as buttons without a name. RTL is not covered because no shipped
+locale is right-to-left.
 
 Each test is retried once in a fresh browser: late in a long run WebKit
 sometimes stalls a page load without sending a request. Playwright reports a

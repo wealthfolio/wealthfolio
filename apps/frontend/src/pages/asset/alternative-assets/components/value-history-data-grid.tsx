@@ -595,7 +595,7 @@ export function ValueHistoryDataGrid({
                           </InputGroupAddon>
                           <MoneyInput
                             data-slot="input-group-control"
-                            className="min-w-0 flex-1 rounded-none border-0 bg-transparent shadow-none ring-0 focus-visible:ring-0"
+                            className="min-w-0 flex-1 rounded-none border-0 bg-transparent shadow-none ring-0 focus-visible:outline-none"
                             value={draft.value}
                             maxDecimalPlaces={2}
                             fixedDecimalScale

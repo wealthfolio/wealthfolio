@@ -36,7 +36,7 @@ const InputTags = React.forwardRef<HTMLInputElement, InputTagsProps>(
         className={cn(
           // caveat: :has() variant requires tailwind v3.4 or above: https://tailwindcss.com/blog/tailwindcss-v3-4#new-has-variant
           "border-input dark:bg-input/30 bg-input-bg min-h-input-height shadow-xs flex w-full flex-wrap gap-2 rounded-md border px-3 py-1 text-base outline-none transition-[color,box-shadow] disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm",
-          "has-focus-visible:border-ring has-focus-visible:ring-ring/50 has-focus-visible:ring-[3px]",
+          "has-[input:focus-visible]:outline-solid has-[input:focus-visible]:outline-ring has-[input:focus-visible]:outline-2 has-[input:focus-visible]:outline-offset-2",
           className,
         )}
       >

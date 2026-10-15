@@ -120,8 +120,6 @@ test("accordion and collapsible open and close from the keyboard", async ({ page
 });
 
 test("keyboard focus stays visible in forced colors", async ({ page, browserName }) => {
-  // Known gap: the focus ring is a box-shadow, which forced colors removes.
-  test.fail(true, "focus ring disappears in forced colors");
   // macOS WebKit only tabs to buttons with Option held.
   const tabKey = browserName === "webkit" && process.platform === "darwin" ? "Alt+Tab" : "Tab";
   await page.emulateMedia({ forcedColors: "active" });

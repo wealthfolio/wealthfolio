@@ -109,7 +109,7 @@ export const AutoComplete = ({
 
   return (
     <CommandPrimitive onKeyDown={handleKeyDown}>
-      <div className="border-input bg-input-bg dark:bg-input/30 ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring h-input-height flex w-full rounded-md border py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50">
+      <div className="border-input bg-input-bg dark:bg-input/30 has-focus-visible:outline-solid has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-ring placeholder:text-muted-foreground h-input-height flex w-full rounded-md border py-2 text-sm disabled:cursor-not-allowed disabled:opacity-50">
         <CommandInput
           ref={inputRef}
           value={inputValue}

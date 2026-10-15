@@ -336,7 +336,7 @@ export function LongTextCell<TData>({
       >
         <Textarea
           placeholder={t("ui:dataGrid.enterText", "Enter text...")}
-          className="max-h-75 min-h-37.5 resize-none overflow-y-auto rounded-none border-0 shadow-none focus-visible:ring-0"
+          className="max-h-75 min-h-37.5 resize-none overflow-y-auto rounded-none border-0 shadow-none focus-visible:outline-none"
           ref={textareaRef}
           value={value}
           onBlur={onBlur}
@@ -1022,7 +1022,7 @@ export function SelectCell<TData>({
           open={isEditing}
           onOpenChange={onOpenChange}
         >
-          <SelectTrigger className="size-full h-auto items-start border-none p-0 shadow-none focus-visible:ring-0 dark:bg-transparent [&_svg]:hidden">
+          <SelectTrigger className="size-full h-auto items-start border-none p-0 shadow-none focus-visible:outline-none dark:bg-transparent [&_svg]:hidden">
             {displayLabel ? (
               <Badge variant="secondary" className="whitespace-pre-wrap px-1.5 text-xs">
                 <SelectValue />
@@ -2345,7 +2345,7 @@ export function FileCell<TData>({
                 data-invalid={error ? "" : undefined}
                 data-disabled={isPending ? "" : undefined}
                 tabIndex={isDragging || isPending ? -1 : 0}
-                className="hover:bg-accent/30 focus-visible:border-ring/50 data-dragging:border-primary/30 data-invalid:border-destructive data-dragging:bg-accent/30 data-invalid:ring-destructive/20 data-disabled:pointer-events-none data-disabled:opacity-50 flex cursor-pointer flex-col items-center justify-center gap-2 rounded-md border-2 border-dashed p-6 outline-none transition-colors"
+                className="hover:bg-accent/30 focus-visible:outline-solid focus-visible:outline-ring data-dragging:border-primary/30 data-invalid:border-destructive data-dragging:bg-accent/30 data-invalid:ring-destructive/20 data-disabled:pointer-events-none data-disabled:opacity-50 flex cursor-pointer flex-col items-center justify-center gap-2 rounded-md border-2 border-dashed p-6 outline-none transition-colors focus-visible:outline-2 focus-visible:outline-offset-2"
                 ref={dropzoneRef}
                 onClick={onDropzoneClick}
                 onDragEnter={onDropzoneDragEnter}

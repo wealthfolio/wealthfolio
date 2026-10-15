@@ -152,7 +152,7 @@ export function SwipableView({
                   onClick={() => scrollTo(index)}
                   className={cn(
                     "size-2 rounded-full transition-all duration-300",
-                    "focus-visible:ring-ring hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2",
+                    "focus-visible:outline-solid focus-visible:outline-ring hover:scale-110 focus-visible:outline-2 focus-visible:outline-offset-2",
                     "bg-foreground/20 hover:bg-foreground/40",
                     dotClassName,
                   )}

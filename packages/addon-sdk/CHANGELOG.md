@@ -94,6 +94,12 @@ and this project adheres to
   - `AlertDialogAction` still closes the dialog; call
     `event.preventBaseUIHandler()` in `onClick` to keep it open. `ActionConfirm`
     and `DeleteConfirm` take a single element as `button`.
+- `@wealthfolio/ui` controls show keyboard focus as a 2px outline in the
+  `--ring` colour instead of a box-shadow ring, so it stays visible in
+  forced-colors mode. To hide it on a control placed inside another focus
+  indicator, pass `focus-visible:outline-none`; `focus-visible:ring-0` no longer
+  hides it. `SelectTrigger` and the dialog and sheet close buttons show it on
+  keyboard focus only (`:focus-visible`), not after a click.
 - `ActivityUpdate.asset` now has explicit patch semantics: omit it to preserve
   the current asset, or pass an empty object to clear the asset association.
 - Host-provided `@wealthfolio/addon-sdk` and `@wealthfolio/ui` dependency ranges

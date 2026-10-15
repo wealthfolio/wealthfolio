@@ -43,7 +43,7 @@ export const ProviderPicker: FC = () => {
         if (providerId !== null) void selectProvider(providerId);
       }}
     >
-      <SelectTrigger className="hover:bg-muted h-9 w-auto gap-2 border-none bg-transparent px-2 shadow-none focus:ring-0">
+      <SelectTrigger className="hover:bg-muted h-9 w-auto gap-2 border-none bg-transparent px-2 shadow-none">
         <SelectValue>
           {currentProvider && (
             <span className="flex items-center gap-2">
