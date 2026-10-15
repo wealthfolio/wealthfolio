@@ -1206,7 +1206,10 @@ export function AssetEditSheet({
                           </div>
                         </div>
                       ) : (
-                        <Alert variant="destructive" className="border-0 bg-transparent p-0">
+                        <Alert
+                          variant="destructive"
+                          className="border-0 bg-transparent p-0 shadow-none"
+                        >
                           <Icons.AlertCircle className="h-4 w-4" />
                           <AlertDescription>
                             {t("asset:editSheet.price_fetch_error")}

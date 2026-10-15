@@ -101,6 +101,12 @@ and this project adheres to
   - `AlertDialogAction` still closes the dialog; call
     `event.preventBaseUIHandler()` in `onClick` to keep it open. `ActionConfirm`
     and `DeleteConfirm` take a single element as `button`.
+- `Alert` lays out as a grid, as shadcn's does: an icon placed first spans the
+  title and description and stays centred on the first line at any padding or
+  font size (set a compact alert's size on `Alert`, e.g. `text-xs`). The icon is
+  no longer absolutely positioned, so `[&>svg]:absolute`-style overrides are not
+  needed. `AlertTitle` renders a `div` instead of an `h5`, and `AlertAction`
+  places a button at the top right.
 - `@wealthfolio/ui` controls show keyboard focus as a 2px outline in the
   `--ring` colour instead of a box-shadow ring, so it stays visible in
   forced-colors mode. To hide it on a control placed inside another focus

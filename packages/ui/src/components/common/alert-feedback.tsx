@@ -1,4 +1,3 @@
-import { cn } from "../../lib/utils";
 import { Alert, AlertDescription, AlertTitle } from "../ui/alert";
 import { Icons } from "../ui/icons";
 
@@ -22,19 +21,10 @@ export function AlertFeedback({ title, children, variant = "error", className, .
   };
 
   return (
-    <Alert
-      variant={variant}
-      className={cn(
-        "flex items-start gap-3 [&>div]:flex [&>div]:items-start [&>div]:gap-3 [&>svg]:static [&>svg]:shrink-0 [&>svg~*]:pl-0",
-        className,
-      )}
-      {...props}
-    >
+    <Alert variant={variant} className={className} {...props}>
       {getIcon()}
-      <div className="flex-1 pt-[1px]">
-        {title && <AlertTitle>{title}</AlertTitle>}
-        <AlertDescription>{children}</AlertDescription>
-      </div>
+      {title && <AlertTitle>{title}</AlertTitle>}
+      <AlertDescription>{children}</AlertDescription>
     </Alert>
   );
 }
