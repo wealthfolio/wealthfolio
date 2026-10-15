@@ -1,7 +1,8 @@
 #!/usr/bin/env node
-// Counts design-system debt per source file so it only goes down: hard-coded
-// px sizes in class names. Borders, rings, outlines, shadows and offsets up to
-// 4px are hairlines and stay in px. Fails when a file gains a use; `--update`
+// Counts design-system debt per source file so it only goes down: font sizes
+// off the type scale (text-[11px], text-[0.8125rem]) and other hard-coded px
+// sizes in class names. Borders, rings, outlines, shadows and offsets up to 4px
+// are hairlines and stay in px. Fails when a file gains a use; `--update`
 // records the current counts once uses are removed. Run on demand, not in CI.
 import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
@@ -12,12 +13,17 @@ const baselinePath = fileURLToPath(new URL("./design-ratchet.json", import.meta.
 const scopes = ["packages/ui/src", "apps/frontend/src"];
 const hairline = /^-?(border|divide|ring|outline|shadow|drop-shadow|stroke|inset-shadow)/;
 const arbitraryPx = /([a-z][\w-]*)-\[([^\]\s]*?\d(?:\.\d+)?px[^\]\s]*)\]/g;
+const arbitraryFontSize = /(?<![\w-])text-\[(?:length:)?(?:-?[\d.]+(?:px|rem|em)|calc\(|clamp\()/g;
+
+function fontSizes(source) {
+  return [...source.matchAll(arbitraryFontSize)].length;
+}
 
 function pxSizes(source) {
   let count = 0;
   for (const [, utility, value] of source.matchAll(arbitraryPx)) {
     const name = utility.split(":").pop();
-    if (hairline.test(name)) continue;
+    if (hairline.test(name) || name === "text") continue;
     const sizes = [...value.matchAll(/(\d+(?:\.\d+)?)px/g)].map(([, n]) => Number(n));
     if (sizes.every((n) => n <= 4)) continue;
     count += 1;
@@ -25,35 +31,59 @@ function pxSizes(source) {
   return count;
 }
 
+const measures = {
+  fontSizes: {
+    count: fontSizes,
+    label: "font sizes off the scale",
+    fix: "use text-2xs to text-3xl",
+  },
+  pxSizes: {
+    count: pxSizes,
+    label: "px sizes",
+    fix: "use rem or the spacing scale (w-75, not w-[300px])",
+  },
+};
+
 const files = execFileSync("git", ["ls-files", "--", ...scopes], { cwd: root, encoding: "utf8" })
   .split("\n")
   .filter((file) => /\.(tsx?|jsx?)$/.test(file) && !/\.test\.|\/test\/|\.stories\./.test(file));
 
-const current = {};
+const current = Object.fromEntries(Object.keys(measures).map((name) => [name, {}]));
 for (const file of files) {
-  const count = pxSizes(readFileSync(new URL(file, `file://${root}/`), "utf8"));
-  if (count) current[file] = count;
+  const source = readFileSync(new URL(file, `file://${root}/`), "utf8");
+  for (const [name, { count }] of Object.entries(measures)) {
+    const n = count(source);
+    if (n) current[name][file] = n;
+  }
 }
 const total = (counts) => Object.values(counts).reduce((sum, n) => sum + n, 0);
 
 if (process.argv.includes("--update")) {
-  writeFileSync(baselinePath, `${JSON.stringify({ pxSizes: current }, null, 2)}\n`);
-  console.log(`Recorded ${total(current)} px sizes in ${Object.keys(current).length} files.`);
+  writeFileSync(baselinePath, `${JSON.stringify(current, null, 2)}\n`);
+  for (const [name, { label }] of Object.entries(measures)) {
+    const counts = current[name];
+    console.log(`Recorded ${total(counts)} ${label} in ${Object.keys(counts).length} files.`);
+  }
   process.exit(0);
 }
 
-const recorded = JSON.parse(readFileSync(baselinePath, "utf8")).pxSizes;
-const grew = Object.entries(current).filter(([file, n]) => n > (recorded[file] ?? 0));
-const fell = Object.keys({ ...recorded, ...current }).filter(
-  (file) => (current[file] ?? 0) < (recorded[file] ?? 0),
-);
-console.log(
-  `px sizes: ${total(current)} in ${Object.keys(current).length} files (recorded ${total(recorded)}).`,
-);
-if (fell.length)
-  console.log(`Fewer px sizes in ${fell.length} files; run with --update to record.`);
-if (grew.length) {
-  console.error("New px sizes; use rem or the spacing scale (w-75, not w-[300px]):");
-  for (const [file, n] of grew) console.error(`  ${file}: ${recorded[file] ?? 0} -> ${n}`);
-  process.exit(1);
+const baseline = JSON.parse(readFileSync(baselinePath, "utf8"));
+let failed = false;
+for (const [name, { label, fix }] of Object.entries(measures)) {
+  const counts = current[name];
+  const recorded = baseline[name] ?? {};
+  const grew = Object.entries(counts).filter(([file, n]) => n > (recorded[file] ?? 0));
+  const fell = Object.keys({ ...recorded, ...counts }).filter(
+    (file) => (counts[file] ?? 0) < (recorded[file] ?? 0),
+  );
+  console.log(
+    `${label}: ${total(counts)} in ${Object.keys(counts).length} files (recorded ${total(recorded)}).`,
+  );
+  if (fell.length) console.log(`  Fewer in ${fell.length} files; run with --update to record.`);
+  if (grew.length) {
+    failed = true;
+    console.error(`  New ${label}; ${fix}:`);
+    for (const [file, n] of grew) console.error(`    ${file}: ${recorded[file] ?? 0} -> ${n}`);
+  }
 }
+if (failed) process.exit(1);
