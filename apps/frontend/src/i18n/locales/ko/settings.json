@@ -1207,6 +1207,7 @@
       "update_error": "카테고리를 수정하지 못했습니다.",
       "created": "카테고리가 생성되었습니다.",
       "create_error": "카테고리를 생성하지 못했습니다.",
+      "duplicate_error": "다른 카테고리에서 이미 사용 중인 키입니다. 다른 이름을 입력해 주세요.",
       "tab_expense_other": "지출 ({{count}})",
       "tab_income_other": "수입 ({{count}})",
       "tab_savings_other": "저축 ({{count}})"

@@ -224,7 +224,7 @@ pub async fn compute_categorization_state(
         .into_iter()
         .filter(|t| {
             t.taxonomy.scope == "activity"
-                && wealthfolio_spending::cash_activities::TRANSACTION_TAXONOMY_IDS
+                && wealthfolio_core::taxonomies::TRANSACTION_CATEGORY_TAXONOMY_IDS
                     .contains(&t.taxonomy.id.as_str())
         })
         .collect();

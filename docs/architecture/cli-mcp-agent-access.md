@@ -488,6 +488,37 @@ replaces rule, import and AI categories. Manual categories and split allocations
 are never changed. It returns the number of spending accounts and of activities
 a rule matched.
 
+### MCP-only Transaction Category Management
+
+```text
+list_transaction_categories        -- list categories in the three activity taxonomies
+prepare_transaction_category      -- validate and draft one new category without saving
+commit_transaction_category       -- persist the reviewed category after confirmation
+```
+
+These tools only support `spending_categories`, `income_sources`, and
+`savings_categories`; they never create or modify asset taxonomies. Listing
+requires `classification:read` and works before any accounts or transactions
+exist. Preparation also requires `classification:suggest`; committing
+additionally requires `classification:write`.
+
+Call `list_transaction_categories` with an optional `taxonomyId` to discover
+existing category IDs, keys, and parent relationships. Prepare a category with
+`taxonomyId`, `name`, `key`, and optional `parentId`, `color` (`#RRGGBB`,
+default `#808080`), and `description`. Show the returned `category` object to
+the user, then pass that object to `commit_transaction_category` after
+confirmation. Committing revalidates the draft against current data, rejects
+duplicate keys and IDs, and requires the parent to belong to the selected
+taxonomy. Keys are case-sensitive, unique within a taxonomy, and cannot contain
+whitespace or control characters. Reusing a committed draft fails rather than
+creating a second category. Creation uses the native taxonomy service and SQLite
+writer. All native `create_category` callers, including REST and Tauri, now
+reject duplicate keys in these three activity taxonomies, including concurrent
+creates. Existing native update and bulk-import paths are unchanged and can
+still introduce duplicate keys; this is a creation-time check, not a global
+uniqueness constraint or a cleanup of existing data. Names, keys, descriptions,
+and parent IDs are redacted from MCP audit arguments.
+
 ### MCP-only CSV Import Tools
 
 ```text

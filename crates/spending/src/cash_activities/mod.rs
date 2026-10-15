@@ -24,10 +24,3 @@ pub const CASH_ACTIVITY_TYPES: &[&str] = &[
     "INTEREST",
     "CREDIT",
 ];
-
-/// Taxonomies owned by Spending, independent of asset classification permissions.
-pub const TRANSACTION_TAXONOMY_IDS: [&str; 3] = [
-    "spending_categories",
-    "income_sources",
-    "savings_categories",
-];

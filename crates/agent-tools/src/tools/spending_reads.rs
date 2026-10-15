@@ -14,7 +14,6 @@ use wealthfolio_spending::cash_activities::{CashActivity, CashActivitySearchRequ
 
 pub struct GetSpendingContext;
 pub struct SearchSpendingTransactions;
-pub struct ListTransactionCategories;
 
 fn execution_error(error: impl std::fmt::Display) -> AgentToolError {
     AgentToolError::ExecutionFailed(error.to_string())
@@ -266,52 +265,6 @@ impl AgentTool for SearchSpendingTransactions {
             content: json!({"context":context,"period":period,"items":items,"totalCount":response.total_count,"offset":offset,"limit":limit,
             "hasMore":offset.saturating_add(items.len()) < response.total_count,
             "amountCurrency":"per_transaction","fxRequested":false}),
-        })
-    }
-}
-
-#[async_trait::async_trait]
-impl AgentTool for ListTransactionCategories {
-    fn name(&self) -> &'static str {
-        "list_transaction_categories"
-    }
-    fn description(&self) -> &'static str {
-        "List expense, income and savings category trees by stable taxonomy and category IDs, including keys and parents. Available independently of transaction history and whether Spending is enabled. Category labels do not change a transaction's economic cash-flow bucket."
-    }
-    fn input_schema(&self) -> Value {
-        json!({"type":"object","properties":{},"additionalProperties":false})
-    }
-    fn required_scopes(&self) -> &'static [AgentScope] {
-        &[AgentScope::SpendingRead]
-    }
-    fn access_level(&self) -> AgentToolAccess {
-        AgentToolAccess::Read
-    }
-    fn sanitize_args_for_audit(&self, _: &Value) -> Value {
-        json!({})
-    }
-    async fn call(
-        &self,
-        env: Arc<dyn AgentEnvironment>,
-        _: Value,
-    ) -> Result<AgentToolResult, AgentToolError> {
-        let taxonomies = env
-            .taxonomy_service()
-            .get_taxonomies_with_categories()
-            .map_err(execution_error)?;
-        let taxonomies = taxonomies
-            .into_iter()
-            .filter(|entry| {
-                [
-                    "spending_categories",
-                    "income_sources",
-                    "savings_categories",
-                ]
-                .contains(&entry.taxonomy.id.as_str())
-            })
-            .collect::<Vec<_>>();
-        Ok(AgentToolResult {
-            content: json!({"taxonomies":taxonomies}),
         })
     }
 }

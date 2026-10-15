@@ -115,3 +115,34 @@ it("reports a delete that fails while the screen is out of sight", async () => {
 
   await waitFor(() => expect(mocks.toast.error).toHaveBeenCalledWith("Failed to delete category."));
 });
+
+it.each([
+  [
+    "web adapter",
+    new Error(
+      "Unique constraint violation: A category with this key already exists in the taxonomy",
+    ),
+  ],
+  [
+    "Tauri adapter",
+    "Failed to create category: A category with this key already exists in the taxonomy",
+  ],
+])("shows the duplicate-key reason for the %s", async (_runtime, error) => {
+  mocks.create.mockRejectedValue(error);
+  renderKept();
+  fireEvent.click(screen.getAllByRole("button", { name: "Add category" })[0]);
+  fireEvent.click(screen.getByRole("button", { name: "Save category" }));
+  await waitFor(() =>
+    expect(mocks.toast.error).toHaveBeenCalledWith(
+      "Another category uses this key. Try a different name.",
+    ),
+  );
+});
+
+it("keeps the generic toast for other create failures", async () => {
+  mocks.create.mockRejectedValue(new Error("Unexpected storage error"));
+  renderKept();
+  fireEvent.click(screen.getAllByRole("button", { name: "Add category" })[0]);
+  fireEvent.click(screen.getByRole("button", { name: "Save category" }));
+  await waitFor(() => expect(mocks.toast.error).toHaveBeenCalledWith("Failed to create category."));
+});

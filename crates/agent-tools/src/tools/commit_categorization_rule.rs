@@ -65,7 +65,7 @@ fn validate_draft(rule: &NewCategorizationRule) -> Result<(), AgentToolError> {
         ));
     }
     if !rule.taxonomy_id.as_deref().is_some_and(|id| {
-        wealthfolio_spending::cash_activities::TRANSACTION_TAXONOMY_IDS.contains(&id)
+        wealthfolio_core::taxonomies::TRANSACTION_CATEGORY_TAXONOMY_IDS.contains(&id)
     }) {
         return Err(AgentToolError::InvalidInput(
             "Only Spending transaction taxonomies are allowed".to_string(),

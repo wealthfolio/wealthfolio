@@ -1207,6 +1207,7 @@
       "update_error": "カテゴリの更新に失敗しました。",
       "created": "カテゴリを作成しました。",
       "create_error": "カテゴリの作成に失敗しました。",
+      "duplicate_error": "このキーは別のカテゴリで使用されています。別の名前をお試しください。",
       "tab_expense_other": "支出 ({{count}})",
       "tab_income_other": "収入 ({{count}})",
       "tab_savings_other": "貯蓄 ({{count}})"

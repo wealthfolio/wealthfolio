@@ -119,7 +119,7 @@ impl CreateCategorizationRule {
         let mut key_lookup: HashMap<(String, String), (String, Vec<String>)> = HashMap::new();
         for entry in &taxonomies {
             if entry.taxonomy.scope != "activity"
-                || !wealthfolio_spending::cash_activities::TRANSACTION_TAXONOMY_IDS
+                || !wealthfolio_core::taxonomies::TRANSACTION_CATEGORY_TAXONOMY_IDS
                     .contains(&entry.taxonomy.id.as_str())
             {
                 continue;
