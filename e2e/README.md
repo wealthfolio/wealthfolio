@@ -241,8 +241,9 @@ sometimes stalls a page load without sending a request. Playwright reports a
 test that only passes on retry as flaky; a real difference fails both attempts.
 
 `pnpm ui:design-ratchet` counts, per file, font sizes off the type scale
-(`text-[11px]`; the scale is `text-2xs` to `text-3xl` in `globals.css`) and
-other hard-coded px sizes in class names (`w-[300px]`; borders, rings, shadows
-and offsets up to 4 px stay in px), and fails when a file gains one. Sizes in
-rem follow the root font size, which the Text size setting will change. Run it
-with `--update` after removing some.
+(`text-[11px]`; the scale is `text-2xs` to `text-3xl` in `globals.css`), other
+hard-coded px sizes in class names (`w-[300px]`; borders, rings, shadows and
+offsets up to 4 px stay in px), and raw colours that bypass the theme's roles
+(`text-amber-600`, hex literals, `rgb()`/`hsl()` values), and fails when a file
+gains one. Sizes in rem follow the root font size, which the Text size setting
+will change. Run it with `--update` after removing some.

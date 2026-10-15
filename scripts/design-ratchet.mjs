@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // Counts design-system debt per source file so it only goes down: font sizes
-// off the type scale (text-[11px], text-[0.8125rem]) and other hard-coded px
-// sizes in class names. Borders, rings, outlines, shadows and offsets up to 4px
+// off the type scale (text-[11px], text-[0.8125rem]), other hard-coded px
+// sizes in class names, and raw colours that bypass the theme's roles (palette
+// classes like text-amber-600, hex literals, rgb()/hsl() values). Borders, rings, outlines, shadows and offsets up to 4px
 // are hairlines and stay in px. Fails when a file gains a use; `--update`
 // records the current counts once uses are removed. Run on demand, not in CI.
 import { execFileSync } from "node:child_process";
@@ -14,6 +15,17 @@ const scopes = ["packages/ui/src", "apps/frontend/src"];
 const hairline = /^-?(border|divide|ring|outline|shadow|drop-shadow|stroke|inset-shadow)/;
 const arbitraryPx = /([a-z][\w-]*)-\[([^\]\s]*?\d(?:\.\d+)?px[^\]\s]*)\]/g;
 const arbitraryFontSize = /(?<![\w-])text-\[(?:length:)?(?:-?[\d.]+(?:px|rem|em)|calc\(|clamp\()/g;
+
+const palette =
+  "red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose|magenta|slate|gray|zinc|neutral|stone|base";
+const rawColor = new RegExp(
+  `(?<![\\w-])[a-z-]+-(?:${palette})-\\d{2,3}(?![\\w-])|#[0-9a-fA-F]{6}\\b|#[0-9a-fA-F]{3}\\b|\\b(?:rgba?|hsla?|oklch)\\(`,
+  "g",
+);
+
+function rawColors(source) {
+  return [...source.matchAll(rawColor)].length;
+}
 
 function fontSizes(source) {
   return [...source.matchAll(arbitraryFontSize)].length;
@@ -36,6 +48,11 @@ const measures = {
     count: fontSizes,
     label: "font sizes off the scale",
     fix: "use text-2xs to text-3xl",
+  },
+  rawColors: {
+    count: rawColors,
+    label: "raw colours",
+    fix: "use a theme role (text-success, bg-muted, var(--chart-1))",
   },
   pxSizes: {
     count: pxSizes,
