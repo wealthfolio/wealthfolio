@@ -327,7 +327,7 @@ function Fixture() {
             <TabsContent value="holdings">Holdings panel</TabsContent>
             <TabsContent value="activity">Activity panel</TabsContent>
           </Tabs>
-          <Accordion type="single" collapsible defaultValue="fees" className="max-w-md">
+          <Accordion defaultValue={["fees"]} className="max-w-md">
             <AccordionItem value="fees">
               <AccordionTrigger>Fees</AccordionTrigger>
               <AccordionContent>Synthetic fee explanation.</AccordionContent>
@@ -338,8 +338,8 @@ function Fixture() {
             </AccordionItem>
           </Accordion>
           <Collapsible defaultOpen className="max-w-md space-y-2">
-            <CollapsibleTrigger asChild>
-              <Button variant="ghost">Toggle details</Button>
+            <CollapsibleTrigger render={<Button variant="ghost" />}>
+              Toggle details
             </CollapsibleTrigger>
             <CollapsibleContent>Collapsible details</CollapsibleContent>
           </Collapsible>

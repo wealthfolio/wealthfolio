@@ -149,22 +149,24 @@ export function AdvancedOptionsSection<TFieldValues extends FieldValues = FieldV
         !dashed && isMobile && "bg-muted/30 rounded-md border px-3 py-2",
       )}
     >
-      <CollapsibleTrigger asChild>
-        <Button
-          variant="ghost"
-          size="sm"
-          type="button"
-          data-testid="advanced-options-button"
-          className="text-muted-foreground hover:text-foreground flex w-full items-center justify-between px-0 py-1 hover:bg-transparent"
-        >
-          <span className="flex items-center gap-1.5 text-sm font-medium">
-            {dashed && <Icons.Plus className="h-3.5 w-3.5" />}
-            {triggerTitle}
-          </span>
-          <Icons.ChevronDown
-            className={`h-4 w-4 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
+      <CollapsibleTrigger
+        render={
+          <Button
+            variant="ghost"
+            size="sm"
+            type="button"
+            data-testid="advanced-options-button"
+            className="text-muted-foreground hover:text-foreground flex w-full items-center justify-between px-0 py-1 hover:bg-transparent"
           />
-        </Button>
+        }
+      >
+        <span className="flex items-center gap-1.5 text-sm font-medium">
+          {dashed && <Icons.Plus className="h-3.5 w-3.5" />}
+          {triggerTitle}
+        </span>
+        <Icons.ChevronDown
+          className={`h-4 w-4 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
+        />
       </CollapsibleTrigger>
       <CollapsibleContent className="space-y-4 pb-2 pt-2">
         {hasAdvancedFields && (

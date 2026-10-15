@@ -284,14 +284,16 @@ function ProviderSettings({
 
           {/* Controls */}
           <div className="flex shrink-0 items-center gap-2">
-            <CollapsibleTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="text-muted-foreground hover:text-foreground h-8 w-8"
-              >
-                <Icons.Settings className="h-4 w-4" />
-              </Button>
+            <CollapsibleTrigger
+              render={
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="text-muted-foreground hover:text-foreground h-8 w-8"
+                />
+              }
+            >
+              <Icons.Settings className="h-4 w-4" />
             </CollapsibleTrigger>
             <Switch
               id={`${provider.id}-enabled`}

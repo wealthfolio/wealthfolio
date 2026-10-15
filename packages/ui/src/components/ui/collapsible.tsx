@@ -1,11 +1,17 @@
 "use client";
 
-import * as CollapsiblePrimitive from "@radix-ui/react-collapsible";
+import { Collapsible as CollapsiblePrimitive } from "@base-ui/react/collapsible";
 
-const Collapsible = CollapsiblePrimitive.Root;
+function Collapsible(props: CollapsiblePrimitive.Root.Props) {
+  return <CollapsiblePrimitive.Root data-slot="collapsible" {...props} />;
+}
 
-const CollapsibleTrigger = CollapsiblePrimitive.CollapsibleTrigger;
+function CollapsibleTrigger(props: CollapsiblePrimitive.Trigger.Props) {
+  return <CollapsiblePrimitive.Trigger data-slot="collapsible-trigger" {...props} />;
+}
 
-const CollapsibleContent = CollapsiblePrimitive.CollapsibleContent;
+function CollapsibleContent(props: CollapsiblePrimitive.Panel.Props) {
+  return <CollapsiblePrimitive.Panel data-slot="collapsible-content" {...props} />;
+}
 
 export { Collapsible, CollapsibleTrigger, CollapsibleContent };

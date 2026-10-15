@@ -41,19 +41,23 @@ and this project adheres to
 ### Changed
 
 - **Breaking:** `@wealthfolio/ui` components move from Radix to
-  [Base UI](https://base-ui.com) and follow its API. Leaf controls so far:
-  - `asChild` is replaced by `render` on `Button`, `Badge` and `Item`:
-    `<Badge render={<a href="…" />}>Docs</Badge>`. A link that looks like a
-    button is the link itself with `buttonVariants()`, not a `Button`, which
-    gives what it renders button semantics. `Button` renders `type="button"`;
-    submit buttons need `type="submit"`.
+  [Base UI](https://base-ui.com) and follow its API. Converted so far: the leaf
+  controls, `Collapsible` and `Accordion`.
+  - `asChild` is replaced by `render` on `Button`, `Badge`, `Item` and
+    `CollapsibleTrigger`: `<Badge render={<a href="…" />}>Docs</Badge>`. A link
+    that looks like a button is the link itself with `buttonVariants()`, not a
+    `Button`, which gives what it renders button semantics. `Button` renders
+    `type="button"`; submit buttons need `type="submit"`.
   - State attributes are Base UI's instead of Radix's `data-state`:
     `data-checked`/`data-unchecked` (`Switch`, `Checkbox`, `RadioGroupItem`),
-    `data-active` (`TabsTrigger`), `aria-pressed` (`Toggle`, `ToggleGroupItem`)
-    and `data-disabled`.
+    `data-active` (`TabsTrigger`), `aria-pressed` (`Toggle`, `ToggleGroupItem`),
+    `data-panel-open` (collapsible and accordion triggers), `data-open`/
+    `data-closed` with `--collapsible-panel-height` and
+    `--accordion-panel-height` (their panels), and `data-disabled`.
   - `Checkbox` takes `indeterminate` instead of `checked="indeterminate"`;
     `ToggleGroup` takes `multiple` and array values instead of `type` and a
-    string; `AvatarFallback` takes `delay` instead of `delayMs`; `Tabs`,
+    string, and `Accordion` likewise (no `collapsible`; single items always
+    close); `AvatarFallback` takes `delay` instead of `delayMs`; `Tabs`,
     `RadioGroup` and `ToggleGroup` change callbacks receive
     `(value, eventDetails)`.
   - Single-select `ToggleGroup` items are toggle buttons (`aria-pressed`)

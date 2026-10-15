@@ -1026,16 +1026,18 @@ export function LivePreviewPane({ form, prefix, runtime }: LivePreviewPaneProps)
         </div>
 
         <Collapsible open={moreFieldsOpen} onOpenChange={setMoreFieldsOpen}>
-          <CollapsibleTrigger asChild>
-            <button
-              type="button"
-              className="text-muted-foreground hover:text-foreground mt-1 flex items-center gap-1 text-xs"
-            >
-              <Icons.ChevronRight
-                className={cn("h-3 w-3 transition-transform", moreFieldsOpen && "rotate-90")}
+          <CollapsibleTrigger
+            render={
+              <button
+                type="button"
+                className="text-muted-foreground hover:text-foreground mt-1 flex items-center gap-1 text-xs"
               />
-              {t("settings:market_data_page.more_mapping_fields")}
-            </button>
+            }
+          >
+            <Icons.ChevronRight
+              className={cn("h-3 w-3 transition-transform", moreFieldsOpen && "rotate-90")}
+            />
+            {t("settings:market_data_page.more_mapping_fields")}
           </CollapsibleTrigger>
           <CollapsibleContent className="mt-2 space-y-1.5">
             {MAPPING_META.slice(2).map((m) => {

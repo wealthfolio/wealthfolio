@@ -316,26 +316,25 @@ export const NetWorthWidget = ({
         {/* Optional breakdown by category */}
         {showBreakdown && hasBreakdownData && (
           <Collapsible open={isBreakdownOpen} onOpenChange={setIsBreakdownOpen}>
-            <CollapsibleTrigger asChild>
-              <button
-                type="button"
-                className="hover:bg-muted/50 flex w-full items-center justify-between rounded-md py-2 transition-colors"
-              >
-                <span
-                  className={cn(
-                    "text-muted-foreground font-medium",
-                    compact ? "text-xs" : "text-sm",
-                  )}
-                >
-                  {t("holdings:category_breakdown")}
-                </span>
-                <Icons.ChevronDown
-                  className={cn(
-                    "text-muted-foreground h-4 w-4 shrink-0 transition-transform duration-200",
-                    isBreakdownOpen && "rotate-180",
-                  )}
+            <CollapsibleTrigger
+              render={
+                <button
+                  type="button"
+                  className="hover:bg-muted/50 flex w-full items-center justify-between rounded-md py-2 transition-colors"
                 />
-              </button>
+              }
+            >
+              <span
+                className={cn("text-muted-foreground font-medium", compact ? "text-xs" : "text-sm")}
+              >
+                {t("holdings:category_breakdown")}
+              </span>
+              <Icons.ChevronDown
+                className={cn(
+                  "text-muted-foreground h-4 w-4 shrink-0 transition-transform duration-200",
+                  isBreakdownOpen && "rotate-180",
+                )}
+              />
             </CollapsibleTrigger>
             <CollapsibleContent>
               <div className="border-border/50 divide-border/50 divide-y border-t pt-1">

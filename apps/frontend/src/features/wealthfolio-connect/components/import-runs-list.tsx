@@ -89,31 +89,33 @@ function ImportRunItem({ run }: { run: ImportRun }) {
   return (
     <Collapsible open={isOpen} onOpenChange={setIsOpen}>
       <div className="rounded-lg border">
-        <CollapsibleTrigger asChild>
-          <button className="hover:bg-accent/50 flex w-full items-center justify-between p-3">
-            <div className="flex items-center gap-3">
-              <div className="text-left">
-                <p className="text-sm font-medium">
-                  {formatting.formatDateTime(new Date(run.startedAt))}
-                </p>
-                <p className="text-muted-foreground text-xs">
-                  {run.sourceSystem} · {run.mode.toLowerCase()}
-                </p>
-              </div>
+        <CollapsibleTrigger
+          render={
+            <button className="hover:bg-accent/50 flex w-full items-center justify-between p-3" />
+          }
+        >
+          <div className="flex items-center gap-3">
+            <div className="text-left">
+              <p className="text-sm font-medium">
+                {formatting.formatDateTime(new Date(run.startedAt))}
+              </p>
+              <p className="text-muted-foreground text-xs">
+                {run.sourceSystem} · {run.mode.toLowerCase()}
+              </p>
             </div>
+          </div>
 
-            <div className="flex items-center gap-2">
-              {hasWarnings && (
-                <span className="text-xs text-yellow-600 dark:text-yellow-400">
-                  {t("connect:syncRuns.warningsCount", { count: run.warnings?.length ?? 0 })}
-                </span>
-              )}
-              <Badge variant={config.variant}>{config.label}</Badge>
-              <Icons.ChevronDown
-                className={`h-4 w-4 transition-transform ${isOpen ? "rotate-180" : ""}`}
-              />
-            </div>
-          </button>
+          <div className="flex items-center gap-2">
+            {hasWarnings && (
+              <span className="text-xs text-yellow-600 dark:text-yellow-400">
+                {t("connect:syncRuns.warningsCount", { count: run.warnings?.length ?? 0 })}
+              </span>
+            )}
+            <Badge variant={config.variant}>{config.label}</Badge>
+            <Icons.ChevronDown
+              className={`h-4 w-4 transition-transform ${isOpen ? "rotate-180" : ""}`}
+            />
+          </div>
         </CollapsibleTrigger>
 
         <CollapsibleContent>

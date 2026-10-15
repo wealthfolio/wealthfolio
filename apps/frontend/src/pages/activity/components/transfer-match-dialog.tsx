@@ -925,29 +925,31 @@ export function TransferMatchDialog({
                   </div>
 
                   <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen}>
-                    <CollapsibleTrigger asChild>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="text-muted-foreground h-7 px-2 text-xs"
-                      >
-                        <Icons.ChevronDown
-                          className={cn(
-                            "mr-1 h-3.5 w-3.5 transition-transform",
-                            filtersOpen && "rotate-180",
-                          )}
+                    <CollapsibleTrigger
+                      render={
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="text-muted-foreground h-7 px-2 text-xs"
                         />
-                        {t("activity:transfer_match.more_filters")}
-                        {advancedFilterCount > 0 ? (
-                          <Badge
-                            variant="secondary"
-                            className="ml-1.5 rounded-sm px-1.5 py-0 text-[10px]"
-                          >
-                            {advancedFilterCount}
-                          </Badge>
-                        ) : null}
-                      </Button>
+                      }
+                    >
+                      <Icons.ChevronDown
+                        className={cn(
+                          "mr-1 h-3.5 w-3.5 transition-transform",
+                          filtersOpen && "rotate-180",
+                        )}
+                      />
+                      {t("activity:transfer_match.more_filters")}
+                      {advancedFilterCount > 0 ? (
+                        <Badge
+                          variant="secondary"
+                          className="ml-1.5 rounded-sm px-1.5 py-0 text-[10px]"
+                        >
+                          {advancedFilterCount}
+                        </Badge>
+                      ) : null}
                     </CollapsibleTrigger>
                     <CollapsibleContent className="pt-2">
                       <div className="grid grid-cols-1 gap-2 md:grid-cols-2">

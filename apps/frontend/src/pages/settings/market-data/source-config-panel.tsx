@@ -598,16 +598,18 @@ export function SourceConfigPanel({ form, prefix, runtime, onUrlChange }: Source
 
           {/* Headers & auth */}
           <Collapsible open={headersOpen} onOpenChange={setHeadersOpen}>
-            <CollapsibleTrigger asChild>
-              <button
-                type="button"
-                className="text-muted-foreground hover:text-foreground flex items-center gap-1 text-xs"
-              >
-                <Icons.ChevronRight
-                  className={cn("h-3 w-3 transition-transform", headersOpen && "rotate-90")}
+            <CollapsibleTrigger
+              render={
+                <button
+                  type="button"
+                  className="text-muted-foreground hover:text-foreground flex items-center gap-1 text-xs"
                 />
-                {t("settings:market_data_page.headers_auth")}
-              </button>
+              }
+            >
+              <Icons.ChevronRight
+                className={cn("h-3 w-3 transition-transform", headersOpen && "rotate-90")}
+              />
+              {t("settings:market_data_page.headers_auth")}
             </CollapsibleTrigger>
             <CollapsibleContent className="mt-2">
               <FormField
@@ -674,16 +676,18 @@ export function SourceConfigPanel({ form, prefix, runtime, onUrlChange }: Source
 
         {/* More mapping fields (collapsible) */}
         <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen} className="mt-3">
-          <CollapsibleTrigger asChild>
-            <button
-              type="button"
-              className="text-muted-foreground hover:text-foreground flex items-center gap-1 text-xs"
-            >
-              <Icons.ChevronRight
-                className={cn("h-3 w-3 transition-transform", advancedOpen && "rotate-90")}
+          <CollapsibleTrigger
+            render={
+              <button
+                type="button"
+                className="text-muted-foreground hover:text-foreground flex items-center gap-1 text-xs"
               />
-              {t("settings:market_data_page.more_mappings")}
-            </button>
+            }
+          >
+            <Icons.ChevronRight
+              className={cn("h-3 w-3 transition-transform", advancedOpen && "rotate-90")}
+            />
+            {t("settings:market_data_page.more_mappings")}
           </CollapsibleTrigger>
           <CollapsibleContent className="mt-3 space-y-3">
             {/* Additional mapping chips */}

@@ -1,9 +1,9 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import * as CollapsiblePrimitive from "@radix-ui/react-collapsible";
 import * as React from "react";
 import { Icons } from "./icons";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "./collapsible";
 
 // Types
 export interface TreeNode {
@@ -42,7 +42,7 @@ function TreeItem({ node, level, selectedId, onSelect, expandedIds, onToggle }: 
 
   return (
     <div className="select-none">
-      <CollapsiblePrimitive.Root open={isExpanded} onOpenChange={() => hasChildren && onToggle(node.id)}>
+      <Collapsible open={isExpanded} onOpenChange={() => hasChildren && onToggle(node.id)}>
         <div
           className={cn(
             "flex cursor-pointer items-center gap-1 rounded-md px-2 py-1.5 text-sm transition-colors",
@@ -53,19 +53,21 @@ function TreeItem({ node, level, selectedId, onSelect, expandedIds, onToggle }: 
           onClick={() => onSelect?.(node)}
         >
           {hasChildren ? (
-            <CollapsiblePrimitive.Trigger asChild>
-              <button
-                className="hover:bg-muted flex h-5 w-5 shrink-0 items-center justify-center rounded-sm"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onToggle(node.id);
-                }}
-              >
-                <Icons.ChevronRight
-                  className={cn("h-4 w-4 transition-transform duration-200", isExpanded && "rotate-90")}
+            <CollapsibleTrigger
+              render={
+                <button
+                  className="hover:bg-muted flex h-5 w-5 shrink-0 items-center justify-center rounded-sm"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onToggle(node.id);
+                  }}
                 />
-              </button>
-            </CollapsiblePrimitive.Trigger>
+              }
+            >
+              <Icons.ChevronRight
+                className={cn("h-4 w-4 transition-transform duration-200", isExpanded && "rotate-90")}
+              />
+            </CollapsibleTrigger>
           ) : (
             <span className="w-5" />
           )}
@@ -90,7 +92,7 @@ function TreeItem({ node, level, selectedId, onSelect, expandedIds, onToggle }: 
         </div>
 
         {hasChildren && (
-          <CollapsiblePrimitive.Content className="data-[state=closed]:animate-collapsible-up data-[state=open]:animate-collapsible-down overflow-hidden">
+          <CollapsibleContent className="data-ending-style:h-0 data-starting-style:h-0 h-[var(--collapsible-panel-height)] overflow-hidden transition-[height] duration-200 ease-out">
             {node.children!.map((child) => (
               <TreeItem
                 key={child.id}
@@ -102,9 +104,9 @@ function TreeItem({ node, level, selectedId, onSelect, expandedIds, onToggle }: 
                 onToggle={onToggle}
               />
             ))}
-          </CollapsiblePrimitive.Content>
+          </CollapsibleContent>
         )}
-      </CollapsiblePrimitive.Root>
+      </Collapsible>
     </div>
   );
 }

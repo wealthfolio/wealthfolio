@@ -394,14 +394,16 @@ export function ProviderSettingsCard({
 
           {/* Controls */}
           <div className="flex shrink-0 items-center gap-2">
-            <CollapsibleTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="text-muted-foreground hover:text-foreground h-8 w-8"
-              >
-                <Icons.Settings className="h-4 w-4" />
-              </Button>
+            <CollapsibleTrigger
+              render={
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="text-muted-foreground hover:text-foreground h-8 w-8"
+                />
+              }
+            >
+              <Icons.Settings className="h-4 w-4" />
             </CollapsibleTrigger>
             <Switch
               id={`${provider.id}-enabled`}
@@ -1240,24 +1242,26 @@ function AdvancedTuningSection({
     <Collapsible open={open} onOpenChange={setOpen}>
       <div className="bg-muted/40 space-y-3 rounded-lg p-4">
         <div className="flex items-center justify-between">
-          <CollapsibleTrigger asChild>
-            <button
-              type="button"
-              className="text-foreground inline-flex items-center gap-1.5 text-sm font-medium"
-            >
-              <Icons.ChevronRight
-                className={cn(
-                  "text-muted-foreground h-3.5 w-3.5 transition-transform",
-                  open && "rotate-90",
-                )}
+          <CollapsibleTrigger
+            render={
+              <button
+                type="button"
+                className="text-foreground inline-flex items-center gap-1.5 text-sm font-medium"
               />
-              {t("ai:providerSettings.advancedOptions")}
-              {hasOverrides && (
-                <Badge variant="secondary" className="ml-1 text-[10px] uppercase">
-                  {t("ai:providerSettings.customized")}
-                </Badge>
+            }
+          >
+            <Icons.ChevronRight
+              className={cn(
+                "text-muted-foreground h-3.5 w-3.5 transition-transform",
+                open && "rotate-90",
               )}
-            </button>
+            />
+            {t("ai:providerSettings.advancedOptions")}
+            {hasOverrides && (
+              <Badge variant="secondary" className="ml-1 text-[10px] uppercase">
+                {t("ai:providerSettings.customized")}
+              </Badge>
+            )}
           </CollapsibleTrigger>
           {hasOverrides && (
             <Button
