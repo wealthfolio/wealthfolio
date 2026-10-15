@@ -1,3 +1,5 @@
+import { cn } from "@/lib/utils";
+import { buttonVariants } from "@wealthfolio/ui";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -94,39 +96,36 @@ export default function AboutSettingsPage() {
                   {t("settings:about_check_update_button")}
                 </Button>
               )}
-              <Button
-                asChild
-                variant="outline"
-                size="sm"
-                className="inline-flex items-center gap-2"
+              <ExternalLink
+                href="https://wealthfolio.app"
+                className={cn(
+                  buttonVariants({ variant: "outline", size: "sm" }),
+                  "inline-flex items-center gap-2",
+                )}
               >
-                <ExternalLink href="https://wealthfolio.app">
-                  <Icons.Globe className="h-4 w-4" />
-                  {t("settings:about_website_button")}
-                </ExternalLink>
-              </Button>
-              <Button
-                asChild
-                variant="outline"
-                size="sm"
-                className="inline-flex items-center gap-2"
+                <Icons.Globe className="h-4 w-4" />
+                {t("settings:about_website_button")}
+              </ExternalLink>
+              <ExternalLink
+                href="https://wealthfolio.app/docs/introduction/"
+                className={cn(
+                  buttonVariants({ variant: "outline", size: "sm" }),
+                  "inline-flex items-center gap-2",
+                )}
               >
-                <ExternalLink href="https://wealthfolio.app/docs/introduction/">
-                  <Icons.FileText className="h-4 w-4" />
-                  {t("settings:about_docs_button")}
-                </ExternalLink>
-              </Button>
-              <Button
-                asChild
-                variant="outline"
-                size="sm"
-                className="inline-flex items-center gap-2"
+                <Icons.FileText className="h-4 w-4" />
+                {t("settings:about_docs_button")}
+              </ExternalLink>
+              <ExternalLink
+                href="https://github.com/wealthfolio/wealthfolio"
+                className={cn(
+                  buttonVariants({ variant: "outline", size: "sm" }),
+                  "inline-flex items-center gap-2",
+                )}
               >
-                <ExternalLink href="https://github.com/wealthfolio/wealthfolio">
-                  <Icons.ExternalLink className="h-4 w-4" />
-                  {t("settings:about_github_button")}
-                </ExternalLink>
-              </Button>
+                <Icons.ExternalLink className="h-4 w-4" />
+                {t("settings:about_github_button")}
+              </ExternalLink>
             </div>
           </div>
 
@@ -187,28 +186,26 @@ export default function AboutSettingsPage() {
               <span className="select-all font-mono font-semibold">support@wealthfolio.app</span>
             </p>
             <div className="flex flex-wrap items-center gap-2">
-              <Button
-                asChild
-                variant="outline"
-                size="sm"
-                className="inline-flex items-center gap-2"
+              <ExternalLink
+                href="mailto:support@wealthfolio.app"
+                className={cn(
+                  buttonVariants({ variant: "outline", size: "sm" }),
+                  "inline-flex items-center gap-2",
+                )}
               >
-                <ExternalLink href="mailto:support@wealthfolio.app">
-                  <Icons.ExternalLink className="h-4 w-4" />
-                  {t("settings:about_email_button")}
-                </ExternalLink>
-              </Button>
-              <Button
-                asChild
-                variant="outline"
-                size="sm"
-                className="inline-flex items-center gap-2"
+                <Icons.ExternalLink className="h-4 w-4" />
+                {t("settings:about_email_button")}
+              </ExternalLink>
+              <ExternalLink
+                href="https://github.com/wealthfolio/wealthfolio/issues"
+                className={cn(
+                  buttonVariants({ variant: "outline", size: "sm" }),
+                  "inline-flex items-center gap-2",
+                )}
               >
-                <ExternalLink href="https://github.com/wealthfolio/wealthfolio/issues">
-                  <Icons.AlertCircle className="h-4 w-4" />
-                  {t("settings:about_report_issue_button")}
-                </ExternalLink>
-              </Button>
+                <Icons.AlertCircle className="h-4 w-4" />
+                {t("settings:about_report_issue_button")}
+              </ExternalLink>
             </div>
 
             <Separator />

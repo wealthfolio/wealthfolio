@@ -857,11 +857,11 @@ export function CheckboxCell<TData>({
     event.stopPropagation();
   }, []);
 
-  const onCheckboxMouseDown = React.useCallback((event: React.MouseEvent<HTMLButtonElement>) => {
+  const onCheckboxMouseDown = React.useCallback((event: React.MouseEvent) => {
     event.stopPropagation();
   }, []);
 
-  const onCheckboxDoubleClick = React.useCallback((event: React.MouseEvent<HTMLButtonElement>) => {
+  const onCheckboxDoubleClick = React.useCallback((event: React.MouseEvent) => {
     event.stopPropagation();
   }, []);
 

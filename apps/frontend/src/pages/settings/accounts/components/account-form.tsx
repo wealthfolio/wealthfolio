@@ -144,7 +144,7 @@ const formSectionLabelClassName =
 const trackingOptionClassName =
   "hover:bg-accent/50 relative flex cursor-pointer gap-3 rounded-xl border bg-card p-4 transition-colors dark:bg-muted/20 dark:hover:bg-muted/30";
 const cashClassificationItemClassName =
-  "data-[state=on]:bg-primary data-[state=on]:text-primary-foreground h-9 rounded-md text-sm data-[state=on]:shadow-sm dark:data-[state=on]:bg-secondary dark:data-[state=on]:text-foreground";
+  "aria-pressed:bg-primary aria-pressed:text-primary-foreground h-9 rounded-md text-sm aria-pressed:shadow-sm dark:aria-pressed:bg-secondary dark:aria-pressed:text-foreground";
 
 // Input type (what the form receives)
 type AccountFormInput = z.input<typeof newAccountSchema>;
@@ -443,10 +443,9 @@ export function AccountForm({ defaultValues, onSuccess = () => undefined }: Acco
                       </p>
                     </div>
                     <ToggleGroup
-                      type="single"
                       aria-label={t("settings:accounts.form_cash_classification_aria")}
-                      value={getSelectableCashCategoryFromMeta(form.watch("meta"))}
-                      onValueChange={(v) => {
+                      value={[getSelectableCashCategoryFromMeta(form.watch("meta"))]}
+                      onValueChange={([v]) => {
                         if (!v) return;
                         const categoryId = v === CASH_ALLOCATION_DEFAULT_VALUE ? null : v;
                         const updatedMeta = setCashCategoryInMeta(

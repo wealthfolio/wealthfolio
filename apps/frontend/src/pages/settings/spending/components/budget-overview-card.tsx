@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 
-import { Button, Icons, useAmountFormatting } from "@wealthfolio/ui";
+import { Icons, useAmountFormatting, buttonVariants } from "@wealthfolio/ui";
 
 import { useBudget } from "@/features/spending/hooks/use-budget";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
@@ -57,12 +57,10 @@ export function BudgetOverviewCard() {
               {t("settings:spending.budget_overview.empty_description")}
             </p>
           </div>
-          <Button asChild size="sm">
-            <Link to="/settings/spending/setup">
-              <Icons.Plus className="mr-1.5 h-3.5 w-3.5" />
-              {t("settings:spending.budget_overview.setup_cta")}
-            </Link>
-          </Button>
+          <Link to="/settings/spending/setup" className={buttonVariants({ size: "sm" })}>
+            <Icons.Plus className="mr-1.5 h-3.5 w-3.5" />
+            {t("settings:spending.budget_overview.setup_cta")}
+          </Link>
         </div>
       </div>
     );

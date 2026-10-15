@@ -1,33 +1,37 @@
-import * as CheckboxPrimitive from "@radix-ui/react-checkbox";
-import * as React from "react";
+import { Checkbox as CheckboxPrimitive } from "@base-ui/react/checkbox";
 
 import { cn } from "../../lib/utils";
 import { Icons } from "./icons";
 
-const Checkbox = React.forwardRef<
-  React.ElementRef<typeof CheckboxPrimitive.Root>,
-  React.ComponentPropsWithoutRef<typeof CheckboxPrimitive.Root>
->(({ className, ...props }, ref) => (
-  <CheckboxPrimitive.Root
-    ref={ref}
-    className={cn(
-      // The unchecked border is muted rather than `primary`, so a column of
-      // boxes stays quiet, but it keeps the 3:1 contrast a control needs.
-      "border-muted-foreground bg-background ring-offset-background focus-visible:ring-ring hover:border-foreground data-[state=checked]:border-primary data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground data-[state=indeterminate]:border-primary data-[state=indeterminate]:bg-primary data-[state=indeterminate]:text-primary-foreground peer h-4 w-4 shrink-0 cursor-pointer rounded-[4px] border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
-      className,
-    )}
-    {...props}
-  >
-    <CheckboxPrimitive.Indicator className={cn("flex items-center justify-center text-current")}>
-      {/* A partial selection draws a dash: a tick there reads as "all". */}
-      {props.checked === "indeterminate" ? (
-        <Icons.Minus className="h-3 w-3" strokeWidth={3} />
-      ) : (
-        <Icons.Check className="h-3 w-3" strokeWidth={3} />
+interface CheckboxProps extends Omit<CheckboxPrimitive.Root.Props, "className"> {
+  className?: string;
+}
+
+function Checkbox({ className, ...props }: CheckboxProps) {
+  return (
+    <CheckboxPrimitive.Root
+      data-slot="checkbox"
+      className={cn(
+        // The unchecked border is muted rather than `primary`, so a column of
+        // boxes stays quiet, but it keeps the 3:1 contrast a control needs.
+        "border-muted-foreground bg-background ring-offset-background focus-visible:ring-ring hover:border-foreground data-checked:border-primary data-checked:bg-primary data-checked:text-primary-foreground data-indeterminate:border-primary data-indeterminate:bg-primary data-indeterminate:text-primary-foreground data-disabled:cursor-not-allowed data-disabled:opacity-50 peer h-4 w-4 shrink-0 cursor-pointer rounded-[4px] border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2",
+        className,
       )}
-    </CheckboxPrimitive.Indicator>
-  </CheckboxPrimitive.Root>
-));
-Checkbox.displayName = CheckboxPrimitive.Root.displayName;
+      {...props}
+    >
+      <CheckboxPrimitive.Indicator
+        data-slot="checkbox-indicator"
+        className="flex items-center justify-center text-current"
+      >
+        {/* A partial selection draws a dash: a tick there reads as "all". */}
+        {props.indeterminate ? (
+          <Icons.Minus className="h-3 w-3" strokeWidth={3} />
+        ) : (
+          <Icons.Check className="h-3 w-3" strokeWidth={3} />
+        )}
+      </CheckboxPrimitive.Indicator>
+    </CheckboxPrimitive.Root>
+  );
+}
 
 export { Checkbox };

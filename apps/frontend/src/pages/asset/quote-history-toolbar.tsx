@@ -1,3 +1,4 @@
+import { cn } from "@/lib/utils";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
@@ -9,6 +10,7 @@ import {
   PopoverContent,
   PopoverTrigger,
   Switch,
+  buttonVariants,
 } from "@wealthfolio/ui";
 
 interface QuoteHistoryToolbarProps {
@@ -53,16 +55,17 @@ export function QuoteHistoryToolbar({
               {t("asset:quoteToolbar.add")}
             </Button>
 
-            <Button asChild variant="outline" size="sm">
-              <Link
-                to="/settings/market-data/import"
-                className="flex items-center gap-1.5"
-                aria-label={t("asset:quoteToolbar.import")}
-              >
-                <Icons.Import className="h-4 w-4" />
-                <span className="hidden sm:inline">{t("asset:quoteToolbar.import")}</span>
-              </Link>
-            </Button>
+            <Link
+              to="/settings/market-data/import"
+              aria-label={t("asset:quoteToolbar.import")}
+              className={cn(
+                buttonVariants({ variant: "outline", size: "sm" }),
+                "flex items-center gap-1.5",
+              )}
+            >
+              <Icons.Import className="h-4 w-4" />
+              <span className="hidden sm:inline">{t("asset:quoteToolbar.import")}</span>
+            </Link>
           </>
         )}
 

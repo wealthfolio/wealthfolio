@@ -5,7 +5,7 @@ import { AssistantRuntimeProvider, useThreadRuntime } from "@assistant-ui/react"
 import { cn } from "@/lib/utils";
 import { Button } from "@wealthfolio/ui/components/ui/button";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
-import { EmptyPlaceholder } from "@wealthfolio/ui";
+import { EmptyPlaceholder, buttonVariants } from "@wealthfolio/ui";
 import {
   Sheet,
   SheetContent,
@@ -161,12 +161,10 @@ function NoProvidersEmptyState({ className }: { className?: string }) {
         title={t("ai:empty.noProviderTitle")}
         description={t("ai:empty.noProviderDescription")}
       >
-        <Button asChild>
-          <Link to="/settings/ai-providers">
-            <Icons.Settings className="mr-2 h-4 w-4" />
-            {t("ai:empty.configureProviders")}
-          </Link>
-        </Button>
+        <Link to="/settings/ai-providers" className={buttonVariants()}>
+          <Icons.Settings className="mr-2 h-4 w-4" />
+          {t("ai:empty.configureProviders")}
+        </Link>
       </EmptyPlaceholder>
     </div>
   );

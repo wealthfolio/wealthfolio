@@ -26,7 +26,7 @@ describe("database encryption guidance", () => {
       render(<DatabaseEncryptionSettings />);
       expect(screen.getByText(settings.database_encryption_server_backup_warning)).toBeVisible();
       expect(screen.queryByText(settings.backup_portable_help)).not.toBeInTheDocument();
-      expect(screen.getByRole("switch")).toBeDisabled();
+      expect(screen.getByRole("switch")).toHaveAttribute("aria-disabled", "true");
     },
   );
 
@@ -36,7 +36,7 @@ describe("database encryption guidance", () => {
     render(<DatabaseEncryptionSettings />);
     expect(screen.getByText(settings.backup_portable_help)).toBeVisible();
     expect(screen.queryByText(settings.database_encryption_server_managed)).not.toBeInTheDocument();
-    expect(screen.getByRole("switch")).toBeEnabled();
+    expect(screen.getByRole("switch")).not.toHaveAttribute("aria-disabled", "true");
     expect(screen.getByRole("switch")).toBeChecked();
   });
 });

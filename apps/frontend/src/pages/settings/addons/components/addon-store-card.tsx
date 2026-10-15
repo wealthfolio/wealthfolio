@@ -16,6 +16,7 @@ import {
   DialogTrigger,
   Icons,
   StarRatingDisplay,
+  buttonVariants,
 } from "@wealthfolio/ui";
 import React from "react";
 import { useTranslation } from "react-i18next";
@@ -225,12 +226,13 @@ export function AddonStoreCard({
                   </Button>
 
                   {listing.changelogUrl && (
-                    <Button variant="outline" asChild>
-                      <ExternalLink href={addonDetailUrl}>
-                        <Icons.ExternalLink className="mr-2 h-4 w-4" />
-                        {t("settings:addon_card_addon_page")}
-                      </ExternalLink>
-                    </Button>
+                    <ExternalLink
+                      href={addonDetailUrl}
+                      className={buttonVariants({ variant: "outline" })}
+                    >
+                      <Icons.ExternalLink className="mr-2 h-4 w-4" />
+                      {t("settings:addon_card_addon_page")}
+                    </ExternalLink>
                   )}
                 </div>
               </div>
@@ -424,12 +426,13 @@ export function AddonStoreCard({
                 </Button>
 
                 {listing.changelogUrl && (
-                  <Button variant="outline" asChild>
-                    <ExternalLink href={addonDetailUrl}>
-                      <Icons.ExternalLink className="mr-2 h-4 w-4" />
-                      {t("settings:addon_card_addon_page")}
-                    </ExternalLink>
-                  </Button>
+                  <ExternalLink
+                    href={addonDetailUrl}
+                    className={buttonVariants({ variant: "outline" })}
+                  >
+                    <Icons.ExternalLink className="mr-2 h-4 w-4" />
+                    {t("settings:addon_card_addon_page")}
+                  </ExternalLink>
                 )}
               </div>
             </div>

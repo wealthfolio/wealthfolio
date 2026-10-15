@@ -86,6 +86,7 @@ import {
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
+  buttonVariants,
 } from "@wealthfolio/ui";
 import "@/globals.css";
 
@@ -198,18 +199,16 @@ function Fixture() {
             <Button variant="ghost">Ghost</Button>
             <Button variant="destructive">Delete</Button>
             <Button disabled>Unavailable</Button>
-            <Button asChild variant="link">
-              <a href="#buttons-and-badges">Link button</a>
-            </Button>
+            <a href="#buttons-and-badges" className={buttonVariants({ variant: "link" })}>
+              Link button
+            </a>
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <Badge>Default</Badge>
             <Badge variant="secondary">Secondary</Badge>
             <Badge variant="outline">Outline</Badge>
             <Badge variant="destructive">Destructive</Badge>
-            <Badge asChild>
-              <a href="#buttons-and-badges">Link badge</a>
-            </Badge>
+            <Badge render={<a href="#buttons-and-badges" />}>Link badge</Badge>
           </div>
         </Section>
 
@@ -242,7 +241,7 @@ function Fixture() {
               Locked option
             </Label>
             <Label className="flex items-center gap-2">
-              <Checkbox checked="indeterminate" />
+              <Checkbox indeterminate />
               Select all
             </Label>
             <Label className="flex items-center gap-2">
@@ -300,14 +299,14 @@ function Fixture() {
           </div>
           <Separator />
           <div className="flex flex-wrap items-center gap-6">
-            <ToggleGroup type="single" defaultValue="1m" aria-label="Range">
+            <ToggleGroup defaultValue={["1m"]} aria-label="Range">
               {["1w", "1m", "1y", "all"].map((value) => (
                 <ToggleGroupItem key={value} value={value} className="uppercase">
                   {value}
                 </ToggleGroupItem>
               ))}
             </ToggleGroup>
-            <ToggleGroup type="multiple" defaultValue={["stocks"]} aria-label="Asset types">
+            <ToggleGroup multiple defaultValue={["stocks"]} aria-label="Asset types">
               {["stocks", "bonds", "cash"].map((value) => (
                 <ToggleGroupItem key={value} value={value} className="capitalize">
                   {value}

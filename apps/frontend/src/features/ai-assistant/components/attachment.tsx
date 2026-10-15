@@ -114,7 +114,7 @@ const AttachmentThumb: FC = () => {
         alt={t("ai:attachment.attachmentPreview")}
         className="aui-attachment-tile-image object-cover"
       />
-      <AvatarFallback delayMs={isImage ? 200 : 0}>
+      <AvatarFallback delay={isImage ? 200 : 0}>
         <Icons.FileText className="aui-attachment-tile-fallback-icon text-muted-foreground size-8" />
       </AvatarFallback>
     </Avatar>

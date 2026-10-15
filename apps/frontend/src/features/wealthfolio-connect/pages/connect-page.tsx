@@ -31,7 +31,7 @@ import { InfoIcon } from "@phosphor-icons/react/dist/csr/Info";
 import { WarningIcon } from "@phosphor-icons/react/dist/csr/Warning";
 import { XCircleIcon } from "@phosphor-icons/react/dist/csr/XCircle";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useLocalizationSettings } from "@wealthfolio/ui";
+import { useLocalizationSettings, buttonVariants } from "@wealthfolio/ui";
 import { Button } from "@wealthfolio/ui/components/ui/button";
 import { Card } from "@wealthfolio/ui/components/ui/card";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
@@ -278,11 +278,16 @@ export default function ConnectPage() {
             <TooltipProvider delayDuration={300}>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button variant="outline" size="icon" className="size-11 sm:size-9" asChild>
-                    <Link to="/settings/connect" aria-label={t("common:settings")}>
-                      <Icons.Settings className="size-4" />
-                    </Link>
-                  </Button>
+                  <Link
+                    to="/settings/connect"
+                    aria-label={t("common:settings")}
+                    className={cn(
+                      buttonVariants({ variant: "outline", size: "icon" }),
+                      "size-11 sm:size-9",
+                    )}
+                  >
+                    <Icons.Settings className="size-4" />
+                  </Link>
                 </TooltipTrigger>
                 <TooltipContent>{t("common:settings")}</TooltipContent>
               </Tooltip>
@@ -578,11 +583,12 @@ function AttentionRow({
       ];
       action =
         item.reviewCount > 0 ? (
-          <Button size="sm" variant="outline" className={buttonClass} asChild>
-            <Link to={`/activities?account=${item.accountId}&needsReview=true`}>
-              {t("connect:syncHistory.review")}
-            </Link>
-          </Button>
+          <Link
+            to={`/activities?account=${item.accountId}&needsReview=true`}
+            className={cn(buttonVariants({ variant: "outline", size: "sm" }), buttonClass)}
+          >
+            {t("connect:syncHistory.review")}
+          </Link>
         ) : (
           retry
         );

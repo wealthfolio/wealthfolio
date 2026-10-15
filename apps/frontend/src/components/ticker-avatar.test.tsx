@@ -10,8 +10,9 @@ import { TickerAvatar } from "./ticker-avatar";
 vi.mock("@/adapters", () => ({ getAssetLogo: vi.fn().mockResolvedValue(null) }));
 
 /**
- * Radix Avatar probes `src` with one shared `new Image()` and listens for
- * load/error; jsdom never fires those, so drive them from the URL here.
+ * The avatar primitive probes `src` with `new Image()` and waits for load or
+ * error, through `onload`/`onerror` or listeners; jsdom never fires either, so
+ * drive both from the URL here.
  */
 const failingSources = new Set<string>();
 
@@ -20,6 +21,8 @@ class FakeImage {
   private currentSrc = "";
   complete = false;
   naturalWidth = 0;
+  onload: (() => void) | null = null;
+  onerror: (() => void) | null = null;
 
   get src() {
     return this.currentSrc;
@@ -43,7 +46,8 @@ class FakeImage {
     this.listeners.get(type)?.delete(listener);
   }
 
-  private emit(type: string) {
+  private emit(type: "load" | "error") {
+    (type === "load" ? this.onload : this.onerror)?.();
     for (const listener of this.listeners.get(type) ?? []) listener();
   }
 }

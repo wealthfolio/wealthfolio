@@ -1,7 +1,8 @@
+import { cn } from "@/lib/utils";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate } from "react-router-dom";
 
-import { Button, Icons } from "@wealthfolio/ui";
+import { Button, Icons, buttonVariants } from "@wealthfolio/ui";
 
 import { useSpendingSettings } from "@/features/spending/hooks/use-spending-settings";
 
@@ -69,9 +70,15 @@ export default function SpendingSettingsPage() {
                 <Icons.Upload className="text-muted-foreground h-3.5 w-3.5" aria-hidden />
                 <span className="text-foreground/90">{t("settings:spending.import_prompt")}</span>
               </div>
-              <Button asChild variant="outline" size="sm" className="h-7 shrink-0 text-xs">
-                <Link to="/import">{t("settings:spending.import_csv")}</Link>
-              </Button>
+              <Link
+                to="/import"
+                className={cn(
+                  buttonVariants({ variant: "outline", size: "sm" }),
+                  "h-7 shrink-0 text-xs",
+                )}
+              >
+                {t("settings:spending.import_csv")}
+              </Link>
             </div>
           </Section>
 

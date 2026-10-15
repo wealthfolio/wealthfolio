@@ -46,9 +46,9 @@ export function CustomProviderUsageChips({
               variant="secondary"
               className="h-5 px-1.5 font-mono text-[11px] font-normal"
               title={asset.name ?? text}
-              asChild={linkable}
+              render={linkable ? <Link to={assetHref(asset)} /> : undefined}
             >
-              {linkable ? <Link to={assetHref(asset)}>{text}</Link> : text}
+              {text}
             </Badge>
           );
         })}

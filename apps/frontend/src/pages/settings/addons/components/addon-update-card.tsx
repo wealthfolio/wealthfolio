@@ -3,7 +3,7 @@ import { clearAddonStaging, downloadAddonForReview, installFromStaging } from "@
 import { reloadAllAddons } from "@/addons/addons-core";
 import { ExternalLink } from "@/components/external-link";
 import type { AddonUpdateInfo, Permission, RiskLevel } from "@wealthfolio/addon-sdk";
-import { useDateFormatting } from "@wealthfolio/ui";
+import { useDateFormatting, buttonVariants } from "@wealthfolio/ui";
 import { Badge } from "@wealthfolio/ui/components/ui/badge";
 import { Button } from "@wealthfolio/ui/components/ui/button";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
@@ -217,14 +217,15 @@ export function AddonUpdateCard({
 
           <div className="ml-4 flex items-center gap-2">
             {(updateInfo.releaseNotes || updateInfo.changelogUrl) && (
-              <Button variant="ghost" size="sm" asChild>
-                <ExternalLink href={addonDetailUrl}>
-                  <span className="inline-flex items-center">
-                    <Icons.FileText className="mr-1 h-3 w-3" />
-                    {t("settings:addon_update_release_notes")}
-                  </span>
-                </ExternalLink>
-              </Button>
+              <ExternalLink
+                href={addonDetailUrl}
+                className={buttonVariants({ variant: "ghost", size: "sm" })}
+              >
+                <span className="inline-flex items-center">
+                  <Icons.FileText className="mr-1 h-3 w-3" />
+                  {t("settings:addon_update_release_notes")}
+                </span>
+              </ExternalLink>
             )}
 
             <Button onClick={handleUpdate} disabled={isUpdating || disabled} size="sm">

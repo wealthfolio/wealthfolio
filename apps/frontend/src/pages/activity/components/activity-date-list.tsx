@@ -25,6 +25,7 @@ import {
   useDateFormatting,
   type FormattingApi,
   useNumberFormatting,
+  buttonVariants,
 } from "@wealthfolio/ui";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -360,16 +361,18 @@ function CashAuditSummary({
         ) : null}
         {isEndingNegative && accountId ? (
           <div className="flex flex-wrap gap-2">
-            <Button size="sm" variant="outline" asChild>
-              <Link to={buildActivityManagerUrl(accountId, ActivityType.DEPOSIT, redirectTo)}>
-                {t("activity:date_list.add_deposit")}
-              </Link>
-            </Button>
-            <Button size="sm" variant="outline" asChild>
-              <Link to={buildActivityManagerUrl(accountId, ActivityType.TRANSFER_IN, redirectTo)}>
-                {t("activity:date_list.add_transfer")}
-              </Link>
-            </Button>
+            <Link
+              to={buildActivityManagerUrl(accountId, ActivityType.DEPOSIT, redirectTo)}
+              className={buttonVariants({ variant: "outline", size: "sm" })}
+            >
+              {t("activity:date_list.add_deposit")}
+            </Link>
+            <Link
+              to={buildActivityManagerUrl(accountId, ActivityType.TRANSFER_IN, redirectTo)}
+              className={buttonVariants({ variant: "outline", size: "sm" })}
+            >
+              {t("activity:date_list.add_transfer")}
+            </Link>
           </div>
         ) : null}
       </div>

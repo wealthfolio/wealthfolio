@@ -178,9 +178,8 @@ function useImportReviewColumns({
         header: ({ table }) => (
           <Checkbox
             disabled={!table.getRowModel().rows.some((row) => row.getCanSelect())}
-            checked={
-              table.getIsAllRowsSelected() || (table.getIsSomeRowsSelected() && "indeterminate")
-            }
+            checked={table.getIsAllRowsSelected()}
+            indeterminate={table.getIsSomeRowsSelected()}
             onCheckedChange={(checked) => table.toggleAllRowsSelected(Boolean(checked))}
             aria-label={t("activity:import.columns.selectAllRows")}
           />

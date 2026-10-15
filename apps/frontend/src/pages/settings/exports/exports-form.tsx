@@ -86,7 +86,7 @@ export const ExportForm = () => {
               <RadioGroupItem value={format.name} id={format.name} className="peer sr-only" />
               <Label
                 htmlFor={format.name}
-                className="bg-card hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary relative flex cursor-pointer flex-col items-center justify-between rounded-md border p-4 shadow-sm peer-data-[state=checked]:border-2"
+                className="bg-card hover:bg-accent hover:text-accent-foreground peer-data-checked:border-primary [&:has([data-checked])]:border-primary peer-data-checked:border-2 relative flex cursor-pointer flex-col items-center justify-between rounded-md border p-4 shadow-sm"
               >
                 <format.icon className="mb-3 h-6 w-6" />
                 <div className="text-center">

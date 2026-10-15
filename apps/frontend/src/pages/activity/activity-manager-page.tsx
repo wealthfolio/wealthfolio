@@ -1,3 +1,4 @@
+import { cn } from "@/lib/utils";
 import { getAccounts } from "@/adapters";
 import { ExternalLink } from "@/components/external-link";
 import { useIsMobileViewport } from "@/hooks/use-platform";
@@ -22,6 +23,7 @@ import {
   Page,
   PageContent,
   PageHeader,
+  buttonVariants,
 } from "@wealthfolio/ui";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -181,15 +183,16 @@ const ActivityManagerPage = () => {
         }
         onBack={handleClose}
         actions={
-          <Button variant="ghost" size="sm" asChild>
-            <ExternalLink
-              href="https://wealthfolio.app/docs/concepts/activity-types"
-              className="flex items-center gap-1.5"
-            >
-              <Icons.HelpCircle className="h-4 w-4" />
-              {t("activity:learn_more")}
-            </ExternalLink>
-          </Button>
+          <ExternalLink
+            href="https://wealthfolio.app/docs/concepts/activity-types"
+            className={cn(
+              buttonVariants({ variant: "ghost", size: "sm" }),
+              "flex items-center gap-1.5",
+            )}
+          >
+            <Icons.HelpCircle className="h-4 w-4" />
+            {t("activity:learn_more")}
+          </ExternalLink>
         }
       />
       <PageContent>

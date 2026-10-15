@@ -41,7 +41,8 @@ export function SelectionToolbar({
       {selectionMode ? (
         <>
           <SelectionCheckbox
-            checked={allVisibleSelected ? true : someVisibleSelected ? "indeterminate" : false}
+            checked={allVisibleSelected}
+            indeterminate={!allVisibleSelected && someVisibleSelected}
             onCheckedChange={onToggleSelectAllVisible}
             aria-label={
               allVisibleSelected

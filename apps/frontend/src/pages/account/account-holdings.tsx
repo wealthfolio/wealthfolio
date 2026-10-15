@@ -15,6 +15,7 @@ import {
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
+  buttonVariants,
 } from "@wealthfolio/ui";
 import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -105,9 +106,9 @@ const AccountHoldings = ({
   const canShowConnectAccountLink = useShowConnectAccountLink();
   const connectAccountLink =
     canShowConnectAccountLink && !!selectedAccount && !selectedAccount.providerAccountId ? (
-      <Button variant="link" asChild>
-        <Link to={connectPagePath("account_empty")}>{t("settings:accounts_connect_account")}</Link>
-      </Button>
+      <Link to={connectPagePath("account_empty")} className={buttonVariants({ variant: "link" })}>
+        {t("settings:accounts_connect_account")}
+      </Link>
     ) : null;
 
   const filteredHoldings = filterHoldingsByVisibility(holdings ?? [], effectiveVisibilityFilters);

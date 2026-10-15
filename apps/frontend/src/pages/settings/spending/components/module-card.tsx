@@ -145,9 +145,9 @@ export function ModuleCard() {
               onCheckedChange={handleToggle}
               disabled={isLoading || mutation.isPending}
               className={cn(
-                "data-[state=checked]:bg-warning data-[state=unchecked]:bg-background/15",
-                "[&_[data-slot=switch-thumb]]:data-[state=checked]:bg-foreground",
-                "[&_[data-slot=switch-thumb]]:data-[state=unchecked]:bg-background/40",
+                "data-checked:bg-warning data-unchecked:bg-background/15",
+                "[&_[data-slot=switch-thumb]]:data-checked:bg-foreground",
+                "[&_[data-slot=switch-thumb]]:data-unchecked:bg-background/40",
               )}
             />
           </label>

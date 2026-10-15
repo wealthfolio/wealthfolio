@@ -22,6 +22,7 @@ import {
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
+  buttonVariants,
 } from "@wealthfolio/ui";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -733,12 +734,17 @@ const AccountPage = () => {
           )}
 
           {activeAccountDetailTab === "activities" && (
-            <Button variant="ghost" size="sm" className="shrink-0" asChild>
-              <Link to={`/activities?account=${id}`} className="inline-flex items-center gap-1.5">
-                {t("account:explore")}
-                <Icons.ArrowRight className="h-3.5 w-3.5" />
-              </Link>
-            </Button>
+            <Link
+              to={`/activities?account=${id}`}
+              className={cn(
+                buttonVariants({ variant: "ghost", size: "sm" }),
+                "inline-flex items-center gap-1.5",
+                "shrink-0",
+              )}
+            >
+              {t("account:explore")}
+              <Icons.ArrowRight className="h-3.5 w-3.5" />
+            </Link>
           )}
         </div>
       )}

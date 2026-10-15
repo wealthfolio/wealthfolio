@@ -547,7 +547,7 @@ export function CashActivityForm({
                                         className={cn(
                                           "flex cursor-pointer items-start gap-3 rounded-lg border p-4 transition-all",
                                           "hover:bg-muted/50",
-                                          "peer-data-[state=checked]:border-primary peer-data-[state=checked]:bg-primary/5",
+                                          "peer-data-checked:border-primary peer-data-checked:bg-primary/5",
                                           "active:scale-[0.98]",
                                         )}
                                       >

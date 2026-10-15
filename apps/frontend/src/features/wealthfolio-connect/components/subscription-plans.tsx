@@ -328,22 +328,21 @@ export function SubscriptionPlans({
             </CardDescription>
           </div>
           <ToggleGroup
-            type="single"
-            value={billingPeriod}
-            onValueChange={(value) => value && setBillingPeriod(value as BillingPeriod)}
+            value={[billingPeriod]}
+            onValueChange={([value]) => value && setBillingPeriod(value as BillingPeriod)}
             className="bg-muted h-8 rounded-md p-0.5"
           >
             <ToggleGroupItem
               value="monthly"
               aria-label={t("connect:subscription.monthlyBilling")}
-              className="data-[state=on]:bg-background h-7 rounded px-3 text-xs data-[state=on]:shadow-sm"
+              className="aria-pressed:bg-background h-7 rounded px-3 text-xs aria-pressed:shadow-sm"
             >
               {t("connect:subscription.monthly")}
             </ToggleGroupItem>
             <ToggleGroupItem
               value="yearly"
               aria-label={t("connect:subscription.yearlyBilling")}
-              className="data-[state=on]:bg-background h-7 rounded px-3 text-xs data-[state=on]:shadow-sm"
+              className="aria-pressed:bg-background h-7 rounded px-3 text-xs aria-pressed:shadow-sm"
             >
               {t("connect:subscription.yearly")}
             </ToggleGroupItem>

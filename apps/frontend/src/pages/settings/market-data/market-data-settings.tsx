@@ -297,7 +297,7 @@ function ProviderSettings({
               id={`${provider.id}-enabled`}
               checked={provider.enabled}
               onCheckedChange={(checked) => onUpdate({ enabled: checked })}
-              className="data-[state=checked]:bg-success"
+              className="data-checked:bg-success"
             />
           </div>
         </div>
@@ -618,7 +618,7 @@ function CustomProviderCard({
             checked={provider.enabled}
             onCheckedChange={onToggleEnabled}
             disabled={isToggling}
-            className="data-[state=checked]:bg-success"
+            className="data-checked:bg-success"
           />
           <Button
             variant="ghost"

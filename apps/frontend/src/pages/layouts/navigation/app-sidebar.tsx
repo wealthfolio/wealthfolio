@@ -8,6 +8,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  buttonVariants,
 } from "@wealthfolio/ui";
 import { Button } from "@wealthfolio/ui/components/ui/button";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
@@ -263,36 +264,33 @@ function NavItem({ item, collapsed, className, ...props }: NavItemProps) {
   const isActive = isPathActive(location.pathname, item.href);
 
   return (
-    <Button
+    <Link
       key={item.title}
-      variant={isActive ? "secondary" : "ghost"}
-      asChild
+      to={item.href}
+      title={item.title}
+      aria-current={isActive ? "page" : undefined}
+      {...props}
       className={cn(
-        "text-foreground [&_svg]:size-5! mb-1 h-12 rounded-md transition-all duration-300",
-        collapsed ? "justify-center" : "justify-start",
-        className,
+        buttonVariants({ variant: isActive ? "secondary" : "ghost" }),
+        cn(
+          "text-foreground [&_svg]:size-5! mb-1 h-12 rounded-md transition-all duration-300",
+          collapsed ? "justify-center" : "justify-start",
+          className,
+        ),
       )}
     >
-      <Link
-        key={item.title}
-        to={item.href}
-        title={item.title}
-        aria-current={isActive ? "page" : undefined}
-        {...props}
-      >
-        <span aria-hidden="true">{resolveNavigationIcon(item.icon, "h-5 w-5")}</span>
+      <span aria-hidden="true">{resolveNavigationIcon(item.icon, "h-5 w-5")}</span>
 
-        <span
-          className={cn({
-            "ml-2 transition-opacity delay-100 duration-300 ease-in-out": true,
-            "sr-only opacity-0": collapsed,
-            "block opacity-100": !collapsed,
-          })}
-        >
-          {item.title}
-        </span>
-      </Link>
-    </Button>
+      <span
+        className={cn({
+          "ml-2 transition-opacity delay-100 duration-300 ease-in-out": true,
+          "sr-only opacity-0": collapsed,
+          "block opacity-100": !collapsed,
+        })}
+      >
+        {item.title}
+      </span>
+    </Link>
   );
 }
 

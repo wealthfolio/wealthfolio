@@ -18,7 +18,7 @@ export function ThemeSelector({ value, onChange, className }: ThemeSelectorProps
       className={cn("grid grid-cols-3 gap-2 md:gap-4", className)}
     >
       <FormItem>
-        <FormLabel className="[&:has([data-state=checked])>div]:border-primary cursor-pointer">
+        <FormLabel className="[&:has([data-checked])>div]:border-primary cursor-pointer">
           <FormControl>
             <RadioGroupItem value="light" className="sr-only" />
           </FormControl>
@@ -48,7 +48,7 @@ export function ThemeSelector({ value, onChange, className }: ThemeSelectorProps
         </FormLabel>
       </FormItem>
       <FormItem>
-        <FormLabel className="[&:has([data-state=checked])>div]:border-primary cursor-pointer">
+        <FormLabel className="[&:has([data-checked])>div]:border-primary cursor-pointer">
           <FormControl>
             <RadioGroupItem value="dark" className="sr-only" />
           </FormControl>
@@ -78,7 +78,7 @@ export function ThemeSelector({ value, onChange, className }: ThemeSelectorProps
         </FormLabel>
       </FormItem>
       <FormItem>
-        <FormLabel className="[&:has([data-state=checked])>div]:border-primary cursor-pointer">
+        <FormLabel className="[&:has([data-checked])>div]:border-primary cursor-pointer">
           <FormControl>
             <RadioGroupItem value="system" className="sr-only" />
           </FormControl>

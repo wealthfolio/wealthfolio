@@ -139,7 +139,7 @@ export function AccountsCard() {
                         ? t("settings:spending.accounts.stop_tracking_aria", { name: account.name })
                         : t("settings:spending.accounts.track_aria", { name: account.name })
                     }
-                    className="data-[state=checked]:bg-success data-[state=unchecked]:bg-muted-foreground/40"
+                    className="data-checked:bg-success data-unchecked:bg-muted-foreground/40"
                   />
                 </div>
               );

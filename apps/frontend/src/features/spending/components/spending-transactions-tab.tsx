@@ -1262,9 +1262,8 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
                       rest, it is what shows the list can be selected. */}
                   <TableHead className="w-10 px-3">
                     <Checkbox
-                      checked={
-                        allVisibleSelected ? true : someVisibleSelected ? "indeterminate" : false
-                      }
+                      checked={allVisibleSelected}
+                      indeterminate={!allVisibleSelected && someVisibleSelected}
                       onCheckedChange={toggleSelectAllVisible}
                       aria-label={
                         allVisibleSelected

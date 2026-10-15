@@ -1,3 +1,4 @@
+import { cn } from "@/lib/utils";
 import { Quote } from "@/lib/types";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -38,6 +39,7 @@ import {
   useAmountFormatting,
   useDateFormatting,
   useNumberFormatting,
+  buttonVariants,
 } from "@wealthfolio/ui";
 
 declare module "@tanstack/react-table" {
@@ -437,12 +439,16 @@ export const QuoteHistoryTable: React.FC<QuoteHistoryTableProps> = ({
                   <Icons.PlusCircle className="mr-2 h-4 w-4" />
                   {t("asset:quoteTable.add_quote")}
                 </Button>
-                <Button asChild variant="outline" size="sm">
-                  <Link to="/settings/market-data/import" className="flex items-center gap-2">
-                    <Icons.Import className="h-4 w-4" />
-                    {t("asset:quoteTable.import_quotes")}
-                  </Link>
-                </Button>
+                <Link
+                  to="/settings/market-data/import"
+                  className={cn(
+                    buttonVariants({ variant: "outline", size: "sm" }),
+                    "flex items-center gap-2",
+                  )}
+                >
+                  <Icons.Import className="h-4 w-4" />
+                  {t("asset:quoteTable.import_quotes")}
+                </Link>
               </div>
             )}
           </div>

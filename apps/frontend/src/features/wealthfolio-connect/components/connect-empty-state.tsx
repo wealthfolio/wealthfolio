@@ -1,7 +1,8 @@
+import { cn } from "@/lib/utils";
+import { buttonVariants } from "@wealthfolio/ui";
 import { ExternalLink } from "@/components/external-link";
 import { useConnectUrl } from "@/features/wealthfolio-connect/hooks/use-connect-url";
 import { parseConnectPagePlacement } from "@/features/wealthfolio-connect/lib/connect-url";
-import { Button } from "@wealthfolio/ui/components/ui/button";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { Link, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -40,18 +41,23 @@ export function ConnectEmptyState() {
         {/* CTA */}
         <footer className="flex flex-col items-center gap-4">
           <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center sm:justify-center">
-            <Button asChild className="from-primary to-primary/90 bg-linear-to-r w-full sm:w-auto">
-              <ExternalLink href={connectLink}>
-                {t("connect:emptyState.getStarted")}
-                <Icons.ExternalLink className="ml-1.5 h-4 w-4" />
-              </ExternalLink>
-            </Button>
-            <Button variant="outline" asChild className="w-full sm:w-auto">
-              <Link to="/settings/connect">
-                <Icons.User className="mr-1.5 h-4 w-4" />
-                {t("connect:emptyState.loginToAccount")}
-              </Link>
-            </Button>
+            <ExternalLink
+              href={connectLink}
+              className={cn(
+                buttonVariants(),
+                "from-primary to-primary/90 bg-linear-to-r w-full sm:w-auto",
+              )}
+            >
+              {t("connect:emptyState.getStarted")}
+              <Icons.ExternalLink className="ml-1.5 h-4 w-4" />
+            </ExternalLink>
+            <Link
+              to="/settings/connect"
+              className={cn(buttonVariants({ variant: "outline" }), "w-full sm:w-auto")}
+            >
+              <Icons.User className="mr-1.5 h-4 w-4" />
+              {t("connect:emptyState.loginToAccount")}
+            </Link>
           </div>
           <ExternalLink
             href="https://wealthfolio.app/connect/"

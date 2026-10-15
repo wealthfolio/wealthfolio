@@ -108,13 +108,13 @@ export function BackupExportDialog({ filename, displayName, onClose }: BackupExp
               setError(null);
             }}
           >
-            <div className="has-[[data-state=checked]]:border-primary has-[[data-state=checked]]:bg-muted/50 flex items-center gap-2 rounded-lg border p-3">
+            <div className="has-[[data-checked]]:border-primary has-[[data-checked]]:bg-muted/50 flex items-center gap-2 rounded-lg border p-3">
               <RadioGroupItem value="protected" id={`${id}-protected`} />
               <Label className="flex-1 cursor-pointer leading-relaxed" htmlFor={`${id}-protected`}>
                 {t("settings:backup_export_protected")}
               </Label>
             </div>
-            <div className="has-[[data-state=checked]]:border-primary has-[[data-state=checked]]:bg-muted/50 flex items-center gap-2 rounded-lg border p-3">
+            <div className="has-[[data-checked]]:border-primary has-[[data-checked]]:bg-muted/50 flex items-center gap-2 rounded-lg border p-3">
               <RadioGroupItem value="plain" id={`${id}-plain`} />
               <Label className="flex-1 cursor-pointer leading-relaxed" htmlFor={`${id}-plain`}>
                 {t("settings:backup_export_plain")}

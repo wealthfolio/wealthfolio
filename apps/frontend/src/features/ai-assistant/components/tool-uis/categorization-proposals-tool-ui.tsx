@@ -298,13 +298,8 @@ function CategorizationProposalsContentImpl({
           <div className="flex flex-wrap items-center justify-between gap-2 px-6">
             <label className="flex cursor-pointer items-center gap-2 text-xs">
               <Checkbox
-                checked={
-                  selectedCount === 0
-                    ? false
-                    : selectedCount === rows.length
-                      ? true
-                      : "indeterminate"
-                }
+                checked={rows.length > 0 && selectedCount === rows.length}
+                indeterminate={selectedCount > 0 && selectedCount < rows.length}
                 onCheckedChange={(checked) =>
                   checked === true ? handleAcceptAll() : handleRejectAll()
                 }

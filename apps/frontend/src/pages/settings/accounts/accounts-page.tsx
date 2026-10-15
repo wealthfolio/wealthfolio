@@ -13,6 +13,7 @@ import {
   Skeleton,
   ToggleGroup,
   ToggleGroupItem,
+  buttonVariants,
 } from "@wealthfolio/ui";
 import { Input } from "@wealthfolio/ui/components/ui/input";
 import { useMemo, useState } from "react";
@@ -213,32 +214,31 @@ const SettingsAccountsPage = () => {
           </div>
 
           <ToggleGroup
-            type="single"
-            value={filter}
-            onValueChange={(value) => value && setFilter(value as FilterType)}
+            value={[filter]}
+            onValueChange={([value]) => value && setFilter(value as FilterType)}
             className="bg-muted h-9 rounded-md p-1"
           >
             <ToggleGroupItem
               value="all"
-              className="data-[state=on]:bg-background h-7 rounded px-3 text-xs"
+              className="aria-pressed:bg-background h-7 rounded px-3 text-xs"
             >
               {t("settings:accounts.filter_all")}
             </ToggleGroupItem>
             <ToggleGroupItem
               value="active"
-              className="data-[state=on]:bg-background h-7 rounded px-3 text-xs"
+              className="aria-pressed:bg-background h-7 rounded px-3 text-xs"
             >
               {t("settings:accounts.filter_active")}
             </ToggleGroupItem>
             <ToggleGroupItem
               value="hidden"
-              className="data-[state=on]:bg-background h-7 rounded px-3 text-xs"
+              className="aria-pressed:bg-background h-7 rounded px-3 text-xs"
             >
               {t("settings:accounts.filter_hidden")}
             </ToggleGroupItem>
             <ToggleGroupItem
               value="archived"
-              className="data-[state=on]:bg-background h-7 rounded px-3 text-xs"
+              className="aria-pressed:bg-background h-7 rounded px-3 text-xs"
             >
               {t("settings:accounts.filter_archived")}
             </ToggleGroupItem>
@@ -259,11 +259,12 @@ const SettingsAccountsPage = () => {
                 {t("settings:accounts_add_first")}
               </Button>
               {showConnectLink && (
-                <Button variant="link" asChild>
-                  <Link to={connectPagePath("settings_accounts")}>
-                    {t("settings:accounts_connect_account")}
-                  </Link>
-                </Button>
+                <Link
+                  to={connectPagePath("settings_accounts")}
+                  className={buttonVariants({ variant: "link" })}
+                >
+                  {t("settings:accounts_connect_account")}
+                </Link>
               )}
             </EmptyPlaceholder>
           ) : filteredAccounts.length === 0 ? (

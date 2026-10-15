@@ -1,3 +1,4 @@
+import { cloneElement } from "react";
 import { getHoldingsList } from "@/adapters";
 import { useAccounts } from "@/hooks/use-accounts";
 import { useRecalculatePortfolioMutation } from "@/hooks/use-calculate-portfolio";
@@ -214,18 +215,19 @@ vi.mock("@wealthfolio/ui", async () => {
     TooltipContent: Passthrough,
     TooltipProvider: Passthrough,
     TooltipTrigger: Passthrough,
+    buttonVariants: () => "",
   };
 });
 
 vi.mock("@wealthfolio/ui/components/ui/button", () => ({
   Button: ({
     children,
-    asChild,
+    render,
     ...props
   }: React.ButtonHTMLAttributes<HTMLButtonElement> & {
-    asChild?: boolean;
+    render?: React.ReactElement;
     children?: React.ReactNode;
-  }) => (asChild ? <>{children}</> : <button {...props}>{children}</button>),
+  }) => (render ? cloneElement(render, props, children) : <button {...props}>{children}</button>),
 }));
 
 vi.mock("@wealthfolio/ui/components/ui/command", () => ({

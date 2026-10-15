@@ -144,9 +144,8 @@ export function useActivityColumns({
         id: "select",
         header: ({ table }) => (
           <Checkbox
-            checked={
-              table.getIsAllRowsSelected() || (table.getIsSomeRowsSelected() && "indeterminate")
-            }
+            checked={table.getIsAllRowsSelected()}
+            indeterminate={table.getIsSomeRowsSelected()}
             onCheckedChange={(checked) => table.toggleAllRowsSelected(Boolean(checked))}
             aria-label={t("activity:datagrid.select_all_rows")}
           />

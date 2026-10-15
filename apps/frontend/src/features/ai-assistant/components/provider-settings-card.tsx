@@ -407,7 +407,7 @@ export function ProviderSettingsCard({
               id={`${provider.id}-enabled`}
               checked={provider.enabled}
               onCheckedChange={onToggleEnabled}
-              className="data-[state=checked]:bg-success"
+              className="data-checked:bg-success"
             />
           </div>
         </div>

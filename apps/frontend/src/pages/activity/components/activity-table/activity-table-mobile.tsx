@@ -27,6 +27,7 @@ import {
   Separator,
   useNumberFormatting,
   useDateFormatting,
+  buttonVariants,
 } from "@wealthfolio/ui";
 import { Card } from "@wealthfolio/ui/components/ui/card";
 import { Link } from "react-router-dom";
@@ -163,12 +164,13 @@ export const ActivityTableMobile = ({
               {t("activity:add_activity")}
             </Button>
             {showConnectAccountLink && (
-              <Button variant="outline" asChild>
-                <Link to={connectPagePath("activities_empty")}>
-                  <Icons.CloudSync2 className="mr-2 h-4 w-4" aria-hidden="true" />
-                  {t("activity:page.connect_account")}
-                </Link>
-              </Button>
+              <Link
+                to={connectPagePath("activities_empty")}
+                className={buttonVariants({ variant: "outline" })}
+              >
+                <Icons.CloudSync2 className="mr-2 h-4 w-4" aria-hidden="true" />
+                {t("activity:page.connect_account")}
+              </Link>
             )}
           </div>
         ) : null}

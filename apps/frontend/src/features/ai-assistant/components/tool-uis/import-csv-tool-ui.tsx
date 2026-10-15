@@ -15,6 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
   Skeleton,
+  buttonVariants,
 } from "@wealthfolio/ui";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 
@@ -156,12 +157,10 @@ function SuccessCard({ count }: { count: number }) {
         <p className="text-muted-foreground text-sm">
           {t("ai:importCsv.importedActivities", { count })}
         </p>
-        <Button variant="outline" size="sm" asChild>
-          <Link to="/activities">
-            <Icons.ExternalLink className="mr-2 h-4 w-4" />
-            {t("ai:importCsv.viewActivities")}
-          </Link>
-        </Button>
+        <Link to="/activities" className={buttonVariants({ variant: "outline", size: "sm" })}>
+          <Icons.ExternalLink className="mr-2 h-4 w-4" />
+          {t("ai:importCsv.viewActivities")}
+        </Link>
       </CardContent>
     </Card>
   );

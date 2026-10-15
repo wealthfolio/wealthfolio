@@ -527,7 +527,7 @@ export default function AddonSettingsPage() {
                               onCheckedChange={(checked) =>
                                 handleToggleAddon(addon.metadata.id, !checked)
                               }
-                              className="data-[state=checked]:bg-green-600"
+                              className="data-checked:bg-green-600"
                               disabled={togglingAddonId === addon.metadata.id}
                             />
                           </div>

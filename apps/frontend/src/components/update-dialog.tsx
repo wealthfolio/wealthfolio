@@ -239,9 +239,7 @@ export function UpdateDialog() {
                     </span>
                   </div>
                   <Progress
-                    value={
-                      progress.total ? (progress.downloaded / progress.total) * 100 : undefined
-                    }
+                    value={progress.total ? (progress.downloaded / progress.total) * 100 : null}
                     className="h-2"
                   />
                 </>

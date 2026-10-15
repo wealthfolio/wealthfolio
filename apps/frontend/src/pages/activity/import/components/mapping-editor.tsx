@@ -217,13 +217,13 @@ export function CsvMappingEditor(props: CsvMappingEditorProps) {
             </div>
             <TabsList className="bg-secondary flex space-x-1 rounded-full p-1">
               <TabsTrigger
-                className="data-[state=active]:bg-primary data-[state=active]:text-primary data-[state=active]:hover:bg-primary/90 h-8 rounded-full px-2 text-sm"
+                className="data-active:bg-primary data-active:text-primary data-active:hover:bg-primary/90 h-8 rounded-full px-2 text-sm"
                 value="preview"
               >
                 {t("activity:import.mapping.activityPreview")}
               </TabsTrigger>
               <TabsTrigger
-                className="data-[state=active]:bg-primary data-[state=active]:text-primary data-[state=active]:hover:bg-primary/90 h-8 rounded-full px-2 text-sm"
+                className="data-active:bg-primary data-active:text-primary data-active:hover:bg-primary/90 h-8 rounded-full px-2 text-sm"
                 value="raw"
               >
                 {t("activity:import.mapping.filePreview")}

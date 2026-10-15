@@ -18,6 +18,7 @@ import {
   SheetTitle,
   useDateFormatting,
   type FormattingApi,
+  buttonVariants,
 } from "@wealthfolio/ui";
 import { cn } from "@wealthfolio/ui/lib/utils";
 import type { TFunction } from "i18next";
@@ -645,12 +646,14 @@ export function IssueDetailSheet({
                         <div className="flex flex-wrap gap-2">
                           {actionEntries.map(({ key, action }) =>
                             action.kind === "navigate" ? (
-                              <Button key={key} variant="outline" size="sm" asChild>
-                                <Link to={buildDiagnosticRoute(action)}>
-                                  <Icons.ArrowRight className="mr-2 h-4 w-4" />
-                                  {action.label}
-                                </Link>
-                              </Button>
+                              <Link
+                                to={buildDiagnosticRoute(action)}
+                                key={key}
+                                className={buttonVariants({ variant: "outline", size: "sm" })}
+                              >
+                                <Icons.ArrowRight className="mr-2 h-4 w-4" />
+                                {action.label}
+                              </Link>
                             ) : (
                               <Button
                                 key={key}
@@ -771,12 +774,13 @@ export function IssueDetailSheet({
           )}
 
           {issue.navigateAction && !hasDiagnosticActions && (
-            <Button variant="outline" className="w-full" asChild>
-              <Link to={navigateActionRoute ?? issue.navigateAction.route}>
-                <Icons.ArrowRight className="mr-2 h-4 w-4" />
-                {issue.navigateAction.label}
-              </Link>
-            </Button>
+            <Link
+              to={navigateActionRoute ?? issue.navigateAction.route}
+              className={cn(buttonVariants({ variant: "outline" }), "w-full")}
+            >
+              <Icons.ArrowRight className="mr-2 h-4 w-4" />
+              {issue.navigateAction.label}
+            </Link>
           )}
 
           <ActionConfirm

@@ -83,7 +83,8 @@ function TransactionDayHeaderImpl({
     >
       <TableCell className="relative px-3 py-1.5">
         <Checkbox
-          checked={selectionState}
+          checked={selectionState === true}
+          indeterminate={selectionState === "indeterminate"}
           onCheckedChange={() => onToggleDay(group)}
           aria-label={
             selectionState === true

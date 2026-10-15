@@ -26,6 +26,7 @@ import {
   useAmountFormatting,
   useDateFormatting,
   type FormattingApi,
+  buttonVariants,
 } from "@wealthfolio/ui";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { parse as dateFnsParse } from "date-fns";
@@ -486,12 +487,13 @@ function SuccessState({ draft, createdActivityId, currency }: SuccessStateProps)
           )}
         </div>
         <div className="pt-2">
-          <Button variant="outline" size="sm" asChild>
-            <Link to={createdActivityId ? `/activities?id=${createdActivityId}` : "/activities"}>
-              <Icons.ArrowRight className="mr-2 h-4 w-4" />
-              {t("ai:recordActivity.viewInActivities")}
-            </Link>
-          </Button>
+          <Link
+            to={createdActivityId ? `/activities?id=${createdActivityId}` : "/activities"}
+            className={buttonVariants({ variant: "outline", size: "sm" })}
+          >
+            <Icons.ArrowRight className="mr-2 h-4 w-4" />
+            {t("ai:recordActivity.viewInActivities")}
+          </Link>
         </div>
       </CardContent>
     </Card>

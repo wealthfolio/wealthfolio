@@ -40,6 +40,24 @@ and this project adheres to
 
 ### Changed
 
+- **Breaking:** `@wealthfolio/ui` components move from Radix to
+  [Base UI](https://base-ui.com) and follow its API. Leaf controls so far:
+  - `asChild` is replaced by `render` on `Button`, `Badge` and `Item`:
+    `<Badge render={<a href="…" />}>Docs</Badge>`. A link that looks like a
+    button is the link itself with `buttonVariants()`, not a `Button`, which
+    gives what it renders button semantics. `Button` renders `type="button"`;
+    submit buttons need `type="submit"`.
+  - State attributes are Base UI's instead of Radix's `data-state`:
+    `data-checked`/`data-unchecked` (`Switch`, `Checkbox`, `RadioGroupItem`),
+    `data-active` (`TabsTrigger`), `aria-pressed` (`Toggle`, `ToggleGroupItem`)
+    and `data-disabled`.
+  - `Checkbox` takes `indeterminate` instead of `checked="indeterminate"`;
+    `ToggleGroup` takes `multiple` and array values instead of `type` and a
+    string; `AvatarFallback` takes `delay` instead of `delayMs`; `Tabs`,
+    `RadioGroup` and `ToggleGroup` change callbacks receive
+    `(value, eventDetails)`.
+  - Single-select `ToggleGroup` items are toggle buttons (`aria-pressed`)
+    instead of radios, and `Separator` is announced as a separator.
 - `ActivityUpdate.asset` now has explicit patch semantics: omit it to preserve
   the current asset, or pass an empty object to clear the asset association.
 - Host-provided `@wealthfolio/addon-sdk` and `@wealthfolio/ui` dependency ranges

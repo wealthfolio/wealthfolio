@@ -121,7 +121,7 @@ function SettingRow({
         checked={checked}
         disabled={disabled}
         onCheckedChange={onCheckedChange}
-        className="data-[state=checked]:bg-success data-[state=unchecked]:bg-muted-foreground/40"
+        className="data-checked:bg-success data-unchecked:bg-muted-foreground/40"
       />
     </div>
   );

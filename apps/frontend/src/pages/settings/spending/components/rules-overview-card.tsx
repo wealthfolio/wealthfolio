@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 
-import { Button, Icons } from "@wealthfolio/ui";
+import { Icons, buttonVariants } from "@wealthfolio/ui";
 
 import {
   useCategorizationRules,
@@ -77,12 +77,10 @@ export function RulesOverviewCard() {
               {t("settings:spending.rules_overview.empty_description")}
             </p>
           </div>
-          <Button asChild size="sm">
-            <Link to="/settings/spending/rules">
-              <Icons.Plus className="mr-1.5 h-3.5 w-3.5" />
-              {t("settings:spending.rules_overview.setup_cta")}
-            </Link>
-          </Button>
+          <Link to="/settings/spending/rules" className={buttonVariants({ size: "sm" })}>
+            <Icons.Plus className="mr-1.5 h-3.5 w-3.5" />
+            {t("settings:spending.rules_overview.setup_cta")}
+          </Link>
         </div>
       </div>
     );

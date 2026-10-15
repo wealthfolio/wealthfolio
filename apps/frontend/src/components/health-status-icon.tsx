@@ -1,8 +1,13 @@
 import { useHealthStatus } from "@/hooks/use-health";
 import { cn } from "@/lib/utils";
-import { Button } from "@wealthfolio/ui/components/ui/button";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@wealthfolio/ui";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+  buttonVariants,
+} from "@wealthfolio/ui";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import type { HealthSeverity } from "@/lib/types";
@@ -65,16 +70,16 @@ export function HealthStatusIndicator() {
     <TooltipProvider>
       <Tooltip delayDuration={300}>
         <TooltipTrigger asChild>
-          <Button
-            variant="secondary"
-            size="icon-xs"
-            className="bg-secondary/50 rounded-full"
-            asChild
+          <Link
+            to="/health"
+            title={t("common:component.data_status")}
+            className={cn(
+              buttonVariants({ variant: "secondary", size: "icon-xs" }),
+              "bg-secondary/50 rounded-full",
+            )}
           >
-            <Link to="/health" title={t("common:component.data_status")}>
-              <Icons.AlertTriangle className={cn("size-5", severityColor)} />
-            </Link>
-          </Button>
+            <Icons.AlertTriangle className={cn("size-5", severityColor)} />
+          </Link>
         </TooltipTrigger>
         <TooltipContent side="bottom">
           <div className="space-y-1">

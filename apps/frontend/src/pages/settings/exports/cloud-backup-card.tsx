@@ -1,9 +1,10 @@
+import { cn } from "@/lib/utils";
 import { Fragment, useEffect, useRef, useState } from "react";
 import { ShieldCheckIcon } from "@phosphor-icons/react/dist/csr/ShieldCheck";
 import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
-import { useDateFormatting, useLocalizationSettings } from "@wealthfolio/ui";
+import { useDateFormatting, useLocalizationSettings, buttonVariants } from "@wealthfolio/ui";
 import { Button } from "@wealthfolio/ui/components/ui/button";
 import { Badge } from "@wealthfolio/ui/components/ui/badge";
 import { Card, CardContent, CardHeader } from "@wealthfolio/ui/components/ui/card";
@@ -277,17 +278,17 @@ export function CloudBackupSummary() {
               />
             )}
           </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="text-muted-foreground hover:text-foreground pointer-coarse:h-11 shrink-0"
-            asChild
+          <Link
+            to="/settings/exports"
+            aria-label={t("settings:cloud_backup_manage")}
+            className={cn(
+              buttonVariants({ variant: "ghost", size: "sm" }),
+              "text-muted-foreground hover:text-foreground pointer-coarse:h-11 shrink-0",
+            )}
           >
-            <Link to="/settings/exports" aria-label={t("settings:cloud_backup_manage")}>
-              <span className="hidden sm:inline">{t("settings:cloud_backup_manage")}</span>
-              <Icons.ChevronRight className="size-4" aria-hidden />
-            </Link>
-          </Button>
+            <span className="hidden sm:inline">{t("settings:cloud_backup_manage")}</span>
+            <Icons.ChevronRight className="size-4" aria-hidden />
+          </Link>
         </div>
         {data && <RecoveryDeadline data={data} />}
       </CardContent>

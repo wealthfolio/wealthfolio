@@ -21,18 +21,19 @@ test("tabs move and activate with arrow keys, Home and End", async ({ page }) =>
 });
 
 test("single toggle group moves focus with arrows and selects with Space", async ({ page }) => {
+  // Items are toggle buttons (aria-pressed), like AnimatedToggleGroup's segments.
   await openGallery(page);
   const group = page.getByRole("group", { name: "Range" });
-  const month = group.getByRole("radio", { name: "1m" });
-  await expect(month).toBeChecked();
+  const month = group.getByRole("button", { name: "1m" });
+  await expect(month).toHaveAttribute("aria-pressed", "true");
   await month.focus();
   await navigate(page, "ArrowRight");
-  const year = group.getByRole("radio", { name: "1y" });
+  const year = group.getByRole("button", { name: "1y" });
   await expect(year).toBeFocused();
-  await expect(month).toBeChecked();
+  await expect(month).toHaveAttribute("aria-pressed", "true");
   await page.keyboard.press("Space");
-  await expect(year).toBeChecked();
-  await expect(month).not.toBeChecked();
+  await expect(year).toHaveAttribute("aria-pressed", "true");
+  await expect(month).toHaveAttribute("aria-pressed", "false");
 });
 
 test("multiple toggle group toggles each item independently", async ({ page }) => {

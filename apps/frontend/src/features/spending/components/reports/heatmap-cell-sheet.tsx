@@ -9,7 +9,6 @@ import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import type { Account, Activity } from "@/lib/types";
 import { cn, formatDateISO, resolveDisplayTimezone } from "@/lib/utils";
 import {
-  Button,
   Icons,
   PrivacyAmount,
   Sheet,
@@ -20,6 +19,7 @@ import {
   useLocalizationSettings,
   useNumberFormatting,
   type FormattingApi,
+  buttonVariants,
 } from "@wealthfolio/ui";
 
 import { createFormatter } from "@wealthfolio/ui/lib/formatting";
@@ -297,12 +297,14 @@ export function HeatmapCellSheet({
 
         {/* ── Footer ─────────────────────────────────────────────────── */}
         <div className="border-border/60 bg-background/70 border-t px-6 py-3 backdrop-blur">
-          <Button asChild size="sm" className="w-full">
-            <Link to={transactionsLink} onClick={() => onOpenChange(false)}>
-              {t("spending:categorySheet.openInTransactions")}
-              <Icons.ArrowRight className="ml-1.5 h-3.5 w-3.5" aria-hidden />
-            </Link>
-          </Button>
+          <Link
+            to={transactionsLink}
+            onClick={() => onOpenChange(false)}
+            className={cn(buttonVariants({ size: "sm" }), "w-full")}
+          >
+            {t("spending:categorySheet.openInTransactions")}
+            <Icons.ArrowRight className="ml-1.5 h-3.5 w-3.5" aria-hidden />
+          </Link>
         </div>
       </SheetContent>
     </Sheet>
