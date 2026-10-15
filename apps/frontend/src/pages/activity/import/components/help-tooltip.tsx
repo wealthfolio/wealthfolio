@@ -13,8 +13,8 @@ interface HelpTooltipProps {
 export function HelpTooltip({ content }: HelpTooltipProps) {
   return (
     <TooltipProvider>
-      <Tooltip delayDuration={300}>
-        <TooltipTrigger className="ml-2 cursor-help">
+      <Tooltip>
+        <TooltipTrigger delay={300} className="ml-2 cursor-help">
           <Icons.Info className="text-muted-foreground h-4 w-4" />
         </TooltipTrigger>
         <TooltipContent>

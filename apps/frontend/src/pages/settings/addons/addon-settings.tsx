@@ -485,32 +485,34 @@ export default function AddonSettingsPage() {
 
                             {addon.metadata.enabled && addonNavItem && (
                               <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Button
-                                    variant={isPinned ? "default" : "outline"}
-                                    size="sm"
-                                    onClick={() => setAddonPinned(addonNavItem, !isPinned)}
-                                    className={
-                                      isPinned
-                                        ? "h-9 w-9 p-0"
-                                        : "text-muted-foreground hover:bg-accent hover:text-foreground h-9 w-9 p-0"
-                                    }
-                                    aria-label={
-                                      isPinned
-                                        ? t("settings:addons_unpin_from_navigation", {
-                                            name: addon.metadata.name,
-                                          })
-                                        : t("settings:addons_pin_to_navigation", {
-                                            name: addon.metadata.name,
-                                          })
-                                    }
-                                  >
-                                    {isPinned ? (
-                                      <Icons.PinOff className="h-4 w-4" />
-                                    ) : (
-                                      <Icons.Pin className="h-4 w-4" />
-                                    )}
-                                  </Button>
+                                <TooltipTrigger
+                                  render={
+                                    <Button
+                                      variant={isPinned ? "default" : "outline"}
+                                      size="sm"
+                                      onClick={() => setAddonPinned(addonNavItem, !isPinned)}
+                                      className={
+                                        isPinned
+                                          ? "h-9 w-9 p-0"
+                                          : "text-muted-foreground hover:bg-accent hover:text-foreground h-9 w-9 p-0"
+                                      }
+                                      aria-label={
+                                        isPinned
+                                          ? t("settings:addons_unpin_from_navigation", {
+                                              name: addon.metadata.name,
+                                            })
+                                          : t("settings:addons_pin_to_navigation", {
+                                              name: addon.metadata.name,
+                                            })
+                                      }
+                                    />
+                                  }
+                                >
+                                  {isPinned ? (
+                                    <Icons.PinOff className="h-4 w-4" />
+                                  ) : (
+                                    <Icons.Pin className="h-4 w-4" />
+                                  )}
                                 </TooltipTrigger>
                                 <TooltipContent side="bottom">
                                   {isPinned

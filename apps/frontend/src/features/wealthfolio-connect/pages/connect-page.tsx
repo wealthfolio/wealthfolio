@@ -275,19 +275,21 @@ export default function ConnectPage() {
                 </>
               )}
             </Button>
-            <TooltipProvider delayDuration={300}>
+            <TooltipProvider delay={300}>
               <Tooltip>
-                <TooltipTrigger asChild>
-                  <Link
-                    to="/settings/connect"
-                    aria-label={t("common:settings")}
-                    className={cn(
-                      buttonVariants({ variant: "outline", size: "icon" }),
-                      "size-11 sm:size-9",
-                    )}
-                  >
-                    <Icons.Settings className="size-4" />
-                  </Link>
+                <TooltipTrigger
+                  render={
+                    <Link
+                      to="/settings/connect"
+                      aria-label={t("common:settings")}
+                      className={cn(
+                        buttonVariants({ variant: "outline", size: "icon" }),
+                        "size-11 sm:size-9",
+                      )}
+                    />
+                  }
+                >
+                  <Icons.Settings className="size-4" />
                 </TooltipTrigger>
                 <TooltipContent>{t("common:settings")}</TooltipContent>
               </Tooltip>

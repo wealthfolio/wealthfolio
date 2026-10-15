@@ -27,10 +27,10 @@ export function TruncatedText({ text, className, ...props }: TruncatedTextProps)
         setOpen(next && el !== null && el.scrollWidth > el.clientWidth);
       }}
     >
-      <TooltipTrigger asChild>
-        <span ref={ref} className={cn("block min-w-0 truncate", className)} {...props}>
-          {text}
-        </span>
+      <TooltipTrigger
+        render={<span ref={ref} className={cn("block min-w-0 truncate", className)} {...props} />}
+      >
+        {text}
       </TooltipTrigger>
       <TooltipContent
         side="bottom"

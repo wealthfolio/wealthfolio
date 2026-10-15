@@ -163,15 +163,17 @@ export function AccountSnapshotHistory({
         {canEditSnapshots && onAddSnapshot && (
           <TooltipProvider>
             <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={onAddSnapshot}
-                  aria-label={t("account:snapshot.add")}
-                >
-                  <Icons.Plus className="size-4" />
-                </Button>
+              <TooltipTrigger
+                render={
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={onAddSnapshot}
+                    aria-label={t("account:snapshot.add")}
+                  />
+                }
+              >
+                <Icons.Plus className="size-4" />
               </TooltipTrigger>
               <TooltipContent>
                 <p>{t("account:snapshot.add")}</p>

@@ -54,14 +54,16 @@ const DisplayModeToggle: React.FC<{
   const { t } = useTranslation();
   return (
     <Tooltip>
-      <TooltipTrigger asChild>
-        <Button variant="secondary" size="icon-sm" className="rounded-full" onClick={onToggle}>
-          {displayMode === "symbol" ? (
-            <Icons.Hash className="h-4 w-4" />
-          ) : (
-            <Icons.Type className="h-4 w-4" />
-          )}
-        </Button>
+      <TooltipTrigger
+        render={
+          <Button variant="secondary" size="icon-sm" className="rounded-full" onClick={onToggle} />
+        }
+      >
+        {displayMode === "symbol" ? (
+          <Icons.Hash className="h-4 w-4" />
+        ) : (
+          <Icons.Type className="h-4 w-4" />
+        )}
       </TooltipTrigger>
       <TooltipContent>
         <p>

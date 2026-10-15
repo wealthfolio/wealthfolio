@@ -97,25 +97,28 @@ export function AccountItem({
             )}
             <span>·</span>
             <TooltipProvider>
-              <Tooltip delayDuration={300}>
-                <TooltipTrigger asChild>
-                  {account.trackingMode === "HOLDINGS" ? (
-                    <span className="text-success flex cursor-help items-center gap-1">
-                      <Icons.Holdings className="h-3 w-3" />
-                      {t("settings:accounts.tracking_holdings")}
-                    </span>
-                  ) : account.trackingMode === "NOT_SET" ? (
-                    <span className="text-warning flex cursor-help items-center gap-1">
-                      <Icons.AlertTriangle className="h-3 w-3" />
-                      {t("settings:accounts.tracking_needs_setup")}
-                    </span>
-                  ) : (
-                    <span className="flex cursor-help items-center gap-1">
-                      <Icons.Receipt className="h-3 w-3" />
-                      {t("settings:accounts.tracking_transactions")}
-                    </span>
-                  )}
-                </TooltipTrigger>
+              <Tooltip>
+                <TooltipTrigger
+                  delay={300}
+                  render={
+                    account.trackingMode === "HOLDINGS" ? (
+                      <span className="text-success flex cursor-help items-center gap-1">
+                        <Icons.Holdings className="h-3 w-3" />
+                        {t("settings:accounts.tracking_holdings")}
+                      </span>
+                    ) : account.trackingMode === "NOT_SET" ? (
+                      <span className="text-warning flex cursor-help items-center gap-1">
+                        <Icons.AlertTriangle className="h-3 w-3" />
+                        {t("settings:accounts.tracking_needs_setup")}
+                      </span>
+                    ) : (
+                      <span className="flex cursor-help items-center gap-1">
+                        <Icons.Receipt className="h-3 w-3" />
+                        {t("settings:accounts.tracking_transactions")}
+                      </span>
+                    )
+                  }
+                />
                 <TooltipContent side="bottom">
                   <p className="text-xs">
                     {account.trackingMode === "HOLDINGS"

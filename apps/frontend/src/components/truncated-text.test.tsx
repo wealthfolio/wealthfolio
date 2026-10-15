@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import { TooltipProvider } from "@wealthfolio/ui";
 
 import { TRUNCATED_TEXT_TOOLTIP_MAX_CHARS, TruncatedText } from "./truncated-text";
+import { findTooltip, queryTooltip } from "@/test/tooltip";
 
 /** jsdom does no layout, so overflow is whatever the test says it is. */
 function setOverflow(el: HTMLElement, overflowing: boolean) {
@@ -14,7 +15,7 @@ function setOverflow(el: HTMLElement, overflowing: boolean) {
 
 function renderText(text: string) {
   render(
-    <TooltipProvider delayDuration={0}>
+    <TooltipProvider delay={0}>
       <TruncatedText text={text} data-testid="text" />
     </TooltipProvider>,
   );
@@ -29,7 +30,7 @@ describe("TruncatedText", () => {
 
     await user.hover(el);
 
-    expect(await screen.findByRole("tooltip")).toHaveTextContent("a long note");
+    expect(await findTooltip()).toHaveTextContent("a long note");
   });
 
   it("stays quiet when the text fits", async () => {
@@ -39,7 +40,7 @@ describe("TruncatedText", () => {
 
     await user.hover(el);
 
-    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+    expect(queryTooltip()).not.toBeInTheDocument();
   });
 
   it("caps the tooltip itself", async () => {
@@ -50,7 +51,7 @@ describe("TruncatedText", () => {
 
     await user.hover(el);
 
-    const tooltip = await screen.findByRole("tooltip");
+    const tooltip = await findTooltip();
     expect(tooltip.textContent).toHaveLength(TRUNCATED_TEXT_TOOLTIP_MAX_CHARS + 1);
     expect(tooltip.textContent?.endsWith("…")).toBe(true);
   });

@@ -214,7 +214,13 @@ vi.mock("@wealthfolio/ui", async () => {
     Tooltip: Passthrough,
     TooltipContent: Passthrough,
     TooltipProvider: Passthrough,
-    TooltipTrigger: Passthrough,
+    TooltipTrigger: ({
+      children,
+      render,
+    }: {
+      children?: React.ReactNode;
+      render?: React.ReactElement;
+    }) => (render ? cloneElement(render, undefined, children) : <>{children}</>),
     buttonVariants: () => "",
   };
 });

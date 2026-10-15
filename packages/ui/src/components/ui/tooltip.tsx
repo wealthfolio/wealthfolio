@@ -1,32 +1,56 @@
-import * as React from "react";
-import * as TooltipPrimitive from "@radix-ui/react-tooltip";
+import { Tooltip as TooltipPrimitive } from "@base-ui/react/tooltip";
 
 import { cn } from "../../lib/utils";
 
-const TooltipProvider = TooltipPrimitive.Provider;
+function TooltipProvider(props: TooltipPrimitive.Provider.Props) {
+  return <TooltipPrimitive.Provider data-slot="tooltip-provider" {...props} />;
+}
 
-const Tooltip = TooltipPrimitive.Root;
+function Tooltip(props: TooltipPrimitive.Root.Props) {
+  return <TooltipPrimitive.Root data-slot="tooltip" {...props} />;
+}
 
-const TooltipTrigger = TooltipPrimitive.Trigger;
+function TooltipTrigger(props: TooltipPrimitive.Trigger.Props) {
+  return <TooltipPrimitive.Trigger data-slot="tooltip-trigger" {...props} />;
+}
 
-const TooltipPortal = TooltipPrimitive.Portal;
+interface TooltipContentProps
+  extends
+    Omit<TooltipPrimitive.Popup.Props, "className">,
+    Pick<TooltipPrimitive.Positioner.Props, "align" | "alignOffset" | "side" | "sideOffset" | "collisionPadding"> {
+  className?: string;
+}
 
-const TooltipContent = React.forwardRef<
-  React.ElementRef<typeof TooltipPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Content>
->(({ className, sideOffset = 4, ...props }, ref) => (
-  <TooltipPortal>
-    <TooltipPrimitive.Content
-      ref={ref}
-      sideOffset={sideOffset}
-      className={cn(
-        "bg-popover text-popover-foreground animate-in fade-in-0 zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 origin-(--radix-tooltip-content-transform-origin) z-50 overflow-hidden rounded-md border px-3 py-1.5 text-sm shadow-md",
-        className,
-      )}
-      {...props}
-    />
-  </TooltipPortal>
-));
-TooltipContent.displayName = TooltipPrimitive.Content.displayName;
+function TooltipContent({
+  className,
+  side = "top",
+  sideOffset = 4,
+  align = "center",
+  alignOffset = 0,
+  collisionPadding,
+  ...props
+}: TooltipContentProps) {
+  return (
+    <TooltipPrimitive.Portal>
+      <TooltipPrimitive.Positioner
+        side={side}
+        sideOffset={sideOffset}
+        align={align}
+        alignOffset={alignOffset}
+        collisionPadding={collisionPadding}
+        className="isolate z-50"
+      >
+        <TooltipPrimitive.Popup
+          data-slot="tooltip-content"
+          className={cn(
+            "bg-popover text-popover-foreground animate-in fade-in-0 zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 origin-(--transform-origin) z-50 overflow-hidden rounded-md border px-3 py-1.5 text-sm shadow-md",
+            className,
+          )}
+          {...props}
+        />
+      </TooltipPrimitive.Positioner>
+    </TooltipPrimitive.Portal>
+  );
+}
 
-export { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider, TooltipPortal };
+export { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider };

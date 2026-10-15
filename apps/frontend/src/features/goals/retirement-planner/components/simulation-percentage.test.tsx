@@ -3,10 +3,11 @@ import { describe, expect, it } from "vitest";
 import { TooltipProvider } from "@wealthfolio/ui/components/ui/tooltip";
 import { SimulationPercentage } from "./simulation-percentage";
 import { simulationReferenceBand } from "../lib/simulation-reference";
+import { findTooltip, queryTooltip } from "@/test/tooltip";
 
 function renderPercentage(rate: number, plannerMode: "fire" | "traditional" = "fire") {
   return render(
-    <TooltipProvider delayDuration={0}>
+    <TooltipProvider delay={0}>
       <SimulationPercentage rate={rate} plannerMode={plannerMode} />
     </TooltipProvider>,
   );
@@ -34,18 +35,18 @@ describe("simulation reference bands", () => {
   it("opens on tap and explains FIRE criteria without a safety rating", async () => {
     renderPercentage(0.65);
     fireEvent.click(screen.getByRole("button", { name: "65%" }));
-    const tooltip = await screen.findByRole("tooltip");
+    const tooltip = await findTooltip();
     expect(tooltip).toHaveTextContent("essential spending");
     expect(tooltip).toHaveTextContent("also reach financial independence");
     expect(tooltip).toHaveTextContent("not real-world probabilities");
     fireEvent.keyDown(document, { key: "Escape" });
-    await waitFor(() => expect(screen.queryByRole("tooltip")).not.toBeInTheDocument());
+    await waitFor(() => expect(queryTooltip()).not.toBeInTheDocument());
   });
 
   it("opens on keyboard focus and omits FIRE criteria in Traditional mode", async () => {
     renderPercentage(0.8, "traditional");
     fireEvent.focus(screen.getByRole("button", { name: "80%" }));
-    const tooltip = await screen.findByRole("tooltip");
+    const tooltip = await findTooltip();
     expect(tooltip).toHaveTextContent("80%");
     expect(tooltip).not.toHaveTextContent("financial independence");
   });

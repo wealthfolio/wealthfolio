@@ -1079,18 +1079,20 @@ const AccountPage = () => {
                     <PrivacyToggle />
                     <TooltipProvider>
                       <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant={showSnapshotMarkers ? "default" : "secondary"}
-                            size="icon-xs"
-                            className={cn(
-                              "rounded-full",
-                              !showSnapshotMarkers && "bg-secondary/50",
-                            )}
-                            onClick={() => setShowSnapshotMarkers(!showSnapshotMarkers)}
-                          >
-                            <Icons.History className="size-5" />
-                          </Button>
+                        <TooltipTrigger
+                          render={
+                            <Button
+                              variant={showSnapshotMarkers ? "default" : "secondary"}
+                              size="icon-xs"
+                              className={cn(
+                                "rounded-full",
+                                !showSnapshotMarkers && "bg-secondary/50",
+                              )}
+                              onClick={() => setShowSnapshotMarkers(!showSnapshotMarkers)}
+                            />
+                          }
+                        >
+                          <Icons.History className="size-5" />
                         </TooltipTrigger>
                         <TooltipContent>
                           <p>

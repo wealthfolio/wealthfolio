@@ -85,14 +85,16 @@ function InfoLabel({ label, children }: { label: string; children: React.ReactNo
     <span className="inline-flex items-center gap-1">
       <span>{label}</span>
       <Tooltip>
-        <TooltipTrigger asChild>
-          <button
-            type="button"
-            className="text-muted-foreground/70 hover:text-foreground inline-flex rounded-full transition-colors"
-            aria-label={t("goals:sidebar.more_info_about", { label })}
-          >
-            <Icons.Info className="h-3 w-3" />
-          </button>
+        <TooltipTrigger
+          render={
+            <button
+              type="button"
+              className="text-muted-foreground/70 hover:text-foreground inline-flex rounded-full transition-colors"
+              aria-label={t("goals:sidebar.more_info_about", { label })}
+            />
+          }
+        >
+          <Icons.Info className="h-3 w-3" />
         </TooltipTrigger>
         <TooltipContent className="max-w-xs text-xs">{children}</TooltipContent>
       </Tooltip>
@@ -1709,14 +1711,16 @@ export function SidebarConfigurator({
                 <p className="text-muted-foreground mb-1.5 flex items-center gap-1 text-[10px] uppercase tracking-wider">
                   {t("goals:sidebar.taxes.account_buckets")}
                   <Tooltip>
-                    <TooltipTrigger asChild>
-                      <button
-                        type="button"
-                        className="text-muted-foreground/70 hover:text-foreground rounded-full transition-colors"
-                        aria-label={t("goals:sidebar.taxes.account_buckets_aria")}
-                      >
-                        <Icons.Info className="h-3 w-3" />
-                      </button>
+                    <TooltipTrigger
+                      render={
+                        <button
+                          type="button"
+                          className="text-muted-foreground/70 hover:text-foreground rounded-full transition-colors"
+                          aria-label={t("goals:sidebar.taxes.account_buckets_aria")}
+                        />
+                      }
+                    >
+                      <Icons.Info className="h-3 w-3" />
                     </TooltipTrigger>
                     <TooltipContent className="max-w-xs text-xs">
                       {t("goals:sidebar.taxes.account_buckets_tip")}

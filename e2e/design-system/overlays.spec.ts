@@ -167,13 +167,12 @@ test("tooltip shows on focus and hides on Escape", async ({ page }) => {
 });
 
 test("tooltip opened by focus survives the scroll that focus causes", async ({ page }) => {
-  // Known gap: Radix closes a tooltip on any scroll, so focusing a trigger below the
-  // fold opens its tooltip and the browser's scroll-into-view closes it again.
-  test.fail(true, "a focus-opened tooltip closes when focusing scrolls the page");
+  // Radix closed a tooltip on any scroll, so focusing a trigger below the fold
+  // opened its tooltip and the browser's scroll-into-view closed it again.
   await openGallery(page, { height: 600 });
   await page.getByRole("button", { name: "Fee info", exact: true }).focus();
   await page.waitForTimeout(500);
-  expect(await page.getByRole("tooltip").count()).toBe(1);
+  expect(await overlay("tooltip").content(page).count()).toBe(1);
 });
 
 test("combobox inside a dialog: Escape closes the inner layer first", async ({ page }) => {

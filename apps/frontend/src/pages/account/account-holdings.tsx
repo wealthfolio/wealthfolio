@@ -260,10 +260,10 @@ const AccountHoldings = ({
           {canEditHoldingsDirectly && onAddHoldings && (
             <TooltipProvider>
               <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button variant="ghost" size="icon" onClick={onAddHoldings}>
-                    <Icons.Pencil className="h-4 w-4" />
-                  </Button>
+                <TooltipTrigger
+                  render={<Button variant="ghost" size="icon" onClick={onAddHoldings} />}
+                >
+                  <Icons.Pencil className="h-4 w-4" />
                 </TooltipTrigger>
                 <TooltipContent>
                   <p>{t("account:actions_update_holdings")}</p>

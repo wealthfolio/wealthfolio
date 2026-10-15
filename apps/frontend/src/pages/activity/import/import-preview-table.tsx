@@ -267,13 +267,14 @@ const ErrorCell = ({
 
   return (
     <TooltipProvider>
-      <Tooltip delayDuration={30}>
-        <TooltipTrigger asChild>
-          <div className="bg-destructive/10 absolute inset-0 cursor-help">
-            <div className="relative flex h-full w-full items-center justify-between px-4 py-2">
-              <div className="mr-2 flex-1">{children}</div>
-              <Icons.AlertCircle className="text-destructive h-3.5 w-3.5 shrink-0" />
-            </div>
+      <Tooltip>
+        <TooltipTrigger
+          delay={30}
+          render={<div className="bg-destructive/10 absolute inset-0 cursor-help" />}
+        >
+          <div className="relative flex h-full w-full items-center justify-between px-4 py-2">
+            <div className="mr-2 flex-1">{children}</div>
+            <Icons.AlertCircle className="text-destructive h-3.5 w-3.5 shrink-0" />
           </div>
         </TooltipTrigger>
         <TooltipContent className="bg-destructive text-destructive-foreground dark:border-destructive max-w-[400px] space-y-2 border-none p-3 shadow-lg">
@@ -326,16 +327,17 @@ function getColumns(
           </div>
         ) : (
           <TooltipProvider>
-            <Tooltip delayDuration={30}>
-              <TooltipTrigger asChild>
-                <div className="flex w-[60px] cursor-help items-center gap-1 text-xs">
-                  <div className="bg-destructive/20 text-destructive flex h-5 w-5 items-center justify-center rounded-full">
-                    <Icons.XCircle className="h-3.5 w-3.5" />
-                  </div>
-                  <span className="text-muted-foreground text-xs">
-                    {String(lineNumber).padStart(2, "0")}
-                  </span>
+            <Tooltip>
+              <TooltipTrigger
+                delay={30}
+                render={<div className="flex w-[60px] cursor-help items-center gap-1 text-xs" />}
+              >
+                <div className="bg-destructive/20 text-destructive flex h-5 w-5 items-center justify-center rounded-full">
+                  <Icons.XCircle className="h-3.5 w-3.5" />
                 </div>
+                <span className="text-muted-foreground text-xs">
+                  {String(lineNumber).padStart(2, "0")}
+                </span>
               </TooltipTrigger>
               <TooltipContent
                 side="right"

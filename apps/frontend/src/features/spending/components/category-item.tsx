@@ -136,10 +136,12 @@ export function CategoryItem({
           {activityCount > 0 && (
             <TooltipProvider>
               <Tooltip>
-                <TooltipTrigger asChild>
-                  <span className="text-muted-foreground shrink-0 cursor-default text-xs">
-                    ({activityCount})
-                  </span>
+                <TooltipTrigger
+                  render={
+                    <span className="text-muted-foreground shrink-0 cursor-default text-xs" />
+                  }
+                >
+                  ({activityCount})
                 </TooltipTrigger>
                 <TooltipContent>
                   <p>{t("spending:category.transactionCount", { count: activityCount })}</p>
@@ -150,15 +152,17 @@ export function CategoryItem({
           {isExcluded && (
             <TooltipProvider>
               <Tooltip>
-                <TooltipTrigger asChild>
-                  <span className="text-muted-foreground flex shrink-0 items-center gap-1.5">
-                    <Icons.EyeOff className="h-3.5 w-3.5" />
-                    {parentExcluded && (
-                      <span className="hidden text-xs sm:inline">
-                        {t("spending:category.excludedWithParent", { name: parentName })}
-                      </span>
-                    )}
-                  </span>
+                <TooltipTrigger
+                  render={
+                    <span className="text-muted-foreground flex shrink-0 items-center gap-1.5" />
+                  }
+                >
+                  <Icons.EyeOff className="h-3.5 w-3.5" />
+                  {parentExcluded && (
+                    <span className="hidden text-xs sm:inline">
+                      {t("spending:category.excludedWithParent", { name: parentName })}
+                    </span>
+                  )}
                 </TooltipTrigger>
                 <TooltipContent>
                   <p>

@@ -278,12 +278,14 @@ export function AssetsTableMobile({
                             )}
                             {isStaleQuote(snapshot, asset) ? (
                               <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Icons.AlertTriangle
-                                    className="text-destructive h-3.5 w-3.5"
-                                    aria-label={t("asset:mobileTable.quote_behind_aria")}
-                                  />
-                                </TooltipTrigger>
+                                <TooltipTrigger
+                                  render={
+                                    <Icons.AlertTriangle
+                                      className="text-destructive h-3.5 w-3.5"
+                                      aria-label={t("asset:mobileTable.quote_behind_aria")}
+                                    />
+                                  }
+                                />
                                 <TooltipContent>
                                   {t("asset:mobileTable.quote_behind_tooltip")}
                                 </TooltipContent>
@@ -302,12 +304,14 @@ export function AssetsTableMobile({
                     return (
                       <div className="flex items-center justify-end gap-1">
                         <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Icons.AlertTriangle
-                              className="h-3.5 w-3.5 text-amber-500"
-                              aria-label={noQuoteReason}
-                            />
-                          </TooltipTrigger>
+                          <TooltipTrigger
+                            render={
+                              <Icons.AlertTriangle
+                                className="h-3.5 w-3.5 text-amber-500"
+                                aria-label={noQuoteReason}
+                              />
+                            }
+                          />
                           <TooltipContent>{noQuoteReason}</TooltipContent>
                         </Tooltip>
                         <span className="text-muted-foreground text-xs">

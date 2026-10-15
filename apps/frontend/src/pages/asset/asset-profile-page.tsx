@@ -1580,25 +1580,27 @@ export const AssetProfilePage = () => {
                   <span className="flex items-center">
                     <span>{displayedSymbol}</span>
                     <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className={cn(
-                            "ml-1 h-5 w-5 shrink-0 overflow-hidden rounded-sm p-0 transition-[width,margin,opacity]",
-                            "md:ml-0 md:w-0 md:opacity-0 md:focus-visible:ml-1 md:focus-visible:w-5 md:focus-visible:opacity-100 md:group-hover/asset-header:ml-1 md:group-hover/asset-header:w-5 md:group-hover/asset-header:opacity-100",
-                            symbolCopied && "opacity-100 md:ml-1 md:w-5 md:opacity-100",
-                          )}
-                          aria-label={`${t("ui:dataGrid.copy")} ${displayedSymbol}`}
-                          onClick={() => void handleCopySymbol()}
-                        >
-                          {symbolCopied ? (
-                            <Icons.Check className="text-success size-3.5" />
-                          ) : (
-                            <Icons.Copy className="size-3.5" />
-                          )}
-                        </Button>
+                      <TooltipTrigger
+                        render={
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className={cn(
+                              "ml-1 h-5 w-5 shrink-0 overflow-hidden rounded-sm p-0 transition-[width,margin,opacity]",
+                              "md:ml-0 md:w-0 md:opacity-0 md:focus-visible:ml-1 md:focus-visible:w-5 md:focus-visible:opacity-100 md:group-hover/asset-header:ml-1 md:group-hover/asset-header:w-5 md:group-hover/asset-header:opacity-100",
+                              symbolCopied && "opacity-100 md:ml-1 md:w-5 md:opacity-100",
+                            )}
+                            aria-label={`${t("ui:dataGrid.copy")} ${displayedSymbol}`}
+                            onClick={() => void handleCopySymbol()}
+                          />
+                        }
+                      >
+                        {symbolCopied ? (
+                          <Icons.Check className="text-success size-3.5" />
+                        ) : (
+                          <Icons.Copy className="size-3.5" />
+                        )}
                       </TooltipTrigger>
                       <TooltipContent side="bottom">{t("ui:dataGrid.copy")}</TooltipContent>
                     </Tooltip>

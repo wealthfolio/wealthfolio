@@ -103,10 +103,11 @@ export function DataGridColumnHeader<TData, TValue>({
         >
           <div className="flex min-w-0 flex-1 items-center gap-1.5">
             {columnVariant && (
-              <Tooltip delayDuration={100}>
-                <TooltipTrigger asChild>
-                  <columnVariant.icon className="text-muted-foreground size-3.5 shrink-0" />
-                </TooltipTrigger>
+              <Tooltip>
+                <TooltipTrigger
+                  delay={100}
+                  render={<columnVariant.icon className="text-muted-foreground size-3.5 shrink-0" />}
+                />
                 <TooltipContent side="top">
                   <p>{t(columnVariant.labelKey, columnVariant.label)}</p>
                 </TooltipContent>
@@ -114,10 +115,11 @@ export function DataGridColumnHeader<TData, TValue>({
             )}
             <span className="truncate">{label}</span>
             {helpText && (
-              <Tooltip delayDuration={100}>
-                <TooltipTrigger asChild>
-                  <Icons.Info className="text-muted-foreground/70 hover:text-foreground size-3.5 shrink-0" />
-                </TooltipTrigger>
+              <Tooltip>
+                <TooltipTrigger
+                  delay={100}
+                  render={<Icons.Info className="text-muted-foreground/70 hover:text-foreground size-3.5 shrink-0" />}
+                />
                 <TooltipContent side="top" className="max-w-xs text-xs">
                   {helpText}
                 </TooltipContent>

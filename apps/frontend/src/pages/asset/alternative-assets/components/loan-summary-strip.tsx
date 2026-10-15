@@ -172,16 +172,18 @@ function PaymentSplit({
   return (
     <>
       <Tooltip>
-        <TooltipTrigger asChild>
-          <div
-            role="img"
-            aria-label={hint}
-            tabIndex={0}
-            className="mt-3 flex h-2.5 cursor-help items-center gap-0.5 outline-none"
-          >
-            <span className="bg-success h-1 rounded-full" style={{ width: `${share * 100}%` }} />
-            <span className="bg-muted-foreground/30 h-1 flex-1 rounded-full" />
-          </div>
+        <TooltipTrigger
+          render={
+            <div
+              role="img"
+              aria-label={hint}
+              tabIndex={0}
+              className="mt-3 flex h-2.5 cursor-help items-center gap-0.5 outline-none"
+            />
+          }
+        >
+          <span className="bg-success h-1 rounded-full" style={{ width: `${share * 100}%` }} />
+          <span className="bg-muted-foreground/30 h-1 flex-1 rounded-full" />
         </TooltipTrigger>
         <TooltipContent className="max-w-64">{hint}</TooltipContent>
       </Tooltip>
@@ -241,32 +243,34 @@ function TermRuler({
     <>
       <p className={cn("mt-1 font-semibold tabular-nums", warn && "text-warning")}>{headline}</p>
       <Tooltip>
-        <TooltipTrigger asChild>
-          <div
-            role="img"
-            aria-label={summary}
-            tabIndex={0}
-            className="relative mt-3 h-2.5 cursor-help outline-none"
-          >
-            <span className="bg-muted absolute inset-x-0 top-1/2 h-1 -translate-y-1/2 rounded-full" />
-            <span
-              className="bg-muted-foreground/60 absolute left-0 top-1/2 h-1 -translate-y-1/2 rounded-full"
-              style={{ width: `${position * 100}%` }}
+        <TooltipTrigger
+          render={
+            <div
+              role="img"
+              aria-label={summary}
+              tabIndex={0}
+              className="relative mt-3 h-2.5 cursor-help outline-none"
             />
-            {yearTicks.map((tick) => (
-              <span
-                key={tick}
-                className="bg-card absolute top-1/2 h-1.5 w-0.5 -translate-x-1/2 -translate-y-1/2"
-                style={{ left: `${tick * 100}%` }}
-              />
-            ))}
-            {!ended && (
-              <span
-                className="bg-foreground absolute top-1/2 h-2.5 w-0.5 -translate-x-1/2 -translate-y-1/2 rounded-full"
-                style={{ left: `${position * 100}%` }}
-              />
-            )}
-          </div>
+          }
+        >
+          <span className="bg-muted absolute inset-x-0 top-1/2 h-1 -translate-y-1/2 rounded-full" />
+          <span
+            className="bg-muted-foreground/60 absolute left-0 top-1/2 h-1 -translate-y-1/2 rounded-full"
+            style={{ width: `${position * 100}%` }}
+          />
+          {yearTicks.map((tick) => (
+            <span
+              key={tick}
+              className="bg-card absolute top-1/2 h-1.5 w-0.5 -translate-x-1/2 -translate-y-1/2"
+              style={{ left: `${tick * 100}%` }}
+            />
+          ))}
+          {!ended && (
+            <span
+              className="bg-foreground absolute top-1/2 h-2.5 w-0.5 -translate-x-1/2 -translate-y-1/2 rounded-full"
+              style={{ left: `${position * 100}%` }}
+            />
+          )}
         </TooltipTrigger>
         <TooltipContent>{summary}</TooltipContent>
       </Tooltip>

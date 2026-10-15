@@ -1,5 +1,5 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import type { ButtonHTMLAttributes, ReactNode } from "react";
+import { cloneElement, type ButtonHTMLAttributes, type ReactElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { InsightsDashboard } from "./insights-dashboard";
 import {
@@ -67,7 +67,8 @@ vi.mock("@wealthfolio/ui", () => {
       open ? <div>{children}</div> : null,
     TooltipProvider: Container,
     Tooltip: Container,
-    TooltipTrigger: Container,
+    TooltipTrigger: ({ children, render }: { children: ReactNode; render?: ReactElement }) =>
+      render ? cloneElement(render, undefined, children) : <div>{children}</div>,
     TooltipContent: () => null,
     SheetContent: Container,
     SheetDescription: Container,

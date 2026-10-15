@@ -45,9 +45,9 @@ const ChartCenterLabel: React.FC<ChartCenterLabelProps> = ({ activeData, totalVa
     <TooltipProvider>
       <div className="pointer-events-auto absolute left-1/2 top-[108px] -translate-x-1/2 -translate-y-1/2 text-center">
         <p className="text-muted-foreground text-xs font-medium">{activeData.name}</p>
-        <Tooltip delayDuration={100}>
-          <TooltipTrigger asChild>
-            <p className="text-foreground cursor-default text-xs font-bold">{compactValue}</p>
+        <Tooltip>
+          <TooltipTrigger delay={100} render={<p className="text-foreground cursor-default text-xs font-bold" />}>
+            {compactValue}
           </TooltipTrigger>
           <TooltipContent side="bottom" className="text-center">
             <AmountDisplay value={activeData.value} currency={activeData.currency} isHidden={isBalanceHidden} />

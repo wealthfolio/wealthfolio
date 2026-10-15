@@ -157,20 +157,22 @@ export function LoanTermsStrip({
               style={{ left: `${todayPosition}%` }}
             >
               <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    type="button"
-                    className={cn(
-                      "text-success focus-visible:ring-ring absolute whitespace-nowrap rounded-sm text-xs font-medium focus-visible:outline-none focus-visible:ring-2",
-                      todayPosition < 20
-                        ? "left-0"
-                        : todayPosition > 80
-                          ? "right-0"
-                          : "-translate-x-1/2",
-                    )}
-                  >
-                    {t("asset:loanOverview.today")}
-                  </button>
+                <TooltipTrigger
+                  render={
+                    <button
+                      type="button"
+                      className={cn(
+                        "text-success focus-visible:ring-ring absolute whitespace-nowrap rounded-sm text-xs font-medium focus-visible:outline-none focus-visible:ring-2",
+                        todayPosition < 20
+                          ? "left-0"
+                          : todayPosition > 80
+                            ? "right-0"
+                            : "-translate-x-1/2",
+                      )}
+                    />
+                  }
+                >
+                  {t("asset:loanOverview.today")}
                 </TooltipTrigger>
                 <TooltipContent>
                   {dates.formatCalendarDate(today, {
@@ -249,14 +251,16 @@ export function LoanTermsStrip({
               <span className="text-muted-foreground flex items-center gap-1.5 text-sm font-medium">
                 {t("asset:loanEvents.after_renewal")}
                 <Tooltip>
-                  <TooltipTrigger asChild>
-                    <button
-                      type="button"
-                      className="focus-visible:ring-ring rounded-sm focus-visible:outline-none focus-visible:ring-2"
-                      aria-label={t("asset:loanOverview.forecast_hint")}
-                    >
-                      <Icons.Info className="size-3.5" />
-                    </button>
+                  <TooltipTrigger
+                    render={
+                      <button
+                        type="button"
+                        className="focus-visible:ring-ring rounded-sm focus-visible:outline-none focus-visible:ring-2"
+                        aria-label={t("asset:loanOverview.forecast_hint")}
+                      />
+                    }
+                  >
+                    <Icons.Info className="size-3.5" />
                   </TooltipTrigger>
                   <TooltipContent className="max-w-xs">
                     {t("asset:loanEvents.rate_unknown")}. {t("asset:loanOverview.forecast_hint")}

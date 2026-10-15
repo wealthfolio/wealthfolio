@@ -67,25 +67,27 @@ export function SyncButton({ className, showLabel = false, size = "icon" }: Sync
 
   return (
     <Tooltip>
-      <TooltipTrigger asChild>
-        <Button
-          variant="ghost"
-          size={size}
-          onClick={() => syncBrokerData()}
-          disabled={isRunning}
-          className={className}
-        >
-          {isRunning ? (
-            <Icons.Spinner className="h-4 w-4 animate-spin" />
-          ) : (
-            <Icons.RefreshCw className={`h-4 w-4 ${colorClass}`} />
-          )}
-          {showLabel && (
-            <span className="ml-2">
-              {isRunning ? t("connect:sync.syncingShort") : t("connect:sync.sync")}
-            </span>
-          )}
-        </Button>
+      <TooltipTrigger
+        render={
+          <Button
+            variant="ghost"
+            size={size}
+            onClick={() => syncBrokerData()}
+            disabled={isRunning}
+            className={className}
+          />
+        }
+      >
+        {isRunning ? (
+          <Icons.Spinner className="h-4 w-4 animate-spin" />
+        ) : (
+          <Icons.RefreshCw className={`h-4 w-4 ${colorClass}`} />
+        )}
+        {showLabel && (
+          <span className="ml-2">
+            {isRunning ? t("connect:sync.syncingShort") : t("connect:sync.sync")}
+          </span>
+        )}
       </TooltipTrigger>
       <TooltipContent>
         <p>{isRunning ? t("connect:sync.syncingShort") : tooltipContent}</p>

@@ -372,22 +372,25 @@ function AllocationContentImpl({ args, result, status }: AllocationContentProps)
               if (widthPercent < 0.5) return null;
 
               return (
-                <Tooltip key={category.categoryId} delayDuration={100}>
-                  <TooltipTrigger asChild>
-                    <div
-                      className="flex h-full cursor-default items-center justify-center transition-opacity hover:opacity-80"
-                      style={{
-                        width: `${widthPercent}%`,
-                        backgroundColor: category.color || `var(--chart-${(index % 5) + 1})`,
-                        minWidth: widthPercent >= 1 ? "4px" : undefined,
-                      }}
-                    >
-                      {widthPercent > 12 && (
-                        <span className="text-background truncate px-1 text-[10px] font-medium">
-                          {formatting.formatPercent(percent)}
-                        </span>
-                      )}
-                    </div>
+                <Tooltip key={category.categoryId}>
+                  <TooltipTrigger
+                    delay={100}
+                    render={
+                      <div
+                        className="flex h-full cursor-default items-center justify-center transition-opacity hover:opacity-80"
+                        style={{
+                          width: `${widthPercent}%`,
+                          backgroundColor: category.color || `var(--chart-${(index % 5) + 1})`,
+                          minWidth: widthPercent >= 1 ? "4px" : undefined,
+                        }}
+                      />
+                    }
+                  >
+                    {widthPercent > 12 && (
+                      <span className="text-background truncate px-1 text-[10px] font-medium">
+                        {formatting.formatPercent(percent)}
+                      </span>
+                    )}
                   </TooltipTrigger>
                   <TooltipContent side="top" align="center">
                     <div className="text-center">

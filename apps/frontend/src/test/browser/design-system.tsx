@@ -185,7 +185,7 @@ function Fixture() {
   const [density, setDensity] = useState("comfortable");
   const [deleted, setDeleted] = useState(false);
   return (
-    <TooltipProvider delayDuration={0}>
+    <TooltipProvider delay={0}>
       <main className="mx-auto max-w-5xl space-y-10 p-4 sm:p-8">
         <header>
           <p className="text-muted-foreground text-xs">WEALTHFOLIO · SYNTHETIC FIXTURE</p>
@@ -473,17 +473,17 @@ function Fixture() {
             <SampleSelect label="Account type" />
 
             <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="ghost">Fee info</Button>
-              </TooltipTrigger>
+              <TooltipTrigger render={<Button variant="ghost" />}>Fee info</TooltipTrigger>
               <TooltipContent>Fees are deducted from cash.</TooltipContent>
             </Tooltip>
 
-            <HoverCard openDelay={0} closeDelay={0}>
-              <HoverCardTrigger asChild>
-                <a href="#overlays" className="text-sm underline">
-                  ACME
-                </a>
+            <HoverCard>
+              <HoverCardTrigger
+                delay={0}
+                closeDelay={0}
+                render={<a href="#overlays" className="text-sm underline" />}
+              >
+                ACME
               </HoverCardTrigger>
               <HoverCardContent>Acme Global Equity — synthetic security.</HoverCardContent>
             </HoverCard>

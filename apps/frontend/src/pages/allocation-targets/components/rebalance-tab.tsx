@@ -477,8 +477,8 @@ function ModeSwitch({
 
         return (
           <Tooltip key={m.id}>
-            <TooltipTrigger asChild>
-              <span className="flex min-w-0 cursor-not-allowed">{button}</span>
+            <TooltipTrigger render={<span className="flex min-w-0 cursor-not-allowed" />}>
+              {button}
             </TooltipTrigger>
             <TooltipContent className="text-xs">
               {t("allocation:mode.enableSellsTip")}

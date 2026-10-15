@@ -281,9 +281,11 @@ const AccountSummaryComponent = React.memo(
             <span className="truncate">{name}</span>
             {shouldShowWarning && (
               <Tooltip>
-                <TooltipTrigger asChild>
-                  <span className="inline-block h-2 w-2 shrink-0 cursor-help rounded-full bg-amber-500" />
-                </TooltipTrigger>
+                <TooltipTrigger
+                  render={
+                    <span className="inline-block h-2 w-2 shrink-0 cursor-help rounded-full bg-amber-500" />
+                  }
+                />
                 <TooltipContent className="max-w-80">
                   <div className="space-y-1">
                     {warningMessages.slice(0, 3).map((message) => (

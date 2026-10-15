@@ -30,14 +30,16 @@ export function StatusIndicator({ transaction }: StatusIndicatorProps) {
   return (
     <TooltipProvider>
       <Tooltip>
-        <TooltipTrigger asChild>
-          <button
-            type="button"
-            aria-label={accessibleLabel}
-            className="text-destructive focus-visible:ring-ring flex size-full cursor-help items-center justify-center rounded-sm focus-visible:outline-none focus-visible:ring-2"
-          >
-            <span aria-hidden="true">●</span>
-          </button>
+        <TooltipTrigger
+          render={
+            <button
+              type="button"
+              aria-label={accessibleLabel}
+              className="text-destructive focus-visible:ring-ring flex size-full cursor-help items-center justify-center rounded-sm focus-visible:outline-none focus-visible:ring-2"
+            />
+          }
+        >
+          <span aria-hidden="true">●</span>
         </TooltipTrigger>
         <TooltipContent side="right" className="max-w-80">
           {mappingReasons.length > 0 ? (
@@ -80,14 +82,16 @@ export function StatusHeaderIndicator({ hasRowsToReview }: StatusHeaderIndicator
   return (
     <TooltipProvider>
       <Tooltip>
-        <TooltipTrigger asChild>
-          <button
-            type="button"
-            aria-label={accessibleLabel}
-            className="text-destructive focus-visible:ring-ring w-full cursor-help rounded-sm text-center focus-visible:outline-none focus-visible:ring-2"
-          >
-            <span aria-hidden="true">●</span>
-          </button>
+        <TooltipTrigger
+          render={
+            <button
+              type="button"
+              aria-label={accessibleLabel}
+              className="text-destructive focus-visible:ring-ring w-full cursor-help rounded-sm text-center focus-visible:outline-none focus-visible:ring-2"
+            />
+          }
+        >
+          <span aria-hidden="true">●</span>
         </TooltipTrigger>
         <TooltipContent side="bottom">
           <p>{t("activity:datagrid.status_tooltip_line1")}</p>

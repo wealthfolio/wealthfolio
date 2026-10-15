@@ -20,20 +20,22 @@ export function PortalLink({ href, label }: PortalLinkProps) {
   const hint = t("connect:opensInBrowser");
 
   return (
-    <TooltipProvider delayDuration={300}>
+    <TooltipProvider delay={300}>
       <Tooltip>
-        <TooltipTrigger asChild>
-          <ExternalLink
-            href={href}
-            aria-label={`${label} — ${hint}`}
-            className={cn(
-              buttonVariants({ variant: "ghost", size: "sm" }),
-              "text-muted-foreground hover:text-foreground size-11 shrink-0 p-0 sm:h-8 sm:w-auto sm:px-3",
-            )}
-          >
-            <span className="hidden sm:inline">{label}</span>
-            <Icons.ExternalLink className="size-4" aria-hidden="true" />
-          </ExternalLink>
+        <TooltipTrigger
+          render={
+            <ExternalLink
+              href={href}
+              aria-label={`${label} — ${hint}`}
+              className={cn(
+                buttonVariants({ variant: "ghost", size: "sm" }),
+                "text-muted-foreground hover:text-foreground size-11 shrink-0 p-0 sm:h-8 sm:w-auto sm:px-3",
+              )}
+            />
+          }
+        >
+          <span className="hidden sm:inline">{label}</span>
+          <Icons.ExternalLink className="size-4" aria-hidden="true" />
         </TooltipTrigger>
         <TooltipContent>{hint}</TooltipContent>
       </Tooltip>

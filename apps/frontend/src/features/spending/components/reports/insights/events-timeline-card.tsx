@@ -267,31 +267,35 @@ export const EventsTimelineCard: FC<EventsTimelineCardProps> = ({
           ))}
           <div className="ml-1 inline-flex items-center gap-1">
             <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  aria-label={tr("spending:timeline.previousPeriod")}
-                  className="h-7 w-7 rounded-full"
-                  onClick={onPrevWindow}
-                >
-                  <Icons.ChevronLeft className="h-3.5 w-3.5" />
-                </Button>
+              <TooltipTrigger
+                render={
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    aria-label={tr("spending:timeline.previousPeriod")}
+                    className="h-7 w-7 rounded-full"
+                    onClick={onPrevWindow}
+                  />
+                }
+              >
+                <Icons.ChevronLeft className="h-3.5 w-3.5" />
               </TooltipTrigger>
               <TooltipContent>{tr("spending:timeline.previousPeriod")}</TooltipContent>
             </Tooltip>
             <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  aria-label={tr("spending:timeline.nextPeriod")}
-                  className="h-7 w-7 rounded-full"
-                  onClick={onNextWindow}
-                  disabled={windowOffset === 0}
-                >
-                  <Icons.ChevronRight className="h-3.5 w-3.5" />
-                </Button>
+              <TooltipTrigger
+                render={
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    aria-label={tr("spending:timeline.nextPeriod")}
+                    className="h-7 w-7 rounded-full"
+                    onClick={onNextWindow}
+                    disabled={windowOffset === 0}
+                  />
+                }
+              >
+                <Icons.ChevronRight className="h-3.5 w-3.5" />
               </TooltipTrigger>
               <TooltipContent>
                 {windowOffset === 0
@@ -301,21 +305,23 @@ export const EventsTimelineCard: FC<EventsTimelineCardProps> = ({
             </Tooltip>
           </div>
           <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="outline"
-                size="icon"
-                aria-label={tr("spending:events.createEvent")}
-                className="h-7 w-7 rounded-full"
-                onClick={() =>
-                  openEventDialog({
-                    prefill: { startDate: rangeStart, endDate: rangeEnd },
-                    onCreated: (ev) => onSelect(ev.id),
-                  })
-                }
-              >
-                <Icons.Plus className="h-3.5 w-3.5" />
-              </Button>
+            <TooltipTrigger
+              render={
+                <Button
+                  variant="outline"
+                  size="icon"
+                  aria-label={tr("spending:events.createEvent")}
+                  className="h-7 w-7 rounded-full"
+                  onClick={() =>
+                    openEventDialog({
+                      prefill: { startDate: rangeStart, endDate: rangeEnd },
+                      onCreated: (ev) => onSelect(ev.id),
+                    })
+                  }
+                />
+              }
+            >
+              <Icons.Plus className="h-3.5 w-3.5" />
             </TooltipTrigger>
             <TooltipContent>{tr("spending:events.createEvent")}</TooltipContent>
           </Tooltip>

@@ -50,10 +50,10 @@ export function ValueModeTooltip({
 
   return (
     <Tooltip>
-      <TooltipTrigger asChild>
-        <span className="cursor-help underline decoration-dotted underline-offset-2">
-          {children}
-        </span>
+      <TooltipTrigger
+        render={<span className="cursor-help underline decoration-dotted underline-offset-2" />}
+      >
+        {children}
       </TooltipTrigger>
       <TooltipContent className="max-w-xs text-xs">
         <div className="text-[10px] font-semibold uppercase tracking-wider">

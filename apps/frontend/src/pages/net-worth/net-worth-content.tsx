@@ -235,10 +235,12 @@ export function NetWorthContent() {
               {hasStaleValuations && (
                 <TooltipProvider>
                   <Tooltip>
-                    <TooltipTrigger asChild>
-                      <div className="bg-warning/10 flex h-8 w-8 items-center justify-center rounded-full">
-                        <Icons.AlertCircle className="text-warning h-4 w-4" />
-                      </div>
+                    <TooltipTrigger
+                      render={
+                        <div className="bg-warning/10 flex h-8 w-8 items-center justify-center rounded-full" />
+                      }
+                    >
+                      <Icons.AlertCircle className="text-warning h-4 w-4" />
                     </TooltipTrigger>
                     <TooltipContent side="bottom" className="max-w-[280px]">
                       <p className="mb-2 text-xs font-medium">

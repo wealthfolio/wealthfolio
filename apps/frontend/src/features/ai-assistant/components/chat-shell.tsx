@@ -59,11 +59,9 @@ function ButtonWithTooltip({
 }) {
   return (
     <Tooltip>
-      <TooltipTrigger asChild>
-        <Button {...props}>
-          {children}
-          <span className="sr-only">{tooltip}</span>
-        </Button>
+      <TooltipTrigger render={<Button {...props} />}>
+        {children}
+        <span className="sr-only">{tooltip}</span>
       </TooltipTrigger>
       <TooltipContent side={side}>{tooltip}</TooltipContent>
     </Tooltip>

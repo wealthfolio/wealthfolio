@@ -144,11 +144,9 @@ export const MetricDisplay: React.FC<MetricDisplayProps> = ({
       {labelContent}
 
       {valueTooltipRows.length > 0 ? (
-        <TooltipProvider delayDuration={100}>
+        <TooltipProvider delay={100}>
           <Tooltip>
-            <TooltipTrigger asChild>
-              <div className="cursor-help">{displayValue}</div>
-            </TooltipTrigger>
+            <TooltipTrigger render={<div className="cursor-help" />}>{displayValue}</TooltipTrigger>
             <TooltipContent className="space-y-1">
               {valueTooltipRows.map((row) => (
                 <p key={row.label} className="text-xs">

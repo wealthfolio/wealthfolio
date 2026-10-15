@@ -94,10 +94,8 @@ function ScopeBadge({ scopes }: { scopes: string[] }) {
     : t("settings:agentAccess.pat_scope_custom", { count: scopes.length });
   return (
     <Tooltip>
-      <TooltipTrigger asChild>
-        <Badge variant="secondary" className="cursor-default font-normal">
-          {label}
-        </Badge>
+      <TooltipTrigger render={<Badge variant="secondary" className="cursor-default font-normal" />}>
+        {label}
       </TooltipTrigger>
       <TooltipContent className="max-w-xs">
         <p className="mb-1 font-medium">{t("settings:agentAccess.pat_scopes_tooltip")}</p>

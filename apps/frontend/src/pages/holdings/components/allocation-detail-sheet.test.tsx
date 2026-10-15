@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import { AllocationDetailSheet } from "./allocation-detail-sheet";
+import { queryTooltip } from "@/test/tooltip";
 
 vi.mock("@/hooks/use-balance-privacy", () => ({
   useBalancePrivacy: () => ({ isBalanceHidden: false }),
@@ -32,9 +33,9 @@ describe("AllocationDetailSheet focus", () => {
       </MemoryRouter>,
     );
     await waitFor(() => expect(screen.getByRole("heading", { name: "Regions" })).toHaveFocus());
-    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+    expect(queryTooltip()).not.toBeInTheDocument();
     const segment = screen.getAllByRole("button").find((button) => button.tagName === "DIV")!;
     act(() => segment.focus());
-    await waitFor(() => expect(screen.getByRole("tooltip")).toHaveTextContent("Americas"));
+    await waitFor(() => expect(queryTooltip()).toHaveTextContent("Americas"));
   });
 });

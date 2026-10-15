@@ -65,14 +65,16 @@ export function AmountInput<TFieldValues extends FieldValues = FieldValues>({
             <FormLabel>{resolvedLabel}</FormLabel>
             {labelHelpText && (
               <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    type="button"
-                    className="text-muted-foreground/70 hover:text-foreground inline-flex rounded-full transition-colors"
-                    aria-label={t("activity:form.more_info_about", { label: resolvedLabel })}
-                  >
-                    <Icons.Info className="h-3 w-3" />
-                  </button>
+                <TooltipTrigger
+                  render={
+                    <button
+                      type="button"
+                      className="text-muted-foreground/70 hover:text-foreground inline-flex rounded-full transition-colors"
+                      aria-label={t("activity:form.more_info_about", { label: resolvedLabel })}
+                    />
+                  }
+                >
+                  <Icons.Info className="h-3 w-3" />
                 </TooltipTrigger>
                 <TooltipContent className="max-w-xs text-xs">{labelHelpText}</TooltipContent>
               </Tooltip>

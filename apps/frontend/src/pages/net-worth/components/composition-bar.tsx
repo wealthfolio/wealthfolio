@@ -26,19 +26,22 @@ export function CompositionBar({ data, className }: { data: ParsedNetWorth; clas
   return (
     <div className={`flex h-2 w-full overflow-hidden rounded-full ${className ?? ""}`}>
       {items.map((item, index) => (
-        <TooltipProvider key={item.category} delayDuration={0}>
+        <TooltipProvider key={item.category} delay={0}>
           <Tooltip>
-            <TooltipTrigger asChild>
-              <div
-                className="h-full transition-opacity hover:opacity-80"
-                style={{
-                  width: `${item.percentage}%`,
-                  minWidth: "2px",
-                  backgroundColor: CATEGORY_CSS_COLORS[item.category] ?? "var(--muted-foreground)",
-                  marginLeft: index > 0 ? "1px" : 0,
-                }}
-              />
-            </TooltipTrigger>
+            <TooltipTrigger
+              render={
+                <div
+                  className="h-full transition-opacity hover:opacity-80"
+                  style={{
+                    width: `${item.percentage}%`,
+                    minWidth: "2px",
+                    backgroundColor:
+                      CATEGORY_CSS_COLORS[item.category] ?? "var(--muted-foreground)",
+                    marginLeft: index > 0 ? "1px" : 0,
+                  }}
+                />
+              }
+            />
             <TooltipContent side="bottom" className="text-xs">
               <span className="font-medium">{item.name}</span>
               <span className="text-muted-foreground ml-2">{item.percentage.toFixed(1)}%</span>

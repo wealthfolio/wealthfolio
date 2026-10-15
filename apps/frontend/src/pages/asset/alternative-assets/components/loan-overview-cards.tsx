@@ -340,14 +340,16 @@ function OverviewCard({
 function InfoTip({ text }: { text: string }) {
   return (
     <Tooltip>
-      <TooltipTrigger asChild>
-        <button
-          type="button"
-          aria-label={text}
-          className="text-muted-foreground hover:text-foreground inline-flex"
-        >
-          <Icons.Info className="size-3.5" />
-        </button>
+      <TooltipTrigger
+        render={
+          <button
+            type="button"
+            aria-label={text}
+            className="text-muted-foreground hover:text-foreground inline-flex"
+          />
+        }
+      >
+        <Icons.Info className="size-3.5" />
       </TooltipTrigger>
       <TooltipContent className="max-w-64">{text}</TooltipContent>
     </Tooltip>

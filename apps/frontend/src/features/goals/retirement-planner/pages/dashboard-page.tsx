@@ -611,14 +611,16 @@ export default function DashboardPage({
                     <div className="ml-auto flex items-center gap-2">
                       <ValueModeToggle value={chartValueMode} onChange={setChartValueMode} />
                       <Tooltip>
-                        <TooltipTrigger asChild>
-                          <button
-                            type="button"
-                            className="text-muted-foreground/70 hover:text-foreground inline-flex rounded-full transition-colors"
-                            aria-label={t("goals:dashboard.value_mode.explained_aria")}
-                          >
-                            <Icons.Info className="h-3.5 w-3.5" />
-                          </button>
+                        <TooltipTrigger
+                          render={
+                            <button
+                              type="button"
+                              className="text-muted-foreground/70 hover:text-foreground inline-flex rounded-full transition-colors"
+                              aria-label={t("goals:dashboard.value_mode.explained_aria")}
+                            />
+                          }
+                        >
+                          <Icons.Info className="h-3.5 w-3.5" />
                         </TooltipTrigger>
                         <TooltipContent className="max-w-xs text-xs">
                           <div className="font-semibold">
@@ -840,16 +842,18 @@ export default function DashboardPage({
                       </div>
                       <div className="flex flex-col items-end gap-0.5">
                         <Tooltip>
-                          <TooltipTrigger asChild>
-                            <span className="text-muted-foreground cursor-help text-[10px] uppercase tracking-wider underline decoration-dotted underline-offset-2">
-                              {isTraditionalMode
-                                ? t("goals:dashboard.progress.required_at_age", {
-                                    age: plan.personal.targetRetirementAge,
-                                  })
-                                : t("goals:dashboard.progress.target_at_age", {
-                                    age: plan.personal.targetRetirementAge,
-                                  })}
-                            </span>
+                          <TooltipTrigger
+                            render={
+                              <span className="text-muted-foreground cursor-help text-[10px] uppercase tracking-wider underline decoration-dotted underline-offset-2" />
+                            }
+                          >
+                            {isTraditionalMode
+                              ? t("goals:dashboard.progress.required_at_age", {
+                                  age: plan.personal.targetRetirementAge,
+                                })
+                              : t("goals:dashboard.progress.target_at_age", {
+                                  age: plan.personal.targetRetirementAge,
+                                })}
                           </TooltipTrigger>
                           <TooltipContent className="max-w-xs text-xs">
                             {isTraditionalMode
@@ -950,14 +954,16 @@ export default function DashboardPage({
                         {t("goals:dashboard.chart.portfolio_trajectory")}
                       </CardTitle>
                       <Tooltip>
-                        <TooltipTrigger asChild>
-                          <button
-                            type="button"
-                            className="text-muted-foreground/70 hover:text-foreground inline-flex rounded-full transition-colors"
-                            aria-label={t("goals:dashboard.chart.portfolio_trajectory_aria")}
-                          >
-                            <Icons.Info className="h-3.5 w-3.5" />
-                          </button>
+                        <TooltipTrigger
+                          render={
+                            <button
+                              type="button"
+                              className="text-muted-foreground/70 hover:text-foreground inline-flex rounded-full transition-colors"
+                              aria-label={t("goals:dashboard.chart.portfolio_trajectory_aria")}
+                            />
+                          }
+                        >
+                          <Icons.Info className="h-3.5 w-3.5" />
                         </TooltipTrigger>
                         <TooltipContent className="max-w-sm text-xs">
                           {isTraditionalMode
@@ -981,22 +987,24 @@ export default function DashboardPage({
                       {t("goals:dashboard.chart.projected")}
                     </span>
                     <Tooltip>
-                      <TooltipTrigger asChild>
-                        <span className="flex cursor-help items-center gap-1.5 underline decoration-dotted underline-offset-2">
-                          <svg viewBox="0 0 24 4" aria-hidden="true" className="h-1 w-6 shrink-0">
-                            <line
-                              x1="1"
-                              y1="2"
-                              x2="23"
-                              y2="2"
-                              stroke={CHART_COLORS.reference}
-                              strokeWidth="1.5"
-                              strokeDasharray="6 4"
-                              strokeLinecap="round"
-                            />
-                          </svg>
-                          {t("goals:dashboard.chart.required")}
-                        </span>
+                      <TooltipTrigger
+                        render={
+                          <span className="flex cursor-help items-center gap-1.5 underline decoration-dotted underline-offset-2" />
+                        }
+                      >
+                        <svg viewBox="0 0 24 4" aria-hidden="true" className="h-1 w-6 shrink-0">
+                          <line
+                            x1="1"
+                            y1="2"
+                            x2="23"
+                            y2="2"
+                            stroke={CHART_COLORS.reference}
+                            strokeWidth="1.5"
+                            strokeDasharray="6 4"
+                            strokeLinecap="round"
+                          />
+                        </svg>
+                        {t("goals:dashboard.chart.required")}
                       </TooltipTrigger>
                       <TooltipContent className="max-w-xs text-xs">
                         {isTraditionalMode
@@ -1082,16 +1090,18 @@ export default function DashboardPage({
                           {m.label}
                         </span>
                         <Tooltip>
-                          <TooltipTrigger asChild>
-                            <button
-                              type="button"
-                              className="text-muted-foreground/70 hover:text-foreground inline-flex rounded-full transition-colors"
-                              aria-label={t("goals:dashboard.milestone.more_info_about", {
-                                label: m.label,
-                              })}
-                            >
-                              <Icons.Info className="h-3 w-3" />
-                            </button>
+                          <TooltipTrigger
+                            render={
+                              <button
+                                type="button"
+                                className="text-muted-foreground/70 hover:text-foreground inline-flex rounded-full transition-colors"
+                                aria-label={t("goals:dashboard.milestone.more_info_about", {
+                                  label: m.label,
+                                })}
+                              />
+                            }
+                          >
+                            <Icons.Info className="h-3 w-3" />
                           </TooltipTrigger>
                           <TooltipContent className="max-w-xs text-xs">{m.tip}</TooltipContent>
                         </Tooltip>
@@ -1155,14 +1165,16 @@ export default function DashboardPage({
                   </p>
                   {coverageView === "over-time" && (
                     <Tooltip>
-                      <TooltipTrigger asChild>
-                        <button
-                          type="button"
-                          className="text-muted-foreground hover:text-foreground mt-0.5 rounded-full transition-colors"
-                          aria-label={t("goals:dashboard.coverage.chart_details_aria")}
-                        >
-                          <Icons.Info className="h-3.5 w-3.5" />
-                        </button>
+                      <TooltipTrigger
+                        render={
+                          <button
+                            type="button"
+                            className="text-muted-foreground hover:text-foreground mt-0.5 rounded-full transition-colors"
+                            aria-label={t("goals:dashboard.coverage.chart_details_aria")}
+                          />
+                        }
+                      >
+                        <Icons.Info className="h-3.5 w-3.5" />
                       </TooltipTrigger>
                       <TooltipContent className="max-w-xs text-xs">
                         {t("goals:dashboard.coverage.over_time_tip", {
@@ -1404,25 +1416,27 @@ export default function DashboardPage({
                             </div>
                             {coveragePortfolioDrawRate != null && (
                               <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <button
-                                    type="button"
-                                    className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium transition-colors"
-                                  >
-                                    {t("goals:dashboard.coverage.draw_on_portfolio")}{" "}
-                                    <span className="text-foreground tabular-nums">
-                                      {t("goals:dashboard.coverage.draw_rate_per_yr", {
-                                        pct: numberFormatting.formatDecimal(
-                                          coveragePortfolioDrawRate * 100,
-                                          {
-                                            minimumFractionDigits: 1,
-                                            maximumFractionDigits: 1,
-                                          },
-                                        ),
-                                      })}
-                                    </span>
-                                    <Icons.Info className="size-3" />
-                                  </button>
+                                <TooltipTrigger
+                                  render={
+                                    <button
+                                      type="button"
+                                      className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium transition-colors"
+                                    />
+                                  }
+                                >
+                                  {t("goals:dashboard.coverage.draw_on_portfolio")}{" "}
+                                  <span className="text-foreground tabular-nums">
+                                    {t("goals:dashboard.coverage.draw_rate_per_yr", {
+                                      pct: numberFormatting.formatDecimal(
+                                        coveragePortfolioDrawRate * 100,
+                                        {
+                                          minimumFractionDigits: 1,
+                                          maximumFractionDigits: 1,
+                                        },
+                                      ),
+                                    })}
+                                  </span>
+                                  <Icons.Info className="size-3" />
                                 </TooltipTrigger>
                                 <TooltipContent className="max-w-xs text-xs">
                                   {t("goals:dashboard.coverage.draw_rate_tip")}

@@ -270,19 +270,21 @@ export const HoldingsTable = ({
           <div className="mr-2 flex items-center gap-2">
             {hasMultipleCurrencies && (
               <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={() => setShowConvertedValues(!showConvertedValues)}
-                    className="h-8 w-8 rounded-lg"
-                  >
-                    {showConvertedValues ? (
-                      <Icons.Globe className="h-4 w-4" />
-                    ) : (
-                      <Icons.DollarSign className="h-4 w-4" />
-                    )}
-                  </Button>
+                <TooltipTrigger
+                  render={
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => setShowConvertedValues(!showConvertedValues)}
+                      className="h-8 w-8 rounded-lg"
+                    />
+                  }
+                >
+                  {showConvertedValues ? (
+                    <Icons.Globe className="h-4 w-4" />
+                  ) : (
+                    <Icons.DollarSign className="h-4 w-4" />
+                  )}
                 </TooltipTrigger>
                 <TooltipContent>
                   <p>

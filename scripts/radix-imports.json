@@ -1,17 +1,14 @@
 {
   "files": [
-    "apps/frontend/src/features/ai-assistant/components/tooltip-icon-button.tsx",
     "packages/ui/src/components/data-grid/use-data-grid.ts",
     "packages/ui/src/components/ui/alert-dialog.tsx",
     "packages/ui/src/components/ui/command.tsx",
     "packages/ui/src/components/ui/dialog.tsx",
     "packages/ui/src/components/ui/dropdown-menu.tsx",
-    "packages/ui/src/components/ui/hover-card.tsx",
     "packages/ui/src/components/ui/popover.tsx",
     "packages/ui/src/components/ui/progress-indicator.tsx",
     "packages/ui/src/components/ui/scroll-area.tsx",
     "packages/ui/src/components/ui/select.tsx",
-    "packages/ui/src/components/ui/sheet.tsx",
-    "packages/ui/src/components/ui/tooltip.tsx"
+    "packages/ui/src/components/ui/sheet.tsx"
   ]
 }

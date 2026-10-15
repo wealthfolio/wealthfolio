@@ -71,8 +71,8 @@ export function RiskBadge({ level, size = "md", showLabel = true, className }: R
   if (!showLabel) {
     return (
       <Tooltip>
-        <TooltipTrigger asChild>
-          <span className={cn("inline-flex cursor-default", className)}>{dot}</span>
+        <TooltipTrigger render={<span className={cn("inline-flex cursor-default", className)} />}>
+          {dot}
         </TooltipTrigger>
         <TooltipContent>
           <p>{label}</p>

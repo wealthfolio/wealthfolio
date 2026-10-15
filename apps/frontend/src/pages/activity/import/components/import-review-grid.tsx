@@ -235,9 +235,9 @@ function useImportReviewColumns({
             <div className="flex items-center gap-1.5">
               <span className="text-muted-foreground shrink-0 text-xs">{rowIndex + 1}</span>
               {dot && title ? (
-                <TooltipProvider delayDuration={200}>
+                <TooltipProvider delay={200}>
                   <Tooltip>
-                    <TooltipTrigger asChild>{dot}</TooltipTrigger>
+                    <TooltipTrigger render={dot} />
                     <TooltipContent
                       side="right"
                       className={

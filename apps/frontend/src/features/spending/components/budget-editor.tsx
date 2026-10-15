@@ -1135,15 +1135,17 @@ function BudgetCategoryLine({
         <AmountInput value={row.target} onCommit={(value) => onSaveTarget(row, value)} />
         {hasOverride && (
           <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                type="button"
-                onClick={() => onDeleteOverride(target)}
-                className="bg-warning/15 text-warning hover:bg-warning/25 border-background absolute -right-1 -top-1 flex h-3.5 w-3.5 items-center justify-center rounded-full border transition-colors"
-                aria-label={t("spending:budgetEditor.revertOverride")}
-              >
-                <Icons.X className="h-2 w-2" />
-              </button>
+            <TooltipTrigger
+              render={
+                <button
+                  type="button"
+                  onClick={() => onDeleteOverride(target)}
+                  className="bg-warning/15 text-warning hover:bg-warning/25 border-background absolute -right-1 -top-1 flex h-3.5 w-3.5 items-center justify-center rounded-full border transition-colors"
+                  aria-label={t("spending:budgetEditor.revertOverride")}
+                />
+              }
+            >
+              <Icons.X className="h-2 w-2" />
             </TooltipTrigger>
             <TooltipContent side="top" sideOffset={4} className="text-xs">
               {t("spending:budgetEditor.monthOverrideRevert")}
@@ -1157,16 +1159,18 @@ function BudgetCategoryLine({
       </span>
 
       <Tooltip>
-        <TooltipTrigger asChild>
-          <div className="bg-muted/50 hidden h-1 w-14 shrink-0 overflow-hidden rounded-full sm:block">
-            <div
-              className="h-full rounded-full transition-all"
-              style={{
-                width: `${usagePct * 100}%`,
-                backgroundColor: overBudget ? "var(--destructive)" : accent,
-              }}
-            />
-          </div>
+        <TooltipTrigger
+          render={
+            <div className="bg-muted/50 hidden h-1 w-14 shrink-0 overflow-hidden rounded-full sm:block" />
+          }
+        >
+          <div
+            className="h-full rounded-full transition-all"
+            style={{
+              width: `${usagePct * 100}%`,
+              backgroundColor: overBudget ? "var(--destructive)" : accent,
+            }}
+          />
         </TooltipTrigger>
         <TooltipContent side="top" sideOffset={4} className="text-xs">
           <PrivacyAmount value={row.actual} currency={currency} />{" "}
@@ -1280,8 +1284,8 @@ function GroupBufferLine({
         aria-hidden
       />
       <Tooltip>
-        <TooltipTrigger asChild>
-          <span className="text-muted-foreground min-w-0 flex-1 truncate">{label}</span>
+        <TooltipTrigger render={<span className="text-muted-foreground min-w-0 flex-1 truncate" />}>
+          {label}
         </TooltipTrigger>
         <TooltipContent side="top" sideOffset={4} className="max-w-[220px] text-xs">
           {t("spending:budgetEditor.groupBufferTooltip")}

@@ -1132,11 +1132,11 @@ function SyncStatusDot({
   }
 
   return (
-    <TooltipProvider delayDuration={300}>
+    <TooltipProvider delay={300}>
       <Tooltip>
-        <TooltipTrigger asChild>
-          <span className={`inline-block h-2 w-2 shrink-0 rounded-full ${color}`} />
-        </TooltipTrigger>
+        <TooltipTrigger
+          render={<span className={`inline-block h-2 w-2 shrink-0 rounded-full ${color}`} />}
+        />
         <TooltipContent side="right" className="text-xs">
           {label}
         </TooltipContent>

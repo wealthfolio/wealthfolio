@@ -1,6 +1,6 @@
 import { ActivityType } from "@/lib/constants";
 import { render, screen } from "@testing-library/react";
-import type { ReactNode } from "react";
+import { cloneElement, type ReactElement, type ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { StatusHeaderIndicator, StatusIndicator } from "./status-indicator";
 import type { LocalTransaction } from "./types";
@@ -8,7 +8,8 @@ import type { LocalTransaction } from "./types";
 vi.mock("@wealthfolio/ui", () => ({
   TooltipProvider: ({ children }: { children: ReactNode }) => <>{children}</>,
   Tooltip: ({ children }: { children: ReactNode }) => <>{children}</>,
-  TooltipTrigger: ({ children }: { children: ReactNode }) => <>{children}</>,
+  TooltipTrigger: ({ children, render }: { children: ReactNode; render?: ReactElement }) =>
+    render ? cloneElement(render, undefined, children) : <>{children}</>,
   TooltipContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
 }));
 

@@ -225,23 +225,25 @@ const AttachmentUI: FC = () => {
         )}
       >
         <AttachmentPreviewDialog>
-          <TooltipTrigger asChild>
-            {isComposer && !isImage ? (
-              <ComposerFileAttachment />
-            ) : (
-              <div
-                className={cn(
-                  "aui-attachment-tile bg-muted size-14 cursor-pointer overflow-hidden rounded-[14px] border transition-opacity hover:opacity-75",
-                  isComposer && "aui-attachment-tile-composer border-foreground/20",
-                )}
-                role="button"
-                id="attachment-tile"
-                aria-label={t("ai:attachment.typedAttachment", { type: typeLabel })}
-              >
-                <AttachmentThumb />
-              </div>
-            )}
-          </TooltipTrigger>
+          <TooltipTrigger
+            render={
+              isComposer && !isImage ? (
+                <ComposerFileAttachment />
+              ) : (
+                <div
+                  className={cn(
+                    "aui-attachment-tile bg-muted size-14 cursor-pointer overflow-hidden rounded-[14px] border transition-opacity hover:opacity-75",
+                    isComposer && "aui-attachment-tile-composer border-foreground/20",
+                  )}
+                  role="button"
+                  id="attachment-tile"
+                  aria-label={t("ai:attachment.typedAttachment", { type: typeLabel })}
+                >
+                  <AttachmentThumb />
+                </div>
+              )
+            }
+          />
         </AttachmentPreviewDialog>
         {isComposer && <AttachmentRemove variant={isImage ? "tile" : "chip"} />}
       </AttachmentPrimitive.Root>

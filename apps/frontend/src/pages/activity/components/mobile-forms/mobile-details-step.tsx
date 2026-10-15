@@ -100,16 +100,18 @@ function FmvPerUnitLabel() {
         {t("activity:form.label_fmv_per_unit")}
       </FormLabel>
       <Tooltip>
-        <TooltipTrigger asChild>
-          <button
-            type="button"
-            className="text-muted-foreground/70 hover:text-foreground inline-flex rounded-full transition-colors"
-            aria-label={t("activity:form.more_info_about", {
-              label: t("activity:form.label_fmv_per_unit"),
-            })}
-          >
-            <Icons.Info className="h-3.5 w-3.5" />
-          </button>
+        <TooltipTrigger
+          render={
+            <button
+              type="button"
+              className="text-muted-foreground/70 hover:text-foreground inline-flex rounded-full transition-colors"
+              aria-label={t("activity:form.more_info_about", {
+                label: t("activity:form.label_fmv_per_unit"),
+              })}
+            />
+          }
+        >
+          <Icons.Info className="h-3.5 w-3.5" />
         </TooltipTrigger>
         <TooltipContent className="max-w-xs text-xs">
           {t("activity:form.help_fmv_per_unit")}

@@ -68,18 +68,21 @@ export function HealthStatusIndicator() {
 
   return (
     <TooltipProvider>
-      <Tooltip delayDuration={300}>
-        <TooltipTrigger asChild>
-          <Link
-            to="/health"
-            title={t("common:component.data_status")}
-            className={cn(
-              buttonVariants({ variant: "secondary", size: "icon-xs" }),
-              "bg-secondary/50 rounded-full",
-            )}
-          >
-            <Icons.AlertTriangle className={cn("size-5", severityColor)} />
-          </Link>
+      <Tooltip>
+        <TooltipTrigger
+          delay={300}
+          render={
+            <Link
+              to="/health"
+              title={t("common:component.data_status")}
+              className={cn(
+                buttonVariants({ variant: "secondary", size: "icon-xs" }),
+                "bg-secondary/50 rounded-full",
+              )}
+            />
+          }
+        >
+          <Icons.AlertTriangle className={cn("size-5", severityColor)} />
         </TooltipTrigger>
         <TooltipContent side="bottom">
           <div className="space-y-1">

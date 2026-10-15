@@ -71,16 +71,16 @@ export const overlays: Overlay[] = [
   },
   {
     name: "tooltip",
-    // Radix closes a tooltip on any scroll, including the one focusing its trigger
-    // causes, so the trigger is scrolled into view (and the scroll event delivered)
-    // before it is focused. See the known gap in overlays.spec.ts.
+    // The trigger is scrolled into view before it is focused so the screenshot
+    // matches the Radix baseline, which closed a tooltip on that scroll.
     open: async (page) => {
       const trigger = page.getByRole("button", { name: "Fee info", exact: true });
       await trigger.scrollIntoViewIfNeeded();
       await nextFrames(page);
       await trigger.focus();
     },
-    content: (page) => page.getByRole("tooltip"),
+    // Base UI tooltips are visual labels without a `tooltip` role.
+    content: (page) => page.locator('[data-slot="tooltip-content"]'),
   },
   {
     name: "hover-card",

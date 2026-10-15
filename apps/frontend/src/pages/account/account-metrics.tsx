@@ -65,14 +65,16 @@ const EditableBalance: React.FC<EditableBalanceProps> = ({ account, initialBalan
   return (
     <TooltipProvider>
       <Tooltip>
-        <TooltipTrigger asChild>
-          <div
-            className="flex cursor-pointer items-center gap-2 text-lg font-extrabold"
-            onClick={() => setIsEditing(true)}
-          >
-            <PrivacyAmount value={initialBalance} currency={currency} />
-            <Icons.Pencil className="text-muted-foreground h-4 w-4 cursor-pointer" />
-          </div>
+        <TooltipTrigger
+          render={
+            <div
+              className="flex cursor-pointer items-center gap-2 text-lg font-extrabold"
+              onClick={() => setIsEditing(true)}
+            />
+          }
+        >
+          <PrivacyAmount value={initialBalance} currency={currency} />
+          <Icons.Pencil className="text-muted-foreground h-4 w-4 cursor-pointer" />
         </TooltipTrigger>
         <TooltipContent>
           <p>{t("account:click_to_update_cash_balance")}</p>
@@ -292,22 +294,24 @@ const AccountMetrics: React.FC<AccountMetricsProps> = ({
           {balanceWarning ? (
             <TooltipProvider>
               <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    type="button"
-                    size="icon"
-                    variant="ghost"
-                    className="bg-warning/10 text-warning hover:bg-warning/15 size-8 rounded-full"
-                    onClick={balanceWarning.onClick}
-                    disabled={balanceWarning.disabled || balanceWarning.isLoading}
-                    aria-label={balanceWarning.label}
-                  >
-                    {balanceWarning.isLoading ? (
-                      <Icons.Spinner className="size-4 animate-spin" />
-                    ) : (
-                      <Icons.AlertCircle className="size-4" />
-                    )}
-                  </Button>
+                <TooltipTrigger
+                  render={
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      className="bg-warning/10 text-warning hover:bg-warning/15 size-8 rounded-full"
+                      onClick={balanceWarning.onClick}
+                      disabled={balanceWarning.disabled || balanceWarning.isLoading}
+                      aria-label={balanceWarning.label}
+                    />
+                  }
+                >
+                  {balanceWarning.isLoading ? (
+                    <Icons.Spinner className="size-4 animate-spin" />
+                  ) : (
+                    <Icons.AlertCircle className="size-4" />
+                  )}
                 </TooltipTrigger>
                 <TooltipContent>
                   <p>{balanceWarning.label}</p>

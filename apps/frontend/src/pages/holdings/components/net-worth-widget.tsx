@@ -242,10 +242,8 @@ export const NetWorthWidget = ({
           {hasStaleValuations && (
             <TooltipProvider>
               <Tooltip>
-                <TooltipTrigger asChild>
-                  <div className="flex items-center gap-1">
-                    <Icons.AlertCircle className="text-warning h-4 w-4" />
-                  </div>
+                <TooltipTrigger render={<div className="flex items-center gap-1" />}>
+                  <Icons.AlertCircle className="text-warning h-4 w-4" />
                 </TooltipTrigger>
                 <TooltipContent side="left" className="max-w-[250px]">
                   <p className="text-sm">

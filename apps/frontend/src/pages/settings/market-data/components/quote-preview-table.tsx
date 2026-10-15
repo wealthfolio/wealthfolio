@@ -110,9 +110,11 @@ export function QuotePreviewTable({ quotes, maxRows = 10 }: QuotePreviewTablePro
                         <div className="flex items-center gap-1.5">
                           {errorMessage && (
                             <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Icons.AlertCircle className="text-destructive h-4 w-4 shrink-0 cursor-help" />
-                              </TooltipTrigger>
+                              <TooltipTrigger
+                                render={
+                                  <Icons.AlertCircle className="text-destructive h-4 w-4 shrink-0 cursor-help" />
+                                }
+                              />
                               <TooltipContent
                                 side="right"
                                 className="bg-destructive text-destructive-foreground max-w-xs"

@@ -42,12 +42,13 @@ and this project adheres to
 
 - **Breaking:** `@wealthfolio/ui` components move from Radix to
   [Base UI](https://base-ui.com) and follow its API. Converted so far: the leaf
-  controls, `Collapsible` and `Accordion`.
-  - `asChild` is replaced by `render` on `Button`, `Badge`, `Item` and
-    `CollapsibleTrigger`: `<Badge render={<a href="…" />}>Docs</Badge>`. A link
-    that looks like a button is the link itself with `buttonVariants()`, not a
-    `Button`, which gives what it renders button semantics. `Button` renders
-    `type="button"`; submit buttons need `type="submit"`.
+  controls, `Collapsible`, `Accordion`, `Tooltip` and `HoverCard`.
+  - `asChild` is replaced by `render` on `Button`, `Badge`, `Item`,
+    `CollapsibleTrigger`, `TooltipTrigger` and `HoverCardTrigger`:
+    `<Badge render={<a href="…" />}>Docs</Badge>`. A link that looks like a
+    button is the link itself with `buttonVariants()`, not a `Button`, which
+    gives what it renders button semantics. `Button` renders `type="button"`;
+    submit buttons need `type="submit"`.
   - State attributes are Base UI's instead of Radix's `data-state`:
     `data-checked`/`data-unchecked` (`Switch`, `Checkbox`, `RadioGroupItem`),
     `data-active` (`TabsTrigger`), `aria-pressed` (`Toggle`, `ToggleGroupItem`),
@@ -62,6 +63,15 @@ and this project adheres to
     `(value, eventDetails)`.
   - Single-select `ToggleGroup` items are toggle buttons (`aria-pressed`)
     instead of radios, and `Separator` is announced as a separator.
+  - Tooltip and hover card delays are set on the trigger (`delay`, `closeDelay`)
+    or, for tooltips, on `TooltipProvider` (`delay` instead of `delayDuration`);
+    `HoverCard` no longer takes `openDelay`/`closeDelay`. Their content takes
+    `side`, `align`, `sideOffset` and `alignOffset` (`TooltipContent` also
+    `collisionPadding`), renders in a portal, and uses `--transform-origin`.
+    `TooltipPortal` is removed.
+  - Tooltips are visual labels: the content no longer has `role="tooltip"` and
+    is not announced as the trigger's description, so give the trigger an
+    accessible name.
 - `ActivityUpdate.asset` now has explicit patch semantics: omit it to preserve
   the current asset, or pass an empty object to clear the asset association.
 - Host-provided `@wealthfolio/addon-sdk` and `@wealthfolio/ui` dependency ranges

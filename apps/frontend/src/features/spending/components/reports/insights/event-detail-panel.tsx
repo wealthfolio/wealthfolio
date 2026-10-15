@@ -186,61 +186,69 @@ export const EventDetailPanel: FC<EventDetailPanelProps> = ({
           </div>
           <div className="flex shrink-0 items-center gap-1">
             <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  aria-label={t("spending:eventDetail.previousEvent")}
-                  className="h-7 w-7"
-                  onClick={() => prevEvent && onSelect(prevEvent.eventId)}
-                  disabled={!canNav}
-                >
-                  <Icons.ChevronLeft className="h-4 w-4" />
-                </Button>
+              <TooltipTrigger
+                render={
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    aria-label={t("spending:eventDetail.previousEvent")}
+                    className="h-7 w-7"
+                    onClick={() => prevEvent && onSelect(prevEvent.eventId)}
+                    disabled={!canNav}
+                  />
+                }
+              >
+                <Icons.ChevronLeft className="h-4 w-4" />
               </TooltipTrigger>
               <TooltipContent>{t("spending:eventDetail.previousEvent")}</TooltipContent>
             </Tooltip>
             <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  aria-label={t("spending:eventDetail.nextEvent")}
-                  className="h-7 w-7"
-                  onClick={() => nextEvent && onSelect(nextEvent.eventId)}
-                  disabled={!canNav}
-                >
-                  <Icons.ChevronRight className="h-4 w-4" />
-                </Button>
+              <TooltipTrigger
+                render={
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    aria-label={t("spending:eventDetail.nextEvent")}
+                    className="h-7 w-7"
+                    onClick={() => nextEvent && onSelect(nextEvent.eventId)}
+                    disabled={!canNav}
+                  />
+                }
+              >
+                <Icons.ChevronRight className="h-4 w-4" />
               </TooltipTrigger>
               <TooltipContent>{t("spending:eventDetail.nextEvent")}</TooltipContent>
             </Tooltip>
             <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  aria-label={t("spending:eventDetail.editEvent")}
-                  className="h-7 w-7"
-                  onClick={handleEdit}
-                  disabled={!fullEvent}
-                >
-                  <Icons.Pencil className="h-3.5 w-3.5" />
-                </Button>
+              <TooltipTrigger
+                render={
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    aria-label={t("spending:eventDetail.editEvent")}
+                    className="h-7 w-7"
+                    onClick={handleEdit}
+                    disabled={!fullEvent}
+                  />
+                }
+              >
+                <Icons.Pencil className="h-3.5 w-3.5" />
               </TooltipTrigger>
               <TooltipContent>{t("spending:eventDetail.editEvent")}</TooltipContent>
             </Tooltip>
             <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  aria-label={t("spending:eventDetail.tagTransactionsInPeriod")}
-                  className="h-7 w-7"
-                  onClick={handleViewTransactions}
-                >
-                  <Icons.Activity className="h-3.5 w-3.5" />
-                </Button>
+              <TooltipTrigger
+                render={
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    aria-label={t("spending:eventDetail.tagTransactionsInPeriod")}
+                    className="h-7 w-7"
+                    onClick={handleViewTransactions}
+                  />
+                }
+              >
+                <Icons.Activity className="h-3.5 w-3.5" />
               </TooltipTrigger>
               <TooltipContent>{t("spending:eventDetail.tagTransactions")}</TooltipContent>
             </Tooltip>

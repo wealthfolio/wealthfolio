@@ -20,23 +20,25 @@ export const ThinkingToggle: FC = () => {
 
   return (
     <Tooltip>
-      <TooltipTrigger asChild>
-        <Badge
-          variant={thinkingEnabled ? "default" : "outline"}
-          className={cn(
-            "h-5 cursor-pointer select-none gap-1 px-1.5 text-[10px] font-normal transition-colors",
-            thinkingEnabled
-              ? "bg-primary/90 hover:bg-primary"
-              : "text-muted-foreground hover:bg-muted hover:text-foreground",
-          )}
-          onClick={toggleThinking}
-          role="switch"
-          aria-checked={thinkingEnabled}
-          aria-label={thinkingEnabled ? t("ai:thinking.disable") : t("ai:thinking.enable")}
-        >
-          <Icons.Brain className="size-3" />
-          <span>{t("ai:thinking.label")}</span>
-        </Badge>
+      <TooltipTrigger
+        render={
+          <Badge
+            variant={thinkingEnabled ? "default" : "outline"}
+            className={cn(
+              "h-5 cursor-pointer select-none gap-1 px-1.5 text-[10px] font-normal transition-colors",
+              thinkingEnabled
+                ? "bg-primary/90 hover:bg-primary"
+                : "text-muted-foreground hover:bg-muted hover:text-foreground",
+            )}
+            onClick={toggleThinking}
+            role="switch"
+            aria-checked={thinkingEnabled}
+            aria-label={thinkingEnabled ? t("ai:thinking.disable") : t("ai:thinking.enable")}
+          />
+        }
+      >
+        <Icons.Brain className="size-3" />
+        <span>{t("ai:thinking.label")}</span>
       </TooltipTrigger>
       <TooltipContent side="top" className="text-xs">
         {thinkingEnabled ? t("ai:thinking.clickToDisable") : t("ai:thinking.clickToEnable")}

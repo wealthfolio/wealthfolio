@@ -454,22 +454,25 @@ export function IncomeContentImpl({ args, result, status }: IncomeContentProps) 
                     topAssetsTotal > 0 ? (asset.income / topAssetsTotal) * 100 : 0;
                   if (widthPercent < 0.5) return null;
                   return (
-                    <Tooltip key={asset.symbol} delayDuration={100}>
-                      <TooltipTrigger asChild>
-                        <div
-                          className="flex h-full cursor-default items-center justify-center transition-opacity hover:opacity-80"
-                          style={{
-                            width: `${widthPercent}%`,
-                            backgroundColor: `var(--chart-${(index % 9) + 1})`,
-                            minWidth: widthPercent >= 1 ? "4px" : undefined,
-                          }}
-                        >
-                          {widthPercent > 14 && (
-                            <span className="text-background truncate px-1 text-[10px] font-medium">
-                              {asset.symbol}
-                            </span>
-                          )}
-                        </div>
+                    <Tooltip key={asset.symbol}>
+                      <TooltipTrigger
+                        delay={100}
+                        render={
+                          <div
+                            className="flex h-full cursor-default items-center justify-center transition-opacity hover:opacity-80"
+                            style={{
+                              width: `${widthPercent}%`,
+                              backgroundColor: `var(--chart-${(index % 9) + 1})`,
+                              minWidth: widthPercent >= 1 ? "4px" : undefined,
+                            }}
+                          />
+                        }
+                      >
+                        {widthPercent > 14 && (
+                          <span className="text-background truncate px-1 text-[10px] font-medium">
+                            {asset.symbol}
+                          </span>
+                        )}
                       </TooltipTrigger>
                       <TooltipContent side="top" align="center">
                         <div className="text-center">

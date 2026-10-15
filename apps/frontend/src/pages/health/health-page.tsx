@@ -136,14 +136,16 @@ function HealthIssueRow({
 
       <div className="flex shrink-0 items-center gap-1.5">
         <Tooltip>
-          <TooltipTrigger asChild>
-            <Badge
-              variant="outline"
-              className="text-muted-foreground h-6 gap-1 px-2 text-[10px] font-normal"
-            >
-              <CategoryIcon className="h-3 w-3" />
-              {categoryLabel}
-            </Badge>
+          <TooltipTrigger
+            render={
+              <Badge
+                variant="outline"
+                className="text-muted-foreground h-6 gap-1 px-2 text-[10px] font-normal"
+              />
+            }
+          >
+            <CategoryIcon className="h-3 w-3" />
+            {categoryLabel}
           </TooltipTrigger>
           <TooltipContent side="top">{categoryLabel}</TooltipContent>
         </Tooltip>
@@ -352,16 +354,18 @@ export default function HealthPage() {
               />
               {status.checkedAt && (
                 <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span className="text-muted-foreground flex cursor-default items-center gap-1.5 text-xs">
-                      {status.isStale && <Icons.AlertCircle className="h-3 w-3 text-amber-500" />}
-                      {t("health:updatedAt", {
-                        time: formatting.formatTime(status.checkedAt, {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        }),
-                      })}
-                    </span>
+                  <TooltipTrigger
+                    render={
+                      <span className="text-muted-foreground flex cursor-default items-center gap-1.5 text-xs" />
+                    }
+                  >
+                    {status.isStale && <Icons.AlertCircle className="h-3 w-3 text-amber-500" />}
+                    {t("health:updatedAt", {
+                      time: formatting.formatTime(status.checkedAt, {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      }),
+                    })}
                   </TooltipTrigger>
                   <TooltipContent>{formatting.formatDateTime(status.checkedAt)}</TooltipContent>
                 </Tooltip>

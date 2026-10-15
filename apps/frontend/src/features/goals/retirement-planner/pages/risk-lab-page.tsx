@@ -163,15 +163,17 @@ function InlineAmountTooltip({
   const { t } = useTranslation();
   return (
     <UiTooltip>
-      <TooltipTrigger asChild>
-        <span
-          className={cn(
-            "cursor-help font-medium tabular-nums underline decoration-dotted underline-offset-4",
-            tone === "shortfall" ? "text-amber-600" : "text-foreground",
-          )}
-        >
-          {formatting.formatCompactAmount(value, currency)}
-        </span>
+      <TooltipTrigger
+        render={
+          <span
+            className={cn(
+              "cursor-help font-medium tabular-nums underline decoration-dotted underline-offset-4",
+              tone === "shortfall" ? "text-amber-600" : "text-foreground",
+            )}
+          />
+        }
+      >
+        {formatting.formatCompactAmount(value, currency)}
       </TooltipTrigger>
       <TooltipContent className="max-w-xs text-xs">
         <div className="text-[10px] font-semibold uppercase tracking-wider">{label}</div>
@@ -1355,10 +1357,12 @@ function DecisionHeatmap({
               >
                 {flatColumnHint && isFlatColumn(matrix, column) ? (
                   <UiTooltip>
-                    <TooltipTrigger asChild>
-                      <span className="cursor-help underline decoration-dotted underline-offset-4">
-                        {formatColumn(value, matrix.columnLabels[column] ?? "")}
-                      </span>
+                    <TooltipTrigger
+                      render={
+                        <span className="cursor-help underline decoration-dotted underline-offset-4" />
+                      }
+                    >
+                      {formatColumn(value, matrix.columnLabels[column] ?? "")}
                     </TooltipTrigger>
                     <TooltipContent className="max-w-xs text-xs">{flatColumnHint}</TooltipContent>
                   </UiTooltip>
@@ -1388,16 +1392,18 @@ function DecisionHeatmap({
                 return (
                   <td key={`${columnValue}-${column}`}>
                     <UiTooltip>
-                      <TooltipTrigger asChild>
-                        <div
-                          className={cn(
-                            "flex h-12 items-center justify-center rounded-[6px] px-2 text-center text-xs font-semibold tabular-nums leading-none transition-shadow sm:h-[52px] sm:px-3 sm:text-[13px]",
-                            active && "ring-2 ring-[hsl(91,34%,29%)] ring-offset-0",
-                          )}
-                          style={sensitivityCellStyle({ cell, baseline, range, active })}
-                        >
-                          {decisionCellLabel(t, cell, currency, amountFormatting)}
-                        </div>
+                      <TooltipTrigger
+                        render={
+                          <div
+                            className={cn(
+                              "flex h-12 items-center justify-center rounded-[6px] px-2 text-center text-xs font-semibold tabular-nums leading-none transition-shadow sm:h-[52px] sm:px-3 sm:text-[13px]",
+                              active && "ring-2 ring-[hsl(91,34%,29%)] ring-offset-0",
+                            )}
+                            style={sensitivityCellStyle({ cell, baseline, range, active })}
+                          />
+                        }
+                      >
+                        {decisionCellLabel(t, cell, currency, amountFormatting)}
                       </TooltipTrigger>
                       <TooltipContent className="max-w-xs text-xs">
                         <div className="text-[10px] font-semibold uppercase tracking-wider">
