@@ -390,18 +390,20 @@
   /* Field height; a container can set it for compact fields */
   --input-height: 2.75rem; /* h-11 */
 
-  /* Flexoki Light Theme (HSL numeric components) */
+  /* Flexoki Light Theme (HSL numeric components). Classic darkens tx-2, gr
+     and ye from Flexoki so text in them reaches 4.5:1 on every surface
+     (e2e/design-system/colors.spec.ts). */
   --flexoki-bg: 48 100% 97%;
   --flexoki-bg-2: 51 59% 95%;
   --flexoki-ui: 51 21% 88%;
   --flexoki-ui-2: 50 14% 83%;
   --flexoki-ui-3: 55 10% 79%;
   --flexoki-tx: 0 3% 6%;
-  --flexoki-tx-2: 50 3% 42%;
+  --flexoki-tx-2: 50 3% 36%;
   --flexoki-tx-3: 49 7% 70%;
   --flexoki-re: 3 62% 42%;
-  --flexoki-gr: 73 84% 27%;
-  --flexoki-ye: 45 99% 34%;
+  --flexoki-gr: 73 84% 26%;
+  --flexoki-ye: 45 99% 28%;
   --flexoki-bl: 214 67% 39%;
 
   /* Shadcn tokens as full HSL colors */
@@ -492,16 +494,17 @@
 
 .dark {
   --connect-brand: #9ca88a;
-  /* Flexoki Dark Theme (HSL numeric components) */
+  /* Flexoki Dark Theme (HSL numeric components). Classic lightens tx-2 and
+     re from Flexoki so text in them reaches 4.5:1 on every surface. */
   --flexoki-bg: 0 3% 6%;
   --flexoki-bg-2: 30 4% 11%;
   --flexoki-ui: 30 3% 15%;
   --flexoki-ui-2: 40 3% 20%;
   --flexoki-ui-3: 30 3% 24%;
   --flexoki-tx: 55 10% 79%;
-  --flexoki-tx-2: 43 3% 52%;
+  --flexoki-tx-2: 43 3% 60.5%;
   --flexoki-tx-3: 45 2% 33%;
-  --flexoki-re: 5 61% 54%;
+  --flexoki-re: 5 61% 58.5%;
   --flexoki-gr: 72 46% 41%;
   --flexoki-ye: 45 82% 45%;
   --flexoki-bl: 210 47% 50%;

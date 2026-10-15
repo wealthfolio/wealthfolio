@@ -228,11 +228,13 @@ pnpm test:e2e:design-system            # compare; differences fail with a diff
 ```
 
 The accessibility scan records which rules fail on how many elements, because
-the primitives do not pass cleanly yet: low-contrast secondary badges, selected
-toggle items and inactive tabs, and low-contrast text in the open select. In
-WebKit it also counts the focus guards Base UI keeps around open popups, which
-Safari exposes as buttons without a name. RTL is not covered because no shipped
-locale is right-to-left.
+the primitives do not pass cleanly yet: in WebKit it counts the focus guards
+Base UI keeps around open popups, which Safari exposes as buttons without a
+name. RTL is not covered because no shipped locale is right-to-left.
+
+`colors.spec.ts` is the colour contract: every role a theme defines, text pairs
+at 4.5:1 and the focus ring at 3:1, in light and dark. Status text on a tint of
+its own colour (callouts) is a known gap, marked as an expected failure.
 
 Each test is retried once in a fresh browser: late in a long run WebKit
 sometimes stalls a page load without sending a request. Playwright reports a
