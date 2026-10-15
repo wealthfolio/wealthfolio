@@ -884,7 +884,7 @@ function MonteCarloFanChart({
   return (
     <ResponsiveContainer width="100%" height={300}>
       <AreaChart data={chartData} margin={{ top: 18, right: 28, left: 0, bottom: 0 }}>
-        <CartesianGrid vertical={false} stroke="hsl(var(--border))" />
+        <CartesianGrid vertical={false} stroke="var(--border)" />
         <XAxis
           dataKey="age"
           axisLine={false}
@@ -1722,7 +1722,7 @@ function SorrChart({
       <LineChart data={data} margin={{ top: 12, right: 18, left: 18, bottom: 10 }}>
         <CartesianGrid
           vertical={false}
-          stroke="hsl(var(--border))"
+          stroke="var(--border)"
           strokeDasharray="3 3"
           opacity={0.55}
         />
@@ -1741,7 +1741,7 @@ function SorrChart({
         />
         <Tooltip
           content={<SorrTooltip currency={currency} />}
-          cursor={{ stroke: "hsl(var(--border))", strokeDasharray: "3 3" }}
+          cursor={{ stroke: "var(--border)", strokeDasharray: "3 3" }}
         />
         {scenarios.map((scenario, index) => (
           <Line
@@ -1750,7 +1750,7 @@ function SorrChart({
             name={localizedBackendLabel(t, scenario.label)}
             stroke={SORR_COLORS[index % SORR_COLORS.length]}
             dot={false}
-            activeDot={{ r: 4, stroke: "hsl(var(--card))", strokeWidth: 2 }}
+            activeDot={{ r: 4, stroke: "var(--card)", strokeWidth: 2 }}
             strokeWidth={index === 0 ? 2.2 : 1.5}
             strokeDasharray={index === 0 ? undefined : "4 4"}
           />

@@ -154,7 +154,7 @@
     "apps/frontend/src/features/goals/retirement-planner/components/sidebar-configurator.tsx": 3,
     "apps/frontend/src/features/goals/retirement-planner/components/simulation-percentage.tsx": 4,
     "apps/frontend/src/features/goals/retirement-planner/pages/dashboard-page.tsx": 21,
-    "apps/frontend/src/features/goals/retirement-planner/pages/risk-lab-page.tsx": 32,
+    "apps/frontend/src/features/goals/retirement-planner/pages/risk-lab-page.tsx": 28,
     "apps/frontend/src/features/goals/save-up/components/save-up-detail.tsx": 4,
     "apps/frontend/src/features/goals/save-up/components/save-up-projection-card.tsx": 2,
     "apps/frontend/src/features/profiles/avatar-catalog.ts": 8,

@@ -780,19 +780,6 @@ body.qr-scan-active > .qr-overlay {
     padding: 1rem; /* p-4 */
   }
 
-  /* JSON preview clickable numbers */
-  .json-preview .json-number {
-    cursor: pointer;
-    border-radius: 2px;
-    padding: 0 2px;
-    transition: background-color 150ms;
-  }
-
-  .json-preview .json-number:hover {
-    background-color: hsl(var(--primary) / 0.15);
-    color: hsl(var(--primary));
-  }
-
   /* Desktop responsive adjustments */
   @media (width >= 640px) {
     .form-mobile-spacing > * + * {
