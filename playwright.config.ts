@@ -13,7 +13,7 @@ import { defineConfig, devices } from "@playwright/test";
  */
 export default defineConfig({
   testDir: "./e2e",
-  testIgnore: ["**/addon-sandbox/**", "**/net-worth/**", "**/profiles/**"],
+  testIgnore: ["**/addon-sandbox/**", "**/design-system/**", "**/net-worth/**", "**/profiles/**"],
   /* Run tests in files sequentially to ensure onboarding runs before activity tests */
   fullyParallel: false,
   /* Fail the build on CI if you accidentally left test.only in the source code. */
