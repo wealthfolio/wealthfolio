@@ -237,7 +237,8 @@ at 4.5:1 and the focus ring at 3:1, in light and dark. Callouts, banners and
 pills on a status use its subtle surface (`bg-warning-subtle`,
 `text-warning-subtle-foreground`, `border-warning-subtle-border`): status text
 on a tint of its own colour (`text-warning` on `bg-warning/10`) can't reach
-4.5:1.
+4.5:1. `Alert`'s status variants show that surface as glass (60% fill, a
+hairline and `--surface-highlight` along the top), also checked at 4.5:1.
 
 Each test is retried once in a fresh browser: late in a long run WebKit
 sometimes stalls a page load without sending a request. Playwright reports a

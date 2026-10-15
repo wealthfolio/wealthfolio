@@ -3,6 +3,11 @@ import { cva, type VariantProps } from "class-variance-authority";
 
 import { cn } from "../../lib/utils";
 
+// Status alerts are glass: a translucent status surface, a hairline in the text
+// colour and light along the top edge. Text reads at 4.5:1 or more on the page and
+// on cards (e2e/design-system/colors.spec.ts).
+const glass = "shadow-[inset_0_1px_0_0_var(--surface-highlight)] backdrop-blur-sm";
+
 const alertVariants = cva(
   "relative w-full rounded-lg border p-4 [&>svg~*]:pl-7 [&>svg+div]:translate-y-[-3px] [&>svg]:absolute [&>svg]:left-4 [&>svg]:top-4 [&>svg]:text-foreground",
   {
@@ -10,12 +15,18 @@ const alertVariants = cva(
       variant: {
         default: "bg-background text-foreground",
         destructive: "border-destructive/50 text-destructive dark:border-destructive [&>svg]:text-destructive",
-        error:
-          "border-destructive-subtle-border bg-destructive-subtle text-destructive-subtle-foreground [&>svg]:text-destructive-subtle-foreground",
-        success:
-          "border-success-subtle-border bg-success-subtle text-success-subtle-foreground [&>svg]:text-success-subtle-foreground",
-        warning:
-          "border-warning-subtle-border bg-warning-subtle text-warning-subtle-foreground [&>svg]:text-warning-subtle-foreground",
+        error: cn(
+          "border-destructive-subtle-foreground/12 bg-destructive-subtle/60 text-destructive-subtle-foreground [&>svg]:text-destructive-subtle-foreground",
+          glass,
+        ),
+        success: cn(
+          "border-success-subtle-foreground/12 bg-success-subtle/60 text-success-subtle-foreground [&>svg]:text-success-subtle-foreground",
+          glass,
+        ),
+        warning: cn(
+          "border-warning-subtle-foreground/12 bg-warning-subtle/60 text-warning-subtle-foreground [&>svg]:text-warning-subtle-foreground",
+          glass,
+        ),
       },
     },
     defaultVariants: {

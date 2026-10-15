@@ -153,4 +153,28 @@ for (const mode of modes) {
     });
     expect(failures).toEqual([]);
   });
+
+  test(`status text on glass alerts, ${mode}`, async ({ page }) => {
+    // Alert's status variants show the subtle surface at 60% over whatever is below.
+    await openGallery(page, { mode });
+    const cases = statuses.flatMap((status) =>
+      ["background", "card"].map((surface) => ({ status, surface })),
+    );
+    const results = await ratios(
+      page,
+      cases.map(({ status, surface }) => ({
+        text: `var(--${status}-subtle-foreground)`,
+        layers: [
+          `var(--${surface})`,
+          `color-mix(in oklab, var(--${status}-subtle) 60%, transparent)`,
+        ],
+      })),
+    );
+    const failures = cases.flatMap(({ status, surface }, index) =>
+      results[index] < 4.5
+        ? [`${status} glass over ${surface}: ${results[index].toFixed(2)} < 4.5`]
+        : [],
+    );
+    expect(failures).toEqual([]);
+  });
 }

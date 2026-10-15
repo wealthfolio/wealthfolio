@@ -502,6 +502,9 @@
   --info-subtle: var(--color-blue-50);
   --info-subtle-foreground: var(--color-blue-700);
   --info-subtle-border: var(--color-blue-200);
+  /* Light caught by the top edge of glass surfaces (status alerts); a theme
+     can set it to transparent. */
+  --surface-highlight: rgb(255 255 255 / 0.35);
 
   /* Sonner toast overrides - solid backgrounds for better readability */
   --toast-bg: hsl(var(--flexoki-bg-2));
@@ -564,6 +567,7 @@
   --info-subtle: var(--color-blue-950);
   --info-subtle-foreground: var(--color-blue-200);
   --info-subtle-border: var(--color-blue-800);
+  --surface-highlight: rgb(255 255 255 / 0.03);
 
   /* Sonner toast overrides for dark mode - solid backgrounds for better readability */
   --toast-bg: hsl(var(--flexoki-bg-2));
