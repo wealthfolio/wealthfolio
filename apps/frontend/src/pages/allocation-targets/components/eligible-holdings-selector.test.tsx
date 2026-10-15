@@ -130,7 +130,7 @@ describe("EligibleHoldingsSelector", () => {
     expect(screen.getByText("VTI")).toBeInTheDocument();
     expect(screen.queryByText("BND")).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole("option", { name: /VTI.*Vanguard Total Stock/i }));
+    await user.click(await screen.findByRole("option", { name: /VTI.*Vanguard Total Stock/i }));
     expect(screen.getByRole("button", { name: /Eligible holdings/ })).toHaveTextContent(
       "2 of 3 selected",
     );

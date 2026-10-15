@@ -95,7 +95,7 @@ describe("LanguageRegionSettings currency formats", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Select currency" }));
     await userEvent.click(screen.getByRole("combobox", { name: "Select region" }));
-    await userEvent.click(screen.getByRole("option", { name: "United States" }));
+    await userEvent.click(await screen.findByRole("option", { name: "United States" }));
     await userEvent.click(screen.getByTestId("currency-format-add"));
 
     expect(updateSettings).toHaveBeenCalledWith({
@@ -145,7 +145,7 @@ describe("LanguageRegionSettings currency formats", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Select currency" }));
     await userEvent.click(screen.getByRole("combobox", { name: "Select region" }));
-    await userEvent.click(screen.getByRole("option", { name: "United States" }));
+    await userEvent.click(await screen.findByRole("option", { name: "United States" }));
     await userEvent.click(screen.getByTestId("currency-format-add"));
 
     expect(screen.getByRole("button", { name: "Select currency" })).toHaveTextContent("USD");

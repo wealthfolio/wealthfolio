@@ -212,7 +212,11 @@ test("select inside a sheet: choosing keeps the sheet open", async ({ page }) =>
   await page.getByRole("option", { name: "Checking" }).click();
   await expect(select).toHaveText("Checking");
   await expect(sheet).toBeVisible();
+  // Base UI opens the list a moment after the click, so Escape waits for it;
+  // pressed sooner, it reaches the sheet instead.
+  await expect(page.getByRole("listbox")).toBeHidden();
   await select.click();
+  await expect(page.getByRole("listbox")).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(page.getByRole("listbox")).toBeHidden();
   await expect(sheet).toBeVisible();

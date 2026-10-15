@@ -54,7 +54,7 @@ describe("AccountScopeSelector", () => {
     expect(screen.queryByRole("button", { name: "Add portfolio" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Edit portfolio" })).not.toBeInTheDocument();
     expect(screen.queryByRole("option", { name: /Everyday bank/ })).not.toBeInTheDocument();
-    await userEvent.click(screen.getByRole("option", { name: "Retirement" }));
+    await userEvent.click(await screen.findByRole("option", { name: "Retirement" }));
     expect(onChange).toHaveBeenCalledWith({ type: "portfolio", portfolioId: "retirement" });
     expect(screen.queryByRole("option", { name: "Retirement" })).not.toBeInTheDocument();
   });

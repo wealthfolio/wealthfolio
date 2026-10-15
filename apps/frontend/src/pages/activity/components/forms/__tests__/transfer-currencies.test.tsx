@@ -100,7 +100,7 @@ describe("internal transfer currencies (real form)", () => {
     for (const name of ["Source currency", "Destination currency"]) {
       await user.click(screen.getByRole("combobox", { name }));
       await user.type(screen.getByPlaceholderText("Search currency..."), "HKD");
-      await user.click(screen.getByRole("option", { name: /HKD/ }));
+      await user.click(await screen.findByRole("option", { name: /HKD/ }));
     }
     fireEvent.change(screen.getByTestId("input-amount"), { target: { value: "1000" } });
     fireEvent.submit(container.querySelector("form")!);

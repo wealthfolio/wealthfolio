@@ -9,10 +9,12 @@ import {
 
 async function selectCurrency(page: Page, field: string, currency: string, mobile: boolean) {
   await page.getByTestId(field).click();
-  await page
+  // The previous currency popover can still be animating closed.
+  const scope = mobile ? page : page.locator('[data-slot="popover-content"][data-open]');
+  await scope
     .getByPlaceholder(mobile ? "Search all currencies..." : "Search currency...")
     .fill(currency);
-  await page
+  await scope
     .getByRole(mobile ? "button" : "option", { name: new RegExp(currency) })
     .last()
     .click();

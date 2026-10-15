@@ -753,11 +753,11 @@ test.describe("Activity Creation Tests", () => {
     const transfer = TEST_DATA.activities.externalCashTransferOut;
 
     // Check "External transfer" checkbox
-    await page.getByLabel("External transfer").click();
+    await page.getByRole("checkbox", { name: "External transfer" }).click();
     await page.waitForTimeout(200);
 
     // Select "Out" direction (default is "in")
-    await page.locator("#direction-out").click();
+    await page.getByRole("radio", { name: "Out", exact: true }).click();
     await page.waitForTimeout(200);
 
     // Select account (label is "From Account" for external out)
@@ -779,11 +779,11 @@ test.describe("Activity Creation Tests", () => {
     const transfer = TEST_DATA.activities.externalCashTransferIn;
 
     // Check "External transfer" checkbox
-    await page.getByLabel("External transfer").click();
+    await page.getByRole("checkbox", { name: "External transfer" }).click();
     await page.waitForTimeout(200);
 
     // Explicitly select "In" direction
-    await page.locator("#direction-in").click();
+    await page.getByRole("radio", { name: "In", exact: true }).click();
     await page.waitForTimeout(200);
 
     // Select account (label is "To Account" for external in)
@@ -836,11 +836,11 @@ test.describe("Activity Creation Tests", () => {
     await page.waitForTimeout(200);
 
     // Check "External transfer" checkbox
-    await page.getByLabel("External transfer").click();
+    await page.getByRole("checkbox", { name: "External transfer" }).click();
     await page.waitForTimeout(200);
 
     // Explicitly select "In" direction
-    await page.locator("#direction-in").click();
+    await page.getByRole("radio", { name: "In", exact: true }).click();
     await page.waitForTimeout(200);
 
     // Select account (label is "To Account" for external in)
@@ -941,6 +941,7 @@ test.describe("Activity Creation Tests", () => {
     await cashDialog.getByTestId("amount-input").fill(String(adjustment.securitiesAmount));
     await cashDialog.getByTestId("advanced-options-button").click();
     await cashDialog.getByTestId("subtype-select").click();
+    await expect(page.getByRole("listbox")).toBeVisible();
     await expect(page.getByRole("option", { name: "Option Expiry", exact: true })).toHaveCount(0);
     await page.keyboard.press("Escape");
     await updateActivity(cashDialog);

@@ -129,7 +129,7 @@ describe("RebalanceTab eligible holdings production flow", () => {
 
     const trigger = () => screen.getByRole("button", { name: /Eligible holdings/ });
     await user.click(trigger());
-    await user.click(screen.getByRole("option", { name: /AAA.*selected/i }));
+    await user.click(await screen.findByRole("option", { name: /AAA.*selected/i }));
     expect(trigger()).toHaveTextContent("2 of 3 selected");
 
     await user.click(screen.getByRole("button", { name: /Sell.*rebalance/i }));
@@ -152,7 +152,7 @@ describe("RebalanceTab eligible holdings production flow", () => {
     await waitFor(() => expect(refetchMock).toHaveBeenCalledTimes(1));
 
     await user.click(screen.getByRole("button", { name: /Eligible holdings/ }));
-    await user.click(screen.getByRole("option", { name: /AAA.*selected/i }));
+    await user.click(await screen.findByRole("option", { name: /AAA.*selected/i }));
     const partialParams = useRebalancePlanMock.mock.lastCall?.[0] as {
       eligibleAssetIds?: string[];
     };
