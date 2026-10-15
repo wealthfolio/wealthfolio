@@ -64,7 +64,7 @@ export function AccountSelect<TFieldValues extends FieldValues = FieldValues>({
               <SelectTrigger aria-label={resolvedLabel} data-testid="account-select">
                 <SelectValue placeholder={resolvedPlaceholder} />
               </SelectTrigger>
-              <SelectContent className="max-h-125 overflow-y-auto">
+              <SelectContent className="max-h-[min(31.25rem,var(--available-height))] overflow-y-auto">
                 {accounts.map((account) => (
                   <SelectItem
                     value={account.value}

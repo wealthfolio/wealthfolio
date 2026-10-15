@@ -94,7 +94,7 @@ export function MappingHeaderCell({
               }
             />
           </SelectTrigger>
-          <SelectContent className="max-h-[300px] overflow-y-auto">
+          <SelectContent className="max-h-[min(300px,var(--available-height))] overflow-y-auto">
             {!isRequired && (
               <>
                 <SelectItem value={SKIP_FIELD_VALUE}>{skipLabel}</SelectItem>
