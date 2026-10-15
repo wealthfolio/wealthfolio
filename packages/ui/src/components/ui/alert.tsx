@@ -6,7 +6,10 @@ import { cn } from "../../lib/utils";
 // Status alerts are glass: a translucent status surface, a hairline in the text
 // colour and light along the top edge. Text reads at 4.5:1 or more on the page and
 // on cards (e2e/design-system/colors.spec.ts).
-const glass = "shadow-[inset_0_1px_0_0_var(--surface-highlight)] backdrop-blur-sm";
+const glassEdge = "shadow-[inset_0_1px_0_0_var(--surface-highlight)] backdrop-blur-sm";
+const destructiveGlass = `border-destructive-subtle-foreground/12 bg-destructive-subtle/60 text-destructive-subtle-foreground [&>svg]:text-destructive-subtle-foreground ${glassEdge}`;
+const successGlass = `border-success-subtle-foreground/12 bg-success-subtle/60 text-success-subtle-foreground [&>svg]:text-success-subtle-foreground ${glassEdge}`;
+const warningGlass = `border-warning-subtle-foreground/12 bg-warning-subtle/60 text-warning-subtle-foreground [&>svg]:text-warning-subtle-foreground ${glassEdge}`;
 
 const alertVariants = cva(
   "relative w-full rounded-lg border p-4 [&>svg~*]:pl-7 [&>svg+div]:translate-y-[-3px] [&>svg]:absolute [&>svg]:left-4 [&>svg]:top-4 [&>svg]:text-foreground",
@@ -14,19 +17,11 @@ const alertVariants = cva(
     variants: {
       variant: {
         default: "bg-background text-foreground",
-        destructive: "border-destructive/50 text-destructive dark:border-destructive [&>svg]:text-destructive",
-        error: cn(
-          "border-destructive-subtle-foreground/12 bg-destructive-subtle/60 text-destructive-subtle-foreground [&>svg]:text-destructive-subtle-foreground",
-          glass,
-        ),
-        success: cn(
-          "border-success-subtle-foreground/12 bg-success-subtle/60 text-success-subtle-foreground [&>svg]:text-success-subtle-foreground",
-          glass,
-        ),
-        warning: cn(
-          "border-warning-subtle-foreground/12 bg-warning-subtle/60 text-warning-subtle-foreground [&>svg]:text-warning-subtle-foreground",
-          glass,
-        ),
+        destructive: destructiveGlass,
+        // The earlier name for destructive, kept for addons.
+        error: destructiveGlass,
+        success: successGlass,
+        warning: warningGlass,
       },
     },
     defaultVariants: {

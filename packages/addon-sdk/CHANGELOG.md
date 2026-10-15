@@ -41,7 +41,9 @@ and this project adheres to
   `--warning-subtle`, `--destructive-subtle` and `--info-subtle`, each with
   `-foreground` (text) and `-border`. Text on a tint of a status colour
   (`--warning` at 10%) does not reach 4.5:1 contrast; these pairs do, in light
-  and dark. `Alert`'s `error`, `warning` and `success` variants use them.
+  and dark. `Alert`'s `destructive`, `warning` and `success` variants show them
+  as a translucent surface with a hairline border; `error` is now the same as
+  `destructive`.
 
 ### Changed
 
