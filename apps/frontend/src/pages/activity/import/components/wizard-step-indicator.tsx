@@ -25,9 +25,9 @@ export function WizardStepIndicator({ steps, currentStep }: WizardStepIndicatorP
   const currentIndex = steps.findIndex((s) => s.id === currentStep);
 
   return (
-    <div className="w-full">
+    <div className="@container w-full">
       {/* Compact rail while the full step labels would crowd the circles. */}
-      <div className="xl:hidden">
+      <div className="@min-[72rem]:hidden">
         <div className="mx-auto flex w-full max-w-85 items-center px-5 py-3">
           {steps.map((step, index) => {
             const isCompleted = index < currentIndex;
@@ -82,8 +82,8 @@ export function WizardStepIndicator({ steps, currentStep }: WizardStepIndicatorP
         </div>
       </div>
 
-      {/* Wide windows: full stepper */}
-      <div className="hidden w-full items-center justify-center xl:flex">
+      {/* Full labels need room inside the card, including with an expanded sidebar. */}
+      <div className="@min-[72rem]:flex hidden w-full items-center justify-center">
         {steps.map((step, index) => {
           const isCompleted = index < currentIndex;
           const isCurrent = step.id === currentStep;
