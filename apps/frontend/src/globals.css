@@ -263,6 +263,18 @@
   --color-connect-brand: var(--connect-brand);
   --color-info: var(--info);
   --color-info-foreground: var(--info-foreground);
+  --color-success-subtle: var(--success-subtle);
+  --color-success-subtle-foreground: var(--success-subtle-foreground);
+  --color-success-subtle-border: var(--success-subtle-border);
+  --color-warning-subtle: var(--warning-subtle);
+  --color-warning-subtle-foreground: var(--warning-subtle-foreground);
+  --color-warning-subtle-border: var(--warning-subtle-border);
+  --color-destructive-subtle: var(--destructive-subtle);
+  --color-destructive-subtle-foreground: var(--destructive-subtle-foreground);
+  --color-destructive-subtle-border: var(--destructive-subtle-border);
+  --color-info-subtle: var(--info-subtle);
+  --color-info-subtle-foreground: var(--info-subtle-foreground);
+  --color-info-subtle-border: var(--info-subtle-border);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-input-bg: var(--input-bg);
@@ -474,22 +486,39 @@
   --mobile-nav-bottom-offset: max(var(--mobile-nav-gap), var(--mobile-safe-area-bottom));
   --mobile-nav-total-offset: calc(var(--mobile-nav-ui-height) + var(--mobile-nav-bottom-offset));
 
+  /* Status surfaces: a pale background with text and border of the same hue,
+     for callouts, banners and pills (bg-warning-subtle
+     text-warning-subtle-foreground border-warning-subtle-border). Status text
+     on a tint of itself (text-warning on bg-warning/10) can't reach 4.5:1. */
+  --success-subtle: var(--color-green-50);
+  --success-subtle-foreground: var(--color-green-700);
+  --success-subtle-border: var(--color-green-200);
+  --warning-subtle: var(--color-yellow-50);
+  --warning-subtle-foreground: var(--color-yellow-800);
+  --warning-subtle-border: var(--color-yellow-200);
+  --destructive-subtle: var(--color-red-50);
+  --destructive-subtle-foreground: var(--color-red-700);
+  --destructive-subtle-border: var(--color-red-200);
+  --info-subtle: var(--color-blue-50);
+  --info-subtle-foreground: var(--color-blue-700);
+  --info-subtle-border: var(--color-blue-200);
+
   /* Sonner toast overrides - solid backgrounds for better readability */
   --toast-bg: hsl(var(--flexoki-bg-2));
   --toast-fg: hsl(var(--flexoki-tx));
   --toast-border: hsl(var(--flexoki-ui-2));
-  --toast-success-bg: var(--color-green-50);
-  --toast-success-fg: var(--color-green-700);
-  --toast-success-border: var(--color-green-200);
-  --toast-error-bg: var(--color-red-50);
-  --toast-error-fg: var(--color-red-700);
-  --toast-error-border: var(--color-red-200);
+  --toast-success-bg: var(--success-subtle);
+  --toast-success-fg: var(--success-subtle-foreground);
+  --toast-success-border: var(--success-subtle-border);
+  --toast-error-bg: var(--destructive-subtle);
+  --toast-error-fg: var(--destructive-subtle-foreground);
+  --toast-error-border: var(--destructive-subtle-border);
   --toast-warning-bg: var(--color-orange-50);
   --toast-warning-fg: var(--color-orange-700);
   --toast-warning-border: var(--color-orange-200);
-  --toast-info-bg: var(--color-blue-50);
-  --toast-info-fg: var(--color-blue-700);
-  --toast-info-border: var(--color-blue-200);
+  --toast-info-bg: var(--info-subtle);
+  --toast-info-fg: var(--info-subtle-foreground);
+  --toast-info-border: var(--info-subtle-border);
 }
 
 .dark {
@@ -523,22 +552,26 @@
   --chart-9: hsl(51 18% 77%);
   --chart-stone: hsl(49 8% 60%);
 
+  --success-subtle: var(--color-green-950);
+  --success-subtle-foreground: var(--color-green-100);
+  --success-subtle-border: var(--color-green-800);
+  --warning-subtle: var(--color-yellow-950);
+  --warning-subtle-foreground: var(--color-yellow-200);
+  --warning-subtle-border: var(--color-yellow-800);
+  --destructive-subtle: var(--color-red-950);
+  --destructive-subtle-foreground: var(--color-red-200);
+  --destructive-subtle-border: var(--color-red-800);
+  --info-subtle: var(--color-blue-950);
+  --info-subtle-foreground: var(--color-blue-200);
+  --info-subtle-border: var(--color-blue-800);
+
   /* Sonner toast overrides for dark mode - solid backgrounds for better readability */
   --toast-bg: hsl(var(--flexoki-bg-2));
   --toast-fg: hsl(var(--flexoki-tx));
   --toast-border: hsl(var(--flexoki-ui-2));
-  --toast-success-bg: var(--color-green-950);
-  --toast-success-fg: var(--color-green-100);
-  --toast-success-border: var(--color-green-800);
-  --toast-error-bg: var(--color-red-950);
-  --toast-error-fg: var(--color-red-200);
-  --toast-error-border: var(--color-red-800);
   --toast-warning-bg: var(--color-orange-950);
   --toast-warning-fg: var(--color-orange-200);
   --toast-warning-border: var(--color-orange-800);
-  --toast-info-bg: var(--color-blue-950);
-  --toast-info-fg: var(--color-blue-200);
-  --toast-info-border: var(--color-blue-800);
 
   --input: hsl(var(--flexoki-ui-2));
 }

@@ -2,7 +2,9 @@
 // Counts design-system debt per source file so it only goes down: font sizes
 // off the type scale (text-[11px], text-[0.8125rem]), other hard-coded px
 // sizes in class names, and raw colours that bypass the theme's roles (palette
-// classes like text-amber-600, hex literals, rgb()/hsl() values). Borders, rings, outlines, shadows and offsets up to 4px
+// classes like text-amber-600, hex literals, rgb()/hsl() values), and pale
+// tints of a status colour (bg-warning/10), which status text on them can't
+// read against; those surfaces use bg-warning-subtle and its pair. Borders, rings, outlines, shadows and offsets up to 4px
 // are hairlines and stay in px. Fails when a file gains a use; `--update`
 // records the current counts once uses are removed. Run on demand, not in CI.
 import { execFileSync } from "node:child_process";
@@ -25,6 +27,12 @@ const rawColor = new RegExp(
 
 function rawColors(source) {
   return [...source.matchAll(rawColor)].length;
+}
+
+const statusTint = /(?<![\w-])bg-(?:success|warning|destructive|info)\/(\d+)(?![\w-])/g;
+
+function statusTints(source) {
+  return [...source.matchAll(statusTint)].filter(([, alpha]) => Number(alpha) <= 30).length;
 }
 
 function fontSizes(source) {
@@ -53,6 +61,11 @@ const measures = {
     count: rawColors,
     label: "raw colours",
     fix: "use a theme role (text-success, bg-muted, var(--chart-1))",
+  },
+  statusTints: {
+    count: statusTints,
+    label: "status tints",
+    fix: "use bg-warning-subtle text-warning-subtle-foreground border-warning-subtle-border",
   },
   pxSizes: {
     count: pxSizes,

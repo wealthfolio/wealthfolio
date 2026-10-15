@@ -5,6 +5,10 @@ import { modes, openGallery } from "./gallery";
 // readable in each mode. Text needs 4.5:1 (WCAG 1.4.3); the focus indicator 3:1
 // against what it sits on (WCAG 1.4.11).
 
+// Callouts, banners and pills on a status use its subtle surface, never status text on
+// a tint of itself (text-warning on bg-warning/10), which can't reach 4.5:1.
+const statuses = ["success", "warning", "destructive", "info"];
+
 const roles = [
   "background",
   "foreground",
@@ -28,6 +32,11 @@ const roles = [
   "warning-foreground",
   "info",
   "info-foreground",
+  ...statuses.flatMap((status) => [
+    `${status}-subtle`,
+    `${status}-subtle-foreground`,
+    `${status}-subtle-border`,
+  ]),
   "border",
   "input",
   "input-bg",
@@ -64,6 +73,7 @@ const textPairs = [
   ...["destructive", "success", "warning"].flatMap((text) =>
     ["background", "card"].map((surface) => [text, surface]),
   ),
+  ...statuses.map((status) => [`${status}-subtle-foreground`, `${status}-subtle`]),
   ["sidebar-foreground", "sidebar"],
   ["sidebar-primary-foreground", "sidebar-primary"],
   ["sidebar-accent-foreground", "sidebar-accent"],
@@ -141,36 +151,6 @@ for (const mode of modes) {
         ? [`${text} on ${surface}: ${results[index].toFixed(2)} < ${minimum}`]
         : [];
     });
-    expect(failures).toEqual([]);
-  });
-
-  test(`status text on its own tint, ${mode}`, async ({ page }) => {
-    // Known gap: callouts put status text on a 10-15% tint of the same colour
-    // (text-warning on bg-warning/10), which no status colour can pass in both modes
-    // without leaving Classic's look. Callouts move to the toast notice pairs
-    // (--toast-warning-bg/-fg), which pass, in the patterns step; drop this marker then.
-    test.fail(true, "status text on its own tint is below 4.5:1");
-    await openGallery(page, { mode });
-    const cases = ["warning", "destructive", "success"].flatMap((role) =>
-      [10, 15].flatMap((percent) =>
-        ["background", "card"].map((surface) => ({ role, percent, surface })),
-      ),
-    );
-    const results = await ratios(
-      page,
-      cases.map(({ role, percent, surface }) => ({
-        text: `var(--${role})`,
-        layers: [
-          `var(--${surface})`,
-          `color-mix(in oklab, var(--${role}) ${percent}%, transparent)`,
-        ],
-      })),
-    );
-    const failures = cases.flatMap(({ role, percent, surface }, index) =>
-      results[index] < 4.5
-        ? [`${role} on ${role}/${percent} over ${surface}: ${results[index].toFixed(2)}`]
-        : [],
-    );
     expect(failures).toEqual([]);
   });
 }

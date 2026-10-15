@@ -37,6 +37,11 @@ and this project adheres to
 - `IncomeSummary.unconvertedCurrencies`, the currencies whose income has no
   exchange rate to the summary's currency. Requires a Wealthfolio release that
   ships it (unreleased at the time of writing).
+- Status surface colours for callouts, banners and pills: `--success-subtle`,
+  `--warning-subtle`, `--destructive-subtle` and `--info-subtle`, each with
+  `-foreground` (text) and `-border`. Text on a tint of a status colour
+  (`--warning` at 10%) does not reach 4.5:1 contrast; these pairs do, in light
+  and dark. `Alert`'s `error`, `warning` and `success` variants use them.
 
 ### Changed
 

@@ -233,8 +233,11 @@ Base UI keeps around open popups, which Safari exposes as buttons without a
 name. RTL is not covered because no shipped locale is right-to-left.
 
 `colors.spec.ts` is the colour contract: every role a theme defines, text pairs
-at 4.5:1 and the focus ring at 3:1, in light and dark. Status text on a tint of
-its own colour (callouts) is a known gap, marked as an expected failure.
+at 4.5:1 and the focus ring at 3:1, in light and dark. Callouts, banners and
+pills on a status use its subtle surface (`bg-warning-subtle`,
+`text-warning-subtle-foreground`, `border-warning-subtle-border`): status text
+on a tint of its own colour (`text-warning` on `bg-warning/10`) can't reach
+4.5:1.
 
 Each test is retried once in a fresh browser: late in a long run WebKit
 sometimes stalls a page load without sending a request. Playwright reports a
@@ -244,6 +247,7 @@ test that only passes on retry as flaky; a real difference fails both attempts.
 (`text-[11px]`; the scale is `text-2xs` to `text-3xl` in `globals.css`), other
 hard-coded px sizes in class names (`w-[300px]`; borders, rings, shadows and
 offsets up to 4 px stay in px), and raw colours that bypass the theme's roles
-(`text-amber-600`, hex literals, `rgb()`/`hsl()` values), and fails when a file
-gains one. Sizes in rem follow the root font size, which the Text size setting
-will change. Run it with `--update` after removing some.
+(`text-amber-600`, hex literals, `rgb()`/`hsl()` values) or tint a status colour
+(`bg-warning/10`), and fails when a file gains one. Sizes in rem follow the root
+font size, which the Text size setting will change. Run it with `--update` after
+removing some.
