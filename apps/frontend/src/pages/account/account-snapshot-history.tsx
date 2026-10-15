@@ -38,6 +38,7 @@ import type { TFunction } from "i18next";
 import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+import { Alert, AlertDescription, AlertTitle } from "@wealthfolio/ui/components/ui/alert";
 
 interface AccountSnapshotHistoryProps {
   account: Account;
@@ -184,10 +185,11 @@ export function AccountSnapshotHistory({
       </div>
 
       {hasHighlightedInvalidSnapshot && (
-        <div className="border-destructive/40 bg-destructive/5 rounded-md border px-4 py-3 text-sm">
-          <p className="font-medium">{t("account:snapshot.invalid_date_title")}</p>
-          <p className="text-muted-foreground mt-1">{t("account:snapshot.invalid_date_desc")}</p>
-        </div>
+        <Alert variant="destructive" className="rounded-md">
+          <Icons.AlertCircle />
+          <AlertTitle>{t("account:snapshot.invalid_date_title")}</AlertTitle>
+          <AlertDescription>{t("account:snapshot.invalid_date_desc")}</AlertDescription>
+        </Alert>
       )}
 
       {orderedSnapshots.length === 0 ? (

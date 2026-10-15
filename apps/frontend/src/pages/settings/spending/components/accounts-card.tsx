@@ -21,6 +21,7 @@ import {
 import { isCreditCardAccountType, isSpendingAccountType } from "@/features/spending/lib/constants";
 import { AccountType } from "@/lib/constants";
 import { cn } from "@/lib/utils";
+import { Alert, AlertDescription } from "@wealthfolio/ui/components/ui/alert";
 
 export function AccountsCard() {
   const { t } = useTranslation();
@@ -146,10 +147,12 @@ export function AccountsCard() {
             })}
 
             {hasMixedCashAndCredit && (
-              <div className="text-warning border-warning/30 bg-warning/10 mt-3 flex gap-2 rounded-md border p-2.5 text-xs leading-relaxed">
-                <Icons.AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                <p>{t("settings:spending.accounts.mixed_warning")}</p>
-              </div>
+              <Alert variant="warning" className="mt-3 p-2.5 text-xs">
+                <Icons.AlertTriangle className="size-3.5" />
+                <AlertDescription className="leading-relaxed">
+                  {t("settings:spending.accounts.mixed_warning")}
+                </AlertDescription>
+              </Alert>
             )}
           </div>
         )}

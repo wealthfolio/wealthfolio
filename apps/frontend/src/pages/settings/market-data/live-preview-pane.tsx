@@ -25,6 +25,7 @@ import {
   type TemplatePlaceholderValues,
 } from "./template-placeholders";
 import type { MappingField, SourceRuntime } from "./use-source-runtime";
+import { Alert, AlertDescription } from "@wealthfolio/ui/components/ui/alert";
 
 interface LivePreviewPaneProps {
   form: UseFormReturn<FormValues>;
@@ -849,19 +850,17 @@ export function LivePreviewPane({ form, prefix, runtime }: LivePreviewPaneProps)
         </div>
 
         {runtime.fetchError && !runtime.isFetching ? (
-          <div className="border-destructive/30 bg-destructive/5 rounded-lg border p-3">
-            <div className="flex items-start gap-2">
-              <Icons.XCircle className="text-destructive mt-0.5 h-4 w-4 shrink-0" />
-              <div>
-                <p className="text-destructive text-sm">{runtime.fetchError}</p>
-                {/403|forbidden|denied/i.test(runtime.fetchError) && (
-                  <p className="text-muted-foreground mt-1 text-xs">
-                    {t("settings:market_data_page.fetch_error_headers_hint")}
-                  </p>
-                )}
-              </div>
-            </div>
-          </div>
+          <Alert variant="destructive" className="p-3">
+            <Icons.XCircle />
+            <AlertDescription>
+              {runtime.fetchError}
+              {/403|forbidden|denied/i.test(runtime.fetchError) && (
+                <p className="mt-1 text-xs">
+                  {t("settings:market_data_page.fetch_error_headers_hint")}
+                </p>
+              )}
+            </AlertDescription>
+          </Alert>
         ) : !runtime.hasFetched && !runtime.testResult ? (
           <EmptyResponseState />
         ) : format === "html_table" && runtime.detectedTables.length > 0 ? (
@@ -987,12 +986,12 @@ export function LivePreviewPane({ form, prefix, runtime }: LivePreviewPaneProps)
               )}
             </div>
           ) : (
-            <div className="border-destructive/30 bg-destructive/5 flex items-start gap-3 rounded-lg border p-3">
-              <Icons.XCircle className="text-destructive mt-0.5 h-4 w-4 shrink-0" />
-              <p className="text-muted-foreground min-w-0 flex-1 text-xs">
+            <Alert variant="destructive" className="p-3 text-xs">
+              <Icons.XCircle />
+              <AlertDescription>
                 {runtime.testResult.error ?? t("settings:market_data_page.extraction_failed")}
-              </p>
-            </div>
+              </AlertDescription>
+            </Alert>
           )}
         </section>
       )}

@@ -18,6 +18,7 @@ import { RadioGroup, RadioGroupItem } from "@wealthfolio/ui/components/ui/radio-
 import { toast } from "@wealthfolio/ui/components/ui/use-toast";
 import { generateBackupPassword, isValidBackupPassword } from "./backup-password";
 import { BackupAlert, PendingIcon } from "./backup-ui";
+import { Alert, AlertDescription } from "@wealthfolio/ui/components/ui/alert";
 
 interface BackupExportDialogProps {
   filename: string;
@@ -122,13 +123,12 @@ export function BackupExportDialog({ filename, displayName, onClose }: BackupExp
             </div>
           </RadioGroup>
           {unencrypted ? (
-            <p
-              className="border-warning/30 bg-warning/10 flex gap-3 rounded-lg border p-3 text-sm leading-relaxed"
-              role="note"
-            >
-              <Icons.AlertTriangle className="text-warning mt-0.5 size-4 shrink-0" aria-hidden />
-              {t("settings:backup_export_plain_warning")}
-            </p>
+            <Alert variant="warning" role="note" className="p-3">
+              <Icons.AlertTriangle aria-hidden />
+              <AlertDescription className="leading-relaxed">
+                {t("settings:backup_export_plain_warning")}
+              </AlertDescription>
+            </Alert>
           ) : (
             <>
               <div className="grid gap-4">

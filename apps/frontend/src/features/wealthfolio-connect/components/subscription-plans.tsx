@@ -23,6 +23,7 @@ import { getDisplayablePlans } from "../lib/plan-visibility";
 import { useWealthfolioConnect } from "../providers/wealthfolio-connect-provider";
 import { getSubscriptionPlans } from "../services/broker-service";
 import type { BillingPeriod, SubscriptionPlan } from "../types";
+import { statusSurfaceVariants } from "@wealthfolio/ui/components/ui/status-surface";
 
 // Helper to detect if error is an auth/token issue
 function isAuthError(error: Error | null): boolean {
@@ -205,7 +206,7 @@ export function SubscriptionPlans({
     };
 
     return (
-      <Card className="border-warning/30 bg-warning/5">
+      <Card className={statusSurfaceVariants({ status: "warning" })}>
         <CardContent className="py-8">
           <div className="flex flex-col items-center justify-center text-center">
             <div className="bg-warning/15 mb-4 rounded-full p-4">
@@ -271,7 +272,7 @@ export function SubscriptionPlans({
   // Handle other errors (service unavailable, network issues, etc.)
   if (error) {
     return (
-      <Card className="border-warning/30 bg-warning/5">
+      <Card className={statusSurfaceVariants({ status: "warning" })}>
         <CardContent className="py-8">
           <div className="flex flex-col items-center justify-center text-center">
             <div className="bg-warning/15 mb-4 rounded-full p-4">

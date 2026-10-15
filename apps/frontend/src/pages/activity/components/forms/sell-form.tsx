@@ -650,9 +650,9 @@ export function SellForm({
 
           {/* Warning for selling more than holdings */}
           {isSellingMoreThanHoldings && (
-            <Alert variant="default" className="border-warning bg-warning/10">
-              <Icons.AlertTriangle className="text-warning h-4 w-4" />
-              <AlertDescription className="text-warning text-sm">
+            <Alert variant="warning">
+              <Icons.AlertTriangle />
+              <AlertDescription>
                 {isOption
                   ? t("activity:form.warn_selling_more_contracts", {
                       selling:
@@ -669,9 +669,9 @@ export function SellForm({
           )}
 
           {isSellShortWhileLong && (
-            <Alert variant="default" className="border-warning bg-warning/10">
-              <Icons.AlertTriangle className="text-warning h-4 w-4" />
-              <AlertDescription className="text-warning text-sm">
+            <Alert variant="warning">
+              <Icons.AlertTriangle />
+              <AlertDescription>
                 {t("activity:form.warn_sell_short_while_long", {
                   available: formatting.formatDecimal(availableHoldingQuantity),
                 })}
@@ -680,11 +680,9 @@ export function SellForm({
           )}
 
           {isSellWhileShortWithoutShortIntent && (
-            <Alert variant="default" className="border-warning bg-warning/10">
-              <Icons.AlertTriangle className="text-warning h-4 w-4" />
-              <AlertDescription className="text-warning text-sm">
-                {t("activity:form.warn_sell_while_short")}
-              </AlertDescription>
+            <Alert variant="warning">
+              <Icons.AlertTriangle />
+              <AlertDescription>{t("activity:form.warn_sell_while_short")}</AlertDescription>
             </Alert>
           )}
         </FormSection>

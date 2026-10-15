@@ -11,7 +11,9 @@ import {
 import { Component, type ErrorInfo, type FC, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
+import { Alert, AlertDescription } from "@wealthfolio/ui/components/ui/alert";
 import { Button } from "@wealthfolio/ui/components/ui/button";
+import { statusSurfaceVariants } from "@wealthfolio/ui/components/ui/status-surface";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { ComposerAddAttachment, ComposerAttachments, UserMessageAttachments } from "./attachment";
 import { MarkdownText } from "./markdown-text";
@@ -221,7 +223,12 @@ const ComposerAction: FC<ComposerActionProps> = ({ composerActions }) => {
 const MessageError: FC = () => {
   return (
     <MessagePrimitive.Error>
-      <ErrorPrimitive.Root className="aui-message-error-root border-destructive bg-destructive/10 text-destructive dark:bg-destructive/5 mt-2 rounded-md border p-3 text-sm dark:text-red-200">
+      <ErrorPrimitive.Root
+        className={cn(
+          "aui-message-error-root text-destructive-subtle-foreground mt-2 rounded-md p-3 text-sm",
+          statusSurfaceVariants({ status: "destructive" }),
+        )}
+      >
         <ErrorPrimitive.Message className="aui-message-error-message line-clamp-2" />
       </ErrorPrimitive.Root>
     </MessagePrimitive.Error>
@@ -266,10 +273,10 @@ class ToolRenderErrorBoundary extends Component<
 const ToolRenderErrorFallback: FC = () => {
   const { t } = useTranslation();
   return (
-    <div className="border-destructive/30 bg-destructive/5 text-destructive flex items-center gap-2 rounded-md border px-3 py-2 text-xs">
-      <Icons.AlertCircle className="h-4 w-4 shrink-0" />
-      <span>{t("ai:thread.toolDisplayFailed")}</span>
-    </div>
+    <Alert variant="destructive" className="px-3 py-2 text-xs">
+      <Icons.AlertCircle />
+      <AlertDescription>{t("ai:thread.toolDisplayFailed")}</AlertDescription>
+    </Alert>
   );
 };
 

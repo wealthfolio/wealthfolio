@@ -171,25 +171,19 @@ function CategorizationProposalsContentImpl({
 
   if (isIncomplete) {
     return (
-      <Card className="border-destructive/30 bg-destructive/5">
-        <CardContent className="py-4">
-          <p className="text-destructive text-sm font-medium">
-            {t("ai:categorization.failedLoad")}
-          </p>
-        </CardContent>
-      </Card>
+      <Alert variant="destructive">
+        <Icons.AlertCircle />
+        <AlertTitle>{t("ai:categorization.failedLoad")}</AlertTitle>
+      </Alert>
     );
   }
 
   if (!result) {
     return (
-      <Card className="border-destructive/30 bg-destructive/5">
-        <CardContent className="py-4">
-          <p className="text-destructive text-sm font-medium">
-            {t("ai:categorization.noProposals")}
-          </p>
-        </CardContent>
-      </Card>
+      <Alert variant="destructive">
+        <Icons.AlertCircle />
+        <AlertTitle>{t("ai:categorization.noProposals")}</AlertTitle>
+      </Alert>
     );
   }
 
@@ -479,19 +473,15 @@ function CategorizationProposalsContentImpl({
 
         {isSubmitted && (
           <div className="px-6">
-            <div className="border-success/30 bg-success/10 flex items-center gap-3 rounded-md border px-3 py-2">
-              <div className="bg-success/20 text-success flex h-7 w-7 shrink-0 items-center justify-center rounded-full">
-                <Icons.Check className="h-4 w-4" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-success text-sm font-medium">
-                  {t("ai:categorization.transactionsCategorized", { count: appliedCount })}
-                </p>
-                <p className="text-muted-foreground text-xs">
-                  {t("ai:categorization.categoriesSaved")}
-                </p>
-              </div>
-            </div>
+            <Alert variant="success" className="px-3 py-2">
+              <Icons.Check />
+              <AlertTitle>
+                {t("ai:categorization.transactionsCategorized", { count: appliedCount })}
+              </AlertTitle>
+              <AlertDescription className="text-xs">
+                {t("ai:categorization.categoriesSaved")}
+              </AlertDescription>
+            </Alert>
           </div>
         )}
 

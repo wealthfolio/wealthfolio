@@ -21,6 +21,7 @@ import { useGoals } from "../hooks/use-goals";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
+import { Alert, AlertDescription } from "@wealthfolio/ui/components/ui/alert";
 
 const TAX_BUCKET_COLORS: Record<string, string> = {
   taxable: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300",
@@ -590,11 +591,13 @@ export function GoalFundingEditor({
               )}
 
               {hasInvalidAllocations && (
-                <div className="text-destructive bg-destructive/5 rounded-lg px-3 py-2 text-[11px]">
-                  {t("goals:funding.accounts_exceed_share", {
-                    count: invalidAllocationRows.length,
-                  })}
-                </div>
+                <Alert variant="destructive" className="px-3 py-2 text-[11px]">
+                  <AlertDescription>
+                    {t("goals:funding.accounts_exceed_share", {
+                      count: invalidAllocationRows.length,
+                    })}
+                  </AlertDescription>
+                </Alert>
               )}
             </div>
           ) : (

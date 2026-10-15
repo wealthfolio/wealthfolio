@@ -1,4 +1,5 @@
 import { ExternalLink } from "@/components/external-link";
+import { statusSurfaceVariants } from "@wealthfolio/ui/components/ui/status-surface";
 import type { ConnectionField } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import {
@@ -1327,8 +1328,13 @@ function AdvancedTuningSection({
             )}
 
             {orphanedEntries.length > 0 && (
-              <div className="border-warning/30 bg-warning/5 space-y-2 rounded-md border p-3">
-                <p className="text-warning text-[11px] font-medium">
+              <div
+                className={cn(
+                  statusSurfaceVariants({ status: "warning" }),
+                  "space-y-2 rounded-md p-3",
+                )}
+              >
+                <p className="text-warning-subtle-foreground text-[11px] font-medium">
                   {t("ai:providerSettings.orphanedOverrides")}
                 </p>
                 <ul className="space-y-1">

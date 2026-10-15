@@ -2,14 +2,23 @@ import * as React from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 
 import { cn } from "../../lib/utils";
+import { statusSurfaceVariants } from "./status-surface";
 
-// Status alerts are glass: a translucent status surface, a hairline in the text
-// colour and light along the top edge. Text reads at 4.5:1 or more on the page and
-// on cards (e2e/design-system/colors.spec.ts).
-const glassEdge = "shadow-[inset_0_1px_0_0_var(--surface-highlight)] backdrop-blur-sm";
-const destructiveGlass = `border-destructive-subtle-foreground/12 bg-destructive-subtle/60 text-destructive-subtle-foreground ${glassEdge}`;
-const successGlass = `border-success-subtle-foreground/12 bg-success-subtle/60 text-success-subtle-foreground ${glassEdge}`;
-const warningGlass = `border-warning-subtle-foreground/12 bg-warning-subtle/60 text-warning-subtle-foreground ${glassEdge}`;
+// Status alerts are glass: the status surface, text in the status colour and a light
+// backdrop blur. Text reads at 4.5:1 or more on the page and on cards
+// (e2e/design-system/colors.spec.ts).
+const destructiveGlass = cn(
+  statusSurfaceVariants({ status: "destructive" }),
+  "text-destructive-subtle-foreground backdrop-blur-sm",
+);
+const successGlass = cn(
+  statusSurfaceVariants({ status: "success" }),
+  "text-success-subtle-foreground backdrop-blur-sm",
+);
+const warningGlass = cn(
+  statusSurfaceVariants({ status: "warning" }),
+  "text-warning-subtle-foreground backdrop-blur-sm",
+);
 
 // A grid, as in shadcn's Alert: the icon spans the title and description rows and
 // sits centred on the first line whatever the padding or font size. For a compact

@@ -68,6 +68,7 @@ import { useQuoteMutations } from "./hooks/use-quote-mutations";
 import { QuoteHistoryDataGrid } from "./quote-history-data-grid";
 import { ResetProviderHistoryDialog } from "./reset-provider-history-dialog";
 import { RefreshQuotesConfirmDialog } from "./refresh-quotes-confirm-dialog";
+import { statusSurfaceVariants } from "@wealthfolio/ui/components/ui/status-surface";
 
 // Alternative asset kinds that should use ValueHistoryDataGrid
 const ALTERNATIVE_ASSET_KINDS: AssetKind[] = [
@@ -236,10 +237,10 @@ function AssetHealthBanner({
           };
 
   return (
-    <div className="border-warning/30 bg-warning/10 mb-4 rounded-md border px-3 py-3">
+    <div className={cn(statusSurfaceVariants({ status: "warning" }), "mb-4 rounded-md px-3 py-3")}>
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div className="flex min-w-0 items-start gap-2">
-          <Icons.AlertTriangle className="text-warning mt-0.5 h-4 w-4 shrink-0" />
+          <Icons.AlertTriangle className="text-warning-subtle-foreground mt-0.5 h-4 w-4 shrink-0" />
           <div className="min-w-0 space-y-1">
             <p className="text-sm font-medium">{copy.title}</p>
             <p className="text-muted-foreground text-sm leading-relaxed">{copy.description}</p>

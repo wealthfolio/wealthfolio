@@ -31,6 +31,8 @@ import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import { buildActivityFilterUrl } from "../utils/activity-links";
+import { Alert, AlertDescription, AlertTitle } from "@wealthfolio/ui/components/ui/alert";
+import { statusSurfaceVariants } from "@wealthfolio/ui/components/ui/status-surface";
 
 type CashAuditFilter = "all" | "cash-impacting" | "possible-missing";
 
@@ -256,7 +258,7 @@ function ActivityDateListItem({
   return (
     <Card
       key={activity.id}
-      className={cn("p-0", row.crossesNegative && "border-destructive/40 bg-destructive/5")}
+      className={cn("p-0", row.crossesNegative && statusSurfaceVariants({ status: "destructive" }))}
     >
       <Link to={activityFilterUrl} className="block p-4">
         {content}
@@ -324,7 +326,9 @@ function CashAuditSummary({
   const redirectTo = accountId ? `/accounts/${encodeURIComponent(accountId)}` : undefined;
 
   return (
-    <Card className={cn("p-3", isEndingNegative && "border-destructive/30 bg-destructive/5")}>
+    <Card
+      className={cn("p-3", isEndingNegative && statusSurfaceVariants({ status: "destructive" }))}
+    >
       <div className="space-y-3">
         {cashAuditTarget ? <CashAuditCallout cashAuditTarget={cashAuditTarget} /> : null}
         <div className="grid grid-cols-3 gap-2 text-xs">
@@ -387,23 +391,19 @@ function CashAuditCallout({ cashAuditTarget }: { cashAuditTarget: CashAuditRevie
   const activityDate = formatAuditDate(cashAuditTarget.activityDate, formatting);
 
   return (
-    <div className="border-warning/10 bg-warning/10 rounded-md border p-3">
-      <div className="flex items-start gap-2">
-        <Icons.AlertCircle className="text-warning mt-0.5 size-4 shrink-0" />
-        <div className="min-w-0 space-y-1 text-sm">
-          <p className="font-medium">
-            {t("activity:date_list.cash_went_negative_on", { date: valuationDate })}
-          </p>
-          <p className="text-muted-foreground text-xs">
-            {cashAuditTarget.hasExplainingActivity
-              ? cashAuditTarget.isCarryForwardDate
-                ? t("activity:date_list.carry_forward", { date: activityDate })
-                : t("activity:date_list.review_to_identify")
-              : t("activity:date_list.no_activity_found")}
-          </p>
-        </div>
-      </div>
-    </div>
+    <Alert variant="warning" className="p-3">
+      <Icons.AlertCircle />
+      <AlertTitle>
+        {t("activity:date_list.cash_went_negative_on", { date: valuationDate })}
+      </AlertTitle>
+      <AlertDescription className="text-xs">
+        {cashAuditTarget.hasExplainingActivity
+          ? cashAuditTarget.isCarryForwardDate
+            ? t("activity:date_list.carry_forward", { date: activityDate })
+            : t("activity:date_list.review_to_identify")
+          : t("activity:date_list.no_activity_found")}
+      </AlertDescription>
+    </Alert>
   );
 }
 

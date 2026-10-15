@@ -1,6 +1,7 @@
 // Export all UI components
 export * from "./components/ui/accordion";
 export * from "./components/ui/alert";
+export * from "./components/ui/status-surface";
 export * from "./components/ui/alert-dialog";
 export * from "./components/ui/animated-toggle-group";
 export * from "./components/ui/autocomplete";

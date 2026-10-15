@@ -1,4 +1,5 @@
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
+import { Alert, AlertDescription, AlertTitle } from "@wealthfolio/ui/components/ui/alert";
 import { useSettingsContext } from "@/lib/settings-provider";
 import { cn } from "@/lib/utils";
 import type { ToolCallMessagePartProps } from "@assistant-ui/react";
@@ -84,12 +85,11 @@ function EmptyState() {
 function ErrorState({ message }: { message?: string }) {
   const { t } = useTranslation();
   return (
-    <Card className="border-destructive/30 bg-destructive/5">
-      <CardContent className="py-4">
-        <p className="text-destructive text-sm font-medium">{t("ai:performance.error")}</p>
-        {message && <p className="text-muted-foreground mt-1 text-xs">{message}</p>}
-      </CardContent>
-    </Card>
+    <Alert variant="destructive">
+      <Icons.AlertCircle />
+      <AlertTitle>{t("ai:performance.error")}</AlertTitle>
+      {message && <AlertDescription className="text-xs">{message}</AlertDescription>}
+    </Alert>
   );
 }
 

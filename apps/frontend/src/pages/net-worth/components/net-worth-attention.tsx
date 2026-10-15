@@ -11,6 +11,8 @@ import {
   type StaleAssetInfo,
 } from "@/lib/types";
 import { AlternativeAssetQuickAddModal } from "@/pages/asset/alternative-assets/components/alternative-asset-quick-add-modal";
+import { statusSurfaceVariants } from "@wealthfolio/ui/components/ui/status-surface";
+import { cn } from "@/lib/utils";
 
 const ADD_PROPERTY_OPTION = "__add_property__";
 
@@ -43,11 +45,14 @@ export function NetWorthAttentionCard({
 
   return (
     <section
-      className="border-warning/10 bg-warning/10 rounded-xl border p-4 backdrop-blur-xl md:p-5"
+      className={cn(
+        statusSurfaceVariants({ status: "warning" }),
+        "rounded-xl p-4 backdrop-blur-xl md:p-5",
+      )}
       aria-label={t("insights:networth.attention.title")}
     >
       <div className="flex items-center gap-2">
-        <Icons.AlertCircle className="text-warning h-4 w-4 shrink-0" />
+        <Icons.AlertCircle className="text-warning-subtle-foreground h-4 w-4 shrink-0" />
         <h3 className="text-foreground text-sm font-semibold">
           {t("insights:networth.attention.title")}
         </h3>

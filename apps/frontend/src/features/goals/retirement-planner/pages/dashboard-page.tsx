@@ -49,6 +49,7 @@ import {
 } from "../lib/dashboard-math";
 import { expenseAgeRangeLabel, expenseItems, isExpenseActiveAtAge } from "../lib/expense-items";
 import type { RetirementPlan } from "../types";
+import { Alert, AlertDescription, AlertTitle } from "@wealthfolio/ui/components/ui/alert";
 
 interface Props {
   plan: RetirementPlan;
@@ -88,15 +89,11 @@ function RetirementAnalysisPendingColumn({ error }: { error: Error | null }) {
   if (error) {
     return (
       <div className="space-y-6 lg:col-span-2">
-        <Card className="border-destructive/30 bg-destructive/5">
-          <CardContent className="text-destructive flex gap-3 py-5 text-sm">
-            <Icons.AlertTriangle className="mt-0.5 size-4 shrink-0" />
-            <div>
-              <p className="font-medium">{t("goals:dashboard.pending.failed_to_load")}</p>
-              <p className="mt-1 text-xs">{error.message}</p>
-            </div>
-          </CardContent>
-        </Card>
+        <Alert variant="destructive">
+          <Icons.AlertTriangle />
+          <AlertTitle>{t("goals:dashboard.pending.failed_to_load")}</AlertTitle>
+          <AlertDescription className="text-xs">{error.message}</AlertDescription>
+        </Alert>
       </div>
     );
   }

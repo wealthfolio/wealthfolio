@@ -70,6 +70,7 @@ import {
   useSetApiKey,
   useUpdateMarketDataProviderSettings,
 } from "./use-market-data-settings";
+import { Alert, AlertDescription, AlertTitle } from "@wealthfolio/ui/components/ui/alert";
 
 interface ProviderSettingsProps {
   provider: MarketDataProviderSetting;
@@ -246,7 +247,7 @@ function ProviderSettings({
                           {provider.uniqueErrors.map((error, index) => (
                             <li
                               key={index}
-                              className="bg-destructive/5 text-destructive rounded-md p-2 text-xs"
+                              className="bg-destructive-subtle text-destructive-subtle-foreground rounded-md p-2 text-xs"
                             >
                               {error}
                             </li>
@@ -502,7 +503,7 @@ function ProviderSettings({
                           </span>
                         </div>
                         {provider.lastSyncError && (
-                          <p className="bg-destructive/10 text-destructive rounded-md p-2 text-xs">
+                          <p className="bg-destructive-subtle text-destructive-subtle-foreground rounded-md p-2 text-xs">
                             {provider.lastSyncError}
                           </p>
                         )}
@@ -869,26 +870,26 @@ export default function MarketDataSettingsPage() {
           text={t("settings:market_data_page.subtitle")}
         />
         <Separator />
-        <div className="border-destructive/20 bg-destructive/5 rounded-lg border p-6">
-          <div className="flex items-start gap-3">
-            <Icons.XCircle className="text-destructive mt-0.5 h-5 w-5 shrink-0" />
-            <div className="space-y-2">
-              <h3 className="text-destructive font-medium">
-                {t("settings:market_data_page.load_error_title")}
-              </h3>
-              <p className="text-muted-foreground text-sm">{error.message}</p>
+        <Alert variant="destructive" className="p-6">
+          <Icons.XCircle className="size-5" />
+          <AlertTitle role="heading" aria-level={3}>
+            {t("settings:market_data_page.load_error_title")}
+          </AlertTitle>
+          <AlertDescription>
+            {error.message}
+            <div className="mt-4">
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => window.location.reload()}
-                className="mt-2"
+                className="text-foreground"
               >
                 <Icons.Refresh className="mr-2 h-4 w-4" />
                 {t("settings:market_data_page.retry")}
               </Button>
             </div>
-          </div>
-        </div>
+          </AlertDescription>
+        </Alert>
       </div>
     );
   }
@@ -1088,41 +1089,37 @@ export default function MarketDataSettingsPage() {
 
         <TabsContent value="custom" className="mt-4">
           {customScraperErrors && customScraperErrors.errorCount > 0 && (
-            <div className="border-destructive/20 bg-destructive/5 mb-3 rounded-lg border p-3">
-              <div className="flex items-start gap-2">
-                <Icons.XCircle className="text-destructive mt-0.5 h-4 w-4 shrink-0" />
-                <div className="min-w-0">
-                  <p className="text-destructive text-sm font-medium">
-                    {t("settings:market_data_page.assets_failed_to_sync", {
-                      count: customScraperErrors.errorCount,
-                    })}
-                  </p>
-                  {customScraperErrors.uniqueErrors?.map((err, i) => {
-                    // Strip boilerplate prefix, keep just the actionable message
-                    // Error format: "...CUSTOM_SCRAPER: [provider-id] actual message"
-                    const lastIdx = err.lastIndexOf("CUSTOM_SCRAPER: ");
-                    let msg = lastIdx >= 0 ? err.slice(lastIdx + "CUSTOM_SCRAPER: ".length) : err;
-                    // Extract [provider-id] prefix and resolve to provider name
-                    let providerLabel = "";
-                    const bracketMatch = /^\[([^\]]+)\]\s*/.exec(msg);
-                    if (bracketMatch) {
-                      const code = bracketMatch[1];
-                      const cp = customProviders.find((p) => p.id === code);
-                      providerLabel = cp?.name ?? code;
-                      msg = msg.slice(bracketMatch[0].length);
-                    }
-                    return (
-                      <p key={i} className="text-destructive/80 mt-1 break-all text-xs">
-                        {providerLabel && (
-                          <span className="text-destructive font-medium">{providerLabel}: </span>
-                        )}
-                        {msg}
-                      </p>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
+            <Alert variant="destructive" className="mb-3 p-3">
+              <Icons.XCircle />
+              <AlertTitle>
+                {t("settings:market_data_page.assets_failed_to_sync", {
+                  count: customScraperErrors.errorCount,
+                })}
+              </AlertTitle>
+              <AlertDescription className="min-w-0">
+                {customScraperErrors.uniqueErrors?.map((err, i) => {
+                  // Strip boilerplate prefix, keep just the actionable message
+                  // Error format: "...CUSTOM_SCRAPER: [provider-id] actual message"
+                  const lastIdx = err.lastIndexOf("CUSTOM_SCRAPER: ");
+                  let msg = lastIdx >= 0 ? err.slice(lastIdx + "CUSTOM_SCRAPER: ".length) : err;
+                  // Extract [provider-id] prefix and resolve to provider name
+                  let providerLabel = "";
+                  const bracketMatch = /^\[([^\]]+)\]\s*/.exec(msg);
+                  if (bracketMatch) {
+                    const code = bracketMatch[1];
+                    const cp = customProviders.find((p) => p.id === code);
+                    providerLabel = cp?.name ?? code;
+                    msg = msg.slice(bracketMatch[0].length);
+                  }
+                  return (
+                    <p key={i} className="mt-1 break-all text-xs">
+                      {providerLabel && <span className="font-medium">{providerLabel}: </span>}
+                      {msg}
+                    </p>
+                  );
+                })}
+              </AlertDescription>
+            </Alert>
           )}
           {customProviders.length === 0 ? (
             <div className="rounded-lg border border-dashed p-6 text-center">

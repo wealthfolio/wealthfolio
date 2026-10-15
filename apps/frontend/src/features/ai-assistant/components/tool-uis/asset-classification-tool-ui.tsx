@@ -845,21 +845,17 @@ export function AssetClassificationToolUIContentImpl({
         ) : null}
 
         {isApplied ? (
-          <div className="border-success/30 bg-success/10 flex items-center gap-3 rounded-md border px-3 py-2">
-            <div className="bg-success/20 text-success flex h-7 w-7 shrink-0 items-center justify-center rounded-full">
-              <Icons.Check className="h-4 w-4" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-success text-sm font-medium">
-                {t("ai:assetClassification.categoriesClassified", { count: appliedCategoryCount })}
-              </p>
-              <p className="text-muted-foreground text-xs">
-                {t("ai:assetClassification.allocationsSaved", {
-                  asset: selectedAsset?.label ?? t("ai:assetClassification.yourAsset"),
-                })}
-              </p>
-            </div>
-          </div>
+          <Alert variant="success" className="px-3 py-2">
+            <Icons.Check />
+            <AlertTitle>
+              {t("ai:assetClassification.categoriesClassified", { count: appliedCategoryCount })}
+            </AlertTitle>
+            <AlertDescription className="text-xs">
+              {t("ai:assetClassification.allocationsSaved", {
+                asset: selectedAsset?.label ?? t("ai:assetClassification.yourAsset"),
+              })}
+            </AlertDescription>
+          </Alert>
         ) : null}
 
         <div className="flex flex-wrap items-center justify-between gap-3">

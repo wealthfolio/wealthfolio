@@ -16,6 +16,8 @@ import { useTranslation } from "react-i18next";
 import { useContributionLimitProgress } from "../use-contribution-limit-mutations";
 import { AccountSelection } from "./account-selection";
 import { ContributionLimitOperations } from "./contribution-limit-operations";
+import { statusSurfaceVariants } from "@wealthfolio/ui/components/ui/status-surface";
+import { cn } from "@/lib/utils";
 
 interface ContributionLimitItemProps {
   limit: ContributionLimit;
@@ -65,7 +67,12 @@ export function ContributionLimitItem({
 
   return (
     <Card
-      className={`w-full ${progressPercentageNumber === 100 ? "border-success/20 bg-success/10 shadow-sm" : isOverLimit ? "border-destructive/20 bg-destructive/10 shadow-sm" : ""}`}
+      className={cn(
+        "w-full",
+        progressPercentageNumber === 100
+          ? statusSurfaceVariants({ status: "success" })
+          : isOverLimit && statusSurfaceVariants({ status: "destructive" }),
+      )}
     >
       <CardHeader className="cursor-pointer pb-3" onClick={toggleExpanded}>
         {/* Mobile Layout */}

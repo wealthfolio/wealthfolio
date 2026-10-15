@@ -25,6 +25,9 @@ import { format } from "date-fns";
 import React, { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
+import { Alert, AlertDescription, AlertTitle } from "@wealthfolio/ui/components/ui/alert";
+import { statusSurfaceVariants } from "@wealthfolio/ui/components/ui/status-surface";
+import { cn } from "@/lib/utils";
 
 interface AccountSummaryDisplayData {
   accountName: string;
@@ -538,31 +541,28 @@ export const AccountsSummary = React.memo(
 
       if (isErrorAccounts) {
         return (
-          <div className="border-destructive/30 bg-destructive/5 rounded-xl border p-4 md:p-5">
-            <div className="flex items-start gap-3">
-              <div className="bg-destructive/10 flex h-8 w-8 shrink-0 items-center justify-center rounded-full">
-                <Icons.AlertTriangle className="text-destructive h-4 w-4" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-destructive text-sm font-medium">
-                  {t("dashboard:summary.failed_to_load")}
-                </p>
-                <p className="text-muted-foreground mt-1 break-words text-xs">
-                  {errorAccounts?.message || t("dashboard:summary.unexpected_error")}
-                </p>
-                <p className="text-muted-foreground mt-2 text-xs">
-                  {t("dashboard:summary.try_restarting")}
-                </p>
-              </div>
-            </div>
-          </div>
+          <Alert variant="destructive" className="rounded-xl p-4 md:p-5">
+            <Icons.AlertTriangle />
+            <AlertTitle>{t("dashboard:summary.failed_to_load")}</AlertTitle>
+            <AlertDescription className="break-words text-xs">
+              <p className="mb-2">
+                {errorAccounts?.message || t("dashboard:summary.unexpected_error")}
+              </p>
+              <p>{t("dashboard:summary.try_restarting")}</p>
+            </AlertDescription>
+          </Alert>
         );
       }
 
       if (!combinedAccountViews || !combinedAccountViews.some((account) => account.isActive)) {
         const isPortfolioScope = selectedAccountIds !== undefined;
         return (
-          <div className="border-border/50 bg-success/10 rounded-xl border p-6 text-center md:p-8">
+          <div
+            className={cn(
+              statusSurfaceVariants({ status: "success" }),
+              "rounded-xl p-6 text-center md:p-8",
+            )}
+          >
             <p className="text-sm">
               {t(
                 isPortfolioScope
@@ -763,19 +763,13 @@ export const AccountsSummary = React.memo(
           </Button>
         </div>
         {isPerformanceError && (
-          <div className="border-destructive/30 bg-destructive/5 mb-2 rounded-lg border p-3">
-            <div className="flex items-start gap-2">
-              <Icons.AlertTriangle className="text-destructive mt-0.5 h-4 w-4 shrink-0" />
-              <div className="min-w-0">
-                <p className="text-destructive text-sm font-medium">
-                  {t("dashboard:summary.failed_to_load_performance")}
-                </p>
-                <p className="text-muted-foreground mt-1 break-words text-xs">
-                  {performanceError?.message || t("dashboard:summary.values_without_returns")}
-                </p>
-              </div>
-            </div>
-          </div>
+          <Alert variant="destructive" className="mb-2 p-3">
+            <Icons.AlertTriangle />
+            <AlertTitle>{t("dashboard:summary.failed_to_load_performance")}</AlertTitle>
+            <AlertDescription className="break-words text-xs">
+              {performanceError?.message || t("dashboard:summary.values_without_returns")}
+            </AlertDescription>
+          </Alert>
         )}
         <div className="space-y-2 md:space-y-3">{renderedContent}</div>
       </div>

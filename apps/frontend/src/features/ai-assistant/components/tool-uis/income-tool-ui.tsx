@@ -1,5 +1,7 @@
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import { UnconvertedCurrenciesNotice } from "@/pages/income/unconverted-currencies-notice";
+import { Alert, AlertTitle } from "@wealthfolio/ui/components/ui/alert";
+import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import type { ToolCallMessagePartProps } from "@assistant-ui/react";
 import { makeAssistantToolUI } from "@assistant-ui/react";
 import {
@@ -314,11 +316,10 @@ export function IncomeContentImpl({ args, result, status }: IncomeContentProps) 
   // Error state
   if (hasError) {
     return (
-      <Card className="border-destructive/30 bg-destructive/5 w-full">
-        <CardContent className="py-4">
-          <p className="text-destructive text-sm font-medium">{t("ai:income.error")}</p>
-        </CardContent>
-      </Card>
+      <Alert variant="destructive">
+        <Icons.AlertCircle />
+        <AlertTitle>{t("ai:income.error")}</AlertTitle>
+      </Alert>
     );
   }
 

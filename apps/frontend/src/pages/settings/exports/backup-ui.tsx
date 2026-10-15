@@ -24,6 +24,7 @@ import { Skeleton } from "@wealthfolio/ui/components/ui/skeleton";
 import { ActionPalette } from "@/components/action-palette";
 import { useIsMobileViewport } from "@/hooks/use-platform";
 import { BackupError, type BackupFailure } from "./backup-error";
+import { AlertDescription } from "@wealthfolio/ui/components/ui/alert";
 
 /** Rows shown before "Show older". Connect returns at most 30 restore points. */
 const BACKUP_LIST_LIMIT = 5;
@@ -127,12 +128,12 @@ export function InlineFacts({ items }: { items: { label: string; value: ReactNod
 
 export function BackupAlert({ error, action }: { error: BackupFailure; action?: ReactNode }) {
   return (
-    <Alert className="border-destructive/20 bg-destructive/5 text-destructive [&>svg]:text-destructive">
-      <Icons.AlertCircle className="size-4" aria-hidden />
-      <div className="space-y-2 break-words text-sm">
+    <Alert variant="destructive">
+      <Icons.AlertCircle aria-hidden />
+      <AlertDescription className="space-y-2 break-words">
         <BackupError error={error} />
         {action}
-      </div>
+      </AlertDescription>
     </Alert>
   );
 }

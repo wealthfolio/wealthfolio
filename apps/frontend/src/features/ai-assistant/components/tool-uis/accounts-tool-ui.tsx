@@ -1,4 +1,6 @@
 import type { ToolCallMessagePartProps } from "@assistant-ui/react";
+import { Alert, AlertDescription, AlertTitle } from "@wealthfolio/ui/components/ui/alert";
+import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { makeAssistantToolUI } from "@assistant-ui/react";
 import { Badge, Card, CardContent, CardHeader, CardTitle, Skeleton } from "@wealthfolio/ui";
 import { memo, useMemo } from "react";
@@ -185,12 +187,11 @@ function EmptyState() {
 function ErrorState({ message }: { message?: string }) {
   const { t } = useTranslation();
   return (
-    <Card className="border-destructive/30 bg-destructive/5">
-      <CardContent className="py-4">
-        <p className="text-destructive text-sm font-medium">{t("ai:accounts.error")}</p>
-        {message && <p className="text-muted-foreground mt-1 text-xs">{message}</p>}
-      </CardContent>
-    </Card>
+    <Alert variant="destructive">
+      <Icons.AlertCircle />
+      <AlertTitle>{t("ai:accounts.error")}</AlertTitle>
+      {message && <AlertDescription className="text-xs">{message}</AlertDescription>}
+    </Alert>
   );
 }
 

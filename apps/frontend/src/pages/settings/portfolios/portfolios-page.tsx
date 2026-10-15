@@ -33,6 +33,7 @@ import { Label } from "@wealthfolio/ui/components/ui/label";
 import { Textarea } from "@wealthfolio/ui/components/ui/textarea";
 import { Button, Checkbox, EmptyPlaceholder, Icons, Separator, Skeleton } from "@wealthfolio/ui";
 import { SettingsHeader } from "../settings-header";
+import { Alert, AlertDescription, AlertTitle } from "@wealthfolio/ui/components/ui/alert";
 
 export default function PortfoliosPage() {
   const { t } = useTranslation();
@@ -349,19 +350,17 @@ function PortfolioDialog({
               </p>
             )}
             {missingAccountIds.length > 0 && (
-              <div className="border-warning/30 bg-warning/10 text-warning rounded-md border p-3 text-xs">
-                <div className="mb-2 flex items-center gap-2 font-medium">
-                  <Icons.AlertTriangle className="h-3.5 w-3.5" />
-                  {t("settings:portfolios.remove_deleted_links")}
-                </div>
-                <div className="text-muted-foreground space-y-1">
+              <Alert variant="warning" className="p-3 text-xs">
+                <Icons.AlertTriangle className="size-3.5" />
+                <AlertTitle>{t("settings:portfolios.remove_deleted_links")}</AlertTitle>
+                <AlertDescription className="mt-1 space-y-1">
                   {missingAccountIds.map((id) => (
                     <div key={id} className="break-all">
                       {t("settings:portfolios.deleted_account", { id })}
                     </div>
                   ))}
-                </div>
-              </div>
+                </AlertDescription>
+              </Alert>
             )}
           </div>
         </div>

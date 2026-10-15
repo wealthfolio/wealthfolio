@@ -31,6 +31,7 @@ import type { BrokerAccount, BrokerConnection } from "../types";
 import { BrokerageLogo } from "./brokerage-logo";
 import { PortalLink } from "./portal-link";
 import { SubscriptionPlans } from "./subscription-plans";
+import { statusSurfaceVariants } from "@wealthfolio/ui/components/ui/status-surface";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Custom Hooks
@@ -72,7 +73,7 @@ interface ServiceUnavailableCardProps {
 function ServiceUnavailableCard({ onRetry, isRetrying }: ServiceUnavailableCardProps) {
   const { t } = useTranslation();
   return (
-    <Card className="border-warning/30 bg-warning/5">
+    <Card className={statusSurfaceVariants({ status: "warning" })}>
       <CardContent className="py-8">
         <div className="flex flex-col items-center justify-center text-center">
           <div className="bg-warning/15 mb-4 rounded-full p-4">

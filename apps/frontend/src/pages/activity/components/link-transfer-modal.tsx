@@ -13,6 +13,7 @@ import {
 } from "@wealthfolio/ui/components/ui/alert-dialog";
 import { useTranslation } from "react-i18next";
 import { nonCashTransferAssetKey } from "./transfer-link-utils";
+import { Alert, AlertDescription } from "@wealthfolio/ui/components/ui/alert";
 
 interface LinkTransferModalProps {
   isOpen: boolean;
@@ -98,14 +99,16 @@ export function LinkTransferModal({
         ) : null}
 
         {!isUnlinkMode && warnings.length > 0 ? (
-          <div className="border-warning/40 bg-warning/10 text-warning flex gap-2 rounded-md border px-3 py-2 text-xs">
-            <Icons.AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-            <ul className="space-y-0.5">
-              {warnings.map((warning) => (
-                <li key={warning}>{warning}</li>
-              ))}
-            </ul>
-          </div>
+          <Alert variant="warning" className="px-3 py-2 text-xs">
+            <Icons.AlertTriangle className="size-3.5" />
+            <AlertDescription>
+              <ul className="space-y-0.5">
+                {warnings.map((warning) => (
+                  <li key={warning}>{warning}</li>
+                ))}
+              </ul>
+            </AlertDescription>
+          </Alert>
         ) : null}
 
         <AlertDialogFooter>

@@ -28,6 +28,7 @@ import { PasswordInput } from "@wealthfolio/ui/components/ui/password-input";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { Label } from "@wealthfolio/ui/components/ui/label";
 import { BackupAlert, PendingIcon } from "./backup-ui";
+import { Alert, AlertDescription, AlertTitle } from "@wealthfolio/ui/components/ui/alert";
 
 export function BackupImportDialog({
   filename,
@@ -270,20 +271,13 @@ export function BackupImportDialog({
                         </p>
                       )}
                     </section>
-                    <div className="border-warning/30 bg-warning/10 flex gap-3 rounded-lg border p-3">
-                      <Icons.AlertTriangle
-                        className="text-warning mt-0.5 size-4 shrink-0"
-                        aria-hidden
-                      />
-                      <div className="space-y-1">
-                        <p className="text-sm font-medium">
-                          {t("settings:backup_replace_warning")}
-                        </p>
-                        <p className="text-muted-foreground text-xs leading-relaxed">
-                          {t("settings:backup_restore_safeguard")}
-                        </p>
-                      </div>
-                    </div>
+                    <Alert variant="warning" className="p-3">
+                      <Icons.AlertTriangle aria-hidden />
+                      <AlertTitle>{t("settings:backup_replace_warning")}</AlertTitle>
+                      <AlertDescription className="text-xs leading-relaxed">
+                        {t("settings:backup_restore_safeguard")}
+                      </AlertDescription>
+                    </Alert>
                     <ul className="text-muted-foreground space-y-2 text-xs leading-relaxed">
                       {encryption.data && (
                         <li className="flex gap-2.5">

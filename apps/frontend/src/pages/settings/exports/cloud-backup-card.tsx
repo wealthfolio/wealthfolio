@@ -51,6 +51,7 @@ import {
 } from "./backup-ui";
 import { formatBackupSize } from "./backup-size";
 import { backupDate, backupState, useCloudBackups } from "./use-cloud-backups";
+import { Alert, AlertDescription } from "@wealthfolio/ui/components/ui/alert";
 
 type Flow = "setup" | "resume" | "unlock" | "replace" | "pause" | "help";
 /** The one operation in progress: `restore:<id>` and `download:<id>` name their row. */
@@ -146,17 +147,14 @@ function RecoveryDeadline({ data }: { data: CloudBackupStatus }) {
   const deadline = backupDate(data.policy.readGraceExpiresAt ?? null);
   if (data.policy.uploadEntitled || !data.history.length || !deadline) return null;
   return (
-    <p
-      role="status"
-      className="border-warning/30 bg-warning/10 flex gap-3 rounded-lg border p-3 text-sm leading-relaxed"
-    >
-      <Icons.AlertTriangle className="text-warning mt-0.5 size-4 shrink-0" aria-hidden />
-      <span>
+    <Alert variant="warning" role="status" className="p-3">
+      <Icons.AlertTriangle aria-hidden />
+      <AlertDescription className="leading-relaxed">
         {t("settings:cloud_backup_recovery_deadline", {
           date: formatting.formatDateTime(deadline, { dateStyle: "medium", timeStyle: "short" }),
         })}
-      </span>
-    </p>
+      </AlertDescription>
+    </Alert>
   );
 }
 

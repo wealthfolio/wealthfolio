@@ -1,4 +1,5 @@
 import { saveActivities, updateToolResult } from "@/adapters";
+import { Alert, AlertDescription, AlertTitle } from "@wealthfolio/ui/components/ui/alert";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import { useSettingsContext } from "@/lib/settings-provider";
 import { cn } from "@/lib/utils";
@@ -195,25 +196,19 @@ function RecordActivitiesToolUIContentImpl({
 
   if (isIncomplete) {
     return (
-      <Card className="border-destructive/30 bg-destructive/5">
-        <CardContent className="py-4">
-          <p className="text-destructive text-sm font-medium">
-            {t("ai:recordActivities.failedPrepare")}
-          </p>
-        </CardContent>
-      </Card>
+      <Alert variant="destructive">
+        <Icons.AlertCircle />
+        <AlertTitle>{t("ai:recordActivities.failedPrepare")}</AlertTitle>
+      </Alert>
     );
   }
 
   if (!parsed) {
     return (
-      <Card className="border-destructive/30 bg-destructive/5">
-        <CardContent className="py-4">
-          <p className="text-destructive text-sm font-medium">
-            {t("ai:recordActivities.noBatchDraft")}
-          </p>
-        </CardContent>
-      </Card>
+      <Alert variant="destructive">
+        <Icons.AlertCircle />
+        <AlertTitle>{t("ai:recordActivities.noBatchDraft")}</AlertTitle>
+      </Alert>
     );
   }
 
@@ -428,10 +423,10 @@ function RecordActivitiesToolUIContentImpl({
         </div>
 
         {submitError && (
-          <div className="border-destructive/50 bg-destructive/10 text-destructive mx-6 flex items-center gap-2 rounded-md border px-3 py-2 text-xs">
-            <Icons.AlertCircle className="h-4 w-4 shrink-0" />
-            <span>{submitError}</span>
-          </div>
+          <Alert variant="destructive" className="mx-6 w-auto px-3 py-2 text-xs">
+            <Icons.AlertCircle />
+            <AlertDescription>{submitError}</AlertDescription>
+          </Alert>
         )}
 
         {(submitSummary || parsed.submittedAt) && (

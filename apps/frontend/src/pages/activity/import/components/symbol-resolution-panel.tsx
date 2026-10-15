@@ -4,6 +4,8 @@ import { Button } from "@wealthfolio/ui/components/ui/button";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import TickerSearchInput from "@/components/ticker-search";
 import type { SymbolSearchResult } from "@/lib/types";
+import { statusSurfaceVariants } from "@wealthfolio/ui/components/ui/status-surface";
+import { cn } from "@/lib/utils";
 
 export interface UnresolvedSymbol {
   csvSymbol: string;
@@ -58,10 +60,10 @@ export function SymbolResolutionPanel({
   };
 
   return (
-    <div className="bg-warning/5 border-warning/20 rounded-lg border p-4">
+    <div className={cn(statusSurfaceVariants({ status: "warning" }), "rounded-lg p-4")}>
       <div className="mb-3 flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <Icons.AlertTriangle className="text-warning h-4 w-4" />
+          <Icons.AlertTriangle className="text-warning-subtle-foreground h-4 w-4" />
           <h3 className="text-sm font-medium">
             {t("activity:import.symbolPanel.unrecognized", { count: unresolvedSymbols.length })}
             {totalAffectedRows > 0

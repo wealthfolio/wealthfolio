@@ -573,27 +573,23 @@ export function BuyForm({
           />
 
           {isBuyWhileShortWithoutCover && (
-            <Alert variant="default" className="border-warning bg-warning/10">
-              <Icons.AlertTriangle className="text-warning h-4 w-4" />
-              <AlertDescription className="text-warning text-sm">
-                {t("activity:form.warn_buy_while_short")}
-              </AlertDescription>
+            <Alert variant="warning">
+              <Icons.AlertTriangle />
+              <AlertDescription>{t("activity:form.warn_buy_while_short")}</AlertDescription>
             </Alert>
           )}
 
           {isCoverWithoutShort && (
-            <Alert variant="default" className="border-warning bg-warning/10">
-              <Icons.AlertTriangle className="text-warning h-4 w-4" />
-              <AlertDescription className="text-warning text-sm">
-                {t("activity:form.warn_cover_without_short")}
-              </AlertDescription>
+            <Alert variant="warning">
+              <Icons.AlertTriangle />
+              <AlertDescription>{t("activity:form.warn_cover_without_short")}</AlertDescription>
             </Alert>
           )}
 
           {isCoverQuantityExcess && (
-            <Alert variant="default" className="border-warning bg-warning/10">
-              <Icons.AlertTriangle className="text-warning h-4 w-4" />
-              <AlertDescription className="text-warning text-sm">
+            <Alert variant="warning">
+              <Icons.AlertTriangle />
+              <AlertDescription>
                 {t("activity:form.warn_cover_quantity_excess", {
                   covering: formatting.formatDecimal(Number(optQuantity)),
                   short: formatting.formatDecimal(currentShortQuantity),

@@ -43,7 +43,9 @@ and this project adheres to
   (`--warning` at 10%) does not reach 4.5:1 contrast; these pairs do, in light
   and dark. `Alert`'s `destructive`, `warning` and `success` variants show them
   as a translucent surface with a hairline border; `error` is now the same as
-  `destructive`.
+  `destructive`. `statusSurfaceVariants({ status })` gives that surface (fill,
+  hairline and top highlight, no text colour) for panels and cards that carry a
+  status but hold other content.
 
 ### Changed
 

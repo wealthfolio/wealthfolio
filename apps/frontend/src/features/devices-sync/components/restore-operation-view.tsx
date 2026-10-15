@@ -20,6 +20,7 @@ import { DeviceLink } from "./device-link";
 import { FlowIcon, FlowScreen, type FlowTone } from "./flow-layout";
 import { BackgroundNote } from "./flow-notes";
 import { StepDetails, type StepDetail } from "./step-details";
+import { Alert, AlertDescription } from "@wealthfolio/ui/components/ui/alert";
 
 interface RestoreOperationViewProps {
   operation: RestoreOperation;
@@ -243,12 +244,11 @@ export function RestoreOperationView({
       ) : details ? (
         <StepDetails details={details} />
       ) : phase === "failed" ? (
-        <p
-          role="alert"
-          className="border-destructive/20 bg-destructive/5 rounded-xl border p-3 text-center text-sm leading-relaxed"
-        >
-          {t(`sync:restore.retryHint.${operation.error?.retry ?? "transfer"}`)}
-        </p>
+        <Alert variant="destructive" className="rounded-xl p-3 text-center">
+          <AlertDescription className="leading-relaxed">
+            {t(`sync:restore.retryHint.${operation.error?.retry ?? "transfer"}`)}
+          </AlertDescription>
+        </Alert>
       ) : null}
     </FlowScreen>
   );

@@ -21,6 +21,8 @@ import { z } from "zod";
 import { useActivityMutations } from "../../hooks/use-activity-mutations";
 import { BulkHoldingsForm } from "./bulk-holdings-form";
 import { bulkHoldingsFormSchema } from "./schemas";
+import { Alert, AlertDescription, AlertTitle } from "@wealthfolio/ui/components/ui/alert";
+import { Icons } from "@wealthfolio/ui/components/ui/icons";
 
 type BulkHoldingsFormValues = z.infer<typeof bulkHoldingsFormSchema>;
 
@@ -265,22 +267,23 @@ export const BulkHoldingsModal = ({
 
               {/* Display validation errors */}
               {Object.keys(form.formState.errors).length > 0 && (
-                <div className="border-destructive/50 bg-destructive/10 rounded-lg border p-4">
-                  <h4 className="text-destructive mb-2 text-sm font-medium">
-                    {t("activity:form.bulk_fix_errors")}
-                  </h4>
-                  <ul className="text-destructive/80 space-y-1 text-sm">
-                    {form.formState.errors.accountId && (
-                      <li>• {form.formState.errors.accountId.message}</li>
-                    )}
-                    {form.formState.errors.activityDate && (
-                      <li>• {form.formState.errors.activityDate.message}</li>
-                    )}
-                    {form.formState.errors.holdings && (
-                      <li>• {form.formState.errors.holdings.message}</li>
-                    )}
-                  </ul>
-                </div>
+                <Alert variant="destructive">
+                  <Icons.AlertCircle />
+                  <AlertTitle>{t("activity:form.bulk_fix_errors")}</AlertTitle>
+                  <AlertDescription>
+                    <ul className="space-y-1">
+                      {form.formState.errors.accountId && (
+                        <li>• {form.formState.errors.accountId.message}</li>
+                      )}
+                      {form.formState.errors.activityDate && (
+                        <li>• {form.formState.errors.activityDate.message}</li>
+                      )}
+                      {form.formState.errors.holdings && (
+                        <li>• {form.formState.errors.holdings.message}</li>
+                      )}
+                    </ul>
+                  </AlertDescription>
+                </Alert>
               )}
 
               <DialogFooter>
