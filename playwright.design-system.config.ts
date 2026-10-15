@@ -14,7 +14,16 @@ export default defineConfig({
   retries: 1,
   reporter: "list",
   expect: {
-    toHaveScreenshot: { animations: "disabled", caret: "hide", scale: "css", maxDiffPixels: 0 },
+    // threshold 0.01 fails on a lightness shift of about 1% but passes the ±1
+    // channel rounding Chromium's compositor varies between runs; the default 0.2
+    // let a 6% lightness shift in secondary text through.
+    toHaveScreenshot: {
+      animations: "disabled",
+      caret: "hide",
+      scale: "css",
+      maxDiffPixels: 0,
+      threshold: 0.01,
+    },
   },
   use: {
     baseURL: "http://127.0.0.1:4176",
