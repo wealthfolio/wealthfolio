@@ -43,7 +43,7 @@ const ChartCenterLabel: React.FC<ChartCenterLabelProps> = ({ activeData, totalVa
 
   return (
     <TooltipProvider>
-      <div className="pointer-events-auto absolute left-1/2 top-[108px] -translate-x-1/2 -translate-y-1/2 text-center">
+      <div className="top-27 pointer-events-auto absolute left-1/2 -translate-x-1/2 -translate-y-1/2 text-center">
         <p className="text-muted-foreground text-xs font-medium">{activeData.name}</p>
         <Tooltip>
           <TooltipTrigger delay={100} render={<p className="text-foreground cursor-default text-xs font-bold" />}>
@@ -181,7 +181,7 @@ export const DonutChart: React.FC<DonutChartProps> = ({
   } as PieComponentProps;
 
   return (
-    <div className="relative h-[160px] w-full p-0">
+    <div className="relative h-40 w-full p-0">
       <ChartContainer config={{}} className="h-full w-full">
         <PieChart onMouseLeave={handleMouseLeave} margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
           {displayTooltip && (

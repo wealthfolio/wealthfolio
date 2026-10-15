@@ -32,7 +32,7 @@ export function DatePickerWithRange({ date, onDateChange, className }: DatePicke
               id="date"
               variant={"outline"}
               className={cn(
-                "h-input-height w-[300px] justify-start text-left font-normal",
+                "h-input-height w-75 justify-start text-left font-normal",
                 !date && "text-muted-foreground",
               )}
             />

@@ -331,12 +331,12 @@ export function LongTextCell<TData>({
         align="start"
         side="bottom"
         sideOffset={sideOffset}
-        className="w-[400px] rounded-none p-0"
+        className="w-100 rounded-none p-0"
         initialFocus={initialFocus}
       >
         <Textarea
           placeholder={t("ui:dataGrid.enterText", "Enter text...")}
-          className="max-h-[300px] min-h-[150px] resize-none overflow-y-auto rounded-none border-0 shadow-none focus-visible:ring-0"
+          className="max-h-75 min-h-37.5 resize-none overflow-y-auto rounded-none border-0 shadow-none focus-visible:ring-0"
           ref={textareaRef}
           value={value}
           onBlur={onBlur}
@@ -1037,7 +1037,7 @@ export function SelectCell<TData>({
             align="start"
             alignOffset={-8}
             sideOffset={-8}
-            className="min-w-[calc(var(--anchor-width)+16px)]"
+            className="min-w-[calc(var(--anchor-width)+1rem)]"
           >
             {allowEmpty && (
               <SelectItem value={EMPTY_SELECT_VALUE} className="text-muted-foreground">
@@ -1226,7 +1226,7 @@ export function MultiSelectCell<TData>({
             data-grid-cell-editor=""
             align="start"
             sideOffset={sideOffset}
-            className="w-[300px] rounded-none p-0"
+            className="w-75 rounded-none p-0"
             initialFocus={inputRef}
           >
             <Command className="**:data-[slot=command-input-wrapper]:h-auto **:data-[slot=command-input-wrapper]:border-none **:data-[slot=command-input-wrapper]:p-0 [&_[data-slot=command-input-wrapper]_svg]:hidden">
@@ -1262,7 +1262,7 @@ export function MultiSelectCell<TData>({
               </div>
               <CommandList className="max-h-full">
                 <CommandEmpty>{t("ui:dataGrid.noOptionsFound", "No options found.")}</CommandEmpty>
-                <CommandGroup className="max-h-[300px] scroll-py-1 overflow-y-auto overflow-x-hidden">
+                <CommandGroup className="max-h-75 scroll-py-1 overflow-y-auto overflow-x-hidden">
                   {options.map((option) => {
                     const isSelected = selectedValues.includes(option.value);
 
@@ -2328,7 +2328,7 @@ export function FileCell<TData>({
             data-grid-cell-editor=""
             align="start"
             sideOffset={sideOffset}
-            className="w-[400px] rounded-none p-0"
+            className="w-100 rounded-none p-0"
             initialFocus={dropzoneRef}
           >
             <div className="flex flex-col gap-2 p-3">
@@ -2405,7 +2405,7 @@ export function FileCell<TData>({
                       {t("ui:dataGrid.clearAll", "Clear all")}
                     </Button>
                   </div>
-                  <div className="max-h-[200px] space-y-1 overflow-y-auto">
+                  <div className="max-h-50 space-y-1 overflow-y-auto">
                     {files.map((file) => {
                       const FileIcon = getFileIcon(file.type);
                       const isFileUploading = uploadingFiles.has(file.id);
@@ -2476,7 +2476,7 @@ export function FileCell<TData>({
                 {React.createElement(getFileIcon(file.type), {
                   className: "size-3 shrink-0",
                 })}
-                <span className="max-w-[100px] truncate">{file.name}</span>
+                <span className="max-w-25 truncate">{file.name}</span>
               </Badge>
             );
           })}
@@ -2726,7 +2726,7 @@ export function SymbolCell<TData>({
             data-grid-cell-editor=""
             align="start"
             sideOffset={sideOffset}
-            className="w-[280px] rounded-none p-0"
+            className="w-70 rounded-none p-0"
             initialFocus={inputRef}
           >
             <Command shouldFilter={false}>
@@ -2941,7 +2941,7 @@ export function CurrencyCell<TData>({
             data-grid-cell-editor=""
             align="start"
             sideOffset={sideOffset}
-            className="w-[280px] rounded-none p-0"
+            className="w-70 rounded-none p-0"
             initialFocus={inputRef}
           >
             <Command shouldFilter={false}>
@@ -2954,7 +2954,7 @@ export function CurrencyCell<TData>({
               />
               <CommandList>
                 <CommandEmpty>{t("ui:dataGrid.noCurrencyFound", "No currency found.")}</CommandEmpty>
-                <CommandGroup className="max-h-[300px] overflow-y-auto">
+                <CommandGroup className="max-h-75 overflow-y-auto">
                   {filteredCurrencies.map((currency) => (
                     <CommandItem
                       key={currency.value}

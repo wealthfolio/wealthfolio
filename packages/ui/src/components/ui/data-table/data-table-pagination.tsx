@@ -80,7 +80,7 @@ export function DataTablePagination<TData>({ table }: DataTablePaginationProps<T
               table.setPageSize(Number(value));
             }}
           >
-            <SelectTrigger className="sm:w-sidebar-collapsed h-9 w-[70px] transition-colors sm:h-8">
+            <SelectTrigger className="sm:w-sidebar-collapsed w-17.5 h-9 transition-colors sm:h-8">
               <SelectValue placeholder={pageSize} />
             </SelectTrigger>
             <SelectContent side="top">
@@ -104,7 +104,7 @@ export function DataTablePagination<TData>({ table }: DataTablePaginationProps<T
             onKeyDown={handleKeyDown}
             onBlur={handleBlur}
             placeholder={`${currentPage}`}
-            className="h-9 w-[60px] text-center sm:h-8"
+            className="w-15 h-9 text-center sm:h-8"
             title={t("ui:dataTable.jumpToPage", "Enter a page number between 1 and {{totalPages}}", { totalPages })}
           />
           <span className="text-muted-foreground whitespace-nowrap text-sm">

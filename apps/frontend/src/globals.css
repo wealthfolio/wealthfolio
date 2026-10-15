@@ -218,10 +218,10 @@
   --font-size-sheet-title: var(--sheet-title-size);
   --font-size-input: var(--font-size-base);
 
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 0.25rem);
+  --radius-md: calc(var(--radius) - 0.125rem);
   --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
+  --radius-xl: calc(var(--radius) + 0.25rem);
 
   /* Semantic colors */
   --color-background: var(--background);
@@ -359,10 +359,10 @@
   --color-purple-950: #1a1623;
 
   /* Custom sizes */
-  --spacing-sidebar: 220px;
-  --spacing-sidebar-collapsed: 70px;
-  --grid-template-columns-sidebar: 200px auto;
-  --grid-template-columns-sidebar-collapsed: 70px auto;
+  --spacing-sidebar: 13.75rem;
+  --spacing-sidebar-collapsed: 4.375rem;
+  --grid-template-columns-sidebar: 12.5rem auto;
+  --grid-template-columns-sidebar-collapsed: 4.375rem auto;
 }
 
 :root {
@@ -462,8 +462,8 @@
   --inset-bottom: env(safe-area-inset-bottom, 0px);
   --inset-left: env(safe-area-inset-left, 0px);
 
-  --mobile-nav-ui-height: 64px; /* nav bar height */
-  --mobile-nav-gap: 12px; /* space between nav and bottom */
+  --mobile-nav-ui-height: 4rem; /* nav bar height */
+  --mobile-nav-gap: 0.75rem; /* space between nav and bottom */
   /* iOS WKWebView can report an oversized bottom inset after relaunch. */
   --mobile-safe-area-bottom: min(env(safe-area-inset-bottom, 0px), 44px);
   --mobile-nav-bottom-offset: max(var(--mobile-nav-gap), var(--mobile-safe-area-bottom));
@@ -671,7 +671,7 @@ body.qr-scan-active > .qr-overlay {
    Recompute clearance here so page content inherits the reduced height too. */
 @media (orientation: landscape) {
   .app-shell[data-mobile-navigation="true"] {
-    --mobile-nav-ui-height: 56px;
+    --mobile-nav-ui-height: 3.5rem;
     --mobile-nav-total-offset: calc(var(--mobile-nav-ui-height) + var(--mobile-nav-bottom-offset));
   }
 }
@@ -1028,8 +1028,8 @@ summary {
 .lever-slider::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  width: 16px;
-  height: 16px;
+  width: 1rem;
+  height: 1rem;
   border-radius: 50%;
   background: hsl(var(--flexoki-tx-2));
   border: 2px solid var(--color-card);
@@ -1040,8 +1040,8 @@ summary {
   cursor: grabbing;
 }
 .lever-slider::-moz-range-thumb {
-  width: 16px;
-  height: 16px;
+  width: 1rem;
+  height: 1rem;
   border-radius: 50%;
   background: hsl(var(--flexoki-tx-2));
   border: 2px solid var(--color-card);

@@ -18,7 +18,7 @@ export function EmptyPlaceholder({ className, children, icon, title, description
       )}
       {...props}
     >
-      <div className="mx-auto flex max-w-[420px] flex-col items-center justify-center text-center">
+      <div className="max-w-105 mx-auto flex flex-col items-center justify-center text-center">
         {icon && <div className="bg-muted flex size-20 items-center justify-center rounded-full">{icon}</div>}
         {title && <EmptyPlaceholder.Title>{title}</EmptyPlaceholder.Title>}
         {description && <EmptyPlaceholder.Description>{description}</EmptyPlaceholder.Description>}

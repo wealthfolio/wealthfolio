@@ -118,7 +118,7 @@ function MonthYearPicker({ value, onChange, minDate, maxDate, className }: Month
   };
 
   return (
-    <div className={cn("w-[240px] p-3", className)} data-slot="month-year-picker">
+    <div className={cn("w-60 p-3", className)} data-slot="month-year-picker">
       <div className="mb-3 flex items-center justify-between">
         <Button
           variant="ghost"

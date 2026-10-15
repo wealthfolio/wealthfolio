@@ -81,7 +81,7 @@ export function FacetedFilter({
           </>
         )}
       </PopoverTrigger>
-      <PopoverContent className={cn("w-[200px] p-0", contentClassName)} align="start">
+      <PopoverContent className={cn("w-50 p-0", contentClassName)} align="start">
         <Command>
           <CommandInput placeholder={title} />
           <CommandList>

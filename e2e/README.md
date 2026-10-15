@@ -238,3 +238,8 @@ removes. RTL is not covered because no shipped locale is right-to-left.
 Each test is retried once in a fresh browser: late in a long run WebKit
 sometimes stalls a page load without sending a request. Playwright reports a
 test that only passes on retry as flaky; a real difference fails both attempts.
+
+`pnpm ui:design-ratchet` counts hard-coded px sizes in class names per file
+(`w-[300px]`; borders, rings, shadows and offsets up to 4 px stay in px) and
+fails when a file gains one. Sizes in rem follow the root font size, which the
+Text size setting will change. Run it with `--update` after removing some.

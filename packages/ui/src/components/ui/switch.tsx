@@ -9,7 +9,7 @@ const switchRootVariants = cva(
     variants: {
       size: {
         default: "h-6 w-11",
-        sm: "h-[18px] w-8",
+        sm: "h-4.5 w-8",
       },
     },
     defaultVariants: { size: "default" },

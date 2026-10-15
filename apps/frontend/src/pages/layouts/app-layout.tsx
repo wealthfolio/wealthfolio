@@ -42,7 +42,7 @@ const AppLayoutContent = () => {
       ? "translateY(0.5rem)"
       : undefined;
   const launchBarHeight =
-    !shouldUseMobileNavigation && isLaunchBar && !isFocusMode ? "56px" : undefined;
+    !shouldUseMobileNavigation && isLaunchBar && !isFocusMode ? "3.5rem" : undefined;
   const isAppShellReady = !!settings?.onboardingCompleted;
   const pageScrollKey =
     location.pathname.startsWith("/addon/") || location.pathname.startsWith("/addons/")

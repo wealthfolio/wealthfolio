@@ -44,7 +44,7 @@ export function DataTableToolbar<TData>({
             placeholder={t("ui:dataTable.search", "Search ...")}
             value={table.getState().globalFilter ?? ""}
             onChange={(value) => table.setGlobalFilter(value)}
-            className="w-[150px] lg:w-[250px]"
+            className="w-37.5 lg:w-62.5"
           />
         )}
         {filters?.map((filter) => (

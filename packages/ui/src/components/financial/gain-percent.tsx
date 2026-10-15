@@ -76,7 +76,7 @@ export function GainPercent({
         "amount inline-flex items-center justify-end text-right text-sm",
         displayValue > 0 ? successColor : displayValue < 0 ? destructiveColor : "text-foreground",
         variant === "badge" && [
-          "rounded-md py-px pl-[9px] pr-[12px] font-light",
+          "pl-2.25 rounded-md py-px pr-3 font-light",
           displayValue > 0 ? successBg : displayValue < 0 ? destructiveBg : "bg-foreground/10",
         ],
         className,
