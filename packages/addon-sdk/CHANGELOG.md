@@ -41,10 +41,7 @@ and this project adheres to
 ### Changed
 
 - **Breaking:** `@wealthfolio/ui` components move from Radix to
-  [Base UI](https://base-ui.com) and follow its API. Converted so far: the leaf
-  controls, `Collapsible`, `Accordion`, `Tooltip`, `HoverCard`, `Popover`,
-  `DropdownMenu`, `Select`, `Dialog`, `AlertDialog`, `Sheet` and
-  `CommandDialog`.
+  [Base UI](https://base-ui.com) and follow its API.
   - `asChild` is replaced by `render` on `Button`, `Badge`, `Item`,
     `DropdownMenuItem` and every trigger and close part:
     `<Badge render={<a href="…" />}>Docs</Badge>`. A link that looks like a
@@ -91,6 +88,9 @@ and this project adheres to
     of `{ value, label }` or a value-to-label record); `onValueChange` can
     receive `null`; `SelectContent` takes `alignItemWithTrigger` instead of
     `position`.
+  - `ScrollArea` wraps its children in Base UI's scroll content; `ScrollBar`
+    takes Base UI's scrollbar props and shows while the area is hovered or
+    scrolled.
   - `AlertDialogAction` still closes the dialog; call
     `event.preventBaseUIHandler()` in `onClick` to keep it open. `ActionConfirm`
     and `DeleteConfirm` take a single element as `button`.

@@ -109,3 +109,12 @@ if (typeof window !== "undefined") {
     })),
   });
 }
+
+// jsdom has no Web Animations API. Base UI's scroll area reads running
+// animations without checking for it, so give elements an empty list, and keep
+// popups closing synchronously as they do without the API, through Base UI's own
+// switch for tests.
+if (typeof Element !== "undefined" && typeof Element.prototype.getAnimations !== "function") {
+  Element.prototype.getAnimations = () => [];
+  (globalThis as { BASE_UI_ANIMATIONS_DISABLED?: boolean }).BASE_UI_ANIMATIONS_DISABLED = true;
+}

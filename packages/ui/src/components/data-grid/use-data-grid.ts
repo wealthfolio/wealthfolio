@@ -1,6 +1,6 @@
 "use client";
 
-import { useDirection } from "@radix-ui/react-direction";
+import { useDirection } from "@base-ui/react/direction-provider";
 import {
   type ColumnDef,
   type ColumnFiltersState,
@@ -172,7 +172,8 @@ function useDataGrid<TData>({
   const numberFormatting = useNumberFormatting();
   const dateFormatting = useDateFormatting();
   const { locale, timezone } = useLocalizationSettings();
-  const dir = useDirection(dirProp);
+  const contextDir = useDirection();
+  const dir = dirProp ?? contextDir;
   const dataGridRef = React.useRef<HTMLDivElement>(null);
   const tableRef = React.useRef<ReturnType<typeof useReactTable<TData>>>(null);
   const rowVirtualizerRef = React.useRef<Virtualizer<HTMLDivElement, Element>>(null);

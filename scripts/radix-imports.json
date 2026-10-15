@@ -1,6 +1,3 @@
 {
-  "files": [
-    "packages/ui/src/components/data-grid/use-data-grid.ts",
-    "packages/ui/src/components/ui/scroll-area.tsx"
-  ]
+  "files": []
 }
