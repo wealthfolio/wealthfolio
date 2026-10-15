@@ -231,12 +231,8 @@
 }
 
 @theme inline {
-  /* Spacing/Sizing theme tokens - inherit from CSS variables */
+  /* Field height (h-input-height), from --input-height */
   --spacing-input-height: var(--input-height);
-  --spacing-button-height: var(--button-height);
-  --spacing-sheet-padding: var(--sheet-padding);
-  --font-size-sheet-title: var(--sheet-title-size);
-  --font-size-input: var(--font-size-base);
 
   --radius-sm: calc(var(--radius) - 0.25rem);
   --radius-md: calc(var(--radius) - 0.125rem);
@@ -391,24 +387,8 @@
   /* Base radius - desktop default */
   --radius: 0.625rem;
 
-  /* Input heights - desktop default */
+  /* Field height; a container can set it for compact fields */
   --input-height: 2.75rem; /* h-11 */
-  --input-height-lg: 2.75rem; /* h-11 */
-
-  /* Button heights - desktop default */
-  --button-height: 2.5rem; /* h-10 */
-  --button-height-sm: 2.25rem; /* h-9 */
-  --button-height-lg: 2.75rem; /* h-11 */
-
-  /* Card padding - desktop default */
-  --card-padding: 1rem; /* p-4 */
-
-  /* Sheet spacing - desktop default */
-  --sheet-padding: 1rem; /* p-4 */
-  --sheet-title-size: 1.125rem; /* text-lg */
-
-  /* Font size - desktop default */
-  --font-size-base: 0.875rem; /* text-sm */
 
   /* Flexoki Light Theme (HSL numeric components) */
   --flexoki-bg: 48 100% 97%;
