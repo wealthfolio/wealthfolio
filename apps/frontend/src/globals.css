@@ -885,24 +885,6 @@ number-flow-react.muted-fraction::part(fraction) {
 }
 
 /* v3 -> v4: ported custom animations (keyframes + utilities) */
-@keyframes accordion-down {
-  from {
-    height: 0;
-  }
-  to {
-    height: var(--radix-accordion-content-height);
-  }
-}
-
-@keyframes accordion-up {
-  from {
-    height: var(--radix-accordion-content-height);
-  }
-  to {
-    height: 0;
-  }
-}
-
 @keyframes progress-bar {
   0% {
     transform: translateX(-100%);
@@ -923,14 +905,6 @@ number-flow-react.muted-fraction::part(fraction) {
   50% {
     opacity: 1;
   }
-}
-
-@utility animate-accordion-down {
-  animation: accordion-down 0.2s ease-out;
-}
-
-@utility animate-accordion-up {
-  animation: accordion-up 0.2s ease-out;
 }
 
 @utility animate-progress-border {
