@@ -6,6 +6,8 @@ import {
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
+  Alert,
+  AlertDescription,
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -15,6 +17,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogTrigger,
+  AlertTitle,
   Avatar,
   AvatarFallback,
   AvatarImage,
@@ -88,6 +91,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
   buttonVariants,
+  Icons,
 } from "@wealthfolio/ui";
 import "@/globals.css";
 
@@ -363,6 +367,31 @@ function Fixture() {
               ))}
             </ul>
           </ScrollArea>
+        </Section>
+
+        <Section title="Feedback">
+          <div className="grid max-w-xl gap-3">
+            {(
+              [
+                ["default", Icons.Info, "Sync paused", "Synthetic accounts sync again tomorrow."],
+                ["destructive", Icons.AlertCircle, "Import failed", "Row 4 has no date."],
+                ["error", Icons.XCircle, "Quote error", "The synthetic provider did not answer."],
+                [
+                  "warning",
+                  Icons.AlertTriangle,
+                  "Cost basis missing",
+                  "Gains may be off for 2 holdings.",
+                ],
+                ["success", Icons.CheckCircle, "Backup saved", "Synthetic backup, 1.2 MB."],
+              ] as const
+            ).map(([variant, Icon, title, description]) => (
+              <Alert key={variant} variant={variant}>
+                <Icon className="h-4 w-4" />
+                <AlertTitle>{title}</AlertTitle>
+                <AlertDescription>{description}</AlertDescription>
+              </Alert>
+            ))}
+          </div>
         </Section>
 
         <Section title="Overlays">
