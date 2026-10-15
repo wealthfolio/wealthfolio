@@ -990,7 +990,7 @@ function BreakdownCanvas({
               {SORT_OPTIONS.map((opt) => (
                 <DropdownMenuItem
                   key={opt}
-                  onSelect={() => setSort(opt)}
+                  onClick={() => setSort(opt)}
                   className={cn("text-xs", sort === opt && "font-semibold")}
                 >
                   {t(SORT_LABEL_KEYS[opt])}

@@ -15,7 +15,13 @@ interface LanguageSelectorProps {
 
 export function LanguageSelector({ value, onChange, className }: LanguageSelectorProps) {
   return (
-    <Select value={value} onValueChange={onChange}>
+    <Select
+      value={value}
+      items={SUPPORTED_LOCALES.map(({ code, label }) => ({ value: code, label }))}
+      onValueChange={(next) => {
+        if (next !== null) onChange(next);
+      }}
+    >
       <SelectTrigger data-testid="language-select" className={className}>
         <SelectValue />
       </SelectTrigger>

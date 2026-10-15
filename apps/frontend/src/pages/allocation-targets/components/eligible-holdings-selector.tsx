@@ -82,17 +82,19 @@ export function EligibleHoldingsSelector({
         {t("allocation:eligibleHoldings.label")}
       </div>
       <Popover>
-        <PopoverTrigger asChild>
-          <button
-            type="button"
-            aria-label={t("allocation:eligibleHoldings.triggerLabel", { label, summary })}
-            className="border-border/70 hover:border-foreground/40 mt-1.5 flex w-full items-center justify-between gap-3 rounded-xl border border-dashed px-3 py-2.5 text-left transition-colors"
-          >
-            <span className="text-foreground min-w-0 truncate font-mono text-sm font-semibold tabular-nums">
-              {summary}
-            </span>
-            <Icons.ChevronDown className="text-muted-foreground h-4 w-4 shrink-0" />
-          </button>
+        <PopoverTrigger
+          render={
+            <button
+              type="button"
+              aria-label={t("allocation:eligibleHoldings.triggerLabel", { label, summary })}
+              className="border-border/70 hover:border-foreground/40 mt-1.5 flex w-full items-center justify-between gap-3 rounded-xl border border-dashed px-3 py-2.5 text-left transition-colors"
+            />
+          }
+        >
+          <span className="text-foreground min-w-0 truncate font-mono text-sm font-semibold tabular-nums">
+            {summary}
+          </span>
+          <Icons.ChevronDown className="text-muted-foreground h-4 w-4 shrink-0" />
         </PopoverTrigger>
         <PopoverContent align="start" className="w-[min(420px,calc(100vw-2rem))] p-0">
           <Command>

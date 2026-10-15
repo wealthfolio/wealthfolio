@@ -504,7 +504,14 @@ export function CashActivityForm({
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>{t("common:account")}</FormLabel>
-                          <Select onValueChange={field.onChange} value={field.value}>
+                          <Select
+                            items={spendingAccounts.map((acc) => ({
+                              value: acc.id,
+                              label: `${acc.name} (${acc.currency})`,
+                            }))}
+                            onValueChange={field.onChange}
+                            value={field.value}
+                          >
                             <FormControl>
                               <SelectTrigger>
                                 <SelectValue placeholder={t("spending:cashForm.selectAccount")} />
@@ -580,7 +587,14 @@ export function CashActivityForm({
                           render={({ field }) => (
                             <FormItem>
                               <FormLabel>{t("common:type")}</FormLabel>
-                              <Select onValueChange={field.onChange} value={field.value}>
+                              <Select
+                                items={mobileTypeOptions.map(({ type, label }) => ({
+                                  value: type,
+                                  label,
+                                }))}
+                                onValueChange={field.onChange}
+                                value={field.value}
+                              >
                                 <FormControl>
                                   <SelectTrigger>
                                     <SelectValue />

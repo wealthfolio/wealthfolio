@@ -83,7 +83,17 @@ function CurrencyRegionSelect({
 }) {
   const { t } = useTranslation();
   return (
-    <Select value={value} onValueChange={onValueChange} disabled={disabled}>
+    <Select
+      value={value}
+      items={CURRENCY_REGION_OPTIONS.map(([region, labelKey]) => ({
+        value: region,
+        label: t(`settings:formattingRegion.options.${labelKey}`),
+      }))}
+      onValueChange={(next) => {
+        if (next !== null) onValueChange(next);
+      }}
+      disabled={disabled}
+    >
       <SelectTrigger id={id} className={className} aria-label={label} data-testid={testId}>
         <SelectValue placeholder={placeholder} />
       </SelectTrigger>
@@ -330,7 +340,16 @@ export function LanguageRegionSettings() {
           </div>
           <Select
             value={formattingRegion}
-            onValueChange={(value) => updateSettings({ formattingRegion: value })}
+            items={FORMATTING_REGION_OPTIONS.map(([value, labelKey]) => ({
+              value,
+              label:
+                value === "system"
+                  ? `${t(`settings:formattingRegion.options.${labelKey}`)} (${resolveFormattingLocale(value)})`
+                  : t(`settings:formattingRegion.options.${labelKey}`),
+            }))}
+            onValueChange={(value) => {
+              if (value !== null) updateSettings({ formattingRegion: value });
+            }}
           >
             <SelectTrigger className="w-full max-w-[360px]" data-testid="formatting-locale-select">
               <SelectValue />

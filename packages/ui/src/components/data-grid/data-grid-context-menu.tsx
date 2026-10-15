@@ -109,15 +109,6 @@ function ContextMenuImpl<TData>({
     [contextMenu.x, contextMenu.y],
   );
 
-  const onCloseAutoFocus: NonNullable<React.ComponentProps<typeof DropdownMenuContent>["onCloseAutoFocus"]> =
-    React.useCallback(
-      (event) => {
-        event.preventDefault();
-        dataGridRef?.current?.focus();
-      },
-      [dataGridRef],
-    );
-
   const onCopy = React.useCallback(() => {
     onCellsCopy?.();
   }, [onCellsCopy]);
@@ -179,23 +170,23 @@ function ContextMenuImpl<TData>({
   return (
     <DropdownMenu open={contextMenu.open} onOpenChange={onContextMenuOpenChange}>
       <DropdownMenuTrigger style={triggerStyle} />
-      <DropdownMenuContent data-grid-popover="" align="start" className="w-48" onCloseAutoFocus={onCloseAutoFocus}>
-        <DropdownMenuItem onSelect={onCopy}>
+      <DropdownMenuContent data-grid-popover="" align="start" className="w-48" finalFocus={dataGridRef ?? false}>
+        <DropdownMenuItem onClick={onCopy}>
           <Icons.Copy />
           {t("ui:dataGrid.copy", "Copy")}
         </DropdownMenuItem>
-        <DropdownMenuItem onSelect={onCut} disabled={tableMeta?.readOnly}>
+        <DropdownMenuItem onClick={onCut} disabled={tableMeta?.readOnly}>
           <Icons.Scissors />
           {t("ui:dataGrid.cut", "Cut")}
         </DropdownMenuItem>
-        <DropdownMenuItem onSelect={onClear} disabled={tableMeta?.readOnly}>
+        <DropdownMenuItem onClick={onClear} disabled={tableMeta?.readOnly}>
           <Icons.Eraser />
           {t("ui:dataGrid.clear", "Clear")}
         </DropdownMenuItem>
         {onRowsDelete && (
           <>
             <DropdownMenuSeparator />
-            <DropdownMenuItem variant="destructive" onSelect={onDelete}>
+            <DropdownMenuItem variant="destructive" onClick={onDelete}>
               <Icons.Trash2 />
               {t("ui:dataGrid.deleteRows", "Delete rows")}
             </DropdownMenuItem>

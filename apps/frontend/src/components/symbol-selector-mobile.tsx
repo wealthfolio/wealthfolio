@@ -171,21 +171,23 @@ export const SymbolSelectorMobile = forwardRef<HTMLButtonElement, SymbolSelector
     return (
       <>
         <Sheet open={open} onOpenChange={setOpen}>
-          <SheetTrigger asChild>
-            <Button
-              ref={ref}
-              variant="outline"
-              role="combobox"
-              size="lg"
-              className={cn(
-                "w-full justify-between truncate rounded-md font-normal",
-                !value && "text-muted-foreground",
-                className,
-              )}
-            >
-              <span className="truncate">{displayText}</span>
-              <Icons.Search className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-            </Button>
+          <SheetTrigger
+            render={
+              <Button
+                ref={ref}
+                variant="outline"
+                role="combobox"
+                size="lg"
+                className={cn(
+                  "w-full justify-between truncate rounded-md font-normal",
+                  !value && "text-muted-foreground",
+                  className,
+                )}
+              />
+            }
+          >
+            <span className="truncate">{displayText}</span>
+            <Icons.Search className="ml-2 h-4 w-4 shrink-0 opacity-50" />
           </SheetTrigger>
           <SheetContent side="bottom" className="rounded-t-4xl mx-1 h-[85vh] p-0">
             {showCustomAssetForm ? (
@@ -247,9 +249,12 @@ export const SymbolSelectorMobile = forwardRef<HTMLButtonElement, SymbolSelector
                           </label>
                           <Select
                             value={customAssetType}
-                            onValueChange={(value) =>
-                              setCustomAssetType(value as "EQUITY" | "CRYPTO" | "OTHER")
-                            }
+                            items={assetTypeOptions}
+                            onValueChange={(value) => {
+                              if (value !== null) {
+                                setCustomAssetType(value as "EQUITY" | "CRYPTO" | "OTHER");
+                              }
+                            }}
                           >
                             <SelectTrigger>
                               <SelectValue />

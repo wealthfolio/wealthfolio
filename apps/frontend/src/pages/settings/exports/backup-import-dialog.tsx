@@ -172,20 +172,20 @@ export function BackupImportDialog({
   return (
     <Dialog
       open
-      onOpenChange={(open) => {
-        if (!open) close();
+      onOpenChange={(open, details) => {
+        if (open) return;
+        // A running restore can't be dismissed.
+        if (pending === "restore") {
+          details.cancel();
+          return;
+        }
+        close();
       }}
     >
       <DialogContent
         className="flex flex-col gap-0 overflow-hidden p-0 sm:max-w-md"
         mobileClassName="h-[min(42rem,85dvh)]"
         showCloseButton={pending !== "restore"}
-        onEscapeKeyDown={(event) => {
-          if (pending === "restore") event.preventDefault();
-        }}
-        onPointerDownOutside={(event) => {
-          if (pending === "restore") event.preventDefault();
-        }}
       >
         <DialogHeader className={restored ? "sr-only" : "shrink-0 px-6 pb-4 pt-6 text-left"}>
           <DialogTitle ref={stepHeading} tabIndex={-1} className="pr-8 outline-none">

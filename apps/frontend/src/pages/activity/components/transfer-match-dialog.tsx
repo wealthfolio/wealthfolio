@@ -889,7 +889,19 @@ export function TransferMatchDialog({
                   </div>
 
                   <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-                    <Select value={accountId} onValueChange={setAccountId}>
+                    <Select
+                      value={accountId}
+                      items={[
+                        { value: ALL, label: t("activity:all_accounts") },
+                        ...activeAccounts.map((account) => ({
+                          value: account.id,
+                          label: account.name,
+                        })),
+                      ]}
+                      onValueChange={(value) => {
+                        if (value !== null) setAccountId(value);
+                      }}
+                    >
                       <SelectTrigger>
                         <SelectValue placeholder={t("activity:filter_account")} />
                       </SelectTrigger>
@@ -903,7 +915,16 @@ export function TransferMatchDialog({
                       </SelectContent>
                     </Select>
 
-                    <Select value={windowDays} onValueChange={setWindowDays}>
+                    <Select
+                      value={windowDays}
+                      items={[7, 30, 90, 180].map((count) => ({
+                        value: `${count}`,
+                        label: t("activity:transfer_match.within_days", { count }),
+                      }))}
+                      onValueChange={(value) => {
+                        if (value !== null) setWindowDays(value);
+                      }}
+                    >
                       <SelectTrigger>
                         <SelectValue placeholder={t("activity:transfer_match.date_range")} />
                       </SelectTrigger>
@@ -953,7 +974,16 @@ export function TransferMatchDialog({
                     </CollapsibleTrigger>
                     <CollapsibleContent className="pt-2">
                       <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-                        <Select value={accountType} onValueChange={setAccountType}>
+                        <Select
+                          value={accountType}
+                          items={[
+                            { value: ALL, label: t("activity:transfer_match.all_account_types") },
+                            ...accountTypeOptions.map((type) => ({ value: type, label: type })),
+                          ]}
+                          onValueChange={(value) => {
+                            if (value !== null) setAccountType(value);
+                          }}
+                        >
                           <SelectTrigger>
                             <SelectValue placeholder={t("activity:transfer_match.account_type")} />
                           </SelectTrigger>
@@ -969,7 +999,16 @@ export function TransferMatchDialog({
                           </SelectContent>
                         </Select>
 
-                        <Select value={currency} onValueChange={setCurrency}>
+                        <Select
+                          value={currency}
+                          items={[
+                            { value: ALL, label: t("activity:transfer_match.all_currencies") },
+                            ...currencyOptions.map((option) => ({ value: option, label: option })),
+                          ]}
+                          onValueChange={(value) => {
+                            if (value !== null) setCurrency(value);
+                          }}
+                        >
                           <SelectTrigger>
                             <SelectValue placeholder={t("activity:table_currency")} />
                           </SelectTrigger>
@@ -985,7 +1024,17 @@ export function TransferMatchDialog({
                           </SelectContent>
                         </Select>
 
-                        <Select value={assetFilter} onValueChange={setAssetFilter}>
+                        <Select
+                          value={assetFilter}
+                          items={[
+                            { value: ALL, label: t("activity:transfer_match.all_assets") },
+                            { value: SAME_ASSET, label: t("activity:transfer_match.same_asset") },
+                            { value: CASH_ASSET, label: t("activity:transfer_match.cash_only") },
+                          ]}
+                          onValueChange={(value) => {
+                            if (value !== null) setAssetFilter(value);
+                          }}
+                        >
                           <SelectTrigger>
                             <SelectValue placeholder={t("activity:transfer_match.asset")} />
                           </SelectTrigger>
@@ -1005,7 +1054,16 @@ export function TransferMatchDialog({
                           </SelectContent>
                         </Select>
 
-                        <Select value={matchMode} onValueChange={setMatchMode}>
+                        <Select
+                          value={matchMode}
+                          items={[
+                            { value: STRICT, label: t("activity:transfer_match.exact_amount") },
+                            { value: ANY, label: t("activity:transfer_match.any_eligible") },
+                          ]}
+                          onValueChange={(value) => {
+                            if (value !== null) setMatchMode(value);
+                          }}
+                        >
                           <SelectTrigger>
                             <SelectValue placeholder={t("activity:transfer_match.match_mode")} />
                           </SelectTrigger>

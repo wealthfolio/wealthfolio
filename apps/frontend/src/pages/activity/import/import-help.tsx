@@ -365,10 +365,10 @@ export function ImportHelpPopover({
   if (isMobile) {
     return (
       <Sheet>
-        <SheetTrigger asChild>
-          <Button type="button" variant="ghost" size="icon" className="h-9 w-9">
-            <Icons.HelpCircle className="h-6 w-6" />
-          </Button>
+        <SheetTrigger
+          render={<Button type="button" variant="ghost" size="icon" className="h-9 w-9" />}
+        >
+          <Icons.HelpCircle className="h-6 w-6" />
         </SheetTrigger>
         <SheetContent side="bottom" className="rounded-t-4xl mx-1 h-[85vh]">
           <SheetHeader>
@@ -382,11 +382,11 @@ export function ImportHelpPopover({
 
   return (
     <Popover>
-      <PopoverTrigger asChild>
-        <Button type="button" variant="link" className="flex items-center">
-          <Icons.HelpCircle className="mr-1 h-5 w-5" />
-          {t("activity:import.help.button")}
-        </Button>
+      <PopoverTrigger
+        render={<Button type="button" variant="link" className="flex items-center" />}
+      >
+        <Icons.HelpCircle className="mr-1 h-5 w-5" />
+        {t("activity:import.help.button")}
       </PopoverTrigger>
       <PopoverContent className="m-4 max-h-[80vh] w-[900px] max-w-[calc(100vw-2rem)] overflow-y-auto p-6 text-sm">
         {helpContent}

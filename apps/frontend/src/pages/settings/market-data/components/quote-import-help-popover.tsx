@@ -7,11 +7,11 @@ export function QuoteImportHelpPopover() {
   const { t } = useTranslation();
   return (
     <Popover>
-      <PopoverTrigger asChild>
-        <Button type="button" variant="link" className="flex items-center gap-1 text-sm">
-          <Icons.HelpCircle className="mr-1 h-5 w-5" />
-          {t("settings:market_data_page.how_to_import")}
-        </Button>
+      <PopoverTrigger
+        render={<Button type="button" variant="link" className="flex items-center gap-1 text-sm" />}
+      >
+        <Icons.HelpCircle className="mr-1 h-5 w-5" />
+        {t("settings:market_data_page.how_to_import")}
       </PopoverTrigger>
       <PopoverContent className="m-3 max-h-[min(85vh,680px)] w-[min(90vw,900px)] overflow-y-auto rounded-lg p-4 text-sm sm:m-4 sm:p-6">
         <h4 className="text-lg font-semibold">

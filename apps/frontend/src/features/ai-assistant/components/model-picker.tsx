@@ -104,18 +104,18 @@ export const ModelPicker: FC = () => {
   return (
     <div className="flex items-center">
       <Popover open={open} onOpenChange={setOpen}>
-        <PopoverTrigger asChild>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="text-muted-foreground hover:text-foreground h-8 gap-1.5 px-3 text-xs font-normal"
-            aria-label={t("ai:model.selectModel")}
-          >
-            <span>
-              {currentModel ? getDisplayName(currentModel.id) : t("ai:model.selectModel")}
-            </span>
-            <Icons.ChevronDown className="size-3 opacity-50" />
-          </Button>
+        <PopoverTrigger
+          render={
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-muted-foreground hover:text-foreground h-8 gap-1.5 px-3 text-xs font-normal"
+              aria-label={t("ai:model.selectModel")}
+            />
+          }
+        >
+          <span>{currentModel ? getDisplayName(currentModel.id) : t("ai:model.selectModel")}</span>
+          <Icons.ChevronDown className="size-3 opacity-50" />
         </PopoverTrigger>
         <PopoverContent className="w-fit min-w-56 p-1.5" align="start" sideOffset={8}>
           <Command>

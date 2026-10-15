@@ -301,14 +301,16 @@ export function TopHoldings({ holdings, isLoading, baseCurrency }: TopHoldingsPr
       action={
         <div className="flex items-center gap-1">
           <Popover>
-            <PopoverTrigger asChild>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-muted-foreground hover:bg-success/10 h-8 w-8 p-0"
-              >
-                <Icons.ListFilter className="h-4 w-4" />
-              </Button>
+            <PopoverTrigger
+              render={
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-muted-foreground hover:bg-success/10 h-8 w-8 p-0"
+                />
+              }
+            >
+              <Icons.ListFilter className="h-4 w-4" />
             </PopoverTrigger>
             <PopoverContent
               align="end"

@@ -40,19 +40,21 @@ export function SearchableSelect({
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          variant="outline"
-          role="combobox"
-          aria-expanded={open}
-          className={cn("w-full justify-between rounded-md font-normal", className)}
-          disabled={disabled}
-        >
-          <span className="truncate">{selectedOption ? selectedOption.label : placeholder}</span>
-          <Icons.ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-        </Button>
+      <PopoverTrigger
+        render={
+          <Button
+            variant="outline"
+            role="combobox"
+            aria-expanded={open}
+            className={cn("w-full justify-between rounded-md font-normal", className)}
+            disabled={disabled}
+          />
+        }
+      >
+        <span className="truncate">{selectedOption ? selectedOption.label : placeholder}</span>
+        <Icons.ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
       </PopoverTrigger>
-      <PopoverContent className={cn("w-[var(--radix-popover-trigger-width)] p-0", contentClassName)}>
+      <PopoverContent className={cn("w-[var(--anchor-width)] p-0", contentClassName)}>
         <Command>
           <CommandInput placeholder={searchPlaceholder} className="h-9" />
           <CommandEmpty>{emptyMessage}</CommandEmpty>

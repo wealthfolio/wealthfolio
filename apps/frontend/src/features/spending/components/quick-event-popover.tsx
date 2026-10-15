@@ -19,7 +19,7 @@ import { useEventTypes, useSpendingEvents } from "../hooks/use-spending-events";
 import { useEventDialog } from "./event-dialog-provider";
 
 export interface QuickEventPopoverProps {
-  trigger: React.ReactNode;
+  trigger: React.ReactElement;
   selectedEventId?: string | null;
   onSelect: (eventId: string) => void;
   onClear?: () => void;
@@ -91,7 +91,7 @@ export function QuickEventPopover({
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>{trigger}</PopoverTrigger>
+      <PopoverTrigger render={trigger} />
       <PopoverContent className="w-[280px] p-0" align={align}>
         <Command>
           {loadErrored && (

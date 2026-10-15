@@ -734,7 +734,7 @@ export function ValueHistoryDataGrid({
                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                 disabled={isPersisting}
                 onClick={(event) => {
-                  event.preventDefault();
+                  event.preventBaseUIHandler();
                   void handleMobileDelete();
                 }}
               >

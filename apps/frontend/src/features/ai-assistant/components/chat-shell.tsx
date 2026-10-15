@@ -93,11 +93,11 @@ function MobileSidebar() {
   const { t } = useTranslation();
   return (
     <Sheet>
-      <SheetTrigger asChild>
-        <Button variant="ghost" size="icon" className="size-9 shrink-0 md:hidden">
-          <Icons.PanelLeft className="size-4" />
-          <span className="sr-only">{t("ai:shell.toggleMenu")}</span>
-        </Button>
+      <SheetTrigger
+        render={<Button variant="ghost" size="icon" className="size-9 shrink-0 md:hidden" />}
+      >
+        <Icons.PanelLeft className="size-4" />
+        <span className="sr-only">{t("ai:shell.toggleMenu")}</span>
       </SheetTrigger>
       <SheetContent
         side="left"

@@ -134,7 +134,14 @@ export function ResponsiveSelect({
   }
 
   return (
-    <Select value={value} onValueChange={handleSelect} disabled={disabled}>
+    <Select
+      value={value}
+      items={options}
+      onValueChange={(nextValue) => {
+        if (nextValue !== null) handleSelect(nextValue);
+      }}
+      disabled={disabled}
+    >
       <SelectTrigger id={id} aria-label={ariaLabel} className={cn("w-full", triggerClassName)}>
         <SelectValue placeholder={placeholder} />
       </SelectTrigger>

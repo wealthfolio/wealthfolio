@@ -56,6 +56,12 @@ export function MappingHeaderCell({
   const isMapped = displayHeader ? headers.includes(displayHeader) : false;
   const isEditing = editingHeader === field || !isMapped;
   const isRequired = requiredFields.includes(field);
+  const skipLabel =
+    field === ImportFormat.CURRENCY
+      ? t("activity:import.mapping.accountCurrency")
+      : field === ImportFormat.ACCOUNT
+        ? t("activity:import.mapping.defaultAccount")
+        : t("activity:import.mapping.ignore");
 
   return (
     <div>
@@ -70,10 +76,13 @@ export function MappingHeaderCell({
       {isEditing ? (
         <Select
           onValueChange={(val) => {
+            if (val === null) return;
             handleColumnMapping(field, val === SKIP_FIELD_VALUE ? "" : val);
             setEditingHeader(null);
           }}
           value={displayHeader || SKIP_FIELD_VALUE}
+          // Required fields have no skip item, so an unmapped one shows an empty trigger.
+          items={{ [SKIP_FIELD_VALUE]: isRequired ? "" : skipLabel }}
           onOpenChange={(open) => !open && setEditingHeader(null)}
         >
           <SelectTrigger className={cn(MAPPING_TRIGGER_CLASS, "text-muted-foreground !h-8 w-full")}>
@@ -88,13 +97,7 @@ export function MappingHeaderCell({
           <SelectContent className="max-h-[300px] overflow-y-auto">
             {!isRequired && (
               <>
-                <SelectItem value={SKIP_FIELD_VALUE}>
-                  {field === ImportFormat.CURRENCY
-                    ? t("activity:import.mapping.accountCurrency")
-                    : field === ImportFormat.ACCOUNT
-                      ? t("activity:import.mapping.defaultAccount")
-                      : t("activity:import.mapping.ignore")}
-                </SelectItem>
+                <SelectItem value={SKIP_FIELD_VALUE}>{skipLabel}</SelectItem>
                 <SelectSeparator />
               </>
             )}

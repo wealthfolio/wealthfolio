@@ -340,7 +340,7 @@ export function CreateSecurityDialog({
     if (isPending || isResolvingSubmit) return;
     if ((e.target as HTMLElement).tagName === "TEXTAREA") return;
     // Don't submit when interacting with the ticker search popover
-    const inPopover = (e.target as HTMLElement).closest("[data-radix-popper-content-wrapper]");
+    const inPopover = (e.target as HTMLElement).closest('[data-slot="popover-content"]');
     if (inPopover) return;
     e.preventDefault();
     void form.handleSubmit(handleSubmit)();
@@ -413,7 +413,11 @@ export function CreateSecurityDialog({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>{t("asset:createSecurity.type")}</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
+                    <Select
+                      items={INSTRUMENT_TYPE_OPTIONS}
+                      onValueChange={field.onChange}
+                      value={field.value}
+                    >
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder={t("asset:createSecurity.select_type")} />
@@ -479,7 +483,11 @@ export function CreateSecurityDialog({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>{t("asset:createSecurity.quote_mode")}</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
+                    <Select
+                      items={QUOTE_MODE_OPTIONS}
+                      onValueChange={field.onChange}
+                      value={field.value}
+                    >
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue />

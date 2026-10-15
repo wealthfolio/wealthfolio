@@ -40,6 +40,7 @@ import {
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuGroup,
   DropdownMenuLabel,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
@@ -125,10 +126,12 @@ function CurrencyCombobox() {
   const [value, setValue] = useState("USD");
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button variant="outline" role="combobox" aria-expanded={open} aria-label="Currency">
-          {value}
-        </Button>
+      <PopoverTrigger
+        render={
+          <Button variant="outline" role="combobox" aria-expanded={open} aria-label="Currency" />
+        }
+      >
+        {value}
       </PopoverTrigger>
       <PopoverContent className="w-56 p-0">
         <Command>
@@ -158,7 +161,15 @@ function CurrencyCombobox() {
 
 function SampleSelect({ label }: { label: string }) {
   return (
-    <Select defaultValue="brokerage">
+    <Select
+      defaultValue="brokerage"
+      items={{
+        brokerage: "Brokerage",
+        retirement: "Retirement",
+        checking: "Checking",
+        savings: "Savings",
+      }}
+    >
       <SelectTrigger aria-label={label} className="w-56">
         <SelectValue />
       </SelectTrigger>
@@ -357,9 +368,7 @@ function Fixture() {
         <Section title="Overlays">
           <div className="flex flex-wrap items-center gap-3">
             <Dialog>
-              <DialogTrigger asChild>
-                <Button variant="outline">Open dialog</Button>
-              </DialogTrigger>
+              <DialogTrigger render={<Button variant="outline" />}>Open dialog</DialogTrigger>
               <DialogContent>
                 <DialogHeader>
                   <DialogTitle>Review activity</DialogTitle>
@@ -377,8 +386,8 @@ function Fixture() {
             </Dialog>
 
             <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant="destructive">Delete account</Button>
+              <AlertDialogTrigger render={<Button variant="destructive" />}>
+                Delete account
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
@@ -396,9 +405,7 @@ function Fixture() {
             <span role="status">{deleted ? "Deleted" : ""}</span>
 
             <Sheet>
-              <SheetTrigger asChild>
-                <Button variant="outline">Open sheet</Button>
-              </SheetTrigger>
+              <SheetTrigger render={<Button variant="outline" />}>Open sheet</SheetTrigger>
               <SheetContent>
                 <SheetHeader>
                   <SheetTitle>Edit account</SheetTitle>
@@ -415,9 +422,7 @@ function Fixture() {
             </Sheet>
 
             <Sheet>
-              <SheetTrigger asChild>
-                <Button variant="outline">Open bottom sheet</Button>
-              </SheetTrigger>
+              <SheetTrigger render={<Button variant="outline" />}>Open bottom sheet</SheetTrigger>
               <SheetContent side="bottom">
                 <SheetHeader>
                   <SheetTitle>Quick add</SheetTitle>
@@ -433,9 +438,7 @@ function Fixture() {
 
           <div className="flex flex-wrap items-center gap-3">
             <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline">Open popover</Button>
-              </PopoverTrigger>
+              <PopoverTrigger render={<Button variant="outline" />}>Open popover</PopoverTrigger>
               <PopoverContent className="space-y-2">
                 <Label htmlFor="popover-target">Target allocation</Label>
                 <Input id="popover-target" defaultValue="60" />
@@ -443,20 +446,22 @@ function Fixture() {
             </Popover>
 
             <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline">Open menu</Button>
+              <DropdownMenuTrigger render={<Button variant="outline" />}>
+                Open menu
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" className="w-56">
-                <DropdownMenuLabel>Account</DropdownMenuLabel>
-                <DropdownMenuItem>Rename</DropdownMenuItem>
-                <DropdownMenuItem>Duplicate</DropdownMenuItem>
-                <DropdownMenuSub>
-                  <DropdownMenuSubTrigger>Move to</DropdownMenuSubTrigger>
-                  <DropdownMenuSubContent>
-                    <DropdownMenuItem>Investments</DropdownMenuItem>
-                    <DropdownMenuItem>Cash</DropdownMenuItem>
-                  </DropdownMenuSubContent>
-                </DropdownMenuSub>
+                <DropdownMenuGroup>
+                  <DropdownMenuLabel>Account</DropdownMenuLabel>
+                  <DropdownMenuItem>Rename</DropdownMenuItem>
+                  <DropdownMenuItem>Duplicate</DropdownMenuItem>
+                  <DropdownMenuSub>
+                    <DropdownMenuSubTrigger>Move to</DropdownMenuSubTrigger>
+                    <DropdownMenuSubContent>
+                      <DropdownMenuItem>Investments</DropdownMenuItem>
+                      <DropdownMenuItem>Cash</DropdownMenuItem>
+                    </DropdownMenuSubContent>
+                  </DropdownMenuSub>
+                </DropdownMenuGroup>
                 <DropdownMenuSeparator />
                 <DropdownMenuCheckboxItem checked={showFees} onCheckedChange={setShowFees}>
                   Show fees

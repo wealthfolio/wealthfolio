@@ -141,53 +141,51 @@ export function TaxonomyPicker({
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          variant="outline"
-          role="combobox"
-          aria-expanded={open}
-          aria-label={t("settings:tax_select_category_aria")}
-          className={cn("w-full justify-between", !selectedCategory && "text-muted-foreground")}
-          disabled={disabled}
-        >
-          <div className="flex items-center gap-2 truncate">
-            {selectedCategory ? (
-              <>
-                <span
-                  className="h-3 w-3 shrink-0 rounded-full"
-                  style={{ backgroundColor: selectedCategory.color }}
-                />
-                <span className="truncate">{selectedCategory.name}</span>
-              </>
-            ) : (
-              <span>{resolvedPlaceholder}</span>
-            )}
-          </div>
-          <div className="flex items-center gap-1">
-            {selectedCategory && !disabled && (
-              <span
-                role="button"
-                tabIndex={0}
-                className="hover:bg-muted rounded-sm p-0.5"
-                onClick={handleClear}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    handleClear(e as unknown as React.MouseEvent);
-                  }
-                }}
-              >
-                <Icons.Close className="h-3 w-3 opacity-50 hover:opacity-100" />
-              </span>
-            )}
-            <Icons.ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
-          </div>
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent
-        className="p-0"
-        align="start"
-        style={{ minWidth: "var(--radix-popover-trigger-width)" }}
+      <PopoverTrigger
+        render={
+          <Button
+            variant="outline"
+            role="combobox"
+            aria-expanded={open}
+            aria-label={t("settings:tax_select_category_aria")}
+            className={cn("w-full justify-between", !selectedCategory && "text-muted-foreground")}
+            disabled={disabled}
+          />
+        }
       >
+        <div className="flex items-center gap-2 truncate">
+          {selectedCategory ? (
+            <>
+              <span
+                className="h-3 w-3 shrink-0 rounded-full"
+                style={{ backgroundColor: selectedCategory.color }}
+              />
+              <span className="truncate">{selectedCategory.name}</span>
+            </>
+          ) : (
+            <span>{resolvedPlaceholder}</span>
+          )}
+        </div>
+        <div className="flex items-center gap-1">
+          {selectedCategory && !disabled && (
+            <span
+              role="button"
+              tabIndex={0}
+              className="hover:bg-muted rounded-sm p-0.5"
+              onClick={handleClear}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  handleClear(e as unknown as React.MouseEvent);
+                }
+              }}
+            >
+              <Icons.Close className="h-3 w-3 opacity-50 hover:opacity-100" />
+            </span>
+          )}
+          <Icons.ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
+        </div>
+      </PopoverTrigger>
+      <PopoverContent className="p-0" align="start" style={{ minWidth: "var(--anchor-width)" }}>
         <Command>
           <CommandInput placeholder={t("settings:tax_search_categories")} />
           <CommandList>

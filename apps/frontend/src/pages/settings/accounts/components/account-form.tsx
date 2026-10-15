@@ -688,10 +688,10 @@ export function AccountForm({ defaultValues, onSuccess = () => undefined }: Acco
           </div>
         </div>
         <DialogFooter className="gap-2">
-          <DialogClose asChild>
-            <Button data-testid="account-cancel-button" type="button" variant="outline">
-              {t("settings:accounts_cancel_button")}
-            </Button>
+          <DialogClose
+            render={<Button data-testid="account-cancel-button" type="button" variant="outline" />}
+          >
+            {t("settings:accounts_cancel_button")}
           </DialogClose>
           <Button
             data-testid="account-submit-button"

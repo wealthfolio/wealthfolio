@@ -160,11 +160,9 @@ export function ExchangeRatesSettings() {
             <CardDescription>{t("settings:fx_description")}</CardDescription>
           </div>
           <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-            <DialogTrigger asChild>
-              <Button>
-                <Icons.PlusCircle className="mr-2 h-4 w-4" />
-                {t("settings:fx_add")}
-              </Button>
+            <DialogTrigger render={<Button />}>
+              <Icons.PlusCircle className="mr-2 h-4 w-4" />
+              {t("settings:fx_add")}
             </DialogTrigger>
             <DialogContent className="max-h-[90vh] overflow-y-auto">
               <AddExchangeRateForm

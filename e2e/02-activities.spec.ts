@@ -198,7 +198,7 @@ test.describe("Activity Creation Tests", () => {
 
   async function waitForOverlayClose() {
     await page
-      .locator('[data-state="open"][aria-hidden="true"]')
+      .locator('[data-slot$="-overlay"][data-open]')
       .waitFor({ state: "hidden", timeout: 5000 })
       .catch(() => {});
   }
@@ -1195,8 +1195,8 @@ test.describe("Activity Creation Tests", () => {
       // Look for manual pricing indicator or toggle
       const manualPricingSwitch = page.locator('[role="switch"]').first();
       if (await manualPricingSwitch.isVisible()) {
-        const isManual = await manualPricingSwitch.getAttribute("data-state");
-        expect(isManual).toBe("checked");
+        const isManual = await manualPricingSwitch.getAttribute("aria-checked");
+        expect(isManual).toBe("true");
       }
     }
 

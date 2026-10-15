@@ -229,17 +229,19 @@ function PinnedAddonNavItem({ item, collapsed, onSetPinned }: PinnedAddonNavItem
       <NavItem item={item} collapsed={collapsed} className="w-full pr-10" />
 
       <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="hover:bg-accent pointer-events-none absolute right-1 top-1/2 z-10 h-8 w-8 -translate-y-1/2 rounded-full opacity-0 transition-opacity focus:pointer-events-auto focus:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100"
-            title={t("common:layout.addon_options", { name: item.title })}
-            aria-label={t("common:layout.addon_options", { name: item.title })}
-          >
-            <Icons.MoreHorizontal className="h-4 w-4" />
-          </Button>
+        <DropdownMenuTrigger
+          render={
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="hover:bg-accent pointer-events-none absolute right-1 top-1/2 z-10 h-8 w-8 -translate-y-1/2 rounded-full opacity-0 transition-opacity focus:pointer-events-auto focus:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100"
+              title={t("common:layout.addon_options", { name: item.title })}
+              aria-label={t("common:layout.addon_options", { name: item.title })}
+            />
+          }
+        >
+          <Icons.MoreHorizontal className="h-4 w-4" />
         </DropdownMenuTrigger>
         <DropdownMenuContent side="bottom" align="start" className="w-48">
           <DropdownMenuItem onClick={() => onSetPinned(item, false)}>
@@ -308,27 +310,29 @@ function AddonsMenu({ addons, collapsed, onSetPinned }: AddonsMenuProps) {
 
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>
-      <DropdownMenuTrigger asChild>
-        <Button
-          variant={hasActiveAddon ? "secondary" : "ghost"}
-          className={cn(
-            "text-foreground [&_svg]:size-5! mb-1 h-12 rounded-md transition-all duration-300",
-            collapsed ? "justify-center" : "justify-start",
-          )}
+      <DropdownMenuTrigger
+        render={
+          <Button
+            variant={hasActiveAddon ? "secondary" : "ghost"}
+            className={cn(
+              "text-foreground [&_svg]:size-5! mb-1 h-12 rounded-md transition-all duration-300",
+              collapsed ? "justify-center" : "justify-start",
+            )}
+          />
+        }
+      >
+        <span aria-hidden="true">
+          <Icons.Addons className="h-5 w-5" />
+        </span>
+        <span
+          className={cn({
+            "ml-2 transition-opacity delay-100 duration-300 ease-in-out": true,
+            "sr-only opacity-0": collapsed,
+            "block opacity-100": !collapsed,
+          })}
         >
-          <span aria-hidden="true">
-            <Icons.Addons className="h-5 w-5" />
-          </span>
-          <span
-            className={cn({
-              "ml-2 transition-opacity delay-100 duration-300 ease-in-out": true,
-              "sr-only opacity-0": collapsed,
-              "block opacity-100": !collapsed,
-            })}
-          >
-            {t("common:addons")}
-          </span>
-        </Button>
+          {t("common:addons")}
+        </span>
       </DropdownMenuTrigger>
       <DropdownMenuContent
         side={collapsed ? "right" : "bottom"}
@@ -351,18 +355,16 @@ function AddonsMenu({ addons, collapsed, onSetPinned }: AddonsMenuProps) {
               )}
             >
               <DropdownMenuItem
-                asChild
                 className="h-12 min-w-0 flex-1 gap-3 px-3 py-3 text-sm font-medium"
+                render={<Link to={addon.href} onClick={() => setOpen(false)} />}
               >
-                <Link to={addon.href} onClick={() => setOpen(false)}>
-                  <span
-                    aria-hidden="true"
-                    className="flex size-5 shrink-0 items-center justify-center"
-                  >
-                    {resolveNavigationIcon(addon.icon, "h-5 w-5")}
-                  </span>
-                  <span className="whitespace-nowrap">{addon.title}</span>
-                </Link>
+                <span
+                  aria-hidden="true"
+                  className="flex size-5 shrink-0 items-center justify-center"
+                >
+                  {resolveNavigationIcon(addon.icon, "h-5 w-5")}
+                </span>
+                <span className="whitespace-nowrap">{addon.title}</span>
               </DropdownMenuItem>
               {onSetPinned && (
                 <button

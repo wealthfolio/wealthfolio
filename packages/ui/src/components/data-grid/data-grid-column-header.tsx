@@ -1,5 +1,6 @@
 "use client";
 
+import type { BaseUIEvent } from "@base-ui/react/types";
 import type { Header, SortDirection, Table } from "@tanstack/react-table";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
@@ -77,7 +78,7 @@ export function DataGridColumnHeader<TData, TValue>({
   }, [column]);
 
   const onTriggerPointerDown = React.useCallback(
-    (event: React.PointerEvent<HTMLButtonElement>) => {
+    (event: BaseUIEvent<React.PointerEvent<HTMLButtonElement>>) => {
       onPointerDown?.(event);
       if (event.defaultPrevented) return;
 
@@ -94,7 +95,7 @@ export function DataGridColumnHeader<TData, TValue>({
       <DropdownMenu modal={false}>
         <DropdownMenuTrigger
           className={cn(
-            "hover:bg-accent/40 data-[state=open]:bg-accent/40 flex size-full items-center justify-between gap-2 p-2 text-sm [&_svg]:size-4",
+            "hover:bg-accent/40 data-popup-open:bg-accent/40 flex size-full items-center justify-between gap-2 p-2 text-sm [&_svg]:size-4",
             isAnyColumnResizing && "pointer-events-none",
             className,
           )}

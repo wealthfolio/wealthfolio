@@ -441,15 +441,18 @@ export const AccountSelector = forwardRef<HTMLButtonElement, AccountSelectorProp
       }
     };
 
+    // The form variant has no skeleton, so a loading form selector has no trigger.
+    const trigger = renderTrigger();
+
     return (
       <Popover open={open} onOpenChange={setOpen}>
-        <PopoverTrigger asChild>{renderTrigger()}</PopoverTrigger>
+        {trigger && <PopoverTrigger render={trigger} />}
         <PopoverContent
           className="p-0"
           align="start"
           sideOffset={8}
           style={{
-            minWidth: variant === "card" ? "var(--radix-popover-trigger-width)" : "240px",
+            minWidth: variant === "card" ? "var(--anchor-width)" : "240px",
           }}
         >
           <Command className="w-full">

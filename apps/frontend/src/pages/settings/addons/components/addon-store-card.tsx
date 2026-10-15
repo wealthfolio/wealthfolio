@@ -90,11 +90,9 @@ export function AddonStoreCard({
         {/* Mobile Action Buttons - Always visible on mobile, hidden on desktop */}
         <div className="flex gap-2 pt-2 sm:hidden">
           <Dialog>
-            <DialogTrigger asChild>
-              <Button variant="outline" size="sm" className="flex-1">
-                <Icons.Eye className="mr-2 h-4 w-4" />
-                {t("settings:addon_card_details")}
-              </Button>
+            <DialogTrigger render={<Button variant="outline" size="sm" className="flex-1" />}>
+              <Icons.Eye className="mr-2 h-4 w-4" />
+              {t("settings:addon_card_details")}
             </DialogTrigger>
             <DialogContent className="max-w-2xl">
               <DialogHeader>
@@ -290,11 +288,17 @@ export function AddonStoreCard({
       <div className="absolute inset-0 hidden items-center justify-center gap-2 bg-black/60 opacity-0 transition-opacity duration-200 group-hover:opacity-100 sm:flex">
         {/* View Details Button */}
         <Dialog>
-          <DialogTrigger asChild>
-            <Button variant="secondary" size="sm" className="bg-white/90 text-black hover:bg-white">
-              <Icons.Eye className="mr-2 h-4 w-4" />
-              {t("settings:addon_card_details")}
-            </Button>
+          <DialogTrigger
+            render={
+              <Button
+                variant="secondary"
+                size="sm"
+                className="bg-white/90 text-black hover:bg-white"
+              />
+            }
+          >
+            <Icons.Eye className="mr-2 h-4 w-4" />
+            {t("settings:addon_card_details")}
           </DialogTrigger>
           <DialogContent className="max-w-2xl">
             <DialogHeader>

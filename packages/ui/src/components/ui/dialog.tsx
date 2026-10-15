@@ -1,10 +1,10 @@
 "use client";
 
-import * as DialogPrimitive from "@radix-ui/react-dialog";
+import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
 
-import { cn, isKeyboardEventComposing } from "../../lib/utils";
+import { cn } from "../../lib/utils";
 import { Icons } from "./icons";
 import { Sheet, SheetContent } from "./sheet";
 
@@ -42,7 +42,7 @@ const DialogContext = React.createContext<DialogContextValue>({
 // Dialog Root - Switches between Sheet (mobile) and Dialog (desktop)
 // ============================================================================
 
-interface DialogProps extends React.ComponentPropsWithoutRef<typeof DialogPrimitive.Root> {
+interface DialogProps extends DialogPrimitive.Root.Props {
   /**
    * Custom hook to determine if mobile view
    */
@@ -76,24 +76,28 @@ function Dialog({ children, useIsMobile, ...props }: DialogProps) {
 // Standard Dialog Components (shadcn pattern)
 // ============================================================================
 
-function DialogTrigger({ ...props }: React.ComponentProps<typeof DialogPrimitive.Trigger>) {
+function DialogTrigger(props: DialogPrimitive.Trigger.Props) {
   return <DialogPrimitive.Trigger data-slot="dialog-trigger" {...props} />;
 }
 
-function DialogPortal({ ...props }: React.ComponentProps<typeof DialogPrimitive.Portal>) {
+function DialogPortal(props: DialogPrimitive.Portal.Props) {
   return <DialogPrimitive.Portal data-slot="dialog-portal" {...props} />;
 }
 
-function DialogClose({ ...props }: React.ComponentProps<typeof DialogPrimitive.Close>) {
+function DialogClose(props: DialogPrimitive.Close.Props) {
   return <DialogPrimitive.Close data-slot="dialog-close" {...props} />;
 }
 
-function DialogOverlay({ className, ...props }: React.ComponentProps<typeof DialogPrimitive.Overlay>) {
+interface DialogOverlayProps extends Omit<DialogPrimitive.Backdrop.Props, "className"> {
+  className?: string;
+}
+
+function DialogOverlay({ className, ...props }: DialogOverlayProps) {
   return (
-    <DialogPrimitive.Overlay
+    <DialogPrimitive.Backdrop
       data-slot="dialog-overlay"
       className={cn(
-        "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-50 bg-black/50",
+        "data-open:animate-in data-closed:animate-out data-closed:fade-out-0 data-open:fade-in-0 fixed inset-0 z-50 bg-black/50",
         className,
       )}
       {...props}
@@ -105,7 +109,8 @@ function DialogOverlay({ className, ...props }: React.ComponentProps<typeof Dial
 // DialogContent - Responsive: Sheet on mobile, Dialog on desktop
 // ============================================================================
 
-interface DialogContentProps extends React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> {
+interface DialogContentProps extends Omit<DialogPrimitive.Popup.Props, "className"> {
+  className?: string;
   /**
    * Custom className for mobile sheet content
    */
@@ -120,71 +125,54 @@ interface DialogContentProps extends React.ComponentPropsWithoutRef<typeof Dialo
   showCloseButton?: boolean;
 }
 
-const DialogContent = React.forwardRef<React.ElementRef<typeof DialogPrimitive.Content>, DialogContentProps>(
-  (
-    {
-      className,
-      children,
-      mobileClassName = "h-[90vh] overflow-y-auto",
-      side = "bottom",
-      showCloseButton = true,
-      onEscapeKeyDown,
-      ...props
-    },
-    ref,
-  ) => {
-    const { t } = useTranslation();
-    const { isMobile } = React.useContext(DialogContext);
-    const handleEscapeKeyDown = (event: KeyboardEvent) => {
-      if (isKeyboardEventComposing(event)) {
-        event.preventDefault();
-        return;
-      }
-      onEscapeKeyDown?.(event);
-    };
+function DialogContent({
+  className,
+  children,
+  mobileClassName = "h-[90vh] overflow-y-auto",
+  side = "bottom",
+  showCloseButton = true,
+  ...props
+}: DialogContentProps) {
+  const { t } = useTranslation();
+  const { isMobile } = React.useContext(DialogContext);
 
-    if (isMobile) {
-      return (
-        <SheetContent
-          side={side}
-          showCloseButton={showCloseButton}
-          onEscapeKeyDown={handleEscapeKeyDown}
-          className={cn(mobileClassName, "!rounded-t-4xl mx-1", className)}
-        >
-          {children}
-        </SheetContent>
-      );
-    }
-
+  if (isMobile) {
     return (
-      <DialogPortal data-slot="dialog-portal">
-        <DialogOverlay />
-        <DialogPrimitive.Content
-          ref={ref}
-          data-slot="dialog-content"
-          onEscapeKeyDown={handleEscapeKeyDown}
-          className={cn(
-            "bg-card text-card-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 rounded-lg border p-6 shadow-lg duration-200 [&>*]:min-w-0",
-            className,
-          )}
-          {...props}
-        >
-          {children}
-          {showCloseButton && (
-            <DialogPrimitive.Close
-              data-slot="dialog-close"
-              className="ring-offset-background focus:ring-ring data-[state=open]:bg-accent data-[state=open]:text-muted-foreground rounded-xs focus:outline-hidden absolute right-4 top-4 opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 disabled:pointer-events-none [&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0"
-            >
-              <Icons.X />
-              <span className="sr-only">{t("ui:dialog.close", "Close")}</span>
-            </DialogPrimitive.Close>
-          )}
-        </DialogPrimitive.Content>
-      </DialogPortal>
+      <SheetContent
+        side={side}
+        showCloseButton={showCloseButton}
+        className={cn(mobileClassName, "!rounded-t-4xl mx-1", className)}
+      >
+        {children}
+      </SheetContent>
     );
-  },
-);
-DialogContent.displayName = DialogPrimitive.Content.displayName;
+  }
+
+  return (
+    <DialogPortal>
+      <DialogOverlay />
+      <DialogPrimitive.Popup
+        data-slot="dialog-content"
+        className={cn(
+          "bg-card text-card-foreground data-open:animate-in data-closed:animate-out data-closed:fade-out-0 data-open:fade-in-0 data-closed:zoom-out-95 data-open:zoom-in-95 fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 rounded-lg border p-6 shadow-lg duration-200 [&>*]:min-w-0",
+          className,
+        )}
+        {...props}
+      >
+        {children}
+        {showCloseButton && (
+          <DialogPrimitive.Close
+            data-slot="dialog-close"
+            className="ring-offset-background focus:ring-ring rounded-xs focus:outline-hidden absolute right-4 top-4 opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 disabled:pointer-events-none [&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0"
+          >
+            <Icons.X />
+            <span className="sr-only">{t("ui:dialog.close", "Close")}</span>
+          </DialogPrimitive.Close>
+        )}
+      </DialogPrimitive.Popup>
+    </DialogPortal>
+  );
+}
 
 // ============================================================================
 // Dialog Header, Footer, Title, Description
@@ -213,7 +201,11 @@ function DialogFooter({ className, ...props }: React.ComponentProps<"div">) {
   );
 }
 
-function DialogTitle({ className, ...props }: React.ComponentProps<typeof DialogPrimitive.Title>) {
+interface DialogTitleProps extends Omit<DialogPrimitive.Title.Props, "className"> {
+  className?: string;
+}
+
+function DialogTitle({ className, ...props }: DialogTitleProps) {
   return (
     <DialogPrimitive.Title
       data-slot="dialog-title"
@@ -223,7 +215,11 @@ function DialogTitle({ className, ...props }: React.ComponentProps<typeof Dialog
   );
 }
 
-function DialogDescription({ className, ...props }: React.ComponentProps<typeof DialogPrimitive.Description>) {
+interface DialogDescriptionProps extends Omit<DialogPrimitive.Description.Props, "className"> {
+  className?: string;
+}
+
+function DialogDescription({ className, ...props }: DialogDescriptionProps) {
   return (
     <DialogPrimitive.Description
       data-slot="dialog-description"

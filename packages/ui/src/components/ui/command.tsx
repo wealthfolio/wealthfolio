@@ -1,6 +1,5 @@
 "use client";
 
-import { type DialogProps } from "@radix-ui/react-dialog";
 import { Command as CommandPrimitive } from "cmdk";
 import * as React from "react";
 
@@ -23,7 +22,14 @@ const Command = React.forwardRef<
 ));
 Command.displayName = CommandPrimitive.displayName;
 
-const CommandDialog = ({ children, contentClassName, ...props }: DialogProps & { contentClassName?: string }) => {
+const CommandDialog = ({
+  children,
+  contentClassName,
+  ...props
+}: Omit<React.ComponentProps<typeof Dialog>, "children"> & {
+  children?: React.ReactNode;
+  contentClassName?: string;
+}) => {
   return (
     <Dialog {...props}>
       <DialogContent className={cn("overflow-hidden p-0 shadow-lg [&>button]:top-5", contentClassName)}>

@@ -323,14 +323,16 @@ export function AssetsTableMobile({
                 </div>
 
                 <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <button
-                      type="button"
-                      className="hover:bg-muted text-muted-foreground inline-flex h-9 w-9 items-center justify-center rounded-md border transition"
-                      aria-label={t("asset:mobileTable.open_actions")}
-                    >
-                      <Icons.MoreVertical className="h-4 w-4" />
-                    </button>
+                  <DropdownMenuTrigger
+                    render={
+                      <button
+                        type="button"
+                        className="hover:bg-muted text-muted-foreground inline-flex h-9 w-9 items-center justify-center rounded-md border transition"
+                        aria-label={t("asset:mobileTable.open_actions")}
+                      />
+                    }
+                  >
+                    <Icons.MoreVertical className="h-4 w-4" />
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
                     <DropdownMenuItem
@@ -354,7 +356,7 @@ export function AssetsTableMobile({
                     </DropdownMenuItem>
                     <DropdownMenuItem
                       className="text-destructive focus:text-destructive"
-                      onSelect={() => onDelete(asset)}
+                      onClick={() => onDelete(asset)}
                     >
                       {t("asset:mobileTable.delete")}
                     </DropdownMenuItem>
@@ -642,10 +644,8 @@ export function AssetsTableMobile({
                 {t("asset:mobileTable.reset_all")}
               </Button>
             )}
-            <SheetClose asChild>
-              <Button variant="default" className="flex-1">
-                {t("asset:mobileTable.apply")}
-              </Button>
+            <SheetClose render={<Button variant="default" className="flex-1" />}>
+              {t("asset:mobileTable.apply")}
             </SheetClose>
           </SheetFooter>
         </SheetContent>

@@ -37,7 +37,12 @@ export const ProviderPicker: FC = () => {
   }
 
   return (
-    <Select value={currentProviderId} onValueChange={selectProvider}>
+    <Select
+      value={currentProviderId}
+      onValueChange={(providerId) => {
+        if (providerId !== null) void selectProvider(providerId);
+      }}
+    >
       <SelectTrigger className="hover:bg-muted h-9 w-auto gap-2 border-none bg-transparent px-2 shadow-none focus:ring-0">
         <SelectValue>
           {currentProvider && (

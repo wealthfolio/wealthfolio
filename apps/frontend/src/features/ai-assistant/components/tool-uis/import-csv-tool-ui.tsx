@@ -359,7 +359,16 @@ function ImportCsvToolUIContentImpl({
               {t("ai:importCsv.importTitle", { count: mapping.totalRows })}
             </CardTitle>
           </div>
-          <Select value={session.accountId || ""} onValueChange={session.setAccountId}>
+          <Select
+            value={session.accountId || ""}
+            items={mapping.availableAccounts.map((account) => ({
+              value: account.id,
+              label: `${account.name} (${account.currency})`,
+            }))}
+            onValueChange={(accountId) => {
+              if (accountId !== null) session.setAccountId(accountId);
+            }}
+          >
             <SelectTrigger className="w-[220px]">
               <SelectValue placeholder={t("ai:importCsv.selectTargetAccount")} />
             </SelectTrigger>

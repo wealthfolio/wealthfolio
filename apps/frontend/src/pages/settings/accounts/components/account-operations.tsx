@@ -77,13 +77,13 @@ export function AccountOperations({
               {t("settings:accounts.operations_restore")}
             </DropdownMenuItem>
           ) : (
-            <DropdownMenuItem onSelect={() => setShowArchiveAlert(true)}>
+            <DropdownMenuItem onClick={() => setShowArchiveAlert(true)}>
               {t("settings:accounts.operations_archive")}
             </DropdownMenuItem>
           )}
           <DropdownMenuItem
             className="text-destructive focus:text-destructive flex cursor-pointer items-center"
-            onSelect={() => setShowDeleteAlert(true)}
+            onClick={() => setShowDeleteAlert(true)}
           >
             {t("settings:accounts_operations_delete")}
           </DropdownMenuItem>

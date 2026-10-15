@@ -1076,10 +1076,8 @@ const getColumns = (
       return (
         <div className="flex items-center justify-end">
           <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm">
-                <Icons.MoreVertical className="h-4 w-4" />
-              </Button>
+            <DropdownMenuTrigger render={<Button variant="ghost" size="sm" />}>
+              <Icons.MoreVertical className="h-4 w-4" />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               {onClassify && (

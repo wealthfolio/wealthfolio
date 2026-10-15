@@ -178,7 +178,7 @@ export default function PortfoliosPage() {
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
                           className="text-destructive focus:text-destructive flex cursor-pointer items-center"
-                          onSelect={() => setDeleting(p)}
+                          onClick={() => setDeleting(p)}
                         >
                           {t("common:delete")}
                         </DropdownMenuItem>

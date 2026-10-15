@@ -266,20 +266,22 @@ export function CategoryForm({
             {/* Delete button for non-system taxonomies */}
             {!isCreateMode && !isSystem && (
               <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="text-destructive hover:text-destructive"
-                    disabled={deleteMutation.isPending}
-                  >
-                    {deleteMutation.isPending ? (
-                      <Icons.Loader className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Icons.Trash2 className="h-4 w-4" />
-                    )}
-                  </Button>
+                <AlertDialogTrigger
+                  render={
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="text-destructive hover:text-destructive"
+                      disabled={deleteMutation.isPending}
+                    />
+                  }
+                >
+                  {deleteMutation.isPending ? (
+                    <Icons.Loader className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Icons.Trash2 className="h-4 w-4" />
+                  )}
                 </AlertDialogTrigger>
                 <AlertDialogContent>
                   <AlertDialogHeader>

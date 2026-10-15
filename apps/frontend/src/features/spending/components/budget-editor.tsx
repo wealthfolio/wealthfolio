@@ -20,6 +20,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuGroup,
   DropdownMenuLabel,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
@@ -578,58 +579,62 @@ function GroupBudgetSection({
 
         {mode === "setup" && (
           <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-muted-foreground hover:text-foreground h-7 w-7 shrink-0 p-0"
-                aria-label={t("spending:budgetEditor.groupActions")}
-              >
-                <Icons.MoreVertical className="h-4 w-4" />
-              </Button>
+            <DropdownMenuTrigger
+              render={
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-muted-foreground hover:text-foreground h-7 w-7 shrink-0 p-0"
+                  aria-label={t("spending:budgetEditor.groupActions")}
+                />
+              }
+            >
+              <Icons.MoreVertical className="h-4 w-4" />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48">
-              <DropdownMenuLabel className="text-muted-foreground/70 text-[10px] font-normal uppercase tracking-wide">
-                {t("spending:budgetEditor.categoryCount", { count: row.categories.length })}
-              </DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                onSelect={(event) => {
-                  event.preventDefault();
-                  setEditOpen(true);
-                }}
-                className="text-xs"
-              >
-                <Icons.Pencil className="mr-2 h-3.5 w-3.5" />
-                {t("common:edit")}
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onSelect={(event) => {
-                  event.preventDefault();
-                  onSaveGroupRollover(!groupRollover?.enabled);
-                }}
-                className="text-xs"
-              >
-                <Icons.Refresh className="mr-2 h-3.5 w-3.5" />
-                <span className="flex-1">{t("spending:budgetEditor.groupRollover")}</span>
-                <span className="text-muted-foreground text-[10px]">
-                  {groupRollover?.enabled
-                    ? t("spending:budgetEditor.on")
-                    : t("spending:budgetEditor.off")}
-                </span>
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                disabled={!canDelete}
-                onSelect={(event) => {
-                  event.preventDefault();
-                  if (canDelete) setConfirmDeleteOpen(true);
-                }}
-                className="text-destructive focus:text-destructive text-xs"
-              >
-                <Icons.Trash className="mr-2 h-3.5 w-3.5" />
-                {t("spending:budgetEditor.deleteGroup")}
-              </DropdownMenuItem>
+              <DropdownMenuGroup>
+                <DropdownMenuLabel className="text-muted-foreground/70 text-[10px] font-normal uppercase tracking-wide">
+                  {t("spending:budgetEditor.categoryCount", { count: row.categories.length })}
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  closeOnClick={false}
+                  onClick={() => {
+                    setEditOpen(true);
+                  }}
+                  className="text-xs"
+                >
+                  <Icons.Pencil className="mr-2 h-3.5 w-3.5" />
+                  {t("common:edit")}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  closeOnClick={false}
+                  onClick={() => {
+                    onSaveGroupRollover(!groupRollover?.enabled);
+                  }}
+                  className="text-xs"
+                >
+                  <Icons.Refresh className="mr-2 h-3.5 w-3.5" />
+                  <span className="flex-1">{t("spending:budgetEditor.groupRollover")}</span>
+                  <span className="text-muted-foreground text-[10px]">
+                    {groupRollover?.enabled
+                      ? t("spending:budgetEditor.on")
+                      : t("spending:budgetEditor.off")}
+                  </span>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  disabled={!canDelete}
+                  closeOnClick={false}
+                  onClick={() => {
+                    if (canDelete) setConfirmDeleteOpen(true);
+                  }}
+                  className="text-destructive focus:text-destructive text-xs"
+                >
+                  <Icons.Trash className="mr-2 h-3.5 w-3.5" />
+                  {t("spending:budgetEditor.deleteGroup")}
+                </DropdownMenuItem>
+              </DropdownMenuGroup>
             </DropdownMenuContent>
           </DropdownMenu>
         )}
@@ -654,7 +659,7 @@ function GroupBudgetSection({
               <AlertDialogCancel>{t("common:cancel")}</AlertDialogCancel>
               <AlertDialogAction
                 onClick={(event) => {
-                  event.preventDefault();
+                  event.preventBaseUIHandler();
                   onDeleteGroup();
                   setConfirmDeleteOpen(false);
                 }}
@@ -847,7 +852,7 @@ function AddCategoryRow({
     <>
       {isMobile ? (
         <Sheet open={open} onOpenChange={setOpen}>
-          <SheetTrigger asChild>{trigger}</SheetTrigger>
+          <SheetTrigger render={trigger} />
           <SheetContent side="bottom" showCloseButton={false} className="pb-safe rounded-t-2xl p-0">
             {/* iOS-style drag indicator — backdrop tap and swipe-down dismiss the sheet */}
             <div className="flex justify-center pb-1 pt-2">
@@ -868,7 +873,7 @@ function AddCategoryRow({
         </Sheet>
       ) : (
         <Popover open={open} onOpenChange={setOpen}>
-          <PopoverTrigger asChild>{trigger}</PopoverTrigger>
+          <PopoverTrigger render={trigger} />
           <PopoverContent className="w-72 p-0" align="start">
             {pool.length === 0 ? (
               emptyState
@@ -1183,26 +1188,28 @@ function BudgetCategoryLine({
       </Tooltip>
 
       <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="text-muted-foreground hover:text-foreground h-6 w-6 shrink-0 p-0"
-            aria-label={t("spending:budgetEditor.rowOptions")}
-          >
-            <Icons.MoreHorizontal className="h-3.5 w-3.5" />
-          </Button>
+        <DropdownMenuTrigger
+          render={
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-muted-foreground hover:text-foreground h-6 w-6 shrink-0 p-0"
+              aria-label={t("spending:budgetEditor.rowOptions")}
+            />
+          }
+        >
+          <Icons.MoreHorizontal className="h-3.5 w-3.5" />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-52">
           {mode === "setup" && (
             <>
-              <DropdownMenuLabel className="text-[10px] font-semibold uppercase tracking-wide">
-                {t("spending:budgetEditor.moveToGroup")}
-              </DropdownMenuLabel>
               <DropdownMenuRadioGroup
                 value={row.groupId ?? ""}
                 onValueChange={(value) => onMoveCategory(row.categoryId, value)}
               >
+                <DropdownMenuLabel className="text-[10px] font-semibold uppercase tracking-wide">
+                  {t("spending:budgetEditor.moveToGroup")}
+                </DropdownMenuLabel>
                 {groups.map((group) => (
                   <DropdownMenuRadioItem key={group.id} value={group.id} className="text-xs">
                     <span className="flex items-center gap-2">
@@ -1218,8 +1225,8 @@ function BudgetCategoryLine({
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 disabled={groupRolloverEnabled}
-                onSelect={(event) => {
-                  event.preventDefault();
+                closeOnClick={false}
+                onClick={() => {
                   onToggleRollover(row, !row.rolloverEnabled);
                 }}
                 className="text-xs"
@@ -1240,7 +1247,7 @@ function BudgetCategoryLine({
             <>
               {mode === "setup" && <DropdownMenuSeparator />}
               <DropdownMenuItem
-                onSelect={() => onDeleteOverride(target)}
+                onClick={() => onDeleteOverride(target)}
                 className="text-warning text-xs"
               >
                 <Icons.X className="mr-2 h-3.5 w-3.5" />

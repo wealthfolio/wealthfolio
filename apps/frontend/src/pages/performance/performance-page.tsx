@@ -488,17 +488,19 @@ function StripMetric({
         <span className={STRIP_LABEL_CLASS}>{label}</span>
         {warningItems.length > 0 && (
           <Popover>
-            <PopoverTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="text-warning hover:text-warning h-4 w-4 shrink-0 rounded-full p-0"
-              >
-                <Icons.AlertTriangle className="h-3 w-3" />
-                <span className="sr-only">
-                  {t("common:component.calculation_note_for", { label })}
-                </span>
-              </Button>
+            <PopoverTrigger
+              render={
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="text-warning hover:text-warning h-4 w-4 shrink-0 rounded-full p-0"
+                />
+              }
+            >
+              <Icons.AlertTriangle className="h-3 w-3" />
+              <span className="sr-only">
+                {t("common:component.calculation_note_for", { label })}
+              </span>
             </PopoverTrigger>
             <PopoverContent
               className="w-[34rem] max-w-[calc(100vw-2rem)] p-0 text-sm"
@@ -535,15 +537,17 @@ function StripHelpPopover({ items }: { items: StripHelpItem[] }) {
   const { t } = useTranslation();
   return (
     <Popover>
-      <PopoverTrigger asChild>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="text-muted-foreground hover:text-foreground absolute right-0 top-0 h-6 w-6 rounded-full"
-          aria-label={t("performance:help.aria_label")}
-        >
-          <Icons.Info className="h-3.5 w-3.5" />
-        </Button>
+      <PopoverTrigger
+        render={
+          <Button
+            variant="ghost"
+            size="icon"
+            className="text-muted-foreground hover:text-foreground absolute right-0 top-0 h-6 w-6 rounded-full"
+            aria-label={t("performance:help.aria_label")}
+          />
+        }
+      >
+        <Icons.Info className="h-3.5 w-3.5" />
       </PopoverTrigger>
       <PopoverContent className="w-[34rem] max-w-[calc(100vw-2rem)] p-0" side="bottom" align="end">
         <div className="space-y-4 p-5">
@@ -835,15 +839,17 @@ function AttributionDetailMetric({
                 {[itemName, dateRangeLabel].filter(Boolean).join(" · ")}
               </SheetDescription>
             </div>
-            <SheetClose asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="text-muted-foreground h-8 w-8 shrink-0"
-              >
-                <Icons.X className="h-4 w-4" />
-                <span className="sr-only">{t("performance:attribution.close")}</span>
-              </Button>
+            <SheetClose
+              render={
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="text-muted-foreground h-8 w-8 shrink-0"
+                />
+              }
+            >
+              <Icons.X className="h-4 w-4" />
+              <span className="sr-only">{t("performance:attribution.close")}</span>
             </SheetClose>
           </div>
           <div className="pt-3">
@@ -1524,23 +1530,25 @@ export default function PerformancePage() {
 
           {/* Mobile: Plus button with dropdown */}
           <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="outline"
-                size="icon"
-                className="bg-secondary/30 hover:bg-muted/80 size-9 flex-shrink-0 rounded-md border-[1.5px] border-none"
-                aria-label={t("performance:add_item")}
-              >
-                <Icons.Plus className="h-4 w-4" />
-              </Button>
+            <DropdownMenuTrigger
+              render={
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="bg-secondary/30 hover:bg-muted/80 size-9 flex-shrink-0 rounded-md border-[1.5px] border-none"
+                  aria-label={t("performance:add_item")}
+                />
+              }
+            >
+              <Icons.Plus className="h-4 w-4" />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48">
-              <DropdownMenuItem onSelect={() => setAccountSheetOpen(true)} className="py-4 md:py-2">
+              <DropdownMenuItem onClick={() => setAccountSheetOpen(true)} className="py-4 md:py-2">
                 <Icons.Briefcase className="mr-2 h-4 w-4" />
                 {t("performance:add_account")}
               </DropdownMenuItem>
               <DropdownMenuItem
-                onSelect={() => setBenchmarkSheetOpen(true)}
+                onClick={() => setBenchmarkSheetOpen(true)}
                 className="py-4 md:py-2"
               >
                 <Icons.TrendingUp className="mr-2 h-4 w-4" />

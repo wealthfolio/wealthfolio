@@ -255,15 +255,17 @@ export function MultiSelectTaxonomy({
             }}
             modal={true}
           >
-            <PopoverTrigger asChild>
-              <button
-                type="button"
-                className="text-muted-foreground hover:text-foreground flex items-center gap-1 text-xs transition-colors"
-                disabled={isPending}
-              >
-                <Icons.Plus className="h-3.5 w-3.5" />
-                {t("asset:classification.add")}
-              </button>
+            <PopoverTrigger
+              render={
+                <button
+                  type="button"
+                  className="text-muted-foreground hover:text-foreground flex items-center gap-1 text-xs transition-colors"
+                  disabled={isPending}
+                />
+              }
+            >
+              <Icons.Plus className="h-3.5 w-3.5" />
+              {t("asset:classification.add")}
             </PopoverTrigger>
             <PopoverContent className="w-[450px] p-0" align="end" sideOffset={4}>
               {/* Pending category weight input */}

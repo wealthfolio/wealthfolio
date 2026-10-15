@@ -360,14 +360,16 @@ function SellProtectionSection({
           ))}
 
           <Popover open={assetPopoverOpen} onOpenChange={setAssetPopoverOpen}>
-            <PopoverTrigger asChild>
-              <button
-                type="button"
-                className="border-border text-muted-foreground hover:text-foreground hover:border-foreground/40 inline-flex items-center gap-1.5 rounded-full border border-dashed px-3 py-1 text-[11.5px] font-medium"
-              >
-                <Icons.Plus className="h-3.5 w-3.5" />
-                {t("allocation:sellProtection.addAsset")}
-              </button>
+            <PopoverTrigger
+              render={
+                <button
+                  type="button"
+                  className="border-border text-muted-foreground hover:text-foreground hover:border-foreground/40 inline-flex items-center gap-1.5 rounded-full border border-dashed px-3 py-1 text-[11.5px] font-medium"
+                />
+              }
+            >
+              <Icons.Plus className="h-3.5 w-3.5" />
+              {t("allocation:sellProtection.addAsset")}
             </PopoverTrigger>
             <PopoverContent className="w-72 p-0" align="start">
               <div className="border-border flex items-center gap-2 border-b px-3 py-2">
@@ -453,14 +455,16 @@ function SellProtectionSection({
           ))}
 
           <Popover open={accountPopoverOpen} onOpenChange={setAccountPopoverOpen}>
-            <PopoverTrigger asChild>
-              <button
-                type="button"
-                className="border-border text-muted-foreground hover:text-foreground hover:border-foreground/40 inline-flex items-center gap-1.5 rounded-full border border-dashed px-3 py-1 text-[11.5px] font-medium"
-              >
-                <Icons.Plus className="h-3.5 w-3.5" />
-                {t("allocation:sellProtection.addAccount")}
-              </button>
+            <PopoverTrigger
+              render={
+                <button
+                  type="button"
+                  className="border-border text-muted-foreground hover:text-foreground hover:border-foreground/40 inline-flex items-center gap-1.5 rounded-full border border-dashed px-3 py-1 text-[11.5px] font-medium"
+                />
+              }
+            >
+              <Icons.Plus className="h-3.5 w-3.5" />
+              {t("allocation:sellProtection.addAccount")}
             </PopoverTrigger>
             <PopoverContent className="w-64 p-1" align="start">
               {availableAccounts.length === 0 ? (

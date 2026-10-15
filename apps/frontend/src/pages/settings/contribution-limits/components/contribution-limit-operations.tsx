@@ -56,7 +56,7 @@ export function ContributionLimitOperations({
           <DropdownMenuSeparator />
           <DropdownMenuItem
             className="text-destructive focus:text-destructive flex cursor-pointer items-center"
-            onSelect={() => setShowDeleteAlert(true)}
+            onClick={() => setShowDeleteAlert(true)}
           >
             {t("settings:limits_operations_delete")}
           </DropdownMenuItem>

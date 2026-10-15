@@ -250,10 +250,12 @@ export function ContributionLimitForm({
 
         <DialogFooter className="px-1 pt-2">
           <div className="flex w-full justify-end gap-3">
-            <DialogTrigger asChild>
-              <Button variant="outline" type="button" className="h-11 min-w-24 text-base">
-                {t("common:cancel")}
-              </Button>
+            <DialogTrigger
+              render={
+                <Button variant="outline" type="button" className="h-11 min-w-24 text-base" />
+              }
+            >
+              {t("common:cancel")}
             </DialogTrigger>
             <Button
               type="submit"

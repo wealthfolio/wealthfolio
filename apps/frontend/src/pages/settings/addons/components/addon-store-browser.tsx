@@ -225,9 +225,15 @@ export function AddonStoreBrowser({ installedAddonIds, onInstallSuccess }: Addon
         {/* Sort */}
         <Select
           value={sortBy}
-          onValueChange={(value: string) =>
-            setSortBy(value as "popular" | "rating" | "recent" | "name")
-          }
+          items={{
+            popular: t("settings:addon_store_sort_popular"),
+            rating: t("settings:addon_store_sort_rating"),
+            recent: t("settings:addon_store_sort_recent"),
+            name: t("settings:addon_store_sort_name"),
+          }}
+          onValueChange={(value) => {
+            if (value !== null) setSortBy(value as "popular" | "rating" | "recent" | "name");
+          }}
         >
           <SelectTrigger className="w-full sm:w-[180px]">
             <SelectValue placeholder={t("settings:addon_store_sort_placeholder")} />
@@ -243,7 +249,15 @@ export function AddonStoreBrowser({ installedAddonIds, onInstallSuccess }: Addon
         {/* Filter */}
         <Select
           value={filterBy}
-          onValueChange={(value: string) => setFilterBy(value as "all" | "uninstalled")}
+          items={{
+            all: t("settings:addon_store_filter_all", { count: counts.total }),
+            uninstalled: t("settings:addon_store_filter_uninstalled", {
+              count: counts.uninstalled,
+            }),
+          }}
+          onValueChange={(value) => {
+            if (value !== null) setFilterBy(value as "all" | "uninstalled");
+          }}
         >
           <SelectTrigger className="w-full sm:w-[180px]">
             <SelectValue placeholder={t("settings:addon_store_filter_placeholder")} />

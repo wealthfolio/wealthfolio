@@ -256,20 +256,22 @@ export default function SpendingRulesPage() {
         >
           <div className="flex items-center gap-2">
             <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={rerun.isPending || rules.length === 0}
-                >
-                  {rerun.isPending ? (
-                    <Icons.Spinner className="mr-2 h-3.5 w-3.5 animate-spin" />
-                  ) : (
-                    <Icons.Refresh className="mr-2 h-3.5 w-3.5" />
-                  )}
-                  {t("settings:spending.rules.rerun")}
-                  <Icons.ChevronDown className="ml-2 h-3.5 w-3.5 opacity-60" />
-                </Button>
+              <DropdownMenuTrigger
+                render={
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={rerun.isPending || rules.length === 0}
+                  />
+                }
+              >
+                {rerun.isPending ? (
+                  <Icons.Spinner className="mr-2 h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Icons.Refresh className="mr-2 h-3.5 w-3.5" />
+                )}
+                {t("settings:spending.rules.rerun")}
+                <Icons.ChevronDown className="ml-2 h-3.5 w-3.5 opacity-60" />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-72">
                 <DropdownMenuItem
@@ -285,8 +287,8 @@ export default function SpendingRulesPage() {
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
-                  onSelect={(e) => {
-                    e.preventDefault();
+                  closeOnClick={false}
+                  onClick={() => {
                     setConfirmRerunAllOpen(true);
                   }}
                   className="flex-col items-start gap-0.5"

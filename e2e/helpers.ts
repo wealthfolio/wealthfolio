@@ -215,7 +215,7 @@ export async function fillDateField(page: Page, daysAgo: number) {
 
 export async function waitForOverlayClose(page: Page) {
   await page
-    .locator('[data-state="open"][aria-hidden="true"]')
+    .locator('[data-slot$="-overlay"][data-open]')
     .waitFor({ state: "hidden", timeout: 5000 })
     .catch(() => {});
 }

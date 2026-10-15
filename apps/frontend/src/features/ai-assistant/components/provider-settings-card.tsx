@@ -518,11 +518,13 @@ export function ProviderSettingsCard({
                           </Button>
                         )}
                         <Popover open={modelComboboxOpen} onOpenChange={setModelComboboxOpen}>
-                          <PopoverTrigger asChild>
-                            <Button variant="outline" size="sm" className="h-7 gap-1 text-xs">
-                              <Icons.Plus className="h-3 w-3" />
-                              {t("ai:providerSettings.add")}
-                            </Button>
+                          <PopoverTrigger
+                            render={
+                              <Button variant="outline" size="sm" className="h-7 gap-1 text-xs" />
+                            }
+                          >
+                            <Icons.Plus className="h-3 w-3" />
+                            {t("ai:providerSettings.add")}
                           </PopoverTrigger>
                           <PopoverContent className="w-80 p-0" align="end">
                             <Command>

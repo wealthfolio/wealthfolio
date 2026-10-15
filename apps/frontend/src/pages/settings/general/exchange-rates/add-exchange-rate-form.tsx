@@ -87,6 +87,9 @@ export function AddExchangeRateForm({ onSubmit, onCancel }: AddExchangeRateFormP
 
   const { data: providers } = useMarketDataProviders();
   const { data: customProviders = [] } = useCustomProviders();
+  const sourceProviders =
+    providers?.filter((p) => p.id !== "CUSTOM_SCRAPER" && p.providerType !== "custom") ?? [];
+  const enabledCustomProviders = customProviders.filter((cp) => cp.enabled);
   const form = useForm<ExchangeRateFormData>({
     resolver: zodResolver(exchangeRateSchema),
     defaultValues: {
@@ -140,21 +143,23 @@ export function AddExchangeRateForm({ onSubmit, onCancel }: AddExchangeRateFormP
                 : t("settings:fx_to_currency")}
             </FormLabel>
             <Popover modal={true}>
-              <PopoverTrigger asChild>
-                <FormControl>
-                  <Button
-                    variant="outline"
-                    role="combobox"
-                    className={cn("justify-between", !field.value && "text-muted-foreground")}
-                  >
-                    {field.value
-                      ? worldCurrencies.find((currency) => currency.value === field.value)?.label ||
-                        field.value
-                      : t("settings:fx_select_currency")}
-                    <Icons.ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                  </Button>
-                </FormControl>
-              </PopoverTrigger>
+              <FormControl>
+                <PopoverTrigger
+                  render={
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      className={cn("justify-between", !field.value && "text-muted-foreground")}
+                    />
+                  }
+                >
+                  {field.value
+                    ? worldCurrencies.find((currency) => currency.value === field.value)?.label ||
+                      field.value
+                    : t("settings:fx_select_currency")}
+                  <Icons.ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </PopoverTrigger>
+              </FormControl>
               <PopoverContent className="w-full p-0">
                 <Command>
                   <CommandInput
@@ -238,7 +243,21 @@ export function AddExchangeRateForm({ onSubmit, onCancel }: AddExchangeRateFormP
             render={({ field }) => (
               <FormItem>
                 <FormLabel>{t("settings:fx_data_source")}</FormLabel>
-                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <Select
+                  items={[
+                    { value: "MANUAL", label: t("settings:fx_source_manual") },
+                    ...sourceProviders.map((provider) => ({
+                      value: provider.id,
+                      label: provider.name,
+                    })),
+                    ...enabledCustomProviders.map((cp) => ({
+                      value: `CUSTOM_SCRAPER:${cp.id}`,
+                      label: cp.name,
+                    })),
+                  ]}
+                  onValueChange={field.onChange}
+                  defaultValue={field.value}
+                >
                   <FormControl>
                     <SelectTrigger>
                       <SelectValue placeholder={t("settings:fx_select_data_source")} />
@@ -246,20 +265,16 @@ export function AddExchangeRateForm({ onSubmit, onCancel }: AddExchangeRateFormP
                   </FormControl>
                   <SelectContent>
                     <SelectItem value="MANUAL">{t("settings:fx_source_manual")}</SelectItem>
-                    {providers
-                      ?.filter((p) => p.id !== "CUSTOM_SCRAPER" && p.providerType !== "custom")
-                      .map((provider) => (
-                        <SelectItem key={provider.id} value={provider.id}>
-                          {provider.name}
-                        </SelectItem>
-                      ))}
-                    {customProviders
-                      .filter((cp) => cp.enabled)
-                      .map((cp) => (
-                        <SelectItem key={cp.id} value={`CUSTOM_SCRAPER:${cp.id}`}>
-                          {cp.name}
-                        </SelectItem>
-                      ))}
+                    {sourceProviders.map((provider) => (
+                      <SelectItem key={provider.id} value={provider.id}>
+                        {provider.name}
+                      </SelectItem>
+                    ))}
+                    {enabledCustomProviders.map((cp) => (
+                      <SelectItem key={cp.id} value={`CUSTOM_SCRAPER:${cp.id}`}>
+                        {cp.name}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
                 <FormDescription>
@@ -288,10 +303,8 @@ export function AddExchangeRateForm({ onSubmit, onCancel }: AddExchangeRateFormP
         </div>
 
         <DialogFooter>
-          <DialogTrigger asChild>
-            <Button variant="outline" onClick={onCancel}>
-              {t("common:cancel")}
-            </Button>
+          <DialogTrigger render={<Button variant="outline" onClick={onCancel} />}>
+            {t("common:cancel")}
           </DialogTrigger>
           <Button type="submit">
             <Icons.Plus className="h-4 w-4" />

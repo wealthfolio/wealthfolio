@@ -645,15 +645,17 @@ export const ActivityTable = ({
           return (
             <div className="flex justify-end">
               <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="h-8 w-8 rounded-lg"
-                    title={t("activity:table_toggle_columns")}
-                  >
-                    <Icons.ChevronDown className="h-4 w-4" />
-                  </Button>
+                <DropdownMenuTrigger
+                  render={
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-8 w-8 rounded-lg"
+                      title={t("activity:table_toggle_columns")}
+                    />
+                  }
+                >
+                  <Icons.ChevronDown className="h-4 w-4" />
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
                   {hideableColumns.map((column) => {

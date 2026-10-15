@@ -48,7 +48,19 @@ export function AccountSelect<TFieldValues extends FieldValues = FieldValues>({
         <FormItem>
           <FormLabel>{resolvedLabel}</FormLabel>
           <FormControl>
-            <Select onValueChange={field.onChange} value={field.value ?? ""}>
+            <Select
+              items={accounts.map((account) => ({
+                value: account.value,
+                label: (
+                  <>
+                    {account.label}
+                    <span className="text-muted-foreground font-light">({account.currency})</span>
+                  </>
+                ),
+              }))}
+              onValueChange={field.onChange}
+              value={field.value ?? ""}
+            >
               <SelectTrigger aria-label={resolvedLabel} data-testid="account-select">
                 <SelectValue placeholder={resolvedPlaceholder} />
               </SelectTrigger>

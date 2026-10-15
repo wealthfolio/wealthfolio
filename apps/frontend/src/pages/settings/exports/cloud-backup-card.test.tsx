@@ -178,10 +178,7 @@ it("cloud delete keeps failure feedback inside its confirmation and clears it on
     });
   });
   mount();
-  fireEvent.pointerDown(await screen.findByRole("button", { name: copy.cloud_backup_options }), {
-    button: 0,
-    ctrlKey: false,
-  });
+  fireEvent.click(await screen.findByRole("button", { name: copy.cloud_backup_options }));
   fireEvent.click(await screen.findByRole("menuitem", { name: copy.cloud_backup_delete_all }));
   expect(mocks.action.mock.calls.some(([op]) => op.action === "delete")).toBe(false);
   await screen.findByText(copy.cloud_backup_delete_confirm);
@@ -209,10 +206,7 @@ it("deletes cloud history only after confirmation without requiring another sign
     });
   });
   mount();
-  fireEvent.pointerDown(await screen.findByRole("button", { name: copy.cloud_backup_options }), {
-    button: 0,
-    ctrlKey: false,
-  });
+  fireEvent.click(await screen.findByRole("button", { name: copy.cloud_backup_options }));
   fireEvent.click(await screen.findByRole("menuitem", { name: copy.cloud_backup_delete_all }));
   expect(mocks.action.mock.calls.some(([op]) => op.action === "delete")).toBe(false);
   fireEvent.click(screen.getByRole("button", { name: copy.cloud_backup_delete }));
@@ -709,10 +703,7 @@ const running = {
   },
 };
 async function openBackupMenu() {
-  fireEvent.pointerDown(await screen.findByRole("button", { name: copy.cloud_backup_options }), {
-    button: 0,
-    ctrlKey: false,
-  });
+  fireEvent.click(await screen.findByRole("button", { name: copy.cloud_backup_options }));
 }
 it("offers a manual backup in the menu and sends it as manual", async () => {
   mocks.action.mockImplementation((op) =>

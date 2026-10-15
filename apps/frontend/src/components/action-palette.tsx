@@ -25,7 +25,7 @@ interface ActionPaletteProps {
   onOpenChange: (open: boolean) => void;
   title?: string;
   groups: ActionPaletteGroup[];
-  trigger?: React.ReactNode;
+  trigger?: React.ReactElement;
   align?: "start" | "center" | "end";
   side?: "top" | "bottom" | "left" | "right";
 }
@@ -57,13 +57,15 @@ export function ActionPalette({
 
   return (
     <Popover open={open} onOpenChange={onOpenChange}>
-      <PopoverTrigger asChild>
-        {trigger ?? (
-          <Button variant="outline" size="icon" className="h-9 w-9">
-            <Icons.DotsThreeVertical className="h-5 w-5" weight="fill" />
-          </Button>
-        )}
-      </PopoverTrigger>
+      <PopoverTrigger
+        render={
+          trigger ?? (
+            <Button variant="outline" size="icon" className="h-9 w-9">
+              <Icons.DotsThreeVertical className="h-5 w-5" weight="fill" />
+            </Button>
+          )
+        }
+      />
       <PopoverContent
         align={align}
         side={side}

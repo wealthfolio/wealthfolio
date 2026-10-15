@@ -25,7 +25,7 @@ const SAVINGS_TAXONOMY = "savings_categories";
 export type QuickCategorizeScope = "expense" | "income" | "saving" | "both" | "all";
 
 export interface QuickCategorizePopoverProps {
-  trigger: React.ReactNode;
+  trigger: React.ReactElement;
   selectedCategoryId?: string | null;
   /** Category bucket to show. Categories label the cash-flow bucket; they do not change it. */
   scope?: QuickCategorizeScope;
@@ -113,7 +113,7 @@ export function QuickCategorizePopover({
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>{trigger}</PopoverTrigger>
+      <PopoverTrigger render={trigger} />
       <PopoverContent className="w-70 p-0" align={align}>
         <Command>
           <CommandInput placeholder={t("spending:category.searchCategories")} />

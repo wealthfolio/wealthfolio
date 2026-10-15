@@ -35,23 +35,25 @@ export function TargetToolbarActions({
     <div className="flex w-full min-w-0 items-center justify-end gap-2 md:w-auto">
       {targets.length > 0 && (
         <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="outline"
-              className="bg-secondary/30 hover:bg-muted/80 h-10 min-w-0 flex-1 justify-between gap-2 rounded-full border-none px-4 text-sm font-medium md:min-w-[220px] md:flex-none"
-            >
-              <Icons.Target className="h-4 w-4 shrink-0 opacity-70" />
-              <span className="min-w-0 flex-1 truncate text-left">
-                {target?.name ?? t("allocation:header.selectTarget")}
-              </span>
-              <Icons.ChevronsUpDown className="h-3.5 w-3.5 shrink-0 opacity-50" />
-            </Button>
+          <DropdownMenuTrigger
+            render={
+              <Button
+                variant="outline"
+                className="bg-secondary/30 hover:bg-muted/80 h-10 min-w-0 flex-1 justify-between gap-2 rounded-full border-none px-4 text-sm font-medium md:min-w-[220px] md:flex-none"
+              />
+            }
+          >
+            <Icons.Target className="h-4 w-4 shrink-0 opacity-70" />
+            <span className="min-w-0 flex-1 truncate text-left">
+              {target?.name ?? t("allocation:header.selectTarget")}
+            </span>
+            <Icons.ChevronsUpDown className="h-3.5 w-3.5 shrink-0 opacity-50" />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-[calc(100vw-1.5rem)] md:w-60">
             {targets.map((p) => (
               <DropdownMenuItem
                 key={p.id}
-                onSelect={() => onTargetChange(p.id)}
+                onClick={() => onTargetChange(p.id)}
                 className={cn(p.id === selectedTargetId && "font-medium")}
               >
                 <span className="flex-1">{p.name}</span>

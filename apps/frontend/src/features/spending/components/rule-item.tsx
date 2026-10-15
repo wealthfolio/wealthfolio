@@ -236,15 +236,17 @@ export function RuleItem({
           )}
 
           <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100 data-[state=open]:opacity-100"
-                aria-label={t("spending:rules.ruleActions")}
-              >
-                <Icons.MoreVertical className="h-4 w-4" aria-hidden="true" />
-              </Button>
+            <DropdownMenuTrigger
+              render={
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="data-popup-open:opacity-100 h-8 w-8 opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100"
+                  aria-label={t("spending:rules.ruleActions")}
+                />
+              }
+            >
+              <Icons.MoreVertical className="h-4 w-4" aria-hidden="true" />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem onClick={() => onEdit(rule)}>

@@ -131,7 +131,7 @@ export function ActivityOperations<TData>({
         touch ? "-mr-1 h-7 w-7 shrink-0" : hoverReveal ? "h-7 w-7" : "h-8 w-8 border",
         // Stays put once the menu is open, or it would vanish the moment the
         // pointer moved off the row and onto the menu itself.
-        !touch && hoverReveal && cn("data-[state=open]:opacity-100", HOVER_SLOT),
+        !touch && hoverReveal && cn("data-popup-open:opacity-100", HOVER_SLOT),
       )}
     >
       <Icons.MoreVertical className="h-4 w-4" />
@@ -150,7 +150,7 @@ export function ActivityOperations<TData>({
         />
       ) : (
         <DropdownMenu>
-          <DropdownMenuTrigger asChild>{trigger}</DropdownMenuTrigger>
+          <DropdownMenuTrigger render={trigger} />
           <DropdownMenuContent align="end">
             {groups.map((group, groupIndex) => (
               <Fragment key={groupIndex}>

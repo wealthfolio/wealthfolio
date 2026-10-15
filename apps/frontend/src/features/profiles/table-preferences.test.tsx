@@ -220,7 +220,7 @@ describe.each([
     const first = renderTable();
     expect(screen.queryByRole("columnheader", { name: "Currency" })).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: toggleLabel }));
-    await user.click(screen.getByRole("menuitemcheckbox", { name: "Currency" }));
+    await user.click(await screen.findByRole("menuitemcheckbox", { name: "Currency" }));
     expect(screen.getByRole("columnheader", { name: "Currency" })).toBeInTheDocument();
     expect(
       JSON.parse(localStorage.getItem(`profile:profile-a:${storageKey}`) ?? "{}"),
@@ -246,7 +246,7 @@ describe.each([
     const first = renderTable();
     expect(screen.getByRole("columnheader", { name: visibleColumnLabel })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: toggleLabel }));
-    await user.click(screen.getByRole("menuitemcheckbox", { name: visibleColumnLabel }));
+    await user.click(await screen.findByRole("menuitemcheckbox", { name: visibleColumnLabel }));
     expect(
       screen.queryByRole("columnheader", { name: visibleColumnLabel }),
     ).not.toBeInTheDocument();

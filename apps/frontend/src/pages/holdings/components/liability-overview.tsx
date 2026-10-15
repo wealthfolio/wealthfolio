@@ -258,22 +258,26 @@ function LiabilityCard({
             )}
           </div>
           <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button
-                type="button"
-                className="hover:bg-muted text-muted-foreground relative z-10 inline-flex size-8 items-center justify-center rounded-md transition"
-                aria-label={t("holdings:open_actions")}
-              >
-                <Icons.MoreVertical className="size-4" />
-              </button>
+            <DropdownMenuTrigger
+              render={
+                <button
+                  type="button"
+                  className="hover:bg-muted text-muted-foreground relative z-10 inline-flex size-8 items-center justify-center rounded-md transition"
+                  aria-label={t("holdings:open_actions")}
+                />
+              }
+            >
+              <Icons.MoreVertical className="size-4" />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               {/* Confirming on the loan page keeps its validation and balance provenance. */}
-              <DropdownMenuItem asChild>
-                <Link to={`/holdings/${encodeURIComponent(holding.id)}?action=confirm-balance`}>
-                  <Icons.DollarSign className="mr-2 size-4" />
-                  {t("holdings:liability_cards.update_balance")}
-                </Link>
+              <DropdownMenuItem
+                render={
+                  <Link to={`/holdings/${encodeURIComponent(holding.id)}?action=confirm-balance`} />
+                }
+              >
+                <Icons.DollarSign className="mr-2 size-4" />
+                {t("holdings:liability_cards.update_balance")}
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => onViewHistory(holding)}>
                 <Icons.History className="mr-2 size-4" />
@@ -286,7 +290,7 @@ function LiabilityCard({
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 className="text-destructive focus:text-destructive"
-                onSelect={() => onDelete(holding)}
+                onClick={() => onDelete(holding)}
               >
                 <Icons.Trash className="mr-2 size-4" />
                 {t("common:delete")}

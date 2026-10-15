@@ -210,10 +210,7 @@ export function AllocationDetailSheet({
     <Sheet open={isOpen} onOpenChange={handleOpenChange}>
       <SheetContent
         className="flex w-full flex-col overflow-hidden sm:max-w-xl"
-        onOpenAutoFocus={(event) => {
-          event.preventDefault();
-          titleRef.current?.focus();
-        }}
+        initialFocus={titleRef}
         style={{
           paddingTop: "max(env(safe-area-inset-top, 0px), 1.5rem)",
         }}
@@ -468,10 +465,8 @@ export function AllocationDetailSheet({
         </div>
 
         <SheetFooter className="border-t pt-4">
-          <SheetClose asChild>
-            <Button variant="outline" className="w-full">
-              {t("holdings:close")}
-            </Button>
+          <SheetClose render={<Button variant="outline" className="w-full" />}>
+            {t("holdings:close")}
           </SheetClose>
         </SheetFooter>
       </SheetContent>

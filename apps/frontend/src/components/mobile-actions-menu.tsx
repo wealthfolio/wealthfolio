@@ -35,10 +35,8 @@ export function MobileActionsMenu({
   const { t } = useTranslation();
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetTrigger asChild>
-        <Button variant="outline" size="icon" className="h-9 w-9">
-          <Icons.MoreVertical className="h-4 w-4" />
-        </Button>
+      <SheetTrigger render={<Button variant="outline" size="icon" className="h-9 w-9" />}>
+        <Icons.MoreVertical className="h-4 w-4" />
       </SheetTrigger>
       <SheetContent side="bottom" className="rounded-t-4xl mx-1 p-0">
         <SheetHeader className="border-border border-b px-6 py-4">

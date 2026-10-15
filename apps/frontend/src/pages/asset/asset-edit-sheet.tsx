@@ -211,10 +211,8 @@ function PricingModeToggle({
           </p>
         </div>
         <Popover open={open} onOpenChange={setOpen}>
-          <PopoverTrigger asChild>
-            <button type="button" className="shrink-0">
-              <Switch checked={isAutomatic} />
-            </button>
+          <PopoverTrigger render={<button type="button" className="shrink-0" />}>
+            <Switch checked={isAutomatic} />
           </PopoverTrigger>
           <PopoverContent className="w-[360px] p-4" align="end">
             <div className="space-y-4">
@@ -951,6 +949,7 @@ export function AssetEditSheet({
                             <FormItem>
                               <FormLabel>{t("asset:editSheet.instrument_type")}</FormLabel>
                               <Select
+                                items={EDIT_INSTRUMENT_TYPE_OPTIONS}
                                 onValueChange={field.onChange}
                                 value={field.value ?? ""}
                                 disabled={isSystemManagedKind}
@@ -1050,7 +1049,14 @@ export function AssetEditSheet({
                             render={({ field }) => (
                               <FormItem>
                                 <FormLabel>{t("asset:editSheet.coupon_frequency")}</FormLabel>
-                                <Select onValueChange={field.onChange} value={field.value ?? ""}>
+                                <Select
+                                  items={COUPON_FREQUENCIES.map((frequency) => ({
+                                    value: frequency,
+                                    label: t(`asset:editSheet.couponFrequency.${frequency}`),
+                                  }))}
+                                  onValueChange={field.onChange}
+                                  value={field.value ?? ""}
+                                >
                                   <FormControl>
                                     <SelectTrigger className="h-11">
                                       <SelectValue
@@ -1231,6 +1237,14 @@ export function AssetEditSheet({
                             {customProviders.length > 0 ? (
                               <Select
                                 value={field.value ?? "__auto__"}
+                                items={[
+                                  { value: "__auto__", label: t("asset:editSheet.auto_default") },
+                                  ...builtinProviders.map((p) => ({ value: p.id, label: p.name })),
+                                  ...customProviders.map((cp) => ({
+                                    value: `CUSTOM:${cp.id}`,
+                                    label: cp.name,
+                                  })),
+                                ]}
                                 onValueChange={(v) =>
                                   field.onChange(v === "__auto__" ? undefined : v)
                                 }

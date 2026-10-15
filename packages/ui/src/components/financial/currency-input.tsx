@@ -1,4 +1,4 @@
-import { forwardRef, useCallback, useRef, useState } from "react";
+import { forwardRef, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useIsMobile as defaultUseIsMobile } from "../../hooks/use-mobile";
 import { worldCurrencies } from "../../lib/currencies";
@@ -96,19 +96,6 @@ export const CurrencyInput = forwardRef<HTMLButtonElement, CurrencyInputProps>(
       return trimmed;
     };
 
-    const handleOpenAutoFocus = useCallback(
-      (e: Event) => {
-        if (!autoFocusSearch) return;
-        e.preventDefault();
-        if (isMobile) {
-          searchInputRef.current?.focus();
-        } else {
-          desktopCommandInputRef.current?.focus();
-        }
-      },
-      [autoFocusSearch, isMobile],
-    );
-
     if (isMobile) {
       const filteredCurrencies = worldCurrencies.filter(
         (curr) =>
@@ -147,7 +134,7 @@ export const CurrencyInput = forwardRef<HTMLButtonElement, CurrencyInputProps>(
             <SheetContent
               side="bottom"
               className="rounded-t-4xl mx-1 h-[85vh] p-0"
-              onOpenAutoFocus={handleOpenAutoFocus}
+              initialFocus={autoFocusSearch ? searchInputRef : undefined}
             >
               <SheetHeader className="border-border border-b px-6 pb-4 pt-6">
                 <SheetTitle>{t("ui:currency.selectTitle", "Select Currency")}</SheetTitle>
@@ -270,25 +257,27 @@ export const CurrencyInput = forwardRef<HTMLButtonElement, CurrencyInputProps>(
 
     return (
       <Popover open={open} onOpenChange={setOpen} modal={true}>
-        <PopoverTrigger asChild>
-          <Button
-            ref={ref}
-            type="button"
-            variant="outline"
-            role="combobox"
-            aria-expanded={open}
-            className={cn(
-              "h-input-height w-full justify-between rounded-md",
-              !value && "text-muted-foreground",
-              className,
-            )}
-            {...props}
-          >
-            <span className="truncate">{buttonLabel}</span>
-            <Icons.ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-          </Button>
+        <PopoverTrigger
+          render={
+            <Button
+              ref={ref}
+              type="button"
+              variant="outline"
+              role="combobox"
+              aria-expanded={open}
+              className={cn(
+                "h-input-height w-full justify-between rounded-md",
+                !value && "text-muted-foreground",
+                className,
+              )}
+              {...props}
+            />
+          }
+        >
+          <span className="truncate">{buttonLabel}</span>
+          <Icons.ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </PopoverTrigger>
-        <PopoverContent className="w-full p-0" onOpenAutoFocus={handleOpenAutoFocus}>
+        <PopoverContent className="w-full p-0" initialFocus={autoFocusSearch ? desktopCommandInputRef : undefined}>
           <Command>
             <CommandInput
               ref={desktopCommandInputRef}

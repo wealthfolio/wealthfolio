@@ -71,7 +71,7 @@ beforeEach(() => {
   ];
 });
 function openRowMenu(name: RegExp | string) {
-  fireEvent.pointerDown(screen.getByRole("button", { name }), { button: 0, ctrlKey: false });
+  fireEvent.click(screen.getByRole("button", { name }));
 }
 it("shows actual snapshot protection and exports the selected snapshot", () => {
   render(<BackupRestoreForm />);
@@ -177,7 +177,7 @@ it.each(SUPPORTED_LOCALE_CODES)(
     );
     const { rerender } = render(view());
     const menu = document.querySelector<HTMLElement>('[aria-haspopup="menu"]')!;
-    fireEvent.pointerDown(menu, { button: 0, ctrlKey: false });
+    fireEvent.click(menu);
     fireEvent.click(screen.getByRole("menuitem", { name: common.delete }));
     expect(screen.getByRole("button", { name: common.cancel })).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: common.delete }));

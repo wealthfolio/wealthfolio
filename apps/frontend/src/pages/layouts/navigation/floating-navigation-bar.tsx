@@ -151,30 +151,32 @@ export function FloatingNavigationBar({ navigation }: FloatingNavigationBarProps
             </Link>
             {hasMoreItems && (
               <DropdownMenu open={overflowOpen} onOpenChange={setOverflowOpen}>
-                <DropdownMenuTrigger asChild>
-                  <button
-                    aria-label={t("common:layout.more_navigation")}
-                    className={baseButtonClass}
+                <DropdownMenuTrigger
+                  render={
+                    <button
+                      aria-label={t("common:layout.more_navigation")}
+                      className={baseButtonClass}
+                    />
+                  }
+                >
+                  {moreItems.some((item) => isPathActive(location.pathname, item.href)) && (
+                    <motion.div
+                      layoutId={`floating-nav-indicator-${uniqueId}`}
+                      className="absolute inset-0 -z-10 rounded-full border border-black/10 bg-black/5 shadow-sm dark:border-white/10 dark:bg-white/10"
+                      initial={false}
+                      transition={{
+                        type: "spring",
+                        stiffness: 400,
+                        damping: 30,
+                      }}
+                    />
+                  )}
+                  <span
+                    className="relative flex size-7 shrink-0 items-center justify-center outline-none"
+                    aria-hidden="true"
                   >
-                    {moreItems.some((item) => isPathActive(location.pathname, item.href)) && (
-                      <motion.div
-                        layoutId={`floating-nav-indicator-${uniqueId}`}
-                        className="absolute inset-0 -z-10 rounded-full border border-black/10 bg-black/5 shadow-sm dark:border-white/10 dark:bg-white/10"
-                        initial={false}
-                        transition={{
-                          type: "spring",
-                          stiffness: 400,
-                          damping: 30,
-                        }}
-                      />
-                    )}
-                    <span
-                      className="relative flex size-7 shrink-0 items-center justify-center outline-none"
-                      aria-hidden="true"
-                    >
-                      <Icons.CirclesFour className="size-6" />
-                    </span>
-                  </button>
+                    <Icons.CirclesFour className="size-6" />
+                  </span>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent
                   side="top"

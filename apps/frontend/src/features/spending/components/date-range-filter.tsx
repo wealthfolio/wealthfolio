@@ -51,26 +51,28 @@ export function DateRangeFilter({ value, onChange, title }: DateRangeFilterProps
 
   return (
     <Popover>
-      <PopoverTrigger asChild>
-        <Button
-          variant="outline"
-          size="sm"
-          className={cn(
-            "h-8 gap-1.5 rounded-md border-[1.5px] border-none px-3 py-1 text-sm font-medium",
-            isActive ? "bg-muted/40" : "shadow-inner-xs bg-muted/90",
-          )}
-        >
-          <Icons.PlusCircle className="mr-2 h-4 w-4" />
-          {label}
-          {isActive && summary && (
-            <>
-              <Separator orientation="vertical" className="mx-2 h-4" />
-              <Badge variant="secondary" className="text-foreground rounded-sm px-1 font-normal">
-                {summary}
-              </Badge>
-            </>
-          )}
-        </Button>
+      <PopoverTrigger
+        render={
+          <Button
+            variant="outline"
+            size="sm"
+            className={cn(
+              "h-8 gap-1.5 rounded-md border-[1.5px] border-none px-3 py-1 text-sm font-medium",
+              isActive ? "bg-muted/40" : "shadow-inner-xs bg-muted/90",
+            )}
+          />
+        }
+      >
+        <Icons.PlusCircle className="mr-2 h-4 w-4" />
+        {label}
+        {isActive && summary && (
+          <>
+            <Separator orientation="vertical" className="mx-2 h-4" />
+            <Badge variant="secondary" className="text-foreground rounded-sm px-1 font-normal">
+              {summary}
+            </Badge>
+          </>
+        )}
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0" align="start">
         <Calendar

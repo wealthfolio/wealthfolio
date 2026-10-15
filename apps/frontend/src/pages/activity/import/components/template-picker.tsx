@@ -39,51 +39,53 @@ export function TemplatePicker({
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          variant="outline"
-          role="combobox"
-          aria-expanded={open}
-          className="w-full justify-between rounded-lg font-normal"
-        >
-          {selected ? (
-            <span className="flex items-center gap-2 truncate">
-              {selected.scope === "SYSTEM" ? (
-                <Icons.Building className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
-              ) : (
-                <Icons.User className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
-              )}
-              {selected.name}
-            </span>
-          ) : (
-            <span className="text-muted-foreground">{resolvedPlaceholder}</span>
-          )}
-          <div className="flex shrink-0 items-center gap-1">
-            {selectedTemplateId && onClear && (
-              <span
-                role="button"
-                tabIndex={0}
-                onClick={(e) => {
+      <PopoverTrigger
+        render={
+          <Button
+            variant="outline"
+            role="combobox"
+            aria-expanded={open}
+            className="w-full justify-between rounded-lg font-normal"
+          />
+        }
+      >
+        {selected ? (
+          <span className="flex items-center gap-2 truncate">
+            {selected.scope === "SYSTEM" ? (
+              <Icons.Building className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
+            ) : (
+              <Icons.User className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
+            )}
+            {selected.name}
+          </span>
+        ) : (
+          <span className="text-muted-foreground">{resolvedPlaceholder}</span>
+        )}
+        <div className="flex shrink-0 items-center gap-1">
+          {selectedTemplateId && onClear && (
+            <span
+              role="button"
+              tabIndex={0}
+              onClick={(e) => {
+                e.stopPropagation();
+                onClear();
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
                   e.stopPropagation();
                   onClear();
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.stopPropagation();
-                    onClear();
-                  }
-                }}
-                className="text-muted-foreground hover:text-foreground rounded-sm p-0.5 transition-colors"
-                aria-label={t("activity:import.template.clearFormat")}
-              >
-                <Icons.X className="h-3.5 w-3.5" />
-              </span>
-            )}
-            <Icons.ChevronDown className="text-muted-foreground h-4 w-4" />
-          </div>
-        </Button>
+                }
+              }}
+              className="text-muted-foreground hover:text-foreground rounded-sm p-0.5 transition-colors"
+              aria-label={t("activity:import.template.clearFormat")}
+            >
+              <Icons.X className="h-3.5 w-3.5" />
+            </span>
+          )}
+          <Icons.ChevronDown className="text-muted-foreground h-4 w-4" />
+        </div>
       </PopoverTrigger>
-      <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+      <PopoverContent className="w-[var(--anchor-width)] p-0" align="start">
         <Command>
           <CommandInput placeholder={t("activity:import.template.searchFormats")} className="h-9" />
           <CommandEmpty>

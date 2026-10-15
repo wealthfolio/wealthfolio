@@ -319,9 +319,7 @@ export const HoldingsMobileFilterSheet = ({
           </div>
         </ScrollArea>
         <SheetFooter className="mt-auto">
-          <SheetClose asChild>
-            <Button className="w-full">{t("holdings:done")}</Button>
-          </SheetClose>
+          <SheetClose render={<Button className="w-full" />}>{t("holdings:done")}</SheetClose>
         </SheetFooter>
       </SheetContent>
     </Sheet>

@@ -221,7 +221,7 @@ export function SpendingDatePicker({
 
   return isMobile ? (
     <Sheet open={open} onOpenChange={handleOpenChange}>
-      <SheetTrigger asChild>{trigger}</SheetTrigger>
+      <SheetTrigger render={trigger} />
       <SheetContent
         side="bottom"
         className="rounded-t-4xl mx-1 max-h-[90dvh] overflow-y-auto p-0 pb-[calc(env(safe-area-inset-bottom,0px)+0.5rem)]"
@@ -234,11 +234,11 @@ export function SpendingDatePicker({
     </Sheet>
   ) : (
     <Popover open={open} onOpenChange={handleOpenChange}>
-      <PopoverTrigger asChild>{trigger}</PopoverTrigger>
+      <PopoverTrigger render={trigger} />
       <PopoverContent
         align="end"
         className={cn(
-          "max-h-[var(--radix-popover-content-available-height)] overflow-y-auto p-0",
+          "max-h-[var(--available-height)] overflow-y-auto p-0",
           mode === "range" ? "w-auto" : "w-72",
         )}
       >

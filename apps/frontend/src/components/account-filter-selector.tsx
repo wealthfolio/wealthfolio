@@ -326,26 +326,22 @@ export function AccountScopeSelector({
   if (isMobile) {
     return (
       <Sheet open={open} onOpenChange={setOpen}>
-        <SheetTrigger asChild>
-          <SelectorTrigger
-            value={value}
-            label={label}
-            aria-label={`${t(portfoliosOnly ? "dashboard:portfolio_filter.choose" : "common:component.select_account_scope")}: ${label}`}
-            open={open}
-            isMobile
-            triggerVariant={triggerVariant}
-            className={className}
-          />
-        </SheetTrigger>
+        <SheetTrigger
+          render={
+            <SelectorTrigger
+              value={value}
+              label={label}
+              aria-label={`${t(portfoliosOnly ? "dashboard:portfolio_filter.choose" : "common:component.select_account_scope")}: ${label}`}
+              open={open}
+              isMobile
+              triggerVariant={triggerVariant}
+              className={className}
+            />
+          }
+        />
         <SheetContent
           side="bottom"
-          aria-describedby={undefined}
-          onOpenAutoFocus={(event) => {
-            if (portfoliosOnly) {
-              event.preventDefault();
-              sheetTitleRef.current?.focus();
-            }
-          }}
+          initialFocus={portfoliosOnly ? sheetTitleRef : undefined}
           className={cn(
             "mx-1 p-0",
             portfoliosOnly ? "bg-card max-h-[80dvh] rounded-t-2xl" : "rounded-t-4xl h-[80vh]",
@@ -391,17 +387,19 @@ export function AccountScopeSelector({
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <SelectorTrigger
-          value={value}
-          label={label}
-          aria-label={`${t(portfoliosOnly ? "dashboard:portfolio_filter.choose" : "common:component.select_account_scope")}: ${label}`}
-          open={open}
-          isMobile={false}
-          triggerVariant={triggerVariant}
-          className={className}
-        />
-      </PopoverTrigger>
+      <PopoverTrigger
+        render={
+          <SelectorTrigger
+            value={value}
+            label={label}
+            aria-label={`${t(portfoliosOnly ? "dashboard:portfolio_filter.choose" : "common:component.select_account_scope")}: ${label}`}
+            open={open}
+            isMobile={false}
+            triggerVariant={triggerVariant}
+            className={className}
+          />
+        }
+      />
       <PopoverContent
         className={cn(
           "w-80 p-0",

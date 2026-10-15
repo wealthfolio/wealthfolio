@@ -188,16 +188,18 @@ export function ActivityDataGridToolbar({
 
         {/* Column visibility dropdown */}
         <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="outline"
-              size="xs"
-              className="shrink-0 rounded-md px-2"
-              title={t("activity:table_toggle_columns")}
-              aria-label={t("activity:table_toggle_columns")}
-            >
-              <Icons.Settings2 className="h-3.5 w-3.5" />
-            </Button>
+          <DropdownMenuTrigger
+            render={
+              <Button
+                variant="outline"
+                size="xs"
+                className="shrink-0 rounded-md px-2"
+                title={t("activity:table_toggle_columns")}
+                aria-label={t("activity:table_toggle_columns")}
+              />
+            }
+          >
+            <Icons.Settings2 className="h-3.5 w-3.5" />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-44">
             <DropdownMenuLabel className="text-xs">

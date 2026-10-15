@@ -5,7 +5,7 @@ import {
   useAssistantApi,
   useAssistantState,
 } from "@assistant-ui/react";
-import { PropsWithChildren, useEffect, useState, type FC } from "react";
+import { useEffect, useState, type FC, type ReactElement } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Icons, type Icon } from "@wealthfolio/ui/components/ui/icons";
@@ -76,7 +76,7 @@ const AttachmentPreview: FC<AttachmentPreviewProps> = ({ src }) => {
   );
 };
 
-const AttachmentPreviewDialog: FC<PropsWithChildren> = ({ children }) => {
+const AttachmentPreviewDialog: FC<{ children: ReactElement }> = ({ children }) => {
   const { t } = useTranslation();
   const src = useAttachmentSrc();
 
@@ -86,10 +86,9 @@ const AttachmentPreviewDialog: FC<PropsWithChildren> = ({ children }) => {
     <Dialog>
       <DialogTrigger
         className="aui-attachment-preview-trigger hover:bg-accent/50 cursor-pointer transition-colors"
-        asChild
-      >
-        {children}
-      </DialogTrigger>
+        nativeButton={false}
+        render={children}
+      />
       <DialogContent className="aui-attachment-preview-dialog-content [&>button]:bg-foreground/60 [&_svg]:text-background [&>button]:hover:[&_svg]:text-destructive [&>button]:ring-0! p-2 sm:max-w-3xl [&>button]:rounded-full [&>button]:p-1 [&>button]:opacity-100">
         <DialogTitle className="aui-sr-only sr-only">
           {t("ai:attachment.imageAttachmentPreview")}

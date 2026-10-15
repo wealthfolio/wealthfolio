@@ -217,10 +217,12 @@ export function SubscriptionPlans({
             <p className="text-muted-foreground mb-4 max-w-sm text-sm">
               {t("connect:subscription.connectionIssueDescription")}{" "}
               <Popover>
-                <PopoverTrigger asChild>
-                  <button className="text-muted-foreground hover:text-foreground underline underline-offset-2">
-                    {t("connect:subscription.contactSupport")}
-                  </button>
+                <PopoverTrigger
+                  render={
+                    <button className="text-muted-foreground hover:text-foreground underline underline-offset-2" />
+                  }
+                >
+                  {t("connect:subscription.contactSupport")}
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-3">
                   <div className="flex items-center gap-2">
@@ -281,10 +283,12 @@ export function SubscriptionPlans({
             <p className="text-muted-foreground mb-4 max-w-sm text-sm">
               {t("connect:subscription.unableToLoadDescription")}{" "}
               <Popover>
-                <PopoverTrigger asChild>
-                  <button className="text-muted-foreground hover:text-foreground underline underline-offset-2">
-                    {t("connect:subscription.contactSupport")}
-                  </button>
+                <PopoverTrigger
+                  render={
+                    <button className="text-muted-foreground hover:text-foreground underline underline-offset-2" />
+                  }
+                >
+                  {t("connect:subscription.contactSupport")}
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-3">
                   <div className="flex items-center gap-2">

@@ -473,7 +473,15 @@ function TemplateSelector({
                 </Label>
                 <Select
                   value={config.delimiter}
-                  onValueChange={(value) => onConfigChange({ delimiter: value })}
+                  items={{
+                    auto: t("activity:import.parseSettings.delimiterAuto"),
+                    ",": t("activity:import.parseSettings.delimiterComma"),
+                    ";": t("activity:import.parseSettings.delimiterSemicolon"),
+                    "\\t": t("activity:import.parseSettings.delimiterTab"),
+                  }}
+                  onValueChange={(value) => {
+                    if (value !== null) onConfigChange({ delimiter: value });
+                  }}
                 >
                   <SelectTrigger id="delimiter" className="h-8 text-sm">
                     <SelectValue placeholder={t("activity:import.parseSettings.selectDelimiter")} />
@@ -503,7 +511,14 @@ function TemplateSelector({
                 </Label>
                 <Select
                   value={config.decimalSeparator}
-                  onValueChange={(value) => onConfigChange({ decimalSeparator: value })}
+                  items={{
+                    auto: t("activity:import.parseSettings.decimalAuto"),
+                    ".": t("activity:import.parseSettings.decimalPeriod"),
+                    ",": t("activity:import.parseSettings.decimalComma"),
+                  }}
+                  onValueChange={(value) => {
+                    if (value !== null) onConfigChange({ decimalSeparator: value });
+                  }}
                 >
                   <SelectTrigger id="decimalSeparator" className="h-8 text-sm">
                     <SelectValue placeholder={t("activity:import.parseSettings.selectSeparator")} />

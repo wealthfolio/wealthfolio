@@ -278,15 +278,17 @@ function TransactionRowImpl({
       )}
       <TableCell className="w-10 px-3 py-2" data-row-click-ignore>
         <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              className={cn("h-7 w-7 data-[state=open]:opacity-100", HOVER_SLOT)}
-              aria-label={t("spending:transactions.rowActions")}
-            >
-              <Icons.MoreVertical className="h-4 w-4" aria-hidden="true" />
-            </Button>
+          <DropdownMenuTrigger
+            render={
+              <Button
+                variant="ghost"
+                size="icon"
+                className={cn("data-popup-open:opacity-100 h-7 w-7", HOVER_SLOT)}
+                aria-label={t("spending:transactions.rowActions")}
+              />
+            }
+          >
+            <Icons.MoreVertical className="h-4 w-4" aria-hidden="true" />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DropdownMenuItem onClick={() => onEdit(row)}>

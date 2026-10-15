@@ -290,16 +290,18 @@ export function SingleSelectTaxonomy({
                 onOpenChange={(open) => setOpenPillId(open ? category.id : null)}
                 modal={true}
               >
-                <PopoverTrigger asChild>
-                  <button
-                    type="button"
-                    disabled={isDisabled}
-                    className={pillClassName}
-                    style={pillStyle}
-                  >
-                    {pillContent}
-                    <Icons.ChevronDown className="h-3 w-3 opacity-50" />
-                  </button>
+                <PopoverTrigger
+                  render={
+                    <button
+                      type="button"
+                      disabled={isDisabled}
+                      className={pillClassName}
+                      style={pillStyle}
+                    />
+                  }
+                >
+                  {pillContent}
+                  <Icons.ChevronDown className="h-3 w-3 opacity-50" />
                 </PopoverTrigger>
                 <PopoverContent className="w-56 p-1" align="start" sideOffset={4}>
                   {children.map((child) => (
@@ -330,46 +332,46 @@ export function SingleSelectTaxonomy({
 
           {/* "More" button with tree select popover */}
           <Popover open={moreOpen} onOpenChange={setMoreOpen} modal={true}>
-            <PopoverTrigger asChild>
-              <button
-                type="button"
-                disabled={isDisabled}
-                className={cn(
-                  "flex cursor-pointer items-center gap-1.5 rounded-full border px-2.5 py-1 text-sm transition-all",
-                  !isSelectedInTopCategories && selectedCategory
-                    ? "border-transparent font-medium shadow-sm"
-                    : "border-border bg-background hover:bg-muted/50",
-                  isDisabled && "cursor-not-allowed opacity-50",
-                )}
-                style={
-                  !isSelectedInTopCategories && selectedCategory
-                    ? {
-                        backgroundColor: `${selectedCategory.color}20`,
-                        color: selectedCategory.color,
-                        borderColor: selectedCategory.color,
-                      }
-                    : undefined
-                }
-              >
-                {!isSelectedInTopCategories && selectedCategory ? (
-                  <>
-                    <span
-                      className="h-2 w-2 shrink-0 rounded-full"
-                      style={{ backgroundColor: selectedCategory.color }}
-                      aria-hidden="true"
-                    />
-                    <span className="whitespace-nowrap">
-                      {getDisplayName(selectedCategory.name)}
-                    </span>
-                  </>
-                ) : (
-                  <>
-                    <Icons.Ellipsis className="h-3.5 w-3.5" />
-                    <span className="whitespace-nowrap">{t("asset:classification.more")}</span>
-                  </>
-                )}
-                <Icons.ChevronDown className="h-3 w-3 opacity-50" />
-              </button>
+            <PopoverTrigger
+              render={
+                <button
+                  type="button"
+                  disabled={isDisabled}
+                  className={cn(
+                    "flex cursor-pointer items-center gap-1.5 rounded-full border px-2.5 py-1 text-sm transition-all",
+                    !isSelectedInTopCategories && selectedCategory
+                      ? "border-transparent font-medium shadow-sm"
+                      : "border-border bg-background hover:bg-muted/50",
+                    isDisabled && "cursor-not-allowed opacity-50",
+                  )}
+                  style={
+                    !isSelectedInTopCategories && selectedCategory
+                      ? {
+                          backgroundColor: `${selectedCategory.color}20`,
+                          color: selectedCategory.color,
+                          borderColor: selectedCategory.color,
+                        }
+                      : undefined
+                  }
+                />
+              }
+            >
+              {!isSelectedInTopCategories && selectedCategory ? (
+                <>
+                  <span
+                    className="h-2 w-2 shrink-0 rounded-full"
+                    style={{ backgroundColor: selectedCategory.color }}
+                    aria-hidden="true"
+                  />
+                  <span className="whitespace-nowrap">{getDisplayName(selectedCategory.name)}</span>
+                </>
+              ) : (
+                <>
+                  <Icons.Ellipsis className="h-3.5 w-3.5" />
+                  <span className="whitespace-nowrap">{t("asset:classification.more")}</span>
+                </>
+              )}
+              <Icons.ChevronDown className="h-3 w-3 opacity-50" />
             </PopoverTrigger>
             <PopoverContent className="w-[350px] p-0" align="start" sideOffset={4}>
               <Command>

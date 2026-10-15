@@ -32,15 +32,17 @@ const BACKUP_LIST_LIMIT = 5;
 export function InfoPopover({ label, children }: { label: string; children: ReactNode }) {
   return (
     <Popover>
-      <PopoverTrigger asChild>
-        <Button
-          variant="ghost"
-          size="icon-xs"
-          className="text-muted-foreground pointer-coarse:size-11"
-          aria-label={label}
-        >
-          <Icons.Info className="size-4" aria-hidden />
-        </Button>
+      <PopoverTrigger
+        render={
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            className="text-muted-foreground pointer-coarse:size-11"
+            aria-label={label}
+          />
+        }
+      >
+        <Icons.Info className="size-4" aria-hidden />
       </PopoverTrigger>
       <PopoverContent
         align="start"
@@ -314,7 +316,7 @@ export function BackupActions({
       )}
       {menu.length > 0 && (
         <DropdownMenu>
-          <DropdownMenuTrigger asChild>{trigger}</DropdownMenuTrigger>
+          <DropdownMenuTrigger render={trigger} />
           <DropdownMenuContent align="end" className="min-w-48">
             {menu.map((group, index) => (
               <Fragment key={index}>
@@ -324,7 +326,7 @@ export function BackupActions({
                     key={action.label}
                     variant={action.destructive ? "destructive" : "default"}
                     disabled={action.disabled}
-                    onSelect={action.onSelect}
+                    onClick={action.onSelect}
                   >
                     <action.icon />
                     {action.label}

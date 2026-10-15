@@ -131,7 +131,7 @@ export function ResetProviderHistoryDialog({
             <AlertDialogAction
               disabled={reset.isPending || (reset.isError && uncertain)}
               onClick={(event) => {
-                event.preventDefault();
+                event.preventBaseUIHandler();
                 if (submitting.current) return;
                 submitting.current = true;
                 reset.mutate();

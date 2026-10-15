@@ -126,17 +126,19 @@ export function ImportToolbar({
 
         {/* Currency dropdown */}
         <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="outline"
-              size="sm"
-              title={t("activity:import.reviewToolbar.setCurrencyTooltip")}
-              className="h-8"
-            >
-              <Icons.DollarSign className="mr-1.5 h-3.5 w-3.5" />
-              {t("activity:import.reviewToolbar.currency")}
-              <Icons.ChevronDown className="ml-1 h-3 w-3" />
-            </Button>
+          <DropdownMenuTrigger
+            render={
+              <Button
+                variant="outline"
+                size="sm"
+                title={t("activity:import.reviewToolbar.setCurrencyTooltip")}
+                className="h-8"
+              />
+            }
+          >
+            <Icons.DollarSign className="mr-1.5 h-3.5 w-3.5" />
+            {t("activity:import.reviewToolbar.currency")}
+            <Icons.ChevronDown className="ml-1 h-3 w-3" />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
             {/* Search input */}
@@ -160,7 +162,7 @@ export function ImportToolbar({
                 {COMMON_CURRENCIES.map((code) => (
                   <DropdownMenuItem
                     key={code}
-                    onSelect={() => {
+                    onClick={() => {
                       onSetCurrency(code);
                       setCurrencySearch("");
                     }}
@@ -175,7 +177,7 @@ export function ImportToolbar({
                 {quoteUnitCurrencies.map((currency) => (
                   <DropdownMenuItem
                     key={currency.value}
-                    onSelect={() => {
+                    onClick={() => {
                       onSetCurrency(currency.value);
                       setCurrencySearch("");
                     }}
@@ -197,7 +199,7 @@ export function ImportToolbar({
               {filteredCurrencies.slice(0, 20).map((currency) => (
                 <DropdownMenuItem
                   key={currency.value}
-                  onSelect={() => {
+                  onClick={() => {
                     onSetCurrency(currency.value);
                     setCurrencySearch("");
                   }}
@@ -224,17 +226,19 @@ export function ImportToolbar({
 
         {/* Account dropdown */}
         <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="outline"
-              size="sm"
-              title={t("activity:import.reviewToolbar.setAccountTooltip")}
-              className="h-8"
-            >
-              <Icons.Briefcase className="mr-1.5 h-3.5 w-3.5" />
-              {t("activity:import.reviewToolbar.account")}
-              <Icons.ChevronDown className="ml-1 h-3 w-3" />
-            </Button>
+          <DropdownMenuTrigger
+            render={
+              <Button
+                variant="outline"
+                size="sm"
+                title={t("activity:import.reviewToolbar.setAccountTooltip")}
+                className="h-8"
+              />
+            }
+          >
+            <Icons.Briefcase className="mr-1.5 h-3.5 w-3.5" />
+            {t("activity:import.reviewToolbar.account")}
+            <Icons.ChevronDown className="ml-1 h-3 w-3" />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
             {accounts.length === 0 ? (
@@ -243,7 +247,7 @@ export function ImportToolbar({
               </div>
             ) : (
               accounts.map((account) => (
-                <DropdownMenuItem key={account.id} onSelect={() => onSetAccount(account.id)}>
+                <DropdownMenuItem key={account.id} onClick={() => onSetAccount(account.id)}>
                   <Icons.Briefcase className="mr-2 h-3.5 w-3.5" />
                   <span className="truncate">{account.name}</span>
                   <span className="text-muted-foreground ml-auto text-xs">{account.currency}</span>
@@ -326,16 +330,16 @@ export function ImportContextMenu({
         <DropdownMenuSeparator />
 
         {/* Skip/Unskip actions */}
-        <DropdownMenuItem onSelect={onSkip}>
+        <DropdownMenuItem onClick={onSkip}>
           <Icons.MinusCircle className="mr-2 h-4 w-4" />
           {t("activity:import.reviewToolbar.skipSelected")}
         </DropdownMenuItem>
-        <DropdownMenuItem onSelect={onUnskip}>
+        <DropdownMenuItem onClick={onUnskip}>
           <Icons.PlusCircle className="mr-2 h-4 w-4" />
           {t("activity:import.reviewToolbar.unskipSelected")}
         </DropdownMenuItem>
         {onForceImport && (
-          <DropdownMenuItem onSelect={onForceImport} className="text-amber-700 dark:text-amber-400">
+          <DropdownMenuItem onClick={onForceImport} className="text-amber-700 dark:text-amber-400">
             <Icons.ShieldAlert className="mr-2 h-4 w-4" />
             {t("activity:import.reviewToolbar.importAnywayMenu")}
           </DropdownMenuItem>
@@ -351,7 +355,7 @@ export function ImportContextMenu({
           </DropdownMenuSubTrigger>
           <DropdownMenuSubContent className="w-40">
             {COMMON_CURRENCIES.map((code) => (
-              <DropdownMenuItem key={code} onSelect={() => onSetCurrency(code)}>
+              <DropdownMenuItem key={code} onClick={() => onSetCurrency(code)}>
                 <span className="font-mono">{code}</span>
               </DropdownMenuItem>
             ))}
@@ -371,7 +375,7 @@ export function ImportContextMenu({
               </div>
             ) : (
               accounts.map((account) => (
-                <DropdownMenuItem key={account.id} onSelect={() => onSetAccount(account.id)}>
+                <DropdownMenuItem key={account.id} onClick={() => onSetAccount(account.id)}>
                   <span className="truncate">{account.name}</span>
                   <span className="text-muted-foreground ml-auto text-xs">{account.currency}</span>
                 </DropdownMenuItem>

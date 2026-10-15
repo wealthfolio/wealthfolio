@@ -138,10 +138,8 @@ export default function AddonSettingsPage() {
 
         <div className="flex items-center gap-3">
           <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="ghost" size="icon">
-                <Icons.Info className="h-4 w-4" />
-              </Button>
+            <PopoverTrigger render={<Button variant="ghost" size="icon" />}>
+              <Icons.Info className="h-4 w-4" />
             </PopoverTrigger>
             <PopoverContent className="w-80">
               <div className="space-y-3">
@@ -221,26 +219,24 @@ export default function AddonSettingsPage() {
               <div className="flex flex-wrap items-center gap-2">
                 {/* Check Updates */}
                 <Popover>
-                  <PopoverTrigger asChild>
-                    <div>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={handleCheckUpdates}
-                        disabled={isCheckingUpdates || installedAddons.length === 0}
-                        className="hover:bg-muted/50 relative"
-                        title={t("settings:addons_check_updates")}
-                      >
-                        {isCheckingUpdates ? (
-                          <Icons.Loader className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Icons.Refresh className="h-4 w-4" />
-                        )}
-                        {hasUpdates() && (
-                          <div className="bg-destructive absolute -right-1 -top-1 h-2 w-2 rounded-full" />
-                        )}
-                      </Button>
-                    </div>
+                  <PopoverTrigger nativeButton={false} render={<div />}>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={handleCheckUpdates}
+                      disabled={isCheckingUpdates || installedAddons.length === 0}
+                      className="hover:bg-muted/50 relative"
+                      title={t("settings:addons_check_updates")}
+                    >
+                      {isCheckingUpdates ? (
+                        <Icons.Loader className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Icons.Refresh className="h-4 w-4" />
+                      )}
+                      {hasUpdates() && (
+                        <div className="bg-destructive absolute -right-1 -top-1 h-2 w-2 rounded-full" />
+                      )}
+                    </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-64" side="bottom" align="end">
                     <div className="space-y-2">
@@ -267,23 +263,21 @@ export default function AddonSettingsPage() {
 
                 {/* Install from File */}
                 <Popover>
-                  <PopoverTrigger asChild>
-                    <div>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={handleLoadAddon}
-                        disabled={isLoading}
-                        className="hover:bg-muted/50"
-                        title={t("settings:addons_install_from_file")}
-                      >
-                        {isLoading ? (
-                          <Icons.Loader className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Icons.Plus className="h-4 w-4" />
-                        )}
-                      </Button>
-                    </div>
+                  <PopoverTrigger nativeButton={false} render={<div />}>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={handleLoadAddon}
+                      disabled={isLoading}
+                      className="hover:bg-muted/50"
+                      title={t("settings:addons_install_from_file")}
+                    >
+                      {isLoading ? (
+                        <Icons.Loader className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Icons.Plus className="h-4 w-4" />
+                      )}
+                    </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-64" side="bottom" align="end">
                     <div className="space-y-2">

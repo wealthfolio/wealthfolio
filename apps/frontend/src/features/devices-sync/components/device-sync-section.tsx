@@ -1054,19 +1054,21 @@ function PairThisDeviceItem({ onPair }: { onPair: () => void }) {
             {t("sync:connect.connectThisDevice")}
           </Button>
           <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="text-muted-foreground size-11 shrink-0 sm:size-8"
-              >
-                <Icons.MoreVertical className="h-4 w-4" />
-                <span className="sr-only">{t("sync:section.options")}</span>
-              </Button>
+            <DropdownMenuTrigger
+              render={
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="text-muted-foreground size-11 shrink-0 sm:size-8"
+                />
+              }
+            >
+              <Icons.MoreVertical className="h-4 w-4" />
+              <span className="sr-only">{t("sync:section.options")}</span>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem
-                onSelect={() => setShowResetAlert(true)}
+                onClick={() => setShowResetAlert(true)}
                 className="text-destructive focus:text-destructive"
               >
                 <Icons.LogOut className="mr-2 h-4 w-4" />
@@ -1321,15 +1323,17 @@ function DeviceCard({
             )}
 
             <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="text-muted-foreground size-11 shrink-0 opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100 max-md:opacity-100 sm:size-7"
-                >
-                  <Icons.MoreVertical className="h-4 w-4" />
-                  <span className="sr-only">{t("sync:section.deviceActions")}</span>
-                </Button>
+              <DropdownMenuTrigger
+                render={
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="text-muted-foreground size-11 shrink-0 opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100 max-md:opacity-100 sm:size-7"
+                  />
+                }
+              >
+                <Icons.MoreVertical className="h-4 w-4" />
+                <span className="sr-only">{t("sync:section.deviceActions")}</span>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem onClick={handleStartRename}>
@@ -1338,7 +1342,7 @@ function DeviceCard({
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
-                  onSelect={() => setShowUnpairAlert(true)}
+                  onClick={() => setShowUnpairAlert(true)}
                   className="text-destructive focus:text-destructive"
                 >
                   <Icons.LogOut className="mr-2 h-4 w-4" />

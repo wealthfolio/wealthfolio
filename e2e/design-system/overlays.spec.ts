@@ -32,9 +32,11 @@ for (const modal of modals) {
       await expect(content).toBeVisible();
       await expect.poll(() => containsFocus(content)).toBe(true);
 
+      // Base UI wraps focus through guard elements on the next frame, so each step
+      // waits for focus to settle back inside.
       for (let step = 0; step < 6; step++) {
         await page.keyboard.press("Tab");
-        expect(await containsFocus(content)).toBe(true);
+        await expect.poll(() => containsFocus(content)).toBe(true);
       }
 
       const scrollBefore = await page.evaluate(() => window.scrollY);
@@ -129,7 +131,7 @@ test("menu: arrow keys, submenu, checkbox item and focus return", async ({ page 
   await expect(showFees).not.toBeChecked();
 });
 
-test("select: keyboard choice, disabled option skipped, Escape keeps the value", async ({
+test("select: keyboard choice, disabled option not chosen, Escape keeps the value", async ({
   page,
 }) => {
   await openGallery(page);
@@ -150,8 +152,12 @@ test("select: keyboard choice, disabled option skipped, Escape keeps the value",
   await page.keyboard.press("Enter");
   await expect(listbox).toBeVisible();
   await expect(page.getByRole("option", { name: "Retirement" })).toBeFocused();
+  // Base UI keeps a disabled option reachable, as the ARIA practices recommend,
+  // but Enter on it chooses nothing.
   for (let step = 0; step < 4; step++) await navigate(page, "ArrowDown");
-  await expect(page.getByRole("option", { name: "Savings" })).not.toBeFocused();
+  await expect(page.getByRole("option", { name: "Savings" })).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(listbox).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(listbox).toBeHidden();
   await expect(trigger).toHaveText("Retirement");

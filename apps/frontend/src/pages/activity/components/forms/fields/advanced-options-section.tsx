@@ -272,6 +272,20 @@ export function AdvancedOptionsSection<TFieldValues extends FieldValues = FieldV
                     <FormLabel>{t("activity:form.subtype")}</FormLabel>
                     <FormControl>
                       <Select
+                        items={[
+                          {
+                            value: "__none__",
+                            label: (
+                              <span className="text-muted-foreground">
+                                {t("activity:form.subtype_none")}
+                              </span>
+                            ),
+                          },
+                          ...availableSubtypes.map((subtype) => ({
+                            value: subtype,
+                            label: localizeActivitySubtypeName(t, subtype),
+                          })),
+                        ]}
                         onValueChange={(value) =>
                           field.onChange(value === "__none__" ? null : value)
                         }

@@ -323,21 +323,19 @@ function LoanLedger({ holding, calculation, quotes, actions, onEditDetails }: Lo
             </label>
           </div>
           <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button size="sm" variant="outline">
-                {t("asset:loanEvents.add_event")}
-                <Icons.ChevronDown className="ml-2 size-3.5" />
-              </Button>
+            <DropdownMenuTrigger render={<Button size="sm" variant="outline" />}>
+              {t("asset:loanEvents.add_event")}
+              <Icons.ChevronDown className="ml-2 size-3.5" />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onSelect={actions.confirmBalance}>
+              <DropdownMenuItem onClick={actions.confirmBalance}>
                 {t("asset:loanActions.confirm_balance")}
               </DropdownMenuItem>
-              <DropdownMenuItem onSelect={actions.extraPayment}>
+              <DropdownMenuItem onClick={actions.extraPayment}>
                 {t("asset:loanActions.extra_repayment")}
               </DropdownMenuItem>
               {canRenewLoan(metadata) && (
-                <DropdownMenuItem onSelect={actions.renew}>
+                <DropdownMenuItem onClick={actions.renew}>
                   {t(
                     (metadata.sub_type ?? metadata.liability_type) === "mortgage"
                       ? "asset:loanOverview.renew_mortgage"

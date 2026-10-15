@@ -310,10 +310,10 @@ export const QuoteHistoryTable: React.FC<QuoteHistoryTableProps> = ({
                       <Icons.Pencil className="h-4 w-4" />
                     </Button>
                     <Popover>
-                      <PopoverTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                          <Icons.Trash className="h-4 w-4" />
-                        </Button>
+                      <PopoverTrigger
+                        render={<Button variant="ghost" size="icon" className="h-8 w-8" />}
+                      >
+                        <Icons.Trash className="h-4 w-4" />
                       </PopoverTrigger>
                       <PopoverContent>
                         <div className="flex flex-col items-center space-y-2">
@@ -383,13 +383,14 @@ export const QuoteHistoryTable: React.FC<QuoteHistoryTableProps> = ({
           </div>
           <div className="flex items-center space-x-4">
             <Popover>
-              <PopoverTrigger asChild>
-                <div className="flex items-center space-x-2">
-                  <Switch id="manual-tracking" checked={isManualDataSource} />
-                  <Label htmlFor="manual-tracking" className="cursor-pointer">
-                    {t("asset:quoteTable.manual_tracking")}
-                  </Label>
-                </div>
+              <PopoverTrigger
+                nativeButton={false}
+                render={<div className="flex items-center space-x-2" />}
+              >
+                <Switch id="manual-tracking" checked={isManualDataSource} />
+                <Label htmlFor="manual-tracking" className="cursor-pointer">
+                  {t("asset:quoteTable.manual_tracking")}
+                </Label>
               </PopoverTrigger>
               <PopoverContent className="w-[360px] p-4">
                 <div className="space-y-4">
@@ -564,7 +565,13 @@ export const QuoteHistoryTable: React.FC<QuoteHistoryTableProps> = ({
           </Button>
           <Select
             value={(table.getState().pagination.pageIndex + 1).toString()}
-            onValueChange={(value) => table.setPageIndex(parseInt(value) - 1)}
+            items={Array.from({ length: table.getPageCount() }, (_, i) => ({
+              value: (i + 1).toString(),
+              label: t("asset:quoteTable.page_number", { number: i + 1 }),
+            }))}
+            onValueChange={(value) => {
+              if (value !== null) table.setPageIndex(parseInt(value) - 1);
+            }}
           >
             <SelectTrigger className="w-[100px]">
               <SelectValue placeholder={t("asset:quoteTable.page_placeholder")} />

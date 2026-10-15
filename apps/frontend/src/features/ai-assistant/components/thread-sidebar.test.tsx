@@ -8,9 +8,14 @@ afterEach(() => {
   Object.defineProperty(window, "innerWidth", { configurable: true, value: originalWidth });
 });
 
+// Safari ends the composition before the keydown that confirms it.
 const cases = [
-  { label: "modern", eventInit: { isComposing: true } },
-  { label: "legacy WebKit", eventInit: { isComposing: false, keyCode: 229 } },
+  { label: "modern", eventInit: { isComposing: true }, endsBeforeKeyDown: false },
+  {
+    label: "legacy WebKit",
+    eventInit: { isComposing: false, keyCode: 229 },
+    endsBeforeKeyDown: true,
+  },
 ];
 
 async function openRename(width: number) {
@@ -52,17 +57,25 @@ describe.each([
   { layout: "desktop", width: 1024 },
   { layout: "mobile", width: 390 },
 ])("ThreadSidebar $layout IME handling", ({ width }) => {
-  it.each(cases)("preserves the rename draft on $label composing Escape", async ({ eventInit }) => {
-    const { input, onRenameThread } = await openRename(width);
-    fireEvent.keyDown(input, { key: "Escape", ...eventInit });
-    expect(screen.getByRole("dialog", { name: "Rename conversation" })).toBeInTheDocument();
-    expect(input).toHaveValue("候選標題");
-    expect(onRenameThread).not.toHaveBeenCalled();
+  it.each(cases)(
+    "preserves the rename draft on $label composing Escape",
+    async ({ eventInit, endsBeforeKeyDown }) => {
+      const { input, onRenameThread } = await openRename(width);
+      fireEvent.compositionStart(input);
+      if (endsBeforeKeyDown) fireEvent.compositionEnd(input);
+      fireEvent.keyDown(input, { key: "Escape", ...eventInit });
+      expect(screen.getByRole("dialog", { name: "Rename conversation" })).toBeInTheDocument();
+      expect(input).toHaveValue("候選標題");
+      expect(onRenameThread).not.toHaveBeenCalled();
 
-    fireEvent.keyDown(input, { key: "Escape" });
-    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
-    expect(onRenameThread).not.toHaveBeenCalled();
-  });
+      if (!endsBeforeKeyDown) fireEvent.compositionEnd(input);
+      // The dialog treats Escape as composing until the tick after compositionend.
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      fireEvent.keyDown(input, { key: "Escape" });
+      await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+      expect(onRenameThread).not.toHaveBeenCalled();
+    },
+  );
 
   it.each(cases)("saves only after $label composition is committed", async ({ eventInit }) => {
     const { input, onRenameThread } = await openRename(width);

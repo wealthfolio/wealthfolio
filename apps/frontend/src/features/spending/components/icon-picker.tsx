@@ -29,38 +29,40 @@ export function IconPicker({ value, onChange, accent, compact = false }: IconPic
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        {compact ? (
-          <button
-            type="button"
-            className="border-input bg-background hover:bg-muted/40 ring-offset-background focus-visible:ring-ring flex h-8 w-9 items-center justify-center rounded-md border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
-            style={accent ? { color: accent } : undefined}
-            aria-label={
-              value
-                ? t("spending:category.iconLabel", { name: value })
-                : t("spending:category.chooseIcon")
-            }
-          >
-            <CategoryIcon icon={value ?? null} className="h-4 w-4" />
-          </button>
-        ) : (
-          <button
-            type="button"
-            className="border-input bg-background hover:bg-muted/40 ring-offset-background focus-visible:ring-ring flex h-10 w-full items-center gap-2 rounded-md border px-3 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
-          >
-            <CategoryIcon icon={value ?? null} className="h-4 w-4 shrink-0" />
-            <span
-              className={cn(
-                "flex-1 truncate text-left",
-                value ? "text-foreground" : "text-muted-foreground/70",
-              )}
+      <PopoverTrigger
+        render={
+          compact ? (
+            <button
+              type="button"
+              className="border-input bg-background hover:bg-muted/40 ring-offset-background focus-visible:ring-ring flex h-8 w-9 items-center justify-center rounded-md border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+              style={accent ? { color: accent } : undefined}
+              aria-label={
+                value
+                  ? t("spending:category.iconLabel", { name: value })
+                  : t("spending:category.chooseIcon")
+              }
             >
-              {value ?? t("spending:category.chooseIcon")}
-            </span>
-            <Icons.ChevronDown className="text-muted-foreground/60 h-3.5 w-3.5 shrink-0" />
-          </button>
-        )}
-      </PopoverTrigger>
+              <CategoryIcon icon={value ?? null} className="h-4 w-4" />
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="border-input bg-background hover:bg-muted/40 ring-offset-background focus-visible:ring-ring flex h-10 w-full items-center gap-2 rounded-md border px-3 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+            >
+              <CategoryIcon icon={value ?? null} className="h-4 w-4 shrink-0" />
+              <span
+                className={cn(
+                  "flex-1 truncate text-left",
+                  value ? "text-foreground" : "text-muted-foreground/70",
+                )}
+              >
+                {value ?? t("spending:category.chooseIcon")}
+              </span>
+              <Icons.ChevronDown className="text-muted-foreground/60 h-3.5 w-3.5 shrink-0" />
+            </button>
+          )
+        }
+      />
       <PopoverContent className="w-72 p-3" align="start">
         <div className="space-y-3">
           <Input

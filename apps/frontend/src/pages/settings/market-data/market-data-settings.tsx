@@ -217,14 +217,17 @@ function ProviderSettings({
               )}
               {provider.errorCount > 0 && (
                 <Popover>
-                  <PopoverTrigger asChild>
-                    <Badge
-                      variant="outline"
-                      className="border-destructive/20 bg-destructive/10 text-destructive hover:bg-destructive/20 shrink-0 cursor-pointer text-xs"
-                    >
-                      <Icons.XCircle className="mr-1 h-3 w-3" />
-                      {t("settings:market_data_page.errors_count", { count: provider.errorCount })}
-                    </Badge>
+                  <PopoverTrigger
+                    nativeButton={false}
+                    render={
+                      <Badge
+                        variant="outline"
+                        className="border-destructive/20 bg-destructive/10 text-destructive hover:bg-destructive/20 shrink-0 cursor-pointer text-xs"
+                      />
+                    }
+                  >
+                    <Icons.XCircle className="mr-1 h-3 w-3" />
+                    {t("settings:market_data_page.errors_count", { count: provider.errorCount })}
                   </PopoverTrigger>
                   <PopoverContent className="w-80 p-0" align="start">
                     <div className="border-b px-3 py-2">
@@ -633,15 +636,17 @@ function CustomProviderCard({
           {deleteBlockerCount(usage) > 0 ? (
             // The backend refuses to delete a provider securities still use; say which.
             <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="text-muted-foreground hover:text-destructive h-8 w-8"
-                  aria-label={t("settings:common_delete")}
-                >
-                  <Icons.Trash className="h-4 w-4" />
-                </Button>
+              <PopoverTrigger
+                render={
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="text-muted-foreground hover:text-destructive h-8 w-8"
+                    aria-label={t("settings:common_delete")}
+                  />
+                }
+              >
+                <Icons.Trash className="h-4 w-4" />
               </PopoverTrigger>
               <PopoverContent className="w-80 space-y-3" align="end">
                 <h4 className="font-medium leading-none">
@@ -897,23 +902,25 @@ export default function MarketDataSettingsPage() {
       >
         <div className="flex items-center gap-2">
           <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-10 w-10 px-0 sm:h-9 sm:w-auto sm:px-3"
-                aria-label={t("settings:market_data_page.history_menu")}
-              >
-                {isRecalculating ? (
-                  <Icons.Spinner className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Icons.History className="h-4 w-4" />
-                )}
-                <span className="hidden sm:inline">
-                  {t("settings:market_data_page.history_menu")}
-                </span>
-                <Icons.ChevronDown className="hidden h-4 w-4 sm:block" />
-              </Button>
+            <DropdownMenuTrigger
+              render={
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-10 w-10 px-0 sm:h-9 sm:w-auto sm:px-3"
+                  aria-label={t("settings:market_data_page.history_menu")}
+                />
+              }
+            >
+              {isRecalculating ? (
+                <Icons.Spinner className="h-4 w-4 animate-spin" />
+              ) : (
+                <Icons.History className="h-4 w-4" />
+              )}
+              <span className="hidden sm:inline">
+                {t("settings:market_data_page.history_menu")}
+              </span>
+              <Icons.ChevronDown className="hidden h-4 w-4 sm:block" />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-80">
               <HistoryMenuItem
@@ -925,13 +932,13 @@ export default function MarketDataSettingsPage() {
                 )}
                 description={t("settings:market_data_page.rebuild_history_description")}
                 disabled={isRecalculating}
-                onSelect={() => setRebuildConfirmOpen(true)}
+                onClick={() => setRebuildConfirmOpen(true)}
               />
               <HistoryMenuItem
                 icon={<Icons.Import />}
                 title={t("settings:market_data_page.import_prices_csv")}
                 description={t("settings:market_data_page.import_prices_csv_description")}
-                onSelect={() => navigate("/settings/market-data/import")}
+                onClick={() => navigate("/settings/market-data/import")}
               />
               <DropdownMenuSeparator />
               <HistoryMenuItem
@@ -939,7 +946,7 @@ export default function MarketDataSettingsPage() {
                 icon={<Icons.RotateCcw />}
                 title={t("settings:market_data_page.reset_history_menu")}
                 description={t("settings:market_data_page.reset_history_description")}
-                onSelect={() => setResetHistoryOpen(true)}
+                onClick={() => setResetHistoryOpen(true)}
               />
             </DropdownMenuContent>
           </DropdownMenu>

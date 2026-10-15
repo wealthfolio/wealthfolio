@@ -68,15 +68,17 @@ function HighlightTitle({ title, description }: { title: string; description: st
         {title}
       </CardTitle>
       <Popover>
-        <PopoverTrigger asChild>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="text-muted-foreground/60 hover:text-foreground h-6 w-6 shrink-0 rounded-full p-0"
-            aria-label={t("common:component.more_info_about", { label: title })}
-          >
-            <Icons.Info className="h-3.5 w-3.5" aria-hidden="true" />
-          </Button>
+        <PopoverTrigger
+          render={
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-muted-foreground/60 hover:text-foreground h-6 w-6 shrink-0 rounded-full p-0"
+              aria-label={t("common:component.more_info_about", { label: title })}
+            />
+          }
+        >
+          <Icons.Info className="h-3.5 w-3.5" aria-hidden="true" />
         </PopoverTrigger>
         <PopoverContent className="w-64 text-xs" side="top" align="start">
           {description}

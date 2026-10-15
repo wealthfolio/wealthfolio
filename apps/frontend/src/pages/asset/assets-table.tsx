@@ -303,14 +303,16 @@ export function AssetsTable({
           return (
             <div className="flex justify-end">
               <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <button
-                    type="button"
-                    className="hover:bg-muted text-muted-foreground inline-flex h-9 w-9 items-center justify-center rounded-md border transition"
-                    aria-label={t("asset:table.open_actions")}
-                  >
-                    <Icons.MoreVertical className="h-4 w-4" />
-                  </button>
+                <DropdownMenuTrigger
+                  render={
+                    <button
+                      type="button"
+                      className="hover:bg-muted text-muted-foreground inline-flex h-9 w-9 items-center justify-center rounded-md border transition"
+                      aria-label={t("asset:table.open_actions")}
+                    />
+                  }
+                >
+                  <Icons.MoreVertical className="h-4 w-4" />
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
                   <DropdownMenuItem onClick={() => onEdit(asset)}>
@@ -332,7 +334,7 @@ export function AssetsTable({
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
                     className="text-destructive focus:text-destructive"
-                    onSelect={() => onDelete(asset)}
+                    onClick={() => onDelete(asset)}
                   >
                     {t("asset:table.delete")}
                   </DropdownMenuItem>

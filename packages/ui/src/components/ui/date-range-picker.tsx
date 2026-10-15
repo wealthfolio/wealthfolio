@@ -26,28 +26,30 @@ export function DatePickerWithRange({ date, onDateChange, className }: DatePicke
   return (
     <div className={cn("grid gap-2", className)}>
       <Popover>
-        <PopoverTrigger asChild>
-          <Button
-            id="date"
-            variant={"outline"}
-            className={cn(
-              "h-input-height w-[300px] justify-start text-left font-normal",
-              !date && "text-muted-foreground",
-            )}
-          >
-            <Icons.CalendarIcon className="mr-2 h-4 w-4" />
-            {date?.from ? (
-              date.to ? (
-                <>
-                  {formatDisplayDate(date.from)} - {formatDisplayDate(date.to)}
-                </>
-              ) : (
-                formatDisplayDate(date.from)
-              )
+        <PopoverTrigger
+          render={
+            <Button
+              id="date"
+              variant={"outline"}
+              className={cn(
+                "h-input-height w-[300px] justify-start text-left font-normal",
+                !date && "text-muted-foreground",
+              )}
+            />
+          }
+        >
+          <Icons.CalendarIcon className="mr-2 h-4 w-4" />
+          {date?.from ? (
+            date.to ? (
+              <>
+                {formatDisplayDate(date.from)} - {formatDisplayDate(date.to)}
+              </>
             ) : (
-              <span>{t("ui:dateRange.pick", "Pick a date range")}</span>
-            )}
-          </Button>
+              formatDisplayDate(date.from)
+            )
+          ) : (
+            <span>{t("ui:dateRange.pick", "Pick a date range")}</span>
+          )}
         </PopoverTrigger>
         <PopoverContent className="w-auto p-0" align="start">
           <Calendar mode="range" defaultMonth={date?.from} selected={date} onSelect={onDateChange} numberOfMonths={3} />

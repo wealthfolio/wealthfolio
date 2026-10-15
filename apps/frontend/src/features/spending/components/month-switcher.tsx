@@ -70,11 +70,11 @@ export function MonthSwitcher({
         <ChevronLeft className="h-4 w-4" />
       </Button>
       <Popover open={open} onOpenChange={setOpen}>
-        <PopoverTrigger asChild>
-          <Button variant="outline" className="h-8 w-[160px] justify-between">
-            <span>{displayLabel}</span>
-            <ChevronDown className="h-4 w-4 opacity-50" />
-          </Button>
+        <PopoverTrigger
+          render={<Button variant="outline" className="h-8 w-[160px] justify-between" />}
+        >
+          <span>{displayLabel}</span>
+          <ChevronDown className="h-4 w-4 opacity-50" />
         </PopoverTrigger>
         <PopoverContent className="w-auto p-0" align="center">
           <MonthYearPicker

@@ -12,14 +12,16 @@ export function LoanFieldInfo({ label, children }: { label: string; children: Re
   const { t } = useTranslation();
   return (
     <Popover>
-      <PopoverTrigger asChild>
-        <button
-          type="button"
-          aria-label={t("common:component.more_info_about", { label })}
-          className="text-muted-foreground hover:text-foreground focus-visible:ring-ring -m-[5px] inline-flex size-6 items-center justify-center rounded-sm focus-visible:outline-none focus-visible:ring-2"
-        >
-          <Icons.Info className="size-3.5" />
-        </button>
+      <PopoverTrigger
+        render={
+          <button
+            type="button"
+            aria-label={t("common:component.more_info_about", { label })}
+            className="text-muted-foreground hover:text-foreground focus-visible:ring-ring -m-[5px] inline-flex size-6 items-center justify-center rounded-sm focus-visible:outline-none focus-visible:ring-2"
+          />
+        }
+      >
+        <Icons.Info className="size-3.5" />
       </PopoverTrigger>
       <PopoverContent side="top" align="start" className="w-72 text-sm">
         {children}

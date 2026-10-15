@@ -42,9 +42,11 @@ and this project adheres to
 
 - **Breaking:** `@wealthfolio/ui` components move from Radix to
   [Base UI](https://base-ui.com) and follow its API. Converted so far: the leaf
-  controls, `Collapsible`, `Accordion`, `Tooltip` and `HoverCard`.
+  controls, `Collapsible`, `Accordion`, `Tooltip`, `HoverCard`, `Popover`,
+  `DropdownMenu`, `Select`, `Dialog`, `AlertDialog`, `Sheet` and
+  `CommandDialog`.
   - `asChild` is replaced by `render` on `Button`, `Badge`, `Item`,
-    `CollapsibleTrigger`, `TooltipTrigger` and `HoverCardTrigger`:
+    `DropdownMenuItem` and every trigger and close part:
     `<Badge render={<a href="…" />}>Docs</Badge>`. A link that looks like a
     button is the link itself with `buttonVariants()`, not a `Button`, which
     gives what it renders button semantics. `Button` renders `type="button"`;
@@ -52,9 +54,12 @@ and this project adheres to
   - State attributes are Base UI's instead of Radix's `data-state`:
     `data-checked`/`data-unchecked` (`Switch`, `Checkbox`, `RadioGroupItem`),
     `data-active` (`TabsTrigger`), `aria-pressed` (`Toggle`, `ToggleGroupItem`),
-    `data-panel-open` (collapsible and accordion triggers), `data-open`/
-    `data-closed` with `--collapsible-panel-height` and
-    `--accordion-panel-height` (their panels), and `data-disabled`.
+    `data-panel-open` (collapsible and accordion triggers), `data-popup-open`
+    (popover, menu and select triggers), `data-open`/`data-closed` (panels,
+    popups and overlays, with `--collapsible-panel-height` and
+    `--accordion-panel-height`), and `data-disabled`. Popups use
+    `--anchor-width`, `--available-height` and `--transform-origin` instead of
+    the Radix variables, and keep 5px from the viewport edge.
   - `Checkbox` takes `indeterminate` instead of `checked="indeterminate"`;
     `ToggleGroup` takes `multiple` and array values instead of `type` and a
     string, and `Accordion` likewise (no `collapsible`; single items always
@@ -72,6 +77,23 @@ and this project adheres to
   - Tooltips are visual labels: the content no longer has `role="tooltip"` and
     is not announced as the trigger's description, so give the trigger an
     accessible name.
+  - Content focus and dismiss callbacks move: `onOpenAutoFocus` and
+    `onCloseAutoFocus` become `initialFocus` and `finalFocus` on the content;
+    `onEscapeKeyDown` and `onInteractOutside` become checks of
+    `eventDetails.reason` in the root's `onOpenChange(open, eventDetails)`,
+    calling `eventDetails.cancel()` to stay open, and `Dialog` and `Sheet` take
+    `disablePointerDismissal`. `PopoverAnchor` is replaced by `anchor` on
+    `PopoverContent`.
+  - `DropdownMenuItem` takes `onClick` instead of `onSelect`, and
+    `closeOnClick={false}` instead of `event.preventDefault()` to stay open.
+    `DropdownMenuLabel` and `SelectLabel` must sit inside a group.
+  - `Select` shows the selected item's label only when given `items` (an array
+    of `{ value, label }` or a value-to-label record); `onValueChange` can
+    receive `null`; `SelectContent` takes `alignItemWithTrigger` instead of
+    `position`.
+  - `AlertDialogAction` still closes the dialog; call
+    `event.preventBaseUIHandler()` in `onClick` to keep it open. `ActionConfirm`
+    and `DeleteConfirm` take a single element as `button`.
 - `ActivityUpdate.asset` now has explicit patch semantics: omit it to preserve
   the current asset, or pass an empty object to clear the asset association.
 - Host-provided `@wealthfolio/addon-sdk` and `@wealthfolio/ui` dependency ranges

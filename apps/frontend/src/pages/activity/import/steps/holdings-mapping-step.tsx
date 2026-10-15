@@ -515,6 +515,25 @@ export function HoldingsMappingStep() {
                   {/* Field Selector */}
                   <Select
                     value={column.mappedField || SKIP_FIELD_VALUE}
+                    items={[
+                      {
+                        value: SKIP_FIELD_VALUE,
+                        label: (
+                          <span className="text-muted-foreground">
+                            {t("activity:import.holdings.skip")}
+                          </span>
+                        ),
+                      },
+                      ...HOLDINGS_TARGET_FIELDS.map((field) => ({
+                        value: field.value,
+                        label: (
+                          <>
+                            {t(field.labelKey)}
+                            {field.required && <span className="ml-1 text-amber-600">*</span>}
+                          </>
+                        ),
+                      })),
+                    ]}
                     onValueChange={(value) => {
                       handleMapColumn(
                         column.csvColumn,

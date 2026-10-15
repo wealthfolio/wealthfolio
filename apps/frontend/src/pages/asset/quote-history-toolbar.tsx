@@ -95,13 +95,14 @@ export function QuoteHistoryToolbar({
 
       {/* Right: manual tracking toggle */}
       <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
-        <PopoverTrigger asChild>
-          <div className="flex shrink-0 cursor-pointer items-center space-x-2">
-            <Switch id="manual-tracking" checked={isManualDataSource} />
-            <Label htmlFor="manual-tracking" className="cursor-pointer text-xs sm:text-sm">
-              {t("asset:quoteToolbar.manual")}
-            </Label>
-          </div>
+        <PopoverTrigger
+          nativeButton={false}
+          render={<div className="flex shrink-0 cursor-pointer items-center space-x-2" />}
+        >
+          <Switch id="manual-tracking" checked={isManualDataSource} />
+          <Label htmlFor="manual-tracking" className="cursor-pointer text-xs sm:text-sm">
+            {t("asset:quoteToolbar.manual")}
+          </Label>
         </PopoverTrigger>
         <PopoverContent className="w-[320px] p-4 sm:w-[360px]" align="end">
           <div className="space-y-4">

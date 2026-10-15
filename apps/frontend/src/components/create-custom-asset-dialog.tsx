@@ -205,7 +205,11 @@ export function CreateCustomAssetDialog({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>{t("common:component.asset_type")}</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <Select
+                      items={assetTypeOptions}
+                      onValueChange={field.onChange}
+                      defaultValue={field.value}
+                    >
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder={t("common:component.select_type")} />

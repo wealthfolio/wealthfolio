@@ -1,14 +1,6 @@
 {
   "files": [
     "packages/ui/src/components/data-grid/use-data-grid.ts",
-    "packages/ui/src/components/ui/alert-dialog.tsx",
-    "packages/ui/src/components/ui/command.tsx",
-    "packages/ui/src/components/ui/dialog.tsx",
-    "packages/ui/src/components/ui/dropdown-menu.tsx",
-    "packages/ui/src/components/ui/popover.tsx",
-    "packages/ui/src/components/ui/progress-indicator.tsx",
-    "packages/ui/src/components/ui/scroll-area.tsx",
-    "packages/ui/src/components/ui/select.tsx",
-    "packages/ui/src/components/ui/sheet.tsx"
+    "packages/ui/src/components/ui/scroll-area.tsx"
   ]
 }

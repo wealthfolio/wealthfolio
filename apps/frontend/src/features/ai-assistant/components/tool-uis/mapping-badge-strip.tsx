@@ -95,14 +95,16 @@ export const MappingBadgeStrip = memo(function MappingBadgeStrip({
         </Badge>
       )}
       <Popover>
-        <PopoverTrigger asChild>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="text-muted-foreground hover:text-foreground h-6 px-2 text-xs"
-          >
-            {t("ai:mapping.viewMapping")}
-          </Button>
+        <PopoverTrigger
+          render={
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-muted-foreground hover:text-foreground h-6 px-2 text-xs"
+            />
+          }
+        >
+          {t("ai:mapping.viewMapping")}
         </PopoverTrigger>
         <PopoverContent className="w-80" align="end">
           <div className="space-y-2">

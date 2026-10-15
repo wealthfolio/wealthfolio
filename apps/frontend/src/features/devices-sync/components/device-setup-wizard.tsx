@@ -141,13 +141,22 @@ interface DeviceSetupDialogProps {
 export function DeviceSetupDialog({ open, onOpenChange, title, children }: DeviceSetupDialogProps) {
   const isMobile = useIsMobile();
   return (
-    <Dialog open={open} onOpenChange={onOpenChange} useIsMobile={() => isMobile}>
+    <Dialog
+      open={open}
+      onOpenChange={(next, details) => {
+        if (details.reason === "escape-key") {
+          details.cancel();
+          return;
+        }
+        onOpenChange(next);
+      }}
+      disablePointerDismissal
+      useIsMobile={() => isMobile}
+    >
       <DialogContent
         className="sm:max-w-[480px]"
         mobileClassName="flex h-[90vh] flex-col pb-8"
         showCloseButton={false}
-        onEscapeKeyDown={(event) => event.preventDefault()}
-        onInteractOutside={(event) => event.preventDefault()}
       >
         <DialogHeader className="sr-only">
           <DialogTitle>{title}</DialogTitle>
