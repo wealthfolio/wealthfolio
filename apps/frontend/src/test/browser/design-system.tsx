@@ -91,7 +91,7 @@ import {
 } from "@wealthfolio/ui";
 import "@/globals.css";
 
-// Synthetic fixture for the UI-primitive guardrails: every Radix-based component in
+// Synthetic fixture for the UI-primitive guardrails: every primitive in
 // @wealthfolio/ui in its key states, each overlay opened from a named trigger.
 // No financial data and no backend.
 

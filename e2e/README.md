@@ -228,16 +228,13 @@ pnpm test:e2e:design-system            # compare; differences fail with a diff
 ```
 
 The accessibility scan records which rules fail on how many elements, because
-the primitives do not pass cleanly yet (low-contrast secondary badges, selected
-toggle items and inactive tabs; a ScrollArea region keyboard users cannot reach;
-menus and selects that hide still-focusable content). The forced-colors focus
-test is marked as an expected failure: the focus ring is a box-shadow, which
-forced colors removes. RTL is not covered because no shipped locale is
-right-to-left.
+the primitives do not pass cleanly yet: low-contrast secondary badges, selected
+toggle items and inactive tabs, and low-contrast text in the open select. In
+WebKit it also counts the focus guards Base UI keeps around open popups, which
+Safari exposes as buttons without a name. The forced-colors focus test is marked
+as an expected failure: the focus ring is a box-shadow, which forced colors
+removes. RTL is not covered because no shipped locale is right-to-left.
 
 Each test is retried once in a fresh browser: late in a long run WebKit
 sometimes stalls a page load without sending a request. Playwright reports a
 test that only passes on retry as flaky; a real difference fails both attempts.
-
-`pnpm ui:radix-imports` lists the files that import Radix and fails if a new one
-appears; run it with `--update` after moving files to Base UI.

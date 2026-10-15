@@ -779,7 +779,7 @@ for maintained addon examples including:
 - **React**: JavaScript library for building user interfaces.
 - **React Router**: Declarative routing for React.
 - **Tailwind CSS**: Utility-first CSS framework for styling.
-- **Radix UI/Shadcn**: Accessible UI components.
+- **Base UI/shadcn**: Accessible UI components.
 - **Recharts**: Charting library built with React.
 - **React Query**: Data-fetching library for React.
 - **Zod**: TypeScript-first schema declaration and validation library.

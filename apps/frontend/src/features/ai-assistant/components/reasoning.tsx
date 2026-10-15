@@ -58,7 +58,7 @@ const ReasoningImpl: ReasoningMessagePartComponent = () => {
 };
 
 /**
- * Collapsible reasoning group using Radix Collapsible.
+ * Collapsible reasoning group.
  * Collapsed by default; user can toggle open/closed manually.
  */
 const ReasoningGroupImpl: ReasoningGroupComponent = ({ children, startIndex, endIndex }) => {

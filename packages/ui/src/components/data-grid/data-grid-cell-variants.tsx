@@ -891,7 +891,7 @@ export function CheckboxCell<TData>({
   );
 }
 
-// Special value for empty selection (Radix Select requires non-empty string values)
+// Special value for the empty choice: a select treats an empty string as no selection
 const EMPTY_SELECT_VALUE = "__EMPTY__";
 
 export function SelectCell<TData>({

@@ -11,15 +11,6 @@ const createProvider = vi.fn();
 const updateProvider = vi.fn();
 const testSource = vi.fn();
 
-// jsdom lacks ResizeObserver, which the Radix radio group measures with.
-if (typeof ResizeObserver === "undefined") {
-  globalThis.ResizeObserver = class {
-    observe() {}
-    unobserve() {}
-    disconnect() {}
-  } as typeof ResizeObserver;
-}
-
 function setInputValue(input: HTMLElement, value: string) {
   fireEvent.change(input, { target: { value } });
 }
@@ -195,13 +186,10 @@ describe("CustomProviderForm", () => {
     render(<CustomProviderForm open onOpenChange={vi.fn()} />);
 
     screen.getByRole("radio", { name: /only securities assigned/i }).focus();
-    // Radix moves focus on the next tick and selects only while the arrow key is
-    // still down, so hold it the way a real key press does.
-    await user.keyboard("{ArrowDown>}");
+    await user.keyboard("{ArrowDown}");
     await waitFor(() =>
       expect(screen.getByRole("radio", { name: /also as a fallback/i })).toBeChecked(),
     );
-    await user.keyboard("{/ArrowDown}");
 
     expect(screen.getByLabelText(/order among fallbacks/i)).toBeInTheDocument();
   });

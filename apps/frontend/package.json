@@ -46,7 +46,6 @@
     "@internationalized/date": "^3.11.0",
     "@number-flow/react": "^0.6.1",
     "@phosphor-icons/react": "^2.1.10",
-    "@radix-ui/react-slot": "^1.2.4",
     "@supabase/supabase-js": "^2.95.3",
     "@tailwindcss/typography": "^0.5.19",
     "@tailwindcss/vite": "^4.1.18",
