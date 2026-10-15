@@ -281,7 +281,8 @@ const TickerSearchInput = forwardRef<HTMLButtonElement, SearchProps>(
     });
     const inputRef = useRef<HTMLInputElement>(null);
     const triggerRef = useRef<HTMLButtonElement>(null);
-    const closeFocusIntentRef = useRef<null | "next" | "prev">(null);
+    // Tab in the search field closes the list and moves on from the trigger.
+    const [tabCloseDirection, setTabCloseDirection] = useState<null | "next" | "prev">(null);
     const composedTriggerRef = useComposedRefs(ref, triggerRef);
 
     // Create debounced search function
@@ -442,7 +443,7 @@ const TickerSearchInput = forwardRef<HTMLButtonElement, SearchProps>(
     const handleInputKeyDown = useCallback(
       (e: React.KeyboardEvent<HTMLInputElement>) => {
         if (e.key !== "Tab") return;
-        closeFocusIntentRef.current = e.shiftKey ? "prev" : "next";
+        setTabCloseDirection(e.shiftKey ? "prev" : "next");
         e.preventDefault();
         if (isControlled) {
           onOpenChange?.(false);
@@ -453,23 +454,26 @@ const TickerSearchInput = forwardRef<HTMLButtonElement, SearchProps>(
       [isControlled, onOpenChange],
     );
 
-    const handleFinalFocus = useCallback(() => {
-      const intent = closeFocusIntentRef.current;
-      closeFocusIntentRef.current = null;
-      if (!intent) return true;
-
-      const trigger = triggerRef.current;
-      if (trigger) {
+    const handleOpenChangeComplete = useCallback(
+      (isOpen: boolean) => {
+        if (isOpen || !tabCloseDirection) return;
+        setTabCloseDirection(null);
+        const trigger = triggerRef.current;
+        if (!trigger) return;
         requestAnimationFrame(() => {
-          focusRelativeTo(trigger, intent);
+          focusRelativeTo(trigger, tabCloseDirection);
         });
-      }
-      return false;
-    }, []);
+      },
+      [tabCloseDirection],
+    );
 
     return (
       <>
-        <Popover open={open} onOpenChange={handleOpenChange}>
+        <Popover
+          open={open}
+          onOpenChange={handleOpenChange}
+          onOpenChangeComplete={handleOpenChangeComplete}
+        >
           <PopoverTrigger
             render={
               <Button
@@ -556,7 +560,7 @@ const TickerSearchInput = forwardRef<HTMLButtonElement, SearchProps>(
             align="start"
             className="w-(--anchor-width) h-auto min-w-[280px] p-0"
             initialFocus={autoFocusSearch ? inputRef : undefined}
-            finalFocus={handleFinalFocus}
+            finalFocus={tabCloseDirection === null}
             onWheel={(e) => e.stopPropagation()}
           >
             <Command shouldFilter={false} className="border-none">
