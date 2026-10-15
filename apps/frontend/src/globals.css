@@ -938,6 +938,21 @@ number-flow-react.muted-fraction::part(fraction) {
   animation: subtle-pulse 1.2s ease-in-out infinite;
 }
 
+/* Reduced motion: animations and transitions still run, so code waiting for
+   them (Base UI's exit animations) completes, but they take no time and
+   repeat once. Motion components follow the same setting through
+   MotionConfig in App.tsx. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 /* app.css - lockdown styles only apply when .app-lockdown class is present */
 html.app-lockdown,
 html.app-lockdown body {

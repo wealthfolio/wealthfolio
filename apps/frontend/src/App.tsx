@@ -11,6 +11,7 @@ import { WealthfolioConnectProvider } from "@/features/wealthfolio-connect";
 import { SettingsProvider } from "@/lib/settings-provider";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { TooltipProvider } from "@wealthfolio/ui";
+import { MotionConfig } from "motion/react";
 import { useState } from "react";
 import { PrivacyProvider } from "./context/privacy-context";
 import { LoginPage } from "./pages/auth/login-page";
@@ -52,21 +53,23 @@ function App() {
   );
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        {isWebEnv ? (
-          <AuthGate fallback={<LoginPage />}>
+    <MotionConfig reducedMotion="user">
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
+          {isWebEnv ? (
+            <AuthGate fallback={<LoginPage />}>
+              <ProfileShell>
+                <NativeDatabaseGate>{content}</NativeDatabaseGate>
+              </ProfileShell>
+            </AuthGate>
+          ) : (
             <ProfileShell>
               <NativeDatabaseGate>{content}</NativeDatabaseGate>
             </ProfileShell>
-          </AuthGate>
-        ) : (
-          <ProfileShell>
-            <NativeDatabaseGate>{content}</NativeDatabaseGate>
-          </ProfileShell>
-        )}
-      </AuthProvider>
-    </QueryClientProvider>
+          )}
+        </AuthProvider>
+      </QueryClientProvider>
+    </MotionConfig>
   );
 }
 

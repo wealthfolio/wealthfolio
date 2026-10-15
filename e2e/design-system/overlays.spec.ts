@@ -221,3 +221,24 @@ test("select inside a sheet: choosing keeps the sheet open", async ({ page }) =>
   await expect(page.getByRole("listbox")).toBeHidden();
   await expect(sheet).toBeVisible();
 });
+
+test("overlays open without motion when the system asks for reduced motion", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await openGallery(page);
+  for (const name of ["dialog", "sheet", "bottom-sheet", "popover", "menu"]) {
+    const item = overlay(name);
+    await item.open(page);
+    await expect(item.content(page)).toBeVisible();
+    // Animations still run, so code waiting for them finishes, but they last
+    // no time; a slide or zoom would still be running here.
+    const durations = await page.evaluate(() =>
+      document.getAnimations().map((animation) => Number(animation.effect?.getTiming().duration)),
+    );
+    expect(
+      durations.filter((duration) => duration > 1),
+      name,
+    ).toEqual([]);
+    await page.keyboard.press("Escape");
+    await expect(item.content(page)).toBeHidden();
+  }
+});
