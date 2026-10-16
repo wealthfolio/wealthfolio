@@ -1,15 +1,5 @@
 {
   "fontSizes": {
-    "apps/frontend/src/addons/iframe/sandbox-ticker-avatar.tsx": 1,
-    "apps/frontend/src/components/account-filter-selector.tsx": 3,
-    "apps/frontend/src/components/action-palette.tsx": 1,
-    "apps/frontend/src/components/allocation-breadcrumb.tsx": 1,
-    "apps/frontend/src/components/asset-logo/asset-logo-dialog.tsx": 2,
-    "apps/frontend/src/components/asset-logo/asset-logo-preview.tsx": 4,
-    "apps/frontend/src/components/metric-display.tsx": 1,
-    "apps/frontend/src/components/sonner.tsx": 2,
-    "apps/frontend/src/components/ticker-avatar.tsx": 1,
-    "apps/frontend/src/components/ticker-search.tsx": 1,
     "apps/frontend/src/features/ai-assistant/components/attachment.tsx": 1,
     "apps/frontend/src/features/ai-assistant/components/provider-settings-card.tsx": 23,
     "apps/frontend/src/features/ai-assistant/components/thinking-toggle.tsx": 1,
@@ -124,10 +114,7 @@
     "apps/frontend/src/pages/settings/spending/components/accounts-card.tsx": 1,
     "apps/frontend/src/pages/settings/spending/components/budget-overview-card.tsx": 1,
     "apps/frontend/src/pages/settings/spending/components/module-card.tsx": 1,
-    "apps/frontend/src/pages/settings/spending/components/rules-overview-card.tsx": 1,
-    "packages/ui/src/components/common/donut-chart.tsx": 1,
-    "packages/ui/src/components/common/ticker-avatar.tsx": 1,
-    "packages/ui/src/components/ui/calendar.tsx": 2
+    "apps/frontend/src/pages/settings/spending/components/rules-overview-card.tsx": 1
   },
   "rawColors": {
     "apps/frontend/src/components/account-selector.tsx": 4,

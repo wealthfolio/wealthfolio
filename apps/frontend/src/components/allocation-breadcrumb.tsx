@@ -25,7 +25,7 @@ export const AllocationBreadcrumb: React.FC<AllocationBreadcrumbProps> = ({
   }
 
   return (
-    <nav className={cn("flex items-center gap-1.5 text-[12px] leading-none", className)}>
+    <nav className={cn("flex items-center gap-1.5 text-xs leading-none", className)}>
       <button
         onClick={() => onNavigate(0)}
         className="text-muted-foreground hover:text-foreground font-semibold uppercase tracking-[0.18em] transition-colors"

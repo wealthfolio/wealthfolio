@@ -147,7 +147,7 @@ export const DonutChart: React.FC<DonutChartProps> = ({
     const payload = entry.payload as { currency: string };
     return (
       <div className="flex flex-col">
-        <span className="text-muted-foreground text-[0.70rem] uppercase">{name}</span>
+        <span className="text-muted-foreground text-2xs uppercase">{name}</span>
         <span className="font-bold">
           <AmountDisplay value={Number(value ?? 0)} currency={payload.currency} isHidden={isBalanceHidden} />
         </span>

@@ -50,7 +50,7 @@ export const TickerAvatar = ({ symbol, exchangeMic, instrumentType, className = 
       />
       <AvatarFallback className="bg-primary/80 dark:bg-primary/20 font-medium text-white">
         <span
-          className={cn("px-0.5 leading-none", fallbackAvatarLabel.length >= 4 ? "text-[10px]" : "text-xs")}
+          className={cn("px-0.5 leading-none", fallbackAvatarLabel.length >= 4 ? "text-2xs" : "text-xs")}
           title={fullSymbol}
         >
           {fallbackAvatarLabel}

@@ -146,7 +146,7 @@ function AssetLogoDialogBody({
             />
             <Badge
               variant={hasCustom ? "default" : "secondary"}
-              className="h-5 px-1.5 text-[10px]"
+              className="text-2xs h-5 px-1.5"
               title={
                 override.ref
                   ? t("logo.updated_at", {
@@ -178,7 +178,7 @@ function AssetLogoDialogBody({
             </AssetLogoDropzone>
             <span
               className={cn(
-                "flex h-5 items-center text-[10px] font-medium uppercase tracking-wide",
+                "text-2xs flex h-5 items-center font-medium uppercase tracking-wide",
                 isReady ? "text-primary" : "text-muted-foreground",
               )}
             >

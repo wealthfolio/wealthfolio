@@ -137,7 +137,7 @@ const SearchResults = memo(
                   <div className="flex flex-col items-end">
                     <span className="text-muted-foreground text-xs">{exchangeDisplay}</span>
                     {ticker.currency && (
-                      <span className="text-muted-foreground text-[10px]">{ticker.currency}</span>
+                      <span className="text-muted-foreground text-2xs">{ticker.currency}</span>
                     )}
                   </div>
                   {isSelected && <Icons.Check className="size-4" />}

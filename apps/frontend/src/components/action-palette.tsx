@@ -134,7 +134,7 @@ export function ActionPalette({
                             isDestructive ? "text-destructive" : "text-muted-foreground",
                           )}
                         />
-                        <span className="text-[15px] font-medium">{item.label}</span>
+                        <span className="text-base font-medium">{item.label}</span>
                       </button>
                     </React.Fragment>
                   );
