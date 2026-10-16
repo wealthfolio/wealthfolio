@@ -1,10 +1,4 @@
-import {
-  CurrencyInput,
-  DatePickerInput,
-  MoneyInput,
-  QuantityInput,
-  useNumberFormatting,
-} from "@wealthfolio/ui";
+import { CurrencyInput, DatePickerInput, MoneyInput, QuantityInput } from "@wealthfolio/ui";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -38,7 +32,6 @@ import { getAssetIdFromSearchResult } from "@/lib/asset-utils";
 import { HoldingType } from "@/lib/constants";
 import { QueryKeys } from "@/lib/query-keys";
 import { Account, Holding, SymbolSearchResult } from "@/lib/types";
-import { cn } from "@/lib/utils";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 interface EditableHolding {
@@ -47,6 +40,10 @@ interface EditableHolding {
   name?: string;
   quantity: string;
   averageCost: string;
+  /** Total cost basis (shares × cost per share). */
+  totalCost: string;
+  /** How to reconcile the two cost fields when the share count changes. */
+  reconcileShares?: CostReconciler;
   currency: string;
   /** Exchange MIC code (e.g., "XNAS", "XTSE") for new holdings from search */
   exchangeMic?: string;
@@ -70,6 +67,45 @@ interface EditableCashBalance {
   amount: string;
 }
 
+type CostMath = (shares: number, value: number) => number;
+
+/** shares × cost-per-share = total cost. */
+const totalCostFrom: CostMath = (shares, averageCost) => shares * averageCost;
+
+/** total cost ÷ shares = cost-per-share. */
+const averageCostFrom: CostMath = (shares, totalCost) => totalCost / shares;
+
+/** 15 sig figs for state and persistence; inputs localize their own display. */
+const CANONICAL_DECIMAL = new Intl.NumberFormat("en-US", {
+  useGrouping: false,
+  maximumSignificantDigits: 15,
+});
+const formatCost = (value: number): string => CANONICAL_DECIMAL.format(value);
+
+/** Blank clears the linked field; without a share count it returns null (leave it). */
+const deriveCostText = (sharesText: string, text: string, derive: CostMath): string | null => {
+  if (text === "") return "";
+  const shares = parseFloat(sharesText);
+  const value = parseFloat(text);
+  if (!Number.isFinite(shares) || shares <= 0 || !Number.isFinite(value)) return null;
+  return formatCost(derive(shares, value));
+};
+
+/** Recomputes the cost field the user did not edit last, from the one held. */
+type CostReconciler = (holding: EditableHolding) => EditableHolding;
+
+/** Cost per share was edited last: keep it and re-derive the total. */
+const recomputeTotalCost: CostReconciler = (holding) => {
+  const totalCost = deriveCostText(holding.quantity, holding.averageCost, totalCostFrom);
+  return totalCost === null ? holding : { ...holding, totalCost };
+};
+
+/** Total cost was edited last: keep it and re-derive the cost per share. */
+const recomputeAverageCost: CostReconciler = (holding) => {
+  const averageCost = deriveCostText(holding.quantity, holding.totalCost, averageCostFrom);
+  return averageCost === null ? holding : { ...holding, averageCost };
+};
+
 interface HoldingsEditModeProps {
   holdings: Holding[];
   account: Account;
@@ -86,7 +122,6 @@ export const HoldingsEditMode = ({
   onClose,
   existingSnapshotDate,
 }: HoldingsEditModeProps) => {
-  const formatting = useNumberFormatting();
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [isSaving, setIsSaving] = useState(false);
@@ -125,9 +160,10 @@ export const HoldingsEditMode = ({
       .filter((h) => h.holdingType?.toLowerCase() !== HoldingType.CASH)
       .map((h) => {
         let averageCost = "";
+        let totalCost = "";
         if (h.costBasis?.local && h.quantity > 0) {
-          const avgCostValue = h.costBasis.local / h.quantity;
-          averageCost = avgCostValue.toFixed(8).replace(/\.?0+$/, "");
+          averageCost = formatCost(h.costBasis.local / h.quantity);
+          totalCost = formatCost(h.costBasis.local);
         }
         return {
           assetId: h.instrument?.id ?? h.id,
@@ -135,6 +171,7 @@ export const HoldingsEditMode = ({
           name: h.instrument?.name ?? undefined,
           quantity: String(h.quantity),
           averageCost,
+          totalCost,
           currency: h.localCurrency,
           exchangeMic: h.instrument?.exchangeMic ?? undefined,
           instrumentType: h.instrument?.instrumentType ?? undefined,
@@ -187,6 +224,7 @@ export const HoldingsEditMode = ({
       if (!original) return true;
       if (original.quantity !== holding.quantity) return true;
       if (original.averageCost !== holding.averageCost) return true;
+      if (original.totalCost !== holding.totalCost) return true;
     }
     if (cashBalances.length !== initialCashBalances.length) return true;
     for (const cash of cashBalances) {
@@ -200,16 +238,43 @@ export const HoldingsEditMode = ({
   const handleQuantityChange = useCallback((assetId: string, value: number | undefined) => {
     const quantity = value === undefined ? "" : String(value);
     setEditableHoldings((prev) =>
-      prev.map((h) => (h.assetId === assetId ? { ...h, quantity } : h)),
+      prev.map((h) =>
+        h.assetId === assetId ? (h.reconcileShares ?? recomputeTotalCost)({ ...h, quantity }) : h,
+      ),
     );
   }, []);
 
-  const handleAverageCostChange = useCallback((assetId: string, value: number | undefined) => {
-    const averageCost = value === undefined ? "" : String(value);
-    setEditableHoldings((prev) =>
-      prev.map((h) => (h.assetId === assetId ? { ...h, averageCost } : h)),
-    );
-  }, []);
+  const handleAverageCostChange = useCallback(
+    (assetId: string, value: number | undefined, isUserEdit?: boolean) => {
+      // Ignore echoed updates from the linked total-cost input.
+      if (!isUserEdit) return;
+      const averageCost = value === undefined ? "" : String(value);
+      setEditableHoldings((prev) =>
+        prev.map((h) =>
+          h.assetId === assetId
+            ? recomputeTotalCost({ ...h, averageCost, reconcileShares: recomputeTotalCost })
+            : h,
+        ),
+      );
+    },
+    [],
+  );
+
+  const handleTotalCostChange = useCallback(
+    (assetId: string, value: number | undefined, isUserEdit?: boolean) => {
+      // Ignore echoed updates from the linked average-cost input.
+      if (!isUserEdit) return;
+      const totalCost = value === undefined ? "" : String(value);
+      setEditableHoldings((prev) =>
+        prev.map((h) =>
+          h.assetId === assetId
+            ? recomputeAverageCost({ ...h, totalCost, reconcileShares: recomputeAverageCost })
+            : h,
+        ),
+      );
+    },
+    [],
+  );
 
   const handleCashAmountChange = useCallback((currency: string, value: number | undefined) => {
     const amount = value === undefined ? "" : String(value);
@@ -244,6 +309,7 @@ export const HoldingsEditMode = ({
         name: searchResult.longName || searchResult.shortName,
         quantity: "",
         averageCost: "",
+        totalCost: "",
         currency: searchResult.currency ?? account.currency,
         exchangeMic: canonicalExchangeMic,
         dataSource: searchResult.dataSource,
@@ -406,13 +472,6 @@ export const HoldingsEditMode = ({
     }
   }, [hasChanges, onClose]);
 
-  // Calculate total value for a holding
-  const getTotalValue = (holding: EditableHolding) => {
-    const qty = parseFloat(holding.quantity) || 0;
-    const cost = parseFloat(holding.averageCost) || 0;
-    return qty * cost;
-  };
-
   if (isLoading || (isEditingExistingSnapshot && isLoadingSnapshot)) {
     return (
       <div className="space-y-4 p-4">
@@ -463,7 +522,6 @@ export const HoldingsEditMode = ({
                   </div>
                 ) : (
                   editableHoldings.map((holding) => {
-                    const totalValue = getTotalValue(holding);
                     return (
                       <div
                         key={holding.assetId}
@@ -499,6 +557,7 @@ export const HoldingsEditMode = ({
                             value={holding.quantity}
                             onValueChange={(value) => handleQuantityChange(holding.assetId, value)}
                             placeholder="0"
+                            data-testid={`holding-shares-${holding.assetId}`}
                             className="h-8 text-sm"
                           />
                         </div>
@@ -507,26 +566,24 @@ export const HoldingsEditMode = ({
                         <div className="col-span-2">
                           <MoneyInput
                             value={holding.averageCost}
-                            onValueChange={(value) =>
-                              handleAverageCostChange(holding.assetId, value)
+                            onValueChange={(value, isUserEdit) =>
+                              handleAverageCostChange(holding.assetId, value, isUserEdit)
                             }
+                            data-testid={`holding-average-cost-${holding.assetId}`}
                             className="h-8 text-sm"
                           />
                         </div>
 
-                        {/* Total */}
-                        <div className="col-span-2 text-right">
-                          <span
-                            className={cn(
-                              "text-sm font-medium",
-                              totalValue > 0 ? "text-foreground" : "text-muted-foreground",
-                            )}
-                          >
-                            {formatting.formatDecimal(totalValue, {
-                              minimumFractionDigits: 2,
-                              maximumFractionDigits: 2,
-                            })}
-                          </span>
+                        {/* Total cost */}
+                        <div className="col-span-2">
+                          <MoneyInput
+                            value={holding.totalCost}
+                            onValueChange={(value, isUserEdit) =>
+                              handleTotalCostChange(holding.assetId, value, isUserEdit)
+                            }
+                            data-testid={`holding-total-cost-${holding.assetId}`}
+                            className="h-8 text-sm"
+                          />
                         </div>
 
                         {/* Delete */}
