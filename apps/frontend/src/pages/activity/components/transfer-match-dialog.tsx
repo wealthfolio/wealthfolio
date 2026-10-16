@@ -377,7 +377,7 @@ function CandidateButton({
         {candidate.reasons.length > 0 || candidate.warnings.length > 0 ? (
           <div className="space-y-1.5 px-3 pb-2.5">
             {candidate.reasons.length > 0 ? (
-              <div className="text-muted-foreground flex flex-wrap gap-1 text-[11px]">
+              <div className="text-muted-foreground text-2xs flex flex-wrap gap-1">
                 {candidate.reasons.map((reason) => (
                   <Badge key={reason} variant="secondary" className="rounded-sm px-1.5 py-0">
                     {reason}
@@ -386,7 +386,7 @@ function CandidateButton({
               </div>
             ) : null}
             {candidate.warnings.length > 0 ? (
-              <div className="flex items-start gap-1.5 text-[11px] text-amber-600">
+              <div className="text-2xs flex items-start gap-1.5 text-amber-600">
                 <Icons.AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
                 <span>{candidate.warnings.join(" ")}</span>
               </div>
@@ -966,7 +966,7 @@ export function TransferMatchDialog({
                       {advancedFilterCount > 0 ? (
                         <Badge
                           variant="secondary"
-                          className="ml-1.5 rounded-sm px-1.5 py-0 text-[10px]"
+                          className="text-2xs ml-1.5 rounded-sm px-1.5 py-0"
                         >
                           {advancedFilterCount}
                         </Badge>

@@ -37,7 +37,7 @@ export function ActivityDeleteModal({
           <AlertDialogTitle className="leading-tight max-sm:text-xl">
             {t("activity:delete_modal.title")}
           </AlertDialogTitle>
-          <AlertDialogDescription className="max-sm:text-[15px]">
+          <AlertDialogDescription className="max-sm:text-base">
             {linkedTransfer
               ? t("activity:delete_modal.linked_transfer_desc")
               : t("activity:delete_modal.description")}

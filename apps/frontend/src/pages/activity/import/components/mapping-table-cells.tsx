@@ -157,7 +157,7 @@ function ActivityTypeDisplayCell({
         >
           {displayValue}
         </span>
-        {showSubtype && <span className="text-muted-foreground ml-1 text-[10px]">{subtype}</span>}
+        {showSubtype && <span className="text-muted-foreground text-2xs ml-1">{subtype}</span>}
       </div>
       <span className="text-muted-foreground shrink-0">→</span>
       <div className="ml-auto">

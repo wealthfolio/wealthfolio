@@ -109,12 +109,12 @@ function NeedsFixingRow({
         <div className="flex min-w-0 flex-col">
           <div className="flex items-center gap-1.5">
             <span className="font-mono text-sm font-bold tracking-tight">{symbol}</span>
-            <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:bg-amber-500/15 dark:text-amber-300">
+            <span className="text-2xs rounded bg-amber-100 px-1.5 py-0.5 font-semibold text-amber-700 dark:bg-amber-500/15 dark:text-amber-300">
               {count}×
             </span>
           </div>
           {symbolName && (
-            <span className="text-muted-foreground truncate text-[11px]">{symbolName}</span>
+            <span className="text-muted-foreground text-2xs truncate">{symbolName}</span>
           )}
         </div>
         <Icons.ArrowRight className="ml-auto h-3.5 w-3.5 shrink-0 text-amber-400 dark:text-amber-500/70" />
@@ -138,7 +138,7 @@ function NeedsFixingRow({
           size="sm"
           variant="ghost"
           onClick={onMarkCustom}
-          className="text-muted-foreground h-7 gap-1 px-2 text-[11px] hover:text-amber-700 dark:hover:text-amber-400"
+          className="text-muted-foreground text-2xs h-7 gap-1 px-2 hover:text-amber-700 dark:hover:text-amber-400"
         >
           <Icons.Tag className="h-3 w-3 shrink-0" />
           <span className="hidden sm:inline">{t("activity:import.assets.markCustom")}</span>
@@ -148,7 +148,7 @@ function NeedsFixingRow({
           size="sm"
           variant="outline"
           onClick={onCreateAsset}
-          className="h-7 gap-1 border-amber-300 px-2.5 text-[11px] text-amber-700 hover:bg-amber-50 hover:text-amber-800 dark:border-amber-500/40 dark:text-amber-300 dark:hover:bg-amber-500/10"
+          className="text-2xs h-7 gap-1 border-amber-300 px-2.5 text-amber-700 hover:bg-amber-50 hover:text-amber-800 dark:border-amber-500/40 dark:text-amber-300 dark:hover:bg-amber-500/10"
         >
           <Icons.Plus className="h-3 w-3 shrink-0" />
           <span className="hidden sm:inline">{t("activity:import.assets.createManually")}</span>
@@ -157,7 +157,7 @@ function NeedsFixingRow({
 
       {/* Errors span all 3 columns */}
       {meaningfulErrors.length > 0 && (
-        <p className="col-span-3 flex items-start gap-1.5 text-[11px] text-red-600 dark:text-red-400">
+        <p className="text-2xs col-span-3 flex items-start gap-1.5 text-red-600 dark:text-red-400">
           <Icons.AlertCircle className="mt-0.5 h-3 w-3 shrink-0" />
           {meaningfulErrors.join(" ")}
         </p>
@@ -217,12 +217,12 @@ function AutoResolvedRow({
         <div className="flex min-w-0 flex-col">
           <div className="flex items-center gap-1.5">
             <span className="font-mono text-sm font-bold tracking-tight">{symbol}</span>
-            <span className="rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-semibold text-blue-700 dark:bg-blue-500/15 dark:text-blue-300">
+            <span className="text-2xs rounded bg-blue-100 px-1.5 py-0.5 font-semibold text-blue-700 dark:bg-blue-500/15 dark:text-blue-300">
               {count}×
             </span>
           </div>
           {assetName && (
-            <span className="text-muted-foreground truncate text-[11px]">{assetName}</span>
+            <span className="text-muted-foreground text-2xs truncate">{assetName}</span>
           )}
         </div>
       </div>
@@ -238,14 +238,14 @@ function AutoResolvedRow({
       ) : (
         <div className="flex min-w-0 flex-wrap items-center gap-1">
           {item.resolutionSource === "mark_custom" && (
-            <span className="inline-flex items-center gap-1 rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700 dark:border-amber-400/25 dark:bg-amber-400/10 dark:text-amber-300">
+            <span className="text-2xs inline-flex items-center gap-1 rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 font-semibold uppercase tracking-wide text-amber-700 dark:border-amber-400/25 dark:bg-amber-400/10 dark:text-amber-300">
               <Icons.Tag className="h-3 w-3 shrink-0" />
               {t("activity:import.assets.custom")}
             </span>
           )}
           {isSuspicious && (
             <span
-              className="inline-flex items-center gap-1 rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] text-amber-700 dark:border-amber-400/25 dark:bg-amber-400/10 dark:text-amber-300"
+              className="text-2xs inline-flex items-center gap-1 rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-amber-700 dark:border-amber-400/25 dark:bg-amber-400/10 dark:text-amber-300"
               title={t("activity:import.assets.currencyMismatch", {
                 csv: csvCurrency,
                 resolved: asset?.quoteCcy,
@@ -258,13 +258,13 @@ function AutoResolvedRow({
           {metaPills.map((pill) => (
             <span
               key={pill}
-              className="border-border bg-muted/50 text-muted-foreground rounded border px-1.5 py-0.5 text-[10px]"
+              className="border-border bg-muted/50 text-muted-foreground text-2xs rounded border px-1.5 py-0.5"
             >
               {pill}
             </span>
           ))}
           {metaPills.length === 0 && item.resolutionSource !== "mark_custom" && (
-            <span className="text-muted-foreground text-[11px] italic">
+            <span className="text-muted-foreground text-2xs italic">
               {t("activity:import.assets.noMetadataResolved")}
             </span>
           )}
@@ -276,7 +276,7 @@ function AutoResolvedRow({
         <Button
           size="sm"
           variant={isSearchOpen ? "secondary" : "ghost"}
-          className="h-7 gap-1 px-2 text-[11px]"
+          className="text-2xs h-7 gap-1 px-2"
           onClick={onToggleSearch}
         >
           <Icons.Search className="h-3 w-3" />
@@ -285,7 +285,7 @@ function AutoResolvedRow({
           </span>
         </Button>
         {!isSearchOpen && (
-          <Button size="sm" variant="ghost" className="h-7 gap-1 px-2 text-[11px]" onClick={onEdit}>
+          <Button size="sm" variant="ghost" className="text-2xs h-7 gap-1 px-2" onClick={onEdit}>
             <Icons.Pencil className="h-3 w-3" />
             <span className="hidden sm:inline">{t("activity:import.assets.edit")}</span>
           </Button>
@@ -345,14 +345,14 @@ function ReadyAssetRow({
             <span
               className={cn(
                 badgeVariants({ variant: "success-subtle" }),
-                "rounded px-1.5 text-[10px] font-semibold",
+                "text-2xs rounded px-1.5 font-semibold",
               )}
             >
               {count}×
             </span>
           </div>
           {assetName && (
-            <span className="text-muted-foreground truncate text-[11px]">{assetName}</span>
+            <span className="text-muted-foreground text-2xs truncate">{assetName}</span>
           )}
         </div>
       </div>
@@ -370,13 +370,13 @@ function ReadyAssetRow({
           {metaPills.map((pill) => (
             <span
               key={pill}
-              className="border-border bg-muted/50 text-muted-foreground rounded border px-1.5 py-0.5 text-[10px]"
+              className="border-border bg-muted/50 text-muted-foreground text-2xs rounded border px-1.5 py-0.5"
             >
               {pill}
             </span>
           ))}
           {metaPills.length === 0 && (
-            <span className="text-muted-foreground text-[11px] italic">
+            <span className="text-muted-foreground text-2xs italic">
               {t("activity:import.assets.noMetadata")}
             </span>
           )}
@@ -388,7 +388,7 @@ function ReadyAssetRow({
         <Button
           size="sm"
           variant={isSearchOpen ? "secondary" : "ghost"}
-          className="h-7 gap-1 px-2 text-[11px]"
+          className="text-2xs h-7 gap-1 px-2"
           onClick={onToggleSearch}
         >
           <Icons.Search className="h-3 w-3" />
@@ -397,7 +397,7 @@ function ReadyAssetRow({
           </span>
         </Button>
         {!isSearchOpen && (
-          <Button size="sm" variant="ghost" className="h-7 gap-1 px-2 text-[11px]" onClick={onEdit}>
+          <Button size="sm" variant="ghost" className="text-2xs h-7 gap-1 px-2" onClick={onEdit}>
             <Icons.Pencil className="h-3 w-3" />
             <span className="hidden sm:inline">{t("activity:import.assets.edit")}</span>
           </Button>
@@ -736,7 +736,7 @@ export function AssetReviewStep() {
                 <span className="text-xs font-semibold uppercase tracking-wider text-amber-800 dark:text-amber-300">
                   {t("activity:import.assets.needsFixing")}
                 </span>
-                <p className="text-muted-foreground mt-0.5 text-[11px]">
+                <p className="text-muted-foreground text-2xs mt-0.5">
                   {t("activity:import.assets.needsFixingDescription")}
                 </p>
               </div>
@@ -748,12 +748,12 @@ export function AssetReviewStep() {
                 size="sm"
                 variant="outline"
                 onClick={handleMarkAllCustom}
-                className="h-7 gap-1 border-amber-300 px-2.5 text-[11px] text-amber-700 hover:bg-amber-50 hover:text-amber-800 dark:border-amber-500/40 dark:text-amber-300 dark:hover:bg-amber-500/10"
+                className="text-2xs h-7 gap-1 border-amber-300 px-2.5 text-amber-700 hover:bg-amber-50 hover:text-amber-800 dark:border-amber-500/40 dark:text-amber-300 dark:hover:bg-amber-500/10"
               >
                 <Icons.Tag className="h-3 w-3 shrink-0" />
                 {t("activity:import.assets.markAllCustom")}
               </Button>
-              <span className="rounded-full bg-amber-200 px-2 py-0.5 text-[10px] font-bold text-amber-900 dark:bg-amber-500/20 dark:text-amber-200">
+              <span className="text-2xs rounded-full bg-amber-200 px-2 py-0.5 font-bold text-amber-900 dark:bg-amber-500/20 dark:text-amber-200">
                 {needsFixing.length}
               </span>
               <button type="button" onClick={() => toggleSection("needsFixing")}>
@@ -829,18 +829,18 @@ export function AssetReviewStep() {
                   <span className="text-xs font-semibold uppercase tracking-wider text-blue-800 dark:text-blue-300">
                     {t("activity:import.assets.newAssets")}
                   </span>
-                  <p className="text-muted-foreground mt-0.5 text-[11px]">
+                  <p className="text-muted-foreground text-2xs mt-0.5">
                     {t("activity:import.assets.newAssetsDescription")}
                   </p>
                 </div>
                 <div className="flex items-center gap-1.5">
                   {suspiciousCount > 0 && (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800 dark:bg-amber-500/20 dark:text-amber-300">
+                    <span className="text-2xs inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 font-bold text-amber-800 dark:bg-amber-500/20 dark:text-amber-300">
                       <Icons.AlertTriangle className="h-3 w-3" />
                       {suspiciousCount}
                     </span>
                   )}
-                  <span className="rounded-full bg-blue-200 px-2 py-0.5 text-[10px] font-bold text-blue-900 dark:bg-blue-500/20 dark:text-blue-200">
+                  <span className="text-2xs rounded-full bg-blue-200 px-2 py-0.5 font-bold text-blue-900 dark:bg-blue-500/20 dark:text-blue-200">
                     {autoResolvedItems.length}
                   </span>
                 </div>
@@ -917,12 +917,12 @@ export function AssetReviewStep() {
               <span className="text-success text-xs font-semibold uppercase tracking-wider">
                 {t("activity:import.assets.existingAssets")}
               </span>
-              <p className="text-muted-foreground mt-0.5 text-[11px]">
+              <p className="text-muted-foreground text-2xs mt-0.5">
                 {t("activity:import.assets.existingAssetsDescription")}
               </p>
             </div>
             <span
-              className={cn(badgeVariants({ variant: "success-subtle" }), "text-[10px] font-bold")}
+              className={cn(badgeVariants({ variant: "success-subtle" }), "text-2xs font-bold")}
             >
               {existingItems.length}
             </span>

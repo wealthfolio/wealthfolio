@@ -409,14 +409,14 @@ function TemplateSelector({
               <span
                 className={cn(
                   badgeVariants({ variant: "destructive-subtle" }),
-                  "py-px text-[10px] font-normal",
+                  "text-2xs py-px font-normal",
                 )}
               >
                 {t("activity:import.parseSettings.adjustToFix")}
               </span>
             )}
             {!settingsOpen && !hasConfigErrors && (
-              <span className="text-muted-foreground text-[11px]">{configSummary}</span>
+              <span className="text-muted-foreground text-2xs">{configSummary}</span>
             )}
           </div>
           <Icons.ChevronDown
@@ -877,7 +877,7 @@ export function UploadStep() {
         {/* Account */}
         <div className="flex flex-col gap-2">
           <div className="flex items-center gap-1.5">
-            <span className="text-muted-foreground font-mono text-[10px] tabular-nums">01</span>
+            <span className="text-muted-foreground text-2xs font-mono tabular-nums">01</span>
             <h2 className="text-sm font-semibold">{t("activity:import.upload.selectAccount")}</h2>
             <HelpTooltip content={t("activity:import.upload.selectAccountHelp")} />
           </div>
@@ -932,7 +932,7 @@ export function UploadStep() {
         {/* File upload */}
         <div className="flex flex-col gap-2">
           <div className="flex items-center gap-1.5">
-            <span className="text-muted-foreground font-mono text-[10px] tabular-nums">02</span>
+            <span className="text-muted-foreground text-2xs font-mono tabular-nums">02</span>
             <h2 className="text-sm font-semibold">{t("activity:import.upload.uploadCsv")}</h2>
             <HelpTooltip content={t("activity:import.upload.uploadCsvHelp")} />
           </div>
@@ -952,9 +952,9 @@ export function UploadStep() {
       {/* Select Format */}
       <div className="flex flex-col gap-2">
         <div className="flex items-center gap-1.5">
-          <span className="text-muted-foreground font-mono text-[10px] tabular-nums">03</span>
+          <span className="text-muted-foreground text-2xs font-mono tabular-nums">03</span>
           <h2 className="text-sm font-semibold">{t("activity:import.upload.selectFormat")}</h2>
-          <span className="text-muted-foreground rounded border px-1.5 py-px text-[10px] leading-none">
+          <span className="text-muted-foreground text-2xs rounded border px-1.5 py-px leading-none">
             {t("activity:import.upload.optional")}
           </span>
         </div>
