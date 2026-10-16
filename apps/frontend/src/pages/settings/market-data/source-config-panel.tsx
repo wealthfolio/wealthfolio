@@ -127,7 +127,7 @@ function PlaceholderChip({
       // inside the URL input is still readable when the click fires.
       onMouseDown={(e) => e.preventDefault()}
       onClick={() => onInsert(token)}
-      className="border-border bg-muted/50 hover:border-foreground/30 hover:bg-accent rounded border px-1.5 py-0.5 font-mono text-[11px] transition-colors"
+      className="border-border bg-muted/50 hover:border-foreground/30 hover:bg-accent text-2xs rounded border px-1.5 py-0.5 font-mono transition-colors"
     >
       {token}
     </button>
@@ -395,7 +395,7 @@ export function SourceConfigPanel({ form, prefix, runtime, onUrlChange }: Source
           }
           done={endpointConfigured}
           badge={
-            <span className="text-muted-foreground text-[10px] font-semibold uppercase tracking-wide">
+            <span className="text-muted-foreground text-2xs font-semibold uppercase tracking-wide">
               {t("settings:market_data_page.required")}
             </span>
           }
@@ -408,7 +408,7 @@ export function SourceConfigPanel({ form, prefix, runtime, onUrlChange }: Source
             name={`${prefix}.format`}
             render={({ field }) => (
               <FormItem>
-                <FormLabel className="text-muted-foreground text-[11px] font-medium uppercase tracking-wide">
+                <FormLabel className="text-muted-foreground text-2xs font-medium uppercase tracking-wide">
                   {t("settings:market_data_page.source_type")}
                 </FormLabel>
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -434,7 +434,7 @@ export function SourceConfigPanel({ form, prefix, runtime, onUrlChange }: Source
                           {Icon && <Icon className="text-muted-foreground h-3.5 w-3.5" />}
                           <span className="text-sm font-medium">{t(opt.labelKey)}</span>
                         </span>
-                        <span className="text-muted-foreground text-[11px]">{t(opt.descKey)}</span>
+                        <span className="text-muted-foreground text-2xs">{t(opt.descKey)}</span>
                       </button>
                     );
                   })}
@@ -447,7 +447,7 @@ export function SourceConfigPanel({ form, prefix, runtime, onUrlChange }: Source
           {/* Quick start templates */}
           {templates.length > 0 && (
             <div>
-              <Label className="text-muted-foreground text-[11px] font-medium uppercase tracking-wide">
+              <Label className="text-muted-foreground text-2xs font-medium uppercase tracking-wide">
                 {t("settings:market_data_page.quick_start")}
               </Label>
               <div className="mt-2 grid gap-2 sm:grid-cols-2">
@@ -476,10 +476,10 @@ export function SourceConfigPanel({ form, prefix, runtime, onUrlChange }: Source
             render={({ field }) => (
               <FormItem>
                 <div className="flex items-center justify-between">
-                  <FormLabel className="text-muted-foreground text-[11px] font-medium uppercase tracking-wide">
+                  <FormLabel className="text-muted-foreground text-2xs font-medium uppercase tracking-wide">
                     {t("settings:market_data_page.url_template")}
                   </FormLabel>
-                  <span className="text-muted-foreground text-[11px]">
+                  <span className="text-muted-foreground text-2xs">
                     {t("settings:market_data_page.url_template_hint")}
                   </span>
                 </div>
@@ -501,7 +501,7 @@ export function SourceConfigPanel({ form, prefix, runtime, onUrlChange }: Source
                     }}
                   />
                 </FormControl>
-                <div className="text-muted-foreground mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px]">
+                <div className="text-muted-foreground text-2xs mt-1.5 flex flex-wrap items-center gap-1.5">
                   <span className="mr-1">{t("settings:market_data_page.placeholders")}</span>
                   {PLACEHOLDERS.map((p) => (
                     <PlaceholderChip key={p} token={p} onInsert={insertPlaceholder} />
@@ -520,7 +520,7 @@ export function SourceConfigPanel({ form, prefix, runtime, onUrlChange }: Source
                 name={`${prefix}.method`}
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-muted-foreground text-[11px] font-medium uppercase tracking-wide">
+                    <FormLabel className="text-muted-foreground text-2xs font-medium uppercase tracking-wide">
                       {t("settings:market_data_page.http_method")}
                     </FormLabel>
                     <FormControl>
@@ -548,7 +548,7 @@ export function SourceConfigPanel({ form, prefix, runtime, onUrlChange }: Source
                   name={`${prefix}.body`}
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-muted-foreground text-[11px] font-medium uppercase tracking-wide">
+                      <FormLabel className="text-muted-foreground text-2xs font-medium uppercase tracking-wide">
                         {t("settings:market_data_page.request_body_json")}
                       </FormLabel>
                       <FormControl>
@@ -559,7 +559,7 @@ export function SourceConfigPanel({ form, prefix, runtime, onUrlChange }: Source
                           {...field}
                         />
                       </FormControl>
-                      <p className="text-muted-foreground text-[11px]">
+                      <p className="text-muted-foreground text-2xs">
                         {t("settings:market_data_page.body_template_hint")}
                       </p>
                       <FormMessage />
@@ -577,7 +577,7 @@ export function SourceConfigPanel({ form, prefix, runtime, onUrlChange }: Source
               name={`${prefix}.pricePath`}
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="text-muted-foreground text-[11px] font-medium uppercase tracking-wide">
+                  <FormLabel className="text-muted-foreground text-2xs font-medium uppercase tracking-wide">
                     {t("settings:market_data_page.css_selector")}
                   </FormLabel>
                   <FormControl>
@@ -587,7 +587,7 @@ export function SourceConfigPanel({ form, prefix, runtime, onUrlChange }: Source
                       {...field}
                     />
                   </FormControl>
-                  <p className="text-muted-foreground text-[11px]">
+                  <p className="text-muted-foreground text-2xs">
                     {t("settings:market_data_page.css_selector_help")}
                   </p>
                   <FormMessage />
@@ -624,7 +624,7 @@ export function SourceConfigPanel({ form, prefix, runtime, onUrlChange }: Source
                         {...field}
                       />
                     </FormControl>
-                    <p className="text-muted-foreground text-[11px]">
+                    <p className="text-muted-foreground text-2xs">
                       {t("settings:market_data_page.headers_secret_help")}
                     </p>
                     <FormMessage />
@@ -643,7 +643,7 @@ export function SourceConfigPanel({ form, prefix, runtime, onUrlChange }: Source
           title={t("settings:market_data_page.map_response_fields")}
           done={mappingDone}
           badge={
-            <span className="text-muted-foreground text-[10px] font-semibold uppercase tracking-wide">
+            <span className="text-muted-foreground text-2xs font-semibold uppercase tracking-wide">
               {mapHint}
             </span>
           }
@@ -945,7 +945,7 @@ export function SourceConfigPanel({ form, prefix, runtime, onUrlChange }: Source
                         }
                       />
                     </FormControl>
-                    <p className="text-muted-foreground text-[11px]">
+                    <p className="text-muted-foreground text-2xs">
                       {t("settings:market_data_page.default_price_help")}
                     </p>
                     <FormMessage />

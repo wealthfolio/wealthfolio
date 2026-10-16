@@ -729,7 +729,7 @@ export function AccountForm({ defaultValues, onSuccess = () => undefined }: Acco
               <p className="mb-2 text-xs font-medium text-orange-600 dark:text-orange-200">
                 {t("settings:accounts.mode_switch_checklist_title")}
               </p>
-              <ul className="space-y-2 text-[13px]">
+              <ul className="space-y-2 text-sm">
                 <li className="flex items-start gap-2">
                   <Icons.Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-orange-500 dark:text-orange-300" />
                   <span className="text-orange-500 dark:text-orange-200">

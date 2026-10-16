@@ -19,17 +19,7 @@
     "apps/frontend/src/pages/insights/overview/value-strip.tsx": 2,
     "apps/frontend/src/pages/layouts/navigation/app-sidebar.tsx": 1,
     "apps/frontend/src/pages/not-found.tsx": 1,
-    "apps/frontend/src/pages/onboarding/onboarding-appearance.tsx": 2,
-    "apps/frontend/src/pages/settings/accounts/components/account-form.tsx": 1,
-    "apps/frontend/src/pages/settings/agent-access/components/mcp-server-card.tsx": 2,
-    "apps/frontend/src/pages/settings/agent-access/components/pat-create-dialog.tsx": 1,
-    "apps/frontend/src/pages/settings/exports/cloud-backup-card.tsx": 1,
-    "apps/frontend/src/pages/settings/market-data/custom-provider-form.tsx": 5,
-    "apps/frontend/src/pages/settings/market-data/custom-provider-usage-chips.tsx": 2,
-    "apps/frontend/src/pages/settings/market-data/live-preview-pane.tsx": 20,
-    "apps/frontend/src/pages/settings/market-data/market-data-settings.tsx": 12,
-    "apps/frontend/src/pages/settings/market-data/response-preview.tsx": 3,
-    "apps/frontend/src/pages/settings/market-data/source-config-panel.tsx": 16
+    "apps/frontend/src/pages/onboarding/onboarding-appearance.tsx": 2
   },
   "rawColors": {
     "apps/frontend/src/components/account-selector.tsx": 4,

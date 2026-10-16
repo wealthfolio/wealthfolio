@@ -198,7 +198,7 @@ function ProviderSettings({
             <div className="flex items-center gap-2">
               <span className="font-medium">{provider.name}</span>
               {provider.capabilities?.coverage && (
-                <Badge variant="secondary" className="h-5 px-1.5 text-[10px] font-normal">
+                <Badge variant="secondary" className="text-2xs h-5 px-1.5 font-normal">
                   {provider.capabilities.coverage}
                 </Badge>
               )}
@@ -209,7 +209,7 @@ function ProviderSettings({
                 </Badge>
               )}
               {provider.assetCount > 0 && (
-                <Badge variant="secondary" className="h-5 px-1.5 text-[10px] font-normal">
+                <Badge variant="secondary" className="text-2xs h-5 px-1.5 font-normal">
                   {t("settings:market_data_page.assets_count", { count: provider.assetCount })}
                 </Badge>
               )}
@@ -272,7 +272,7 @@ function ProviderSettings({
                   return (
                     <span
                       key={feature}
-                      className="text-muted-foreground inline-flex items-center gap-1 text-[11px]"
+                      className="text-muted-foreground text-2xs inline-flex items-center gap-1"
                     >
                       {icon}
                       {label}
@@ -353,7 +353,7 @@ function ProviderSettings({
                             <Badge
                               key={feature}
                               variant="secondary"
-                              className="h-5 px-1.5 text-[10px] font-normal"
+                              className="text-2xs h-5 px-1.5 font-normal"
                             >
                               {feature}
                             </Badge>
@@ -479,7 +479,7 @@ function ProviderSettings({
                         <Icons.PlusCircle className="h-3 w-3" />
                       </Button>
                     </div>
-                    <span className="text-muted-foreground text-[10px]">
+                    <span className="text-muted-foreground text-2xs">
                       {t("settings:market_data_page.priority_hint")}
                     </span>
                   </div>
@@ -577,14 +577,14 @@ function CustomProviderCard({
           <div className="flex items-center gap-2">
             <span className="font-medium">{provider.name}</span>
             {!provider.enabled && (
-              <Badge variant="outline" className="h-5 px-1.5 text-[10px] font-normal">
+              <Badge variant="outline" className="text-2xs h-5 px-1.5 font-normal">
                 {t("settings:market_data_page.disabled")}
               </Badge>
             )}
             {servesAsFallback(provider) && (
               <Badge
                 variant="outline"
-                className="border-warning/40 text-warning h-5 px-1.5 text-[10px] font-normal"
+                className="border-warning/40 text-warning text-2xs h-5 px-1.5 font-normal"
                 title={t("settings:market_data_page.fallback_badge_hint")}
               >
                 {t("settings:market_data_page.fallback_badge")}
@@ -596,19 +596,19 @@ function CustomProviderCard({
           )}
           <div className="mt-1 flex flex-wrap items-center gap-2">
             {latestSource && (
-              <span className="text-muted-foreground inline-flex items-center gap-1 text-[11px]">
+              <span className="text-muted-foreground text-2xs inline-flex items-center gap-1">
                 <Icons.Activity2 className="h-3 w-3" />
                 {latestSource.format.toUpperCase()}
               </span>
             )}
             {historicalSource && (
-              <span className="text-muted-foreground inline-flex items-center gap-1 text-[11px]">
+              <span className="text-muted-foreground text-2xs inline-flex items-center gap-1">
                 <Icons.Clock className="h-3 w-3" />
                 {t("settings:market_data_page.historical")}
               </span>
             )}
             {usedBy > 0 && (
-              <span className="text-muted-foreground text-[11px]">
+              <span className="text-muted-foreground text-2xs">
                 {t("settings:market_data_page.custom_used_by", { count: usedBy })}
               </span>
             )}
@@ -1033,7 +1033,7 @@ export default function MarketDataSettingsPage() {
             <TabsTrigger value="builtin">
               {t("settings:market_data_page.tab_builtin")}
               {builtinProviders.filter((p) => p.enabled).length > 0 && (
-                <Badge variant="secondary" className="ml-1.5 h-5 px-1.5 text-[10px] font-normal">
+                <Badge variant="secondary" className="text-2xs ml-1.5 h-5 px-1.5 font-normal">
                   {builtinProviders.filter((p) => p.enabled).length}
                 </Badge>
               )}
@@ -1041,7 +1041,7 @@ export default function MarketDataSettingsPage() {
             <TabsTrigger value="custom">
               {t("settings:market_data_page.tab_custom")}
               {customProviders.filter((p) => p.enabled).length > 0 && (
-                <Badge variant="secondary" className="ml-1.5 h-5 px-1.5 text-[10px] font-normal">
+                <Badge variant="secondary" className="text-2xs ml-1.5 h-5 px-1.5 font-normal">
                   {customProviders.filter((p) => p.enabled).length}
                 </Badge>
               )}

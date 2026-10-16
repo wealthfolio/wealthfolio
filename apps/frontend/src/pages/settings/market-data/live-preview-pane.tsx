@@ -131,7 +131,7 @@ function PreviewUrl({
           <span
             key={i}
             className={cn(
-              "mx-0.5 inline-flex items-center rounded border px-1 py-0.5 font-mono text-[11px]",
+              "text-2xs mx-0.5 inline-flex items-center rounded border px-1 py-0.5 font-mono",
               seg.value
                 ? "border-primary/30 bg-primary/10 text-primary"
                 : "border-muted-foreground/40 bg-muted text-muted-foreground border-dashed",
@@ -195,7 +195,7 @@ function EmptyResponseState() {
       <div className="space-y-1">
         <p className="text-muted-foreground text-sm">
           {t("settings:market_data_page.empty_response_before")}
-          <span className="bg-muted rounded px-1.5 py-0.5 font-mono text-[11px]">
+          <span className="bg-muted text-2xs rounded px-1.5 py-0.5 font-mono">
             {t("settings:market_data_page.fetch")}
           </span>
           {t("settings:market_data_page.empty_response_after")}
@@ -266,7 +266,7 @@ function HtmlTableResponse({
     <div className="space-y-3">
       {/* Table selector — shown always when html_table, as a legend + switcher */}
       <div className="flex flex-wrap items-center gap-1">
-        <span className="text-muted-foreground mr-1 text-[11px] font-medium uppercase tracking-wide">
+        <span className="text-muted-foreground text-2xs mr-1 font-medium uppercase tracking-wide">
           {t("settings:market_data_page.table")}
         </span>
         {tables.map((tbl, i) => (
@@ -318,7 +318,7 @@ function HtmlTableResponse({
                     {col.role && (
                       <span
                         className={cn(
-                          "rounded px-1.5 py-0.5 text-[10px] font-medium",
+                          "text-2xs rounded px-1.5 py-0.5 font-medium",
                           ROLE_COLOR[col.role] ?? "bg-muted text-muted-foreground",
                         )}
                       >
@@ -334,7 +334,7 @@ function HtmlTableResponse({
             {table.sampleRows.slice(0, 8).map((row, ri) => (
               <tr key={ri} className="border-t">
                 {row.map((cell, ci) => (
-                  <td key={ci} className="text-muted-foreground px-3 py-1.5 font-mono text-[11px]">
+                  <td key={ci} className="text-muted-foreground text-2xs px-3 py-1.5 font-mono">
                     {cell}
                   </td>
                 ))}
@@ -394,7 +394,7 @@ function CsvResponse({ raw, runtime }: { raw: string; runtime: SourceRuntime }) 
             {rows.slice(0, 8).map((row, ri) => (
               <tr key={ri} className="border-t">
                 {headers.map((h) => (
-                  <td key={h} className="text-muted-foreground px-3 py-1.5 font-mono text-[11px]">
+                  <td key={h} className="text-muted-foreground text-2xs px-3 py-1.5 font-mono">
                     {row[h]}
                   </td>
                 ))}
@@ -473,12 +473,12 @@ function HtmlElementsResponse({ runtime }: { runtime: SourceRuntime }) {
             className="bg-background hover:bg-muted/30 group flex w-full items-start gap-3 rounded-lg border p-3 text-left transition-all"
           >
             <div className="min-w-0 flex-1 space-y-1">
-              <code className="bg-muted/60 inline-block max-w-full truncate rounded px-1.5 py-0.5 font-mono text-[11px]">
+              <code className="bg-muted/60 text-2xs inline-block max-w-full truncate rounded px-1.5 py-0.5 font-mono">
                 {el.selector}
               </code>
-              {el.label && <p className="text-muted-foreground text-[11px]">{el.label}</p>}
+              {el.label && <p className="text-muted-foreground text-2xs">{el.label}</p>}
               {el.htmlContext && (
-                <pre className="bg-muted/40 text-muted-foreground/80 mt-1.5 overflow-x-auto rounded p-2 font-mono text-[10px] leading-relaxed">
+                <pre className="bg-muted/40 text-muted-foreground/80 text-2xs mt-1.5 overflow-x-auto rounded p-2 font-mono leading-relaxed">
                   {el.htmlContext}
                 </pre>
               )}
@@ -581,7 +581,7 @@ function TestField({
 }) {
   return (
     <div className={cn("space-y-1", className)}>
-      <Label className="text-muted-foreground text-[11px] font-medium uppercase tracking-wide">
+      <Label className="text-muted-foreground text-2xs font-medium uppercase tracking-wide">
         {label}
       </Label>
       {children}
@@ -639,14 +639,14 @@ function FieldMappingRow({
       {required ? (
         <span
           className={cn(
-            "shrink-0 text-[10px] font-medium uppercase tracking-wide",
+            "text-2xs shrink-0 font-medium uppercase tracking-wide",
             assigned ? "text-muted-foreground" : "text-destructive",
           )}
         >
           {t("settings:market_data_page.required")}
         </span>
       ) : (
-        <span className="text-muted-foreground shrink-0 text-[10px] font-medium uppercase tracking-wide">
+        <span className="text-muted-foreground text-2xs shrink-0 font-medium uppercase tracking-wide">
           {t("settings:market_data_page.optional")}
         </span>
       )}
@@ -723,10 +723,10 @@ export function LivePreviewPane({ form, prefix, runtime }: LivePreviewPaneProps)
       {/* Request URL preview */}
       <section className="space-y-2">
         <div className="flex items-center justify-between">
-          <Label className="text-muted-foreground text-[11px] font-medium uppercase tracking-wide">
+          <Label className="text-muted-foreground text-2xs font-medium uppercase tracking-wide">
             {t("settings:market_data_page.request_url_preview")}
           </Label>
-          <span className="text-muted-foreground text-[11px]">
+          <span className="text-muted-foreground text-2xs">
             {form.watch(`${prefix}.method`) === "POST" ? "POST" : "GET"}
             &nbsp;·&nbsp;
             {isHistorical
@@ -743,7 +743,7 @@ export function LivePreviewPane({ form, prefix, runtime }: LivePreviewPaneProps)
       {/* Request body preview (POST only) */}
       {method === "POST" && (
         <section className="space-y-2">
-          <Label className="text-muted-foreground text-[11px] font-medium uppercase tracking-wide">
+          <Label className="text-muted-foreground text-2xs font-medium uppercase tracking-wide">
             {t("settings:market_data_page.request_body_preview")}
           </Label>
           <div className="bg-background relative min-h-[40px] rounded-lg border px-3 py-2 pr-10">
@@ -836,11 +836,11 @@ export function LivePreviewPane({ form, prefix, runtime }: LivePreviewPaneProps)
       {/* Response */}
       <section className="space-y-2">
         <div className="flex items-center justify-between">
-          <Label className="text-muted-foreground text-[11px] font-medium uppercase tracking-wide">
+          <Label className="text-muted-foreground text-2xs font-medium uppercase tracking-wide">
             {t("settings:market_data_page.response")} · {formatLabel}
           </Label>
           {runtime.detectedTables[0] && (
-            <span className="text-muted-foreground text-[11px]">
+            <span className="text-muted-foreground text-2xs">
               {t("settings:market_data_page.table_rows_cols", {
                 rows: runtime.detectedTables[0].rowCount,
                 cols: runtime.detectedTables[0].columns.length,
@@ -889,7 +889,7 @@ export function LivePreviewPane({ form, prefix, runtime }: LivePreviewPaneProps)
       {/* Extraction preview — verifies the current mapping against the response */}
       {runtime.testResult && (
         <section className="space-y-2">
-          <Label className="text-muted-foreground text-[11px] font-medium uppercase tracking-wide">
+          <Label className="text-muted-foreground text-2xs font-medium uppercase tracking-wide">
             {t("settings:market_data_page.extracted")}
           </Label>
           {runtime.testResult.success ? (
@@ -999,12 +999,12 @@ export function LivePreviewPane({ form, prefix, runtime }: LivePreviewPaneProps)
       {/* Field mapping */}
       <section className="space-y-2">
         <div className="flex items-center justify-between">
-          <Label className="text-muted-foreground text-[11px] font-medium uppercase tracking-wide">
+          <Label className="text-muted-foreground text-2xs font-medium uppercase tracking-wide">
             {isHistorical
               ? t("settings:market_data_page.field_mapping_historical")
               : t("settings:market_data_page.field_mapping_latest")}
           </Label>
-          <span className="text-muted-foreground text-[11px]">
+          <span className="text-muted-foreground text-2xs">
             {t("settings:market_data_page.field_mapping_hint")}
           </span>
         </div>

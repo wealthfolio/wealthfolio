@@ -84,7 +84,7 @@ function ProtectionStatus({ data }: { data: CloudBackupStatus }) {
   return (
     <Badge
       variant={state === "on" ? "success-subtle" : "outline"}
-      className={`shrink-0 gap-1.5 border-0 px-2 py-0.5 text-[11px] font-medium ${state === "on" ? "" : "bg-muted/60 text-muted-foreground"}`}
+      className={`text-2xs shrink-0 gap-1.5 border-0 px-2 py-0.5 font-medium ${state === "on" ? "" : "bg-muted/60 text-muted-foreground"}`}
     >
       <span
         aria-hidden

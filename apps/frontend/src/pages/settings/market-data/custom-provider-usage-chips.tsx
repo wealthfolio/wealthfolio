@@ -44,7 +44,7 @@ export function CustomProviderUsageChips({
             <Badge
               key={asset.id}
               variant="secondary"
-              className="h-5 px-1.5 font-mono text-[11px] font-normal"
+              className="text-2xs h-5 px-1.5 font-mono font-normal"
               title={asset.name ?? text}
               render={linkable ? <Link to={assetHref(asset)} /> : undefined}
             >
@@ -56,7 +56,7 @@ export function CustomProviderUsageChips({
           <button
             type="button"
             onClick={() => setExpanded(true)}
-            className="text-muted-foreground hover:text-foreground text-[11px] underline-offset-2 hover:underline"
+            className="text-muted-foreground hover:text-foreground text-2xs underline-offset-2 hover:underline"
           >
             {t("settings:market_data_page.usage_more", { count: hidden })}
           </button>
