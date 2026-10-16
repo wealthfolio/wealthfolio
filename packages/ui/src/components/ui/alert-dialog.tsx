@@ -26,7 +26,8 @@ function AlertDialogOverlay({ className, ...props }: AlertDialogOverlayProps) {
     <AlertDialogPrimitive.Backdrop
       data-slot="alert-dialog-overlay"
       className={cn(
-        "data-open:animate-in data-closed:animate-out data-closed:fade-out-0 data-open:fade-in-0 fixed inset-0 z-50 bg-black/80",
+        // The popup's duration: Base UI removes both when the popup's animation ends.
+        "data-open:animate-in data-closed:animate-out data-closed:fade-out-0 data-open:fade-in-0 fixed inset-0 z-50 bg-black/80 duration-200",
         className,
       )}
       {...props}
