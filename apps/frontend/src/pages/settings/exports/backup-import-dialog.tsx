@@ -212,7 +212,7 @@ export function BackupImportDialog({
               initial={reduceMotion ? false : { scale: 0.6, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               transition={{ type: "spring", stiffness: 200, damping: 15 }}
-              className="bg-success/10 text-success flex size-20 items-center justify-center rounded-full"
+              className="text-success-subtle-foreground bg-current/15 flex size-20 items-center justify-center rounded-full"
             >
               <Icons.CheckCircle className="size-10" aria-hidden />
             </motion.div>

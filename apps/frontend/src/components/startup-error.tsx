@@ -13,8 +13,8 @@ export function StartupError({ error, isRetrying = false, onRetry }: StartupErro
   return (
     <div className="bg-background text-foreground flex min-h-screen items-center justify-center p-6 supports-[min-height:100dvh]:min-h-dvh">
       <div className="flex w-full max-w-md flex-col items-center text-center">
-        <div className="bg-destructive/10 mb-6 flex h-16 w-16 items-center justify-center rounded-full">
-          <Icons.AlertTriangle className="text-destructive h-8 w-8" strokeWidth={1.5} />
+        <div className="text-destructive-subtle-foreground bg-current/15 mb-6 flex h-16 w-16 items-center justify-center rounded-full">
+          <Icons.AlertTriangle className="h-8 w-8" strokeWidth={1.5} />
         </div>
 
         <div className="mb-6 space-y-2">

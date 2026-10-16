@@ -165,7 +165,7 @@ function StatusPill({
   }
   if (error || status?.ok === false) {
     return (
-      <span className="text-destructive border-destructive/40 bg-destructive/10 inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 py-1 text-xs">
+      <span className="text-destructive-subtle-foreground bg-destructive-subtle inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-transparent px-3 py-1 text-xs">
         <span className="bg-destructive h-1.5 w-1.5 rounded-full" />
         {t("settings:market_data_page.status_error")}
       </span>
@@ -173,7 +173,7 @@ function StatusPill({
   }
   if (status?.ok) {
     return (
-      <span className="text-success border-success/40 bg-success/10 inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 py-1 text-xs">
+      <span className="text-success-subtle-foreground bg-success-subtle inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-transparent px-3 py-1 text-xs">
         <span className="bg-success h-1.5 w-1.5 rounded-full" />
         {t("settings:market_data_page.status_ok", { code: status.code })}
       </span>

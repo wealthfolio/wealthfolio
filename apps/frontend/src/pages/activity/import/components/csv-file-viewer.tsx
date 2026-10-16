@@ -88,7 +88,7 @@ export function CSVFileViewer({ data, className, maxHeight = "400px" }: CSVFileV
 
         return isValid ? (
           <div className="flex w-[60px] items-center gap-1 text-xs">
-            <div className="bg-success/20 text-success flex h-5 w-5 items-center justify-center rounded-full">
+            <div className="text-success-subtle-foreground bg-current/15 flex h-5 w-5 items-center justify-center rounded-full">
               <Icons.CheckCircle className="h-3.5 w-3.5" />
             </div>
             <span className="text-muted-foreground text-xs">
@@ -102,7 +102,7 @@ export function CSVFileViewer({ data, className, maxHeight = "400px" }: CSVFileV
                 delay={30}
                 render={<div className="flex w-[60px] cursor-help items-center gap-1 text-xs" />}
               >
-                <div className="bg-destructive/20 text-destructive flex h-5 w-5 items-center justify-center rounded-full">
+                <div className="text-destructive-subtle-foreground bg-current/15 flex h-5 w-5 items-center justify-center rounded-full">
                   <Icons.XCircle className="h-3.5 w-3.5" />
                 </div>
                 <span className="text-muted-foreground text-xs">

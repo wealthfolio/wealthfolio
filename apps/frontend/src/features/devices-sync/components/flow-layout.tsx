@@ -16,17 +16,17 @@ export type FlowTone = "primary" | "success" | "error" | "warning" | "neutral";
 
 const TONE_CLASS: Record<FlowTone, string> = {
   primary: "bg-primary/10 text-primary",
-  success: "bg-success/10 text-success",
-  error: "bg-destructive/10 text-destructive",
-  warning: "bg-warning/10 text-warning",
+  success: "text-success-subtle-foreground bg-current/15",
+  error: "text-destructive-subtle-foreground bg-current/15",
+  warning: "text-warning-subtle-foreground bg-current/15",
   neutral: "bg-muted text-muted-foreground",
 };
 
 const HALO_CLASS: Record<FlowTone, string> = {
   primary: "bg-primary/10",
-  success: "bg-success/10",
-  error: "bg-destructive/10",
-  warning: "bg-warning/10",
+  success: "text-success-subtle-foreground bg-current/15",
+  error: "text-destructive-subtle-foreground bg-current/15",
+  warning: "text-warning-subtle-foreground bg-current/15",
   neutral: "bg-muted",
 };
 

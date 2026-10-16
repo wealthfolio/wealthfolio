@@ -37,8 +37,8 @@ function ErrorFallback({ error, variant, onGoHome }: Omit<Props, "children"> & {
     <FallbackFrame variant={variant}>
       <div className="flex w-full max-w-md flex-col items-center">
         {/* Icon with subtle background */}
-        <div className="bg-destructive/10 mb-6 flex h-20 w-20 items-center justify-center rounded-full">
-          <Icons.AlertTriangle className="text-destructive h-10 w-10" strokeWidth={1.5} />
+        <div className="text-destructive-subtle-foreground bg-current/15 mb-6 flex h-20 w-20 items-center justify-center rounded-full">
+          <Icons.AlertTriangle className="h-10 w-10" strokeWidth={1.5} />
         </div>
 
         {/* Content */}

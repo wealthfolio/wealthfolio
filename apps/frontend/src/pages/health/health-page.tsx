@@ -254,8 +254,8 @@ function HealthyState() {
   const { t } = useTranslation();
   return (
     <div className="flex flex-col items-center justify-center py-20">
-      <div className="bg-success/10 mb-6 flex h-16 w-16 items-center justify-center rounded-full">
-        <Icons.CheckCircle className="text-success h-8 w-8" />
+      <div className="text-success-subtle-foreground bg-current/15 mb-6 flex h-16 w-16 items-center justify-center rounded-full">
+        <Icons.CheckCircle className="h-8 w-8" />
       </div>
       <h2 className="mb-2 text-lg font-semibold">{t("health:healthy.title")}</h2>
       <p className="text-muted-foreground max-w-sm text-center text-sm">
@@ -313,8 +313,8 @@ export default function HealthPage() {
         />
         <PageContent className="pt-4">
           <div className="flex min-h-[300px] flex-col items-center justify-center">
-            <div className="bg-destructive/10 mb-4 flex h-12 w-12 items-center justify-center rounded-full">
-              <Icons.AlertCircle className="text-destructive h-6 w-6" />
+            <div className="text-destructive-subtle-foreground bg-current/15 mb-4 flex h-12 w-12 items-center justify-center rounded-full">
+              <Icons.AlertCircle className="h-6 w-6" />
             </div>
             <h2 className="mb-1 text-base font-medium">{t("health:loadError.title")}</h2>
             <p className="text-muted-foreground mb-4 text-sm">{error.message}</p>

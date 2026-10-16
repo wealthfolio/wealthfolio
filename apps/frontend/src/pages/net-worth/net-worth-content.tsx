@@ -205,8 +205,8 @@ export function NetWorthContent() {
     return (
       <div className="flex min-h-[50vh] items-center justify-center p-8">
         <div className="text-center">
-          <div className="bg-destructive/10 mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full">
-            <Icons.AlertTriangle className="text-destructive h-6 w-6" />
+          <div className="text-destructive-subtle-foreground bg-current/15 mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full">
+            <Icons.AlertTriangle className="h-6 w-6" />
           </div>
           <p className="text-destructive text-lg font-medium">
             {t("insights:networth.failed_to_load")}
@@ -237,10 +237,10 @@ export function NetWorthContent() {
                   <Tooltip>
                     <TooltipTrigger
                       render={
-                        <div className="bg-warning/10 flex h-8 w-8 items-center justify-center rounded-full" />
+                        <div className="text-warning-subtle-foreground bg-current/15 flex h-8 w-8 items-center justify-center rounded-full" />
                       }
                     >
-                      <Icons.AlertCircle className="text-warning h-4 w-4" />
+                      <Icons.AlertCircle className="h-4 w-4" />
                     </TooltipTrigger>
                     <TooltipContent side="bottom" className="max-w-[280px]">
                       <p className="mb-2 text-xs font-medium">

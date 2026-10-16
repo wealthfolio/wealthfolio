@@ -100,8 +100,8 @@ const NetWorthWidgetError = ({ error, compact = false }: { error: Error; compact
   return (
     <Card className={cn("p-4", compact && "p-3")}>
       <div className="flex items-start gap-3">
-        <div className="bg-destructive/10 flex h-8 w-8 shrink-0 items-center justify-center rounded-full">
-          <Icons.AlertTriangle className="text-destructive h-4 w-4" />
+        <div className="text-destructive-subtle-foreground bg-current/15 flex h-8 w-8 shrink-0 items-center justify-center rounded-full">
+          <Icons.AlertTriangle className="h-4 w-4" />
         </div>
         <div className="min-w-0 flex-1">
           <p className="text-destructive text-sm font-medium">
