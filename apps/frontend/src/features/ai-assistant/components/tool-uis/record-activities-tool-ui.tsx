@@ -343,7 +343,7 @@ function RecordActivitiesToolUIContentImpl({
                     <TableCell className="py-2">
                       <Badge
                         variant={activityBadge.variant}
-                        className={cn("text-[10px] uppercase", activityBadge.className)}
+                        className={cn("text-2xs uppercase", activityBadge.className)}
                       >
                         {formatActivityType(row.draft.activityType)}
                       </Badge>
@@ -397,19 +397,19 @@ function RecordActivitiesToolUIContentImpl({
                       <div className="space-y-1">
                         <Badge
                           variant={rowStatusBadge.variant}
-                          className={cn("text-[10px] uppercase", rowStatusBadge.className)}
+                          className={cn("text-2xs uppercase", rowStatusBadge.className)}
                         >
                           {rowStatusBadge.label}
                         </Badge>
                         {statusEntry?.error && (
-                          <p className="text-destructive max-w-[180px] truncate text-[10px]">
+                          <p className="text-destructive text-2xs max-w-[180px] truncate">
                             {statusEntry.error}
                           </p>
                         )}
                         {!statusEntry?.error &&
                           row.errors[0] &&
                           statusEntry?.status !== "submitted" && (
-                            <p className="text-muted-foreground max-w-[180px] truncate text-[10px]">
+                            <p className="text-muted-foreground text-2xs max-w-[180px] truncate">
                               {row.errors[0]}
                             </p>
                           )}

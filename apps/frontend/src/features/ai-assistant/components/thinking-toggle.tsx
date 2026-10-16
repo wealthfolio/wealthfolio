@@ -25,7 +25,7 @@ export const ThinkingToggle: FC = () => {
           <Badge
             variant={thinkingEnabled ? "default" : "outline"}
             className={cn(
-              "h-5 cursor-pointer select-none gap-1 px-1.5 text-[10px] font-normal transition-colors",
+              "text-2xs h-5 cursor-pointer select-none gap-1 px-1.5 font-normal transition-colors",
               thinkingEnabled
                 ? "bg-primary/90 hover:bg-primary"
                 : "text-muted-foreground hover:bg-muted hover:text-foreground",

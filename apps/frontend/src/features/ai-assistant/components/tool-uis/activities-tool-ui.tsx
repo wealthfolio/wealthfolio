@@ -346,7 +346,7 @@ function ActivitiesContentImpl({ args, result, status }: ActivitiesContentProps)
                     <TableCell className="py-2">
                       <Badge
                         variant={badgeProps.variant}
-                        className={cn("text-[10px] uppercase", badgeProps.className)}
+                        className={cn("text-2xs uppercase", badgeProps.className)}
                       >
                         {formatActivityType(activity.activityType)}
                       </Badge>

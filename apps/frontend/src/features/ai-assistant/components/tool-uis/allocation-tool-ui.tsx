@@ -387,14 +387,14 @@ function AllocationContentImpl({ args, result, status }: AllocationContentProps)
                     }
                   >
                     {widthPercent > 12 && (
-                      <span className="text-background truncate px-1 text-[10px] font-medium">
+                      <span className="text-background text-2xs truncate px-1 font-medium">
                         {formatting.formatPercent(percent)}
                       </span>
                     )}
                   </TooltipTrigger>
                   <TooltipContent side="top" align="center">
                     <div className="text-center">
-                      <span className="text-muted-foreground text-[0.70rem] uppercase">
+                      <span className="text-muted-foreground text-2xs uppercase">
                         {category.categoryName}
                       </span>
                       <div className="font-medium">{formatting.formatPercent(percent)}</div>

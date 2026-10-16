@@ -362,7 +362,7 @@ function CategorizationProposalsContentImpl({
                 trigger={
                   <button
                     type="button"
-                    className="hover:bg-muted/70 inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px]"
+                    className="hover:bg-muted/70 text-2xs inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5"
                     disabled={isSubmitted}
                   >
                     <span
@@ -381,7 +381,7 @@ function CategorizationProposalsContentImpl({
               <Badge
                 variant={confidenceVariant(row.confidence)}
                 className={cn(
-                  "text-[10px] uppercase",
+                  "text-2xs uppercase",
                   confidenceVariant(row.confidence) === "outline" &&
                     "bg-muted text-muted-foreground border-border",
                 )}
@@ -394,7 +394,7 @@ function CategorizationProposalsContentImpl({
 
           {visibleUnproposed.length > 0 && (
             <div className="mt-3 border-t pt-2">
-              <p className="text-muted-foreground px-4 pb-1 text-[11px] uppercase tracking-wide">
+              <p className="text-muted-foreground text-2xs px-4 pb-1 uppercase tracking-wide">
                 {t("ai:categorization.needsManualChoice", { count: visibleUnproposed.length })}
               </p>
               {visibleUnproposed.map((row) => (
@@ -425,7 +425,7 @@ function CategorizationProposalsContentImpl({
                     trigger={
                       <button
                         type="button"
-                        className="text-muted-foreground hover:bg-muted/70 inline-flex items-center gap-1 rounded-full border border-dashed px-2 py-0.5 text-[11px]"
+                        className="text-muted-foreground hover:bg-muted/70 text-2xs inline-flex items-center gap-1 rounded-full border border-dashed px-2 py-0.5"
                       >
                         <Icons.Plus className="h-3 w-3" />
                         {t("ai:categorization.pickCategory")}

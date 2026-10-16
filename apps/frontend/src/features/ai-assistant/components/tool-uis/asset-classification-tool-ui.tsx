@@ -298,7 +298,7 @@ function DiffStat({
   return (
     <div className="bg-background/70 min-w-[5rem] rounded-md border px-2 py-1.5">
       <div className={cn("text-sm font-semibold", className)}>{value}</div>
-      <div className="text-muted-foreground text-[11px] leading-4">{label}</div>
+      <div className="text-muted-foreground text-2xs leading-4">{label}</div>
     </div>
   );
 }
@@ -385,7 +385,7 @@ function ClassificationComparisonTable({
         {t("ai:assetClassification.allocation")}
       </div>
       <div className="bg-background/70 overflow-hidden rounded-md border">
-        <div className="text-muted-foreground grid grid-cols-[minmax(0,1fr)_4.25rem_4.25rem] gap-2 border-b px-2.5 py-1.5 text-[11px] font-medium sm:grid-cols-[minmax(0,1fr)_5.25rem_5.25rem]">
+        <div className="text-muted-foreground text-2xs grid grid-cols-[minmax(0,1fr)_4.25rem_4.25rem] gap-2 border-b px-2.5 py-1.5 font-medium sm:grid-cols-[minmax(0,1fr)_5.25rem_5.25rem]">
           <div>{t("ai:assetClassification.section")}</div>
           <div className="text-right">{t("ai:assetClassification.current")}</div>
           <div className="text-right">{t("ai:assetClassification.new")}</div>
@@ -461,7 +461,7 @@ function ClassificationComparisonTable({
                       onNewWeightChange(row, basisPoints);
                     }}
                   />
-                  <span className="pointer-events-none absolute right-1.5 text-[10px]">%</span>
+                  <span className="text-2xs pointer-events-none absolute right-1.5">%</span>
                 </div>
               </div>
             </div>

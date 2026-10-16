@@ -1,16 +1,5 @@
 {
   "fontSizes": {
-    "apps/frontend/src/features/ai-assistant/components/attachment.tsx": 1,
-    "apps/frontend/src/features/ai-assistant/components/provider-settings-card.tsx": 23,
-    "apps/frontend/src/features/ai-assistant/components/thinking-toggle.tsx": 1,
-    "apps/frontend/src/features/ai-assistant/components/thread-sidebar.tsx": 2,
-    "apps/frontend/src/features/ai-assistant/components/tool-uis/activities-tool-ui.tsx": 1,
-    "apps/frontend/src/features/ai-assistant/components/tool-uis/allocation-tool-ui.tsx": 2,
-    "apps/frontend/src/features/ai-assistant/components/tool-uis/asset-classification-tool-ui.tsx": 3,
-    "apps/frontend/src/features/ai-assistant/components/tool-uis/categorization-proposals-tool-ui.tsx": 4,
-    "apps/frontend/src/features/ai-assistant/components/tool-uis/holdings-tool-ui.tsx": 2,
-    "apps/frontend/src/features/ai-assistant/components/tool-uis/income-tool-ui.tsx": 2,
-    "apps/frontend/src/features/ai-assistant/components/tool-uis/record-activities-tool-ui.tsx": 4,
     "apps/frontend/src/features/devices-sync/components/device-setup-wizard.tsx": 1,
     "apps/frontend/src/features/devices-sync/components/device-sync-section.tsx": 1,
     "apps/frontend/src/features/goals/retirement-planner/pages/dashboard-page.tsx": 7,

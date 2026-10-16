@@ -357,7 +357,7 @@ export function IncomeContentImpl({ args, result, status }: IncomeContentProps) 
             <div className="text-muted-foreground mt-1 flex items-center gap-2 text-xs">
               <span>{getPeriodLabel(parsed.period, t)}</span>
               {parsed.yoyGrowth !== undefined && parsed.yoyGrowth !== null && (
-                <Badge variant="outline" className="px-1.5 py-0 text-[10px]">
+                <Badge variant="outline" className="text-2xs px-1.5 py-0">
                   <span className="mr-0.5">YoY</span>
                   <GainPercent value={parsed.yoyGrowth} />
                 </Badge>
@@ -470,7 +470,7 @@ export function IncomeContentImpl({ args, result, status }: IncomeContentProps) 
                         }
                       >
                         {widthPercent > 14 && (
-                          <span className="text-background truncate px-1 text-[10px] font-medium">
+                          <span className="text-background text-2xs truncate px-1 font-medium">
                             {asset.symbol}
                           </span>
                         )}

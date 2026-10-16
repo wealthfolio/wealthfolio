@@ -711,7 +711,7 @@ function HoldingsContentImpl({ args, result, status }: HoldingsContentProps) {
                       <div>
                         <div className="font-medium">{holding.symbol}</div>
                         {holding.name && (
-                          <div className="text-muted-foreground max-w-[120px] truncate text-[10px] sm:max-w-[200px]">
+                          <div className="text-muted-foreground text-2xs max-w-[120px] truncate sm:max-w-[200px]">
                             {holding.name}
                           </div>
                         )}
@@ -719,7 +719,7 @@ function HoldingsContentImpl({ args, result, status }: HoldingsContentProps) {
                     </TableCell>
                     <TableCell className="py-2 text-right font-medium tabular-nums">
                       <div>{formatValue(holding.marketValueBase)}</div>
-                      <div className="text-muted-foreground text-[10px]">{holding.currency}</div>
+                      <div className="text-muted-foreground text-2xs">{holding.currency}</div>
                     </TableCell>
                     <TableCell className="hidden py-2 text-right tabular-nums sm:table-cell">
                       {(holding.weight * 100).toFixed(1)}%

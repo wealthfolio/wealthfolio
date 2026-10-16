@@ -197,16 +197,12 @@ export function ThreadSidebar({
           {thread.tags && thread.tags.length > 0 && (
             <div className="flex flex-wrap gap-0.5">
               {thread.tags.slice(0, 2).map((tag) => (
-                <Badge
-                  key={tag}
-                  variant="outline"
-                  className="h-4 px-1 py-0 text-[10px] leading-none"
-                >
+                <Badge key={tag} variant="outline" className="text-2xs h-4 px-1 py-0 leading-none">
                   {tag}
                 </Badge>
               ))}
               {thread.tags.length > 2 && (
-                <span className="text-muted-foreground text-[10px]">+{thread.tags.length - 2}</span>
+                <span className="text-muted-foreground text-2xs">+{thread.tags.length - 2}</span>
               )}
             </div>
           )}

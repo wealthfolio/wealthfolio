@@ -187,7 +187,7 @@ const ComposerFileAttachment: FC = () => {
       <span className="aui-attachment-file-chip-name min-w-0 flex-1 truncate text-sm font-medium">
         {name}
       </span>
-      <span className="aui-attachment-file-chip-extension text-muted-foreground shrink-0 text-[10px] font-semibold uppercase leading-none">
+      <span className="aui-attachment-file-chip-extension text-muted-foreground text-2xs shrink-0 font-semibold uppercase leading-none">
         {extension}
       </span>
     </div>

@@ -376,7 +376,7 @@ export function ProviderSettingsCard({
             <div className="flex flex-wrap items-center gap-2">
               <span className="font-medium">{provider.name}</span>
               {provider.isDefault && (
-                <Badge variant="secondary" className="h-5 px-1.5 text-[10px] font-normal">
+                <Badge variant="secondary" className="text-2xs h-5 px-1.5 font-normal">
                   {t("ai:providerSettings.default")}
                 </Badge>
               )}
@@ -563,7 +563,7 @@ export function ProviderSettingsCard({
                                             {capabilities?.tools && (
                                               <Badge
                                                 variant="secondary"
-                                                className="h-4 px-1 text-[9px]"
+                                                className="text-2xs h-4 px-1"
                                               >
                                                 T
                                               </Badge>
@@ -571,7 +571,7 @@ export function ProviderSettingsCard({
                                             {capabilities?.vision && (
                                               <Badge
                                                 variant="secondary"
-                                                className="h-4 px-1 text-[9px]"
+                                                className="text-2xs h-4 px-1"
                                               >
                                                 V
                                               </Badge>
@@ -673,24 +673,24 @@ export function ProviderSettingsCard({
                                 <div className="flex shrink-0 items-center gap-2">
                                   {/* Capability badges */}
                                   {capabilities?.tools && (
-                                    <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">
+                                    <Badge variant="secondary" className="text-2xs h-5 px-1.5">
                                       {t("ai:providerSettings.tools")}
                                     </Badge>
                                   )}
                                   {capabilities?.vision && (
-                                    <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">
+                                    <Badge variant="secondary" className="text-2xs h-5 px-1.5">
                                       {t("ai:providerSettings.vision")}
                                     </Badge>
                                   )}
                                   {capabilities?.thinking && (
-                                    <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">
+                                    <Badge variant="secondary" className="text-2xs h-5 px-1.5">
                                       {t("ai:providerSettings.thinking")}
                                     </Badge>
                                   )}
                                   {needsConfig && (
                                     <Badge
                                       variant="outline"
-                                      className="border-warning/50 text-warning h-5 px-1.5 text-[10px]"
+                                      className="border-warning/50 text-warning text-2xs h-5 px-1.5"
                                     >
                                       <Icons.AlertTriangle className="mr-1 h-3 w-3" />
                                       {t("ai:providerSettings.config")}
@@ -1258,7 +1258,7 @@ function AdvancedTuningSection({
             />
             {t("ai:providerSettings.advancedOptions")}
             {hasOverrides && (
-              <Badge variant="secondary" className="ml-1 text-[10px] uppercase">
+              <Badge variant="secondary" className="text-2xs ml-1 uppercase">
                 {t("ai:providerSettings.customized")}
               </Badge>
             )}
@@ -1306,14 +1306,14 @@ function AdvancedTuningSection({
               <div className="bg-muted/40 space-y-1.5 rounded-md p-3">
                 <div className="flex items-center gap-1.5">
                   <Icons.Settings className="text-muted-foreground h-3 w-3" />
-                  <span className="text-muted-foreground text-[11px] font-medium uppercase tracking-wide">
+                  <span className="text-muted-foreground text-2xs font-medium uppercase tracking-wide">
                     {t("ai:providerSettings.structuredOptions")}
                   </span>
                 </div>
-                <p className="text-muted-foreground text-[11px] leading-tight">
+                <p className="text-muted-foreground text-2xs leading-tight">
                   {t("ai:providerSettings.structuredOptionsDescription")}
                 </p>
-                <dl className="font-mono text-[11px]">
+                <dl className="text-2xs font-mono">
                   {complexEntries.map(([key, value]) => (
                     <div key={key} className="flex items-baseline gap-2">
                       <dt className="text-muted-foreground/80 shrink-0">{key}</dt>
@@ -1331,14 +1331,14 @@ function AdvancedTuningSection({
                   "space-y-2 rounded-md p-3",
                 )}
               >
-                <p className="text-warning-subtle-foreground text-[11px] font-medium">
+                <p className="text-warning-subtle-foreground text-2xs font-medium">
                   {t("ai:providerSettings.orphanedOverrides")}
                 </p>
                 <ul className="space-y-1">
                   {orphanedEntries.map(([key, value]) => (
                     <li
                       key={key}
-                      className="flex items-center justify-between gap-2 font-mono text-[11px]"
+                      className="text-2xs flex items-center justify-between gap-2 font-mono"
                     >
                       <span>
                         {key} = {JSON.stringify(value)}
@@ -1347,7 +1347,7 @@ function AdvancedTuningSection({
                         type="button"
                         variant="ghost"
                         size="sm"
-                        className="text-muted-foreground h-6 px-2 text-[11px]"
+                        className="text-muted-foreground text-2xs h-6 px-2"
                         onClick={() => clearOrphaned(key)}
                       >
                         {t("ai:providerSettings.remove")}
@@ -1380,10 +1380,10 @@ function TuningGroupCard({ title, blurb, fields, providerId, onCommit }: TuningG
   return (
     <div className="bg-muted/40 space-y-3 rounded-md p-3">
       <div className="space-y-0.5">
-        <span className="text-muted-foreground text-[11px] font-medium uppercase tracking-wide">
+        <span className="text-muted-foreground text-2xs font-medium uppercase tracking-wide">
           {title}
         </span>
-        <p className="text-muted-foreground/80 text-[11px] leading-tight">{blurb}</p>
+        <p className="text-muted-foreground/80 text-2xs leading-tight">{blurb}</p>
       </div>
       <div className="space-y-3">
         {fields.map((field) => (
@@ -1450,7 +1450,7 @@ function TuningFieldRow({ field, providerId, onCommit }: TuningFieldRowProps) {
             {label}
           </Label>
           {description && (
-            <p className="text-muted-foreground text-[10px] leading-tight">{description}</p>
+            <p className="text-muted-foreground text-2xs leading-tight">{description}</p>
           )}
         </div>
         <div className="flex shrink-0 flex-col items-end gap-0.5">
@@ -1461,7 +1461,7 @@ function TuningFieldRow({ field, providerId, onCommit }: TuningFieldRowProps) {
               onCommit(next === catalogBool ? null : next);
             }}
           />
-          <span className="text-muted-foreground text-[10px] tabular-nums">
+          <span className="text-muted-foreground text-2xs tabular-nums">
             {hasOverride
               ? t("ai:providerSettings.overridden")
               : t("ai:providerSettings.defaultValue", { value: catalogDisplay })}
@@ -1515,7 +1515,7 @@ function TuningFieldRow({ field, providerId, onCommit }: TuningFieldRowProps) {
           {label}
         </Label>
         {description && (
-          <p className="text-muted-foreground text-[10px] leading-tight">{description}</p>
+          <p className="text-muted-foreground text-2xs leading-tight">{description}</p>
         )}
       </div>
       <div className="flex shrink-0 flex-col items-end gap-0.5">
@@ -1532,7 +1532,7 @@ function TuningFieldRow({ field, providerId, onCommit }: TuningFieldRowProps) {
           onBlur={commit}
           className="bg-background !h-8 w-28 !px-2 !py-1 font-mono !text-sm tabular-nums [-moz-appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
         />
-        <span className="text-muted-foreground text-[10px] tabular-nums">
+        <span className="text-muted-foreground text-2xs tabular-nums">
           {t("ai:providerSettings.effective", { value: effectiveDisplay })}
         </span>
       </div>
@@ -1569,20 +1569,20 @@ function EndpointGroupCard({
     <div className="bg-muted/40 space-y-3 rounded-md p-3">
       <div className="space-y-0.5">
         <div className="flex items-center justify-between">
-          <span className="text-muted-foreground text-[11px] font-medium uppercase tracking-wide">
+          <span className="text-muted-foreground text-2xs font-medium uppercase tracking-wide">
             {t("ai:providerSettings.endpoint")}
           </span>
           {field.helpUrl && (
             <ExternalLink
               href={field.helpUrl}
-              className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-[11px] transition-colors"
+              className="text-muted-foreground hover:text-foreground text-2xs inline-flex items-center gap-1 transition-colors"
             >
               {t("ai:providerSettings.learnMore")}
               <Icons.ExternalLink className="h-3 w-3" />
             </ExternalLink>
           )}
         </div>
-        <p className="text-muted-foreground/80 text-[11px] leading-tight">
+        <p className="text-muted-foreground/80 text-2xs leading-tight">
           {t("ai:providerSettings.endpointDescription")}
         </p>
       </div>
