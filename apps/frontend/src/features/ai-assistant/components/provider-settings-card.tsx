@@ -609,7 +609,7 @@ export function ProviderSettingsCard({
                                               {capabilities?.tools && (
                                                 <Badge
                                                   variant="secondary"
-                                                  className="h-4 px-1 text-[9px]"
+                                                  className="text-2xs h-4 px-1"
                                                 >
                                                   T
                                                 </Badge>
@@ -617,7 +617,7 @@ export function ProviderSettingsCard({
                                               {capabilities?.vision && (
                                                 <Badge
                                                   variant="secondary"
-                                                  className="h-4 px-1 text-[9px]"
+                                                  className="text-2xs h-4 px-1"
                                                 >
                                                   V
                                                 </Badge>

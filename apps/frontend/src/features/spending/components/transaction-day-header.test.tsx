@@ -92,7 +92,7 @@ describe("TransactionDayHeader", () => {
     renderHeader(group([{ id: "a" }, { id: "b" }]), { selectionState: "indeterminate" });
 
     const checkbox = screen.getByRole("checkbox");
-    expect(checkbox).toHaveAttribute("data-state", "indeterminate");
+    expect(checkbox).toHaveAttribute("aria-checked", "mixed");
     expect(checkbox.querySelector(".lucide-minus")).not.toBeNull();
     expect(checkbox.querySelector(".lucide-check")).toBeNull();
   });

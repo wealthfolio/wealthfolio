@@ -1,7 +1,8 @@
 import { DATABASE_STATE_CHANGED } from "../../adapters/tauri/events";
 import { StartupScreen } from "@/components/startup-screen";
 import { useProfile } from "@/features/profiles/profile-context";
-import { BackupError, type BackupFailure } from "@/pages/settings/exports/backup-error";
+import type { BackupFailure } from "@/pages/settings/exports/backup-error";
+import { BackupAlert } from "@/pages/settings/exports/backup-ui";
 import { reloadApplication } from "@/lib/reload-application";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
@@ -386,14 +387,7 @@ function NativeStartup({ children }: { children: ReactNode }) {
               )}
             </div>
           )}
-          {failure && (
-            <div
-              role="alert"
-              className="border-destructive/20 bg-destructive/5 text-destructive break-words rounded-2xl border px-4 py-3 text-sm"
-            >
-              <BackupError error={failure} />
-            </div>
-          )}
+          {failure && <BackupAlert error={failure} className="rounded-2xl" />}
           {profile && (
             <Button
               variant="ghost"

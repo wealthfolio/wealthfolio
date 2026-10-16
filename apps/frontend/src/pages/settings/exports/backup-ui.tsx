@@ -126,9 +126,17 @@ export function InlineFacts({ items }: { items: { label: string; value: ReactNod
   );
 }
 
-export function BackupAlert({ error, action }: { error: BackupFailure; action?: ReactNode }) {
+export function BackupAlert({
+  error,
+  action,
+  className,
+}: {
+  error: BackupFailure;
+  action?: ReactNode;
+  className?: string;
+}) {
   return (
-    <Alert variant="destructive">
+    <Alert variant="destructive" className={className}>
       <Icons.AlertCircle aria-hidden />
       <AlertDescription className="space-y-2 break-words">
         <BackupError error={error} />

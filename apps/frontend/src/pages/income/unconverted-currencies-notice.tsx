@@ -1,3 +1,4 @@
+import { Alert, AlertDescription } from "@wealthfolio/ui/components/ui/alert";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { useTranslation } from "react-i18next";
 
@@ -16,15 +17,15 @@ export function UnconvertedCurrenciesNotice({
   if (currencies.length === 0) return null;
 
   return (
-    <div className="border-warning/30 bg-warning/5 flex items-start gap-2 rounded-md border px-3 py-2">
-      <Icons.AlertTriangle className="text-warning mt-0.5 h-4 w-4 shrink-0" />
-      <p className="text-sm">
+    <Alert variant="warning">
+      <Icons.AlertTriangle />
+      <AlertDescription>
         {t("income:unconverted_currencies", {
           count: currencies.length,
           currencies: new Intl.ListFormat(i18n.language).format(currencies),
           baseCurrency,
         })}
-      </p>
-    </div>
+      </AlertDescription>
+    </Alert>
   );
 }
