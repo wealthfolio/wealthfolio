@@ -196,7 +196,7 @@ export function GoalEditDialog({ goal, open, onClose }: Props) {
                         >
                           <Icon className="h-4 w-4" />
                         </span>
-                        <span className="text-muted-foreground text-[11px] font-medium uppercase tracking-wider">
+                        <span className="text-muted-foreground text-2xs font-medium uppercase tracking-wider">
                           {option.hint}
                         </span>
                       </span>

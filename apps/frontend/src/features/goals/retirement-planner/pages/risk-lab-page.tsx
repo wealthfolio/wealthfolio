@@ -176,7 +176,7 @@ function InlineAmountTooltip({
         {formatting.formatCompactAmount(value, currency)}
       </TooltipTrigger>
       <TooltipContent className="max-w-xs text-xs">
-        <div className="text-[10px] font-semibold uppercase tracking-wider">{label}</div>
+        <div className="text-2xs font-semibold uppercase tracking-wider">{label}</div>
         <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 tabular-nums">
           <span className="text-muted-foreground">{t("goals:risk_lab.results.base_plan")}</span>
           <span className="text-right">{fmt(baseline, currency, formatting)}</span>
@@ -298,7 +298,7 @@ function HeroMetric({
 }) {
   return (
     <div className="border-border/70 px-3 py-3 first:rounded-l-lg last:rounded-r-lg md:border-l md:first:border-l-0">
-      <p className="text-muted-foreground text-[9px] font-semibold uppercase tracking-[0.18em]">
+      <p className="text-muted-foreground text-2xs font-semibold uppercase tracking-[0.18em]">
         {label}
       </p>
       <div
@@ -400,7 +400,7 @@ function PlanResilienceHero({
         <div className="flex gap-4">
           <div className="min-w-0 space-y-3">
             <div>
-              <p className="text-muted-foreground text-[9px] font-semibold uppercase tracking-[0.22em]">
+              <p className="text-muted-foreground text-2xs font-semibold uppercase tracking-[0.22em]">
                 {t("goals:risk_lab.hero.base_case")}
               </p>
               <h2 className="mt-2 max-w-[95%] font-serif text-2xl font-normal leading-[1.15] tracking-tight">
@@ -557,7 +557,7 @@ function StressMetric({
   const { t } = useTranslation();
   return (
     <div>
-      <p className="text-muted-foreground text-[10px] font-semibold uppercase tracking-[0.18em]">
+      <p className="text-muted-foreground text-2xs font-semibold uppercase tracking-[0.18em]">
         {label}
       </p>
       <p className={cn("mt-2 text-sm font-semibold tabular-nums", tone)}>{value}</p>
@@ -581,7 +581,7 @@ function SimulationMetric({
 }) {
   return (
     <div className="border-border/70 px-4 py-4 first:border-l-0 md:border-l">
-      <p className="text-muted-foreground text-[10px] font-semibold uppercase tracking-[0.18em]">
+      <p className="text-muted-foreground text-2xs font-semibold uppercase tracking-[0.18em]">
         {label}
       </p>
       <p
@@ -633,10 +633,10 @@ function StressTestsSection({
     <section className="space-y-4">
       <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
         <div>
-          <p className="text-muted-foreground/55 text-[10px] font-normal uppercase leading-none tracking-[0.24em]">
+          <p className="text-muted-foreground/55 text-2xs font-normal uppercase leading-none tracking-[0.24em]">
             {t("goals:risk_lab.stress.eyebrow_with_count", { count: sorted.length || 6 })}
           </p>
-          <h2 className="mt-2 font-serif text-[23px] font-normal leading-[1.05] tracking-[-0.02em]">
+          <h2 className="mt-2 font-serif text-2xl font-normal leading-[1.05] tracking-[-0.02em]">
             {t("goals:risk_lab.stress.heading")}
           </h2>
         </div>
@@ -691,7 +691,7 @@ function StressTestsSection({
                   <Badge
                     variant={severityBadgeVariant(stress.severity)}
                     className={cn(
-                      "rounded-full px-3 text-[10px] font-semibold uppercase tracking-[0.14em]",
+                      "text-2xs rounded-full px-3 font-semibold uppercase tracking-[0.14em]",
                       severityBadgeVariant(stress.severity) === "secondary" &&
                         "bg-muted text-muted-foreground",
                     )}
@@ -976,10 +976,10 @@ function MonteCarloDistributionSection({
       <CardHeader className="border-b p-0">
         <div className="flex flex-col gap-5 p-5 md:flex-row md:items-start md:justify-between md:p-6">
           <div className="min-w-0 flex-1">
-            <p className="text-muted-foreground/60 text-[10px] font-normal uppercase leading-none tracking-[0.24em]">
+            <p className="text-muted-foreground/60 text-2xs font-normal uppercase leading-none tracking-[0.24em]">
               {t("goals:risk_lab.montecarlo.eyebrow")}
             </p>
-            <CardTitle className="mt-2 font-serif text-[23px] font-normal leading-[1.05] tracking-[-0.02em]">
+            <CardTitle className="mt-2 font-serif text-2xl font-normal leading-[1.05] tracking-[-0.02em]">
               {t("goals:risk_lab.montecarlo.heading")}
             </CardTitle>
             <p className="text-muted-foreground mt-4 max-w-[900px] text-sm leading-relaxed">
@@ -1187,7 +1187,7 @@ function SensitivityMatrixCard({
     <Card className="overflow-hidden">
       <CardHeader className="border-b px-4 py-3 sm:px-5 sm:py-4">
         <div className="flex flex-col gap-1.5">
-          <CardTitle className="text-[15px] leading-tight sm:text-base">{title}</CardTitle>
+          <CardTitle className="text-base leading-tight sm:text-base">{title}</CardTitle>
           <p className="text-muted-foreground max-w-[34rem] text-xs leading-snug sm:text-sm">
             {subtitle}
           </p>
@@ -1352,7 +1352,7 @@ function DecisionHeatmap({
               <th
                 key={`${value}-${column}`}
                 className={cn(
-                  "text-muted-foreground px-1 pb-2 text-center text-[11px] font-semibold tabular-nums sm:px-2 sm:pb-2.5 sm:text-[13px]",
+                  "text-muted-foreground text-2xs px-1 pb-2 text-center font-semibold tabular-nums sm:px-2 sm:pb-2.5 sm:text-sm",
                   column === matrix.baselineColumn && "text-foreground",
                 )}
               >
@@ -1380,7 +1380,7 @@ function DecisionHeatmap({
             <tr key={`${rowValue}-${row}`}>
               <td
                 className={cn(
-                  "text-muted-foreground pr-2 text-right text-[11px] font-semibold tabular-nums sm:pr-3 sm:text-[13px]",
+                  "text-muted-foreground text-2xs pr-2 text-right font-semibold tabular-nums sm:pr-3 sm:text-sm",
                   row === matrix.baselineRow && "text-foreground",
                 )}
               >
@@ -1397,7 +1397,7 @@ function DecisionHeatmap({
                         render={
                           <div
                             className={cn(
-                              "flex h-12 items-center justify-center rounded-[6px] px-2 text-center text-xs font-semibold tabular-nums leading-none transition-shadow sm:h-[52px] sm:px-3 sm:text-[13px]",
+                              "flex h-12 items-center justify-center rounded-[6px] px-2 text-center text-xs font-semibold tabular-nums leading-none transition-shadow sm:h-[52px] sm:px-3 sm:text-sm",
                               active && "ring-2 ring-[hsl(91,34%,29%)] ring-offset-0",
                             )}
                             style={sensitivityCellStyle({ cell, baseline, range, active })}
@@ -1407,7 +1407,7 @@ function DecisionHeatmap({
                         {decisionCellLabel(t, cell, currency, amountFormatting)}
                       </TooltipTrigger>
                       <TooltipContent className="max-w-xs text-xs">
-                        <div className="text-[10px] font-semibold uppercase tracking-wider">
+                        <div className="text-2xs font-semibold uppercase tracking-wider">
                           {localizedBackendLabel(t, matrix.rowLabel)} ×{" "}
                           {localizedBackendLabel(t, matrix.columnLabel)}
                         </div>
@@ -1469,7 +1469,7 @@ function DecisionHeatmap({
               {row === 0 && (
                 <td rowSpan={matrix.rowValues.length} className="w-3 p-0 align-middle sm:w-4">
                   <span
-                    className="text-muted-foreground/80 mx-auto block whitespace-nowrap text-center text-[11px] font-normal leading-none sm:text-xs"
+                    className="text-muted-foreground/80 text-2xs mx-auto block whitespace-nowrap text-center font-normal leading-none sm:text-xs"
                     style={{ writingMode: "vertical-rl", transform: "rotate(180deg)" }}
                   >
                     {localizedBackendLabel(t, matrix.rowLabel)}
@@ -1484,7 +1484,7 @@ function DecisionHeatmap({
             <th className="w-14 sm:w-16" />
             <th
               colSpan={matrix.columnValues.length}
-              className="text-muted-foreground/80 px-1 pt-1.5 text-center text-[11px] font-normal leading-none sm:text-xs"
+              className="text-muted-foreground/80 text-2xs px-1 pt-1.5 text-center font-normal leading-none sm:text-xs"
             >
               {localizedBackendLabel(t, matrix.columnLabel)}
             </th>
@@ -1529,10 +1529,10 @@ function WhatMovesThePlanSection({
     <section className="space-y-4">
       <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
         <div>
-          <p className="text-muted-foreground/55 text-[10px] font-normal uppercase leading-none tracking-[0.24em]">
+          <p className="text-muted-foreground/55 text-2xs font-normal uppercase leading-none tracking-[0.24em]">
             {t("goals:risk_lab.moves.eyebrow")}
           </p>
-          <h2 className="mt-2 font-serif text-[23px] font-normal leading-[1.05] tracking-[-0.02em]">
+          <h2 className="mt-2 font-serif text-2xl font-normal leading-[1.05] tracking-[-0.02em]">
             {t("goals:risk_lab.moves.heading")}
           </h2>
           <p className="text-muted-foreground mt-2 max-w-4xl text-sm leading-relaxed xl:whitespace-nowrap">
@@ -1828,7 +1828,7 @@ function AdvancedSection({
         <div className="flex min-w-0 items-start gap-3">
           <Icons.ChevronDown className="text-muted-foreground mt-3 size-3.5 transition-transform group-open:rotate-180" />
           <div className="min-w-0">
-            <p className="text-muted-foreground/60 text-[10px] font-normal uppercase leading-none tracking-[0.24em]">
+            <p className="text-muted-foreground/60 text-2xs font-normal uppercase leading-none tracking-[0.24em]">
               {t("goals:risk_lab.advanced.eyebrow")}
             </p>
             <h2 className="mt-1.5 text-lg font-semibold tracking-[-0.01em]">
@@ -1868,7 +1868,7 @@ function AdvancedSection({
             </p>
             <div className="bg-muted/10 grid gap-3 border-y px-4 py-3 text-sm sm:grid-cols-3">
               <div>
-                <p className="text-muted-foreground text-[10px] font-semibold uppercase tracking-[0.16em]">
+                <p className="text-muted-foreground text-2xs font-semibold uppercase tracking-[0.16em]">
                   {t("goals:risk_lab.advanced.earliest_shortfall")}
                 </p>
                 <p className="mt-1 font-semibold tabular-nums">
@@ -1878,7 +1878,7 @@ function AdvancedSection({
                 </p>
               </div>
               <div>
-                <p className="text-muted-foreground text-[10px] font-semibold uppercase tracking-[0.16em]">
+                <p className="text-muted-foreground text-2xs font-semibold uppercase tracking-[0.16em]">
                   {t("goals:risk_lab.advanced.paths_survive")}
                 </p>
                 <p className="mt-1 font-semibold tabular-nums">
@@ -1886,7 +1886,7 @@ function AdvancedSection({
                 </p>
               </div>
               <div>
-                <p className="text-muted-foreground text-[10px] font-semibold uppercase tracking-[0.16em]">
+                <p className="text-muted-foreground text-2xs font-semibold uppercase tracking-[0.16em]">
                   {t("goals:risk_lab.advanced.base_case")}
                 </p>
                 <p className="mt-1 font-semibold tabular-nums">

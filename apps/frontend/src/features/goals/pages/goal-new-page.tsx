@@ -270,7 +270,7 @@ export default function GoalNewPage() {
                     <CardDescription className="text-xs leading-relaxed">
                       {tmpl.description}
                       {disabled && (
-                        <span className="text-muted-foreground mt-1 block text-[11px]">
+                        <span className="text-muted-foreground text-2xs mt-1 block">
                           {t("goals:new.retirement_exists_hint")}
                         </span>
                       )}

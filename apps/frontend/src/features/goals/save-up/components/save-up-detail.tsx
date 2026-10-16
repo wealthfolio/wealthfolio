@@ -642,7 +642,7 @@ function formatGoalDate(
 function HeroMetric({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="min-w-0 px-5 py-4">
-      <div className="text-muted-foreground text-[10px] font-semibold uppercase tracking-wider">
+      <div className="text-muted-foreground text-2xs font-semibold uppercase tracking-wider">
         {label}
       </div>
       <div className="mt-2 truncate text-lg font-semibold tabular-nums">{children}</div>
@@ -721,7 +721,7 @@ function MonthlyPlanCallout({
 function CalloutMetric({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="border-border/70 bg-muted/20 rounded-lg border px-3 py-2.5">
-      <div className="text-muted-foreground text-[11px]">{label}</div>
+      <div className="text-muted-foreground text-2xs">{label}</div>
       <div className="mt-1 text-sm font-semibold tabular-nums">{children}</div>
     </div>
   );

@@ -571,7 +571,7 @@ export default function DashboardPage({
                       {heroHealth === "on_track" ? (
                         <Badge
                           variant="default"
-                          className="gap-1.5 bg-green-600 text-[10px] hover:bg-green-600"
+                          className="text-2xs gap-1.5 bg-green-600 hover:bg-green-600"
                         >
                           <span className="h-1.5 w-1.5 rounded-full bg-white/90" />
                           {isTraditionalMode
@@ -583,7 +583,7 @@ export default function DashboardPage({
                       ) : heroHealth === "at_risk" ? (
                         <Badge
                           variant="secondary"
-                          className="gap-1.5 text-[10px] text-amber-700 dark:text-amber-400"
+                          className="text-2xs gap-1.5 text-amber-700 dark:text-amber-400"
                         >
                           <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
                           {isTraditionalMode
@@ -593,7 +593,7 @@ export default function DashboardPage({
                               : t("goals:dashboard.badge.at_risk")}
                         </Badge>
                       ) : (
-                        <Badge variant="destructive" className="gap-1.5 text-[10px]">
+                        <Badge variant="destructive" className="text-2xs gap-1.5">
                           <span className="h-1.5 w-1.5 rounded-full bg-white/90" />
                           {isTraditionalMode
                             ? traditionalBadge
@@ -830,7 +830,7 @@ export default function DashboardPage({
                   <div className="mt-6">
                     <div className="mb-2 flex items-end justify-between gap-3">
                       <div className="flex flex-col gap-0.5">
-                        <span className="text-muted-foreground text-[10px] uppercase tracking-wider">
+                        <span className="text-muted-foreground text-2xs uppercase tracking-wider">
                           {t("goals:dashboard.progress.portfolio_today")}
                         </span>
                         <span className="text-sm font-semibold tabular-nums">
@@ -841,7 +841,7 @@ export default function DashboardPage({
                         <Tooltip>
                           <TooltipTrigger
                             render={
-                              <span className="text-muted-foreground cursor-help text-[10px] uppercase tracking-wider underline decoration-dotted underline-offset-2" />
+                              <span className="text-muted-foreground text-2xs cursor-help uppercase tracking-wider underline decoration-dotted underline-offset-2" />
                             }
                           >
                             {isTraditionalMode
@@ -896,7 +896,7 @@ export default function DashboardPage({
                           />
                         )}
                     </div>
-                    <div className="text-muted-foreground mt-1 flex justify-between text-[10px]">
+                    <div className="text-muted-foreground text-2xs mt-1 flex justify-between">
                       <span className="tabular-nums">
                         {t("goals:dashboard.progress.funded_pct", {
                           pct: numberFormatting.formatDecimal(progress * 100, {
@@ -940,7 +940,7 @@ export default function DashboardPage({
               <CardHeader className="pb-2">
                 <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
                   <div>
-                    <div className="text-muted-foreground mb-0.5 text-[10px] font-semibold uppercase tracking-wider">
+                    <div className="text-muted-foreground text-2xs mb-0.5 font-semibold uppercase tracking-wider">
                       {t("goals:dashboard.chart.projection_age_range", {
                         start: plan.personal.currentAge,
                         end: plan.personal.planningHorizonAge,
@@ -1083,7 +1083,7 @@ export default function DashboardPage({
                   return (
                     <div key={m.key} className="p-4">
                       <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
-                        <span className="text-muted-foreground text-[10px] font-semibold uppercase tracking-wider">
+                        <span className="text-muted-foreground text-2xs font-semibold uppercase tracking-wider">
                           {m.label}
                         </span>
                         <Tooltip>
@@ -1105,13 +1105,13 @@ export default function DashboardPage({
                         {reached && (
                           <Badge
                             variant="default"
-                            className="h-[14px] bg-green-600 px-1.5 text-[9px] font-semibold tracking-wider hover:bg-green-600"
+                            className="text-2xs h-[14px] bg-green-600 px-1.5 font-semibold tracking-wider hover:bg-green-600"
                           >
                             {t("goals:dashboard.milestone.done")}
                           </Badge>
                         )}
                       </div>
-                      <div className="text-[17px] font-semibold tabular-nums tracking-tight">
+                      <div className="text-lg font-semibold tabular-nums tracking-tight">
                         {m.value == null ? "—" : formatting.formatCompactAmount(m.value, currency)}
                       </div>
                       <div className="bg-muted/60 mt-2 h-[3px] overflow-hidden rounded-sm">
@@ -1120,7 +1120,7 @@ export default function DashboardPage({
                           style={{ width: `${pct * 100}%`, opacity: 0.85 }}
                         />
                       </div>
-                      <div className="text-muted-foreground mt-1.5 text-[10.5px]">{m.hint}</div>
+                      <div className="text-muted-foreground text-2xs mt-1.5">{m.hint}</div>
                     </div>
                   );
                 })}
@@ -1134,11 +1134,11 @@ export default function DashboardPage({
               <div className="min-w-0">
                 <div className="mb-1 flex items-center gap-2">
                   <Icons.CreditCard className="text-muted-foreground h-3.5 w-3.5" />
-                  <div className="text-muted-foreground text-[11px] font-medium uppercase tracking-[0.15em]">
+                  <div className="text-muted-foreground text-2xs font-medium uppercase tracking-[0.15em]">
                     {t("goals:dashboard.coverage.kicker")}
                   </div>
                 </div>
-                <CardTitle className="text-[17px] font-semibold leading-none tracking-tight">
+                <CardTitle className="text-lg font-semibold leading-none tracking-tight">
                   {L.budgetAt}
                 </CardTitle>
                 <div className="mt-2 flex items-start gap-1.5">
@@ -1197,7 +1197,7 @@ export default function DashboardPage({
             <CardContent className="space-y-3.5">
               {coverageView === "at-retirement" ? (
                 <>
-                  <div className="text-foreground/90 text-[13px]">
+                  <div className="text-foreground/90 text-sm">
                     {t("goals:dashboard.coverage.at_age_dash", { age: fireAgeForBudget })}{" "}
                     <span className="text-foreground font-semibold tabular-nums">
                       {t("goals:dashboard.coverage.amount_per_mo", {
@@ -1252,7 +1252,7 @@ export default function DashboardPage({
                       />
                     )}
                   </div>
-                  <div className="text-muted-foreground flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px]">
+                  <div className="text-muted-foreground text-2xs flex flex-wrap items-center gap-x-3 gap-y-1">
                     {budgetStreams.length > 0 && (
                       <span className="flex items-center gap-1.5">
                         <span
@@ -1299,7 +1299,7 @@ export default function DashboardPage({
                   <div className="grid gap-4 lg:grid-cols-2">
                     {/* Expense breakdown — no color dots */}
                     <div className="min-w-0">
-                      <div className="text-muted-foreground mb-1.5 text-[10px] font-semibold uppercase tracking-[0.14em]">
+                      <div className="text-muted-foreground text-2xs mb-1.5 font-semibold uppercase tracking-[0.14em]">
                         {t("goals:dashboard.coverage.spending_schedule")}
                       </div>
                       <div className="divide-border divide-y">
@@ -1314,13 +1314,13 @@ export default function DashboardPage({
                           return (
                             <div
                               key={r.id}
-                              className="flex items-center justify-between gap-3 py-1.5 text-[13px]"
+                              className="flex items-center justify-between gap-3 py-1.5 text-sm"
                             >
                               <span className="min-w-0">
                                 <span className="text-foreground block truncate font-medium">
                                   {r.label}
                                 </span>
-                                <span className="text-muted-foreground block truncate text-[11px]">
+                                <span className="text-muted-foreground text-2xs block truncate">
                                   {expenseAgeRangeLabel(r, plan.personal.planningHorizonAge)}
                                   {status ? ` · ${status}` : ""}
                                 </span>
@@ -1338,12 +1338,12 @@ export default function DashboardPage({
 
                     {/* Income schedule + current-age funding sources */}
                     <div className="min-w-0 border-t pt-3 lg:border-l lg:border-t-0 lg:pl-4 lg:pt-0">
-                      <div className="text-muted-foreground mb-1.5 text-[10px] font-semibold uppercase tracking-[0.14em]">
+                      <div className="text-muted-foreground text-2xs mb-1.5 font-semibold uppercase tracking-[0.14em]">
                         {t("goals:dashboard.coverage.income_schedule")}
                       </div>
                       <div className="space-y-1.5">
                         {coverageIncomeStreams.length === 0 && (
-                          <div className="text-muted-foreground py-1 text-[12px]">
+                          <div className="text-muted-foreground py-1 text-xs">
                             {t("goals:dashboard.coverage.no_income_configured")}
                           </div>
                         )}
@@ -1366,7 +1366,7 @@ export default function DashboardPage({
                           return (
                             <div
                               key={s.id}
-                              className="flex items-center justify-between gap-3 text-[13px]"
+                              className="flex items-center justify-between gap-3 text-sm"
                             >
                               <span className="flex min-w-0 items-center gap-2">
                                 <span
@@ -1380,7 +1380,7 @@ export default function DashboardPage({
                                   <span className="text-foreground block truncate font-medium">
                                     {s.label}
                                   </span>
-                                  <span className="text-muted-foreground block truncate text-[11px]">
+                                  <span className="text-muted-foreground text-2xs block truncate">
                                     {incomeAgeRangeLabel(s, plan.personal.planningHorizonAge, t)}
                                     {status ? ` · ${status}` : ""}
                                   </span>
@@ -1391,7 +1391,7 @@ export default function DashboardPage({
                                   amount: formatting.formatCompactAmount(monthlyAmount, currency),
                                 })}{" "}
                                 {isActive && matchedBudgetStream ? (
-                                  <span className="text-muted-foreground ml-1 text-[11px]">
+                                  <span className="text-muted-foreground text-2xs ml-1">
                                     {numberFormatting.formatPercent(
                                       matchedBudgetStream.percentageOfBudget,
                                       { digits: 0 },
@@ -1406,7 +1406,7 @@ export default function DashboardPage({
                           coverageShortfallMonthly > 0 ||
                           coverageEstimatedTaxesMonthly > 0) && (
                           <div className="border-border mt-2 flex items-center justify-between gap-3 border-t pt-2">
-                            <div className="text-muted-foreground text-[10px] font-semibold uppercase tracking-[0.14em]">
+                            <div className="text-muted-foreground text-2xs font-semibold uppercase tracking-[0.14em]">
                               {t("goals:dashboard.coverage.funding_at_age", {
                                 age: fireAgeForBudget,
                               })}
@@ -1417,7 +1417,7 @@ export default function DashboardPage({
                                   render={
                                     <button
                                       type="button"
-                                      className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium transition-colors"
+                                      className="text-muted-foreground hover:text-foreground text-2xs inline-flex items-center gap-1 rounded-full border px-2 py-0.5 font-medium transition-colors"
                                     />
                                   }
                                 >
@@ -1443,7 +1443,7 @@ export default function DashboardPage({
                           </div>
                         )}
                         {coveragePortfolioAppliedMonthly > 0 && (
-                          <div className="flex items-center justify-between gap-3 text-[13px]">
+                          <div className="flex items-center justify-between gap-3 text-sm">
                             <span className="flex min-w-0 items-center gap-2">
                               <span className="bg-success inline-block h-2 w-2 shrink-0 rounded-sm" />
                               <span className="text-foreground truncate font-medium">
@@ -1457,7 +1457,7 @@ export default function DashboardPage({
                                   currency,
                                 ),
                               })}{" "}
-                              <span className="text-muted-foreground ml-1 text-[11px]">
+                              <span className="text-muted-foreground text-2xs ml-1">
                                 {numberFormatting.formatPercent(coveragePortfolioPct / 100, {
                                   digits: 0,
                                 })}
@@ -1466,7 +1466,7 @@ export default function DashboardPage({
                           </div>
                         )}
                         {coverageShortfallMonthly > 0 && (
-                          <div className="flex items-center justify-between gap-3 text-[13px]">
+                          <div className="flex items-center justify-between gap-3 text-sm">
                             <span className="flex min-w-0 items-center gap-2">
                               <span className="inline-block h-2 w-2 shrink-0 rounded-sm bg-red-500/75" />
                               <span className="text-foreground truncate font-medium">
@@ -1480,7 +1480,7 @@ export default function DashboardPage({
                                   currency,
                                 ),
                               })}{" "}
-                              <span className="text-muted-foreground ml-1 text-[11px]">
+                              <span className="text-muted-foreground text-2xs ml-1">
                                 {numberFormatting.formatPercent(coverageShortfallPct / 100, {
                                   digits: 0,
                                 })}
@@ -1489,7 +1489,7 @@ export default function DashboardPage({
                           </div>
                         )}
                         {coverageEstimatedTaxesMonthly > 0 && (
-                          <div className="text-muted-foreground flex items-center justify-between gap-3 pt-1 text-[11px] italic">
+                          <div className="text-muted-foreground text-2xs flex items-center justify-between gap-3 pt-1 italic">
                             <span>{t("goals:dashboard.coverage.withdrawal_taxes")}</span>
                             <span className="tabular-nums">
                               +
@@ -1541,7 +1541,7 @@ export default function DashboardPage({
                         {t("goals:dashboard.coverage.planned_spending_legend")}
                       </span>
                     </div>
-                    <span className="bg-muted/60 text-muted-foreground rounded-full px-2.5 py-1 text-[11px] font-medium">
+                    <span className="bg-muted/60 text-muted-foreground text-2xs rounded-full px-2.5 py-1 font-medium">
                       {t("goals:dashboard.coverage.showing", { valueLabel: valueModeLabel })}
                     </span>
                   </div>

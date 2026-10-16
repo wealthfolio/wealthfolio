@@ -103,7 +103,7 @@ export function SavingsMilestonesCard({
               return (
                 <div key={m.ratio}>
                   <div
-                    className={`absolute top-0 -translate-x-1/2 whitespace-nowrap text-[10px] font-semibold uppercase tracking-wider ${
+                    className={`text-2xs absolute top-0 -translate-x-1/2 whitespace-nowrap font-semibold uppercase tracking-wider ${
                       m.reached ? "text-foreground" : "text-muted-foreground"
                     }`}
                     style={{ left }}

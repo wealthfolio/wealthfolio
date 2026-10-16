@@ -912,7 +912,7 @@ export function SidebarConfigurator({
                         <span className="text-foreground block truncate text-sm font-semibold">
                           {item.label || t("goals:sidebar.spending.default_label")}
                         </span>
-                        <span className="text-muted-foreground mt-0.5 block truncate text-[11px]">
+                        <span className="text-muted-foreground text-2xs mt-0.5 block truncate">
                           {meta}
                         </span>
                       </span>
@@ -979,7 +979,7 @@ export function SidebarConfigurator({
                             <div className="text-foreground text-xs font-semibold">
                               {t("goals:sidebar.spending.spending_type")}
                             </div>
-                            <div className="text-muted-foreground mt-0.5 text-[11px] leading-tight">
+                            <div className="text-muted-foreground text-2xs mt-0.5 leading-tight">
                               {t("goals:sidebar.spending.spending_type_help")}
                             </div>
                           </div>
@@ -1001,7 +1001,7 @@ export function SidebarConfigurator({
                             <div className="text-foreground text-xs font-semibold">
                               {t("goals:sidebar.spending.inflation_override")}
                             </div>
-                            <div className="text-muted-foreground mt-0.5 text-[11px] leading-tight">
+                            <div className="text-muted-foreground text-2xs mt-0.5 leading-tight">
                               {t("goals:sidebar.spending.inflation_override_help")}
                             </div>
                           </div>
@@ -1180,7 +1180,7 @@ export function SidebarConfigurator({
                         <span className="text-foreground block truncate text-sm font-semibold">
                           {s.label || t("goals:sidebar.income.income")}
                         </span>
-                        <span className="text-muted-foreground mt-0.5 block truncate text-[11px]">
+                        <span className="text-muted-foreground text-2xs mt-0.5 block truncate">
                           {meta}
                         </span>
                       </span>
@@ -1216,7 +1216,7 @@ export function SidebarConfigurator({
                           <div className="text-foreground text-xs font-semibold">
                             {t("goals:sidebar.income.income_type")}
                           </div>
-                          <div className="text-muted-foreground mt-0.5 text-[11px] leading-tight">
+                          <div className="text-muted-foreground text-2xs mt-0.5 leading-tight">
                             {t("goals:sidebar.income.income_type_help")}
                           </div>
                         </div>
@@ -1321,7 +1321,7 @@ export function SidebarConfigurator({
                                 <div className="text-foreground text-xs font-semibold">
                                   {t("goals:sidebar.income.fund_payout_mode")}
                                 </div>
-                                <div className="text-muted-foreground mt-0.5 text-[11px] leading-tight">
+                                <div className="text-muted-foreground text-2xs mt-0.5 leading-tight">
                                   {t("goals:sidebar.income.fund_payout_mode_help")}
                                 </div>
                               </div>
@@ -1369,7 +1369,7 @@ export function SidebarConfigurator({
                                 format={(v) => String(Math.round(v))}
                               />
                             )}
-                            <p className="text-muted-foreground px-1 text-[11px] leading-relaxed">
+                            <p className="text-muted-foreground text-2xs px-1 leading-relaxed">
                               {t(
                                 s.payoutMode === "drawdown"
                                   ? "goals:sidebar.income.drawdown_note"
@@ -1400,7 +1400,7 @@ export function SidebarConfigurator({
                             <div className="text-foreground text-xs font-semibold">
                               {t("goals:sidebar.income.income_growth")}
                             </div>
-                            <div className="text-muted-foreground mt-0.5 text-[11px] leading-tight">
+                            <div className="text-muted-foreground text-2xs mt-0.5 leading-tight">
                               {t("goals:sidebar.income.income_growth_help")}
                             </div>
                           </div>
@@ -1425,7 +1425,7 @@ export function SidebarConfigurator({
                             <div className="text-foreground text-xs font-semibold">
                               {t("goals:sidebar.income.custom_annual_growth")}
                             </div>
-                            <div className="text-muted-foreground mt-0.5 text-[11px] leading-tight">
+                            <div className="text-muted-foreground text-2xs mt-0.5 leading-tight">
                               {t("goals:sidebar.income.custom_annual_growth_help")}
                             </div>
                           </div>
@@ -1708,7 +1708,7 @@ export function SidebarConfigurator({
 
             {taxBucketBalances && taxBucketTotal > 0 && (
               <div className="border-t pt-3">
-                <p className="text-muted-foreground mb-1.5 flex items-center gap-1 text-[10px] uppercase tracking-wider">
+                <p className="text-muted-foreground text-2xs mb-1.5 flex items-center gap-1 uppercase tracking-wider">
                   {t("goals:sidebar.taxes.account_buckets")}
                   <Tooltip>
                     <TooltipTrigger
@@ -1769,7 +1769,7 @@ export function SidebarConfigurator({
             )}
 
             {allTaxRatesZero && taxBucketTotal > 0 && (
-              <p className="text-muted-foreground text-[10px]">
+              <p className="text-muted-foreground text-2xs">
                 {t("goals:sidebar.taxes.zero_rates_note")}
               </p>
             )}

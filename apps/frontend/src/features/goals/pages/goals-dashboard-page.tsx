@@ -20,8 +20,8 @@ import { useGoals } from "../hooks/use-goals";
 function StatBlock({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="flex items-baseline gap-2.5">
-      <span className="text-muted-foreground text-[10px] tracking-[0.15em]">{label}</span>
-      <span className="text-foreground font-serif text-[15px] font-semibold tabular-nums">
+      <span className="text-muted-foreground text-2xs tracking-[0.15em]">{label}</span>
+      <span className="text-foreground font-serif text-base font-semibold tabular-nums">
         {value}
       </span>
     </div>

@@ -181,7 +181,7 @@ export function GoalCard({ goal }: { goal: Goal }) {
           {pill && (
             <div
               className={cn(
-                "absolute left-3 top-3 inline-flex h-5 items-center px-2 text-[9px] font-medium leading-none tracking-[0.14em] shadow-sm",
+                "text-2xs absolute left-3 top-3 inline-flex h-5 items-center px-2 font-medium leading-none tracking-[0.14em] shadow-sm",
                 pill.className,
               )}
             >
@@ -192,7 +192,7 @@ export function GoalCard({ goal }: { goal: Goal }) {
           {/* Bottom-left italic quote */}
           {quote && (
             <div className="absolute bottom-2.5 left-3 right-3">
-              <span className="line-clamp-1 block font-serif text-[11px] italic text-white/95 drop-shadow-[0_1px_2px_rgba(0,0,0,0.7)]">
+              <span className="text-2xs line-clamp-1 block font-serif italic text-white/95 drop-shadow-[0_1px_2px_rgba(0,0,0,0.7)]">
                 &ldquo;{quote}&rdquo;
               </span>
             </div>
@@ -204,16 +204,16 @@ export function GoalCard({ goal }: { goal: Goal }) {
           {/* Title + % */}
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0 flex-1">
-              <h3 className="truncate font-serif text-[19px] leading-tight">{goal.title}</h3>
-              <p className="text-muted-foreground mt-0.5 text-[9px] tracking-[0.15em]">
+              <h3 className="truncate font-serif text-xl leading-tight">{goal.title}</h3>
+              <p className="text-muted-foreground text-2xs mt-0.5 tracking-[0.15em]">
                 {targetDateStr ? `${targetDateStr} · ${timeLeftStr}` : timeLeftStr}
               </p>
             </div>
             <div className="text-right">
-              <div className={cn("font-serif text-[20px] leading-none", accentClass)}>
+              <div className={cn("font-serif text-xl leading-none", accentClass)}>
                 {progressPct}
               </div>
-              <div className="text-muted-foreground mt-0.5 text-[9px] tracking-[0.15em]">
+              <div className="text-muted-foreground text-2xs mt-0.5 tracking-[0.15em]">
                 {t("goals:card.complete")}
               </div>
             </div>
@@ -222,18 +222,16 @@ export function GoalCard({ goal }: { goal: Goal }) {
           {/* Amounts row: saved · remaining */}
           <div className="mt-2.5 flex items-end justify-between gap-3">
             <div>
-              <div className="font-serif text-[14px] font-semibold tabular-nums">
-                {currentDisplay}
-              </div>
-              <div className="text-muted-foreground mt-0.5 text-[10px]">
+              <div className="font-serif text-sm font-semibold tabular-nums">{currentDisplay}</div>
+              <div className="text-muted-foreground text-2xs mt-0.5">
                 {t("goals:card.saved_of")} <span className="tabular-nums">{targetDisplay}</span>
               </div>
             </div>
             <div className="text-right">
-              <div className="font-serif text-[14px] font-semibold tabular-nums">
+              <div className="font-serif text-sm font-semibold tabular-nums">
                 {remainingDisplay}
               </div>
-              <div className="text-muted-foreground mt-0.5 text-[10px]">
+              <div className="text-muted-foreground text-2xs mt-0.5">
                 {hasRemaining ? t("goals:card.remaining") : t("goals:card.target_met")}
               </div>
             </div>

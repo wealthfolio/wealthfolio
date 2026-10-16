@@ -22,7 +22,7 @@ export function ValueModeToggle({
       ]}
       size="xs"
       rounded="md"
-      className="bg-muted/30 border max-sm:[&_button]:px-2 max-sm:[&_button]:text-[11px]"
+      className="bg-muted/30 max-sm:[&_button]:text-2xs border max-sm:[&_button]:px-2"
     />
   );
 }
@@ -56,7 +56,7 @@ export function ValueModeTooltip({
         {children}
       </TooltipTrigger>
       <TooltipContent className="max-w-xs text-xs">
-        <div className="text-[10px] font-semibold uppercase tracking-wider">
+        <div className="text-2xs font-semibold uppercase tracking-wider">
           {t("goals:value_mode.showing", { label: showingLabel })}
         </div>
         <div className="mt-1 tabular-nums">

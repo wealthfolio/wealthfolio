@@ -66,7 +66,7 @@ export function RetirementSnapshotTable({
     <Card>
       <CardHeader className="flex-row items-start justify-between pb-3">
         <div>
-          <div className="text-muted-foreground mb-0.5 text-[10px] font-semibold uppercase tracking-wider">
+          <div className="text-muted-foreground text-2xs mb-0.5 font-semibold uppercase tracking-wider">
             {t("goals:snapshot.table")}
           </div>
           <CardTitle className="text-sm">{t("goals:snapshot.title")}</CardTitle>
@@ -133,7 +133,7 @@ export function RetirementSnapshotTable({
                     <span className="text-xs font-medium tabular-nums">{snap.year}</span>
                     <Badge
                       variant={isFire ? "default" : "secondary"}
-                      className="h-5 shrink-0 px-2 text-[10px]"
+                      className="text-2xs h-5 shrink-0 px-2"
                     >
                       {phaseText}
                     </Badge>
@@ -149,7 +149,7 @@ export function RetirementSnapshotTable({
                   </div>
                 </div>
 
-                <div className="mt-1.5 grid grid-cols-4 gap-2 pl-[2.75rem] text-[10px]">
+                <div className="text-2xs mt-1.5 grid grid-cols-4 gap-2 pl-[2.75rem]">
                   {mobileMetrics.map((metric) => (
                     <div key={metric.label} className="min-w-0">
                       <div className="text-muted-foreground leading-3">{metric.label}</div>
