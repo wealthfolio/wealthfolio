@@ -125,6 +125,8 @@ and this project adheres to
   white text. `AlertDialogAction` takes `variant`, so a dialog's destructive
   confirm is `<AlertDialogAction variant="destructive">` rather than
   `bg-destructive` overrides.
+- In dark mode `--success-subtle-foreground` is green-200, the step the other
+  status text colours use, so success text reads green rather than near-white.
 - `ActivityUpdate.asset` now has explicit patch semantics: omit it to preserve
   the current asset, or pass an empty object to clear the asset association.
 - Host-provided `@wealthfolio/addon-sdk` and `@wealthfolio/ui` dependency ranges

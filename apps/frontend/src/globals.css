@@ -556,7 +556,7 @@
   --chart-stone: hsl(49 8% 60%);
 
   --success-subtle: var(--color-green-950);
-  --success-subtle-foreground: var(--color-green-100);
+  --success-subtle-foreground: var(--color-green-200);
   --success-subtle-border: var(--color-green-800);
   --warning-subtle: var(--color-yellow-950);
   --warning-subtle-foreground: var(--color-yellow-200);
