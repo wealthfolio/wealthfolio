@@ -202,7 +202,7 @@ export function CompactAllocationStrip({
                 {!isEmpty && (
                   <TooltipContent side="top" align="center">
                     <div className="text-center">
-                      <span className="text-muted-foreground text-[0.70rem] uppercase">
+                      <span className="text-muted-foreground text-2xs uppercase">
                         {category.name}
                       </span>
                       <div className="font-medium">

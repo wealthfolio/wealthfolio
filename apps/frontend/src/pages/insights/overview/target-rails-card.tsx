@@ -108,7 +108,7 @@ export function TargetRailsCard({
     <Card className="flex flex-col gap-4 p-5 xl:h-full">
       {/* Header: title + Details (top-right) */}
       <div className="flex items-center justify-between gap-3">
-        <div className="text-muted-foreground text-[12px] font-semibold uppercase tracking-[0.18em]">
+        <div className="text-muted-foreground text-xs font-semibold uppercase tracking-[0.18em]">
           {t("insights:insights.rails.target_allocation")}
         </div>
         {hasTarget && onViewDetails && (
@@ -133,7 +133,7 @@ export function TargetRailsCard({
               type="button"
               onClick={() => onTargetChange(p.id)}
               className={cn(
-                "flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1 text-[12px] font-medium transition-colors",
+                "flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1 text-xs font-medium transition-colors",
                 p.id === selectedTargetId
                   ? "bg-foreground text-background"
                   : "bg-muted text-muted-foreground hover:text-foreground",
@@ -158,7 +158,7 @@ export function TargetRailsCard({
                   key={row.categoryId}
                   className="grid grid-cols-[110px_1fr_62px] items-center gap-2.5 border-t py-3 first:border-t-0"
                 >
-                  <span className="flex items-center gap-2 overflow-hidden text-[12.5px] font-semibold">
+                  <span className="flex items-center gap-2 overflow-hidden text-xs font-semibold">
                     <span
                       className="h-2.5 w-2.5 shrink-0 rounded-sm"
                       style={{ background: color }}
@@ -176,10 +176,7 @@ export function TargetRailsCard({
                     />
                   </span>
                   <span
-                    className={cn(
-                      "text-right text-[11.5px] font-bold tabular-nums",
-                      driftClass(row),
-                    )}
+                    className={cn("text-2xs text-right font-bold tabular-nums", driftClass(row))}
                   >
                     {formatDriftBps(row.driftBps)}
                   </span>
@@ -190,13 +187,13 @@ export function TargetRailsCard({
 
           {/* Suggested moves — fills the remaining height */}
           <div className="flex flex-col pt-5 xl:flex-1">
-            <div className="text-muted-foreground mb-2 text-[10px] font-semibold uppercase tracking-wider">
+            <div className="text-muted-foreground text-2xs mb-2 font-semibold uppercase tracking-wider">
               {t("insights:insights.rails.suggested_moves")}
             </div>
             {moves.length === 0 ? (
               <div className="text-muted-foreground flex flex-col items-center justify-center gap-1.5 py-4 text-center xl:flex-1">
                 <Icons.CheckCircle className="text-success h-6 w-6" />
-                <span className="text-[12px]">{t("insights:insights.rails.all_in_range")}</span>
+                <span className="text-xs">{t("insights:insights.rails.all_in_range")}</span>
               </div>
             ) : (
               <div className="flex flex-col gap-2.5">
@@ -206,7 +203,7 @@ export function TargetRailsCard({
                   return (
                     <div
                       key={row.categoryId}
-                      className="flex items-center justify-between gap-2 text-[12px]"
+                      className="flex items-center justify-between gap-2 text-xs"
                     >
                       <span className="flex min-w-0 items-center gap-2">
                         <span
@@ -241,7 +238,7 @@ export function TargetRailsCard({
           {/* Bottom status */}
           <div
             className={cn(
-              "mt-3 flex items-center gap-2 rounded-lg border px-3 py-2 text-[11px] font-semibold xl:mt-auto",
+              "text-2xs mt-3 flex items-center gap-2 rounded-lg border px-3 py-2 font-semibold xl:mt-auto",
               withinTolerance
                 ? "border-success/15 bg-success/[0.04] text-success"
                 : "border-warning/15 bg-warning/[0.05] text-warning",
@@ -269,7 +266,7 @@ export function TargetRailsCard({
       ) : (
         <div className="flex flex-1 flex-col items-center justify-center gap-5 py-1 text-center">
           <div className="bg-muted/25 w-full rounded-xl border p-4">
-            <div className="text-muted-foreground mb-4 flex items-center justify-between text-[10px] font-semibold uppercase tracking-wider">
+            <div className="text-muted-foreground text-2xs mb-4 flex items-center justify-between font-semibold uppercase tracking-wider">
               <span>{t("insights:insights.rails.current")}</span>
               <span>{t("insights:insights.rails.target")}</span>
             </div>
@@ -301,10 +298,10 @@ export function TargetRailsCard({
               <Icons.Target className="text-muted-foreground h-5 w-5" />
             </div>
             <div>
-              <h3 className="text-foreground text-[13px] font-semibold">
+              <h3 className="text-foreground text-sm font-semibold">
                 {t("insights:insights.rails.no_target_yet")}
               </h3>
-              <p className="text-muted-foreground mt-1 text-[12px] leading-relaxed">
+              <p className="text-muted-foreground mt-1 text-xs leading-relaxed">
                 {t("insights:insights.rails.compare_weights")}
               </p>
             </div>

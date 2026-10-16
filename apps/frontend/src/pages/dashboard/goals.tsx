@@ -175,7 +175,7 @@ export function SavingGoals() {
                 </div>
 
                 {/* Amounts directly under title */}
-                <div className="text-muted-foreground mt-0.5 text-[11px] tabular-nums">
+                <div className="text-muted-foreground text-2xs mt-0.5 tabular-nums">
                   {currentDisplay} / {targetDisplay}
                 </div>
               </div>
@@ -185,7 +185,7 @@ export function SavingGoals() {
                 <div className="text-base font-semibold tabular-nums leading-none">
                   {pctDisplay}
                 </div>
-                <div className="text-muted-foreground mt-1 text-[10px] tracking-[0.1em]">
+                <div className="text-muted-foreground text-2xs mt-1 tracking-[0.1em]">
                   {timeStr}
                 </div>
               </div>

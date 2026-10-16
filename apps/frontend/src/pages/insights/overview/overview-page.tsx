@@ -291,7 +291,7 @@ export function OverviewPage({
                 {t("insights:insights.back_to_allocation")}
               </Button>
               <span className="bg-border hidden h-5 w-px sm:block" />
-              <h2 className="text-foreground text-[16px] font-semibold">
+              <h2 className="text-foreground text-base font-semibold">
                 {t("insights:insights.target_allocation")}
               </h2>
             </div>
@@ -347,7 +347,7 @@ export function OverviewPage({
             {t("insights:insights.back_to_overview")}
           </Button>
           <span className="bg-border hidden h-5 w-px sm:block" />
-          <h2 className="text-foreground min-w-0 text-[16px] font-semibold">
+          <h2 className="text-foreground min-w-0 text-base font-semibold">
             {t("insights:insights.rebalance")}
           </h2>
         </div>

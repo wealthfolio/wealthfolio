@@ -112,7 +112,7 @@ export function AssetAccountHoldings({ assetId, baseCurrency }: AssetAccountHold
                 <div className="flex items-center gap-2">
                   <p className="truncate text-sm font-medium">{account?.name ?? h.accountId}</p>
                   {account?.trackingMode === "HOLDINGS" && (
-                    <Badge variant="outline" className="shrink-0 px-1 py-0 text-[10px]">
+                    <Badge variant="outline" className="text-2xs shrink-0 px-1 py-0">
                       {t("asset:accountHoldings.manual")}
                     </Badge>
                   )}
@@ -169,7 +169,7 @@ export function AssetAccountHoldings({ assetId, baseCurrency }: AssetAccountHold
                   <div className="flex items-center gap-2">
                     {account?.name ?? h.accountId}
                     {account?.trackingMode === "HOLDINGS" && (
-                      <Badge variant="outline" className="px-1.5 py-0 text-[10px]">
+                      <Badge variant="outline" className="text-2xs px-1.5 py-0">
                         {t("asset:accountHoldings.manual")}
                       </Badge>
                     )}
@@ -413,7 +413,7 @@ export function AssetSnapshotHistory({
                 </p>
                 <div className="text-muted-foreground flex items-center gap-1.5 text-xs">
                   <span className="truncate">{snap.accountName}</span>
-                  <Badge variant="outline" className="shrink-0 px-1 py-0 text-[10px]">
+                  <Badge variant="outline" className="text-2xs shrink-0 px-1 py-0">
                     {formatSource(snap.source, t)}
                   </Badge>
                 </div>
@@ -510,7 +510,7 @@ export function AssetSnapshotHistory({
                     )}
                   </TableCell>
                   <TableCell>
-                    <Badge variant="outline" className="px-1.5 py-0 text-[10px]">
+                    <Badge variant="outline" className="text-2xs px-1.5 py-0">
                       {formatSource(snap.source, t)}
                     </Badge>
                   </TableCell>

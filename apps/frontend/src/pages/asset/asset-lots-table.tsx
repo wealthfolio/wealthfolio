@@ -345,7 +345,7 @@ function KpiStrip({
           currency={currency}
           className={cn("text-foreground", bigAmountClass)}
         />
-        <span className="text-muted-foreground text-[11px]">
+        <span className="text-muted-foreground text-2xs">
           {numberFormatting.formatQuantity(totals.shares)} {t("asset:lots.shares_suffix")}
           {marketPrice ? ` @ ${amountFormatting.formatPrice(marketPrice, currency)}` : null}
         </span>
@@ -357,7 +357,7 @@ function KpiStrip({
           currency={currency}
           className={cn("text-foreground", bigAmountClass)}
         />
-        <span className="text-muted-foreground text-[11px]">
+        <span className="text-muted-foreground text-2xs">
           {t("asset:lots.avg", {
             amount: amountFormatting.formatPrice(totals.averageUnitCost, currency),
           })}
@@ -371,7 +371,7 @@ function KpiStrip({
           displayCurrency={false}
           className={cn("items-start text-left", bigAmountClass)}
         />
-        <GainPercent value={totals.gainLossPercent} className="justify-start text-[11px]" />
+        <GainPercent value={totals.gainLossPercent} className="text-2xs justify-start" />
       </KpiCell>
 
       <KpiCell label={t("asset:lots.days_change")}>
@@ -384,7 +384,7 @@ function KpiStrip({
               className={cn("items-start text-left", bigAmountClass)}
             />
             {dayChangePct != null && (
-              <GainPercent value={dayChangePct} className="justify-start text-[11px]" />
+              <GainPercent value={dayChangePct} className="text-2xs justify-start" />
             )}
           </>
         ) : (
@@ -410,7 +410,7 @@ function KpiCell({
 }) {
   return (
     <div className={cn("bg-card flex flex-col gap-1.5 px-4 py-5 tabular-nums", className)}>
-      <span className="text-muted-foreground text-[11px] uppercase tracking-[0.1em]">{label}</span>
+      <span className="text-muted-foreground text-2xs uppercase tracking-[0.1em]">{label}</span>
       {children}
     </div>
   );
@@ -425,7 +425,7 @@ function AllocationBar({
 }) {
   const formatting = useNumberFormatting();
   if (totalValue <= 0) {
-    return <span className="text-muted-foreground text-[11px]">—</span>;
+    return <span className="text-muted-foreground text-2xs">—</span>;
   }
 
   const segments = groups
@@ -449,7 +449,7 @@ function AllocationBar({
           />
         ))}
       </div>
-      <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px]">
+      <div className="text-2xs flex flex-wrap gap-x-3 gap-y-1">
         {segments.map((segment) => (
           <div
             key={segment.accountId}
@@ -507,7 +507,7 @@ function AccountLotGroup({
           />
           <span className="text-foreground truncate text-sm font-medium">{group.accountName}</span>
           {group.allSnapshot && (
-            <Badge variant="secondary" className="ml-1 text-[10px] uppercase tracking-wider">
+            <Badge variant="secondary" className="text-2xs ml-1 uppercase tracking-wider">
               {t("asset:lots.from_snapshot")}
             </Badge>
           )}
@@ -520,7 +520,7 @@ function AccountLotGroup({
 
         <div className="text-muted-foreground flex flex-wrap items-center justify-end gap-x-3 gap-y-1 text-xs">
           <span className="inline-flex items-center gap-1.5">
-            <span className="text-[10px] uppercase tracking-wider">{t("asset:lots.basis")}</span>
+            <span className="text-2xs uppercase tracking-wider">{t("asset:lots.basis")}</span>
             <PrivacyAmount
               value={group.costBasis}
               currency={currency}
@@ -529,7 +529,7 @@ function AccountLotGroup({
           </span>
           <span className="bg-border hidden h-3 w-px sm:block" aria-hidden />
           <span className="inline-flex items-center gap-1.5">
-            <span className="text-[10px] uppercase tracking-wider">{t("asset:lots.value")}</span>
+            <span className="text-2xs uppercase tracking-wider">{t("asset:lots.value")}</span>
             <PrivacyAmount
               value={group.marketValue}
               currency={currency}
@@ -564,22 +564,22 @@ function AccountLotGroup({
                 </colgroup>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="text-[10px] uppercase tracking-[0.1em]">
+                    <TableHead className="text-2xs uppercase tracking-[0.1em]">
                       {t("asset:lots.date")}
                     </TableHead>
-                    <TableHead className="text-right text-[10px] uppercase tracking-[0.1em]">
+                    <TableHead className="text-2xs text-right uppercase tracking-[0.1em]">
                       {t("asset:lots.qty")}
                     </TableHead>
-                    <TableHead className="text-right text-[10px] uppercase tracking-[0.1em]">
+                    <TableHead className="text-2xs text-right uppercase tracking-[0.1em]">
                       {t("asset:lots.unit_cost")}
                     </TableHead>
-                    <TableHead className="text-right text-[10px] uppercase tracking-[0.1em]">
+                    <TableHead className="text-2xs text-right uppercase tracking-[0.1em]">
                       {t("asset:lots.cost_basis_col")}
                     </TableHead>
-                    <TableHead className="text-right text-[10px] uppercase tracking-[0.1em]">
+                    <TableHead className="text-2xs text-right uppercase tracking-[0.1em]">
                       {t("asset:lots.market_value_col")}
                     </TableHead>
-                    <TableHead className="text-right text-[10px] uppercase tracking-[0.1em]">
+                    <TableHead className="text-2xs text-right uppercase tracking-[0.1em]">
                       {t("holdings:gain_loss")}
                     </TableHead>
                   </TableRow>
@@ -616,10 +616,7 @@ function AssetLotTableRow({ item, currency }: { item: ComputedLot; currency: str
 
   return (
     <TableRow
-      className={cn(
-        "hover:bg-muted/40 text-[13px] transition-colors",
-        lot.isClosed && "opacity-60",
-      )}
+      className={cn("hover:bg-muted/40 text-sm transition-colors", lot.isClosed && "opacity-60")}
     >
       <TableCell className="font-medium">
         <div>
@@ -630,7 +627,7 @@ function AssetLotTableRow({ item, currency }: { item: ComputedLot; currency: str
             ...dateFormatting,
           })}
         </div>
-        <div className="text-muted-foreground text-[11px]">
+        <div className="text-muted-foreground text-2xs">
           {isSnapshot
             ? t("asset:lots.as_of_snapshot")
             : t("asset:lots.held", { period: formatHoldingPeriod(lot.acquisitionDate, t) })}
@@ -642,12 +639,12 @@ function AssetLotTableRow({ item, currency }: { item: ComputedLot; currency: str
       <TableCell className="text-right tabular-nums">
         <div>{formatting.formatQuantity(item.remainingQuantity)}</div>
         {item.hasPartialSell && (
-          <div className="text-muted-foreground text-[11px]">
+          <div className="text-muted-foreground text-2xs">
             {t("asset:lots.of", { quantity: formatting.formatQuantity(lot.originalQuantity) })}
           </div>
         )}
         {!isSnapshot && lot.splitRatio !== 1 && (
-          <div className="text-muted-foreground text-[11px]">
+          <div className="text-muted-foreground text-2xs">
             {t("asset:lots.eff", { quantity: formatting.formatQuantity(item.effectiveQuantity) })}
           </div>
         )}
@@ -659,7 +656,7 @@ function AssetLotTableRow({ item, currency }: { item: ComputedLot; currency: str
           "—"
         )}
         {!isSnapshot && lot.splitRatio !== 1 && (
-          <div className="text-muted-foreground text-[11px]">
+          <div className="text-muted-foreground text-2xs">
             {t("asset:lots.adj")}{" "}
             {item.valuationUnitCost != null ? (
               <PrivacyAmount
@@ -691,7 +688,7 @@ function AssetLotTableRow({ item, currency }: { item: ComputedLot; currency: str
               displayCurrency={false}
             />
             {item.gainLossPercent != null && (
-              <GainPercent value={item.gainLossPercent} className="text-[11px]" />
+              <GainPercent value={item.gainLossPercent} className="text-2xs" />
             )}
           </div>
         ) : (
@@ -724,7 +721,7 @@ function AssetLotMobileRow({ item, currency }: { item: ComputedLot; currency: st
               ...dateFormatting,
             })}
           </div>
-          <div className="text-muted-foreground text-[11px]">
+          <div className="text-muted-foreground text-2xs">
             {isSnapshot
               ? t("asset:lots.as_of_snapshot")
               : t("asset:lots.held", { period: formatHoldingPeriod(lot.acquisitionDate, t) })}
@@ -741,7 +738,7 @@ function AssetLotMobileRow({ item, currency }: { item: ComputedLot; currency: st
               displayCurrency={false}
             />
             {item.gainLossPercent != null && (
-              <GainPercent value={item.gainLossPercent} className="text-[11px]" />
+              <GainPercent value={item.gainLossPercent} className="text-2xs" />
             )}
           </div>
         )}
@@ -752,7 +749,7 @@ function AssetLotMobileRow({ item, currency }: { item: ComputedLot; currency: st
         <span className="text-foreground text-right tabular-nums">
           {formatting.formatQuantity(item.remainingQuantity)}
           {item.hasPartialSell && (
-            <span className="text-muted-foreground block text-[11px]">
+            <span className="text-muted-foreground text-2xs block">
               {t("asset:lots.of", { quantity: formatting.formatQuantity(lot.originalQuantity) })}
             </span>
           )}

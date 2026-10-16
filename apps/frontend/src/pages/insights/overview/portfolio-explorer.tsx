@@ -87,7 +87,7 @@ function SegmentedBar({ nodes }: { nodes: BreakdownNode[] }) {
           title={`${node.name} · ${node.percentage.toFixed(1)}%`}
         >
           {node.percentage >= 8 && (
-            <span className="truncate text-[10.5px] font-bold text-white/95">{node.name}</span>
+            <span className="text-2xs truncate font-bold text-white/95">{node.name}</span>
           )}
         </div>
       ))}
@@ -296,7 +296,7 @@ export function PortfolioExplorer({
           <span className="h-3 w-3 shrink-0 rounded-sm" style={{ background: node.color }} />
           <span
             className={cn(
-              "truncate text-[13px]",
+              "truncate text-sm",
               node.depth ? "text-muted-foreground font-medium" : "text-foreground font-semibold",
               isOther && "text-muted-foreground font-medium",
             )}
@@ -304,10 +304,10 @@ export function PortfolioExplorer({
             {node.name}
           </span>
         </span>
-        <span className="text-foreground w-[62px] text-right text-[13px] font-bold tabular-nums">
+        <span className="text-foreground w-[62px] text-right text-sm font-bold tabular-nums">
           {node.percentage.toFixed(1)}%
         </span>
-        <span className="text-muted-foreground w-[84px] text-right text-[12px] tabular-nums">
+        <span className="text-muted-foreground w-[84px] text-right text-xs tabular-nums">
           <PrivacyAmount value={node.value} currency={currency} />
         </span>
         <span className="text-muted-foreground w-3.5 text-center">
@@ -337,7 +337,7 @@ export function PortfolioExplorer({
               type="button"
               onClick={() => selectLens(lens.key)}
               className={cn(
-                "rounded-lg px-4 py-2 text-[13px] transition-colors",
+                "rounded-lg px-4 py-2 text-sm transition-colors",
                 lens.key === active.key
                   ? "bg-foreground text-background font-semibold"
                   : "text-muted-foreground hover:bg-muted hover:text-foreground",
@@ -351,15 +351,15 @@ export function PortfolioExplorer({
         {/* Full-width breakdown */}
         <div className="p-6">
           <div className="mb-3.5 flex items-baseline justify-between gap-3.5">
-            <span className="text-[13.5px] font-bold">{active.label}</span>
-            <span className="text-muted-foreground text-[12.5px] tabular-nums">
+            <span className="text-sm font-bold">{active.label}</span>
+            <span className="text-muted-foreground text-xs tabular-nums">
               <PrivacyAmount value={total} currency={currency} /> ·{" "}
               {active.count ?? active.nodes.length} {active.unit}
             </span>
           </div>
           <SegmentedBar nodes={barWeights} />
           <div className="mb-1 mt-4 flex items-baseline justify-between">
-            <span className="text-muted-foreground text-[10.5px] font-semibold uppercase tracking-wider">
+            <span className="text-muted-foreground text-2xs font-semibold uppercase tracking-wider">
               {collapsible && !showAll
                 ? t("insights:insights.explorer.top_units", { unit: active.unit })
                 : active.label}
@@ -368,7 +368,7 @@ export function PortfolioExplorer({
               <button
                 type="button"
                 onClick={() => setShowAll((v) => !v)}
-                className="text-muted-foreground hover:text-foreground text-[12px] font-semibold"
+                className="text-muted-foreground hover:text-foreground text-xs font-semibold"
               >
                 {showAll
                   ? t("insights:insights.explorer.show_less")

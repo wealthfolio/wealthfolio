@@ -139,7 +139,7 @@ export function TopMoversCard({ holdings, currency, isLoading }: HighlightProps)
         ) : (
           (["gainers", "losers"] as const).map((group) => (
             <div key={group} className="mt-3 first:mt-0">
-              <h3 className="text-muted-foreground text-[11px] font-medium uppercase tracking-wider">
+              <h3 className="text-muted-foreground text-2xs font-medium uppercase tracking-wider">
                 {t(`insights:highlights.${group}`)}
               </h3>
               {movers[group].length === 0 ? (

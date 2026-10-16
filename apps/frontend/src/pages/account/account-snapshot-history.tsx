@@ -222,7 +222,7 @@ export function AccountSnapshotHistory({
                   <p className="truncate text-sm font-medium">
                     {formatDate(snapshot.snapshotDate, dateFormatting)}
                   </p>
-                  <Badge variant="outline" className="shrink-0 px-1.5 py-0 text-[10px]">
+                  <Badge variant="outline" className="text-2xs shrink-0 px-1.5 py-0">
                     {formatSnapshotSource(snapshot.source, t)}
                   </Badge>
                 </div>
@@ -292,7 +292,7 @@ export function AccountSnapshotHistory({
                     {formatDate(snapshot.snapshotDate, dateFormatting)}
                   </TableCell>
                   <TableCell>
-                    <Badge variant="outline" className="px-1.5 py-0 text-[10px]">
+                    <Badge variant="outline" className="text-2xs px-1.5 py-0">
                       {formatSnapshotSource(snapshot.source, t)}
                     </Badge>
                   </TableCell>

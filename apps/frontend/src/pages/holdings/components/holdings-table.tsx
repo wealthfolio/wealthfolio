@@ -364,12 +364,12 @@ const getColumns = (
             <div className="flex items-center gap-1.5">
               <span className="font-medium">{displaySymbol}</span>
               {isManual && !isCash && (
-                <Badge variant="secondary" className="h-4 px-1 py-0 text-[10px]">
+                <Badge variant="secondary" className="text-2xs h-4 px-1 py-0">
                   {t("holdings:manual")}
                 </Badge>
               )}
               {isClosed && (
-                <Badge variant="outline" className="h-4 px-1 py-0 text-[10px]">
+                <Badge variant="outline" className="text-2xs h-4 px-1 py-0">
                   {t("holdings:closed")}
                 </Badge>
               )}

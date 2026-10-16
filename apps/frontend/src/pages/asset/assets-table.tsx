@@ -128,7 +128,7 @@ export function AssetsTable({
                 <div className="group-hover:text-primary flex items-center gap-1.5 font-semibold leading-tight transition-colors">
                   {displaySymbol}
                   {parsedOption ? (
-                    <Badge variant="secondary" className="text-[10px]">
+                    <Badge variant="secondary" className="text-2xs">
                       {t("asset:table.option")}
                     </Badge>
                   ) : null}
@@ -163,7 +163,7 @@ export function AssetsTable({
               </div>
               {isManual ? (
                 <div>
-                  <Badge variant="outline" className="px-1.5 py-0 text-[10px]">
+                  <Badge variant="outline" className="text-2xs px-1.5 py-0">
                     {t("asset:table.manual")}
                   </Badge>
                 </div>
@@ -286,7 +286,7 @@ export function AssetsTable({
                   )}
                 </span>
               </div>
-              <div className="text-muted-foreground text-[11px]">
+              <div className="text-muted-foreground text-2xs">
                 {formatDate(quote.timestamp, dateFormatting)}
               </div>
             </div>

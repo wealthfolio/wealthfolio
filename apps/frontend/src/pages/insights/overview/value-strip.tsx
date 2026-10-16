@@ -13,7 +13,7 @@ interface ValueWidgetProps {
 
 function Eyebrow({ children }: { children: React.ReactNode }) {
   return (
-    <div className="text-muted-foreground text-[10px] font-semibold uppercase tracking-wider">
+    <div className="text-muted-foreground text-2xs font-semibold uppercase tracking-wider">
       {children}
     </div>
   );
@@ -79,8 +79,8 @@ export function ValueWidget({ metric, data, currency, isLoading }: ValueWidgetPr
   const pad = "px-3.5 py-2.5";
   const gap = "space-y-0.5";
   const totalSize = "whitespace-nowrap text-[clamp(0.875rem,10cqi,1.375rem)] leading-7";
-  const secSize = "whitespace-nowrap text-[clamp(0.75rem,9cqi,1.125rem)] leading-6 sm:text-[18px]";
-  const subSize = "text-[11px] leading-4";
+  const secSize = "whitespace-nowrap text-[clamp(0.75rem,9cqi,1.125rem)] leading-6 sm:text-lg";
+  const subSize = "text-2xs leading-4";
 
   if (isLoading) {
     return (

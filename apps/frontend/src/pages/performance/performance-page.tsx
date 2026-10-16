@@ -440,9 +440,9 @@ function HeaderMetric({
 const STRIP_SECTION_CLASS =
   "border-border/70 flex min-h-[4.75rem] min-w-0 flex-col justify-center border-l pl-5";
 const STRIP_TITLE_CLASS =
-  "text-muted-foreground/70 mb-2.5 font-mono text-[9px] font-semibold uppercase tracking-[0.28em]";
+  "text-muted-foreground/70 mb-2.5 font-mono text-2xs font-semibold uppercase tracking-[0.28em]";
 const STRIP_LABEL_CLASS =
-  "text-muted-foreground truncate font-mono text-[11px] font-medium tracking-[0.02em]";
+  "text-muted-foreground truncate font-mono text-2xs font-medium tracking-[0.02em]";
 const STRIP_VALUE_CLASS = "font-mono text-lg font-semibold leading-none";
 
 function StripSection({
@@ -1029,12 +1029,12 @@ const SelectedItemBadge = ({
           {item.name}
         </span>
         {!isPlotted && (
-          <span className="bg-background/70 text-muted-foreground rounded px-1.5 py-0.5 text-[10px] font-medium">
+          <span className="bg-background/70 text-muted-foreground text-2xs rounded px-1.5 py-0.5 font-medium">
             {t("performance:not_plotted")}
           </span>
         )}
         {isPlotted && contextLabel && (
-          <span className="bg-background/70 text-muted-foreground rounded px-1.5 py-0.5 text-[10px] font-medium">
+          <span className="bg-background/70 text-muted-foreground text-2xs rounded px-1.5 py-0.5 font-medium">
             {contextLabel}
           </span>
         )}
@@ -1658,7 +1658,7 @@ export default function PerformancePage() {
                     className={cn(
                       "text-xs sm:text-sm",
                       !isMobile && "whitespace-nowrap text-right 2xl:text-left",
-                      isMobile && "text-[10px]",
+                      isMobile && "text-2xs",
                     )}
                   >
                     {displayDateRange}
@@ -1667,7 +1667,7 @@ export default function PerformancePage() {
                     <Badge
                       variant={selectedItemData.trackingModeBadge.variant}
                       className={cn(
-                        "mt-2 h-5 rounded-md px-1.5 text-[10px] font-medium",
+                        "text-2xs mt-2 h-5 rounded-md px-1.5 font-medium",
                         !isMobile && "col-start-1 mt-1 w-fit 2xl:mt-2",
                       )}
                     >

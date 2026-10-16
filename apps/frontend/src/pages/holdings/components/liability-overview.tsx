@@ -142,7 +142,7 @@ export function LiabilityOverview({
 function StatBlock({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-baseline gap-2.5">
-      <span className="text-muted-foreground text-[10px] uppercase tracking-[0.15em]">{label}</span>
+      <span className="text-muted-foreground text-2xs uppercase tracking-[0.15em]">{label}</span>
       <span className="text-foreground text-sm font-semibold tabular-nums">{value}</span>
     </div>
   );
@@ -249,7 +249,7 @@ function LiabilityCard({
             {model.status && (
               <span
                 className={cn(
-                  "inline-flex h-5 items-center px-2 text-[9px] font-medium uppercase leading-none tracking-[0.14em]",
+                  "text-2xs inline-flex h-5 items-center px-2 font-medium uppercase leading-none tracking-[0.14em]",
                   STATUS_STYLES[model.status],
                 )}
               >
@@ -310,7 +310,7 @@ function LiabilityCard({
                 {holding.name}
               </Link>
             </h3>
-            <p className="text-muted-foreground mt-0.5 truncate text-[9px] uppercase tracking-[0.15em]">
+            <p className="text-muted-foreground text-2xs mt-0.5 truncate uppercase tracking-[0.15em]">
               {meta}
             </p>
           </div>
@@ -319,7 +319,7 @@ function LiabilityCard({
               <div className="text-success text-lg font-semibold tabular-nums leading-none">
                 {numbers.formatPercent(model.paidShare, { digits: 1 })}
               </div>
-              <div className="text-muted-foreground mt-0.5 text-[9px] uppercase tracking-[0.15em]">
+              <div className="text-muted-foreground text-2xs mt-0.5 uppercase tracking-[0.15em]">
                 {t("holdings:liability_cards.paid_off")}
               </div>
             </div>
@@ -331,7 +331,7 @@ function LiabilityCard({
             <div className="text-sm font-semibold tabular-nums">
               {model.balanceAvailable ? money(model.balance) : t("asset:loanOverview.unavailable")}
             </div>
-            <div className="text-muted-foreground mt-0.5 text-[10px]">
+            <div className="text-muted-foreground text-2xs mt-0.5">
               {model.original != null
                 ? t("holdings:liability_cards.owed_of", { amount: money(model.original) })
                 : t("holdings:liability_cards.owed_now")}
@@ -341,7 +341,7 @@ function LiabilityCard({
             {model.payment != null && model.frequency ? (
               <>
                 <div className="text-sm font-semibold tabular-nums">{money(model.payment)}</div>
-                <div className="text-muted-foreground mt-0.5 text-[10px]">
+                <div className="text-muted-foreground text-2xs mt-0.5">
                   {t(`asset:loanActions.${model.frequency}`)}
                 </div>
               </>
@@ -350,7 +350,7 @@ function LiabilityCard({
                 <div className="text-muted-foreground text-sm font-semibold">
                   {t("holdings:liability_cards.manual")}
                 </div>
-                <div className="text-muted-foreground mt-0.5 text-[10px]">
+                <div className="text-muted-foreground text-2xs mt-0.5">
                   {t("holdings:liability_cards.manual_hint")}
                 </div>
               </>

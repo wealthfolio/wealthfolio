@@ -233,7 +233,7 @@ export const NetWorthWidget = ({
           <span
             className={cn(
               "text-muted-foreground font-medium uppercase tracking-wider",
-              compact ? "text-[10px]" : "text-xs",
+              compact ? "text-2xs" : "text-xs",
             )}
           >
             {t("holdings:net_worth")}
@@ -286,7 +286,7 @@ export const NetWorthWidget = ({
             <span
               className={cn(
                 "text-muted-foreground font-medium uppercase",
-                compact ? "text-[9px]" : "text-[10px]",
+                compact ? "text-2xs" : "text-2xs",
               )}
             >
               {t("holdings:summary_assets")}
@@ -300,7 +300,7 @@ export const NetWorthWidget = ({
             <span
               className={cn(
                 "text-muted-foreground font-medium uppercase",
-                compact ? "text-[9px]" : "text-[10px]",
+                compact ? "text-2xs" : "text-2xs",
               )}
             >
               {t("holdings:summary_debts")}
