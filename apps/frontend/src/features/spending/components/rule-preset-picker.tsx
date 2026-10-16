@@ -140,7 +140,7 @@ export function RulePresetPicker({ compact = false }: RulePresetPickerProps) {
                   aria-label={t("spending:presets.removeLabel", { name: preset.name })}
                   title={t("spending:presets.removeLabel", { name: preset.name })}
                   className={cn(
-                    "text-muted-foreground hover:bg-destructive/10 hover:text-destructive absolute right-1.5 top-1.5 inline-flex h-6 w-6 items-center justify-center rounded-md transition-all",
+                    "text-muted-foreground hover:bg-destructive-subtle hover:text-destructive-subtle-foreground absolute right-1.5 top-1.5 inline-flex h-6 w-6 items-center justify-center rounded-md transition-all",
                     "focus-visible:ring-ring focus-visible:outline-none focus-visible:ring-2",
                     "opacity-0 focus-visible:opacity-100 group-hover:opacity-100",
                     "disabled:cursor-not-allowed disabled:opacity-40",

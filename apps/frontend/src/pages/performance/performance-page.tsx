@@ -996,7 +996,7 @@ const SelectedItemBadge = ({
         "focus-visible:ring-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2",
         !isPlotted &&
           "text-muted-foreground bg-muted/30 hover:bg-muted/50 border-dashed shadow-none hover:shadow-sm",
-        isSelected && "bg-warning/20 hover:bg-warning/30",
+        isSelected && "bg-warning-subtle hover:bg-warning-subtle/70",
       )}
       onClick={onSelect}
       role="button"
@@ -1044,7 +1044,7 @@ const SelectedItemBadge = ({
         size="icon-xs"
         className={cn(
           "ml-2 size-5 transition-all duration-150",
-          "hover:bg-destructive/10 hover:text-destructive hover:scale-110",
+          "hover:bg-destructive-subtle hover:text-destructive-subtle-foreground hover:scale-110",
           "focus-visible:ring-destructive/50 focus-visible:ring-2",
         )}
         onClick={onDelete}

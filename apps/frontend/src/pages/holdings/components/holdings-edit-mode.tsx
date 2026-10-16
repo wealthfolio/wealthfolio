@@ -536,7 +536,7 @@ export const HoldingsEditMode = ({
                             variant="ghost"
                             size="sm"
                             onClick={() => handleRemoveHolding(holding.assetId)}
-                            className="hover:bg-destructive/20 hover:text-destructive h-7 w-7 p-0"
+                            className="hover:bg-destructive-subtle hover:text-destructive-subtle-foreground h-7 w-7 p-0"
                           >
                             <Icons.Trash className="h-3.5 w-3.5" />
                           </Button>
@@ -650,7 +650,7 @@ export const HoldingsEditMode = ({
                           variant="ghost"
                           size="sm"
                           onClick={() => handleRemoveCashBalance(cash.currency)}
-                          className="hover:bg-destructive/20 hover:text-destructive h-7 w-7 p-0"
+                          className="hover:bg-destructive-subtle hover:text-destructive-subtle-foreground h-7 w-7 p-0"
                         >
                           <Icons.Trash className="h-3.5 w-3.5" />
                         </Button>

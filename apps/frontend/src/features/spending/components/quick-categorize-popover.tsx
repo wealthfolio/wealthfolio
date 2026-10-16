@@ -158,7 +158,7 @@ export function QuickCategorizePopover({
                 <CommandGroup>
                   <CommandItem
                     onSelect={handleClear}
-                    className="text-destructive hover:bg-destructive/10 justify-center text-center text-sm"
+                    className="text-destructive hover:bg-destructive-subtle hover:text-destructive-subtle-foreground justify-center text-center text-sm"
                   >
                     {t("spending:category.clearCategory")}
                   </CommandItem>

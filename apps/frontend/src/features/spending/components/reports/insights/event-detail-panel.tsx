@@ -279,7 +279,7 @@ export const EventDetailPanel: FC<EventDetailPanelProps> = ({
             type="button"
             onClick={expandWindow}
             disabled={update.isPending}
-            className="text-foreground hover:bg-warning/15 rounded px-2 py-0.5 text-[11px] font-medium underline-offset-2 hover:underline disabled:opacity-50"
+            className="text-foreground hover:bg-warning-subtle rounded px-2 py-0.5 text-[11px] font-medium underline-offset-2 hover:underline disabled:opacity-50"
           >
             {update.isPending
               ? t("spending:eventDetail.expanding")

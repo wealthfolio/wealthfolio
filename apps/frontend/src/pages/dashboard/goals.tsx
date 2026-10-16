@@ -72,7 +72,7 @@ function ViewAllLink() {
   return (
     <Link
       to="/goals"
-      className="text-muted-foreground hover:bg-success/10 inline-flex h-8 items-center rounded-md px-3 text-xs font-medium transition-colors"
+      className="text-muted-foreground hover:bg-success-subtle inline-flex h-8 items-center rounded-md px-3 text-xs font-medium transition-colors"
     >
       {t("dashboard:view_all")}
       <Icons.ChevronRight className="ml-1 h-3 w-3" />

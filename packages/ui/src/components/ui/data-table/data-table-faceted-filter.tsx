@@ -128,7 +128,7 @@ export function DataTableFacetedFilter<TData, TValue>({
                 <CommandGroup>
                   <CommandItem
                     onSelect={() => column?.setFilterValue(undefined)}
-                    className="text-destructive hover:bg-destructive/10 justify-center text-center text-sm"
+                    className="text-destructive hover:bg-destructive-subtle hover:text-destructive-subtle-foreground justify-center text-center text-sm"
                   >
                     {t("ui:faceted.clearFilters", "Clear filters")}
                   </CommandItem>

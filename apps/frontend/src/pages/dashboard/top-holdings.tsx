@@ -306,7 +306,7 @@ export function TopHoldings({ holdings, isLoading, baseCurrency }: TopHoldingsPr
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="text-muted-foreground hover:bg-success/10 h-8 w-8 p-0"
+                  className="text-muted-foreground hover:bg-success-subtle h-8 w-8 p-0"
                 />
               }
             >
@@ -401,7 +401,7 @@ export function TopHoldings({ holdings, isLoading, baseCurrency }: TopHoldingsPr
           <Button
             variant="ghost"
             size="sm"
-            className="text-muted-foreground hover:bg-success/10 text-xs"
+            className="text-muted-foreground hover:bg-success-subtle text-xs"
             onClick={() => navigate("/holdings")}
           >
             {t("dashboard:view_all")}

@@ -1149,7 +1149,7 @@ function BudgetCategoryLine({
                 <button
                   type="button"
                   onClick={() => onDeleteOverride(target)}
-                  className="bg-warning/15 text-warning hover:bg-warning/25 border-background absolute -right-1 -top-1 flex h-3.5 w-3.5 items-center justify-center rounded-full border transition-colors"
+                  className="bg-warning-subtle text-warning-subtle-foreground hover:bg-warning-subtle/70 border-background absolute -right-1 -top-1 flex h-3.5 w-3.5 items-center justify-center rounded-full border transition-colors"
                   aria-label={t("spending:budgetEditor.revertOverride")}
                 />
               }
@@ -1313,7 +1313,7 @@ function GroupBufferLine({
           <button
             type="button"
             onClick={() => onDeleteOverride(target)}
-            className="bg-warning/15 text-warning hover:bg-warning/25 border-background absolute -right-1 -top-1 flex h-3.5 w-3.5 items-center justify-center rounded-full border transition-colors"
+            className="bg-warning-subtle text-warning-subtle-foreground hover:bg-warning-subtle/70 border-background absolute -right-1 -top-1 flex h-3.5 w-3.5 items-center justify-center rounded-full border transition-colors"
             aria-label={t("spending:budgetEditor.revertOverride")}
           >
             <Icons.X className="h-2 w-2" />

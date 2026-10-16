@@ -88,7 +88,7 @@ export function DateRangeFilter({ value, onChange, title }: DateRangeFilterProps
               variant="ghost"
               size="sm"
               onClick={() => onChange(undefined)}
-              className="text-destructive hover:bg-destructive/10 w-full"
+              className="text-destructive hover:bg-destructive-subtle hover:text-destructive-subtle-foreground w-full"
             >
               {t("common:clear")}
             </Button>

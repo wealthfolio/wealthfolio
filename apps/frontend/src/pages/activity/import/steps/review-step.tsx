@@ -460,7 +460,7 @@ export function ReviewStep() {
             {filterStats.errors > 0 && (
               <Badge
                 variant="outline"
-                className="border-destructive/50 text-destructive hover:bg-destructive/10 cursor-pointer"
+                className="border-destructive/50 text-destructive hover:bg-destructive-subtle hover:text-destructive-subtle-foreground cursor-pointer"
                 onClick={() => setStatusFilter(new Set(["error"]))}
               >
                 {t("activity:import.review.errorsBadge", { count: filterStats.errors })}

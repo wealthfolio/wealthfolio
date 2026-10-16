@@ -266,7 +266,7 @@ const HoldingRow = memo(
                 variant="ghost"
                 size="sm"
                 onClick={handleRemoveClick}
-                className="hover:bg-destructive/20 hover:text-destructive h-6 w-6 shrink-0 p-0 sm:hidden"
+                className="hover:bg-destructive-subtle hover:text-destructive-subtle-foreground h-6 w-6 shrink-0 p-0 sm:hidden"
               >
                 <Icons.Trash className="h-3 w-3" />
               </Button>
@@ -328,7 +328,7 @@ const HoldingRow = memo(
               variant="ghost"
               size="sm"
               onClick={handleRemoveClick}
-              className="hover:bg-destructive/20 hover:text-destructive h-6 w-6 p-0"
+              className="hover:bg-destructive-subtle hover:text-destructive-subtle-foreground h-6 w-6 p-0"
             >
               <Icons.Trash className="h-3 w-3" />
             </Button>

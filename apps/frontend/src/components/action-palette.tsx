@@ -123,7 +123,7 @@ export function ActionPalette({
                           "flex w-full items-center gap-4 rounded-xl px-3 py-3",
                           "transition-colors duration-150",
                           isDestructive
-                            ? "text-destructive hover:bg-destructive/10 active:bg-destructive/15"
+                            ? "text-destructive hover:bg-destructive-subtle hover:text-destructive-subtle-foreground active:bg-destructive-subtle/70"
                             : "text-foreground hover:bg-accent active:bg-accent/80",
                           "focus-visible:ring-ring focus:outline-none focus-visible:ring-2 focus-visible:ring-inset",
                         )}

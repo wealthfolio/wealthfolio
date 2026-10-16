@@ -75,7 +75,7 @@ export function TransactionsBulkBar({
         <Button
           size="sm"
           variant="outline"
-          className="text-destructive hover:bg-destructive/10"
+          className="text-destructive hover:bg-destructive-subtle hover:text-destructive-subtle-foreground"
           onClick={onDelete}
         >
           <Icons.Trash className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />

@@ -73,7 +73,7 @@ export function NetWorthAttentionCard({
                 <Link
                   key={asset.assetId}
                   to={`/holdings/${encodeURIComponent(asset.assetId)}?tab=history`}
-                  className="hover:bg-warning/10 -mx-2 block rounded-md px-2 py-1.5 transition-colors"
+                  className="hover:bg-warning-subtle -mx-2 block rounded-md px-2 py-1.5 transition-colors"
                 >
                   <span className="flex items-baseline justify-between gap-2">
                     <span className="min-w-0 break-words text-xs font-medium">

@@ -744,7 +744,7 @@ export const AccountsSummary = React.memo(
           <h2 className="text-sm font-semibold tracking-tight">{t("dashboard:accounts")}</h2>
           <Button
             variant="ghost"
-            className="text-muted-foreground hover:bg-success/10"
+            className="text-muted-foreground hover:bg-success-subtle"
             size="sm"
             onClick={() => setAccountsGrouped(!accountsGrouped)}
             aria-label={accountsGrouped ? t("dashboard:list_view") : t("dashboard:group_view")}

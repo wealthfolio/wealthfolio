@@ -33,7 +33,7 @@ export function ToolError({ title, message, onRetry }: ToolErrorProps) {
           variant="outline"
           size="sm"
           onClick={onRetry}
-          className="border-destructive/50 text-destructive hover:bg-destructive/10 hover:text-destructive mt-2 gap-1.5"
+          className="border-destructive/50 text-destructive hover:bg-destructive-subtle hover:text-destructive-subtle-foreground mt-2 gap-1.5"
         >
           <Icons.RefreshCw className="size-3.5" />
           {t("ai:toolError.retry")}

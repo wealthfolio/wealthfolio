@@ -464,7 +464,7 @@ export default function AddonSettingsPage() {
                                 <Button
                                   variant="outline"
                                   size="sm"
-                                  className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive h-9 w-9 p-0 sm:opacity-0 sm:transition-opacity sm:group-hover:opacity-100"
+                                  className="text-muted-foreground hover:bg-destructive-subtle hover:text-destructive-subtle-foreground h-9 w-9 p-0 sm:opacity-0 sm:transition-opacity sm:group-hover:opacity-100"
                                 >
                                   <Icons.Trash className="h-4 w-4" />
                                   <span className="sr-only">
