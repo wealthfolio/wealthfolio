@@ -194,7 +194,7 @@ export function MoneyFlowSection({
           />
         )}
         {!isLoading && !focusedGraph && !isEmpty && graph.totals.income === 0 && (
-          <p className="text-muted-foreground/80 px-2 pt-2 text-[11px]">
+          <p className="text-muted-foreground/80 text-2xs px-2 pt-2">
             {t("spending:whereIAm.noIncome")}
           </p>
         )}

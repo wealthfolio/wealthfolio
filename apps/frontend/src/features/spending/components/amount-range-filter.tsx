@@ -93,9 +93,7 @@ function AmountRangeFilterInner({ value, onChange }: AmountRangeFilterProps) {
         <div className="space-y-2">
           <div className="grid grid-cols-2 gap-2">
             <div className="space-y-1">
-              <label className="text-muted-foreground text-[11px]">
-                {t("spending:common.min")}
-              </label>
+              <label className="text-muted-foreground text-2xs">{t("spending:common.min")}</label>
               <Input
                 type="number"
                 inputMode="decimal"
@@ -107,9 +105,7 @@ function AmountRangeFilterInner({ value, onChange }: AmountRangeFilterProps) {
               />
             </div>
             <div className="space-y-1">
-              <label className="text-muted-foreground text-[11px]">
-                {t("spending:common.max")}
-              </label>
+              <label className="text-muted-foreground text-2xs">{t("spending:common.max")}</label>
               <Input
                 type="number"
                 inputMode="decimal"

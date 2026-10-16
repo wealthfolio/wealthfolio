@@ -162,7 +162,7 @@ function TransactionCardImpl({
           {/* Everything secondary shares one line: the day heading above owns
               the date, and the category sits inline the way the table row shows
               it rather than in a chip row of its own. */}
-          <div className="text-muted-foreground mt-0.5 flex items-center gap-1.5 text-[11px]">
+          <div className="text-muted-foreground text-2xs mt-0.5 flex items-center gap-1.5">
             <span className="shrink-0">{time}</span>
             <span aria-hidden="true">·</span>
             {isNeutral ? (

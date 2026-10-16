@@ -137,14 +137,14 @@ function ComparisonMetric({ row, currency }: { row: MetricRow; currency: string 
 
   return (
     <div className="flex flex-col">
-      <span className="text-muted-foreground text-[11px] font-light tracking-wide">{label}</span>
+      <span className="text-muted-foreground text-2xs font-light tracking-wide">{label}</span>
       <span className="text-foreground text-base font-semibold tabular-nums">
         {isBalanceHidden
           ? "••••"
           : formatMetric(currentValue, currency, isRate, amountFormatting, numberFormatting)}
       </span>
       {!isBalanceHidden && pct != null && (
-        <span className={cn("mt-0.5 text-[11px] tabular-nums", toneClass)}>
+        <span className={cn("text-2xs mt-0.5 tabular-nums", toneClass)}>
           {trendingUp ? "↑" : delta < 0 ? "↓" : "→"}{" "}
           {numberFormatting.formatPercent(Math.abs(pct), { digits: 1 })}
           <span className="text-muted-foreground/70 ml-1 font-normal">

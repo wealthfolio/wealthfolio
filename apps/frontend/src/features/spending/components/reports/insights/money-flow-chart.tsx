@@ -347,7 +347,7 @@ export function MoneyFlowChart({
           x={textX}
           y={centerY - 2}
           textAnchor={labelLeft ? "end" : "start"}
-          className="text-[11px] font-medium"
+          className="text-2xs font-medium"
           style={{ fill: "var(--foreground)" }}
         >
           {name}
@@ -357,7 +357,7 @@ export function MoneyFlowChart({
           x={textX}
           y={centerY + 11}
           textAnchor={labelLeft ? "end" : "start"}
-          className="text-[10.5px] tabular-nums"
+          className="text-2xs tabular-nums"
           style={{ fill: "var(--muted-foreground)" }}
         >
           {amount}
@@ -603,7 +603,7 @@ function MoneyFlowTooltip({
         </ul>
       )}
       {(node.categoryId || canFocus) && (
-        <p className="text-muted-foreground/80 mt-2 text-[11px]">
+        <p className="text-muted-foreground/80 text-2xs mt-2">
           {t(
             canFocus
               ? node.subcategories

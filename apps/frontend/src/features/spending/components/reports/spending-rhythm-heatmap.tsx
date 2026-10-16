@@ -62,10 +62,7 @@ export function SpendingRhythmHeatmap({
       <div className="grid grid-cols-[auto_repeat(7,1fr)] gap-1.5">
         <div />
         {dayNamesShort.map((d, i) => (
-          <div
-            key={`hd-${i}`}
-            className="text-muted-foreground/70 text-center text-[10px] uppercase"
-          >
+          <div key={`hd-${i}`} className="text-muted-foreground/70 text-2xs text-center uppercase">
             {d}
           </div>
         ))}
@@ -116,7 +113,7 @@ function RhythmRow({
   const formatting = useDateFormatting();
   return (
     <>
-      <div className="text-muted-foreground/70 self-center pr-1 text-right text-[10px]">
+      <div className="text-muted-foreground/70 text-2xs self-center pr-1 text-right">
         {weekLabel}
       </div>
       {cells.map((cell, i) => {

@@ -16,7 +16,7 @@ import { getVisibleSpendingAmount } from "../../../lib/constants";
 import { createZonedDayHourFormatter, type ZonedDayHour } from "../../../lib/timezone";
 
 const CARD_CLASS = "border-border/60 bg-card/40 rounded-2xl border p-5 backdrop-blur-xl";
-const LABEL_CLASS = "text-muted-foreground/70 text-[10px] font-normal uppercase tracking-[0.12em]";
+const LABEL_CLASS = "text-muted-foreground/70 text-2xs font-normal uppercase tracking-[0.12em]";
 
 const DAY_NAME_KEYS = [
   "spending:dayOfWeek.mon",
@@ -112,7 +112,7 @@ export const WhenYouSpendCard: FC<WhenYouSpendCardProps> = ({
       <div className="grid grid-cols-[auto_1fr_auto] items-center gap-x-3 gap-y-1">
         {/* Hour-axis label row */}
         <div />
-        <div className="text-muted-foreground/70 grid grid-cols-8 text-[10px]">
+        <div className="text-muted-foreground/70 text-2xs grid grid-cols-8">
           {HOUR_LABELS.map((h, i) => (
             <span key={i} className="text-left">
               {h}
@@ -143,7 +143,7 @@ export const WhenYouSpendCard: FC<WhenYouSpendCardProps> = ({
         })}
       </div>
 
-      <div className="border-border/40 mt-4 flex items-center justify-between border-t pt-3 text-[11px]">
+      <div className="border-border/40 text-2xs mt-4 flex items-center justify-between border-t pt-3">
         {!isPhone && (
           <span className="text-muted-foreground/70">
             {t(
@@ -190,7 +190,7 @@ function Row({
   const hoursPerCell = Math.max(1, Math.round(24 / cols));
   return (
     <>
-      <div className="text-muted-foreground/80 pr-1 text-right text-[11px]">{day}</div>
+      <div className="text-muted-foreground/80 text-2xs pr-1 text-right">{day}</div>
       <div
         className="grid gap-[3px]"
         style={{ gridTemplateColumns: `repeat(${cols}, minmax(0,1fr))` }}

@@ -109,7 +109,7 @@ function ChangeColumn({
   if (rows.length === 0) {
     return (
       <div>
-        <h3 className="text-muted-foreground/80 mb-2 text-[11px] font-semibold uppercase tracking-wide">
+        <h3 className="text-muted-foreground/80 text-2xs mb-2 font-semibold uppercase tracking-wide">
           {heading}
         </h3>
         <p className="text-muted-foreground/60 text-xs italic">
@@ -124,7 +124,7 @@ function ChangeColumn({
 
   return (
     <div>
-      <h3 className="text-muted-foreground/80 mb-2 text-[11px] font-semibold uppercase tracking-wide">
+      <h3 className="text-muted-foreground/80 text-2xs mb-2 font-semibold uppercase tracking-wide">
         {heading}
       </h3>
       <ul className="space-y-1.5">
@@ -144,7 +144,7 @@ function ChangeColumn({
               <span className={cn("shrink-0 text-xs font-semibold tabular-nums", toneClass)}>
                 {arrow} <PrivacyAmount value={Math.abs(r.delta)} currency={currency} />
                 {r.pct != null && (
-                  <span className="text-muted-foreground/60 ml-1 text-[10px] font-normal">
+                  <span className="text-muted-foreground/60 text-2xs ml-1 font-normal">
                     ({numberFormatting.formatPercent(Math.abs(r.pct), { digits: 0 })})
                   </span>
                 )}

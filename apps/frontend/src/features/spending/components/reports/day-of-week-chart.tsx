@@ -96,7 +96,7 @@ export function DayOfWeekChart({
           </Bar>
         </BarChart>
       </ResponsiveContainer>
-      <div className="text-muted-foreground/70 mt-1 flex justify-between text-[10px] tabular-nums">
+      <div className="text-muted-foreground/70 text-2xs mt-1 flex justify-between tabular-nums">
         <span>
           {t("spending:dayOfWeek.min")}{" "}
           {isBalanceHidden

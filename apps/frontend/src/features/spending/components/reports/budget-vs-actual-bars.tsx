@@ -143,7 +143,7 @@ export function BudgetVsActualBars({
             tone="muted"
           />
         )}
-        <span className="text-muted-foreground/60 ml-auto text-[11px] tabular-nums">
+        <span className="text-muted-foreground/60 text-2xs ml-auto tabular-nums">
           <PrivacyAmount value={summary.totalSpent} currency={currency} />{" "}
           {t("spending:budgetBars.of")}{" "}
           <PrivacyAmount value={summary.totalBudget} currency={currency} />
@@ -182,7 +182,7 @@ function BudgetRow({ row, currency }: { row: BudgetRow; currency: string }) {
         <span className="text-foreground truncate text-sm font-medium">{row.name}</span>
         <span
           className={cn(
-            "ml-auto shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
+            "text-2xs ml-auto shrink-0 rounded-full px-1.5 py-0.5 font-semibold uppercase tracking-wide",
             statusPillBg(row.status),
             STATUS_TONE[row.status],
           )}
@@ -221,7 +221,7 @@ function BudgetRow({ row, currency }: { row: BudgetRow; currency: string }) {
           <span className="text-xs font-semibold">
             <PrivacyAmount value={row.spent} currency={currency} />
           </span>
-          <span className="text-muted-foreground/70 text-[11px]">
+          <span className="text-muted-foreground/70 text-2xs">
             {" / "}
             <PrivacyAmount value={row.budgeted} currency={currency} />
           </span>
@@ -229,7 +229,7 @@ function BudgetRow({ row, currency }: { row: BudgetRow; currency: string }) {
       </div>
 
       {/* Subline: remaining or overage */}
-      <div className="text-muted-foreground/70 mt-1 flex items-center gap-1.5 pl-4 text-[11px] tabular-nums">
+      <div className="text-muted-foreground/70 text-2xs mt-1 flex items-center gap-1.5 pl-4 tabular-nums">
         <span className={cn(STATUS_TONE[row.status])}>
           {numberFormatting.formatPercent(row.pct, { digits: 0 })}
         </span>

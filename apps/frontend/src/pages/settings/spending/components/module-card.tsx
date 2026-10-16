@@ -253,7 +253,7 @@ interface HeroStatProps {
 function HeroStat({ label, value, unit, sub, valueClassName, sublineClassName }: HeroStatProps) {
   return (
     <div className="pr-4">
-      <div className="text-background/55 text-[10px] font-medium uppercase tracking-widest">
+      <div className="text-background/55 text-2xs font-medium uppercase tracking-widest">
         {label}
       </div>
       <div className="mt-2 flex items-baseline gap-1 tabular-nums">

@@ -245,7 +245,7 @@ export const EventsTimelineCard: FC<EventsTimelineCardProps> = ({
           <div className="text-foreground text-base font-semibold tracking-tight">
             {tr("spending:eventsCard.title")}
           </div>
-          <div className="text-muted-foreground/80 mt-0.5 text-[11px]">
+          <div className="text-muted-foreground/80 text-2xs mt-0.5">
             {tr("spending:timeline.headerSummary", {
               events: tr("spending:timeline.taggedEvents", { count: events.length }),
               days: computed.totalEventDays,
@@ -256,7 +256,7 @@ export const EventsTimelineCard: FC<EventsTimelineCardProps> = ({
           {usedTypes.map((t) => (
             <span
               key={t.id}
-              className="text-muted-foreground/80 inline-flex items-center gap-1.5 text-[10px] tracking-wider"
+              className="text-muted-foreground/80 text-2xs inline-flex items-center gap-1.5 tracking-wider"
             >
               <span
                 className="inline-block h-2.5 w-2.5 rounded-[2px]"
@@ -599,7 +599,7 @@ export const EventsTimelineCard: FC<EventsTimelineCardProps> = ({
           <div className="text-foreground text-sm font-semibold tabular-nums tracking-tight">
             <PrivacyAmount value={computed.totalSpent} currency={currency} />
           </div>
-          <div className="text-muted-foreground/80 mt-0.5 text-[10px]">
+          <div className="text-muted-foreground/80 text-2xs mt-0.5">
             {tr("spending:timeline.eventDaysOfPeriod", {
               days: computed.totalEventDays,
               pct: Math.round((computed.totalEventDays / periodDays) * 100),
@@ -616,7 +616,7 @@ export const EventsTimelineCard: FC<EventsTimelineCardProps> = ({
             {computed.lift >= 0 ? "+" : "−"}
             <PrivacyAmount value={Math.abs(computed.lift)} currency={currency} />
           </div>
-          <div className="text-muted-foreground/80 mt-0.5 text-[10px]">
+          <div className="text-muted-foreground/80 text-2xs mt-0.5">
             {tr("spending:timeline.onEventDays")}
           </div>
         </SummaryCell>
@@ -625,7 +625,7 @@ export const EventsTimelineCard: FC<EventsTimelineCardProps> = ({
             <div className="text-foreground truncate text-sm font-semibold tracking-tight">
               {biggest.eventName}
             </div>
-            <div className="text-muted-foreground/80 mt-0.5 text-[10px] tabular-nums">
+            <div className="text-muted-foreground/80 text-2xs mt-0.5 tabular-nums">
               <PrivacyAmount value={biggest.totalSpending} currency={currency} />
             </div>
           </SummaryCell>
@@ -644,7 +644,7 @@ export const EventsTimelineCard: FC<EventsTimelineCardProps> = ({
                 {selected.eventName}
               </span>
             </div>
-            <div className="text-muted-foreground/80 mt-0.5 text-[10px] tabular-nums">
+            <div className="text-muted-foreground/80 text-2xs mt-0.5 tabular-nums">
               {formatSelectedRange(
                 parseLocalDate(selected.startDate),
                 parseLocalDate(selected.endDate),

@@ -19,7 +19,7 @@ import { useEventDialog } from "../../event-dialog-provider";
 import { getEventColors } from "./event-colors";
 
 const CARD_CLASS = "border-border/60 bg-card/40 rounded-2xl border p-4 backdrop-blur-xl";
-const LABEL_CLASS = "text-muted-foreground/70 text-[10px] font-normal uppercase tracking-[0.12em]";
+const LABEL_CLASS = "text-muted-foreground/70 text-2xs font-normal uppercase tracking-[0.12em]";
 
 interface Props {
   events: EventSpendingSummary[];
@@ -126,7 +126,7 @@ export const EventsCalendarCard: FC<Props> = ({
             </Button>
           </div>
         </div>
-        <div className="text-muted-foreground/80 mt-1 text-[11px]">
+        <div className="text-muted-foreground/80 text-2xs mt-1">
           {t("spending:calendar.monthSummary", {
             count: monthEvents.length,
             month: monthLabel,
@@ -159,7 +159,7 @@ export const EventsCalendarCard: FC<Props> = ({
                 <div
                   key={`d-${di}`}
                   className={cn(
-                    "flex h-7 items-center justify-center text-[11px] tabular-nums",
+                    "text-2xs flex h-7 items-center justify-center tabular-nums",
                     !inMonth && "text-muted-foreground/40",
                     inMonth && "text-foreground/80",
                     isToday && "font-semibold",
@@ -192,7 +192,7 @@ export const EventsCalendarCard: FC<Props> = ({
                       : formatting.formatAmount(bar.event.totalSpending, currency)
                   }`}
                   className={cn(
-                    "min-h-[16px] truncate rounded-sm px-1 text-left text-[10px] leading-[16px]",
+                    "text-2xs min-h-[16px] truncate rounded-sm px-1 text-left leading-[16px]",
                     isSel ? "font-semibold" : "hover:brightness-95",
                   )}
                   style={{

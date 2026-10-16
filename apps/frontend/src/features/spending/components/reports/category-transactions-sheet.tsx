@@ -226,7 +226,7 @@ export function CategoryTransactionsSheet({
             backgroundImage: `linear-gradient(to bottom, ${headerFill} 0%, ${headerFillMid} 55%, transparent 100%)`,
           }}
         >
-          <div className="text-muted-foreground/80 text-[10px] font-semibold uppercase tracking-[0.14em]">
+          <div className="text-muted-foreground/80 text-2xs font-semibold uppercase tracking-[0.14em]">
             {t("spending:categorySheet.eyebrow")}
           </div>
           <div className="mt-2 flex items-start gap-3">
@@ -325,7 +325,7 @@ export function CategoryTransactionsSheet({
                   </>
                 ) : (
                   subBreakdown.map((row) => (
-                    <div key={row.id} className="flex items-center gap-3 text-[12px]">
+                    <div key={row.id} className="flex items-center gap-3 text-xs">
                       <span className="flex min-w-0 flex-1 items-center gap-2">
                         <span
                           className="block h-2 w-2 shrink-0 rounded-full"
@@ -343,7 +343,7 @@ export function CategoryTransactionsSheet({
                           }}
                         />
                       </div>
-                      <span className="text-muted-foreground/80 w-10 shrink-0 text-right text-[11px] tabular-nums">
+                      <span className="text-muted-foreground/80 text-2xs w-10 shrink-0 text-right tabular-nums">
                         {numberFormatting.formatPercent(row.share / 100, { digits: 0 })}
                       </span>
                       <span className="text-foreground/90 w-16 shrink-0 text-right text-xs font-semibold tabular-nums">
@@ -364,7 +364,7 @@ export function CategoryTransactionsSheet({
               <h3 className="text-foreground text-sm font-semibold">
                 {t("spending:categorySheet.transactions")}
               </h3>
-              <span className="text-muted-foreground text-[11px] tabular-nums">
+              <span className="text-muted-foreground text-2xs tabular-nums">
                 {isLoading
                   ? t("spending:categorySheet.loading")
                   : t("spending:categorySheet.totalCount", { count: totalCount })}
@@ -403,7 +403,7 @@ export function CategoryTransactionsSheet({
                       className="hover:bg-muted/30 flex items-center gap-2.5 px-1 py-2 transition-colors"
                     >
                       <div className="min-w-0 flex-1">
-                        <div className="text-foreground text-[13px] font-medium leading-tight">
+                        <div className="text-foreground text-sm font-medium leading-tight">
                           {it.notes != null ? (
                             <TruncatedText text={it.notes} />
                           ) : (
@@ -412,7 +412,7 @@ export function CategoryTransactionsSheet({
                             </span>
                           )}
                         </div>
-                        <div className="text-muted-foreground/80 mt-0.5 flex items-center gap-1 text-[10px] leading-tight">
+                        <div className="text-muted-foreground/80 text-2xs mt-0.5 flex items-center gap-1 leading-tight">
                           <span>{formatDate(it.activityDate, dateFormatting)}</span>
                           <span aria-hidden>·</span>
                           <span className="truncate">{account?.name ?? it.accountId}</span>
@@ -420,14 +420,14 @@ export function CategoryTransactionsSheet({
                       </div>
                       <div
                         className={cn(
-                          "shrink-0 text-right text-[13px] font-semibold tabular-nums leading-tight",
+                          "shrink-0 text-right text-sm font-semibold tabular-nums leading-tight",
                           isOutflow ? "text-foreground" : "text-success",
                         )}
                       >
                         {isOutflow ? "−" : "+"}
                         <PrivacyAmount value={displayAmount} currency={it.currency} />
                         {it.currency !== currency && (
-                          <span className="text-muted-foreground/70 ml-1 text-[9px] uppercase tracking-wide">
+                          <span className="text-muted-foreground/70 text-2xs ml-1 uppercase tracking-wide">
                             {it.currency}
                           </span>
                         )}
@@ -489,13 +489,13 @@ function Stat({
 }) {
   return (
     <div>
-      <div className="text-muted-foreground/70 text-[10px] font-semibold uppercase tracking-[0.12em]">
+      <div className="text-muted-foreground/70 text-2xs font-semibold uppercase tracking-[0.12em]">
         {label}
       </div>
       <div className="text-foreground mt-1 text-base font-semibold tabular-nums tracking-tight">
         {value}
       </div>
-      {hint && <div className="text-muted-foreground/70 mt-0.5 truncate text-[10px]">{hint}</div>}
+      {hint && <div className="text-muted-foreground/70 text-2xs mt-0.5 truncate">{hint}</div>}
     </div>
   );
 }

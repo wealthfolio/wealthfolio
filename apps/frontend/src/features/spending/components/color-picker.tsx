@@ -142,7 +142,7 @@ export function ColorPicker({ value, onChange, presets = [] }: ColorPickerProps)
             })}
           </div>
           <div className="space-y-1.5">
-            <label className="text-muted-foreground text-[10px] font-semibold uppercase tracking-wide">
+            <label className="text-muted-foreground text-2xs font-semibold uppercase tracking-wide">
               {t("spending:category.hex")}
             </label>
             <div className="flex items-center gap-2">

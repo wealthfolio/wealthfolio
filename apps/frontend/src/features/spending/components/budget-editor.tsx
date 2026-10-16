@@ -313,7 +313,7 @@ function BudgetSummary({
     <section className={cn(CARD_CLASS, "overflow-hidden p-3 sm:p-4")}>
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <div className="text-muted-foreground text-[10px] font-semibold uppercase tracking-[0.08em]">
+          <div className="text-muted-foreground text-2xs font-semibold uppercase tracking-[0.08em]">
             {headingLabel}
           </div>
           <div className="mt-0.5 flex items-baseline gap-1.5">
@@ -321,7 +321,7 @@ function BudgetSummary({
               <PrivacyAmount value={planned} currency={currency} />
             </span>
             {income > 0 && (
-              <span className="text-muted-foreground truncate text-[11px]">
+              <span className="text-muted-foreground text-2xs truncate">
                 / <PrivacyAmount value={income} currency={currency} />
               </span>
             )}
@@ -336,7 +336,7 @@ function BudgetSummary({
                   ? "destructive-subtle"
                   : "secondary",
             }),
-            "text-[11px]",
+            "text-2xs",
             !fullyAllocated && !overAllocated && "bg-muted/60 text-muted-foreground",
           )}
         >
@@ -434,7 +434,7 @@ function GroupSummaryCell({
         aria-hidden
       />
       <span className="text-foreground min-w-0 flex-1 truncate text-xs">{row.group.name}</span>
-      <span className="text-muted-foreground w-8 shrink-0 text-right text-[10px] tabular-nums">
+      <span className="text-muted-foreground text-2xs w-8 shrink-0 text-right tabular-nums">
         {numberFormatting.formatPercent(pct, { digits: 0 })}
       </span>
       <span className="text-foreground shrink-0 text-xs font-medium tabular-nums">
@@ -565,7 +565,7 @@ function GroupBudgetSection({
                 }}
               />
             </div>
-            <span className="text-muted-foreground truncate text-[10px] tabular-nums">
+            <span className="text-muted-foreground text-2xs truncate tabular-nums">
               <PrivacyAmount value={row.actual} currency={currency} /> /{" "}
               <PrivacyAmount value={row.plannedTotal} currency={currency} />
             </span>
@@ -576,7 +576,7 @@ function GroupBudgetSection({
           <div className="text-sm font-semibold tabular-nums">
             <PrivacyAmount value={row.plannedTotal} currency={currency} />
           </div>
-          <div className="text-muted-foreground text-[9px] uppercase tracking-wide">
+          <div className="text-muted-foreground text-2xs uppercase tracking-wide">
             {totalSuffix}
           </div>
         </div>
@@ -597,7 +597,7 @@ function GroupBudgetSection({
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48">
               <DropdownMenuGroup>
-                <DropdownMenuLabel className="text-muted-foreground/70 text-[10px] font-normal uppercase tracking-wide">
+                <DropdownMenuLabel className="text-muted-foreground/70 text-2xs font-normal uppercase tracking-wide">
                   {t("spending:budgetEditor.categoryCount", { count: row.categories.length })}
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
@@ -620,7 +620,7 @@ function GroupBudgetSection({
                 >
                   <Icons.Refresh className="mr-2 h-3.5 w-3.5" />
                   <span className="flex-1">{t("spending:budgetEditor.groupRollover")}</span>
-                  <span className="text-muted-foreground text-[10px]">
+                  <span className="text-muted-foreground text-2xs">
                     {groupRollover?.enabled
                       ? t("spending:budgetEditor.on")
                       : t("spending:budgetEditor.off")}
@@ -883,7 +883,7 @@ function AddCategoryRow({
               emptyState
             ) : (
               <>
-                <div className="text-muted-foreground border-border/60 border-b px-3 py-2 text-[10px] font-medium uppercase tracking-widest">
+                <div className="text-muted-foreground border-border/60 text-2xs border-b px-3 py-2 font-medium uppercase tracking-widest">
                   {t("spending:budgetEditor.moveExistingCategory")}
                 </div>
                 {list}
@@ -1009,7 +1009,7 @@ function GroupEditDialogBody({
 
       <div className="space-y-4 py-2">
         <div className="space-y-1.5">
-          <label className="text-muted-foreground text-[10px] font-semibold uppercase tracking-wide">
+          <label className="text-muted-foreground text-2xs font-semibold uppercase tracking-wide">
             {t("common:name")}
           </label>
           <div className="bg-muted/60 border-border/60 focus-within:ring-ring/50 flex h-9 items-center rounded-md border px-3 transition-shadow focus-within:ring-2">
@@ -1029,14 +1029,14 @@ function GroupEditDialogBody({
         </div>
 
         <div className="space-y-1.5">
-          <label className="text-muted-foreground text-[10px] font-semibold uppercase tracking-wide">
+          <label className="text-muted-foreground text-2xs font-semibold uppercase tracking-wide">
             {t("spending:category.color")}
           </label>
           <GroupColorSwatchGrid value={draftColor} onChange={setDraftColor} />
         </div>
 
         <div className="space-y-1.5">
-          <label className="text-muted-foreground text-[10px] font-semibold uppercase tracking-wide">
+          <label className="text-muted-foreground text-2xs font-semibold uppercase tracking-wide">
             {t("spending:category.icon")}
           </label>
           <IconPicker value={draftIcon} accent={draftColor} onChange={setDraftIcon} />
@@ -1048,7 +1048,7 @@ function GroupEditDialogBody({
               <div className="text-foreground text-sm font-medium">
                 {t("spending:budgetEditor.monthlyRollover")}
               </div>
-              <p className="text-muted-foreground text-[11px] leading-snug">
+              <p className="text-muted-foreground text-2xs leading-snug">
                 {t("spending:budgetEditor.rolloverDesc")}
               </p>
             </div>
@@ -1060,10 +1060,7 @@ function GroupEditDialogBody({
           </div>
           {draftRollover && (
             <div className="flex items-center justify-between gap-3 pt-1">
-              <label
-                htmlFor="rollover-starting-balance"
-                className="text-muted-foreground text-[11px]"
-              >
+              <label htmlFor="rollover-starting-balance" className="text-muted-foreground text-2xs">
                 {t("spending:budgetEditor.startingBalance")}
               </label>
               <div className="w-[120px]">
@@ -1163,7 +1160,7 @@ function BudgetCategoryLine({
         )}
       </div>
 
-      <span className="text-muted-foreground hidden w-8 shrink-0 text-right text-[10px] tabular-nums sm:inline">
+      <span className="text-muted-foreground text-2xs hidden w-8 shrink-0 text-right tabular-nums sm:inline">
         {numberFormatting.formatPercent(sharePct, { digits: 0 })}
       </span>
 
@@ -1211,7 +1208,7 @@ function BudgetCategoryLine({
                 value={row.groupId ?? ""}
                 onValueChange={(value) => onMoveCategory(row.categoryId, value)}
               >
-                <DropdownMenuLabel className="text-[10px] font-semibold uppercase tracking-wide">
+                <DropdownMenuLabel className="text-2xs font-semibold uppercase tracking-wide">
                   {t("spending:budgetEditor.moveToGroup")}
                 </DropdownMenuLabel>
                 {groups.map((group) => (
@@ -1237,7 +1234,7 @@ function BudgetCategoryLine({
               >
                 <Icons.Refresh className="mr-2 h-3.5 w-3.5" />
                 <span className="flex-1">{t("spending:budgetEditor.rollover")}</span>
-                <span className="text-muted-foreground text-[10px]">
+                <span className="text-muted-foreground text-2xs">
                   {groupRolloverEnabled
                     ? t("spending:budgetEditor.groupWide")
                     : row.rolloverEnabled
@@ -1321,7 +1318,7 @@ function GroupBufferLine({
         )}
       </div>
 
-      <span className="text-muted-foreground hidden w-8 shrink-0 text-right text-[10px] tabular-nums sm:inline">
+      <span className="text-muted-foreground text-2xs hidden w-8 shrink-0 text-right tabular-nums sm:inline">
         {numberFormatting.formatPercent(sharePct, { digits: 0 })}
       </span>
       <span className="hidden w-14 shrink-0 sm:block" aria-hidden />
@@ -1393,7 +1390,7 @@ function IncomeSourcesPanel({
                     <button
                       type="button"
                       onClick={() => onDeleteOverride(target)}
-                      className="text-warning hover:text-warning/80 text-[10px] underline-offset-4 hover:underline"
+                      className="text-warning hover:text-warning/80 text-2xs underline-offset-4 hover:underline"
                     >
                       {t("spending:budgetEditor.revertOverride")}
                     </button>
@@ -1411,7 +1408,7 @@ function IncomeSourcesPanel({
         <button
           type="button"
           onClick={() => setShowAll((v) => !v)}
-          className="text-muted-foreground hover:text-foreground mt-1 inline-flex items-center gap-1 text-[11px] underline-offset-4 hover:underline"
+          className="text-muted-foreground hover:text-foreground text-2xs mt-1 inline-flex items-center gap-1 underline-offset-4 hover:underline"
         >
           <Icons.Plus className="h-3 w-3" />
           {showAll
@@ -1554,7 +1551,7 @@ function OverridesSummary({
           size="sm"
           variant="ghost"
           onClick={() => overrides.forEach((o) => onRevert(o.target))}
-          className="text-muted-foreground hover:text-foreground h-6 gap-1 px-1.5 text-[10px]"
+          className="text-muted-foreground hover:text-foreground text-2xs h-6 gap-1 px-1.5"
         >
           <Icons.X className="h-3 w-3" />
           {tr("spending:budgetEditor.revertAll")}
@@ -1584,7 +1581,7 @@ function OverridesSummary({
                   <Icons.X className="h-3 w-3" />
                 </Button>
               </div>
-              <div className="mt-0.5 flex items-baseline gap-1.5 pl-3 text-[11px] tabular-nums">
+              <div className="text-2xs mt-0.5 flex items-baseline gap-1.5 pl-3 tabular-nums">
                 <span className="text-foreground font-medium">
                   <PrivacyAmount value={o.monthAmount} currency={currency} />
                 </span>
@@ -1645,7 +1642,7 @@ function CopyFromMonthRow({
         title={t("spending:budgetEditor.copyPlanTitle")}
         icon={<Icons.Copy className="h-3.5 w-3.5" />}
       />
-      <p className="text-muted-foreground mt-1 text-[11px]">
+      <p className="text-muted-foreground text-2xs mt-1">
         {t("spending:budgetEditor.copyPlanDesc")}{" "}
         {overwrite
           ? t("spending:budgetEditor.copyOverwrite")
@@ -1662,7 +1659,7 @@ function CopyFromMonthRow({
             className="text-foreground h-7 w-[120px] bg-transparent px-2 text-xs outline-none"
           />
         </div>
-        <label className="text-muted-foreground inline-flex items-center gap-1.5 text-[11px]">
+        <label className="text-muted-foreground text-2xs inline-flex items-center gap-1.5">
           <input
             type="checkbox"
             checked={overwrite}
@@ -1749,7 +1746,7 @@ function TotalLine({
 }) {
   return (
     <div className="flex min-w-0 flex-col">
-      <span className="text-muted-foreground text-[10px] uppercase tracking-wide">{label}</span>
+      <span className="text-muted-foreground text-2xs uppercase tracking-wide">{label}</span>
       <span
         className={cn(
           "truncate text-sm font-semibold tabular-nums",
@@ -1766,7 +1763,7 @@ function PanelHeader({ title, icon }: { title: string; icon: ReactNode }) {
   return (
     <div className="flex items-center gap-1.5">
       <span className="text-muted-foreground">{icon}</span>
-      <h2 className="text-muted-foreground text-[11px] font-semibold uppercase tracking-[0.08em]">
+      <h2 className="text-muted-foreground text-2xs font-semibold uppercase tracking-[0.08em]">
         {title}
       </h2>
     </div>

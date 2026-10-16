@@ -95,7 +95,7 @@ export function BudgetOverviewCard() {
                 </span>
               )}
             </div>
-            <div className="text-muted-foreground mt-1.5 text-[10px] font-medium uppercase tracking-widest">
+            <div className="text-muted-foreground text-2xs mt-1.5 font-medium uppercase tracking-widest">
               {incomePlanned > 0
                 ? t("settings:spending.budget_overview.planned_vs_income")
                 : t("settings:spending.budget_overview.planned_spending")}

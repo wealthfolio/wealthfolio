@@ -123,7 +123,7 @@ function SparklineCard({ row, currency }: { row: CategorySparklineRow; currency:
         {row.deltaPct != null && Math.abs(row.deltaPct) >= 1 && (
           <span
             className={cn(
-              "shrink-0 text-[10px] font-semibold tabular-nums",
+              "text-2xs shrink-0 font-semibold tabular-nums",
               row.deltaPct >= 0 ? "text-destructive" : "text-success",
             )}
           >

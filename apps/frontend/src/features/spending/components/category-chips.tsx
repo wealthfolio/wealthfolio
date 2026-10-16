@@ -38,7 +38,7 @@ export function CategoryBadge({
   const accent = color ?? "var(--muted-foreground)";
   return (
     <span
-      className="inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
+      className="text-2xs inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 font-semibold uppercase tracking-wide"
       style={{
         backgroundColor: color ? `${color}1F` : "var(--muted)",
         color: accent,
@@ -54,7 +54,7 @@ export function CategoryBadge({
 export function ReviewPill({ label }: { label: string }) {
   return (
     <span
-      className="inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
+      className="text-2xs inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 font-semibold uppercase tracking-wide"
       style={{
         backgroundColor: "hsl(28 65% 55% / 0.10)",
         borderColor: "hsl(28 65% 55% / 0.35)",

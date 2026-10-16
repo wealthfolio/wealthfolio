@@ -111,7 +111,7 @@ function KpiStat({
           : "text-foreground";
   const content = (
     <>
-      <span className="text-muted-foreground text-[11px] font-light tracking-wide">{label}</span>
+      <span className="text-muted-foreground text-2xs font-light tracking-wide">{label}</span>
       <span className={cn("text-sm font-medium tabular-nums", toneClass)}>
         {sign}
         {isBalanceHidden ? "••••" : formatting.formatCompactAmount(value, currency)}

@@ -119,7 +119,7 @@ export function AccountsCard() {
                     <div className="flex min-w-0 items-center gap-2">
                       <span className="truncate text-sm font-medium">{account.name}</span>
                       {!account.isActive && (
-                        <span className="bg-muted text-muted-foreground shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider">
+                        <span className="bg-muted text-muted-foreground text-2xs shrink-0 rounded px-1.5 py-0.5 font-medium uppercase tracking-wider">
                           {t("settings:spending.accounts.inactive_badge")}
                         </span>
                       )}

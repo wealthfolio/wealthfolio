@@ -173,7 +173,7 @@ export function EventsCard({
             <div className="text-foreground text-sm font-semibold">
               {t("spending:eventsCard.title")}
             </div>
-            <div className="text-muted-foreground/70 text-[11px]">
+            <div className="text-muted-foreground/70 text-2xs">
               {t("spending:eventsCard.noEventsInPeriod")}
             </div>
           </div>
@@ -251,10 +251,10 @@ export function EventsCard({
         <HeaderIcon className="h-4 w-4 shrink-0" style={{ color: theme.deep }} />
         <div className="min-w-0 flex-1">
           <div className="text-foreground truncate text-sm font-semibold">{ev!.eventName}</div>
-          <div className="text-muted-foreground/70 text-[11px]">{dateRangeLabel}</div>
+          <div className="text-muted-foreground/70 text-2xs">{dateRangeLabel}</div>
         </div>
         <span
-          className="rounded-full px-1.5 py-0.5 text-[9px] font-bold tracking-wide"
+          className="text-2xs rounded-full px-1.5 py-0.5 font-bold tracking-wide"
           style={{ backgroundColor: themeBg(theme, 0.2), color: theme.deep }}
         >
           {tag}
@@ -293,7 +293,7 @@ export function EventsCard({
             </div>
           </div>
 
-          <div className="border-border/40 text-muted-foreground/80 mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 border-t pt-2 text-[11px]">
+          <div className="border-border/40 text-muted-foreground/80 text-2xs mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 border-t pt-2">
             <span className="tabular-nums">
               <span className="text-foreground/90 font-semibold">
                 <PrivacyAmount value={dailyAvg} currency={currency} />
@@ -331,7 +331,7 @@ export function EventsCard({
 
       {eventSpent > 0 && topCategories.length > 0 && (
         <div className="mt-3 flex flex-wrap items-center gap-2">
-          <span className="text-muted-foreground/60 text-[10px] font-semibold uppercase tracking-wide">
+          <span className="text-muted-foreground/60 text-2xs font-semibold uppercase tracking-wide">
             {t("spending:eventsCard.top")}
           </span>
           {topCategories.map((c) => {
@@ -339,7 +339,7 @@ export function EventsCard({
             return (
               <span
                 key={c.name}
-                className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium tabular-nums"
+                className="text-2xs inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 font-medium tabular-nums"
                 style={{
                   backgroundColor: c.color ? `${c.color}1F` : themeBg(theme, 0.12),
                   color: accent,

@@ -114,7 +114,7 @@ export function RulePresetPicker({ compact = false }: RulePresetPickerProps) {
                   <span className="text-foreground text-sm font-medium leading-tight">
                     {preset.name}
                   </span>
-                  <span className="text-muted-foreground text-[11px] leading-tight">
+                  <span className="text-muted-foreground text-2xs leading-tight">
                     {t("spending:presets.rulesCount", { count: preset.ruleCount })}
                   </span>
                 </div>

@@ -654,7 +654,7 @@ function SuggestedTransactions({
           <p className="text-foreground text-xs font-semibold">
             {t("spending:eventForm.tagTxInRange")}
           </p>
-          <p className="text-muted-foreground text-[11px]">
+          <p className="text-muted-foreground text-2xs">
             {t("spending:eventForm.selectedOfTotal", {
               selected: selectedCount,
               total: candidates.length,
@@ -665,14 +665,14 @@ function SuggestedTransactions({
           <button
             type="button"
             onClick={onSelectAll}
-            className="text-muted-foreground hover:text-foreground text-[11px] underline-offset-2 hover:underline"
+            className="text-muted-foreground hover:text-foreground text-2xs underline-offset-2 hover:underline"
           >
             {t("common:select_all")}
           </button>
           <button
             type="button"
             onClick={onClearAll}
-            className="text-muted-foreground hover:text-foreground text-[11px] underline-offset-2 hover:underline"
+            className="text-muted-foreground hover:text-foreground text-2xs underline-offset-2 hover:underline"
           >
             {t("common:clear")}
           </button>
@@ -704,17 +704,17 @@ function SuggestedTransactions({
                       {c.notes || c.activityType}
                     </span>
                     {c.eventId && checked && (
-                      <span className="shrink-0 rounded border border-amber-500/30 bg-amber-500/15 px-1 py-px text-[9px] uppercase tracking-wide text-amber-700 dark:text-amber-300">
+                      <span className="text-2xs shrink-0 rounded border border-amber-500/30 bg-amber-500/15 px-1 py-px uppercase tracking-wide text-amber-700 dark:text-amber-300">
                         {t("spending:eventForm.willReplaceTag")}
                       </span>
                     )}
                     {c.eventId && !checked && (
-                      <span className="text-muted-foreground/80 border-muted-foreground/30 shrink-0 rounded border px-1 py-px text-[9px] uppercase tracking-wide">
+                      <span className="text-muted-foreground/80 border-muted-foreground/30 text-2xs shrink-0 rounded border px-1 py-px uppercase tracking-wide">
                         {t("spending:eventForm.alreadyTagged")}
                       </span>
                     )}
                   </div>
-                  <p className="text-muted-foreground text-[10px]">{dateLabel}</p>
+                  <p className="text-muted-foreground text-2xs">{dateLabel}</p>
                 </div>
                 <span className="text-foreground shrink-0 text-xs font-medium tabular-nums">
                   <PrivacyAmount value={Math.abs(amt)} currency={c.currency || "USD"} />

@@ -143,12 +143,12 @@ export function RuleItem({
             <span className="text-foreground truncate text-sm font-medium">{rule.name}</span>
             {rule.presetId && presetBadgeTitle ? (
               <span
-                className="border-muted-foreground/20 text-muted-foreground inline-flex shrink-0 items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px] leading-none"
+                className="border-muted-foreground/20 text-muted-foreground text-2xs inline-flex shrink-0 items-center gap-1 rounded-full border px-1.5 py-0.5 leading-none"
                 title={presetBadgeTitle}
                 aria-label={presetBadgeTitle}
               >
                 {preset?.flag && (
-                  <span className="text-[11px] leading-none" aria-hidden="true">
+                  <span className="text-2xs leading-none" aria-hidden="true">
                     {preset.flag}
                   </span>
                 )}
@@ -164,14 +164,14 @@ export function RuleItem({
             ) : null}
             {scopedAccountName ? (
               <span
-                className="border-muted-foreground/20 text-muted-foreground inline-flex min-w-0 shrink items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px] leading-none"
+                className="border-muted-foreground/20 text-muted-foreground text-2xs inline-flex min-w-0 shrink items-center gap-1 rounded-full border px-1.5 py-0.5 leading-none"
                 title={t("spending:rules.scopedToAccount", { name: scopedAccountName })}
                 aria-label={t("spending:rules.scopedToAccount", { name: scopedAccountName })}
               >
                 <span className="truncate">{scopedAccountName}</span>
               </span>
             ) : null}
-            <span className="text-muted-foreground shrink-0 text-[11px]">
+            <span className="text-muted-foreground text-2xs shrink-0">
               {matchLabel}
               {rule.priority > 0 && (
                 <> · {t("spending:rules.priority", { value: rule.priority })}</>
@@ -194,8 +194,8 @@ export function RuleItem({
             <code
               className={
                 patternExpanded
-                  ? "block whitespace-pre-wrap break-all font-mono text-[11px]"
-                  : "block truncate font-mono text-[11px]"
+                  ? "text-2xs block whitespace-pre-wrap break-all font-mono"
+                  : "text-2xs block truncate font-mono"
               }
             >
               {rule.pattern}
@@ -204,7 +204,7 @@ export function RuleItem({
 
           {/* Line 3: amount condition, spelled out in words */}
           {amountLabel && (
-            <span className="border-border text-muted-foreground inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px]">
+            <span className="border-border text-muted-foreground text-2xs inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5">
               <Icons.Coins className="h-3 w-3 shrink-0" aria-hidden="true" />
               {amountLabel}
             </span>

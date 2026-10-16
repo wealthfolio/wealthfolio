@@ -95,7 +95,7 @@ export function QuickEventPopover({
       <PopoverContent className="w-[280px] p-0" align={align}>
         <Command>
           {loadErrored && (
-            <div className="flex items-center justify-between gap-2 border-b border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-[11px] text-amber-700 dark:text-amber-300">
+            <div className="text-2xs flex items-center justify-between gap-2 border-b border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-amber-700 dark:text-amber-300">
               <span>{tr("spending:events.loadError")}</span>
               <button type="button" onClick={retryLoad} className="text-foreground hover:underline">
                 {tr("common:retry")}
@@ -137,7 +137,7 @@ export function QuickEventPopover({
                           style={{ backgroundColor: t?.color ?? "var(--muted-foreground)" }}
                         />
                         <span className="min-w-0 flex-1 truncate">{ev.name}</span>
-                        <span className="text-muted-foreground/70 shrink-0 text-[10px]">
+                        <span className="text-muted-foreground/70 text-2xs shrink-0">
                           {ev.startDate.slice(5)}
                         </span>
                         {isSelected && (
