@@ -58,9 +58,9 @@ export function DriftBandSlider({
           { value: "absolute", label: t("allocation:band.absolute") },
         ]}
         rounded="lg"
-        className="bg-muted/30 [&_button:has(>div)]:text-primary-foreground [&_button:not(:has(>div))]:text-muted-foreground [&_button>div]:bg-primary w-full border [&_button]:flex-1 [&_button]:py-2 [&_button]:text-[12px]"
+        className="bg-muted/30 [&_button:has(>div)]:text-primary-foreground [&_button:not(:has(>div))]:text-muted-foreground [&_button>div]:bg-primary w-full border [&_button]:flex-1 [&_button]:py-2 [&_button]:text-xs"
       />
-      <p className="text-muted-foreground mt-2 text-[11px] leading-relaxed">
+      <p className="text-muted-foreground text-2xs mt-2 leading-relaxed">
         {isHybrid
           ? t("allocation:band.hybridDescription")
           : t("allocation:band.absoluteDescription")}
@@ -69,10 +69,10 @@ export function DriftBandSlider({
       {isHybrid && (
         <div className="mt-4">
           <div className="mb-1.5 flex items-center justify-between">
-            <span className="text-foreground text-[12px] font-medium">
+            <span className="text-foreground text-xs font-medium">
               {t("allocation:band.relativeFactor")}
             </span>
-            <span className="bg-muted text-foreground rounded-md px-2 py-0.5 text-[12px] font-semibold tabular-nums">
+            <span className="bg-muted text-foreground rounded-md px-2 py-0.5 text-xs font-semibold tabular-nums">
               {t("allocation:band.percentOfTarget", { value: relativeFactorPct })}
             </span>
           </div>
@@ -86,7 +86,7 @@ export function DriftBandSlider({
             className="lever-slider block w-full"
             style={{ ["--lever-pct" as string]: `${relativePct}%` }}
           />
-          <div className="text-muted-foreground mt-1.5 flex justify-between text-[10px]">
+          <div className="text-muted-foreground text-2xs mt-1.5 flex justify-between">
             <span>{t("allocation:band.tight")}</span>
             <span>{t("allocation:band.standard")}</span>
             <span>{t("allocation:band.loose")}</span>
@@ -96,10 +96,10 @@ export function DriftBandSlider({
 
       <div className="mt-4">
         <div className="mb-1.5 flex items-center justify-between">
-          <span className="text-foreground text-[12px] font-medium">
+          <span className="text-foreground text-xs font-medium">
             {isHybrid ? t("allocation:band.absoluteFloor") : t("allocation:band.bandWidth")}
           </span>
-          <span className="bg-muted text-foreground rounded-md px-2 py-0.5 text-[12px] font-semibold tabular-nums">
+          <span className="bg-muted text-foreground rounded-md px-2 py-0.5 text-xs font-semibold tabular-nums">
             ±{driftBandPct.toFixed(1)}%
           </span>
         </div>
@@ -113,13 +113,13 @@ export function DriftBandSlider({
           className="lever-slider block w-full"
           style={{ ["--lever-pct" as string]: `${floorPct}%` }}
         />
-        <div className="text-muted-foreground mt-1.5 flex justify-between text-[10px]">
+        <div className="text-muted-foreground text-2xs mt-1.5 flex justify-between">
           <span>{t("allocation:band.tight")}</span>
           <span>{t("allocation:band.standard")}</span>
           <span>{t("allocation:band.loose")}</span>
         </div>
         {isHybrid && (
-          <p className="text-muted-foreground mt-1.5 text-[11px] leading-relaxed">
+          <p className="text-muted-foreground text-2xs mt-1.5 leading-relaxed">
             {t("allocation:band.minimumBandNote")}
           </p>
         )}

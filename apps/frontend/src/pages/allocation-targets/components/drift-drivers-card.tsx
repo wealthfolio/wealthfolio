@@ -112,7 +112,7 @@ export function DriftDriversCard({
       </CardHeader>
       <CardContent className="flex flex-1 flex-col">
         {oobRows.length === 0 ? (
-          <p className="text-muted-foreground py-6 text-center text-[13px]">
+          <p className="text-muted-foreground py-6 text-center text-sm">
             {t("allocation:drivers.noActionRequired", { status: statusDescription })}
           </p>
         ) : (
@@ -125,7 +125,7 @@ export function DriftDriversCard({
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex min-w-0 items-center gap-2.5">
                       <span
-                        className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold tabular-nums"
+                        className="text-2xs flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full font-bold tabular-nums"
                         style={{
                           backgroundColor: rowColor,
                           color: markerTextColor(rowColor),
@@ -133,27 +133,27 @@ export function DriftDriversCard({
                       >
                         {index + 1}
                       </span>
-                      <p className="text-foreground truncate text-[13px] font-semibold leading-snug">
+                      <p className="text-foreground truncate text-sm font-semibold leading-snug">
                         {driver.title}
                       </p>
                     </div>
                     <span
                       className={cn(
-                        "shrink-0 text-[12.5px] font-bold tabular-nums",
+                        "shrink-0 text-xs font-bold tabular-nums",
                         driver.isOver ? "text-destructive" : "text-blue-600 dark:text-blue-400",
                       )}
                     >
                       {driver.drift}
                     </span>
                   </div>
-                  <p className="text-muted-foreground mt-2 truncate pl-7 text-[12px] leading-relaxed">
+                  <p className="text-muted-foreground mt-2 truncate pl-7 text-xs leading-relaxed">
                     {driver.detail}
                   </p>
                 </li>
               );
             })}
             {remainingRows.length > 0 && (
-              <li className="bg-muted/20 text-muted-foreground rounded-lg px-3.5 py-2.5 text-[11.5px] leading-relaxed">
+              <li className="bg-muted/20 text-muted-foreground text-2xs rounded-lg px-3.5 py-2.5 leading-relaxed">
                 <span className="text-foreground font-medium">
                   {t("allocation:drivers.moreOutsideTarget", { count: remainingRows.length })}
                 </span>

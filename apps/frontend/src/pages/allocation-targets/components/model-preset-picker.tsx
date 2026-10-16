@@ -157,21 +157,21 @@ export function ModelPresetPicker({
         <div className="flex items-start justify-between gap-3">
           <span
             className={cn(
-              "shrink-0 rounded-md px-2 py-1 text-[10px] font-medium",
+              "text-2xs shrink-0 rounded-md px-2 py-1 font-medium",
               RISK_BADGE[preset.risk] ?? "bg-muted text-muted-foreground",
             )}
           >
             {preset.risk}
           </span>
           {selected === preset.id && (
-            <span className="bg-foreground text-background flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px]">
+            <span className="bg-foreground text-background text-2xs flex h-5 w-5 shrink-0 items-center justify-center rounded-full">
               ✓
             </span>
           )}
         </div>
         <span
           className={cn(
-            "text-foreground text-[15px] font-semibold leading-tight",
+            "text-foreground text-base font-semibold leading-tight",
             compact ? "mt-3" : "mt-4",
           )}
         >
@@ -179,7 +179,7 @@ export function ModelPresetPicker({
         </span>
         <p
           className={cn(
-            "text-muted-foreground mt-2 text-[12px] leading-relaxed",
+            "text-muted-foreground mt-2 text-xs leading-relaxed",
             compact ? "max-h-9 min-h-9 overflow-hidden" : "min-h-10",
           )}
         >
@@ -188,7 +188,7 @@ export function ModelPresetPicker({
         <div className={cn("mt-auto space-y-2.5", compact ? "pt-4" : "pt-7")}>
           <PresetBar weights={preset.weights} colorMap={colorMapForWeights(preset.weights)} />
           <div className={cn("border-border/60 border-t", compact ? "pt-2" : "pt-2.5")} />
-          <p className="text-muted-foreground truncate text-[11px] font-medium">
+          <p className="text-muted-foreground text-2xs truncate font-medium">
             {allocationSummary(preset.weights)}
           </p>
         </div>
@@ -212,7 +212,7 @@ export function ModelPresetPicker({
       {(secondaryPresets.length > 0 || compact) && (
         <div className="flex flex-wrap items-center gap-2 pt-1">
           {secondaryPresets.length > 0 && (
-            <span className="text-muted-foreground mr-1 text-[11px] font-medium uppercase tracking-wider">
+            <span className="text-muted-foreground text-2xs mr-1 font-medium uppercase tracking-wider">
               {t("allocation:presets.moreTemplates")}
             </span>
           )}
@@ -222,7 +222,7 @@ export function ModelPresetPicker({
               type="button"
               onClick={() => onSelect(preset.id)}
               className={cn(
-                "inline-flex h-8 items-center gap-2 rounded-full border px-3 text-[12px] font-semibold transition-colors",
+                "inline-flex h-8 items-center gap-2 rounded-full border px-3 text-xs font-semibold transition-colors",
                 selected === preset.id
                   ? "border-foreground bg-foreground text-background"
                   : "bg-card hover:border-muted-foreground/50",
@@ -230,21 +230,21 @@ export function ModelPresetPicker({
               title={allocationSummary(preset.weights)}
             >
               {preset.name}
-              {selected === preset.id && <span className="text-[10px]">✓</span>}
+              {selected === preset.id && <span className="text-2xs">✓</span>}
             </button>
           ))}
           <button
             type="button"
             onClick={() => onSelect("scratch")}
             className={cn(
-              "inline-flex h-8 items-center gap-2 rounded-full border px-3 text-[12px] font-semibold transition-colors",
+              "inline-flex h-8 items-center gap-2 rounded-full border px-3 text-xs font-semibold transition-colors",
               scratchSelected
                 ? "border-foreground bg-foreground text-background"
                 : "bg-card hover:border-muted-foreground/50",
             )}
           >
             {t("allocation:presets.buildFromScratch")}
-            {scratchSelected && <span className="text-[10px]">✓</span>}
+            {scratchSelected && <span className="text-2xs">✓</span>}
           </button>
         </div>
       )}

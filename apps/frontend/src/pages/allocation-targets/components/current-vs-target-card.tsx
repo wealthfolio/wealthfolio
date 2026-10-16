@@ -64,7 +64,7 @@ export function CurrentVsTargetCard({
 
           <div className="min-w-0">
             {/* Column headers */}
-            <div className="text-muted-foreground hidden grid-cols-[minmax(7.5rem,1fr)_minmax(10rem,1.25fr)_3.5rem_3.5rem_5rem] gap-x-3 px-2 pb-2 text-[10px] font-medium uppercase tracking-wider md:grid">
+            <div className="text-muted-foreground text-2xs hidden grid-cols-[minmax(7.5rem,1fr)_minmax(10rem,1.25fr)_3.5rem_3.5rem_5rem] gap-x-3 px-2 pb-2 font-medium uppercase tracking-wider md:grid">
               <span>{t("allocation:vsTarget.category")}</span>
               <span>{t("allocation:vsTarget.currentAllocation")}</span>
               <span className="text-right">{t("allocation:vsTarget.current")}</span>
@@ -92,7 +92,7 @@ export function CurrentVsTargetCard({
                         className="h-2.5 w-2.5 shrink-0 rounded-sm"
                         style={{ background: rowColor }}
                       />
-                      <span className="text-foreground truncate text-[12.5px] font-semibold">
+                      <span className="text-foreground truncate text-xs font-semibold">
                         {row.categoryName}
                       </span>
                     </div>
@@ -113,22 +113,22 @@ export function CurrentVsTargetCard({
                       </div>
                     </div>
 
-                    <span className="text-foreground hidden text-right text-[12px] font-semibold tabular-nums md:block">
+                    <span className="text-foreground hidden text-right text-xs font-semibold tabular-nums md:block">
                       {current.toFixed(1)}%
                     </span>
-                    <span className="text-muted-foreground hidden text-right text-[12px] font-medium tabular-nums md:block">
+                    <span className="text-muted-foreground hidden text-right text-xs font-medium tabular-nums md:block">
                       {formatTargetBps(row.targetBps)}%
                     </span>
                     <span
                       className={cn(
-                        "col-start-2 row-start-1 text-right text-[12px] font-semibold tabular-nums md:col-start-auto md:row-start-auto",
+                        "col-start-2 row-start-1 text-right text-xs font-semibold tabular-nums md:col-start-auto md:row-start-auto",
                         driftColor(row),
                       )}
                     >
                       {formatPp(row.driftBps)}
                     </span>
 
-                    <div className="text-muted-foreground col-span-2 flex justify-between text-[11px] tabular-nums md:hidden">
+                    <div className="text-muted-foreground text-2xs col-span-2 flex justify-between tabular-nums md:hidden">
                       <span>
                         {t("allocation:vsTarget.current")}{" "}
                         <span className="text-foreground">{current.toFixed(1)}%</span>

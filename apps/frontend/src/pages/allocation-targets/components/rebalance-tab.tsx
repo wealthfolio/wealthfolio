@@ -546,7 +546,7 @@ export function PlannerInput({
     <div className="flex h-full flex-col">
       <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between sm:gap-3">
         <Eyebrow>{t("allocation:planner.cashToDeploy")}</Eyebrow>
-        <span className="text-muted-foreground font-mono text-[11px] sm:text-xs">
+        <span className="text-muted-foreground text-2xs font-mono sm:text-xs">
           {t("allocation:planner.ofInScope", {
             amount: roundedCurrency(availableCash, currency, amountFormatting),
           })}

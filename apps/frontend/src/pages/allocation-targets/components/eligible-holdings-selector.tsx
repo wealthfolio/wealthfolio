@@ -141,7 +141,7 @@ export function EligibleHoldingsSelector({
                               {holding.name}
                             </span>
                           )}
-                          <span className="text-muted-foreground/80 block truncate font-mono text-[11px]">
+                          <span className="text-muted-foreground/80 text-2xs block truncate font-mono">
                             {details}
                           </span>
                         </span>
@@ -152,7 +152,7 @@ export function EligibleHoldingsSelector({
               ))}
             </CommandList>
             <CommandSeparator />
-            <div className="text-muted-foreground flex items-center justify-between px-3 py-2 font-mono text-[11px]">
+            <div className="text-muted-foreground text-2xs flex items-center justify-between px-3 py-2 font-mono">
               <span className="tabular-nums">
                 {t("allocation:eligibleHoldings.selectedCount", {
                   selected: selectedCount,

@@ -58,7 +58,7 @@ function HoldingAvatar({
     return (
       <span
         className={cn(
-          "bg-primary/80 dark:bg-primary/20 flex shrink-0 items-center justify-center rounded-full text-[9px] font-semibold text-white",
+          "bg-primary/80 dark:bg-primary/20 text-2xs flex shrink-0 items-center justify-center rounded-full font-semibold text-white",
           className,
         )}
       >
@@ -181,16 +181,16 @@ export function HoldingsTable({ report }: HoldingsTableProps) {
                   </div>
 
                   <div className="flex min-w-0 items-baseline gap-1.5">
-                    <span className="text-foreground shrink-0 text-[12px] font-semibold">
+                    <span className="text-foreground shrink-0 text-xs font-semibold">
                       {row.symbol}
                     </span>
-                    <span className="text-muted-foreground truncate text-[12px]">{row.name}</span>
+                    <span className="text-muted-foreground truncate text-xs">{row.name}</span>
                   </div>
-                  <span className="text-foreground text-right text-[12px] font-medium tabular-nums">
+                  <span className="text-foreground text-right text-xs font-medium tabular-nums">
                     {formatting.formatAmount(row.value, baseCurrency)}
                   </span>
 
-                  <div className="text-muted-foreground flex min-w-0 items-center gap-1.5 text-[11.5px]">
+                  <div className="text-muted-foreground text-2xs flex min-w-0 items-center gap-1.5">
                     {row.categoryColor && (
                       <span
                         className="h-1.5 w-1.5 shrink-0 rounded-full"
@@ -201,7 +201,7 @@ export function HoldingsTable({ report }: HoldingsTableProps) {
                   </div>
                   <span
                     className={cn(
-                      "text-right text-[11.5px] font-medium tabular-nums",
+                      "text-2xs text-right font-medium tabular-nums",
                       row.driftBps != null ? driftColor(row.driftBps) : "text-muted-foreground",
                     )}
                   >
@@ -214,9 +214,9 @@ export function HoldingsTable({ report }: HoldingsTableProps) {
         </div>
 
         <div className="hidden overflow-x-auto md:block">
-          <table className="w-full text-[13px]">
+          <table className="w-full text-sm">
             <thead>
-              <tr className="text-muted-foreground border-b text-[10px] uppercase tracking-wider">
+              <tr className="text-muted-foreground text-2xs border-b uppercase tracking-wider">
                 <th className="py-2.5 pl-6 pr-3 text-left font-medium">
                   {t("allocation:holdings.colHolding")}
                 </th>
@@ -274,10 +274,10 @@ export function HoldingsTable({ report }: HoldingsTableProps) {
                           instrumentType={row.instrumentType}
                         />
                         <div className="flex min-w-0 items-baseline gap-2">
-                          <span className="text-foreground shrink-0 text-[12px] font-semibold">
+                          <span className="text-foreground shrink-0 text-xs font-semibold">
                             {row.symbol}
                           </span>
-                          <span className="text-muted-foreground max-w-[330px] truncate text-[12px]">
+                          <span className="text-muted-foreground max-w-[330px] truncate text-xs">
                             {row.name}
                           </span>
                         </div>
@@ -292,11 +292,11 @@ export function HoldingsTable({ report }: HoldingsTableProps) {
                           />
                         )}
                         <span className="min-w-0">
-                          <span className="text-muted-foreground block truncate text-[12px]">
+                          <span className="text-muted-foreground block truncate text-xs">
                             {row.categoryName}
                           </span>
                           {row.isUnknownCategory && (
-                            <span className="text-muted-foreground/80 block max-w-[220px] truncate text-[10.5px]">
+                            <span className="text-muted-foreground/80 text-2xs block max-w-[220px] truncate">
                               {t("allocation:holdings.notMapped")}
                             </span>
                           )}
