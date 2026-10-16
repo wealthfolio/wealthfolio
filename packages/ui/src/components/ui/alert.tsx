@@ -20,11 +20,13 @@ const warningGlass = cn(
   "text-warning-subtle-foreground backdrop-blur-sm",
 );
 
-// A grid, as in shadcn's Alert: the icon spans the title and description rows and
-// sits centred on the first line whatever the padding or font size. For a compact
-// alert, set the font size on Alert (text-xs); the title and description inherit it.
+// A grid, as in shadcn's Alert: an icon placed first sits in a tinted circle and is
+// centred on the title and description; an AlertAction is a third column, centred too,
+// so a text button never covers the text. With a title, the title takes the status
+// colour and the description the page's text colour; without one, the sentence keeps
+// the status colour. For a compact alert, set the font size on Alert (text-xs).
 const alertVariants = cva(
-  "group/alert relative grid w-full gap-0.5 rounded-lg border px-4 py-3 text-left text-sm has-data-[slot=alert-action]:pr-18 has-[>svg]:grid-cols-[auto_1fr] has-[>svg]:gap-x-2.5 *:[svg]:row-span-2 *:[svg]:translate-y-[calc((1lh_-_100%)/2)] *:[svg]:text-current *:[svg:not([class*='size-'])]:size-4",
+  "group/alert relative grid w-full gap-0.5 rounded-lg border px-4 py-3 text-left text-sm has-[>svg]:grid-cols-[auto_1fr] has-data-[slot=alert-action]:grid-cols-[1fr_auto] has-[>svg]:has-data-[slot=alert-action]:grid-cols-[auto_1fr_auto] gap-x-3 *:[svg]:row-span-2 *:[svg]:self-center [&:not(:has([data-slot=alert-title]))>[data-slot=alert-description]]:row-span-2 [&:not(:has([data-slot=alert-title]))>[data-slot=alert-description]]:self-center [&:not(:has([data-slot=alert-description]))>[data-slot=alert-title]]:row-span-2 [&:not(:has([data-slot=alert-description]))>[data-slot=alert-title]]:self-center *:[svg]:box-content *:[svg]:rounded-full *:[svg]:bg-current/15 *:[svg]:p-1.5 *:[svg]:text-current *:[svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {
@@ -64,7 +66,7 @@ function AlertDescription({ className, ...props }: React.ComponentProps<"div">) 
     <div
       data-slot="alert-description"
       className={cn(
-        "[&_a]:underline-offset-3 text-balance md:text-pretty [&_a]:underline [&_p:not(:last-child)]:mb-4 [&_p]:leading-relaxed",
+        "[&_a]:underline-offset-3 group-has-data-[slot=alert-title]/alert:text-foreground/90 text-balance group-has-[>svg]/alert:col-start-2 md:text-pretty [&_a]:underline [&_p:not(:last-child)]:mb-4 [&_p]:leading-relaxed",
         className,
       )}
       {...props}
@@ -72,9 +74,15 @@ function AlertDescription({ className, ...props }: React.ComponentProps<"div">) 
   );
 }
 
-// A button or link at the top right of the alert.
+// A button or link in the alert's last column, centred on the text.
 function AlertAction({ className, ...props }: React.ComponentProps<"div">) {
-  return <div data-slot="alert-action" className={cn("absolute right-3 top-2.5", className)} {...props} />;
+  return (
+    <div
+      data-slot="alert-action"
+      className={cn("col-start-2 row-span-2 row-start-1 self-center group-has-[>svg]/alert:col-start-3", className)}
+      {...props}
+    />
+  );
 }
 
 export { Alert, AlertAction, AlertDescription, AlertTitle };

@@ -52,13 +52,15 @@ export function NetWorthAttentionCard({
       aria-label={t("insights:networth.attention.title")}
     >
       <div className="flex items-center gap-2">
-        <Icons.AlertCircle className="text-warning-subtle-foreground h-4 w-4 shrink-0" />
+        <span className="text-warning-subtle-foreground bg-current/15 flex shrink-0 rounded-full p-1.5">
+          <Icons.AlertCircle className="size-4" />
+        </span>
         <h3 className="text-foreground text-sm font-semibold">
           {t("insights:networth.attention.title")}
         </h3>
       </div>
       {staleAssets.length > 0 && (
-        <div className="ml-6 mt-3">
+        <div className="ml-9 mt-3">
           <p className="text-muted-foreground text-xs">
             {t("insights:networth.not_updated_over_90_days")}
           </p>
@@ -95,7 +97,7 @@ export function NetWorthAttentionCard({
         </div>
       )}
       {unlinkedLiabilities.map((liability) => (
-        <div key={liability.id} className="ml-6 mt-3 min-w-0">
+        <div key={liability.id} className="ml-9 mt-3 min-w-0">
           {properties.length > 0 ? (
             <ResponsiveSelect
               value=""

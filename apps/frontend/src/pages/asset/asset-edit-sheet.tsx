@@ -10,8 +10,6 @@ import type { Asset, Quote } from "@/lib/types";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQuery } from "@tanstack/react-query";
 import {
-  Alert,
-  AlertDescription,
   CurrencyInput,
   DatePickerInput,
   Label,
@@ -1206,15 +1204,13 @@ export function AssetEditSheet({
                           </div>
                         </div>
                       ) : (
-                        <Alert
-                          variant="destructive"
-                          className="border-0 bg-transparent p-0 shadow-none"
+                        <p
+                          role="alert"
+                          className="text-destructive flex items-center gap-2 text-sm"
                         >
-                          <Icons.AlertCircle className="h-4 w-4" />
-                          <AlertDescription>
-                            {t("asset:editSheet.price_fetch_error")}
-                          </AlertDescription>
-                        </Alert>
+                          <Icons.AlertCircle className="h-4 w-4 shrink-0" />
+                          {t("asset:editSheet.price_fetch_error")}
+                        </p>
                       )}
                     </div>
 

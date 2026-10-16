@@ -24,7 +24,7 @@ export function AlertFeedback({ title, children, variant = "error", className, .
     <Alert variant={variant} className={className} {...props}>
       {getIcon()}
       {title && <AlertTitle>{title}</AlertTitle>}
-      <AlertDescription>{children}</AlertDescription>
+      {children && <AlertDescription>{children}</AlertDescription>}
     </Alert>
   );
 }

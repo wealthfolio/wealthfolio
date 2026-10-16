@@ -68,7 +68,7 @@ export function ImportAlert({
         </AlertDescription>
       )}
       {RightIcon && (
-        <AlertAction className="top-1/2 -translate-y-1/2">
+        <AlertAction>
           <RightIcon className={cn(sizeStyle.icon, "opacity-80")} />
         </AlertAction>
       )}

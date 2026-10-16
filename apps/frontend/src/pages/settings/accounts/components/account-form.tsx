@@ -538,10 +538,7 @@ export function AccountForm({ defaultValues, onSuccess = () => undefined }: Acco
                     {t("settings:accounts.form_tracking_mode_label")}
                   </FormLabel>
                   {needsSetup && !currentTrackingMode && (
-                    <Alert
-                      variant="warning"
-                      className="px-3 py-2.5 [&>svg]:left-3 [&>svg]:top-2.5 [&>svg~*]:pl-6"
-                    >
+                    <Alert variant="warning" className="px-3 py-2.5">
                       <Icons.AlertTriangle className="h-4 w-4" />
                       <AlertDescription className="text-xs">
                         {t("settings:accounts.form_tracking_setup_hint")}{" "}
@@ -605,10 +602,7 @@ export function AccountForm({ defaultValues, onSuccess = () => undefined }: Acco
                     </RadioGroup>
                   </FormControl>
                   {field.value === "HOLDINGS" && (
-                    <Alert
-                      variant="warning"
-                      className="px-3 py-2.5 [&>svg]:left-3 [&>svg]:top-2.5 [&>svg~*]:pl-6"
-                    >
+                    <Alert variant="warning" className="px-3 py-2.5">
                       <Icons.AlertTriangle className="h-4 w-4" />
                       <AlertDescription className="text-xs">
                         {t("settings:accounts.form_tracking_holdings_warning")}{" "}

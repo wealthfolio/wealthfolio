@@ -391,7 +391,7 @@ function CashAuditCallout({ cashAuditTarget }: { cashAuditTarget: CashAuditRevie
   const activityDate = formatAuditDate(cashAuditTarget.activityDate, formatting);
 
   return (
-    <Alert variant="warning" className="p-3">
+    <Alert variant="warning" role="note" className="p-3">
       <Icons.AlertCircle />
       <AlertTitle>
         {t("activity:date_list.cash_went_negative_on", { date: valuationDate })}

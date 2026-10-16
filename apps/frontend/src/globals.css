@@ -879,6 +879,13 @@ body.qr-scan-active > .qr-overlay {
     }
   }
 
+  /* A titled Alert draws its icon's tinted circle with padding around a
+     content-box icon; border-box from the rule above would shrink the icon to a
+     dot. revert-layer restores the utility value. */
+  [data-slot="alert"] > svg {
+    box-sizing: revert-layer;
+  }
+
   /* assistant-ui thread needs native overflow behavior for sticky footer + viewport */
   .aui-root,
   .aui-root .flex,

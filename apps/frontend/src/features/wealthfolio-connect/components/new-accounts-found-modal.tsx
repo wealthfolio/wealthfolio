@@ -138,10 +138,7 @@ export function NewAccountsFoundModal({
         <div className="flex-1 overflow-hidden">
           <ScrollArea className="h-[calc(100vh-220px)]">
             <div className="space-y-6 p-6">
-              <Alert
-                variant="warning"
-                className="px-3 py-2.5 [&>svg]:left-3 [&>svg]:top-2.5 [&>svg~*]:pl-6"
-              >
+              <Alert variant="warning" className="px-3 py-2.5">
                 <Icons.AlertTriangle className="h-4 w-4" />
                 <AlertDescription className="text-sm">
                   <Trans

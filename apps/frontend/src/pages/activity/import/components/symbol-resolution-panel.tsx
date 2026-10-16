@@ -63,7 +63,9 @@ export function SymbolResolutionPanel({
     <div className={cn(statusSurfaceVariants({ status: "warning" }), "rounded-lg p-4")}>
       <div className="mb-3 flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <Icons.AlertTriangle className="text-warning-subtle-foreground h-4 w-4" />
+          <span className="text-warning-subtle-foreground bg-current/15 flex shrink-0 rounded-full p-1.5">
+            <Icons.AlertTriangle className="size-4" />
+          </span>
           <h3 className="text-sm font-medium">
             {t("activity:import.symbolPanel.unrecognized", { count: unresolvedSymbols.length })}
             {totalAffectedRows > 0
