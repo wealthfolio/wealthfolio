@@ -17,8 +17,8 @@ import {
   CardHeader,
   CardTitle,
   Checkbox,
+  useAmountFormatting,
   useDateFormatting,
-  useNumberFormatting,
 } from "@wealthfolio/ui";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { memo, useEffect, useMemo, useState } from "react";
@@ -88,7 +88,7 @@ function CategorizationProposalsContentImpl({
   status,
   toolCallId,
 }: CategorizationProposalsToolUIContentProps) {
-  const numberFormatting = useNumberFormatting();
+  const amountFormatting = useAmountFormatting();
   const dateFormatting = useDateFormatting();
 
   const { t } = useTranslation();
@@ -98,8 +98,8 @@ function CategorizationProposalsContentImpl({
   const runtime = useRuntimeContext();
   const threadId = runtime.currentThreadId;
   const amountFormatter = useMemo(
-    () => createActivityAmountFormatter(numberFormatting),
-    [numberFormatting],
+    () => createActivityAmountFormatter(amountFormatting),
+    [amountFormatting],
   );
   const bulkAssign = useBulkAssignCategories();
 

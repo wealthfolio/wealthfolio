@@ -16,7 +16,10 @@ import {
 import { SandboxAddonAssetRegistry, type SandboxAddonAsset } from "./addon-sandbox-asset-registry";
 import { applyHostTheme, type AddonThemeSnapshot } from "./addon-sandbox-theme";
 import { rewriteModuleSpecifiers } from "./addon-module-rewriter";
-import type { AddonLocalizationSnapshot } from "./addon-sandbox-localization";
+import {
+  isSameAddonLocalization,
+  type AddonLocalizationSnapshot,
+} from "./addon-sandbox-localization";
 import {
   initSandboxI18n,
   installAddonTranslationRuntime,
@@ -156,13 +159,7 @@ function reportLoadPhase(phase: string) {
 
 function updateSandboxLocalization(localization?: AddonLocalizationSnapshot) {
   if (!localization?.locale) return;
-  if (
-    sandboxLocalization.locale === localization.locale &&
-    sandboxLocalization.uiLocale === localization.uiLocale &&
-    sandboxLocalization.timezone === localization.timezone
-  ) {
-    return;
-  }
+  if (isSameAddonLocalization(sandboxLocalization, localization)) return;
   sandboxLocalization = localization;
   setSandboxLanguage(localization.uiLocale);
   for (const listener of localizationListeners) listener();
@@ -182,6 +179,7 @@ function SandboxFormattingProvider({ children }: { children: React.ReactNode }) 
       locale={localization.locale}
       uiLocale={localization.uiLocale}
       timezone={localization.timezone}
+      currencyFormattingRegions={localization.currencyFormattingRegions}
     >
       {children}
     </FormattingProvider>

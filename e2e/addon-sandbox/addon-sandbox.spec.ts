@@ -459,3 +459,96 @@ test("rejects a duplicate runtime payload", async ({ baseURL, page }) => {
     phase: "validating runtime assets",
   });
 });
+
+const FORMATTING_ADDON_CODE = `
+import React from "react";
+import { createRoot } from "react-dom/client";
+import { useAmountFormatting } from "@wealthfolio/ui";
+
+function AmountProbe() {
+  const text = useAmountFormatting().formatAmount(1234567.89, "INR");
+  React.useEffect(() => {
+    const init = new URLSearchParams(window.name);
+    parent.postMessage({
+      addonId: init.get("addonId"),
+      channel: "wealthfolio:addon-sandbox:v1",
+      nonce: init.get("nonce"),
+      type: "formattedAmount",
+      text,
+    }, "*");
+  }, [text]);
+  return null;
+}
+
+export function enable(context) {
+  createRoot(context.ui.root).render(React.createElement(AmountProbe));
+}
+`;
+
+test("formats addon amounts with the host's per-currency formats", async ({ baseURL, page }) => {
+  const harnessUrl = new URL("/__addon-sandbox-formatting-test__", baseURL).toString();
+  await page.route(harnessUrl, (route) =>
+    route.fulfill({
+      body: HARNESS_HTML,
+      contentType: "text/html",
+    }),
+  );
+  await page.goto(harnessUrl);
+
+  const formatted = await page.evaluate(async (addonCode) => {
+    const addonId = "sandbox-formatting-test";
+    const channel = "wealthfolio:addon-sandbox:v1";
+    const nonce = crypto.randomUUID();
+    const [script, stylesheet, sandboxHtml] = await Promise.all([
+      fetch("/__generated__/addon-sandbox-runtime.js").then((response) => response.blob()),
+      fetch("/__generated__/addon-sandbox-runtime.css").then((response) => response.blob()),
+      fetch("/addon-sandbox.html").then((response) => response.text()),
+    ]);
+
+    return new Promise<string[]>((resolve, reject) => {
+      const iframe = document.createElement("iframe");
+      iframe.setAttribute("sandbox", "allow-scripts");
+      iframe.name = new URLSearchParams({
+        addonId,
+        hostBaseUrl: new URL("/", window.location.href).toString(),
+        locale: "en-US",
+        nonce,
+      }).toString();
+      iframe.srcdoc = sandboxHtml;
+      const texts: string[] = [];
+      const timer = window.setTimeout(
+        () => reject(new Error(`Addon did not format twice: ${JSON.stringify(texts)}`)),
+        15_000,
+      );
+      const post = (type: string, payload: Record<string, unknown> = {}) => {
+        iframe.contentWindow?.postMessage({ addonId, channel, nonce, type, ...payload }, "*");
+      };
+      window.addEventListener("message", function onMessage(event) {
+        const message = event.data;
+        if (event.source !== iframe.contentWindow || message?.addonId !== addonId) return;
+        if (message.type === "bootstrapReady") {
+          post("loadRuntime", { protocolVersion: 1, script, stylesheet });
+        } else if (message.type === "ready") {
+          post("loadAddon", {
+            code: addonCode,
+            localization: { locale: "en-US", currencyFormattingRegions: { INR: "IN" } },
+          });
+        } else if (message.type === "formattedAmount") {
+          texts.push(message.text);
+          if (texts.length === 1) {
+            post("localizationUpdate", { localization: { locale: "en-US" } });
+          } else {
+            window.clearTimeout(timer);
+            window.removeEventListener("message", onMessage);
+            resolve(texts);
+          }
+        } else if (message.type === "loadError") {
+          reject(new Error(`${message.phase || "load"}: ${message.error || "unknown error"}`));
+        }
+      });
+      document.body.appendChild(iframe);
+    });
+  }, FORMATTING_ADDON_CODE);
+
+  expect(formatted).toEqual(["₹12,34,567.89", "₹1,234,567.89"]);
+});

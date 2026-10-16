@@ -198,7 +198,8 @@ export const IncomeHistoryChart: React.FC<IncomeHistoryChartProps> = ({
     width: isMobile ? 45 : 60,
     ticks: yTicks,
     domain: [0, yTicks[yTicks.length - 1] || 0] as [number, number],
-    tickFormatter: (value: number) => formatCompactAmount(value, currency, false),
+    tickFormatter: (value: number) =>
+      isBalanceHidden ? "••" : formatCompactAmount(value, currency, false),
   };
 
   const tooltipLabelFormatter = (label: unknown) => {
@@ -359,7 +360,9 @@ export const IncomeHistoryChart: React.FC<IncomeHistoryChartProps> = ({
                 ticks={rightTicks}
                 domain={[0, rightTicks[rightTicks.length - 1] || 0]}
                 tick={{ fontSize: 12, fill: "var(--chart-2)" }}
-                tickFormatter={(value: number) => formatCompactAmount(value, currency, false)}
+                tickFormatter={(value: number) =>
+                  isBalanceHidden ? "••" : formatCompactAmount(value, currency, false)
+                }
               />
               <ChartTooltip
                 content={

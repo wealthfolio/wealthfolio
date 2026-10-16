@@ -165,6 +165,27 @@ describe("AddonIframeManager", () => {
       "*",
     );
 
+    const withCurrencyFormats = {
+      locale: "ko-KR",
+      uiLocale: "fr",
+      timezone: "Asia/Seoul",
+      currencyFormattingRegions: { INR: "IN" },
+    };
+    postMessage.mockClear();
+    setAddonLocalizationSnapshot(withCurrencyFormats);
+    expect(postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ localization: withCurrencyFormats, type: "localizationUpdate" }),
+      "*",
+    );
+
+    // Settings refetches build a new map with the same entries.
+    postMessage.mockClear();
+    setAddonLocalizationSnapshot({
+      ...withCurrencyFormats,
+      currencyFormattingRegions: { INR: "IN" },
+    });
+    expect(postMessage).not.toHaveBeenCalled();
+
     await manager.stopAllAddons();
     await cancelled;
   });

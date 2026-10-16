@@ -79,15 +79,28 @@ interface ValueFormatter {
   format(value: number): string;
 }
 
+interface AmountFormatter {
+  format(value: number, currency: string): string;
+}
+
 export function createActivityAmountFormatter(
-  formatting: Pick<FormattingApi, "formatDecimal">,
-): ValueFormatter {
+  formatting: Pick<FormattingApi, "currencyLocale">,
+): AmountFormatter {
+  // Each currency may have its own format, so keep one formatter per locale.
+  const formatters = new Map<string, Intl.NumberFormat>();
   return {
-    format: (value) =>
-      formatting.formatDecimal(value, {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-      }),
+    format: (value, currency) => {
+      const locale = formatting.currencyLocale(currency);
+      let formatter = formatters.get(locale);
+      if (!formatter) {
+        formatter = new Intl.NumberFormat(locale, {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        });
+        formatters.set(locale, formatter);
+      }
+      return formatter.format(value);
+    },
   };
 }
 
@@ -105,14 +118,15 @@ export function createActivityQuantityFormatter(
 
 export function formatActivityAmount(
   value: number | null | undefined,
-  formatter: ValueFormatter,
+  formatter: AmountFormatter,
   isHidden: boolean,
-  currency?: string,
+  currency: string,
+  { showCurrency = true }: { showCurrency?: boolean } = {},
 ): string {
   if (value == null) return "-";
   if (isHidden) return "******";
-  const formatted = formatter.format(Math.abs(value));
-  return currency ? `${formatted} ${currency}` : formatted;
+  const formatted = formatter.format(Math.abs(value), currency);
+  return showCurrency && currency ? `${formatted} ${currency}` : formatted;
 }
 
 export function formatActivityQuantity(

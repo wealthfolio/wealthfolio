@@ -16,7 +16,13 @@ import { useAccountScopeStore } from "@/lib/account-scope-store";
 import { QueryKeys } from "@/lib/query-keys";
 import type { IncomeSummary } from "@/lib/types";
 import { useQuery } from "@tanstack/react-query";
-import { AmountDisplay, AnimatedToggleGroup, GainPercent, PrivacyAmount } from "@wealthfolio/ui";
+import {
+  AmountDisplay,
+  AnimatedToggleGroup,
+  GainPercent,
+  PrivacyAmount,
+  useAmountFormatting,
+} from "@wealthfolio/ui";
 import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Cell, Pie, PieChart } from "recharts";
@@ -70,6 +76,7 @@ export default function IncomePage() {
   const { t } = useTranslation();
   const [selectedPeriod, setSelectedPeriod] = useState<IncomePeriod>("ALL");
   const { isBalanceHidden } = useBalancePrivacy();
+  const amountFormatting = useAmountFormatting();
 
   const accountFilter = useAccountScopeStore((state) => state.scope);
   const setAccountScope = useAccountScopeStore((state) => state.setScope);
@@ -256,7 +263,43 @@ export default function IncomePage() {
                     className="mx-auto aspect-square max-h-[62px]"
                   >
                     <PieChart>
-                      <ChartTooltip cursor={false} content={<ChartTooltipContent hideLabel />} />
+                      <ChartTooltip
+                        cursor={false}
+                        content={
+                          <ChartTooltipContent
+                            hideLabel
+                            // Each slice is an amount in its own currency.
+                            formatter={(value, name, entry) => {
+                              const color =
+                                (entry.payload as { fill?: string } | undefined)?.fill ??
+                                entry.color;
+                              return (
+                                <>
+                                  <div
+                                    className="border-border bg-(--color-bg) h-2.5 w-2.5 shrink-0 rounded-[2px]"
+                                    style={
+                                      {
+                                        "--color-bg": color,
+                                        "--color-border": color,
+                                      } as React.CSSProperties
+                                    }
+                                  />
+                                  <div className="flex flex-1 items-center justify-between gap-2 leading-none">
+                                    <span className="text-muted-foreground">{name}</span>
+                                    <span className="text-foreground font-mono font-medium tabular-nums">
+                                      {isBalanceHidden
+                                        ? "••••"
+                                        : new Intl.NumberFormat(
+                                            amountFormatting.currencyLocale(String(name)),
+                                          ).format(Number(value))}
+                                    </span>
+                                  </div>
+                                </>
+                              );
+                            }}
+                          />
+                        }
+                      />
                       <Pie data={currencyData} dataKey="amount" nameKey="currency" paddingAngle={4}>
                         {currencyData.map((_entry, index) => (
                           <Cell key={`cell-${index}`} fill={`var(--chart-${index + 2})`} />

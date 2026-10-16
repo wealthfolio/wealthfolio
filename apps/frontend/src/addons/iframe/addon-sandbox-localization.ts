@@ -2,6 +2,8 @@ export interface AddonLocalizationSnapshot {
   locale: string;
   uiLocale?: string;
   timezone?: string;
+  /** Formatting regions for amounts in specific currencies, keyed by currency code. */
+  currencyFormattingRegions?: Record<string, string>;
 }
 
 type AddonLocalizationListener = (snapshot: AddonLocalizationSnapshot) => void;
@@ -20,12 +22,21 @@ export function collectAddonLocalizationSnapshot(): AddonLocalizationSnapshot {
   return currentSnapshot;
 }
 
+export function isSameAddonLocalization(
+  left: AddonLocalizationSnapshot,
+  right: AddonLocalizationSnapshot,
+): boolean {
+  return (
+    left.locale === right.locale &&
+    left.uiLocale === right.uiLocale &&
+    left.timezone === right.timezone &&
+    JSON.stringify(left.currencyFormattingRegions ?? {}) ===
+      JSON.stringify(right.currencyFormattingRegions ?? {})
+  );
+}
+
 export function setAddonLocalizationSnapshot(snapshot: AddonLocalizationSnapshot): void {
-  if (
-    currentSnapshot.locale === snapshot.locale &&
-    currentSnapshot.uiLocale === snapshot.uiLocale &&
-    currentSnapshot.timezone === snapshot.timezone
-  ) {
+  if (isSameAddonLocalization(currentSnapshot, snapshot)) {
     return;
   }
 

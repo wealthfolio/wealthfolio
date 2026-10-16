@@ -16,6 +16,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  useAmountFormatting,
   useDateFormatting,
   useNumberFormatting,
 } from "@wealthfolio/ui";
@@ -168,6 +169,7 @@ type ActivitiesContentProps = ToolCallMessagePartProps<
 const ActivitiesContent = memo(ActivitiesContentImpl);
 
 function ActivitiesContentImpl({ args, result, status }: ActivitiesContentProps) {
+  const amountFormatting = useAmountFormatting();
   const numberFormatting = useNumberFormatting();
   const dateFormatting = useDateFormatting();
 
@@ -188,8 +190,8 @@ function ActivitiesContentImpl({ args, result, status }: ActivitiesContentProps)
   }, [parsed?.activities]);
 
   const formatter = useMemo(
-    () => createActivityAmountFormatter(numberFormatting),
-    [numberFormatting],
+    () => createActivityAmountFormatter(amountFormatting),
+    [amountFormatting],
   );
   const quantityFormatter = useMemo(
     () => createActivityQuantityFormatter(numberFormatting),
@@ -364,7 +366,13 @@ function ActivitiesContentImpl({ args, result, status }: ActivitiesContentProps)
                       )}
                     </TableCell>
                     <TableCell className="py-2 text-right tabular-nums">
-                      {formatActivityAmount(activity.unitPrice, formatter, isBalanceHidden)}
+                      {formatActivityAmount(
+                        activity.unitPrice,
+                        formatter,
+                        isBalanceHidden,
+                        activity.currency,
+                        { showCurrency: false },
+                      )}
                     </TableCell>
                     <TableCell className="py-2 pr-4 text-right font-medium tabular-nums">
                       {formatActivityAmount(

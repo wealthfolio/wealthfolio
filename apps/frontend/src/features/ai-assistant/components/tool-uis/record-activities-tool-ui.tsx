@@ -18,6 +18,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  useAmountFormatting,
   useDateFormatting,
   useNumberFormatting,
 } from "@wealthfolio/ui";
@@ -136,6 +137,7 @@ function RecordActivitiesToolUIContentImpl({
   status,
   toolCallId,
 }: RecordActivitiesToolUIContentProps) {
+  const amountFormatting = useAmountFormatting();
   const numberFormatting = useNumberFormatting();
   const dateFormatting = useDateFormatting();
 
@@ -150,8 +152,8 @@ function RecordActivitiesToolUIContentImpl({
     [baseCurrency, result],
   );
   const amountFormatter = useMemo(
-    () => createActivityAmountFormatter(numberFormatting),
-    [numberFormatting],
+    () => createActivityAmountFormatter(amountFormatting),
+    [amountFormatting],
   );
   const quantityFormatter = useMemo(
     () => createActivityQuantityFormatter(numberFormatting),
