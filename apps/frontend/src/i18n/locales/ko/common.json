@@ -245,7 +245,6 @@
     "asset_type_option": "옵션",
     "asset_type_metal": "금속 (원자재)",
     "asset_type_other": "기타",
-    "select_currency": "통화 선택...",
     "select_symbol": "심볼 선택...",
     "symbol_type_security": "증권",
     "symbol_type_crypto": "암호화폐",

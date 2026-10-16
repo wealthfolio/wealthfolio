@@ -245,7 +245,6 @@
     "asset_type_option": "Option",
     "asset_type_metal": "Metal (Commodity)",
     "asset_type_other": "Other",
-    "select_currency": "Select currency...",
     "select_symbol": "Select symbol...",
     "symbol_type_security": "Security",
     "symbol_type_crypto": "Crypto",
