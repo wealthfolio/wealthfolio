@@ -457,10 +457,7 @@ export default function SpendingRulesPage() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>{t("common:cancel")}</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => rerun.mutate(false)}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
+            <AlertDialogAction onClick={() => rerun.mutate(false)} variant="destructive">
               {t("settings:spending.rules.recategorize_all")}
             </AlertDialogAction>
           </AlertDialogFooter>

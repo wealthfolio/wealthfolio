@@ -62,11 +62,7 @@ export function DeleteTransactionsDialog({
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel disabled={isPending}>{t("common:cancel")}</AlertDialogCancel>
-          <AlertDialogAction
-            onClick={onConfirm}
-            disabled={isPending}
-            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-          >
+          <AlertDialogAction onClick={onConfirm} disabled={isPending} variant="destructive">
             {t("common:delete")}
           </AlertDialogAction>
         </AlertDialogFooter>

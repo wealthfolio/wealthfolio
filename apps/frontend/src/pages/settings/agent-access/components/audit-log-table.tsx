@@ -277,7 +277,7 @@ export function AuditLogTable({ disabledNotice }: { disabledNotice?: string }) {
               {t("common:cancel")}
             </AlertDialogCancel>
             <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              variant="destructive"
               disabled={purgeMutation.isPending}
               onClick={() => {
                 purgeMutation.mutate(undefined, {

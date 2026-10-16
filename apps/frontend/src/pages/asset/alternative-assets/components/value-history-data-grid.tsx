@@ -731,7 +731,7 @@ export function ValueHistoryDataGrid({
             <AlertDialogFooter>
               <AlertDialogCancel disabled={isPersisting}>{t("common:cancel")}</AlertDialogCancel>
               <AlertDialogAction
-                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                variant="destructive"
                 disabled={isPersisting}
                 onClick={(event) => {
                   event.preventBaseUIHandler();

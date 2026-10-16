@@ -241,10 +241,7 @@ export function CategoryItem({
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel>{t("common:cancel")}</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={() => onDelete(category)}
-                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              >
+              <AlertDialogAction onClick={() => onDelete(category)} variant="destructive">
                 {t("common:delete")}
               </AlertDialogAction>
             </AlertDialogFooter>

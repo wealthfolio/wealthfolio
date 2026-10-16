@@ -128,7 +128,7 @@ export function LiabilityOverview({
                 setToDelete(null);
               }}
               disabled={isDeleting}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              variant="destructive"
             >
               {t("common:delete")}
             </AlertDialogAction>

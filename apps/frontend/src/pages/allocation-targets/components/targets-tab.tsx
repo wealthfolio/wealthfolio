@@ -1242,7 +1242,7 @@ function TargetEditor({
           <AlertDialogFooter>
             <AlertDialogCancel>{t("common:cancel")}</AlertDialogCancel>
             <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              variant="destructive"
               onClick={() => {
                 setDeleteOpen(false);
                 setHasUnsavedChanges(false);

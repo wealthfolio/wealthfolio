@@ -316,10 +316,7 @@ function EventTypeRow({
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>{t("common:cancel")}</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={onDeleteEventType}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
+            <AlertDialogAction onClick={onDeleteEventType} variant="destructive">
               {t("common:delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -433,10 +430,7 @@ function EventRow({
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel>{t("common:cancel")}</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={onDelete}
-                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              >
+              <AlertDialogAction onClick={onDelete} variant="destructive">
                 {t("common:delete")}
               </AlertDialogAction>
             </AlertDialogFooter>

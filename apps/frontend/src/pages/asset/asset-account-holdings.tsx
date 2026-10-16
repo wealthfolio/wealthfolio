@@ -585,7 +585,7 @@ export function AssetSnapshotHistory({
             <AlertDialogAction
               onClick={handleRemovePosition}
               disabled={isDeleting}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              variant="destructive"
             >
               {isDeleting ? t("asset:accountHoldings.removing") : t("asset:accountHoldings.remove")}
             </AlertDialogAction>

@@ -718,7 +718,7 @@ export const HoldingsEditMode = ({
                 variant="outline"
                 onClick={() => setShowDeleteDialog(true)}
                 disabled={isSaving || isDeleting}
-                className="text-destructive hover:bg-destructive hover:text-destructive-foreground"
+                className="text-destructive hover:bg-destructive-subtle hover:text-destructive-subtle-foreground"
               >
                 <Icons.Trash className="mr-2 h-4 w-4" />
                 {t("holdings:delete_snapshot")}
@@ -778,7 +778,7 @@ export const HoldingsEditMode = ({
             <AlertDialogAction
               onClick={handleDeleteSnapshot}
               disabled={isDeleting}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              variant="destructive"
             >
               {isDeleting ? (
                 <>

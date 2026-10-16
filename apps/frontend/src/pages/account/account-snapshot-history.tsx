@@ -375,7 +375,7 @@ export function AccountSnapshotHistory({
             <AlertDialogAction
               onClick={handleDeleteSnapshot}
               disabled={isDeleting}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              variant="destructive"
             >
               {isDeleting ? t("account:snapshot.deleting") : t("common:delete")}
             </AlertDialogAction>

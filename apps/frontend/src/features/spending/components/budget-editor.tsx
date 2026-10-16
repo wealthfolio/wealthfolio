@@ -668,7 +668,7 @@ function GroupBudgetSection({
                   setConfirmDeleteOpen(false);
                 }}
                 disabled={deletePending}
-                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                variant="destructive"
               >
                 {deletePending ? t("spending:budgetEditor.deleting") : t("common:delete")}
               </AlertDialogAction>

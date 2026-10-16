@@ -31,10 +31,7 @@ export function UnsavedTargetChangesDialog({
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>{t("common:cancel")}</AlertDialogCancel>
-          <AlertDialogAction
-            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            onClick={onDiscard}
-          >
+          <AlertDialogAction variant="destructive" onClick={onDiscard}>
             {t("allocation:unsaved.discard")}
           </AlertDialogAction>
         </AlertDialogFooter>

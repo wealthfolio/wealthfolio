@@ -120,6 +120,11 @@ and this project adheres to
   indicator, pass `focus-visible:outline-none`; `focus-visible:ring-0` no longer
   hides it. `SelectTrigger` and the dialog and sheet close buttons show it on
   keyboard focus only (`:focus-visible`), not after a click.
+- `Button`'s `destructive` variant is a pale red button (red text on
+  `--destructive-subtle`, a deeper tint on hover) instead of solid red with
+  white text. `AlertDialogAction` takes `variant`, so a dialog's destructive
+  confirm is `<AlertDialogAction variant="destructive">` rather than
+  `bg-destructive` overrides.
 - `ActivityUpdate.asset` now has explicit patch semantics: omit it to preserve
   the current asset, or pass an empty object to clear the asset association.
 - Host-provided `@wealthfolio/addon-sdk` and `@wealthfolio/ui` dependency ranges

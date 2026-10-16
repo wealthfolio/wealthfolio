@@ -192,7 +192,7 @@ export function RulePresetPicker({ compact = false }: RulePresetPickerProps) {
                 }
                 setPendingRemove(null);
               }}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              variant="destructive"
             >
               {t("spending:presets.remove")}
             </AlertDialogAction>

@@ -1,4 +1,5 @@
 import { AlertDialog as AlertDialogPrimitive } from "@base-ui/react/alert-dialog";
+import { type VariantProps } from "class-variance-authority";
 import * as React from "react";
 
 import { buttonVariants } from "./button-variants";
@@ -93,11 +94,13 @@ interface AlertDialogCloseProps extends Omit<AlertDialogPrimitive.Close.Props, "
  * Confirms and closes the dialog. To keep it open, for example while the
  * action is pending, call `event.preventBaseUIHandler()` in `onClick`.
  */
-function AlertDialogAction({ className, ...props }: AlertDialogCloseProps) {
+interface AlertDialogActionProps extends AlertDialogCloseProps, Pick<VariantProps<typeof buttonVariants>, "variant"> {}
+
+function AlertDialogAction({ className, variant, ...props }: AlertDialogActionProps) {
   return (
     <AlertDialogPrimitive.Close
       data-slot="alert-dialog-action"
-      className={cn(buttonVariants(), className)}
+      className={cn(buttonVariants({ variant }), className)}
       {...props}
     />
   );
