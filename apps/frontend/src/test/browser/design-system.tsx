@@ -433,7 +433,9 @@ function Fixture() {
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                   <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction onClick={() => setDeleted(true)}>Delete</AlertDialogAction>
+                  <AlertDialogAction variant="destructive" onClick={() => setDeleted(true)}>
+                    Delete
+                  </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
