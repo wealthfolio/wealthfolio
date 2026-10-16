@@ -16,6 +16,15 @@ const badgeVariants = cva(
         success: "border-transparent bg-success text-success-foreground [a&]:hover:bg-success/90",
         warning: "border-transparent bg-warning text-warning-foreground [a&]:hover:bg-warning/90",
         info: "border-transparent bg-info text-info-foreground [a&]:hover:bg-info/90",
+        // Pale pills for a status (a confidence, a change, a state): the status's subtle
+        // surface and text, which reach 4.5:1 where text-success on bg-success/10 does not.
+        "success-subtle":
+          "border-transparent bg-success-subtle text-success-subtle-foreground [a&]:hover:bg-success-subtle/80",
+        "warning-subtle":
+          "border-transparent bg-warning-subtle text-warning-subtle-foreground [a&]:hover:bg-warning-subtle/80",
+        "destructive-subtle":
+          "border-transparent bg-destructive-subtle text-destructive-subtle-foreground [a&]:hover:bg-destructive-subtle/80",
+        "info-subtle": "border-transparent bg-info-subtle text-info-subtle-foreground [a&]:hover:bg-info-subtle/80",
       },
     },
     defaultVariants: {

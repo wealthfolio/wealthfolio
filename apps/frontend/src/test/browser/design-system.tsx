@@ -225,6 +225,12 @@ function Fixture() {
             <Badge variant="destructive">Destructive</Badge>
             <Badge render={<a href="#buttons-and-badges" />}>Link badge</Badge>
           </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant="success-subtle">Paid</Badge>
+            <Badge variant="warning-subtle">Pending</Badge>
+            <Badge variant="destructive-subtle">Failed</Badge>
+            <Badge variant="info-subtle">Synced</Badge>
+          </div>
         </Section>
 
         <Section title="Form controls">

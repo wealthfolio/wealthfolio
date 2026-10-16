@@ -46,6 +46,9 @@ and this project adheres to
   `destructive`. `statusSurfaceVariants({ status })` gives that surface (fill,
   hairline and top highlight, no text colour) for panels and cards that carry a
   status but hold other content.
+- `Badge` variants `success-subtle`, `warning-subtle`, `destructive-subtle` and
+  `info-subtle`: pale pills on the status surfaces, for confidences, changes and
+  states.
 
 ### Changed
 
