@@ -261,11 +261,11 @@ export const OnboardingAppearance = forwardRef<
                       {/* Font name as hero */}
                       <div className="text-lg font-medium tracking-tight sm:text-xl">{f.label}</div>
                       {/* Sample text paragraph */}
-                      <div className="text-muted-foreground text-[11px] leading-snug sm:text-xs">
+                      <div className="text-muted-foreground text-2xs leading-snug sm:text-xs">
                         {t("onboarding:appearance.fontSample")}
                       </div>
                       {/* Secondary: numbers sample */}
-                      <div className="text-muted-foreground/60 whitespace-nowrap text-[11px] sm:text-xs">
+                      <div className="text-muted-foreground/60 text-2xs whitespace-nowrap sm:text-xs">
                         12345 · $1,234
                       </div>
                     </div>

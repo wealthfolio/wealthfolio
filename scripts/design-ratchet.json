@@ -1,14 +1,8 @@
 {
   "fontSizes": {
-    "apps/frontend/src/features/devices-sync/components/device-setup-wizard.tsx": 1,
-    "apps/frontend/src/features/devices-sync/components/device-sync-section.tsx": 1,
     "apps/frontend/src/features/goals/retirement-planner/pages/dashboard-page.tsx": 7,
-    "apps/frontend/src/features/wealthfolio-connect/components/connected-view.tsx": 3,
-    "apps/frontend/src/pages/health/health-page.tsx": 2,
     "apps/frontend/src/pages/insights/overview/value-strip.tsx": 2,
-    "apps/frontend/src/pages/layouts/navigation/app-sidebar.tsx": 1,
-    "apps/frontend/src/pages/not-found.tsx": 1,
-    "apps/frontend/src/pages/onboarding/onboarding-appearance.tsx": 2
+    "apps/frontend/src/pages/not-found.tsx": 1
   },
   "rawColors": {
     "apps/frontend/src/components/account-selector.tsx": 4,

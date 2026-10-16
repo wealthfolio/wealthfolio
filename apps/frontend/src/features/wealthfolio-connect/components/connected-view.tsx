@@ -173,7 +173,7 @@ function BrokerAccountCard({ account, connections }: BrokerAccountCardProps) {
               {account.name || t("connect:accounts.accountFallback")}
             </span>
             {account.is_paper && (
-              <Badge variant="outline" className="h-5 shrink-0 text-[10px]">
+              <Badge variant="outline" className="text-2xs h-5 shrink-0">
                 {t("connect:accounts.paper")}
               </Badge>
             )}
@@ -214,7 +214,7 @@ function BrokerAccountCard({ account, connections }: BrokerAccountCardProps) {
             <span className="ml-auto hidden shrink-0 pl-2 sm:inline">{lastSyncedText}</span>
           </div>
           {/* Row 3: Sync time on its own line on mobile */}
-          <p className="text-muted-foreground mt-0.5 text-[11px] sm:hidden">{lastSyncedText}</p>
+          <p className="text-muted-foreground text-2xs mt-0.5 sm:hidden">{lastSyncedText}</p>
         </div>
       </div>
     </div>
@@ -432,7 +432,7 @@ export function ConnectedView() {
                     t("connect:account.userFallback")}
                 </h3>
                 {hasSubscription && (
-                  <Badge className="h-5 shrink-0 bg-green-100 px-2 text-[10px] font-medium text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                  <Badge className="text-2xs h-5 shrink-0 bg-green-100 px-2 font-medium text-green-700 dark:bg-green-900/30 dark:text-green-400">
                     {t("connect:account.active")}
                   </Badge>
                 )}

@@ -124,7 +124,7 @@ function HealthIssueRow({
             {translateIssueText(t, issue, "title")}
           </span>
           {issue.affectedCount > 0 && (
-            <Badge variant="secondary" className="h-5 shrink-0 px-1.5 text-[10px] font-medium">
+            <Badge variant="secondary" className="text-2xs h-5 shrink-0 px-1.5 font-medium">
               {issue.affectedCount}
             </Badge>
           )}
@@ -140,7 +140,7 @@ function HealthIssueRow({
             render={
               <Badge
                 variant="outline"
-                className="text-muted-foreground h-6 gap-1 px-2 text-[10px] font-normal"
+                className="text-muted-foreground text-2xs h-6 gap-1 px-2 font-normal"
               />
             }
           >

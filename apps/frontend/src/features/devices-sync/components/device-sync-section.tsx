@@ -1035,7 +1035,7 @@ function PairThisDeviceItem({ onPair }: { onPair: () => void }) {
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
               <span className="truncate text-sm font-medium">{t("sync:status.thisDevice")}</span>
-              <Badge variant="warning-subtle" className="h-5 shrink-0 text-[10px]">
+              <Badge variant="warning-subtle" className="text-2xs h-5 shrink-0">
                 {t("sync:status.notConnected")}
               </Badge>
             </div>

@@ -69,7 +69,7 @@ export function WizardStepper({ mode, progress }: WizardStepperProps) {
             />
             <span
               className={cn(
-                "truncate text-[11px] transition-colors duration-300",
+                "text-2xs truncate transition-colors duration-300",
                 state === "failed"
                   ? "text-destructive font-medium"
                   : state === "active"
