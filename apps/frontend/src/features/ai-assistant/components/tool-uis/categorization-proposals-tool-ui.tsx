@@ -53,10 +53,10 @@ interface RowDraft {
   selected: boolean;
 }
 
-function confidencePillClass(confidence: number): string {
-  if (confidence >= 0.85) return "bg-success/15 text-success border-success/30";
-  if (confidence >= 0.6) return "bg-warning/15 text-warning border-warning/30";
-  return "bg-muted text-muted-foreground border-border";
+function confidenceVariant(confidence: number) {
+  if (confidence >= 0.85) return "success-subtle";
+  if (confidence >= 0.6) return "warning-subtle";
+  return "outline";
 }
 
 function confidenceLabel(confidence: number): string {
@@ -379,8 +379,12 @@ function CategorizationProposalsContentImpl({
                 }
               />
               <Badge
-                variant="outline"
-                className={cn("text-[10px] uppercase", confidencePillClass(row.confidence))}
+                variant={confidenceVariant(row.confidence)}
+                className={cn(
+                  "text-[10px] uppercase",
+                  confidenceVariant(row.confidence) === "outline" &&
+                    "bg-muted text-muted-foreground border-border",
+                )}
                 title={row.explanation}
               >
                 {confidenceLabel(row.confidence)}

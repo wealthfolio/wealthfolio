@@ -23,6 +23,7 @@ import { SettingsHeader } from "../settings-header";
 import { AccountEditModal } from "./components/account-edit-modal";
 import { AccountItem } from "./components/account-item";
 import { useAccountMutations } from "./components/use-account-mutations";
+import { badgeVariants } from "@wealthfolio/ui";
 
 type FilterType = "all" | "active" | "archived" | "hidden";
 
@@ -280,7 +281,7 @@ const SettingsAccountsPage = () => {
                     <h3 className="text-muted-foreground text-sm font-medium">
                       {t("settings:accounts.section_active")}
                     </h3>
-                    <span className="bg-success/20 text-success rounded-full px-2 py-0.5 text-xs font-medium">
+                    <span className={badgeVariants({ variant: "success-subtle" })}>
                       {counts.active}
                     </span>
                   </div>

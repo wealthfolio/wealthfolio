@@ -35,6 +35,7 @@ import type {
 } from "../../../types/report";
 import { CategoryIcon } from "../../category-chips";
 import { formatPercentValue } from "./format";
+import { badgeVariants } from "@wealthfolio/ui";
 
 const CARD_CLASS = "border-border/60 bg-card/40 rounded-2xl border p-5 backdrop-blur-xl";
 const LABEL_CLASS =
@@ -676,9 +677,15 @@ const SparklineRow = memo(function SparklineRow({
         {pill && (
           <span
             className={cn(
-              "rounded-full px-2 py-0.5 text-[11px] font-medium tabular-nums",
-              pill.tone === "up" && "bg-destructive/10 text-destructive",
-              pill.tone === "down" && "bg-success/15 text-success",
+              badgeVariants({
+                variant:
+                  pill.tone === "up"
+                    ? "destructive-subtle"
+                    : pill.tone === "down"
+                      ? "success-subtle"
+                      : "secondary",
+              }),
+              "text-[11px] tabular-nums",
               pill.tone === "neutral" && "text-muted-foreground/80 bg-muted/40",
             )}
           >

@@ -68,8 +68,14 @@ export function GainPercent({
   const displayValue = normalizeDisplayPercent(value);
   const successColor = invertColor ? "text-destructive" : "text-success";
   const destructiveColor = invertColor ? "text-success" : "text-destructive";
-  const successBg = invertColor ? "bg-destructive/10" : "bg-success/10";
-  const destructiveBg = invertColor ? "bg-success/10" : "bg-destructive/10";
+  // The badge sits on the status's subtle surface with its text colour; status text on
+  // a 10% tint of itself stays under 4.5:1.
+  const successBadge = invertColor
+    ? "bg-destructive-subtle text-destructive-subtle-foreground"
+    : "bg-success-subtle text-success-subtle-foreground";
+  const destructiveBadge = invertColor
+    ? "bg-success-subtle text-success-subtle-foreground"
+    : "bg-destructive-subtle text-destructive-subtle-foreground";
   return (
     <div
       className={cn(
@@ -77,7 +83,7 @@ export function GainPercent({
         displayValue > 0 ? successColor : displayValue < 0 ? destructiveColor : "text-foreground",
         variant === "badge" && [
           "pl-2.25 rounded-md py-px pr-3 font-light",
-          displayValue > 0 ? successBg : displayValue < 0 ? destructiveBg : "bg-foreground/10",
+          displayValue > 0 ? successBadge : displayValue < 0 ? destructiveBadge : "bg-foreground/10",
         ],
         className,
       )}

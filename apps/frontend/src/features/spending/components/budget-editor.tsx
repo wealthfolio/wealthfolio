@@ -63,6 +63,7 @@ import { AmountInput } from "./amount-input";
 import { CategoryIcon } from "./category-chips";
 import { EXTENDED_PALETTE } from "./color-picker";
 import { IconPicker } from "./icon-picker";
+import { badgeVariants } from "@wealthfolio/ui";
 
 const SPENDING_TAXONOMY = "spending_categories";
 const CARD_CLASS = "border-border/60 bg-card/40 shadow-xs rounded-xl border backdrop-blur-xl";
@@ -328,12 +329,15 @@ function BudgetSummary({
         </div>
         <div
           className={cn(
-            "inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium",
-            fullyAllocated
-              ? "bg-success/10 text-success"
-              : overAllocated
-                ? "bg-destructive/10 text-destructive"
-                : "bg-muted/60 text-muted-foreground",
+            badgeVariants({
+              variant: fullyAllocated
+                ? "success-subtle"
+                : overAllocated
+                  ? "destructive-subtle"
+                  : "secondary",
+            }),
+            "text-[11px]",
+            !fullyAllocated && !overAllocated && "bg-muted/60 text-muted-foreground",
           )}
         >
           {fullyAllocated ? (

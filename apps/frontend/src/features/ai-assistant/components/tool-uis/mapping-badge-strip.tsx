@@ -12,11 +12,11 @@ interface MappingBadgeStripProps {
   baseCurrency: string;
 }
 
-const CONFIDENCE_STYLES: Record<MappingConfidence, string> = {
-  HIGH: "bg-success/10 text-success border-success/30",
-  MEDIUM: "bg-warning/10 text-warning border-warning/30",
-  LOW: "bg-destructive/10 text-destructive border-destructive/30",
-};
+const CONFIDENCE_VARIANTS = {
+  HIGH: "success-subtle",
+  MEDIUM: "warning-subtle",
+  LOW: "destructive-subtle",
+} as const satisfies Record<MappingConfidence, string>;
 
 const CONFIDENCE_LABEL_KEYS: Record<MappingConfidence, string> = {
   HIGH: "ai:mapping.confidenceHigh",
@@ -58,7 +58,7 @@ export const MappingBadgeStrip = memo(function MappingBadgeStrip({
           {t("ai:mapping.usingSavedTemplate")}
         </Badge>
       ) : (
-        <Badge variant="outline" className={`${CONFIDENCE_STYLES[mappingConfidence]} gap-1`}>
+        <Badge variant={CONFIDENCE_VARIANTS[mappingConfidence]} className="gap-1">
           <Icons.Sparkles className="h-3 w-3" />
           {t("ai:mapping.aiMapping", { confidence: t(CONFIDENCE_LABEL_KEYS[mappingConfidence]) })}
         </Badge>

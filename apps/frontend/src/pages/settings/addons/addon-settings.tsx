@@ -375,10 +375,7 @@ export default function AddonSettingsPage() {
                               v{addon.metadata.version}
                             </Badge>
                             {!addon.metadata.enabled && (
-                              <Badge
-                                variant="secondary"
-                                className="bg-warning/10 text-warning border-warning/20 shrink-0 text-xs"
-                              >
+                              <Badge variant="warning-subtle" className="shrink-0">
                                 <Icons.AlertCircle className="mr-1 h-3 w-3" />
                                 {t("settings:addons_disabled_badge")}
                               </Badge>

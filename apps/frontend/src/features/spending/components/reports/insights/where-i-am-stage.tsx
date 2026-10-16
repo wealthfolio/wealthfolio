@@ -32,6 +32,7 @@ import type { CategoryBreakdownRow, MonthBucket, MonthlyReport } from "../../../
 import { CategoryHierarchyTable, type CategorySort } from "../category-hierarchy-table";
 import { formatMonthDay, formatMonthName, formatPercentValue } from "./format";
 import { MoneyFlowSection } from "./money-flow-section";
+import { badgeVariants } from "@wealthfolio/ui";
 
 // ─── shared chrome ────────────────────────────────────────────────────────
 
@@ -595,12 +596,16 @@ const SpentThisPeriodCard: FC<SpentThisPeriodCardProps> = ({
         {deltaPct != null && (
           <span
             className={cn(
-              "rounded-full px-2 py-0.5 text-[11px] font-medium tabular-nums",
-              Math.abs(deltaPct) < 1
-                ? "bg-muted/50 text-muted-foreground"
-                : deltaPct > 0
-                  ? "bg-amber-100/60 text-amber-800 dark:bg-amber-500/20 dark:text-amber-300"
-                  : "bg-success/15 text-success",
+              badgeVariants({
+                variant:
+                  Math.abs(deltaPct) < 1
+                    ? "secondary"
+                    : deltaPct > 0
+                      ? "warning-subtle"
+                      : "success-subtle",
+              }),
+              "text-[11px] tabular-nums",
+              Math.abs(deltaPct) < 1 && "bg-muted/50 text-muted-foreground",
             )}
           >
             {formatPercentValue(deltaPct, numberFormatting, { digits: 0, signDisplay: "always" })}{" "}
@@ -771,8 +776,8 @@ const NetCashflowCard: FC<NetCashflowCardProps> = ({ months, currency, isLoading
         {totals.income > 0 && (
           <span
             className={cn(
-              "rounded-full px-2 py-0.5 text-[11px] font-medium tabular-nums",
-              totals.net >= 0 ? "bg-success/15 text-success" : "bg-destructive/15 text-destructive",
+              badgeVariants({ variant: totals.net >= 0 ? "success-subtle" : "destructive-subtle" }),
+              "text-[11px] tabular-nums",
             )}
           >
             {(() => {

@@ -381,10 +381,7 @@ export function ProviderSettingsCard({
                 </Badge>
               )}
               {provider.enabled && !provider.hasApiKey && provider.type === "api" && (
-                <Badge
-                  variant="outline"
-                  className="border-warning/20 bg-warning/10 text-warning shrink-0 text-xs"
-                >
+                <Badge variant="warning-subtle" className="shrink-0">
                   <Icons.AlertTriangle className="mr-1 h-3 w-3" />
                   {t("ai:providerSettings.apiKeyRequired")}
                 </Badge>

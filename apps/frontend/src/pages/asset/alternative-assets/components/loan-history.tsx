@@ -524,22 +524,22 @@ function LoanLedger({ holding, calculation, quotes, actions, onEditDetails }: Lo
   );
 }
 
-const INSTALMENT_TONES: Record<InstalmentStatus, string> = {
-  paid: "bg-success/10 text-success",
-  due: "bg-muted text-muted-foreground",
-  short: "bg-warning/10 text-warning",
-  missing: "bg-warning/10 text-warning",
-};
+const INSTALMENT_VARIANTS = {
+  paid: "success-subtle",
+  due: "secondary",
+  short: "warning-subtle",
+  missing: "warning-subtle",
+} as const satisfies Record<InstalmentStatus, string>;
 
 /** An instalment's status once the loan is paid from an account. */
 function InstalmentBadge({ status, label }: { status: InstalmentStatus; label: string }) {
   return (
     <Badge
-      variant="secondary"
+      variant={INSTALMENT_VARIANTS[status]}
       data-status={status}
       className={cn(
         "shrink-0 rounded-md px-1.5 py-0 text-xs font-medium",
-        INSTALMENT_TONES[status],
+        status === "due" && "bg-muted text-muted-foreground",
       )}
     >
       {label}

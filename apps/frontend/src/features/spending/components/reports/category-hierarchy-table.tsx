@@ -19,6 +19,7 @@ import {
   type GroupNode,
   type NodeRow,
 } from "./category-hierarchy/builders";
+import { badgeVariants } from "@wealthfolio/ui";
 
 export type { CategorySort };
 
@@ -623,8 +624,8 @@ function DeltaPill({ delta, priorSpent }: { delta: number; priorSpent: number })
   return (
     <span
       className={cn(
-        "shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium tabular-nums",
-        up ? "bg-destructive/10 text-destructive" : "bg-success/10 text-success",
+        badgeVariants({ variant: up ? "destructive-subtle" : "success-subtle" }),
+        "px-1.5 text-[10px] tabular-nums",
       )}
     >
       {formatDelta(delta, priorSpent, numberFormatting)}

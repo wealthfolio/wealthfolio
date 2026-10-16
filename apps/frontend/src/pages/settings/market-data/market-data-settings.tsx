@@ -203,10 +203,7 @@ function ProviderSettings({
                 </Badge>
               )}
               {provider.enabled && provider.requiresApiKey && !provider.hasApiKey && (
-                <Badge
-                  variant="outline"
-                  className="border-warning/20 bg-warning/10 text-warning shrink-0 text-xs"
-                >
+                <Badge variant="warning-subtle" className="shrink-0">
                   <Icons.AlertTriangle className="mr-1 h-3 w-3" />
                   {t("settings:market_data_page.api_key_required")}
                 </Badge>
@@ -222,8 +219,8 @@ function ProviderSettings({
                     nativeButton={false}
                     render={
                       <Badge
-                        variant="outline"
-                        className="border-destructive/20 bg-destructive/10 text-destructive hover:bg-destructive/20 shrink-0 cursor-pointer text-xs"
+                        variant="destructive-subtle"
+                        className="hover:bg-destructive-subtle/70 shrink-0 cursor-pointer"
                       />
                     }
                   >

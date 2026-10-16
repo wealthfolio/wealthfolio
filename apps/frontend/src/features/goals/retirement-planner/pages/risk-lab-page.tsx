@@ -513,10 +513,10 @@ function retirementOutcomeLabel(t: TFunction, outcome: StressTestResult["baselin
   return t("goals:risk_lab.results.funded");
 }
 
-function severityBadgeClass(severity: StressSeverity) {
-  if (severity === "high") return "bg-destructive/10 text-destructive";
-  if (severity === "medium") return "bg-amber-500/15 text-amber-700";
-  return "bg-muted text-muted-foreground";
+function severityBadgeVariant(severity: StressSeverity) {
+  if (severity === "high") return "destructive-subtle";
+  if (severity === "medium") return "warning-subtle";
+  return "secondary";
 }
 
 function impactTextClass(value: number, badWhenPositive = true) {
@@ -689,10 +689,11 @@ function StressTestsSection({
                     </p>
                   </div>
                   <Badge
-                    variant="secondary"
+                    variant={severityBadgeVariant(stress.severity)}
                     className={cn(
                       "rounded-full px-3 text-[10px] font-semibold uppercase tracking-[0.14em]",
-                      severityBadgeClass(stress.severity),
+                      severityBadgeVariant(stress.severity) === "secondary" &&
+                        "bg-muted text-muted-foreground",
                     )}
                   >
                     {t(`goals:risk_lab.severity.${stress.severity}`)}

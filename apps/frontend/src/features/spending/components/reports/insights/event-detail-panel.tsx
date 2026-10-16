@@ -1,4 +1,5 @@
 import type { BaselinePeriod } from "../../../hooks/use-baseline-pace";
+import { badgeVariants } from "@wealthfolio/ui";
 /**
  * Rich, focused panel that renders the currently-selected event:
  *   header  → stat block → takeaway → DAY BY DAY + WHAT DROVE IT →
@@ -676,8 +677,8 @@ function RhythmCard({
         {typeof hangoverPct === "number" && Math.abs(hangoverPct) > 5 && (
           <span
             className={cn(
-              "rounded-sm px-1 py-0.5 text-[9px] tracking-wider",
-              hangoverPct > 0 ? "bg-destructive/15 text-destructive" : "bg-success/15 text-success",
+              badgeVariants({ variant: hangoverPct > 0 ? "destructive-subtle" : "success-subtle" }),
+              "rounded-sm px-1 text-[9px] font-normal tracking-wider",
             )}
           >
             {hangoverPct > 0

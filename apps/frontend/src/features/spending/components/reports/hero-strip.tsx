@@ -9,6 +9,7 @@ import { PrivacyAmount, Skeleton, useAmountFormatting, useNumberFormatting } fro
 
 import type { BudgetSnapshot } from "../../types/budget";
 import type { CategoryBreakdownRow, MonthBucket } from "../../types/report";
+import { badgeVariants } from "@wealthfolio/ui";
 
 // ─── shared chrome ────────────────────────────────────────────────────────
 
@@ -412,8 +413,8 @@ export const CashflowHero: FC<CashflowHeroProps> = ({ months, currency, isLoadin
         {totals.income > 0 && (
           <span
             className={cn(
-              "rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
-              totals.net >= 0 ? "bg-success/15 text-success" : "bg-destructive/15 text-destructive",
+              badgeVariants({ variant: totals.net >= 0 ? "success-subtle" : "destructive-subtle" }),
+              "text-[10px] font-semibold uppercase tracking-wide",
             )}
           >
             {netLabel} {numberFormatting.formatPercent(Math.abs(totals.savingsRate), { digits: 0 })}

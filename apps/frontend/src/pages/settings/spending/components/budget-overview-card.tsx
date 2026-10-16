@@ -9,6 +9,7 @@ import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import { cn } from "@/lib/utils";
 
 import { formatAmountWhole } from "./format";
+import { badgeVariants } from "@wealthfolio/ui";
 
 export function BudgetOverviewCard() {
   const formatting = useAmountFormatting();
@@ -103,8 +104,8 @@ export function BudgetOverviewCard() {
           {pctOfIncome !== null && (
             <span
               className={cn(
-                "inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1.5 text-xs font-medium",
-                isOver ? "bg-destructive/15 text-destructive" : "bg-success/15 text-success",
+                badgeVariants({ variant: isOver ? "destructive-subtle" : "success-subtle" }),
+                "gap-1.5 px-2.5 py-1.5",
               )}
             >
               <Icons.AlertCircle className="h-3 w-3" />

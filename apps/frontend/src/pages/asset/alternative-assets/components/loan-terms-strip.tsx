@@ -219,12 +219,10 @@ export function LoanTermsStrip({
                       : "asset:loanEvents.original_terms",
                 )}
                 <Badge
-                  variant="secondary"
+                  variant={term.key === current ? "success-subtle" : "secondary"}
                   className={cn(
                     "rounded-md px-1.5 py-0.5 text-xs font-medium tabular-nums",
-                    term.key === current
-                      ? "bg-success/10 text-success"
-                      : "bg-muted text-muted-foreground",
+                    term.key !== current && "bg-muted text-muted-foreground",
                   )}
                 >
                   {rate(term.annualRate)}

@@ -17,6 +17,8 @@ import {
   buildImportAssetCandidateFromDraft,
   buildNewAssetFromSearchResult,
 } from "../utils/asset-review-utils";
+import { badgeVariants } from "@wealthfolio/ui";
+import { cn } from "@/lib/utils";
 
 interface AssetDialogState {
   open: boolean;
@@ -340,7 +342,12 @@ function ReadyAssetRow({
         <div className="flex min-w-0 flex-col">
           <div className="flex items-center gap-1.5">
             <span className="font-mono text-sm font-bold tracking-tight">{symbol}</span>
-            <span className="bg-success/15 text-success rounded px-1.5 py-0.5 text-[10px] font-semibold">
+            <span
+              className={cn(
+                badgeVariants({ variant: "success-subtle" }),
+                "rounded px-1.5 text-[10px] font-semibold",
+              )}
+            >
               {count}×
             </span>
           </div>
@@ -914,7 +921,9 @@ export function AssetReviewStep() {
                 {t("activity:import.assets.existingAssetsDescription")}
               </p>
             </div>
-            <span className="bg-success/20 text-success rounded-full px-2 py-0.5 text-[10px] font-bold">
+            <span
+              className={cn(badgeVariants({ variant: "success-subtle" }), "text-[10px] font-bold")}
+            >
               {existingItems.length}
             </span>
             <Icons.ChevronDown

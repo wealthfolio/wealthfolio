@@ -64,6 +64,7 @@ import {
   mergeActivityMappingsForImportProfile,
   sanitizeImportMappingForProfile,
 } from "../utils/activity-import-profile";
+import { badgeVariants } from "@wealthfolio/ui";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CSV Preview Component
@@ -405,7 +406,12 @@ function TemplateSelector({
               {t("activity:import.parseSettings.title")}
             </span>
             {hasConfigErrors && (
-              <span className="bg-destructive/10 text-destructive rounded-full px-2 py-px text-[10px]">
+              <span
+                className={cn(
+                  badgeVariants({ variant: "destructive-subtle" }),
+                  "py-px text-[10px] font-normal",
+                )}
+              >
                 {t("activity:import.parseSettings.adjustToFix")}
               </span>
             )}
