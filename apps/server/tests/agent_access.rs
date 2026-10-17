@@ -297,7 +297,7 @@ async fn mcp_pat_lifecycle() {
     let session = mcp_initialize(&server, &pat).await;
 
     // tools/list -> the read-only catalog: 16 read tools + get_import_mapping
-    // and find_transfer_matches (also activities:read) = 18.
+    // and find_transfer_matches (also activities:read), plus list_activity_taxonomies = 19.
     let response = mcp_post(
         &server,
         Some(&pat),
@@ -310,8 +310,8 @@ async fn mcp_pat_lifecycle() {
     let tools = list["result"]["tools"].as_array().unwrap();
     assert_eq!(
         tools.len(),
-        18,
-        "read-only catalog must expose 18 tools (incl. get_import_mapping): {tools:?}"
+        19,
+        "read-only catalog must expose 19 tools (incl. category discovery): {tools:?}"
     );
 
     // (h) tools/call succeeds and writes an audit row (awaited before the
@@ -458,9 +458,9 @@ async fn mcp_pat_lifecycle() {
 
 /// A write/suggest-scoped token sees the draft, suggest, commit, AND import
 /// tools via `tools/list` — proving scope-gated visibility extends past the
-/// read-only catalog. (Read-only tokens see 18; the full MCP catalog is
+/// read-only catalog. (Read-only tokens see 19; the full MCP catalog is
 /// 16 read + 5 draft/suggest + 5 commit + 3 import + 3 transfer linking +
-/// 2 quote import + 2 activity updates = 36.)
+/// 2 quote import + 2 activity updates + 3 category definition tools = 39.)
 #[tokio::test]
 async fn mcp_write_scoped_token_sees_write_tools() {
     let server = spawn_server(true, false).await;
@@ -501,10 +501,13 @@ async fn mcp_write_scoped_token_sees_write_tools() {
     let names: Vec<&str> = tools.iter().map(|t| t["name"].as_str().unwrap()).collect();
     assert_eq!(
         tools.len(),
-        36,
-        "full-scope token must see all 36 tools: {names:?}"
+        39,
+        "full-scope token must see all 39 tools: {names:?}"
     );
     for name in [
+        "list_activity_taxonomies",
+        "prepare_category_creation",
+        "commit_category_creation",
         "find_transfer_matches",
         "link_transfer_activities",
         "unlink_transfer_activities",
@@ -2923,4 +2926,344 @@ async fn mcp_category_save_denies_insufficient_scopes_and_redacts_audit_errors()
         );
         assert!(!text.contains(&first), "{row}");
     }
+}
+
+async fn category_definition_session(server: &TestServer, cookie: &str) -> (String, String) {
+    let (status, token) = create_pat(server, cookie, serde_json::json!({
+        "name": "category definitions", "scopes": ["classification:read", "classification:suggest", "classification:write"]
+    })).await;
+    assert_eq!(status, 201);
+    let pat = token["token"].as_str().unwrap().to_string();
+    let session = mcp_initialize(server, &pat).await;
+    (pat, session)
+}
+
+#[tokio::test]
+async fn mcp_category_creation_builds_a_tree_without_transactions() {
+    let server = spawn_server(true, false).await;
+    let cookie = login(&server).await;
+    disable_market_data_providers(&server, &cookie).await;
+    assert!(category_api_get(&server, &cookie, "accounts")
+        .await
+        .as_array()
+        .unwrap()
+        .is_empty());
+    api_put(
+        &server,
+        &cookie,
+        "spending/settings",
+        serde_json::json!({"enabled":false, "accountIds":[]}),
+    )
+    .await;
+    assert_eq!(
+        category_api_get(&server, &cookie, "spending/settings").await["enabled"],
+        false
+    );
+    let (pat, session) = category_definition_session(&server, &cookie).await;
+    let listed = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "list_activity_taxonomies",
+        serde_json::json!({}),
+    )
+    .await;
+    let taxonomies = listed["taxonomies"].as_array().unwrap();
+    assert!(!taxonomies.is_empty());
+    assert!(taxonomies
+        .iter()
+        .all(|t| t["taxonomy"]["scope"] == "activity"));
+    let before = category_api_get(&server, &cookie, "taxonomies/spending_categories").await;
+    let root = mcp_call_tool(&server, &pat, &session, "prepare_category_creation", serde_json::json!({
+        "taxonomyId": "spending_categories", "name": " Synthetic café 根 ", "key": "synthetic_root"
+    })).await;
+    assert_eq!(root["draftStatus"], "draft");
+    assert_eq!(root["category"]["color"], "#808080");
+    assert_eq!(root["category"]["sortOrder"], 0);
+    assert!(root["category"]["parentId"].is_null());
+    assert!(root["category"]["description"].is_null());
+    assert!(root["category"]["icon"].is_null());
+    assert_eq!(
+        category_api_get(&server, &cookie, "taxonomies/spending_categories").await,
+        before
+    );
+    let saved_root = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "commit_category_creation",
+        serde_json::json!({"category": root["category"]}),
+    )
+    .await;
+    assert_eq!(saved_root["created"]["id"], root["category"]["id"]);
+    assert_eq!(saved_root["created"]["name"], " Synthetic café 根 ");
+    let child = mcp_call_tool(&server, &pat, &session, "prepare_category_creation", serde_json::json!({
+        "taxonomyId": "spending_categories", "parentId": saved_root["created"]["id"],
+        "name": "Synthetic child", "key": "synthetic_child", "color": "#123456", "description": " Synthetic description ", "icon": "Coffee", "sortOrder": -2
+    })).await;
+    let saved_child = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "commit_category_creation",
+        serde_json::json!({"category": child["category"]}),
+    )
+    .await;
+    for field in [
+        "id",
+        "taxonomyId",
+        "parentId",
+        "name",
+        "key",
+        "color",
+        "description",
+        "icon",
+        "sortOrder",
+    ] {
+        assert_eq!(
+            saved_child["created"][field], child["category"][field],
+            "{field}"
+        );
+    }
+    let tree = category_api_get(&server, &cookie, "taxonomies/spending_categories").await;
+    assert_eq!(
+        tree["categories"].as_array().unwrap().len(),
+        before["categories"].as_array().unwrap().len() + 2
+    );
+    assert!(tree["categories"]
+        .as_array()
+        .unwrap()
+        .contains(&saved_root["created"]));
+    assert!(tree["categories"]
+        .as_array()
+        .unwrap()
+        .contains(&saved_child["created"]));
+    let error = mcp_call_tool_error(
+        &server,
+        &pat,
+        &session,
+        "commit_category_creation",
+        serde_json::json!({"category": child["category"]}),
+    )
+    .await;
+    assert!(error.starts_with("Tool execution failed:"), "{error}");
+    assert_eq!(
+        category_api_get(&server, &cookie, "taxonomies/spending_categories").await,
+        tree
+    );
+    for taxonomy in ["income_sources", "savings_categories"] {
+        let draft = mcp_call_tool(&server, &pat, &session, "prepare_category_creation", serde_json::json!({"taxonomyId":taxonomy, "name":"Synthetic root", "key":"synthetic_root"})).await;
+        let saved = mcp_call_tool(
+            &server,
+            &pat,
+            &session,
+            "commit_category_creation",
+            serde_json::json!({"category":draft["category"]}),
+        )
+        .await;
+        assert_eq!(saved["created"]["taxonomyId"], taxonomy);
+        assert!(saved["created"]["parentId"].is_null());
+    }
+    let fresh = mcp_initialize(&server, &pat).await;
+    let readback = mcp_call_tool(
+        &server,
+        &pat,
+        &fresh,
+        "list_activity_taxonomies",
+        serde_json::json!({}),
+    )
+    .await;
+    let spending = readback["taxonomies"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|t| t["taxonomy"]["id"] == "spending_categories")
+        .unwrap();
+    assert_eq!(spending, &tree);
+}
+
+#[tokio::test]
+async fn mcp_category_creation_revalidates_parents_and_redacts_audit() {
+    let server = spawn_server(true, true).await;
+    let cookie = login(&server).await;
+    disable_market_data_providers(&server, &cookie).await;
+    let (pat, session) = category_definition_session(&server, &cookie).await;
+    let before = category_api_get(&server, &cookie, "taxonomies/spending_categories").await;
+    let income = category_api_get(&server, &cookie, "taxonomies/income_sources").await;
+    let native_taxonomies = category_api_get(&server, &cookie, "taxonomies").await;
+    let asset = native_taxonomies
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|t| t["scope"] == "asset")
+        .unwrap()["id"]
+        .clone();
+    let valid = serde_json::json!({"id":"synthetic-draft", "taxonomyId":"spending_categories", "name":"private-sentinel", "key":"private-sentinel", "color":"#808080", "sortOrder":0});
+    for (field, value) in [
+        ("taxonomyId", serde_json::json!("missing-taxonomy")),
+        ("taxonomyId", asset),
+        ("parentId", serde_json::json!("missing-parent")),
+        ("parentId", income["categories"][0]["id"].clone()),
+        ("parentId", valid["id"].clone()),
+        ("sortOrder", serde_json::json!("private-sentinel")),
+    ] {
+        let mut invalid = valid.clone();
+        invalid[field] = value;
+        for (name, args) in [
+            ("prepare_category_creation", invalid.clone()),
+            (
+                "commit_category_creation",
+                serde_json::json!({"category":invalid}),
+            ),
+        ] {
+            // Prepare assigns its own ID, so self-parenting of a supplied ID is a missing-parent error there.
+            let error = mcp_call_tool_error(&server, &pat, &session, name, args).await;
+            assert!(!error.contains("private-sentinel"), "{error}");
+        }
+        assert_eq!(
+            category_api_get(&server, &cookie, "taxonomies/spending_categories").await,
+            before
+        );
+    }
+    let draft = mcp_call_tool(&server, &pat, &session, "prepare_category_creation", serde_json::json!({"taxonomyId":"spending_categories", "name":"private-sentinel", "key":"private-sentinel"})).await;
+    let parent_draft = mcp_call_tool(&server, &pat, &session, "prepare_category_creation", serde_json::json!({"taxonomyId":"spending_categories", "name":"Synthetic temporary parent", "key":"synthetic_temporary_parent"})).await;
+    let parent = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "commit_category_creation",
+        serde_json::json!({"category":parent_draft["category"]}),
+    )
+    .await;
+    let pending_child = mcp_call_tool(&server, &pat, &session, "prepare_category_creation", serde_json::json!({"taxonomyId":"spending_categories", "parentId":parent["created"]["id"], "name":"Synthetic pending child", "key":"synthetic_pending_child"})).await;
+    let deleted = server
+        .client
+        .delete(format!(
+            "{}/api/v1/taxonomies/spending_categories/categories/{}",
+            server.base,
+            parent["created"]["id"].as_str().unwrap()
+        ))
+        .header(header::COOKIE, format!("wf_session={cookie}"))
+        .send()
+        .await
+        .unwrap();
+    assert!(deleted.status().is_success());
+    let error = mcp_call_tool_error(
+        &server,
+        &pat,
+        &session,
+        "commit_category_creation",
+        serde_json::json!({"category":pending_child["category"]}),
+    )
+    .await;
+    assert_eq!(error, "Parent must exist in the same activity taxonomy");
+    assert_eq!(
+        category_api_get(&server, &cookie, "taxonomies/spending_categories").await,
+        before
+    );
+    // Parent IDs are validated again on commit even if the draft was valid.
+    let mut changed = draft["category"].clone();
+    changed["parentId"] = serde_json::json!("missing-parent");
+    mcp_call_tool_error(
+        &server,
+        &pat,
+        &session,
+        "commit_category_creation",
+        serde_json::json!({"category":changed}),
+    )
+    .await;
+    assert_eq!(
+        category_api_get(&server, &cookie, "taxonomies/spending_categories").await,
+        before
+    );
+    for scopes in [
+        serde_json::json!(["classification:read"]),
+        serde_json::json!(["classification:read", "classification:suggest"]),
+    ] {
+        let (status, token) = create_pat(
+            &server,
+            &cookie,
+            serde_json::json!({"name":"limited", "scopes":scopes}),
+        )
+        .await;
+        assert_eq!(status, 201);
+        let limited = token["token"].as_str().unwrap();
+        let limited_session = mcp_initialize(&server, limited).await;
+        let list = mcp_post(
+            &server,
+            Some(limited),
+            Some(&limited_session),
+            serde_json::json!({"jsonrpc":"2.0", "id":2, "method":"tools/list"}),
+        )
+        .await;
+        let list = parse_sse_data(&list.text().await.unwrap());
+        assert!(!list["result"]["tools"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|t| t["name"] == "commit_category_creation"));
+        let error = mcp_call_tool_error(
+            &server,
+            limited,
+            &limited_session,
+            "commit_category_creation",
+            serde_json::json!({"category":draft["category"]}),
+        )
+        .await;
+        assert!(error.contains("Scope denied"), "{error}");
+    }
+    mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "commit_category_creation",
+        serde_json::json!({"category":draft["category"], "private-sentinel":"private-sentinel"}),
+    )
+    .await;
+    let audit = category_api_get(&server, &cookie, "agent-access/audit").await;
+    let rows: Vec<_> = audit["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|r| {
+            matches!(
+                r["tool"].as_str(),
+                Some("prepare_category_creation" | "commit_category_creation")
+            )
+        })
+        .collect();
+    assert_eq!(rows.len(), 21, "{audit}");
+    assert!(
+        rows.iter()
+            .any(|r| r["tool"] == "commit_category_creation" && r["outcome"] == "success"),
+        "{audit}"
+    );
+    for row in rows {
+        assert!(!row.to_string().contains("private-sentinel"), "{row}");
+    }
+}
+
+#[tokio::test]
+async fn mcp_category_creation_child_can_classify_a_transaction() {
+    let server = spawn_server(true, false).await;
+    let cookie = login(&server).await;
+    let (account, activities, parent, _, _) = category_save_fixture(&server, &cookie).await;
+    let (pat, session) = category_writer_session(&server, &cookie).await;
+    let before = stored_activities(&server, &cookie, &account).await;
+    let draft = mcp_call_tool(&server, &pat, &session, "prepare_category_creation", serde_json::json!({"taxonomyId":"spending_categories", "parentId":parent, "name":"Synthetic child", "key":"synthetic_child"})).await;
+    let created = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "commit_category_creation",
+        serde_json::json!({"category":draft["category"]}),
+    )
+    .await;
+    let saved = mcp_call_tool(&server, &pat, &session, "commit_transaction_categories", serde_json::json!({"assignments":[category_assignment(&activities[0], created["created"]["id"].as_str().unwrap())]})).await;
+    assert_eq!(saved["assignmentCount"], 1);
+    assert_eq!(
+        category_rows(&server, &cookie, &activities[0]).await[0]["categoryId"],
+        created["created"]["id"]
+    );
+    assert_eq!(stored_activities(&server, &cookie, &account).await, before);
 }

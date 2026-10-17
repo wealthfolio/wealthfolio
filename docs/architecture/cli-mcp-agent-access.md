@@ -413,6 +413,42 @@ There are **two catalogs** (`crates/agent-tools/src/catalog.rs`):
   transfer linking + quote import), scope-filtered at the MCP boundary so a
   token sees only what its scopes reach.
 
+### MCP category definitions
+
+External agents can create income, expense and savings category trees before any
+accounts or transactions exist. These three tools are MCP-only; the assistant
+catalog keeps its existing confirmation flows. The full MCP catalog has 39
+tools.
+
+| Tool                        | Required scopes                                                         | Behavior                                                                                         |
+| --------------------------- | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `list_activity_taxonomies`  | `classification:read`                                                   | Returns activity-scoped taxonomies and all categories, including IDs, keys and parent IDs.       |
+| `prepare_category_creation` | `classification:read`, `classification:suggest`                         | Validates a category and returns an in-memory draft with a stable ID.                            |
+| `commit_category_creation`  | `classification:read`, `classification:suggest`, `classification:write` | Persists a reviewed draft through the existing taxonomy service and returns the stored category. |
+
+Start with `list_activity_taxonomies` to select a taxonomy and existing parent.
+Pass `taxonomyId`, `name` and `key` to `prepare_category_creation`; optional
+fields are `parentId`, `color`, `description`, `icon` and `sortOrder`. Omitted
+color and sort order use the native defaults (`#808080` and `0`). Choose a key
+unique within the taxonomy for unambiguous categorization-rule/proposal lookup;
+native storage does not enforce key uniqueness.
+
+After review, pass the returned `category` object to `commit_category_creation`.
+Create parents first, then pass their saved IDs as `parentId` for subcategories.
+Commit validates the current activity taxonomy and parent again. Replaying the
+same draft fails without creating a second category or overwriting one.
+`commit_transaction_categories` can then assign individual transactions to the
+new categories using its existing permissions. Creating category definitions
+needs no transaction-read or transaction-write scope; the
+`read-activity-write-classification-suggest` preset includes the required
+classification scopes.
+
+Architecture impact: MCP exposes category-definition reads and writes through
+the existing local taxonomy service and SQLite writer. Native REST/Tauri APIs,
+service ownership, transactions, events and opt-in sync remain unchanged. These
+tools do not access activities or providers, add no persistence layer or
+migration, and redact arguments in audit records.
+
 ### Read Tools
 
 ```text
@@ -655,8 +691,10 @@ Rules:
 
 ### Deferred Indefinitely
 
-Classification writes, taxonomy create/edit/delete, activity/account deletion,
-backups, secrets, addon install, device pairing.
+Reviewed category-definition creation is supported for existing activity
+taxonomies. Creating, editing or deleting taxonomies; editing or deleting
+categories; activity/account deletion; backups, secrets, addon install, and
+device pairing remain deferred.
 
 ## Scope Model
 
@@ -686,7 +724,7 @@ activities:read          search_activities, get_import_mapping,
 financial-planning:read  get_goals, get_contribution_limits
 health:read              get_health_status
 classification:read      list_asset_taxonomies, get_asset_taxonomy_assignments,
-                         list_categorization_context
+                         list_categorization_context, list_activity_taxonomies
 ```
 
 Write / draft / suggest scopes:
@@ -705,10 +743,12 @@ activities:write         commit_activity_draft / commit_activity_drafts,
                          activities:draft)
 classification:suggest   propose_transaction_categories,
                          create_categorization_rule,
-                         prepare_asset_classification
+                         prepare_asset_classification,
+                         prepare_category_creation
 classification:write     commit_asset_classification_draft,
                          commit_categorization_rule,
-                         commit_transaction_categories
+                         commit_transaction_categories,
+                         commit_category_creation
                          (also requires classification:suggest)
 market-data:write        prepare_quote_import, commit_quote_import
                          (each also requires holdings:read)

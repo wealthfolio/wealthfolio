@@ -36,7 +36,7 @@ impl AgentToolCatalog {
     }
 
     /// The MCP catalog: read + draft/suggest + commit, import, transfer
-    /// linking, quote import and activity update tools. Scope filtering at the
+    /// linking, quote import, activity update and category creation tools. Scope filtering at the
     /// boundary (`execute`, `list_tools`) hides whatever a token can't reach.
     pub fn mcp_catalog() -> Self {
         let mut tools = crate::tools::v1_read_tools();
@@ -46,6 +46,7 @@ impl AgentToolCatalog {
         tools.extend(crate::tools::transfer_link_tools());
         tools.extend(crate::tools::quote_import_tools());
         tools.extend(crate::tools::activity_update_tools());
+        tools.extend(crate::tools::category_creation_tools());
         Self::new(tools)
     }
 
@@ -635,5 +636,131 @@ mod tests {
             .await
             .unwrap_err();
         assert!(matches!(err, AgentToolError::NotFound(_)));
+    }
+    #[tokio::test]
+    async fn category_creation_tools_are_mcp_only_and_scope_gated() {
+        let catalog = AgentToolCatalog::mcp_catalog();
+        assert_eq!(catalog.len(), 39);
+        assert_eq!(AgentToolCatalog::assistant_catalog().len(), 21);
+        for (name, required, access) in [
+            (
+                "list_activity_taxonomies",
+                vec![crate::scope::AgentScope::ClassificationRead],
+                crate::tool::AgentToolAccess::Read,
+            ),
+            (
+                "prepare_category_creation",
+                vec![
+                    crate::scope::AgentScope::ClassificationRead,
+                    crate::scope::AgentScope::ClassificationSuggest,
+                ],
+                crate::tool::AgentToolAccess::Draft,
+            ),
+            (
+                "commit_category_creation",
+                vec![
+                    crate::scope::AgentScope::ClassificationRead,
+                    crate::scope::AgentScope::ClassificationSuggest,
+                    crate::scope::AgentScope::ClassificationWrite,
+                ],
+                crate::tool::AgentToolAccess::Write,
+            ),
+        ] {
+            assert!(AgentToolCatalog::assistant_catalog().get(name).is_none());
+            let tool = catalog
+                .get(name)
+                .expect("category creation tool registered");
+            assert_eq!(tool.required_scopes(), required);
+            assert_eq!(tool.access_level(), access);
+            assert!(!tool
+                .sanitize_args_for_audit(
+                    &serde_json::json!({"private-sentinel": "private-sentinel"})
+                )
+                .to_string()
+                .contains("private-sentinel"));
+            for missing in &required {
+                let granted = AgentScopeSet::from_strs(
+                    required
+                        .iter()
+                        .filter(|s| *s != missing)
+                        .map(|s| s.as_str()),
+                );
+                let error = catalog
+                    .execute(
+                        Arc::new(PanicEnv::default()),
+                        &granted,
+                        name,
+                        serde_json::json!({}),
+                    )
+                    .await
+                    .unwrap_err();
+                assert!(
+                    matches!(error, AgentToolError::ScopeDenied { .. }),
+                    "{error}"
+                );
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn category_creation_rejects_generated_invalid_inputs_before_service_access() {
+        let catalog = AgentToolCatalog::mcp_catalog();
+        let granted = AgentScopeSet::from_strs([
+            "classification:read",
+            "classification:suggest",
+            "classification:write",
+        ]);
+        let mut seed = 0x6a09_e667_f3bc_c909_u64;
+        for _ in 0..128 {
+            seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1);
+            let private = format!("private-sentinel-{seed}");
+            let valid = serde_json::json!({"id":"draft", "taxonomyId":"taxonomy", "name":private, "key":"key", "color":"#808080", "sortOrder":0});
+            for field in ["id", "taxonomyId", "name", "key", "parentId"] {
+                let mut invalid = valid.clone();
+                invalid[field] =
+                    serde_json::json!(["", " ", "\t\n", "\u{2003}"][seed as usize % 4]);
+                let error = catalog
+                    .execute(
+                        Arc::new(PanicEnv::default()),
+                        &granted,
+                        "commit_category_creation",
+                        serde_json::json!({"category":invalid}),
+                    )
+                    .await
+                    .unwrap_err();
+                assert!(matches!(error, AgentToolError::InvalidInput(_)), "{error}");
+                assert!(!error.to_string().contains(&private));
+                if field != "id" {
+                    let error = catalog
+                        .execute(
+                            Arc::new(PanicEnv::default()),
+                            &granted,
+                            "prepare_category_creation",
+                            invalid,
+                        )
+                        .await
+                        .unwrap_err();
+                    assert!(matches!(error, AgentToolError::InvalidInput(_)), "{error}");
+                    assert!(!error.to_string().contains(&private));
+                }
+            }
+            for name in [
+                "prepare_category_creation",
+                "commit_category_creation",
+                "list_activity_taxonomies",
+            ] {
+                let error = catalog
+                    .execute(
+                        Arc::new(PanicEnv::default()),
+                        &granted,
+                        name,
+                        serde_json::json!(private),
+                    )
+                    .await
+                    .unwrap_err();
+                assert!(matches!(error, AgentToolError::InvalidInput(_)), "{error}");
+                assert!(!error.to_string().contains(&private));
+            }
+        }
     }
 }

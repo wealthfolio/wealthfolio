@@ -13,6 +13,7 @@ pub mod asset_classification;
 pub mod asset_taxonomies;
 pub mod cash_balances;
 pub mod categorization_context;
+pub mod category_creation;
 pub mod commit_activity;
 pub mod commit_asset_classification;
 pub mod commit_categorization_rule;
@@ -94,6 +95,11 @@ pub use record_activities::{
 pub use record_activity::{
     AccountOption, ActivityDraft, RecordActivity, RecordActivityArgs, RecordActivityOutput,
     ResolvedAsset, SubtypeOption, ValidationError, ValidationResult,
+};
+
+// MCP-only activity category definitions and reviewed creation.
+pub use category_creation::{
+    CommitCategoryCreation, ListActivityTaxonomies, PrepareCategoryCreation,
 };
 
 // MCP-only commit tools.
@@ -191,6 +197,16 @@ pub fn commit_tools() -> Vec<Arc<dyn AgentTool>> {
         Arc::new(CommitAssetClassificationDraft),
         Arc::new(CommitCategorizationRule),
         Arc::new(CommitTransactionCategories),
+    ]
+}
+
+/// MCP-only category discovery and reviewed hierarchy creation.
+/// The assistant has no category-creation confirmation widget.
+pub fn category_creation_tools() -> Vec<Arc<dyn AgentTool>> {
+    vec![
+        Arc::new(ListActivityTaxonomies),
+        Arc::new(PrepareCategoryCreation),
+        Arc::new(CommitCategoryCreation),
     ]
 }
 
