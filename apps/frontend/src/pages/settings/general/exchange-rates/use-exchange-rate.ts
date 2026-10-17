@@ -19,7 +19,11 @@ export function useExchangeRates() {
     return currency ? currency.label.split(" (")[0] : code;
   };
 
-  const { data: exchangeRates, isLoading: isLoadingRates } = useQuery<ExchangeRate[], Error>({
+  const {
+    data: exchangeRates,
+    isLoading: isLoadingRates,
+    dataUpdatedAt,
+  } = useQuery<ExchangeRate[], Error>({
     queryKey: [QueryKeys.EXCHANGE_RATES],
     queryFn: async () => {
       const rates = await getExchangeRates();
@@ -108,6 +112,7 @@ export function useExchangeRates() {
   return {
     exchangeRates,
     isLoadingRates,
+    dataUpdatedAt,
     updateExchangeRate,
     addExchangeRate,
     deleteExchangeRate,

@@ -3,51 +3,12 @@ import { cn } from "@/lib/utils";
 import type { CategoryAllocation } from "@/lib/types";
 import { allocationTargetColor } from "./allocation-target-colors";
 import type { ModelPreset } from "./model-preset-data";
-import { BUILT_IN_PRESETS } from "./model-preset-data";
-
-export type { ModelPreset };
-export { BUILT_IN_PRESETS };
+import { BUILT_IN_PRESETS, CATEGORY_LABELS, modelPresetTitle } from "./model-preset-data";
 
 interface PresetBarProps {
   weights: Record<string, number>;
   colorMap: Record<string, string>;
 }
-
-const CATEGORY_LABELS: Record<string, string> = {
-  CASH: "Cash",
-  EQUITY: "Equity",
-  FIXED_INCOME: "Fixed Income",
-  REAL_ESTATE: "Real Estate",
-  COMMODITIES: "Commodities",
-  ALTERNATIVES: "Alternatives",
-  DIGITAL_ASSETS: "Digital Assets",
-  "10": "Energy",
-  "15": "Materials",
-  "20": "Industrials",
-  "25": "Consumer Discretionary",
-  "30": "Consumer Staples",
-  "35": "Health Care",
-  "40": "Financials",
-  "45": "Information Technology",
-  "50": "Communication Services",
-  "55": "Utilities",
-  "60": "Real Estate",
-  LOW: "Low",
-  MEDIUM: "Medium",
-  HIGH: "High",
-  R10: "Europe",
-  R20: "Americas",
-  R30: "Asia",
-  R40: "Africa",
-  R50: "Oceania",
-};
-
-const RISK_BADGE: Record<string, string> = {
-  Conservative: "bg-[#dfe8dc] text-[#4f6544] dark:bg-green-900/30 dark:text-green-300",
-  Moderate: "bg-[#eee5bf] text-[#746633] dark:bg-amber-900/30 dark:text-amber-300",
-  Aggressive: "bg-[#eadbd3] text-[#8a5b45] dark:bg-red-900/30 dark:text-red-300",
-  "From holdings": "bg-muted text-muted-foreground",
-};
 
 function PresetBar({ weights, colorMap }: PresetBarProps) {
   const nonZero = Object.entries(weights).filter(([, pct]) => pct > 0);
@@ -58,10 +19,6 @@ function PresetBar({ weights, colorMap }: PresetBarProps) {
       ))}
     </div>
   );
-}
-
-function formattedPct(value: number): string {
-  return Number.isInteger(value) ? `${value}%` : `${value.toFixed(1)}%`;
 }
 
 interface ModelPresetPickerProps {
@@ -80,8 +37,13 @@ export function ModelPresetPicker({
   compact = false,
 }: ModelPresetPickerProps) {
   const { t } = useTranslation();
+  const categories = currentCategories.map((category, sortOrder) => ({
+    id: category.categoryId,
+    name: category.categoryName,
+    sortOrder,
+  }));
   const categoryNames = Object.fromEntries(
-    currentCategories.map((category) => [category.categoryId, category.categoryName]),
+    categories.map((category) => [category.id, category.name]),
   );
   const currentColorMap = Object.fromEntries(
     currentCategories.map((category, index) => [
@@ -90,18 +52,12 @@ export function ModelPresetPicker({
     ]),
   );
 
-  const currentWeights = Object.fromEntries(
-    currentCategories.map((category) => [category.categoryId, category.percentage]),
-  );
-
   const currentPreset: ModelPreset = {
     id: "current",
     taxonomyId,
-    name: t("allocation:presets.currentAllocation"),
-    description: t("allocation:presets.currentAllocationDescription"),
-    risk: "From holdings",
-    featured: true,
-    weights: currentWeights,
+    weights: Object.fromEntries(
+      currentCategories.map((category) => [category.categoryId, category.percentage]),
+    ),
   };
 
   function categoryLabel(categoryId: string): string {
@@ -118,29 +74,22 @@ export function ModelPresetPicker({
     );
   }
 
-  function allocationSummary(weights: Record<string, number>): string {
-    const nonZero = Object.entries(weights)
-      .filter(([, pct]) => pct > 0)
-      .sort(([, a], [, b]) => b - a)
-      .slice(0, 3);
-
-    if (nonZero.length === 0) return t("allocation:presets.noCurrentHoldings");
-
-    return nonZero
-      .map(([categoryId, pct]) => `${categoryLabel(categoryId)} ${formattedPct(pct)}`)
-      .join(" / ");
-  }
-
-  const taxonomyPresets = BUILT_IN_PRESETS.filter((preset) => preset.taxonomyId === taxonomyId);
-  const explicitFeatured = taxonomyPresets.filter((preset) => preset.featured);
-  const featuredPresets =
-    explicitFeatured.length > 0 ? explicitFeatured : taxonomyPresets.slice(0, 3);
-  const featuredIds = new Set(featuredPresets.map((preset) => preset.id));
-  const secondaryPresets = taxonomyPresets.filter((preset) => !featuredIds.has(preset.id));
-  const cardPresets = [...featuredPresets, currentPreset];
+  const taxonomyPresets = BUILT_IN_PRESETS.filter((preset) => preset.taxonomyId === taxonomyId)
+    .map((preset) => ({ preset, title: modelPresetTitle(preset, categories) }))
+    .sort((left, right) => left.title.localeCompare(right.title));
+  const primaryPresets = taxonomyPresets.slice(0, 3);
+  const secondaryPresets = taxonomyPresets.slice(3);
   const scratchSelected = selected === "scratch";
 
-  function PresetCard({ preset }: { preset: ModelPreset }) {
+  function PresetCard({
+    preset,
+    title,
+    current = false,
+  }: {
+    preset: ModelPreset;
+    title: string;
+    current?: boolean;
+  }) {
     return (
       <button
         type="button"
@@ -155,13 +104,10 @@ export function ModelPresetPicker({
       >
         <div className="via-muted-foreground/20 pointer-events-none absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-transparent to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
         <div className="flex items-start justify-between gap-3">
-          <span
-            className={cn(
-              "shrink-0 rounded-md px-2 py-1 text-[10px] font-medium",
-              RISK_BADGE[preset.risk] ?? "bg-muted text-muted-foreground",
-            )}
-          >
-            {preset.risk}
+          <span className="bg-muted text-muted-foreground shrink-0 rounded-md px-2 py-1 text-[10px] font-medium">
+            {current
+              ? t("allocation:presets.currentAllocation")
+              : t("allocation:presets.exampleWeights")}
           </span>
           {selected === preset.id && (
             <span className="bg-foreground text-background flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px]">
@@ -175,7 +121,7 @@ export function ModelPresetPicker({
             compact ? "mt-3" : "mt-4",
           )}
         >
-          {preset.name}
+          {title}
         </span>
         <p
           className={cn(
@@ -183,14 +129,12 @@ export function ModelPresetPicker({
             compact ? "max-h-9 min-h-9 overflow-hidden" : "min-h-10",
           )}
         >
-          {preset.description}
+          {current
+            ? t("allocation:presets.currentAllocationDescription")
+            : t("allocation:presets.exampleDescription")}
         </p>
         <div className={cn("mt-auto space-y-2.5", compact ? "pt-4" : "pt-7")}>
           <PresetBar weights={preset.weights} colorMap={colorMapForWeights(preset.weights)} />
-          <div className={cn("border-border/60 border-t", compact ? "pt-2" : "pt-2.5")} />
-          <p className="text-muted-foreground truncate text-[11px] font-medium">
-            {allocationSummary(preset.weights)}
-          </p>
         </div>
       </button>
     );
@@ -198,38 +142,43 @@ export function ModelPresetPicker({
 
   return (
     <div className="space-y-3">
+      <p className="text-muted-foreground text-[11px] leading-relaxed">
+        {t("allocation:presets.disclosure")}
+      </p>
       <div
         className={cn(
           "grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4",
           compact ? "gap-3" : "gap-4",
         )}
       >
-        {cardPresets.map((preset) => (
-          <PresetCard key={preset.id} preset={preset} />
+        {primaryPresets.map(({ preset, title }) => (
+          <PresetCard key={preset.id} preset={preset} title={title} />
         ))}
+        <PresetCard
+          preset={currentPreset}
+          title={
+            modelPresetTitle(currentPreset, categories) || t("allocation:presets.noCurrentHoldings")
+          }
+          current
+        />
       </div>
 
       {(secondaryPresets.length > 0 || compact) && (
         <div className="flex flex-wrap items-center gap-2 pt-1">
-          {secondaryPresets.length > 0 && (
-            <span className="text-muted-foreground mr-1 text-[11px] font-medium uppercase tracking-wider">
-              {t("allocation:presets.moreTemplates")}
-            </span>
-          )}
-          {secondaryPresets.map((preset) => (
+          {secondaryPresets.map(({ preset, title }) => (
             <button
               key={preset.id}
               type="button"
               onClick={() => onSelect(preset.id)}
               className={cn(
-                "inline-flex h-8 items-center gap-2 rounded-full border px-3 text-[12px] font-semibold transition-colors",
+                "inline-flex h-8 max-w-full items-center gap-2 rounded-full border px-3 text-[12px] font-semibold transition-colors",
                 selected === preset.id
                   ? "border-foreground bg-foreground text-background"
                   : "bg-card hover:border-muted-foreground/50",
               )}
-              title={allocationSummary(preset.weights)}
+              title={title}
             >
-              {preset.name}
+              <span className="truncate">{title}</span>
               {selected === preset.id && <span className="text-[10px]">✓</span>}
             </button>
           ))}

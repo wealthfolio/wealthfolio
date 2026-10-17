@@ -48,6 +48,8 @@ export interface EligibleHoldingsSelectorProps {
   onToggle: (assetId: string) => void;
   onSelectAll: () => void;
   onClear: () => void;
+  /** Account names, so each row says where the security is held. */
+  accountNames?: ReadonlyMap<string, string>;
 }
 
 export function EligibleHoldingsSelector({
@@ -56,6 +58,7 @@ export function EligibleHoldingsSelector({
   onToggle,
   onSelectAll,
   onClear,
+  accountNames,
 }: EligibleHoldingsSelectorProps) {
   const { t } = useTranslation();
   const eligibleHoldings = useMemo(() => getEligibleHoldings(holdings), [holdings]);
@@ -76,19 +79,17 @@ export function EligibleHoldingsSelector({
       });
   const label = t("allocation:eligibleHoldings.label");
 
+  // The visible label is the Setup row's; the trigger still names itself.
   return (
-    <div className="mt-4">
-      <div className="text-muted-foreground font-mono text-xs uppercase tracking-[0.14em]">
-        {t("allocation:eligibleHoldings.label")}
-      </div>
+    <div>
       <Popover>
         <PopoverTrigger asChild>
           <button
             type="button"
             aria-label={t("allocation:eligibleHoldings.triggerLabel", { label, summary })}
-            className="border-border/70 hover:border-foreground/40 mt-1.5 flex w-full items-center justify-between gap-3 rounded-xl border border-dashed px-3 py-2.5 text-left transition-colors"
+            className="border-border hover:border-foreground/40 bg-background flex w-full max-w-[420px] items-center justify-between gap-3 rounded-lg border px-3.5 py-2 text-left transition-colors"
           >
-            <span className="text-foreground min-w-0 truncate font-mono text-sm font-semibold tabular-nums">
+            <span className="text-foreground min-w-0 truncate text-sm font-medium tabular-nums">
               {summary}
             </span>
             <Icons.ChevronDown className="text-muted-foreground h-4 w-4 shrink-0" />
@@ -106,6 +107,9 @@ export function EligibleHoldingsSelector({
                     const details = [holding.exchangeMic, holding.currency]
                       .filter((value): value is string => Boolean(value))
                       .join(" · ");
+                    const accounts = accountNames
+                      ? holding.accountIds.map((id) => accountNames.get(id) ?? id)
+                      : [];
                     return (
                       <CommandItem
                         key={holding.assetId}
@@ -115,6 +119,7 @@ export function EligibleHoldingsSelector({
                           holding.name ?? "",
                           holding.exchangeMic ?? "",
                           holding.currency,
+                          ...accounts,
                         ]}
                         onSelect={() => onToggle(holding.assetId)}
                         aria-label={t("allocation:eligibleHoldings.rowLabel", {
@@ -142,6 +147,13 @@ export function EligibleHoldingsSelector({
                           <span className="text-muted-foreground/80 block truncate font-mono text-[11px]">
                             {details}
                           </span>
+                          {accounts.length > 0 && (
+                            <span className="text-muted-foreground/80 block truncate text-[11px]">
+                              {t("allocation:eligibleHoldings.inAccounts", {
+                                accounts: accounts.join(" · "),
+                              })}
+                            </span>
+                          )}
                         </span>
                       </CommandItem>
                     );
@@ -178,8 +190,8 @@ export function EligibleHoldingsSelector({
         </PopoverContent>
       </Popover>
       {selectedCount === 0 && (
-        <p className="text-destructive mt-2 font-mono text-xs">
-          {t("allocation:eligibleHoldings.emptyGuidance")}
+        <p className="text-muted-foreground mt-2 font-mono text-xs">
+          {t("allocation:eligibleHoldings.emptyAllowed")}
         </p>
       )}
     </div>

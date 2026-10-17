@@ -180,7 +180,9 @@ construction the manual-only direction removed.
 two, cash first:
 
 1. Deploy the selected cash against the category gaps, then combine and
-   recalculate the projection as above.
+   recalculate the projection as above. When the gaps ask for more than the
+   selected cash, every intent of this step is scaled by one common factor, and
+   that factor is stated in the result (§4.6).
 2. Size reductions against the differences that remain, and fund the increases
    those differences imply from the proceeds.
 
@@ -209,11 +211,12 @@ In order:
    reference branch).
 4. **Funding.** If the increases exceed the funding available to them, they are
    scaled down by a single common factor, and nothing is dropped selectively.
-   Increases already covered by cash deployed in the first pass (§4.5) are not
-   scaled: the shortfall belongs to the increases that depend on reduction
-   proceeds, so scaling the cash-funded ones would leave selected cash
-   undeployed for no reason. The scaling is stated in the result and travels
-   with the export, so a scaled figure is never mistaken for the full amount.
+   Every positive net adjustment is scaled by that same factor, including the
+   ones the first pass funded from cash: the cash-first sequence (§4.5) exists
+   to reduce how much has to be sold, not to shelter the increases it happened
+   to fund, and scaling them all equally spends the funding down to the last
+   unit. The scaling is stated in the result and travels with the export, so a
+   scaled figure is never mistaken for the full amount.
 5. **Rounding.** Under whole-unit policy, quantities are floored. Amounts stay
    primary and quantities remain estimates.
 6. **Minimum line size.** Lines below the target's minimum are reported as below
@@ -433,7 +436,7 @@ carries each one:
 | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------- | ------- |
 | How many modes?                      | Two: **Invest cash** and **Rebalance**. `allow_sells` decides whether Rebalance is offered                                      | §4      |
 | Iterate after combining intents?     | No. Each pass is single-pass. Rebalance runs a fixed cash-first sequence of exactly two, and never more                         | §4.5    |
-| Funding shortfall                    | Scale the increases that depend on reduction proceeds by one common factor, and state that the scaling was applied              | §4.6    |
+| Funding shortfall                    | Scale every positive net adjustment by one common factor, and state that the scaling was applied                                | §4.6    |
 | Turnover cap                         | Constrains the prefill, applied to reductions before proceeds are known. A later edit past the cap warns and is left alone      | §4.6    |
 | Eligible securities and reductions   | Gate every increase in both modes, never restrict reductions. An empty selection yields unresolved amounts rather than an error | §4.1    |
 | Sub-minimum lines and remaining cash | Report both. No re-rounding, no redistribution                                                                                  | §4.6    |

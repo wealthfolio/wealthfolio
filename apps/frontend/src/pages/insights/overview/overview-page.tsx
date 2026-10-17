@@ -4,11 +4,11 @@ import { useCurrentValuation } from "@/hooks/use-current-account-valuations";
 import { useHoldings } from "@/hooks/use-holdings";
 import { usePortfolioAllocations } from "@/hooks/use-portfolio-allocations";
 import { usePortfolios } from "@/hooks/use-portfolios";
-import { HoldingType, isAlternativeAssetKind } from "@/lib/constants";
+import { isAlternativeAssetKind } from "@/lib/constants";
 import { useSettingsContext } from "@/lib/settings-provider";
 import type { AccountScope, AllocationTarget, TaxonomyAllocation } from "@/lib/types";
 import { OverviewTab } from "@/pages/allocation-targets/components/overview-tab";
-import { RebalanceTab } from "@/pages/allocation-targets/components/rebalance-tab";
+import { AllocationWorksheetTab } from "@/pages/allocation-targets/components/allocation-worksheet-tab";
 import {
   TargetDetailHeader,
   TargetToolbarActions,
@@ -42,7 +42,7 @@ interface OverviewPageProps {
   onCustomizeActionChange?: (action: ReactNode | null) => void;
 }
 
-type WorkspaceView = "current" | "details" | "targets" | "rebalance";
+type WorkspaceView = "current" | "details" | "targets" | "worksheet";
 type TargetEditorMode = "create" | "edit";
 
 export function OverviewPage({
@@ -110,7 +110,7 @@ export function OverviewPage({
     dataUpdatedAt: driftUpdatedAt,
     isLoading: driftLoading,
   } = useAllocationTargetDrift(effectiveTargetId, accountFilter, {
-    includeHoldings: workspaceView === "details",
+    includeHoldings: workspaceView === "details" || workspaceView === "worksheet",
   });
 
   const isLoading = holdingsLoading || allocationsLoading || currentValuationLoading;
@@ -138,15 +138,7 @@ export function OverviewPage({
     () => portfolioHoldings.filter((h) => h.holdingType?.toLowerCase() !== "cash"),
     [portfolioHoldings],
   );
-  const totalCash = useMemo(
-    () =>
-      holdings
-        .filter((h) => h.holdingType === HoldingType.CASH)
-        .reduce((sum, h) => sum + (h.marketValue.base ?? 0), 0),
-    [holdings],
-  );
-  const availableCash = driftReport?.deployableCash ?? totalCash;
-  const rebalanceSourceVersion = `${holdingsUpdatedAt}:${driftUpdatedAt}:${effectiveTarget?.updatedAt ?? ""}`;
+  const worksheetSourceVersion = `${holdingsUpdatedAt}:${driftUpdatedAt}:${effectiveTarget?.updatedAt ?? ""}`;
 
   const valueStrip = useMemo(
     () =>
@@ -333,7 +325,7 @@ export function OverviewPage({
     );
   }
 
-  if (workspaceView === "rebalance") {
+  if (workspaceView === "worksheet") {
     return (
       <div>
         <div className="mb-5 flex flex-wrap items-center gap-x-3 gap-y-2">
@@ -348,16 +340,14 @@ export function OverviewPage({
           </Button>
           <span className="bg-border hidden h-5 w-px sm:block" />
           <h2 className="text-foreground min-w-0 text-[16px] font-semibold">
-            {t("insights:insights.rebalance")}
+            {t("allocation:worksheet.title")}
           </h2>
         </div>
-        <RebalanceTab
+        <AllocationWorksheetTab
           profile={effectiveTarget ?? null}
           driftReport={driftReport ?? null}
           accountScope={accountFilter}
-          holdings={holdings}
-          availableCash={availableCash}
-          sourceVersion={rebalanceSourceVersion}
+          sourceVersion={worksheetSourceVersion}
           isSourceLoading={holdingsLoading || driftLoading || !driftReport}
         />
       </div>
@@ -383,7 +373,7 @@ export function OverviewPage({
             taxonomyId={effectiveTarget?.taxonomyId ?? "asset_classes"}
             targetName={effectiveTarget?.name}
             target={effectiveTarget}
-            onRebalanceClick={() => setWorkspaceView("rebalance")}
+            onWorksheetClick={() => setWorkspaceView("worksheet")}
           />
         ) : targetLoading ? (
           <div className="space-y-5">

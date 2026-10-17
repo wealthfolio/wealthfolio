@@ -252,7 +252,10 @@ impl AllocationService {
             .await
     }
 
-    fn rollup_to_top_level(taxonomy_id: &str) -> bool {
+    /// Whether a taxonomy reports on its top-level categories. The worksheet
+    /// preview rolls classifications up the same way, so its projection lands
+    /// in the categories the drift report measures.
+    pub(crate) fn rollup_to_top_level(taxonomy_id: &str) -> bool {
         matches!(
             taxonomy_id,
             "asset_classes" | "industries_gics" | "regions" | "instrument_type"
@@ -556,7 +559,7 @@ impl AllocationService {
 
         // For rollup: map child categories to their top-level ancestor
         let top_level_map: HashMap<&str, &str> = if rollup_to_top_level {
-            self.build_top_level_map(categories)
+            Self::build_top_level_map(categories)
         } else {
             // Identity map - each category maps to itself
             categories
@@ -728,7 +731,7 @@ impl AllocationService {
 
     /// Builds a map from each category to its top-level ancestor.
     /// Top-level categories are those with parent_id = None.
-    fn build_top_level_map<'a>(&self, categories: &'a [Category]) -> HashMap<&'a str, &'a str> {
+    pub(crate) fn build_top_level_map(categories: &[Category]) -> HashMap<&str, &str> {
         let mut result: HashMap<&str, &str> = HashMap::new();
 
         // Build parent lookup
@@ -738,7 +741,7 @@ impl AllocationService {
             .collect();
 
         for category in categories {
-            let top_level = self.find_top_level_ancestor(&category.id, &parent_map);
+            let top_level = Self::find_top_level_ancestor(&category.id, &parent_map);
             result.insert(category.id.as_str(), top_level);
         }
 
@@ -746,14 +749,12 @@ impl AllocationService {
     }
 
     /// Recursively finds the top-level ancestor of a category.
-    #[allow(clippy::only_used_in_recursion)]
     fn find_top_level_ancestor<'a>(
-        &self,
         category_id: &'a str,
         parent_map: &HashMap<&str, Option<&'a str>>,
     ) -> &'a str {
         match parent_map.get(category_id) {
-            Some(Some(parent_id)) => self.find_top_level_ancestor(parent_id, parent_map),
+            Some(Some(parent_id)) => Self::find_top_level_ancestor(parent_id, parent_map),
             _ => category_id, // No parent - this is the top level
         }
     }
@@ -941,7 +942,7 @@ impl AllocationService {
 
         let rollup_to_top_level = Self::rollup_to_top_level(taxonomy_id);
         let top_level_map: HashMap<&str, &str> = if rollup_to_top_level {
-            self.build_top_level_map(categories)
+            Self::build_top_level_map(categories)
         } else {
             categories
                 .iter()
@@ -1083,7 +1084,7 @@ impl AllocationService {
 
         let rollup_to_top_level = Self::rollup_to_top_level(taxonomy_id);
         let top_level_map: HashMap<&str, &str> = if rollup_to_top_level {
-            self.build_top_level_map(categories)
+            Self::build_top_level_map(categories)
         } else {
             categories
                 .iter()
