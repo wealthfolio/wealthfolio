@@ -1,5 +1,5 @@
-import { render, screen, waitFor } from "@/test/render";
 import { ActivityStatus, ActivityType } from "@/lib/constants";
+import { render, screen, waitFor } from "@/test/render";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TransactionRowVM } from "../lib/transactions-helpers";
 import { SpendingTransactionsTab } from "./spending-transactions-tab";
@@ -374,6 +374,20 @@ describe("SpendingTransactionsTab transfer edit", () => {
       transferInId: "in-1",
     });
     expect(mocks.getTransferPairForActivity).toHaveBeenCalledWith("out-1");
+  });
+
+  it("does not create a transaction when opening the edit form", async () => {
+    mocks.getTransferPairForActivity.mockResolvedValue(null);
+
+    render(<SpendingTransactionsTab />);
+
+    (await screen.findByTestId("edit-out-1")).click();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("activity-form")).toBeInTheDocument();
+    });
+
+    expect(mocks.createActivity).not.toHaveBeenCalled();
   });
 
   it("still opens single-leg when the pair cannot be resolved", async () => {
