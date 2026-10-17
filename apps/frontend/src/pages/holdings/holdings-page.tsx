@@ -742,7 +742,7 @@ export const HoldingsPage = () => {
 
   return (
     <>
-      <SwipablePage views={views} defaultView="investments" />
+      <SwipablePage views={views} defaultView="investments" showPrivacyToggle />
 
       {/* Alternative Asset Quick Add Modal */}
       <AlternativeAssetQuickAddModal

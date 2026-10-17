@@ -101,5 +101,5 @@ export default function PortfolioInsightsPage() {
     [accountFilter, holdingsActions, setAccountScope, t],
   );
 
-  return <SwipablePage views={views} defaultView="overview" withPadding={true} />;
+  return <SwipablePage views={views} defaultView="overview" withPadding={true} showPrivacyToggle />;
 }

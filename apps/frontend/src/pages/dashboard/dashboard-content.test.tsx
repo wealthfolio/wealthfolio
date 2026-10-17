@@ -1,5 +1,4 @@
 import { render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { calculatePerformanceSummary } from "@/adapters";
@@ -14,15 +13,10 @@ import { DashboardContent } from "./dashboard-content";
 const uiMocks = vi.hoisted(() => ({
   realIntervals: false,
   intervalCode: "3M" as "3M" | "ALL",
-  togglePrivacy: vi.fn(),
 }));
 
 vi.mock("@/adapters", () => ({
   calculatePerformanceSummary: vi.fn(),
-}));
-
-vi.mock("@/components/privacy-toggle", () => ({
-  PrivacyToggle: () => <button onClick={uiMocks.togglePrivacy}>Hide Balance</button>,
 }));
 
 vi.mock("@/hooks/use-calculate-portfolio", () => ({
@@ -430,29 +424,5 @@ describe("DashboardContent", () => {
       expect.objectContaining({ itemId: "portfolio:retirement", filter: scope }),
     );
     expect(screen.getByText("Retirement")).toBeInTheDocument();
-  });
-
-  it("keeps privacy keyboard focus and activation separate from the update hover card", async () => {
-    mockCurrentValuation();
-    mockUseSettingsContext.mockReturnValue({ settings: { baseCurrency: "USD" } } as ReturnType<
-      typeof useSettingsContext
-    >);
-    mockUseHoldings.mockReturnValue({ holdings: [], isLoading: false } as unknown as ReturnType<
-      typeof useHoldings
-    >);
-    mockUseValuationHistory.mockReturnValue({ valuationHistory: [], isLoading: false });
-    mockUseQuery.mockReturnValue({ data: null, isLoading: false } as ReturnType<typeof useQuery>);
-    render(<DashboardContent scopeLabel="All Accounts" />);
-    expect(screen.queryByText("All Accounts")).not.toBeInTheDocument();
-
-    const privacy = screen.getByRole("button", { name: "Hide Balance" });
-    expect(privacy.closest("a")).toBeNull();
-    await userEvent.tab();
-    expect(privacy).toHaveFocus();
-    await new Promise((resolve) => setTimeout(resolve, 800));
-    expect(screen.queryByRole("button", { name: "Update prices" })).not.toBeInTheDocument();
-    await userEvent.keyboard("{Enter}");
-    expect(uiMocks.togglePrivacy).toHaveBeenCalledOnce();
-    expect(screen.getByText("balance:125")).toBeInTheDocument();
   });
 });

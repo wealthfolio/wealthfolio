@@ -1,6 +1,5 @@
 import { HealthStatusIndicator } from "@/components/health-status-icon";
 import { SwipablePage, SwipablePageView } from "@/components/page";
-import { PrivacyToggle } from "@/components/privacy-toggle";
 import { AlternativeAssetQuickAddModal } from "@/pages/asset/alternative-assets/components";
 import { useNavigationMode } from "@/pages/layouts/navigation/navigation-mode-context";
 import { AlternativeAssetKind } from "@/lib/types";
@@ -108,7 +107,6 @@ export default function PortfolioPage() {
   const netWorthActions = (
     <>
       {commonActions}
-      <PrivacyToggle />
       <DashboardActions onAddAsset={handleAddAsset} onAddLiability={handleAddLiability} />
     </>
   );
@@ -166,12 +164,7 @@ export default function PortfolioPage() {
             <SpendingTabContent />
           </Suspense>
         ),
-        actions: (
-          <>
-            {commonActions}
-            <PrivacyToggle />
-          </>
-        ),
+        actions: commonActions,
       });
     }
     return items;
@@ -196,6 +189,7 @@ export default function PortfolioPage() {
         withMobileNavOffset={false}
         mobileActionsPlacement="header"
         persistKey="dashboard-tab"
+        showPrivacyToggle
       />
       <AlternativeAssetQuickAddModal
         open={isQuickAddOpen}
