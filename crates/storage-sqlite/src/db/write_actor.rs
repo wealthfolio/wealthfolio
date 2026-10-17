@@ -409,26 +409,25 @@ mod tests {
     use tokio::sync::oneshot as tokio_oneshot;
     use wealthfolio_core::sync::{SyncEntity, SyncOperation};
 
-    fn setup_pool() -> DbPool {
-        let app_data = tempdir()
-            .expect("tempdir")
-            .keep()
-            .to_string_lossy()
-            .to_string();
+    fn setup_pool() -> (DbPool, tempfile::TempDir) {
+        let dir = tempdir().expect("tempdir");
+        let app_data = dir.path().to_string_lossy().to_string();
         // An explicit path: `get_db_path` resolves to `$DATABASE_URL` when that
         // is set, which would point the test at a real database.
         let access = DbAccess::plaintext(format!("{app_data}/app.db"));
         access.prepare().expect("init db");
         access.run_migrations().expect("migrate db");
-        access.create_pool().expect("create pool").as_ref().clone()
+        let pool = access.create_pool().expect("create pool").as_ref().clone();
+        (pool, dir)
     }
 
     #[tokio::test]
     async fn notifies_observer_once_for_transaction_with_multiple_outbox_rows() {
         let notify_count = Arc::new(AtomicUsize::new(0));
         let observer_count = notify_count.clone();
+        let (pool, _dir) = setup_pool();
         let (writer, _task) = spawn_writer_with_outbox_observer(
-            setup_pool(),
+            pool,
             Arc::new(move || {
                 observer_count.fetch_add(1, Ordering::SeqCst);
             }),
@@ -461,8 +460,9 @@ mod tests {
     async fn notifies_observer_even_if_caller_is_cancelled() {
         let notify_count = Arc::new(AtomicUsize::new(0));
         let observer_count = notify_count.clone();
+        let (pool, _dir) = setup_pool();
         let (writer, _task) = spawn_writer_with_outbox_observer(
-            setup_pool(),
+            pool,
             Arc::new(move || {
                 observer_count.fetch_add(1, Ordering::SeqCst);
             }),
@@ -500,7 +500,7 @@ mod tests {
 
     #[tokio::test]
     async fn shutdown_releases_the_pooled_connection_and_fails_later_writes() {
-        let pool = setup_pool();
+        let (pool, _dir) = setup_pool();
         let (writer, task) =
             spawn_writer_with_outbox_observer(pool.clone(), Arc::new(|| {})).expect("spawn writer");
 
@@ -524,8 +524,9 @@ mod tests {
 
     #[tokio::test]
     async fn shutdown_drains_work_already_queued() {
+        let (pool, _dir) = setup_pool();
         let (writer, task) =
-            spawn_writer_with_outbox_observer(setup_pool(), Arc::new(|| {})).expect("spawn writer");
+            spawn_writer_with_outbox_observer(pool, Arc::new(|| {})).expect("spawn writer");
 
         let queued = writer.exec_tx(|tx| {
             tx.run(|_conn| {
@@ -544,8 +545,9 @@ mod tests {
     async fn does_not_notify_observer_when_transaction_writes_no_outbox_rows() {
         let notify_count = Arc::new(AtomicUsize::new(0));
         let observer_count = notify_count.clone();
+        let (pool, _dir) = setup_pool();
         let (writer, _task) = spawn_writer_with_outbox_observer(
-            setup_pool(),
+            pool,
             Arc::new(move || {
                 observer_count.fetch_add(1, Ordering::SeqCst);
             }),

@@ -3202,18 +3202,19 @@ mod tests {
     use wealthfolio_core::limits::{ContributionLimitService, ContributionLimitServiceTrait};
     use wealthfolio_core::sync::{SyncEntity, SyncOperation};
 
-    fn setup_db() -> (Arc<Pool<ConnectionManager<SqliteConnection>>>, WriteHandle) {
+    fn setup_db() -> (
+        Arc<Pool<ConnectionManager<SqliteConnection>>>,
+        WriteHandle,
+        tempfile::TempDir,
+    ) {
         std::env::set_var("CONNECT_API_URL", "http://test.local");
-        let app_data = tempdir()
-            .expect("tempdir")
-            .keep()
-            .to_string_lossy()
-            .to_string();
+        let dir = tempdir().expect("tempdir");
+        let app_data = dir.path().to_string_lossy().to_string();
         let db_path = init(&app_data).expect("init db");
         run_migrations(&db_path).expect("migrate db");
         let pool = create_pool(&db_path).expect("create pool");
         let writer = spawn_writer(pool.as_ref().clone()).expect("spawn writer");
-        (pool, writer)
+        (pool, writer, dir)
     }
 
     fn insert_account(conn: &mut SqliteConnection, account_id: &str) {
@@ -3312,7 +3313,7 @@ mod tests {
 
     #[tokio::test]
     async fn contribution_limit_uses_final_amount_and_preserves_transfer_classification() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let activity_repository = ActivityRepository::new(pool.clone(), writer.clone());
         let limit_repository = ContributionLimitRepository::new(pool.clone(), writer.clone());
         let fx_service = FxService::new(Arc::new(FxRepository::new(pool.clone(), writer)));
@@ -3526,7 +3527,7 @@ mod tests {
 
     #[tokio::test]
     async fn cash_ledger_activities_read_as_whole_activities_do() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = ActivityRepository::new(pool.clone(), writer);
         {
             let mut conn = get_connection(&pool).expect("conn");
@@ -3575,7 +3576,7 @@ mod tests {
 
     #[tokio::test]
     async fn update_broker_activity_queues_user_patch_outbox() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = ActivityRepository::new(pool.clone(), writer);
 
         {
@@ -3692,7 +3693,7 @@ mod tests {
 
     #[tokio::test]
     async fn search_activities_uses_effective_broker_activity_type() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = ActivityRepository::new(pool.clone(), writer);
 
         {
@@ -3839,7 +3840,7 @@ mod tests {
 
     #[tokio::test]
     async fn search_activities_orders_same_instant_rows_in_application_order() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = ActivityRepository::new(pool.clone(), writer);
 
         {
@@ -3906,7 +3907,7 @@ mod tests {
 
     #[tokio::test]
     async fn search_activities_returns_the_asset_contract_multiplier() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = ActivityRepository::new(pool.clone(), writer);
 
         {
@@ -3971,7 +3972,7 @@ mod tests {
 
     #[tokio::test]
     async fn category_queries_use_effective_broker_activity_type() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = ActivityRepository::new(pool.clone(), writer);
 
         {
@@ -4024,7 +4025,7 @@ mod tests {
 
     #[tokio::test]
     async fn search_activities_in_utc_range_uses_exact_timestamp_bounds() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = ActivityRepository::new(pool.clone(), writer);
 
         {
@@ -4084,7 +4085,7 @@ mod tests {
 
     #[tokio::test]
     async fn notes_only_broker_edit_preserves_type_override_and_base_type_clears_it() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = ActivityRepository::new(pool.clone(), writer);
 
         {
@@ -4173,7 +4174,7 @@ mod tests {
 
     #[tokio::test]
     async fn broker_owned_only_edit_persists_locally_without_outbox() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = ActivityRepository::new(pool.clone(), writer);
 
         {
@@ -4304,7 +4305,7 @@ mod tests {
 
     #[tokio::test]
     async fn get_activities_by_ids_filters_missing_and_archived_accounts() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = ActivityRepository::new(pool.clone(), writer);
         let mut conn = get_connection(&pool).expect("conn");
         insert_account(&mut conn, "acc-active");
@@ -4347,7 +4348,7 @@ mod tests {
 
     #[tokio::test]
     async fn split_activities_by_asset_cover_every_account_and_the_effective_type() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = ActivityRepository::new(pool.clone(), writer);
         let mut conn = get_connection(&pool).expect("conn");
         insert_account(&mut conn, "acc-active");
@@ -4397,7 +4398,7 @@ mod tests {
 
     #[tokio::test]
     async fn get_activities_by_ids_empty_input_returns_empty() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = ActivityRepository::new(pool, writer);
 
         let activities = repo
@@ -4409,7 +4410,7 @@ mod tests {
 
     #[tokio::test]
     async fn holdings_snapshot_bounds_ignore_zero_quantity_and_archived_accounts() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = ActivityRepository::new(pool.clone(), writer);
         let mut conn = get_connection(&pool).expect("conn");
         insert_account(&mut conn, "acc-open");
@@ -4470,7 +4471,7 @@ mod tests {
 
     #[tokio::test]
     async fn update_activity_patches_subtype_and_review_independently() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = ActivityRepository::new(pool.clone(), writer);
         let mut conn = get_connection(&pool).expect("conn");
 
@@ -4539,7 +4540,7 @@ mod tests {
 
     #[tokio::test]
     async fn update_activity_preserves_omitted_asset_and_clears_explicit_patch() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = ActivityRepository::new(pool.clone(), writer);
         let mut conn = get_connection(&pool).expect("conn");
 
@@ -4634,7 +4635,7 @@ mod tests {
 
     #[tokio::test]
     async fn final_cash_migration_updates_are_local_only() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = ActivityRepository::new(pool.clone(), writer);
         {
             let mut conn = get_connection(&pool).expect("conn");
@@ -4735,7 +4736,7 @@ mod tests {
 
     #[tokio::test]
     async fn final_cash_migration_reports_amounts_it_cannot_safely_replace() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = ActivityRepository::new(pool.clone(), writer);
         {
             let mut conn = get_connection(&pool).expect("conn");
@@ -4788,7 +4789,7 @@ mod tests {
 
     #[tokio::test]
     async fn single_and_bulk_amount_updates_clear_spending_splits() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = ActivityRepository::new(pool.clone(), writer);
         {
             let mut conn = get_connection(&pool).expect("conn");
@@ -4855,7 +4856,7 @@ mod tests {
 
     #[tokio::test]
     async fn income_report_treats_explicit_zero_as_final_for_asset_backed_income() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = ActivityRepository::new(pool.clone(), writer);
         let mut conn = get_connection(&pool).expect("conn");
 
@@ -5037,7 +5038,7 @@ mod tests {
     #[tokio::test]
     async fn income_report_reads_a_blank_override_as_none() {
         // Engine rules §5: a blank override is none wherever the type is read.
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = ActivityRepository::new(pool.clone(), writer);
         let mut conn = get_connection(&pool).expect("conn");
         insert_account(&mut conn, "acc-income");
@@ -5064,7 +5065,7 @@ mod tests {
     #[tokio::test]
     async fn income_report_leaves_out_a_dividend_of_capital() {
         // Engine rules R7.4: a return of capital is no income.
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = ActivityRepository::new(pool.clone(), writer);
         let mut conn = get_connection(&pool).expect("conn");
         insert_account(&mut conn, "acc-income");
@@ -5117,7 +5118,7 @@ mod tests {
 
     #[tokio::test]
     async fn edits_store_type_overrides_as_they_read() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = ActivityRepository::new(pool.clone(), writer);
         let mut conn = get_connection(&pool).expect("conn");
         insert_account(&mut conn, "acc-override");
@@ -5190,7 +5191,7 @@ mod tests {
     /// UNIQUE(account_id, context_kind, source_system) constraint error on replay.
     #[tokio::test]
     async fn relink_preserves_row_id() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = ActivityRepository::new(pool.clone(), writer);
         let mut conn = get_connection(&pool).expect("conn");
 
@@ -5310,7 +5311,7 @@ mod tests {
     /// foreign key, so a link that arrives without its template fails on the other device.
     #[tokio::test]
     async fn save_import_mapping_syncs_template_before_link() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = ActivityRepository::new(pool.clone(), writer.clone());
         let mut conn = get_connection(&pool).expect("conn");
         insert_account(&mut conn, "acc-map");
@@ -5343,7 +5344,7 @@ mod tests {
 
     #[tokio::test]
     async fn saved_import_mapping_arrives_on_another_device() {
-        let (pool_a, writer_a) = setup_db();
+        let (pool_a, writer_a, _dir_a) = setup_db();
         let repo_a = ActivityRepository::new(pool_a.clone(), writer_a.clone());
         insert_account(&mut get_connection(&pool_a).expect("conn"), "acc-map");
         repo_a
@@ -5358,7 +5359,7 @@ mod tests {
         let events = outbox_as_remote_events(&pool_a, &writer_a);
 
         // A pull page applies as one batch.
-        let (pool_b, writer_b) = setup_db();
+        let (pool_b, writer_b, _dir_b) = setup_db();
         insert_account(&mut get_connection(&pool_b).expect("conn"), "acc-map");
         let applied = AppSyncRepository::new(pool_b.clone(), writer_b.clone())
             .apply_remote_events_lww_batch(events.clone())
@@ -5368,7 +5369,7 @@ mod tests {
 
         // When a batch fails, events apply one at a time in pull order, with foreign keys
         // checked per event, so the template has to come before the link.
-        let (pool_c, writer_c) = setup_db();
+        let (pool_c, writer_c, _dir_c) = setup_db();
         insert_account(&mut get_connection(&pool_c).expect("conn"), "acc-map");
         let sync_c = AppSyncRepository::new(pool_c.clone(), writer_c.clone());
         for (entity, entity_id, op, event_id, client_timestamp, seq, payload) in events {
@@ -5402,7 +5403,7 @@ mod tests {
     /// rejected on other devices, which ignore writes to an entity they saw deleted.
     #[tokio::test]
     async fn updating_import_mapping_keeps_template_id() {
-        let (pool_a, writer_a) = setup_db();
+        let (pool_a, writer_a, _dir_a) = setup_db();
         let repo_a = ActivityRepository::new(pool_a.clone(), writer_a.clone());
         let mut conn = get_connection(&pool_a).expect("conn");
         insert_account(&mut conn, "acc-map");
@@ -5455,7 +5456,7 @@ mod tests {
             .expect("count account templates");
         assert_eq!(account_templates, 1);
 
-        let (pool_b, writer_b) = setup_db();
+        let (pool_b, writer_b, _dir_b) = setup_db();
         let mut conn_b = get_connection(&pool_b).expect("conn");
         insert_account(&mut conn_b, "acc-map");
         insert_template(&mut conn_b, "tmpl-shared");
@@ -5475,7 +5476,7 @@ mod tests {
 
     #[tokio::test]
     async fn link_transfer_activities_marks_user_modified_and_allows_same_account_cash_fx() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = ActivityRepository::new(pool.clone(), writer);
         let mut conn = get_connection(&pool).expect("conn");
 
@@ -5593,7 +5594,7 @@ mod tests {
 
     #[tokio::test]
     async fn link_transfer_activities_repairs_orphan_source_group() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = ActivityRepository::new(pool.clone(), writer);
         let mut conn = get_connection(&pool).expect("conn");
 
@@ -5638,7 +5639,7 @@ mod tests {
 
     #[tokio::test]
     async fn link_transfer_activities_repairs_a_pair_already_linked_to_each_other() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = ActivityRepository::new(pool.clone(), writer);
         let mut conn = get_connection(&pool).expect("conn");
 
@@ -5697,7 +5698,7 @@ mod tests {
 
     #[tokio::test]
     async fn link_transfer_activities_does_not_merge_pairs_whose_groups_differ_by_whitespace() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = ActivityRepository::new(pool.clone(), writer);
         let mut conn = get_connection(&pool).expect("conn");
 
@@ -5764,7 +5765,7 @@ mod tests {
 
     #[tokio::test]
     async fn update_external_transfer_clears_invalid_source_group() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = ActivityRepository::new(pool.clone(), writer);
         let mut conn = get_connection(&pool).expect("conn");
 
@@ -5820,7 +5821,7 @@ mod tests {
 
     #[tokio::test]
     async fn link_transfer_activities_rejects_security_asset_or_quantity_mismatch() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = ActivityRepository::new(pool.clone(), writer);
         let mut conn = get_connection(&pool).expect("conn");
 
@@ -5894,7 +5895,7 @@ mod tests {
 
     #[tokio::test]
     async fn link_and_unlink_transfer_activities_use_effective_activity_type() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = ActivityRepository::new(pool.clone(), writer);
         let mut conn = get_connection(&pool).expect("conn");
 
@@ -5934,7 +5935,7 @@ mod tests {
 
     #[tokio::test]
     async fn mixed_broker_manual_transfer_link_is_local_only() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = ActivityRepository::new(pool.clone(), writer);
         let mut conn = get_connection(&pool).expect("conn");
 
@@ -5981,7 +5982,7 @@ mod tests {
 
     #[tokio::test]
     async fn transfer_scope_query_fetches_touching_rows_and_counterparts() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = ActivityRepository::new(pool.clone(), writer);
         let mut conn = get_connection(&pool).expect("conn");
 
@@ -6061,7 +6062,7 @@ mod tests {
 
     #[tokio::test]
     async fn unlink_transfer_activities_clears_pair_and_marks_external() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = ActivityRepository::new(pool.clone(), writer);
         let mut conn = get_connection(&pool).expect("conn");
 
@@ -6144,7 +6145,7 @@ mod tests {
 
     #[tokio::test]
     async fn mixed_broker_manual_transfer_unlink_is_local_only() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = ActivityRepository::new(pool.clone(), writer);
         let mut conn = get_connection(&pool).expect("conn");
 
@@ -6195,7 +6196,7 @@ mod tests {
 
     #[tokio::test]
     async fn unlink_transfer_activities_rejects_unlinked_or_mismatched_pairs() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = ActivityRepository::new(pool.clone(), writer);
         let mut conn = get_connection(&pool).expect("conn");
 
@@ -6273,7 +6274,7 @@ mod tests {
 
         // Exercise provider fallback, incoming ID fallback, and generated composite IDs.
         for identity in ["provider", "id", "composite"] {
-            let (pool, writer) = setup_db();
+            let (pool, writer, _dir) = setup_db();
             let repo = ActivityRepository::new(pool.clone(), writer);
             let mut conn = get_connection(&pool).expect("conn");
             insert_account(&mut conn, "acc-sync");
@@ -6387,7 +6388,7 @@ mod tests {
 
     #[tokio::test]
     async fn bulk_upsert_prefers_source_identity_over_idempotency_fallback() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = ActivityRepository::new(pool.clone(), writer);
         let mut conn = get_connection(&pool).expect("conn");
 
@@ -6497,7 +6498,7 @@ mod tests {
 
     #[tokio::test]
     async fn bulk_upsert_preserves_existing_draft_review_state() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = ActivityRepository::new(pool.clone(), writer);
         let mut conn = get_connection(&pool).expect("conn");
 
@@ -6561,7 +6562,7 @@ mod tests {
 
     #[tokio::test]
     async fn bulk_upsert_preserves_existing_posted_review_flag() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = ActivityRepository::new(pool.clone(), writer);
         let mut conn = get_connection(&pool).expect("conn");
 
@@ -6618,7 +6619,7 @@ mod tests {
 
     #[tokio::test]
     async fn bulk_upsert_reports_overwritten_split_asset_ids() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = ActivityRepository::new(pool.clone(), writer);
 
         {
@@ -6688,7 +6689,7 @@ mod tests {
 
     #[tokio::test]
     async fn bulk_upsert_collapses_duplicate_source_identity_within_same_batch() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = ActivityRepository::new(pool.clone(), writer);
         let mut conn = get_connection(&pool).expect("conn");
 
@@ -6814,7 +6815,7 @@ mod tests {
 
     #[tokio::test]
     async fn create_refuses_cost_adjustments_without_an_asset() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = ActivityRepository::new(pool.clone(), writer);
         insert_account(&mut get_connection(&pool).expect("conn"), "acc-floor");
         for subtype in [
@@ -6849,7 +6850,7 @@ mod tests {
     /// cash silently (the CSV-import bypass class, PR #1571).
     #[tokio::test]
     async fn create_refuses_posted_cash_row_without_amount_or_flag() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = ActivityRepository::new(pool.clone(), writer);
         {
             let mut conn = get_connection(&pool).expect("conn");
@@ -6882,7 +6883,7 @@ mod tests {
 
     #[tokio::test]
     async fn create_allows_flagged_missing_amount_and_security_transfers() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = ActivityRepository::new(pool.clone(), writer);
         {
             let mut conn = get_connection(&pool).expect("conn");

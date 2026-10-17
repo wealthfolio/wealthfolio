@@ -807,17 +807,14 @@ mod tests {
     use crate::schema::{spending_preset_rule_deletions, sync_outbox};
     use tempfile::tempdir;
 
-    fn setup_repo() -> CategorizationRulesRepository {
-        let app_data = tempdir()
-            .expect("tempdir")
-            .keep()
-            .to_string_lossy()
-            .to_string();
+    fn setup_repo() -> (CategorizationRulesRepository, tempfile::TempDir) {
+        let dir = tempdir().expect("tempdir");
+        let app_data = dir.path().to_string_lossy().to_string();
         let db_path = init(&app_data).expect("init db");
         run_migrations(&db_path).expect("migrate db");
         let pool = create_pool(&db_path).expect("create pool");
         let writer = spawn_writer(pool.as_ref().clone()).expect("writer");
-        CategorizationRulesRepository::new(pool, writer)
+        (CategorizationRulesRepository::new(pool, writer), dir)
     }
 
     fn preset_rule() -> NewCategorizationRule {
@@ -868,7 +865,7 @@ mod tests {
 
     #[tokio::test]
     async fn preset_rule_deletion_lifecycle_writes_sync_outbox() {
-        let repo = setup_repo();
+        let (repo, _dir) = setup_repo();
         repo.create(preset_rule()).await.expect("create rule");
         repo.delete("rule-ca-groceries").await.expect("delete rule");
 
@@ -909,7 +906,7 @@ mod tests {
     async fn amount_condition_round_trips_and_updates() {
         use wealthfolio_spending::categorization_rules::RuleAmountOp;
 
-        let repo = setup_repo();
+        let (repo, _dir) = setup_repo();
         let mut new_rule = preset_rule();
         new_rule.id = Some("rule-amount".to_string());
         new_rule.preset_id = None;
@@ -992,7 +989,7 @@ mod tests {
 
     #[tokio::test]
     async fn rule_without_amount_condition_omits_amount_fields_from_outbox() {
-        let repo = setup_repo();
+        let (repo, _dir) = setup_repo();
         let created = repo.create(preset_rule()).await.expect("create rule");
         assert_eq!(created.amount_op, None);
         assert_eq!(created.amount_value, None);
@@ -1019,7 +1016,7 @@ mod tests {
 
     #[tokio::test]
     async fn upsert_creates_then_updates_the_same_row_without_duplicating() {
-        let repo = setup_repo();
+        let (repo, _dir) = setup_repo();
         let rule_id = "addon:test-addon:abc123".to_string();
         let new_rule = |name: &str| NewCategorizationRule {
             id: Some(rule_id.clone()),

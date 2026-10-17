@@ -3755,20 +3755,18 @@ mod tests {
     fn setup_db() -> (
         Arc<Pool<r2d2::ConnectionManager<SqliteConnection>>>,
         WriteHandle,
+        tempfile::TempDir,
     ) {
         // Ensure connect is "configured" so outbox writes work in tests
         std::env::set_var("CONNECT_API_URL", "http://test.local");
 
-        let app_data = tempdir()
-            .expect("tempdir")
-            .keep()
-            .to_string_lossy()
-            .to_string();
+        let dir = tempdir().expect("tempdir");
+        let app_data = dir.path().to_string_lossy().to_string();
         let db_path = init(&app_data).expect("init db");
         run_migrations(&db_path).expect("migrate db");
         let pool = create_pool(&db_path).expect("create pool");
         let writer = spawn_writer(pool.as_ref().clone()).expect("spawn writer");
-        (pool, writer)
+        (pool, writer, dir)
     }
 
     #[test]
@@ -3785,7 +3783,7 @@ mod tests {
 
     #[tokio::test]
     async fn local_sync_summary_counts_spending_preset_rule_deletions() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let mut conn = get_connection(&pool).expect("conn");
 
         diesel::insert_into(spending_preset_rule_deletions::table)
@@ -3929,7 +3927,7 @@ mod tests {
 
     #[tokio::test]
     async fn broker_activity_user_patch_updates_only_overlay_fields() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let mut conn = get_connection(&pool).expect("conn");
 
         diesel::sql_query(
@@ -4047,7 +4045,7 @@ mod tests {
 
     #[tokio::test]
     async fn broker_activity_user_patch_missing_target_defers_until_broker_import() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let mut conn = get_connection(&pool).expect("conn");
 
         diesel::sql_query(
@@ -4198,26 +4196,20 @@ mod tests {
         Ok(())
     }
 
-    fn create_snapshot_db_with_account(account_id: &str) -> String {
-        let app_data = tempdir()
-            .expect("tempdir")
-            .keep()
-            .to_string_lossy()
-            .to_string();
+    fn create_snapshot_db_with_account(account_id: &str) -> (String, tempfile::TempDir) {
+        let dir = tempdir().expect("tempdir");
+        let app_data = dir.path().to_string_lossy().to_string();
         let db_path = init(&app_data).expect("init db");
         run_migrations(&db_path).expect("migrate db");
         let pool = create_pool(&db_path).expect("create pool");
         let mut conn = get_connection(&pool).expect("conn");
         insert_account_for_test(&mut conn, account_id).expect("insert account");
-        db_path
+        (db_path, dir)
     }
 
-    fn create_snapshot_db_with_holding_snapshot(account_id: &str) -> String {
-        let app_data = tempdir()
-            .expect("tempdir")
-            .keep()
-            .to_string_lossy()
-            .to_string();
+    fn create_snapshot_db_with_holding_snapshot(account_id: &str) -> (String, tempfile::TempDir) {
+        let dir = tempdir().expect("tempdir");
+        let app_data = dir.path().to_string_lossy().to_string();
         let db_path = init(&app_data).expect("init db");
         run_migrations(&db_path).expect("migrate db");
         let pool = create_pool(&db_path).expect("create pool");
@@ -4231,15 +4223,14 @@ mod tests {
         diesel::sql_query(sql)
             .execute(&mut conn)
             .expect("insert snapshot");
-        db_path
+        (db_path, dir)
     }
 
-    fn create_snapshot_db_with_account_and_holding_snapshot(account_id: &str) -> String {
-        let app_data = tempdir()
-            .expect("tempdir")
-            .keep()
-            .to_string_lossy()
-            .to_string();
+    fn create_snapshot_db_with_account_and_holding_snapshot(
+        account_id: &str,
+    ) -> (String, tempfile::TempDir) {
+        let dir = tempdir().expect("tempdir");
+        let app_data = dir.path().to_string_lossy().to_string();
         let db_path = init(&app_data).expect("init db");
         run_migrations(&db_path).expect("migrate db");
         let pool = create_pool(&db_path).expect("create pool");
@@ -4254,18 +4245,15 @@ mod tests {
         diesel::sql_query(sql)
             .execute(&mut conn)
             .expect("insert snapshot");
-        db_path
+        (db_path, dir)
     }
 
     fn create_snapshot_db_with_account_asset_snapshot_position(
         account_id: &str,
         asset_id: &str,
-    ) -> String {
-        let app_data = tempdir()
-            .expect("tempdir")
-            .keep()
-            .to_string_lossy()
-            .to_string();
+    ) -> (String, tempfile::TempDir) {
+        let dir = tempdir().expect("tempdir");
+        let app_data = dir.path().to_string_lossy().to_string();
         let db_path = init(&app_data).expect("init db");
         run_migrations(&db_path).expect("migrate db");
         let pool = create_pool(&db_path).expect("create pool");
@@ -4284,7 +4272,7 @@ mod tests {
             escape_sqlite_str(asset_id)
         );
         conn.batch_execute(&sql).expect("insert snapshot position");
-        db_path
+        (db_path, dir)
     }
 
     fn insert_portfolio_for_test(
@@ -4464,12 +4452,9 @@ mod tests {
         .expect("insert missing-portfolio account membership");
     }
 
-    fn create_snapshot_db_with_portfolio_accounts() -> String {
-        let app_data = tempdir()
-            .expect("tempdir")
-            .keep()
-            .to_string_lossy()
-            .to_string();
+    fn create_snapshot_db_with_portfolio_accounts() -> (String, tempfile::TempDir) {
+        let dir = tempdir().expect("tempdir");
+        let app_data = dir.path().to_string_lossy().to_string();
         let db_path = init(&app_data).expect("init db");
         run_migrations(&db_path).expect("migrate db");
         let pool = create_pool(&db_path).expect("create pool");
@@ -4491,15 +4476,12 @@ mod tests {
             "portfolio-snapshot",
             "acc-snapshot-missing",
         );
-        db_path
+        (db_path, dir)
     }
 
-    fn create_snapshot_db_with_orphan_activity_sidecars() -> String {
-        let app_data = tempdir()
-            .expect("tempdir")
-            .keep()
-            .to_string_lossy()
-            .to_string();
+    fn create_snapshot_db_with_orphan_activity_sidecars() -> (String, tempfile::TempDir) {
+        let dir = tempdir().expect("tempdir");
+        let app_data = dir.path().to_string_lossy().to_string();
         let db_path = init(&app_data).expect("init db");
         run_migrations(&db_path).expect("migrate db");
         let pool = create_pool(&db_path).expect("create pool");
@@ -4518,15 +4500,12 @@ mod tests {
              PRAGMA foreign_keys = ON;",
         )
         .expect("insert orphan activity sidecars");
-        db_path
+        (db_path, dir)
     }
 
-    fn create_snapshot_db_with_invalid_spending_activity_event() -> String {
-        let app_data = tempdir()
-            .expect("tempdir")
-            .keep()
-            .to_string_lossy()
-            .to_string();
+    fn create_snapshot_db_with_invalid_spending_activity_event() -> (String, tempfile::TempDir) {
+        let dir = tempdir().expect("tempdir");
+        let app_data = dir.path().to_string_lossy().to_string();
         let db_path = init(&app_data).expect("init db");
         run_migrations(&db_path).expect("migrate db");
         let pool = create_pool(&db_path).expect("create pool");
@@ -4538,15 +4517,12 @@ mod tests {
              PRAGMA foreign_keys = ON;",
         )
         .expect("insert invalid spending activity event");
-        db_path
+        (db_path, dir)
     }
 
-    fn create_snapshot_db_with_assets_extra_column(asset_id: &str) -> String {
-        let app_data = tempdir()
-            .expect("tempdir")
-            .keep()
-            .to_string_lossy()
-            .to_string();
+    fn create_snapshot_db_with_assets_extra_column(asset_id: &str) -> (String, tempfile::TempDir) {
+        let dir = tempdir().expect("tempdir");
+        let app_data = dir.path().to_string_lossy().to_string();
         let db_path = init(&app_data).expect("init db");
         run_migrations(&db_path).expect("migrate db");
         let pool = create_pool(&db_path).expect("create pool");
@@ -4561,7 +4537,7 @@ mod tests {
         diesel::sql_query(insert_sql)
             .execute(&mut conn)
             .expect("insert asset");
-        db_path
+        (db_path, dir)
     }
 
     fn count_account_rows(
@@ -4618,7 +4594,7 @@ mod tests {
 
     #[tokio::test]
     async fn creates_sync_foundation_tables() {
-        let (pool, _writer) = setup_db();
+        let (pool, _writer, _dir) = setup_db();
         let mut conn = get_connection(&pool).expect("conn");
         for table in [
             "sync_applied_events",
@@ -4647,7 +4623,7 @@ mod tests {
 
     #[tokio::test]
     async fn outbox_write_rollback_keeps_mutation_atomic() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
 
         let tx_result = writer
             .exec(|conn| {
@@ -4682,7 +4658,7 @@ mod tests {
 
     #[tokio::test]
     async fn projected_outbox_rollback_keeps_mutation_atomic() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
 
         let tx_result = writer
             .exec_projected(|conn, projection| {
@@ -4717,7 +4693,7 @@ mod tests {
 
     #[tokio::test]
     async fn local_outbox_insert_updates_entity_metadata() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = AppSyncRepository::new(pool, writer.clone());
 
         writer
@@ -4748,7 +4724,7 @@ mod tests {
 
     #[tokio::test]
     async fn remote_goal_update_does_not_resurrect_after_local_delete() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = AppSyncRepository::new(pool.clone(), writer.clone());
 
         writer
@@ -4823,7 +4799,7 @@ mod tests {
             c: i64,
         }
 
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = AppSyncRepository::new(pool.clone(), writer);
         let orphan_account_id = "orphan-snapshot-account";
 
@@ -4874,7 +4850,7 @@ mod tests {
 
     #[tokio::test]
     async fn replay_single_event_foreign_key_error_includes_entity_table_context() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = AppSyncRepository::new(pool, writer);
 
         let err = repo
@@ -4912,7 +4888,7 @@ mod tests {
 
     #[tokio::test]
     async fn replay_batch_foreign_key_error_includes_fk_check_table() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = AppSyncRepository::new(pool, writer);
 
         let err = repo
@@ -4953,7 +4929,7 @@ mod tests {
             c: i64,
         }
 
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = AppSyncRepository::new(pool.clone(), writer);
         let orphan_account_id = "orphan-single-snapshot-account";
 
@@ -5045,7 +5021,7 @@ mod tests {
 
     #[tokio::test]
     async fn remote_goal_create_does_not_reuse_deleted_id() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = AppSyncRepository::new(pool.clone(), writer.clone());
 
         writer
@@ -5114,7 +5090,7 @@ mod tests {
 
     #[tokio::test]
     async fn remote_goal_delete_wins_over_local_update_marker() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = AppSyncRepository::new(pool.clone(), writer.clone());
 
         writer
@@ -5166,7 +5142,7 @@ mod tests {
 
     #[tokio::test]
     async fn goal_summary_refresh_stays_local_and_does_not_write_sync_outbox() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let goal_repo = GoalRepository::new(pool.clone(), writer.clone());
 
         writer
@@ -5238,9 +5214,9 @@ mod tests {
 
     #[tokio::test]
     async fn snapshot_restore_sets_cursor_and_is_idempotent() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = AppSyncRepository::new(pool.clone(), writer);
-        let snapshot_path = create_snapshot_db_with_account("acc-from-snapshot");
+        let (snapshot_path, _snapshot_dir) = create_snapshot_db_with_account("acc-from-snapshot");
 
         repo.restore_snapshot_tables_from_file(
             snapshot_path.clone(),
@@ -5283,18 +5259,15 @@ mod tests {
             c: i64,
         }
 
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = AppSyncRepository::new(pool.clone(), writer);
         let kept_asset_id = "asset-logo-kept";
         let dropped_asset_id = "asset-logo-dropped";
 
         // v1 snapshot: has the kept asset but no asset_logos table at all.
+        let snapshot_dir = tempdir().expect("tempdir");
         let snapshot_path = {
-            let app_data = tempdir()
-                .expect("tempdir")
-                .keep()
-                .to_string_lossy()
-                .to_string();
+            let app_data = snapshot_dir.path().to_string_lossy().to_string();
             let db_path = init(&app_data).expect("init db");
             run_migrations(&db_path).expect("migrate db");
             let pool = create_pool(&db_path).expect("create pool");
@@ -5350,14 +5323,12 @@ mod tests {
 
     #[tokio::test]
     async fn snapshot_restore_error_keeps_existing_cursor() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = AppSyncRepository::new(pool, writer);
         repo.set_cursor(15).await.expect("set cursor");
 
-        let broken_snapshot_path = tempdir()
-            .expect("tempdir")
-            .keep()
-            .join("broken_snapshot.db");
+        let broken_snapshot_dir = tempdir().expect("tempdir");
+        let broken_snapshot_path = broken_snapshot_dir.path().join("broken_snapshot.db");
         std::fs::write(&broken_snapshot_path, b"not-a-sqlite-db").expect("write broken file");
 
         let result = repo
@@ -5375,7 +5346,7 @@ mod tests {
 
     #[tokio::test]
     async fn snapshot_restore_foreign_key_error_includes_table_context() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         {
             let mut conn = get_connection(&pool).expect("conn");
             insert_account_for_test(&mut conn, "acc-invalid-event").expect("insert account");
@@ -5391,7 +5362,8 @@ mod tests {
             .expect("insert local activity");
         }
         let repo = AppSyncRepository::new(pool, writer);
-        let snapshot_path = create_snapshot_db_with_invalid_spending_activity_event();
+        let (snapshot_path, _snapshot_dir) =
+            create_snapshot_db_with_invalid_spending_activity_event();
 
         let err = repo
             .restore_snapshot_tables_from_file(
@@ -5424,10 +5396,11 @@ mod tests {
             c: i64,
         }
 
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = AppSyncRepository::new(pool.clone(), writer);
         let orphan_account_id = "orphan-restore-account";
-        let snapshot_path = create_snapshot_db_with_holding_snapshot(orphan_account_id);
+        let (snapshot_path, _snapshot_dir) =
+            create_snapshot_db_with_holding_snapshot(orphan_account_id);
         {
             let mut conn = get_connection(&pool).expect("conn");
             diesel::sql_query(format!(
@@ -5465,10 +5438,11 @@ mod tests {
             c: i64,
         }
 
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = AppSyncRepository::new(pool.clone(), writer);
         let account_id = "acc-reordered-restore";
-        let snapshot_path = create_snapshot_db_with_account_and_holding_snapshot(account_id);
+        let (snapshot_path, _snapshot_dir) =
+            create_snapshot_db_with_account_and_holding_snapshot(account_id);
 
         repo.restore_snapshot_tables_from_file(
             snapshot_path,
@@ -5499,11 +5473,11 @@ mod tests {
             c: i64,
         }
 
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = AppSyncRepository::new(pool.clone(), writer);
         let account_id = "acc-position-restore";
         let asset_id = "asset-position-restore";
-        let snapshot_path =
+        let (snapshot_path, _snapshot_dir) =
             create_snapshot_db_with_account_asset_snapshot_position(account_id, asset_id);
 
         repo.restore_snapshot_tables_from_file(
@@ -5541,9 +5515,9 @@ mod tests {
             c: i64,
         }
 
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = AppSyncRepository::new(pool.clone(), writer);
-        let snapshot_path = create_snapshot_db_with_portfolio_accounts();
+        let (snapshot_path, _snapshot_dir) = create_snapshot_db_with_portfolio_accounts();
 
         {
             let mut conn = get_connection(&pool).expect("conn");
@@ -5604,9 +5578,9 @@ mod tests {
             c: i64,
         }
 
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = AppSyncRepository::new(pool.clone(), writer);
-        let snapshot_path = create_snapshot_db_with_portfolio_accounts();
+        let (snapshot_path, _snapshot_dir) = create_snapshot_db_with_portfolio_accounts();
 
         {
             let mut conn = get_connection(&pool).expect("conn");
@@ -5662,9 +5636,9 @@ mod tests {
             c: i64,
         }
 
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = AppSyncRepository::new(pool.clone(), writer);
-        let snapshot_path = create_snapshot_db_with_orphan_activity_sidecars();
+        let (snapshot_path, _snapshot_dir) = create_snapshot_db_with_orphan_activity_sidecars();
 
         repo.restore_snapshot_tables_from_file(
             snapshot_path,
@@ -5697,7 +5671,7 @@ mod tests {
 
     #[tokio::test]
     async fn needs_bootstrap_when_last_cycle_is_stale_cursor() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = AppSyncRepository::new(pool, writer);
 
         repo.reset_and_mark_bootstrap_complete("device-1".to_string(), Some(1))
@@ -5719,7 +5693,7 @@ mod tests {
 
     #[tokio::test]
     async fn local_sync_data_summary_reports_non_empty_tables() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = AppSyncRepository::new(pool.clone(), writer);
         let baseline = repo
             .get_local_sync_data_summary()
@@ -5752,7 +5726,7 @@ mod tests {
 
     #[tokio::test]
     async fn overwrite_risk_summary_ignores_seeded_system_rows() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = AppSyncRepository::new(pool, writer);
 
         let raw_summary = repo
@@ -5772,7 +5746,7 @@ mod tests {
 
     #[tokio::test]
     async fn overwrite_risk_summary_counts_accounts_goals_and_budgets() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = AppSyncRepository::new(pool.clone(), writer);
 
         {
@@ -5820,7 +5794,7 @@ mod tests {
 
     #[tokio::test]
     async fn overwrite_risk_summary_ignores_broker_rehydratable_accounts() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = AppSyncRepository::new(pool.clone(), writer);
 
         {
@@ -5886,7 +5860,7 @@ mod tests {
 
     #[tokio::test]
     async fn overwrite_risk_summary_ignores_broker_activity_sidecars() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = AppSyncRepository::new(pool.clone(), writer);
 
         {
@@ -5950,7 +5924,7 @@ mod tests {
 
     #[tokio::test]
     async fn overwrite_risk_summary_ignores_standalone_asset_kinds() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = AppSyncRepository::new(pool.clone(), writer);
         let counted_kinds = [
             "PROPERTY",
@@ -5987,7 +5961,7 @@ mod tests {
 
     #[tokio::test]
     async fn overwrite_risk_summary_ignores_non_account_goal_budget_tables() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = AppSyncRepository::new(pool.clone(), writer);
 
         {
@@ -6147,7 +6121,7 @@ mod tests {
 
     #[tokio::test]
     async fn ok_cycle_outcome_clears_previous_engine_error() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = AppSyncRepository::new(pool, writer);
 
         repo.mark_engine_error("pull failed".to_string())
@@ -6186,9 +6160,10 @@ mod tests {
 
     #[tokio::test]
     async fn snapshot_restore_handles_source_with_extra_columns() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = AppSyncRepository::new(pool.clone(), writer);
-        let snapshot_path = create_snapshot_db_with_assets_extra_column("asset-extra-column");
+        let (snapshot_path, _snapshot_dir) =
+            create_snapshot_db_with_assets_extra_column("asset-extra-column");
 
         repo.restore_snapshot_tables_from_file(
             snapshot_path,
@@ -6206,9 +6181,9 @@ mod tests {
 
     #[tokio::test]
     async fn snapshot_restore_resets_sync_control_state() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = AppSyncRepository::new(pool.clone(), writer);
-        let snapshot_path = create_snapshot_db_with_account("acc-reset-state");
+        let (snapshot_path, _snapshot_dir) = create_snapshot_db_with_account("acc-reset-state");
 
         {
             let mut conn = get_connection(&pool).expect("conn");
@@ -6273,7 +6248,7 @@ mod tests {
 
     #[tokio::test]
     async fn connect_rebind_detaches_brokers_and_preserves_financial_accounts() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = AppSyncRepository::new(pool.clone(), writer);
         {
             let mut conn = get_connection(&pool).unwrap();
@@ -6323,7 +6298,7 @@ mod tests {
 
     #[tokio::test]
     async fn reset_local_sync_session_clears_control_plane_and_zeroes_cursors() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = AppSyncRepository::new(pool.clone(), writer);
 
         {
@@ -6407,7 +6382,7 @@ mod tests {
 
     #[tokio::test]
     async fn reset_and_mark_bootstrap_complete_recreates_current_device_config() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = AppSyncRepository::new(pool.clone(), writer);
 
         repo.set_cursor(21).await.expect("set cursor");
@@ -6438,7 +6413,7 @@ mod tests {
 
     #[tokio::test]
     async fn outbox_uses_trusted_device_key_version_by_default() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = AppSyncRepository::new(pool, writer.clone());
 
         repo.upsert_device_config("device-1".to_string(), Some(3), "trusted".to_string())
@@ -6468,7 +6443,7 @@ mod tests {
 
     #[tokio::test]
     async fn local_outbox_metadata_preserves_remote_last_seq() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = AppSyncRepository::new(pool, writer.clone());
 
         repo.upsert_entity_metadata(SyncEntityMetadata {
@@ -6549,7 +6524,7 @@ mod tests {
 
     #[tokio::test]
     async fn prune_sync_outbox_deletes_only_old_sent_and_dead_rows() {
-        let (_pool, writer) = setup_db();
+        let (_pool, writer, _dir) = setup_db();
         let repo = AppSyncRepository::new(_pool, writer.clone());
         let now = Utc::now();
 
@@ -6649,7 +6624,7 @@ mod tests {
 
     #[tokio::test]
     async fn payload_normalization_supports_camel_case_for_all_sync_tables() {
-        let (pool, _writer) = setup_db();
+        let (pool, _writer, _dir) = setup_db();
         let mut conn = get_connection(&pool).expect("conn");
 
         for table_name in APP_SYNC_TABLES {
@@ -6686,7 +6661,7 @@ mod tests {
 
     #[tokio::test]
     async fn entity_mapping_targets_valid_tables_and_primary_keys() {
-        let (pool, _writer) = setup_db();
+        let (pool, _writer, _dir) = setup_db();
         let mut conn = get_connection(&pool).expect("conn");
 
         let entities = [
@@ -6740,7 +6715,7 @@ mod tests {
 
     #[tokio::test]
     async fn a_synced_activity_stores_its_type_override_as_it_reads() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let mut conn = get_connection(&pool).expect("conn");
         insert_account_for_test(&mut conn, "acc-synced-override").expect("insert account");
         let repo = AppSyncRepository::new(pool.clone(), writer);
@@ -6785,7 +6760,7 @@ mod tests {
 
     #[tokio::test]
     async fn a_synced_broker_patch_stores_a_blank_type_override_as_none() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let mut conn = get_connection(&pool).expect("conn");
         diesel::sql_query(
             "INSERT INTO accounts \
@@ -6846,7 +6821,8 @@ mod tests {
 
     #[tokio::test]
     async fn snapshot_restore_stores_type_overrides_as_they_read() {
-        let snapshot_path = create_snapshot_db_with_account("acc-restored-override");
+        let (snapshot_path, _snapshot_dir) =
+            create_snapshot_db_with_account("acc-restored-override");
         {
             let pool = create_pool(&snapshot_path).expect("snapshot pool");
             let mut conn = get_connection(&pool).expect("snapshot conn");
@@ -6867,7 +6843,7 @@ mod tests {
                     .expect("set override");
             }
         }
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = AppSyncRepository::new(pool.clone(), writer);
 
         repo.restore_snapshot_tables_from_file(
@@ -6897,7 +6873,7 @@ mod tests {
             #[diesel(sql_type = diesel::sql_types::Text)]
             day: String,
         }
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let mut conn = get_connection(&pool).expect("conn");
         diesel::sql_query(
             "INSERT INTO assets (id, kind, is_active, quote_mode, quote_ccy, created_at, updated_at) \
@@ -6948,7 +6924,7 @@ mod tests {
 
     #[tokio::test]
     async fn a_synced_quote_stores_its_timestamp_as_a_utc_instant() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let mut conn = get_connection(&pool).expect("conn");
         diesel::sql_query(
             "INSERT INTO assets (id, kind, is_active, quote_mode, quote_ccy, created_at, updated_at) \
@@ -7011,7 +6987,7 @@ mod tests {
             #[diesel(sql_type = diesel::sql_types::Text)]
             timestamp: String,
         }
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let mut conn = get_connection(&pool).expect("conn");
         diesel::sql_query(
             "INSERT INTO assets (id, kind, is_active, quote_mode, quote_ccy, created_at, updated_at) \
@@ -7079,7 +7055,7 @@ mod tests {
 
     #[tokio::test]
     async fn a_restored_snapshot_keeps_one_quote_per_day() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let mut conn = get_connection(&pool).expect("conn");
         diesel::sql_query(
             "INSERT INTO assets (id, kind, is_active, quote_mode, quote_ccy, created_at, updated_at) \
@@ -7128,7 +7104,7 @@ mod tests {
 
     #[tokio::test]
     async fn a_synced_quote_landing_on_another_quotes_day_is_skipped() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let mut conn = get_connection(&pool).expect("conn");
         diesel::sql_query(
             "INSERT INTO assets (id, kind, is_active, quote_mode, quote_ccy, created_at, updated_at) \
@@ -7164,7 +7140,7 @@ mod tests {
 
     #[tokio::test]
     async fn replay_rejects_payload_with_mismatched_pk() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = AppSyncRepository::new(pool, writer);
 
         let result = repo
@@ -7186,7 +7162,7 @@ mod tests {
 
     #[tokio::test]
     async fn replay_applies_platform_create_then_update() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = AppSyncRepository::new(pool.clone(), writer);
         let platform_id = "platform-sync-1".to_string();
 
@@ -7247,7 +7223,7 @@ mod tests {
 
     #[tokio::test]
     async fn replay_accepts_camel_case_goal_payload() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = AppSyncRepository::new(pool.clone(), writer);
 
         let applied = repo
@@ -7282,7 +7258,7 @@ mod tests {
 
     #[tokio::test]
     async fn replay_maps_legacy_account_type_to_securities() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = AppSyncRepository::new(pool.clone(), writer);
 
         let applied = repo
@@ -7325,7 +7301,7 @@ mod tests {
 
     #[tokio::test]
     async fn replay_accepts_legacy_goal_is_achieved_payload() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = AppSyncRepository::new(pool.clone(), writer);
 
         let applied = repo
@@ -7360,7 +7336,7 @@ mod tests {
 
     #[tokio::test]
     async fn replay_accepts_equivalent_legacy_and_current_goal_lifecycle_aliases() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = AppSyncRepository::new(pool.clone(), writer);
 
         let applied = repo
@@ -7394,7 +7370,7 @@ mod tests {
 
     #[tokio::test]
     async fn replay_rejects_conflicting_legacy_goal_lifecycle_aliases() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = AppSyncRepository::new(pool, writer);
 
         let result = repo
@@ -7429,7 +7405,7 @@ mod tests {
 
     #[tokio::test]
     async fn replay_maps_legacy_null_goal_lifecycle_to_active() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = AppSyncRepository::new(pool.clone(), writer);
 
         let applied = repo
@@ -7462,7 +7438,7 @@ mod tests {
 
     #[tokio::test]
     async fn replay_accepts_legacy_goals_allocation_percent_payload() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = AppSyncRepository::new(pool.clone(), writer);
         let mut conn = get_connection(&pool).expect("conn");
         insert_account_for_test(&mut conn, "acc-legacy-allocation").expect("insert account");
@@ -7517,7 +7493,7 @@ mod tests {
 
     #[tokio::test]
     async fn replay_accepts_import_profile_payload() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = AppSyncRepository::new(pool.clone(), writer);
         let mut conn = get_connection(&pool).expect("conn");
         insert_account_for_test(&mut conn, "acc-import-profile").expect("insert account");
@@ -7612,7 +7588,7 @@ mod tests {
 
     #[tokio::test]
     async fn replay_updates_import_profile_with_stable_id() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = AppSyncRepository::new(pool.clone(), writer);
         let mut conn = get_connection(&pool).expect("conn");
         insert_account_for_test(&mut conn, "acc-import-update").expect("insert account");
@@ -7720,7 +7696,7 @@ mod tests {
 
     #[tokio::test]
     async fn replay_batch_applies_out_of_order_account_and_platform_events() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = AppSyncRepository::new(pool.clone(), writer);
 
         let applied = repo
@@ -7785,7 +7761,7 @@ mod tests {
 
     #[tokio::test]
     async fn snapshot_export_returns_sqlite_image() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = AppSyncRepository::new(pool.clone(), writer);
         let mut conn = get_connection(&pool).expect("conn");
         insert_account_for_test(&mut conn, "acc-export").expect("insert account");
@@ -7808,7 +7784,7 @@ mod tests {
             c: i64,
         }
 
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = AppSyncRepository::new(pool.clone(), writer);
         let mut conn = get_connection(&pool).expect("conn");
 
@@ -7911,7 +7887,7 @@ mod tests {
             .order(quotes::id)
             .load::<QuoteDB>(&mut conn)
             .expect("source quotes");
-        let (target_pool, target_writer) = setup_db();
+        let (target_pool, target_writer, _target_dir) = setup_db();
         let target_repo = AppSyncRepository::new(target_pool.clone(), target_writer);
         target_repo
             .restore_snapshot_tables_from_file(
@@ -7993,7 +7969,7 @@ mod tests {
             c: i64,
         }
 
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = AppSyncRepository::new(pool.clone(), writer);
         let mut conn = get_connection(&pool).expect("conn");
 
@@ -8050,7 +8026,7 @@ mod tests {
             c: i64,
         }
 
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = AppSyncRepository::new(pool.clone(), writer);
         let mut conn = get_connection(&pool).expect("conn");
 
@@ -8158,7 +8134,7 @@ mod tests {
 
     #[tokio::test]
     async fn snapshot_upload_validation_fails_with_portfolio_repair_message() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = AppSyncRepository::new(pool.clone(), writer);
         let mut conn = get_connection(&pool).expect("conn");
 
@@ -8188,7 +8164,7 @@ mod tests {
 
     #[tokio::test]
     async fn snapshot_upload_validation_ignores_missing_portfolio_memberships() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = AppSyncRepository::new(pool.clone(), writer);
         let mut conn = get_connection(&pool).expect("conn");
 
@@ -8219,7 +8195,7 @@ mod tests {
             import_run_id: Option<String>,
         }
 
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = AppSyncRepository::new(pool.clone(), writer);
         let mut conn = get_connection(&pool).expect("conn");
 
@@ -8304,7 +8280,7 @@ mod tests {
         assert_eq!(exported_broker_count.c, 2);
         drop(exported_conn);
 
-        let (restore_pool, restore_writer) = setup_db();
+        let (restore_pool, restore_writer, _restore_dir) = setup_db();
         let restore_repo = AppSyncRepository::new(restore_pool.clone(), restore_writer);
         restore_repo
             .restore_snapshot_tables_from_file(
@@ -8359,7 +8335,7 @@ mod tests {
             c: i64,
         }
 
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = AppSyncRepository::new(pool.clone(), writer);
         let mut conn = get_connection(&pool).expect("conn");
 
@@ -8414,7 +8390,7 @@ mod tests {
         assert_eq!(exported_category_count.c, 1);
         drop(exported_conn);
 
-        let (restore_pool, restore_writer) = setup_db();
+        let (restore_pool, restore_writer, _restore_dir) = setup_db();
         let restore_repo = AppSyncRepository::new(restore_pool.clone(), restore_writer);
         restore_repo
             .restore_snapshot_tables_from_file(
@@ -8451,7 +8427,7 @@ mod tests {
             c: i64,
         }
 
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = AppSyncRepository::new(pool.clone(), writer);
         let mut conn = get_connection(&pool).expect("conn");
 
@@ -8507,7 +8483,7 @@ mod tests {
         let exported_path = exported_dir.path().join("budget-snapshot.db");
         std::fs::write(&exported_path, payload).expect("write snapshot db");
 
-        let (restore_pool, restore_writer) = setup_db();
+        let (restore_pool, restore_writer, _restore_dir) = setup_db();
         let restore_repo = AppSyncRepository::new(restore_pool.clone(), restore_writer);
         restore_repo
             .restore_snapshot_tables_from_file(
@@ -8561,7 +8537,7 @@ mod tests {
             c: i64,
         }
 
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = AppSyncRepository::new(pool.clone(), writer);
         let mut conn = get_connection(&pool).expect("conn");
 
@@ -8678,7 +8654,7 @@ mod tests {
 
     #[tokio::test]
     async fn replay_rejects_unknown_columns() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = AppSyncRepository::new(pool, writer);
 
         let result = repo
@@ -8707,7 +8683,7 @@ mod tests {
 
     #[tokio::test]
     async fn replay_app_preference_is_allowlisted_and_uses_lww_without_echo() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = AppSyncRepository::new(pool.clone(), writer);
         let layout = r#"{"version":6,"hiddenWidgets":["regions"]}"#;
         let applied = repo.apply_remote_event_lww(SyncEntity::AppPreference, INSIGHTS_OVERVIEW_LAYOUT_KEY.to_string(), SyncOperation::Update, "pref-1".to_string(), "2026-09-17T00:00:02Z".to_string(), 2, serde_json::json!({"settingKey": INSIGHTS_OVERVIEW_LAYOUT_KEY, "settingValue": layout})).await.unwrap();
@@ -8775,7 +8751,7 @@ mod tests {
 
     #[tokio::test]
     async fn replay_spending_setting_skips_non_spending_keys() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = AppSyncRepository::new(pool.clone(), writer);
 
         let applied = repo
@@ -8840,7 +8816,7 @@ mod tests {
 
     #[tokio::test]
     async fn replay_spending_preset_rule_deletion_applies_and_deletes() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = AppSyncRepository::new(pool.clone(), writer);
         let entity_id = preset_rule_deletion_id("ca", "groceries");
 
@@ -8902,7 +8878,7 @@ mod tests {
 
     #[tokio::test]
     async fn replay_spending_preset_rule_deletion_recreates_after_delete() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = AppSyncRepository::new(pool.clone(), writer);
         let entity_id = preset_rule_deletion_id("ca", "groceries");
 
@@ -8973,7 +8949,7 @@ mod tests {
 
     #[tokio::test]
     async fn replay_spending_preset_rule_deletion_rejects_mismatched_entity_id() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = AppSyncRepository::new(pool.clone(), writer);
 
         let err = repo
@@ -9006,7 +8982,7 @@ mod tests {
 
     #[tokio::test]
     async fn replay_addon_storage_applies_and_deletes() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = AppSyncRepository::new(pool.clone(), writer);
         let entity_id = addon_storage_id("addon-a", "prefs");
 
@@ -9071,7 +9047,7 @@ mod tests {
         // A delete is just another write for a reusable key: an older delete must
         // NOT wipe a newer value. (Under the old tombstone logic a delete always
         // won over a prior non-delete regardless of timestamp.)
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = AppSyncRepository::new(pool.clone(), writer);
         let entity_id = addon_storage_id("addon-a", "prefs");
 
@@ -9123,7 +9099,7 @@ mod tests {
         // A deleted key can be legitimately re-created: a newer update after an
         // older delete must apply. (Under the old tombstone logic, once last_op
         // was Delete, every later create/update was permanently swallowed.)
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = AppSyncRepository::new(pool.clone(), writer);
         let entity_id = addon_storage_id("addon-a", "prefs");
 
@@ -9200,7 +9176,7 @@ mod tests {
 
     #[tokio::test]
     async fn replay_asset_logo_upserts_and_deletes() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         {
             let mut conn = get_connection(&pool).expect("conn");
             insert_asset_kind_for_test(&mut conn, "asset-logo-a", "INVESTMENT").expect("asset");
@@ -9262,7 +9238,7 @@ mod tests {
     #[tokio::test]
     async fn replay_asset_logo_reupload_after_delete_applies() {
         // asset_id is a reusable key: delete = reset, a later re-upload must win.
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         {
             let mut conn = get_connection(&pool).expect("conn");
             insert_asset_kind_for_test(&mut conn, "asset-logo-a", "INVESTMENT").expect("asset");
@@ -9319,7 +9295,7 @@ mod tests {
 
     #[tokio::test]
     async fn replay_asset_logo_stale_delete_does_not_clobber_newer_upload() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         {
             let mut conn = get_connection(&pool).expect("conn");
             insert_asset_kind_for_test(&mut conn, "asset-logo-a", "INVESTMENT").expect("asset");
@@ -9360,7 +9336,7 @@ mod tests {
 
     #[tokio::test]
     async fn replay_asset_logo_rejects_pk_mismatch() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         {
             let mut conn = get_connection(&pool).expect("conn");
             insert_asset_kind_for_test(&mut conn, "asset-logo-a", "INVESTMENT").expect("asset");
@@ -9390,7 +9366,7 @@ mod tests {
 
     #[tokio::test]
     async fn replay_asset_logo_for_missing_asset_is_foreign_key_violation() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = AppSyncRepository::new(pool.clone(), writer);
 
         let err = repo
@@ -9417,7 +9393,7 @@ mod tests {
 
     #[tokio::test]
     async fn replay_addon_storage_rejects_mismatched_entity_id() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = AppSyncRepository::new(pool.clone(), writer);
 
         let err = repo
@@ -9449,7 +9425,7 @@ mod tests {
 
     #[tokio::test]
     async fn replay_batch_skips_unsupported_spending_setting_without_aborting() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = AppSyncRepository::new(pool.clone(), writer);
 
         let applied = repo
@@ -9505,7 +9481,7 @@ mod tests {
 
     #[tokio::test]
     async fn replay_budget_target_rejects_invalid_decimal_amount() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = AppSyncRepository::new(pool, writer);
 
         let err = repo
@@ -9536,7 +9512,7 @@ mod tests {
 
     #[tokio::test]
     async fn replay_rejects_conflicting_alias_columns() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = AppSyncRepository::new(pool, writer);
 
         let result = repo
@@ -9572,7 +9548,7 @@ mod tests {
 
     #[tokio::test]
     async fn replay_custom_taxonomy_create_upserts_taxonomy_and_categories() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = AppSyncRepository::new(pool.clone(), writer);
 
         let applied = repo
@@ -9645,7 +9621,7 @@ mod tests {
 
     #[tokio::test]
     async fn replay_custom_taxonomy_update_adds_and_removes_categories() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = AppSyncRepository::new(pool.clone(), writer);
 
         // First: create with two categories
@@ -9747,7 +9723,7 @@ mod tests {
 
     #[tokio::test]
     async fn replay_custom_taxonomy_delete_cascades() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = AppSyncRepository::new(pool.clone(), writer);
 
         // Create a taxonomy with categories
@@ -9814,7 +9790,7 @@ mod tests {
 
     #[tokio::test]
     async fn replay_custom_taxonomy_rejects_system_payload() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = AppSyncRepository::new(pool.clone(), writer);
 
         let result = repo
@@ -9847,7 +9823,7 @@ mod tests {
 
     #[tokio::test]
     async fn replay_import_run_upserts_user_initiated_run() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = AppSyncRepository::new(pool.clone(), writer);
         let mut conn = get_connection(&pool).expect("conn");
         insert_account_for_test(&mut conn, "acc-import-run").expect("insert account");
@@ -9909,7 +9885,7 @@ mod tests {
             asset_id: String,
         }
 
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = AppSyncRepository::new(pool.clone(), writer);
         let mut conn = get_connection(&pool).expect("conn");
 
@@ -10012,7 +9988,7 @@ mod tests {
             c: i64,
         }
 
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = AppSyncRepository::new(pool.clone(), writer);
         let mut conn = get_connection(&pool).expect("conn");
         insert_account_for_test(&mut conn, "acc-sync-invalid").expect("insert account");

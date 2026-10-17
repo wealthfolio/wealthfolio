@@ -445,13 +445,14 @@ mod tests {
     };
     use wealthfolio_core::taxonomies::TaxonomyRepositoryTrait;
 
-    fn setup_repos() -> (AllocationTargetRepository, TaxonomyRepository) {
+    fn setup_repos() -> (
+        AllocationTargetRepository,
+        TaxonomyRepository,
+        tempfile::TempDir,
+    ) {
         std::env::set_var("CONNECT_API_URL", "http://test.local");
-        let app_data = tempdir()
-            .expect("tempdir")
-            .keep()
-            .to_string_lossy()
-            .to_string();
+        let dir = tempdir().expect("tempdir");
+        let app_data = dir.path().to_string_lossy().to_string();
         let db_path = init(&app_data).expect("init db");
         run_migrations(&db_path).expect("migrate db");
         let pool = create_pool(&db_path).expect("create pool");
@@ -459,11 +460,13 @@ mod tests {
         (
             AllocationTargetRepository::new(pool.clone(), writer.clone()),
             TaxonomyRepository::new(pool, writer),
+            dir,
         )
     }
 
-    fn setup_repo() -> AllocationTargetRepository {
-        setup_repos().0
+    fn setup_repo() -> (AllocationTargetRepository, tempfile::TempDir) {
+        let (repo, _, dir) = setup_repos();
+        (repo, dir)
     }
 
     fn target(taxonomy_id: &str) -> AllocationTarget {
@@ -536,7 +539,7 @@ mod tests {
 
     #[tokio::test]
     async fn save_weights_persists_weight_taxonomy_id() {
-        let repo = setup_repo();
+        let (repo, _dir) = setup_repo();
         repo.create_target(target("asset_classes")).await.unwrap();
 
         let saved = repo
@@ -551,7 +554,7 @@ mod tests {
 
     #[tokio::test]
     async fn save_target_constraints_uses_route_target_id() {
-        let repo = setup_repo();
+        let (repo, _dir) = setup_repo();
         repo.create_target(target("asset_classes")).await.unwrap();
         let mut other = target("asset_classes");
         other.id = "target-2".to_string();
@@ -569,7 +572,7 @@ mod tests {
 
     #[tokio::test]
     async fn save_weights_rejects_category_from_another_taxonomy() {
-        let repo = setup_repo();
+        let (repo, _dir) = setup_repo();
         repo.create_target(target("asset_classes")).await.unwrap();
 
         let err = repo
@@ -584,7 +587,7 @@ mod tests {
 
     #[tokio::test]
     async fn update_target_rejects_taxonomy_change_when_weights_exist() {
-        let repo = setup_repo();
+        let (repo, _dir) = setup_repo();
         repo.create_target(target("asset_classes")).await.unwrap();
         repo.save_weights("target-1", vec![weight("asset_classes", "CASH")])
             .await
@@ -599,7 +602,7 @@ mod tests {
 
     #[tokio::test]
     async fn save_target_with_weights_allows_taxonomy_change_with_replacement_weights() {
-        let repo = setup_repo();
+        let (repo, _dir) = setup_repo();
         repo.create_target(target("asset_classes")).await.unwrap();
         repo.save_weights("target-1", vec![weight("asset_classes", "CASH")])
             .await
@@ -618,7 +621,7 @@ mod tests {
 
     #[tokio::test]
     async fn save_target_with_weights_orders_child_deletes_before_target_update() {
-        let repo = setup_repo();
+        let (repo, _dir) = setup_repo();
         repo.create_target(target("asset_classes")).await.unwrap();
         repo.save_weights("target-1", vec![weight("asset_classes", "CASH")])
             .await
@@ -662,7 +665,7 @@ mod tests {
 
     #[tokio::test]
     async fn taxonomy_reference_count_includes_allocation_target_weights() {
-        let (target_repo, taxonomy_repo) = setup_repos();
+        let (target_repo, taxonomy_repo, _dir) = setup_repos();
         target_repo
             .create_target(target("asset_classes"))
             .await
@@ -681,7 +684,7 @@ mod tests {
 
     #[tokio::test]
     async fn create_target_writes_sync_outbox() {
-        let repo = setup_repo();
+        let (repo, _dir) = setup_repo();
 
         repo.create_target(target("asset_classes")).await.unwrap();
 
@@ -697,7 +700,7 @@ mod tests {
 
     #[tokio::test]
     async fn save_weights_writes_create_and_delete_outbox() {
-        let repo = setup_repo();
+        let (repo, _dir) = setup_repo();
         repo.create_target(target("asset_classes")).await.unwrap();
 
         repo.save_weights("target-1", vec![weight("asset_classes", "CASH")])
