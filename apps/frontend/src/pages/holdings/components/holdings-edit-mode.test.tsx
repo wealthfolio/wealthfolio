@@ -28,7 +28,7 @@ const account: Account = {
   updatedAt: new Date("2026-01-01"),
 };
 
-const holdings: Holding[] = ["INR", "USD", "JPY"].map((currency) => ({
+const holdings: Holding[] = ["INR", "USD", "JPY", "KWD"].map((currency) => ({
   id: `asset-${currency}`,
   accountId: account.id,
   holdingType: HoldingType.SECURITY,
@@ -42,7 +42,7 @@ const holdings: Holding[] = ["INR", "USD", "JPY"].map((currency) => ({
 }));
 
 describe("HoldingsEditMode formatting", () => {
-  it("formats row totals by currency, keeps two decimals, and updates while editing", () => {
+  it("formats row totals by currency, in its minor units, and updates while editing", () => {
     const client = new QueryClient();
     const editor = (regions: CurrencyFormattingRegions) => (
       <QueryClientProvider client={client}>
@@ -59,8 +59,9 @@ describe("HoldingsEditMode formatting", () => {
     const { rerender } = render(editor({ INR: "IN", JPY: "JP" }));
 
     expect(screen.getByText("12,34,560.00")).toBeInTheDocument();
-    // USD and JPY both keep the display's fixed two decimals.
-    expect(screen.getAllByText("1,234,560.00")).toHaveLength(2);
+    expect(screen.getByText("1,234,560.00")).toBeInTheDocument();
+    expect(screen.getByText("1,234,560")).toBeInTheDocument();
+    expect(screen.getByText("1,234,560.000")).toBeInTheDocument();
 
     const quantity = screen.getAllByRole("textbox")[0];
     fireEvent.change(quantity, { target: { value: "2,000" } });
@@ -68,7 +69,8 @@ describe("HoldingsEditMode formatting", () => {
 
     rerender(editor({ INR: "DE", JPY: "JP" }));
     expect(screen.getByText("2.469.120,00")).toBeInTheDocument();
-    expect(screen.getAllByText("1,234,560.00")).toHaveLength(2);
+    expect(screen.getByText("1,234,560.00")).toBeInTheDocument();
+    expect(screen.getByText("1,234,560")).toBeInTheDocument();
     expect(quantity).toHaveValue("2,000");
   });
 });

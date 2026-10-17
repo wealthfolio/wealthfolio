@@ -20,7 +20,6 @@ import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
-  useNumberFormatting,
 } from "@wealthfolio/ui";
 import { AnimatedToggleGroup } from "@wealthfolio/ui/components/ui/animated-toggle-group";
 import { Checkbox } from "@wealthfolio/ui/components/ui/checkbox";
@@ -126,7 +125,6 @@ export function MobileDetailsStep({
   amountWasEdited,
 }: MobileDetailsStepProps) {
   const { t } = useTranslation();
-  const formatting = useNumberFormatting();
   const form = useFormContext<NewActivityFormValues>();
   const { control, getFieldState, getValues, watch, setValue, register } = form;
   const { settings } = useSettingsContext();
@@ -923,12 +921,7 @@ export function MobileDetailsStep({
                       </p>
                     </div>
                     <span className="text-lg font-semibold tabular-nums">
-                      {formatting.formatDecimal(calculatedTradeAmount ?? 0, {
-                        style: currency ? "currency" : "decimal",
-                        currency: currency || undefined,
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 2,
-                      })}
+                      {formatAmount(calculatedTradeAmount ?? 0, currency ?? "", Boolean(currency))}
                     </span>
                   </div>
                 </div>

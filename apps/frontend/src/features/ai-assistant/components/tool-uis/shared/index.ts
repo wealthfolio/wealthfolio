@@ -8,6 +8,7 @@ export {
   formatActivityType,
   formatActivityDate,
   createActivityAmountFormatter,
+  createActivityPriceFormatter,
   createActivityQuantityFormatter,
   estimateDraftAmount,
   formatActivityAmount,

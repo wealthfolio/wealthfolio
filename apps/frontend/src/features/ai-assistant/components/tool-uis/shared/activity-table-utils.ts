@@ -84,14 +84,19 @@ interface AmountFormatter {
 }
 
 export function createActivityAmountFormatter(
-  formatting: Pick<FormattingApi, "formatDecimalAmount">,
+  formatting: Pick<FormattingApi, "formatAmount">,
 ): AmountFormatter {
   return {
-    format: (value, currency) =>
-      formatting.formatDecimalAmount(value, currency, {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-      }),
+    format: (value, currency) => formatting.formatAmount(value, currency, false),
+  };
+}
+
+/** Unit prices keep the precision the activities table shows. */
+export function createActivityPriceFormatter(
+  formatting: Pick<FormattingApi, "formatPrice">,
+): AmountFormatter {
+  return {
+    format: (value, currency) => formatting.formatPrice(value, currency, false),
   };
 }
 

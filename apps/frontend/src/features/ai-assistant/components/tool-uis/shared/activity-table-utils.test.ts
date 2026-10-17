@@ -2,6 +2,7 @@ import { createAmountFormatting } from "@wealthfolio/ui";
 import { describe, expect, it } from "vitest";
 import {
   createActivityAmountFormatter,
+  createActivityPriceFormatter,
   estimateDraftAmount,
   formatActivityAmount,
 } from "./activity-table-utils";
@@ -35,13 +36,26 @@ describe("estimateDraftAmount", () => {
 });
 
 describe("formatActivityAmount", () => {
-  const formatter = createActivityAmountFormatter(
-    createAmountFormatting("en-US", undefined, { INR: "IN" }),
-  );
+  const formatting = createAmountFormatting("en-US", undefined, { INR: "IN" });
+  const formatter = createActivityAmountFormatter(formatting);
 
   it("formats each amount with its currency's format", () => {
     expect(formatActivityAmount(1234567.89, formatter, false, "INR")).toBe("12,34,567.89 INR");
     expect(formatActivityAmount(-1234567.89, formatter, false, "USD")).toBe("1,234,567.89 USD");
+  });
+
+  it("shows each currency's minor units", () => {
+    expect(formatActivityAmount(1234, formatter, false, "JPY")).toBe("1,234 JPY");
+    expect(formatActivityAmount(1.2345, formatter, false, "KWD")).toBe("1.235 KWD");
+    expect(formatActivityAmount(1234567.5, formatter, false, "USD")).toBe("1,234,567.50 USD");
+  });
+
+  it("keeps unit prices at the activities table's precision", () => {
+    const priceFormatter = createActivityPriceFormatter(formatting);
+    expect(formatActivityAmount(1234.5, priceFormatter, false, "JPY")).toBe("1,234.50 JPY");
+    expect(formatActivityAmount(1.2345, priceFormatter, false, "KWD")).toBe("1.2345 KWD");
+    expect(formatActivityAmount(0.0123, priceFormatter, false, "USD")).toBe("0.0123 USD");
+    expect(formatActivityAmount(1234567.89, priceFormatter, false, "INR")).toBe("12,34,567.89 INR");
   });
 
   it("can leave out the currency code", () => {

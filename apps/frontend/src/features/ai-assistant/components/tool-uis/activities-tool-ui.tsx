@@ -25,6 +25,7 @@ import { useTranslation } from "react-i18next";
 import {
   CompactToolCard,
   createActivityAmountFormatter,
+  createActivityPriceFormatter,
   createActivityQuantityFormatter,
   formatActivityAmount,
   formatActivityDate,
@@ -191,6 +192,10 @@ function ActivitiesContentImpl({ args, result, status }: ActivitiesContentProps)
 
   const formatter = useMemo(
     () => createActivityAmountFormatter(amountFormatting),
+    [amountFormatting],
+  );
+  const priceFormatter = useMemo(
+    () => createActivityPriceFormatter(amountFormatting),
     [amountFormatting],
   );
   const quantityFormatter = useMemo(
@@ -368,7 +373,7 @@ function ActivitiesContentImpl({ args, result, status }: ActivitiesContentProps)
                     <TableCell className="py-2 text-right tabular-nums">
                       {formatActivityAmount(
                         activity.unitPrice,
-                        formatter,
+                        priceFormatter,
                         isBalanceHidden,
                         activity.currency,
                         { showCurrency: false },
