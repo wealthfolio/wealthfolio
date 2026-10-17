@@ -85,10 +85,12 @@ WEALTHFOLIO_E2E=1 WEALTHFOLIO_FIXTURE_DIR="$PWD/e2e/fixtures/quotes" pnpm run de
 ./scripts/wait-for-both-servers-to-be-ready.sh
 ```
 
-`wait-for-both-servers-to-be-ready.sh` polls the log file until it detects both
-"ready in" (Vite) and the Axum server binding on port 8088, then prints the last
-few lines and exits. The output redirect is required — the script reads from a
-file, not from a live terminal.
+`wait-for-both-servers-to-be-ready.sh` polls Vite and the Axum server's
+`/api/v1/healthz` on port 8088 until both answer, then prints the last few lines
+of the log file. It exits with status 1 if they still don't answer after 60
+attempts with a 2-second pause after each (`-m` and `-i` change these), for
+example while `cargo` is still compiling the server; run it again to keep
+waiting.
 
 > **If the web app is already running:** Stop it first (Ctrl+C), then re-run
 > `prep-e2e.mjs` and restart. The running instance is using a stale database —
