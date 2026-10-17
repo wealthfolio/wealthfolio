@@ -1,10 +1,11 @@
 use crate::constants::DISPLAY_DECIMAL_PRECISION;
-use crate::utils::time_utils::{parse_user_timezone_or_default, user_today};
+use crate::utils::time_utils::{activity_date_in_tz, parse_user_timezone_or_default, user_today};
 use crate::{
     activities::{ActivityError, ActivityRepositoryTrait, IncomeData},
     Error, Result,
 };
 use chrono::{Datelike, NaiveDate};
+use chrono_tz::Tz;
 
 use super::IncomeSummary;
 use crate::fx::FxServiceTrait;
@@ -52,14 +53,13 @@ impl IncomeService {
         }
     }
 
-    fn today_in_user_timezone(&self) -> NaiveDate {
-        let tz = parse_user_timezone_or_default(
+    fn user_timezone(&self) -> Tz {
+        parse_user_timezone_or_default(
             &self
                 .timezone
                 .read()
                 .unwrap_or_else(|poisoned| poisoned.into_inner()),
-        );
-        user_today(tz)
+        )
     }
 
     fn calculate_yoy_growth(current: Decimal, previous: Decimal) -> Decimal {
@@ -96,7 +96,8 @@ impl IncomeServiceTrait for IncomeService {
             .read()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
             .clone();
-        let current_date = self.today_in_user_timezone();
+        let timezone = self.user_timezone();
+        let current_date = user_today(timezone);
         let current_year = current_date.year();
         let last_year = current_year - 1;
         let two_years_ago = current_year - 2;
@@ -153,11 +154,14 @@ impl IncomeServiceTrait for IncomeService {
                 }
             };
 
-            // Correctly call methods on the FxService instance within the Arc
-            let converted_amount = match self.fx_service.convert_currency(
+            // Income converts at the rate on the day it was received, as the
+            // holdings income column does, so past totals don't move with
+            // today's rate.
+            let converted_amount = match self.fx_service.convert_currency_for_date(
                 activity.amount,
                 &activity.currency,
                 &base_currency,
+                activity_date_in_tz(activity.activity_instant, timezone),
             ) {
                 Ok(amount) => Some(amount),
                 Err(e) => {
@@ -172,6 +176,7 @@ impl IncomeServiceTrait for IncomeService {
             // Create a copy of the activity with cloned fields to avoid ownership issues
             let activity_copy = IncomeData {
                 date: activity.date.clone(),
+                activity_instant: activity.activity_instant,
                 income_type: activity.income_type.clone(),
                 asset_id: activity.asset_id.clone(),
                 asset_kind: activity.asset_kind.clone(),

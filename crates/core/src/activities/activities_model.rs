@@ -1938,6 +1938,8 @@ mod optional_decimal_format {
 #[serde(rename_all = "camelCase")]
 pub struct IncomeData {
     pub date: String,
+    /// When the income was received; `date` holds only its month.
+    pub activity_instant: DateTime<Utc>,
     pub income_type: String,
     pub asset_id: String,
     pub asset_kind: String,

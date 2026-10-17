@@ -12,7 +12,7 @@ use crate::limits::ContributionActivity;
 use crate::test_support::in_memory::InMemoryFxRepository;
 use crate::utils::clock;
 use crate::Result;
-use chrono::{DateTime, NaiveDate, TimeZone, Utc};
+use chrono::{DateTime, NaiveDate, NaiveTime, TimeZone, Utc};
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 use std::collections::{BTreeSet, HashMap};
@@ -230,6 +230,7 @@ impl ActivityRepositoryTrait for MockActivityRepository {
     }
 }
 
+/// Income received at UTC midnight on `date` (YYYY-MM-DD).
 fn income(
     date: &str,
     income_type: &str,
@@ -238,8 +239,10 @@ fn income(
     amount: Decimal,
     account_id: &str,
 ) -> IncomeData {
+    let day = NaiveDate::parse_from_str(date, "%Y-%m-%d").expect("a YYYY-MM-DD date");
     IncomeData {
-        date: date.to_string(),
+        date: day.format("%Y-%m").to_string(),
+        activity_instant: day.and_time(NaiveTime::MIN).and_utc(),
         income_type: income_type.to_string(),
         asset_id: asset_id.to_string(),
         asset_kind: "INVESTMENT".to_string(),
@@ -278,10 +281,10 @@ fn income_without_an_exchange_rate_is_left_out_of_converted_totals() {
         Arc::new(fx_service),
         Arc::new(MockActivityRepository {
             income: Mutex::new(vec![
-                income("2024-09", "DIVIDEND", "VOD", "GBP", dec!(40), "acc-gbp"),
-                income("2025-05", "DIVIDEND", "SAP", "EUR", dec!(100), "acc-eur"),
+                income("2024-09-15", "DIVIDEND", "VOD", "GBP", dec!(40), "acc-gbp"),
+                income("2025-05-15", "DIVIDEND", "SAP", "EUR", dec!(100), "acc-eur"),
                 income(
-                    "2025-07",
+                    "2025-07-15",
                     "INTEREST",
                     "CASH:JPY",
                     "JPY",
@@ -289,7 +292,7 @@ fn income_without_an_exchange_rate_is_left_out_of_converted_totals() {
                     "acc-jpy",
                 ),
                 income(
-                    "2026-03",
+                    "2026-03-15",
                     "INTEREST",
                     "CASH:USD",
                     "USD",
@@ -297,7 +300,7 @@ fn income_without_an_exchange_rate_is_left_out_of_converted_totals() {
                     "acc-usd",
                 ),
                 income(
-                    "2026-04",
+                    "2026-04-15",
                     "INTEREST",
                     "CASH:INR",
                     "INR",
@@ -354,4 +357,61 @@ fn income_without_an_exchange_rate_is_left_out_of_converted_totals() {
     let two_years_ago = summary(&summaries, "TWO_YEARS_AGO");
     assert_eq!(two_years_ago.total_income, dec!(0));
     assert_eq!(two_years_ago.unconverted_currencies, currencies(&["GBP"]));
+}
+
+#[test]
+fn income_converts_at_the_rate_on_the_day_it_was_received() {
+    let _clock = clock::freeze(Utc.with_ymd_and_hms(2026, 6, 15, 12, 0, 0).unwrap());
+
+    let eur_usd = |year: i32, month: u32, day: u32, rate: Decimal| ExchangeRate {
+        id: format!("EURUSD-{year}-{month}-{day}"),
+        from_currency: "EUR".to_string(),
+        to_currency: "USD".to_string(),
+        rate,
+        source: "MANUAL".to_string(),
+        timestamp: Utc.with_ymd_and_hms(year, month, day, 0, 0, 0).unwrap(),
+    };
+    let fx_service = FxService::new(Arc::new(InMemoryFxRepository::new(vec![
+        eur_usd(2025, 5, 2, dec!(1.05)),
+        eur_usd(2025, 5, 3, dec!(1.06)),
+        eur_usd(2025, 5, 4, dec!(1.08)),
+        eur_usd(2026, 6, 1, dec!(1.17)),
+    ])));
+    fx_service.initialize().unwrap();
+
+    let service = IncomeService::new_with_timezone(
+        Arc::new(fx_service),
+        Arc::new(MockActivityRepository {
+            income: Mutex::new(vec![
+                income("2025-05-02", "DIVIDEND", "SAP", "EUR", dec!(100), "acc-eur"),
+                // 20:00 UTC on 3 May is already 4 May in Tokyo.
+                IncomeData {
+                    activity_instant: Utc.with_ymd_and_hms(2025, 5, 3, 20, 0, 0).unwrap(),
+                    ..income(
+                        "2025-05-03",
+                        "DIVIDEND",
+                        "ASML",
+                        "EUR",
+                        dec!(100),
+                        "acc-eur",
+                    )
+                },
+            ]),
+            first_activity_date: Utc.with_ymd_and_hms(2025, 5, 2, 0, 0, 0).unwrap(),
+        }),
+        Arc::new(RwLock::new("USD".to_string())),
+        Arc::new(RwLock::new("Asia/Tokyo".to_string())),
+    );
+
+    let summaries = service.get_income_summary(None).unwrap();
+
+    // Today's rate (1.17) would make each $117. The holdings income column
+    // converts on the activity's day in the user's timezone; so does this.
+    for period in ["ALL", "LAST_YEAR"] {
+        let summary = summary(&summaries, period);
+        assert_eq!(summary.by_asset["SAP"].income, dec!(105));
+        assert_eq!(summary.by_asset["ASML"].income, dec!(108));
+        assert_eq!(summary.total_income, dec!(213));
+        assert_eq!(summary.by_month.get("2025-05"), Some(&dec!(213)));
+    }
 }
