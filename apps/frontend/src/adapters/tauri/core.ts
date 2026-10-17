@@ -61,9 +61,13 @@ export async function tauriInvoke<T>(
 ): Promise<T> {
   // These commands operate only on the application shell, never portfolio data.
   if (
-    ["open_external_url", "check_for_updates", "install_app_update", "get_platform"].includes(
-      command,
-    )
+    [
+      "open_external_url",
+      "check_for_updates",
+      "install_app_update",
+      "get_external_update_source",
+      "get_platform",
+    ].includes(command)
   )
     return rawInvoke<T>(command, payload);
   try {

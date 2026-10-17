@@ -1,9 +1,9 @@
-import { act, renderHook } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { beforeEach, expect, it, vi } from "vitest";
 import { usePersistentState } from "./use-persistent-state";
-import { UPDATE_DISMISSED_KEY, useCheckForUpdates } from "./use-updater";
+import { UPDATE_DISMISSED_KEY, useCheckForUpdates, useCheckUpdateOnStartup } from "./use-updater";
 
 vi.mock("@/features/profiles/session", () => ({
   selectedProfileId: () => "legacy",
@@ -15,6 +15,7 @@ vi.mock("@/adapters", () => ({
   isAutoUpdateCheckEnabled: vi.fn(),
   checkForUpdates: vi.fn().mockResolvedValue({ latestVersion: "4.0.0" }),
   installUpdate: vi.fn(),
+  getExternalUpdateSource: vi.fn().mockResolvedValue(null),
 }));
 
 beforeEach(() => localStorage.clear());
@@ -54,3 +55,38 @@ it.each([false, true])(
     client.clear();
   },
 );
+
+it.each([
+  { kind: "packager", explanation: "Update Wealthfolio with pacman." },
+  { kind: "flatpak" },
+  { kind: "packageManager" },
+] as const)("startup check skips the update feed for $kind installs", async (source) => {
+  const adapters = await import("@/adapters");
+  vi.mocked(adapters.getExternalUpdateSource).mockResolvedValueOnce(source);
+  vi.mocked(adapters.isAutoUpdateCheckEnabled).mockResolvedValue(true);
+  vi.mocked(adapters.checkForUpdates).mockClear();
+  const client = new QueryClient();
+  const wrapper = ({ children }: { children: ReactNode }) => (
+    <QueryClientProvider client={client}>{children}</QueryClientProvider>
+  );
+  const { result } = renderHook(() => useCheckUpdateOnStartup(), { wrapper });
+  await waitFor(() => expect(result.current.isSuccess).toBe(true));
+  expect(result.current.data).toBeNull();
+  expect(adapters.checkForUpdates).not.toHaveBeenCalled();
+  client.clear();
+});
+
+it("startup check still asks the update feed when the app updates itself", async () => {
+  const adapters = await import("@/adapters");
+  vi.mocked(adapters.isAutoUpdateCheckEnabled).mockResolvedValue(true);
+  vi.mocked(adapters.checkForUpdates).mockClear();
+  const client = new QueryClient();
+  const wrapper = ({ children }: { children: ReactNode }) => (
+    <QueryClientProvider client={client}>{children}</QueryClientProvider>
+  );
+  const { result } = renderHook(() => useCheckUpdateOnStartup(), { wrapper });
+  await waitFor(() => expect(result.current.isSuccess).toBe(true));
+  expect(result.current.data).toEqual({ latestVersion: "4.0.0" });
+  expect(adapters.checkForUpdates).toHaveBeenCalledOnce();
+  client.clear();
+});

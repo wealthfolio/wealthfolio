@@ -448,6 +448,7 @@ pub fn run() {
             commands::utilities::profile_transfer_file,
             commands::utilities::check_for_updates,
             commands::utilities::install_app_update,
+            commands::utilities::get_external_update_source,
             commands::utilities::backup_database,
             commands::utilities::list_database_backups,
             commands::utilities::open_database_backup_folder,

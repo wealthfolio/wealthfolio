@@ -1450,6 +1450,12 @@ export interface UpdateInfo {
   screenshots?: string[];
 }
 
+/** How updates arrive when the in-app updater must leave them to something else. */
+export type ExternalUpdateSource =
+  | { kind: "packager"; explanation: string }
+  | { kind: "flatpak" }
+  | { kind: "packageManager" };
+
 // Platform/Broker type
 export interface Platform {
   id: string;

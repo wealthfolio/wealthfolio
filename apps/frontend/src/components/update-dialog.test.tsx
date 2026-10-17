@@ -15,6 +15,7 @@ vi.mock("@/adapters", () => ({
   isAutoUpdateCheckEnabled: vi.fn().mockResolvedValue(true),
   checkForUpdates: vi.fn().mockResolvedValue({ latestVersion: "4.0.0", screenshots: [] }),
   installUpdate: vi.fn(),
+  getExternalUpdateSource: vi.fn().mockResolvedValue(null),
   openUrlInBrowser: vi.fn(),
 }));
 

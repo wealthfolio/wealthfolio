@@ -126,6 +126,15 @@ pub fn handle_menu_event(app: &AppHandle, event_id: &str) {
         "check_for_update" => {
             let app_handle = app.clone();
             tauri::async_runtime::spawn(async move {
+                // A detection error falls through to check_for_update, which reports it.
+                if let Ok(Some(source)) = crate::updater::external_update_source().await {
+                    app_handle
+                        .dialog()
+                        .message(native_dialog_text(source.message()))
+                        .title("Updates Managed Elsewhere")
+                        .show(|_| {});
+                    return;
+                }
                 match crate::updater::check_for_update(app_handle.clone()).await {
                     Ok(Some(update_info)) => {
                         // Update available - emit event for frontend to show dialog
@@ -161,5 +170,32 @@ pub fn handle_menu_event(app: &AppHandle, event_id: &str) {
                 .show(|_| {});
         }
         _ => {}
+    }
+}
+
+/// rfd's GTK backend passes dialog text to GTK as a printf format string
+/// (PolyMeilex/rfd#343), so a literal `%` (in a packager's explanation, say)
+/// must be doubled there. Remove this once tauri-plugin-dialog uses an rfd with
+/// that fixed, or the doubled `%%` will show.
+fn native_dialog_text(text: &str) -> String {
+    if cfg!(target_os = "linux") {
+        text.replace('%', "%%")
+    } else {
+        text.to_owned()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn native_dialog_text_keeps_percent_signs_literal() {
+        let expected = if cfg!(target_os = "linux") {
+            "Run %%s or 100%% with apt."
+        } else {
+            "Run %s or 100% with apt."
+        };
+        assert_eq!(native_dialog_text("Run %s or 100% with apt."), expected);
     }
 }

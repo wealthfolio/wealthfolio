@@ -26,7 +26,7 @@ use wealthfolio_storage_sqlite::db;
 use crate::commands::portfolio::holdings_account_ids;
 use crate::context::ServiceContext;
 #[cfg(desktop)]
-use crate::updater::{check_for_update, install_update};
+use crate::updater::{check_for_update, external_update_source, install_update};
 
 const PENDING_EXPORTS_DIR: &str = "pending-exports";
 const PENDING_EXPORT_TTL: Duration = Duration::from_secs(60 * 60);
@@ -495,6 +495,23 @@ pub async fn check_for_updates(app_handle: AppHandle) -> Result<Option<serde_jso
     {
         let result = check_for_update(app_handle).await?;
         result
+            .map(serde_json::to_value)
+            .transpose()
+            .map_err(|error| error.to_string())
+    }
+    #[cfg(not(desktop))]
+    {
+        Ok(None)
+    }
+}
+
+/// Report how updates arrive when the in-app updater must not install them.
+#[tauri::command]
+pub async fn get_external_update_source() -> Result<Option<serde_json::Value>, String> {
+    #[cfg(desktop)]
+    {
+        external_update_source()
+            .await?
             .map(serde_json::to_value)
             .transpose()
             .map_err(|error| error.to_string())

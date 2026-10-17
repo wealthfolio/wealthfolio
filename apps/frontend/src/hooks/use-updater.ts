@@ -4,6 +4,7 @@ import {
   logger,
   isAutoUpdateCheckEnabled,
   checkForUpdates,
+  getExternalUpdateSource,
   installUpdate,
 } from "@/adapters";
 import { toast } from "@wealthfolio/ui/components/ui/use-toast";
@@ -12,6 +13,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
 const UPDATE_QUERY_KEY = ["app-update"];
+const EXTERNAL_UPDATE_SOURCE_QUERY_KEY = ["external-update-source"];
 export const UPDATE_DISMISSED_KEY = "update-dismissed";
 
 /** Clear the snooze state so the update dialog can reappear. */
@@ -56,6 +58,8 @@ export function useCheckUpdateOnStartup() {
   return useQuery({
     queryKey: UPDATE_QUERY_KEY,
     queryFn: async () => {
+      // A package manager handles updates, so don't ask the update feed.
+      if (await getExternalUpdateSource()) return null;
       const enabled = await isAutoUpdateCheckEnabled();
       if (!enabled) return null;
       return checkForUpdates();
@@ -65,6 +69,20 @@ export function useCheckUpdateOnStartup() {
     refetchOnMount: false,
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
+    retry: false,
+  });
+}
+
+/**
+ * How updates arrive when a package manager handles them instead of the app.
+ * Null when the app installs its own updates.
+ */
+export function useExternalUpdateSource() {
+  return useQuery({
+    queryKey: EXTERNAL_UPDATE_SOURCE_QUERY_KEY,
+    queryFn: getExternalUpdateSource,
+    staleTime: Infinity,
+    gcTime: Infinity,
     retry: false,
   });
 }

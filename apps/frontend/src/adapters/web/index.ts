@@ -471,6 +471,7 @@ export {
   exportDatabaseBackup,
   getAppInfo,
   getDatabaseBackupDownloadUrl,
+  getExternalUpdateSource,
   getPlatform,
   getSettings,
   installUpdate,

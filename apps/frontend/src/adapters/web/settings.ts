@@ -4,7 +4,7 @@ import { profileFetch } from "@/features/profiles/session";
 
 import { API_PREFIX, invoke, logger } from "./core";
 import { notifyUnauthorized } from "@/lib/auth-token";
-import type { Settings, UpdateInfo } from "@/lib/types";
+import type { ExternalUpdateSource, Settings, UpdateInfo } from "@/lib/types";
 import type { AppInfo, PlatformInfo, BackupImportPreview } from "../types";
 export type { BackupImportPreview } from "../types";
 
@@ -203,6 +203,13 @@ export const checkForUpdates = async (options?: {
  */
 export const installUpdate = (): Promise<void> => {
   return Promise.reject(new Error("Updates can only be installed on the desktop client"));
+};
+
+/**
+ * The web client never installs updates itself; the server reports releases.
+ */
+export const getExternalUpdateSource = (): Promise<ExternalUpdateSource | null> => {
+  return Promise.resolve(null);
 };
 
 // ============================================================================

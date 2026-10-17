@@ -1,3 +1,5 @@
+use std::sync::OnceLock;
+
 use chrono::DateTime;
 use log::{error, info, warn};
 use serde::Serialize;
@@ -7,6 +9,102 @@ use tauri_plugin_updater::UpdaterExt;
 // Helper function to detect if this is an App Store build
 fn is_app_store_build() -> bool {
     cfg!(feature = "appstore")
+}
+
+/// How this install gets updates when the in-app updater must leave them alone.
+#[derive(Serialize, Clone, Debug, PartialEq, Eq)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum ExternalUpdateSource {
+    /// `WEALTHFOLIO_UPDATE_EXPLANATION` was set when building or launching the app.
+    Packager { explanation: String },
+    /// The app runs inside Flatpak.
+    Flatpak,
+    /// A .deb/.rpm build that dpkg/rpm didn't install, such as one repackaged
+    /// for another distribution. Installing the update would add a second copy.
+    PackageManager,
+}
+
+impl ExternalUpdateSource {
+    /// English text for native dialogs and errors; the frontend shows its own translations.
+    pub fn message(&self) -> &str {
+        match self {
+            Self::Packager { explanation } => explanation,
+            Self::Flatpak => {
+                "This copy of Wealthfolio was installed with Flatpak. Update it with Flatpak or your software center."
+            }
+            Self::PackageManager => {
+                "This installation can't be updated from within Wealthfolio. Update it the same way you installed it."
+            }
+        }
+    }
+}
+
+/// Returns how updates arrive when the in-app updater must not install them, or
+/// `None` when it does. Detected once per launch; on Linux .deb/.rpm builds this
+/// asks dpkg or rpm, so it runs on a blocking thread.
+pub async fn external_update_source() -> Result<Option<ExternalUpdateSource>, String> {
+    static SOURCE: OnceLock<Option<ExternalUpdateSource>> = OnceLock::new();
+    tauri::async_runtime::spawn_blocking(|| {
+        SOURCE.get_or_init(detect_external_update_source).clone()
+    })
+    .await
+    .map_err(|e| format!("Failed to detect how updates are installed: {}", e))
+}
+
+fn detect_external_update_source() -> Option<ExternalUpdateSource> {
+    if let Some(explanation) = packager_explanation(
+        option_env!("WEALTHFOLIO_UPDATE_EXPLANATION"),
+        std::env::var("WEALTHFOLIO_UPDATE_EXPLANATION").ok(),
+    ) {
+        return Some(ExternalUpdateSource::Packager { explanation });
+    }
+
+    if std::env::var_os("FLATPAK_ID").is_some() {
+        return Some(ExternalUpdateSource::Flatpak);
+    }
+    if !package_manager_owns_binary() {
+        return Some(ExternalUpdateSource::PackageManager);
+    }
+
+    None
+}
+
+/// A value set at build time wins over one set at launch. Blank values count as unset.
+fn packager_explanation(build_time: Option<&str>, run_time: Option<String>) -> Option<String> {
+    build_time
+        .map(str::to_owned)
+        .into_iter()
+        .chain(run_time)
+        .map(|value| value.trim().to_owned())
+        .find(|value| !value.is_empty())
+}
+
+/// The updater installs .deb and .rpm updates with `dpkg -i` / `rpm -U`. That is
+/// only safe when dpkg/rpm installed the running binary; other bundles pass.
+fn package_manager_owns_binary() -> bool {
+    use tauri::utils::config::BundleType;
+    use tauri::utils::platform::{bundle_type, current_exe};
+
+    let (program, flag) = match bundle_type() {
+        Some(BundleType::Deb) => ("dpkg-query", "-S"),
+        Some(BundleType::Rpm) => ("rpm", "-qf"),
+        _ => return true,
+    };
+    current_exe().is_ok_and(|exe| package_owns_file(program, flag, &exe))
+}
+
+/// A query that fails, including one whose tool isn't installed, means no.
+fn package_owns_file(program: &str, flag: &str, path: &std::path::Path) -> bool {
+    use std::process::{Command, Stdio};
+
+    Command::new(program)
+        .arg(flag)
+        .arg(path)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .is_ok_and(|status| status.success())
 }
 
 // Helper function to retrieve platform-specific store URLs
@@ -63,6 +161,10 @@ fn extract_screenshots(raw_json: &serde_json::Value) -> Option<Vec<String>> {
 /// Returns `Ok(Some(UpdateInfo))` if an update is available,
 /// `Ok(None)` if already up-to-date.
 pub async fn check_for_update(app_handle: AppHandle) -> Result<Option<UpdateInfo>, String> {
+    if let Some(source) = external_update_source().await? {
+        return Err(source.message().to_string());
+    }
+
     let is_appstore = is_app_store_build();
 
     let update = app_handle
@@ -121,6 +223,10 @@ struct UpdateDownloadProgress {
 /// Emits `app:update-download-progress` events so the frontend can show progress.
 /// Returns `Err` on failure so the frontend can display the error inline.
 pub async fn install_update(app_handle: AppHandle) -> Result<(), String> {
+    if let Some(source) = external_update_source().await? {
+        return Err(source.message().to_string());
+    }
+
     info!("Starting update download and installation");
 
     let update = match app_handle.updater_builder().build() {
@@ -183,5 +289,68 @@ pub async fn install_update(app_handle: AppHandle) -> Result<(), String> {
             error!("Failed to download and install update: {}", e);
             Err(format!("Failed to install update: {}", e))
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn packager_explanation_prefers_build_time_value() {
+        assert_eq!(
+            packager_explanation(Some("Use pacman."), Some("Use apt.".to_string())),
+            Some("Use pacman.".to_string())
+        );
+    }
+
+    #[test]
+    fn packager_explanation_falls_back_to_run_time_value() {
+        assert_eq!(
+            packager_explanation(None, Some("  Use apt.\n".to_string())),
+            Some("Use apt.".to_string())
+        );
+        assert_eq!(
+            packager_explanation(Some(" "), Some("Use apt.".to_string())),
+            Some("Use apt.".to_string())
+        );
+    }
+
+    #[test]
+    fn packager_explanation_ignores_blank_values() {
+        assert_eq!(packager_explanation(None, None), None);
+        assert_eq!(packager_explanation(Some(""), Some("\t".to_string())), None);
+    }
+
+    #[test]
+    fn external_update_source_serializes_for_the_frontend() {
+        assert_eq!(
+            serde_json::to_value(ExternalUpdateSource::Packager {
+                explanation: "Use pacman.".to_string()
+            })
+            .expect("serializes"),
+            serde_json::json!({ "kind": "packager", "explanation": "Use pacman." })
+        );
+        assert_eq!(
+            serde_json::to_value(ExternalUpdateSource::Flatpak).expect("serializes"),
+            serde_json::json!({ "kind": "flatpak" })
+        );
+        assert_eq!(
+            serde_json::to_value(ExternalUpdateSource::PackageManager).expect("serializes"),
+            serde_json::json!({ "kind": "packageManager" })
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn package_owns_file_needs_a_successful_query() {
+        let path = std::path::Path::new("/usr/bin/wealthfolio");
+        assert!(package_owns_file("true", "-S", path));
+        assert!(!package_owns_file("false", "-S", path));
+        assert!(!package_owns_file(
+            "wealthfolio-missing-package-tool",
+            "-S",
+            path
+        ));
     }
 }

@@ -244,6 +244,20 @@ restore flow. A raw copy of an encrypted production database still requires its
 original encryption key; development does not copy or fall back to production
 credentials. Never point development at the live production profile directory.
 
+#### Packaging for a Distribution
+
+If a package manager delivers updates, set `WEALTHFOLIO_UPDATE_EXPLANATION` to
+the message users should see when building:
+
+```bash
+WEALTHFOLIO_UPDATE_EXPLANATION="Update Wealthfolio with your package manager." pnpm tauri build
+```
+
+The desktop app then makes no update check, hides the automatic update setting
+and shows the message when users check for updates. A launcher script can set
+the same variable at run time instead. Flatpak installs, and `.deb`/`.rpm`
+builds whose binary dpkg or rpm did not install, are detected without it.
+
 #### Addon Development Mode
 
 Addon hot reload servers now start only when you explicitly opt in.

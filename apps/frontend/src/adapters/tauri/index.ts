@@ -172,6 +172,7 @@ export {
   getAppInfo,
   checkForUpdates,
   installUpdate,
+  getExternalUpdateSource,
   getPlatform,
 } from "./settings";
 export type { BackupImportPreview, DatabaseBackup, DatabaseEncryptionStatus } from "./settings";

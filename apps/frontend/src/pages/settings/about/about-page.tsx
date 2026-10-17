@@ -1,10 +1,12 @@
+import type { TFunction } from "i18next";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { getAppInfo } from "@/adapters";
 import { ExternalLink } from "@/components/external-link";
 import { usePlatform } from "@/hooks/use-platform";
-import { useCheckForUpdates } from "@/hooks/use-updater";
+import { useCheckForUpdates, useExternalUpdateSource } from "@/hooks/use-updater";
+import type { ExternalUpdateSource } from "@/lib/types";
 import { Button } from "@wealthfolio/ui/components/ui/button";
 import {
   Card,
@@ -18,6 +20,17 @@ import { Separator } from "@wealthfolio/ui/components/ui/separator";
 import { toast } from "@wealthfolio/ui/components/ui/use-toast";
 import { SettingsHeader } from "../settings-header";
 
+function externalUpdateMessage(source: ExternalUpdateSource, t: TFunction): string {
+  switch (source.kind) {
+    case "packager":
+      return source.explanation;
+    case "flatpak":
+      return t("settings:about_updates_external_flatpak");
+    case "packageManager":
+      return t("settings:about_updates_external_package_manager");
+  }
+}
+
 export default function AboutSettingsPage() {
   const { t } = useTranslation();
   const [version, setVersion] = useState<string>("");
@@ -25,6 +38,8 @@ export default function AboutSettingsPage() {
   const [logsDir, setLogsDir] = useState<string>("");
   const { isMobile } = usePlatform();
   const checkUpdateMutation = useCheckForUpdates();
+  const { data: externalUpdateSource, isPending: isLoadingUpdateSource } =
+    useExternalUpdateSource();
 
   useEffect(() => {
     // Use unified command for both desktop and web
@@ -44,10 +59,17 @@ export default function AboutSettingsPage() {
   }, [isMobile]);
 
   const handleCheckForUpdates = () => {
+    if (externalUpdateSource) {
+      toast({
+        title: t("settings:about_updates_external_title"),
+        description: externalUpdateMessage(externalUpdateSource, t),
+      });
+      return;
+    }
     checkUpdateMutation.mutate();
   };
 
-  const isCheckingUpdate = checkUpdateMutation.isPending;
+  const isCheckingUpdate = checkUpdateMutation.isPending || isLoadingUpdateSource;
 
   const handleCopy = async (value: string, label: string) => {
     try {

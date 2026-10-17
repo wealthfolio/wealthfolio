@@ -1,5 +1,5 @@
 // Settings Commands
-import type { Settings, UpdateInfo } from "@/lib/types";
+import type { ExternalUpdateSource, Settings, UpdateInfo } from "@/lib/types";
 import type { AppInfo, PlatformInfo, BackupImportPreview } from "../types";
 export type { BackupImportPreview } from "../types";
 
@@ -154,6 +154,14 @@ export const checkForUpdates = async (_options?: {
  */
 export const installUpdate = async (): Promise<void> => {
   await invoke("install_app_update");
+};
+
+/**
+ * How updates arrive when the in-app updater must leave them to a package
+ * manager. Null when the app installs its own updates.
+ */
+export const getExternalUpdateSource = async (): Promise<ExternalUpdateSource | null> => {
+  return await invoke<ExternalUpdateSource | null>("get_external_update_source");
 };
 
 // ============================================================================
