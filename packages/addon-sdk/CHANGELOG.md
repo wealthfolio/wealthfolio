@@ -8,6 +8,10 @@ and this project adheres to
 
 ### Added
 
+- `PortfolioAPI.getNetWorth(date?)` returns net worth as a balance sheet. It
+  covers every account type, so it is where addons read credit card balances
+  (`getLatestValuations()` covers holdings accounts only).
+
 - `NetworkRequest.timeoutSecs` for longer-running addon HTTP requests. Defaults
   to 10 seconds; positive integer values are capped server-side at 120 seconds.
 
@@ -37,6 +41,12 @@ and this project adheres to
 - `IncomeSummary.unconvertedCurrencies`, the currencies whose income has no
   exchange rate to the summary's currency. Requires a Wealthfolio release that
   ships it (unreleased at the time of writing).
+
+### Deprecated
+
+- `Account.balance` is now optional and deprecated. The backend never populated
+  it, so it was always `undefined` at runtime despite being typed `number`. Use
+  `getLatestValuations()` or `getNetWorth()`.
 
 ### Changed
 
