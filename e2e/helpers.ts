@@ -19,6 +19,7 @@ const ACTIVITY_TYPE_TEST_IDS: Record<string, string> = {
 interface E2ESettings {
   language?: string;
   onboardingCompleted?: boolean;
+  autoUpdateCheckEnabled?: boolean;
 }
 
 interface AuthStatus {
@@ -69,10 +70,22 @@ async function getE2ESettings(page: Page) {
 
 async function canSkipLoginAndOnboardingUi(page: Page) {
   const [authDisabled, settings] = await Promise.all([isAuthDisabled(page), getE2ESettings(page)]);
+  if (authDisabled) await disableAutoUpdateCheck(page, settings);
   if (!authDisabled || !settings?.onboardingCompleted) return false;
 
   await ensureE2ELanguage(page, settings);
   return true;
+}
+
+// When the release feed has a newer version than this checkout, the app opens an
+// update dialog that blocks clicks. Turn the check off before the app loads.
+async function disableAutoUpdateCheck(page: Page, settings: E2ESettings | null) {
+  if (settings?.autoUpdateCheckEnabled === false) return;
+
+  const updated = await putApiJson<E2ESettings>(page, "/settings", {
+    autoUpdateCheckEnabled: false,
+  });
+  expect(updated?.autoUpdateCheckEnabled, "turn off automatic update checks").toBe(false);
 }
 
 async function ensureE2ELanguage(page: Page, settings?: E2ESettings | null) {

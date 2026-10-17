@@ -29,6 +29,7 @@ async function createProfile(context: BrowserContext, name: string) {
       timezone: "UTC",
       baseCurrency: "USD",
       syncEnabled: false,
+      autoUpdateCheckEnabled: false,
     },
   });
   expect(settings.ok()).toBeTruthy();

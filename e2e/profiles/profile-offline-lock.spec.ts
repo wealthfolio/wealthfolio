@@ -40,6 +40,7 @@ for (const protectedProfile of [false, true]) {
         timezone: "UTC",
         language: "en",
         syncEnabled: false,
+        autoUpdateCheckEnabled: false,
       },
     });
     expect(settings.ok()).toBeTruthy();
@@ -117,6 +118,7 @@ test("a server-side lock without a tab broadcast covers the idle screen", async 
       timezone: "UTC",
       language: "en",
       syncEnabled: false,
+      autoUpdateCheckEnabled: false,
     },
   });
   expect(settings.ok()).toBeTruthy();

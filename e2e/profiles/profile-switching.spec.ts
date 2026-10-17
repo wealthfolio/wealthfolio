@@ -11,7 +11,14 @@ async function command(context: BrowserContext, name: string, data = {}, scope?:
 async function settings(context: BrowserContext, scope: string, theme: string, font: string) {
   const result = await context.request.put("/api/v1/settings", {
     headers: { "x-wf-profile-scope": scope },
-    data: { onboardingCompleted: true, theme, font, language: "en", syncEnabled: false },
+    data: {
+      onboardingCompleted: true,
+      theme,
+      font,
+      language: "en",
+      syncEnabled: false,
+      autoUpdateCheckEnabled: false,
+    },
   });
   expect(result.ok()).toBeTruthy();
 }
