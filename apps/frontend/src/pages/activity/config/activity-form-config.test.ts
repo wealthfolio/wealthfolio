@@ -36,6 +36,34 @@ describe("cash transfer defaults", () => {
   );
 });
 
+describe("option defaults", () => {
+  const option = {
+    activityType: ActivityType.BUY,
+    instrumentType: "OPTION",
+    assetSymbol: "AAPL270618C01234500",
+    currency: "CAD",
+  };
+
+  it.each(["BUY", "SELL"] as const)(
+    "starts the %s quote currency from the option's, not the activity's",
+    (type) => {
+      const defaults = ACTIVITY_FORM_CONFIG[type].getDefaults(
+        { ...option, assetQuoteCcy: "USD" },
+        [],
+      );
+      expect(defaults).toMatchObject({ currency: "CAD", symbolQuoteCcy: "USD" });
+    },
+  );
+
+  it.each(["BUY", "SELL"] as const)(
+    "starts the %s quote currency from the activity's when the option's is unknown",
+    (type) => {
+      const defaults = ACTIVITY_FORM_CONFIG[type].getDefaults(option, []);
+      expect(defaults).toMatchObject({ symbolQuoteCcy: "CAD" });
+    },
+  );
+});
+
 describe("hasActivityForm", () => {
   it("accepts every type the picker can offer", () => {
     for (const pickerType of [

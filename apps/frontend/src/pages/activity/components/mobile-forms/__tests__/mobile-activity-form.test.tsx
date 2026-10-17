@@ -3,6 +3,7 @@ import type { ActivityDetails } from "@/lib/types";
 import { render, screen } from "@/test/render";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
+import { useFormContext } from "react-hook-form";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import type { AccountSelectOption } from "../../forms/fields";
 import { MobileActivityForm } from "../mobile-activity-form";
@@ -40,7 +41,11 @@ vi.mock("../mobile-details-step", () => ({
     activityType?: string;
     isEditing?: boolean;
   }) => (
-    <div data-testid="details-step" data-editing={String(!!isEditing)}>
+    <div
+      data-testid="details-step"
+      data-editing={String(!!isEditing)}
+      data-quote-ccy={useFormContext<{ symbolQuoteCcy?: string }>().getValues("symbolQuoteCcy")}
+    >
       {activityType ?? "no-type"}
     </div>
   ),
@@ -128,4 +133,25 @@ describe("MobileActivityForm reclassification", () => {
       expect(screen.getByTestId("details-step")).toHaveTextContent(activityType);
     },
   );
+});
+
+describe("MobileActivityForm option defaults", () => {
+  const option = {
+    ...activity(ActivityType.BUY),
+    instrumentType: "OPTION",
+    assetSymbol: "AAPL270618C01234500",
+    currency: "CAD",
+  };
+
+  it("starts the quote currency from the option's, not the activity's", () => {
+    renderForm({ ...option, assetQuoteCcy: "USD" });
+
+    expect(screen.getByTestId("details-step")).toHaveAttribute("data-quote-ccy", "USD");
+  });
+
+  it("starts the quote currency from the activity's when the option's is unknown", () => {
+    renderForm(option);
+
+    expect(screen.getByTestId("details-step")).toHaveAttribute("data-quote-ccy", "CAD");
+  });
 });

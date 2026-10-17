@@ -20,9 +20,10 @@ import type { ColumnDef } from "@tanstack/react-table";
 import {
   Badge,
   Checkbox,
+  type FormattingApi,
   type SymbolSearchResult,
+  useAmountFormatting,
   useDateFormatting,
-  useNumberFormatting,
 } from "@wealthfolio/ui";
 import type { TFunction } from "i18next";
 import { useCallback, useMemo } from "react";
@@ -75,6 +76,27 @@ export const shouldDisplaySubtypeInTypeColumn = (
   subtype: string | null | undefined,
 ): boolean => showSubtypeInType && shouldDisplaySubtype(transaction, activityType, subtype);
 
+/** The symbol cell's second line: an option's contract, or the exchange. */
+export const getSymbolDisplayContext = (
+  row: LocalTransaction,
+  formatting: Pick<FormattingApi, "formatCalendarDate" | "formatPrice">,
+): string | undefined => {
+  const symbol = normalizeActivityToken(row.assetSymbol);
+  if (!symbol || symbol === "CASH" || symbol.startsWith("$CASH")) {
+    return undefined;
+  }
+  // Show contract description for options
+  const parsed = row.instrumentType === "OPTION" ? parseOccSymbol(symbol) : null;
+  if (parsed) {
+    // The loaded quote currency is the saved asset's. A changed symbol uses the
+    // picked symbol's, which saving sends for the asset.
+    const symbolChanged = symbol !== normalizeActivityToken(row._originalAssetSymbol);
+    const quoteCcy = symbolChanged ? row.pendingQuoteCcy : row.assetQuoteCcy;
+    return formatOptionSubtitle(parsed, quoteCcy ?? row.currency, formatting);
+  }
+  return getExchangeDisplayName(row.exchangeMic);
+};
+
 const getSubtypeDisplayLabel = (t: TFunction, subtype: string, optionLabel?: string): string => {
   return optionLabel ?? localizeActivitySubtypeName(t, subtype);
 };
@@ -107,10 +129,10 @@ export function useActivityColumns({
   onSymbolSelect,
   onCreateCustomAsset,
 }: UseActivityColumnsOptions) {
-  const numberFormatting = useNumberFormatting();
+  const amountFormatting = useAmountFormatting();
   const dateFormatting = useDateFormatting();
 
-  const formatting = { ...dateFormatting, ...numberFormatting };
+  const formatting = { ...dateFormatting, ...amountFormatting };
 
   const { t } = useTranslation();
 
@@ -310,6 +332,8 @@ export function useActivityColumns({
         header: t("activity:datagrid.column.symbol"),
         size: 160,
         meta: {
+          // The display context reads more than the symbol, such as the quote currency.
+          getRenderKey: (rowData) => getSymbolDisplayContext(rowData, formatting),
           cell: {
             variant: "symbol",
             isDisabled: (rowData: unknown) => {
@@ -320,19 +344,8 @@ export function useActivityColumns({
                 !isTransferActivity(row.activityType)
               );
             },
-            getDisplayContext: (rowData: unknown) => {
-              const row = rowData as LocalTransaction;
-              const symbol = (row.assetSymbol ?? "").trim().toUpperCase();
-              if (!symbol || symbol === "CASH" || symbol.startsWith("$CASH")) {
-                return undefined;
-              }
-              // Show contract description for options
-              const parsed = row.instrumentType === "OPTION" ? parseOccSymbol(symbol) : null;
-              if (parsed) {
-                return formatOptionSubtitle(parsed, formatting);
-              }
-              return getExchangeDisplayName(row.exchangeMic);
-            },
+            getDisplayContext: (rowData: unknown) =>
+              getSymbolDisplayContext(rowData as LocalTransaction, formatting),
             isClearable: (rowData: unknown) => {
               const row = rowData as LocalTransaction;
               return !isAssetIdentityRequired(row.activityType ?? "", row.subtype);

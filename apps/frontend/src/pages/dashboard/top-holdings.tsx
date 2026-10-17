@@ -12,6 +12,7 @@ import {
   Button,
   GainAmount,
   Icons,
+  useAmountFormatting,
   useNumberFormatting,
   useDateFormatting,
 } from "@wealthfolio/ui";
@@ -50,7 +51,7 @@ function HoldingRow({
   showName,
   onClick,
 }: HoldingRowProps) {
-  const numberFormatting = useNumberFormatting();
+  const amountFormatting = useAmountFormatting();
   const dateFormatting = useDateFormatting();
   const formatting = useNumberFormatting();
   const { t } = useTranslation();
@@ -60,7 +61,10 @@ function HoldingRow({
   const nameLabel = holding.instrument?.name?.trim() || symbolLabel;
   const title = showName ? nameLabel : symbolLabel;
   const subtitle = parsedOption
-    ? formatOptionSubtitle(parsedOption, { ...numberFormatting, ...dateFormatting })
+    ? formatOptionSubtitle(parsedOption, holding.instrument?.currency ?? holding.localCurrency, {
+        ...amountFormatting,
+        ...dateFormatting,
+      })
     : t("dashboard:holdings.shares", {
         // Force the plural form when hidden so the label does not leak a quantity of exactly 1.
         count: isHidden ? 0 : (holding.quantity ?? 0),

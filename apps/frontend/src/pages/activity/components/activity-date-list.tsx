@@ -24,7 +24,6 @@ import {
   useAmountFormatting,
   useDateFormatting,
   type FormattingApi,
-  useNumberFormatting,
 } from "@wealthfolio/ui";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -172,7 +171,6 @@ function ActivityDateListItem({
   currency,
   showCashLedger,
 }: ActivityDateListItemProps) {
-  const numberFormatting = useNumberFormatting();
   const dateFormatting = useDateFormatting();
   const formatting = useAmountFormatting();
   const { t } = useTranslation();
@@ -194,7 +192,10 @@ function ActivityDateListItem({
       : symbol;
   const avatarSymbol = isCash ? "$CASH" : symbol;
   const optionSubtitle = parsedOption
-    ? formatOptionSubtitle(parsedOption, { ...numberFormatting, ...dateFormatting })
+    ? formatOptionSubtitle(parsedOption, activity.assetQuoteCcy ?? activity.currency, {
+        ...formatting,
+        ...dateFormatting,
+      })
     : null;
   const formattedDate = formatDateTime(activity.date, dateFormatting, appTimezone);
   const displayValue = calculateActivityValue(activity);

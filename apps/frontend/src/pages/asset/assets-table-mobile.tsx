@@ -2,14 +2,7 @@ import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 
-import {
-  Badge,
-  Card,
-  Input,
-  useAmountFormatting,
-  useNumberFormatting,
-  useDateFormatting,
-} from "@wealthfolio/ui";
+import { Badge, Card, Input, useAmountFormatting, useDateFormatting } from "@wealthfolio/ui";
 
 import { TickerAvatar } from "@/components/ticker-avatar";
 import { formatOptionSubtitle, parseOccSymbol } from "@/lib/occ-symbol";
@@ -66,7 +59,6 @@ export function AssetsTableMobile({
   isRefetchingQuotes,
 }: AssetsTableMobileProps) {
   const formatting = useAmountFormatting();
-  const numberFormatting = useNumberFormatting();
   const dateFormatting = useDateFormatting();
   const { t } = useTranslation();
   const { settings } = useSettingsContext();
@@ -231,7 +223,10 @@ export function AssetsTableMobile({
                     ? parsedOption.underlying
                     : (asset.displayCode ?? asset.name ?? t("asset:table.unknown"));
                   const subtitle = parsedOption
-                    ? formatOptionSubtitle(parsedOption, { ...numberFormatting, ...dateFormatting })
+                    ? formatOptionSubtitle(parsedOption, asset.quoteCcy, {
+                        ...formatting,
+                        ...dateFormatting,
+                      })
                     : (asset.name ?? "-");
                   const avatarSymbol = parsedOption ? parsedOption.underlying : rawSymbol;
                   return (

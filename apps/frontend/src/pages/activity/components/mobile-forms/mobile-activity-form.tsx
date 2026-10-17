@@ -451,7 +451,7 @@ export function MobileActivityForm({
       ...(isOptionActivity && {
         assetType: "option" as const,
         assetKind: "OPTION",
-        symbolQuoteCcy: activity?.currency ?? undefined,
+        symbolQuoteCcy: activity?.assetQuoteCcy ?? activity?.currency ?? undefined,
         underlyingSymbol: parsedOcc?.underlying ?? "",
         strikePrice: parsedOcc?.strikePrice,
         expirationDate: parsedOcc?.expiration,

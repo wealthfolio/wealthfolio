@@ -32,10 +32,16 @@ vi.mock("@/components/ticker-search", () => ({
 function OptionContractTestForm({
   defaultExpirationDate,
   defaultUnitPrice = 5,
+  defaultCurrency = "USD",
+  defaultQuoteCcy,
+  defaultStrikePrice = 150,
   onSubmit = () => undefined,
 }: {
   defaultExpirationDate?: string;
   defaultUnitPrice?: number;
+  defaultCurrency?: string;
+  defaultQuoteCcy?: string;
+  defaultStrikePrice?: number;
   onSubmit?: (values: BuyFormValues) => void;
 }) {
   const form = useForm<BuyFormValues>({
@@ -49,9 +55,10 @@ function OptionContractTestForm({
       unitPrice: defaultUnitPrice,
       fee: 0,
       tax: 0,
-      currency: "USD",
+      currency: defaultCurrency,
+      symbolQuoteCcy: defaultQuoteCcy,
       underlyingSymbol: "AAPL",
-      strikePrice: 150,
+      strikePrice: defaultStrikePrice,
       expirationDate: defaultExpirationDate,
       optionType: "CALL",
       contractMultiplier: 100,
@@ -73,6 +80,8 @@ function OptionContractTestForm({
           strikePriceName="strikePrice"
           expirationDateName="expirationDate"
           optionTypeName="optionType"
+          currencyName="currency"
+          quoteCcyName="symbolQuoteCcy"
           unitPriceName="unitPrice"
         />
         <output data-testid="unit-price">{unitPrice}</output>
@@ -392,5 +401,43 @@ describe("OptionContractFields", () => {
         "OPTION",
       ),
     );
+  });
+
+  it("summarizes the strike in the option's quote currency, not the activity's", () => {
+    render(
+      <OptionContractTestForm
+        defaultExpirationDate="2027-06-18"
+        defaultStrikePrice={1234.5}
+        defaultCurrency="CAD"
+        defaultQuoteCcy="USD"
+      />,
+    );
+
+    expect(screen.getByText("Jun 18 $1,234.50 CALL")).toBeInTheDocument();
+  });
+
+  it("summarizes the strike in the quote currency the provider confirms", async () => {
+    vi.mocked(resolveSymbolQuote).mockResolvedValueOnce({ currency: "EUR" });
+    render(
+      <OptionContractTestForm
+        defaultExpirationDate="2027-06-18"
+        defaultStrikePrice={1234.5}
+        defaultQuoteCcy="USD"
+      />,
+    );
+
+    expect(await screen.findByText("Jun 18 €1,234.50 CALL")).toBeInTheDocument();
+  });
+
+  it("summarizes the strike in the activity currency without a quote currency", () => {
+    render(
+      <OptionContractTestForm
+        defaultExpirationDate="2027-06-18"
+        defaultStrikePrice={1234.5}
+        defaultCurrency="CAD"
+      />,
+    );
+
+    expect(screen.getByText("Jun 18 CA$1,234.50 CALL")).toBeInTheDocument();
   });
 });

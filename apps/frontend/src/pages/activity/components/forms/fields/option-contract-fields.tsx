@@ -2,7 +2,7 @@ import { resolveSymbolQuote } from "@/adapters";
 import TickerSearchInput from "@/components/ticker-search";
 import {
   buildOccSymbol,
-  formatOptionExpiration,
+  formatOptionSubtitle,
   isValidOptionExpiration,
   parseOccSymbol,
 } from "@/lib/occ-symbol";
@@ -16,6 +16,7 @@ import {
   FormLabel,
   FormMessage,
   MoneyInput,
+  useAmountFormatting,
   useDateFormatting,
 } from "@wealthfolio/ui";
 import { motion } from "motion/react";
@@ -48,6 +49,7 @@ export function OptionContractFields<TFieldValues extends FieldValues = FieldVal
   quoteCcyName,
   unitPriceName,
 }: OptionContractFieldsProps<TFieldValues>) {
+  const amountFormatting = useAmountFormatting();
   const dateFormatting = useDateFormatting();
 
   const { t } = useTranslation(["activity"]);
@@ -63,12 +65,21 @@ export function OptionContractFields<TFieldValues extends FieldValues = FieldVal
   const strikePrice = watch(strikePriceName) as number | undefined;
   const expirationDate = watch(expirationDateName) as string | undefined;
   const optionType = watch(optionTypeName) as string | undefined;
+  const quoteCcy = quoteCcyName ? (watch(quoteCcyName) as string | undefined) : undefined;
+  const currency = currencyName ? (watch(currencyName) as string | undefined) : undefined;
 
-  // Format expiration for summary (YYYY-MM-DD → "Mar 29")
-  const expirationDisplay = isValidOptionExpiration(expirationDate)
-    ? formatOptionExpiration(expirationDate, dateFormatting)
-    : undefined;
-  const hasContractSummary = strikePrice && isValidOptionExpiration(expirationDate) && optionType;
+  // Summary in the saved subtitle's format ("Mar 29 $150.00 CALL"). The strike is in
+  // the quote-currency hint the forms submit, which falls back to the activity currency.
+  const contractSummary =
+    strikePrice &&
+    isValidOptionExpiration(expirationDate) &&
+    (optionType === "CALL" || optionType === "PUT")
+      ? formatOptionSubtitle(
+          { underlying: underlying ?? "", expiration: expirationDate, optionType, strikePrice },
+          quoteCcy || currency || "",
+          { ...amountFormatting, ...dateFormatting },
+        )
+      : undefined;
 
   const handleUnderlyingSelect = (symbol: string, searchResult?: SymbolSearchResult) => {
     const upper = symbol.toUpperCase();
@@ -313,14 +324,12 @@ export function OptionContractFields<TFieldValues extends FieldValues = FieldVal
       </div>
 
       {/* Contract Summary — confirms what the user is building */}
-      {hasContractSummary && (
+      {contractSummary && (
         <div className="bg-muted/50 border-border rounded-md border px-3 py-2">
           <span className="text-muted-foreground text-[10px] font-medium uppercase tracking-wider">
             {t("activity:form.contract")}
           </span>
-          <p className="text-sm font-medium tabular-nums">
-            {expirationDisplay} ${strikePrice} {optionType}
-          </p>
+          <p className="text-sm font-medium tabular-nums">{contractSummary}</p>
         </div>
       )}
     </div>

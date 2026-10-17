@@ -404,9 +404,10 @@ describe("locale formatting", () => {
           strikePrice: 1234.5,
           optionType: "CALL",
         },
+        "USD",
         formatting,
       ),
-    ).toContain("$1.234,5");
+    ).toContain("1.234,50\u00a0$");
   });
 });
 
