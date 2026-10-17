@@ -112,6 +112,26 @@ it("returns an expired instance session to login without another auth check", as
   expect(fetchMock).toHaveBeenCalledTimes(2);
 });
 
+it("applies the confirmed session to expiry reported as soon as the content renders", async () => {
+  fetchMock
+    .mockResolvedValueOnce(status())
+    .mockResolvedValueOnce(Response.json({ authenticated: true }));
+  // A mutation callback runs after this async commit but before its scheduled passive effects.
+  const observer = new MutationObserver(() => {
+    if (!screen.queryByText("Private portfolio")) return;
+    observer.disconnect();
+    notifyUnauthorized();
+  });
+  observer.observe(document.body, { childList: true, subtree: true, characterData: true });
+  try {
+    mount(undefined, <LoginPage />);
+    expect(await screen.findByRole("alert")).toHaveTextContent("Session expired");
+    expect(screen.getByTestId("login-password-input")).toBeInTheDocument();
+  } finally {
+    observer.disconnect();
+  }
+});
+
 it("keeps the login form intact when another request reports expiry", async () => {
   fetchMock
     .mockResolvedValueOnce(status())

@@ -9,6 +9,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -90,7 +91,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loginError, setLoginError] = useState<string | null>(null);
   const cookieSessionRef = useRef(false);
 
-  useEffect(() => {
+  // Sync this ref and the unauthorized handler below in layout effects, so both match the commit
+  // that rendered the content even when a 401 is reported before passive effects run.
+  useLayoutEffect(() => {
     cookieSessionRef.current = cookieSession;
   }, [cookieSession]);
 
@@ -161,7 +164,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, [invalidateSession]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const handler = (reason: AuthFailure) => {
       if (reason === "expired") invalidateSession();
       const hadSession = cookieSessionRef.current;
