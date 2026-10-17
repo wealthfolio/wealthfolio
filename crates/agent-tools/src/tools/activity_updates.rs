@@ -8,7 +8,9 @@
 //! and dates, except that same-account FX dates stay shared). The portfolio
 //! recalculates from the earlier date, and the activity is marked user-modified
 //! so broker syncs keep the edit. An update never creates an activity and never goes through
-//! the import flow.
+//! the import flow. `void` sets the status to VOID, which keeps the activity
+//! and its history but leaves it out of every calculation; `void: false`
+//! posts a voided activity again.
 //!
 //! Two limits keep an update off the network and linked pairs intact:
 //! - an asset changes only by the id of a stored asset, since resolving a
@@ -62,6 +64,7 @@ const UPDATE_FIELDS: &[&str] = &[
     "fxRate",
     "notes",
     "approve",
+    "void",
 ];
 
 /// Changes that would break a linked transfer pair.
@@ -135,6 +138,8 @@ struct UpdateRow {
     notes: Option<Option<String>>,
     #[serde(default)]
     approve: Option<bool>,
+    #[serde(default)]
+    void: Option<bool>,
 }
 
 /// Reads a number from its JSON text (never through f64) or a numeric string.
@@ -264,8 +269,22 @@ fn build_update(row: &UpdateRow, existing: &Activity) -> Result<ActivityUpdate, 
             existing.id
         ));
     }
-    let status =
-        (approve && existing.status == ActivityStatus::Draft).then_some(ActivityStatus::Posted);
+    let status = match row.void {
+        Some(_) if approve => {
+            return Err("approve and void cannot be combined in one update".to_string())
+        }
+        Some(true) => Some(void_status(existing)?),
+        Some(false) if existing.status == ActivityStatus::Void => Some(ActivityStatus::Posted),
+        Some(false) => {
+            return Err(format!(
+                "Activity {} is not void, so there is nothing to restore",
+                existing.id
+            ))
+        }
+        None => {
+            (approve && existing.status == ActivityStatus::Draft).then_some(ActivityStatus::Posted)
+        }
+    };
     // As the grid: a trade total the user states is its own review, except
     // on a Draft, which stays queued until approved.
     let attests_total = matches!(amount, Some(Some(_)))
@@ -308,6 +327,20 @@ fn build_update(row: &UpdateRow, existing: &Activity) -> Result<ActivityUpdate, 
     })
 }
 
+/// VOID for a posted or pending activity. A draft counts toward nothing yet,
+/// so it is deleted rather than voided.
+fn void_status(existing: &Activity) -> Result<ActivityStatus, String> {
+    match existing.status {
+        ActivityStatus::Posted | ActivityStatus::Pending => Ok(ActivityStatus::Void),
+        ActivityStatus::Void => Err(format!("Activity {} is already void", existing.id)),
+        ActivityStatus::Draft => Err(format!(
+            "Activity {} is a draft and counts toward nothing yet; delete it with \
+             prepare_activity_deletions instead",
+            existing.id
+        )),
+    }
+}
+
 fn decimal_value(value: Option<Decimal>) -> Value {
     value.map_or(Value::Null, |value| json!(value.normalize().to_string()))
 }
@@ -317,7 +350,7 @@ fn text_value(value: Option<&str>) -> Value {
 }
 
 /// The fields the tools report, in `UPDATE_FIELDS` order (without approve).
-fn stored_fields(activity: &Activity) -> Vec<(&'static str, Value)> {
+pub(crate) fn stored_fields(activity: &Activity) -> Vec<(&'static str, Value)> {
     vec![
         ("date", json!(activity.activity_date.to_rfc3339())),
         ("accountId", json!(activity.account_id)),
@@ -484,7 +517,7 @@ fn check_guards(preview: &ActivityUpdatePreview, changes: &[FieldChange]) -> Res
     ))
 }
 
-fn read_error(activity_id: &str, error: CoreError) -> String {
+pub(crate) fn read_error(activity_id: &str, error: CoreError) -> String {
     match error {
         CoreError::Database(DatabaseError::NotFound(_)) => {
             format!("Activity {activity_id} not found")
@@ -628,7 +661,8 @@ fn updates_schema(action: &str) -> Value {
                         "fxRate": decimal_schema("Activity currency to account currency rate."),
                         "notes": { "type": ["string", "null"] },
                         "splitReview": { "type": "array", "description": "Opaque effects returned by prepare_activity_updates. Copy unchanged after reviewing removedSplits and hasRetainedCategoryAssignment; stale state conflicts.", "items": { "type": "object", "properties": { "activityId": {"type":"string"}, "removedSplits": {"type":"integer", "minimum":0}, "hasRetainedCategoryAssignment": {"type":"boolean"}, "fingerprint": {"type":"string"}}, "required":["activityId","removedSplits","hasRetainedCategoryAssignment","fingerprint"], "additionalProperties":false } },
-                        "approve": { "type": "boolean", "description": "true approves an activity waiting for review; a draft becomes posted." }
+                        "approve": { "type": "boolean", "description": "true approves an activity waiting for review; a draft becomes posted." },
+                        "void": { "type": "boolean", "description": "true voids a posted or pending activity: it stays stored but no longer counts in holdings, cash or performance, and broker syncs keep it void. false posts a voided activity again." }
                     },
                     "required": ["activityId"],
                     "additionalProperties": false
@@ -686,7 +720,7 @@ impl AgentTool for PrepareActivityUpdates {
     }
 
     fn description(&self) -> &'static str {
-        "Preview corrections to existing activities without writing anything. Each row names an activityId (find it with search_activities) and only the fields to change; omitted fields keep their stored value and null clears an optional one. The fields are those the activity grid edits: date, accountId, activityType, subtype, assetId, quantity, unitPrice, amount, currency, fee, tax, fxRate, notes, and approve (approves an activity waiting for review; a draft becomes posted). A bare YYYY-MM-DD date lands on that day in the configured timezone. Change an asset only by the assetId of an asset already stored; symbols are refused. For a security TRANSFER_IN, the cost basis is quantity x unitPrice, or amount without a unit price. Each ready row lists every field that would change with its current and proposed value, including values the app derives (a trade total recalculated from quantity and price, a cleared stale amount, the review flag); for one leg of a linked transfer, linkedChanges lists what the other leg receives (amount and approval; dates also mirror for same-account FX conversions or when neither leg has a source record ID; notes mirror only when neither leg has a source record ID). An invalid row gives its error: a missing activity, an invalid value, nothing to change, a change to the account, currency, type or asset of a linked transfer leg (or the quantity of a security transfer, or the fxRate of a cross-currency cash transfer; unlink the pair first with unlink_transfer_activities). Up to 100 rows. splitReview reports removed splits and whether existing category assignments are retained and may apply, including linked legs, without disclosing category details. Copy splitReview unchanged into the confirmed commit. Show the preview to the user, then apply the confirmed rows with commit_activity_updates."
+        "Preview corrections to existing activities without writing anything. Each row names an activityId (find it with search_activities) and only the fields to change; omitted fields keep their stored value and null clears an optional one. The fields are those the activity grid edits: date, accountId, activityType, subtype, assetId, quantity, unitPrice, amount, currency, fee, tax, fxRate, notes, approve (approves an activity waiting for review; a draft becomes posted), and void (true voids a posted or pending activity: it stays stored but no longer counts, and broker syncs keep it void; false posts it again). To remove an activity entirely, use prepare_activity_deletions. A bare YYYY-MM-DD date lands on that day in the configured timezone. Change an asset only by the assetId of an asset already stored; symbols are refused. For a security TRANSFER_IN, the cost basis is quantity x unitPrice, or amount without a unit price. Each ready row lists every field that would change with its current and proposed value, including values the app derives (a trade total recalculated from quantity and price, a cleared stale amount, the review flag); for one leg of a linked transfer, linkedChanges lists what the other leg receives (amount, approval and void; dates also mirror for same-account FX conversions or when neither leg has a source record ID; notes mirror only when neither leg has a source record ID). An invalid row gives its error: a missing activity, an invalid value, nothing to change, a change to the account, currency, type or asset of a linked transfer leg (or the quantity of a security transfer, or the fxRate of a cross-currency cash transfer; unlink the pair first with unlink_transfer_activities). Up to 100 rows. splitReview reports removed splits and whether existing category assignments are retained and may apply, including linked legs, without disclosing category details. Copy splitReview unchanged into the confirmed commit. Show the preview to the user, then apply the confirmed rows with commit_activity_updates."
     }
 
     fn input_schema(&self) -> Value {
@@ -1189,6 +1223,40 @@ mod tests {
         )
         .unwrap_err();
         assert!(error.contains("not waiting for review"), "{error}");
+    }
+
+    #[test]
+    fn void_and_restore_change_only_the_status() {
+        let posted = btc_transfer_in();
+        let update = update_for(json!({ "activityId": "btc-in", "void": true }), &posted).unwrap();
+        assert_eq!(update.status, Some(ActivityStatus::Void));
+        assert_eq!(update.needs_review, None);
+        assert_eq!(update.quantity, None, "omitted fields keep their value");
+
+        let mut voided = btc_transfer_in();
+        voided.status = ActivityStatus::Void;
+        let update = update_for(json!({ "activityId": "btc-in", "void": false }), &voided).unwrap();
+        assert_eq!(update.status, Some(ActivityStatus::Posted));
+
+        let error =
+            update_for(json!({ "activityId": "btc-in", "void": true }), &voided).unwrap_err();
+        assert!(error.contains("already void"), "{error}");
+        let error =
+            update_for(json!({ "activityId": "btc-in", "void": false }), &posted).unwrap_err();
+        assert!(error.contains("not void"), "{error}");
+
+        let mut draft = btc_transfer_in();
+        draft.status = ActivityStatus::Draft;
+        draft.needs_review = true;
+        let error =
+            update_for(json!({ "activityId": "btc-in", "void": true }), &draft).unwrap_err();
+        assert!(error.contains("prepare_activity_deletions"), "{error}");
+        let error = update_for(
+            json!({ "activityId": "btc-in", "void": true, "approve": true }),
+            &draft,
+        )
+        .unwrap_err();
+        assert!(error.contains("cannot be combined"), "{error}");
     }
 
     #[test]
