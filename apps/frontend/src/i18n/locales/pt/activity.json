@@ -788,7 +788,11 @@
     "clear_filters": "Limpar filtros",
     "ratio": "Razão",
     "premium": "Prêmio",
-    "total_value": "Valor total"
+    "total_value": "Valor total",
+    "day_count_one": "{{count}} atividade",
+    "day_count_other": "{{count}} atividades",
+    "day_count_many": "{{count}} atividades",
+    "day_end_cash": "Caixa"
   },
   "mobile_type_category": {
     "trade": "Operação",

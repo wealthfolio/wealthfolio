@@ -64,13 +64,16 @@ import { useVirtualScrollContainer } from "@/hooks/use-virtual-scroll-container"
 import { useActivityMutations } from "../../hooks/use-activity-mutations";
 import { ActivityOperations } from "../activity-operations";
 import { ActivityTypeBadge } from "../activity-type-badge";
+import { flattenActivityDayGroups, groupActivitiesByDay } from "./activity-day-groups";
+import { ActivityDayHeaderRow } from "./activity-day-header";
 
 /**
- * Starting height for a virtualized row. Rows report their real height once
- * measured, so this only has to keep the scrollbar honest for rows still below
- * the fold.
+ * Starting heights for virtualized rows. Rows report their real height once
+ * measured, so these only have to keep the scrollbar honest for rows still
+ * below the fold.
  */
-const ROW_HEIGHT = 89;
+const ROW_HEIGHT = 53;
+const DAY_HEADER_HEIGHT = 30;
 /** Rows kept mounted past the viewport edge, so a fast scroll stays painted. */
 const OVERSCAN = 8;
 const ACTIVITY_TABLE_COLUMN_VISIBILITY_KEY = "activity-table-column-visibility";
@@ -80,6 +83,11 @@ interface ActivityTableProps {
   isLoading: boolean;
   sorting: SortingState;
   onSortingChange: (sorting: SortingState) => void;
+  /**
+   * Puts a header row above each day's activities. Only for a list the server
+   * returned in date order, where each day is one run of rows.
+   */
+  groupByDay?: boolean;
   handleEdit: (activity?: ActivityDetails) => void;
   handleDelete: (activity: ActivityDetails) => void;
   onLinkTransfer?: (activity: ActivityDetails) => void;
@@ -101,6 +109,7 @@ export const ActivityTable = ({
   isLoading,
   sorting,
   onSortingChange,
+  groupByDay = false,
   handleEdit,
   handleDelete,
   onLinkTransfer,
@@ -139,10 +148,9 @@ export const ActivityTable = ({
       currency: false,
     },
   );
-  // Rows carry a balance only when the search asked for them (one cash or
-  // credit-card account in date order), so their presence decides the column.
-  // End-of-day balances wait for the day-grouped list; this column shows the
-  // balance after each row.
+  // Rows carry a balance only when the search asked for them (one account in
+  // date order), so their presence decides the column. It shows the balance
+  // after each row; an end-of-day balance goes in its day's header instead.
   const showsCashBalance = React.useMemo(
     () =>
       activities.some(
@@ -269,10 +277,20 @@ export const ActivityTable = ({
         ),
         cell: ({ row }) => {
           const dateVal = row.getValue("date");
-          const formattedDate =
-            typeof dateVal === "string" || dateVal instanceof Date
-              ? formatDateTime(dateVal, dateFormatting, appTimezone)
-              : formatDateTime(String(dateVal), dateFormatting, appTimezone);
+          const date =
+            typeof dateVal === "string" || dateVal instanceof Date ? dateVal : String(dateVal);
+          // Under a day header the date is already said once for the day.
+          if (groupByDay) {
+            const { time } = formatDateTime(date, dateFormatting, appTimezone, {
+              omitSeconds: true,
+            });
+            return (
+              <span className="text-muted-foreground ml-2 whitespace-nowrap text-xs tabular-nums">
+                {time}
+              </span>
+            );
+          }
+          const formattedDate = formatDateTime(date, dateFormatting, appTimezone);
           return (
             <div className="ml-2 flex flex-col">
               <span>{formattedDate.date}</span>
@@ -368,7 +386,7 @@ export const ActivityTable = ({
           }
 
           return (
-            <div className="pr-4 text-right">
+            <div className="whitespace-nowrap pr-4 text-right tabular-nums">
               {isBalanceHidden
                 ? "••••"
                 : typeof quantity === "number"
@@ -413,7 +431,11 @@ export const ActivityTable = ({
             return <div className="pr-4 text-right">-</div>;
           }
           if (activityType === "SPLIT") {
-            return <div className="text-right">{formatSplitRatio(Number(amount))}</div>;
+            return (
+              <div className="whitespace-nowrap text-right tabular-nums">
+                {formatSplitRatio(Number(amount))}
+              </div>
+            );
           }
           if (
             (isCashActivity(activityType) &&
@@ -423,7 +445,7 @@ export const ActivityTable = ({
             (isIncomeActivity(activityType) && !isAssetBackedIncome)
           ) {
             return (
-              <div className="text-right">
+              <div className="whitespace-nowrap text-right tabular-nums">
                 <AmountDisplay
                   value={Number(amount)}
                   currency={currency}
@@ -434,7 +456,7 @@ export const ActivityTable = ({
           }
 
           return (
-            <div className="text-right">
+            <div className="whitespace-nowrap text-right tabular-nums">
               <PriceDisplay value={unitPrice} currency={currency} isHidden={isBalanceHidden} />
             </div>
           );
@@ -465,7 +487,7 @@ export const ActivityTable = ({
               : row.original.accountCurrency || "USD";
 
           return (
-            <div className="text-right">
+            <div className="whitespace-nowrap text-right tabular-nums">
               {activityType === "SPLIT" ? (
                 "-"
               ) : (
@@ -500,7 +522,7 @@ export const ActivityTable = ({
               : row.original.accountCurrency || "USD";
 
           return (
-            <div className="text-right">
+            <div className="whitespace-nowrap text-right tabular-nums">
               {activityType === "SPLIT" ? (
                 "-"
               ) : (
@@ -536,7 +558,7 @@ export const ActivityTable = ({
 
           const displayValue = calculateActivityValue(activity);
           return (
-            <div className="pr-4 text-right">
+            <div className="whitespace-nowrap pr-4 text-right font-medium tabular-nums">
               <AmountDisplay value={displayValue} currency={currency} isHidden={isBalanceHidden} />
             </div>
           );
@@ -565,7 +587,7 @@ export const ActivityTable = ({
                   return <div className="pr-4 text-right">-</div>;
                 }
                 return (
-                  <div className="whitespace-nowrap pr-4 text-right">
+                  <div className="whitespace-nowrap pr-4 text-right tabular-nums">
                     <AmountDisplay
                       value={Number(cashBalance)}
                       currency={cashBalanceCurrency}
@@ -692,6 +714,7 @@ export const ActivityTable = ({
     [
       appTimezone,
       dateFormatting,
+      groupByDay,
       isBalanceHidden,
       handleEdit,
       handleDelete,
@@ -735,6 +758,19 @@ export const ActivityTable = ({
 
   const tableRows = table.getRowModel().rows;
 
+  // Day headers interleave with the rows, so the virtualizer counts both.
+  const listItems = React.useMemo(() => {
+    if (!groupByDay) {
+      return tableRows.map((row) => ({ kind: "row" as const, key: row.id, item: row }));
+    }
+    const groups = groupActivitiesByDay(
+      tableRows,
+      (row) => row.original,
+      (activity) => formatDateTime(activity.date, dateFormatting, appTimezone).date,
+    );
+    return flattenActivityDayGroups(groups, (row) => row.id);
+  }, [appTimezone, dateFormatting, groupByDay, tableRows]);
+
   // Embedded tables may scroll with the page; the body can start below both
   // page content and the table header, so account for that offset.
   const { listRef, scrollElement, scrollMargin } = useVirtualScrollContainer();
@@ -743,12 +779,12 @@ export const ActivityTable = ({
   // above it or the sort order changes. Stable so the virtualizer does not
   // rebuild every row's measurement on each render.
   const getItemKey = React.useCallback(
-    (index: number) => tableRows[index]?.id ?? index,
-    [tableRows],
+    (index: number) => listItems[index]?.key ?? index,
+    [listItems],
   );
 
   const virtualizer = useVirtualizer({
-    count: tableRows.length,
+    count: listItems.length,
     getScrollElement: () => scrollElement,
     // A tab can mount this table inside an already-scrolled page. Read the
     // current offset before the virtualizer performs its initial scrollTo.
@@ -756,7 +792,7 @@ export const ActivityTable = ({
       onChange(instance.scrollElement?.scrollTop ?? 0, false);
       return observeElementOffset(instance, onChange);
     },
-    estimateSize: () => ROW_HEIGHT,
+    estimateSize: (index) => (listItems[index]?.kind === "header" ? DAY_HEADER_HEIGHT : ROW_HEIGHT),
     getItemKey,
     overscan: OVERSCAN,
     scrollMargin,
@@ -775,7 +811,11 @@ export const ActivityTable = ({
   const paddingBottom = virtualItems.length
     ? totalSize - (virtualItems[virtualItems.length - 1].end - scrollMargin)
     : totalSize;
-  const columnCount = table.getVisibleFlatColumns().length;
+  const visibleColumns = table.getVisibleFlatColumns();
+  const columnCount = visibleColumns.length;
+  // A day's closing cash sits under the row totals, or at the row's end when
+  // the Total column is hidden.
+  const cashColumnIndex = visibleColumns.findIndex((column) => column.id === "value");
 
   if (isLoading) {
     return (
@@ -841,7 +881,7 @@ export const ActivityTable = ({
               <TableRow key={headerGroup.id}>
                 {headerGroup.headers.map((header) => {
                   return (
-                    <TableHead key={header.id}>
+                    <TableHead key={header.id} className="px-3">
                       {header.isPlaceholder
                         ? null
                         : flexRender(header.column.columnDef.header, header.getContext())}
@@ -863,8 +903,23 @@ export const ActivityTable = ({
               </TableRow>
             )}
             {virtualItems.map((virtualItem) => {
-              const row = tableRows[virtualItem.index];
-              if (!row) return null;
+              const listItem = listItems[virtualItem.index];
+              if (!listItem) return null;
+              if (listItem.kind === "header") {
+                return (
+                  <ActivityDayHeaderRow
+                    key={virtualItem.key}
+                    ref={virtualizer.measureElement}
+                    data-index={virtualItem.index}
+                    group={listItem.group}
+                    date={listItem.group.items[0].original.date}
+                    isPartial={hasNextPage && listItem.isLastGroup}
+                    columnCount={columnCount}
+                    cashColumnIndex={cashColumnIndex}
+                  />
+                );
+              }
+              const row = listItem.item;
               return (
                 <TableRow
                   key={virtualItem.key}
@@ -876,6 +931,7 @@ export const ActivityTable = ({
                   {row.getVisibleCells().map((cell) => (
                     <TableCell
                       key={cell.id}
+                      className="px-3 py-2"
                       data-row-click-ignore={cell.column.id === "actions" || undefined}
                     >
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}

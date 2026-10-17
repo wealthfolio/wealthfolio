@@ -671,7 +671,10 @@
     "clear_filters": "Filter löschen",
     "ratio": "Verhältnis",
     "premium": "Prämie",
-    "total_value": "Gesamtwert"
+    "total_value": "Gesamtwert",
+    "day_count_one": "{{count}} Aktivität",
+    "day_count_other": "{{count}} Aktivitäten",
+    "day_end_cash": "Bargeld"
   },
   "mobile_type_category": {
     "trade": "Handel",

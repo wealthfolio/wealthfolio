@@ -313,6 +313,12 @@ export const formatDateTime = (
   date: string | Date,
   formatting: Pick<FormattingApi, "formatDate" | "formatTime">,
   timezone?: string,
+  options?: {
+    /** Adds the weekday to `date`, for a heading over that day's rows. */
+    weekday?: Intl.DateTimeFormatOptions["weekday"];
+    /** Leaves seconds out of `time`, for a row whose day is shown above it. */
+    omitSeconds?: boolean;
+  },
 ) => {
   if (!date) return { date: "-", time: "-" };
 
@@ -339,6 +345,7 @@ export const formatDateTime = (
   const effectiveTimezone = explicitTimezone ? resolveDisplayTimezone(explicitTimezone) : undefined;
 
   const dateOptions: Intl.DateTimeFormatOptions = {
+    ...(options?.weekday ? { weekday: options.weekday } : {}),
     year: "numeric",
     month: "short",
     day: "numeric",
@@ -348,7 +355,7 @@ export const formatDateTime = (
   const timeOptions: Intl.DateTimeFormatOptions = {
     hour: "numeric",
     minute: "numeric",
-    second: "numeric",
+    ...(options?.omitSeconds ? {} : { second: "numeric" }),
     ...(effectiveTimezone ? { timeZone: effectiveTimezone } : {}),
   };
   return {
@@ -357,20 +364,30 @@ export const formatDateTime = (
   };
 };
 
-export function resolveDisplayTimezone(timezone?: string | null): string {
-  const fallback = Intl.DateTimeFormat().resolvedOptions().timeZone;
-  const candidate = timezone?.trim();
-  if (!candidate) {
-    return fallback;
-  }
+/**
+ * Whether each timezone name passed validation. A list formats every row's
+ * date, and building a formatter to check the same name each time costs more
+ * than the formatting itself.
+ */
+const timezoneValidity = new Map<string, boolean>();
 
-  try {
-    // Validate timezone string before passing it to formatters.
-    new Intl.DateTimeFormat("en-US", { timeZone: candidate }).format(new Date());
-    return candidate;
-  } catch {
-    return fallback;
+export function resolveDisplayTimezone(timezone?: string | null): string {
+  const candidate = timezone?.trim();
+  if (candidate) {
+    let isValid = timezoneValidity.get(candidate);
+    if (isValid === undefined) {
+      try {
+        // Validate timezone string before passing it to formatters.
+        new Intl.DateTimeFormat("en-US", { timeZone: candidate }).format(new Date());
+        isValid = true;
+      } catch {
+        isValid = false;
+      }
+      timezoneValidity.set(candidate, isValid);
+    }
+    if (isValid) return candidate;
   }
+  return Intl.DateTimeFormat().resolvedOptions().timeZone;
 }
 
 /**

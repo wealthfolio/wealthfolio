@@ -15,10 +15,11 @@ import type {
 } from "@/lib/types";
 import { AccountType } from "@/lib/types";
 import { ActivityForm } from "@/pages/activity/components/activity-form";
+import ActivityTable from "@/pages/activity/components/activity-table/activity-table";
 import { useActivitySearch } from "@/pages/activity/hooks/use-activity-search";
 import { useCalculatePerformanceHistory } from "@/pages/performance/hooks/use-performance-data";
 import { useQuery } from "@tanstack/react-query";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import AccountPage from "./account-page";
 
@@ -82,7 +83,7 @@ vi.mock("@/pages/activity/components/activity-pagination", () => ({
 }));
 
 vi.mock("@/pages/activity/components/activity-table/activity-table", () => ({
-  default: () => <div>activity-table</div>,
+  default: vi.fn(() => <div>activity-table</div>),
 }));
 
 vi.mock("@/pages/activity/components/activity-table/activity-table-mobile", () => ({
@@ -311,6 +312,7 @@ const mockUseSettingsContext = vi.mocked(useSettingsContext);
 const mockUseCalculatePerformanceHistory = vi.mocked(useCalculatePerformanceHistory);
 const mockUseActivitySearch = vi.mocked(useActivitySearch);
 const mockActivityForm = vi.mocked(ActivityForm);
+const mockActivityTable = vi.mocked(ActivityTable);
 const mockUseQuery = vi.mocked(useQuery);
 const mockUseRecalculatePortfolioMutation = vi.mocked(useRecalculatePortfolioMutation);
 
@@ -505,17 +507,31 @@ describe("AccountPage", () => {
     },
   );
 
-  it("does not ask for running balances on an investment or holdings-mode account", () => {
+  it("asks for end-of-day cash on an investment account while its list runs in date order", () => {
     mockAccountPage([createAccount()]);
-    const { unmount } = render(<AccountPage />);
+    render(<AccountPage />);
     fireEvent.click(screen.getByRole("button", { name: "Activities" }));
 
     expect(mockUseActivitySearch.mock.calls.at(-1)?.[0]).toMatchObject({
       filters: { accountIds: ["account-1"] },
+      includeCashBalances: true,
+    });
+    expect(mockActivityTable.mock.calls.at(-1)?.[0]).toMatchObject({ groupByDay: true });
+
+    // Sorted by another column, the list is flat and has no cash to show.
+    act(() => {
+      mockActivityTable.mock.calls
+        .at(-1)?.[0]
+        .onSortingChange([{ id: "activityType", desc: false }]);
+    });
+
+    expect(mockUseActivitySearch.mock.calls.at(-1)?.[0]).toMatchObject({
       includeCashBalances: false,
     });
-    unmount();
+    expect(mockActivityTable.mock.calls.at(-1)?.[0]).toMatchObject({ groupByDay: false });
+  });
 
+  it("does not ask for balances on a holdings-mode account", () => {
     mockAccountPage([
       { ...createAccount(), accountType: AccountType.CASH, trackingMode: "HOLDINGS" },
     ]);

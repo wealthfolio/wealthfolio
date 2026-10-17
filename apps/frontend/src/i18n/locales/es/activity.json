@@ -788,7 +788,11 @@
     "clear_filters": "Borrar filtros",
     "ratio": "Ratio",
     "premium": "Prima",
-    "total_value": "Valor total"
+    "total_value": "Valor total",
+    "day_count_one": "{{count}} actividad",
+    "day_count_other": "{{count}} actividades",
+    "day_count_many": "{{count}} actividades",
+    "day_end_cash": "Efectivo"
   },
   "mobile_type_category": {
     "trade": "Operación",

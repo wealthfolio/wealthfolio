@@ -767,7 +767,10 @@
     "clear_filters": "필터 지우기",
     "ratio": "비율",
     "premium": "프리미엄",
-    "total_value": "총 가치"
+    "total_value": "총 가치",
+    "day_count_one": "활동 {{count}}건",
+    "day_count_other": "활동 {{count}}건",
+    "day_end_cash": "현금"
   },
   "mobile_type_category": {
     "trade": "거래",

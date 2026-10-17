@@ -788,7 +788,11 @@
     "clear_filters": "Effacer les filtres",
     "ratio": "Ratio",
     "premium": "Prime",
-    "total_value": "Valeur totale"
+    "total_value": "Valeur totale",
+    "day_count_one": "{{count}} activité",
+    "day_count_other": "{{count}} activités",
+    "day_count_many": "{{count}} activités",
+    "day_end_cash": "Liquidités"
   },
   "mobile_type_category": {
     "trade": "Négociation",

@@ -774,7 +774,10 @@
     "clear_filters": "Clear filters",
     "ratio": "Ratio",
     "premium": "Premium",
-    "total_value": "Total Value"
+    "total_value": "Total Value",
+    "day_count_one": "{{count}} activity",
+    "day_count_other": "{{count}} activities",
+    "day_end_cash": "Cash"
   },
   "mobile_type_category": {
     "trade": "Trade",

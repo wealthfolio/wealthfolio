@@ -767,7 +767,10 @@
     "clear_filters": "フィルタをクリア",
     "ratio": "比率",
     "premium": "プレミアム",
-    "total_value": "合計額"
+    "total_value": "合計額",
+    "day_count_one": "{{count}}件の取引",
+    "day_count_other": "{{count}}件の取引",
+    "day_end_cash": "現金"
   },
   "mobile_type_category": {
     "trade": "売買",

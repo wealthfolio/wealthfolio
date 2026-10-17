@@ -767,7 +767,10 @@
     "clear_filters": "清除筛选",
     "ratio": "比例",
     "premium": "权利金",
-    "total_value": "总价值"
+    "total_value": "总价值",
+    "day_count_one": "{{count}} 条活动",
+    "day_count_other": "{{count}} 条活动",
+    "day_end_cash": "现金"
   },
   "mobile_type_category": {
     "trade": "交易",

@@ -788,7 +788,11 @@
     "clear_filters": "Cancella filtri",
     "ratio": "Rapporto",
     "premium": "Premio",
-    "total_value": "Valore totale"
+    "total_value": "Valore totale",
+    "day_count_one": "{{count}} movimento",
+    "day_count_other": "{{count}} movimenti",
+    "day_count_many": "{{count}} movimenti",
+    "day_end_cash": "Liquidità"
   },
   "mobile_type_category": {
     "trade": "Operazione",

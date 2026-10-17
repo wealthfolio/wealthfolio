@@ -246,10 +246,12 @@ const AccountPage = () => {
     return account.trackingMode === "HOLDINGS";
   }, [account]);
 
-  // A cash or credit-card account reads like a statement: the balance after
-  // each row, while the list runs in date order.
-  const showsRunningBalance =
-    isCashOnlyAccount && !isHoldingsMode && (accountActivitiesSorting[0]?.id ?? "date") === "date";
+  // The list heads each day with its date while it runs in date order. Then it
+  // also shows the account's cash: a cash or credit-card account reads like a
+  // statement, with the balance after each row; the others close each day with
+  // their cash. Holdings-tracked accounts enter their cash rather than derive it.
+  const isActivitiesDateOrder = (accountActivitiesSorting[0]?.id ?? "date") === "date";
+  const showsCashBalances = !isHoldingsMode && isActivitiesDateOrder;
 
   // Check if user can directly edit holdings (manual HOLDINGS-mode accounts only)
   const canEditHoldingsDirectly = useMemo(() => {
@@ -348,7 +350,7 @@ const AccountPage = () => {
     },
     searchQuery: "",
     sorting: accountActivitiesSorting,
-    includeCashBalances: showsRunningBalance,
+    includeCashBalances: showsCashBalances,
   });
 
   const activityFormAccounts = useMemo<AccountSelectOption[]>(
@@ -676,6 +678,7 @@ const AccountPage = () => {
         activities={accountActivitiesSearch.data}
         isLoading={accountActivitiesSearch.isLoading}
         isCompactView={true}
+        groupByDay={isActivitiesDateOrder}
         handleEdit={handleActivityEdit}
         handleDelete={handleActivityDelete}
         onDuplicate={handleActivityDuplicate}
@@ -699,6 +702,7 @@ const AccountPage = () => {
         isLoading={accountActivitiesSearch.isLoading}
         sorting={accountActivitiesSorting}
         onSortingChange={setAccountActivitiesSorting}
+        groupByDay={isActivitiesDateOrder}
         handleEdit={handleActivityEdit}
         handleDelete={handleActivityDelete}
         onAdd={() => navigate(`/activities/manage?account=${id}`)}

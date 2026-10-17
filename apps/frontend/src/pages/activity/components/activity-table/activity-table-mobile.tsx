@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 
 import { TickerAvatar } from "@/components/ticker-avatar";
 import {
@@ -38,6 +38,8 @@ import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import { useVirtualScrollContainer } from "@/hooks/use-virtual-scroll-container";
 import { ActivityOperations } from "../activity-operations";
 import { ActivityTypeBadge } from "../activity-type-badge";
+import { flattenActivityDayGroups, groupActivitiesByDay } from "./activity-day-groups";
+import { ActivityDayHeading } from "./activity-day-header";
 
 /**
  * Starting heights for virtualized cards. The detailed card grows with the
@@ -46,6 +48,7 @@ import { ActivityTypeBadge } from "../activity-type-badge";
  */
 const COMPACT_CARD_HEIGHT = 88;
 const DETAILED_CARD_HEIGHT = 300;
+const DAY_HEADING_HEIGHT = 24;
 /** `space-y-2`, moved into the virtualizer's layout maths. */
 const CARD_GAP = 8;
 /** Cards kept mounted past the viewport edge, so a fast flick stays painted. */
@@ -55,6 +58,11 @@ interface ActivityTableMobileProps {
   activities: ActivityDetails[];
   isLoading?: boolean;
   isCompactView: boolean;
+  /**
+   * Puts a heading above each day's cards. Only for a list the server returned
+   * in date order, where each day is one run of cards.
+   */
+  groupByDay?: boolean;
   handleEdit: (activity?: ActivityDetails) => void;
   handleDelete: (activity: ActivityDetails) => void;
   onDuplicate: (activity: ActivityDetails) => Promise<void>;
@@ -76,6 +84,7 @@ export const ActivityTableMobile = ({
   activities,
   isLoading = false,
   isCompactView,
+  groupByDay = false,
   handleEdit,
   handleDelete,
   onDuplicate,
@@ -98,6 +107,23 @@ export const ActivityTableMobile = ({
   const { settings } = useSettingsContext();
   const appTimezone = settings?.timezone?.trim() || undefined;
 
+  // Day headings interleave with the cards, so the virtualizer counts both.
+  const listItems = useMemo(() => {
+    if (!groupByDay) {
+      return activities.map((activity) => ({
+        kind: "row" as const,
+        key: activity.id,
+        item: activity,
+      }));
+    }
+    const groups = groupActivitiesByDay(
+      activities,
+      (activity) => activity,
+      (activity) => formatDateTime(activity.date, dateFormatting, appTimezone).date,
+    );
+    return flattenActivityDayGroups(groups, (activity) => activity.id);
+  }, [activities, appTimezone, dateFormatting, groupByDay]);
+
   // Embedded lists can share an already-scrolled page rather than their own box.
   const { listRef, scrollElement, scrollMargin } = useVirtualScrollContainer();
 
@@ -111,12 +137,12 @@ export const ActivityTableMobile = ({
    */
   const getItemKey = useCallback(
     (index: number) =>
-      `${isCompactView ? "compact" : "detailed"}:${activities[index]?.id ?? index}`,
-    [activities, isCompactView],
+      `${isCompactView ? "compact" : "detailed"}:${listItems[index]?.key ?? index}`,
+    [listItems, isCompactView],
   );
 
   const virtualizer = useVirtualizer({
-    count: activities.length,
+    count: listItems.length,
     getScrollElement: () => scrollElement,
     // Seed the offset before the virtualizer's initial scrollTo. Swipeable views
     // mount neighboring lists while the shared page may already be scrolled.
@@ -124,7 +150,12 @@ export const ActivityTableMobile = ({
       onChange(instance.scrollElement?.scrollTop ?? 0, false);
       return observeElementOffset(instance, onChange);
     },
-    estimateSize: () => (isCompactView ? COMPACT_CARD_HEIGHT : DETAILED_CARD_HEIGHT),
+    estimateSize: (index) =>
+      listItems[index]?.kind === "header"
+        ? DAY_HEADING_HEIGHT
+        : isCompactView
+          ? COMPACT_CARD_HEIGHT
+          : DETAILED_CARD_HEIGHT,
     getItemKey,
     overscan: OVERSCAN,
     scrollMargin,
@@ -202,9 +233,13 @@ export const ActivityTableMobile = ({
       ? formatOptionSubtitle(parsedOption, { ...numberFormatting, ...dateFormatting })
       : null;
     const formattedDate = formatDateTime(activity.date, dateFormatting, appTimezone);
+    // Under a day heading a card gives only the time; the heading has the date.
+    const headedTime = groupByDay
+      ? formatDateTime(activity.date, dateFormatting, appTimezone, { omitSeconds: true }).time
+      : null;
     const displayValue = calculateActivityValue(activity);
-    // The balance after this row; end-of-day balances wait for the
-    // day-grouped list.
+    // The balance after this row; an end-of-day balance goes in its day's
+    // heading instead.
     const cashBalance =
       activity.cashBalance != null &&
       activity.cashBalanceCurrency &&
@@ -246,7 +281,7 @@ export const ActivityTableMobile = ({
                         : activityTypeLabel}
                     </p>
                     <div className="text-muted-foreground mt-0.5 flex items-center gap-1.5 text-xs">
-                      <span>{formattedDate.date}</span>
+                      <span>{headedTime ?? formattedDate.date}</span>
                       {!isCash &&
                         !(isIncomeActivity(activity.activityType) && !isAssetBackedIncome) &&
                         !isSplitActivity(activity.activityType) &&
@@ -354,10 +389,14 @@ export const ActivityTableMobile = ({
             {/* Date and Type */}
             <div className="flex items-center justify-between">
               <span className="text-muted-foreground">{t("activity:table_date")}</span>
-              <div className="text-right">
-                <p>{formattedDate.date}</p>
-                <p className="text-muted-foreground text-xs">{formattedDate.time}</p>
-              </div>
+              {headedTime ? (
+                <p className="text-right">{headedTime}</p>
+              ) : (
+                <div className="text-right">
+                  <p>{formattedDate.date}</p>
+                  <p className="text-muted-foreground text-xs">{formattedDate.time}</p>
+                </div>
+              )}
             </div>
 
             <div className="flex items-center justify-between">
@@ -501,8 +540,8 @@ export const ActivityTableMobile = ({
     >
       <div ref={listRef} className="relative w-full" style={{ height: virtualizer.getTotalSize() }}>
         {virtualizer.getVirtualItems().map((virtualItem) => {
-          const activity = activities[virtualItem.index];
-          if (!activity) return null;
+          const listItem = listItems[virtualItem.index];
+          if (!listItem) return null;
           return (
             <div
               key={virtualItem.key}
@@ -511,7 +550,15 @@ export const ActivityTableMobile = ({
               className="absolute left-0 top-0 w-full"
               style={{ transform: `translateY(${virtualItem.start - scrollMargin}px)` }}
             >
-              {renderCard(activity)}
+              {listItem.kind === "header" ? (
+                <ActivityDayHeading
+                  group={listItem.group}
+                  date={listItem.group.items[0].date}
+                  isPartial={hasNextPage && listItem.isLastGroup}
+                />
+              ) : (
+                renderCard(listItem.item)
+              )}
             </div>
           );
         })}

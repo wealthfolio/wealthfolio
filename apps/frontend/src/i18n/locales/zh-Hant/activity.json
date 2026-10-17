@@ -774,7 +774,10 @@
     "clear_filters": "清除篩選",
     "ratio": "比例",
     "premium": "權利金",
-    "total_value": "總價值"
+    "total_value": "總價值",
+    "day_count_one": "{{count}} 筆交易紀錄",
+    "day_count_other": "{{count}} 筆交易紀錄",
+    "day_end_cash": "現金"
   },
   "mobile_type_category": {
     "trade": "交易",
