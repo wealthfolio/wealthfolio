@@ -38,6 +38,7 @@ use wealthfolio_spending::categorization_rules::{
 /// to the AI crate for tool execution.
 pub struct TauriAiEnvironment {
     base_currency: Arc<RwLock<String>>,
+    timezone: Arc<RwLock<String>>,
     account_service: Arc<dyn AccountServiceTrait + Send + Sync>,
     activity_service: Arc<dyn ActivityServiceTrait + Send + Sync>,
     holdings_service: Arc<dyn HoldingsServiceTrait + Send + Sync>,
@@ -73,6 +74,7 @@ impl TauriAiEnvironment {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         base_currency: Arc<RwLock<String>>,
+        timezone: Arc<RwLock<String>>,
         account_service: Arc<dyn AccountServiceTrait + Send + Sync>,
         activity_service: Arc<dyn ActivityServiceTrait + Send + Sync>,
         holdings_service: Arc<dyn HoldingsServiceTrait + Send + Sync>,
@@ -103,6 +105,7 @@ impl TauriAiEnvironment {
     ) -> Self {
         Self {
             base_currency,
+            timezone,
             account_service,
             activity_service,
             holdings_service,
@@ -232,7 +235,11 @@ impl AgentEnvironment for TauriAiEnvironment {
     }
 
     async fn run_health_checks(&self) -> wealthfolio_core::Result<HealthStatus> {
-        let configured_timezone = self.settings_service.get_settings()?.timezone;
+        let configured_timezone = self
+            .timezone
+            .read()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .clone();
         self.health_service
             .run_full_checks(
                 &self.base_currency(),
