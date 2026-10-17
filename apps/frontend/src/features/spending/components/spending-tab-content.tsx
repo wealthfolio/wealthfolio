@@ -1071,7 +1071,10 @@ export default function SpendingTabContent() {
                               className="inline-block h-px w-3 border-t border-dashed border-current opacity-60"
                             />
                             <span>
-                              {avgLabel} · {formatting.formatCompactAmount(avgValue, currency)}
+                              {avgLabel} ·{" "}
+                              {isBalanceHidden
+                                ? "••••"
+                                : formatting.formatCompactAmount(avgValue, currency)}
                             </span>
                           </div>
                         )}

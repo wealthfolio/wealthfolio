@@ -106,6 +106,7 @@ export function BudgetLineChartCard({
 }) {
   const amountFormatting = useAmountFormatting();
   const dateFormatting = useDateFormatting();
+  const { isBalanceHidden } = useBalancePrivacy();
 
   const { t } = useTranslation();
   // All hooks must run unconditionally — the `target <= 0` early return below
@@ -292,25 +293,17 @@ export function BudgetLineChartCard({
   const endY = cumulative.length ? yForVal(cumulative[cumulative.length - 1].value) : padT + innerH;
 
   const gapAbs = Math.abs(gapVsPace);
+  const pillAmount = (value: number) =>
+    isBalanceHidden ? "••••" : amountFormatting.formatCompactAmount(value, currency);
   const gapLabel = isCurrentMonth
     ? isOver
-      ? t("spending:budgetChart.overBudgetAmount", {
-          amount: amountFormatting.formatCompactAmount(overBy, currency),
-        })
+      ? t("spending:budgetChart.overBudgetAmount", { amount: pillAmount(overBy) })
       : aheadOfPace
-        ? t("spending:budgetChart.underBudgetAmount", {
-            amount: amountFormatting.formatCompactAmount(gapAbs, currency),
-          })
-        : t("spending:budgetChart.overPaceAmount", {
-            amount: amountFormatting.formatCompactAmount(gapAbs, currency),
-          })
+        ? t("spending:budgetChart.underBudgetAmount", { amount: pillAmount(gapAbs) })
+        : t("spending:budgetChart.overPaceAmount", { amount: pillAmount(gapAbs) })
     : isOver
-      ? t("spending:budgetChart.overBudgetAmount", {
-          amount: amountFormatting.formatCompactAmount(overBy, currency),
-        })
-      : t("spending:budgetChart.leftAmount", {
-          amount: amountFormatting.formatCompactAmount(remaining, currency),
-        });
+      ? t("spending:budgetChart.overBudgetAmount", { amount: pillAmount(overBy) })
+      : t("spending:budgetChart.leftAmount", { amount: pillAmount(remaining) });
 
   const pillLeftPctRaw = (endX / chartW) * 100;
   const pillLeftPct = Math.min(78, Math.max(8, pillLeftPctRaw - 4));
@@ -749,7 +742,9 @@ function BudgetRing({
         activityRange.from
       }&to=${activityRange.to}`}
       className="hover:bg-muted/40 flex w-16 shrink-0 flex-col items-center gap-1 rounded-md px-1 py-1 transition-colors"
-      title={`${ring.name}: ${ring.spent.toFixed(2)} / ${ring.target.toFixed(2)}`}
+      title={`${ring.name}: ${
+        isBalanceHidden ? "•••• / ••••" : `${ring.spent.toFixed(2)} / ${ring.target.toFixed(2)}`
+      }`}
     >
       <div className="relative" style={{ width: size, height: size }}>
         <svg width={size} height={size} className="-rotate-90">
