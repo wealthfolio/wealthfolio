@@ -76,7 +76,7 @@ pub async fn update_settings(
     let timezone_changed = updated_settings.timezone != previous_timezone;
 
     if let Some(menu_visible) = settings_update.menu_bar_visible {
-        #[cfg(not(any(target_os = "android", target_os = "ios")))]
+        #[cfg(not(any(target_os = "android", target_os = "ios", target_os = "macos")))]
         {
             if menu_visible {
                 // Create and set the menu on desktop platforms
@@ -98,10 +98,11 @@ pub async fn update_settings(
             }
         }
 
-        #[cfg(any(target_os = "android", target_os = "ios"))]
+        // macOS keeps its menu installed (see `desktop::setup_menu` in lib.rs).
+        #[cfg(any(target_os = "android", target_os = "ios", target_os = "macos"))]
         {
             let _ = menu_visible;
-            debug!("Menu bar visibility toggling is not supported on mobile runtimes.");
+            debug!("Menu bar visibility toggling is not supported on macOS or mobile runtimes.");
         }
     }
 

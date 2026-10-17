@@ -29,7 +29,7 @@ interface AppearanceFormValues {
 export function AppearanceForm() {
   const { t } = useTranslation();
   const { settings, updateSettings } = useSettingsContext();
-  const { isMobile } = usePlatform();
+  const { isMobile, isMacOS, isTauri } = usePlatform();
   const { mode: navigationMode, setMode: setNavigationMode } = useNavigationMode();
   const appearanceFormSchema = z.object({
     theme: z.enum(["light", "dark", "system"], {
@@ -128,7 +128,7 @@ export function AppearanceForm() {
           </div>
         )}
 
-        {!isMobile && (
+        {!isMobile && !(isTauri && isMacOS) && (
           <FormField
             control={form.control}
             name="menuBarVisible"

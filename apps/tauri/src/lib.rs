@@ -69,7 +69,9 @@ mod desktop {
 
     /// Sets up the application menu and its event handler.
     pub fn setup_menu(handle: &AppHandle, menu_bar_visible: bool) {
-        if menu_bar_visible {
+        // macOS always keeps the menu: without it, Cmd+C, Cmd+V, Cmd+Z and
+        // Cmd+Q stop working, so the setting only applies on other platforms.
+        if menu_bar_visible || cfg!(target_os = "macos") {
             match menu::create_menu(handle) {
                 Ok(menu) => {
                     if let Err(e) = handle.set_menu(menu) {
