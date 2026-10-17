@@ -37,7 +37,8 @@ export const PageScrollContainer = React.forwardRef<HTMLDivElement, PageScrollCo
         data-page-scroll-container
         data-with-mobile-nav-offset={withMobileNavOffset ? "true" : undefined}
         className={cn(
-          "momentum-scroll scroll-pt-header min-h-0 w-full max-w-full flex-1 overflow-y-auto overflow-x-hidden",
+          // `relative` stops WebKitGTK painting the sticky page header over this scrollbar
+          "momentum-scroll scroll-pt-header relative min-h-0 w-full max-w-full flex-1 overflow-y-auto overflow-x-hidden",
           withMobileNavOffset && "scroll-pb-nav",
           className,
         )}
