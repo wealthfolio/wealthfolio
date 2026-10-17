@@ -65,6 +65,13 @@ pub struct ActivityImportRow {
     #[serde(default)]
     pub fee: Option<f64>,
     #[serde(default)]
+    pub tax: Option<f64>,
+    /// Rate converting the activity currency into the account currency.
+    #[serde(default)]
+    pub fx_rate: Option<f64>,
+    #[serde(default)]
+    pub subtype: Option<String>,
+    #[serde(default)]
     pub account_id: Option<String>,
     #[serde(default)]
     pub comment: Option<String>,
@@ -635,6 +642,9 @@ fn activity_row_schema() -> serde_json::Value {
             "unitPrice": { "type": "number" },
             "amount": { "type": "number" },
             "fee": { "type": "number" },
+            "tax": { "type": "number", "description": "Tax withheld, such as dividend withholding tax." },
+            "fxRate": { "type": "number", "description": "Rate from the statement converting the activity currency into the account currency. Omit to use the market rate." },
+            "subtype": { "type": "string", "description": "Variation of the activity type, e.g. DRIP or STAKING_REWARD for DIVIDEND." },
             "accountId": { "type": "string" },
             "comment": { "type": "string" },
             "lineNumber": { "type": "integer", "description": "1-based source row, for duplicate messages." },
@@ -647,6 +657,7 @@ fn activity_row_schema() -> serde_json::Value {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rust_decimal::Decimal;
 
     fn row(force: bool) -> ActivityImportRow {
         ActivityImportRow {
@@ -667,6 +678,9 @@ mod tests {
             unit_price: Some(150.25),
             amount: None,
             fee: None,
+            tax: None,
+            fx_rate: None,
+            subtype: None,
             account_id: Some("acct-1".to_string()),
             comment: None,
             line_number: None,
@@ -685,6 +699,21 @@ mod tests {
         assert_eq!(r.line_number, Some(1)); // defaulted from index
         assert!(r.force_import); // "import anyway" preserved
         assert!(!r.is_draft);
+    }
+
+    #[test]
+    fn maps_tax_subtype_and_fx_rate() {
+        let mut input = row(false);
+        input.activity_type = "DIVIDEND".to_string();
+        input.subtype = Some("DRIP".to_string());
+        input.tax = Some(1.5);
+        input.fx_rate = Some(1.35);
+
+        let mapped = to_import_rows(&[input]).unwrap();
+
+        assert_eq!(mapped[0].subtype.as_deref(), Some("DRIP"));
+        assert_eq!(mapped[0].tax, Some(Decimal::new(15, 1)));
+        assert_eq!(mapped[0].fx_rate, Some(Decimal::new(135, 2)));
     }
 
     #[test]
