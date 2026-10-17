@@ -35,7 +35,7 @@ import {
   Button,
   EmptyPlaceholder,
   PriceDisplay,
-  useNumberFormatting,
+  useAmountFormatting,
   useDateFormatting,
 } from "@wealthfolio/ui";
 import { DataTableColumnHeader } from "@wealthfolio/ui/components/ui/data-table/data-table-column-header";
@@ -115,7 +115,7 @@ export const ActivityTable = ({
   isFetchingNextPage = false,
   hasLoadMoreError = false,
 }: ActivityTableProps) => {
-  const numberFormatting = useNumberFormatting();
+  const amountFormatting = useAmountFormatting();
   const dateFormatting = useDateFormatting();
   const { isBalanceHidden } = useBalancePrivacy();
   const { t } = useTranslation();
@@ -215,9 +215,13 @@ export const ActivityTable = ({
           const assetName = row.getValue("assetName");
           const currency = row.getValue("currency");
 
-          // Option subtitle: "Mar 29 $150 CALL"
+          // Option subtitle: "Mar 29 $150.00 CALL"
           const optionSubtitle = parsedOption
-            ? formatOptionSubtitle(parsedOption, { ...numberFormatting, ...dateFormatting })
+            ? formatOptionSubtitle(
+                parsedOption,
+                row.original.assetQuoteCcy ?? row.original.currency,
+                { ...amountFormatting, ...dateFormatting },
+              )
             : null;
 
           const content = (
@@ -698,7 +702,7 @@ export const ActivityTable = ({
       handleDuplicate,
       onLinkTransfer,
       onUnlinkTransfer,
-      numberFormatting,
+      amountFormatting,
       showsCashBalance,
       symbolExchangeCountMap,
       t,

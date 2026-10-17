@@ -39,15 +39,15 @@ export function formatOptionExpiration(
   });
 }
 
+/** The strike is formatted in `currency`, the option's quote currency. */
 export function formatOptionSubtitle(
   option: ParsedOccSymbol,
-  formatting: Pick<FormattingApi, "formatCalendarDate" | "formatDecimal">,
+  currency: string,
+  formatting: Pick<FormattingApi, "formatCalendarDate" | "formatPrice">,
 ): string {
   const expiration = formatOptionExpiration(option.expiration, formatting);
-  const strike = formatting.formatDecimal(option.strikePrice, {
-    maximumFractionDigits: 3,
-  });
-  return `${expiration} $${strike} ${option.optionType}`;
+  const strike = formatting.formatPrice(option.strikePrice, currency);
+  return `${expiration} ${strike} ${option.optionType}`;
 }
 
 /**

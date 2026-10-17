@@ -1,6 +1,6 @@
 import { localizeActivitySubtypeName, localizeActivityTypeName } from "@/lib/activity-utils";
 import { ActivityStatus, ActivityType } from "@/lib/constants";
-import { formatOptionExpiration, parseOccSymbol } from "@/lib/occ-symbol";
+import { formatOptionExpiration, formatOptionSubtitle, parseOccSymbol } from "@/lib/occ-symbol";
 import type { ActivityDetails } from "@/lib/types";
 import {
   Badge,
@@ -13,6 +13,7 @@ import {
   SheetContent,
   SheetHeader,
   SheetTitle,
+  useAmountFormatting,
   useDateFormatting,
   useNumberFormatting,
 } from "@wealthfolio/ui";
@@ -118,6 +119,7 @@ export function ActivityReviewReasons({
 export function ActivityDetailSheet({ activity, open, onOpenChange }: ActivityDetailSheetProps) {
   const { t } = useTranslation();
   const numberFormatting = useNumberFormatting();
+  const amountFormatting = useAmountFormatting();
   const dateFormatting = useDateFormatting();
   const { isBalanceHidden } = useBalancePrivacy();
 
@@ -149,6 +151,8 @@ export function ActivityDetailSheet({ activity, open, onOpenChange }: ActivityDe
   // Parse OCC symbol for option activities
   const isOption = activity.instrumentType === "OPTION";
   const parsedOption = isOption ? parseOccSymbol(activity.assetSymbol ?? "") : null;
+  // The strike is in the option's quote currency, which can differ from the activity's.
+  const optionCurrency = activity.assetQuoteCcy ?? activity.currency;
 
   // Format option expiration for display (YYYY-MM-DD → "Mar 29, 2025")
   const optionExpirationDisplay = parsedOption?.expiration
@@ -186,8 +190,10 @@ export function ActivityDetailSheet({ activity, open, onOpenChange }: ActivityDe
                   <>
                     <div className="text-xl font-bold">{parsedOption.underlying}</div>
                     <div className="text-muted-foreground text-sm">
-                      {optionExpirationDisplay} ${parsedOption.strikePrice}{" "}
-                      {parsedOption.optionType}
+                      {formatOptionSubtitle(parsedOption, optionCurrency, {
+                        ...amountFormatting,
+                        ...dateFormatting,
+                      })}
                     </div>
                   </>
                 ) : (
@@ -261,9 +267,7 @@ export function ActivityDetailSheet({ activity, open, onOpenChange }: ActivityDe
               />
               <DetailRow
                 label={t("activity:detail.strike_price")}
-                value={
-                  <PriceDisplay value={parsedOption.strikePrice} currency={activity.currency} />
-                }
+                value={<PriceDisplay value={parsedOption.strikePrice} currency={optionCurrency} />}
               />
               <DetailRow label={t("activity:detail.expiration")} value={optionExpirationDisplay} />
               <DetailRow label={t("activity:detail.occ_symbol")} value={activity.assetSymbol} />

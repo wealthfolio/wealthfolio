@@ -588,15 +588,16 @@ impl ActivityRepository {
                     activities::metadata,
                 ),
                 assets::metadata.nullable(),
+                assets::quote_ccy.nullable(),
             ))
             .limit(page_size)
             .offset(offset)
-            .load::<(ActivityDetailsDB, Option<String>)>(&mut conn)
+            .load::<(ActivityDetailsDB, Option<String>, Option<String>)>(&mut conn)
             .map_err(StorageError::from)?;
 
         let results: Vec<ActivityDetails> = results_db
             .into_iter()
-            .map(|(db, asset_metadata)| {
+            .map(|(db, asset_metadata, asset_quote_ccy)| {
                 let has_asset = db.asset_id.is_some();
                 let instrument_type = db
                     .instrument_type
@@ -606,6 +607,7 @@ impl ActivityRepository {
                     .as_deref()
                     .and_then(|value| serde_json::from_str(value).ok());
                 let mut activity = ActivityDetails::from(db);
+                activity.asset_quote_ccy = asset_quote_ccy;
                 activity.asset_contract_multiplier = has_asset.then(|| {
                     contract_multiplier_from_asset_metadata(
                         instrument_type.as_ref(),
@@ -3967,6 +3969,63 @@ mod tests {
             .collect();
         assert_eq!(multipliers.get("mini-buy"), Some(&Some("10")));
         assert_eq!(multipliers.get("standard-buy"), Some(&Some("100")));
+    }
+
+    #[tokio::test]
+    async fn search_activities_returns_the_asset_quote_currency() {
+        let (pool, writer) = setup_db();
+        let repo = ActivityRepository::new(pool.clone(), writer);
+
+        {
+            let mut conn = get_connection(&pool).expect("conn");
+            insert_account(&mut conn, "quote-account");
+            diesel::sql_query(
+                "INSERT INTO assets
+                 (id, kind, name, display_code, is_active, quote_mode, quote_ccy,
+                  instrument_type, instrument_symbol, created_at, updated_at)
+                 VALUES
+                 ('option-usd', 'INVESTMENT', 'USD option', 'AAPL', 1, 'MARKET', 'USD',
+                  'OPTION', 'AAPL 261218C00150000', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
+            )
+            .execute(&mut conn)
+            .expect("insert option asset");
+            diesel::sql_query(
+                "INSERT INTO activities
+                 (id, account_id, asset_id, activity_type, status, activity_date, quantity,
+                  unit_price, amount, currency, is_user_modified, needs_review, created_at, updated_at)
+                 VALUES
+                 ('cad-option-buy', 'quote-account', 'option-usd', 'BUY', 'POSTED',
+                  '2026-01-01T00:00:00Z', '1', '7', '700', 'CAD', 0, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+                 ('assetless-deposit', 'quote-account', NULL, 'DEPOSIT', 'POSTED',
+                  '2026-01-02T00:00:00Z', NULL, NULL, '100', 'CAD', 0, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
+            )
+            .execute(&mut conn)
+            .expect("insert activities");
+        }
+
+        let results = repo
+            .search_activities(
+                0,
+                10,
+                Some(vec!["quote-account".to_string()]),
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+            )
+            .expect("search activities");
+
+        let quote_ccys: HashMap<&str, Option<&str>> = results
+            .data
+            .iter()
+            .map(|activity| (activity.id.as_str(), activity.asset_quote_ccy.as_deref()))
+            .collect();
+        assert_eq!(quote_ccys.get("cad-option-buy"), Some(&Some("USD")));
+        assert_eq!(quote_ccys.get("assetless-deposit"), Some(&None));
     }
 
     #[tokio::test]

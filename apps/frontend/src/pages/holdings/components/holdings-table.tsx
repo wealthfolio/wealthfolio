@@ -6,6 +6,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 import {
   Badge,
   GainPercent,
+  useAmountFormatting,
   useNumberFormatting,
   type FormattingApi,
   useDateFormatting,
@@ -142,6 +143,7 @@ export const HoldingsTable = ({
 }) => {
   const { t, i18n } = useTranslation();
   const formatting = useNumberFormatting();
+  const amountFormatting = useAmountFormatting();
   const dateFormatting = useDateFormatting();
   const navigate = useNavigate();
   const { isBalanceHidden } = useBalancePrivacy();
@@ -166,6 +168,7 @@ export const HoldingsTable = ({
         isBalanceHidden,
         showConvertedValues,
         formatting,
+        amountFormatting,
         dateFormatting,
         navigate,
         onClassify,
@@ -180,6 +183,7 @@ export const HoldingsTable = ({
       isBalanceHidden,
       showConvertedValues,
       formatting,
+      amountFormatting,
       dateFormatting,
       navigate,
       onClassify,
@@ -308,7 +312,8 @@ const getColumns = (
   t: TFunction,
   isHidden: boolean,
   showConvertedValues: boolean,
-  formatting: Pick<FormattingApi, "formatPercent" | "formatDecimal">,
+  formatting: Pick<FormattingApi, "formatPercent">,
+  amountFormatting: Pick<FormattingApi, "formatPrice">,
   dateFormatting: Pick<FormattingApi, "formatCalendarDate">,
   navigate: NavigateFunction,
   onClassify?: (holding: Holding) => void,
@@ -337,9 +342,13 @@ const getColumns = (
           ? parsedOption.underlying
           : symbol;
 
-      // Option subtitle: "Mar 29 $150 CALL"
+      // Option subtitle: "Mar 29 $150.00 CALL"
       const optionSubtitle = parsedOption
-        ? formatOptionSubtitle(parsedOption, { ...formatting, ...dateFormatting })
+        ? formatOptionSubtitle(
+            parsedOption,
+            holding.instrument?.currency ?? holding.localCurrency,
+            { ...amountFormatting, ...dateFormatting },
+          )
         : null;
 
       const handleNavigate = () => {

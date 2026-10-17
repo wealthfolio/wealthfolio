@@ -246,6 +246,8 @@ export interface ActivityDetails {
   assetSymbol: string;
   assetName?: string;
   assetQuoteMode?: QuoteMode;
+  /** Currency the asset is quoted in, which can differ from the activity currency. */
+  assetQuoteCcy?: string | null;
   /** Canonical exchange MIC code for asset identification */
   exchangeMic?: string;
   instrumentType?: string;

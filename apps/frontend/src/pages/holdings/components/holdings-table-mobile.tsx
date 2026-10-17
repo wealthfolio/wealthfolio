@@ -10,6 +10,7 @@ import {
   GainPercent,
   Input,
   Separator,
+  useAmountFormatting,
   useDateFormatting,
   useNumberFormatting,
 } from "@wealthfolio/ui";
@@ -81,8 +82,9 @@ export const HoldingsTableMobile = ({
 }: HoldingsTableMobileProps) => {
   const numberFormatting = useNumberFormatting();
   const dateFormatting = useDateFormatting();
+  const amountFormatting = useAmountFormatting();
 
-  const formatting = { ...dateFormatting, ...numberFormatting };
+  const formatting = { ...dateFormatting, ...numberFormatting, ...amountFormatting };
 
   const { t } = useTranslation();
   const { isBalanceHidden } = useBalancePrivacy();
@@ -210,7 +212,11 @@ export const HoldingsTableMobile = ({
             const subtitle = isCash
               ? t("holdings:cash_balance")
               : parsedOption
-                ? formatOptionSubtitle(parsedOption, formatting)
+                ? formatOptionSubtitle(
+                    parsedOption,
+                    holding.instrument?.currency ?? holding.localCurrency,
+                    formatting,
+                  )
                 : (holding.instrument?.name ?? null);
             const isNavigable = !isCash && holding.instrument?.symbol;
 

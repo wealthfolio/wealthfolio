@@ -16588,6 +16588,7 @@ pub(crate) mod tests {
             import_run_id: None,
             is_user_modified: false,
             metadata: None,
+            asset_quote_ccy: None,
             cash_balance: None,
             cash_balance_currency: None,
             cash_balance_scope: None,

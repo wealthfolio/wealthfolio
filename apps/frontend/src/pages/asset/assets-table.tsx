@@ -6,12 +6,7 @@ import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 
 import { TickerAvatar } from "@/components/ticker-avatar";
-import {
-  Badge,
-  useAmountFormatting,
-  useNumberFormatting,
-  useDateFormatting,
-} from "@wealthfolio/ui";
+import { Badge, useAmountFormatting, useDateFormatting } from "@wealthfolio/ui";
 import { DataTable } from "@wealthfolio/ui/components/ui/data-table";
 import { DataTableColumnHeader } from "@wealthfolio/ui/components/ui/data-table/data-table-column-header";
 import { DataTableFacetedFilterProps } from "@wealthfolio/ui/components/ui/data-table/data-table-faceted-filter";
@@ -66,7 +61,6 @@ export function AssetsTable({
   isRefetchingQuotes,
 }: AssetsTableProps) {
   const formatting = useAmountFormatting();
-  const numberFormatting = useNumberFormatting();
   const dateFormatting = useDateFormatting();
   const { t } = useTranslation();
   const { settings } = useSettingsContext();
@@ -107,7 +101,10 @@ export function AssetsTable({
             ? parsedOption.underlying
             : (asset.displayCode ?? asset.name ?? t("asset:table.unknown"));
           const subtitle = parsedOption
-            ? formatOptionSubtitle(parsedOption, { ...numberFormatting, ...dateFormatting })
+            ? formatOptionSubtitle(parsedOption, asset.quoteCcy, {
+                ...formatting,
+                ...dateFormatting,
+              })
             : (asset.name ?? "—");
           const avatarSymbol = parsedOption ? parsedOption.underlying : rawSymbol;
           return (
@@ -351,7 +348,6 @@ export function AssetsTable({
       isRefetchingQuotes,
       isUpdatingQuotes,
       navigate,
-      numberFormatting,
       t,
     ],
   );
