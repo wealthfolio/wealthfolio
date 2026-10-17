@@ -4,6 +4,7 @@ import { shouldResolveImportAsset } from "@/lib/activity-utils";
 import { canImportCSV } from "@/lib/activity-restrictions";
 import { QueryKeys } from "@/lib/query-keys";
 import type { Account } from "@/lib/types";
+import { cn } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { AlertFeedback, Page, PageContent, PageHeader } from "@wealthfolio/ui";
 import { Button } from "@wealthfolio/ui/components/ui/button";
@@ -709,7 +710,7 @@ function ImportWizardContent() {
               )}
 
               {/* Step content — scrollable */}
-              <div className="min-h-0 flex-1 overflow-y-auto">
+              <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
                 <AnimatePresence mode="wait">
                   <motion.div
                     key={state.step}
@@ -717,7 +718,11 @@ function ImportWizardContent() {
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: -20 }}
                     transition={{ duration: 0.3 }}
-                    className="p-3 sm:p-6"
+                    className={cn(
+                      "p-3 sm:p-6",
+                      // The mapping step fits its previews to the space left in the step area
+                      CurrentStepComponent === MappingStepUnified && "flex min-h-0 flex-1 flex-col",
+                    )}
                   >
                     <CurrentStepComponent />
                   </motion.div>

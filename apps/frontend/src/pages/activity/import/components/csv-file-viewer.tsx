@@ -42,7 +42,7 @@ interface CSVFileViewerProps {
   maxHeight?: string;
 }
 
-export function CSVFileViewer({ data, className, maxHeight = "400px" }: CSVFileViewerProps) {
+export function CSVFileViewer({ data, className, maxHeight }: CSVFileViewerProps) {
   const { t } = useTranslation();
   // Determine initial column filters based on whether lines have errors
   const initialColumnFilters = useMemo<ColumnFiltersState>(() => {
@@ -178,12 +178,14 @@ export function CSVFileViewer({ data, className, maxHeight = "400px" }: CSVFileV
   });
 
   return (
-    <div className={cn("space-y-2", className)}>
-      <DataTableToolbar table={table} searchBy="content" filters={filters} />
+    <div className={cn("flex flex-col gap-2", className)}>
+      <div className="shrink-0">
+        <DataTableToolbar table={table} searchBy="content" filters={filters} />
+      </div>
 
-      <div className="overflow-hidden rounded-md border">
+      <div className="flex min-h-20 flex-1 flex-col overflow-hidden rounded-md border">
         {/* Header bar similar to a code editor */}
-        <div className="border-border bg-muted flex items-center justify-between border-b px-3 py-2">
+        <div className="border-border bg-muted flex shrink-0 items-center justify-between border-b px-3 py-2">
           <span className="text-muted-foreground text-xs">
             {t("activity:import.csvViewer.csvFile")}
           </span>
@@ -194,7 +196,7 @@ export function CSVFileViewer({ data, className, maxHeight = "400px" }: CSVFileV
           </span>
         </div>
 
-        <div style={{ maxHeight }} className="overflow-auto">
+        <div style={{ maxHeight }} className="min-h-0 flex-1 overflow-auto">
           <Table>
             <TableBody className="text-xs">
               {table.getRowModel().rows?.length ? (
@@ -244,7 +246,9 @@ export function CSVFileViewer({ data, className, maxHeight = "400px" }: CSVFileV
         </div>
       </div>
 
-      <DataTablePagination table={table} />
+      <div className="shrink-0">
+        <DataTablePagination table={table} />
+      </div>
     </div>
   );
 }
