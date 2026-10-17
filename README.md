@@ -165,10 +165,14 @@ See [ROADMAP.md](./ROADMAP.md).
 
 Ensure you have the following installed on your machine:
 
-- [Node.js](https://nodejs.org/)
-- [pnpm](https://pnpm.io/)
-- [Rust](https://www.rust-lang.org/)
+- [Node.js](https://nodejs.org/), the version in `.node-version`
+- [pnpm](https://pnpm.io/), the version in `package.json`'s `packageManager`
+- [Rust](https://www.rust-lang.org/) through rustup, which uses the toolchain in
+  `rust-toolchain.toml`
 - [Tauri](https://tauri.app/)
+
+If you use [mise](https://mise.jdx.dev), run `mise trust` and then
+`mise install` in the repository to get those Node.js and pnpm versions.
 
 ### Building from Source
 
