@@ -389,4 +389,5 @@ export const newContributionLimitSchema = z.object({
   accountIds: z.string().nullable().optional(),
   startDate: z.union([z.date(), z.string().datetime(), z.null()]).optional(),
   endDate: z.union([z.date(), z.string().datetime(), z.null()]).optional(),
+  isRecurring: z.boolean().optional(),
 });
