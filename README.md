@@ -173,6 +173,9 @@ Ensure you have the following installed on your machine:
   [`rust-toolchain.toml`](rust-toolchain.toml)
 - [Tauri](https://tauri.app/)
 
+If you use [mise](https://mise.jdx.dev), run `mise trust` and then
+`mise install` in the repository to get those Node.js and pnpm versions.
+
 ### Building from Source
 
 1. **Clone the repository**:
