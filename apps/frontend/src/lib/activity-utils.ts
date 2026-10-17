@@ -1,4 +1,5 @@
 import type { TFunction } from "i18next";
+import { getQuoteUnitCurrency } from "@wealthfolio/ui/lib/currencies";
 import { resolveActivityCashMultiplier } from "./activity-final-amount";
 import {
   ACTIVITY_SUBTYPES,
@@ -462,29 +463,48 @@ const CRYPTO_QUOTE_CURRENCIES = new Set([
   "CRV",
 ]);
 
-const minorUnitCache = new Map<string, number>();
-
 /**
  * One minor unit of the currency. Keep in lockstep with `currency_minor_unit`
- * in crates/core/src/fx/currency.rs, including the crypto quote arm.
+ * in crates/core/src/fx/currency.rs, including minor-unit aliases. This is an
+ * accounting tolerance, not display precision: Intl/CLDR can differ from core.
  */
 function currencyMinorUnit(currency: string | undefined): number {
   if (!currency) return 0.01;
-  const upper = currency.toUpperCase();
+  const upper = (getQuoteUnitCurrency(currency)?.major ?? currency).toUpperCase();
   if (CRYPTO_QUOTE_CURRENCIES.has(upper)) return 1e-8;
-  const cached = minorUnitCache.get(upper);
-  if (cached !== undefined) return cached;
-  let unit = 0.01;
-  try {
-    const digits =
-      new Intl.NumberFormat("en", { style: "currency", currency: upper }).resolvedOptions()
-        .maximumFractionDigits ?? 2;
-    unit = Math.pow(10, -digits);
-  } catch {
-    unit = 0.01;
+  switch (upper) {
+    case "BIF":
+    case "CLP":
+    case "DJF":
+    case "GNF":
+    case "ISK":
+    case "JPY":
+    case "KMF":
+    case "KRW":
+    case "PYG":
+    case "RWF":
+    case "UGX":
+    case "UYI":
+    case "VND":
+    case "VUV":
+    case "XAF":
+    case "XOF":
+    case "XPF":
+      return 1;
+    case "BHD":
+    case "IQD":
+    case "JOD":
+    case "KWD":
+    case "LYD":
+    case "OMR":
+    case "TND":
+      return 0.001;
+    case "CLF":
+    case "UYW":
+      return 0.0001;
+    default:
+      return 0.01;
   }
-  minorUnitCache.set(upper, unit);
-  return unit;
 }
 
 /**
