@@ -884,13 +884,8 @@ mod tests {
         assert!(subtypes.is_empty());
     }
 
-    #[test]
-    fn trade_draft_without_stated_amount_stays_valid() {
-        // A BUY draft with qty + price but no amount must validate: the
-        // total is derived canonically at commit, never synthesized in the
-        // draft (a local formula was wrong for SELL and blind to option
-        // multipliers).
-        let draft = ActivityDraft {
+    fn buy_draft() -> ActivityDraft {
+        ActivityDraft {
             activity_type: "BUY".to_string(),
             activity_date: "2024-01-15".to_string(),
             symbol: Some("AAPL".to_string()),
@@ -916,40 +911,24 @@ mod tests {
             pricing_mode: "MARKET".to_string(),
             is_custom_asset: false,
             asset_kind: None,
-        };
+        }
+    }
+
+    #[test]
+    fn trade_draft_without_stated_amount_stays_valid() {
+        // A BUY draft with qty + price but no amount must validate: the
+        // total is derived canonically at commit, never synthesized in the
+        // draft (a local formula was wrong for SELL and blind to option
+        // multipliers).
+        let draft = buy_draft();
         let validation = validate_draft(&draft);
         assert!(validation.is_valid, "{:?}", validation);
     }
 
     #[test]
     fn non_positive_fx_rate_is_invalid() {
-        let mut draft = ActivityDraft {
-            activity_type: "DEPOSIT".to_string(),
-            activity_date: "2024-01-15".to_string(),
-            symbol: None,
-            asset_id: None,
-            asset_name: None,
-            exchange_mic: None,
-            quote_ccy: None,
-            instrument_type: None,
-            provider_id: None,
-            provider_symbol: None,
-            quantity: None,
-            unit_price: None,
-            amount: Some(100.0),
-            fee: None,
-            tax: None,
-            currency: "EUR".to_string(),
-            fx_rate: Some(1.08),
-            account_id: Some("acct-1".to_string()),
-            account_name: None,
-            subtype: None,
-            notes: None,
-            price_source: "none".to_string(),
-            pricing_mode: "MARKET".to_string(),
-            is_custom_asset: false,
-            asset_kind: None,
-        };
+        let mut draft = buy_draft();
+        draft.fx_rate = Some(1.08);
         assert!(validate_draft(&draft).is_valid);
 
         draft.fx_rate = Some(0.0);

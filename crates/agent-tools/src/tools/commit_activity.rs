@@ -147,7 +147,7 @@ fn draft_to_new_activity(draft: &ActivityDraft) -> Result<NewActivity, AgentTool
         .map_err(AgentToolError::InvalidInput)?
         .ok_or_else(|| AgentToolError::InvalidInput("Draft is missing a currency".to_string()))?;
     let fx_rate = to_decimal(draft.fx_rate, "fxRate")?;
-    if fx_rate.is_some_and(|rate| !rate.is_sign_positive() || rate.is_zero()) {
+    if fx_rate.is_some_and(|rate| rate <= Decimal::ZERO) {
         return Err(AgentToolError::InvalidInput(
             "FX rate must be a positive number".to_string(),
         ));
