@@ -20,6 +20,7 @@ function renderWith(unconvertedCurrencies: string[]) {
     byType: { INTEREST: 2500 },
     byAsset: {},
     byCurrency: { USD: 2500, INR: 1234567.89, JPY: 50000 },
+    byCurrencyBase: { USD: 2500 },
     byAccount: {},
     totalIncome: 2500,
     currency: "USD",

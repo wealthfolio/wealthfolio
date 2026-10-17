@@ -258,6 +258,9 @@ impl IncomeServiceTrait for IncomeService {
                 for val in summary.by_currency.values_mut() {
                     *val = val.round_dp(DISPLAY_DECIMAL_PRECISION);
                 }
+                for val in summary.by_currency_base.values_mut() {
+                    *val = val.round_dp(DISPLAY_DECIMAL_PRECISION);
+                }
                 for entry in summary.by_account.values_mut() {
                     entry.total = entry.total.round_dp(DISPLAY_DECIMAL_PRECISION);
                     for val in entry.by_month.values_mut() {

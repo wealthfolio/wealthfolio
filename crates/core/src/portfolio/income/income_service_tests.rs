@@ -333,6 +333,14 @@ fn income_without_an_exchange_rate_is_left_out_of_converted_totals() {
     assert_eq!(all.by_currency.get("JPY"), Some(&dec!(50000)));
     assert_eq!(all.by_currency.get("USD"), Some(&dec!(2500)));
     assert_eq!(all.by_currency.get("EUR"), Some(&dec!(100)));
+    // The converted per-currency totals leave it out too.
+    assert_eq!(
+        all.by_currency_base,
+        HashMap::from([
+            ("EUR".to_string(), dec!(110)),
+            ("USD".to_string(), dec!(2500)),
+        ])
+    );
     assert_eq!(
         all.unconverted_currencies,
         currencies(&["GBP", "INR", "JPY"])

@@ -18,6 +18,7 @@ const { summary } = vi.hoisted(() => ({
     byAsset: {},
     byAccount: {},
     byCurrency: { INR: 1234567.8912, USD: 2500, JPY: 1234.5 },
+    byCurrencyBase: { INR: 14814.81, USD: 2500, JPY: 8.27 },
   } satisfies IncomeSummary,
 }));
 
@@ -42,10 +43,11 @@ vi.mock("recharts", async (importOriginal) => ({
     <div data-testid="currency-tooltip">
       {cloneElement(content as ReactElement<{ active: boolean; payload: unknown[] }>, {
         active: true,
+        // As Recharts does: the slice's size as the value, and its row as the payload.
         payload: Object.entries(summary.byCurrency).map(([currency, amount]) => ({
           name: currency,
-          value: amount,
-          payload: { currency, fill: "red" },
+          value: summary.byCurrencyBase[currency as keyof typeof summary.byCurrencyBase],
+          payload: { currency, amount, fill: "red" },
         })),
       })}
     </div>

@@ -143,7 +143,8 @@ export default function IncomePage() {
     );
   }
 
-  const { totalIncome, currency, monthlyAverage, byType, byCurrency } = periodSummary;
+  const { totalIncome, currency, monthlyAverage, byType, byCurrency, byCurrencyBase } =
+    periodSummary;
   const dividendIncome = byType.DIVIDEND || 0;
   const interestIncome = byType.INTEREST || 0;
   const dividendPercentage = totalIncome > 0 ? (dividendIncome / totalIncome) * 100 : 0;
@@ -199,10 +200,15 @@ export default function IncomePage() {
       ? (currentMonthlyAverageNumber - previousMonthlyAverage) / previousMonthlyAverage
       : 0;
 
-  const currencyData = Object.entries(byCurrency).map(([currency, amount]) => ({
-    currency,
-    amount: Number(amount) || 0,
-  }));
+  // Only converted income gets a slice: income without an exchange rate has
+  // none, and a zero-sized slice would still add padding to the pie.
+  const currencyData = Object.entries(byCurrencyBase)
+    .map(([currency, baseAmount]) => ({
+      currency,
+      amount: Number(byCurrency[currency]) || 0,
+      baseAmount: Number(baseAmount) || 0,
+    }))
+    .filter(({ baseAmount }) => baseAmount > 0);
 
   return (
     <>
@@ -273,11 +279,12 @@ export default function IncomePage() {
                         content={
                           <ChartTooltipContent
                             hideLabel
-                            // Each slice is an amount in its own currency.
-                            formatter={(value, name, entry) => {
-                              const color =
-                                (entry.payload as { fill?: string } | undefined)?.fill ??
-                                entry.color;
+                            // Slices are sized in the base currency; show each currency's own amount.
+                            formatter={(_value, name, entry) => {
+                              const slice = entry.payload as
+                                | { amount?: number; fill?: string }
+                                | undefined;
+                              const color = slice?.fill ?? entry.color;
                               return (
                                 <>
                                   <div
@@ -293,7 +300,7 @@ export default function IncomePage() {
                                     <span className="text-muted-foreground">{name}</span>
                                     <span className="text-foreground font-mono font-medium tabular-nums">
                                       {amountFormatting.formatDecimalAmount(
-                                        Number(value),
+                                        Number(slice?.amount),
                                         String(name),
                                       )}
                                     </span>
@@ -304,7 +311,12 @@ export default function IncomePage() {
                           />
                         }
                       />
-                      <Pie data={currencyData} dataKey="amount" nameKey="currency" paddingAngle={4}>
+                      <Pie
+                        data={currencyData}
+                        dataKey="baseAmount"
+                        nameKey="currency"
+                        paddingAngle={4}
+                      >
                         {currencyData.map((_entry, index) => (
                           <Cell key={`cell-${index}`} fill={`var(--chart-${index + 2})`} />
                         ))}

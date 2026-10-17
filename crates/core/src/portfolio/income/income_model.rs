@@ -29,7 +29,11 @@ pub struct IncomeSummary {
     pub by_month: HashMap<String, Decimal>,
     pub by_type: HashMap<String, Decimal>,
     pub by_asset: HashMap<String, IncomeByAsset>,
+    /// Income per currency, in that currency.
     pub by_currency: HashMap<String, Decimal>,
+    /// Income per currency, converted to `currency`. Like the other converted
+    /// totals, it leaves out income without an exchange rate.
+    pub by_currency_base: HashMap<String, Decimal>,
     pub by_account: HashMap<String, IncomeByAccount>,
     pub total_income: Decimal,
     pub currency: String,
@@ -50,6 +54,7 @@ impl IncomeSummary {
             by_type: HashMap::new(),
             by_asset: HashMap::new(),
             by_currency: HashMap::new(),
+            by_currency_base: HashMap::new(),
             by_account: HashMap::new(),
             total_income: Decimal::ZERO,
             currency,
@@ -82,6 +87,10 @@ impl IncomeSummary {
             .by_currency
             .entry(data.currency.clone())
             .or_insert_with(|| Decimal::ZERO) += &data.amount;
+        *self
+            .by_currency_base
+            .entry(data.currency.clone())
+            .or_insert_with(|| Decimal::ZERO) += &converted_amount;
         self.by_account
             .entry(data.account_id.clone())
             .and_modify(|entry| {

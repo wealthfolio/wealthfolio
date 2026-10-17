@@ -1056,7 +1056,8 @@ export interface IncomeSummary {
   byMonth: Record<string, number>;
   byType: Record<string, number>;
   byAsset: Record<string, IncomeByAsset>;
-  byCurrency: Record<string, number>;
+  byCurrency: Record<string, number>; // In each currency
+  byCurrencyBase: Record<string, number>; // Converted to the base currency
   byAccount: Record<string, IncomeByAccount>;
   totalIncome: number;
   currency: string;
