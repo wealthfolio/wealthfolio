@@ -7,7 +7,9 @@
 //! `import_activities`), which the chat tool UI drives directly.
 //!
 //! Flow:
-//! 1. Tool receives CSV content + optional account_id + LLM-proposed mapping
+//! 1. Tool receives the name of an attached CSV file + optional account_id +
+//!    LLM-proposed mapping. It reads the file from the chat's attachments, so
+//!    the model never copies rows into the call.
 //! 2. If account has a saved template, short-circuit and return it
 //! 3. Otherwise run `parse_csv` to get headers + sample rows, auto-detect
 //!    field mappings, merge with LLM-provided overrides
@@ -35,6 +37,44 @@ where
     }))
 }
 
+/// Field mappings tolerating null values, like `deserialize_nullable_string_map`.
+/// A value is one column or a list of fallback columns.
+fn deserialize_nullable_field_mappings<'de, D>(
+    deserializer: D,
+) -> Result<Option<HashMap<String, FieldMappingValue>>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let raw: Option<HashMap<String, Option<FieldMappingValue>>> =
+        Option::deserialize(deserializer)?;
+    Ok(raw.map(|m| {
+        m.into_iter()
+            .filter_map(|(k, v)| v.map(|val| (k, val)))
+            .collect()
+    }))
+}
+
+/// Drops blank columns, and mappings left with none.
+fn clean_field_mappings(
+    map: Option<HashMap<String, FieldMappingValue>>,
+) -> HashMap<String, FieldMappingValue> {
+    map.unwrap_or_default()
+        .into_iter()
+        .filter_map(|(field, value)| match value {
+            FieldMappingValue::Single(column) => {
+                (!column.trim().is_empty()).then_some((field, FieldMappingValue::Single(column)))
+            }
+            FieldMappingValue::Fallback(columns) => {
+                let columns: Vec<String> = columns
+                    .into_iter()
+                    .filter(|column| !column.trim().is_empty())
+                    .collect();
+                (!columns.is_empty()).then_some((field, FieldMappingValue::Fallback(columns)))
+            }
+        })
+        .collect()
+}
+
 fn clean_string_map(map: Option<HashMap<String, String>>) -> HashMap<String, String> {
     map.unwrap_or_default()
         .into_iter()
@@ -55,7 +95,7 @@ fn has_usable_activity_mappings(map: &Option<HashMap<String, Vec<String>>>) -> b
 }
 
 fn has_usable_llm_mappings(args: &ImportCsvArgs) -> bool {
-    has_usable_string_map(&args.field_mappings)
+    !clean_field_mappings(args.field_mappings.clone()).is_empty()
         || has_usable_activity_mappings(&args.activity_mappings)
         || has_usable_string_map(&args.symbol_mappings)
         || has_usable_string_map(&args.account_mappings)
@@ -63,12 +103,13 @@ fn has_usable_llm_mappings(args: &ImportCsvArgs) -> bool {
 
 use wealthfolio_core::accounts::{account_types, Account};
 use wealthfolio_core::activities::{
-    import_type, into_field_mapping_values, FieldMappingValue, ImportMappingData, ParseConfig,
+    import_type, FieldMappingValue, ImportMappingData, ParseConfig,
 };
 
 use super::AccountOption;
 use crate::env::AiEnvironment;
 use crate::error::AiError;
+use crate::types::MessageAttachment;
 
 fn merge_parse_config(
     mut base: ParseConfig,
@@ -107,15 +148,15 @@ fn merge_parse_config(
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ImportCsvArgs {
-    /// Raw CSV content to parse.
-    pub csv_content: String,
+    /// Name of the attached CSV file to import.
+    pub attachment_name: String,
 
     /// Account ID to assign to all activities and load saved mapping from.
     pub account_id: Option<String>,
 
-    /// Maps field names to CSV header names.
-    #[serde(default, deserialize_with = "deserialize_nullable_string_map")]
-    pub field_mappings: Option<HashMap<String, String>>,
+    /// Maps field names to CSV header names (or fallback lists of them).
+    #[serde(default, deserialize_with = "deserialize_nullable_field_mappings")]
+    pub field_mappings: Option<HashMap<String, FieldMappingValue>>,
 
     /// Maps canonical activity types to CSV values.
     #[serde(default)]
@@ -170,12 +211,15 @@ pub enum MappingConfidence {
 /// check_activities_import → import_activities). No drafts, no validation,
 /// no normalization happens here.
 ///
-/// NOTE: csvContent is NOT echoed here — the frontend reads it from the
-/// tool call ARGS (args.csvContent) to avoid double-storing the CSV blob
-/// in both args and result.
+/// NOTE: the CSV text is NOT echoed here, because the result goes back to the
+/// model. The frontend reads it from the live tool call event, where the app
+/// fills `csvContent` from the attached file.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ImportCsvMappingOutput {
+    /// The attached CSV file the mapping applies to.
+    pub attachment_name: String,
+
     /// The mapping the AI (or saved template) settled on.
     pub applied_mapping: ImportMappingData,
 
@@ -188,7 +232,7 @@ pub struct ImportCsvMappingOutput {
     /// Headers detected by parse_csv.
     pub detected_headers: Vec<String>,
 
-    /// Redacted in persisted tool results; the UI reparses live csvContent from tool args.
+    /// Always empty; the UI parses the attached file itself.
     pub sample_rows: Vec<Vec<String>>,
 
     /// Total number of rows parsed (before truncation).
@@ -699,13 +743,39 @@ fn merge_activity_mappings(
     merged
 }
 
-/// Estimate mapping confidence from how many of the "core" fields were mapped.
+/// Whether the CSV has a column a field mapping names (any of a fallback list).
+fn mapping_header_exists(headers: &[String], value: &FieldMappingValue) -> bool {
+    let exists = |name: &String| headers.iter().any(|header| header == name.trim());
+    match value {
+        FieldMappingValue::Single(name) => exists(name),
+        FieldMappingValue::Fallback(names) => names.iter().any(exists),
+    }
+}
+
+fn mapped_header_hits(
+    headers: &[String],
+    field_mappings: &HashMap<String, FieldMappingValue>,
+) -> usize {
+    field_mappings
+        .values()
+        .filter(|value| mapping_header_exists(headers, value))
+        .count()
+}
+
+/// Estimate mapping confidence from how many of the "core" fields were mapped
+/// to a column the CSV has.
 /// Core = date + activityType + symbol + (quantity OR amount) + (unitPrice OR amount).
 fn estimate_confidence(
     mapping: &ImportMappingData,
+    headers: &[String],
     is_transaction_account: bool,
 ) -> MappingConfidence {
-    let has = |field: &str| mapping.field_mappings.contains_key(field);
+    let has = |field: &str| {
+        mapping
+            .field_mappings
+            .get(field)
+            .is_some_and(|value| mapping_header_exists(headers, value))
+    };
     let has_date = has(FIELD_DATE);
     let has_type = has(FIELD_ACTIVITY_TYPE);
     let has_amount = has(FIELD_AMOUNT);
@@ -829,16 +899,121 @@ fn sanitize_mapping_accounts(
 // Tool Implementation
 // ============================================================================
 
+/// Candidate `skipTopRows` values tried when the model's value misses the
+/// headers its field mappings name.
+const MAX_HEADER_SEARCH_ROWS: usize = 30;
+
+/// Lines read while searching for the header row: enough for
+/// `MAX_HEADER_SEARCH_ROWS` rows plus blank lines, without reparsing the
+/// whole file for every candidate.
+const HEADER_SEARCH_LINES: usize = 128;
+
+/// Finds the attached CSV file the model named. A file attached again under
+/// the same name replaces the earlier one, so the newest match wins.
+pub(crate) fn find_csv_attachment<'a>(
+    attachments: &'a [MessageAttachment],
+    name: &str,
+) -> Result<&'a MessageAttachment, AiError> {
+    let name = name.trim();
+    if let Some(attachment) = attachments
+        .iter()
+        .rev()
+        .find(|attachment| attachment.is_csv() && attachment.name == name)
+    {
+        return Ok(attachment);
+    }
+
+    let available: Vec<&str> = attachments
+        .iter()
+        .filter(|attachment| attachment.is_csv())
+        .map(|attachment| attachment.name.as_str())
+        .collect();
+    if available.is_empty() {
+        return Err(AiError::ToolExecutionFailed(
+            "No CSV file is attached in this chat. Ask the user to attach the CSV file."
+                .to_string(),
+        ));
+    }
+    Err(AiError::ToolExecutionFailed(format!(
+        "No attached CSV file is named '{}'. Attached CSV files: {}.",
+        name,
+        available.join(", ")
+    )))
+}
+
+fn leading_lines(content: &[u8], lines: usize) -> &[u8] {
+    content
+        .iter()
+        .enumerate()
+        .filter(|(_, byte)| **byte == b'\n')
+        .nth(lines.saturating_sub(1))
+        .map_or(content, |(index, _)| &content[..=index])
+}
+
 /// Tool to infer a CSV import mapping. Does NOT build drafts or validate —
 /// the frontend runs the backend pipeline with the returned mapping.
 pub struct ImportCsvTool<E: AiEnvironment> {
     env: Arc<E>,
     base_currency: String,
+    /// CSV files attached in this thread during the app session.
+    attachments: Arc<Vec<MessageAttachment>>,
 }
 
 impl<E: AiEnvironment> ImportCsvTool<E> {
-    pub fn new(env: Arc<E>, base_currency: String) -> Self {
-        Self { env, base_currency }
+    pub fn new(env: Arc<E>, base_currency: String, attachments: Vec<MessageAttachment>) -> Self {
+        Self {
+            env,
+            base_currency,
+            attachments: Arc::new(attachments),
+        }
+    }
+
+    /// `skipTopRows` counts the parser's rows, which leave out blank lines, so
+    /// a model that counts lines can skip past the header. When the row the
+    /// model chose lacks some of the headers the mapping names, returns the
+    /// first row that has the most of them, if that is more.
+    fn locate_header_row(
+        &self,
+        content: &[u8],
+        config: &ParseConfig,
+        field_mappings: &HashMap<String, FieldMappingValue>,
+    ) -> Option<usize> {
+        if field_mappings.is_empty() {
+            return None;
+        }
+        let hits_at = |content: &[u8], skip: usize| {
+            let config = ParseConfig {
+                skip_top_rows: Some(skip),
+                skip_bottom_rows: None,
+                ..config.clone()
+            };
+            self.env
+                .activity_service()
+                .parse_csv(content, &config)
+                .ok()
+                .map(|parsed| mapped_header_hits(&parsed.headers, field_mappings))
+        };
+
+        // The requested row may lie beyond the search window, so score it on
+        // the whole file.
+        let chosen_hits = hits_at(content, config.top_skip()).unwrap_or(0);
+        if chosen_hits == field_mappings.len() {
+            return None;
+        }
+        let search_content = leading_lines(content, HEADER_SEARCH_LINES);
+        let mut best: Option<(usize, usize)> = None;
+        for skip in 0..=MAX_HEADER_SEARCH_ROWS {
+            let Some(hits) = hits_at(search_content, skip) else {
+                break;
+            };
+            if hits > best.map_or(chosen_hits, |(_, best_hits)| best_hits) {
+                best = Some((skip, hits));
+            }
+            if hits == field_mappings.len() {
+                break;
+            }
+        }
+        best.map(|(skip, _)| skip)
     }
 }
 
@@ -847,6 +1022,7 @@ impl<E: AiEnvironment> Clone for ImportCsvTool<E> {
         Self {
             env: self.env.clone(),
             base_currency: self.base_currency.clone(),
+            attachments: self.attachments.clone(),
         }
     }
 }
@@ -859,14 +1035,18 @@ impl<E: AiEnvironment + 'static> Tool for ImportCsvTool<E> {
     type Output = ImportCsvMappingOutput;
 
     fn description(&self) -> String {
-        "REQUIRED for CSV file imports. When a user attaches a CSV file or provides CSV content, \
-                you MUST call this tool. Pass the complete CSV text to csvContent. \
+        "REQUIRED for CSV file imports. When a user attaches a CSV file, you MUST call this tool \
+                with the file's name in attachmentName. The app reads the attached file itself: never copy \
+                CSV rows into the call. \
                 The tool returns a mapping (column→field, value normalization, symbol translations, parse config); \
-                the app then parses/validates the file and shows the user an inline review grid in the chat. \
+                the app then parses/validates the whole file and shows the user an inline review grid in the chat. \
                 You do NOT need to parse or validate the data yourself. \
-                \n\nIMPORTANT: csvContent must contain the COMPLETE CSV text every time this tool is called. \
-                CSV data from previous tool calls is NOT retained. If the user wants to re-import or change \
-                settings, ask them to re-attach the CSV file — do not call this tool with empty or partial content. \
+                \n\nA large CSV appears in the message as a preview: its first and last lines plus each \
+                column's distinct values. That is enough to build the mapping. Attached CSV files stay available \
+                for the rest of the app session, so to change the mapping or the account, call this tool again \
+                with the same attachmentName, passing the current import's mapping from the app context with \
+                your change. CSV text typed into the message cannot be imported: ask the user to \
+                attach it as a file. \
                 \n\nFor investment/brokerage activity CSVs: when CSV symbol values look like company NAMES rather than tickers, populate `symbolMappings` with \
                 name→ticker pairs using your knowledge of public companies. Examples: {\"Cloudflare\": \"NET\", \
                 \"Apple Inc\": \"AAPL\", \"Tesla Inc.\": \"TSLA\"}. For values you are unsure about, leave them \
@@ -885,9 +1065,9 @@ impl<E: AiEnvironment + 'static> Tool for ImportCsvTool<E> {
         serde_json::json!({
             "type": "object",
             "properties": {
-                "csvContent": {
+                "attachmentName": {
                     "type": "string",
-                    "description": "Raw CSV content to parse. Include the full CSV text including headers."
+                    "description": "File name of the attached CSV to import, exactly as shown with the attachment (e.g. \"trades.csv\")."
                 },
                 "accountId": {
                     "type": ["string", "null"],
@@ -895,8 +1075,8 @@ impl<E: AiEnvironment + 'static> Tool for ImportCsvTool<E> {
                 },
                 "fieldMappings": {
                     "type": ["object", "null"],
-                    "description": "Maps field names to CSV header names. Investment keys: date, activityType, symbol, quantity, unitPrice, amount, fee, fxRate, subtype, currency, account, comment. For CASH/CREDIT_CARD statements, prefer only date, activityType, amount, fee, fxRate, subtype, currency, account, comment.",
-                    "additionalProperties": { "type": "string" }
+                    "description": "Maps field names to CSV header names. Investment keys: date, activityType, symbol, quantity, unitPrice, amount, fee, fxRate, subtype, currency, account, comment. For CASH/CREDIT_CARD statements, prefer only date, activityType, amount, fee, fxRate, subtype, currency, account, comment. A value may be a list of fallback headers, first non-empty per row wins (e.g. amount: [\"Debit\", \"Credit\"]).",
+                    "additionalProperties": { "type": ["string", "array"], "items": { "type": "string" } }
                 },
                 "activityMappings": {
                     "type": ["object", "null"],
@@ -922,7 +1102,7 @@ impl<E: AiEnvironment + 'static> Tool for ImportCsvTool<E> {
                 },
                 "skipTopRows": {
                     "type": ["integer", "null"],
-                    "description": "Number of NON-HEADER rows to skip at the top (preamble/disclaimer lines BEFORE the column header row). Do NOT count the header row itself — only count text like account names, date ranges, disclaimers that appear before the row with column headers. Example: if rows 1-3 are preamble and row 4 is 'Date,Symbol,Qty,...', pass 3 (not 4). Pass null or 0 if the header is the first row."
+                    "description": "Number of NON-HEADER rows to skip at the top (preamble/disclaimer lines BEFORE the column header row). Do NOT count the header row itself or blank lines — only count text like account names, date ranges, disclaimers that appear before the row with column headers. Example: if rows 1-3 are preamble and row 4 is 'Date,Symbol,Qty,...', pass 3 (not 4). Pass null or 0 if the header is the first row. The app moves this to the row holding the headers named in fieldMappings."
                 },
                 "skipBottomRows": {
                     "type": ["integer", "null"],
@@ -945,27 +1125,20 @@ impl<E: AiEnvironment + 'static> Tool for ImportCsvTool<E> {
                     "description": "Default currency when rows don't specify one (e.g., \"EUR\" for European broker statements)."
                 }
             },
-            "required": ["csvContent"],
+            "required": ["attachmentName"],
             "additionalProperties": false
         })
     }
 
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
+        let attachment = find_csv_attachment(&self.attachments, &args.attachment_name)?;
+        let csv_content = attachment.data.as_bytes();
         debug!(
             "import_csv called: content_len={}, account_id={:?}, delimiter={:?}",
-            args.csv_content.len(),
+            csv_content.len(),
             args.account_id,
             args.delimiter
         );
-
-        // Reject empty CSV early with a clear message the LLM can relay.
-        if args.csv_content.trim().is_empty() {
-            return Err(AiError::ToolExecutionFailed(
-                "No CSV content provided. The user needs to attach the CSV file again — \
-                 file content from previous messages is not available in follow-up turns."
-                    .to_string(),
-            ));
-        }
 
         // Get available accounts
         let accounts = self
@@ -1026,7 +1199,7 @@ impl<E: AiEnvironment + 'static> Tool for ImportCsvTool<E> {
         }
 
         // Parse CSV to get headers + sample rows for the UI preview.
-        let effective_parse_config = match &mapping {
+        let mut effective_parse_config = match &mapping {
             Some(m) => merge_parse_config(
                 m.parse_config
                     .clone()
@@ -1036,10 +1209,25 @@ impl<E: AiEnvironment + 'static> Tool for ImportCsvTool<E> {
             ),
             None => llm_parse_config.clone(),
         };
+        let requested_field_mappings = match &mapping {
+            Some(m) => m.field_mappings.clone(),
+            None => clean_field_mappings(args.field_mappings.clone()),
+        };
+        if let Some(skip_top_rows) = self.locate_header_row(
+            csv_content,
+            &effective_parse_config,
+            &requested_field_mappings,
+        ) {
+            debug!(
+                "import_csv: header row found at skipTopRows={} (requested {:?})",
+                skip_top_rows, effective_parse_config.skip_top_rows
+            );
+            effective_parse_config.skip_top_rows = Some(skip_top_rows);
+        }
         let parsed_csv = self
             .env
             .activity_service()
-            .parse_csv(args.csv_content.as_bytes(), &effective_parse_config)
+            .parse_csv(csv_content, &effective_parse_config)
             .map_err(|e| AiError::ToolExecutionFailed(format!("CSV parse error: {}", e)))?;
 
         let headers = parsed_csv.headers.clone();
@@ -1053,14 +1241,11 @@ impl<E: AiEnvironment + 'static> Tool for ImportCsvTool<E> {
         let applied_mapping = if let Some(m) = mapping {
             m
         } else {
-            let llm_field_mappings = clean_string_map(args.field_mappings.clone());
+            let llm_field_mappings = clean_field_mappings(args.field_mappings.clone());
             let field_mappings = if llm_field_mappings.is_empty() {
                 auto_detect_field_mapping_values(&headers, is_transaction_account)
             } else {
-                sanitize_field_mappings_for_account(
-                    into_field_mapping_values(llm_field_mappings),
-                    is_transaction_account,
-                )
+                sanitize_field_mappings_for_account(llm_field_mappings, is_transaction_account)
             };
 
             ImportMappingData {
@@ -1087,10 +1272,11 @@ impl<E: AiEnvironment + 'static> Tool for ImportCsvTool<E> {
         let mapping_confidence = if used_saved_profile {
             MappingConfidence::High
         } else {
-            estimate_confidence(&applied_mapping, is_transaction_account)
+            estimate_confidence(&applied_mapping, &headers, is_transaction_account)
         };
 
         Ok(ImportCsvMappingOutput {
+            attachment_name: attachment.name.clone(),
             applied_mapping,
             parse_config: effective_parse_config,
             account_id,
@@ -1109,6 +1295,21 @@ mod tests {
     use super::*;
     use crate::env::test_env::{MockAccountService, MockEnvironment};
     use chrono::Utc;
+    use wealthfolio_core::activities::into_field_mapping_values;
+
+    const ATTACHMENT_NAME: &str = "trades.csv";
+
+    fn csv_attachment(data: &str) -> MessageAttachment {
+        MessageAttachment {
+            name: ATTACHMENT_NAME.to_string(),
+            content_type: "text/csv".to_string(),
+            data: data.to_string(),
+        }
+    }
+
+    fn headers(names: &[&str]) -> Vec<String> {
+        names.iter().map(|name| name.to_string()).collect()
+    }
 
     fn account(id: &str, name: &str, currency: &str) -> Account {
         Account {
@@ -1189,7 +1390,11 @@ mod tests {
             ..Default::default()
         };
         assert_eq!(
-            estimate_confidence(&mapping, false),
+            estimate_confidence(
+                &mapping,
+                &headers(&["Date", "Type", "Symbol", "Quantity"]),
+                false
+            ),
             MappingConfidence::High
         );
     }
@@ -1204,7 +1409,10 @@ mod tests {
             ),
             ..Default::default()
         };
-        assert_eq!(estimate_confidence(&mapping, false), MappingConfidence::Low);
+        assert_eq!(
+            estimate_confidence(&mapping, &headers(&["Date"]), false),
+            MappingConfidence::Low
+        );
     }
 
     #[test]
@@ -1242,11 +1450,10 @@ mod tests {
     #[tokio::test]
     async fn test_import_csv_basic_returns_mapping() {
         let env = Arc::new(MockEnvironment::new());
-        let tool = ImportCsvTool::new(env, "USD".to_string());
-
         let csv = "Date,Symbol,Quantity,Price,Type\n2024-01-15,AAPL,10,150.00,Buy";
+        let tool = ImportCsvTool::new(env, "USD".to_string(), vec![csv_attachment(csv)]);
         let args = ImportCsvArgs {
-            csv_content: csv.to_string(),
+            attachment_name: ATTACHMENT_NAME.to_string(),
             account_id: None,
             field_mappings: None,
             activity_mappings: None,
@@ -1294,11 +1501,15 @@ mod tests {
                 account_types::CREDIT_CARD,
             )],
         });
-        let tool = ImportCsvTool::new(Arc::new(env), "USD".to_string());
-
+        let tool = ImportCsvTool::new(
+            Arc::new(env),
+            "USD".to_string(),
+            vec![csv_attachment(
+                "Date,Merchant,Debit,Credit,Type\n2024-01-15,Starbucks,12.50,,Purchase",
+            )],
+        );
         let args = ImportCsvArgs {
-            csv_content: "Date,Merchant,Debit,Credit,Type\n2024-01-15,Starbucks,12.50,,Purchase"
-                .to_string(),
+            attachment_name: ATTACHMENT_NAME.to_string(),
             account_id: Some("card-1".to_string()),
             field_mappings: None,
             activity_mappings: None,
@@ -1363,18 +1574,17 @@ mod tests {
     #[test]
     fn test_empty_nullable_maps_are_not_usable_llm_mappings() {
         let args: ImportCsvArgs = serde_json::from_value(serde_json::json!({
-            "csvContent": "Date,Symbol\n2024-01-15,AAPL",
+            "attachmentName": "trades.csv",
             "fieldMappings": { "date": null },
             "symbolMappings": { "Apple": "   " },
             "accountMappings": {}
         }))
         .unwrap();
 
-        assert!(!has_usable_string_map(&args.field_mappings));
+        assert!(clean_field_mappings(args.field_mappings.clone()).is_empty());
         assert!(!has_usable_string_map(&args.symbol_mappings));
         assert!(!has_usable_string_map(&args.account_mappings));
         assert!(!has_usable_llm_mappings(&args));
-        assert!(clean_string_map(args.field_mappings).is_empty());
         assert!(clean_string_map(args.symbol_mappings).is_empty());
     }
 
@@ -1397,8 +1607,6 @@ mod tests {
     #[tokio::test]
     async fn test_import_csv_with_llm_mapping() {
         let env = Arc::new(MockEnvironment::new());
-        let tool = ImportCsvTool::new(env, "USD".to_string());
-
         let csv = "Datum,Ticker,Aantal,Prijs,Actie\n2024-01-15,AAPL,10,150.00,Kopen";
 
         let mut field_mappings = HashMap::new();
@@ -1411,10 +1619,11 @@ mod tests {
         let mut activity_mappings = HashMap::new();
         activity_mappings.insert("BUY".to_string(), vec!["Kopen".to_string()]);
 
+        let tool = ImportCsvTool::new(env, "USD".to_string(), vec![csv_attachment(csv)]);
         let args = ImportCsvArgs {
-            csv_content: csv.to_string(),
+            attachment_name: ATTACHMENT_NAME.to_string(),
             account_id: None,
-            field_mappings: Some(field_mappings),
+            field_mappings: Some(into_field_mapping_values(field_mappings)),
             activity_mappings: Some(activity_mappings),
             symbol_mappings: None,
             account_mappings: None,
@@ -1441,11 +1650,15 @@ mod tests {
         env.account_service = Arc::new(MockAccountService {
             accounts: vec![account("acct-1", "Default", "USD")],
         });
-        let tool = ImportCsvTool::new(Arc::new(env), "USD".to_string());
-
+        let tool = ImportCsvTool::new(
+            Arc::new(env),
+            "USD".to_string(),
+            vec![csv_attachment(
+                "Date,Symbol,Quantity,Price,Type\n2024-01-15,AAPL,10,150.00,Buy",
+            )],
+        );
         let args = ImportCsvArgs {
-            csv_content: "Date,Symbol,Quantity,Price,Type\n2024-01-15,AAPL,10,150.00,Buy"
-                .to_string(),
+            attachment_name: ATTACHMENT_NAME.to_string(),
             account_id: Some("stale-account".to_string()),
             field_mappings: None,
             activity_mappings: None,
@@ -1471,15 +1684,19 @@ mod tests {
         env.account_service = Arc::new(MockAccountService {
             accounts: vec![account("acct-1", "Default", "USD")],
         });
-        let tool = ImportCsvTool::new(Arc::new(env), "USD".to_string());
-
         let mut account_mappings = HashMap::new();
         account_mappings.insert("Broker Account".to_string(), "acct-1".to_string());
         account_mappings.insert("Old Account".to_string(), "stale-account".to_string());
 
+        let tool = ImportCsvTool::new(
+            Arc::new(env),
+            "USD".to_string(),
+            vec![csv_attachment(
+                "Date,Symbol,Quantity,Price,Type\n2024-01-15,AAPL,10,150.00,Buy",
+            )],
+        );
         let args = ImportCsvArgs {
-            csv_content: "Date,Symbol,Quantity,Price,Type\n2024-01-15,AAPL,10,150.00,Buy"
-                .to_string(),
+            attachment_name: ATTACHMENT_NAME.to_string(),
             account_id: Some("acct-1".to_string()),
             field_mappings: None,
             activity_mappings: None,
@@ -1514,15 +1731,14 @@ mod tests {
     async fn test_import_csv_with_symbol_name_mapping() {
         // AI translates company names to tickers via symbol_mappings.
         let env = Arc::new(MockEnvironment::new());
-        let tool = ImportCsvTool::new(env, "USD".to_string());
-
         let csv = "Date,Company,Qty\n2024-01-15,Cloudflare,50";
 
         let mut symbol_mappings = HashMap::new();
         symbol_mappings.insert("Cloudflare".to_string(), "NET".to_string());
 
+        let tool = ImportCsvTool::new(env, "USD".to_string(), vec![csv_attachment(csv)]);
         let args = ImportCsvArgs {
-            csv_content: csv.to_string(),
+            attachment_name: ATTACHMENT_NAME.to_string(),
             account_id: None,
             field_mappings: None,
             activity_mappings: None,
@@ -1542,5 +1758,356 @@ mod tests {
             result.applied_mapping.symbol_mappings.get("Cloudflare"),
             Some(&"NET".to_string())
         );
+    }
+
+    const PREAMBLE_STATEMENT: &str = "Account Statement\n\
+        Account: 12345678\n\
+        Period: 01/01/2024 - 31/03/2024\n\
+        \n\
+        Trade Date,Security,Type,Quantity,Price,Amount\n\
+        15/01/2024,\"Apple Inc, Common\",Buy,10,\"1,234.56\",\"12,345.60\"\n\
+        16/01/2024,Microsoft Corp,Sell,5,400.00,2000.00\n";
+
+    fn statement_field_mappings() -> HashMap<String, FieldMappingValue> {
+        [
+            ("date", "Trade Date"),
+            ("symbol", "Security"),
+            ("activityType", "Type"),
+            ("quantity", "Quantity"),
+            ("unitPrice", "Price"),
+            ("amount", "Amount"),
+        ]
+        .into_iter()
+        .map(|(field, header)| {
+            (
+                field.to_string(),
+                FieldMappingValue::Single(header.to_string()),
+            )
+        })
+        .collect()
+    }
+
+    fn statement_tool() -> ImportCsvTool<MockEnvironment> {
+        ImportCsvTool::new(
+            Arc::new(MockEnvironment::new()),
+            "USD".to_string(),
+            vec![csv_attachment(PREAMBLE_STATEMENT)],
+        )
+    }
+
+    #[tokio::test]
+    async fn test_import_csv_moves_skip_top_rows_to_the_mapped_header_row() {
+        // The blank line is not a parser row, so a model counting lines asks
+        // for 4 and would skip the header.
+        let result = statement_tool()
+            .call(ImportCsvArgs {
+                attachment_name: ATTACHMENT_NAME.to_string(),
+                field_mappings: Some(statement_field_mappings()),
+                skip_top_rows: Some(4),
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+
+        assert_eq!(result.parse_config.skip_top_rows, Some(3));
+        assert_eq!(
+            result.applied_mapping.parse_config.unwrap().skip_top_rows,
+            Some(3)
+        );
+        assert_eq!(result.detected_headers[0], "Trade Date");
+        assert_eq!(result.total_rows, 2);
+        assert_eq!(result.mapping_confidence, MappingConfidence::High);
+    }
+
+    #[tokio::test]
+    async fn test_import_csv_keeps_skip_top_rows_that_lands_on_the_header() {
+        let result = statement_tool()
+            .call(ImportCsvArgs {
+                attachment_name: ATTACHMENT_NAME.to_string(),
+                field_mappings: Some(statement_field_mappings()),
+                skip_top_rows: Some(3),
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+
+        assert_eq!(result.parse_config.skip_top_rows, Some(3));
+        assert_eq!(result.total_rows, 2);
+    }
+
+    /// A requested header row far down the file is checked against the whole
+    /// file, not only the lines the search reads, so an earlier section with
+    /// the same headers does not replace it.
+    #[tokio::test]
+    async fn test_import_csv_keeps_a_requested_header_row_beyond_the_search_window() {
+        let header = "Date,Symbol,Quantity,Price,Type\n";
+        let mut csv = String::from(header);
+        for row in 0..129 {
+            csv.push_str(&format!("2023-01-01,OLD{row},1,10.00,Buy\n"));
+        }
+        csv.push_str(header);
+        for row in 0..3 {
+            csv.push_str(&format!("2024-01-01,NEW{row},1,10.00,Buy\n"));
+        }
+        let tool = ImportCsvTool::new(
+            Arc::new(MockEnvironment::new()),
+            "USD".to_string(),
+            vec![csv_attachment(&csv)],
+        );
+
+        let result = tool
+            .call(ImportCsvArgs {
+                attachment_name: ATTACHMENT_NAME.to_string(),
+                field_mappings: Some(into_field_mapping_values(
+                    [
+                        ("date", "Date"),
+                        ("symbol", "Symbol"),
+                        ("quantity", "Quantity"),
+                        ("unitPrice", "Price"),
+                        ("activityType", "Type"),
+                    ]
+                    .into_iter()
+                    .map(|(field, header)| (field.to_string(), header.to_string()))
+                    .collect(),
+                )),
+                skip_top_rows: Some(130),
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+
+        assert_eq!(result.parse_config.skip_top_rows, Some(130));
+        assert_eq!(result.total_rows, 3);
+    }
+
+    #[tokio::test]
+    async fn test_import_csv_confidence_ignores_mapped_headers_the_file_lacks() {
+        let field_mappings = [
+            ("date", "Date"),
+            ("symbol", "Symbol"),
+            ("activityType", "Action"),
+            ("quantity", "Qty"),
+        ]
+        .into_iter()
+        .map(|(field, header)| {
+            (
+                field.to_string(),
+                FieldMappingValue::Single(header.to_string()),
+            )
+        })
+        .collect();
+
+        let result = statement_tool()
+            .call(ImportCsvArgs {
+                attachment_name: ATTACHMENT_NAME.to_string(),
+                field_mappings: Some(field_mappings),
+                skip_top_rows: Some(3),
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+
+        assert_eq!(result.parse_config.skip_top_rows, Some(3));
+        assert_eq!(result.mapping_confidence, MappingConfidence::Low);
+    }
+
+    #[tokio::test]
+    async fn test_import_csv_parses_every_row_of_the_attached_file() {
+        let mut csv = String::from("Date,Symbol,Quantity,Price,Type\n");
+        for day in 0..500 {
+            csv.push_str(&format!("2024-01-01,SYM{day},{},10.00,Buy\n", day + 1));
+        }
+        let tool = ImportCsvTool::new(
+            Arc::new(MockEnvironment::new()),
+            "USD".to_string(),
+            vec![csv_attachment(&csv)],
+        );
+
+        let result = tool
+            .call(ImportCsvArgs {
+                attachment_name: ATTACHMENT_NAME.to_string(),
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+
+        assert_eq!(result.attachment_name, ATTACHMENT_NAME);
+        assert_eq!(result.total_rows, 500);
+    }
+
+    /// The fictional files of the CSV import evals reach the grid whole:
+    /// parsing each with the tool's parseConfig gives the file's header and
+    /// every row, also when the model counts the blank line in skipTopRows.
+    #[tokio::test]
+    async fn test_import_csv_eval_files_reach_the_grid_whole() {
+        let trades = [
+            ("date", "Date"),
+            ("activityType", "Action"),
+            ("symbol", "Symbol"),
+            ("quantity", "Quantity"),
+            ("unitPrice", "Price"),
+            ("fee", "Commission"),
+            ("amount", "Net Amount"),
+            ("currency", "Currency"),
+        ];
+        let statement = [
+            ("date", "Trade Date"),
+            ("activityType", "Transaction"),
+            ("symbol", "Ticker"),
+            ("quantity", "Shares"),
+            ("unitPrice", "Unit Price"),
+            ("fee", "Fees"),
+            ("amount", "Total"),
+            ("currency", "Ccy"),
+        ];
+        let files = [
+            (
+                include_str!("../../evals/data/csv/trades_500.csv"),
+                trades,
+                None,
+                0,
+                500,
+            ),
+            (
+                include_str!("../../evals/data/csv/statement_messy_080.csv"),
+                statement,
+                Some(4),
+                3,
+                80,
+            ),
+        ];
+
+        for (data, mappings, requested_skip, header_row, rows) in files {
+            let tool = ImportCsvTool::new(
+                Arc::new(MockEnvironment::new()),
+                "USD".to_string(),
+                vec![csv_attachment(data)],
+            );
+            let result = tool
+                .call(ImportCsvArgs {
+                    attachment_name: ATTACHMENT_NAME.to_string(),
+                    field_mappings: Some(
+                        mappings
+                            .into_iter()
+                            .map(|(field, header)| {
+                                (
+                                    field.to_string(),
+                                    FieldMappingValue::Single(header.to_string()),
+                                )
+                            })
+                            .collect(),
+                    ),
+                    skip_top_rows: requested_skip,
+                    ..Default::default()
+                })
+                .await
+                .unwrap();
+
+            let grid =
+                wealthfolio_core::activities::parse_csv(data.as_bytes(), &result.parse_config)
+                    .unwrap();
+            let source = wealthfolio_core::activities::parse_csv(
+                data.as_bytes(),
+                &ParseConfig {
+                    skip_top_rows: Some(header_row),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+            assert_eq!(source.rows.len(), rows);
+            assert_eq!(result.total_rows, rows);
+            assert_eq!(grid.headers, source.headers);
+            assert!(
+                grid.rows == source.rows,
+                "every row reaches the grid unchanged"
+            );
+        }
+    }
+
+    /// The working context shows the applied mapping, fallback lists
+    /// included, for the model to pass back on a re-import.
+    #[tokio::test]
+    async fn test_import_csv_accepts_fallback_field_mappings() {
+        let mut env = MockEnvironment::new();
+        env.account_service = Arc::new(MockAccountService {
+            accounts: vec![account_with_type(
+                "card-1",
+                "Visa",
+                "USD",
+                account_types::CREDIT_CARD,
+            )],
+        });
+        let tool = ImportCsvTool::new(
+            Arc::new(env),
+            "USD".to_string(),
+            vec![csv_attachment(
+                "Date,Merchant,Debit,Credit,Type\n2024-01-15,Starbucks,12.50,,Purchase",
+            )],
+        );
+        let args: ImportCsvArgs = serde_json::from_value(serde_json::json!({
+            "attachmentName": ATTACHMENT_NAME,
+            "accountId": "card-1",
+            "fieldMappings": {
+                "date": "Date",
+                "comment": "Merchant",
+                "activityType": "Type",
+                "amount": ["Debit", "Credit"],
+                "fee": null
+            }
+        }))
+        .unwrap();
+
+        let result = tool.call(args).await.unwrap();
+
+        let fields = &result.applied_mapping.field_mappings;
+        assert_eq!(
+            fields.get(FIELD_AMOUNT),
+            Some(&FieldMappingValue::Fallback(vec![
+                "Debit".to_string(),
+                "Credit".to_string()
+            ]))
+        );
+        assert!(!fields.contains_key(FIELD_FEE));
+        assert_eq!(result.mapping_confidence, MappingConfidence::High);
+    }
+
+    #[test]
+    fn test_find_csv_attachment_prefers_the_newest_file_with_that_name() {
+        let attachments = vec![
+            csv_attachment("Date\n2024-01-01"),
+            MessageAttachment {
+                name: "receipt.png".to_string(),
+                content_type: "image/png".to_string(),
+                data: "aGk=".to_string(),
+            },
+            csv_attachment("Date\n2024-02-02"),
+        ];
+
+        let found = find_csv_attachment(&attachments, " trades.csv ").unwrap();
+        assert_eq!(found.data, "Date\n2024-02-02");
+    }
+
+    #[test]
+    fn test_find_csv_attachment_names_the_available_files() {
+        let attachments = vec![
+            csv_attachment("Date\n2024-01-01"),
+            MessageAttachment {
+                name: "receipt.png".to_string(),
+                content_type: "image/png".to_string(),
+                data: "aGk=".to_string(),
+            },
+        ];
+
+        let error = find_csv_attachment(&attachments, "other.csv")
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("'other.csv'"));
+        assert!(error.contains("trades.csv"));
+        assert!(!error.contains("receipt.png"));
+
+        let error = find_csv_attachment(&attachments[1..], "trades.csv")
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("No CSV file is attached"));
     }
 }

@@ -37,7 +37,7 @@ pub struct Case {
     /// User prompt that starts the eval turn.
     pub prompt: String,
 
-    /// Optional files attached to the turn. Contents are inline test data.
+    /// Optional files attached to the turn: inline test data, or a file.
     #[serde(default)]
     pub attachments: Vec<EvalAttachment>,
 
@@ -76,6 +76,10 @@ pub struct Case {
     /// LLM-as-judge. Judge errors fail the case rather than silently skipping it.
     #[serde(default)]
     pub expected_response: Option<ResponseRubric>,
+
+    /// Checks the CSV import review grid against an attached file.
+    #[serde(default)]
+    pub expected_csv_import: Option<CsvImportExpectation>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -83,7 +87,25 @@ pub struct Case {
 pub struct EvalAttachment {
     pub name: String,
     pub content_type: String,
+    /// Inline contents. Leave empty when `path` is set.
+    #[serde(default)]
     pub data: String,
+    /// File with the contents, relative to the suite file; read into `data`
+    /// when the suite loads.
+    #[serde(default)]
+    pub path: Option<String>,
+}
+
+/// The last `import_csv` call must give the review grid the attached file's
+/// header and rows, unchanged: the grid parses the CSV text the app sends
+/// with the call, using the tool's `parseConfig`.
+#[derive(Debug, Clone, Deserialize)]
+pub struct CsvImportExpectation {
+    /// Name of the attached CSV the grid must reproduce.
+    pub attachment: String,
+    /// Parser rows before the file's header row: its correct `skipTopRows`.
+    #[serde(default)]
+    pub header_row: usize,
 }
 
 #[derive(Debug, Clone, Copy, Deserialize, Default, PartialEq, Eq)]
@@ -142,6 +164,21 @@ pub struct ResponseRubric {
 pub fn load_suite(path: &Path) -> Result<Suite, SchemaError> {
     let bytes = std::fs::read_to_string(path).map_err(SchemaError::Io)?;
     let mut suite: Suite = toml::from_str(&bytes).map_err(SchemaError::Parse)?;
+    let suite_dir = path.parent().unwrap_or_else(|| Path::new("."));
+    for attachment in suite
+        .cases
+        .iter_mut()
+        .flat_map(|case| &mut case.attachments)
+    {
+        if let Some(file) = &attachment.path {
+            let file = suite_dir.join(file);
+            attachment.data =
+                std::fs::read_to_string(&file).map_err(|source| SchemaError::Attachment {
+                    path: file.display().to_string(),
+                    source,
+                })?;
+        }
+    }
     if suite.name.is_none() {
         suite.name = path
             .file_stem()
@@ -174,6 +211,11 @@ pub enum SchemaError {
     Io(#[from] std::io::Error),
     #[error("TOML parse error: {0}")]
     Parse(#[from] toml::de::Error),
+    #[error("attachment file {path}: {source}")]
+    Attachment {
+        path: String,
+        source: std::io::Error,
+    },
 }
 
 #[cfg(all(test, feature = "eval"))]
@@ -199,6 +241,49 @@ mod tests {
         assert_eq!(suite.cases[0].severity, Severity::P1);
         assert_eq!(suite.cases[0].attachments.len(), 1);
         assert!(suite.cases[0].expected_tools.is_empty());
+    }
+
+    #[test]
+    fn loads_attachment_files_relative_to_the_suite() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(dir.path().join("data")).unwrap();
+        std::fs::write(
+            dir.path().join("data/trades.csv"),
+            "Date,Symbol\n2024-01-15,AAPL\n",
+        )
+        .unwrap();
+        let suite_path = dir.path().join("csv.toml");
+        std::fs::write(
+            &suite_path,
+            r#"
+            [[case]]
+            id = "f1"
+            description = "file attachment"
+            prompt = "Import"
+
+            [[case.attachments]]
+            name = "trades.csv"
+            contentType = "text/csv"
+            path = "data/trades.csv"
+
+            [case.expected_csv_import]
+            attachment = "trades.csv"
+            header_row = 0
+        "#,
+        )
+        .unwrap();
+
+        let case = &load_suite(&suite_path).unwrap().cases[0];
+        assert_eq!(case.attachments[0].data, "Date,Symbol\n2024-01-15,AAPL\n");
+        let expected = case.expected_csv_import.as_ref().unwrap();
+        assert_eq!(expected.attachment, "trades.csv");
+        assert_eq!(expected.header_row, 0);
+
+        std::fs::remove_file(dir.path().join("data/trades.csv")).unwrap();
+        assert!(matches!(
+            load_suite(&suite_path),
+            Err(SchemaError::Attachment { .. })
+        ));
     }
 
     #[test]

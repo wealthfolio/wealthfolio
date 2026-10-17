@@ -1,0 +1,201 @@
+Date,Action,Symbol,Description,Quantity,Price,Commission,Net Amount,Currency
+2023-01-04,Dividend,VXUS,Vanguard Total Intl Stock ETF,,,0.00,375.96,USD
+2023-01-08,Buy,BND,Vanguard Total Bond Mkt ETF,43,74.51,0.00,-3203.93,USD
+2023-01-11,Buy,BND,Vanguard Total Bond Mkt ETF,6.3474,74.32,4.95,-476.69,USD
+2023-01-18,Buy,COST,Costco Wholesale Corp,22.7849,898.42,0.00,-20470.41,USD
+2023-01-25,Dividend,JNJ,Johnson & Johnson,,,0.00,320.63,USD
+2023-02-01,Buy,VTI,Vanguard Total Stock Mkt ETF,221,255.87,0.00,-56547.27,USD
+2023-02-04,Withdrawal,,Withdrawal to bank,,,0.00,-750.00,USD
+2023-02-08,Dividend,BRK.B,Berkshire Hathaway Inc Cl B,,,0.00,2082.00,USD
+2023-02-09,Sell,VTI,Vanguard Total Stock Mkt ETF,39.2882,261.47,0.00,10272.69,USD
+2023-02-13,Dividend,COST,Costco Wholesale Corp,,,0.00,1233.13,USD
+2023-02-16,Dividend,SCHD,Schwab US Dividend Equity ETF,,,0.00,740.26,USD
+2023-02-17,Dividend,MSFT,Microsoft Corp,,,0.00,2352.30,USD
+2023-02-19,Buy,XOM,Exxon Mobil Corp,209,115.59,4.95,-24163.26,USD
+2023-02-26,Withdrawal,,Withdrawal to bank,,,0.00,-200.00,USD
+2023-02-27,Buy,XOM,Exxon Mobil Corp,6,113.05,9.99,-688.29,USD
+2023-03-01,Buy,MSFT,Microsoft Corp,195,402.30,4.95,-78453.45,USD
+2023-03-08,Buy,NVDA,NVIDIA Corp,28.615,117.35,9.99,-3367.96,USD
+2023-03-09,Sell,JNJ,Johnson & Johnson,52,163.30,9.99,8481.61,USD
+2023-03-10,Dividend,BRK.B,Berkshire Hathaway Inc Cl B,,,0.00,105.58,USD
+2023-03-11,Withdrawal,,Withdrawal to bank,,,0.00,-1000.00,USD
+2023-03-15,Buy,AAPL,Apple Inc,0.5931,188.08,9.99,-121.54,USD
+2023-03-16,Buy,AAPL,Apple Inc,133,187.37,0.00,-24920.21,USD
+2023-03-17,Buy,AAPL,Apple Inc,32.9705,183.62,0.00,-6054.04,USD
+2023-03-24,Fee,,Account maintenance fee,,,0.00,-25.00,USD
+2023-03-31,Sell,MSFT,Microsoft Corp,105,396.19,9.99,41589.96,USD
+2023-04-01,Buy,MSFT,Microsoft Corp,223,399.16,0.00,-89012.68,USD
+2023-04-08,Buy,VTI,Vanguard Total Stock Mkt ETF,212,260.45,0.00,-55215.40,USD
+2023-04-15,Buy,COST,Costco Wholesale Corp,33.6352,903.64,0.00,-30394.11,USD
+2023-04-16,Dividend,AAPL,Apple Inc,,,0.00,1390.73,USD
+2023-04-19,Dividend,BRK.B,Berkshire Hathaway Inc Cl B,,,0.00,156.89,USD
+2023-04-20,Buy,JNJ,Johnson & Johnson,42,160.31,0.00,-6733.02,USD
+2023-04-23,Fee,,Account maintenance fee,,,0.00,-25.00,USD
+2023-04-24,Sell,VTI,Vanguard Total Stock Mkt ETF,42,261.83,9.99,10986.87,USD
+2023-04-25,Buy,KO,Coca-Cola Co,237,62.64,9.99,-14855.67,USD
+2023-04-29,Sell,VTI,Vanguard Total Stock Mkt ETF,119,255.81,0.00,30441.39,USD
+2023-05-01,Deposit,,Electronic funds transfer,,,0.00,2500.50,USD
+2023-05-04,Dividend,VXUS,Vanguard Total Intl Stock ETF,,,0.00,1276.20,USD
+2023-05-07,Buy,XOM,Exxon Mobil Corp,58,112.28,0.00,-6512.24,USD
+2023-05-10,Buy,BRK.B,Berkshire Hathaway Inc Cl B,177,458.97,0.00,-81237.69,USD
+2023-05-11,Deposit,,Electronic funds transfer,,,0.00,2500.00,USD
+2023-05-15,Fee,,Account maintenance fee,,,0.00,-25.00,USD
+2023-05-22,Dividend,MSFT,Microsoft Corp,,,0.00,2116.26,USD
+2023-05-24,Withdrawal,,Withdrawal to bank,,,0.00,-3000.00,USD
+2023-05-26,Sell,KO,Coca-Cola Co,167,61.71,0.00,10305.57,USD
+2023-05-29,Buy,NVDA,NVIDIA Corp,142,116.98,4.95,-16616.11,USD
+2023-06-02,Buy,XOM,Exxon Mobil Corp,25.0685,112.83,4.95,-2833.43,USD
+2023-06-04,Buy,SCHD,Schwab US Dividend Equity ETF,165,28.93,4.95,-4778.40,USD
+2023-06-05,Dividend,KO,Coca-Cola Co,,,0.00,2317.86,USD
+2023-06-06,Withdrawal,,Withdrawal to bank,,,0.00,-1000.00,USD
+2023-06-07,Deposit,,Electronic funds transfer,,,0.00,2500.00,USD
+2023-06-10,Buy,AAPL,Apple Inc,0.463,189.35,0.00,-87.67,USD
+2023-06-11,Dividend,BRK.B,Berkshire Hathaway Inc Cl B,,,0.00,856.98,USD
+2023-06-12,Buy,KO,Coca-Cola Co,93,59.26,4.95,-5516.13,USD
+2023-06-19,Buy,VXUS,Vanguard Total Intl Stock ETF,23,61.86,0.00,-1422.78,USD
+2023-06-20,Buy,BRK.B,Berkshire Hathaway Inc Cl B,232,471.94,9.99,-109500.07,USD
+2023-06-24,Dividend,COST,Costco Wholesale Corp,,,0.00,872.20,USD
+2023-06-26,Deposit,,Electronic funds transfer,,,0.00,500.00,USD
+2023-07-03,Sell,VXUS,Vanguard Total Intl Stock ETF,188,61.89,0.00,11635.32,USD
+2023-07-06,Buy,JNJ,Johnson & Johnson,16.9016,159.28,0.00,-2692.09,USD
+2023-07-13,Buy,NVDA,NVIDIA Corp,166,115.14,9.99,-19123.23,USD
+2023-07-20,Buy,VTI,Vanguard Total Stock Mkt ETF,32,255.58,9.99,-8188.55,USD
+2023-07-24,Dividend,VTI,Vanguard Total Stock Mkt ETF,,,0.00,205.39,USD
+2023-07-28,Buy,COST,Costco Wholesale Corp,52,873.95,0.00,-45445.40,USD
+2023-07-29,Dividend,VXUS,Vanguard Total Intl Stock ETF,,,0.00,302.97,USD
+2023-07-30,Withdrawal,,Withdrawal to bank,,,0.00,-3000.00,USD
+2023-07-31,Withdrawal,,Withdrawal to bank,,,0.00,-1000.00,USD
+2023-08-07,Buy,SCHD,Schwab US Dividend Equity ETF,31.1684,28.27,4.95,-886.08,USD
+2023-08-08,Withdrawal,,Withdrawal to bank,,,0.00,-200.00,USD
+2023-08-09,Buy,XOM,Exxon Mobil Corp,206,111.34,0.00,-22936.04,USD
+2023-08-10,Buy,VXUS,Vanguard Total Intl Stock ETF,129,62.57,0.00,-8071.53,USD
+2023-08-17,Dividend,BRK.B,Berkshire Hathaway Inc Cl B,,,0.00,1571.96,USD
+2023-08-24,Buy,BND,Vanguard Total Bond Mkt ETF,129,75.33,0.00,-9717.57,USD
+2023-08-25,Dividend,BND,Vanguard Total Bond Mkt ETF,,,0.00,1004.81,USD
+2023-08-28,Buy,KO,Coca-Cola Co,221,60.44,0.00,-13357.24,USD
+2023-08-30,Buy,BND,Vanguard Total Bond Mkt ETF,24.1744,76.94,9.99,-1869.97,USD
+2023-09-02,Deposit,,Electronic funds transfer,,,0.00,1500.00,USD
+2023-09-09,Buy,NVDA,NVIDIA Corp,102,113.91,0.00,-11618.82,USD
+2023-09-11,Buy,NVDA,NVIDIA Corp,24.6399,114.02,9.99,-2819.43,USD
+2023-09-18,Sell,AAPL,Apple Inc,26,193.02,9.99,5008.53,USD
+2023-09-19,Deposit,,Electronic funds transfer,,,0.00,1500.00,USD
+2023-09-26,Buy,MSFT,Microsoft Corp,180,390.39,4.95,-70275.15,USD
+2023-09-27,Sell,MSFT,Microsoft Corp,31,394.84,0.00,12240.04,USD
+2023-09-29,Deposit,,Electronic funds transfer,,,0.00,1000.00,USD
+2023-10-03,Sell,KO,Coca-Cola Co,120,58.67,0.00,7040.40,USD
+2023-10-06,Buy,MSFT,Microsoft Corp,205,391.52,9.99,-80271.59,USD
+2023-10-13,Buy,MSFT,Microsoft Corp,216,398.10,9.99,-85999.59,USD
+2023-10-17,Buy,NVDA,NVIDIA Corp,70,114.66,0.00,-8026.20,USD
+2023-10-20,Buy,COST,Costco Wholesale Corp,23.7038,880.94,0.00,-20881.63,USD
+2023-10-27,Buy,BRK.B,Berkshire Hathaway Inc Cl B,18.6511,488.15,9.99,-9114.52,USD
+2023-10-29,Dividend,MSFT,Microsoft Corp,,,0.00,714.13,USD
+2023-10-31,Buy,JNJ,Johnson & Johnson,163,159.38,9.99,-25988.93,USD
+2023-11-07,Buy,JNJ,Johnson & Johnson,70,155.86,4.95,-10915.15,USD
+2023-11-10,Dividend,BND,Vanguard Total Bond Mkt ETF,,,0.00,1723.99,USD
+2023-11-17,Sell,BRK.B,Berkshire Hathaway Inc Cl B,184,476.68,4.95,87704.17,USD
+2023-11-21,Dividend,XOM,Exxon Mobil Corp,,,0.00,1009.76,USD
+2023-11-25,Buy,BND,Vanguard Total Bond Mkt ETF,66,79.06,4.95,-5222.91,USD
+2023-12-02,Buy,BND,Vanguard Total Bond Mkt ETF,37.1278,80.48,9.99,-2998.04,USD
+2023-12-04,Buy,XOM,Exxon Mobil Corp,190,107.99,0.00,-20518.10,USD
+2023-12-06,Buy,XOM,Exxon Mobil Corp,33.8029,109.56,9.99,-3713.44,USD
+2023-12-07,Deposit,,Electronic funds transfer,,,0.00,1500.37,USD
+2023-12-08,Fee,,Account maintenance fee,,,0.00,-25.00,USD
+2023-12-09,Dividend,JNJ,Johnson & Johnson,,,0.00,1401.82,USD
+2023-12-10,Buy,NVDA,NVIDIA Corp,3.9635,113.54,0.00,-450.02,USD
+2023-12-11,Deposit,,Electronic funds transfer,,,0.00,2500.00,USD
+2023-12-14,Buy,JNJ,Johnson & Johnson,111,152.43,0.00,-16919.73,USD
+2023-12-15,Buy,XOM,Exxon Mobil Corp,16,109.53,4.95,-1757.43,USD
+2023-12-18,Buy,COST,Costco Wholesale Corp,34,887.37,0.00,-30170.58,USD
+2023-12-19,Buy,COST,Costco Wholesale Corp,27.8105,886.75,9.99,-24670.95,USD
+2023-12-21,Buy,NVDA,NVIDIA Corp,173,113.97,0.00,-19716.81,USD
+2023-12-28,Buy,NVDA,NVIDIA Corp,200,115.90,9.99,-23189.99,USD
+2023-12-29,Buy,NVDA,NVIDIA Corp,155,113.36,4.95,-17575.75,USD
+2024-01-02,Buy,COST,Costco Wholesale Corp,9,894.55,9.99,-8060.94,USD
+2024-01-04,Deposit,,Electronic funds transfer,,,0.00,5000.50,USD
+2024-01-06,Buy,COST,Costco Wholesale Corp,36.8752,886.77,4.95,-32704.77,USD
+2024-01-10,Deposit,,Electronic funds transfer,,,0.00,500.37,USD
+2024-01-12,Buy,BND,Vanguard Total Bond Mkt ETF,14,81.62,0.00,-1142.68,USD
+2024-01-13,Buy,MSFT,Microsoft Corp,226,395.97,0.00,-89489.22,USD
+2024-01-17,Dividend,XOM,Exxon Mobil Corp,,,0.00,1976.19,USD
+2024-01-18,Buy,NVDA,NVIDIA Corp,22,114.20,9.99,-2522.39,USD
+2024-01-20,Dividend,VTI,Vanguard Total Stock Mkt ETF,,,0.00,2327.07,USD
+2024-01-22,Dividend,SCHD,Schwab US Dividend Equity ETF,,,0.00,2019.42,USD
+2024-01-26,Dividend,VXUS,Vanguard Total Intl Stock ETF,,,0.00,1898.13,USD
+2024-01-29,Buy,XOM,Exxon Mobil Corp,90,111.72,4.95,-10059.75,USD
+2024-02-01,Buy,KO,Coca-Cola Co,138,58.50,9.99,-8082.99,USD
+2024-02-02,Dividend,AAPL,Apple Inc,,,0.00,1390.83,USD
+2024-02-04,Buy,BRK.B,Berkshire Hathaway Inc Cl B,36.8388,477.97,0.00,-17607.84,USD
+2024-02-08,Withdrawal,,Withdrawal to bank,,,0.00,-750.00,USD
+2024-02-10,Withdrawal,,Withdrawal to bank,,,0.00,-200.00,USD
+2024-02-11,Buy,JNJ,Johnson & Johnson,13.8273,155.78,4.95,-2158.97,USD
+2024-02-13,Buy,JNJ,Johnson & Johnson,170,155.81,4.95,-26492.65,USD
+2024-02-20,Buy,VTI,Vanguard Total Stock Mkt ETF,19.6765,269.79,0.00,-5308.52,USD
+2024-02-24,Dividend,BND,Vanguard Total Bond Mkt ETF,,,0.00,1929.05,USD
+2024-02-28,Buy,XOM,Exxon Mobil Corp,19,113.56,4.95,-2162.59,USD
+2024-03-06,Dividend,VXUS,Vanguard Total Intl Stock ETF,,,0.00,2060.12,USD
+2024-03-07,Dividend,VTI,Vanguard Total Stock Mkt ETF,,,0.00,909.06,USD
+2024-03-11,Dividend,JNJ,Johnson & Johnson,,,0.00,1878.40,USD
+2024-03-14,Dividend,BRK.B,Berkshire Hathaway Inc Cl B,,,0.00,2318.43,USD
+2024-03-21,Buy,SCHD,Schwab US Dividend Equity ETF,105,28.76,0.00,-3019.80,USD
+2024-03-28,Deposit,,Electronic funds transfer,,,0.00,2500.00,USD
+2024-03-31,Buy,VXUS,Vanguard Total Intl Stock ETF,10.5946,61.18,0.00,-648.18,USD
+2024-04-01,Buy,JNJ,Johnson & Johnson,2,156.01,0.00,-312.02,USD
+2024-04-05,Buy,MSFT,Microsoft Corp,20.6874,393.48,9.99,-8150.07,USD
+2024-04-07,Deposit,,Electronic funds transfer,,,0.00,1500.00,USD
+2024-04-10,Buy,SCHD,Schwab US Dividend Equity ETF,211,28.32,0.00,-5975.52,USD
+2024-04-11,Deposit,,Electronic funds transfer,,,0.00,1500.37,USD
+2024-04-12,Sell,SCHD,Schwab US Dividend Equity ETF,163,28.08,0.00,4577.04,USD
+2024-04-13,Dividend,MSFT,Microsoft Corp,,,0.00,2338.92,USD
+2024-04-20,Deposit,,Electronic funds transfer,,,0.00,12500.50,USD
+2024-04-22,Buy,VTI,Vanguard Total Stock Mkt ETF,107,271.44,4.95,-29049.03,USD
+2024-04-26,Buy,BND,Vanguard Total Bond Mkt ETF,155,82.86,4.95,-12848.25,USD
+2024-04-28,Sell,AAPL,Apple Inc,188,196.93,0.00,37022.84,USD
+2024-05-01,Deposit,,Electronic funds transfer,,,0.00,5000.37,USD
+2024-05-02,Sell,BRK.B,Berkshire Hathaway Inc Cl B,247,467.20,4.95,115393.45,USD
+2024-05-05,Buy,SCHD,Schwab US Dividend Equity ETF,9,28.93,0.00,-260.37,USD
+2024-05-08,Buy,BRK.B,Berkshire Hathaway Inc Cl B,96,474.25,9.99,-45537.99,USD
+2024-05-12,Dividend,SCHD,Schwab US Dividend Equity ETF,,,0.00,2035.51,USD
+2024-05-15,Withdrawal,,Withdrawal to bank,,,0.00,-1000.00,USD
+2024-05-16,Buy,AAPL,Apple Inc,160,197.78,0.00,-31644.80,USD
+2024-05-17,Fee,,Account maintenance fee,,,0.00,-25.00,USD
+2024-05-19,Buy,XOM,Exxon Mobil Corp,36.7893,114.64,0.00,-4217.53,USD
+2024-05-21,Buy,XOM,Exxon Mobil Corp,17,114.79,4.95,-1956.38,USD
+2024-05-23,Sell,COST,Costco Wholesale Corp,5.7786,898.32,0.00,5191.03,USD
+2024-05-26,Buy,COST,Costco Wholesale Corp,54,914.76,0.00,-49397.04,USD
+2024-06-02,Dividend,VTI,Vanguard Total Stock Mkt ETF,,,0.00,1075.42,USD
+2024-06-05,Buy,MSFT,Microsoft Corp,0.5147,405.87,4.95,-213.85,USD
+2024-06-08,Dividend,VTI,Vanguard Total Stock Mkt ETF,,,0.00,1908.20,USD
+2024-06-09,Deposit,,Electronic funds transfer,,,0.00,1500.50,USD
+2024-06-12,Buy,VTI,Vanguard Total Stock Mkt ETF,200,276.82,0.00,-55364.00,USD
+2024-06-13,Buy,BRK.B,Berkshire Hathaway Inc Cl B,17.144,472.02,0.00,-8092.31,USD
+2024-06-20,Buy,AAPL,Apple Inc,26,196.83,0.00,-5117.58,USD
+2024-06-23,Buy,XOM,Exxon Mobil Corp,112,111.97,0.00,-12540.64,USD
+2024-06-24,Dividend,VXUS,Vanguard Total Intl Stock ETF,,,0.00,1741.39,USD
+2024-06-25,Fee,,Account maintenance fee,,,0.00,-25.00,USD
+2024-06-26,Buy,COST,Costco Wholesale Corp,36.7642,929.67,4.95,-34183.52,USD
+2024-06-28,Buy,NVDA,NVIDIA Corp,243,114.37,9.99,-27801.90,USD
+2024-07-02,Dividend,SCHD,Schwab US Dividend Equity ETF,,,0.00,1485.43,USD
+2024-07-03,Sell,SCHD,Schwab US Dividend Equity ETF,21.9567,30.72,0.00,674.51,USD
+2024-07-07,Withdrawal,,Withdrawal to bank,,,0.00,-3000.00,USD
+2024-07-08,Buy,BRK.B,Berkshire Hathaway Inc Cl B,203,468.24,9.99,-95062.71,USD
+2024-07-09,Dividend,BND,Vanguard Total Bond Mkt ETF,,,0.00,2263.02,USD
+2024-07-10,Dividend,BRK.B,Berkshire Hathaway Inc Cl B,,,0.00,726.82,USD
+2024-07-11,Dividend,COST,Costco Wholesale Corp,,,0.00,2222.66,USD
+2024-07-13,Buy,NVDA,NVIDIA Corp,13.5181,117.23,9.99,-1594.72,USD
+2024-07-14,Buy,BND,Vanguard Total Bond Mkt ETF,184,85.86,0.00,-15798.24,USD
+2024-07-17,Dividend,XOM,Exxon Mobil Corp,,,0.00,1355.93,USD
+2024-07-19,Deposit,,Electronic funds transfer,,,0.00,1500.00,USD
+2024-07-22,Fee,,Account maintenance fee,,,0.00,-25.00,USD
+2024-07-29,Buy,COST,Costco Wholesale Corp,189,938.68,4.95,-177415.47,USD
+2024-07-30,Buy,BRK.B,Berkshire Hathaway Inc Cl B,188,461.37,9.99,-86747.55,USD
+2024-08-02,Dividend,MSFT,Microsoft Corp,,,0.00,90.12,USD
+2024-08-09,Buy,COST,Costco Wholesale Corp,2.994,949.57,9.99,-2853.00,USD
+2024-08-11,Buy,MSFT,Microsoft Corp,36.1028,404.67,9.99,-14619.71,USD
+2024-08-12,Withdrawal,,Withdrawal to bank,,,0.00,-200.00,USD
+2024-08-14,Dividend,VTI,Vanguard Total Stock Mkt ETF,,,0.00,1514.42,USD
+2024-08-15,Dividend,BND,Vanguard Total Bond Mkt ETF,,,0.00,1820.19,USD
+2024-08-16,Dividend,MSFT,Microsoft Corp,,,0.00,1282.64,USD
+2024-08-19,Dividend,SCHD,Schwab US Dividend Equity ETF,,,0.00,780.85,USD
+2024-08-20,Buy,XOM,Exxon Mobil Corp,1.5175,111.65,0.00,-169.43,USD
+2024-08-27,Dividend,NVDA,NVIDIA Corp,,,0.00,2295.21,USD
+2024-09-03,Sell,COST,Costco Wholesale Corp,4.6122,982.16,0.00,4529.92,USD

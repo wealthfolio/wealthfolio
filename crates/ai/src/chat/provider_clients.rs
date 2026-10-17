@@ -1268,6 +1268,208 @@ mod transport_tests {
         assert_eq!(result_id, call_id);
     }
 
+    /// The model sees a preview of an attached CSV and names the file; the
+    /// live tool call carries the file itself for the review grid; and a later
+    /// message sends no attachment again.
+    #[tokio::test]
+    async fn chat_imports_the_attached_csv_and_sends_it_only_once() {
+        use crate::chat::{ChatConfig, ChatService};
+        use crate::env::test_env::{MockEnvironment, MockSettingsService};
+        use crate::provider_model::AI_PROVIDER_SETTINGS_KEY;
+        use crate::types::{
+            AiStreamEvent, ChatMessagePart, ChatModelConfig, MessageAttachment, SendMessageRequest,
+        };
+        use serde_json::json;
+
+        let mut csv = String::from(
+            "Account Statement\nAccount: 12345678\n\nTrade Date,Security,Type,Quantity,Price,Amount\n",
+        );
+        for row in 0..300 {
+            csv.push_str(&format!(
+                "2024-01-{:02},Security {},Buy,{},10.00,{}.00\n",
+                row % 28 + 1,
+                row % 12,
+                row + 1,
+                (row + 1) * 10
+            ));
+        }
+        let middle_row = csv.lines().nth(4 + 150).unwrap().to_string();
+
+        // The model counts the blank line, so its skipTopRows lands one row
+        // past the header.
+        let tool_args = json!({
+            "attachmentName": "trades.csv",
+            "fieldMappings": {
+                "date": "Trade Date", "symbol": "Security", "activityType": "Type",
+                "quantity": "Quantity", "unitPrice": "Price", "amount": "Amount"
+            },
+            "skipTopRows": 3
+        });
+        let event = |v: serde_json::Value| format!("data: {v}\n\n");
+        let message = |stop: &str, blocks: Vec<serde_json::Value>| {
+            let mut body = event(json!({"type":"message_start","message":{"id":"msg_fixture",
+                "type":"message","role":"assistant","model":"claude-opus-5-5","content":[],
+                "stop_reason":null,"stop_sequence":null,"usage":{"input_tokens":1,"output_tokens":0}}}));
+            for block in blocks {
+                body += &event(block);
+            }
+            body += &event(json!({"type":"message_delta","delta":{"stop_reason":stop,
+                "stop_sequence":null},"usage":{"output_tokens":1}}));
+            body + &event(json!({"type":"message_stop"}))
+        };
+        let text = |text: &str| {
+            vec![
+                json!({"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}),
+                json!({"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":text}}),
+                json!({"type":"content_block_stop","index":0}),
+            ]
+        };
+        let tool_turn = vec![
+            json!({"type":"content_block_start","index":0,"content_block":{"type":"tool_use","id":"toolu_import","name":"import_csv","input":{}}}),
+            json!({"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":tool_args.to_string()}}),
+            json!({"type":"content_block_stop","index":0}),
+        ];
+        let mut rounds = vec![
+            message("tool_use", tool_turn),
+            message("end_turn", text("Prepared.")),
+            message("end_turn", text("Noted.")),
+        ]
+        .into_iter();
+
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("http://{}", listener.local_addr().unwrap());
+        let server = tokio::spawn(async move {
+            let mut chats = Vec::new();
+            while let Ok(Ok((mut socket, _))) =
+                tokio::time::timeout(Duration::from_secs(2), listener.accept()).await
+            {
+                let mut first = [0; 1];
+                if socket.peek(&mut first).await.unwrap_or(0) == 0 {
+                    continue;
+                }
+                let request = read_request(&mut socket).await;
+                let body = request.split_once("\r\n\r\n").unwrap().1.to_string();
+                let next = if body.contains("Generate a very short plain-text title") {
+                    None
+                } else {
+                    chats.push(body);
+                    rounds.next()
+                };
+                let response = match next {
+                    Some(body) => {
+                        format!("HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len())
+                    }
+                    None => "HTTP/1.1 500 Internal Server Error\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".to_string(),
+                };
+                socket.write_all(response.as_bytes()).await.unwrap();
+            }
+            chats
+        });
+
+        let settings = json!({ "schemaVersion": 2, "providers": {
+            "anthropic": { "enabled": true, "customUrl": url }
+        } });
+        let mut env = MockEnvironment::new().with_secret("ai_anthropic", "fixture-key");
+        env.settings_service = Arc::new(MockSettingsService {
+            settings: std::sync::RwLock::new(std::collections::HashMap::from([(
+                AI_PROVIDER_SETTINGS_KEY.to_string(),
+                settings.to_string(),
+            )])),
+        });
+        let service = ChatService::new(Arc::new(env), ChatConfig::default());
+        let thread_id = service.create_thread().await.unwrap().id;
+
+        let mut tool_call_args = None;
+        let mut tool_result = None;
+        let mut final_parts = None;
+        for (content, attachments) in [
+            (
+                "Import these transactions.",
+                Some(vec![MessageAttachment {
+                    name: "trades.csv".into(),
+                    content_type: "text/csv".into(),
+                    data: csv.clone(),
+                }]),
+            ),
+            ("Thanks, use my Brokerage account.", None),
+        ] {
+            let mut stream = service
+                .send_message(SendMessageRequest {
+                    thread_id: Some(thread_id.clone()),
+                    content: content.into(),
+                    attachments,
+                    config: Some(ChatModelConfig {
+                        provider: Some("anthropic".into()),
+                        model: Some("claude-opus-5-5".into()),
+                        thinking: Some(false),
+                    }),
+                    ..Default::default()
+                })
+                .await
+                .unwrap();
+            tokio::time::timeout(Duration::from_secs(10), async {
+                while let Some(event) = stream.next().await {
+                    match event {
+                        AiStreamEvent::ToolCall { tool_call, .. } => {
+                            tool_call_args = Some(tool_call.arguments)
+                        }
+                        AiStreamEvent::ToolResult { result, .. } => tool_result = Some(result),
+                        AiStreamEvent::Done { message, .. } if final_parts.is_none() => {
+                            final_parts = Some(message.content.parts)
+                        }
+                        AiStreamEvent::Error { message, .. } => panic!("chat failed: {message}"),
+                        _ => {}
+                    }
+                }
+            })
+            .await
+            .unwrap();
+        }
+        let chats = server.await.unwrap();
+        assert_eq!(chats.len(), 3, "tool call, answer, follow-up");
+
+        // First message: a preview of the file, not the file.
+        assert!(chats[0]
+            .contains("[BEGIN UNTRUSTED CSV DATA: trades.csv (preview of 304 lines; import_csv reads the whole file)]"));
+        assert!(chats[0].contains("with the attached file's name in `attachmentName`"));
+        assert!(!chats[0].contains(&middle_row));
+
+        // The live tool call carries the attached file; the model sent only its name.
+        let args = tool_call_args.expect("import_csv was called");
+        assert_eq!(args["attachmentName"], "trades.csv");
+        assert!(
+            args["csvContent"] == csv.as_str(),
+            "the live csvContent is the attached file"
+        );
+        let result = tool_result.expect("import_csv returned");
+        assert!(result.success);
+        assert_eq!(result.data["totalRows"], 300);
+        assert_eq!(result.data["detectedHeaders"][0], "Trade Date");
+        assert_eq!(result.data["parseConfig"]["skipTopRows"], 2);
+
+        // Neither the tool result sent back to the model nor the saved call holds the file.
+        assert!(!chats[1].contains(&middle_row));
+        let saved_args = final_parts
+            .expect("the first run finishes")
+            .into_iter()
+            .find_map(|part| match part {
+                ChatMessagePart::ToolCall { arguments, .. } => Some(arguments),
+                _ => None,
+            })
+            .expect("the tool call is saved");
+        assert!(saved_args.get("csvContent").is_none());
+
+        // Follow-up: no attachment and no CSV instruction, only its metadata.
+        assert!(!chats[2].contains("UNTRUSTED CSV DATA"));
+        assert!(!chats[2].contains("The user attached a CSV"));
+        assert!(!chats[2].contains(&middle_row));
+        assert!(chats[2].contains("`import_csv` can still read a listed CSV by name"));
+        assert!(chats[2].contains(r#"\"attachmentName\":\"trades.csv\""#));
+        // The mapping a re-import needs, including the corrected header row.
+        assert!(chats[2].contains(r#"\"activityMappings\":{"#));
+        assert!(chats[2].contains(r#"\"parseConfig\":{\"skipTopRows\":2"#));
+    }
+
     #[tokio::test]
     async fn chat_sends_adaptive_thinking_to_claude_5_and_drops_its_temperature() {
         let chats = chat_through_service(

@@ -5,16 +5,18 @@ import {
   ErrorPrimitive,
   MessagePrimitive,
   ThreadPrimitive,
+  useAssistantApi,
   useAssistantState,
 } from "@assistant-ui/react";
 
-import { Component, type ErrorInfo, type FC, type ReactNode } from "react";
+import { Component, type ClipboardEvent, type ErrorInfo, type FC, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "@wealthfolio/ui/components/ui/button";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { ComposerAddAttachment, ComposerAttachments, UserMessageAttachments } from "./attachment";
 import { MarkdownText } from "./markdown-text";
+import { isPastedCsvTable, pastedCsvFileName } from "./pasted-csv";
 import { ToolFallback } from "./tool-fallback";
 import { TooltipIconButton } from "./tooltip-icon-button";
 
@@ -155,6 +157,25 @@ interface ComposerProps {
 
 const Composer: FC<ComposerProps> = ({ composerActions }) => {
   const { t } = useTranslation();
+  const api = useAssistantApi();
+
+  // A pasted table becomes a CSV attachment, so an import reads the pasted
+  // text itself rather than a copy the model writes out.
+  const handlePaste = (event: ClipboardEvent<HTMLTextAreaElement>) => {
+    if (event.clipboardData.files.length > 0) return;
+    const text = event.clipboardData.getData("text/plain");
+    if (!isPastedCsvTable(text)) return;
+
+    event.preventDefault();
+    const composer = api.composer();
+    const name = pastedCsvFileName(
+      composer.getState().attachments.map((attachment) => attachment.name),
+    );
+    composer.addAttachment(new File([text], name, { type: "text/csv" })).catch((error) => {
+      console.error("Error adding pasted table as an attachment:", error);
+    });
+  };
+
   return (
     <ComposerPrimitive.Root className="aui-composer-root relative flex w-full flex-col">
       <ComposerPrimitive.AttachmentDropzone className="aui-composer-attachment-dropzone border-input bg-background has-[textarea:focus-visible]:border-ring has-[textarea:focus-visible]:ring-ring/50 data-[dragging=true]:border-ring data-[dragging=true]:bg-accent/50 dark:bg-background shadow-xs flex w-full flex-col rounded-3xl border px-1 pt-2 outline-none transition-[color,box-shadow] has-[textarea:focus-visible]:ring-[3px] data-[dragging=true]:border-dashed">
@@ -165,6 +186,7 @@ const Composer: FC<ComposerProps> = ({ composerActions }) => {
           rows={1}
           autoFocus
           aria-label={t("ai:thread.messageInput")}
+          onPaste={handlePaste}
         />
         <ComposerAction composerActions={composerActions} />
       </ComposerPrimitive.AttachmentDropzone>

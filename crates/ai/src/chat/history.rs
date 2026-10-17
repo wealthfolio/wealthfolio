@@ -16,6 +16,7 @@ use rig::{
     },
 };
 
+use super::csv_preview::csv_prompt_block;
 use crate::error::AiError;
 use crate::types::{MessageAttachment, SimpleChatMessage};
 
@@ -32,9 +33,8 @@ pub(super) fn build_user_prompt(user_message: &str, attachments: &[MessageAttach
     for att in attachments {
         match att.content_type.as_str() {
             "text/csv" | "application/csv" => {
-                parts.push(UserContent::Text(Text::new(format!(
-                    "[BEGIN UNTRUSTED CSV DATA: {}]\n{}\n[END UNTRUSTED CSV DATA]",
-                    att.name, att.data
+                parts.push(UserContent::Text(Text::new(csv_prompt_block(
+                    &att.name, &att.data,
                 ))));
             }
             ct if ct.starts_with("image/") => {

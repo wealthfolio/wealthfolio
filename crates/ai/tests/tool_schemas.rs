@@ -203,7 +203,10 @@ async fn snapshot_record_activities() {
     let snapshot = schema_snapshot_dyn(&adapted(RecordActivities)).await;
     assert_sorted_json_snapshot!(snapshot);
 }
-schema_test!(snapshot_import_csv, ImportCsvTool::new(env(), "USD".into()));
+schema_test!(
+    snapshot_import_csv,
+    ImportCsvTool::new(env(), "USD".into(), Vec::new())
+);
 
 #[tokio::test]
 async fn snapshot_get_health_status() {

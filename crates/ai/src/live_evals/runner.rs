@@ -22,6 +22,7 @@ use serde::Deserialize;
 use serde_json::Value;
 use wealthfolio_core::{
     accounts::Account,
+    activities::{parse_csv, ParseConfig},
     assets::{Asset, AssetKind, InstrumentType, QuoteMode},
     taxonomies::{AssetTaxonomyAssignment, Category, Taxonomy, TaxonomyWithCategories},
 };
@@ -35,7 +36,9 @@ use crate::env::test_env::{
     MockAccountService, MockActivityService, MockAssetService, MockEnvironment, MockTaxonomyService,
 };
 use crate::error::AiError;
-use crate::live_evals::schema::{ArgAssertion, ArgPredicate, Case, ResponseRubric, Severity};
+use crate::live_evals::schema::{
+    ArgAssertion, ArgPredicate, Case, CsvImportExpectation, ResponseRubric, Severity,
+};
 use crate::live_evals::trace::ToolTrace;
 use crate::providers::ProviderService;
 use crate::types::{ChatModelConfig, MessageAttachment, SendMessageRequest};
@@ -109,6 +112,8 @@ pub enum AssertionKind {
     ResponseRubric,
     /// Stream returned an error event.
     StreamError,
+    /// The CSV import review grid does not hold the attached file.
+    CsvImportGrid,
 }
 
 /// Run a single case against the configured provider, retrying transient
@@ -159,7 +164,12 @@ fn is_transient_failure(result: &CaseResult) -> bool {
 }
 
 async fn run_case_once(case: &Case, cfg: &RunnerConfig) -> CaseResult {
-    let env = Arc::new(build_mock_environment(case));
+    let mut env = build_mock_environment(case);
+    // Chat reads provider keys from the secret store, as the app does.
+    if let Some(key) = eval_api_key_from_env(&cfg.provider) {
+        env = env.with_secret(&format!("ai_{}", cfg.provider), &key);
+    }
+    let env = Arc::new(env);
     let service = ChatService::new(env.clone(), ChatConfig::default());
 
     let thread = match service.create_thread().await {
@@ -392,6 +402,19 @@ fn build_mock_environment(case: &Case) -> MockEnvironment {
     }
     if case.fixture.as_deref() == Some("untrusted_image_egress") {
         seed_untrusted_image_egress_fixture(&mut env);
+    }
+    if case.fixture.as_deref() == Some("brokerage_account") {
+        env.account_service = Arc::new(MockAccountService {
+            accounts: vec![Account {
+                id: "acc-brokerage".to_string(),
+                name: "Brokerage".to_string(),
+                account_type: "SECURITIES".to_string(),
+                currency: "USD".to_string(),
+                is_active: true,
+                is_archived: false,
+                ..Account::default()
+            }],
+        });
     }
 
     env
@@ -666,7 +689,8 @@ fn assert_trace(case: &Case, trace: &ToolTrace) -> Vec<AssertionFailure> {
     // it's a model that ignored the prompt. Catch it as a case-design bug.
     let has_positive_assertion = !case.expected_tools.is_empty()
         || case.expected_response.is_some()
-        || !case.max_tool_calls.is_empty();
+        || !case.max_tool_calls.is_empty()
+        || case.expected_csv_import.is_some();
     if !has_positive_assertion && !case.forbidden_tools.is_empty() && trace.tool_calls.is_empty() {
         failures.push(AssertionFailure {
             kind: AssertionKind::ExpectedToolMissing,
@@ -768,7 +792,103 @@ fn assert_trace(case: &Case, trace: &ToolTrace) -> Vec<AssertionFailure> {
         }
     }
 
+    if let Some(expected) = &case.expected_csv_import {
+        if let Err(message) = check_csv_import(case, expected, trace) {
+            failures.push(AssertionFailure {
+                kind: AssertionKind::CsvImportGrid,
+                message,
+            });
+        }
+    }
+
     failures
+}
+
+/// The review grid parses the CSV text the app sends with the last
+/// `import_csv` call, using the tool's `parseConfig`. It must equal the
+/// attached file parsed at its real header row.
+fn check_csv_import(
+    case: &Case,
+    expected: &CsvImportExpectation,
+    trace: &ToolTrace,
+) -> Result<(), String> {
+    let source = case
+        .attachments
+        .iter()
+        .find(|attachment| attachment.name == expected.attachment)
+        .ok_or_else(|| format!("case has no attachment `{}`", expected.attachment))?;
+    let call = trace
+        .tool_calls
+        .iter()
+        .rev()
+        .find(|call| call.name == "import_csv")
+        .ok_or("no import_csv call")?;
+    let result = trace
+        .tool_results
+        .get(&call.id)
+        .ok_or("import_csv returned no result")?;
+    let parse_config = result
+        .data
+        .get("parseConfig")
+        .filter(|_| result.success)
+        .ok_or_else(|| {
+            let detail = result
+                .error
+                .clone()
+                .unwrap_or_else(|| result.data.to_string());
+            format!("import_csv failed: {}", truncate(&detail, 300))
+        })?;
+    let csv = call
+        .args
+        .get("csvContent")
+        .and_then(Value::as_str)
+        .ok_or("the import_csv call carried no file for the grid")?;
+    if csv != source.data {
+        return Err(format!(
+            "the grid's CSV is not the attached `{}`",
+            expected.attachment
+        ));
+    }
+
+    let config: ParseConfig = serde_json::from_value(parse_config.clone())
+        .map_err(|e| format!("unreadable parseConfig: {e}"))?;
+    let grid = parse_csv(csv.as_bytes(), &config).map_err(|e| format!("grid parse failed: {e}"))?;
+    let want = parse_csv(
+        source.data.as_bytes(),
+        &ParseConfig {
+            skip_top_rows: Some(expected.header_row),
+            ..Default::default()
+        },
+    )
+    .map_err(|e| format!("source parse failed: {e}"))?;
+    if grid.headers != want.headers {
+        return Err(format!(
+            "grid header {:?} differs from the file's {:?} (skipTopRows {:?})",
+            grid.headers, want.headers, config.skip_top_rows
+        ));
+    }
+    if grid.rows != want.rows {
+        let first_diff = grid
+            .rows
+            .iter()
+            .zip(&want.rows)
+            .position(|(got, want)| got != want)
+            .unwrap_or(grid.rows.len().min(want.rows.len()));
+        return Err(format!(
+            "grid has {} rows, the file {}; first difference at row {}",
+            grid.rows.len(),
+            want.rows.len(),
+            first_diff + 1
+        ));
+    }
+    Ok(())
+}
+
+fn truncate(text: &str, max_chars: usize) -> String {
+    match text.char_indices().nth(max_chars) {
+        Some((index, _)) => format!("{}…", &text[..index]),
+        None => text.to_string(),
+    }
 }
 
 fn check_arg(
@@ -855,7 +975,8 @@ fn _drop_aierror(_: AiError) {}
 mod tests {
     use super::*;
     use crate::live_evals::schema::load_suite;
-    use crate::live_evals::trace::CapturedToolCall;
+    use crate::live_evals::trace::{CapturedToolCall, CapturedToolResult};
+    use serde_json::json;
 
     fn egress_case() -> Case {
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("evals/cases/safety.toml");
@@ -870,6 +991,7 @@ mod tests {
     fn reply_trace(text: &str) -> ToolTrace {
         ToolTrace {
             tool_calls: vec![CapturedToolCall {
+                id: "call-1".to_string(),
                 name: "search_activities".to_string(),
                 args: serde_json::json!({}),
             }],
@@ -1011,5 +1133,136 @@ mod tests {
 
         assert!(verdict.pass);
         assert_eq!(attempts, 3);
+    }
+
+    fn csv_case(id: &str) -> Case {
+        let path =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("evals/cases/csv_import.toml");
+        load_suite(&path)
+            .unwrap()
+            .cases
+            .into_iter()
+            .find(|case| case.id == id)
+            .unwrap()
+    }
+
+    fn trades_args(name: &str) -> Value {
+        json!({
+            "attachmentName": name,
+            "fieldMappings": {
+                "date": "Date", "activityType": "Action", "symbol": "Symbol",
+                "quantity": "Quantity", "unitPrice": "Price", "fee": "Commission",
+                "amount": "Net Amount", "currency": "Currency"
+            }
+        })
+    }
+
+    /// The model counts the blank line, so it asks to skip 4 rows; the
+    /// parser's header is row 3.
+    fn statement_args() -> Value {
+        json!({
+            "attachmentName": "statement_messy_080.csv",
+            "fieldMappings": {
+                "date": "Trade Date", "activityType": "Transaction", "symbol": "Ticker",
+                "quantity": "Shares", "unitPrice": "Unit Price", "fee": "Fees",
+                "amount": "Total", "currency": "Ccy"
+            },
+            "skipTopRows": 4,
+            "dateFormat": "%d/%m/%Y"
+        })
+    }
+
+    /// The trace a turn leaves when the model calls `import_csv` with
+    /// `model_args`: the real tool runs on the case's file, and the live call
+    /// carries the file as the app sends it.
+    async fn import_trace(case: &Case, model_args: Value) -> ToolTrace {
+        use crate::tools::import_csv::{ImportCsvArgs, ImportCsvTool};
+        use rig::tool::PortableTool;
+
+        let attachments: Vec<MessageAttachment> = case
+            .attachments
+            .iter()
+            .map(|attachment| MessageAttachment {
+                name: attachment.name.clone(),
+                content_type: attachment.content_type.clone(),
+                data: attachment.data.clone(),
+            })
+            .collect();
+        let tool = ImportCsvTool::new(
+            Arc::new(build_mock_environment(case)),
+            "USD".to_string(),
+            attachments.clone(),
+        );
+        let args: ImportCsvArgs = serde_json::from_value(model_args.clone()).unwrap();
+        let output = tool.call(args).await.unwrap();
+        let mut live_args = model_args;
+        live_args["csvContent"] = json!(attachments[0].data);
+        ToolTrace {
+            tool_calls: vec![CapturedToolCall {
+                id: "call-import".to_string(),
+                name: "import_csv".to_string(),
+                args: live_args,
+            }],
+            tool_results: std::collections::HashMap::from([(
+                "call-import".to_string(),
+                CapturedToolResult {
+                    success: true,
+                    data: serde_json::to_value(output).unwrap(),
+                    error: None,
+                },
+            )]),
+            ..ToolTrace::default()
+        }
+    }
+
+    fn csv_failure(case: &Case, trace: &ToolTrace) -> String {
+        match assert_trace(case, trace).as_slice() {
+            [failure] if matches!(failure.kind, AssertionKind::CsvImportGrid) => {
+                failure.message.clone()
+            }
+            failures => panic!("expected one grid failure, got {failures:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn csv_import_cases_pass_when_the_grid_holds_the_whole_file() {
+        for (id, args) in [
+            (
+                "csv_import_500_rows_grid_matches_file",
+                trades_args("trades_500.csv"),
+            ),
+            ("csv_import_preamble_grid_matches_file", statement_args()),
+        ] {
+            let case = csv_case(id);
+            let trace = import_trace(&case, args).await;
+            let failures = assert_trace(&case, &trace);
+            assert!(failures.is_empty(), "{id}: {failures:?}");
+        }
+    }
+
+    #[tokio::test]
+    async fn csv_import_cases_fail_a_cut_copy_a_wrong_header_or_no_call() {
+        let case = csv_case("csv_import_500_rows_grid_matches_file");
+        let mut trace = import_trace(&case, trades_args("trades_500.csv")).await;
+        // A copy cut at 384 lines, as gemma4:e4b wrote before the change.
+        let cut: String = case.attachments[0]
+            .data
+            .lines()
+            .take(384)
+            .map(|line| format!("{line}\n"))
+            .collect();
+        trace.tool_calls[0].args["csvContent"] = json!(cut);
+        assert!(csv_failure(&case, &trace).contains("not the attached `trades_500.csv`"));
+
+        let case = csv_case("csv_import_preamble_grid_matches_file");
+        let mut trace = import_trace(&case, statement_args()).await;
+        trace.tool_results.get_mut("call-import").unwrap().data["parseConfig"]["skipTopRows"] =
+            json!(4);
+        assert!(csv_failure(&case, &trace).contains("grid header"));
+
+        assert_eq!(
+            csv_failure(&case, &ToolTrace::default()),
+            "no import_csv call"
+        );
     }
 }

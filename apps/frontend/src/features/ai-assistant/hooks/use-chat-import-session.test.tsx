@@ -150,31 +150,18 @@ describe("useChatImportSession", () => {
   });
 
   it("saves the repaired mapping used for a successful chat import", async () => {
-    adapterMocks.parseCsv
-      .mockResolvedValueOnce({
-        headers: ["2024-01-15", "NEWCO", "2", "10", "Buy"],
-        rows: [],
-        detectedConfig: {
-          defaultCurrency: "USD",
-          dateFormat: "auto",
-          decimalSeparator: ".",
-          thousandsSeparator: ",",
-        },
-        errors: [],
-        rowCount: 0,
-      })
-      .mockResolvedValue({
-        headers: ["Date", "Symbol", "Quantity", "Price", "Type"],
-        rows: [["2024-01-15", "NEWCO", "2", "10", "Buy"]],
-        detectedConfig: {
-          defaultCurrency: "USD",
-          dateFormat: "auto",
-          decimalSeparator: ".",
-          thousandsSeparator: ",",
-        },
-        errors: [],
-        rowCount: 1,
-      });
+    adapterMocks.parseCsv.mockResolvedValue({
+      headers: ["Date", "Symbol", "Quantity", "Price", "Type"],
+      rows: [["2024-01-15", "NEWCO", "2", "10", "Buy"]],
+      detectedConfig: {
+        defaultCurrency: "USD",
+        dateFormat: "auto",
+        decimalSeparator: ".",
+        thousandsSeparator: ",",
+      },
+      errors: [],
+      rowCount: 1,
+    });
     const staleMapping: ImportCsvMappingOutput = {
       ...mapping,
       appliedMapping: {
@@ -215,8 +202,14 @@ describe("useChatImportSession", () => {
           unitPrice: "Price",
           activityType: "Type",
         }),
-        parseConfig: expect.objectContaining({ skipTopRows: 0 }),
+        parseConfig: expect.objectContaining({ skipTopRows: 1 }),
       }),
+    );
+    // The tool's skipTopRows is used as given; the file is never reparsed without it.
+    expect(adapterMocks.parseCsv).toHaveBeenCalledTimes(1);
+    expect(adapterMocks.parseCsv).toHaveBeenCalledWith(
+      expect.any(File),
+      expect.objectContaining({ skipTopRows: 1 }),
     );
     const savedMapping = adapterMocks.saveAccountImportMapping.mock.calls[0]?.[0];
     expect(savedMapping.accountMappings).toEqual({
@@ -375,37 +368,19 @@ describe("useChatImportSession", () => {
     });
   });
 
-  it("keeps the repaired parse config when account selection changes the import profile", async () => {
-    adapterMocks.parseCsv.mockImplementation(
-      async (_file: File, config?: { skipTopRows?: number }) => {
-        if ((config?.skipTopRows ?? 0) > 0) {
-          return {
-            headers: ["2024-01-15", "Starbucks", "12.50", "Purchase"],
-            rows: [],
-            detectedConfig: {
-              defaultCurrency: "USD",
-              dateFormat: "auto",
-              decimalSeparator: ".",
-              thousandsSeparator: ",",
-            },
-            errors: [],
-            rowCount: 0,
-          };
-        }
-        return {
-          headers: ["Date", "Merchant", "Amount", "Type"],
-          rows: [["2024-01-15", "Starbucks", "12.50", "Purchase"]],
-          detectedConfig: {
-            defaultCurrency: "USD",
-            dateFormat: "auto",
-            decimalSeparator: ".",
-            thousandsSeparator: ",",
-          },
-          errors: [],
-          rowCount: 1,
-        };
+  it("keeps the tool's parse config when account selection changes the import profile", async () => {
+    adapterMocks.parseCsv.mockResolvedValue({
+      headers: ["Date", "Merchant", "Amount", "Type"],
+      rows: [["2024-01-15", "Starbucks", "12.50", "Purchase"]],
+      detectedConfig: {
+        defaultCurrency: "USD",
+        dateFormat: "auto",
+        decimalSeparator: ".",
+        thousandsSeparator: ",",
       },
-    );
+      errors: [],
+      rowCount: 1,
+    });
 
     const staleAmbiguousStatement: ImportCsvMappingOutput = {
       ...mapping,
@@ -458,7 +433,7 @@ describe("useChatImportSession", () => {
     await waitFor(() => expect(result.current.drafts[0]?.accountId).toBe("card-1"));
     expect(adapterMocks.parseCsv).toHaveBeenLastCalledWith(
       expect.any(File),
-      expect.objectContaining({ skipTopRows: 0 }),
+      expect.objectContaining({ skipTopRows: 1 }),
     );
     await waitFor(() => expect(result.current.canConfirm).toBe(true));
 
@@ -468,7 +443,7 @@ describe("useChatImportSession", () => {
 
     expect(adapterMocks.saveAccountImportMapping).toHaveBeenCalledWith(
       expect.objectContaining({
-        parseConfig: expect.objectContaining({ skipTopRows: 0 }),
+        parseConfig: expect.objectContaining({ skipTopRows: 1 }),
       }),
     );
   });

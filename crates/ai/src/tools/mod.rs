@@ -52,6 +52,7 @@ use std::sync::Arc;
 use wealthfolio_agent_tools::AgentToolCatalog;
 
 use crate::env::AiEnvironment;
+use crate::types::MessageAttachment;
 
 /// Process-wide catalog of agent tools available to the in-app assistant
 /// (read + draft/suggest), shared by every chat session (tools are stateless;
@@ -72,9 +73,15 @@ pub struct ToolSet<E: AiEnvironment> {
 
 impl<E: AiEnvironment> ToolSet<E> {
     /// Create a new tool set with the assistant-only rig tools.
-    pub fn new(env: Arc<E>, base_currency: String) -> Self {
+    /// `csv_attachments` are the CSV files `import_csv` may read: those
+    /// attached in the thread during the app session.
+    pub fn new(
+        env: Arc<E>,
+        base_currency: String,
+        csv_attachments: Vec<MessageAttachment>,
+    ) -> Self {
         Self {
-            import_csv: ImportCsvTool::new(env, base_currency),
+            import_csv: ImportCsvTool::new(env, base_currency, csv_attachments),
         }
     }
 }
@@ -88,7 +95,7 @@ mod tests {
     #[test]
     fn test_tool_set_creation() {
         let env = Arc::new(MockEnvironment::new());
-        let _tools = ToolSet::new(env, "USD".to_string());
+        let _tools = ToolSet::new(env, "USD".to_string(), Vec::new());
     }
 
     /// Each tool's NAME constant must match what the system prompt + frontend
