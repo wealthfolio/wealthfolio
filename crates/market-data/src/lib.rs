@@ -87,6 +87,7 @@ pub use provider::finnhub::FinnhubProvider;
 pub use provider::fixture::FixtureProvider;
 pub use provider::marketdata_app::MarketDataAppProvider;
 pub use provider::metal_price_api::MetalPriceApiProvider;
+pub use provider::moex::MoexProvider;
 pub use provider::openfigi::OpenFigiProvider;
 pub use provider::us_treasury_calc::UsTreasuryCalcProvider;
 pub use provider::yahoo::YahooProvider;
