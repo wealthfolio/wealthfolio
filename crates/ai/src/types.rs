@@ -958,6 +958,13 @@ pub struct MessageAttachment {
     pub data: String,
 }
 
+impl MessageAttachment {
+    /// Whether the attachment is a CSV file (plain text in `data`).
+    pub fn is_csv(&self) -> bool {
+        self.content_type == "text/csv" || self.content_type == "application/csv"
+    }
+}
+
 impl SendMessageRequest {
     /// Get the effective provider ID (config takes precedence).
     pub fn effective_provider_id(&self) -> Option<&str> {

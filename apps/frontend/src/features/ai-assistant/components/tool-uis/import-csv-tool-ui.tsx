@@ -94,6 +94,7 @@ function normalizeMappingResult(raw: RawResult, csvContent: string): NormalizeRe
     errorMessage: null,
     mapping: {
       csvContent,
+      attachmentName: pick<string>(obj, "attachmentName", "attachment_name"),
       appliedMapping: appliedMapping as ImportCsvMappingOutput["appliedMapping"],
       parseConfig: (parseConfig ?? {}) as ImportCsvMappingOutput["parseConfig"],
       accountId: pick<string>(obj, "accountId", "account_id") ?? null,
@@ -295,8 +296,9 @@ function ImportCsvToolUIContentImpl({
   const runtime = useRuntimeContext();
   const threadId = runtime.currentThreadId;
 
-  // csvContent lives in live tool args only. Persisted tool args are redacted,
-  // so keep an in-memory copy for this page session.
+  // csvContent is the attached file's text, which the app adds to the live tool
+  // call only. Persisted tool calls don't keep it, so keep an in-memory copy for
+  // this page session.
   const rawCsvContent = (args as Record<string, unknown>)?.csvContent;
   const csvContent = getSessionCsvContent(toolCallId, rawCsvContent);
 

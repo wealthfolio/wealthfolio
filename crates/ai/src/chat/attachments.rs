@@ -120,14 +120,14 @@ impl SessionAttachmentCache {
             .get(thread_id)
             .map(|entry| entry.attachments.clone())
             .unwrap_or_default();
-        let mut keys: HashSet<AttachmentCacheKey> = next_cached
-            .iter()
-            .map(|cached| cached.key.clone())
-            .collect();
+        let mut keys: HashSet<AttachmentCacheKey> = HashSet::new();
 
+        // Newest last: tools pick the newest file of a name, so a file
+        // attached again moves to the end.
         for attachment in incoming {
             let key = attachment_cache_key(attachment);
             if keys.insert(key.clone()) {
+                next_cached.retain(|cached| cached.key != key);
                 next_cached.push(CachedAttachment {
                     key,
                     effective_size: attachment_effective_size(attachment),
@@ -338,6 +338,26 @@ mod tests {
         assert_eq!(with_duplicate[0].data, first.data);
         assert_eq!(with_duplicate[1].name, second.name);
         assert_eq!(with_duplicate[1].data, second.data);
+    }
+
+    #[test]
+    fn test_session_attachment_cache_moves_a_reattached_file_to_the_end() {
+        let cache = SessionAttachmentCache::with_limits(test_limits());
+        let first = test_attachment("trades.csv", "a,b\n1,2");
+        let second = test_attachment("trades.csv", "a,b\n3,4");
+
+        cache
+            .resolve_for_thread("thread-1", std::slice::from_ref(&first))
+            .unwrap();
+        cache
+            .resolve_for_thread("thread-1", std::slice::from_ref(&second))
+            .unwrap();
+        let stored = cache
+            .resolve_for_thread("thread-1", std::slice::from_ref(&first))
+            .unwrap();
+
+        let data: Vec<&str> = stored.iter().map(|cached| cached.data.as_str()).collect();
+        assert_eq!(data, ["a,b\n3,4", "a,b\n1,2"]);
     }
 
     #[test]

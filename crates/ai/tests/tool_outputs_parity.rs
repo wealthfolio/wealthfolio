@@ -787,6 +787,7 @@ async fn live_ollama_each_assistant_tool() {
     };
     use std::sync::Mutex;
     use wealthfolio_ai::tools::{agent_catalog, ImportCsvTool};
+    use wealthfolio_ai::types::MessageAttachment;
     let thinking = std::env::var("WF_TEST_OLLAMA_THINKING").as_deref() == Ok("true");
     let model = std::env::var("WF_TEST_OLLAMA_MODEL").expect("set model");
     let mut names: Vec<_> = agent_catalog()
@@ -824,7 +825,7 @@ async fn live_ollama_each_assistant_tool() {
             }
             "get_performance" => serde_json::json!({"period":"ALL"}),
             "import_csv" => {
-                serde_json::json!({"csvContent":"Date,Type,Amount\n2024-06-15,DEPOSIT,100\n","accountId":"acc-1"})
+                serde_json::json!({"attachmentName":"deposits.csv","accountId":"acc-1"})
             }
             _ => serde_json::json!({}),
         };
@@ -844,7 +845,15 @@ async fn live_ollama_each_assistant_tool() {
                 })
             }));
         }
-        let csv = Arc::new(ImportCsvTool::new(test_env.clone(), "USD".into()));
+        let csv = Arc::new(ImportCsvTool::new(
+            test_env.clone(),
+            "USD".into(),
+            vec![MessageAttachment {
+                name: "deposits.csv".into(),
+                content_type: "text/csv".into(),
+                data: "Date,Type,Amount\n2024-06-15,DEPOSIT,100\n".into(),
+            }],
+        ));
         let def = rig::completion::ToolDefinition {
             name: ToolName::new("import_csv").unwrap(),
             description: csv.description(),

@@ -573,9 +573,15 @@ export interface ImportCsvAccountOption {
  * Arguments the LLM provides when calling the import_csv tool.
  */
 export interface ImportCsvArgs {
-  csvContent: string;
+  /** File name of the attached CSV the model wants imported. */
+  attachmentName: string;
+  /**
+   * Text of the attached file. The app fills it into the live tool call; the
+   * model never writes it and persisted tool calls do not keep it.
+   */
+  csvContent?: string;
   accountId?: string | null;
-  fieldMappings?: Record<string, string> | null;
+  fieldMappings?: Record<string, string | string[]> | null;
   activityMappings?: Record<string, string[]> | null;
   symbolMappings?: Record<string, string> | null;
   accountMappings?: Record<string, string> | null;
@@ -608,8 +614,10 @@ export interface ImportCsvSubmissionResult {
  * Mirrors `crates/ai/src/tools/import_csv.rs::ImportCsvMappingOutput`.
  */
 export interface ImportCsvMappingOutput extends ImportCsvSubmissionResult {
-  /** CSV content read from tool ARGS (not echoed in result — avoids double-storing). */
+  /** Text of the attached file, from the live tool call (not echoed in the result). */
   csvContent: string;
+  /** The attached CSV file the mapping applies to. */
+  attachmentName?: string;
   /** The mapping the AI (or saved template) settled on. Same shape as manual import. */
   appliedMapping: import("@/lib/types").ImportMappingData;
   /** Parse config the frontend should use. */

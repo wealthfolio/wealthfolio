@@ -610,16 +610,14 @@ export function useChatImportSession({
           inferredAccountId ||
           (mapping.availableAccounts.length === 1 ? mapping.availableAccounts[0].id : "");
 
-        const baseParseConfig = normalizeParseConfig(mapping.parseConfig);
+        // The tool already moved skipTopRows to the row holding the mapped headers.
+        const parseConfig = normalizeParseConfig(mapping.parseConfig);
         const csvFile = csvStringAsFile(mapping.csvContent);
-
-        // Parse with the AI's config first.
-        let parsed: ParsedCsvResult = await parseCsv(csvFile, baseParseConfig);
+        const parsed: ParsedCsvResult = await parseCsv(csvFile, parseConfig);
         if (cancelled) return;
-        let parseConfig = baseParseConfig;
 
         const aiFieldMappings = (applied.fieldMappings ?? {}) as Record<string, unknown>;
-        let importProfile = getActivityImportProfileForImportContext({
+        const importProfile = getActivityImportProfileForImportContext({
           defaultAccountId: accountId,
           accounts: mapping.availableAccounts,
           headers: parsed.headers,
@@ -627,26 +625,7 @@ export function useChatImportSession({
           fieldMappings: aiFieldMappings as Record<string, string | string[]>,
           accountMappings,
         });
-        let hits = countFieldMappingHits(aiFieldMappings, parsed.headers, importProfile);
-
-        // LLMs sometimes strip preamble from csvContent but still pass
-        // skipTopRows > 0 — which then skips the header row too. If the
-        // AI's field mappings don't match the parsed headers AND skipTopRows
-        // is set, retry with skipTopRows: 0.
-        if (hits < 2 && (baseParseConfig.skipTopRows ?? 0) > 0) {
-          parseConfig = { ...baseParseConfig, skipTopRows: 0 };
-          parsed = await parseCsv(csvStringAsFile(mapping.csvContent), parseConfig);
-          if (cancelled) return;
-          importProfile = getActivityImportProfileForImportContext({
-            defaultAccountId: accountId,
-            accounts: mapping.availableAccounts,
-            headers: parsed.headers,
-            parsedRows: parsed.rows,
-            fieldMappings: aiFieldMappings as Record<string, string | string[]>,
-            accountMappings,
-          });
-          hits = countFieldMappingHits(aiFieldMappings, parsed.headers, importProfile);
-        }
+        const hits = countFieldMappingHits(aiFieldMappings, parsed.headers, importProfile);
 
         const effectiveFieldMappings: Record<string, string | string[]> =
           hits >= 2

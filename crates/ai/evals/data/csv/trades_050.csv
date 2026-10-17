@@ -1,0 +1,51 @@
+Date,Action,Symbol,Description,Quantity,Price,Commission,Net Amount,Currency
+2023-01-06,Dividend,BND,Vanguard Total Bond Mkt ETF,,,0.00,637.14,USD
+2023-01-13,Fee,,Account maintenance fee,,,0.00,-25.00,USD
+2023-01-14,Buy,XOM,Exxon Mobil Corp,239,112.77,0.00,-26952.03,USD
+2023-01-16,Buy,MSFT,Microsoft Corp,3.6039,422.53,4.95,-1527.71,USD
+2023-01-20,Dividend,SCHD,Schwab US Dividend Equity ETF,,,0.00,2401.14,USD
+2023-01-21,Deposit,,Electronic funds transfer,,,0.00,12500.37,USD
+2023-01-22,Buy,VXUS,Vanguard Total Intl Stock ETF,180,60.85,0.00,-10953.00,USD
+2023-01-23,Deposit,,Electronic funds transfer,,,0.00,2500.37,USD
+2023-01-24,Buy,BND,Vanguard Total Bond Mkt ETF,106,72.94,0.00,-7731.64,USD
+2023-01-31,Buy,XOM,Exxon Mobil Corp,137,112.82,0.00,-15456.34,USD
+2023-02-03,Sell,SCHD,Schwab US Dividend Equity ETF,19.2802,28.33,0.00,546.21,USD
+2023-02-04,Deposit,,Electronic funds transfer,,,0.00,5000.37,USD
+2023-02-07,Sell,BRK.B,Berkshire Hathaway Inc Cl B,42,459.46,0.00,19297.32,USD
+2023-02-08,Dividend,BND,Vanguard Total Bond Mkt ETF,,,0.00,882.14,USD
+2023-02-09,Buy,BRK.B,Berkshire Hathaway Inc Cl B,166,460.15,0.00,-76384.90,USD
+2023-02-16,Buy,BND,Vanguard Total Bond Mkt ETF,197,72.67,9.99,-14325.98,USD
+2023-02-19,Buy,MSFT,Microsoft Corp,1.0057,420.67,0.00,-423.07,USD
+2023-02-22,Sell,BRK.B,Berkshire Hathaway Inc Cl B,219,463.69,4.95,101543.16,USD
+2023-02-26,Sell,BRK.B,Berkshire Hathaway Inc Cl B,78,468.33,0.00,36529.74,USD
+2023-03-01,Fee,,Account maintenance fee,,,0.00,-25.00,USD
+2023-03-08,Buy,MSFT,Microsoft Corp,7.4997,410.36,0.00,-3077.58,USD
+2023-03-10,Deposit,,Electronic funds transfer,,,0.00,1000.00,USD
+2023-03-11,Buy,XOM,Exxon Mobil Corp,79,110.30,0.00,-8713.70,USD
+2023-03-12,Buy,JNJ,Johnson & Johnson,58,158.04,0.00,-9166.32,USD
+2023-03-16,Deposit,,Electronic funds transfer,,,0.00,1000.37,USD
+2023-03-18,Sell,AAPL,Apple Inc,123,184.12,4.95,22641.81,USD
+2023-03-19,Deposit,,Electronic funds transfer,,,0.00,5000.00,USD
+2023-03-23,Buy,XOM,Exxon Mobil Corp,5.5809,108.23,4.95,-608.97,USD
+2023-03-30,Sell,JNJ,Johnson & Johnson,34.8194,161.11,0.00,5609.75,USD
+2023-04-01,Dividend,VXUS,Vanguard Total Intl Stock ETF,,,0.00,523.01,USD
+2023-04-02,Buy,BND,Vanguard Total Bond Mkt ETF,128,74.49,0.00,-9534.72,USD
+2023-04-03,Buy,MSFT,Microsoft Corp,1,411.02,4.95,-415.97,USD
+2023-04-07,Buy,MSFT,Microsoft Corp,59,417.64,9.99,-24650.75,USD
+2023-04-10,Buy,XOM,Exxon Mobil Corp,31,110.47,0.00,-3424.57,USD
+2023-04-11,Buy,NVDA,NVIDIA Corp,25.8089,115.82,4.95,-2994.14,USD
+2023-04-18,Dividend,BRK.B,Berkshire Hathaway Inc Cl B,,,0.00,2469.09,USD
+2023-04-22,Buy,XOM,Exxon Mobil Corp,92,113.09,0.00,-10404.28,USD
+2023-04-23,Buy,MSFT,Microsoft Corp,113,411.96,0.00,-46551.48,USD
+2023-04-25,Withdrawal,,Withdrawal to bank,,,0.00,-750.00,USD
+2023-04-27,Buy,KO,Coca-Cola Co,229,63.26,4.95,-14491.49,USD
+2023-04-30,Buy,SCHD,Schwab US Dividend Equity ETF,153,28.54,4.95,-4371.57,USD
+2023-05-03,Sell,MSFT,Microsoft Corp,32.8371,412.74,0.00,13553.18,USD
+2023-05-10,Fee,,Account maintenance fee,,,0.00,-25.00,USD
+2023-05-17,Buy,VTI,Vanguard Total Stock Mkt ETF,15.6904,251.65,9.99,-3958.48,USD
+2023-05-24,Sell,XOM,Exxon Mobil Corp,152,115.82,0.00,17604.64,USD
+2023-05-25,Buy,XOM,Exxon Mobil Corp,35.4458,114.21,4.95,-4053.21,USD
+2023-05-27,Buy,BND,Vanguard Total Bond Mkt ETF,40,73.94,0.00,-2957.60,USD
+2023-05-28,Sell,COST,Costco Wholesale Corp,140,916.81,9.99,128343.41,USD
+2023-05-31,Buy,JNJ,Johnson & Johnson,33.0425,161.54,4.95,-5342.64,USD
+2023-06-03,Buy,BRK.B,Berkshire Hathaway Inc Cl B,12.8522,469.92,4.95,-6044.46,USD

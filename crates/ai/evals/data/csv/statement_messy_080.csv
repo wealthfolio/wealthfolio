@@ -1,0 +1,85 @@
+Northwind Brokerage - Activity Statement
+Account: Sample Margin Account (ending 0000)
+Period: 01/01/2023 - 31/12/2024
+
+Trade Date,Transaction,Ticker,Security Name,Shares,Unit Price,Fees,Total,Ccy
+05/01/2023,Cash Deposit,,Electronic funds transfer,,,0.00,"12,500.37",USD
+07/01/2023,Bought,NVDA,NVIDIA Corporation,39.933,118.90,9.99,"-4,758.02",USD
+08/01/2023,Bought,SCHD,"Schwab Strategic Trust, US Dividend Equity ETF",27.7581,27.32,0.00,-758.35,USD
+09/01/2023,Bought,JNJ,Johnson & Johnson,19.603,159.37,4.95,"-3,129.08",USD
+13/01/2023,Fee,,Account maintenance fee,,,0.00,-25.00,USD
+14/01/2023,Fee,,Account maintenance fee,,,0.00,-25.00,USD
+16/01/2023,Bought,MSFT,Microsoft Corporation,27.652,415.72,4.95,"-11,500.44",USD
+18/01/2023,Sold,NVDA,NVIDIA Corporation,190,119.70,0.00,"22,743.00",USD
+19/01/2023,Sold,BRK.B,"Berkshire Hathaway, Inc. Class B",14,451.78,9.99,"6,314.93",USD
+20/01/2023,Cash Withdrawal,,Withdrawal to bank,,,0.00,"-1,000.00",USD
+27/01/2023,Sold,BRK.B,"Berkshire Hathaway, Inc. Class B",11.1084,440.67,0.00,"4,895.14",USD
+03/02/2023,Bought,MSFT,Microsoft Corporation,91,405.53,9.99,"-36,913.22",USD
+10/02/2023,Fee,,Account maintenance fee,,,0.00,-25.00,USD
+12/02/2023,Cash Deposit,,Electronic funds transfer,,,0.00,500.37,USD
+15/02/2023,Bought,VTI,"Vanguard Index Funds, Total Stock Market ETF",38,248.60,0.00,"-9,446.80",USD
+16/02/2023,Bought,VTI,"Vanguard Index Funds, Total Stock Market ETF",17.8117,254.91,4.95,"-4,545.33",USD
+20/02/2023,Fee,,Account maintenance fee,,,0.00,-25.00,USD
+23/02/2023,Fee,,Account maintenance fee,,,0.00,-25.00,USD
+24/02/2023,Dividend Received,SCHD,"Schwab Strategic Trust, US Dividend Equity ETF",,,0.00,"2,013.24",USD
+27/02/2023,Bought,XOM,Exxon Mobil Corporation,19.1696,112.54,9.99,"-2,167.34",USD
+02/03/2023,Fee,,Account maintenance fee,,,0.00,-25.00,USD
+03/03/2023,Sold,NVDA,NVIDIA Corporation,32.3703,117.96,4.95,"3,813.45",USD
+05/03/2023,Bought,SCHD,"Schwab Strategic Trust, US Dividend Equity ETF",37.4368,27.94,0.00,"-1,045.98",USD
+06/03/2023,Fee,,Account maintenance fee,,,0.00,-25.00,USD
+07/03/2023,Cash Deposit,,Electronic funds transfer,,,0.00,"12,500.00",USD
+14/03/2023,Sold,COST,Costco Wholesale Corporation,29,923.44,0.00,"26,779.76",USD
+15/03/2023,Cash Deposit,,Electronic funds transfer,,,0.00,"12,500.00",USD
+16/03/2023,Dividend Received,BND,"Vanguard Bond Index Funds, Total Bond Market ETF",,,0.00,845.14,USD
+17/03/2023,Cash Deposit,,Electronic funds transfer,,,0.00,500.00,USD
+20/03/2023,Bought,KO,The Coca-Cola Company,24.5266,63.49,9.99,"-1,567.18",USD
+23/03/2023,Fee,,Account maintenance fee,,,0.00,-25.00,USD
+30/03/2023,Dividend Received,MSFT,Microsoft Corporation,,,0.00,"1,164.50",USD
+31/03/2023,Fee,,Account maintenance fee,,,0.00,-25.00,USD
+04/04/2023,Cash Deposit,,Electronic funds transfer,,,0.00,"5,000.00",USD
+07/04/2023,Fee,,Account maintenance fee,,,0.00,-25.00,USD
+08/04/2023,Dividend Received,XOM,Exxon Mobil Corporation,,,0.00,"1,148.81",USD
+09/04/2023,Bought,XOM,Exxon Mobil Corporation,176,113.15,4.95,"-19,919.35",USD
+10/04/2023,Bought,KO,The Coca-Cola Company,26.5403,63.79,0.00,"-1,693.01",USD
+13/04/2023,Dividend Received,MSFT,Microsoft Corporation,,,0.00,"1,243.01",USD
+14/04/2023,Bought,VTI,"Vanguard Index Funds, Total Stock Market ETF",6.5491,254.68,9.99,"-1,677.91",USD
+17/04/2023,Bought,VTI,"Vanguard Index Funds, Total Stock Market ETF",33,250.71,0.00,"-8,273.43",USD
+18/04/2023,Bought,COST,Costco Wholesale Corporation,183,907.68,0.00,"-166,105.44",USD
+21/04/2023,Bought,KO,The Coca-Cola Company,5.8548,63.24,0.00,-370.26,USD
+28/04/2023,Bought,BRK.B,"Berkshire Hathaway, Inc. Class B",28,441.48,4.95,"-12,366.39",USD
+02/05/2023,Cash Deposit,,Electronic funds transfer,,,0.00,"5,000.00",USD
+06/05/2023,Sold,BND,"Vanguard Bond Index Funds, Total Bond Market ETF",6.5019,71.55,0.00,465.21,USD
+09/05/2023,Cash Deposit,,Electronic funds transfer,,,0.00,500.00,USD
+13/05/2023,Bought,MSFT,Microsoft Corporation,247,386.66,0.00,"-95,505.02",USD
+14/05/2023,Fee,,Account maintenance fee,,,0.00,-25.00,USD
+18/05/2023,Dividend Received,BRK.B,"Berkshire Hathaway, Inc. Class B",,,0.00,913.64,USD
+19/05/2023,Bought,MSFT,Microsoft Corporation,226,394.51,9.99,"-89,169.25",USD
+21/05/2023,Bought,COST,Costco Wholesale Corporation,143,904.87,4.95,"-129,401.36",USD
+22/05/2023,Sold,VTI,"Vanguard Index Funds, Total Stock Market ETF",46,246.82,0.00,"11,353.72",USD
+26/05/2023,Dividend Received,MSFT,Microsoft Corporation,,,0.00,348.67,USD
+28/05/2023,Bought,BRK.B,"Berkshire Hathaway, Inc. Class B",2.6674,433.77,0.00,"-1,157.04",USD
+30/05/2023,Bought,BRK.B,"Berkshire Hathaway, Inc. Class B",141,429.61,9.99,"-60,585.00",USD
+31/05/2023,Bought,NVDA,NVIDIA Corporation,89,117.82,0.00,"-10,485.98",USD
+01/06/2023,Bought,VTI,"Vanguard Index Funds, Total Stock Market ETF",98,242.50,0.00,"-23,765.00",USD
+05/06/2023,Dividend Received,VXUS,"Vanguard STAR Funds, Total Intl Stock ETF",,,0.00,"1,443.13",USD
+07/06/2023,Bought,NVDA,NVIDIA Corporation,48,117.24,0.00,"-5,627.52",USD
+10/06/2023,Sold,AAPL,"Apple, Inc.",11.3098,184.46,0.00,"2,086.21",USD
+11/06/2023,Dividend Received,NVDA,NVIDIA Corporation,,,0.00,"1,229.75",USD
+13/06/2023,Sold,BRK.B,"Berkshire Hathaway, Inc. Class B",126,423.08,0.00,"53,308.08",USD
+17/06/2023,Bought,JNJ,Johnson & Johnson,170,154.18,0.00,"-26,210.60",USD
+21/06/2023,Cash Deposit,,Electronic funds transfer,,,0.00,"1,500.00",USD
+22/06/2023,Bought,KO,The Coca-Cola Company,186,63.68,0.00,"-11,844.48",USD
+26/06/2023,Bought,KO,The Coca-Cola Company,123,62.26,4.95,"-7,662.93",USD
+27/06/2023,Bought,BRK.B,"Berkshire Hathaway, Inc. Class B",7.738,419.70,0.00,"-3,247.64",USD
+01/07/2023,Bought,SCHD,"Schwab Strategic Trust, US Dividend Equity ETF",11.1247,28.10,0.00,-312.60,USD
+02/07/2023,Sold,VTI,"Vanguard Index Funds, Total Stock Market ETF",99,240.00,9.99,"23,750.01",USD
+06/07/2023,Bought,XOM,Exxon Mobil Corporation,165,114.70,9.99,"-18,935.49",USD
+07/07/2023,Cash Withdrawal,,Withdrawal to bank,,,0.00,"-1,000.00",USD
+08/07/2023,Bought,VXUS,"Vanguard STAR Funds, Total Intl Stock ETF",0.3689,62.77,9.99,-33.15,USD
+12/07/2023,Bought,SCHD,"Schwab Strategic Trust, US Dividend Equity ETF",235,28.40,0.00,"-6,674.00",USD
+19/07/2023,Cash Deposit,,Electronic funds transfer,,,0.00,"5,000.00",USD
+26/07/2023,Bought,JNJ,Johnson & Johnson,1,154.16,0.00,-154.16,USD
+28/07/2023,Bought,JNJ,Johnson & Johnson,105,156.21,0.00,"-16,402.05",USD
+29/07/2023,Sold,VTI,"Vanguard Index Funds, Total Stock Market ETF",165,245.40,4.95,"40,486.05",USD
+30/07/2023,Cash Deposit,,Electronic funds transfer,,,0.00,"1,500.37",USD
+06/08/2023,Fee,,Account maintenance fee,,,0.00,-25.00,USD
