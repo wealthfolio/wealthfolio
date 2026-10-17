@@ -197,3 +197,22 @@ export function getQuoteUnitCurrency(currency: string | null | undefined) {
     return quoteUnit.value === normalized;
   });
 }
+
+/** A currency with its name in the app language; see `useCurrencyOptions`. */
+export interface CurrencyOption {
+  value: string;
+  /** Name in the app language, e.g. "Schweizer Franken". */
+  name: string;
+  /** `name` with the code, e.g. "Schweizer Franken (CHF)". */
+  label: string;
+  /** The English label, which stays searchable in every language. */
+  englishLabel: string;
+}
+
+/** Whether `query` appears in the currency's code, name or English name. */
+export function matchesCurrencySearch(currency: CurrencyOption, query: string) {
+  const needle = query.toLowerCase();
+  return [currency.value, currency.label, currency.englishLabel].some((text) =>
+    text.toLowerCase().includes(needle),
+  );
+}

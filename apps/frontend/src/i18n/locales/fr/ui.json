@@ -14,7 +14,14 @@
     "searchPrompt": "Recherchez n'importe quelle devise ou sélectionnez-en une parmi les options populaires ci-dessus.",
     "useCustom": "Utiliser « {{value}} » comme devise personnalisée",
     "noneFound": "Aucune devise trouvée pour « {{query}} ».",
-    "noneFoundShort": "Aucune devise trouvée."
+    "noneFoundShort": "Aucune devise trouvée.",
+    "quoteUnitNames": {
+      "britishPence": "Pence britanniques",
+      "israeliAgorot": "Agorot israéliennes",
+      "usCents": "Cents américains",
+      "southAfricanCents": "Cents sud-africains",
+      "kuwaitiFils": "Fils koweïtiens"
+    }
   },
   "dataGrid": {
     "label": "Grille de données",

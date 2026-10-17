@@ -14,7 +14,14 @@
     "searchPrompt": "원하는 통화를 검색하거나 위의 인기 옵션에서 선택하세요.",
     "useCustom": "\"{{value}}\"을(를) 커스텀 통화로 사용",
     "noneFound": "\"{{query}}\"에 대한 통화를 찾을 수 없습니다.",
-    "noneFoundShort": "통화를 찾을 수 없습니다."
+    "noneFoundShort": "통화를 찾을 수 없습니다.",
+    "quoteUnitNames": {
+      "britishPence": "영국 펜스",
+      "israeliAgorot": "이스라엘 아고롯",
+      "usCents": "미국 센트",
+      "southAfricanCents": "남아프리카 센트",
+      "kuwaitiFils": "쿠웨이트 필스"
+    }
   },
   "dataGrid": {
     "label": "데이터 그리드",

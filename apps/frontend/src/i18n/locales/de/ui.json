@@ -14,7 +14,14 @@
     "searchPrompt": "Suchen Sie eine beliebige Währung oder wählen Sie eine aus den beliebten Optionen oben.",
     "useCustom": "„{{value}}“ als benutzerdefinierte Währung verwenden",
     "noneFound": "Keine Währungen gefunden für „{{query}}“.",
-    "noneFoundShort": "Keine Währung gefunden."
+    "noneFoundShort": "Keine Währung gefunden.",
+    "quoteUnitNames": {
+      "britishPence": "Britische Pence",
+      "israeliAgorot": "Israelische Agorot",
+      "usCents": "US-Cent",
+      "southAfricanCents": "Südafrikanische Cent",
+      "kuwaitiFils": "Kuwaitische Fils"
+    }
   },
   "dataGrid": {
     "label": "Datenraster",

@@ -14,7 +14,14 @@
     "searchPrompt": "任意の通貨を検索するか、上の候補から選択してください。",
     "useCustom": "「{{value}}」をカスタム通貨として使用",
     "noneFound": "「{{query}}」に一致する通貨が見つかりません。",
-    "noneFoundShort": "通貨が見つかりません。"
+    "noneFoundShort": "通貨が見つかりません。",
+    "quoteUnitNames": {
+      "britishPence": "英国ペンス",
+      "israeliAgorot": "イスラエル アゴロット",
+      "usCents": "米セント",
+      "southAfricanCents": "南アフリカ セント",
+      "kuwaitiFils": "クウェート フィルス"
+    }
   },
   "dataGrid": {
     "label": "データグリッド",

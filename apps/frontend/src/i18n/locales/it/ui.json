@@ -14,7 +14,14 @@
     "searchPrompt": "Cerca qualsiasi valuta oppure seleziona una delle opzioni popolari qui sopra.",
     "useCustom": "Usa \"{{value}}\" come valuta personalizzata",
     "noneFound": "Nessuna valuta trovata per \"{{query}}\".",
-    "noneFoundShort": "Nessuna valuta trovata."
+    "noneFoundShort": "Nessuna valuta trovata.",
+    "quoteUnitNames": {
+      "britishPence": "Pence britannici",
+      "israeliAgorot": "Agorot israeliane",
+      "usCents": "Centesimi statunitensi",
+      "southAfricanCents": "Centesimi sudafricani",
+      "kuwaitiFils": "Fils kuwaitiani"
+    }
   },
   "dataGrid": {
     "label": "Griglia dati",

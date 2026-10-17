@@ -1,7 +1,7 @@
 import { ExchangeRate } from "@/lib/types";
 import { formatDate } from "@/lib/utils";
 import { ColumnDef } from "@tanstack/react-table";
-import { ActionConfirm, useDateFormatting } from "@wealthfolio/ui";
+import { ActionConfirm, useCurrencyOptions, useDateFormatting } from "@wealthfolio/ui";
 import { Button } from "@wealthfolio/ui/components/ui/button";
 import {
   Card,
@@ -25,6 +25,9 @@ export function ExchangeRatesSettings() {
   const dateFormatting = useDateFormatting();
 
   const { t } = useTranslation();
+  const { worldCurrencies } = useCurrencyOptions();
+  const getCurrencyName = (code: string) =>
+    worldCurrencies.find((currency) => currency.value === code)?.name ?? code;
   const {
     exchangeRates,
     isLoadingRates,
@@ -43,7 +46,9 @@ export function ExchangeRatesSettings() {
       cell: ({ row }) => (
         <div>
           <div>{row.original.fromCurrency}</div>
-          <div className="text-muted-foreground text-xs">{row.original.fromCurrencyName}</div>
+          <div className="text-muted-foreground text-xs">
+            {getCurrencyName(row.original.fromCurrency)}
+          </div>
         </div>
       ),
     },
@@ -54,7 +59,9 @@ export function ExchangeRatesSettings() {
       cell: ({ row }) => (
         <div>
           <div>{row.original.toCurrency}</div>
-          <div className="text-muted-foreground text-xs">{row.original.toCurrencyName}</div>
+          <div className="text-muted-foreground text-xs">
+            {getCurrencyName(row.original.toCurrency)}
+          </div>
         </div>
       ),
     },

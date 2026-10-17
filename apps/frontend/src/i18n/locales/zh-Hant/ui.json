@@ -14,7 +14,14 @@
     "searchPrompt": "搜尋幣別，或從上方的常用選項選取。",
     "useCustom": "使用「{{value}}」作為自訂幣別",
     "noneFound": "找不到符合「{{query}}」的幣別。",
-    "noneFoundShort": "找不到幣別。"
+    "noneFoundShort": "找不到幣別。",
+    "quoteUnitNames": {
+      "britishPence": "英國便士",
+      "israeliAgorot": "以色列阿高洛",
+      "usCents": "美分",
+      "southAfricanCents": "南非分",
+      "kuwaitiFils": "科威特費爾"
+    }
   },
   "dataGrid": {
     "label": "資料表",

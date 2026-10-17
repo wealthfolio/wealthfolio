@@ -10,29 +10,19 @@ import { QueryKeys } from "@/lib/query-keys";
 import { invalidatePerformanceCaches } from "@/lib/performance-cache";
 import { ExchangeRate } from "@/lib/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { worldCurrencies } from "@wealthfolio/ui";
 
 export function useExchangeRates() {
   const queryClient = useQueryClient();
-  const getCurrencyName = (code: string) => {
-    const currency = worldCurrencies.find((c) => c.value === code);
-    return currency ? currency.label.split(" (")[0] : code;
-  };
 
   const { data: exchangeRates, isLoading: isLoadingRates } = useQuery<ExchangeRate[], Error>({
     queryKey: [QueryKeys.EXCHANGE_RATES],
     queryFn: async () => {
       const rates = await getExchangeRates();
-      const processedRates = rates.map((rate) => ({
-        ...rate,
-        fromCurrencyName: getCurrencyName(rate.fromCurrency),
-        toCurrencyName: getCurrencyName(rate.toCurrency),
-      }));
 
       // For manual rates, keep only from->to and filter out the reverse
-      return processedRates.filter((rate) => {
+      return rates.filter((rate) => {
         if (rate.source === "MANUAL") {
-          const reverseManualRate = processedRates.find(
+          const reverseManualRate = rates.find(
             (r) =>
               r.fromCurrency === rate.toCurrency &&
               r.toCurrency === rate.fromCurrency &&
