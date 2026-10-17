@@ -155,6 +155,7 @@ npx playwright test && npx playwright show-report
 | `30-activity-scroll.spec.ts`           | Desktop asset/account activity tabs preserve page scroll; Spending selection and mobile tab switching preserve scroll       |
 | `31-manual-liability.spec.ts`          | Manual loan origination, balance correction/deletion, principal fallback, and net-worth consistency                         |
 | `31-formatting-regions.spec.ts`        | Austria, Romania, and Bulgaria formatting selections persist after saving and reloading settings                            |
+| `35-holdings-sticky-header.spec.ts`    | Holdings page, account Holdings tab and Securities: the column header stays pinned while the rows scroll (#2125)            |
 
 ---
 

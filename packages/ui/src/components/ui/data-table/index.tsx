@@ -14,6 +14,7 @@ import {
 } from "@tanstack/react-table";
 import * as React from "react";
 
+import { cn } from "../../../lib/utils";
 import { Icons } from "../icons";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../table";
 import { usePersistentState } from "../../../hooks/use-persistent-state";
@@ -178,9 +179,31 @@ export function DataTable<TData, TValue>({
           actions={toolbarActions}
         />
       </div>
-      <div className={`min-h-0 flex-1 rounded-md border ${scrollable ? "overflow-auto" : ""}`}>
+      {/* Sticky cells pin to the nearest scroll container. On pages that scroll as a
+          whole nothing bounds this box, so it grew to the table's height and the header
+          moved with it. Capping it to the viewport makes it the scroller (9rem leaves
+          room for the Holdings page's tabs and toolbar, so the table fits the window
+          there), and letting the Table's own overflow wrapper spill into it keeps
+          sideways scrolling here too.
+          `isolate` stops WebKitGTK painting the sticky header over this scrollbar. */}
+      <div
+        className={cn(
+          "min-h-0 flex-1 rounded-md border",
+          scrollable && "isolate max-h-[calc(100dvh-9rem)] overflow-auto [&>div]:overflow-visible",
+        )}
+      >
         <Table>
-          <TableHeader className="bg-muted/50 sticky top-0 z-10">
+          {/* Rows pass under a pinned header: give it the opaque look of bg-muted/50 on
+              the page, and draw its bottom line on the cells, since the collapsed row
+              border scrolls away with the table. */}
+          <TableHeader
+            className={cn(
+              "sticky top-0 z-10",
+              scrollable
+                ? "bg-[color-mix(in_srgb,var(--muted)_50%,var(--background))] [&_th]:shadow-[inset_0_-1px_0_var(--border)] [&_tr]:border-b-0"
+                : "bg-muted/50",
+            )}
+          >
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
                 {headerGroup.headers.map((header) => {
