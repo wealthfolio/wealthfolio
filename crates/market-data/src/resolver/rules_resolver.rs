@@ -28,6 +28,7 @@ use super::yahoo_equity_base_to_provider;
 /// - `YAHOO`: Yahoo Finance format (SHOP.TO, BTC-USD, EURUSD=X)
 /// - `ALPHA_VANTAGE`: AlphaVantage format (SHOP.TRT, CryptoPair, FxPair)
 /// - `METAL_PRICE_API`: Metal Price API format
+/// - `FXMACRODATA`: FXMacroData format (FxPair)
 pub struct RulesResolver {
     exchange_map: ExchangeMap,
 }
@@ -194,8 +195,8 @@ impl RulesResolver {
                     symbol: Arc::from(format!("{}{}=X", base, quote)),
                 })
             }
-            "ALPHA_VANTAGE" => {
-                // AlphaVantage uses from/to pair
+            "ALPHA_VANTAGE" | "FXMACRODATA" => {
+                // AlphaVantage and FXMacroData use from/to pair
                 Some(ProviderInstrument::FxPair {
                     from: base.clone(),
                     to: quote.clone(),
@@ -572,6 +573,25 @@ mod tests {
             ProviderInstrument::FxPair { from, to } => {
                 assert_eq!(from.as_ref(), "EUR");
                 assert_eq!(to.as_ref(), "USD");
+            }
+            _ => panic!("Expected FxPair"),
+        }
+    }
+
+    #[test]
+    fn test_resolve_fx_fxmacrodata() {
+        let resolver = RulesResolver::new();
+        let context = make_fx_context("GBP", "JPY");
+
+        let result = resolver.resolve(&"FXMACRODATA".into(), &context);
+
+        assert!(result.is_some());
+        let resolved = result.unwrap().unwrap();
+
+        match resolved.instrument {
+            ProviderInstrument::FxPair { from, to } => {
+                assert_eq!(from.as_ref(), "GBP");
+                assert_eq!(to.as_ref(), "JPY");
             }
             _ => panic!("Expected FxPair"),
         }

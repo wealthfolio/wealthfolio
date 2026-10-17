@@ -59,6 +59,7 @@ market-data/
 │   ├── alpha_vantage/  # Alpha Vantage provider
 │   ├── marketdata_app/ # MarketData.app provider
 │   ├── metal_price_api/# Metal Price API provider
+│   ├── fxmacrodata/    # FXMacroData provider (FX)
 │   └── finnhub/        # Finnhub provider
 ├── registry/           # Provider orchestration
 │   ├── registry.rs     # ProviderRegistry
@@ -141,6 +142,11 @@ Each provider declares what it supports:
 | MarketData.app  | US only  | No     | No    | No     | No     | No       | Yes        |
 | Metal Price API | No       | No     | No    | Yes    | No     | No       | No         |
 | Finnhub         | US/EU    | No     | No    | No     | Yes    | Yes      | Yes        |
+| FXMacroData     | No       | No     | Yes   | No     | No     | No       | Yes        |
+
+FXMacroData returns daily FX rates built from official central-bank reference
+rates and needs an API key from
+[fxmacrodata.com](https://fxmacrodata.com/subscribe?utm_source=github&utm_medium=referral&utm_campaign=wealthfolio&utm_content=docs).
 
 ### 2. ProviderRegistry
 

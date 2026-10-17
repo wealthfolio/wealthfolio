@@ -94,6 +94,11 @@ impl ProviderCapabilities {
                     "Dividends".to_string(),
                 ],
             }),
+            "FXMACRODATA" => Some(Self {
+                instruments: "Forex".to_string(),
+                coverage: "Central-bank reference rates".to_string(),
+                features: vec!["Daily".to_string(), "Historical".to_string()],
+            }),
             "BOERSE_FRANKFURT" => Some(Self {
                 instruments: "Stocks • ETFs • Bonds".to_string(),
                 coverage: "XETR • XFRA".to_string(),

@@ -19,6 +19,7 @@ const RESERVED_CODES: &[&str] = &[
     "openfigi",
     "us_treasury_calc",
     "boerse_frankfurt",
+    "fxmacrodata",
     "custom_scraper",
     "manual",
     "broker",

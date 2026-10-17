@@ -78,6 +78,7 @@ impl ProviderId {
     pub const US_TREASURY_CALC: &'static str = "US_TREASURY_CALC";
     pub const BOERSE_FRANKFURT: &'static str = "BOERSE_FRANKFURT";
     pub const OPENFIGI: &'static str = "OPENFIGI";
+    pub const FXMACRODATA: &'static str = "FXMACRODATA";
     pub const BROKER: &'static str = "BROKER";
     pub const CUSTOM_SCRAPER: &'static str = "CUSTOM_SCRAPER";
 

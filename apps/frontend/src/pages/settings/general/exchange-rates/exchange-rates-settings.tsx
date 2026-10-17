@@ -71,6 +71,7 @@ export function ExchangeRatesSettings() {
         const names: Record<string, string> = {
           YAHOO: "Yahoo Finance",
           ALPHA_VANTAGE: "Alpha Vantage",
+          FXMACRODATA: "FXMacroData",
           MANUAL: t("settings:fx_source_manual"),
           CUSTOM_SCRAPER: t("settings:fx_source_custom"),
           CUSTOMSCRAPER: t("settings:fx_source_custom"),
