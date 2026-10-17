@@ -245,7 +245,6 @@
     "asset_type_option": "期权",
     "asset_type_metal": "金属(大宗商品)",
     "asset_type_other": "其他",
-    "select_currency": "选择货币...",
     "select_symbol": "选择代码...",
     "symbol_type_security": "证券",
     "symbol_type_crypto": "加密货币",
