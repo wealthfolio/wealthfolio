@@ -282,8 +282,11 @@ describe("AiStreamEvent type validation", () => {
     );
 
     const usage: UsageStats = {
-      promptTokens: 100,
-      completionTokens: 50,
+      providerId: "anthropic",
+      modelId: "claude-sonnet-5-5",
+      modelCalls: 1,
+      inputTokens: 100,
+      outputTokens: 50,
       totalTokens: 150,
     };
 

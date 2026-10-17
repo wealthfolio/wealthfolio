@@ -11,8 +11,8 @@
 //!    received and a nudge to stop re-calling.
 //!
 //! 2. **Global runaway** — total tool calls across a turn can still blow up even
-//!    with dedup. Hard cap via `DispatchAction::stop` when over
-//!    [`MAX_TOTAL_TOOL_CALLS`].
+//!    with dedup. Calls over [`MAX_TOTAL_TOOL_CALLS`] are skipped, and the
+//!    next model call must answer (see below).
 //!
 //! 3. **Token-level repetition loops** — the model streams
 //!    `"get_performance, get_performance, ..."` indefinitely without ever
@@ -20,6 +20,12 @@
 //!    [`WealthfolioStreamHook::on_text_delta`] by looking for a short suffix
 //!    that already appears many times in the trailing buffer, or by the
 //!    stream exceeding [`MAX_STREAM_CHARS`].
+//!
+//! A turn that reaches the tool-call cap or its last allowed model call
+//! ([`MAX_MODEL_CALLS`]) ends with an answer, not an error: that call goes out
+//! with tool calls turned off and an instruction to answer from the results
+//! so far. A model that still calls a tool stops the run with
+//! [`WealthfolioStreamHook::is_limit_stop`], and the turn is saved as is.
 //!
 //! The hook is cheaply cloneable because state is behind
 //! an `Arc<Mutex<_>>`.
@@ -33,6 +39,8 @@ use rig::agent::{
     HookContext, ObservationAction, OutcomeAction, OutcomeEvent, RequestPatch, TextDelta,
 };
 use rig::completion::{Message, PromptError};
+use rig::message::ToolChoice;
+use rig::run::{InvalidToolCallAction, InvalidToolCallContext};
 
 /// Maximum distinct identical `(tool_name, args_json)` calls we'll execute.
 /// Beyond this count the hook returns a "stop calling this" skip. Two is
@@ -40,6 +48,17 @@ use rig::completion::{Message, PromptError};
 /// benign retries, third and beyond get the nudge.
 const MAX_DUPLICATE_CALLS: usize = 2;
 const ASSET_SELECTION_PAUSE: &str = "Waiting for asset selection";
+
+/// Most model calls in one user turn. The last one must answer.
+pub const MAX_MODEL_CALLS: usize = 7;
+
+/// Why a model that kept calling tools at its limit was stopped.
+const LIMIT_STOP: &str = "Stopped at the step limit";
+
+/// Added to the preamble for the call that must answer.
+const ANSWER_AT_LIMIT: &str = "## Step limit reached\n\
+    You cannot call tools for the rest of this turn. Answer the user now from the tool \
+    results above. Say briefly that you stopped early and what is still missing, if anything.";
 
 /// Absolute cap on tool calls across one streamed turn. Calibrated against
 /// LibreChat's `recursionLimit` (default 25) — we're slightly tighter because
@@ -71,12 +90,18 @@ struct HookState {
     /// Total tool calls seen this stream.
     total_tool_calls: usize,
     pause_for_asset_selection: bool,
+    /// Set once the turn reached a limit; every later model call must answer.
+    at_limit: bool,
 }
 
 #[derive(Default, Clone)]
 pub struct WealthfolioStreamHook {
     state: Arc<Mutex<HookState>>,
     omit_reasoning_history: bool,
+    /// The agent's preamble, extended with [`ANSWER_AT_LIMIT`] at a limit.
+    preamble: Option<String>,
+    /// Ollama ignores `tool_choice`, so its tools are withdrawn at a limit.
+    withdraw_tools_at_limit: bool,
 }
 
 impl WealthfolioStreamHook {
@@ -87,7 +112,39 @@ impl WealthfolioStreamHook {
     pub fn for_provider(provider_id: &str) -> Self {
         Self {
             omit_reasoning_history: provider_id == "groq",
+            withdraw_tools_at_limit: provider_id == "ollama",
             ..Self::default()
+        }
+    }
+
+    /// Tell the model why it must answer when the turn reaches a limit.
+    pub fn with_preamble(mut self, preamble: impl Into<String>) -> Self {
+        self.preamble = Some(preamble.into());
+        self
+    }
+
+    /// Whether the turn reached the tool-call cap or its last model call.
+    pub fn reached_limit(&self) -> bool {
+        self.state
+            .lock()
+            .map(|state| state.at_limit)
+            .unwrap_or(false)
+    }
+
+    /// The model kept calling tools after it had to answer.
+    pub fn is_limit_stop(&self, error: &PromptError) -> bool {
+        self.reached_limit()
+            && matches!(error, PromptError::Cancelled { reason, .. } if reason == LIMIT_STOP)
+    }
+
+    /// The patch for a call that must answer: no tool calls, and the reason.
+    fn answer_patch(&self, patch: &mut RequestPatch) {
+        patch.tool_choice = Some(ToolChoice::None);
+        if self.withdraw_tools_at_limit {
+            patch.active_tools = Some(Vec::new());
+        }
+        if let Some(preamble) = &self.preamble {
+            patch.preamble = Some(format!("{preamble}\n\n{ANSWER_AT_LIMIT}"));
         }
     }
 
@@ -139,8 +196,10 @@ impl AgentHook for WealthfolioStreamHook {
         event: CompletionCallEvent<'_>,
     ) -> CompletionCallAction {
         if self.paused_for_asset_selection() {
-            CompletionCallAction::Stop(ASSET_SELECTION_PAUSE.into())
-        } else if self.omit_reasoning_history {
+            return CompletionCallAction::Stop(ASSET_SELECTION_PAUSE.into());
+        }
+        let mut patch = RequestPatch::default();
+        if self.omit_reasoning_history {
             // Groq rejects reasoning_content on assistant input messages. Keep
             // streamed reasoning in the UI, but omit it from provider requests.
             let mut history = event.history.to_vec();
@@ -154,12 +213,23 @@ impl AgentHook for WealthfolioStreamHook {
             history.retain(
                 |message| !matches!(message, Message::Assistant(assistant) if assistant.content.is_empty()),
             );
-            CompletionCallAction::Patch(RequestPatch {
-                history: Some(history),
-                ..Default::default()
-            })
-        } else {
+            patch.history = Some(history);
+        }
+        let at_limit = self.state.lock().is_ok_and(|mut state| {
+            state.at_limit |= event.turn >= MAX_MODEL_CALLS;
+            state.at_limit
+        });
+        if at_limit {
+            warn!(
+                "Turn reached its limit at model call {} — answering",
+                event.turn
+            );
+            self.answer_patch(&mut patch);
+        }
+        if patch == RequestPatch::default() {
             CompletionCallAction::Continue
+        } else {
+            CompletionCallAction::Patch(patch)
         }
     }
 
@@ -184,14 +254,17 @@ impl AgentHook for WealthfolioStreamHook {
             };
 
             state.total_tool_calls += 1;
+            // The call that reaches the cap still runs; the next model call
+            // must answer.
+            state.at_limit |= state.total_tool_calls >= MAX_TOTAL_TOOL_CALLS;
             if state.total_tool_calls > MAX_TOTAL_TOOL_CALLS {
                 warn!(
-                    "Tool-call cap tripped: {} total calls this turn — terminating",
+                    "Tool-call cap tripped: {} total calls this turn — answering next",
                     state.total_tool_calls
                 );
-                return DispatchAction::stop(
-                    "The model exceeded the tool-call limit for a single turn. \
-                     Ending the run; ask the user to rephrase or switch to a more capable model.",
+                return DispatchAction::skip(
+                    "Skipped: this turn reached its tool-call limit. Do not call more tools; \
+                     answer the user from the results you already have.",
                 );
             }
 
@@ -257,6 +330,19 @@ impl AgentHook for WealthfolioStreamHook {
             }
             OutcomeAction::Proceed
         }
+    }
+
+    fn on_invalid_tool_call(
+        &self,
+        _ctx: &HookContext,
+        _event: &InvalidToolCallContext,
+    ) -> impl std::future::Future<Output = Option<InvalidToolCallAction>> + Send {
+        // A tool call on the answering call ends the turn with what it has;
+        // otherwise the run's own policy decides.
+        let action = self
+            .reached_limit()
+            .then(|| InvalidToolCallAction::stop(LIMIT_STOP));
+        async move { action }
     }
 
     fn on_text_delta(

@@ -14,6 +14,8 @@ mod attachments;
 mod history;
 pub(crate) mod provider_clients;
 mod request_params;
+#[cfg(test)]
+mod run_tests;
 mod streaming;
 mod working_context;
 

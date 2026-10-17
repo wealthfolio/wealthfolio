@@ -409,6 +409,9 @@ pub struct ChatMessageContent {
     pub parts: Vec<ChatMessagePart>,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub truncated: bool,
+    /// Token usage of the turn that produced this assistant message.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub usage: Option<UsageStats>,
 }
 
 impl ChatMessageContent {
@@ -418,6 +421,7 @@ impl ChatMessageContent {
             schema_version: CHAT_CONTENT_SCHEMA_VERSION,
             parts,
             truncated: false,
+            usage: None,
         }
     }
 
@@ -768,8 +772,9 @@ pub enum AiStreamEvent {
         message_id: String,
         /// The complete assistant message with all content parts.
         message: ChatMessage,
+        /// Boxed to keep the event small; serialized as the plain object.
         #[serde(skip_serializing_if = "Option::is_none")]
-        usage: Option<UsageStats>,
+        usage: Option<Box<UsageStats>>,
     },
 
     /// Thread title updated event - sent after auto-generating title.
@@ -865,7 +870,7 @@ impl AiStreamEvent {
             run_id: run_id.to_string(),
             message_id: message.id.clone(),
             message,
-            usage,
+            usage: usage.map(Box::new),
         }
     }
 
@@ -879,16 +884,31 @@ impl AiStreamEvent {
     }
 }
 
-/// Token usage statistics.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+/// Token usage of one assistant turn, summed over its model calls.
+///
+/// Counters are `None` when the provider did not report them. Input counts
+/// include cached reads and cache writes; output counts include reasoning.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UsageStats {
-    /// Number of prompt tokens used.
-    pub prompt_tokens: u32,
-    /// Number of completion tokens generated.
-    pub completion_tokens: u32,
-    /// Total tokens (prompt + completion).
-    pub total_tokens: u32,
+    pub provider_id: String,
+    pub model_id: String,
+    /// Model calls made during the turn.
+    pub model_calls: u32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub input_tokens: Option<u64>,
+    /// Input tokens served from the provider's prompt cache.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cached_input_tokens: Option<u64>,
+    /// Input tokens written to the provider's prompt cache.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cache_write_input_tokens: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub output_tokens: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reasoning_tokens: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub total_tokens: Option<u64>,
 }
 
 // ============================================================================

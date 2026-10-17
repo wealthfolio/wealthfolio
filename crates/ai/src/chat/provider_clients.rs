@@ -287,7 +287,7 @@ mod tests {
 }
 
 #[cfg(test)]
-mod transport_tests {
+pub(crate) mod transport_tests {
     use super::*;
     use futures::StreamExt;
     use rig::{
@@ -316,7 +316,7 @@ mod transport_tests {
         )
     }
 
-    async fn read_request(socket: &mut tokio::net::TcpStream) -> String {
+    pub(crate) async fn read_request(socket: &mut tokio::net::TcpStream) -> String {
         let mut bytes = Vec::new();
         loop {
             let mut chunk = [0; 4096];

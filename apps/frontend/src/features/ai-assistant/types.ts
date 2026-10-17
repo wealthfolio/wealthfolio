@@ -90,6 +90,8 @@ export interface ChatMessageContent {
   schemaVersion: number;
   parts: ChatMessagePart[];
   truncated?: boolean;
+  /** Token usage of the turn that produced an assistant message */
+  usage?: UsageStats;
 }
 
 export interface ChatMessage {
@@ -298,12 +300,20 @@ interface ThreadTitleUpdatedEvent extends AiStreamEventBase {
 }
 
 /**
- * Token usage statistics.
+ * Token usage of one assistant turn, summed over its model calls.
+ * Counters are absent when the provider did not report them. Input counts
+ * include cached reads and cache writes; output counts include reasoning.
  */
 export interface UsageStats {
-  promptTokens: number;
-  completionTokens: number;
-  totalTokens: number;
+  providerId: string;
+  modelId: string;
+  modelCalls: number;
+  inputTokens?: number;
+  cachedInputTokens?: number;
+  cacheWriteInputTokens?: number;
+  outputTokens?: number;
+  reasoningTokens?: number;
+  totalTokens?: number;
 }
 
 /**

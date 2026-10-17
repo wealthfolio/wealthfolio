@@ -602,10 +602,18 @@ fn convert_content_to_json(content: &ChatMessageContent) -> ChatRepositoryResult
         })
         .collect();
 
+    let usage = content
+        .usage
+        .as_ref()
+        .map(serde_json::to_value)
+        .transpose()
+        .map_err(|e| AiError::InvalidInput(e.to_string()))?;
+
     let storage_content = MessageContent {
         schema_version: content.schema_version,
         parts: storage_parts,
         truncated: content.truncated,
+        usage,
     };
 
     storage_content
@@ -656,6 +664,11 @@ fn convert_json_to_content(json: &str) -> ChatRepositoryResult<ChatMessageConten
         schema_version: storage_content.schema_version,
         parts: core_parts,
         truncated: storage_content.truncated,
+        // Usage is diagnostic: a shape this version can't read (written by a
+        // newer synced device) is dropped rather than failing the message.
+        usage: storage_content
+            .usage
+            .and_then(|usage| serde_json::from_value(usage).ok()),
     })
 }
 
@@ -919,6 +932,7 @@ mod tests {
                 content: "test".to_string(),
             }],
             truncated: false,
+            usage: None,
         };
 
         let json = convert_content_to_json(&content).unwrap();
@@ -936,6 +950,47 @@ mod tests {
         let back = convert_json_to_content(&json).unwrap();
 
         assert!(back.truncated);
+    }
+
+    #[test]
+    fn test_content_json_round_trips_usage() {
+        let mut content = ChatMessageContent::text("answer");
+        content.usage = Some(wealthfolio_ai::UsageStats {
+            provider_id: "anthropic".to_string(),
+            model_id: "claude-sonnet-5-5".to_string(),
+            model_calls: 2,
+            input_tokens: Some(21_000),
+            cached_input_tokens: Some(9_800),
+            cache_write_input_tokens: Some(1_200),
+            output_tokens: Some(450),
+            reasoning_tokens: None,
+            total_tokens: Some(21_450),
+        });
+
+        let json = convert_content_to_json(&content).unwrap();
+        let back = convert_json_to_content(&json).unwrap();
+
+        assert_eq!(back.usage, content.usage);
+    }
+
+    #[test]
+    fn test_content_json_without_usage_keeps_the_existing_shape() {
+        let json = convert_content_to_json(&ChatMessageContent::text("hi")).unwrap();
+
+        assert_eq!(
+            json,
+            r#"{"schemaVersion":1,"parts":[{"type":"text","content":"hi"}]}"#
+        );
+    }
+
+    #[test]
+    fn test_content_json_drops_unreadable_usage() {
+        let json = r#"{"schemaVersion":1,"parts":[{"type":"text","content":"hi"}],"usage":{"modelCalls":"many"}}"#;
+
+        let back = convert_json_to_content(json).unwrap();
+
+        assert_eq!(back.get_text_content(), "hi");
+        assert!(back.usage.is_none());
     }
 
     // ========================================================================

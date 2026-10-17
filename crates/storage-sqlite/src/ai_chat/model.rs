@@ -107,6 +107,9 @@ pub struct MessageContent {
     /// Whether content was truncated due to size limits.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub truncated: bool,
+    /// Token usage of the assistant turn, kept as the AI crate wrote it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub usage: Option<serde_json::Value>,
 }
 
 impl MessageContent {
@@ -116,6 +119,7 @@ impl MessageContent {
             schema_version: CONTENT_SCHEMA_VERSION,
             parts,
             truncated: false,
+            usage: None,
         }
     }
 
