@@ -455,6 +455,13 @@ get_net_worth
 get_contribution_limits
 ```
 
+`get_health_status` reads the Health Center's cached status. With
+`refresh: true` it first runs the full checks through
+`AgentEnvironment::run_health_checks`, which each host implements with the same
+`HealthServiceTrait::run_full_checks` call as its Health Center (local reads
+only, the configured timezone, no client timezone) and which refreshes the cache
+the Health Center shows.
+
 ### Draft / Suggest Tools (assistant + MCP)
 
 ```text

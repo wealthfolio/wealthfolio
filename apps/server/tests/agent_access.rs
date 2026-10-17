@@ -2039,6 +2039,66 @@ async fn mcp_updates_keep_linked_transfers_paired() {
     assert_eq!(found["linkedTo"], out_id, "still linked: {found}");
 }
 
+/// A health:read token runs the Health Center checks with refresh: true; the
+/// result is then cached, so a plain read returns it instead of NOT_COMPUTED.
+#[tokio::test]
+async fn mcp_health_status_runs_checks_on_refresh() {
+    let server = spawn_server(true, false).await;
+    let cookie = login(&server).await;
+    disable_market_data_providers(&server, &cookie).await;
+    create_eur_account(&server, &cookie, "Brokerage").await;
+    let (status, token) = create_pat(
+        &server,
+        &cookie,
+        serde_json::json!({ "name": "health reader", "scopes": ["health:read"] }),
+    )
+    .await;
+    assert_eq!(status, 201);
+    let pat = token["token"].as_str().unwrap().to_string();
+    let session = mcp_initialize(&server, &pat).await;
+
+    let cached = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "get_health_status",
+        serde_json::json!({}),
+    )
+    .await;
+    assert_eq!(cached["overallSeverity"], "NOT_COMPUTED", "{cached}");
+    assert!(
+        cached["note"].as_str().unwrap().contains("refresh: true"),
+        "{cached}"
+    );
+
+    let refreshed = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "get_health_status",
+        serde_json::json!({ "refresh": true }),
+    )
+    .await;
+    let severity = refreshed["overallSeverity"].as_str().unwrap();
+    assert!(
+        ["INFO", "WARNING", "ERROR", "CRITICAL"].contains(&severity),
+        "{refreshed}"
+    );
+    assert_eq!(refreshed["isStale"], false, "{refreshed}");
+    assert!(refreshed.get("note").is_none(), "{refreshed}");
+
+    let cached = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "get_health_status",
+        serde_json::json!({}),
+    )
+    .await;
+    assert_eq!(cached["overallSeverity"], refreshed["overallSeverity"]);
+    assert_eq!(cached["issues"], refreshed["issues"], "{cached}");
+}
+
 /// A deletion is previewed first and removes both legs of a linked transfer;
 /// a void keeps the activity, mirrors onto the other leg, marks it
 /// user-modified so broker syncs keep it, and can be undone.

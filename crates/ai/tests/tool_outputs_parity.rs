@@ -214,6 +214,11 @@ output_test_dyn!(output_get_income, GetIncome, { "period": "ALL" });
 output_test_dyn!(output_get_income_default, GetIncome, {});
 output_test_dyn!(output_get_goals, GetGoals, {});
 output_test_dyn!(output_get_health_status, GetHealthStatus, {});
+output_test_dyn!(
+    output_get_health_status_refresh,
+    GetHealthStatus,
+    { "refresh": true }
+);
 output_test_dyn!(output_list_asset_taxonomies, ListAssetTaxonomies, {});
 output_test_dyn!(
     output_get_asset_taxonomy_assignments,

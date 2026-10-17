@@ -6,7 +6,7 @@ expression: result
   "ok": {
     "isStale": false,
     "issues": [],
-    "note": "No health check has run yet in this session. Ask the user to open the Health Center to run a check.",
+    "note": "No health check has run yet in this session. Call get_health_status with refresh: true to run one.",
     "overallSeverity": "NOT_COMPUTED"
   }
 }

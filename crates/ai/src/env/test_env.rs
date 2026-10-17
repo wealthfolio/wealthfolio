@@ -1796,6 +1796,7 @@ impl MockEnvironment {
     }
 }
 
+#[async_trait::async_trait]
 impl AgentEnvironment for MockEnvironment {
     fn budget_service(&self) -> Arc<dyn wealthfolio_spending::budget::BudgetServiceTrait> {
         unimplemented!("MCP-only service")
@@ -1891,6 +1892,10 @@ impl AgentEnvironment for MockEnvironment {
 
     fn categorization_rules_service(&self) -> Arc<dyn CategorizationRulesServiceTrait> {
         self.categorization_rules_service.clone()
+    }
+
+    async fn run_health_checks(&self) -> CoreResult<HealthStatus> {
+        self.health_service.run_checks(&self.base_currency).await
     }
 }
 
