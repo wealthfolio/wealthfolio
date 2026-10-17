@@ -57,6 +57,12 @@ pub struct RecordActivityArgs {
     /// Activity subtype: DRIP, DIVIDEND_IN_KIND, STAKING_REWARD, BONUS.
     pub subtype: Option<String>,
 
+    /// Activity currency (ISO 4217). Overrides the asset or account currency.
+    pub currency: Option<String>,
+
+    /// Rate converting the activity currency into the account currency.
+    pub fx_rate: Option<f64>,
+
     /// Optional notes.
     pub notes: Option<String>,
 }
@@ -113,8 +119,12 @@ pub struct ActivityDraft {
     pub amount: Option<f64>,
     pub fee: Option<f64>,
     pub tax: Option<f64>,
-    /// From asset or account.
+    /// Caller override, else from asset or account.
     pub currency: String,
+    /// Rate converting `currency` into the account currency. None uses the
+    /// market rate.
+    #[serde(default)]
+    pub fx_rate: Option<f64>,
     /// Resolved account ID.
     pub account_id: Option<String>,
     /// Display name for the account.
@@ -340,6 +350,14 @@ pub(crate) fn record_activity_schema() -> serde_json::Value {
                 "type": "string",
                 "description": "Account name or ID. Required before calling this tool when the user has multiple accounts. If the user did not specify an account, ask which account first instead of calling this tool with an empty account."
             },
+            "currency": {
+                "type": "string",
+                "description": "ISO 4217 currency of the amounts (e.g. 'EUR'). Omit to use the resolved asset's currency, or the account currency for cash activities"
+            },
+            "fxRate": {
+                "type": "number",
+                "description": "Rate from the statement converting the activity currency into the account currency (optional). Omit to use the market rate"
+            },
             "subtype": {
                 "type": "string",
                 "description": "Activity subtype for semantic variations: DRIP (dividend reinvested), DIVIDEND_IN_KIND (dividend paid as additional units of the same asset), STAKING_REWARD (staking income received as more units of the same asset), BONUS (promotional credit), RETURN_OF_CAPITAL (a dividend that pays back capital: it reduces cost basis and is not income)"
@@ -376,6 +394,9 @@ const RECORD_ACTIVITY_DESCRIPTION: &str = "Record investment transactions from n
     \n\nSUBTYPES: \"reinvested dividend\" → DRIP, \"dividend in kind\"/\"spinoff\" → \
     DIVIDEND_IN_KIND, \"staking reward\" → STAKING_REWARD, \"bonus\"/\"promo credit\" \
     → BONUS. \
+    \n\nCURRENCY: pass `currency` only when the amounts are in a currency other than \
+    the asset's (or the account's, for cash). Pass `fxRate` only when the user or \
+    statement gives the conversion rate to the account currency. \
     \n\nUse `record_activities` (the batch tool) instead of this one when recording 2+ \
     transactions in a single user request.";
 
@@ -504,10 +525,15 @@ impl RecordActivity {
         let amount = args.amount;
 
         // 7. Build draft
-        // Use asset's currency for trading activities, otherwise use account currency
-        let draft_currency = resolved_asset
-            .as_ref()
-            .map(|a| a.currency.clone())
+        // An explicit caller currency wins; otherwise use the asset's currency
+        // for trading activities and the account currency for cash.
+        let draft_currency = args
+            .currency
+            .as_deref()
+            .map(str::trim)
+            .filter(|c| !c.is_empty())
+            .map(str::to_uppercase)
+            .or_else(|| resolved_asset.as_ref().map(|a| a.currency.clone()))
             .unwrap_or(currency);
 
         let draft = ActivityDraft {
@@ -538,6 +564,7 @@ impl RecordActivity {
             fee: args.fee,
             tax: args.tax,
             currency: draft_currency,
+            fx_rate: args.fx_rate,
             account_id,
             account_name,
             subtype: args.subtype,
@@ -716,6 +743,16 @@ fn validate_draft(draft: &ActivityDraft) -> ValidationResult {
         });
     }
 
+    if draft
+        .fx_rate
+        .is_some_and(|rate| !rate.is_finite() || rate <= 0.0)
+    {
+        errors.push(ValidationError {
+            field: "fx_rate".to_string(),
+            message: "FX rate must be a positive number".to_string(),
+        });
+    }
+
     // Check for custom asset creation
     if draft.is_custom_asset && draft.asset_kind.is_none() {
         missing_fields.push("asset_kind".to_string());
@@ -845,6 +882,7 @@ mod tests {
             fee: Some(5.0),
             tax: None,
             currency: "USD".to_string(),
+            fx_rate: None,
             account_id: Some("acct-1".to_string()),
             account_name: None,
             subtype: None,
@@ -856,6 +894,43 @@ mod tests {
         };
         let validation = validate_draft(&draft);
         assert!(validation.is_valid, "{:?}", validation);
+    }
+
+    #[test]
+    fn non_positive_fx_rate_is_invalid() {
+        let mut draft = ActivityDraft {
+            activity_type: "DEPOSIT".to_string(),
+            activity_date: "2024-01-15".to_string(),
+            symbol: None,
+            asset_id: None,
+            asset_name: None,
+            exchange_mic: None,
+            quote_ccy: None,
+            instrument_type: None,
+            provider_id: None,
+            provider_symbol: None,
+            quantity: None,
+            unit_price: None,
+            amount: Some(100.0),
+            fee: None,
+            tax: None,
+            currency: "EUR".to_string(),
+            fx_rate: Some(1.08),
+            account_id: Some("acct-1".to_string()),
+            account_name: None,
+            subtype: None,
+            notes: None,
+            price_source: "none".to_string(),
+            pricing_mode: "MARKET".to_string(),
+            is_custom_asset: false,
+            asset_kind: None,
+        };
+        assert!(validate_draft(&draft).is_valid);
+
+        draft.fx_rate = Some(0.0);
+        let validation = validate_draft(&draft);
+        assert!(!validation.is_valid);
+        assert_eq!(validation.errors[0].field, "fx_rate");
     }
 
     #[test]

@@ -142,6 +142,13 @@ fn draft_to_new_activity(draft: &ActivityDraft) -> Result<NewActivity, AgentTool
         }
     };
 
+    let fx_rate = to_decimal(draft.fx_rate, "fxRate")?;
+    if fx_rate.is_some_and(|rate| !rate.is_sign_positive() || rate.is_zero()) {
+        return Err(AgentToolError::InvalidInput(
+            "FX rate must be a positive number".to_string(),
+        ));
+    }
+
     Ok(NewActivity {
         id: None,
         account_id,
@@ -157,7 +164,7 @@ fn draft_to_new_activity(draft: &ActivityDraft) -> Result<NewActivity, AgentTool
         amount: to_decimal(draft.amount, "amount")?,
         status: None,
         notes: draft.notes.clone(),
-        fx_rate: None,
+        fx_rate,
         metadata: None,
         // Committed drafts are previously reviewed (see module docs), so a
         // custom trade total is attested rather than queued for review again.
@@ -370,6 +377,7 @@ fn activity_draft_schema() -> serde_json::Value {
             "fee": { "type": "number" },
             "tax": { "type": "number" },
             "currency": { "type": "string" },
+            "fxRate": { "type": "number", "description": "Rate converting currency into the account currency. Omit to use the market rate." },
             "accountId": { "type": "string" },
             "accountName": { "type": "string" },
             "subtype": { "type": "string" },
@@ -406,6 +414,7 @@ mod tests {
             fee: Some(1.0),
             tax: None,
             currency: "USD".to_string(),
+            fx_rate: None,
             account_id: Some("acct-1".to_string()),
             account_name: Some("Brokerage".to_string()),
             subtype: None,
@@ -477,6 +486,20 @@ mod tests {
         assert_eq!(asset.instrument_type.as_deref(), Some("EQUITY"));
         assert_eq!(asset.provider_id.as_deref(), Some("YAHOO"));
         assert_eq!(asset.provider_symbol.as_deref(), Some("ABC.ZZ"));
+    }
+
+    #[test]
+    fn keeps_draft_fx_rate() {
+        let mut draft = security_draft();
+        draft.fx_rate = Some(1.35);
+        let new = draft_to_new_activity(&draft).unwrap();
+        assert_eq!(new.fx_rate, Some(Decimal::from_f64(1.35).unwrap()));
+
+        draft.fx_rate = Some(0.0);
+        assert!(matches!(
+            draft_to_new_activity(&draft),
+            Err(AgentToolError::InvalidInput(_))
+        ));
     }
 
     #[test]

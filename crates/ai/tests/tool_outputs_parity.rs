@@ -708,6 +708,18 @@ output_test_dyn_env!(
     { "activityType": "DEPOSIT", "activityDate": "2026-01-17", "amount": 5000.0 }
 );
 output_test_dyn_env!(
+    output_record_activity_foreign_currency,
+    RecordActivity,
+    single_account_env(),
+    {
+        "activityType": "DEPOSIT",
+        "activityDate": "2026-01-17",
+        "amount": 1000.0,
+        "currency": " eur ",
+        "fxRate": 1.08
+    }
+);
+output_test_dyn_env!(
     output_record_activity_dividend_drip,
     RecordActivity,
     single_account_env(),
