@@ -434,24 +434,19 @@ impl AllocationTargetRepositoryTrait for AllocationTargetRepository {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db::{create_pool, init, run_migrations, write_actor::spawn_writer};
+    use crate::db::{create_pool, init, run_migrations, write_actor::spawn_writer, TestDir};
     use crate::schema::sync_outbox;
     use crate::taxonomies::TaxonomyRepository;
     use diesel::dsl::count_star;
-    use tempfile::tempdir;
     use wealthfolio_core::portfolio::allocation_targets::{
         AllocationTargetConstraint, BandType, ConstraintAction, ConstraintEffect,
         ConstraintSubjectType, RebalanceGoal, ScopeType, TriggerType,
     };
     use wealthfolio_core::taxonomies::TaxonomyRepositoryTrait;
 
-    fn setup_repos() -> (
-        AllocationTargetRepository,
-        TaxonomyRepository,
-        tempfile::TempDir,
-    ) {
+    fn setup_repos() -> (AllocationTargetRepository, TaxonomyRepository, TestDir) {
         std::env::set_var("CONNECT_API_URL", "http://test.local");
-        let dir = tempdir().expect("tempdir");
+        let dir = TestDir::new();
         let app_data = dir.path().to_string_lossy().to_string();
         let db_path = init(&app_data).expect("init db");
         run_migrations(&db_path).expect("migrate db");
@@ -464,7 +459,7 @@ mod tests {
         )
     }
 
-    fn setup_repo() -> (AllocationTargetRepository, tempfile::TempDir) {
+    fn setup_repo() -> (AllocationTargetRepository, TestDir) {
         let (repo, _, dir) = setup_repos();
         (repo, dir)
     }

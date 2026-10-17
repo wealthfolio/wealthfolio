@@ -359,21 +359,22 @@ impl ActivitySplitRepositoryTrait for ActivitySplitRepository {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db::{create_pool, get_connection, init, run_migrations, write_actor::spawn_writer};
+    use crate::db::{
+        create_pool, get_connection, init, run_migrations, write_actor::spawn_writer, TestDir,
+    };
     use crate::schema::{activity_taxonomy_assignments, spending_activity_splits};
     use diesel::r2d2::{ConnectionManager, Pool};
     use rust_decimal::Decimal;
     use std::sync::Arc;
-    use tempfile::tempdir;
     use wealthfolio_spending::activity_splits::{ActivitySplitRepositoryTrait, NewActivitySplit};
 
     fn setup_db() -> (
         Arc<Pool<ConnectionManager<SqliteConnection>>>,
         WriteHandle,
-        tempfile::TempDir,
+        TestDir,
     ) {
         std::env::set_var("CONNECT_API_URL", "http://test.local");
-        let dir = tempdir().expect("tempdir");
+        let dir = TestDir::new();
         let app_data = dir.path().to_string_lossy().to_string();
         let db_path = init(&app_data).expect("init db");
         run_migrations(&db_path).expect("migrate db");
@@ -461,7 +462,7 @@ mod tests {
     }
     #[tokio::test]
     async fn reviewed_split_commit_rejects_financial_assignment_and_same_id_split_changes() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         {
             let mut conn = get_connection(&pool).expect("conn");
             insert_account_and_activity(&mut conn);

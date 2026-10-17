@@ -663,13 +663,14 @@ impl ActivityTaxonomyAssignmentRepositoryTrait for ActivityTaxonomyAssignmentRep
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db::{create_pool, get_connection, init, run_migrations, write_actor::spawn_writer};
+    use crate::db::{
+        create_pool, get_connection, init, run_migrations, write_actor::spawn_writer, TestDir,
+    };
     use crate::schema::{
         activities, activity_taxonomy_assignments, spending_activity_splits, sync_outbox,
     };
     use diesel::r2d2::{ConnectionManager, Pool};
     use std::sync::Arc;
-    use tempfile::tempdir;
     use wealthfolio_spending::activity_assignments::{
         ActivityTaxonomyAssignmentRepositoryTrait, NewActivityTaxonomyAssignment,
     };
@@ -677,10 +678,10 @@ mod tests {
     fn setup_db() -> (
         Arc<Pool<ConnectionManager<SqliteConnection>>>,
         WriteHandle,
-        tempfile::TempDir,
+        TestDir,
     ) {
         std::env::set_var("CONNECT_API_URL", "http://test.local");
-        let dir = tempdir().expect("tempdir");
+        let dir = TestDir::new();
         let app_data = dir.path().to_string_lossy().to_string();
         let db_path = init(&app_data).expect("init db");
         run_migrations(&db_path).expect("migrate db");
@@ -747,7 +748,7 @@ mod tests {
     #[tokio::test]
     async fn rule_reruns_preserve_split_allocations_in_both_modes() {
         for only_uncategorized in [true, false] {
-            let (pool, writer) = setup_db();
+            let (pool, writer, _dir) = setup_db();
             {
                 let mut conn = get_connection(&pool).expect("conn");
                 insert_account_and_activity(&mut conn, "split-activity", "MANUAL");
@@ -787,7 +788,7 @@ mod tests {
 
     #[tokio::test]
     async fn ordinary_bulk_assignment_rejects_split_rows_atomically() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         {
             let mut conn = get_connection(&pool).expect("conn");
             insert_account_and_activity(&mut conn, "ordinary", "MANUAL");
@@ -827,7 +828,7 @@ mod tests {
 
     #[tokio::test]
     async fn stale_split_content_rejects_the_whole_replacement() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let expected = {
             let mut conn = get_connection(&pool).expect("conn");
             insert_account_and_activity(&mut conn, "ordinary", "MANUAL");

@@ -401,16 +401,15 @@ fn spawn_writer_inner(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db::DbAccess;
+    use crate::db::{DbAccess, TestDir};
     use crate::sync::OutboxWriteRequest;
     use serde_json::json;
     use std::sync::atomic::{AtomicUsize, Ordering};
-    use tempfile::tempdir;
     use tokio::sync::oneshot as tokio_oneshot;
     use wealthfolio_core::sync::{SyncEntity, SyncOperation};
 
-    fn setup_pool() -> (DbPool, tempfile::TempDir) {
-        let dir = tempdir().expect("tempdir");
+    fn setup_pool() -> (DbPool, TestDir) {
+        let dir = TestDir::new();
         let app_data = dir.path().to_string_lossy().to_string();
         // An explicit path: `get_db_path` resolves to `$DATABASE_URL` when that
         // is set, which would point the test at a real database.

@@ -458,15 +458,16 @@ impl ConnectBrokerSyncStateRepositoryTrait for BrokerSyncStateRepository {
 #[cfg(test)]
 mod tests {
     use super::{parse_sync_cursor, BrokerSyncStateRepository};
-    use crate::db::{create_pool, get_connection, run_migrations, write_actor::spawn_writer};
+    use crate::db::{
+        create_pool, get_connection, run_migrations, write_actor::spawn_writer, TestDir,
+    };
     use diesel::sql_query;
     use diesel::RunQueryDsl;
     use std::sync::Arc;
-    use tempfile::tempdir;
 
-    fn setup_repo() -> (BrokerSyncStateRepository, tempfile::TempDir) {
+    fn setup_repo() -> (BrokerSyncStateRepository, TestDir) {
         std::env::set_var("CONNECT_API_URL", "http://test.local");
-        let temp_dir = tempdir().expect("tempdir");
+        let temp_dir = TestDir::new();
         let db_path = temp_dir.path().join("test.db");
         let db_path = db_path.to_string_lossy().to_string();
         run_migrations(&db_path).expect("migrate db");

@@ -3900,7 +3900,9 @@ mod tests {
     use tempfile::tempdir;
 
     use crate::activities::ActivityRepository;
-    use crate::db::{create_pool, get_connection, init, run_migrations, write_actor::spawn_writer};
+    use crate::db::{
+        create_pool, get_connection, init, run_migrations, write_actor::spawn_writer, TestDir,
+    };
     use crate::goals::GoalRepository;
     use crate::schema::{
         accounts, activities, app_settings, asset_logos, assets, goals, goals_allocation,
@@ -3949,12 +3951,12 @@ mod tests {
     fn setup_db() -> (
         Arc<Pool<r2d2::ConnectionManager<SqliteConnection>>>,
         WriteHandle,
-        tempfile::TempDir,
+        TestDir,
     ) {
         // Ensure connect is "configured" so outbox writes work in tests
         std::env::set_var("CONNECT_API_URL", "http://test.local");
 
-        let dir = tempdir().expect("tempdir");
+        let dir = TestDir::new();
         let app_data = dir.path().to_string_lossy().to_string();
         let db_path = init(&app_data).expect("init db");
         run_migrations(&db_path).expect("migrate db");
@@ -4390,8 +4392,8 @@ mod tests {
         Ok(())
     }
 
-    fn create_snapshot_db_with_account(account_id: &str) -> (String, tempfile::TempDir) {
-        let dir = tempdir().expect("tempdir");
+    fn create_snapshot_db_with_account(account_id: &str) -> (String, TestDir) {
+        let dir = TestDir::new();
         let app_data = dir.path().to_string_lossy().to_string();
         let db_path = init(&app_data).expect("init db");
         run_migrations(&db_path).expect("migrate db");
@@ -4401,8 +4403,8 @@ mod tests {
         (db_path, dir)
     }
 
-    fn create_snapshot_db_with_holding_snapshot(account_id: &str) -> (String, tempfile::TempDir) {
-        let dir = tempdir().expect("tempdir");
+    fn create_snapshot_db_with_holding_snapshot(account_id: &str) -> (String, TestDir) {
+        let dir = TestDir::new();
         let app_data = dir.path().to_string_lossy().to_string();
         let db_path = init(&app_data).expect("init db");
         run_migrations(&db_path).expect("migrate db");
@@ -4420,10 +4422,8 @@ mod tests {
         (db_path, dir)
     }
 
-    fn create_snapshot_db_with_account_and_holding_snapshot(
-        account_id: &str,
-    ) -> (String, tempfile::TempDir) {
-        let dir = tempdir().expect("tempdir");
+    fn create_snapshot_db_with_account_and_holding_snapshot(account_id: &str) -> (String, TestDir) {
+        let dir = TestDir::new();
         let app_data = dir.path().to_string_lossy().to_string();
         let db_path = init(&app_data).expect("init db");
         run_migrations(&db_path).expect("migrate db");
@@ -4445,8 +4445,8 @@ mod tests {
     fn create_snapshot_db_with_account_asset_snapshot_position(
         account_id: &str,
         asset_id: &str,
-    ) -> (String, tempfile::TempDir) {
-        let dir = tempdir().expect("tempdir");
+    ) -> (String, TestDir) {
+        let dir = TestDir::new();
         let app_data = dir.path().to_string_lossy().to_string();
         let db_path = init(&app_data).expect("init db");
         run_migrations(&db_path).expect("migrate db");
@@ -4646,8 +4646,8 @@ mod tests {
         .expect("insert missing-portfolio account membership");
     }
 
-    fn create_snapshot_db_with_portfolio_accounts() -> (String, tempfile::TempDir) {
-        let dir = tempdir().expect("tempdir");
+    fn create_snapshot_db_with_portfolio_accounts() -> (String, TestDir) {
+        let dir = TestDir::new();
         let app_data = dir.path().to_string_lossy().to_string();
         let db_path = init(&app_data).expect("init db");
         run_migrations(&db_path).expect("migrate db");
@@ -4673,8 +4673,8 @@ mod tests {
         (db_path, dir)
     }
 
-    fn create_snapshot_db_with_orphan_activity_sidecars() -> (String, tempfile::TempDir) {
-        let dir = tempdir().expect("tempdir");
+    fn create_snapshot_db_with_orphan_activity_sidecars() -> (String, TestDir) {
+        let dir = TestDir::new();
         let app_data = dir.path().to_string_lossy().to_string();
         let db_path = init(&app_data).expect("init db");
         run_migrations(&db_path).expect("migrate db");
@@ -4697,8 +4697,8 @@ mod tests {
         (db_path, dir)
     }
 
-    fn create_snapshot_db_with_invalid_spending_activity_event() -> (String, tempfile::TempDir) {
-        let dir = tempdir().expect("tempdir");
+    fn create_snapshot_db_with_invalid_spending_activity_event() -> (String, TestDir) {
+        let dir = TestDir::new();
         let app_data = dir.path().to_string_lossy().to_string();
         let db_path = init(&app_data).expect("init db");
         run_migrations(&db_path).expect("migrate db");
@@ -4714,8 +4714,8 @@ mod tests {
         (db_path, dir)
     }
 
-    fn create_snapshot_db_with_assets_extra_column(asset_id: &str) -> (String, tempfile::TempDir) {
-        let dir = tempdir().expect("tempdir");
+    fn create_snapshot_db_with_assets_extra_column(asset_id: &str) -> (String, TestDir) {
+        let dir = TestDir::new();
         let app_data = dir.path().to_string_lossy().to_string();
         let db_path = init(&app_data).expect("init db");
         run_migrations(&db_path).expect("migrate db");
@@ -5505,7 +5505,7 @@ mod tests {
         let dropped_asset_id = "asset-logo-dropped";
 
         // v1 snapshot: has the kept asset but no asset_logos table at all.
-        let snapshot_dir = tempdir().expect("tempdir");
+        let snapshot_dir = TestDir::new();
         let snapshot_path = {
             let app_data = snapshot_dir.path().to_string_lossy().to_string();
             let db_path = init(&app_data).expect("init db");
@@ -6653,7 +6653,7 @@ mod tests {
 
     #[tokio::test]
     async fn next_outbox_retry_at_only_considers_unsent_pending_rows() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = AppSyncRepository::new(pool, writer.clone());
         assert_eq!(repo.next_outbox_retry_at().expect("empty outbox"), None);
 

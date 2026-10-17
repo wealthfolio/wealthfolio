@@ -178,9 +178,8 @@ impl AccountRepositoryTrait for AccountRepository {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db::{create_pool, run_migrations, write_actor::spawn_writer};
+    use crate::db::{create_pool, run_migrations, write_actor::spawn_writer, TestDir};
     use crate::schema::accounts::dsl as accounts_dsl;
-    use tempfile::tempdir;
     use wealthfolio_core::accounts::{
         CostBasisMethod, CostBasisProfile, LotSelectionStrategy, PoolingScope, TrackingMode,
     };
@@ -188,10 +187,10 @@ mod tests {
     async fn setup() -> (
         AccountRepository,
         Arc<Pool<r2d2::ConnectionManager<SqliteConnection>>>,
-        tempfile::TempDir,
+        TestDir,
     ) {
         std::env::set_var("CONNECT_API_URL", "http://test.local");
-        let dir = tempdir().unwrap();
+        let dir = TestDir::new();
         let db_path = dir.path().join("test.db").to_string_lossy().to_string();
         run_migrations(&db_path).unwrap();
         let pool = create_pool(&db_path).unwrap();

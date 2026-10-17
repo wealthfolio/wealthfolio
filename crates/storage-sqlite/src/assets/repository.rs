@@ -564,21 +564,22 @@ impl AssetRepositoryTrait for AssetRepository {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db::{create_pool, get_connection, init, run_migrations, write_actor::spawn_writer};
+    use crate::db::{
+        create_pool, get_connection, init, run_migrations, write_actor::spawn_writer, TestDir,
+    };
     use crate::utils::SQLITE_MAX_PARAMS_CHUNK;
     use diesel::r2d2::ConnectionManager;
     use diesel::sql_query;
     use diesel::sql_types::Text;
     use std::sync::Arc;
-    use tempfile::tempdir;
 
     fn setup_db() -> (
         Arc<Pool<ConnectionManager<SqliteConnection>>>,
         WriteHandle,
-        tempfile::TempDir,
+        TestDir,
     ) {
         std::env::set_var("CONNECT_API_URL", "http://test.local");
-        let dir = tempdir().expect("tempdir");
+        let dir = TestDir::new();
         let app_data = dir.path().to_string_lossy().to_string();
         let db_path = init(&app_data).expect("init db");
         run_migrations(&db_path).expect("migrate db");
