@@ -647,10 +647,11 @@ it. A row names an `activityId` and only the fields to change, from those the
 activity grid edits: date, account, type, subtype, asset, quantity, unit price,
 amount, currency, fee, tax, FX rate, notes, `approve` (the grid's Approve:
 clears the review flag and posts a draft), and `void`. `void: true` sets a
-posted or pending activity's status to VOID: it stays stored but no longer
-counts in holdings, cash or performance, and `void: false` posts it again.
-Omitted fields keep their stored value and `null` clears an optional one;
-unknown fields are refused.
+posted activity's status to VOID and clears its review flag: it stays stored but
+no longer counts in holdings, cash or performance, and `void: false` posts it
+again. Only a posted activity is voided, so a restore always posts it. Omitted
+fields keep their stored value and `null` clears an optional one; unknown fields
+are refused.
 
 Both tools go through `ActivityServiceTrait`. The preview calls
 `preview_activity_update`, which runs `update_activity`'s validation and returns
@@ -677,9 +678,11 @@ The tools refuse, per row:
   which would break the pair; the error says to unlink first with
   `unlink_transfer_activities`;
 - a missing activity, an invalid value, or a row that changes nothing;
-- voiding a draft (which counts toward nothing yet; delete it instead), voiding
-  an activity already void, restoring one that is not, or `void` together with
-  `approve`.
+- voiding a draft or a pending activity (which count toward nothing yet; delete
+  them instead), voiding an activity already void, restoring one that is not,
+  `void` together with `approve`, or voiding or restoring one leg of a linked
+  transfer whose legs differ in status (core mirrors the status onto the other
+  leg, so a draft leg would otherwise be posted without approval).
 
 The deletion tools take a list of activity ids. The preview reads each activity
 and, through `get_transfer_pair_for_activity`, the other leg of a linked

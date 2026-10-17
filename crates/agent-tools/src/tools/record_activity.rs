@@ -18,6 +18,7 @@ use wealthfolio_core::activities::{
 use crate::env::AgentEnvironment;
 use crate::scope::AgentScope;
 use crate::tool::{AgentTool, AgentToolAccess, AgentToolError, AgentToolResult};
+use crate::tools::activity_updates::parse_currency;
 
 // ============================================================================
 // Tool Arguments (LLM Input)
@@ -526,13 +527,19 @@ impl RecordActivity {
 
         // 7. Build draft
         // An explicit caller currency wins; otherwise use the asset's currency
-        // for trading activities and the account currency for cash.
-        let draft_currency = args
-            .currency
-            .as_deref()
-            .map(str::trim)
-            .filter(|c| !c.is_empty())
-            .map(str::to_uppercase)
+        // for trading activities and the account currency for cash. A blank
+        // override is ignored; an invalid one is reported on the draft.
+        let blank_currency = args.currency.as_deref().map(str::trim) == Some("");
+        let (currency_override, currency_error) = if blank_currency {
+            (None, None)
+        } else {
+            match parse_currency(&args.currency) {
+                Ok(code) => (code, None),
+                Err(message) => (None, Some(message)),
+            }
+        };
+        let account_currency = account_id.as_ref().map(|_| currency.clone());
+        let draft_currency = currency_override
             .or_else(|| resolved_asset.as_ref().map(|a| a.currency.clone()))
             .unwrap_or(currency);
 
@@ -576,7 +583,25 @@ impl RecordActivity {
         };
 
         // 8. Validate the draft
-        let validation = validate_draft(&draft);
+        let mut validation = validate_draft(&draft);
+        if let Some(message) = currency_error {
+            validation.errors.push(ValidationError {
+                field: "currency".to_string(),
+                message,
+            });
+        }
+        // A rate only converts between two currencies.
+        if draft.fx_rate.is_some() && account_currency.as_deref() == Some(draft.currency.as_str()) {
+            validation.errors.push(ValidationError {
+                field: "fx_rate".to_string(),
+                message: format!(
+                    "fxRate applies only when the activity currency differs from the account \
+                     currency ({})",
+                    draft.currency
+                ),
+            });
+        }
+        validation.is_valid = validation.missing_fields.is_empty() && validation.errors.is_empty();
 
         // 9. Get available subtypes
         let available_subtypes = get_subtypes_for_activity_type(&activity_type);

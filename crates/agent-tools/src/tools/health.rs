@@ -7,6 +7,10 @@ use crate::env::AgentEnvironment;
 use crate::scope::AgentScope;
 use crate::tool::{AgentTool, AgentToolAccess, AgentToolError, AgentToolResult};
 
+/// A refresh within this many seconds of the last run returns that run, so a
+/// read-scoped caller cannot recompute every check back to back.
+const REFRESH_COOLDOWN_SECS: i64 = 60;
+
 /// Arguments for the get_health_status tool (no required args).
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -61,7 +65,8 @@ impl AgentTool for GetHealthStatus {
                 no check has run yet in this session (in that case `issues` is empty). \
                 Pass `refresh: true` to run the checks now, as the Health Center's run does, \
                 when the status is NOT_COMPUTED or `isStale`, or after the user fixed data; it \
-                reads only local data and also refreshes the Health Center's cached status. \
+                reads only local data and also refreshes the Health Center's cached status. A \
+                refresh within a minute of the last run returns that run. \
                 Each issue has `severity` (same scale), `category` (PRICE_STALENESS | FX_INTEGRITY | \
                 CLASSIFICATION | DATA_CONSISTENCY | ACCOUNT_CONFIGURATION | SETTINGS_CONFIGURATION), \
                 `title`, `message`, `affectedCount`, optional `affectedMvPct` (share of portfolio \
@@ -99,14 +104,19 @@ impl AgentTool for GetHealthStatus {
     ) -> Result<AgentToolResult, AgentToolError> {
         let args: GetHealthStatusArgs = serde_json::from_value(args)?;
 
-        let status = if args.refresh {
+        let cached = env.health_service().get_cached_status().await;
+        let recent = cached.as_ref().is_some_and(|status| {
+            chrono::Utc::now() - status.checked_at
+                < chrono::Duration::seconds(REFRESH_COOLDOWN_SECS)
+        });
+        let status = if args.refresh && !recent {
             Some(
                 env.run_health_checks()
                     .await
                     .map_err(|e| AgentToolError::ExecutionFailed(e.to_string()))?,
             )
         } else {
-            env.health_service().get_cached_status().await
+            cached
         };
         let Some(status) = status else {
             let output = GetHealthStatusOutput {

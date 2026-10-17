@@ -38,22 +38,6 @@ fn activity_value(activity: &Activity) -> Value {
     Value::Object(fields)
 }
 
-/// True when a broker sync created the activity and may send it again.
-fn is_broker_synced(activity: &Activity) -> bool {
-    let manual = activity
-        .source_system
-        .as_deref()
-        .map(str::trim)
-        .is_some_and(|source| {
-            source.eq_ignore_ascii_case("MANUAL") || source.eq_ignore_ascii_case("CSV")
-        });
-    !manual
-        && activity
-            .source_record_id
-            .as_deref()
-            .is_some_and(|id| !id.trim().is_empty())
-}
-
 /// A row that passed validation: the activity and the linked leg its delete
 /// also removes.
 struct PlannedDeletion {
@@ -65,7 +49,7 @@ impl PlannedDeletion {
     fn warning(&self) -> Option<String> {
         let synced: Vec<&str> = std::iter::once(&self.activity)
             .chain(self.linked.as_ref())
-            .filter(|activity| is_broker_synced(activity))
+            .filter(|activity| activity.is_broker_synced())
             .map(|activity| activity.id.as_str())
             .collect();
         (!synced.is_empty()).then(|| {
@@ -451,17 +435,17 @@ mod tests {
     #[test]
     fn only_broker_records_are_synced() {
         let manual = activity("a");
-        assert!(!is_broker_synced(&manual));
+        assert!(!manual.is_broker_synced());
 
         let mut csv = activity("b");
         csv.source_system = Some("csv".to_string());
         csv.source_record_id = Some("row-1".to_string());
-        assert!(!is_broker_synced(&csv));
+        assert!(!csv.is_broker_synced());
 
         let mut synced = activity("c");
         synced.source_system = Some("SNAPTRADE".to_string());
         synced.source_record_id = Some("tx-1".to_string());
-        assert!(is_broker_synced(&synced));
+        assert!(synced.is_broker_synced());
 
         let planned = PlannedDeletion {
             activity: manual,

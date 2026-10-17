@@ -21,6 +21,7 @@ use wealthfolio_core::activities::{AssetResolutionInput, NewActivity};
 use crate::env::AgentEnvironment;
 use crate::scope::AgentScope;
 use crate::tool::{AgentTool, AgentToolAccess, AgentToolError, AgentToolResult};
+use crate::tools::activity_updates::parse_currency;
 use crate::tools::record_activity::ActivityDraft;
 
 /// Max drafts per `commit_activity_drafts` call. Mirrors the `record_activities`
@@ -142,6 +143,9 @@ fn draft_to_new_activity(draft: &ActivityDraft) -> Result<NewActivity, AgentTool
         }
     };
 
+    let currency = parse_currency(&Some(draft.currency.clone()))
+        .map_err(AgentToolError::InvalidInput)?
+        .ok_or_else(|| AgentToolError::InvalidInput("Draft is missing a currency".to_string()))?;
     let fx_rate = to_decimal(draft.fx_rate, "fxRate")?;
     if fx_rate.is_some_and(|rate| !rate.is_sign_positive() || rate.is_zero()) {
         return Err(AgentToolError::InvalidInput(
@@ -158,7 +162,7 @@ fn draft_to_new_activity(draft: &ActivityDraft) -> Result<NewActivity, AgentTool
         activity_date: draft.activity_date.clone(),
         quantity: to_decimal(draft.quantity, "quantity")?,
         unit_price: to_decimal(draft.unit_price, "unitPrice")?,
-        currency: draft.currency.clone(),
+        currency,
         fee: to_decimal(draft.fee, "fee")?,
         tax: to_decimal(draft.tax, "tax")?,
         amount: to_decimal(draft.amount, "amount")?,
@@ -493,9 +497,19 @@ mod tests {
         let mut draft = security_draft();
         draft.fx_rate = Some(1.35);
         let new = draft_to_new_activity(&draft).unwrap();
-        assert_eq!(new.fx_rate, Some(Decimal::from_f64(1.35).unwrap()));
+        assert_eq!(new.fx_rate, Some(Decimal::new(135, 2)));
 
         draft.fx_rate = Some(0.0);
+        assert!(matches!(
+            draft_to_new_activity(&draft),
+            Err(AgentToolError::InvalidInput(_))
+        ));
+    }
+
+    #[test]
+    fn invalid_currency_is_rejected() {
+        let mut draft = security_draft();
+        draft.currency = "us dollars".to_string();
         assert!(matches!(
             draft_to_new_activity(&draft),
             Err(AgentToolError::InvalidInput(_))

@@ -257,6 +257,13 @@ fn to_import_rows(rows: &[ActivityImportRow]) -> Result<Vec<ActivityImport>, Age
     rows.iter()
         .enumerate()
         .map(|(index, row)| {
+            // Core stores the rate as given and checks it only for transfer pairs.
+            if let Some(rate) = row.fx_rate.filter(|rate| !rate.is_finite() || *rate <= 0.0) {
+                return Err(AgentToolError::InvalidInput(format!(
+                    "Row {}: fxRate must be a positive number, got {rate}.",
+                    index + 1
+                )));
+            }
             // Serialize the input allowlist so identity fields survive both tools.
             // Validation status always belongs to the backend, never to the caller.
             let mut obj = serde_json::to_value(row)?;
@@ -714,6 +721,15 @@ mod tests {
         assert_eq!(mapped[0].subtype.as_deref(), Some("DRIP"));
         assert_eq!(mapped[0].tax, Some(Decimal::new(15, 1)));
         assert_eq!(mapped[0].fx_rate, Some(Decimal::new(135, 2)));
+
+        for rate in [0.0, -1.2] {
+            let mut input = row(false);
+            input.fx_rate = Some(rate);
+            assert!(matches!(
+                to_import_rows(&[input]),
+                Err(AgentToolError::InvalidInput(_))
+            ));
+        }
     }
 
     #[test]
