@@ -271,6 +271,7 @@
     "pickedManually": "수동으로 선택됨.",
     "failedApplyTitle": "카테고리를 적용하지 못했습니다",
     "failedApply": "카테고리를 적용하지 못했습니다.",
+    "partialApplyFailed_other": "{{count}}건의 거래를 분류할 수 없습니다: {{reason}}",
     "transactionsCategorized_one": "거래 {{count}}건 분류됨",
     "transactionsCategorized_other": "거래 {{count}}건 분류됨",
     "categoriesSaved": "카테고리가 거래 내역에 저장되었습니다.",

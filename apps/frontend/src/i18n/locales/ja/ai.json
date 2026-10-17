@@ -271,6 +271,7 @@
     "pickedManually": "手動で選択しました。",
     "failedApplyTitle": "カテゴリの適用に失敗しました",
     "failedApply": "カテゴリの適用に失敗しました。",
+    "partialApplyFailed_other": "{{count}} 件の取引を分類できませんでした：{{reason}}",
     "transactionsCategorized_one": "{{count}}件の取引を分類しました",
     "transactionsCategorized_other": "{{count}}件の取引を分類しました",
     "categoriesSaved": "取引にカテゴリを保存しました。",

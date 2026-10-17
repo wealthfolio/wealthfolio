@@ -14,6 +14,7 @@ import {
   searchCashActivities,
   setActivityEvent,
   unassignActivityCategory,
+  type BulkAssignResult,
   type BulkCategoryAssignment,
 } from "../adapters/cash-activities";
 import { invalidateSpendingCaches } from "../lib/invalidation";
@@ -98,10 +99,12 @@ export function useAssignActivityCategory() {
 
 export function useBulkAssignCategories() {
   const queryClient = useQueryClient();
-  return useMutation<ActivityTaxonomyAssignment[], Error, BulkCategoryAssignment[]>({
+  return useMutation<BulkAssignResult, Error, BulkCategoryAssignment[]>({
     mutationFn: (items: BulkCategoryAssignment[]) => bulkAssignCategories(items),
-    onSuccess: () => {
-      invalidateSpendingCaches(queryClient);
+    onSuccess: (result) => {
+      if (result.applied.length > 0) {
+        invalidateSpendingCaches(queryClient);
+      }
     },
     onError: () => toast.error("Failed to apply categories."),
   });

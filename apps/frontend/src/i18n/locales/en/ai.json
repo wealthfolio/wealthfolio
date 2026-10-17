@@ -277,6 +277,8 @@
     "pickedManually": "Picked manually.",
     "failedApplyTitle": "Failed to apply categories",
     "failedApply": "Failed to apply categories.",
+    "partialApplyFailed_one": "{{count}} transaction could not be categorized: {{reason}}",
+    "partialApplyFailed_other": "{{count}} transactions could not be categorized: {{reason}}",
     "transactionsCategorized_one": "{{count}} transaction categorized",
     "transactionsCategorized_other": "{{count}} transactions categorized",
     "categoriesSaved": "Categories saved to your transactions.",

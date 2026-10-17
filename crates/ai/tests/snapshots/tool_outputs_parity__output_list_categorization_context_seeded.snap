@@ -1,5 +1,6 @@
 ---
 source: crates/ai/tests/tool_outputs_parity.rs
+assertion_line: 651
 expression: result
 ---
 {
@@ -35,7 +36,7 @@ expression: result
             "path": "Food / Coffee"
           }
         ],
-        "taxonomyId": "spending",
+        "taxonomyId": "spending_categories",
         "taxonomyName": "Spending"
       }
     ],
