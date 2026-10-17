@@ -22,7 +22,7 @@ use super::auto_classification::{
 use super::bond_identity::{resolve_bond_aliases, BondAliasResolution, BondIdentityClaims};
 use super::{
     asset_provider_alias_symbols, parse_crypto_pair_symbol, parse_symbol_with_known_exchange,
-    AssetResolutionInput, AssetResolutionOutput,
+    AssetMergePreview, AssetMergeReport, AssetResolutionInput, AssetResolutionOutput,
 };
 use crate::errors::{DatabaseError, Error, Result};
 
@@ -2742,6 +2742,55 @@ impl AssetServiceTrait for AssetService {
         Ok(activities_migrated)
     }
 
+    fn preview_split_asset_merge(
+        &self,
+        survivor_id: &str,
+        duplicate_id: &str,
+    ) -> Result<AssetMergePreview> {
+        self.asset_repository
+            .preview_merge(survivor_id, duplicate_id)
+    }
+
+    async fn merge_split_asset(
+        &self,
+        survivor_id: &str,
+        duplicate_id: &str,
+    ) -> Result<AssetMergeReport> {
+        info!(
+            "Merging split asset {} into canonical asset {}",
+            duplicate_id, survivor_id
+        );
+        let report = self
+            .asset_repository
+            .merge_into(survivor_id, duplicate_id)
+            .await?;
+
+        // A full rebuild (no earliest date) of every account that referenced
+        // either row. AssetsUpdated would rebuild every account instead.
+        if !report.affected_account_ids.is_empty() {
+            self.event_sink.emit(DomainEvent::activities_changed(
+                report.affected_account_ids.clone(),
+                vec![survivor_id.to_string(), duplicate_id.to_string()],
+                report.currencies.clone(),
+                None,
+            ));
+        }
+        if !report.changed_taxonomy_ids.is_empty() {
+            self.event_sink
+                .emit(DomainEvent::asset_classifications_changed(
+                    vec![survivor_id.to_string()],
+                    report.changed_taxonomy_ids.clone(),
+                ));
+        }
+        self.event_sink.emit(DomainEvent::assets_merged(
+            duplicate_id.to_string(),
+            survivor_id.to_string(),
+            report.activities_moved,
+        ));
+
+        Ok(report)
+    }
+
     async fn ensure_assets(
         &self,
         mut specs: Vec<AssetSpec>,
@@ -3663,6 +3712,22 @@ mod tests {
 
         async fn deactivate_orphaned_investments(&self) -> Result<Vec<String>> {
             Ok(Vec::new())
+        }
+
+        async fn merge_into(
+            &self,
+            survivor_id: &str,
+            duplicate_id: &str,
+        ) -> Result<crate::assets::AssetMergeReport> {
+            Ok(crate::assets::AssetMergeReport {
+                survivor_id: survivor_id.to_string(),
+                duplicate_id: duplicate_id.to_string(),
+                activities_moved: 2,
+                affected_account_ids: vec!["acc1".to_string()],
+                currencies: vec!["CAD".to_string()],
+                changed_taxonomy_ids: vec!["instrument_type".to_string()],
+                ..Default::default()
+            })
         }
     }
 
@@ -6013,5 +6078,52 @@ mod tests {
             instrument_symbol: Some("AAPL".to_string()),
             ..Default::default()
         }
+    }
+
+    #[tokio::test]
+    async fn split_asset_merge_emits_scoped_rebuild_events() {
+        let event_sink = Arc::new(MockDomainEventSink::new());
+        let service = AssetService::new(
+            Arc::new(TestAssetRepository::default()),
+            Arc::new(TestQuoteService::default()),
+        )
+        .unwrap()
+        .with_event_sink(event_sink.clone());
+
+        let report = service.merge_split_asset("neoe", "xneo").await.unwrap();
+        assert_eq!(report.activities_moved, 2);
+
+        let events = event_sink.events();
+        assert_eq!(events.len(), 3);
+        let DomainEvent::ActivitiesChanged {
+            account_ids,
+            asset_ids,
+            currencies,
+            earliest_activity_at_utc,
+        } = &events[0]
+        else {
+            panic!("expected ActivitiesChanged first, got {:?}", events[0]);
+        };
+        assert_eq!(account_ids, &vec!["acc1".to_string()]);
+        assert_eq!(asset_ids, &vec!["neoe".to_string(), "xneo".to_string()]);
+        assert_eq!(currencies, &vec!["CAD".to_string()]);
+        assert!(
+            earliest_activity_at_utc.is_none(),
+            "a merge rebuilds the accounts in full"
+        );
+        assert!(matches!(
+            &events[1],
+            DomainEvent::AssetClassificationsChanged { asset_ids, taxonomy_ids }
+                if asset_ids == &vec!["neoe".to_string()]
+                    && taxonomy_ids == &vec!["instrument_type".to_string()]
+        ));
+        assert!(matches!(
+            &events[2],
+            DomainEvent::AssetsMerged { source_id, target_id, activities_migrated: 2 }
+                if source_id == "xneo" && target_id == "neoe"
+        ));
+        assert!(!events
+            .iter()
+            .any(|event| matches!(event, DomainEvent::AssetsUpdated { .. })));
     }
 }

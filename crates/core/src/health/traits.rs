@@ -183,7 +183,8 @@ pub trait HealthDismissalStore: Send + Sync {
 
 use super::checks::{
     AssetHoldingInfo, ConsistencyIssueInfo, FxConflictInfo, FxPairInfo, InvalidTransferGroupInfo,
-    LegacyMigrationInfo, QuoteSyncErrorInfo, UnclassifiedAssetInfo, UnconfiguredAccountInfo,
+    LegacyMigrationInfo, QuoteSyncErrorInfo, SplitAssetPair, UnclassifiedAssetInfo,
+    UnconfiguredAccountInfo,
 };
 use super::model::{FixAction, HealthStatus};
 use crate::accounts::AccountServiceTrait;
@@ -234,6 +235,8 @@ pub trait HealthServiceTrait: Send + Sync {
     /// * `unconfigured_accounts` - Accounts without tracking mode set
     /// * `configured_timezone` - App-configured timezone from settings (if available)
     /// * `client_timezone` - Client/browser timezone from request context (if available)
+    /// * `invalid_transfer_groups` - Transfer groups that don't resolve to a valid pair
+    /// * `split_asset_pairs` - Instruments split across a legacy-MIC row and its canonical twin
     ///
     /// # Returns
     ///
@@ -255,6 +258,7 @@ pub trait HealthServiceTrait: Send + Sync {
         configured_timezone: Option<&str>,
         client_timezone: Option<&str>,
         invalid_transfer_groups: &[InvalidTransferGroupInfo],
+        split_asset_pairs: &[SplitAssetPair],
     ) -> Result<HealthStatus>;
 
     /// Gets the cached health status.

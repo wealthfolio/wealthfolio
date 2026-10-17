@@ -7,6 +7,7 @@
 //! - Classification completeness check
 //! - Data consistency check
 //! - Account configuration check
+//! - Split asset identity check
 
 pub mod account_configuration;
 pub mod classification;
@@ -14,6 +15,7 @@ pub mod data_consistency;
 pub mod fx_integrity;
 pub mod price_staleness;
 pub mod quote_sync;
+pub mod split_asset_identity;
 pub mod transfer_integrity;
 
 // Re-export check implementations
@@ -23,6 +25,7 @@ pub use data_consistency::DataConsistencyCheck;
 pub use fx_integrity::FxIntegrityCheck;
 pub use price_staleness::PriceStalenessCheck;
 pub use quote_sync::QuoteSyncCheck;
+pub use split_asset_identity::SplitAssetIdentityCheck;
 pub use transfer_integrity::TransferIntegrityCheck;
 
 // Re-export data types used by checks
@@ -32,6 +35,9 @@ pub use data_consistency::{ConsistencyIssueInfo, ConsistencyIssueType, Valuation
 pub use fx_integrity::{FxConflictInfo, FxPairInfo};
 pub use price_staleness::AssetHoldingInfo;
 pub use quote_sync::QuoteSyncErrorInfo;
+pub use split_asset_identity::{
+    find_split_asset_pairs, SplitAssetPair, SplitAssetSide, SuspectedDuplicateTrade,
+};
 pub use transfer_integrity::{InvalidTransferGroupInfo, TransferLegDetail};
 
 // Re-export data gathering functions

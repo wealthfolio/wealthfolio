@@ -117,6 +117,18 @@ export function useExecuteHealthFix() {
       // Invalidate holdings so related pages refresh
       queryClient.invalidateQueries({ queryKey: [QueryKeys.HOLDINGS] });
       queryClient.invalidateQueries({ queryKey: [QueryKeys.PORTFOLIO_ALLOCATIONS] });
+      if (actionId === "merge_split_asset") {
+        // A merge moves activities, quotes and classifications between assets.
+        for (const key of [
+          QueryKeys.ASSETS,
+          QueryKeys.ASSET_DATA,
+          QueryKeys.ACTIVITIES,
+          QueryKeys.QUOTE_HISTORY,
+          QueryKeys.ASSET_TAXONOMY_ASSIGNMENTS,
+        ]) {
+          queryClient.invalidateQueries({ queryKey: [key] });
+        }
+      }
       // Skip toast for sync actions — global event listeners handle feedback
       if (actionId === "rebuild_account_history") {
         toast.success("History rebuild started", {

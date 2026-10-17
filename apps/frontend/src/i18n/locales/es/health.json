@@ -66,6 +66,12 @@
       "title_many": "{{count}} transacciones hacen referencia a activos inexistentes",
       "message": "Algunas transacciones apuntan a activos que ya no existen. Esto puede provocar errores de cálculo."
     },
+    "data_split_asset_identity": {
+      "title_one": "{{symbol}} está dividido en dos registros de activo",
+      "title_other": "{{count}} inversiones están divididas en dos registros de activo",
+      "title_many": "{{count}} inversiones están divididas en dos registros de activo",
+      "message": "Se cambió un código de bolsa, pero estas inversiones ya tenían un registro con el nuevo código. Sus transacciones e historial de precios están repartidos entre los dos registros. Combina cada par en uno solo."
+    },
     "data_negative_position": {
       "title_one": "Una posición tiene cantidad negativa",
       "title_other": "{{count}} posiciones tienen cantidades negativas",
@@ -300,6 +306,9 @@
       "title": "¿Descartar este problema?",
       "message": "Esto ocultará el problema de tu centro de estado. Reaparecerá si cambian los datos subyacentes.",
       "pendingText": "Descartando..."
+    },
+    "fixConfirm": {
+      "pendingText": "Aplicando..."
     },
     "affectedItems_one": "Elemento afectado ({{count}})",
     "affectedItems_other": "Elementos afectados ({{count}})",

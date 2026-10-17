@@ -123,6 +123,10 @@ pub struct FixAction {
     pub label: String,
     /// JSON payload containing data needed to execute the action
     pub payload: Value,
+    /// When set, the UI asks the user to confirm this message before running
+    /// the action.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub confirm: Option<String>,
 }
 
 impl FixAction {
@@ -132,6 +136,7 @@ impl FixAction {
             id: "sync_prices".to_string(),
             label: "Sync Prices".to_string(),
             payload: serde_json::json!(asset_ids),
+            confirm: None,
         }
     }
 
@@ -141,6 +146,7 @@ impl FixAction {
             id: "migrate_legacy_classifications".to_string(),
             label: "Migrate Classifications".to_string(),
             payload: serde_json::json!(null),
+            confirm: None,
         }
     }
 
@@ -150,6 +156,7 @@ impl FixAction {
             id: "retry_sync".to_string(),
             label: "Retry Sync".to_string(),
             payload: serde_json::json!(asset_ids),
+            confirm: None,
         }
     }
 
@@ -161,6 +168,28 @@ impl FixAction {
             id: "rebuild_account_history".to_string(),
             label: "Rebuild History".to_string(),
             payload: serde_json::json!(account_ids),
+            confirm: None,
+        }
+    }
+
+    /// Creates a fix action that merges a legacy-MIC duplicate asset into its
+    /// canonical survivor. Always asks for confirmation first.
+    pub fn merge_split_asset(
+        survivor_asset_id: impl Into<String>,
+        duplicate_asset_id: impl Into<String>,
+        symbol: &str,
+        confirm: impl Into<String>,
+    ) -> Self {
+        Self {
+            id: "merge_split_asset".to_string(),
+            label: format!("Merge {symbol}"),
+            payload: serde_json::json!({
+                "pairs": [{
+                    "survivorAssetId": survivor_asset_id.into(),
+                    "duplicateAssetId": duplicate_asset_id.into(),
+                }]
+            }),
+            confirm: Some(confirm.into()),
         }
     }
 }
@@ -1455,6 +1484,37 @@ mod tests {
 
         let rebuild = FixAction::rebuild_account_history(vec!["acc_1".to_string()]);
         assert_eq!(rebuild.id, "rebuild_account_history");
+        assert!(rebuild.confirm.is_none());
+        let json = serde_json::to_value(&rebuild).unwrap();
+        assert!(json.get("confirm").is_none(), "unset confirm is omitted");
+    }
+
+    #[test]
+    fn test_merge_split_asset_fix_action() {
+        let merge = FixAction::merge_split_asset("neoe-id", "xneo-id", "FEQT", "Merge?");
+        assert_eq!(merge.id, "merge_split_asset");
+        assert_eq!(merge.label, "Merge FEQT");
+        assert_eq!(
+            merge.payload,
+            serde_json::json!({
+                "pairs": [{ "survivorAssetId": "neoe-id", "duplicateAssetId": "xneo-id" }]
+            })
+        );
+        assert_eq!(merge.confirm.as_deref(), Some("Merge?"));
+
+        // Diagnostic actions serialize the fix flat; confirm travels with it and
+        // an older client payload without it still deserializes.
+        let action = ActionRef::Fix {
+            action: merge.clone(),
+        };
+        let json = serde_json::to_value(&action).unwrap();
+        assert_eq!(json["kind"], "fix");
+        assert_eq!(json["confirm"], "Merge?");
+        let without_confirm: FixAction = serde_json::from_value(serde_json::json!({
+            "id": "merge_split_asset", "label": "Merge FEQT", "payload": merge.payload
+        }))
+        .unwrap();
+        assert!(without_confirm.confirm.is_none());
     }
 
     #[test]

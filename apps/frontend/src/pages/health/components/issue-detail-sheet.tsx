@@ -17,10 +17,12 @@ import {
   SheetHeader,
   SheetTitle,
   useDateFormatting,
+  type ButtonProps,
   type FormattingApi,
 } from "@wealthfolio/ui";
 import { cn } from "@wealthfolio/ui/lib/utils";
 import type { TFunction } from "i18next";
+import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import { translateIssueText } from "../translate-issue";
@@ -401,6 +403,58 @@ function priceIssueSummary(diagnosticCount: number, assetCount: number, t: TFunc
   });
 }
 
+interface FixActionButtonProps {
+  action: FixAction;
+  isFixing: boolean;
+  onRun: () => void;
+  variant?: ButtonProps["variant"];
+  size?: ButtonProps["size"];
+  className?: string;
+  children: ReactNode;
+}
+
+/** A fix button that asks for confirmation first when the action carries a `confirm` message. */
+function FixActionButton({
+  action,
+  isFixing,
+  onRun,
+  variant,
+  size,
+  className,
+  children,
+}: FixActionButtonProps) {
+  const { t } = useTranslation();
+  const button = (
+    <Button
+      type="button"
+      variant={variant}
+      size={size}
+      className={className}
+      disabled={isFixing}
+      onClick={action.confirm ? undefined : onRun}
+    >
+      {children}
+    </Button>
+  );
+  if (!action.confirm) return button;
+
+  return (
+    <ActionConfirm
+      confirmTitle={action.label}
+      confirmMessage={
+        <span className="block max-h-72 overflow-y-auto whitespace-pre-line">{action.confirm}</span>
+      }
+      confirmButtonText={t("common:confirm")}
+      cancelButtonText={t("common:cancel")}
+      confirmButtonVariant="default"
+      handleConfirm={onRun}
+      isPending={isFixing}
+      pendingText={t("health:detail.fixConfirm.pendingText")}
+      button={button}
+    />
+  );
+}
+
 export function IssueDetailSheet({
   issue,
   open,
@@ -652,17 +706,18 @@ export function IssueDetailSheet({
                                 </Link>
                               </Button>
                             ) : (
-                              <Button
+                              <FixActionButton
                                 key={key}
-                                type="button"
+                                action={action}
                                 variant={action.primary ? "default" : "outline"}
                                 size="sm"
-                                disabled={isFixing}
-                                onClick={() =>
+                                isFixing={isFixing}
+                                onRun={() =>
                                   onRunFixAction({
                                     id: action.id,
                                     label: action.label,
                                     payload: action.payload,
+                                    confirm: action.confirm,
                                   })
                                 }
                               >
@@ -672,7 +727,7 @@ export function IssueDetailSheet({
                                   <Icons.Wand2 className="mr-2 h-4 w-4" />
                                 )}
                                 {action.label}
-                              </Button>
+                              </FixActionButton>
                             ),
                           )}
                         </div>
@@ -760,14 +815,19 @@ export function IssueDetailSheet({
 
         <div className="shrink-0 space-y-2 border-t pt-4">
           {issue.fixAction && !hasDiagnosticActions && (
-            <Button onClick={onFix} disabled={isFixing} className="w-full">
+            <FixActionButton
+              action={issue.fixAction}
+              isFixing={isFixing}
+              onRun={onFix}
+              className="w-full"
+            >
               {isFixing ? (
                 <Icons.Spinner className="mr-2 h-4 w-4 animate-spin" />
               ) : (
                 <Icons.Wand2 className="mr-2 h-4 w-4" />
               )}
               {issue.fixAction.label}
-            </Button>
+            </FixActionButton>
           )}
 
           {issue.navigateAction && !hasDiagnosticActions && (
