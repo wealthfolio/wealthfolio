@@ -4,7 +4,8 @@
 //! `commit_activity_updates` applies them in place, both through the core
 //! update the activity grid uses: omitted fields keep their stored value, a
 //! bare date lands on that day in the configured timezone, a linked transfer's
-//! other leg receives the mirrored changes, the portfolio recalculates from
+//! other leg receives the mirrored changes (keeping its own date and notes
+//! when either leg has a source record ID), the portfolio recalculates from
 //! the earlier date, and the activity is marked user-modified so broker syncs
 //! keep the edit. An update never creates an activity and never goes through
 //! the import flow.
@@ -663,7 +664,7 @@ impl AgentTool for PrepareActivityUpdates {
     }
 
     fn description(&self) -> &'static str {
-        "Preview corrections to existing activities without writing anything. Each row names an activityId (find it with search_activities) and only the fields to change; omitted fields keep their stored value and null clears an optional one. The fields are those the activity grid edits: date, accountId, activityType, subtype, assetId, quantity, unitPrice, amount, currency, fee, tax, fxRate, notes, and approve (approves an activity waiting for review; a draft becomes posted). A bare YYYY-MM-DD date lands on that day in the configured timezone. Change an asset only by the assetId of an asset already stored; symbols are refused. For a security TRANSFER_IN, the cost basis is quantity x unitPrice, or amount without a unit price. Each ready row lists every field that would change with its current and proposed value, including values the app derives (a trade total recalculated from quantity and price, a cleared stale amount, the review flag); for one leg of a linked transfer, linkedChanges lists what the other leg receives (date, notes, amount, approval). An invalid row gives its error: a missing activity, an invalid value, nothing to change, a change to the account, currency, type or asset of a linked transfer leg (or the quantity of a security transfer, or the fxRate of a cross-currency cash transfer; unlink the pair first with unlink_transfer_activities). Up to 100 rows. Show the preview to the user, then apply the confirmed rows with commit_activity_updates."
+        "Preview corrections to existing activities without writing anything. Each row names an activityId (find it with search_activities) and only the fields to change; omitted fields keep their stored value and null clears an optional one. The fields are those the activity grid edits: date, accountId, activityType, subtype, assetId, quantity, unitPrice, amount, currency, fee, tax, fxRate, notes, and approve (approves an activity waiting for review; a draft becomes posted). A bare YYYY-MM-DD date lands on that day in the configured timezone. Change an asset only by the assetId of an asset already stored; symbols are refused. For a security TRANSFER_IN, the cost basis is quantity x unitPrice, or amount without a unit price. Each ready row lists every field that would change with its current and proposed value, including values the app derives (a trade total recalculated from quantity and price, a cleared stale amount, the review flag); for one leg of a linked transfer, linkedChanges lists what the other leg receives (amount and approval; date and notes also mirror when neither leg has a source record ID). An invalid row gives its error: a missing activity, an invalid value, nothing to change, a change to the account, currency, type or asset of a linked transfer leg (or the quantity of a security transfer, or the fxRate of a cross-currency cash transfer; unlink the pair first with unlink_transfer_activities). Up to 100 rows. Show the preview to the user, then apply the confirmed rows with commit_activity_updates."
     }
 
     fn input_schema(&self) -> Value {
@@ -820,7 +821,7 @@ impl AgentTool for CommitActivityUpdates {
     }
 
     fn description(&self) -> &'static str {
-        "Apply corrections to existing activities in place: the rows prepare_activity_updates previewed, in the same shape. This MUTATES data: only call it after the user reviewed the preview and confirmed. Each row is validated again and applied on its own through the app's activity update, with the same rules as the preview: it never creates an activity, a linked transfer's other leg receives the mirrored changes, the portfolio is recalculated, and the activity is marked as edited by the user so broker syncs keep the change. Up to 100 rows; updated lists each applied row with every changed field's stored value before and after (and linkedChanges for the other leg of a linked transfer), and errors lists the rows that failed."
+        "Apply corrections to existing activities in place: the rows prepare_activity_updates previewed, in the same shape. This MUTATES data: only call it after the user reviewed the preview and confirmed. Each row is validated again and applied on its own through the app's activity update, with the same rules as the preview: it never creates an activity, a linked transfer's other leg receives the mirrored changes (keeping its own date and notes when either leg has a source record ID), the portfolio is recalculated, and the activity is marked as edited by the user so broker syncs keep the change. Up to 100 rows; updated lists each applied row with every changed field's stored value before and after (and linkedChanges for the other leg of a linked transfer), and errors lists the rows that failed."
     }
 
     fn input_schema(&self) -> Value {

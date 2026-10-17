@@ -1483,6 +1483,17 @@ impl ActivityService {
         pair.transfer_in.asset_id.is_none() && pair.transfer_out.asset_id.is_none()
     }
 
+    // Provider records have their own posting dates and descriptions. A
+    // source record on either leg also protects mixed manual/provider pairs;
+    // record IDs need not differ, since providers can scope them by account.
+    fn transfer_pair_has_source_records(pair: &TransferPair) -> bool {
+        [&pair.transfer_out, &pair.transfer_in].iter().any(|leg| {
+            leg.source_record_id
+                .as_deref()
+                .is_some_and(|id| !id.trim().is_empty())
+        })
+    }
+
     fn transfer_pair_response(pair: TransferPair) -> InternalTransferPairResponse {
         InternalTransferPairResponse {
             transfer_out: pair.transfer_out,
@@ -1999,6 +2010,8 @@ impl ActivityService {
         pair: &TransferPair,
         values: &InternalPairValues,
     ) -> Result<Vec<ActivityUpdate>> {
+        // Validate shared input even when sourced legs retain their own dates.
+        self.validate_and_normalize_activity_date(&request.activity_date)?;
         let metadata = Self::internal_transfer_metadata();
         // Preserve user valuation overrides only while their currency pair is unchanged.
         let valuation_rate_patch = |existing: &Activity, account_id: &str, currency: &str| {
@@ -2009,7 +2022,7 @@ impl ActivityService {
                     .then_some(None),
             )
         };
-        Ok(vec![
+        let mut updates = vec![
             ActivityUpdate {
                 id: pair.transfer_out.id.clone(),
                 account_id: request.from_account_id.clone(),
@@ -2056,7 +2069,19 @@ impl ActivityService {
                 )?,
                 metadata,
             },
-        ])
+        ];
+        // The pair form has only one date and notes field. It cannot express
+        // a correction to either independent source record; use leg edits.
+        if Self::transfer_pair_has_source_records(pair) {
+            for (update, leg) in updates
+                .iter_mut()
+                .zip([&pair.transfer_out, &pair.transfer_in])
+            {
+                update.activity_date = leg.activity_date.to_rfc3339();
+                update.notes = leg.notes.clone();
+            }
+        }
+        Ok(updates)
     }
 
     fn validate_internal_cash_pair_currency_update(
@@ -2132,6 +2157,11 @@ impl ActivityService {
             fx_rate: None,
             metadata: None,
         };
+
+        if Self::transfer_pair_has_source_records(pair) {
+            counterpart_update.activity_date = counterpart.activity_date.to_rfc3339();
+            counterpart_update.notes = counterpart.notes.clone();
+        }
 
         let Some(Some(amount)) = update.amount else {
             return Ok(Some(counterpart_update));

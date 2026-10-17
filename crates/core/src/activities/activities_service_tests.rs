@@ -12755,6 +12755,10 @@ pub(crate) mod tests {
         assert_eq!(updated.transfer_out.fee, Some(dec!(3)));
         assert_eq!(updated.transfer_in.fee, Some(dec!(2)));
         assert_eq!(updated.transfer_out.fx_rate, Some(dec!(2)));
+        for leg in [&updated.transfer_out, &updated.transfer_in] {
+            assert_eq!(leg.activity_date, utc("2026-06-04T20:20:00Z"));
+            assert_eq!(leg.notes.as_deref(), Some("Updated"));
+        }
     }
 
     fn independent_transfer_fixture() -> (
@@ -16422,6 +16426,268 @@ pub(crate) mod tests {
 
         // Midnight in Toronto (EST) is 05:00 UTC.
         assert_eq!(preview.activity.activity_date, utc("2024-01-15T05:00:00Z"));
+    }
+
+    fn seed_sourced_cash_transfer_pair(repository: &MockActivityRepository) {
+        seed_internal_cash_transfer_pair(repository, "wf-transfer-provider-pair");
+        for row in repository.activities.lock().unwrap().iter_mut() {
+            let (date, record) = if row.id == "pair-out" {
+                ("2026-01-18T00:00:00Z", "TRN-test-1")
+            } else {
+                ("2026-01-15T00:00:00Z", "TRN-test-2")
+            };
+            row.activity_date = utc(date);
+            row.notes = Some(format!("Payment · {record}"));
+            row.source_system = Some("SIMPLEFIN".into());
+            row.source_record_id = Some(record.into());
+            row.idempotency_key = Some(format!("key-{record}"));
+            row.amount = Some(dec!(100.00));
+            row.needs_review = true;
+        }
+    }
+
+    #[tokio::test]
+    async fn sourced_transfer_leg_edits_preserve_counterpart_details_in_preview_and_commit() {
+        for bulk in [false, true] {
+            for primary_id in ["pair-out", "pair-in"] {
+                let repository = Arc::new(MockActivityRepository::new());
+                seed_sourced_cash_transfer_pair(&repository);
+                let service =
+                    preview_test_service(repository.clone(), Arc::new(MockFxService::new()));
+                let primary = repository.get_activity(primary_id).unwrap();
+                let counterpart_id = if primary_id == "pair-out" {
+                    "pair-in"
+                } else {
+                    "pair-out"
+                };
+                let counterpart = repository.get_activity(counterpart_id).unwrap();
+                // A grid save echoes the edited leg's date and notes, even
+                // when the deliberate changes are amount and approval only.
+                let mut update = ActivityUpdate {
+                    id: primary.id.clone(),
+                    account_id: primary.account_id.clone(),
+                    asset: None,
+                    activity_type: primary.activity_type.clone(),
+                    subtype: None,
+                    activity_date: primary.activity_date.to_rfc3339(),
+                    quantity: None,
+                    unit_price: None,
+                    currency: primary.currency.clone(),
+                    fee: None,
+                    tax: None,
+                    amount: Some(Some(dec!(125))),
+                    status: None,
+                    needs_review: Some(false),
+                    notes: primary.notes.clone(),
+                    fx_rate: None,
+                    metadata: None,
+                };
+                // Explicit date/note corrections also belong to one record.
+                if bulk {
+                    update.activity_date = "2026-01-19T00:00:00Z".into();
+                    update.notes = None;
+                }
+                let before = stored_snapshot(&repository);
+                let preview = service.preview_activity_update(update.clone()).unwrap();
+                let linked = preview.linked.unwrap();
+                assert_eq!(linked.activity_date, counterpart.activity_date);
+                assert_eq!(linked.update.notes, counterpart.notes);
+                assert_eq!(linked.update.amount, Some(Some(dec!(125))));
+                assert_eq!(linked.update.needs_review, Some(false));
+                assert_eq!(
+                    stored_snapshot(&repository),
+                    before,
+                    "preview must not write"
+                );
+
+                if bulk {
+                    let result = service
+                        .bulk_mutate_activities(ActivityBulkMutationRequest {
+                            creates: vec![],
+                            updates: vec![update.clone()],
+                            delete_ids: vec![],
+                        })
+                        .await
+                        .unwrap();
+                    assert!(result.errors.is_empty(), "{:?}", result.errors);
+                } else {
+                    service.update_activity(update.clone()).await.unwrap();
+                }
+                let edited = repository.get_activity(primary_id).unwrap();
+                assert_eq!(edited.activity_date, utc(&update.activity_date));
+                assert_eq!(edited.notes, update.notes);
+                let stored = repository.get_activity(counterpart_id).unwrap();
+                assert_eq!(stored.activity_date, counterpart.activity_date);
+                assert_eq!(stored.notes, counterpart.notes);
+                assert_eq!(stored.amount, Some(dec!(125)));
+                assert!(!stored.needs_review);
+                for (before, after) in [(primary, edited), (counterpart, stored)] {
+                    assert_eq!(after.source_system, before.source_system);
+                    assert_eq!(after.source_record_id, before.source_record_id);
+                    assert_eq!(after.source_group_id, before.source_group_id);
+                    assert_eq!(after.idempotency_key, before.idempotency_key);
+                    assert_eq!(after.metadata, before.metadata);
+                    assert_eq!(after.activity_type, before.activity_type);
+                }
+            }
+        }
+    }
+
+    proptest::proptest! {
+        #![proptest_config(proptest::test_runner::Config {
+            cases: 24,
+            failure_persistence: None,
+            ..Default::default()
+        })]
+
+        #[test]
+        fn transfer_preview_respects_record_provenance(
+            out_day in 1u32..11,
+            in_day in 11u32..21,
+            out_notes in proptest::option::of("[a-z ]{0,24}"),
+            in_notes in proptest::option::of("[a-z ]{0,24}"),
+            edited_notes in proptest::option::of("[a-z ]{0,24}"),
+        ) {
+            // Include blank IDs, mixed provenance and account-scoped equal IDs.
+            for (out_source, in_source, sourced) in [
+                (None, None, false),
+                (Some(" "), Some("\t"), false),
+                (Some("TRN-test-1"), None, true),
+                (None, Some("TRN-test-2"), true),
+                (Some("TRN-test-1"), Some("TRN-test-1"), true),
+                (Some("TRN-test-1"), Some("TRN-test-2"), true),
+            ] {
+                for primary_id in ["pair-out", "pair-in"] {
+                    let repository = Arc::new(MockActivityRepository::new());
+                    seed_sourced_cash_transfer_pair(&repository);
+                    for row in repository.activities.lock().unwrap().iter_mut() {
+                        let (day, notes, source) = if row.id == "pair-out" {
+                            (out_day, &out_notes, out_source)
+                        } else {
+                            (in_day, &in_notes, in_source)
+                        };
+                        row.activity_date = utc(&format!("2026-01-{day:02}T00:00:00Z"));
+                        row.notes = notes.clone();
+                        row.source_record_id = source.map(str::to_string);
+                    }
+                    let service = preview_test_service(
+                        repository.clone(), Arc::new(MockFxService::new())
+                    );
+                    let primary = repository.get_activity(primary_id).unwrap();
+                    let counterpart_id = if primary_id == "pair-out" {
+                        "pair-in"
+                    } else {
+                        "pair-out"
+                    };
+                    let counterpart = repository.get_activity(counterpart_id).unwrap();
+                    let before = stored_snapshot(&repository);
+                    let preview = service.preview_activity_update(ActivityUpdate {
+                        id: primary.id.clone(),
+                        account_id: primary.account_id.clone(),
+                        asset: None,
+                        activity_type: primary.activity_type.clone(),
+                        subtype: None,
+                        activity_date: "2026-01-22T00:00:00Z".into(),
+                        quantity: None,
+                        unit_price: None,
+                        currency: primary.currency.clone(),
+                        fee: None,
+                        tax: None,
+                        amount: Some(Some(dec!(125))),
+                        status: None,
+                        needs_review: Some(false),
+                        notes: edited_notes.clone(),
+                        fx_rate: None,
+                        metadata: None,
+                    }).unwrap();
+                    let linked = preview.linked.unwrap();
+                    proptest::prop_assert_eq!(preview.activity.activity_date, utc("2026-01-22T00:00:00Z"));
+                    proptest::prop_assert_eq!(&preview.activity.update.notes, &edited_notes);
+                    let (expected_date, expected_notes) = if sourced {
+                        (counterpart.activity_date, &counterpart.notes)
+                    } else {
+                        (utc("2026-01-22T00:00:00Z"), &edited_notes)
+                    };
+                    proptest::prop_assert_eq!(linked.activity_date, expected_date);
+                    proptest::prop_assert_eq!(&linked.update.notes, expected_notes);
+                    proptest::prop_assert_eq!(linked.update.amount, Some(Some(dec!(125))));
+                    proptest::prop_assert_eq!(linked.update.needs_review, Some(false));
+                    proptest::prop_assert_eq!(stored_snapshot(&repository), before);
+                }
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn transfer_pair_editor_rejects_invalid_dates_before_preserving_source_details() {
+        for sourced in [false, true] {
+            for date in ["not-a-date", "1969-12-31", "2026-02-30"] {
+                let repository = Arc::new(MockActivityRepository::new());
+                if sourced {
+                    seed_sourced_cash_transfer_pair(&repository);
+                } else {
+                    seed_internal_cash_transfer_pair(&repository, "manual-pair");
+                }
+                let service =
+                    preview_test_service(repository.clone(), Arc::new(MockFxService::new()));
+                let before = stored_snapshot(&repository);
+                let result = service
+                    .save_internal_transfer_pair(InternalTransferPairRequest {
+                        transfer_out_id: Some("pair-out".into()),
+                        transfer_in_id: Some("pair-in".into()),
+                        source_group_id: None,
+                        from_account_id: "acc-a".into(),
+                        to_account_id: "acc-b".into(),
+                        activity_date: date.into(),
+                        source_amount: Some(dec!(125)),
+                        destination_amount: None,
+                        source_currency: "USD".into(),
+                        destination_currency: "USD".into(),
+                        fx_rate: None,
+                        notes: None,
+                        transfer_mode: Some("cash".into()),
+                    })
+                    .await;
+                assert!(result.is_err(), "accepted {date}, sourced={sourced}");
+                assert_eq!(stored_snapshot(&repository), before);
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn sourced_transfer_pair_editor_preserves_each_legs_details() {
+        let repository = Arc::new(MockActivityRepository::new());
+        seed_sourced_cash_transfer_pair(&repository);
+        let service = preview_test_service(repository.clone(), Arc::new(MockFxService::new()));
+        let before = repository.get_activities().unwrap();
+        let saved = service
+            .save_internal_transfer_pair(InternalTransferPairRequest {
+                transfer_out_id: Some("pair-out".into()),
+                transfer_in_id: Some("pair-in".into()),
+                source_group_id: None,
+                from_account_id: "acc-a".into(),
+                to_account_id: "acc-b".into(),
+                activity_date: "2026-01-18T00:00:00Z".into(),
+                source_amount: Some(dec!(125)),
+                destination_amount: None,
+                source_currency: "USD".into(),
+                destination_currency: "USD".into(),
+                fx_rate: None,
+                notes: Some("Payment · TRN-test-1".into()),
+                transfer_mode: Some("cash".into()),
+            })
+            .await
+            .unwrap();
+        for after in [saved.transfer_out, saved.transfer_in] {
+            let original = before.iter().find(|row| row.id == after.id).unwrap();
+            assert_eq!(after.activity_date, original.activity_date);
+            assert_eq!(after.notes, original.notes);
+            assert_eq!(after.source_system, original.source_system);
+            assert_eq!(after.source_record_id, original.source_record_id);
+            assert_eq!(after.source_group_id, original.source_group_id);
+            assert_eq!(after.idempotency_key, original.idempotency_key);
+            assert_eq!(after.amount, Some(dec!(125)));
+        }
     }
 
     #[tokio::test]

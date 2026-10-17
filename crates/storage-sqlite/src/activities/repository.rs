@@ -5474,6 +5474,96 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn linking_sourced_transfer_legs_preserves_identity_through_broker_refresh() {
+        let (pool, writer) = setup_db();
+        let repo = ActivityRepository::new(pool.clone(), writer);
+        let mut conn = get_connection(&pool).expect("conn");
+        insert_account(&mut conn, "checking");
+        insert_account(&mut conn, "card");
+        let rows: Vec<_> = [
+            (
+                "checking-leg",
+                "checking",
+                "TRANSFER_OUT",
+                "2026-01-18",
+                "TRN-test-1",
+            ),
+            (
+                "card-leg",
+                "card",
+                "TRANSFER_IN",
+                "2026-01-15",
+                "TRN-test-2",
+            ),
+        ]
+        .into_iter()
+        .map(|(id, account, kind, date, record)| ActivityUpsert {
+            id: id.into(),
+            account_id: account.into(),
+            asset_id: None,
+            activity_type: kind.into(),
+            subtype: None,
+            activity_date: format!("{date}T00:00:00Z"),
+            quantity: None,
+            unit_price: None,
+            currency: "USD".into(),
+            fee: None,
+            tax: None,
+            amount: Some(Decimal::new(10000, 2)),
+            status: None,
+            notes: Some(format!("Payment · {record}")),
+            fx_rate: None,
+            metadata: Some(r#"{"flow":{"is_external":true}}"#.into()),
+            needs_review: None,
+            source_system: Some("SIMPLEFIN".into()),
+            source_record_id: Some(record.into()),
+            source_group_id: None,
+            idempotency_key: Some(format!("key-{record}")),
+            import_run_id: None,
+        })
+        .collect();
+        assert_eq!(repo.bulk_upsert(rows.clone()).await.unwrap().created, 2);
+        let before = repo.get_activities().unwrap();
+        repo.link_transfer_activities("checking-leg".into(), "card-leg".into())
+            .await
+            .unwrap();
+        // Linking the same pair again repairs metadata without merging records.
+        repo.link_transfer_activities("card-leg".into(), "checking-leg".into())
+            .await
+            .unwrap();
+        let linked = repo.get_activities().unwrap();
+        assert_eq!(linked.len(), 2);
+        assert!(linked[0].source_group_id.is_some());
+        assert_eq!(linked[0].source_group_id, linked[1].source_group_id);
+        for after in &linked {
+            let original = before.iter().find(|row| row.id == after.id).unwrap();
+            assert_eq!(after.activity_date, original.activity_date);
+            assert_eq!(after.notes, original.notes);
+            assert_eq!(after.source_system, original.source_system);
+            assert_eq!(after.source_record_id, original.source_record_id);
+            assert_eq!(after.idempotency_key, original.idempotency_key);
+            assert!(after.is_user_modified);
+        }
+        // A subsequent provider refresh must respect the user's link even
+        // if the provider still calls the outgoing record a withdrawal.
+        let mut refreshed = rows;
+        for row in &mut refreshed {
+            row.id = format!("refreshed-{}", row.id);
+            row.idempotency_key = Some(format!("refreshed-{}", row.id));
+            row.notes = Some("Provider refresh".into());
+        }
+        refreshed[0].activity_type = "WITHDRAWAL".into();
+        let result = repo.bulk_upsert(refreshed).await.unwrap();
+        assert_eq!(result.skipped, 2);
+        assert_eq!(result.upserted, 0);
+        let after = repo.get_activities().unwrap();
+        assert_eq!(
+            serde_json::to_value(after).unwrap(),
+            serde_json::to_value(linked).unwrap()
+        );
+    }
+
+    #[tokio::test]
     async fn link_transfer_activities_marks_user_modified_and_allows_same_account_cash_fx() {
         let (pool, writer) = setup_db();
         let repo = ActivityRepository::new(pool.clone(), writer);
