@@ -118,3 +118,37 @@ async fn search_activities_returns_each_row_cash_balance() {
     assert!(activities[1].get("cashBalanceCurrency").is_none());
     assert!(activities[1].get("cashBalanceScope").is_none());
 }
+
+#[tokio::test]
+async fn search_activities_returns_tax_subtype_and_review_state() {
+    let mut activity = activity_with_notes(None);
+    activity.activity_type = "DIVIDEND".to_string();
+    activity.subtype = Some("DRIP".to_string());
+    activity.tax = Some("1.50".to_string());
+    activity.needs_review = true;
+    activity.asset_id = "asset-1".to_string();
+    activity.asset_name = Some("Apple".to_string());
+    activity.instrument_type = Some("EQUITY".to_string());
+    activity.source_system = Some("CSV".to_string());
+    let mut env = MockEnvironment::new();
+    env.activity_service = Arc::new(MockActivityService {
+        activities: vec![activity],
+        ..Default::default()
+    });
+
+    let result = SearchActivities
+        .call(Arc::new(env), serde_json::json!({}))
+        .await
+        .unwrap();
+
+    let row = &result.content["activities"][0];
+    assert_eq!(row["subtype"], "DRIP");
+    assert_eq!(row["tax"], serde_json::json!(1.5));
+    assert_eq!(row["status"], "POSTED");
+    assert_eq!(row["needsReview"], true);
+    assert_eq!(row["assetId"], "asset-1");
+    assert_eq!(row["assetName"], "Apple");
+    assert_eq!(row["instrumentType"], "EQUITY");
+    assert_eq!(row["sourceSystem"], "CSV");
+    assert_eq!(row["isUserModified"], false);
+}
