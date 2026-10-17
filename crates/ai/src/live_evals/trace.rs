@@ -4,20 +4,33 @@
 //! `ChatService::send_message` and records every `ToolCall` event. The
 //! resulting `ToolTrace` is what we assert against expected/forbidden/max.
 
+use std::collections::HashMap;
+
 use crate::types::AiStreamEvent;
 use serde_json::Value;
 
 /// One observed tool invocation from the agent.
 #[derive(Debug, Clone)]
 pub struct CapturedToolCall {
+    pub id: String,
     pub name: String,
     pub args: Value,
+}
+
+/// What a tool call returned.
+#[derive(Debug, Clone)]
+pub struct CapturedToolResult {
+    pub success: bool,
+    pub data: Value,
+    pub error: Option<String>,
 }
 
 /// All tool calls fired during one chat turn, in order, plus the final text.
 #[derive(Debug, Clone, Default)]
 pub struct ToolTrace {
     pub tool_calls: Vec<CapturedToolCall>,
+    /// Results by tool call id.
+    pub tool_results: HashMap<String, CapturedToolResult>,
     pub final_text: String,
     /// True if the stream emitted an error event.
     pub had_error: bool,
@@ -42,9 +55,20 @@ impl ToolTrace {
         match event {
             AiStreamEvent::ToolCall { tool_call, .. } => {
                 self.tool_calls.push(CapturedToolCall {
+                    id: tool_call.id.clone(),
                     name: tool_call.name.clone(),
                     args: tool_call.arguments.clone(),
                 });
+            }
+            AiStreamEvent::ToolResult { result, .. } => {
+                self.tool_results.insert(
+                    result.tool_call_id.clone(),
+                    CapturedToolResult {
+                        success: result.success,
+                        data: result.data.clone(),
+                        error: result.error.clone(),
+                    },
+                );
             }
             AiStreamEvent::TextDelta { delta, .. } => {
                 self.final_text.push_str(delta);

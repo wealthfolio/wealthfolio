@@ -1,0 +1,79 @@
+# CSV import fidelity: the review grid must hold the attached file, unchanged.
+#
+# The model writes only the mapping; `import_csv` reads the attached file and the
+# grid parses that file with the tool's parseConfig. Each case checks the grid
+# against the file parsed at its real header row. The files are fictional
+# (invented trades on ordinary tickers); 500 rows is the documented import limit.
+# Baseline before the attachment change (2026-10-15, claude-sonnet-4-6): 8 of 12
+# runs passed; every 500-row run ended without a tool call.
+
+name = "csv_import"
+description = "Attached CSV files reach the import review grid whole."
+
+[[case]]
+id = "csv_import_50_rows_grid_matches_file"
+description = "A small CSV reaches the review grid whole"
+prompt = "Import these transactions."
+fixture = "brokerage_account"
+tags = ["csv", "fidelity"]
+
+[[case.attachments]]
+name = "trades_050.csv"
+contentType = "text/csv"
+path = "../data/csv/trades_050.csv"
+
+[case.expected_csv_import]
+attachment = "trades_050.csv"
+
+# ----------------------------------------------------------------------------
+
+[[case]]
+id = "csv_import_preamble_grid_matches_file"
+description = "A statement with preamble lines and a blank line keeps its real header row"
+prompt = "Import these transactions."
+fixture = "brokerage_account"
+tags = ["csv", "fidelity", "preamble"]
+
+[[case.attachments]]
+name = "statement_messy_080.csv"
+contentType = "text/csv"
+path = "../data/csv/statement_messy_080.csv"
+
+# Three preamble lines and a blank line: the parser skips 3 rows, not 4.
+[case.expected_csv_import]
+attachment = "statement_messy_080.csv"
+header_row = 3
+
+# ----------------------------------------------------------------------------
+
+[[case]]
+id = "csv_import_200_rows_grid_matches_file"
+description = "A 200-row CSV reaches the review grid whole"
+prompt = "Import these transactions."
+fixture = "brokerage_account"
+tags = ["csv", "fidelity"]
+
+[[case.attachments]]
+name = "trades_200.csv"
+contentType = "text/csv"
+path = "../data/csv/trades_200.csv"
+
+[case.expected_csv_import]
+attachment = "trades_200.csv"
+
+# ----------------------------------------------------------------------------
+
+[[case]]
+id = "csv_import_500_rows_grid_matches_file"
+description = "A 500-row CSV (the import limit) reaches the review grid whole"
+prompt = "Import these transactions."
+fixture = "brokerage_account"
+tags = ["csv", "fidelity"]
+
+[[case.attachments]]
+name = "trades_500.csv"
+contentType = "text/csv"
+path = "../data/csv/trades_500.csv"
+
+[case.expected_csv_import]
+attachment = "trades_500.csv"
