@@ -30,6 +30,7 @@ pub mod propose_categories;
 pub mod quote_import;
 pub mod record_activities;
 pub mod record_activity;
+pub mod transaction_categories;
 pub mod transfer_links;
 pub mod valuation;
 
@@ -134,6 +135,12 @@ pub use activity_updates::{
     PrepareActivityUpdatesOutput, StoredChange, UpdatedActivity,
 };
 
+pub use transaction_categories::{
+    CommitTransactionCategory, CommitTransactionCategoryArgs, ListTransactionCategories,
+    ListTransactionCategoriesArgs, PrepareTransactionCategory, PrepareTransactionCategoryArgs,
+    TransactionCategoryDraft,
+};
+
 // MCP-only CSV import tools (validate + dedup-safe import pipeline).
 pub use activity_import::{
     ActivityImportArgs, ActivityImportRow, CommitActivityImport, CommitActivityImportOutput,
@@ -230,6 +237,16 @@ pub fn activity_update_tools() -> Vec<Arc<dyn AgentTool>> {
     vec![
         Arc::new(PrepareActivityUpdates),
         Arc::new(CommitActivityUpdates),
+    ]
+}
+
+/// MCP-only category discovery and creation; the assistant has no category
+/// creation confirmation widget.
+pub fn transaction_category_tools() -> Vec<Arc<dyn AgentTool>> {
+    vec![
+        Arc::new(ListTransactionCategories),
+        Arc::new(PrepareTransactionCategory),
+        Arc::new(CommitTransactionCategory),
     ]
 }
 

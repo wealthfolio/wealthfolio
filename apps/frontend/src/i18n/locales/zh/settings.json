@@ -1192,6 +1192,7 @@
       "update_error": "更新类别失败。",
       "created": "类别已创建。",
       "create_error": "创建类别失败。",
+      "duplicate_error": "此类别键已被使用，请尝试其他名称。",
       "tab_expense_other": "支出（{{count}}）",
       "tab_income_other": "收入（{{count}}）",
       "tab_savings_other": "储蓄（{{count}}）"

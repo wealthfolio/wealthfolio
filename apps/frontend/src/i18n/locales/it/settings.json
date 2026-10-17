@@ -1240,6 +1240,7 @@
       "update_error": "Impossibile aggiornare la categoria.",
       "created": "Categoria creata.",
       "create_error": "Impossibile creare la categoria.",
+      "duplicate_error": "Un'altra categoria usa già questa chiave. Prova con un altro nome.",
       "tab_expense_one": "Spesa ({{count}})",
       "tab_expense_many": "Spesa ({{count}})",
       "tab_expense_other": "Spesa ({{count}})",

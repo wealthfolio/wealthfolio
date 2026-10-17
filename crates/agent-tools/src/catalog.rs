@@ -36,8 +36,9 @@ impl AgentToolCatalog {
     }
 
     /// The MCP catalog: read + draft/suggest + commit, import, transfer
-    /// linking, quote import and activity update tools. Scope filtering at the
-    /// boundary (`execute`, `list_tools`) hides whatever a token can't reach.
+    /// linking, quote import, activity update and category management tools.
+    /// Scope filtering at the boundary (`execute`, `list_tools`) hides whatever
+    /// a token can't reach.
     pub fn mcp_catalog() -> Self {
         let mut tools = crate::tools::v1_read_tools();
         tools.extend(crate::tools::draft_suggest_tools());
@@ -46,6 +47,7 @@ impl AgentToolCatalog {
         tools.extend(crate::tools::transfer_link_tools());
         tools.extend(crate::tools::quote_import_tools());
         tools.extend(crate::tools::activity_update_tools());
+        tools.extend(crate::tools::transaction_category_tools());
         Self::new(tools)
     }
 
@@ -251,6 +253,43 @@ mod tests {
     }
 
     #[test]
+    fn mcp_catalog_includes_transaction_category_management() {
+        let catalog = AgentToolCatalog::mcp_catalog();
+        let assistant = AgentToolCatalog::assistant_catalog();
+        for (name, access, scopes) in [
+            (
+                "list_transaction_categories",
+                crate::AgentToolAccess::Read,
+                vec![crate::AgentScope::ClassificationRead],
+            ),
+            (
+                "prepare_transaction_category",
+                crate::AgentToolAccess::Draft,
+                vec![
+                    crate::AgentScope::ClassificationRead,
+                    crate::AgentScope::ClassificationSuggest,
+                ],
+            ),
+            (
+                "commit_transaction_category",
+                crate::AgentToolAccess::Write,
+                vec![
+                    crate::AgentScope::ClassificationRead,
+                    crate::AgentScope::ClassificationSuggest,
+                    crate::AgentScope::ClassificationWrite,
+                ],
+            ),
+        ] {
+            let tool = catalog
+                .get(name)
+                .unwrap_or_else(|| panic!("missing {name}"));
+            assert_eq!(tool.access_level(), access);
+            assert_eq!(tool.required_scopes(), scopes);
+            assert!(assistant.get(name).is_none());
+        }
+    }
+
+    #[test]
     fn assistant_catalog_excludes_commit_tools() {
         let catalog = AgentToolCatalog::assistant_catalog();
         let names: Vec<&str> = catalog.iter().map(|tool| tool.name()).collect();
@@ -275,6 +314,67 @@ mod tests {
         assert!(!names.contains(&"commit_activity_updates"));
     }
 
+    #[tokio::test]
+    async fn transaction_category_parse_errors_do_not_echo_private_input() {
+        let catalog = AgentToolCatalog::mcp_catalog();
+        let granted = AgentScopeSet::from_strs([
+            "classification:read",
+            "classification:suggest",
+            "classification:write",
+        ]);
+        for name in [
+            "list_transaction_categories",
+            "prepare_transaction_category",
+            "commit_transaction_category",
+        ] {
+            for args in [
+                serde_json::json!("private-value"),
+                serde_json::json!({"private-field": "private-value", "taxonomyId": ["private-value"]}),
+            ] {
+                let error = catalog
+                    .execute(Arc::new(PanicEnv::default()), &granted, name, args)
+                    .await
+                    .unwrap_err()
+                    .to_string();
+                assert!(!error.contains("private-field"), "{name}: {error}");
+                assert!(!error.contains("private-value"), "{name}: {error}");
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn transaction_category_tools_deny_missing_scopes_before_service_access() {
+        let catalog = AgentToolCatalog::mcp_catalog();
+        for name in [
+            "list_transaction_categories",
+            "prepare_transaction_category",
+            "commit_transaction_category",
+        ] {
+            let required = catalog.get(name).unwrap().required_scopes();
+            for missing in required {
+                let granted = AgentScopeSet::from_strs(
+                    required
+                        .iter()
+                        .filter(|scope| scope != &missing)
+                        .map(|scope| scope.as_str()),
+                );
+                let error = catalog
+                    .execute(
+                        Arc::new(PanicEnv::default()),
+                        &granted,
+                        name,
+                        serde_json::json!({}),
+                    )
+                    .await
+                    .unwrap_err();
+                assert!(
+                    matches!(error, AgentToolError::ScopeDenied { .. }),
+                    "{name}: {error}"
+                );
+            }
+        }
+    }
+
     #[test]
     fn mcp_catalog_includes_commit_and_import_tools() {
         let catalog = AgentToolCatalog::mcp_catalog();
@@ -294,7 +394,7 @@ mod tests {
         assert!(names.contains(&"commit_quote_import"));
         assert!(names.contains(&"prepare_activity_updates"));
         assert!(names.contains(&"commit_activity_updates"));
-        // Read-only token still sees exactly 16 read tools.
+        // The shared v1 read catalog stays unchanged; category management is MCP-only.
         assert_eq!(crate::tools::v1_read_tools().len(), 16);
     }
 

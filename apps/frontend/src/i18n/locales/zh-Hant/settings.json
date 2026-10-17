@@ -1206,6 +1206,7 @@
       "update_error": "更新類別失敗。",
       "created": "類別已建立。",
       "create_error": "建立類別失敗。",
+      "duplicate_error": "此類別鍵已被使用，請嘗試其他名稱。",
       "tab_expense_other": "支出（{{count}}）",
       "tab_income_other": "收入（{{count}}）",
       "tab_savings_other": "儲蓄（{{count}}）",

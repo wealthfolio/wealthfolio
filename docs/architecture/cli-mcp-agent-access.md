@@ -454,6 +454,37 @@ commit_categorization_rule         -- persist one reviewed categorization rule d
 commit_transaction_categories     -- persist reviewed transaction category assignments
 ```
 
+### MCP-only Transaction Category Management
+
+```text
+list_transaction_categories        -- list categories in the three activity taxonomies
+prepare_transaction_category      -- validate and draft one new category without saving
+commit_transaction_category       -- persist the reviewed category after confirmation
+```
+
+These tools only support `spending_categories`, `income_sources`, and
+`savings_categories`; they never create or modify asset taxonomies. Listing
+requires `classification:read` and works before any accounts or transactions
+exist. Preparation also requires `classification:suggest`; committing
+additionally requires `classification:write`.
+
+Call `list_transaction_categories` with an optional `taxonomyId` to discover
+existing category IDs, keys, and parent relationships. Prepare a category with
+`taxonomyId`, `name`, `key`, and optional `parentId`, `color` (`#RRGGBB`,
+default `#808080`), and `description`. Show the returned `category` object to
+the user, then pass that object to `commit_transaction_category` after
+confirmation. Committing revalidates the draft against current data, rejects
+duplicate keys and IDs, and requires the parent to belong to the selected
+taxonomy. Keys are case-sensitive, unique within a taxonomy, and cannot contain
+whitespace or control characters. Reusing a committed draft fails rather than
+creating a second category. Creation uses the native taxonomy service and SQLite
+writer. All native `create_category` callers, including REST and Tauri, now
+reject duplicate keys in these three activity taxonomies, including concurrent
+creates. Existing native update and bulk-import paths are unchanged and can
+still introduce duplicate keys; this is a creation-time check, not a global
+uniqueness constraint or a cleanup of existing data. Names, keys, descriptions,
+and parent IDs are redacted from MCP audit arguments.
+
 ### MCP-only CSV Import Tools
 
 ```text
@@ -686,7 +717,8 @@ activities:read          search_activities, get_import_mapping,
 financial-planning:read  get_goals, get_contribution_limits
 health:read              get_health_status
 classification:read      list_asset_taxonomies, get_asset_taxonomy_assignments,
-                         list_categorization_context
+                         list_categorization_context,
+                         list_transaction_categories
 ```
 
 Write / draft / suggest scopes:
@@ -705,10 +737,12 @@ activities:write         commit_activity_draft / commit_activity_drafts,
                          activities:draft)
 classification:suggest   propose_transaction_categories,
                          create_categorization_rule,
-                         prepare_asset_classification
+                         prepare_asset_classification,
+                         prepare_transaction_category
 classification:write     commit_asset_classification_draft,
                          commit_categorization_rule,
-                         commit_transaction_categories
+                         commit_transaction_categories,
+                         commit_transaction_category
                          (also requires classification:suggest)
 market-data:write        prepare_quote_import, commit_quote_import
                          (each also requires holdings:read)

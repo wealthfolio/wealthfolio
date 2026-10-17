@@ -35,6 +35,12 @@ import { SpendingBackLink } from "../components/spending-back-link";
 const SPENDING_TAXONOMY = "spending_categories";
 const INCOME_TAXONOMY = "income_sources";
 const SAVINGS_TAXONOMY = "savings_categories";
+const DUPLICATE_CATEGORY_KEY_ERROR = "A category with this key already exists in the taxonomy";
+
+function isDuplicateCategoryKeyError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : typeof error === "string" ? error : "";
+  return message.includes(DUPLICATE_CATEGORY_KEY_ERROR);
+}
 
 function buildTree(categories: TaxonomyCategory[]): CategoryNode[] {
   const byParent = new Map<string | null, CategoryNode[]>();
@@ -198,7 +204,12 @@ export default function SpendingCategoriesPage() {
             toast.success(t("settings:spending.categories.created"));
             setVisibleModal(false);
           },
-          onError: () => toast.error(t("settings:spending.categories.create_error")),
+          onError: (error) =>
+            toast.error(
+              isDuplicateCategoryKeyError(error)
+                ? t("settings:spending.categories.duplicate_error")
+                : t("settings:spending.categories.create_error"),
+            ),
         },
       );
     }

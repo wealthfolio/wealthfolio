@@ -10,7 +10,7 @@ use uuid::Uuid;
 
 use wealthfolio_core::taxonomies::{
     AssetTaxonomyAssignment, Category, NewAssetTaxonomyAssignment, NewCategory, NewTaxonomy,
-    Taxonomy, TaxonomyRepositoryTrait, TaxonomyWithCategories,
+    Taxonomy, TaxonomyRepositoryTrait, TaxonomyWithCategories, TRANSACTION_CATEGORY_TAXONOMY_IDS,
 };
 use wealthfolio_core::Result;
 
@@ -225,6 +225,26 @@ impl TaxonomyRepositoryTrait for TaxonomyRepository {
         self.writer
             .exec_projected(move |conn, projection| -> Result<Category> {
                 let taxonomy_id = category.taxonomy_id.clone();
+                // Reject duplicate keys on creation inside the writer's immediate
+                // transaction so concurrent creates cannot both pass a caller's
+                // read-side validation. Update and bulk import are unchanged.
+                if TRANSACTION_CATEGORY_TAXONOMY_IDS.contains(&taxonomy_id.as_str()) {
+                    let duplicate: bool = diesel::select(diesel::dsl::exists(
+                        taxonomy_categories::table
+                            .inner_join(taxonomies::table)
+                            .filter(taxonomy_categories::taxonomy_id.eq(&taxonomy_id))
+                            .filter(taxonomies::scope.eq("activity"))
+                            .filter(taxonomy_categories::key.eq(&category.key)),
+                    ))
+                    .get_result(conn)
+                    .map_err(StorageError::from)?;
+                    if duplicate {
+                        return Err(wealthfolio_core::errors::DatabaseError::UniqueViolation(
+                            "A category with this key already exists in the taxonomy".into(),
+                        )
+                        .into());
+                    }
+                }
                 let mut db: NewCategoryDB = category.into();
                 db.id = Some(db.id.unwrap_or_else(|| Uuid::new_v4().to_string()));
 

@@ -296,8 +296,8 @@ async fn mcp_pat_lifecycle() {
 
     let session = mcp_initialize(&server, &pat).await;
 
-    // tools/list -> the read-only catalog: 16 read tools + get_import_mapping
-    // and find_transfer_matches (also activities:read) = 18.
+    // tools/list -> the read-only catalog: 16 read tools + get_import_mapping,
+    // find_transfer_matches (also activities:read), and category listing = 19.
     let response = mcp_post(
         &server,
         Some(&pat),
@@ -308,10 +308,18 @@ async fn mcp_pat_lifecycle() {
     assert_eq!(response.status(), 200);
     let list = parse_sse_data(&response.text().await.unwrap());
     let tools = list["result"]["tools"].as_array().unwrap();
+    let names: Vec<&str> = tools
+        .iter()
+        .map(|tool| tool["name"].as_str().unwrap())
+        .collect();
     assert_eq!(
-        tools.len(),
-        18,
-        "read-only catalog must expose 18 tools (incl. get_import_mapping): {tools:?}"
+        names.len(),
+        19,
+        "read-only catalog must expose 19 tools (incl. get_import_mapping and category listing): {names:?}"
+    );
+    assert!(
+        names.contains(&"list_transaction_categories"),
+        "category list tool visible to read-only token"
     );
 
     // (h) tools/call succeeds and writes an audit row (awaited before the
@@ -458,9 +466,8 @@ async fn mcp_pat_lifecycle() {
 
 /// A write/suggest-scoped token sees the draft, suggest, commit, AND import
 /// tools via `tools/list` — proving scope-gated visibility extends past the
-/// read-only catalog. (Read-only tokens see 18; the full MCP catalog is
-/// 16 read + 5 draft/suggest + 5 commit + 3 import + 3 transfer linking +
-/// 2 quote import + 2 activity updates = 36.)
+/// read-only catalog. (Read-only tokens see 19; the full catalog includes the
+/// previous 36 tools plus three category-management tools = 39.)
 #[tokio::test]
 async fn mcp_write_scoped_token_sees_write_tools() {
     let server = spawn_server(true, false).await;
@@ -501,10 +508,13 @@ async fn mcp_write_scoped_token_sees_write_tools() {
     let names: Vec<&str> = tools.iter().map(|t| t["name"].as_str().unwrap()).collect();
     assert_eq!(
         tools.len(),
-        36,
-        "full-scope token must see all 36 tools: {names:?}"
+        39,
+        "full-scope token must see all 39 tools: {names:?}"
     );
     for name in [
+        "list_transaction_categories",
+        "prepare_transaction_category",
+        "commit_transaction_category",
         "find_transfer_matches",
         "link_transfer_activities",
         "unlink_transfer_activities",

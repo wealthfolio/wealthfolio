@@ -1120,6 +1120,7 @@
       "update_error": "Kategorie konnte nicht aktualisiert werden.",
       "created": "Kategorie erstellt.",
       "create_error": "Kategorie konnte nicht erstellt werden.",
+      "duplicate_error": "Eine andere Kategorie verwendet diesen Schlüssel bereits. Verwenden Sie einen anderen Namen.",
       "tab_expense_one": "Ausgaben ({{count}})",
       "tab_expense_other": "Ausgaben ({{count}})",
       "tab_income_one": "Einnahmen ({{count}})",

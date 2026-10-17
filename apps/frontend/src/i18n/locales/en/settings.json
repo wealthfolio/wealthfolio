@@ -1163,6 +1163,7 @@
       "update_error": "Failed to update category.",
       "created": "Category created.",
       "create_error": "Failed to create category.",
+      "duplicate_error": "Another category uses this key. Try a different name.",
       "tab_expense_one": "Expense ({{count}})",
       "tab_expense_other": "Expense ({{count}})",
       "tab_income_one": "Income ({{count}})",
