@@ -121,6 +121,25 @@ export function PageHeader({
   ...props
 }: PageHeaderProps) {
   const { isScrolled } = usePage();
+  const headerRef = React.useRef<HTMLElement>(null);
+
+  // Content that pins below this header, like a sticky table header, offsets
+  // itself by `--page-header-height`. The height varies with the safe-area
+  // inset, a subtitle and wrapping actions, so it is measured.
+  React.useLayoutEffect(() => {
+    const header = headerRef.current;
+    const parent = header?.parentElement;
+    if (!header || !parent || typeof ResizeObserver === "undefined") return;
+
+    const observer = new ResizeObserver(() => {
+      parent.style.setProperty("--page-header-height", `${header.getBoundingClientRect().height}px`);
+    });
+    observer.observe(header);
+    return () => {
+      observer.disconnect();
+      parent.style.removeProperty("--page-header-height");
+    };
+  }, []);
 
   const titleContent = heading ? (
     <div data-tauri-drag-region={dragRegion ? "true" : undefined} className="flex min-w-0 items-center gap-3">
@@ -139,6 +158,7 @@ export function PageHeader({
 
   return (
     <header
+      ref={headerRef}
       className={cn(
         "sticky top-0 z-50",
         // Native app feel with backdrop blur

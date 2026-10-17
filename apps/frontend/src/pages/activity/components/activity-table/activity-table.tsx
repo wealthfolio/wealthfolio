@@ -18,7 +18,7 @@ import { formatOptionSubtitle, parseOccSymbol } from "@/lib/occ-symbol";
 import { isRowBodyClick } from "@/lib/row-click";
 import { useSettingsContext } from "@/lib/settings-provider";
 import { ActivityDetails } from "@/lib/types";
-import { formatDateTime } from "@/lib/utils";
+import { cn, formatDateTime } from "@/lib/utils";
 import {
   type OnChangeFn,
   type VisibilityState,
@@ -59,6 +59,7 @@ import { Link } from "react-router-dom";
 import { connectPagePath } from "@/features/wealthfolio-connect/lib/connect-url";
 import { InfiniteScrollTrigger } from "@/components/infinite-scroll-trigger";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
+import { useHorizontalOverflow } from "@/hooks/use-horizontal-overflow";
 import { usePersistentState } from "@/hooks/use-persistent-state";
 import { useVirtualScrollContainer } from "@/hooks/use-virtual-scroll-container";
 import { useActivityMutations } from "../../hooks/use-activity-mutations";
@@ -739,6 +740,10 @@ export const ActivityTable = ({
   // page content and the table header, so account for that offset.
   const { listRef, scrollElement, scrollMargin } = useVirtualScrollContainer();
 
+  const [tableBox, setTableBox] = React.useState<HTMLDivElement | null>(null);
+  const [tableElement, setTableElement] = React.useState<HTMLTableElement | null>(null);
+  const scrollsSideways = useHorizontalOverflow(tableBox, tableElement);
+
   // Keyed by activity, so a row keeps its measured height when a page loads
   // above it or the sort order changes. Stable so the virtualizer does not
   // rebuild every row's measurement on each render.
@@ -829,16 +834,37 @@ export const ActivityTable = ({
     <div className="flex h-full flex-col">
       {/* `overflow-anchor: none` keeps the browser from choosing a row in here
           as its scroll anchor: rows are recycled as you scroll, and
-          re-anchoring to one that just changed height fights the virtualizer. */}
+          re-anchoring to one that just changed height fights the virtualizer.
+          The header pins to the page, below any sticky page header, only if
+          nothing between them is a scroll container. A box that scrolls
+          sideways is one, so the box scrolls only while the table is wider
+          than it, and `Table`'s own wrapper never does. */}
       <div
+        ref={setTableBox}
         data-virtual-scroll-parent
-        className="min-h-0 flex-1 overflow-auto rounded-md border"
+        className={cn(
+          "min-h-0 flex-1 rounded-md border",
+          scrollsSideways ? "overflow-auto" : "overflow-clip",
+        )}
         style={{ overflowAnchor: "none" }}
       >
-        <Table>
-          <TableHeader className="bg-muted-foreground/5 sticky top-0 z-10">
+        <Table ref={setTableElement} containerClassName="overflow-visible">
+          {/* Opaque, so rows don't show through the pinned header. A collapsed
+              row border stays with the table grid instead of moving with
+              sticky cells, so the cells draw the header's bottom line.
+              The page header's offset only applies when the header pins to
+              the page. Otherwise it pins to a nearer scroll container (the
+              box while it scrolls sideways, or at 1024px and below an
+              ancestor `globals.css` gives `overflow-x: hidden`), where that
+              offset would push it down over the rows. */}
+          <TableHeader
+            className={cn(
+              "bg-background sticky top-0 z-10 [&_th]:shadow-[inset_0_-1px_0_var(--color-border)] [&_tr]:border-b-0",
+              !scrollsSideways && "[@media(width>1024px)]:top-[var(--page-header-height,0px)]",
+            )}
+          >
             {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id}>
+              <TableRow key={headerGroup.id} className="bg-muted-foreground/5">
                 {headerGroup.headers.map((header) => {
                   return (
                     <TableHead key={header.id}>

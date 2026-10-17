@@ -712,7 +712,9 @@ const ActivityPage = () => {
   );
 
   const investmentContent = (
-    <div className="flex min-h-0 flex-1 flex-col space-y-4 overflow-hidden">
+    // `overflow-clip` rather than `hidden`: it clips the same, but isn't a
+    // scroll container, so the table's sticky header can pin to the page.
+    <div className="flex min-h-0 flex-1 flex-col space-y-4 overflow-clip">
       {statusFilter !== "pending" && (
         <NeedsReviewBanner
           accountIds={effectiveInvestmentAccountIds}

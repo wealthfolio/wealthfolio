@@ -153,6 +153,7 @@ npx playwright test && npx playwright show-report
 | `27-cost-basis-methods.spec.ts`        | Switching an account between FIFO, LIFO, HIFO and WAC in the account form, and the book cost each leaves                    |
 | `29-asset-mobile-scroll.spec.ts`       | Mobile asset section switching preserves page scroll while neighboring virtualized activity lists mount                     |
 | `30-activity-scroll.spec.ts`           | Desktop asset/account activity tabs preserve page scroll; Spending selection and mobile tab switching preserve scroll       |
+| `30-activity-sticky-header.spec.ts`    | Activity tables pin their column header below the page header when they fit, and scroll sideways when they don't            |
 | `31-manual-liability.spec.ts`          | Manual loan origination, balance correction/deletion, principal fallback, and net-worth consistency                         |
 | `31-formatting-regions.spec.ts`        | Austria, Romania, and Bulgaria formatting selections persist after saving and reloading settings                            |
 
