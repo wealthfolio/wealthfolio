@@ -7,9 +7,18 @@ use crate::env::AgentEnvironment;
 use crate::scope::AgentScope;
 use crate::tool::{AgentTool, AgentToolAccess, AgentToolError, AgentToolResult};
 
+/// A refresh within this many seconds of the last run returns that run, so a
+/// read-scoped caller cannot recompute every check back to back.
+const REFRESH_COOLDOWN_SECS: i64 = 60;
+
 /// Arguments for the get_health_status tool (no required args).
 #[derive(Debug, Default, Deserialize)]
-pub struct GetHealthStatusArgs {}
+#[serde(rename_all = "camelCase")]
+pub struct GetHealthStatusArgs {
+    /// Run the checks now instead of reading the cached status.
+    #[serde(default)]
+    pub refresh: bool,
+}
 
 /// DTO for a single health issue.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -53,8 +62,11 @@ impl AgentTool for GetHealthStatus {
     fn description(&self) -> &'static str {
         "Read the cached portfolio health status produced by the Health Center. \
                 `overallSeverity` is one of INFO | WARNING | ERROR | CRITICAL, or NOT_COMPUTED when \
-                no check has run yet in this session (in that case `issues` is empty and `note` \
-                tells the user how to populate it). \
+                no check has run yet in this session (in that case `issues` is empty). \
+                Pass `refresh: true` to run the checks now, as the Health Center's run does, \
+                when the status is NOT_COMPUTED or `isStale`, or after the user fixed data; it \
+                reads only local data and also refreshes the Health Center's cached status. A \
+                refresh within a minute of the last run returns that run. \
                 Each issue has `severity` (same scale), `category` (PRICE_STALENESS | FX_INTEGRITY | \
                 CLASSIFICATION | DATA_CONSISTENCY | ACCOUNT_CONFIGURATION | SETTINGS_CONFIGURATION), \
                 `title`, `message`, `affectedCount`, optional `affectedMvPct` (share of portfolio \
@@ -67,7 +79,12 @@ impl AgentTool for GetHealthStatus {
     fn input_schema(&self) -> serde_json::Value {
         serde_json::json!({
             "type": "object",
-            "properties": {},
+            "properties": {
+                "refresh": {
+                    "type": "boolean",
+                    "description": "Run the health checks now and return the fresh status, instead of reading the cached one. Default false."
+                }
+            },
             "required": []
         })
     }
@@ -85,16 +102,30 @@ impl AgentTool for GetHealthStatus {
         env: Arc<dyn AgentEnvironment>,
         args: serde_json::Value,
     ) -> Result<AgentToolResult, AgentToolError> {
-        let _args: GetHealthStatusArgs = serde_json::from_value(args)?;
+        let args: GetHealthStatusArgs = serde_json::from_value(args)?;
 
-        let Some(status) = env.health_service().get_cached_status().await else {
+        let cached = env.health_service().get_cached_status().await;
+        let recent = cached.as_ref().is_some_and(|status| {
+            chrono::Utc::now() - status.checked_at
+                < chrono::Duration::seconds(REFRESH_COOLDOWN_SECS)
+        });
+        let status = if args.refresh && !recent {
+            Some(
+                env.run_health_checks()
+                    .await
+                    .map_err(|e| AgentToolError::ExecutionFailed(e.to_string()))?,
+            )
+        } else {
+            cached
+        };
+        let Some(status) = status else {
             let output = GetHealthStatusOutput {
                 overall_severity: "NOT_COMPUTED".to_string(),
                 issues: Vec::new(),
                 is_stale: false,
                 note: Some(
-                    "No health check has run yet in this session. Ask the user to open \
-                     the Health Center to run a check."
+                    "No health check has run yet in this session. Call get_health_status \
+                     with refresh: true to run one."
                         .to_string(),
                 ),
             };

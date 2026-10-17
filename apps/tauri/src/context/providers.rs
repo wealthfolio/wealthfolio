@@ -682,6 +682,7 @@ async fn build_context(
     // Create AI environment and chat service
     let ai_environment = Arc::new(TauriAiEnvironment::new(
         base_currency.clone(),
+        timezone.clone(),
         account_service.clone(),
         activity_service.clone(),
         holdings_service.clone(),
@@ -703,6 +704,8 @@ async fn build_context(
         cash_activity_service.clone(),
         activity_taxonomy_assignment_service.clone(),
         categorization_rules_service.clone(),
+        snapshot_service.clone(),
+        lots_repository.clone(),
     ));
     let agent_environment: Arc<dyn wealthfolio_agent_tools::AgentEnvironment> =
         ai_environment.clone();

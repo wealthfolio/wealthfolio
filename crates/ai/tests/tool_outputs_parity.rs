@@ -20,7 +20,7 @@ use std::sync::Arc;
 use wealthfolio_agent_tools::AgentTool;
 use wealthfolio_ai::env::test_env::{
     MockAccountService, MockAssetService, MockCashActivityService, MockEnvironment,
-    MockTaxonomyService,
+    MockHealthService, MockTaxonomyService,
 };
 use wealthfolio_ai::tools::{
     GetAccounts, GetAssetAllocation, GetAssetTaxonomyAssignments, GetCashBalances, GetGoals,
@@ -214,6 +214,82 @@ output_test_dyn!(output_get_income, GetIncome, { "period": "ALL" });
 output_test_dyn!(output_get_income_default, GetIncome, {});
 output_test_dyn!(output_get_goals, GetGoals, {});
 output_test_dyn!(output_get_health_status, GetHealthStatus, {});
+output_test_dyn!(
+    output_get_health_status_refresh,
+    GetHealthStatus,
+    { "refresh": true }
+);
+
+/// A currency override must be a three-letter code, and a rate only applies
+/// between two currencies.
+#[tokio::test]
+async fn record_activity_rejects_a_bad_currency_and_a_same_currency_rate() {
+    let errors = |result: &serde_json::Value| -> Vec<String> {
+        result["ok"]["validation"]["errors"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|error| error["field"].as_str().unwrap().to_string())
+            .collect()
+    };
+    let deposit = |extra: serde_json::Value| {
+        let mut args = serde_json::json!({
+            "activityType": "DEPOSIT", "activityDate": "2026-01-17", "amount": 100.0
+        });
+        args.as_object_mut()
+            .unwrap()
+            .extend(extra.as_object().unwrap().clone());
+        args
+    };
+
+    let named = call_json_dyn(
+        RecordActivity,
+        single_account_env(),
+        deposit(serde_json::json!({ "currency": "us dollars" })),
+    )
+    .await;
+    assert_eq!(errors(&named), vec!["currency"], "{named}");
+    assert_eq!(named["ok"]["validation"]["isValid"], false);
+    assert_eq!(named["ok"]["draft"]["currency"], "USD", "{named}");
+
+    let same = call_json_dyn(
+        RecordActivity,
+        single_account_env(),
+        deposit(serde_json::json!({ "fxRate": 1.08 })),
+    )
+    .await;
+    assert_eq!(errors(&same), vec!["fx_rate"], "{same}");
+    assert_eq!(same["ok"]["validation"]["isValid"], false);
+}
+
+/// A refresh within a minute of the last run returns that run; an older one
+/// runs the checks again (the mock run reports INFO).
+#[tokio::test]
+async fn health_refresh_reuses_a_run_from_the_last_minute() {
+    let env_with_run_at = |checked_at: DateTime<Utc>| {
+        let mut status = wealthfolio_core::health::HealthStatus::healthy();
+        status.overall_severity = wealthfolio_core::health::Severity::Warning;
+        status.checked_at = checked_at;
+        let mut env = MockEnvironment::new();
+        env.health_service = Arc::new(MockHealthService {
+            cached_status: Some(status),
+        });
+        Arc::new(env)
+    };
+    let refresh = serde_json::json!({ "refresh": true });
+
+    let recent = call_json_dyn(
+        GetHealthStatus,
+        env_with_run_at(Utc::now()),
+        refresh.clone(),
+    )
+    .await;
+    assert_eq!(recent["ok"]["overallSeverity"], "WARNING", "{recent}");
+
+    let old = Utc::now() - chrono::Duration::minutes(2);
+    let rerun = call_json_dyn(GetHealthStatus, env_with_run_at(old), refresh).await;
+    assert_eq!(rerun["ok"]["overallSeverity"], "INFO", "{rerun}");
+}
 output_test_dyn!(output_list_asset_taxonomies, ListAssetTaxonomies, {});
 output_test_dyn!(
     output_get_asset_taxonomy_assignments,
@@ -706,6 +782,18 @@ output_test_dyn_env!(
     RecordActivity,
     single_account_env(),
     { "activityType": "DEPOSIT", "activityDate": "2026-01-17", "amount": 5000.0 }
+);
+output_test_dyn_env!(
+    output_record_activity_foreign_currency,
+    RecordActivity,
+    single_account_env(),
+    {
+        "activityType": "DEPOSIT",
+        "activityDate": "2026-01-17",
+        "amount": 1000.0,
+        "currency": " eur ",
+        "fxRate": 1.08
+    }
 );
 output_test_dyn_env!(
     output_record_activity_dividend_drip,

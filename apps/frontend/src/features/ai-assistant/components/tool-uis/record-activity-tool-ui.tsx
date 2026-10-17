@@ -71,6 +71,7 @@ interface ActivityDraft {
   fee?: number;
   tax?: number;
   currency: string;
+  fxRate?: number;
   accountId?: string;
   accountName?: string;
   subtype?: string;
@@ -283,6 +284,7 @@ function normalizeResult(result: unknown, fallbackCurrency: string): RecordActiv
     fee: finiteNumberValue(draftRaw.fee),
     tax: finiteNumberValue(draftRaw.tax),
     currency: (draftRaw.currency as string) ?? fallbackCurrency,
+    fxRate: finiteNumberValue(draftRaw.fxRate ?? draftRaw.fx_rate),
     accountId: (draftRaw.accountId as string) ?? (draftRaw.account_id as string) ?? undefined,
     accountName: (draftRaw.accountName as string) ?? (draftRaw.account_name as string) ?? undefined,
     subtype: (draftRaw.subtype as string) ?? undefined,
@@ -557,6 +559,7 @@ function draftToPseudoActivity(
     fee: draft.fee != null ? String(draft.fee) : null,
     tax: draft.tax != null ? String(draft.tax) : null,
     currency: draft.currency,
+    fxRate: draft.fxRate != null ? String(draft.fxRate) : null,
     comment: draft.notes,
     subtype: draft.subtype,
     exchangeMic: resolvedAsset?.exchangeMic ?? draft.exchangeMic,

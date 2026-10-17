@@ -248,6 +248,25 @@ impl Activity {
         self.status == ActivityStatus::Posted
     }
 
+    /// Whether a broker sync created this activity, so a later sync may send
+    /// it again: a source other than MANUAL or CSV, with an import run or a
+    /// source record id. Matches the storage outbox's broker-origin rule.
+    pub fn is_broker_synced(&self) -> bool {
+        let manual = self
+            .source_system
+            .as_deref()
+            .map(str::trim)
+            .is_some_and(|source| {
+                source.eq_ignore_ascii_case("MANUAL") || source.eq_ignore_ascii_case("CSV")
+            });
+        let non_empty = |value: &Option<String>| {
+            value
+                .as_deref()
+                .is_some_and(|value| !value.trim().is_empty())
+        };
+        !manual && (non_empty(&self.import_run_id) || non_empty(&self.source_record_id))
+    }
+
     /// The explicit external-transfer marker (`metadata.flow.is_external`),
     /// when the row carries one.
     pub fn explicit_external_transfer(&self) -> Option<bool> {

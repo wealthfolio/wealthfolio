@@ -21,6 +21,7 @@ use wealthfolio_core::activities::{AssetResolutionInput, NewActivity};
 use crate::env::AgentEnvironment;
 use crate::scope::AgentScope;
 use crate::tool::{AgentTool, AgentToolAccess, AgentToolError, AgentToolResult};
+use crate::tools::activity_updates::parse_currency;
 use crate::tools::record_activity::ActivityDraft;
 
 /// Max drafts per `commit_activity_drafts` call. Mirrors the `record_activities`
@@ -142,6 +143,16 @@ fn draft_to_new_activity(draft: &ActivityDraft) -> Result<NewActivity, AgentTool
         }
     };
 
+    let currency = parse_currency(&Some(draft.currency.clone()))
+        .map_err(AgentToolError::InvalidInput)?
+        .ok_or_else(|| AgentToolError::InvalidInput("Draft is missing a currency".to_string()))?;
+    let fx_rate = to_decimal(draft.fx_rate, "fxRate")?;
+    if fx_rate.is_some_and(|rate| rate <= Decimal::ZERO) {
+        return Err(AgentToolError::InvalidInput(
+            "FX rate must be a positive number".to_string(),
+        ));
+    }
+
     Ok(NewActivity {
         id: None,
         account_id,
@@ -151,13 +162,13 @@ fn draft_to_new_activity(draft: &ActivityDraft) -> Result<NewActivity, AgentTool
         activity_date: draft.activity_date.clone(),
         quantity: to_decimal(draft.quantity, "quantity")?,
         unit_price: to_decimal(draft.unit_price, "unitPrice")?,
-        currency: draft.currency.clone(),
+        currency,
         fee: to_decimal(draft.fee, "fee")?,
         tax: to_decimal(draft.tax, "tax")?,
         amount: to_decimal(draft.amount, "amount")?,
         status: None,
         notes: draft.notes.clone(),
-        fx_rate: None,
+        fx_rate,
         metadata: None,
         // Committed drafts are previously reviewed (see module docs), so a
         // custom trade total is attested rather than queued for review again.
@@ -370,6 +381,7 @@ fn activity_draft_schema() -> serde_json::Value {
             "fee": { "type": "number" },
             "tax": { "type": "number" },
             "currency": { "type": "string" },
+            "fxRate": { "type": "number", "description": "Rate converting currency into the account currency. Omit to use the market rate." },
             "accountId": { "type": "string" },
             "accountName": { "type": "string" },
             "subtype": { "type": "string" },
@@ -406,6 +418,7 @@ mod tests {
             fee: Some(1.0),
             tax: None,
             currency: "USD".to_string(),
+            fx_rate: None,
             account_id: Some("acct-1".to_string()),
             account_name: Some("Brokerage".to_string()),
             subtype: None,
@@ -477,6 +490,30 @@ mod tests {
         assert_eq!(asset.instrument_type.as_deref(), Some("EQUITY"));
         assert_eq!(asset.provider_id.as_deref(), Some("YAHOO"));
         assert_eq!(asset.provider_symbol.as_deref(), Some("ABC.ZZ"));
+    }
+
+    #[test]
+    fn keeps_draft_fx_rate() {
+        let mut draft = security_draft();
+        draft.fx_rate = Some(1.35);
+        let new = draft_to_new_activity(&draft).unwrap();
+        assert_eq!(new.fx_rate, Some(Decimal::new(135, 2)));
+
+        draft.fx_rate = Some(0.0);
+        assert!(matches!(
+            draft_to_new_activity(&draft),
+            Err(AgentToolError::InvalidInput(_))
+        ));
+    }
+
+    #[test]
+    fn invalid_currency_is_rejected() {
+        let mut draft = security_draft();
+        draft.currency = "us dollars".to_string();
+        assert!(matches!(
+            draft_to_new_activity(&draft),
+            Err(AgentToolError::InvalidInput(_))
+        ));
     }
 
     #[test]

@@ -6,6 +6,7 @@
 
 pub mod accounts;
 pub mod activities;
+pub mod activity_deletions;
 pub mod activity_import;
 pub mod activity_updates;
 pub mod allocation;
@@ -134,6 +135,13 @@ pub use activity_updates::{
     PrepareActivityUpdatesOutput, StoredChange, UpdatedActivity,
 };
 
+// MCP-only activity deletion tools (preview, then delete).
+pub use activity_deletions::{
+    ActivityDeletionError, ActivityDeletionPreviewRow, ActivityDeletionPreviewSummary,
+    CommitActivityDeletions, CommitActivityDeletionsOutput, DeletedActivity,
+    PrepareActivityDeletions, PrepareActivityDeletionsOutput,
+};
+
 // MCP-only CSV import tools (validate + dedup-safe import pipeline).
 pub use activity_import::{
     ActivityImportArgs, ActivityImportRow, CommitActivityImport, CommitActivityImportOutput,
@@ -223,13 +231,16 @@ pub fn quote_import_tools() -> Vec<Arc<dyn AgentTool>> {
     vec![Arc::new(PrepareQuoteImport), Arc::new(CommitQuoteImport)]
 }
 
-/// The MCP-only activity update tools: preview corrections to existing
-/// activities, then apply them in place. Not exposed to the in-app assistant,
-/// which has no confirmation step for them; users edit in the activity grid.
+/// The MCP-only activity update tools: preview corrections (or a void) to
+/// existing activities, then apply them in place; and preview deletions, then
+/// delete. Not exposed to the in-app assistant, which has no confirmation step
+/// for them; users edit and delete in the activity grid.
 pub fn activity_update_tools() -> Vec<Arc<dyn AgentTool>> {
     vec![
         Arc::new(PrepareActivityUpdates),
         Arc::new(CommitActivityUpdates),
+        Arc::new(PrepareActivityDeletions),
+        Arc::new(CommitActivityDeletions),
     ]
 }
 

@@ -460,7 +460,7 @@ async fn mcp_pat_lifecycle() {
 /// tools via `tools/list` — proving scope-gated visibility extends past the
 /// read-only catalog. (Read-only tokens see 18; the full MCP catalog is
 /// 16 read + 5 draft/suggest + 5 commit + 3 import + 3 transfer linking +
-/// 2 quote import + 2 activity updates = 36.)
+/// 2 quote import + 2 activity updates + 2 activity deletions = 38.)
 #[tokio::test]
 async fn mcp_write_scoped_token_sees_write_tools() {
     let server = spawn_server(true, false).await;
@@ -501,8 +501,8 @@ async fn mcp_write_scoped_token_sees_write_tools() {
     let names: Vec<&str> = tools.iter().map(|t| t["name"].as_str().unwrap()).collect();
     assert_eq!(
         tools.len(),
-        36,
-        "full-scope token must see all 36 tools: {names:?}"
+        38,
+        "full-scope token must see all 38 tools: {names:?}"
     );
     for name in [
         "find_transfer_matches",
@@ -512,6 +512,8 @@ async fn mcp_write_scoped_token_sees_write_tools() {
         "commit_quote_import",
         "prepare_activity_updates",
         "commit_activity_updates",
+        "prepare_activity_deletions",
+        "commit_activity_deletions",
     ] {
         assert!(names.contains(&name), "{name} visible");
     }
@@ -2014,6 +2016,197 @@ async fn mcp_updates_keep_linked_transfers_paired() {
     )
     .await;
     assert_eq!(found["linkedTo"], out_id, "still linked: {found}");
+}
+
+/// A health:read token runs the Health Center checks with refresh: true; the
+/// result is then cached, so a plain read returns it instead of NOT_COMPUTED.
+#[tokio::test]
+async fn mcp_health_status_runs_checks_on_refresh() {
+    let server = spawn_server(true, false).await;
+    let cookie = login(&server).await;
+    disable_market_data_providers(&server, &cookie).await;
+    create_eur_account(&server, &cookie, "Brokerage").await;
+    let (status, token) = create_pat(
+        &server,
+        &cookie,
+        serde_json::json!({ "name": "health reader", "scopes": ["health:read"] }),
+    )
+    .await;
+    assert_eq!(status, 201);
+    let pat = token["token"].as_str().unwrap().to_string();
+    let session = mcp_initialize(&server, &pat).await;
+
+    let cached = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "get_health_status",
+        serde_json::json!({}),
+    )
+    .await;
+    assert_eq!(cached["overallSeverity"], "NOT_COMPUTED", "{cached}");
+    assert!(
+        cached["note"].as_str().unwrap().contains("refresh: true"),
+        "{cached}"
+    );
+
+    let refreshed = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "get_health_status",
+        serde_json::json!({ "refresh": true }),
+    )
+    .await;
+    let severity = refreshed["overallSeverity"].as_str().unwrap();
+    assert!(
+        ["INFO", "WARNING", "ERROR", "CRITICAL"].contains(&severity),
+        "{refreshed}"
+    );
+    assert_eq!(refreshed["isStale"], false, "{refreshed}");
+    assert!(refreshed.get("note").is_none(), "{refreshed}");
+
+    let cached = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "get_health_status",
+        serde_json::json!({}),
+    )
+    .await;
+    assert_eq!(cached["overallSeverity"], refreshed["overallSeverity"]);
+    assert_eq!(cached["issues"], refreshed["issues"], "{cached}");
+}
+
+/// A deletion is previewed first and removes both legs of a linked transfer;
+/// a void keeps the activity, mirrors onto the other leg, marks it
+/// user-modified so broker syncs keep it, and can be undone.
+#[tokio::test]
+async fn mcp_deletes_and_voids_activities_after_a_preview() {
+    let server = spawn_server(true, false).await;
+    let cookie = login(&server).await;
+    disable_market_data_providers(&server, &cookie).await;
+    let (pat, session) = activity_writer_session(&server, &cookie).await;
+    let chequing = create_eur_account(&server, &cookie, "Chequing").await;
+    let savings = create_eur_account(&server, &cookie, "Savings").await;
+    let cash = |account: &serde_json::Value, activity_type: &str, date: &str| {
+        api_post(
+            &server,
+            &cookie,
+            "activities",
+            serde_json::json!({
+                "accountId": account["id"], "activityType": activity_type,
+                "activityDate": date, "currency": "EUR", "amount": "100"
+            }),
+        )
+    };
+    let link = |out_id: serde_json::Value, in_id: serde_json::Value| {
+        mcp_call_tool(
+            &server,
+            &pat,
+            &session,
+            "link_transfer_activities",
+            serde_json::json!({ "pairs": [{ "activityAId": out_id, "activityBId": in_id }] }),
+        )
+    };
+    let out_id = cash(&chequing, "TRANSFER_OUT", "2026-04-01T12:00:00Z").await["id"].clone();
+    let in_id = cash(&savings, "TRANSFER_IN", "2026-04-01T12:00:00Z").await["id"].clone();
+    let linked = link(out_id.clone(), in_id.clone()).await;
+    assert_eq!(linked["errors"], serde_json::json!([]), "{linked}");
+
+    // Naming both legs: the second is already covered by the first.
+    let ids = serde_json::json!({ "activityIds": [out_id, in_id, "missing"] });
+    let preview = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "prepare_activity_deletions",
+        ids.clone(),
+    )
+    .await;
+    assert_eq!(preview["summary"]["ready"], 1, "{preview}");
+    assert_eq!(preview["summary"]["activitiesDeleted"], 2, "{preview}");
+    assert_eq!(preview["rows"][0]["activity"]["amount"], "100", "{preview}");
+    assert_eq!(
+        preview["rows"][0]["linkedActivity"]["accountId"], savings["id"],
+        "{preview}"
+    );
+    let covered = preview["rows"][1]["error"].as_str().unwrap();
+    assert!(covered.contains("row 0"), "{covered}");
+    let missing = preview["rows"][2]["error"].as_str().unwrap();
+    assert!(missing.contains("not found"), "{missing}");
+    // The preview wrote nothing.
+    assert_eq!(
+        stored_activities(&server, &cookie, &chequing).await.len(),
+        1
+    );
+
+    let committed = mcp_call_tool(&server, &pat, &session, "commit_activity_deletions", ids).await;
+    assert_eq!(committed["deleted"][0]["activityId"], out_id, "{committed}");
+    assert_eq!(
+        committed["errors"].as_array().unwrap().len(),
+        2,
+        "{committed}"
+    );
+    assert!(stored_activities(&server, &cookie, &chequing)
+        .await
+        .is_empty());
+    assert!(stored_activities(&server, &cookie, &savings)
+        .await
+        .is_empty());
+
+    // Voiding one leg of a linked transfer voids the other leg too.
+    let out_id = cash(&chequing, "TRANSFER_OUT", "2026-04-02T12:00:00Z").await["id"].clone();
+    let in_id = cash(&savings, "TRANSFER_IN", "2026-04-02T12:00:00Z").await["id"].clone();
+    let linked = link(out_id.clone(), in_id.clone()).await;
+    assert_eq!(linked["errors"], serde_json::json!([]), "{linked}");
+    let void = serde_json::json!({ "activityId": out_id, "void": true });
+    let preview = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "prepare_activity_updates",
+        serde_json::json!({ "updates": [void.clone()] }),
+    )
+    .await;
+    let previewed = &preview["rows"][0];
+    assert_eq!(previewed["status"], "ready", "{preview}");
+    assert_eq!(changed_fields(&previewed["changes"]), vec!["status"]);
+    assert_eq!(previewed["changes"][0]["proposed"], "VOID", "{preview}");
+    assert_eq!(changed_fields(&previewed["linkedChanges"]), vec!["status"]);
+    assert_eq!(
+        stored_activities(&server, &cookie, &chequing).await[0]["status"],
+        "POSTED"
+    );
+
+    let committed = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "commit_activity_updates",
+        serde_json::json!({ "updates": [void] }),
+    )
+    .await;
+    assert_eq!(committed["errors"], serde_json::json!([]), "{committed}");
+    for (account, id) in [(&chequing, &out_id), (&savings, &in_id)] {
+        let stored = stored_activities(&server, &cookie, account).await;
+        let voided = activity_by_id(&stored, id);
+        assert_eq!(voided["status"], "VOID", "{stored:?}");
+        assert_eq!(voided["isUserModified"], true, "{stored:?}");
+    }
+
+    let restore = serde_json::json!({ "updates": [{ "activityId": in_id, "void": false }] });
+    let committed =
+        mcp_call_tool(&server, &pat, &session, "commit_activity_updates", restore).await;
+    assert_eq!(committed["errors"], serde_json::json!([]), "{committed}");
+    for (account, id) in [(&chequing, &out_id), (&savings, &in_id)] {
+        let stored = stored_activities(&server, &cookie, account).await;
+        assert_eq!(
+            activity_by_id(&stored, id)["status"],
+            "POSTED",
+            "{stored:?}"
+        );
+    }
 }
 
 /// Core mirrors a linked cross-currency cash transfer with the pair's stored
