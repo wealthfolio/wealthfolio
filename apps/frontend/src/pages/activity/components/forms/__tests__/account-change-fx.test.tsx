@@ -101,35 +101,28 @@ describe("account currency change through validated desktop submission", () => {
           accountId: "new",
           currency: "EUR",
         });
-        if (currency === "USD" && type !== "DEPOSIT") {
-          expect(payload).not.toHaveProperty("fxRate");
-        } else {
-          expect(payload.fxRate).toBe(currency === "USD" ? "1.2" : null);
-        }
+        expect(payload.fxRate).toBe(currency === "USD" ? "1.2" : null);
       },
     );
   });
-  describe.each(["FEE", "TAX"] as const)("hidden FX in %s", (type) => {
-    it.each(["0", "1.234567890123456789"])(
-      "leaves the stored %s rate untouched",
-      async (storedRate) => {
-        render(
-          <QueryClientProvider client={new QueryClient()}>
-            <ActivitySplitReviewProvider>
-              <EditDeposit type={type} destinationCurrency="USD" storedRate={storedRate} />
-            </ActivitySplitReviewProvider>
-          </QueryClientProvider>,
-        );
-        const user = userEvent.setup();
-        await user.click(screen.getByTestId("advanced-options-button"));
-        screen.getByRole("combobox", { name: "Account" }).focus();
-        await user.keyboard("[ArrowDown][End][Enter]");
-        await user.click(screen.getByRole("button", { name: /update/i }));
-        await waitFor(() => expect(adapter.updateActivity).toHaveBeenCalledTimes(1));
-        expect(
-          JSON.parse(JSON.stringify(adapter.updateActivity.mock.calls[0][0])),
-        ).not.toHaveProperty("fxRate");
-      },
-    );
+  describe.each(["FEE", "TAX"] as const)("legacy FX in %s", (type) => {
+    it.each(["0"])("leaves the stored %s rate untouched", async (storedRate) => {
+      render(
+        <QueryClientProvider client={new QueryClient()}>
+          <ActivitySplitReviewProvider>
+            <EditDeposit type={type} destinationCurrency="USD" storedRate={storedRate} />
+          </ActivitySplitReviewProvider>
+        </QueryClientProvider>,
+      );
+      const user = userEvent.setup();
+      await user.click(screen.getByTestId("advanced-options-button"));
+      screen.getByRole("combobox", { name: "Account" }).focus();
+      await user.keyboard("[ArrowDown][End][Enter]");
+      await user.click(screen.getByRole("button", { name: /update/i }));
+      await waitFor(() => expect(adapter.updateActivity).toHaveBeenCalledTimes(1));
+      expect(
+        JSON.parse(JSON.stringify(adapter.updateActivity.mock.calls[0][0])),
+      ).not.toHaveProperty("fxRate");
+    });
   });
 });

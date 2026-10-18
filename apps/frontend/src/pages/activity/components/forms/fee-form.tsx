@@ -51,8 +51,17 @@ export const createFeeFormSchema = (t?: TFunction) =>
       .string({ error: msg(t, "activity:form.err_currency_required", "Currency is required.") })
       .min(1, { message: msg(t, "activity:form.err_currency_required", "Currency is required.") }),
     subtype: z.string().optional().nullable(),
-    // Only carry an explicit reset; otherwise retain the stored rate on updates.
-    fxRate: z.null().optional(),
+    fxRate: z.coerce
+      .number({
+        error: invalidTypeError(
+          msg(t, "activity:form.err_fxrate_number", "FX Rate must be a number."),
+        ),
+      })
+      .positive({
+        message: msg(t, "activity:form.err_fxrate_positive", "FX Rate must be positive."),
+      })
+      .optional()
+      .nullable(),
   });
 
 // Zod schema for FeeForm validation (English messages; used by tests).
@@ -132,11 +141,12 @@ export function FeeForm({
           <AmountInput name="amount" label={t("activity:form.label_amount")} currency={currency} />
         </FormSection>
 
-        {/* Advanced options (currency, subtype) and notes, collapsed by default */}
+        {/* Advanced options (currency, FX rate, subtype) and notes, collapsed by default */}
         <AdvancedOptionsSection
           title={t("activity:form.section_advanced_notes")}
           dashed
           currencyName="currency"
+          fxRateName="fxRate"
           subtypeName="subtype"
           activityType={ActivityType.FEE}
           accountCurrency={accountCurrency}
