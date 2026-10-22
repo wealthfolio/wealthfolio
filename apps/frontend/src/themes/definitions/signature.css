@@ -1,0 +1,263 @@
+/* @name Signature */
+/* @font font-sans */
+:root {
+  /* A pale grey page, near-white cards raised a step above it by a half-pixel
+     hairline and soft layered shadows, charcoal glass pill actions, and
+     lavender for information and focus. Charts take the Spending colours. Green
+     is kept to gains. */
+  --radius: 1rem;
+  /* Pills for actions, badges and segmented controls; round cards. */
+  --button-radius: 9999px;
+  --control-radius: 1rem;
+  --control-height: 2.5rem;
+  --card-radius: 1.5rem;
+  --card-border: transparent;
+  --card-shadow:
+    0 0 0 0.5px rgb(18 18 18 / 0.05), 0 1px 2px rgb(18 18 18 / 0.03),
+    0 4px 12px rgb(18 18 18 / 0.025), 0 16px 36px -12px rgb(18 18 18 / 0.07);
+  --popup-radius: 1.25rem;
+  --dialog-radius: 1.75rem;
+  --badge-radius: 9999px;
+  --segmented-radius: 9999px;
+  --background: #f8f8f8;
+  --foreground: #121212;
+  --card: #fdfdfd;
+  --card-foreground: #121212;
+  --popover: #ffffff;
+  --popover-foreground: #121212;
+  /* Charcoal pills with a white label: softer than ink, so the glass rim shows. */
+  --primary: #2a2a2a;
+  --primary-foreground: #ffffff;
+  /* Grey chips (secondary buttons and badges). */
+  --secondary: #e8e8e8;
+  --secondary-foreground: #1a1a1a;
+  --muted: #ececec;
+  --muted-foreground: #5c5c5c;
+  --accent: #ebebeb;
+  --accent-foreground: #121212;
+  --destructive: #b3261e;
+  --destructive-foreground: #ffffff;
+  --success: #357941;
+  --success-foreground: #ffffff;
+  --warning: #8a5a12;
+  --warning-foreground: #ffffff;
+  /* Status pills and alerts take the same hue as gain, loss and warning text:
+     a pale wash of each status colour, with the colour itself as the label. */
+  --success-subtle: #e8f2eb;
+  --success-subtle-foreground: var(--success);
+  --success-subtle-border: #bfd9c8;
+  --destructive-subtle: #fbe7e5;
+  --destructive-subtle-foreground: var(--destructive);
+  --destructive-subtle-border: #f2c3be;
+  --warning-subtle: #f8eedb;
+  --warning-subtle-foreground: var(--warning);
+  --warning-subtle-border: #ecd3a6;
+  /* Lavender: information pills and the focus ring. */
+  --info: #5b3fc4;
+  --info-foreground: #ffffff;
+  --info-subtle: #ebe7fb;
+  --info-subtle-foreground: #4a2fa6;
+  --info-subtle-border: #d7cff6;
+  --border: #ececec;
+  /* Fields: a pale well one step below the card, with a hairline edge. */
+  --input: #e0e0e0;
+  --input-bg: #f6f6f6;
+  --ring: #6d50d8;
+  /* Slate, mustard, lavender, cornflower, plum-rose, deep blue, pale gold,
+     stone, lilac: the Spending category colours, without a gain green or a
+     loss red. */
+  --chart-1: #4f6b92;
+  --chart-2: #b89a4c;
+  --chart-3: #8e7cb3;
+  --chart-4: #7b96c9;
+  --chart-5: #b74583;
+  --chart-6: #2f4f73;
+  --chart-7: #d2b98a;
+  --chart-8: #9c998e;
+  --chart-9: #b3a2cc;
+  --chart-stone: #cfccc6;
+  /* The sidebar is the page itself. */
+  --sidebar: #f8f8f8;
+  --sidebar-foreground: #262626;
+  --sidebar-primary: #2a2a2a;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #e6e6e6;
+  --sidebar-accent-foreground: #121212;
+  --sidebar-border: #ececec;
+  --sidebar-ring: #6d50d8;
+  --toast-border: #ececec;
+  /* Holdings treemap: sage gains and rose losses. */
+  --heatmap-positive-low: #e5ece7;
+  --heatmap-positive-high: #98b3a2;
+  --heatmap-negative-low: #f5e3e0;
+  --heatmap-negative-high: #d19a92;
+  --heatmap-label-dark: #121212;
+  --heatmap-label-light: #ffffff;
+  --heatmap-accent: #357941;
+  --status-warn: #8a5a12;
+  --event-default: #3f3524;
+  --event-today: #b08a4a;
+  /* Component surfaces. Edges are a hairline
+     inside the shadow, never a border: ink primary pills, glass outline and
+     secondary pills, flat fields, and overlays on wide, faint
+     layered shadows. */
+  --button-weight: 600;
+  /* Ink pills as the website's Download button draws them: a glass rim (the
+     fill lightened, as a 15% white edge over it reads), a lit top edge, a
+     shaded bottom edge and a soft drop. The rim is the button's own border:
+     its fill stops inside the border, so a translucent one would show the
+     page instead. */
+  --button-border: color-mix(in srgb, var(--primary) 85%, white);
+  --button-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.14), inset 0 -1px 0 rgb(0 0 0 / 0.2),
+    0 1px 2px rgb(0 0 0 / 0.12), 0 6px 18px -8px rgb(0 0 0 / 0.4);
+  /* Outline and secondary buttons are the segmented thumb's glass, with a
+     lower lift. A button's fill stops inside its 1px border, so the
+     thumb's ring is the border here and the shadow is the thumb's without it. */
+  --button-outline-bg: var(--segmented-thumb);
+  --button-outline-border: rgb(16 15 15 / 0.07);
+  --button-outline-image: var(--segmented-thumb-image);
+  --button-outline-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.9), 0 1px 1px rgb(16 15 15 / 0.03),
+    0 2px 4px -2px rgb(16 15 15 / 0.08);
+  --button-outline-hover-bg: #ffffff;
+  --button-secondary-bg: var(--button-outline-bg);
+  --button-secondary-border: var(--button-outline-border);
+  --button-secondary-image: var(--button-outline-image);
+  --button-secondary-shadow: var(--button-outline-shadow);
+  --button-secondary-hover-bg: var(--button-outline-hover-bg);
+  --field-border: #e8e8e8;
+  --field-shadow: 0 0 #0000;
+  --switch-thumb: #ffffff;
+  --switch-thumb-shadow:
+    0 0 0 0.5px rgb(18 18 18 / 0.05), 0 1px 2px rgb(18 18 18 / 0.1), 0 3px 8px rgb(18 18 18 / 0.12);
+  /* A glass thumb: a lit top edge, a hairline ring and a soft drop,
+     on the page tone, pill-shaped. */
+  --segmented-thumb: var(--background);
+  --segmented-thumb-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.9), 0 0 0 1px rgb(16 15 15 / 0.07),
+    0 2px 6px -2px rgb(16 15 15 / 0.14);
+  --overlay-border: transparent;
+  --overlay-shadow:
+    0 0 0 0.5px rgb(18 18 18 / 0.06), 0 2px 6px rgb(18 18 18 / 0.03),
+    0 12px 28px rgb(18 18 18 / 0.06), 0 32px 64px -16px rgb(18 18 18 / 0.16);
+  --popup-shadow:
+    0 2px 6px rgb(18 18 18 / 0.03), 0 10px 24px rgb(18 18 18 / 0.07),
+    0 24px 48px -12px rgb(18 18 18 / 0.12);
+  --card-title-tracking: -0.02em;
+}
+
+/* Dark: a near-black page with cards a step lighter, lit by a faint top edge
+   and a half-pixel rim, and white pills with an ink label. */
+.dark {
+  --card-border: transparent;
+  --card-shadow:
+    inset 0 0.5px 0 rgb(255 255 255 / 0.07), 0 0 0 0.5px rgb(255 255 255 / 0.06),
+    0 1px 2px rgb(0 0 0 / 0.3), 0 16px 36px -12px rgb(0 0 0 / 0.55);
+  --background: #0f0f10;
+  --foreground: #f4f4f5;
+  --card: #1a1a1c;
+  --card-foreground: #f4f4f5;
+  --popover: #212123;
+  --popover-foreground: #f4f4f5;
+  --primary: #f5f5f5;
+  --primary-foreground: #0b0b0b;
+  --secondary: #28282b;
+  --secondary-foreground: #ededee;
+  --muted: #202022;
+  --muted-foreground: #a3a3a8;
+  --accent: #29292c;
+  --accent-foreground: #f4f4f5;
+  --destructive: #f08a7e;
+  --destructive-foreground: #230a07;
+  --success: #86c09c;
+  --success-foreground: #08140d;
+  --warning: #e8b262;
+  --warning-foreground: #1a1203;
+  --success-subtle: #13241a;
+  --success-subtle-border: #2b4a37;
+  --destructive-subtle: #2c1513;
+  --destructive-subtle-border: #57281f;
+  --warning-subtle: #281d0b;
+  --warning-subtle-border: #4f3a16;
+  --info: #b3a3f7;
+  --info-foreground: #160e38;
+  --info-subtle: #221c3d;
+  --info-subtle-foreground: #d4caff;
+  --info-subtle-border: #3d3373;
+  --border: #262629;
+  --input: #3a3a3e;
+  --input-bg: #1f1f21;
+  --ring: #a996f5;
+  --chart-1: #8ea6cf;
+  --chart-2: #d4b66a;
+  --chart-3: #b2a3d9;
+  --chart-4: #a8bee8;
+  --chart-5: #db7fae;
+  --chart-6: #5f80b0;
+  --chart-7: #e8d3a6;
+  --chart-8: #a8a59b;
+  --chart-9: #cdbfe8;
+  --chart-stone: #5a5650;
+  --sidebar: #0f0f10;
+  --sidebar-foreground: #d4d4d8;
+  --sidebar-primary: #f5f5f5;
+  --sidebar-primary-foreground: #0b0b0b;
+  --sidebar-accent: #202022;
+  --sidebar-accent-foreground: #f4f4f5;
+  --sidebar-border: #1c1c1e;
+  --sidebar-ring: #a996f5;
+  --toast-border: #36363a;
+  --heatmap-positive-low: #213a2c;
+  --heatmap-positive-high: #86bf9c;
+  --heatmap-negative-low: #44272a;
+  --heatmap-negative-high: #ec8a7e;
+  --heatmap-label-dark: #121212;
+  --heatmap-label-light: #f4f4f5;
+  --heatmap-accent: #86c09c;
+  --status-warn: #e8b262;
+  --event-default: #b08a4a;
+  --event-today: #e6cf9f;
+  /* White pills: the rim is the fill darkened, as a 15% black edge reads. */
+  --button-border: color-mix(in srgb, var(--primary) 85%, black);
+  --button-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.55), inset 0 -1px 0 rgb(0 0 0 / 0.12),
+    0 1px 2px rgb(0 0 0 / 0.5), 0 6px 18px -8px rgb(0 0 0 / 0.6);
+  --button-outline-border: rgb(255 252 240 / 0.1);
+  --button-outline-shadow: inset 0 1px 0 rgb(255 255 255 / 0.08), 0 2px 8px -2px rgb(0 0 0 / 0.55);
+  --button-outline-hover-bg: #333337;
+  --field-border: #323236;
+  --switch-thumb: var(--background);
+  --segmented-thumb: #2c2c30;
+  --segmented-thumb-image: linear-gradient(180deg, rgb(255 255 255 / 0.07), rgb(255 255 255 / 0));
+  --segmented-thumb-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.08), 0 0 0 1px rgb(255 252 240 / 0.1),
+    0 2px 8px -2px rgb(0 0 0 / 0.55);
+  --overlay-border: transparent;
+  --overlay-shadow:
+    inset 0 0.5px 0 rgb(255 255 255 / 0.07), 0 0 0 0.5px rgb(255 255 255 / 0.08),
+    0 12px 28px rgb(0 0 0 / 0.4), 0 32px 64px -16px rgb(0 0 0 / 0.7);
+  --popup-shadow:
+    inset 0 0.5px 0 rgb(255 255 255 / 0.06), 0 10px 24px rgb(0 0 0 / 0.4),
+    0 24px 48px -12px rgb(0 0 0 / 0.6);
+}
+
+/* Element defaults only: a class on the element still wins. The page carries a
+   faint top-to-bottom tone; figures align in columns; headings are heavier and
+   tighter than body text. */
+:root body {
+  background-image: linear-gradient(180deg, #fafafa 0%, #f6f6f6 100%);
+  background-attachment: fixed;
+  font-variant-numeric: tabular-nums;
+}
+.dark body {
+  background-image: linear-gradient(180deg, #121213 0%, #0d0d0e 100%);
+}
+:root :is(h1, h2) {
+  font-weight: 700;
+  letter-spacing: -0.025em;
+}
+:root h3 {
+  font-weight: 600;
+  letter-spacing: -0.015em;
+}

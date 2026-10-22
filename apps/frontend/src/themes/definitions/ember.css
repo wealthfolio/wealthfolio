@@ -1,0 +1,136 @@
+/* @name Ember */
+:root {
+  /* Geometry, elevation and surfaces are Claude +'s: generous radii, compact
+     controls, two-layer soft shadows, warm paper canvas. */
+  --radius: 1rem;
+  /* Generous radii, compact controls (36px on a mouse), two-layer soft shadow. */
+  --button-radius: 0.875rem;
+  --control-radius: 0.875rem;
+  --control-height: 2.25rem;
+  --card-radius: 1rem;
+  --card-shadow: 0 1px 3px 0 hsl(0 0% 0% / 0.1), 0 1px 2px -1px hsl(0 0% 0% / 0.1);
+  --popup-radius: 0.875rem;
+  --dialog-radius: 1rem;
+  --badge-radius: 0.875rem;
+  --segmented-radius: 0.875rem;
+  --background: oklch(0.993 0 0);
+  --foreground: oklch(0.3438 0.0269 95.7226);
+  --card: oklch(0.9665 0.0067 97.3521);
+  --card-foreground: oklch(0.1908 0.002 106.5859);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.2671 0.0196 98.939);
+  /* Neutral chrome: colour is reserved for data. Graphite matches the first chart
+     step, and keeps primary actions clearly apart from destructive red. */
+  --primary: hsl(40 3% 20%);
+  --primary-foreground: #ffffff;
+  --secondary: oklch(0.9245 0.0138 92.9892);
+  --secondary-foreground: oklch(0.4334 0.0177 98.6048);
+  --muted: oklch(0.9341 0.0153 90.239);
+  --muted-foreground: oklch(0.51 0.0078 97.4503);
+  --accent: oklch(0.9245 0.0138 92.9892);
+  --accent-foreground: oklch(0.2671 0.0196 98.939);
+  /* Kept as a real red rather than Claude +'s near-black, so gain/loss stays
+     legible as a pair and matches the dark mode. */
+  --destructive: #942822;
+  --destructive-foreground: #ffffff;
+  --success: #536907;
+  --success-foreground: #ffffff;
+  --warning: #74510a;
+  --warning-foreground: #ffffff;
+  --border: oklch(0.8847 0.0069 97.3627);
+  --input: oklch(0.7621 0.0156 98.3528);
+  /* A mid graphite: visible focus without a second accent colour. >= 3:1 against
+     the page and cards. */
+  --ring: hsl(43 3% 52%);
+  /* Light uses the original Flexoki grayscale ombre (main before v3.5); the amber
+     ombre belongs to dark mode, as it did in that same original palette. */
+  --chart-1: hsl(40 3% 20%);
+  --chart-2: hsl(45 2% 33%);
+  --chart-3: hsl(50 3% 42%);
+  --chart-4: hsl(43 3% 52%);
+  --chart-5: hsl(47 4% 61%);
+  --chart-6: hsl(49 7% 70%);
+  --chart-7: hsl(55 10% 79%);
+  --chart-8: hsl(50 14% 83%);
+  --chart-9: hsl(51 21% 88%);
+  --chart-stone: hsl(49 7% 70%);
+  --sidebar: oklch(0.993 0 0);
+  --sidebar-foreground: oklch(0.359 0.0051 106.6524);
+  --sidebar-primary: hsl(40 3% 20%);
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: oklch(0.9245 0.0138 92.9892);
+  --sidebar-accent-foreground: oklch(0.325 0 0);
+  --sidebar-border: oklch(0.9401 0 0);
+  --sidebar-ring: oklch(0.7731 0 0);
+  --toast-border: oklch(0.8847 0.0069 97.3627);
+  --heatmap-positive-low: #e6ecd5;
+  --heatmap-positive-high: #8a9c57;
+  --heatmap-negative-low: #fae2da;
+  --heatmap-negative-high: #bd6f60;
+  --heatmap-label-dark: #1b1a0c;
+  --heatmap-label-light: #fdf8ec;
+}
+
+.dark {
+  --background: #262624;
+  --foreground: #f1efe9;
+  --card: #2e2d2a;
+  --card-foreground: #faf7f0;
+  --popover: #333230;
+  --popover-foreground: #e9e6df;
+  --primary: oklch(0.9 0.008 95);
+  --primary-foreground: #1c1b19;
+  --secondary: #3a352d;
+  --secondary-foreground: #d3c9b6;
+  /* Lighter than the page and cards, as in Classic, so a segmented control's
+     thumb (the page colour) reads on its track: #232220 was 1.05:1. */
+  --muted: #3a3833;
+  --muted-foreground: #b5aa96;
+  --accent: #33291d;
+  --accent-foreground: #f0d9b5;
+  --destructive: hsl(12 80% 66%);
+  --destructive-foreground: #1e0d0a;
+  /* Flexoki green-300: green-400 (#879a39) read 4.4:1 as gain text on the card. */
+  --success: #a0af54;
+  --success-foreground: #12160a;
+  --warning: #e5c478;
+  --warning-foreground: #241c0a;
+  --border: #3a352d;
+  --input: #4a4136;
+  --input-bg: #2e2d2a;
+  --ring: hsl(24 40% 50%);
+  --chart-1: hsl(25 92% 72%);
+  --chart-2: hsl(24 81% 61%);
+  --chart-3: hsl(23 70% 51%);
+  --chart-4: hsl(23 73% 46%);
+  --chart-5: hsl(22 80% 41%);
+  --chart-6: hsl(22 82% 34%);
+  --chart-7: hsl(22 79% 25%);
+  --chart-8: hsl(22 75% 20%);
+  --chart-9: hsl(22 70% 15%);
+  --chart-stone: #a89c88;
+  --sidebar: #211f1d;
+  --sidebar-foreground: #e8e0d0;
+  --sidebar-primary: oklch(0.9 0.008 95);
+  --sidebar-primary-foreground: #1c1b19;
+  --sidebar-accent: #33291d;
+  --sidebar-accent-foreground: #f0d9b5;
+  --sidebar-border: #3a352d;
+  --sidebar-ring: hsl(24 40% 50%);
+  --toast-border: #4a4136;
+  --fi-stream-1: hsl(25 92% 72%);
+  --fi-stream-2: hsl(24 84% 62%);
+  --fi-stream-3: hsl(23 78% 52%);
+  --fi-stream-4: hsl(22 80% 42%);
+  --fi-stream-5: hsl(22 78% 32%);
+  --heatmap-accent: #879a39;
+  --status-warn: oklch(0.75 0.16 60);
+  --event-default: hsl(24 84% 62%);
+  --event-today: hsl(25 92% 72%);
+  --heatmap-positive-low: #cdd597;
+  --heatmap-positive-high: #536907;
+  --heatmap-negative-low: #fdb2a2;
+  --heatmap-negative-high: #942822;
+  --heatmap-label-dark: #1b1a0c;
+  --heatmap-label-light: #fdf8ec;
+}

@@ -11,4 +11,7 @@ export interface ThemeDefinition {
 /** In picker order; the first is Classic, the base every theme inherits from. */
 export const themes: readonly ThemeDefinition[] = [
   { id: "classic", name: "Classic", font: "font-mono" },
+  { id: "signature", name: "Signature", font: "font-sans" },
+  { id: "ember", name: "Ember" },
+  { id: "cupertino", name: "Cupertino", font: "font-sans" },
 ];

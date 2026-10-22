@@ -1,0 +1,255 @@
+/* @name Cupertino */
+/* @font font-sans */
+:root {
+  /* Geometry follows iOS 26.5: 26pt grouped corners, capsule controls, 44pt
+     touch targets, and nested radii kept concentric with their containers. */
+  --radius: 1.125rem;
+  --button-radius: 9999px;
+  --control-radius: 0.875rem;
+  --control-height: 2.75rem;
+  /* Grouped cells: no outline, a hairline and a short ambient shadow. */
+  --card-radius: 1.625rem;
+  --card-border: transparent;
+  --card-shadow:
+    0 0 0 0.5px rgb(0 0 0 / 0.04), 0 1px 2px rgb(0 0 0 / 0.04), 0 6px 20px -10px rgb(0 0 0 / 0.1);
+  --popup-radius: 1.375rem;
+  --dialog-radius: 2.25rem;
+  --badge-radius: 9999px;
+  --segmented-radius: 9999px;
+  /* Apple's system faces for each role. Choosing the theme suggests Sans (SF
+     Pro); the Font setting still decides the role. "Rubik Arabic" covers Arabic
+     letters only (unicode-range), so it comes first without changing Latin text. */
+  --font-sans:
+    "Rubik Arabic", -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display",
+    "Helvetica Neue", "Inter Variable", system-ui, sans-serif;
+  --font-mono: "Rubik Arabic", ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace;
+  --font-serif: "Rubik Arabic", "New York", ui-serif, Georgia, Cambria, "Times New Roman", serif;
+  /* systemGroupedBackground page, secondarySystemGroupedBackground cells. */
+  --background: #f2f2f7;
+  --foreground: #000000;
+  --card: #ffffff;
+  --card-foreground: #000000;
+  --popover: #ffffff;
+  --popover-foreground: #000000;
+  /* Apple's link blue on the web (#0066cc). Primary is also text (links, link
+     buttons), so it must read on the grouped page and on cards: #0071e3 reached
+     4.2:1 on the page; this one 5:1, and 5.6:1 under a white label. */
+  --primary: #0066cc;
+  --primary-foreground: #ffffff;
+  /* iOS "bordered" button: gray fill, tint label. */
+  --secondary: #e9e9ee;
+  --secondary-foreground: #0060c0;
+  /* systemGray5 track, so segmented thumbs and skeletons read on white. */
+  --muted: #e5e5ea;
+  --muted-foreground: #636366;
+  --accent: #e9e9ee;
+  --accent-foreground: #000000;
+  --destructive: #d70015;
+  --destructive-foreground: #ffffff;
+  --success: #1b7a33;
+  --success-foreground: #ffffff;
+  --warning: #c93400;
+  --warning-foreground: #ffffff;
+  --info: #0066cc;
+  --info-foreground: #ffffff;
+  --border: #dcdce1;
+  --input: #e3e3e8;
+  /* tertiarySystemFill: translucent, so fields read on the page and on cards. */
+  --input-bg: rgba(118, 118, 128, 0.12);
+  --ring: #0066cc;
+  --chart-1: #007aff;
+  --chart-2: #5856d6;
+  --chart-3: #30b0c7;
+  --chart-4: #ff9500;
+  --chart-5: #af52de;
+  --chart-6: #a2845e;
+  --chart-7: #ff2d55;
+  --chart-8: #00c7be;
+  --chart-9: #8e8e93;
+  --chart-stone: #8e8e93;
+  --chart-cursor: rgba(0, 0, 0, 0.04);
+  --bar-stripe: rgba(255, 255, 255, 0.3);
+  --sidebar: #ebebf0;
+  --sidebar-foreground: #000000;
+  --sidebar-primary: #0066cc;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #dfdfe4;
+  --sidebar-accent-foreground: #000000;
+  --sidebar-border: #dcdce1;
+  --sidebar-ring: #0066cc;
+  --success-subtle: #e8f6ec;
+  --success-subtle-foreground: #1b7a33;
+  --success-subtle-border: #bfe3c9;
+  --destructive-subtle: #fdecea;
+  --destructive-subtle-foreground: #b3000f;
+  --destructive-subtle-border: #f5c2bd;
+  --warning-subtle: #fff2df;
+  --warning-subtle-foreground: #9a4a00;
+  --warning-subtle-border: #f6d3a3;
+  --toast-warning-bg: var(--warning-subtle);
+  --toast-warning-fg: var(--warning-subtle-foreground);
+  --toast-warning-border: var(--warning-subtle-border);
+  --info-subtle: #e7f0fc;
+  --info-subtle-foreground: #0058b3;
+  --info-subtle-border: #bcd6f5;
+  --status-warn: #c93400;
+  --fi-stream-1: #007aff;
+  --fi-stream-2: #5856d6;
+  --fi-stream-3: #30b0c7;
+  --fi-stream-4: #af52de;
+  --fi-stream-5: #00c7be;
+  --heatmap-accent: #007aff;
+  --event-default: #007aff;
+  --event-today: #ff9500;
+  --liquid-glass-bg: rgba(250, 250, 252, 0.8);
+  --liquid-glass-border: rgba(0, 0, 0, 0.08);
+  /* Component surfaces, as iOS draws them: semibold filled buttons with a top
+     highlight; bordered buttons as a translucent fill; filled text fields
+     (an invalid field keeps its red edge); 51x31 switches, green when on, with
+     a 27pt white thumb; a raised white segmented thumb; borderless overlays;
+     Liquid Glass with a specular rim. */
+  --button-weight: 600;
+  --button-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.22), inset 0 -1px 0 rgb(0 0 0 / 0.06),
+    0 1px 2px rgb(0 0 0 / 0.1);
+  --button-outline-bg: var(--input-bg);
+  --button-outline-border: transparent;
+  --button-outline-shadow: 0 0 #0000;
+  --button-outline-hover-bg: rgb(118 118 128 / 0.2);
+  --field-border: transparent;
+  --switch-on: #34c759;
+  --switch-off: rgb(120 120 128 / 0.16);
+  --switch-width: 3.1875rem;
+  --switch-height: 1.9375rem;
+  --switch-thumb: #ffffff;
+  --switch-thumb-size: 1.6875rem;
+  --switch-thumb-shadow: 0 3px 8px rgb(0 0 0 / 0.15), 0 3px 1px rgb(0 0 0 / 0.06);
+  --segmented-thumb: #ffffff;
+  --segmented-thumb-shadow:
+    0 0 0 0.5px rgb(0 0 0 / 0.04), 0 3px 8px rgb(0 0 0 / 0.12), 0 3px 1px rgb(0 0 0 / 0.04);
+  --overlay-border: transparent;
+  --liquid-glass-blur: blur(24px) saturate(180%);
+  --liquid-glass-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.75), inset 0 -0.5px 0 rgb(0 0 0 / 0.05),
+    0 0 0 0.5px rgb(0 0 0 / 0.1), 0 12px 32px -8px rgb(0 0 0 / 0.2);
+  --liquid-glass-sheen: none;
+  --liquid-glass-rim: inset 0 0 0 0.5px rgb(255 255 255 / 0.5);
+  --heatmap-positive-low: #eaf6ed;
+  --heatmap-positive-high: #6cbf83;
+  --heatmap-negative-low: #fdeceb;
+  --heatmap-negative-high: #ec7c74;
+  --heatmap-label-dark: #1c1c1e;
+  --heatmap-label-light: #ffffff;
+}
+
+.dark {
+  /* True-black page for OLED; elevation is carried by lighter surfaces. */
+  --background: #000000;
+  --foreground: #ffffff;
+  --card: #1c1c1e;
+  --card-foreground: #ffffff;
+  --popover: #2c2c2e;
+  --popover-foreground: #ffffff;
+  /* iOS dark systemBlue with a white label, as iOS draws it. As link text it
+     reaches 4.7:1 on the card; the white label reads 3.65:1, which the colour
+     contract accepts for this theme only (e2e/design-system/colors.spec.ts). */
+  --primary: #0a84ff;
+  --primary-foreground: #ffffff;
+  --secondary: #2c2c2e;
+  --secondary-foreground: #409cff;
+  --muted: #2c2c2e;
+  --muted-foreground: #98989f;
+  --accent: #2c2c2e;
+  --accent-foreground: #ffffff;
+  /* iOS dark systemRed and systemGreen: they are also gain and loss text, so
+     they stay light enough for the card, with a black label as a fill. */
+  --destructive: #ff453a;
+  --destructive-foreground: #000000;
+  --success: #30d158;
+  --success-foreground: #000000;
+  --warning: #ff9f0a;
+  --warning-foreground: #000000;
+  --info: #0a84ff;
+  --info-foreground: #000000;
+  --border: #38383a;
+  --input: #39393d;
+  /* secondarySystemFill: over black, 0.24 matched the card and read as one. */
+  --input-bg: rgba(118, 118, 128, 0.32);
+  --ring: #0a84ff;
+  --chart-1: #0a84ff;
+  --chart-2: #5e5ce6;
+  --chart-3: #40c8e0;
+  --chart-4: #ff9f0a;
+  --chart-5: #bf5af2;
+  --chart-6: #ac8e68;
+  --chart-7: #ff375f;
+  --chart-8: #63e6e2;
+  --chart-9: #8e8e93;
+  --chart-stone: #8e8e93;
+  --chart-cursor: rgba(255, 255, 255, 0.06);
+  --bar-stripe: rgba(0, 0, 0, 0.25);
+  --sidebar: #161618;
+  --sidebar-foreground: #ffffff;
+  --sidebar-primary: #0a84ff;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #2c2c2e;
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: #2c2c2e;
+  --sidebar-ring: #0a84ff;
+  --success-subtle: #0f2415;
+  --success-subtle-foreground: #30d158;
+  --success-subtle-border: #1d4a2a;
+  --destructive-subtle: #2c1210;
+  --destructive-subtle-foreground: #ff6961;
+  --destructive-subtle-border: #5c2320;
+  --warning-subtle: #2a1d08;
+  --warning-subtle-foreground: #ffb340;
+  --warning-subtle-border: #5a3d0d;
+  --info-subtle: #0b1f36;
+  --info-subtle-foreground: #409cff;
+  --info-subtle-border: #173e66;
+  --status-warn: #ff9f0a;
+  --fi-stream-1: #0a84ff;
+  --fi-stream-2: #5e5ce6;
+  --fi-stream-3: #40c8e0;
+  --fi-stream-4: #bf5af2;
+  --fi-stream-5: #63e6e2;
+  --heatmap-accent: #0a84ff;
+  --event-default: #0a84ff;
+  --event-today: #ff9f0a;
+  --liquid-glass-bg: rgba(28, 28, 30, 0.72);
+  --liquid-glass-border: rgba(255, 255, 255, 0.12);
+  --button-outline-hover-bg: rgb(118 118 128 / 0.42);
+  --switch-on: #30d158;
+  --switch-off: rgb(120 120 128 / 0.32);
+  --segmented-thumb: #636366;
+  --segmented-thumb-shadow: 0 3px 8px rgb(0 0 0 / 0.3);
+  /* Sheets sit one elevation step above the true-black page. */
+  --sheet-bg: #1c1c1e;
+  --liquid-glass-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.18), inset 0 -0.5px 0 rgb(0 0 0 / 0.4),
+    0 0 0 0.5px rgb(0 0 0 / 0.6), 0 12px 32px -8px rgb(0 0 0 / 0.6);
+  --liquid-glass-rim: inset 0 0 0 0.5px rgb(255 255 255 / 0.14);
+  --heatmap-positive-low: #1e3325;
+  --heatmap-positive-high: #30d158;
+  --heatmap-negative-low: #3a1f1d;
+  --heatmap-negative-high: #ff453a;
+  --heatmap-label-dark: #1c1c1e;
+  --heatmap-label-light: #ffffff;
+}
+
+/* Element defaults: iOS text rendering, tabular figures, iOS heading tracking.
+   A class on the element still wins. */
+:root body {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-tap-highlight-color: transparent;
+  font-variant-numeric: tabular-nums;
+}
+:root h1 {
+  font-weight: 700;
+  letter-spacing: normal;
+}
+:root h2 {
+  letter-spacing: normal;
+}

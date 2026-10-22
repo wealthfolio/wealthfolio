@@ -148,5 +148,5 @@ test("font stacks keep Rubik Arabic ahead of fonts that draw Arabic", async (t) 
 test("the committed themes are valid and the output is current", async () => {
   const themes = await generate({ check: true });
   assert.equal(themes[0].id, "classic");
-  assert.equal(themes.length, 1);
+  assert.equal(themes.length, 4);
 });
