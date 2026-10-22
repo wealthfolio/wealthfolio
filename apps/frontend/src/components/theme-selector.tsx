@@ -1,134 +1,50 @@
-import { FormControl, FormItem, FormLabel } from "@wealthfolio/ui/components/ui/form";
-import { RadioGroup, RadioGroupItem } from "@wealthfolio/ui/components/ui/radio-group";
-import { cn } from "@/lib/utils";
+import { AnimatedToggleGroup, Icons } from "@wealthfolio/ui";
+import type { ComponentType } from "react";
 import { useTranslation } from "react-i18next";
+
+export type AppearanceMode = "light" | "dark" | "system";
 
 interface ThemeSelectorProps {
   value?: string;
-  onChange: (value: string) => void;
+  onChange: (value: AppearanceMode) => void;
   className?: string;
+  "aria-label"?: string;
 }
 
-export function ThemeSelector({ value, onChange, className }: ThemeSelectorProps) {
+const modes: {
+  value: AppearanceMode;
+  labelKey: string;
+  Icon: ComponentType<{ className?: string }>;
+}[] = [
+  { value: "light", labelKey: "common:component.theme_light_label", Icon: Icons.Sun },
+  { value: "dark", labelKey: "common:component.theme_dark_label", Icon: Icons.Moon },
+  { value: "system", labelKey: "common:component.theme_system_label", Icon: Icons.Monitor },
+];
+
+/** Light, dark or follow the system, as one segmented control. */
+export function ThemeSelector({
+  value,
+  onChange,
+  className,
+  "aria-label": ariaLabel,
+}: ThemeSelectorProps) {
   const { t } = useTranslation();
   return (
-    <RadioGroup
+    <AnimatedToggleGroup<AppearanceMode>
+      size="sm"
+      value={(value as AppearanceMode | undefined) ?? null}
       onValueChange={onChange}
-      defaultValue={value}
-      className={cn("grid grid-cols-3 gap-2 md:gap-4", className)}
-    >
-      <FormItem>
-        <FormLabel className="[&:has([data-checked])>div]:border-primary cursor-pointer">
-          <FormControl>
-            <RadioGroupItem value="light" className="sr-only absolute" />
-          </FormControl>
-          <div className="border-muted hover:border-accent items-center rounded-md border-2 p-2">
-            <div className="space-y-1 rounded-sm bg-[hsl(51_59%_95%)] p-1 sm:space-y-1 sm:p-1.5">
-              <div className="space-y-1 rounded-md bg-[hsl(48_100%_97%)] p-1 sm:p-1.5">
-                <div className="h-1 w-10 rounded-lg bg-[hsl(50_14%_83%)] sm:h-2 sm:w-20" />
-                <div className="w-12.5 sm:w-25 h-1 rounded-lg bg-[hsl(50_14%_83%)] sm:h-2" />
-              </div>
-              <div className="flex items-center space-x-1 rounded-md bg-[hsl(48_100%_97%)] p-1 sm:space-x-2 sm:p-1.5">
-                <div className="h-2 w-2 rounded-full bg-[hsl(50_14%_83%)] sm:h-3 sm:w-3" />
-                <div className="w-12.5 sm:w-25 h-1 rounded-lg bg-[hsl(50_14%_83%)] sm:h-2" />
-              </div>
-              <div className="flex items-center space-x-1 rounded-md bg-[hsl(48_100%_97%)] p-1 sm:space-x-2 sm:p-1.5">
-                <div className="h-2 w-2 rounded-full bg-[hsl(50_14%_83%)] sm:h-3 sm:w-3" />
-                <div className="w-12.5 sm:w-25 h-1 rounded-lg bg-[hsl(50_14%_83%)] sm:h-2" />
-              </div>
-              <div className="flex items-center space-x-1 rounded-md bg-[hsl(48_100%_97%)] p-1 sm:space-x-2 sm:p-1.5">
-                <div className="h-2 w-2 rounded-full bg-[hsl(50_14%_83%)] sm:h-3 sm:w-3" />
-                <div className="w-12.5 sm:w-25 h-1 rounded-lg bg-[hsl(50_14%_83%)] sm:h-2" />
-              </div>
-            </div>
-          </div>
-          <span className="block w-full p-1 text-center text-xs font-normal sm:p-1.5 sm:text-sm">
-            {t("common:component.theme_light_label")}
+      className={className}
+      aria-label={ariaLabel}
+      items={modes.map(({ value: mode, labelKey, Icon }) => ({
+        value: mode,
+        label: (
+          <span className="flex items-center gap-1.5">
+            <Icon className="size-3.5" />
+            {t(labelKey)}
           </span>
-        </FormLabel>
-      </FormItem>
-      <FormItem>
-        <FormLabel className="[&:has([data-checked])>div]:border-primary cursor-pointer">
-          <FormControl>
-            <RadioGroupItem value="dark" className="sr-only absolute" />
-          </FormControl>
-          <div className="border-muted bg-popover hover:bg-accent hover:text-accent-foreground dark items-center rounded-md border-2 p-2">
-            <div className="space-y-1 rounded-sm bg-[hsl(var(--flexoki-bg))] p-1 sm:space-y-1 sm:p-1.5">
-              <div className="space-y-1 rounded-md bg-[hsl(var(--flexoki-bg-2))] p-1 sm:p-1.5">
-                <div className="h-1 w-10 rounded-lg bg-[hsl(var(--flexoki-ui-2))] sm:h-2 sm:w-20" />
-                <div className="w-12.5 sm:w-25 h-1 rounded-lg bg-[hsl(var(--flexoki-ui-2))] sm:h-2" />
-              </div>
-              <div className="flex items-center space-x-1 rounded-md bg-[hsl(var(--flexoki-bg-2))] p-1 sm:space-x-2 sm:p-1.5">
-                <div className="h-2 w-2 rounded-full bg-[hsl(var(--flexoki-ui-2))] sm:h-3 sm:w-3" />
-                <div className="w-12.5 sm:w-25 h-1 rounded-lg bg-[hsl(var(--flexoki-ui-2))] sm:h-2" />
-              </div>
-              <div className="flex items-center space-x-1 rounded-md bg-[hsl(var(--flexoki-bg-2))] p-1 sm:space-x-2 sm:p-1.5">
-                <div className="h-2 w-2 rounded-full bg-[hsl(var(--flexoki-ui-2))] sm:h-3 sm:w-3" />
-                <div className="w-12.5 sm:w-25 h-1 rounded-lg bg-[hsl(var(--flexoki-ui-2))] sm:h-2" />
-              </div>
-              <div className="flex items-center space-x-1 rounded-md bg-[hsl(var(--flexoki-bg-2))] p-1 sm:space-x-2 sm:p-1.5">
-                <div className="h-2 w-2 rounded-full bg-[hsl(var(--flexoki-ui-2))] sm:h-3 sm:w-3" />
-                <div className="w-12.5 sm:w-25 h-1 rounded-lg bg-[hsl(var(--flexoki-ui-2))] sm:h-2" />
-              </div>
-            </div>
-          </div>
-          <span className="block w-full p-1 text-center text-xs font-normal sm:p-1.5 sm:text-sm">
-            {t("common:component.theme_dark_label")}
-          </span>
-        </FormLabel>
-      </FormItem>
-      <FormItem>
-        <FormLabel className="[&:has([data-checked])>div]:border-primary cursor-pointer">
-          <FormControl>
-            <RadioGroupItem value="system" className="sr-only absolute" />
-          </FormControl>
-          <div className="border-muted hover:border-accent items-center rounded-md border-2 p-2">
-            <div className="flex overflow-hidden rounded-sm">
-              {/* Light half - left side */}
-              <div className="w-1/2 space-y-1 bg-[hsl(51_59%_95%)] p-1 sm:space-y-1 sm:p-1.5">
-                <div className="space-y-1 rounded-md bg-[hsl(48_100%_97%)] p-1 sm:p-1.5">
-                  <div className="h-1 w-5 rounded-lg bg-[hsl(50_14%_83%)] sm:h-2 sm:w-10" />
-                  <div className="sm:w-12.5 h-1 w-[1.5625rem] rounded-lg bg-[hsl(50_14%_83%)] sm:h-2" />
-                </div>
-                <div className="flex items-center space-x-1 rounded-md bg-[hsl(48_100%_97%)] p-1 sm:p-1.5">
-                  <div className="h-2 w-2 rounded-full bg-[hsl(50_14%_83%)] sm:h-3 sm:w-3" />
-                  <div className="sm:w-12.5 h-1 w-[1.5625rem] rounded-lg bg-[hsl(50_14%_83%)] sm:h-2" />
-                </div>
-                <div className="flex items-center space-x-1 rounded-md bg-[hsl(48_100%_97%)] p-1 sm:p-1.5">
-                  <div className="h-2 w-2 rounded-full bg-[hsl(50_14%_83%)] sm:h-3 sm:w-3" />
-                  <div className="sm:w-12.5 h-1 w-[1.5625rem] rounded-lg bg-[hsl(50_14%_83%)] sm:h-2" />
-                </div>
-                <div className="flex items-center space-x-1 rounded-md bg-[hsl(48_100%_97%)] p-1 sm:p-1.5">
-                  <div className="h-2 w-2 rounded-full bg-[hsl(50_14%_83%)] sm:h-3 sm:w-3" />
-                  <div className="sm:w-12.5 h-1 w-[1.5625rem] rounded-lg bg-[hsl(50_14%_83%)] sm:h-2" />
-                </div>
-              </div>
-              {/* Dark half - right side */}
-              <div className="dark w-1/2 space-y-1 bg-[hsl(var(--flexoki-bg))] p-1 sm:space-y-1 sm:p-1.5">
-                <div className="space-y-1 rounded-md bg-[hsl(var(--flexoki-bg-2))] p-1 sm:p-1.5">
-                  <div className="h-1 w-5 rounded-lg bg-[hsl(var(--flexoki-ui-2))] sm:h-2 sm:w-10" />
-                  <div className="sm:w-12.5 h-1 w-[1.5625rem] rounded-lg bg-[hsl(var(--flexoki-ui-2))] sm:h-2" />
-                </div>
-                <div className="flex items-center space-x-1 rounded-md bg-[hsl(var(--flexoki-bg-2))] p-1 sm:p-1.5">
-                  <div className="h-2 w-2 rounded-full bg-[hsl(var(--flexoki-ui-2))] sm:h-3 sm:w-3" />
-                  <div className="sm:w-12.5 h-1 w-[1.5625rem] rounded-lg bg-[hsl(var(--flexoki-ui-2))] sm:h-2" />
-                </div>
-                <div className="flex items-center space-x-1 rounded-md bg-[hsl(var(--flexoki-bg-2))] p-1 sm:p-1.5">
-                  <div className="h-2 w-2 rounded-full bg-[hsl(var(--flexoki-ui-2))] sm:h-3 sm:w-3" />
-                  <div className="sm:w-12.5 h-1 w-[1.5625rem] rounded-lg bg-[hsl(var(--flexoki-ui-2))] sm:h-2" />
-                </div>
-                <div className="flex items-center space-x-1 rounded-md bg-[hsl(var(--flexoki-bg-2))] p-1 sm:p-1.5">
-                  <div className="h-2 w-2 rounded-full bg-[hsl(var(--flexoki-ui-2))] sm:h-3 sm:w-3" />
-                  <div className="sm:w-12.5 h-1 w-[1.5625rem] rounded-lg bg-[hsl(var(--flexoki-ui-2))] sm:h-2" />
-                </div>
-              </div>
-            </div>
-          </div>
-          <span className="block w-full p-1 text-center text-xs font-normal sm:p-1.5 sm:text-sm">
-            {t("common:component.theme_system_label")}
-          </span>
-        </FormLabel>
-      </FormItem>
-    </RadioGroup>
+        ),
+      }))}
+    />
   );
 }

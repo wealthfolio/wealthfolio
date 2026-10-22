@@ -6,7 +6,6 @@
   },
   "rawColors": {
     "apps/frontend/src/components/startup-screen.tsx": 2,
-    "apps/frontend/src/components/theme-selector.tsx": 52,
     "apps/frontend/src/features/ai-assistant/components/provider-icons.tsx": 5,
     "apps/frontend/src/features/ai-assistant/components/tool-uis/categorization-proposals-tool-ui.tsx": 2,
     "apps/frontend/src/features/goals/components/goal-funding-editor.tsx": 12,
