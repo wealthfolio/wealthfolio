@@ -1229,7 +1229,7 @@ export class AddonIframeManager {
 
     this.themeObserver = new MutationObserver(this.scheduleThemeBroadcast);
     this.themeObserver.observe(document.documentElement, {
-      attributeFilter: ["class", "style"],
+      attributeFilter: ["class", "style", "data-theme"],
       attributes: true,
     });
     this.themeObserver.observe(document.body, {

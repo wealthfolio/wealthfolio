@@ -937,6 +937,9 @@ export interface Settings {
   insightsOverviewLayout?: Record<string, unknown> | null;
   /** Read-only restore state, absent on older backends. */
   restoreReconnectRequired?: boolean;
+  /** Theme ID (palette and shape); absent on older backends, which show Classic. */
+  themeId?: string;
+  /** Appearance mode: light, dark or system. */
   theme: string;
   font: string;
   language: string;

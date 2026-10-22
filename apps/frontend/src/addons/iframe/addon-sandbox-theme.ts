@@ -6,6 +6,7 @@ export interface AddonThemeSnapshot {
   fontFamily: string;
   foregroundColor: string;
   themeClass: "light" | "dark";
+  themeId?: string;
 }
 
 const FONT_CLASSES = ["font-mono", "font-sans", "font-serif"] as const;
@@ -32,6 +33,7 @@ export function collectAddonThemeSnapshot(): AddonThemeSnapshot {
     fontFamily: bodyStyle.fontFamily || rootStyle.fontFamily,
     foregroundColor: bodyStyle.color || rootStyle.color || "inherit",
     themeClass,
+    themeId: document.documentElement.getAttribute("data-theme") ?? undefined,
   };
 }
 
@@ -41,6 +43,9 @@ export function applyHostTheme(theme?: Partial<AddonThemeSnapshot>) {
   }
 
   const htmlElement = document.documentElement;
+  if (theme.themeId) {
+    htmlElement.setAttribute("data-theme", theme.themeId);
+  }
   if (theme.themeClass) {
     htmlElement.classList.remove("light", "dark");
     htmlElement.classList.add(theme.themeClass);

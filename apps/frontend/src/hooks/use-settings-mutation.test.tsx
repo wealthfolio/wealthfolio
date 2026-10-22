@@ -170,9 +170,9 @@ describe("useSettingsMutation", () => {
     );
     const { result } = renderHook(() => useSettingsMutation(vi.fn(), vi.fn()), { wrapper });
 
-    // Mode, font and menu bar show the moment they apply.
+    // Theme, mode, font and menu bar show the moment they apply.
     await act(async () => {
-      await result.current.mutateAsync({ theme: "dark", font: "font-mono" });
+      await result.current.mutateAsync({ themeId: "signature", theme: "dark", font: "font-sans" });
       await result.current.mutateAsync({ menuBarVisible: false });
     });
     expect(toast).not.toHaveBeenCalled();

@@ -8,7 +8,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
 // Appearance changes show the moment they apply, so saving them needs no confirmation.
-const appearanceKeys = new Set(["theme", "font", "menuBarVisible"]);
+const appearanceKeys = new Set(["theme", "themeId", "font", "menuBarVisible"]);
 
 export function useSettingsMutation(
   setSettings: React.Dispatch<React.SetStateAction<Settings | null>>,

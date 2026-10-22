@@ -969,6 +969,8 @@ export interface QuoteUpdate {
 }
 
 export interface Settings {
+  /** Theme ID (palette and shape). Absent on hosts without themes. */
+  themeId?: string;
   theme: string;
   font: string;
   baseCurrency: string;

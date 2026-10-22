@@ -11,7 +11,7 @@ use wealthfolio_core::assets::AssetKind;
 use wealthfolio_core::errors::Result;
 use wealthfolio_core::settings::{
     Settings, SettingsRepositoryTrait, SettingsUpdate, CURRENCY_FORMATTING_REGIONS_KEY,
-    INSIGHTS_OVERVIEW_LAYOUT_KEY,
+    DEFAULT_THEME_ID, INSIGHTS_OVERVIEW_LAYOUT_KEY, THEME_ID_KEY,
 };
 
 pub struct SettingsRepository {
@@ -39,6 +39,7 @@ impl SettingsRepositoryTrait for SettingsRepository {
 
         for (key, value) in all_settings {
             match key.as_str() {
+                THEME_ID_KEY => settings.theme_id = value,
                 "theme" => settings.theme = value,
                 "font" => settings.font = value,
                 "language" => settings.language = value,
@@ -79,6 +80,16 @@ impl SettingsRepositoryTrait for SettingsRepository {
         let settings = new_settings.clone();
         self.writer
             .exec_tx(move |tx| {
+                if let Some(ref theme_id) = settings.theme_id {
+                    diesel::replace_into(app_settings)
+                        .values(&AppSettingDB {
+                            setting_key: THEME_ID_KEY.to_string(),
+                            setting_value: theme_id.clone(),
+                        })
+                        .execute(tx.conn())
+                        .map_err(StorageError::from)?;
+                }
+
                 if let Some(ref theme) = settings.theme {
                     diesel::replace_into(app_settings)
                         .values(&AppSettingDB {
@@ -234,6 +245,7 @@ impl SettingsRepositoryTrait for SettingsRepository {
             Err(diesel::result::Error::NotFound) => {
                 // Return default values for known settings
                 let default_value = match setting_key_param {
+                    THEME_ID_KEY => DEFAULT_THEME_ID,
                     "theme" => "light",
                     "font" => "font-mono",
                     "language" => "en",
@@ -394,6 +406,29 @@ mod tests {
         let mut conn = get_connection(&repo.pool).unwrap();
         let outbox: i64 = sync_outbox::table.count().get_result(&mut conn).unwrap();
         assert_eq!(outbox, 0, "Formatting preferences stay on this device");
+    }
+
+    #[tokio::test]
+    async fn theme_id_defaults_to_classic_and_survives_unrelated_updates() {
+        use crate::schema::sync_outbox;
+        let (repo, _dir) = setup().await;
+        assert_eq!(repo.get_settings().unwrap().theme_id, DEFAULT_THEME_ID);
+        assert_eq!(repo.get_setting(THEME_ID_KEY).unwrap(), DEFAULT_THEME_ID);
+
+        let update =
+            serde_json::from_value(json!({"themeId": "ember", "theme": "system"})).unwrap();
+        repo.update_settings(&update).await.unwrap();
+        let mode = serde_json::from_value(json!({"theme": "dark", "font": "font-sans"})).unwrap();
+        repo.update_settings(&mode).await.unwrap();
+
+        let settings = repo.get_settings().unwrap();
+        assert_eq!(settings.theme_id, "ember");
+        assert_eq!(settings.theme, "dark");
+        assert_eq!(settings.font, "font-sans");
+
+        let mut conn = get_connection(&repo.pool).unwrap();
+        let outbox: i64 = sync_outbox::table.count().get_result(&mut conn).unwrap();
+        assert_eq!(outbox, 0, "The theme stays on this device");
     }
 
     #[tokio::test]

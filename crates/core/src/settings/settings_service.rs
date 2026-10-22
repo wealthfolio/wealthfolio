@@ -103,6 +103,26 @@ fn validate_formatting_region(region: &str) -> Result<()> {
     }
 }
 
+/// Theme IDs are the frontend's definition file names: lowercase words joined by
+/// hyphens. The frontend resolves an ID it doesn't know to Classic.
+fn validate_theme_id(theme_id: &str) -> Result<()> {
+    let valid = theme_id.len() <= 48
+        && theme_id.starts_with(|c: char| c.is_ascii_lowercase())
+        && theme_id.split('-').all(|word| {
+            !word.is_empty()
+                && word
+                    .bytes()
+                    .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit())
+        });
+    if valid {
+        Ok(())
+    } else {
+        Err(Error::InvalidConfigValue(format!(
+            "Invalid theme ID: {theme_id}"
+        )))
+    }
+}
+
 /// Quote units such as GBX follow their major currency's override, so they
 /// cannot have one of their own.
 fn is_currency_code(code: &str) -> bool {
@@ -204,6 +224,9 @@ impl SettingsServiceTrait for SettingsService {
             normalized_settings.timezone = Some(canonicalize_timezone(timezone_raw)?);
         }
 
+        if let Some(ref theme_id) = normalized_settings.theme_id {
+            validate_theme_id(theme_id)?;
+        }
         if let Some(ref region) = normalized_settings.formatting_region {
             validate_formatting_region(region)?;
         }
@@ -315,8 +338,10 @@ impl SettingsService {
 mod tests {
     use super::{
         normalize_currency_formatting_regions, normalize_formatting_region, normalize_ui_language,
-        validate_currency_formatting_regions, validate_formatting_region, validate_ui_language,
+        validate_currency_formatting_regions, validate_formatting_region, validate_theme_id,
+        validate_ui_language,
     };
+    use crate::settings::Settings;
     use std::collections::BTreeMap;
 
     fn regions(entries: &[(&str, &str)]) -> BTreeMap<String, String> {
@@ -324,6 +349,37 @@ mod tests {
             .iter()
             .map(|(currency, region)| (currency.to_string(), region.to_string()))
             .collect()
+    }
+
+    #[test]
+    fn accepts_theme_file_names_and_rejects_anything_else() {
+        for id in ["classic", "ember", "high-contrast", "theme2", "a-1"] {
+            assert!(validate_theme_id(id).is_ok(), "{id}");
+        }
+        let too_long = "a".repeat(49);
+        for id in [
+            "",
+            "Classic",
+            "1st",
+            "-ember",
+            "ember-",
+            "two--hyphens",
+            "under_score",
+            "quote\"",
+            too_long.as_str(),
+        ] {
+            assert!(validate_theme_id(id).is_err(), "{id}");
+        }
+    }
+
+    #[test]
+    fn settings_saved_before_themes_read_as_classic() {
+        let mut value = serde_json::to_value(Settings::default()).unwrap();
+        value.as_object_mut().unwrap().remove("themeId");
+        value["theme"] = serde_json::json!("system");
+        let settings: Settings = serde_json::from_value(value).unwrap();
+        assert_eq!(settings.theme_id, "classic");
+        assert_eq!(settings.theme, "system");
     }
 
     #[test]

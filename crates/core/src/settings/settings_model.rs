@@ -5,10 +5,18 @@ use std::collections::BTreeMap;
 
 pub const INSIGHTS_OVERVIEW_LAYOUT_KEY: &str = "insights_overview_layout";
 pub const CURRENCY_FORMATTING_REGIONS_KEY: &str = "currency_formatting_regions";
+/// Selected theme (palette and shape). Device-local: sync shares only the keys it
+/// lists. The frontend owns the theme list and shows Classic for an ID it does
+/// not know, so an ID saved by a newer version survives an older one.
+pub const THEME_ID_KEY: &str = "theme_id";
+pub const DEFAULT_THEME_ID: &str = "classic";
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct Settings {
+    #[serde(default = "default_theme_id")]
+    pub theme_id: String,
+    /// Appearance mode: light, dark or system.
     pub theme: String,
     pub font: String,
     pub language: String,
@@ -32,9 +40,14 @@ pub struct Settings {
     pub insights_overview_layout: Option<serde_json::Map<String, serde_json::Value>>,
 }
 
+fn default_theme_id() -> String {
+    DEFAULT_THEME_ID.to_string()
+}
+
 impl Default for Settings {
     fn default() -> Self {
         Self {
+            theme_id: default_theme_id(),
             theme: "light".to_string(),
             font: "font-mono".to_string(),
             language: "en".to_string(),
@@ -56,6 +69,7 @@ impl Default for Settings {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct SettingsUpdate {
+    pub theme_id: Option<String>,
     pub theme: Option<String>,
     pub font: Option<String>,
     pub language: Option<String>,

@@ -39,6 +39,9 @@
                 : "light";
           document.documentElement.classList.add(resolved);
           document.documentElement.style.colorScheme = resolved;
+          // The CSS shows Classic for an ID it doesn't know.
+          var themeId = localStorage.getItem("wealthfolio-theme-id");
+          if (themeId) document.documentElement.setAttribute("data-theme", themeId);
         } catch (e) {}
         // Presentation hint only; profile access is still checked by the app.
         try {
