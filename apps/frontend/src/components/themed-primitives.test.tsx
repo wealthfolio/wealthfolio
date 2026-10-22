@@ -6,8 +6,8 @@ import { CardTitle } from "@wealthfolio/ui/components/ui/card";
 import { Switch } from "@wealthfolio/ui/components/ui/switch";
 
 // Themes restyle components only through the tokens these classes read
-// (src/themes/definitions/classic.css), never with rules. So a call site's own
-// class must replace the token class, and then no theme can override it.
+// (src/themes/definitions/classic.css); theme rules sit in @layer base. So a call
+// site's own class must replace the token class, and then no theme can override it.
 describe("a call site's classes replace the theme's component tokens", () => {
   it("keeps the addon store's white Details button white in every theme", () => {
     render(

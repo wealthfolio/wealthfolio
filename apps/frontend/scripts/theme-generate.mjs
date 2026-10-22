@@ -1,8 +1,10 @@
 #!/usr/bin/env node
-// Builds src/themes/generated/themes.css from the theme definitions in
-// src/themes/definitions/. Classic is the base: it applies on :root and .dark,
+// Builds src/themes/generated/themes.css and the picker's registry.ts from the
+// theme definitions in src/themes/definitions/. Classic is the base: it applies on :root and .dark,
 // so every other theme, scoped to :root[data-theme="<id>"], inherits Classic's
-// value for any role it leaves out, and an unknown theme ID shows Classic.
+// value for any role it leaves out, and an unknown theme ID shows Classic. Each
+// theme also applies to [data-theme-preview="<id>"], so the picker can draw it
+// in the current mode.
 // Readability (the colour contract) is checked in the browser by
 // e2e/design-system/colors.spec.ts for every theme. `--check` fails when the
 // committed output is stale.
@@ -14,14 +16,15 @@ import { format, resolveConfig } from "prettier";
 
 const frontend = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 export const definitionsDir = resolve(frontend, "src/themes/definitions");
-export const outputPath = resolve(frontend, "src/themes/generated/themes.css");
+export const outputDir = resolve(frontend, "src/themes/generated");
+const globalsPath = resolve(frontend, "src/globals.css");
 
 export const baseTheme = "classic";
 // The picker's order; themes not listed follow alphabetically.
 export const themeOrder = [
   "classic",
-  "ember",
   "signature",
+  "ember",
   "cupertino",
   "newspaper",
   "cyber",
@@ -79,29 +82,53 @@ const fontGenerics = {
 const bundledFonts = ['"Inter Variable"', '"Inter"', '"Merriweather"', '"JetBrains Mono"'];
 const arabicFont = '"Rubik Arabic"';
 
-// Theme files hold custom properties on :root and .dark only. Imports, other
-// selectors and nested rules are not theme inputs.
+// Theme files hold custom properties on :root and .dark, and element defaults
+// (`:root body`, `.dark h1`). A theme changes a component's look through the
+// tokens the component reads (classic.css lists them), never with a rule: the
+// generated rules sit in @layer base, below every utility class, so a class on
+// the element always wins and a rule can't restyle a component. Rules may not
+// select components (data-slot, data-variant, data-size), class substrings,
+// inline styles or Radix attributes. Imports, other selectors and nested rules
+// are not theme inputs.
+const ruleSelector = /^(?::root|\.dark)\s+\S/;
+const componentSelector = /data-(?:slot|variant|size)\b/;
+const fragileSelector = /\[(?:class|style)\b|data-state|data-radix/;
+
 function readThemeCss(source, filename) {
   const root = postcss.parse(source, { from: filename });
   const modes = { light: {}, dark: {} };
+  const rules = [];
   root.each((node) => {
     if (node.type === "comment") return;
-    if (node.type !== "rule" || ![":root", ".dark"].includes(node.selector))
+    if (node.type !== "rule")
       throw new Error(`${filename}: only :root and .dark rules are supported`);
-    const mode = node.selector === ":root" ? "light" : "dark";
+    const selectors = postcss.list.comma(node.selector);
+    const variables = selectors.length === 1 && [":root", ".dark"].includes(selectors[0]);
+    if (!variables && !selectors.every((selector) => ruleSelector.test(selector)))
+      throw new Error(`${filename}: only :root and .dark rules are supported (${node.selector})`);
+    if (!variables && selectors.some((selector) => componentSelector.test(selector)))
+      throw new Error(
+        `${filename}: theme a component through the tokens it reads (classic.css), not a rule (${node.selector})`,
+      );
+    if (!variables && selectors.some((selector) => fragileSelector.test(selector)))
+      throw new Error(
+        `${filename}: select by element, role or ARIA, not by class, style or Radix attributes (${node.selector})`,
+      );
     node.each((decl) => {
       if (decl.type === "comment") return;
       if (
         decl.type !== "decl" ||
         decl.important ||
-        !/^--[a-z][a-z0-9-]*$/.test(decl.prop) ||
+        (variables && !/^--[a-z][a-z0-9-]*$/.test(decl.prop)) ||
         /url\s*\(|expression\s*\(/i.test(decl.value)
       )
         throw new Error(`${filename}: unsupported declaration ${decl.toString()}`);
-      modes[mode][decl.prop.slice(2)] = decl.value;
+      if (variables)
+        modes[node.selector === ":root" ? "light" : "dark"][decl.prop.slice(2)] = decl.value;
     });
+    if (!variables) rules.push(node);
   });
-  return modes;
+  return { ...modes, rules };
 }
 
 function resolveFontStack(role, values, path = []) {
@@ -153,6 +180,10 @@ export async function loadThemes(dir = definitionsDir) {
   // A theme may set only what Classic sets, so every role has a fallback and a
   // misspelt name fails here instead of silently doing nothing. Fonts come from
   // globals.css, not from Classic.
+  if (base.rules.length)
+    throw new Error(
+      `${baseTheme}: the base theme holds variables only; its rules would reach every theme`,
+    );
   const known = new Set([...Object.keys(base.light), ...Object.keys(base.dark), ...fontRoles]);
   for (const theme of themes) {
     for (const mode of ["light", "dark"]) {
@@ -189,32 +220,101 @@ function block(selector, values) {
   return lines.length ? `${selector} {\n${lines.join("\n")}\n}` : "";
 }
 
-export function renderCss(themes) {
+// The default font stacks, from globals.css's @theme. A miniature in the picker
+// sets them, so it never shows the selected theme's fonts.
+export async function loadFontDefaults(path = globalsPath) {
+  const values = {};
+  postcss.parse(await readFile(path, "utf8")).walkAtRules("theme", (rule) => {
+    if (rule.params) return;
+    rule.each((decl) => {
+      if (decl.type === "decl" && fontRoles.includes(decl.prop.slice(2)))
+        values[decl.prop.slice(2)] = decl.value;
+    });
+  });
+  const missing = fontRoles.filter((role) => !values[role]);
+  if (missing.length) throw new Error(`${path}: @theme is missing ${missing.join(", ")}`);
+  return values;
+}
+
+export function renderCss(themes, fonts) {
+  const base = themes.find(({ id }) => id === baseTheme);
   const blocks = themes.flatMap((theme) => {
     const scope = theme.id === baseTheme ? ":root" : `:root[data-theme="${theme.id}"]`;
+    // A miniature (data-theme-preview) sits inside whatever theme is selected,
+    // so it carries every value itself: the default fonts and Classic's roles,
+    // then its own. In dark mode Classic's dark values apply only where the
+    // theme sets nothing in light, as the cascade does on :root.
+    const preview = `[data-theme-preview="${theme.id}"]`;
+    const inheritedDark =
+      theme === base
+        ? {}
+        : Object.fromEntries(
+            Object.entries(base.dark).filter(([token]) => !Object.hasOwn(theme.light, token)),
+          );
     return [
       block(scope, theme.light),
       block(theme.id === baseTheme ? ".dark" : `${scope}.dark`, theme.dark),
+      block(preview, { ...fonts, ...base.light, ...theme.light }),
+      block(`.dark ${preview}`, { ...inheritedDark, ...theme.dark }),
     ];
   });
+  // Rules apply in their theme only; `.dark` rules in its dark mode.
+  const rules = themes.flatMap((theme) =>
+    theme.rules.map((rule) => {
+      const scoped = rule.clone();
+      scoped.selector = postcss.list
+        .comma(rule.selector)
+        .map((selector) =>
+          selector.replace(
+            /^(:root|\.dark)\s+/,
+            (prefix) =>
+              `:root[data-theme="${theme.id}"]${prefix.startsWith(".dark") ? ".dark" : ""} `,
+          ),
+        )
+        .join(", ");
+      return scoped.toString();
+    }),
+  );
   return (
     "/* Generated by scripts/theme-generate.mjs from src/themes/definitions. Do not edit. */\n" +
     blocks.filter(Boolean).join("\n\n") +
+    (rules.length
+      ? `\n\n/* Element defaults: below every utility class. */\n@layer base {\n${rules.join("\n\n")}\n}`
+      : "") +
     "\n"
   );
 }
 
-export async function generate({ check = false, dir = definitionsDir, path = outputPath } = {}) {
+export function renderRegistry(themes) {
+  const entries = themes.map(({ id, name, font, mode }) => ({ id, name, font, mode }));
+  return `// Generated by scripts/theme-generate.mjs from src/themes/definitions. Do not edit.
+export interface ThemeDefinition {
+  id: string;
+  name: string;
+  /** Font the theme suggests; choosing the theme applies it to the Font setting. */
+  font?: ${fontRoles.map((role) => JSON.stringify(role)).join(" | ")};
+  /** Mode the theme is designed for; Settings offers it but never applies it. */
+  mode?: ${suggestedModes.map((mode) => JSON.stringify(mode)).join(" | ")};
+}
+
+/** In picker order; the first is Classic, the base every theme inherits from. */
+export const themes: readonly ThemeDefinition[] = ${JSON.stringify(entries)};
+`;
+}
+
+export async function generate({ check = false, dir = definitionsDir, out = outputDir } = {}) {
   const themes = await loadThemes(dir);
-  const css = await format(renderCss(themes), {
-    ...(await resolveConfig(path)),
-    filepath: path,
-  });
-  const current = await readFile(path, "utf8").catch(() => undefined);
-  if (current !== css) {
+  for (const [name, source] of [
+    ["themes.css", renderCss(themes, await loadFontDefaults())],
+    ["registry.ts", renderRegistry(themes)],
+  ]) {
+    const path = resolve(out, name);
+    const content = await format(source, { ...(await resolveConfig(path)), filepath: path });
+    const current = await readFile(path, "utf8").catch(() => undefined);
+    if (current === content) continue;
     if (check) throw new Error(`${path} is stale: run pnpm themes:generate`);
     await mkdir(dirname(path), { recursive: true });
-    await writeFile(path, css);
+    await writeFile(path, content);
   }
   return themes;
 }
