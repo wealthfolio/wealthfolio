@@ -4,6 +4,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- `Settings.themeId`: the host's theme (Classic, Signature, Ember or Cupertino),
+  absent on hosts without themes. Addon pages get the theme's colours through
+  the host's CSS variables and its `data-theme` attribute on `<html>`, and
+  follow it when the user switches.
+
+### Changed
+
+- The component theme tokens (`--button-*`, `--control-*`, `--field-*`,
+  `--switch-*`, `--card-*`, `--popup-*`, `--overlay-*`, `--dialog-radius`,
+  `--sheet-bg`, `--badge-radius`, `--segmented-*`) follow the host's theme;
+  Classic keeps the previous look. `Tabs`' sliding thumb reads
+  `--segmented-thumb`, `--segmented-thumb-image` and `--segmented-thumb-shadow`,
+  and the default `Button` takes its border colour from `--button-border`
+  (transparent in Classic).
+
 ## [3.11.0] - 2026-10-22
 
 ### Added
