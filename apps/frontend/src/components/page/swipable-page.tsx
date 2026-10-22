@@ -47,7 +47,7 @@ function NavigationPills({
   const layoutId = React.useId();
 
   return (
-    <nav className="bg-muted/60 inline-flex items-center rounded-full p-1">
+    <nav className="bg-muted/60 rounded-(--segmented-radius) inline-flex items-center p-1">
       {views.map((view) => {
         const isActive = currentView === view.value;
         const IconComponent = view.icon;
@@ -58,7 +58,7 @@ function NavigationPills({
             type="button"
             onClick={() => onViewChange(view.value)}
             className={cn(
-              "relative flex cursor-pointer items-center gap-2 rounded-full px-3 py-1.5 text-sm font-medium transition-colors duration-200",
+              "rounded-(--segmented-radius) relative flex cursor-pointer items-center gap-2 px-3 py-1.5 text-sm font-medium transition-colors duration-200",
               "focus-visible:ring-ring focus-visible:outline-none focus-visible:ring-2",
               isActive ? "text-foreground" : "text-muted-foreground hover:text-foreground/80",
             )}
@@ -67,7 +67,8 @@ function NavigationPills({
             {isActive && (
               <motion.div
                 layoutId={`nav-pill-${layoutId}`}
-                className="bg-background absolute inset-0 rounded-full shadow-sm"
+                data-slot="segmented-thumb"
+                className="bg-(--segmented-thumb) bg-(image:--segmented-thumb-image) shadow-(--segmented-thumb-shadow) rounded-(--segmented-radius) absolute inset-0"
                 initial={false}
                 transition={{
                   type: "spring",
@@ -104,7 +105,7 @@ function MobileNavigation({
   return (
     <div
       className={cn(
-        "bg-muted/50 flex items-center gap-0.5 rounded-full p-1 backdrop-blur-sm",
+        "bg-muted/50 rounded-(--segmented-radius) flex items-center gap-0.5 p-1 backdrop-blur-sm",
         compact && "w-fit min-w-0 max-w-full",
       )}
     >
@@ -118,7 +119,7 @@ function MobileNavigation({
             type="button"
             onClick={() => onViewChange(item.value)}
             className={cn(
-              "relative flex cursor-pointer items-center justify-center gap-1.5 rounded-full py-1.5 text-sm font-medium transition-colors duration-200",
+              "rounded-(--segmented-radius) relative flex cursor-pointer items-center justify-center gap-1.5 py-1.5 text-sm font-medium transition-colors duration-200",
               "focus-visible:ring-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2",
               compact ? "px-2" : "px-3",
               isActive ? "min-w-0" : "shrink-0",
@@ -130,7 +131,8 @@ function MobileNavigation({
             {isActive && (
               <motion.div
                 layoutId={`mobile-nav-bg-${layoutId}`}
-                className="bg-background absolute inset-0 rounded-full shadow-sm"
+                data-slot="segmented-thumb"
+                className="bg-(--segmented-thumb) bg-(image:--segmented-thumb-image) shadow-(--segmented-thumb-shadow) rounded-(--segmented-radius) absolute inset-0"
                 initial={false}
                 transition={{
                   type: "spring",

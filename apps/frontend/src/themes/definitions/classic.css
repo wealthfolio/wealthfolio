@@ -34,6 +34,8 @@
      weight of filled buttons, and the outline and secondary surfaces. */
   --button-image: none;
   --button-shadow: 0 0 #0000;
+  /* The primary button's 1px border; its fill stops inside it. */
+  --button-border: transparent;
   --button-weight: 500;
   --button-outline-bg: var(--input-bg);
   --button-outline-border: var(--input);

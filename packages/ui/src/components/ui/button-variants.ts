@@ -8,7 +8,7 @@ export const buttonVariants = cva(
     variants: {
       variant: {
         default:
-          "bg-primary bg-(image:--button-image) shadow-(--button-shadow) font-(weight:--button-weight) text-primary-foreground hover:bg-primary/90 disabled:bg-none disabled:shadow-none data-disabled:bg-none data-disabled:shadow-none",
+          "border-(color:--button-border) bg-primary bg-(image:--button-image) shadow-(--button-shadow) font-(weight:--button-weight) text-primary-foreground hover:bg-primary/90 disabled:bg-none disabled:shadow-none data-disabled:bg-none data-disabled:shadow-none",
         destructive:
           "bg-destructive-subtle font-(weight:--button-weight) text-destructive-subtle-foreground hover:bg-destructive-subtle-border/50",
         outline:

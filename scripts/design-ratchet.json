@@ -5,16 +5,15 @@
     "apps/frontend/src/pages/not-found.tsx": 1
   },
   "rawColors": {
-    "apps/frontend/src/components/performance-chart-colors.ts": 8,
     "apps/frontend/src/components/startup-screen.tsx": 2,
     "apps/frontend/src/components/theme-selector.tsx": 52,
     "apps/frontend/src/features/ai-assistant/components/provider-icons.tsx": 5,
     "apps/frontend/src/features/ai-assistant/components/tool-uis/categorization-proposals-tool-ui.tsx": 2,
-    "apps/frontend/src/features/goals/components/goal-funding-editor.tsx": 28,
+    "apps/frontend/src/features/goals/components/goal-funding-editor.tsx": 12,
     "apps/frontend/src/features/goals/retirement-planner/components/retirement-coverage-chart.tsx": 5,
     "apps/frontend/src/features/goals/retirement-planner/components/retirement-portfolio-chart.tsx": 5,
     "apps/frontend/src/features/goals/retirement-planner/components/risk-lab-skeleton.tsx": 2,
-    "apps/frontend/src/features/goals/retirement-planner/pages/risk-lab-page.tsx": 19,
+    "apps/frontend/src/features/goals/retirement-planner/pages/risk-lab-page.tsx": 14,
     "apps/frontend/src/features/goals/save-up/components/save-up-projection-card.tsx": 2,
     "apps/frontend/src/features/profiles/avatar-catalog.ts": 8,
     "apps/frontend/src/features/profiles/line-portrait-avatars.tsx": 2,

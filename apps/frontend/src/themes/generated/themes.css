@@ -13,6 +13,7 @@
   --segmented-radius: 9999px;
   --button-image: none;
   --button-shadow: 0 0 #0000;
+  --button-border: transparent;
   --button-weight: 500;
   --button-outline-bg: var(--input-bg);
   --button-outline-border: var(--input);
@@ -238,6 +239,7 @@
   --segmented-radius: 9999px;
   --button-image: none;
   --button-shadow: 0 0 #0000;
+  --button-border: transparent;
   --button-weight: 500;
   --button-outline-bg: var(--input-bg);
   --button-outline-border: var(--input);

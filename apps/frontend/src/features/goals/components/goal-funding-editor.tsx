@@ -29,23 +29,17 @@ const TAX_BUCKET_COLORS: Record<string, string> = {
   tax_free: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
 };
 
+// The theme's chart colours, so the markers follow the theme like every chart;
+// a long list of accounts reuses them in order.
 const INDICATOR_COLORS = [
-  "var(--color-blue-400)",
-  "var(--color-orange-400)",
-  "var(--color-green-400)",
-  "var(--color-purple-400)",
-  "var(--color-cyan-400)",
-  "var(--color-red-400)",
-  "var(--color-magenta-400)",
-  "var(--color-yellow-400)",
-  "var(--color-blue-600)",
-  "var(--color-orange-600)",
-  "var(--color-green-600)",
-  "var(--color-purple-600)",
-  "var(--color-cyan-600)",
-  "var(--color-red-600)",
-  "var(--color-magenta-600)",
-  "var(--color-yellow-600)",
+  "var(--chart-1)",
+  "var(--chart-2)",
+  "var(--chart-3)",
+  "var(--chart-4)",
+  "var(--chart-5)",
+  "var(--chart-6)",
+  "var(--chart-7)",
+  "var(--chart-8)",
 ];
 
 const SHARE_EPSILON = 0.01;

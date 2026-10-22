@@ -76,7 +76,8 @@ function TabsTrigger({ className, children, ...props }: TabsTriggerProps) {
             <motion.span
               layout
               layoutId={layoutId}
-              className="bg-background ring-border/40 pointer-events-none absolute inset-0 z-0 shadow-sm ring-1 group-data-[variant=line]/tabs-list:hidden"
+              data-slot="segmented-thumb"
+              className="bg-(--segmented-thumb) bg-(image:--segmented-thumb-image) shadow-(--segmented-thumb-shadow) ring-border/40 pointer-events-none absolute inset-0 z-0 ring-1 group-data-[variant=line]/tabs-list:hidden"
               style={{ borderRadius: "inherit" }}
               transition={{ type: "spring", stiffness: 500, damping: 35, mass: 0.6 }}
             />

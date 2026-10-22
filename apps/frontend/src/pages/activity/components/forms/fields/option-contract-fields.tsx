@@ -249,7 +249,8 @@ export function OptionContractFields<TFieldValues extends FieldValues = FieldVal
                         {isSelected && (
                           <motion.div
                             layoutId={`option-type-indicator-${optionTypeId}`}
-                            className="bg-background absolute inset-0 -z-10 rounded-md shadow-sm"
+                            data-slot="segmented-thumb"
+                            className="bg-(--segmented-thumb) bg-(image:--segmented-thumb-image) shadow-(--segmented-thumb-shadow) absolute inset-0 -z-10 rounded-md"
                             initial={false}
                             transition={{ type: "spring", stiffness: 400, damping: 30 }}
                           />

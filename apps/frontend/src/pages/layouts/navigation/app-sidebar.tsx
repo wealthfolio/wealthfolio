@@ -280,6 +280,8 @@ function NavItem({ item, collapsed, className, ...props }: NavItemProps) {
         buttonVariants({ variant: isActive ? "secondary" : "ghost" }),
         cn(
           "text-foreground [&_svg]:size-5! mb-1 h-12 rounded-md transition-all duration-300",
+          // The selected item is a flat fill, not a raised button.
+          isActive && "bg-secondary hover:bg-secondary/80 border-transparent bg-none shadow-none",
           collapsed ? "justify-center" : "justify-start",
           className,
         ),
