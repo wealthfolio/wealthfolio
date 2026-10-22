@@ -67,12 +67,22 @@ test("rejects themes the generator cannot vouch for", async (t) => {
   }
 });
 
-test("each miniature carries every value, whatever theme is selected", async (t) => {
+test("each miniature carries what it draws, whatever theme is selected", async (t) => {
   const dir = await workspace(t, {
-    "example.css": theme("Example", "  --chart-stone: #abcdef;"),
+    "example.css": theme(
+      "Example",
+      "  --chart-stone: #abcdef;\n  --sidebar-accent: var(--popover);",
+    ),
   });
   const out = path.join(dir, "out");
-  await generate({ dir, out });
+  const previewTokens = [
+    "font-sans",
+    "background",
+    "sidebar-accent",
+    "success-subtle",
+    "chart-stone",
+  ];
+  await generate({ dir, out, previewTokens });
   const css = await readFile(path.join(out, "themes.css"), "utf8");
   const block = (selector) =>
     css.slice(css.indexOf(`${selector} {`), css.indexOf("}", css.indexOf(`${selector} {`)));
@@ -82,11 +92,20 @@ test("each miniature carries every value, whatever theme is selected", async (t)
   assert.match(light, /--background: #123456;/);
   assert.match(light, /--success-subtle: var\(--color-green-50\);/);
   assert.match(light, /--font-sans:\s+"Inter Variable", "Inter", "Rubik Arabic"/);
+  // What those values read too, so no var() reaches the selected theme; nothing else.
+  assert.match(light, /--popover: #123456;/);
+  assert.doesNotMatch(light, /^\s+--foreground:/m);
   // Classic's dark values, except where the theme sets one in light mode.
   assert.match(dark, /--success-subtle: var\(--color-green-950\);/);
   assert.doesNotMatch(dark, /--chart-stone/);
-  // Classic's own miniature keeps its whole dark mode.
-  assert.match(block('.dark [data-theme-preview="classic"]'), /--chart-stone: hsl/);
+  // Classic's own miniature keeps its dark values and the Flexoki values they read.
+  const classicDark = block('.dark [data-theme-preview="classic"]');
+  assert.match(classicDark, /--chart-stone: hsl/);
+  assert.match(classicDark, /--flexoki-bg: /);
+  await assert.rejects(
+    generate({ dir, out, previewTokens: ["not-a-token"] }),
+    /Classic does not define not-a-token/,
+  );
 });
 
 test("theme rules are element defaults below every class, never in Classic", async (t) => {

@@ -3,8 +3,9 @@
 // theme definitions in src/themes/definitions/. Classic is the base: it applies on :root and .dark,
 // so every other theme, scoped to :root[data-theme="<id>"], inherits Classic's
 // value for any role it leaves out, and an unknown theme ID shows Classic. Each
-// theme also applies to [data-theme-preview="<id>"], so the picker can draw it
-// in the current mode.
+// theme also applies to [data-theme-preview="<id>"], with only the tokens a
+// miniature draws (src/components/theme-preview-tokens.json), so the picker can
+// draw it in the current mode.
 // Readability (the colour contract) is checked in the browser by
 // e2e/design-system/colors.spec.ts for every theme. `--check` fails when the
 // committed output is stale.
@@ -18,6 +19,9 @@ const frontend = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 export const definitionsDir = resolve(frontend, "src/themes/definitions");
 export const outputDir = resolve(frontend, "src/themes/generated");
 const globalsPath = resolve(frontend, "src/globals.css");
+// The tokens the theme picker's miniature draws; theme-picker.test.tsx keeps the
+// list in step with the component.
+const previewTokensPath = resolve(frontend, "src/components/theme-preview-tokens.json");
 
 export const baseTheme = "classic";
 // The picker's order; themes not listed follow alphabetically.
@@ -236,14 +240,44 @@ export async function loadFontDefaults(path = globalsPath) {
   return values;
 }
 
-export function renderCss(themes, fonts) {
+export async function loadPreviewTokens(path = previewTokensPath) {
+  const tokens = JSON.parse(await readFile(path, "utf8"));
+  if (!Array.isArray(tokens) || !tokens.every((token) => typeof token === "string"))
+    throw new Error(`${path}: expected an array of token names`);
+  return tokens;
+}
+
+// The given tokens and every token their values read through var(), however
+// deep, so no value in a miniature falls through to the selected theme's.
+function withReads(tokens, values) {
+  const found = new Set();
+  const visit = (token) => {
+    if (found.has(token)) return;
+    found.add(token);
+    for (const [, read] of (values[token] ?? "").matchAll(/var\(\s*--([\w-]+)/g)) visit(read);
+  };
+  tokens.forEach(visit);
+  return found;
+}
+
+function pick(values, tokens) {
+  return Object.fromEntries(Object.entries(values).filter(([token]) => tokens.has(token)));
+}
+
+export function renderCss(themes, fonts, previewTokens) {
   const base = themes.find(({ id }) => id === baseTheme);
+  const known = new Set([...Object.keys(base.light), ...Object.keys(base.dark), ...fontRoles]);
+  const unknown = previewTokens.filter((token) => !known.has(token));
+  if (unknown.length)
+    throw new Error(`theme-preview-tokens.json: Classic does not define ${unknown.join(", ")}`);
   const blocks = themes.flatMap((theme) => {
     const scope = theme.id === baseTheme ? ":root" : `:root[data-theme="${theme.id}"]`;
     // A miniature (data-theme-preview) sits inside whatever theme is selected,
-    // so it carries every value itself: the default fonts and Classic's roles,
-    // then its own. In dark mode Classic's dark values apply only where the
-    // theme sets nothing in light, as the cascade does on :root.
+    // so it carries every value it draws itself: the default fonts and Classic's
+    // roles, then its own. In dark mode Classic's dark values apply only where
+    // the theme sets nothing in light, as the cascade does on :root. Only the
+    // tokens the miniature draws, and those their values read in either mode,
+    // are written.
     const preview = `[data-theme-preview="${theme.id}"]`;
     const inheritedDark =
       theme === base
@@ -251,11 +285,17 @@ export function renderCss(themes, fonts) {
         : Object.fromEntries(
             Object.entries(base.dark).filter(([token]) => !Object.hasOwn(theme.light, token)),
           );
+    const light = { ...fonts, ...base.light, ...theme.light };
+    const dark = { ...inheritedDark, ...theme.dark };
+    const drawn = new Set([
+      ...withReads(previewTokens, light),
+      ...withReads(previewTokens, { ...light, ...dark }),
+    ]);
     return [
       block(scope, theme.light),
       block(theme.id === baseTheme ? ".dark" : `${scope}.dark`, theme.dark),
-      block(preview, { ...fonts, ...base.light, ...theme.light }),
-      block(`.dark ${preview}`, { ...inheritedDark, ...theme.dark }),
+      block(preview, pick(light, drawn)),
+      block(`.dark ${preview}`, pick(dark, drawn)),
     ];
   });
   // Rules apply in their theme only; `.dark` rules in its dark mode.
@@ -302,10 +342,18 @@ export const themes: readonly ThemeDefinition[] = ${JSON.stringify(entries)};
 `;
 }
 
-export async function generate({ check = false, dir = definitionsDir, out = outputDir } = {}) {
+export async function generate({
+  check = false,
+  dir = definitionsDir,
+  out = outputDir,
+  previewTokens,
+} = {}) {
   const themes = await loadThemes(dir);
   for (const [name, source] of [
-    ["themes.css", renderCss(themes, await loadFontDefaults())],
+    [
+      "themes.css",
+      renderCss(themes, await loadFontDefaults(), previewTokens ?? (await loadPreviewTokens())),
+    ],
     ["registry.ts", renderRegistry(themes)],
   ]) {
     const path = resolve(out, name);

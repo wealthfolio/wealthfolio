@@ -17,7 +17,9 @@ function PreviewCard({ children }: { children: ReactNode }) {
 /**
  * A miniature of the dashboard in one theme, drawn in the current mode. The
  * theme's CSS applies to [data-theme-preview], so every colour, radius and font
- * is the theme's own. Decorative: the picker names each option.
+ * is the theme's own. That CSS carries only the tokens in
+ * theme-preview-tokens.json: list any token a new class here reads (the picker
+ * test checks). Decorative: the picker names each option.
  */
 export function ThemePreview({
   theme,
