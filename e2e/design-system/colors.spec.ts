@@ -1,8 +1,8 @@
 import { expect, test, type Page } from "@playwright/test";
-import { modes, openGallery } from "./gallery";
+import { modes, openGallery, themes } from "./gallery";
 
 // The colour contract: the roles every theme defines, and the pairs that must stay
-// readable in each mode. Text needs 4.5:1 (WCAG 1.4.3); the focus indicator 3:1
+// readable in each theme and mode. Text needs 4.5:1 (WCAG 1.4.3); the focus indicator 3:1
 // against what it sits on (WCAG 1.4.11).
 
 // Callouts, banners and pills on a status use its subtle surface, never status text on
@@ -71,8 +71,9 @@ const textPairs = [
   ["success-foreground", "success"],
   ["warning-foreground", "warning"],
   ["info-foreground", "info"],
-  // Status colours are also text: gains, losses, errors and warnings.
-  ...["destructive", "success", "warning"].flatMap((text) =>
+  // Primary is also text (links, link buttons and badges, accents: 129 uses), and
+  // status colours are text for gains, losses, errors and warnings.
+  ...["primary", "destructive", "success", "warning"].flatMap((text) =>
     ["background", "card"].map((surface) => [text, surface]),
   ),
   // Target allocation drift, as text on cards.
@@ -87,6 +88,26 @@ const textPairs = [
     `toast${kind}-bg`,
   ]),
 ] as const;
+
+// Documented exceptions: a lower floor, still enforced, for one theme and mode.
+// Cupertino dark draws white labels on iOS systemBlue (#0a84ff), as iOS does: 3.65:1,
+// below 4.5:1 for 14px text. A blue dark enough for a white label would fail as
+// link text on the card, and primary is both (maintainer's choice, 2026-10-19).
+const exceptions: {
+  theme: string;
+  mode: string;
+  text: string;
+  surface: string;
+  minimum: number;
+}[] = [
+  ...["primary", "sidebar-primary"].map((role) => ({
+    theme: "cupertino",
+    mode: "dark",
+    text: `${role}-foreground`,
+    surface: role,
+    minimum: 3.6,
+  })),
+];
 
 const indicatorPairs = [
   ["ring", "background"],
@@ -149,107 +170,118 @@ async function ratios(page: Page, pairs: { text: string; layers: string[] }[]) {
   return pixels.map(([below, above]) => contrast(above, below));
 }
 
-for (const mode of modes) {
-  test(`colour contract, ${mode}`, async ({ page }) => {
-    await openGallery(page, { mode });
-    const missing = await page.evaluate(
-      (names) =>
-        names.filter(
-          (name) =>
-            !getComputedStyle(document.documentElement).getPropertyValue(`--${name}`).trim(),
-        ),
-      roles,
-    );
-    expect(missing, "roles the theme does not define").toEqual([]);
+for (const theme of themes) {
+  for (const mode of modes) {
+    test(`colour contract, ${theme}, ${mode}`, async ({ page }) => {
+      await openGallery(page, { mode, theme });
+      const missing = await page.evaluate(
+        (names) =>
+          names.filter(
+            (name) =>
+              !getComputedStyle(document.documentElement).getPropertyValue(`--${name}`).trim(),
+          ),
+        roles,
+      );
+      expect(missing, "roles the theme does not define").toEqual([]);
 
-    const pairs = [...textPairs, ...indicatorPairs];
-    const results = await ratios(
-      page,
-      pairs.map(([text, surface]) => ({ text: `var(--${text})`, layers: [`var(--${surface})`] })),
-    );
-    const failures = pairs.flatMap(([text, surface], index) => {
-      const minimum = index < textPairs.length ? 4.5 : 3;
-      return results[index] < minimum
-        ? [`${text} on ${surface}: ${results[index].toFixed(2)} < ${minimum}`]
-        : [];
-    });
-    expect(failures).toEqual([]);
-  });
-
-  test(`treemap gains and losses read apart and off the card, ${mode}`, async ({ page }) => {
-    // composition-chart draws each tile on the ramp from --heatmap-*-low to -high,
-    // at 0.45 opacity over the card in dark mode. Mid-tone gain and loss tiles must
-    // differ in hue and chroma, not only in lightness (OKLab a/b distance), and
-    // stand off the card. The minimums are the reference branch's, set between
-    // the themes whose tiles failed and every theme whose tiles read well.
-    await openGallery(page, { mode });
-    const tokens = [
-      "heatmap-positive-low",
-      "heatmap-positive-high",
-      "heatmap-negative-low",
-      "heatmap-negative-high",
-      "card",
-    ];
-    const colors = await page.evaluate((names) => {
-      const canvas = document.createElement("canvas");
-      canvas.width = canvas.height = 1;
-      const context = canvas.getContext("2d", { willReadFrequently: true })!;
-      const probe = document.createElement("div");
-      document.body.append(probe);
-      const result = names.map((name) => {
-        probe.style.color = `var(--${name})`;
-        context.clearRect(0, 0, 1, 1);
-        context.fillStyle = getComputedStyle(probe).color;
-        context.fillRect(0, 0, 1, 1);
-        return Array.from(context.getImageData(0, 0, 1, 1).data.slice(0, 3));
+      const pairs = [...textPairs, ...indicatorPairs];
+      const results = await ratios(
+        page,
+        pairs.map(([text, surface]) => ({ text: `var(--${text})`, layers: [`var(--${surface})`] })),
+      );
+      const failures = pairs.flatMap(([text, surface], index) => {
+        const exception = exceptions.find(
+          (entry) =>
+            entry.theme === theme &&
+            entry.mode === mode &&
+            entry.text === text &&
+            entry.surface === surface,
+        );
+        const minimum = exception?.minimum ?? (index < textPairs.length ? 4.5 : 3);
+        return results[index] < minimum
+          ? [`${text} on ${surface}: ${results[index].toFixed(2)} < ${minimum}`]
+          : [];
       });
-      probe.remove();
-      return result;
-    }, tokens);
-    const [positiveLow, positiveHigh, negativeLow, negativeHigh, card] = colors;
-    const opacity = mode === "dark" ? 0.45 : 1;
-    const midTile = (low: number[], high: number[]) =>
-      low.map((value, i) => ((value + high[i]) / 2) * opacity + card[i] * (1 - opacity));
-    const [positive, negative, surface] = [
-      midTile(positiveLow, positiveHigh),
-      midTile(negativeLow, negativeHigh),
-      card,
-    ].map(oklab);
-    const distance = (a: number[], b: number[], from = 0) =>
-      Math.hypot(...a.slice(from).map((value, i) => value - b[from + i]));
-    const failures = [
-      ["gain and loss hue", distance(positive, negative, 1), 0.06],
-      ["gain off the card", distance(positive, surface), 0.1],
-      ["loss off the card", distance(negative, surface), 0.1],
-    ].flatMap(([name, value, minimum]) =>
-      (value as number) < (minimum as number)
-        ? [`${name}: ${(value as number).toFixed(3)} < ${minimum}`]
-        : [],
-    );
-    expect(failures).toEqual([]);
-  });
+      expect(failures).toEqual([]);
+    });
 
-  test(`status text on glass alerts, ${mode}`, async ({ page }) => {
-    // Alert's status variants show the subtle surface at 60% over whatever is below.
-    await openGallery(page, { mode });
-    const cases = statuses.flatMap((status) =>
-      ["background", "card"].map((surface) => ({ status, surface })),
-    );
-    const results = await ratios(
+    test(`treemap gains and losses read apart and off the card, ${theme}, ${mode}`, async ({
       page,
-      cases.map(({ status, surface }) => ({
-        text: `var(--${status}-subtle-foreground)`,
-        layers: [
-          `var(--${surface})`,
-          `color-mix(in oklab, var(--${status}-subtle) 60%, transparent)`,
-        ],
-      })),
-    );
-    const failures = cases.flatMap(({ status, surface }, index) =>
-      results[index] < 4.5
-        ? [`${status} glass over ${surface}: ${results[index].toFixed(2)} < 4.5`]
-        : [],
-    );
-    expect(failures).toEqual([]);
-  });
+    }) => {
+      // composition-chart draws each tile on the ramp from --heatmap-*-low to -high,
+      // at 0.45 opacity over the card in dark mode. Mid-tone gain and loss tiles must
+      // differ in hue and chroma, not only in lightness (OKLab a/b distance), and
+      // stand off the card. The minimums are the reference branch's, set between
+      // the themes whose tiles failed and every theme whose tiles read well.
+      await openGallery(page, { mode, theme });
+      const tokens = [
+        "heatmap-positive-low",
+        "heatmap-positive-high",
+        "heatmap-negative-low",
+        "heatmap-negative-high",
+        "card",
+      ];
+      const colors = await page.evaluate((names) => {
+        const canvas = document.createElement("canvas");
+        canvas.width = canvas.height = 1;
+        const context = canvas.getContext("2d", { willReadFrequently: true })!;
+        const probe = document.createElement("div");
+        document.body.append(probe);
+        const result = names.map((name) => {
+          probe.style.color = `var(--${name})`;
+          context.clearRect(0, 0, 1, 1);
+          context.fillStyle = getComputedStyle(probe).color;
+          context.fillRect(0, 0, 1, 1);
+          return Array.from(context.getImageData(0, 0, 1, 1).data.slice(0, 3));
+        });
+        probe.remove();
+        return result;
+      }, tokens);
+      const [positiveLow, positiveHigh, negativeLow, negativeHigh, card] = colors;
+      const opacity = mode === "dark" ? 0.45 : 1;
+      const midTile = (low: number[], high: number[]) =>
+        low.map((value, i) => ((value + high[i]) / 2) * opacity + card[i] * (1 - opacity));
+      const [positive, negative, surface] = [
+        midTile(positiveLow, positiveHigh),
+        midTile(negativeLow, negativeHigh),
+        card,
+      ].map(oklab);
+      const distance = (a: number[], b: number[], from = 0) =>
+        Math.hypot(...a.slice(from).map((value, i) => value - b[from + i]));
+      const failures = [
+        ["gain and loss hue", distance(positive, negative, 1), 0.06],
+        ["gain off the card", distance(positive, surface), 0.1],
+        ["loss off the card", distance(negative, surface), 0.1],
+      ].flatMap(([name, value, minimum]) =>
+        (value as number) < (minimum as number)
+          ? [`${name}: ${(value as number).toFixed(3)} < ${minimum}`]
+          : [],
+      );
+      expect(failures).toEqual([]);
+    });
+
+    test(`status text on glass alerts, ${theme}, ${mode}`, async ({ page }) => {
+      // Alert's status variants show the subtle surface at 60% over whatever is below.
+      await openGallery(page, { mode, theme });
+      const cases = statuses.flatMap((status) =>
+        ["background", "card"].map((surface) => ({ status, surface })),
+      );
+      const results = await ratios(
+        page,
+        cases.map(({ status, surface }) => ({
+          text: `var(--${status}-subtle-foreground)`,
+          layers: [
+            `var(--${surface})`,
+            `color-mix(in oklab, var(--${status}-subtle) 60%, transparent)`,
+          ],
+        })),
+      );
+      const failures = cases.flatMap(({ status, surface }, index) =>
+        results[index] < 4.5
+          ? [`${status} glass over ${surface}: ${results[index].toFixed(2)} < 4.5`]
+          : [],
+      );
+      expect(failures).toEqual([]);
+    });
+  }
 }
