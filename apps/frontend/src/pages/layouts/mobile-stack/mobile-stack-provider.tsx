@@ -22,6 +22,7 @@ import {
   applyNavigation,
   coldStart,
   getBackTarget,
+  stepsBackToTabRoot,
   topScreen,
   type StackConfig,
   type StackIntent,
@@ -146,7 +147,16 @@ export function MobileStackProvider({ config, children }: MobileStackProviderPro
       if (!tab) return;
       const screens = state.stacks[tabId] ?? [];
       if (state.activeTab === tabId) {
-        if (screens.length > 1) void navigate(tab.rootPath);
+        if (screens.length < 2) return;
+        // Back to the tab's first screen through history when the screens above
+        // it are the latest entries, so no closed screen stays behind in history.
+        const steps = stepsBackToTabRoot(state, tabId);
+        if (steps) {
+          setAppWentBack(true);
+          void navigate(-steps);
+        } else {
+          void navigate(tab.rootPath);
+        }
         return;
       }
       const top = screens[screens.length - 1];

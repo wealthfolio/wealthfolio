@@ -1,3 +1,4 @@
+import { useEffectOnChange } from "@/hooks/use-effect-on-change";
 import { ActivityType, QuoteMode } from "@/lib/constants";
 import { buildAssetResolutionInput } from "@/lib/asset-resolution-input";
 import { useSettingsContext } from "@/lib/settings-provider";
@@ -73,7 +74,7 @@ export const BulkHoldingsModal = ({
     ) || false;
 
   // Reset form when modal is closed and handle initial focus
-  useEffect(() => {
+  useEffectOnChange(() => {
     if (!open) {
       form.reset();
       return;
@@ -85,16 +86,14 @@ export const BulkHoldingsModal = ({
     } else if (!form.getValues("currency")) {
       form.setValue("currency", baseCurrency, { shouldValidate: false });
     }
-
-    // When modal opens, focus the account field with proper timing (only if no default)
-    const timeoutId = setTimeout(() => {
-      if (!defaultAccount) {
-        form.setFocus("accountId");
-      }
-    }, 150);
-
-    return () => clearTimeout(timeoutId);
   }, [open, baseCurrency, defaultAccount, form]);
+
+  // When modal opens, focus the account field with proper timing (only if no default)
+  useEffect(() => {
+    if (!open || defaultAccount) return;
+    const timeoutId = setTimeout(() => form.setFocus("accountId"), 150);
+    return () => clearTimeout(timeoutId);
+  }, [open, defaultAccount, form]);
 
   // Account change handler
   const handleAccountChange = useCallback(

@@ -1,5 +1,6 @@
-import { fireEvent, render, screen, waitFor, within } from "@/test/render";
+import { act, fireEvent, render, screen, waitFor, within } from "@/test/render";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { Activity } from "react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, expect, it, vi } from "vitest";
 import type { CloudBackupOperation } from "@/adapters";
@@ -717,6 +718,39 @@ it("offers a manual backup in the menu and sends it as manual", async () => {
   await waitFor(() =>
     expect(mocks.toast).toHaveBeenCalledWith({ title: copy.backup_saved, variant: "success" }),
   );
+});
+it("settles a manual backup that finishes while its screen is out of sight", async () => {
+  mocks.action.mockImplementation((op) =>
+    Promise.resolve(op.action === "runtimeStatus" ? { state: "idle", retryAt: null } : running),
+  );
+  let finish: (point: unknown) => void = () => undefined;
+  mocks.capture.mockReturnValue(new Promise((resolve) => (finish = resolve)));
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
+  // A phone screen kept under another one, or in a tab left for another.
+  const view = (hidden: boolean) => (
+    <QueryClientProvider client={client}>
+      <MemoryRouter>
+        <Activity mode={hidden ? "hidden" : "visible"}>
+          <CloudBackupCard />
+        </Activity>
+      </MemoryRouter>
+    </QueryClientProvider>
+  );
+  const { rerender } = render(view(false));
+  await openBackupMenu();
+  fireEvent.click(await screen.findByRole("menuitem", { name: copy.backup_now }));
+  await waitFor(() => expect(mocks.capture).toHaveBeenCalledWith(true));
+  const options = screen.getByRole("button", { name: copy.cloud_backup_options });
+  await waitFor(() => expect(options).toBeDisabled());
+
+  rerender(view(true));
+  await act(async () => finish({ backupId: "now", publishedAt: "2026-10-01T01:00:00Z" }));
+  rerender(view(false));
+
+  await waitFor(() =>
+    expect(screen.getByRole("button", { name: copy.cloud_backup_options })).toBeEnabled(),
+  );
+  expect(mocks.toast).toHaveBeenCalledWith({ title: copy.backup_saved, variant: "success" });
 });
 it("says so when no backup was started", async () => {
   mocks.action.mockImplementation((op) =>

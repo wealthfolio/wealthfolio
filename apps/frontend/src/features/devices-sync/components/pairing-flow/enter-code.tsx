@@ -203,10 +203,10 @@ export function EnterCode({
     } finally {
       stopScanRef.current = null;
       document.body.classList.remove("qr-scan-active");
-      if (mountedRef.current) {
-        setIsCameraActive(false);
-        setIsScanning(false);
-      }
+      // Settle even when the screen was hidden meanwhile (its cleanup stops the
+      // scan): it shows again as idle rather than stuck scanning.
+      setIsCameraActive(false);
+      setIsScanning(false);
     }
 
     // Guard against unmount during permission dialog / camera view

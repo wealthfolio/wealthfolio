@@ -7,8 +7,11 @@ import { useEffect, useRef, type DependencyList } from "react";
  * tab left and come back to), and StrictMode does the same in development.
  * Resetting a form when its record changes or its dialog opens is the typical
  * case: run again on show, it would clear what the user typed before leaving.
+ *
+ * The effect can't return a cleanup: a skipped run would leave whatever the
+ * cleanup undid when the component was hidden undone. Use `useEffect` for that.
  */
-export function useEffectOnChange(effect: () => void, deps: DependencyList) {
+export function useEffectOnChange(effect: () => undefined, deps: DependencyList) {
   const ranWith = useRef<DependencyList | null>(null);
   useEffect(() => {
     const previous = ranWith.current;

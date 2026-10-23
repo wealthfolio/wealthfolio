@@ -18,9 +18,10 @@ import type {
 } from "@wealthfolio/addon-sdk";
 import { isBaselineCategory } from "@wealthfolio/addon-sdk";
 import { AlertFeedback } from "@wealthfolio/ui";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { PermissionCategoriesDisplay } from "./permission-categories-display";
+import { useEffectOnChange } from "@/hooks/use-effect-on-change";
 
 interface PermissionDialogProps {
   open: boolean;
@@ -72,7 +73,7 @@ export function PermissionDialog({
   );
   const canManageNetworkHosts = isViewOnly && canEditNetworkHosts && networkHosts.length > 0;
 
-  useEffect(() => {
+  useEffectOnChange(() => {
     if (open) {
       setApprovedNetworkHosts(defaultApprovedNetworkHosts);
     }

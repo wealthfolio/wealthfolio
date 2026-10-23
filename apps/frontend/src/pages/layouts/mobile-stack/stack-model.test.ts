@@ -4,6 +4,7 @@ import {
   coldStart,
   describeTransition,
   getBackTarget,
+  stepsBackToTabRoot,
   topScreen,
   type NavigationAction,
   type StackConfig,
@@ -287,6 +288,46 @@ describe("two stacked tabs", () => {
     const back = historyBack(rules);
     expect(paths(back, "settings")).toEqual(["/settings", "/settings/spending"]);
     expect(topScreen(back)?.id).toBe(topScreen(spending)?.id);
+  });
+
+  it("opens a closed screen again under the pages above it in its path", () => {
+    const root = coldStart(config, at("/settings"));
+    const spending = go(root, "PUSH", at("/settings/spending"), undefined, 1);
+    const rulesAt = at("/settings/spending/rules");
+    const rules = go(spending, "PUSH", rulesAt, undefined, 2);
+    // Back to the tab's first screen by a new entry, then history back to Rules.
+    const reselected = go(rules, "PUSH", at("/settings"), undefined, 3);
+    expect(paths(reselected, "settings")).toEqual(["/settings"]);
+    const back = go(reselected, "POP", rulesAt, undefined, 2);
+    expect(paths(back, "settings")).toEqual([
+      "/settings",
+      "/settings/spending",
+      "/settings/spending/rules",
+    ]);
+    expect(getBackTarget(back)?.screen.location.pathname).toBe("/settings/spending");
+  });
+
+  it("counts the history steps back to the tab's first screen", () => {
+    const root = coldStart(config, at("/settings"));
+    const spending = go(root, "PUSH", at("/settings/spending"), undefined, 1);
+    const rules = go(spending, "PUSH", at("/settings/spending/rules"), undefined, 2);
+    expect(stepsBackToTabRoot(rules, "settings")).toBe(2);
+    expect(stepsBackToTabRoot(root, "settings")).toBeNull();
+  });
+
+  it("does not count back through another tab's entries", () => {
+    const root = coldStart(config, at("/settings"));
+    const spending = go(root, "PUSH", at("/settings/spending"), undefined, 1);
+    const holdings = go(spending, "PUSH", at("/holdings"), undefined, 2);
+    const back = go(
+      holdings,
+      "PUSH",
+      at("/settings/spending"),
+      { type: "openTab", tab: "settings" },
+      3,
+    );
+    expect(paths(back, "settings")).toEqual(["/settings", "/settings/spending"]);
+    expect(stepsBackToTabRoot(back, "settings")).toBeNull();
   });
 
   it("returns to the page underneath when a page redirects up to it", () => {

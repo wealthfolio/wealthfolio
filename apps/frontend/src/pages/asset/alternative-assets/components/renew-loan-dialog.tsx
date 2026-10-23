@@ -23,8 +23,9 @@ import {
   LoanSheetFooter,
 } from "./loan-sheet-content";
 import { Label } from "@wealthfolio/ui/components/ui/label";
-import { useEffect, useId, useState } from "react";
+import { useId, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useEffectOnChange } from "@/hooks/use-effect-on-change";
 import type { Quote } from "@/lib/types";
 import { cn, formatDateISO } from "@/lib/utils";
 import { loanRenewalEstimateRequest, useLoanPayments } from "../hooks/use-loan-calculation";
@@ -104,7 +105,7 @@ export function RenewLoanDialog({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
-  useEffect(() => {
+  useEffectOnChange(() => {
     if (!open) return;
     setEffectiveDate(defaultRenewalDate(maturityTime));
     setNewRate(String(interestRate));

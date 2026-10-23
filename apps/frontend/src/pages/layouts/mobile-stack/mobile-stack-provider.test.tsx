@@ -33,11 +33,14 @@ const config: StackConfig = {
 let navigate: ReturnType<typeof useNavigate> = () => undefined;
 let pathname = "";
 let popAnimated: boolean | null | undefined;
+let openTab: (tabId: string) => void = () => undefined;
 
 function Probe() {
   navigate = useNavigate();
   pathname = useLocation().pathname;
-  popAnimated = useMobileStack()?.popAnimated;
+  const stack = useMobileStack();
+  popAnimated = stack?.popAnimated;
+  openTab = stack?.openTab ?? (() => undefined);
   return null;
 }
 
@@ -212,5 +215,18 @@ describe("history steps the browser animated", () => {
     renderStack();
     popState();
     expect(popAnimated).toBeNull();
+  });
+});
+
+describe("tapping the tab that is shown", () => {
+  it("returns to its first screen through history, keeping the screens as forward entries", () => {
+    renderStack();
+    act(() => void navigate("/holdings/AMD"));
+    act(() => void navigate("/holdings/MSFT"));
+
+    act(() => openTab("holdings"));
+    expect(pathname).toBe("/holdings");
+    act(() => void navigate(1));
+    expect(pathname).toBe("/holdings/AMD");
   });
 });

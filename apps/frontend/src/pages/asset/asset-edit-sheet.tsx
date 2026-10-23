@@ -1,3 +1,4 @@
+import { useEffectOnChange } from "@/hooks/use-effect-on-change";
 import { getExchanges, resolveSymbolQuote } from "@/adapters";
 import { MultiSelectTaxonomy } from "@/components/classification/multi-select-taxonomy";
 import { SingleSelectTaxonomy } from "@/components/classification/single-select-taxonomy";
@@ -608,7 +609,7 @@ export function AssetEditSheet({
   const defaultMultiplier = instrumentDefaultMultiplier(watchedInstrumentType);
 
   // Reset form when asset changes
-  useEffect(() => {
+  useEffectOnChange(() => {
     if (asset) {
       form.reset({
         name: asset.name ?? "",
@@ -631,7 +632,7 @@ export function AssetEditSheet({
   }, [asset, form]);
 
   // Reset tab and validation state when sheet opens
-  useEffect(() => {
+  useEffectOnChange(() => {
     if (open) {
       setActiveTab(defaultTab);
       setSymbolValidations({});

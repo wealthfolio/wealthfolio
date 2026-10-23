@@ -249,11 +249,52 @@ export function coldStart(
   };
 }
 
+/**
+ * The tab's stack with `location` opened on top again after its screen was
+ * closed. A page under the tab's root gets back the pages above it in the path
+ * (kept where they still are, opened again where they were closed), so back
+ * walks up through them as it did before.
+ */
+function reopenOnTop(
+  state: StackState,
+  tabId: string,
+  location: StackLocation,
+  config: StackConfig,
+) {
+  const screens = state.stacks[tabId] ?? [];
+  const tab = config.tabs.find((candidate) => candidate.id === tabId);
+  const parents = tab ? parentLocations(tab, location) : [];
+  const nested = tab !== undefined && tabOwning(config, location.pathname)?.id === tabId;
+  if (!nested || parents.length === 0 || screens.length === 0) {
+    const { screen, nextId } = makeScreen(state, tabId, location);
+    return { screens: [...screens, screen], screen, nextId };
+  }
+  // The tab's first screen always stays; the pages between it and the location
+  // are kept while they still match, from the top down, and opened again after.
+  let next = state;
+  const rebuilt = screens.slice(0, 1);
+  let matching = true;
+  for (const parent of parents.slice(1)) {
+    const existing = screens[rebuilt.length];
+    if (matching && existing && sameUrl(existing.location, parent)) {
+      rebuilt.push(existing);
+      continue;
+    }
+    matching = false;
+    const made = makeScreen(next, tabId, parent);
+    rebuilt.push(made.screen);
+    next = { ...next, nextId: made.nextId };
+  }
+  const made = makeScreen(next, tabId, location);
+  return { screens: [...rebuilt, made.screen], screen: made.screen, nextId: made.nextId };
+}
+
 function goToKnownEntry(
   state: StackState,
   location: StackLocation,
   entry: HistoryEntry,
   index: number,
+  config: StackConfig,
 ) {
   const moved = { ...state, index, currentKey: location.key };
   if (entry.tab === null || entry.screenId === null) {
@@ -269,13 +310,13 @@ function goToKnownEntry(
     };
   }
 
-  // Forward to a screen that was popped: open it again on top of its tab.
-  const { screen, nextId } = makeScreen(state, entry.tab, location);
+  // History reached a screen that was closed: open it again on top of its tab.
+  const { screens, screen, nextId } = reopenOnTop(state, entry.tab, location, config);
   return {
     ...moved,
     nextId,
     activeTab: entry.tab,
-    stacks: { ...state.stacks, [entry.tab]: [...(state.stacks[entry.tab] ?? []), screen] },
+    stacks: { ...state.stacks, [entry.tab]: screens },
     entries: withEntry(state.entries, location.key, { ...entry, screenId: screen.id, index }),
   };
 }
@@ -364,7 +405,7 @@ function applyPop(state: StackState, event: NavigationEvent, config: StackConfig
 
   if (known) {
     const base = goingBack ? closeTopWhenLeft(state, known.screenId) : state;
-    return goToKnownEntry(base, location, known, index);
+    return goToKnownEntry(base, location, known, index, config);
   }
 
   // An entry this session never saw: from before a reload, or a navigation
@@ -449,6 +490,25 @@ export function getBackTarget(state: StackState): BackTarget | null {
   );
   const viaHistory = previousEntry ? previousEntry.screenId === screen.id : state.index > 0;
   return { screen, viaHistory };
+}
+
+/**
+ * How many history entries back the tab's first screen is, when every entry
+ * since then shows a screen still in the tab's stack. Null when history went
+ * elsewhere in between (another tab, an entry replaced by a back step), where
+ * returning to the first screen takes a new entry instead.
+ */
+export function stepsBackToTabRoot(state: StackState, tabId: string): number | null {
+  const screens = state.stacks[tabId] ?? [];
+  if (state.activeTab !== tabId || screens.length < 2) return null;
+  const ids = new Set(screens.map((screen) => screen.id));
+  const byIndex = new Map(Object.values(state.entries).map((entry) => [entry.index, entry]));
+  for (let index = state.index; byIndex.has(index); index--) {
+    const entry = byIndex.get(index)!;
+    if (entry.tab !== tabId || entry.screenId === null || !ids.has(entry.screenId)) return null;
+    if (entry.screenId === screens[0].id) return state.index - index;
+  }
+  return null;
 }
 
 /** How the screen on top changed between two states. */

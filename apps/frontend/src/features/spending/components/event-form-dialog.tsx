@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import * as z from "zod";
@@ -38,6 +38,7 @@ import {
   useDateFormatting,
 } from "@wealthfolio/ui";
 
+import { useEffectOnChange } from "@/hooks/use-effect-on-change";
 import { QueryKeys } from "@/lib/query-keys";
 import type { Activity } from "@/lib/types";
 import { formatDateISO, parseLocalDate } from "@/lib/utils";
@@ -137,7 +138,7 @@ export function EventFormDialog({
     },
   });
 
-  useEffect(() => {
+  useEffectOnChange(() => {
     if (!open) return;
     setShowCreateType(false);
     setNewTypeName("");

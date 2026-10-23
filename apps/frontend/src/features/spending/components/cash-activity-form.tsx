@@ -7,6 +7,7 @@ import * as z from "zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
+import { useEffectOnChange } from "@/hooks/use-effect-on-change";
 import { createActivity, updateActivity } from "@/adapters";
 import { useAccounts } from "@/hooks/use-accounts";
 import { useIsMobileViewport } from "@/hooks/use-platform";
@@ -251,7 +252,7 @@ export function CashActivityForm({
     },
   });
 
-  useEffect(() => {
+  useEffectOnChange(() => {
     if (open) {
       form.reset({
         accountId: activity?.accountId ?? spendingAccounts[0]?.id ?? "",

@@ -5,6 +5,7 @@ import {
   type LoanSetupField,
 } from "./loan-error-text";
 import { useLoanSchedulePreview } from "../hooks/use-loan-calculation";
+import { useEffectOnChange } from "@/hooks/use-effect-on-change";
 import { parseLocalDate } from "@/lib/utils";
 import { LoanInterestMethodSelect } from "./loan-interest-method-select";
 import { useState, useMemo, useCallback, useEffect, useId } from "react";
@@ -217,7 +218,7 @@ export function AlternativeAssetQuickAddModal({
   const { createMutation } = useAlternativeAssetMutations();
 
   // Reset form when modal opens
-  useEffect(() => {
+  useEffectOnChange(() => {
     if (open) {
       // Skip step 1 if a defaultKind is provided
       setStep(defaultKind ? 2 : 1);

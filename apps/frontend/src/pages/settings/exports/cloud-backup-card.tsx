@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import { Fragment, useEffect, useRef, useState } from "react";
+import { Fragment, useState } from "react";
 import { ShieldCheckIcon } from "@phosphor-icons/react/dist/csr/ShieldCheck";
 import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
@@ -415,7 +415,6 @@ function CloudBackupPanel({ backup }: { backup: ReturnType<typeof useCloudBackup
   const formatting = useDateFormatting();
   const { status, profile, isMobile } = backup;
   const canRestore = isTauri && !isMobile;
-  const active = useRef(true);
   const [flow, setFlow] = useState<Flow>();
   const [resumeAfterReplace, setResumeAfterReplace] = useState(false);
   const [code, setCode] = useState("");
@@ -432,12 +431,6 @@ function CloudBackupPanel({ backup }: { backup: ReturnType<typeof useCloudBackup
   // One operation at a time; only the control that started it shows progress.
   const busy = pending !== null;
   const data = status.data;
-  useEffect(() => {
-    active.current = true;
-    return () => {
-      active.current = false;
-    };
-  }, []);
   function showFlow(value: Flow) {
     setResumeAfterReplace(value === "replace" && flow === "resume");
     setError(null);
@@ -467,7 +460,6 @@ function CloudBackupPanel({ backup }: { backup: ReturnType<typeof useCloudBackup
     setReauth(false);
   }
   function failed(cause: unknown) {
-    if (!active.current) return;
     const recentLogin = String(cause).includes("BACKUP_REAUTHENTICATION_REQUIRED");
     setReauth(recentLogin);
     setError({
@@ -487,7 +479,6 @@ function CloudBackupPanel({ backup }: { backup: ReturnType<typeof useCloudBackup
     setReauth(false);
     try {
       const result = await cloudBackupAction<{ recoveryCode?: string }>(operation);
-      if (!active.current) return;
       if (result.recoveryCode) {
         setRecoveryCode(result.recoveryCode);
         setConfirmed(false);
@@ -507,10 +498,8 @@ function CloudBackupPanel({ backup }: { backup: ReturnType<typeof useCloudBackup
     } catch (cause) {
       failed(cause);
     } finally {
-      if (active.current) {
-        await status.refetch();
-        if (active.current) setPending(null);
-      }
+      await status.refetch();
+      setPending(null);
     }
   }
   async function connectAccess() {
@@ -520,20 +509,18 @@ function CloudBackupPanel({ backup }: { backup: ReturnType<typeof useCloudBackup
       const result = await cloudBackupAction<"ready" | "unavailable" | "notLinked">({
         action: "access",
       });
-      if (!active.current) return;
       if (result !== "ready") setAccessResult(result);
       await status.refetch();
     } catch (cause) {
-      if (active.current)
-        setAccessResult(
-          /DEVICE_NOT_TRUSTED|DEVICE_REVOKED|DEVICE_NOT_FOUND|DEVICE_MISMATCH|PAIRING_REQUIRED|KEY_VERSION|MEMBERSHIP_CHANGED/.test(
-            String(cause),
-          )
-            ? "notLinked"
-            : "error",
-        );
+      setAccessResult(
+        /DEVICE_NOT_TRUSTED|DEVICE_REVOKED|DEVICE_NOT_FOUND|DEVICE_MISMATCH|PAIRING_REQUIRED|KEY_VERSION|MEMBERSHIP_CHANGED/.test(
+          String(cause),
+        )
+          ? "notLinked"
+          : "error",
+      );
     } finally {
-      if (active.current) setAccessRunning(false);
+      setAccessRunning(false);
     }
   }
   async function perform(key: Pending, action: () => Promise<unknown>) {
@@ -544,15 +531,13 @@ function CloudBackupPanel({ backup }: { backup: ReturnType<typeof useCloudBackup
     } catch (cause) {
       failed(cause);
     } finally {
-      if (active.current) {
-        await status.refetch();
-        if (active.current) setPending(null);
-      }
+      await status.refetch();
+      setPending(null);
     }
   }
   async function openPreview(backupId: string) {
     const value = await previewCloudBackupRestore(backupId);
-    if (active.current) setPreview({ backupId, value });
+    setPreview({ backupId, value });
   }
   const history = [...(data?.history ?? [])].sort(
     (a, b) =>
@@ -691,7 +676,6 @@ function CloudBackupPanel({ backup }: { backup: ReturnType<typeof useCloudBackup
                             onSelect: () =>
                               void perform("manual", async () => {
                                 const point = await captureCloudBackup(true);
-                                if (!active.current) return;
                                 // No point: the slot was busy, eligibility changed, or the
                                 // attempt was cancelled. The status refresh shows which.
                                 toast(
@@ -977,11 +961,10 @@ function CloudBackupPanel({ backup }: { backup: ReturnType<typeof useCloudBackup
                     void navigator.clipboard
                       .writeText(recoveryCode)
                       .then(() => {
-                        if (active.current) setCopied(true);
+                        setCopied(true);
                       })
                       .catch((cause) => {
-                        if (active.current)
-                          setError({ cause, message: t("settings:cloud_backup_copy_failed") });
+                        setError({ cause, message: t("settings:cloud_backup_copy_failed") });
                       });
                   }}
                 >

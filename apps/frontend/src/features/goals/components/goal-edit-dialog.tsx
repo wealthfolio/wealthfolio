@@ -1,3 +1,4 @@
+import { useEffectOnChange } from "@/hooks/use-effect-on-change";
 import type { Goal } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { Button, Input, Label } from "@wealthfolio/ui";
@@ -12,7 +13,7 @@ import {
   DialogTitle,
 } from "@wealthfolio/ui/components/ui/dialog";
 import { Textarea } from "@wealthfolio/ui/components/ui/textarea";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { useGoalMutations } from "../hooks/use-goals";
@@ -78,7 +79,7 @@ export function GoalEditDialog({ goal, open, onClose }: Props) {
   const [description, setDescription] = useState(goal.description ?? "");
   const [lifecycle, setLifecycle] = useState<Goal["statusLifecycle"]>(goal.statusLifecycle);
 
-  useEffect(() => {
+  useEffectOnChange(() => {
     if (!open) return;
     setTitle(goal.title);
     setDescription(goal.description ?? "");
