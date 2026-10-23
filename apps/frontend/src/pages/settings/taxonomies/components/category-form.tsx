@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -106,7 +106,7 @@ export function CategoryForm({
 
   // Auto-generate key from name in create mode
   const watchName = form.watch("name");
-  useEffect(() => {
+  useEffectOnChange(() => {
     if (isCreateMode && watchName) {
       form.setValue("key", generateKey(watchName), { shouldDirty: true });
     }

@@ -2,7 +2,6 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, useWatch } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import * as z from "zod";
-import { useEffect } from "react";
 
 import { Button } from "@wealthfolio/ui/components/ui/button";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
@@ -26,6 +25,7 @@ import {
   Spinner,
 } from "@wealthfolio/ui";
 
+import { useEffectOnChange } from "@/hooks/use-effect-on-change";
 import { newContributionLimitSchema } from "@/lib/schemas";
 import { useContributionLimitMutations } from "../use-contribution-limit-mutations";
 import { MoneyInput } from "@wealthfolio/ui";
@@ -77,7 +77,7 @@ export function ContributionLimitForm({
   });
 
   // Update dates when year changes
-  useEffect(() => {
+  useEffectOnChange(() => {
     if (contributionYear) {
       updateDatesBasedOnYear(contributionYear);
     }

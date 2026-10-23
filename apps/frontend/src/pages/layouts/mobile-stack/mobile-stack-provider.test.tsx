@@ -1,4 +1,5 @@
-import { act, render, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { DatePickerInput, PortalScope } from "@wealthfolio/ui";
 import { MemoryRouter, useLocation, useNavigate } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useMobileStack } from "./use-mobile-stack";
@@ -228,5 +229,56 @@ describe("tapping the tab that is shown", () => {
     expect(pathname).toBe("/holdings");
     act(() => void navigate(1));
     expect(pathname).toBe("/holdings/AMD");
+  });
+});
+
+describe("Android Back with a date picker open", () => {
+  beforeEach(() => Object.assign(android, { handler: null, listening: 0, isAndroid: true }));
+
+  it("closes the picker's calendar before leaving the screen", async () => {
+    render(
+      <MemoryRouter initialEntries={["/holdings"]}>
+        <MobileStackProvider config={config}>
+          <Probe />
+          <DatePickerInput value={new Date(2026, 3, 1)} onChange={() => undefined} />
+        </MobileStackProvider>
+      </MemoryRouter>,
+    );
+    act(() => void navigate("/holdings/AMD"));
+    await waitFor(() => expect(android.listening).toBe(1));
+
+    const [openCalendar] = screen
+      .getAllByRole("button")
+      .filter((button) => /pick/i.test(button.getAttribute("aria-label") ?? ""));
+    act(() => void fireEvent.click(openCalendar));
+    await screen.findByRole("dialog");
+
+    act(() => android.handler?.());
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(pathname).toBe("/holdings/AMD");
+  });
+
+  it("leaves a picker open on a screen out of sight to that screen", async () => {
+    render(
+      <MemoryRouter initialEntries={["/holdings"]}>
+        <MobileStackProvider config={config}>
+          <Probe />
+          <PortalScope name="holdings:0">
+            <DatePickerInput value={new Date(2026, 3, 1)} onChange={() => undefined} />
+          </PortalScope>
+        </MobileStackProvider>
+      </MemoryRouter>,
+    );
+    const [openCalendar] = screen
+      .getAllByRole("button")
+      .filter((button) => /pick/i.test(button.getAttribute("aria-label") ?? ""));
+    act(() => void fireEvent.click(openCalendar));
+    await screen.findByRole("dialog");
+    // The list's picker stays open under the holding pushed over it.
+    act(() => void navigate("/holdings/AMD"));
+    await waitFor(() => expect(android.listening).toBe(1));
+
+    act(() => android.handler?.());
+    await waitFor(() => expect(pathname).toBe("/holdings"));
   });
 });

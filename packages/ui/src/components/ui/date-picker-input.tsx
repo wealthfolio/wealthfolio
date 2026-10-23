@@ -15,6 +15,7 @@ import {
 import { Calendar } from "./calendar-rac";
 import { DateInput } from "./datefield-rac";
 import { cn } from "../../lib/utils";
+import { usePortalScopeProps } from "./portal-scope";
 
 function toDateValue(
   value: Date | string | undefined,
@@ -95,6 +96,7 @@ export function DatePickerInput({
   ...props
 }: DatePickerInputProps) {
   const { t } = useTranslation();
+  const scopeProps = usePortalScopeProps();
   const actualGranularity = React.useMemo(() => {
     if (enableTime) {
       return timeGranularity || "minute";
@@ -145,6 +147,7 @@ export function DatePickerInput({
         </Button>
       </Group>
       <Popover
+        {...scopeProps}
         className="bg-background text-popover-foreground data-entering:animate-in data-exiting:animate-out data-entering:fade-in-0 data-exiting:fade-out-0 data-entering:zoom-in-95 data-exiting:zoom-out-95 data-[placement=bottom]:slide-in-from-top-2 data-[placement=left]:slide-in-from-right-2 data-[placement=right]:slide-in-from-left-2 data-[placement=top]:slide-in-from-bottom-2 outline-hidden z-50 rounded-lg border shadow-lg"
         offset={4}
         onOpenChange={(isOpen: boolean) => {
@@ -153,7 +156,13 @@ export function DatePickerInput({
           }
         }}
       >
-        <Dialog className="max-h-[inherit] overflow-auto p-2 outline-none" style={{ pointerEvents: "auto" }}>
+        {/* `data-open` marks it as an open popup, as Base UI's are (React Aria
+            renders it only while open), so Back closes it first. */}
+        <Dialog
+          data-open=""
+          className="max-h-[inherit] overflow-auto p-2 outline-none"
+          style={{ pointerEvents: "auto" }}
+        >
           <Calendar />
         </Dialog>
       </Popover>
