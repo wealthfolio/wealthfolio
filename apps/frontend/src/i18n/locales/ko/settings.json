@@ -1506,7 +1506,12 @@
     "hero_aria": "AI 에이전트 접근 상태",
     "pat_scope_custom_other": "사용자 지정 · 범위 {{count}}개",
     "scope_locked_spending_title": "지출 정리 또는 예산 관리에 필요",
-    "dialog_presets": "접근 권한 프리셋"
+    "dialog_presets": "접근 권한 프리셋",
+    "edit_permissions": "권한 편집",
+    "edit_title": "{{name}}의 권한",
+    "edit_description": "키는 변경되지 않습니다. 권한은 이후 요청부터 적용됩니다. 새 도구를 보려면 도구 목록을 새로 고치거나 클라이언트를 다시 연결하세요.",
+    "edit_success": "권한이 업데이트되었습니다",
+    "edit_failed": "권한을 업데이트하지 못했습니다"
   },
   "tax_add_category": "카테고리 추가",
   "tax_export": "내보내기",

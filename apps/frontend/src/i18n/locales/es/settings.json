@@ -1565,7 +1565,12 @@
     "pat_scope_custom_other": "Personalizado · {{count}} ámbitos",
     "pat_scope_custom_many": "Personalizado · {{count}} ámbitos",
     "scope_locked_spending_title": "Necesario para Organizar gastos o Gestionar presupuestos",
-    "dialog_presets": "Preajustes de acceso"
+    "dialog_presets": "Preajustes de acceso",
+    "edit_permissions": "Editar permisos",
+    "edit_title": "Permisos de {{name}}",
+    "edit_description": "La clave no cambia. Los permisos se aplican a las siguientes solicitudes. Actualiza las herramientas o reconecta el cliente para descubrir las nuevas herramientas autorizadas.",
+    "edit_success": "Permisos actualizados",
+    "edit_failed": "No se pudieron actualizar los permisos"
   },
   "tax_add_category": "Añadir categoría",
   "tax_export": "Exportar",

@@ -8,10 +8,16 @@
 use std::net::SocketAddr;
 
 use argon2::{password_hash::SaltString, Argon2, PasswordHasher};
+use axum::{
+    body::{to_bytes, Body},
+    extract::ConnectInfo,
+    http::Request,
+};
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use rand::{rngs::OsRng, RngCore};
 use reqwest::header;
 use tempfile::TempDir;
+use tower::ServiceExt;
 use wealthfolio_server::{api::app_router_from_config, config::Config};
 
 const PASSWORD: &str = "super-secret";
@@ -39,7 +45,7 @@ struct TestServer {
     _tmp: TempDir,
 }
 
-async fn spawn_server(mcp_enabled: bool, audit_enabled: bool) -> TestServer {
+async fn build_test_router(mcp_enabled: bool, audit_enabled: bool) -> (axum::Router, TempDir) {
     let tmp = tempfile::tempdir().unwrap();
     let router = {
         let _guard = ENV_LOCK.lock().await;
@@ -71,6 +77,11 @@ async fn spawn_server(mcp_enabled: bool, audit_enabled: bool) -> TestServer {
         app_router_from_config(&config).await.unwrap()
     };
 
+    (router, tmp)
+}
+
+async fn spawn_server(mcp_enabled: bool, audit_enabled: bool) -> TestServer {
+    let (router, tmp) = build_test_router(mcp_enabled, audit_enabled).await;
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
     tokio::spawn(async move {
@@ -3126,4 +3137,272 @@ async fn spending_only_reads_are_scoped_paginated_and_available_without_investme
     )
     .await;
     assert_eq!(configuration, categories);
+}
+
+#[tokio::test]
+async fn mcp_permission_edits_apply_in_the_existing_session() {
+    let server = spawn_server(true, true).await;
+    let cookie = login(&server).await;
+    let (_, created) = create_pat(
+        &server,
+        &cookie,
+        serde_json::json!({"name":"editable", "scopes":["accounts:read"]}),
+    )
+    .await;
+    let pat = created["token"].as_str().unwrap();
+    let id = created["id"].as_str().unwrap();
+    let session = mcp_initialize(&server, pat).await;
+    let denied =
+        mcp_call_tool_error(&server, pat, &session, "get_goals", serde_json::json!({})).await;
+    assert!(denied.contains("Scope denied"));
+    let url = format!("{}/api/v1/agent-access/tokens/{id}", server.base);
+    let patch = |scopes: serde_json::Value| {
+        server
+            .client
+            .patch(&url)
+            .header(header::COOKIE, format!("wf_session={cookie}"))
+            .json(&serde_json::json!({"scopes":scopes}))
+    };
+    for scopes in [
+        serde_json::json!(["accounts:read", "financial-planning:read"]),
+        serde_json::json!(["accounts:read"]),
+    ] {
+        let response = patch(scopes.clone()).send().await.unwrap();
+        assert_eq!(response.status(), 200);
+        let edited: serde_json::Value = response.json().await.unwrap();
+        assert_eq!(edited["scopes"], scopes);
+        for field in ["id", "name", "tokenPrefix", "createdAt", "expiresAt"] {
+            assert_eq!(edited[field], created[field]);
+        }
+        assert!(edited.get("token").is_none() && edited.get("tokenHash").is_none());
+        let response = mcp_post(
+            &server,
+            Some(pat),
+            Some(&session),
+            serde_json::json!({"jsonrpc":"2.0","id":"list","method":"tools/list"}),
+        )
+        .await;
+        let list = parse_sse_data(&response.text().await.unwrap());
+        let visible = list["result"]["tools"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|t| t["name"] == "get_goals");
+        if scopes.as_array().unwrap().len() == 2 {
+            assert!(visible);
+            assert!(
+                mcp_call_tool(&server, pat, &session, "get_goals", serde_json::json!({})).await
+                    ["goals"]
+                    .is_array()
+            );
+        } else {
+            assert!(!visible);
+            assert!(mcp_call_tool_error(
+                &server,
+                pat,
+                &session,
+                "get_goals",
+                serde_json::json!({})
+            )
+            .await
+            .contains("Scope denied"));
+        }
+    }
+}
+
+/// Management requests do not need the streaming MCP transport, so exercise
+/// their complete authentication/router/persistence path without a TCP listener.
+async fn scope_api_request(
+    app: &axum::Router,
+    method: &str,
+    path: &str,
+    credential: Option<(&str, &str)>,
+    body: serde_json::Value,
+) -> axum::response::Response {
+    let mut request = Request::builder()
+        .method(method)
+        .uri(path)
+        .header("content-type", "application/json")
+        .extension(ConnectInfo(SocketAddr::from(([127, 0, 0, 1], 12345))));
+    if let Some((name, value)) = credential {
+        request = request.header(name, value);
+    }
+    app.clone()
+        .oneshot(request.body(Body::from(body.to_string())).unwrap())
+        .await
+        .unwrap()
+}
+
+async fn scope_response_json(response: axum::response::Response) -> serde_json::Value {
+    serde_json::from_slice(&to_bytes(response.into_body(), usize::MAX).await.unwrap()).unwrap()
+}
+
+#[tokio::test]
+async fn permission_edits_management_requires_session_and_preserves_token_metadata() {
+    let (app, _tmp) = build_test_router(true, true).await;
+    let response = scope_api_request(
+        &app,
+        "POST",
+        "/api/v1/auth/login",
+        None,
+        serde_json::json!({"password": PASSWORD}),
+    )
+    .await;
+    assert_eq!(response.status(), 200);
+    let cookie = response.headers()[header::SET_COOKIE]
+        .to_str()
+        .unwrap()
+        .split(';')
+        .next()
+        .unwrap()
+        .to_string();
+    let auth = Some(("cookie", cookie.as_str()));
+    let created = scope_api_request(&app, "POST", "/api/v1/agent-access/tokens", auth,
+        serde_json::json!({"name":"editable", "scopes":["accounts:read"], "expiresAt":"2099-01-01T00:00:00Z"})).await;
+    assert_eq!(created.status(), 201);
+    let created = scope_response_json(created).await;
+    let url = format!(
+        "/api/v1/agent-access/tokens/{}",
+        created["id"].as_str().unwrap()
+    );
+    let bearer = format!("Bearer {}", created["token"].as_str().unwrap());
+    for credential in [None, Some(("authorization", bearer.as_str()))] {
+        let response = scope_api_request(
+            &app,
+            "PATCH",
+            &url,
+            credential,
+            serde_json::json!({"scopes":["holdings:read"]}),
+        )
+        .await;
+        assert_eq!(response.status(), 401);
+    }
+    let before = scope_response_json(
+        scope_api_request(
+            &app,
+            "GET",
+            "/api/v1/agent-access/tokens",
+            auth,
+            serde_json::Value::Null,
+        )
+        .await,
+    )
+    .await[0]
+        .clone();
+    for scopes in [
+        serde_json::json!([]),
+        serde_json::json!(["unknown:scope"]),
+        serde_json::json!(["activities:write"]),
+        serde_json::json!(["classification:write"]),
+        serde_json::json!(["market-data:write"]),
+    ] {
+        assert_eq!(
+            scope_api_request(
+                &app,
+                "PATCH",
+                &url,
+                auth,
+                serde_json::json!({"scopes":scopes})
+            )
+            .await
+            .status(),
+            400
+        );
+    }
+    for payload in [
+        serde_json::json!({}),
+        serde_json::json!({"scopes":"accounts:read"}),
+        serde_json::json!({"scopes":["holdings:read"], "expiresAt":null}),
+        serde_json::json!({"scopes":["holdings:read"], "name":"renamed"}),
+    ] {
+        assert_eq!(
+            scope_api_request(&app, "PATCH", &url, auth, payload)
+                .await
+                .status(),
+            422
+        );
+    }
+    let unchanged = scope_response_json(
+        scope_api_request(
+            &app,
+            "GET",
+            "/api/v1/agent-access/tokens",
+            auth,
+            serde_json::Value::Null,
+        )
+        .await,
+    )
+    .await[0]
+        .clone();
+    assert_eq!(unchanged, before);
+    let response = scope_api_request(
+        &app,
+        "PATCH",
+        &url,
+        auth,
+        serde_json::json!({"scopes":["holdings:read", "accounts:read", "holdings:read"]}),
+    )
+    .await;
+    assert_eq!(response.status(), 200);
+    let updated = scope_response_json(response).await;
+    assert_eq!(
+        updated["scopes"],
+        serde_json::json!(["accounts:read", "holdings:read"])
+    );
+    for field in [
+        "id",
+        "name",
+        "tokenPrefix",
+        "fingerprint",
+        "createdAt",
+        "expiresAt",
+        "lastUsedAt",
+        "revokedAt",
+    ] {
+        assert_eq!(updated[field], before[field]);
+    }
+    assert!(updated.get("token").is_none() && updated.get("tokenHash").is_none());
+    assert_eq!(
+        scope_api_request(
+            &app,
+            "PATCH",
+            "/api/v1/agent-access/tokens/missing",
+            auth,
+            serde_json::json!({"scopes":["accounts:read"]})
+        )
+        .await
+        .status(),
+        404
+    );
+    let expired = scope_response_json(scope_api_request(&app, "POST", "/api/v1/agent-access/tokens", auth,
+        serde_json::json!({"name":"expired", "scopes":["accounts:read"], "expiresAt":"2000-01-01T00:00:00Z"})).await).await;
+    let url = format!(
+        "/api/v1/agent-access/tokens/{}",
+        expired["id"].as_str().unwrap()
+    );
+    assert_eq!(
+        scope_api_request(
+            &app,
+            "PATCH",
+            &url,
+            auth,
+            serde_json::json!({"scopes":["holdings:read"]})
+        )
+        .await
+        .status(),
+        200
+    );
+    let expired_bearer = format!("Bearer {}", expired["token"].as_str().unwrap());
+    assert_eq!(
+        scope_api_request(
+            &app,
+            "POST",
+            "/mcp",
+            Some(("authorization", &expired_bearer)),
+            init_body()
+        )
+        .await
+        .status(),
+        401
+    );
 }

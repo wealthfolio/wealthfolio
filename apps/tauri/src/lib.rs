@@ -575,6 +575,7 @@ pub fn run() {
             commands::mcp::mcp_list_tokens,
             commands::mcp::mcp_create_token,
             commands::mcp::mcp_delete_token,
+            commands::mcp::mcp_update_token_scopes,
             // Addon commands
             commands::addon::extract_addon_zip,
             commands::addon::install_addon_zip,

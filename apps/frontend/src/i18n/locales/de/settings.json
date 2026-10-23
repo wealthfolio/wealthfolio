@@ -1524,7 +1524,12 @@
     "pat_scope_custom_one": "Benutzerdefiniert · {{count}} Berechtigung",
     "pat_scope_custom_other": "Benutzerdefiniert · {{count}} Berechtigungen",
     "scope_locked_spending_title": "Für Ausgaben organisieren oder Budgets verwalten erforderlich",
-    "dialog_presets": "Zugriffsvorlagen"
+    "dialog_presets": "Zugriffsvorlagen",
+    "edit_permissions": "Berechtigungen bearbeiten",
+    "edit_title": "Berechtigungen für {{name}}",
+    "edit_description": "Der Schlüssel bleibt unverändert. Berechtigungen gelten für folgende Anfragen. Aktualisieren Sie die Werkzeuge oder verbinden Sie den Client neu, um neue Werkzeuge zu sehen.",
+    "edit_success": "Berechtigungen aktualisiert",
+    "edit_failed": "Berechtigungen konnten nicht aktualisiert werden"
   },
   "tax_add_category": "Kategorie hinzufügen",
   "tax_export": "Exportieren",

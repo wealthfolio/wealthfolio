@@ -410,6 +410,7 @@ export const COMMANDS: CommandMap = {
   get_agent_access_status: { method: "GET", path: "/agent-access/status" },
   list_agent_access_tokens: { method: "GET", path: "/agent-access/tokens" },
   create_agent_access_token: { method: "POST", path: "/agent-access/tokens" },
+  update_agent_access_token_scopes: { method: "PATCH", path: "/agent-access/tokens" },
   delete_agent_access_token: { method: "DELETE", path: "/agent-access/tokens" },
   list_agent_audit_log: { method: "GET", path: "/agent-access/audit" },
   purge_agent_audit_log: { method: "POST", path: "/agent-access/audit/purge" },
@@ -2111,6 +2112,12 @@ export const invoke = async <T>(command: string, payload?: Record<string, unknow
         scopes: string[];
       };
       body = JSON.stringify({ name, expiresAt, scopes });
+      break;
+    }
+    case "update_agent_access_token_scopes": {
+      const { id, scopes } = payload as { id: string; scopes: string[] };
+      url += `/${encodeURIComponent(id)}`;
+      body = JSON.stringify({ scopes });
       break;
     }
     case "delete_agent_access_token": {

@@ -1565,7 +1565,12 @@
     "pat_scope_custom_other": "Personalizado · {{count}} escopos",
     "pat_scope_custom_many": "Personalizado · {{count}} escopos",
     "scope_locked_spending_title": "Necessário para Organizar despesas ou Gerir orçamentos",
-    "dialog_presets": "Predefinições de acesso"
+    "dialog_presets": "Predefinições de acesso",
+    "edit_permissions": "Editar permissões",
+    "edit_title": "Permissões de {{name}}",
+    "edit_description": "A chave permanece igual. As permissões valem para as próximas solicitações. Atualize as ferramentas ou reconecte o cliente para descobrir as novas ferramentas autorizadas.",
+    "edit_success": "Permissões atualizadas",
+    "edit_failed": "Falha ao atualizar permissões"
   },
   "tax_add_category": "Adicionar categoria",
   "tax_export": "Exportar",

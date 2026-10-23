@@ -6,7 +6,7 @@ use log::debug;
 use serde::Serialize;
 use tauri::{AppHandle, State};
 #[cfg(desktop)]
-use wealthfolio_agent_tools::{AgentScope, AgentScopeSet};
+use wealthfolio_agent_tools::scope::validate_requested_scopes;
 use wealthfolio_storage_sqlite::agent::McpAuditLogDB;
 #[cfg(desktop)]
 use wealthfolio_storage_sqlite::agent::{
@@ -86,24 +86,6 @@ pub struct CreatedToken {
     pub scopes: Vec<String>,
     pub created_at: String,
     pub expires_at: Option<String>,
-}
-
-/// Validate requested scope strings and return the canonical, deduped set.
-/// Mirrors the server's `validate_requested_scopes`.
-#[cfg(desktop)]
-fn validate_requested_scopes(requested: &[String]) -> Result<Vec<String>, String> {
-    if requested.is_empty() {
-        return Err("At least one scope is required".to_string());
-    }
-    let mut set = AgentScopeSet::new();
-    for scope in requested {
-        let parsed = AgentScope::parse(scope).ok_or_else(|| format!("Unknown scope: {scope}"))?;
-        set.insert(parsed);
-    }
-    if let Some(err) = set.dependency_error() {
-        return Err(err);
-    }
-    Ok(set.iter().map(|s| s.as_str().to_string()).collect())
 }
 
 #[cfg(desktop)]
@@ -358,6 +340,31 @@ pub async fn mcp_create_token(
     #[cfg(not(desktop))]
     {
         let _ = (name, expires_at, scopes, &context);
+        Err("MCP server is not available on mobile".to_string())
+    }
+}
+
+#[tauri::command]
+pub async fn mcp_update_token_scopes(
+    id: String,
+    scopes: Vec<String>,
+    state: ProfileAccess,
+) -> Result<TokenInfo, String> {
+    let context = state.context()?;
+    #[cfg(desktop)]
+    {
+        let scopes = validate_requested_scopes(&scopes)?;
+        context
+            .pat_repository()
+            .update_scopes(&id, scopes)
+            .await
+            .map_err(|e| format!("Failed to update access token permissions: {e}"))?
+            .map(TokenInfo::from)
+            .ok_or_else(|| "Access token not found".to_string())
+    }
+    #[cfg(not(desktop))]
+    {
+        let _ = (id, scopes, &context);
         Err("MCP server is not available on mobile".to_string())
     }
 }

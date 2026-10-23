@@ -93,6 +93,21 @@ impl AgentScope {
     }
 }
 
+/// Shared validation for token creation and permission editing on both hosts.
+pub fn validate_requested_scopes(requested: &[String]) -> Result<Vec<String>, String> {
+    if requested.is_empty() {
+        return Err("At least one scope is required".into());
+    }
+    let mut set = AgentScopeSet::new();
+    for scope in requested {
+        set.insert(AgentScope::parse(scope).ok_or_else(|| format!("Unknown scope: {scope}"))?);
+    }
+    if let Some(error) = set.dependency_error() {
+        return Err(error);
+    }
+    Ok(set.iter().map(|scope| scope.as_str().to_string()).collect())
+}
+
 impl std::fmt::Display for AgentScope {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(self.as_str())
@@ -326,5 +341,27 @@ mod tests {
 
         set.insert(AgentScope::HoldingsRead);
         assert!(set.dependency_error().is_none());
+    }
+}
+
+#[cfg(test)]
+mod request_validation_tests {
+    use super::*;
+    #[test]
+    fn token_permission_edits_validate_the_complete_replacement() {
+        assert!(validate_requested_scopes(&[]).is_err());
+        assert!(validate_requested_scopes(&["unknown:scope".into()]).is_err());
+        assert!(validate_requested_scopes(&["activities:write".into()]).is_err());
+        assert!(validate_requested_scopes(&["classification:write".into()]).is_err());
+        assert!(validate_requested_scopes(&["market-data:write".into()]).is_err());
+        assert_eq!(
+            validate_requested_scopes(&[
+                "holdings:read".into(),
+                "accounts:read".into(),
+                "holdings:read".into()
+            ])
+            .unwrap(),
+            vec!["accounts:read", "holdings:read"]
+        );
     }
 }

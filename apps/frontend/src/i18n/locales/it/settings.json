@@ -1565,7 +1565,12 @@
     "pat_scope_custom_many": "Personalizzato · {{count}} ambiti",
     "pat_scope_custom_other": "Personalizzato · {{count}} ambiti",
     "scope_locked_spending_title": "Richiesto da Organizza spese o Gestisci budget",
-    "dialog_presets": "Preimpostazioni di accesso"
+    "dialog_presets": "Preimpostazioni di accesso",
+    "edit_permissions": "Modifica autorizzazioni",
+    "edit_title": "Autorizzazioni per {{name}}",
+    "edit_description": "La chiave resta invariata. Le autorizzazioni si applicano alle richieste successive. Aggiorna gli strumenti o riconnetti il client per vedere i nuovi strumenti autorizzati.",
+    "edit_success": "Autorizzazioni aggiornate",
+    "edit_failed": "Impossibile aggiornare le autorizzazioni"
   },
   "tax_add_category": "Aggiungi categoria",
   "tax_export": "Esporta",

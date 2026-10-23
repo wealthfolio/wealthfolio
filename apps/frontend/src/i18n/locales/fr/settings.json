@@ -1565,7 +1565,12 @@
     "pat_scope_custom_other": "Personnalisé · {{count}} portées",
     "pat_scope_custom_many": "Personnalisé · {{count}} portées",
     "scope_locked_spending_title": "Requis pour organiser les dépenses ou gérer les budgets",
-    "dialog_presets": "Préréglages d’accès"
+    "dialog_presets": "Préréglages d’accès",
+    "edit_permissions": "Modifier les droits",
+    "edit_title": "Droits de {{name}}",
+    "edit_description": "La clé reste identique. Les droits s’appliquent aux requêtes suivantes. Actualisez les outils ou reconnectez le client pour découvrir les nouveaux outils autorisés.",
+    "edit_success": "Droits mis à jour",
+    "edit_failed": "Échec de la mise à jour des droits"
   },
   "tax_add_category": "Ajouter une catégorie",
   "tax_export": "Exporter",

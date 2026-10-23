@@ -1,5 +1,18 @@
 # Wealthfolio CLI and MCP Agent Access Design
 
+## Editing API key permissions
+
+Existing API key permissions can be edited from AI Agent Access through the
+application-authenticated management API or profile-scoped Tauri command. Both
+validate the complete scope replacement before updating only `scopes_json`
+through the existing SQLite writer. MCP authentication resolves the token for
+each request, so the next request uses the new permissions, including within an
+existing session. No authorization cache, tool catalog, or session rebuild is
+needed. The credential and expiration stay unchanged; editing an expired key
+does not reactivate it. Calls already authorized continue. Clients caching tool
+lists may need to refresh or reconnect. This operation is not exposed as an MCP
+tool.
+
 ## Overview
 
 This document defines how external AI agents and command line workflows interact

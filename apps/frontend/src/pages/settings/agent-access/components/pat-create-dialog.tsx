@@ -13,17 +13,8 @@ import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { Input } from "@wealthfolio/ui/components/ui/input";
 import { Label } from "@wealthfolio/ui/components/ui/label";
 import { toast } from "@wealthfolio/ui/components/ui/use-toast";
-import {
-  applyScopeDependencies,
-  matchPreset,
-  presetLabel,
-  SCOPE_PRESETS,
-  READ_SCOPES,
-  scopeDescription,
-  scopeLabel,
-  SCOPES,
-  type ScopeKey,
-} from "../scopes";
+import { applyScopeDependencies, READ_SCOPES, scopeDescription, type ScopeKey } from "../scopes";
+import { ScopeSelector } from "./scope-selector";
 import { ClientSetup } from "./client-setup";
 
 const EXPIRY_OPTIONS = [
@@ -53,9 +44,6 @@ const EXPIRY_OPTIONS = [
     label: "settings:agentAccess.expiry_never_label",
   },
 ] as const;
-
-const READ_GROUP = SCOPES.filter((scope) => scope.group === "read");
-const WRITE_GROUP = SCOPES.filter((scope) => scope.group === "write");
 
 interface PatCreateDialogProps {
   open: boolean;
@@ -143,60 +131,6 @@ export function PatCreateDialog({
     }
   };
 
-  const renderScope = (scope: (typeof SCOPES)[number]) => {
-    const checked = selectedScopes.includes(scope.key);
-    const label = scopeLabel(t, scope.key);
-    const description = scopeDescription(t, scope.key);
-    const lockedByMarketData =
-      scope.key === "holdings:read" && selectedScopes.includes("market-data:write");
-    const lockedBySpending =
-      scope.key === "spending:read" &&
-      (selectedScopes.includes("spending:write") || selectedScopes.includes("budget:write"));
-    const locked =
-      lockedBySpending ||
-      lockedByMarketData ||
-      (scope.key === "activities:draft" && selectedScopes.includes("activities:write")) ||
-      (scope.key === "classification:suggest" && selectedScopes.includes("classification:write"));
-    const lockedTitle = lockedBySpending
-      ? t("settings:agentAccess.scope_locked_spending_title")
-      : lockedByMarketData
-        ? t("settings:agentAccess.scope_locked_market_data_title")
-        : t("settings:agentAccess.scope_locked_title");
-    return (
-      <button
-        key={scope.key}
-        type="button"
-        role="checkbox"
-        aria-checked={checked}
-        aria-label={t("settings:agentAccess.dialog_scope_aria", { label, description })}
-        disabled={locked}
-        title={locked ? lockedTitle : description}
-        onClick={() => toggleScope(scope.key)}
-        className={cn(
-          "flex w-full items-center justify-between gap-2 rounded-md border px-3 py-2 text-start text-sm transition-colors",
-          "focus-visible:ring-ring focus-visible:outline-none focus-visible:ring-2",
-          checked
-            ? "border-success/50 bg-success/10"
-            : "border-border hover:border-muted-foreground/30 hover:bg-muted/40",
-          locked && "cursor-not-allowed opacity-80",
-        )}
-      >
-        <span className="truncate font-medium">{label}</span>
-        <span
-          className={cn(
-            "grid h-4 w-4 shrink-0 place-items-center transition-colors",
-            checked
-              ? "bg-success rounded-[0.3125rem] text-white"
-              : "border-muted-foreground/30 rounded-full border-2",
-          )}
-          aria-hidden
-        >
-          {checked && <Icons.Check className="h-2.5 w-2.5" strokeWidth={3} />}
-        </span>
-      </button>
-    );
-  };
-
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent
@@ -251,39 +185,7 @@ export function PatCreateDialog({
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <p className="text-muted-foreground text-xs font-medium uppercase tracking-wider">
-                    {t("settings:agentAccess.dialog_presets")}
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    {SCOPE_PRESETS.map((preset) => (
-                      <Button
-                        key={preset.key}
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        aria-pressed={matchPreset(selectedScopes)?.key === preset.key}
-                        onClick={() => setSelected(new Set(preset.scopes))}
-                      >
-                        {presetLabel(t, preset)}
-                      </Button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <p className="text-muted-foreground text-xs font-medium uppercase tracking-wider">
-                    {t("settings:agentAccess.dialog_read_access")}
-                  </p>
-                  <div className="grid gap-2 sm:grid-cols-2">{READ_GROUP.map(renderScope)}</div>
-                </div>
-
-                <div className="space-y-2">
-                  <p className="text-muted-foreground text-xs font-medium uppercase tracking-wider">
-                    {t("settings:agentAccess.dialog_write_access")}
-                  </p>
-                  <div className="grid gap-2 sm:grid-cols-2">{WRITE_GROUP.map(renderScope)}</div>
-                </div>
+                <ScopeSelector selectedScopes={selectedScopes} onToggle={toggleScope} onSelectPreset={(scopes) => setSelected(new Set(scopes))} />
               </div>
             </div>
 

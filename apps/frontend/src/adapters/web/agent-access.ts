@@ -98,3 +98,9 @@ export const stopMcp = (): Promise<McpServerStatus> =>
 
 export const setMcpAuditEnabled = (_enabled: boolean): Promise<McpServerStatus> =>
   Promise.reject(new Error("The MCP server runs inside the desktop app"));
+
+export const updateAgentAccessTokenScopes = (
+  id: string,
+  input: { scopes: string[] },
+): Promise<AgentAccessToken> =>
+  invoke<AgentAccessToken>("update_agent_access_token_scopes", { id, scopes: input.scopes });

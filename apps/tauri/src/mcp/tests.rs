@@ -366,3 +366,75 @@ async fn mcp_with_null_origin_passes() {
     let parsed = parse_sse_data(&body);
     assert_eq!(parsed["result"]["serverInfo"]["name"], "wealthfolio");
 }
+
+#[tokio::test]
+async fn permission_edits_apply_without_recreating_desktop_session() {
+    let (repo, dir) = pat_repo();
+    let token = mint_pat(&repo, &["holdings:read"]).await;
+    let row = repo.list().unwrap().remove(0);
+    let base = spawn_server_with_repo(repo.clone(), dir).await;
+    let client = reqwest::Client::new();
+    let init = mcp_post(&client, &base)
+        .bearer_auth(&token)
+        .send()
+        .await
+        .unwrap();
+    let session = init
+        .headers()
+        .get("mcp-session-id")
+        .unwrap()
+        .to_str()
+        .unwrap()
+        .to_string();
+    for granted in [false, true, false] {
+        let scopes = if granted {
+            vec!["holdings:read".into(), "accounts:read".into()]
+        } else {
+            vec!["holdings:read".into()]
+        };
+        let updated = repo.update_scopes(&row.id, scopes).await.unwrap().unwrap();
+        assert_eq!(updated.token_hash, row.token_hash);
+        assert_eq!(updated.token_prefix, row.token_prefix);
+        assert_eq!(updated.expires_at, row.expires_at);
+        let request = |body| {
+            client
+                .post(format!("{base}/mcp"))
+                .header("Content-Type", "application/json")
+                .header("Accept", "application/json, text/event-stream")
+                .bearer_auth(&token)
+                .header("mcp-session-id", &session)
+                .json(&body)
+        };
+        let response = request(serde_json::json!({"jsonrpc":"2.0","id":2,"method":"tools/list"}))
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(response.status(), 200);
+        let list = parse_sse_data(&response.text().await.unwrap());
+        assert_eq!(
+            list["result"]["tools"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|t| t["name"] == "get_accounts"),
+            granted
+        );
+        // A malformed argument reaches tool validation only when authorized,
+        // without accessing the intentionally unimplemented service.
+        let response = request(serde_json::json!({"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"get_accounts","arguments":{"displayMode":1}}})).send().await.unwrap();
+        let called = parse_sse_data(&response.text().await.unwrap());
+        if granted {
+            assert_eq!(called["result"]["isError"], true);
+            assert!(!called["result"]["content"][0]["text"]
+                .as_str()
+                .unwrap()
+                .contains("Scope denied"));
+        } else {
+            assert_eq!(called["result"]["isError"], true);
+            assert!(called["result"]["content"][0]["text"]
+                .as_str()
+                .unwrap()
+                .contains("Scope denied"));
+        }
+    }
+}

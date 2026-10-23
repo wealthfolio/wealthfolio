@@ -1506,7 +1506,12 @@
     "hero_aria": "AIエージェントアクセスの状態",
     "pat_scope_custom_other": "カスタム · {{count}}個のスコープ",
     "scope_locked_spending_title": "「支出を整理」または「予算を管理」に必要",
-    "dialog_presets": "アクセスのプリセット"
+    "dialog_presets": "アクセスのプリセット",
+    "edit_permissions": "権限を編集",
+    "edit_title": "{{name}} の権限",
+    "edit_description": "キーは変更されません。権限は以降のリクエストに適用されます。新しいツールを表示するには、ツール一覧を更新するかクライアントを再接続してください。",
+    "edit_success": "権限を更新しました",
+    "edit_failed": "権限の更新に失敗しました"
   },
   "tax_add_category": "カテゴリを追加",
   "tax_export": "エクスポート",

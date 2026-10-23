@@ -114,6 +114,28 @@ impl PatRepository {
             .await
     }
 
+    /// Replace permissions without overwriting credentials or concurrent usage updates.
+    pub async fn update_scopes(
+        &self,
+        id: &str,
+        scopes: Vec<String>,
+    ) -> Result<Option<PersonalAccessTokenDB>> {
+        let id = id.to_string();
+        let scopes_json = serde_json::to_string(&scopes)?;
+        self.writer
+            .exec(move |conn| {
+                diesel::update(
+                    personal_access_tokens::table.filter(personal_access_tokens::id.eq(id)),
+                )
+                .set(personal_access_tokens::scopes_json.eq(scopes_json))
+                .returning(PersonalAccessTokenDB::as_returning())
+                .get_result(conn)
+                .optional()
+                .map_err(|e| StorageError::from(e).into())
+            })
+            .await
+    }
+
     pub async fn touch_last_used(&self, id: &str) -> Result<()> {
         let id = id.to_string();
         let now = chrono::Utc::now().to_rfc3339();

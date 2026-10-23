@@ -1481,7 +1481,12 @@
     "pat_scope_custom_one": "Custom · {{count}} scope",
     "pat_scope_custom_other": "Custom · {{count}} scopes",
     "scope_locked_spending_title": "Required by Organize spending or Manage budgets",
-    "dialog_presets": "Access presets"
+    "dialog_presets": "Access presets",
+    "edit_permissions": "Edit permissions",
+    "edit_title": "Permissions for {{name}}",
+    "edit_description": "The key remains unchanged. Permissions apply to subsequent requests. Refresh tools or reconnect your client to discover newly granted tools.",
+    "edit_success": "Permissions updated",
+    "edit_failed": "Failed to update permissions"
   },
   "tax_add_category": "Add Category",
   "tax_export": "Export",
