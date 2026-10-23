@@ -13,6 +13,7 @@ import { AnimatePresence, motion } from "motion/react";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { useBackNavigation } from "@/pages/layouts/mobile-stack/use-mobile-stack";
 
 // Context
 import {
@@ -305,6 +306,7 @@ function useStepValidation(
 function ImportWizardContent() {
   const { state, dispatch, validateDrafts, previewAssets } = useImportContext();
   const navigate = useNavigate();
+  const goBack = useBackNavigation();
   const { t } = useTranslation();
   const { isMobile } = usePlatform();
 
@@ -605,16 +607,16 @@ function ImportWizardContent() {
   const handleCancelClick = useCallback(() => {
     // On first step or result step, just navigate back without confirmation
     if (state.step === "upload" || state.step === "result") {
-      navigate(-1);
+      goBack();
     } else {
       // Show confirmation dialog for other steps
       setShowCancelDialog(true);
     }
-  }, [state.step, navigate]);
+  }, [state.step, goBack]);
 
   const handleConfirmCancel = useCallback(() => {
-    navigate(-1);
-  }, [navigate]);
+    goBack();
+  }, [goBack]);
 
   // Get step-specific next button label
   const getNextLabel = useCallback(() => {
@@ -656,7 +658,7 @@ function ImportWizardContent() {
   if (selectedAccount && !isCsvImportAllowed) {
     return (
       <Page>
-        <PageHeader heading={pageTitle} onBack={() => navigate(-1)} />
+        <PageHeader heading={pageTitle} onBack={goBack} />
         <PageContent>
           <div className="mx-auto max-w-3xl space-y-4 py-6">
             <AlertFeedback variant="warning" title={t("activity:import.page.csvDisabledTitle")}>

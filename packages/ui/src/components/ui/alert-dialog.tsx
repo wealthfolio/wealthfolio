@@ -4,6 +4,7 @@ import * as React from "react";
 
 import { buttonVariants } from "./button-variants";
 import { cn } from "../../lib/utils";
+import { usePortalScopeProps } from "./portal-scope";
 
 function AlertDialog(props: AlertDialogPrimitive.Root.Props) {
   return <AlertDialogPrimitive.Root data-slot="alert-dialog" {...props} />;
@@ -14,7 +15,8 @@ function AlertDialogTrigger(props: AlertDialogPrimitive.Trigger.Props) {
 }
 
 function AlertDialogPortal(props: AlertDialogPrimitive.Portal.Props) {
-  return <AlertDialogPrimitive.Portal data-slot="alert-dialog-portal" {...props} />;
+  const scopeProps = usePortalScopeProps();
+  return <AlertDialogPrimitive.Portal data-slot="alert-dialog-portal" {...scopeProps} {...props} />;
 }
 
 interface AlertDialogOverlayProps extends Omit<AlertDialogPrimitive.Backdrop.Props, "className"> {

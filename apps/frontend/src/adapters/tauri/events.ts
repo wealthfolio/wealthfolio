@@ -7,6 +7,7 @@ import type {
   EventCallback as TauriEventCallback,
   UnlistenFn as TauriUnlistenFn,
 } from "@tauri-apps/api/event";
+import { onBackButtonPress } from "@tauri-apps/api/app";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrent } from "@tauri-apps/plugin-deep-link";
 
@@ -35,6 +36,22 @@ const adaptUnlisten = (unlisten: TauriUnlistenFn): UnlistenFn => {
       unlisten();
     } catch {
       // Listener was never fully registered or already removed — safe to ignore.
+    }
+  };
+};
+
+/**
+ * Android's Back button (hardware or gesture). While a handler is registered
+ * the app decides what Back does; without one, Android goes back in the
+ * WebView's history or leaves the app. Other platforms never call it.
+ */
+export const listenBackButton = async (handler: () => void): Promise<UnlistenFn> => {
+  const listener = await onBackButtonPress(() => handler());
+  return async () => {
+    try {
+      await listener.unregister();
+    } catch {
+      // Already removed — safe to ignore.
     }
   };
 };

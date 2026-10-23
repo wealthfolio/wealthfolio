@@ -1,5 +1,6 @@
 import { useTranslation } from "react-i18next";
-import { Navigate, useNavigate } from "react-router-dom";
+import { Navigate } from "react-router-dom";
+import { useBackNavigation } from "@/pages/layouts/mobile-stack/use-mobile-stack";
 
 import { Button, Icons } from "@wealthfolio/ui";
 
@@ -11,7 +12,7 @@ import { SpendingBackLink } from "../components/spending-back-link";
 export default function SpendingSetupPage() {
   const { t } = useTranslation();
   const { isEnabled, isLoading: settingsLoading } = useSpendingSettings();
-  const navigate = useNavigate();
+  const goBack = useBackNavigation("/settings/spending");
 
   if (!settingsLoading && !isEnabled) {
     return <Navigate to="/settings/spending" replace />;
@@ -26,7 +27,7 @@ export default function SpendingSetupPage() {
           type="button"
           variant="ghost"
           size="sm"
-          onClick={() => navigate("/settings/spending")}
+          onClick={goBack}
           className="text-muted-foreground hover:text-foreground -ms-1 h-8 w-8 shrink-0 p-0 sm:hidden"
           aria-label={t("settings:spending.back_to_tracker")}
         >

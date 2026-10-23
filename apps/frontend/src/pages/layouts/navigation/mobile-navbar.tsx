@@ -8,9 +8,18 @@ import { useHapticFeedback } from "@/hooks/use-haptic-feedback";
 import { cn } from "@/lib/utils";
 import { Icons, Sheet, SheetContent, SheetTitle } from "@wealthfolio/ui";
 import { motion } from "motion/react";
-import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type MouseEvent,
+  type ReactNode,
+} from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useLocation, useNavigate } from "react-router-dom";
+import { useMobileStack } from "../mobile-stack/use-mobile-stack";
 import { type NavLink, type NavigationProps, isPathActive } from "./app-navigation";
 import { resolveNavigationIcon } from "./navigation-icons";
 
@@ -54,18 +63,30 @@ export function MobileNavBar({ navigation }: MobileNavBarProps) {
   const { triggerHaptic } = useHapticFeedback();
   const uniqueId = useId();
   const { status: syncStatus } = useAggregatedSyncStatus();
+  const stack = useMobileStack();
 
   const containerClassName = "pointer-events-none fixed inset-x-0 bottom-0 z-50";
   const buttonClassName =
     "text-foreground relative z-10 flex h-14 w-full items-center justify-center rounded-full transition-colors landscape:size-11";
 
   const handleNavigation = useCallback(
-    (href: string, isActive: boolean) => {
+    (event: MouseEvent, href: string, isActive: boolean) => {
+      // A stacked tab opens on the screen it was left on.
+      const stackedTab = stack?.config.tabs.find((tab) => tab.rootPath === href);
+      if (stackedTab) {
+        event.preventDefault();
+        triggerHaptic();
+        stack?.openTab(stackedTab.id);
+        return;
+      }
       if (isActive) return;
+      // The Link would navigate again after this handler, adding a second
+      // history entry for the same tap.
+      event.preventDefault();
       triggerHaptic();
       navigate(href);
     },
-    [triggerHaptic, navigate],
+    [triggerHaptic, navigate, stack],
   );
 
   const renderIcon = useCallback((icon?: ReactNode) => resolveNavigationIcon(icon, "size-6"), []);
@@ -143,7 +164,7 @@ export function MobileNavBar({ navigation }: MobileNavBarProps) {
                       });
                       document.dispatchEvent(event);
                     } else {
-                      handleNavigation(item.href, isActive);
+                      handleNavigation(e, item.href, isActive);
                     }
                   }}
                   aria-label={item.title}
@@ -278,8 +299,8 @@ export function MobileNavBar({ navigation }: MobileNavBarProps) {
                       <Link
                         key={item.href}
                         to={item.href}
-                        onClick={() => {
-                          handleNavigation(item.href, isActive);
+                        onClick={(event) => {
+                          handleNavigation(event, item.href, isActive);
                           setMobileMenuOpen(false);
                         }}
                         aria-current={isActive ? "page" : undefined}
@@ -313,8 +334,8 @@ export function MobileNavBar({ navigation }: MobileNavBarProps) {
                           <Link
                             key={item.href}
                             to={item.href}
-                            onClick={() => {
-                              handleNavigation(item.href, isActive);
+                            onClick={(event) => {
+                              handleNavigation(event, item.href, isActive);
                               setMobileMenuOpen(false);
                             }}
                             aria-current={isActive ? "page" : undefined}

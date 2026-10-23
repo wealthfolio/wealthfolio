@@ -1,6 +1,7 @@
 import { cn } from "@/lib/utils";
 import { useTranslation } from "react-i18next";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
+import { useBackNavigation } from "@/pages/layouts/mobile-stack/use-mobile-stack";
 
 import { Button, Icons, buttonVariants } from "@wealthfolio/ui";
 
@@ -16,7 +17,7 @@ import { RulesOverviewCard } from "./components/rules-overview-card";
 export default function SpendingSettingsPage() {
   const { t } = useTranslation();
   const { isEnabled } = useSpendingSettings();
-  const navigate = useNavigate();
+  const goBack = useBackNavigation("/settings");
 
   return (
     <div className="text-sm leading-relaxed antialiased [&>*+*]:mt-9 [&>section+section]:mt-11">
@@ -25,7 +26,7 @@ export default function SpendingSettingsPage() {
           type="button"
           variant="ghost"
           size="sm"
-          onClick={() => navigate("/settings")}
+          onClick={goBack}
           className="text-muted-foreground hover:text-foreground -ms-1 h-8 w-8 shrink-0 p-0 lg:hidden"
           aria-label={t("settings:spending.back_to_settings")}
         >

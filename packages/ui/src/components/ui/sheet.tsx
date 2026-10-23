@@ -6,6 +6,7 @@ import * as React from "react";
 import { useTranslation } from "react-i18next";
 
 import { cn } from "../../lib/utils";
+import { usePortalScopeProps } from "./portal-scope";
 import { Icons } from "./icons";
 
 function Sheet(props: SheetPrimitive.Root.Props) {
@@ -21,7 +22,8 @@ function SheetClose(props: SheetPrimitive.Close.Props) {
 }
 
 function SheetPortal(props: SheetPrimitive.Portal.Props) {
-  return <SheetPrimitive.Portal data-slot="sheet-portal" {...props} />;
+  const scopeProps = usePortalScopeProps();
+  return <SheetPrimitive.Portal data-slot="sheet-portal" {...scopeProps} {...props} />;
 }
 
 interface SheetOverlayProps extends Omit<SheetPrimitive.Backdrop.Props, "className"> {

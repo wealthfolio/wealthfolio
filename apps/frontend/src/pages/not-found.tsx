@@ -1,10 +1,12 @@
 import { Button } from "@wealthfolio/ui";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
+import { useBackNavigation } from "@/pages/layouts/mobile-stack/use-mobile-stack";
 
 export default function NotFoundPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const goBack = useBackNavigation();
 
   return (
     <div className="animate-in fade-in zoom-in flex h-full w-full flex-col items-center justify-center gap-6 p-8 text-center duration-500">
@@ -18,7 +20,7 @@ export default function NotFoundPage() {
         </p>
       </div>
       <div className="flex gap-4">
-        <Button onClick={() => navigate(-1)} variant="outline" size="lg">
+        <Button onClick={goBack} variant="outline" size="lg">
           {t("common:notFound.goBack")}
         </Button>
         <Button onClick={() => navigate("/")} variant="default" size="lg">

@@ -26,6 +26,9 @@ function App() {
           queries: {
             refetchOnWindowFocus: false,
             staleTime: 5 * 60 * 1000,
+            // Phone screens kept under the one on top pause their queries while
+            // hidden; keep that data long enough for the user to come back to it.
+            gcTime: 30 * 60 * 1000,
             retry: false,
           },
         },

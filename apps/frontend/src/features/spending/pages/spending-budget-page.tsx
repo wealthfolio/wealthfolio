@@ -1,6 +1,7 @@
 import { cn } from "@/lib/utils";
 import { useCallback } from "react";
 import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom";
+import { useBackNavigation } from "@/pages/layouts/mobile-stack/use-mobile-stack";
 import { useTranslation } from "react-i18next";
 
 import { Button, Icons, Page, PageContent, PageHeader, buttonVariants } from "@wealthfolio/ui";
@@ -21,6 +22,7 @@ function isValidMonthKey(s: string | null): s is string {
 export default function SpendingBudgetPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const goBack = useBackNavigation();
   const [searchParams, setSearchParams] = useSearchParams();
   const { isEnabled, isLoading: settingsLoading } = useSpendingSettings();
   // URL-driven so `/spending/budget?month=2026-03` is shareable + reload-stable.
@@ -65,7 +67,7 @@ export default function SpendingBudgetPage() {
         heading={t("spending:budgetPage.heading")}
         text={t("spending:budgetPage.subheading")}
         onBack={() => {
-          if (window.history.length > 1) navigate(-1);
+          if (window.history.length > 1) goBack();
           else navigate("/dashboard?tab=spending");
         }}
         actions={headerActions}

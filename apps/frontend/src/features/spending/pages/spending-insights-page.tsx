@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Navigate, useNavigate, useSearchParams } from "react-router-dom";
+import { useBackNavigation } from "@/pages/layouts/mobile-stack/use-mobile-stack";
 
 import { useAccounts } from "@/hooks/use-accounts";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
@@ -143,6 +144,7 @@ export default function SpendingInsightsPage() {
 
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const goBack = useBackNavigation();
   const [searchParams, setSearchParams] = useSearchParams();
   const isMobile = useIsMobile();
   const { settings } = useSettingsContext();
@@ -530,7 +532,7 @@ export default function SpendingInsightsPage() {
       <PageHeader
         heading={isMobile ? undefined : t("spending:insightsPage.heading")}
         onBack={() => {
-          if (window.history.length > 1) navigate(-1);
+          if (window.history.length > 1) goBack();
           else navigate("/dashboard?tab=spending");
         }}
         actions={periodToggle}

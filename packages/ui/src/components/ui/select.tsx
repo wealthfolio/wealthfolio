@@ -1,6 +1,7 @@
 import { Select as SelectPrimitive } from "@base-ui/react/select";
 
 import { cn } from "../../lib/utils";
+import { usePortalScopeProps } from "./portal-scope";
 import { Icons } from "./icons";
 
 // Pass `items` (an array of `{ value, label }` or a value-to-label record) so
@@ -82,8 +83,9 @@ function SelectContent({
   alignItemWithTrigger = true,
   ...props
 }: SelectContentProps) {
+  const scopeProps = usePortalScopeProps();
   return (
-    <SelectPrimitive.Portal>
+    <SelectPrimitive.Portal {...scopeProps}>
       <SelectPrimitive.Positioner
         side={side}
         sideOffset={sideOffset}

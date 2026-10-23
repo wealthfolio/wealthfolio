@@ -1,12 +1,10 @@
 import { syncTriggerCycle, updatePortfolio } from "@/adapters";
 import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
 import { useQueryClient } from "@tanstack/react-query";
-import { Icons, PageScrollContainer, Spinner } from "@wealthfolio/ui";
-import { AnimatePresence } from "motion/react";
+import { Icons, Spinner } from "@wealthfolio/ui";
 import { useCallback } from "react";
 import { useTranslation } from "react-i18next";
-import { Outlet } from "react-router-dom";
-import { PageErrorBoundary } from "./page-error-boundary";
+import { MobileStackOutlet } from "./mobile-stack/mobile-stack-outlet";
 
 export function MobileNavigationContainer() {
   const { t } = useTranslation();
@@ -20,17 +18,7 @@ export function MobileNavigationContainer() {
 
   return (
     <div className="relative flex min-h-0 w-full flex-1">
-      <PageScrollContainer
-        withMobileNavOffset
-        className="lg:px-6 lg:py-0"
-        {...pullToRefreshHandlers}
-      >
-        <PageErrorBoundary>
-          <AnimatePresence mode="wait" initial={false}>
-            <Outlet />
-          </AnimatePresence>
-        </PageErrorBoundary>
-      </PageScrollContainer>
+      <MobileStackOutlet scrollProps={pullToRefreshHandlers} />
 
       {/* Pull progress indicator: shows during pull before activation */}
       {!isRefreshing && ptr.isPulling && !ptr.isActivated && (

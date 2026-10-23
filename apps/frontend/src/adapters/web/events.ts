@@ -181,6 +181,11 @@ export const listenAssetClassificationsChanged = <T>(
 // Desktop-only features - no-op in web
 const noopUnlisten: UnlistenFn = () => Promise.resolve();
 
+// Android app only; in a browser, Back is the browser's history back.
+export const listenBackButton = (_handler: () => void): Promise<UnlistenFn> => {
+  return Promise.resolve(noopUnlisten);
+};
+
 export const listenFileDropHover = <T>(_handler: EventCallback<T>): Promise<UnlistenFn> => {
   return Promise.resolve(noopUnlisten);
 };

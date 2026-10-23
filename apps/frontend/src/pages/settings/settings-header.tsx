@@ -2,7 +2,7 @@ import { Button } from "@wealthfolio/ui/components/ui/button";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { cn } from "@/lib/utils";
 import { useTranslation } from "react-i18next";
-import { useNavigate } from "react-router-dom";
+import { useBackNavigation } from "@/pages/layouts/mobile-stack/use-mobile-stack";
 
 interface SettingsHeaderProps {
   heading: string;
@@ -31,14 +31,14 @@ export function SettingsHeader({
   actionsInline = false,
 }: SettingsHeaderProps) {
   const { t } = useTranslation();
-  const navigate = useNavigate();
+  const goBack = useBackNavigation(backTo);
 
   const handleBack = () => {
     if (onBack) {
       onBack();
       return;
     }
-    navigate(backTo);
+    goBack();
   };
 
   return (

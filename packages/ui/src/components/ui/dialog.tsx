@@ -5,6 +5,7 @@ import * as React from "react";
 import { useTranslation } from "react-i18next";
 
 import { cn } from "../../lib/utils";
+import { usePortalScopeProps } from "./portal-scope";
 import { Icons } from "./icons";
 import { Sheet, SheetContent } from "./sheet";
 
@@ -81,7 +82,8 @@ function DialogTrigger(props: DialogPrimitive.Trigger.Props) {
 }
 
 function DialogPortal(props: DialogPrimitive.Portal.Props) {
-  return <DialogPrimitive.Portal data-slot="dialog-portal" {...props} />;
+  const scopeProps = usePortalScopeProps();
+  return <DialogPrimitive.Portal data-slot="dialog-portal" {...scopeProps} {...props} />;
 }
 
 function DialogClose(props: DialogPrimitive.Close.Props) {

@@ -5,7 +5,7 @@ import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { Alert, AlertDescription, AlertTitle } from "@wealthfolio/ui/components/ui/alert";
 
 import { useMemo, useCallback, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useBackNavigation } from "@/pages/layouts/mobile-stack/use-mobile-stack";
 import { useTranslation } from "react-i18next";
 
 import {
@@ -73,7 +73,7 @@ export function HoldingsConfirmStep() {
     pendingImportAssets,
     assetPreviewItems,
   } = state;
-  const navigate = useNavigate();
+  const goBack = useBackNavigation();
   const { t } = useTranslation();
   const [prepareError, setPrepareError] = useState<string | null>(null);
   const [isPreparingAssets, setIsPreparingAssets] = useState(false);
@@ -410,8 +410,8 @@ export function HoldingsConfirmStep() {
   ]);
 
   const handleCancel = useCallback(() => {
-    navigate(-1);
-  }, [navigate]);
+    goBack();
+  }, [goBack]);
 
   const isImporting = isImportPending || isPreparingAssets;
   const totalPositions = snapshots.reduce((sum, s) => sum + s.positions.length, 0);

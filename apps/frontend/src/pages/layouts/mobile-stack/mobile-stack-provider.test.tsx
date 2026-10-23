@@ -1,0 +1,216 @@
+import { act, render, waitFor } from "@testing-library/react";
+import { MemoryRouter, useLocation, useNavigate } from "react-router-dom";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { useMobileStack } from "./use-mobile-stack";
+import { MobileStackProvider } from "./mobile-stack-provider";
+import type { StackConfig } from "./stack-model";
+
+const android = vi.hoisted(() => ({
+  handler: null as null | (() => void),
+  listening: 0,
+  isAndroid: true,
+}));
+
+vi.mock("@/adapters", () => ({
+  listenBackButton: (handler: () => void) => {
+    android.handler = handler;
+    android.listening += 1;
+    return Promise.resolve(() => {
+      android.listening -= 1;
+      return Promise.resolve();
+    });
+  },
+}));
+vi.mock("@/hooks/use-platform", () => ({
+  usePlatform: () => ({ isAndroid: android.isAndroid, isTauri: true }),
+}));
+
+const config: StackConfig = {
+  tabs: [{ id: "holdings", rootPath: "/holdings" }],
+  topLevelPaths: ["/dashboard", "/holdings"],
+};
+
+let navigate: ReturnType<typeof useNavigate> = () => undefined;
+let pathname = "";
+let popAnimated: boolean | null | undefined;
+
+function Probe() {
+  navigate = useNavigate();
+  pathname = useLocation().pathname;
+  popAnimated = useMobileStack()?.popAnimated;
+  return null;
+}
+
+/** Adds an open popup to the page, in the portal of `scope` when given. */
+function openPopup(scope?: string) {
+  const portal = document.createElement("div");
+  portal.setAttribute("data-test-overlay", "");
+  if (scope) portal.setAttribute("data-portal-scope", scope);
+  const popup = document.createElement("div");
+  popup.setAttribute("role", "dialog");
+  popup.setAttribute("data-open", "");
+  portal.append(popup);
+  document.body.append(portal);
+  return portal;
+}
+
+function renderStack(start = "/holdings") {
+  return render(
+    <MemoryRouter initialEntries={[start]}>
+      <MobileStackProvider config={config}>
+        <Probe />
+      </MobileStackProvider>
+    </MemoryRouter>,
+  );
+}
+
+describe("Android Back on the phone stack", () => {
+  beforeEach(() => Object.assign(android, { handler: null, listening: 0, isAndroid: true }));
+  afterEach(() => document.querySelectorAll("[data-test-overlay]").forEach((el) => el.remove()));
+
+  it("leaves Back to Android at a tab's first screen", async () => {
+    renderStack();
+    await Promise.resolve();
+    expect(android.listening).toBe(0);
+  });
+
+  it("pops the stack while there is a screen to go back to", async () => {
+    renderStack();
+    act(() => void navigate("/holdings/AMD"));
+    await waitFor(() => expect(android.listening).toBe(1));
+
+    act(() => android.handler?.());
+    await waitFor(() => expect(pathname).toBe("/holdings"));
+    await waitFor(() => expect(android.listening).toBe(0));
+  });
+
+  it("closes an open popup before leaving the screen", async () => {
+    renderStack();
+    act(() => void navigate("/holdings/AMD"));
+    await waitFor(() => expect(android.listening).toBe(1));
+
+    const dialog = document.createElement("div");
+    dialog.setAttribute("role", "dialog");
+    dialog.setAttribute("data-open", "");
+    dialog.setAttribute("data-test-overlay", "");
+    document.body.append(dialog);
+    const escapes = vi.fn();
+    document.addEventListener(
+      "keydown",
+      (event) => {
+        if (event.key === "Escape") escapes();
+      },
+      { once: true },
+    );
+
+    act(() => android.handler?.());
+    expect(escapes).toHaveBeenCalledTimes(1);
+    expect(pathname).toBe("/holdings/AMD");
+  });
+
+  it("leaves a popup on a screen out of sight to that screen", async () => {
+    renderStack();
+    act(() => void navigate("/holdings/AMD"));
+    await waitFor(() => expect(android.listening).toBe(1));
+
+    // The list under the pushed screen keeps a menu that was open on it.
+    const portal = document.createElement("div");
+    portal.setAttribute("data-portal-scope", "holdings:0");
+    portal.setAttribute("data-test-overlay", "");
+    const menu = document.createElement("div");
+    menu.setAttribute("role", "menu");
+    menu.setAttribute("data-open", "");
+    portal.append(menu);
+    document.body.append(portal);
+
+    act(() => android.handler?.());
+    await waitFor(() => expect(pathname).toBe("/holdings"));
+  });
+
+  it("closes a popup of the screen on top first", async () => {
+    renderStack();
+    act(() => void navigate("/holdings/AMD"));
+    await waitFor(() => expect(android.listening).toBe(1));
+
+    const portal = document.createElement("div");
+    portal.setAttribute("data-portal-scope", "holdings:1");
+    portal.setAttribute("data-test-overlay", "");
+    const menu = document.createElement("div");
+    menu.setAttribute("role", "menu");
+    menu.setAttribute("data-open", "");
+    portal.append(menu);
+    document.body.append(portal);
+    const escapes = vi.fn();
+    document.addEventListener(
+      "keydown",
+      (event) => {
+        if (event.key === "Escape") escapes();
+      },
+      { once: true },
+    );
+
+    act(() => android.handler?.());
+    expect(escapes).toHaveBeenCalledTimes(1);
+    expect(pathname).toBe("/holdings/AMD");
+  });
+
+  it("closes a popup at a tab's first screen, then leaves Back to Android again", async () => {
+    renderStack();
+    const popup = openPopup();
+    await waitFor(() => expect(android.listening).toBe(1));
+    const escapes = vi.fn();
+    document.addEventListener(
+      "keydown",
+      (event) => {
+        if (event.key === "Escape") escapes();
+      },
+      { once: true },
+    );
+
+    act(() => android.handler?.());
+    expect(escapes).toHaveBeenCalledTimes(1);
+    expect(pathname).toBe("/holdings");
+
+    popup.remove();
+    await waitFor(() => expect(android.listening).toBe(0));
+  });
+
+  it("leaves Back to Android when the only open popup is on a screen out of sight", async () => {
+    renderStack();
+    openPopup("holdings:99");
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(android.listening).toBe(0);
+  });
+
+  it("does not take over Back on other platforms", async () => {
+    android.isAndroid = false;
+    renderStack();
+    act(() => void navigate("/holdings/AMD"));
+    await Promise.resolve();
+    expect(android.listening).toBe(0);
+  });
+});
+
+describe("history steps the browser animated", () => {
+  function popState(animated?: boolean) {
+    const event = new PopStateEvent("popstate");
+    if (animated !== undefined) {
+      Object.defineProperty(event, "hasUAVisualTransition", { value: animated });
+    }
+    act(() => void window.dispatchEvent(event));
+  }
+
+  it("follows what the browser says it did", () => {
+    renderStack();
+    popState(true);
+    expect(popAnimated).toBe(true);
+    popState(false);
+    expect(popAnimated).toBe(false);
+  });
+
+  it("is unknown where the browser does not say", () => {
+    renderStack();
+    popState();
+    expect(popAnimated).toBeNull();
+  });
+});

@@ -98,6 +98,7 @@ import {
 } from "@wealthfolio/ui/components/ui/sheet";
 import { format } from "date-fns";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { useBackNavigation } from "@/pages/layouts/mobile-stack/use-mobile-stack";
 import { AccountContributionLimit } from "./account-contribution-limit";
 import AccountHoldings from "./account-holdings";
 import AccountMetrics from "./account-metrics";
@@ -178,6 +179,7 @@ const AccountPage = () => {
     (!!invalidSnapshotId || !!invalidSnapshotDate);
   const requestedAccountDetailTab = parseAccountDetailTab(searchParams.get("tab"));
   const navigate = useNavigate();
+  const goBack = useBackNavigation();
   const isMobile = useIsMobileViewport();
   const [selectedIntervalCode, setSelectedIntervalCode] =
     useState<TimePeriod>(INITIAL_INTERVAL_CODE);
@@ -784,7 +786,7 @@ const AccountPage = () => {
   return (
     <Page>
       <PageHeader
-        onBack={() => navigate(-1)}
+        onBack={goBack}
         actions={
           <ActionPalette
             open={actionPaletteOpen}
