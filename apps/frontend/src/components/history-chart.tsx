@@ -11,6 +11,7 @@ import type { MouseHandlerDataParam } from "recharts/types/synchronisation/types
 import {
   HistoryChartActiveDot,
   HistoryChartMarkerShape,
+  type HistoryChartMarkerTone,
   type RechartsActiveDotProps,
   type RechartsMarkerShapeProps,
 } from "./history-chart-marker";
@@ -30,6 +31,8 @@ interface HistoryChartProps {
   isLoading?: boolean;
   /** Dates with manual snapshots (YYYY-MM-DD format) */
   snapshotDates?: string[];
+  /** Per-date letter markers; dates without an entry render as snapshot dots */
+  markerLabels?: Map<string, { label: string; tone: HistoryChartMarkerTone }>;
   /** Toggle visibility of snapshot markers */
   showMarkers?: boolean;
   /** Callback when a marker is clicked */
@@ -134,6 +137,7 @@ export function HistoryChart({
   data,
   isLoading,
   snapshotDates,
+  markerLabels,
   showMarkers,
   onMarkerClick,
   scaleMode,
@@ -403,9 +407,14 @@ export function HistoryChart({
               key={`marker-${point.date}`}
               x={point.date}
               y={point.value}
-              shape={(props: RechartsMarkerShapeProps) => (
-                <HistoryChartMarkerShape {...props} variant="snapshot" value={point.value} />
-              )}
+              shape={(props: RechartsMarkerShapeProps) => {
+                const marker = markerLabels?.get(point.date);
+                return marker ? (
+                  <HistoryChartMarkerShape {...props} variant="activity" {...marker} />
+                ) : (
+                  <HistoryChartMarkerShape {...props} variant="snapshot" value={point.value} />
+                );
+              }}
             />
           ))}
         {singleDataPoint && (

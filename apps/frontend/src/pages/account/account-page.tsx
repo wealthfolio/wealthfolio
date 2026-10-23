@@ -2,6 +2,8 @@ import { parseLocalDate } from "@/lib/utils";
 import { formatZonedDateKey } from "@/features/spending/lib/timezone";
 import { getContributionLimit, getSnapshots, searchActivities } from "@/adapters";
 import { HistoryChart } from "@/components/history-chart";
+import type { HistoryChartMarkerTone } from "@/components/history-chart-marker";
+import { activityMarkerLabel, activityMarkerTone } from "@/pages/asset/asset-history-markers";
 import type { ActivityDetails } from "@/lib/types";
 import {
   Card,
@@ -390,8 +392,8 @@ const AccountPage = () => {
 
   // In TRANSACTIONS mode, fetch activity dates for markers (snapshot dates include
   // carry-forward days with no activities, so we need actual activity dates instead)
-  const { data: activityMarkerDates } = useQuery<string[], Error>({
-    queryKey: ["activities", "markerDates", id, snapshotDateFrom, snapshotDateTo],
+  const { data: activityMarkerTypes } = useQuery<Map<string, Set<ActivityType>>, Error>({
+    queryKey: ["activities", "markerTypes", id, snapshotDateFrom, snapshotDateTo],
     queryFn: async () => {
       const response = await searchActivities(
         0,
@@ -400,18 +402,38 @@ const AccountPage = () => {
         "",
         { id: "date", desc: true },
       );
-      const dates = new Set<string>();
+      const types = new Map<string, Set<ActivityType>>();
       response.data.forEach((a) => {
-        const d = typeof a.date === "string" ? a.date : a.date.toISOString();
-        dates.add(d.split("T")[0]);
+        const d = (typeof a.date === "string" ? a.date : a.date.toISOString()).split("T")[0];
+        if (!types.has(d)) types.set(d, new Set());
+        types.get(d)!.add(a.activityType);
       });
-      return [...dates];
+      return types;
     },
     enabled: showSnapshotMarkers && !isHoldingsMode && !!account,
   });
 
   // Use activity dates for TRANSACTIONS mode, snapshot dates for HOLDINGS mode
-  const markerDates = isHoldingsMode ? snapshotDates : (activityMarkerDates ?? []);
+  const markerDates = isHoldingsMode ? snapshotDates : [...(activityMarkerTypes?.keys() ?? [])];
+
+  // Mixed-type days show how many types landed on them, since one letter can't describe them
+  const markerLabels = useMemo(() => {
+    if (isHoldingsMode || !activityMarkerTypes) return undefined;
+    const labels = new Map<string, { label: string; tone: HistoryChartMarkerTone }>();
+    activityMarkerTypes.forEach((types, date) => {
+      const [type] = types;
+      labels.set(
+        date,
+        types.size === 1
+          ? {
+              label: activityMarkerLabel(type),
+              tone: activityMarkerTone(type),
+            }
+          : { label: String(types.size), tone: "default" },
+      );
+    });
+    return labels;
+  }, [isHoldingsMode, activityMarkerTypes]);
 
   // Query activities for selected date (Transactions mode marker click)
   const { data: dateActivities, isLoading: isDateActivitiesLoading } = useQuery<
@@ -1131,6 +1153,7 @@ const AccountPage = () => {
                           isLoading={false}
                           showMarkers={showSnapshotMarkers}
                           snapshotDates={markerDates}
+                          markerLabels={markerLabels}
                           onMarkerClick={(date) => {
                             if (isHoldingsMode) {
                               // Holdings mode: open edit holdings sheet
