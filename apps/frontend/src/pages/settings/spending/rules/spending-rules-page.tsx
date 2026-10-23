@@ -113,6 +113,7 @@ export default function SpendingRulesPage() {
             taxonomyId,
             categoryId: c.id,
             color: c.color,
+            icon: c.icon ?? null,
             parentName: parent?.name ?? null,
           } satisfies RuleFormCategoryOption;
         });

@@ -24,6 +24,7 @@ import {
 } from "@wealthfolio/ui";
 
 import type { CategorizationRule, RuleAmountOp, RuleMatchType } from "../types/rule";
+import { CategoryIconTile } from "./category-chips";
 import { QuickCategorizePopover } from "./quick-categorize-popover";
 
 export interface RuleFormValues {
@@ -137,6 +138,7 @@ export interface RuleFormCategoryOption {
   taxonomyId: string;
   categoryId: string;
   color?: string | null;
+  icon?: string | null;
   parentName?: string | null;
 }
 
@@ -397,13 +399,12 @@ export function RuleForm({
                         >
                           {currentOption ? (
                             <span className="flex min-w-0 items-center gap-2">
-                              {currentOption.color && (
-                                <span
-                                  className="h-2.5 w-2.5 shrink-0 rounded-full"
-                                  style={{ backgroundColor: currentOption.color }}
-                                  aria-hidden="true"
-                                />
-                              )}
+                              <CategoryIconTile
+                                icon={currentOption.icon ?? null}
+                                color={currentOption.color ?? null}
+                                className="h-5 w-5"
+                                iconClassName="h-3 w-3"
+                              />
                               <span className="truncate">
                                 {currentOption.parentName ? `${currentOption.parentName} / ` : ""}
                                 {currentOption.label}

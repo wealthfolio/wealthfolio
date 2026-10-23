@@ -19,7 +19,7 @@ import { useTaxonomy } from "@/hooks/use-taxonomies";
 import type { TaxonomyCategory } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-import { CategoryIcon } from "./category-chips";
+import { CategoryIconTile } from "./category-chips";
 
 const SPENDING_TAXONOMY = "spending_categories";
 const INCOME_TAXONOMY = "income_sources";
@@ -144,17 +144,10 @@ export function QuickCategorizePopover({
                         onSelect={() => handleSelect(opt)}
                         className={cn("flex items-center gap-2", isChild && "ps-8")}
                       >
-                        <span
-                          className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md"
-                          style={{
-                            backgroundColor: opt.category.color
-                              ? `${opt.category.color}1F`
-                              : "var(--muted)",
-                            color: opt.category.color ?? "var(--muted-foreground)",
-                          }}
-                        >
-                          <CategoryIcon icon={opt.category.icon ?? null} className="h-3.5 w-3.5" />
-                        </span>
+                        <CategoryIconTile
+                          icon={opt.category.icon ?? null}
+                          color={opt.category.color ?? null}
+                        />
                         <span className={cn("truncate", !isChild && "font-medium")}>
                           {opt.category.name}
                         </span>

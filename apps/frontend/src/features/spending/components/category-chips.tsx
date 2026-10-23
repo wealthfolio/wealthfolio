@@ -26,6 +26,32 @@ export function CategoryIcon({
   return <IconCmp weight="duotone" className={cn("h-4 w-4", className)} />;
 }
 
+/** Category icon on a tinted square, as in the category settings list. */
+export function CategoryIconTile({
+  icon,
+  color,
+  className,
+  iconClassName,
+}: {
+  icon: string | null;
+  color: string | null;
+  className?: string;
+  iconClassName?: string;
+}) {
+  return (
+    <span
+      className={cn("flex h-6 w-6 shrink-0 items-center justify-center rounded-md", className)}
+      style={{
+        backgroundColor: color ? `${color}1F` : "var(--muted)",
+        color: color ?? "var(--muted-foreground)",
+      }}
+      aria-hidden="true"
+    >
+      <CategoryIcon icon={icon} className={cn("h-3.5 w-3.5", iconClassName)} />
+    </span>
+  );
+}
+
 export function CategoryBadge({
   name,
   color,
