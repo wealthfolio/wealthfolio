@@ -44,6 +44,11 @@ export interface StackConfig {
   /** Destinations that leave the current tab instead of stacking on it. */
   topLevelPaths: readonly string[];
   /**
+   * Path prefixes that stay outside every tab whatever the navigation lists,
+   * such as add-on pages, whose menu entries load after the app starts.
+   */
+  outsidePrefixes?: readonly string[];
+  /**
    * Tab a link straight to a page outside every tab opens in, on top of the
    * tab's first screen, so back has somewhere to go.
    */
@@ -128,7 +133,11 @@ function withRecentTab(state: StackState): StackState {
 }
 
 function isTopLevel(config: StackConfig, pathname: string): boolean {
-  return config.topLevelPaths.includes(normalizePath(pathname));
+  const path = normalizePath(pathname);
+  return (
+    config.topLevelPaths.includes(path) ||
+    (config.outsidePrefixes ?? []).some((prefix) => path.startsWith(prefix))
+  );
 }
 
 function makeScreen(state: StackState, tab: string, location: StackLocation) {

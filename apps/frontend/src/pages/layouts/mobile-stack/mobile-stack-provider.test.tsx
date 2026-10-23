@@ -291,8 +291,9 @@ describe("tabs in the Android app", () => {
     tabs: [
       { id: "dashboard", rootPath: "/dashboard" },
       { id: "holdings", rootPath: "/holdings" },
+      { id: "insights", rootPath: "/insights" },
     ],
-    topLevelPaths: ["/dashboard", "/holdings"],
+    topLevelPaths: ["/dashboard", "/holdings", "/insights"],
     homeTab: "dashboard",
   };
   const renderTabs = (start: string) =>
@@ -317,6 +318,25 @@ describe("tabs in the Android app", () => {
     renderTabs("/dashboard");
     act(() => openTab("holdings"));
     expect(stackIndex).toBe(1);
+  });
+
+  it("leave no other tab's screens behind in history after a switch from a pushed screen", async () => {
+    renderTabs("/dashboard");
+    act(() => openTab("holdings"));
+    act(() => void navigate("/holdings/AMD"));
+    expect(stackIndex).toBe(1);
+
+    act(() => openTab("insights"));
+    await waitFor(() => expect(pathname).toBe("/insights"));
+    expect(stackIndex).toBe(0);
+
+    // Back at Insights' first screen goes to the dashboard, with nothing behind it.
+    await waitFor(() => expect(android.listening).toBe(1));
+    act(() => android.handler?.());
+    await waitFor(() => expect(pathname).toBe("/dashboard"));
+    await waitFor(() => expect(android.listening).toBe(0));
+    act(() => void navigate(-1));
+    expect(pathname).toBe("/dashboard");
   });
 
   it("go back to the home tab from another tab's first screen, then leave Back to Android", async () => {

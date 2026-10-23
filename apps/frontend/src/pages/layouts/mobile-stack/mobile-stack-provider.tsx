@@ -108,6 +108,11 @@ export function MobileStackProvider({ config, children }: MobileStackProviderPro
   const [appWentBack, setAppWentBack] = useState(false);
   const [historyDriven, setHistoryDriven] = useState(false);
   const [popAnimated, setPopAnimated] = useState<boolean | null>(null);
+  // Android's app: a tab switch waiting for history to reach its first entry.
+  const [pendingTabSwitch, setPendingTabSwitch] = useState<{
+    tab: string;
+    target: StackLocation;
+  } | null>(null);
   // Screens holding unsaved work: system backs go through the page instead.
   const leaveGuards = useRef(new Map<string, () => void>());
   const [guardedScreens, setGuardedScreens] = useState<ReadonlySet<string>>(() => new Set());
@@ -126,7 +131,17 @@ export function MobileStackProvider({ config, children }: MobileStackProviderPro
 
   // Each navigation becomes one stack update, applied while rendering the new
   // location so the screens never show a frame of the old stack.
-  if (location.key !== seenKey) {
+  if (location.key !== seenKey && pendingTabSwitch && navigationType === NavigationType.Pop) {
+    // The way back to the first history entry, on the way to another tab: not
+    // a screen of its own, so only where history stands is noted. The switch
+    // itself follows (see below).
+    setSeenKey(location.key);
+    setState({
+      ...state,
+      currentKey: location.key,
+      index: readHistoryIndex(location) ?? state.entries[location.key]?.index ?? 0,
+    });
+  } else if (location.key !== seenKey) {
     setSeenKey(location.key);
     setIntent(null);
     setAppWentBack(false);
@@ -181,20 +196,38 @@ export function MobileStackProvider({ config, children }: MobileStackProviderPro
         }
         return;
       }
-      const top = screens[screens.length - 1];
-      setIntent({ type: "openTab", tab: tabId });
-      // In Android's app a tab switch takes no history entry, so its Back never
-      // walks back through the tabs the user went through.
-      const replace = isAndroidApp;
-      if (top) {
-        const { pathname, search, hash, state: locationState } = top.location;
-        void navigate({ pathname, search, hash }, { replace, state: locationState });
-      } else {
-        void navigate(tab.rootPath, { replace });
+      const target = screens[screens.length - 1]?.location ?? {
+        pathname: tab.rootPath,
+        search: "",
+        hash: "",
+        state: null,
+        key: "",
+      };
+      // In Android's app history holds only the screens pushed in the tab
+      // shown: a switch goes back to the first entry and takes its place, so
+      // Back walks the tab, then goes to the home tab, then leaves the app.
+      if (isAndroidApp && state.index > 0) {
+        setPendingTabSwitch({ tab: tabId, target });
+        void navigate(-state.index);
+        return;
       }
+      setIntent({ type: "openTab", tab: tabId });
+      const { pathname, search, hash, state: locationState } = target;
+      void navigate({ pathname, search, hash }, { replace: isAndroidApp, state: locationState });
     },
     [config.tabs, isAndroidApp, navigate, state],
   );
+
+  useEffect(() => {
+    if (!pendingTabSwitch || navigationType !== NavigationType.Pop || location.key !== seenKey) {
+      return;
+    }
+    const { tab, target } = pendingTabSwitch;
+    setPendingTabSwitch(null);
+    setIntent({ type: "openTab", tab });
+    const { pathname, search, hash, state: locationState } = target;
+    void navigate({ pathname, search, hash }, { replace: true, state: locationState });
+  }, [location.key, navigate, navigationType, pendingTabSwitch, seenKey]);
 
   const guardScreen = useCallback((screenId: string, onAttempt: () => void) => {
     leaveGuards.current.set(screenId, onAttempt);

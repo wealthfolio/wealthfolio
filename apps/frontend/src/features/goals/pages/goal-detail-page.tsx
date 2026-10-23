@@ -1,3 +1,4 @@
+import { useBackNavigation } from "@/pages/layouts/mobile-stack/use-mobile-stack";
 import { formatZonedDateKey } from "@/features/spending/lib/timezone";
 import { parseLocalDate } from "@/lib/utils";
 import {
@@ -59,6 +60,7 @@ export default function GoalDetailPage() {
   const { t } = useTranslation();
   const { goalId } = useParams<{ goalId: string }>();
   const navigate = useNavigate();
+  const goBack = useBackNavigation("/goals");
 
   const { goal, plan, fundingRules, isLoading, error } = useGoalDetail(goalId);
   const { savePlanMutation } = useGoalPlanMutations(goalId ?? "");
@@ -131,7 +133,7 @@ export default function GoalDetailPage() {
   const handleDelete = () => {
     if (!goalId) return;
     deleteMutation.mutate(goalId, {
-      onSuccess: () => navigate("/goals"),
+      onSuccess: () => goBack(),
     });
   };
 
@@ -153,7 +155,7 @@ export default function GoalDetailPage() {
         <PageContent>
           <div className="flex flex-col items-center gap-4 py-24">
             <p className="text-muted-foreground">{t("goals:detail.not_found_body")}</p>
-            <Button onClick={() => navigate("/goals")}>{t("goals:detail.back_to_goals")}</Button>
+            <Button onClick={goBack}>{t("goals:detail.back_to_goals")}</Button>
           </div>
         </PageContent>
       </Page>
@@ -266,7 +268,7 @@ export default function GoalDetailPage() {
               })
             : t("goals:detail.header", { type: typeLabel })
         }
-        onBack={() => navigate("/goals")}
+        onBack={goBack}
         actions={headerActions}
       />
       {goal && <GoalEditDialog goal={goal} open={editOpen} onClose={() => setEditOpen(false)} />}

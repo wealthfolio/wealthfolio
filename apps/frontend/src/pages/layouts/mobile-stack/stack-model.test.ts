@@ -417,6 +417,15 @@ describe("every destination as a tab", () => {
     expect(coldStart(appConfig, at("/addons/budget")).activeTab).toBeNull();
   });
 
+  it("leaves add-on pages outside the tabs before the add-on menu has loaded", () => {
+    const starting: StackConfig = {
+      ...appConfig,
+      topLevelPaths: ["/"],
+      outsidePrefixes: ["/addons/"],
+    };
+    expect(coldStart(starting, at("/addons/budget/report")).activeTab).toBeNull();
+  });
+
   it("stacks a page opened from the home tab on it", () => {
     const home = coldStart(appConfig, at("/dashboard"));
     const account = appGo(home, at("/accounts/123"));

@@ -19,7 +19,7 @@ import { FloatingNavigationBar } from "./navigation/floating-navigation-bar";
 import { MobileNavBar } from "./navigation/mobile-navbar";
 import { NavigationModeProvider, useNavigationMode } from "./navigation/navigation-mode-context";
 import { MobileStackProvider } from "./mobile-stack/mobile-stack-provider";
-import { HOME_TAB, stackTabsFor } from "./mobile-stack/stack-config";
+import { HOME_TAB, OUTSIDE_TAB_PREFIXES, stackTabsFor } from "./mobile-stack/stack-config";
 import { PageErrorBoundary } from "./page-error-boundary";
 import { getPageScrollKey } from "./page-scroll-key";
 
@@ -78,6 +78,7 @@ const AppLayoutContent = () => {
       tabs: stackTabsFor(tabHrefs),
       topLevelPaths: ["/", ...tabHrefs, ...addonsKey.split("\n").filter(Boolean)],
       homeTab: HOME_TAB,
+      outsidePrefixes: OUTSIDE_TAB_PREFIXES,
     };
   }, [tabsKey, addonsKey]);
 

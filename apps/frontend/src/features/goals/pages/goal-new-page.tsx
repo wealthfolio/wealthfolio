@@ -1,3 +1,4 @@
+import { useBackNavigation } from "@/pages/layouts/mobile-stack/use-mobile-stack";
 import { formatZonedDateKey } from "@/features/spending/lib/timezone";
 import type { Goal, GoalType, PlannerMode } from "@/lib/types";
 import { useSettingsContext } from "@/lib/settings-provider";
@@ -59,6 +60,7 @@ function hasRetirementGoal(goals: Goal[]): boolean {
 export default function GoalNewPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const goBack = useBackNavigation("/goals");
   const createGoalFlow = useCreateGoalFlow();
   const { goals } = useGoals();
   const { settings } = useSettingsContext();
@@ -218,7 +220,8 @@ export default function GoalNewPage() {
       },
       {
         onSuccess: ({ goal }) => {
-          navigate(`/goals/${goal.id}`);
+          // The new goal takes the form's place: back from it returns to the list.
+          navigate(`/goals/${goal.id}`, { replace: true });
         },
       },
     );
@@ -229,7 +232,7 @@ export default function GoalNewPage() {
       <PageHeader
         heading={t("goals:new.create_goal")}
         text={t("goals:new.subtitle")}
-        onBack={() => navigate("/goals")}
+        onBack={goBack}
       />
       <PageContent>
         {!selectedType ? (
