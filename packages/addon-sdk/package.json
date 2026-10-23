@@ -86,7 +86,7 @@
     "react-dom": "^19.2.4"
   },
   "devDependencies": {
-    "@tanstack/react-query": "^5.90.20",
+    "@tanstack/react-query": "^5.104.5",
     "@types/react": "^19.2.13",
     "@types/react-dom": "^19.2.3",
     "tsup": "^8.5.1",
