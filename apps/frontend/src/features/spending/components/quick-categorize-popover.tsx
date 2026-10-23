@@ -17,6 +17,9 @@ import {
 
 import { useTaxonomy } from "@/hooks/use-taxonomies";
 import type { TaxonomyCategory } from "@/lib/types";
+import { cn } from "@/lib/utils";
+
+import { CategoryIcon } from "./category-chips";
 
 const SPENDING_TAXONOMY = "spending_categories";
 const INCOME_TAXONOMY = "income_sources";
@@ -41,21 +44,28 @@ interface FlatOption {
   group: "Expense" | "Savings" | "Income";
 }
 
+// Children's sortOrder is relative to their siblings, so a flat sort interleaves levels.
 function flattenTaxonomy(
   taxonomyId: string,
   cats: TaxonomyCategory[],
   group: FlatOption["group"],
 ): FlatOption[] {
   const byId = new Map(cats.map((c) => [c.id, c]));
-  return cats
-    .slice()
-    .sort((a, b) => a.sortOrder - b.sortOrder)
-    .map((c) => ({
-      taxonomyId,
-      category: c,
-      parent: c.parentId ? (byId.get(c.parentId) ?? null) : null,
-      group,
-    }));
+  const bySortOrder = (a: TaxonomyCategory, b: TaxonomyCategory) => a.sortOrder - b.sortOrder;
+  const toOption = (c: TaxonomyCategory, parent: TaxonomyCategory | null) => ({
+    taxonomyId,
+    category: c,
+    parent,
+    group,
+  });
+  const roots = cats.filter((c) => !c.parentId || !byId.has(c.parentId)).sort(bySortOrder);
+  return roots.flatMap((root) => [
+    toOption(root, null),
+    ...cats
+      .filter((c) => c.parentId === root.id)
+      .sort(bySortOrder)
+      .map((c) => toOption(c, root)),
+  ]);
 }
 
 export function QuickCategorizePopover({
@@ -125,24 +135,29 @@ export function QuickCategorizePopover({
               return (
                 <CommandGroup key={groupKey} heading={groupLabels[groupKey]}>
                   {items.map((opt) => {
-                    const label = opt.parent
-                      ? `${opt.parent.name} / ${opt.category.name}`
-                      : opt.category.name;
                     const isSelected = selectedCategoryId === opt.category.id;
+                    const isChild = opt.parent !== null;
                     return (
                       <CommandItem
                         key={`${opt.taxonomyId}:${opt.category.id}`}
-                        value={`${groupKey} ${label}`}
+                        value={`${groupKey} ${opt.parent?.name ?? ""} / ${opt.category.name}`}
                         onSelect={() => handleSelect(opt)}
-                        className="flex items-center gap-2"
+                        className={cn("flex items-center gap-2", isChild && "ps-8")}
                       >
                         <span
-                          className="h-2.5 w-2.5 shrink-0 rounded-full"
+                          className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md"
                           style={{
-                            backgroundColor: opt.category.color ?? "var(--muted-foreground)",
+                            backgroundColor: opt.category.color
+                              ? `${opt.category.color}1F`
+                              : "var(--muted)",
+                            color: opt.category.color ?? "var(--muted-foreground)",
                           }}
-                        />
-                        <span className="truncate">{label}</span>
+                        >
+                          <CategoryIcon icon={opt.category.icon ?? null} className="h-3.5 w-3.5" />
+                        </span>
+                        <span className={cn("truncate", !isChild && "font-medium")}>
+                          {opt.category.name}
+                        </span>
                         {isSelected && (
                           <Icons.Check className="text-muted-foreground ms-auto h-3.5 w-3.5" />
                         )}
