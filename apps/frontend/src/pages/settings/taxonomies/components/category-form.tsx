@@ -28,6 +28,7 @@ import {
 import type { TaxonomyCategory } from "@/lib/types";
 import { useCreateCategory, useUpdateCategory, useDeleteCategory } from "@/hooks/use-taxonomies";
 import { toast } from "sonner";
+import { useEffectOnChange } from "@/hooks/use-effect-on-change";
 
 interface CategoryFormValues {
   name: string;
@@ -94,7 +95,7 @@ export function CategoryForm({
   });
 
   // Reset form when category changes
-  useEffect(() => {
+  useEffectOnChange(() => {
     form.reset({
       name: category?.name ?? "",
       key: category?.key ?? "",

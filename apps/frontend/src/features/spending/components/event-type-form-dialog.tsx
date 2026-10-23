@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -23,6 +23,7 @@ import {
 
 import { useEventTypeMutations } from "../hooks/use-spending-events";
 import type { EventType } from "../types/event";
+import { useEffectOnChange } from "@/hooks/use-effect-on-change";
 
 interface EventTypePrefill {
   name?: string;
@@ -77,7 +78,7 @@ export function EventTypeFormDialog({ eventType, open, onOpenChange, prefill, on
     },
   });
 
-  useEffect(() => {
+  useEffectOnChange(() => {
     if (open) {
       form.reset({
         name: eventType?.name ?? prefill?.name ?? "",

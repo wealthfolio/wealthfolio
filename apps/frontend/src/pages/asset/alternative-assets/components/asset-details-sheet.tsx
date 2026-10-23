@@ -74,6 +74,7 @@ import {
 import { paymentAccounts } from "../lib/loan-payments";
 import { type LinkableAsset } from "./alternative-asset-quick-add-modal";
 import { AlternativeAssetKind, ALTERNATIVE_ASSET_KIND_DISPLAY_NAMES } from "@/lib/types";
+import { useEffectOnChange } from "@/hooks/use-effect-on-change";
 
 /**
  * Asset data required by the sheet.
@@ -159,7 +160,7 @@ export function AssetDetailsSheet({
   // rebuild `asset` on every render, and background portfolio updates re-render
   // them, so resetting on the object itself would discard unsaved edits.
   const assetId = asset?.id;
-  useEffect(() => {
+  useEffectOnChange(() => {
     if (open && asset) {
       form.reset(getDefaultDetailsFormValues(asset.kind, asset.name, asset.metadata, asset.notes));
     }

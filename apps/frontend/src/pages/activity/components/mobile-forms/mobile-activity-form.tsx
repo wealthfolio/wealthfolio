@@ -40,6 +40,7 @@ import { newActivitySchema, type NewActivityFormValues } from "../forms/schemas"
 import { MobileActivitySteps } from "./mobile-activity-steps";
 import { getMobileActivityAssetId, hasStoredCustomTradeAmount } from "./mobile-activity-utils";
 import { Spinner } from "@wealthfolio/ui";
+import { useEffectOnChange } from "@/hooks/use-effect-on-change";
 
 interface MobileActivityFormProps {
   accounts: AccountSelectOption[];
@@ -475,7 +476,7 @@ export function MobileActivityForm({
   const { reset } = form;
   const storedAmountIsCustom = useMemo(() => hasStoredCustomTradeAmount(activity), [activity]);
 
-  useEffect(() => {
+  useEffectOnChange(() => {
     if (!open) return;
 
     const nextDefaultValues = activity?.date

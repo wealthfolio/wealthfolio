@@ -123,6 +123,8 @@ export function createBaseConfig(options = {}) {
           ...react.configs["jsx-runtime"].rules,
           ...reactHooks.configs.recommended.rules,
           "react-hooks/rules-of-hooks": "warn",
+          // Check the dependencies of hooks that take a list like useEffect's.
+          "react-hooks/exhaustive-deps": ["warn", { additionalHooks: "^useEffectOnChange$" }],
           "react/no-unescaped-entities": "warn",
           "react/prop-types": "off",
           "react/react-in-jsx-scope": "off",

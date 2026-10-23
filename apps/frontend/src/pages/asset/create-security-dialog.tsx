@@ -33,11 +33,12 @@ import {
   SelectValue,
 } from "@wealthfolio/ui/components/ui/select";
 import { Textarea } from "@wealthfolio/ui/components/ui/textarea";
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { useCallback, useId, useMemo, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { z } from "zod";
+import { useEffectOnChange } from "@/hooks/use-effect-on-change";
 
 /** Map search result quoteType to our InstrumentType form values.
  *  Returns null for unrecognized types so the caller can fall back to manual mode. */
@@ -172,7 +173,7 @@ export function CreateSecurityDialog({
     defaultValues,
   });
 
-  useEffect(() => {
+  useEffectOnChange(() => {
     resolveRequestSeq.current += 1;
     selectedCurrencyBaselineRef.current = undefined;
     quoteCcyUserEditedAfterSelectionRef.current = false;
