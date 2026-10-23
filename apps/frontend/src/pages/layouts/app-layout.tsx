@@ -19,7 +19,7 @@ import { FloatingNavigationBar } from "./navigation/floating-navigation-bar";
 import { MobileNavBar } from "./navigation/mobile-navbar";
 import { NavigationModeProvider, useNavigationMode } from "./navigation/navigation-mode-context";
 import { MobileStackProvider } from "./mobile-stack/mobile-stack-provider";
-import { STACKED_TABS } from "./mobile-stack/stack-config";
+import { HOME_TAB, stackTabsFor } from "./mobile-stack/stack-config";
 import { PageErrorBoundary } from "./page-error-boundary";
 import { getPageScrollKey } from "./page-scroll-key";
 
@@ -65,18 +65,21 @@ const AppLayoutContent = () => {
     !shouldUseMobileNavigation && isLaunchBar && !isFocusMode ? "3.5rem" : undefined;
   const isAppShellReady = !!settings?.onboardingCompleted;
   const pageScrollKey = getPageScrollKey(location.pathname);
-  // Tab-bar and menu destinations leave a stacked tab instead of stacking on it.
-  const topLevelKey = [
-    "/",
+  // Each tab-bar and menu destination is a tab with its own stack of screens;
+  // add-on pages are destinations too, but replace one another as before.
+  const tabsKey = [
+    ...[...navigation.primary, ...(navigation.secondary ?? [])].map((item) => item.href),
     "/connect",
-    ...[...navigation.primary, ...(navigation.secondary ?? []), ...(navigation.addons ?? [])].map(
-      (item) => item.href,
-    ),
   ].join("\n");
-  const stackConfig = useMemo(
-    () => ({ tabs: STACKED_TABS, topLevelPaths: topLevelKey.split("\n") }),
-    [topLevelKey],
-  );
+  const addonsKey = (navigation.addons ?? []).map((item) => item.href).join("\n");
+  const stackConfig = useMemo(() => {
+    const tabHrefs = tabsKey.split("\n");
+    return {
+      tabs: stackTabsFor(tabHrefs),
+      topLevelPaths: ["/", ...tabHrefs, ...addonsKey.split("\n").filter(Boolean)],
+      homeTab: HOME_TAB,
+    };
+  }, [tabsKey, addonsKey]);
 
   const areGlobalEventsReady = useGlobalEventListener();
   useActiveAppSyncTrigger({ enabled: isTauri, requireWindowFocusForInterval: !isMobile });

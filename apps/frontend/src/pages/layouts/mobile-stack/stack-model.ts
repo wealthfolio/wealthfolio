@@ -35,12 +35,19 @@ export interface StackTab {
    * `/settings/spending/rules`), which a deep link opens under the page.
    */
   rootPath: string;
+  /** Other paths that show the tab's first screen, such as `/` for the dashboard. */
+  aliases?: readonly string[];
 }
 
 export interface StackConfig {
   tabs: readonly StackTab[];
   /** Destinations that leave the current tab instead of stacking on it. */
   topLevelPaths: readonly string[];
+  /**
+   * Tab a link straight to a page outside every tab opens in, on top of the
+   * tab's first screen, so back has somewhere to go.
+   */
+  homeTab?: string;
 }
 
 interface HistoryEntry {
@@ -59,6 +66,8 @@ export interface StackState {
   index: number;
   currentKey: string;
   nextId: number;
+  /** Tabs shown, most recent first: only the latest few stay mounted. */
+  recentTabs: readonly string[];
 }
 
 /**
@@ -101,12 +110,21 @@ function normalizePath(pathname: string): string {
 
 function tabWithRoot(config: StackConfig, pathname: string): StackTab | undefined {
   const path = normalizePath(pathname);
-  return config.tabs.find((tab) => tab.rootPath === path);
+  return config.tabs.find((tab) => tab.rootPath === path || tab.aliases?.includes(path));
 }
 
 function tabOwning(config: StackConfig, pathname: string): StackTab | undefined {
   const path = normalizePath(pathname);
-  return config.tabs.find((tab) => path === tab.rootPath || path.startsWith(`${tab.rootPath}/`));
+  return (
+    tabWithRoot(config, path) ?? config.tabs.find((tab) => path.startsWith(`${tab.rootPath}/`))
+  );
+}
+
+/** The state with its active tab first in the recent tabs. */
+function withRecentTab(state: StackState): StackState {
+  const tab = state.activeTab;
+  if (tab === null || state.recentTabs[0] === tab) return state;
+  return { ...state, recentTabs: [tab, ...state.recentTabs.filter((other) => other !== tab)] };
 }
 
 function isTopLevel(config: StackConfig, pathname: string): boolean {
@@ -145,7 +163,7 @@ function truncateTo(
  */
 function parentLocations(tab: StackTab, location: StackLocation): StackLocation[] {
   const path = normalizePath(location.pathname);
-  if (path === tab.rootPath) return [];
+  if (path === tab.rootPath || tab.aliases?.includes(path)) return [];
   const segments = path.slice(tab.rootPath.length + 1).split("/");
   return segments.slice(0, -1).reduce<StackLocation[]>(
     (parents, _, position) => [
@@ -158,16 +176,19 @@ function parentLocations(tab: StackTab, location: StackLocation): StackLocation[
         key: `${location.key}:parent-${position + 1}`,
       },
     ],
-    [
-      {
-        pathname: tab.rootPath,
-        search: "",
-        hash: "",
-        state: null,
-        key: `${location.key}:parent-0`,
-      },
-    ],
+    [rootLocationOf(tab, location)],
   );
+}
+
+/** The tab's first screen, opened under `location`. */
+function rootLocationOf(tab: StackTab, location: StackLocation): StackLocation {
+  return {
+    pathname: tab.rootPath,
+    search: "",
+    hash: "",
+    state: null,
+    key: `${location.key}:parent-0`,
+  };
 }
 
 function sameUrl(a: StackLocation, b: StackLocation): boolean {
@@ -218,8 +239,15 @@ export function coldStart(
     index,
     currentKey: location.key,
     nextId: previous?.nextId ?? 0,
+    recentTabs: previous?.recentTabs ?? [],
   };
-  const tab = tabOwning(config, location.pathname);
+  // A page outside every tab, opened directly, opens on top of the home tab.
+  const owner = tabOwning(config, location.pathname);
+  const tab =
+    owner ??
+    (isTopLevel(config, location.pathname)
+      ? undefined
+      : config.tabs.find((candidate) => candidate.id === config.homeTab));
   if (!tab) {
     return {
       ...base,
@@ -229,14 +257,15 @@ export function coldStart(
 
   let state = base;
   const screens: StackScreen[] = [];
-  for (const parent of parentLocations(tab, location)) {
+  const parents = owner ? parentLocations(tab, location) : [rootLocationOf(tab, location)];
+  for (const parent of parents) {
     const made = makeScreen(state, tab.id, parent);
     screens.push(made.screen);
     state = { ...state, nextId: made.nextId };
   }
   const top = makeScreen(state, tab.id, location);
   screens.push(top.screen);
-  return {
+  return withRecentTab({
     ...state,
     nextId: top.nextId,
     stacks: { ...state.stacks, [tab.id]: screens },
@@ -246,7 +275,7 @@ export function coldStart(
       screenId: top.screen.id,
       index,
     }),
-  };
+  });
 }
 
 /**
@@ -447,6 +476,14 @@ export function applyNavigation(
   event: NavigationEvent,
   config: StackConfig,
 ): StackState {
+  return withRecentTab(applyRouterNavigation(state, event, config));
+}
+
+function applyRouterNavigation(
+  state: StackState,
+  event: NavigationEvent,
+  config: StackConfig,
+): StackState {
   const { action, location } = event;
   if (action === "POP") return applyPop(state, event, config);
 
@@ -468,8 +505,12 @@ export function applyNavigation(
     entries: { ...entries, [location.key]: { ...placed, index } },
   };
   // A redirect away from the screen on top (a `<Navigate replace>` to another
-  // tab's page) overwrote that screen's only entry, so the screen is gone.
-  return replaced && placed.screenId !== replaced.id ? removeScreen(result, replaced.id) : result;
+  // tab's page) overwrote that screen's only entry, so the screen is gone. A
+  // tab switch made in place (Android's app) leaves the tab it came from as is.
+  const leftTab = event.intent?.type === "openTab";
+  return replaced && placed.screenId !== replaced.id && !leftTab
+    ? removeScreen(result, replaced.id)
+    : result;
 }
 
 export function topScreen(state: StackState): StackScreen | null {

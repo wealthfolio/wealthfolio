@@ -1,4 +1,4 @@
-import { useCallback, useContext } from "react";
+import { useCallback, useContext, useEffect, useLayoutEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { MobileStackContext, StackScreenContext } from "./mobile-stack-contexts";
 import { getBackTarget } from "./stack-model";
@@ -32,4 +32,24 @@ export function useBackNavigation(fallbackTo?: string) {
       void navigate(-1);
     }
   }, [fallbackTo, navigate, screenId, stack]);
+}
+
+/**
+ * While `when` is true, a system back on this phone screen (the edge swipe,
+ * Android's Back) goes through `onAttempt` instead of leaving, for the page to
+ * ask before its work is discarded: the swipe is off and Back calls it. The
+ * page's own back button should ask the same way. Browser back and forward
+ * can't be held.
+ */
+export function useLeaveGuard(when: boolean, onAttempt: () => void) {
+  const guardScreen = useContext(MobileStackContext)?.guardScreen;
+  const screenId = useContext(StackScreenContext);
+  const latest = useRef(onAttempt);
+  useLayoutEffect(() => {
+    latest.current = onAttempt;
+  });
+  useEffect(() => {
+    if (!guardScreen || !screenId || !when) return;
+    return guardScreen(screenId, () => latest.current());
+  }, [guardScreen, screenId, when]);
 }

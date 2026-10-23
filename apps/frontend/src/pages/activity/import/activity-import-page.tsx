@@ -13,7 +13,7 @@ import { AnimatePresence, motion } from "motion/react";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { useBackNavigation } from "@/pages/layouts/mobile-stack/use-mobile-stack";
+import { useBackNavigation, useLeaveGuard } from "@/pages/layouts/mobile-stack/use-mobile-stack";
 
 // Context
 import {
@@ -355,6 +355,11 @@ function ImportWizardContent() {
   );
 
   const [showCancelDialog, setShowCancelDialog] = useState(false);
+  // Mid-import, the edge swipe and Android's Back ask before discarding, as the
+  // page's own back and cancel buttons do.
+  useLeaveGuard(state.step !== "upload" && state.step !== "result", () =>
+    setShowCancelDialog(true),
+  );
   const [isNextLoading, setIsNextLoading] = useState(false);
 
   // Fetch accounts to determine tracking mode based on selected account

@@ -5,6 +5,7 @@ import {
   useEffect,
   useEffectEvent,
   useMemo,
+  useRef,
   useState,
   useSyncExternalStore,
   type ReactNode,
@@ -62,6 +63,21 @@ function subscribeToNothing() {
   return () => undefined;
 }
 
+/**
+ * Scrolls a screen back to its top, as tapping its tab again does on iOS:
+ * whatever scrolls in it, the page itself or the section a page scrolls in.
+ */
+function scrollScreenToTop(screenId: string) {
+  const screen = document.querySelector(`[data-stack-screen="${screenId}"]`);
+  if (!screen) return;
+  const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+  for (const element of screen.querySelectorAll<HTMLElement>("*")) {
+    if (element.scrollTop > 0 && /(auto|scroll)/.test(getComputedStyle(element).overflowY)) {
+      element.scrollTo({ top: 0, behavior: reduceMotion ? "auto" : "smooth" });
+    }
+  }
+}
+
 function toStackLocation(location: Location): StackLocation {
   return {
     pathname: location.pathname,
@@ -92,6 +108,9 @@ export function MobileStackProvider({ config, children }: MobileStackProviderPro
   const [appWentBack, setAppWentBack] = useState(false);
   const [historyDriven, setHistoryDriven] = useState(false);
   const [popAnimated, setPopAnimated] = useState<boolean | null>(null);
+  // Screens holding unsaved work: system backs go through the page instead.
+  const leaveGuards = useRef(new Map<string, () => void>());
+  const [guardedScreens, setGuardedScreens] = useState<ReadonlySet<string>>(() => new Set());
 
   // Whether the browser animated a history step itself (a back swipe or back
   // preview), so the screens don't animate it a second time. Listening in the
@@ -147,7 +166,10 @@ export function MobileStackProvider({ config, children }: MobileStackProviderPro
       if (!tab) return;
       const screens = state.stacks[tabId] ?? [];
       if (state.activeTab === tabId) {
-        if (screens.length < 2) return;
+        if (screens.length < 2) {
+          if (screens[0]) scrollScreenToTop(screens[0].id);
+          return;
+        }
         // Back to the tab's first screen through history when the screens above
         // it are the latest entries, so no closed screen stays behind in history.
         const steps = stepsBackToTabRoot(state, tabId);
@@ -161,33 +183,57 @@ export function MobileStackProvider({ config, children }: MobileStackProviderPro
       }
       const top = screens[screens.length - 1];
       setIntent({ type: "openTab", tab: tabId });
+      // In Android's app a tab switch takes no history entry, so its Back never
+      // walks back through the tabs the user went through.
+      const replace = isAndroidApp;
       if (top) {
         const { pathname, search, hash, state: locationState } = top.location;
-        void navigate({ pathname, search, hash }, { state: locationState });
+        void navigate({ pathname, search, hash }, { replace, state: locationState });
       } else {
-        void navigate(tab.rootPath);
+        void navigate(tab.rootPath, { replace });
       }
     },
-    [config.tabs, navigate, state],
+    [config.tabs, isAndroidApp, navigate, state],
   );
 
+  const guardScreen = useCallback((screenId: string, onAttempt: () => void) => {
+    leaveGuards.current.set(screenId, onAttempt);
+    setGuardedScreens((current) => new Set(current).add(screenId));
+    return () => {
+      if (leaveGuards.current.get(screenId) === onAttempt) leaveGuards.current.delete(screenId);
+      setGuardedScreens((current) => {
+        const next = new Set(current);
+        next.delete(screenId);
+        return next;
+      });
+    };
+  }, []);
+
   // Android's Back closes an open popup first, then steps back through the tab
-  // like the screen's back button. With neither to do, Android keeps its own
-  // Back: history back, or leaving the app.
+  // like the screen's back button, asking first on a screen with unsaved work.
+  // At another tab's first screen it goes to the home tab, as Android apps do.
+  // With none of that to do, Android keeps its own Back: leaving the app.
   const canGoBack = getBackTarget(state) !== null;
   const topId = topScreen(state)?.id;
   const popupShown = useSyncExternalStore(
     isAndroidApp ? subscribeToPopups : subscribeToNothing,
     () => isAndroidApp && isPopupShown(topId),
   );
-  const handlesBack = canGoBack || popupShown;
+  const atOtherTabRoot =
+    !canGoBack && state.activeTab !== null && state.activeTab !== config.homeTab;
+  const handlesBack = canGoBack || popupShown || (atOtherTabRoot && config.homeTab !== undefined);
   const onAndroidBack = useEffectEvent(() => {
+    const leaveGuard = topId ? leaveGuards.current.get(topId) : undefined;
     if (isPopupShown(topId)) {
       (document.activeElement ?? document.body).dispatchEvent(
         new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }),
       );
+    } else if (canGoBack && leaveGuard) {
+      leaveGuard();
     } else if (canGoBack) {
       back();
+    } else if (atOtherTabRoot && config.homeTab) {
+      openTab(config.homeTab);
     } else {
       // The popup closed just before the press: what Android would have done.
       void navigate(-1);
@@ -208,8 +254,17 @@ export function MobileStackProvider({ config, children }: MobileStackProviderPro
   }, [handlesBack, isAndroidApp]);
 
   const value = useMemo(
-    () => ({ state, config, back, openTab, historyDriven, popAnimated }),
-    [state, config, back, openTab, historyDriven, popAnimated],
+    () => ({
+      state,
+      config,
+      back,
+      openTab,
+      historyDriven,
+      popAnimated,
+      guardScreen,
+      guardedScreens,
+    }),
+    [state, config, back, openTab, historyDriven, popAnimated, guardScreen, guardedScreens],
   );
 
   return <MobileStackContext.Provider value={value}>{children}</MobileStackContext.Provider>;

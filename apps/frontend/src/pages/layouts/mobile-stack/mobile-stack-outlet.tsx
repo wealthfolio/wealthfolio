@@ -39,6 +39,11 @@ const UNDER_DIM = 0.08;
  * it. Deeper screens unmount and open fresh when the user gets back to them.
  */
 const KEPT_RECENT_SCREENS = 3;
+/**
+ * Tabs whose screens stay mounted: the one shown and the two shown before it.
+ * Others keep their place and open fresh when the user comes back to them.
+ */
+const KEPT_TABS = 3;
 
 type ScrollProps = HTMLAttributes<HTMLDivElement>;
 type Role = "top" | "under" | "idle";
@@ -184,7 +189,7 @@ interface MobileStackOutletProps {
  * another.
  */
 export function MobileStackOutlet({ scrollProps }: MobileStackOutletProps) {
-  const { state, back, historyDriven, popAnimated } = useRequiredMobileStack();
+  const { state, back, historyDriven, popAnimated, guardedScreens } = useRequiredMobileStack();
   const location = useLocation();
   const direction = useDirection();
   const reduceMotion = useReducedMotion();
@@ -316,7 +321,14 @@ export function MobileStackOutlet({ scrollProps }: MobileStackOutletProps) {
     [back, progress, reduceMotion],
   );
   const activeScreens = state.activeTab ? (state.stacks[state.activeTab] ?? []) : [];
-  const canSwipeBack = appSwipe && activeScreens.length > 1 && transition === null && !gestureArmed;
+  // A screen holding unsaved work turns the swipe off rather than undoing it.
+  const activeTop = activeScreens[activeScreens.length - 1];
+  const canSwipeBack =
+    appSwipe &&
+    activeScreens.length > 1 &&
+    transition === null &&
+    !gestureArmed &&
+    !(activeTop && guardedScreens.has(activeTop.id));
   const edgeHandlers = useEdgeSwipeBack({
     direction,
     enabled: canSwipeBack,
@@ -336,10 +348,11 @@ export function MobileStackOutlet({ scrollProps }: MobileStackOutletProps) {
         : activeScreens[activeScreens.length - 2]?.id;
   const showUnder = transition !== null || gestureArmed;
 
+  const keptTabs = new Set(state.recentTabs.slice(0, KEPT_TABS));
   const screens = [
-    ...Object.values(state.stacks).flatMap((stack) =>
-      stack.filter((_, position) => isKept(position, stack.length)),
-    ),
+    ...Object.entries(state.stacks)
+      .filter(([tab]) => keptTabs.has(tab))
+      .flatMap(([, stack]) => stack.filter((_, position) => isKept(position, stack.length))),
     ...exiting,
   ];
 

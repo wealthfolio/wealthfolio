@@ -65,6 +65,8 @@ function outletFor(state: StackState, overrides: Partial<MobileStackContextValue
     openTab: () => undefined,
     historyDriven: false,
     popAnimated: null,
+    guardScreen: () => () => undefined,
+    guardedScreens: new Set(),
     ...overrides,
   };
   return (
@@ -82,6 +84,28 @@ function mountedScreens(state: StackState) {
     el.getAttribute("data-stack-screen"),
   );
 }
+
+describe("tabs kept mounted", () => {
+  it("keeps the screens of the tab shown and the two shown before it", () => {
+    const fourTabs: StackConfig = {
+      tabs: ["a", "b", "c", "d"].map((id) => ({ id, rootPath: `/${id}` })),
+      topLevelPaths: ["/a", "/b", "/c", "/d"],
+    };
+    const loc = (pathname: string) => ({
+      pathname,
+      search: "",
+      hash: "",
+      state: null,
+      key: pathname,
+    });
+    let state = coldStart(fourTabs, loc("/a"));
+    for (const tab of ["b", "c", "d"]) {
+      state = applyNavigation(state, { action: "PUSH", location: loc(`/${tab}`) }, fourTabs);
+    }
+    expect(state.recentTabs).toEqual(["d", "c", "b", "a"]);
+    expect(mountedScreens(state)).toEqual(["b:1", "c:2", "d:3"]);
+  });
+});
 
 describe("screens kept mounted per tab", () => {
   it("keeps every screen of a short stack", () => {
@@ -185,6 +209,21 @@ describe("a back swipe in the iOS app", () => {
     fireEvent.pointerDown(field, { ...pointer, clientX: 5, clientY: 400 });
     fireEvent.pointerMove(field, { ...pointer, clientX: 105, clientY: 400 });
     expect(document.activeElement).not.toBe(field);
+  });
+
+  it("does not start on a screen holding unsaved work", () => {
+    Object.assign(platform, { isIOS: true, isTauri: true });
+    pages.withField = true;
+    HTMLElement.prototype.setPointerCapture = () => undefined;
+    render(outletFor(stackOf(2), { guardedScreens: new Set(["holdings:1"]) }));
+    const field = screen.getByLabelText("/holdings/A1");
+    field.focus();
+
+    const pointer = { pointerId: 1, isPrimary: true, pointerType: "touch" };
+    fireEvent.pointerDown(field, { ...pointer, clientX: 5, clientY: 400 });
+    fireEvent.pointerMove(field, { ...pointer, clientX: 105, clientY: 400 });
+    // The swipe never started, so it did not take the keyboard down either.
+    expect(document.activeElement).toBe(field);
   });
 
   it("keeps the screen underneath shown when the page updates its own URL mid-swipe", () => {

@@ -386,3 +386,64 @@ describe("history positions from the browser", () => {
     expect(getBackTarget(first)).toMatchObject({ viaHistory: false });
   });
 });
+
+describe("every destination as a tab", () => {
+  const appConfig: StackConfig = {
+    tabs: [
+      { id: "dashboard", rootPath: "/dashboard", aliases: ["/"] },
+      { id: "holdings", rootPath: "/holdings" },
+      { id: "settings", rootPath: "/settings" },
+    ],
+    topLevelPaths: ["/", "/dashboard", "/holdings", "/settings", "/addons/budget"],
+    homeTab: "dashboard",
+  };
+  const appGo = (state: StackState, location: ReturnType<typeof at>, intent?: StackIntent) =>
+    applyNavigation(state, { action: "PUSH", location, intent }, appConfig);
+
+  it("opens a page outside every tab on top of the home tab", () => {
+    const account = coldStart(appConfig, at("/accounts/123"));
+    expect(account.activeTab).toBe("dashboard");
+    expect(paths(account, "dashboard")).toEqual(["/dashboard", "/accounts/123"]);
+    expect(getBackTarget(account)?.screen.location.pathname).toBe("/dashboard");
+  });
+
+  it("shows the home tab's first screen at its alias", () => {
+    const home = coldStart(appConfig, at("/"));
+    expect(home.activeTab).toBe("dashboard");
+    expect(paths(home, "dashboard")).toEqual(["/"]);
+  });
+
+  it("leaves add-on pages outside the tabs", () => {
+    expect(coldStart(appConfig, at("/addons/budget")).activeTab).toBeNull();
+  });
+
+  it("stacks a page opened from the home tab on it", () => {
+    const home = coldStart(appConfig, at("/dashboard"));
+    const account = appGo(home, at("/accounts/123"));
+    expect(paths(account, "dashboard")).toEqual(["/dashboard", "/accounts/123"]);
+  });
+
+  it("orders tabs by when they were last shown", () => {
+    const home = coldStart(appConfig, at("/dashboard"));
+    const holdings = appGo(home, at("/holdings"));
+    const settings = appGo(holdings, at("/settings"));
+    const back = appGo(settings, at("/dashboard"), { type: "openTab", tab: "dashboard" });
+    expect(back.recentTabs).toEqual(["dashboard", "settings", "holdings"]);
+  });
+
+  it("keeps the tab it switched away from when the switch replaces the entry", () => {
+    const home = coldStart(appConfig, at("/dashboard"));
+    const account = appGo(home, at("/accounts/123"));
+    const holdings = applyNavigation(
+      account,
+      {
+        action: "REPLACE",
+        location: at("/holdings"),
+        intent: { type: "openTab", tab: "holdings" },
+      },
+      appConfig,
+    );
+    expect(holdings.activeTab).toBe("holdings");
+    expect(paths(holdings, "dashboard")).toEqual(["/dashboard", "/accounts/123"]);
+  });
+});

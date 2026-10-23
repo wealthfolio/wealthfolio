@@ -2,7 +2,8 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { DatePickerInput, PortalScope } from "@wealthfolio/ui";
 import { MemoryRouter, useLocation, useNavigate } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { useMobileStack } from "./use-mobile-stack";
+import { StackScreenContext } from "./mobile-stack-contexts";
+import { useLeaveGuard, useMobileStack } from "./use-mobile-stack";
 import { MobileStackProvider } from "./mobile-stack-provider";
 import type { StackConfig } from "./stack-model";
 
@@ -35,6 +36,7 @@ let navigate: ReturnType<typeof useNavigate> = () => undefined;
 let pathname = "";
 let popAnimated: boolean | null | undefined;
 let openTab: (tabId: string) => void = () => undefined;
+let stackIndex = 0;
 
 function Probe() {
   navigate = useNavigate();
@@ -42,6 +44,7 @@ function Probe() {
   const stack = useMobileStack();
   popAnimated = stack?.popAnimated;
   openTab = stack?.openTab ?? (() => undefined);
+  stackIndex = stack?.state.index ?? 0;
   return null;
 }
 
@@ -280,5 +283,103 @@ describe("Android Back with a date picker open", () => {
 
     act(() => android.handler?.());
     await waitFor(() => expect(pathname).toBe("/holdings"));
+  });
+});
+
+describe("tabs in the Android app", () => {
+  const tabsConfig: StackConfig = {
+    tabs: [
+      { id: "dashboard", rootPath: "/dashboard" },
+      { id: "holdings", rootPath: "/holdings" },
+    ],
+    topLevelPaths: ["/dashboard", "/holdings"],
+    homeTab: "dashboard",
+  };
+  const renderTabs = (start: string) =>
+    render(
+      <MemoryRouter initialEntries={[start]}>
+        <MobileStackProvider config={tabsConfig}>
+          <Probe />
+        </MobileStackProvider>
+      </MemoryRouter>,
+    );
+  beforeEach(() => Object.assign(android, { handler: null, listening: 0, isAndroid: true }));
+
+  it("switch tabs without a history entry", () => {
+    renderTabs("/dashboard");
+    act(() => openTab("holdings"));
+    expect(pathname).toBe("/holdings");
+    expect(stackIndex).toBe(0);
+  });
+
+  it("take a history entry per switch elsewhere", () => {
+    android.isAndroid = false;
+    renderTabs("/dashboard");
+    act(() => openTab("holdings"));
+    expect(stackIndex).toBe(1);
+  });
+
+  it("go back to the home tab from another tab's first screen, then leave Back to Android", async () => {
+    renderTabs("/holdings");
+    await waitFor(() => expect(android.listening).toBe(1));
+    act(() => android.handler?.());
+    expect(pathname).toBe("/dashboard");
+    await waitFor(() => expect(android.listening).toBe(0));
+  });
+});
+
+describe("a screen holding unsaved work", () => {
+  beforeEach(() => Object.assign(android, { handler: null, listening: 0, isAndroid: true }));
+
+  function Wizard({ onAttempt }: { onAttempt: () => void }) {
+    useLeaveGuard(true, onAttempt);
+    return null;
+  }
+
+  it("asks the page instead of leaving on Android's Back", async () => {
+    const onAttempt = vi.fn();
+    render(
+      <MemoryRouter initialEntries={["/holdings"]}>
+        <MobileStackProvider config={config}>
+          <Probe />
+          <StackScreenContext.Provider value="holdings:1">
+            <Wizard onAttempt={onAttempt} />
+          </StackScreenContext.Provider>
+        </MobileStackProvider>
+      </MemoryRouter>,
+    );
+    act(() => void navigate("/holdings/AMD"));
+    await waitFor(() => expect(android.listening).toBe(1));
+
+    act(() => android.handler?.());
+    expect(onAttempt).toHaveBeenCalledTimes(1);
+    expect(pathname).toBe("/holdings/AMD");
+  });
+});
+
+describe("tapping the tab shown at its first screen", () => {
+  it("scrolls the screen back to its top", () => {
+    const scrollTo = vi.fn();
+    render(
+      <MemoryRouter initialEntries={["/holdings"]}>
+        <MobileStackProvider config={config}>
+          <Probe />
+          <div data-stack-screen="holdings:0">
+            {/* A section of the page, scrolled down. */}
+            <div
+              style={{ overflowY: "auto" }}
+              ref={(el) => {
+                if (!el) return;
+                Object.defineProperty(el, "scrollTop", { value: 200, configurable: true });
+                el.scrollTo = scrollTo;
+              }}
+            />
+          </div>
+        </MobileStackProvider>
+      </MemoryRouter>,
+    );
+    act(() => openTab("holdings"));
+    expect(scrollTo).toHaveBeenCalledWith(expect.objectContaining({ top: 0 }));
+    expect(pathname).toBe("/holdings");
   });
 });
