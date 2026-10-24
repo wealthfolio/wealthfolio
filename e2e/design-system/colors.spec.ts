@@ -221,44 +221,33 @@ for (const theme of themes) {
     test(`treemap gains and losses read apart and off the card, ${theme}, ${mode}`, async ({
       page,
     }) => {
-      // composition-chart draws each tile on the ramp from --heatmap-*-low to -high,
-      // at 0.45 opacity over the card in dark mode. Mid-tone gain and loss tiles must
-      // differ in hue and chroma, not only in lightness (OKLab a/b distance), and
-      // stand off the card. The minimums are the reference branch's, set between
-      // the themes whose tiles failed and every theme whose tiles read well.
+      // composition-chart draws each tile on the ramp from --heatmap-*-low through
+      // -mid to -high, at 0.45 opacity over the card in dark mode. The mid-tone gain
+      // and loss tiles, the -mid stops, must differ in hue and chroma, not only in
+      // lightness (OKLab a/b distance), and stand off the card. The minimums are the
+      // reference branch's, set between the themes whose tiles failed and every theme
+      // whose tiles read well.
       await openGallery(page, { mode, theme });
-      const tokens = [
-        "heatmap-positive-low",
-        "heatmap-positive-high",
-        "heatmap-negative-low",
-        "heatmap-negative-high",
-        "card",
-      ];
+      const tokens = ["heatmap-positive-mid", "heatmap-negative-mid", "card"];
+      // Read each token as treemap-palette.ts does, straight into a canvas: through
+      // a computed color(srgb …) value, a color-mix() middle stop can land a step lower.
       const colors = await page.evaluate((names) => {
         const canvas = document.createElement("canvas");
         canvas.width = canvas.height = 1;
         const context = canvas.getContext("2d", { willReadFrequently: true })!;
-        const probe = document.createElement("div");
-        document.body.append(probe);
-        const result = names.map((name) => {
-          probe.style.color = `var(--${name})`;
+        const style = getComputedStyle(document.documentElement);
+        return names.map((name) => {
           context.clearRect(0, 0, 1, 1);
-          context.fillStyle = getComputedStyle(probe).color;
+          context.fillStyle = style.getPropertyValue(`--${name}`).trim();
           context.fillRect(0, 0, 1, 1);
           return Array.from(context.getImageData(0, 0, 1, 1).data.slice(0, 3));
         });
-        probe.remove();
-        return result;
       }, tokens);
-      const [positiveLow, positiveHigh, negativeLow, negativeHigh, card] = colors;
+      const [positiveMid, negativeMid, card] = colors;
       const opacity = mode === "dark" ? 0.45 : 1;
-      const midTile = (low: number[], high: number[]) =>
-        low.map((value, i) => ((value + high[i]) / 2) * opacity + card[i] * (1 - opacity));
-      const [positive, negative, surface] = [
-        midTile(positiveLow, positiveHigh),
-        midTile(negativeLow, negativeHigh),
-        card,
-      ].map(oklab);
+      const tile = (fill: number[]) =>
+        fill.map((value, i) => value * opacity + card[i] * (1 - opacity));
+      const [positive, negative, surface] = [tile(positiveMid), tile(negativeMid), card].map(oklab);
       const distance = (a: number[], b: number[], from = 0) =>
         Math.hypot(...a.slice(from).map((value, i) => value - b[from + i]));
       const failures = [

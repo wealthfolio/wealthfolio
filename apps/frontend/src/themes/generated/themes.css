@@ -163,8 +163,10 @@
   --allocation-over: var(--destructive);
   --allocation-under: var(--info);
   --heatmap-positive-low: #edeecf;
+  --heatmap-positive-mid: #a0af54;
   --heatmap-positive-high: #66800b;
   --heatmap-negative-low: #ffe1d5;
+  --heatmap-negative-mid: #e8705f;
   --heatmap-negative-high: #af3029;
   --heatmap-label-dark: #100f0f;
   --heatmap-label-light: #fffcf0;
@@ -201,11 +203,6 @@
   --chart-8: #9f9d96;
   --chart-9: #878580;
   --chart-stone: hsl(49 8% 60%);
-  --success-subtle: var(--color-green-950);
-  --success-subtle-foreground: var(--color-green-200);
-  --success-subtle-border: var(--color-green-800);
-  --warning-subtle: var(--color-yellow-950);
-  --warning-subtle-foreground: var(--color-yellow-200);
   --series-1: #4385be;
   --series-2: #ce5d97;
   --series-3: #3aa99f;
@@ -218,6 +215,11 @@
   --spending-deep: hsl(156 28% 44%);
   --spending-mid: #2a573f;
   --net-worth: #d0a215;
+  --success-subtle: var(--color-green-950);
+  --success-subtle-foreground: var(--color-green-200);
+  --success-subtle-border: var(--color-green-800);
+  --warning-subtle: var(--color-yellow-950);
+  --warning-subtle-foreground: var(--color-yellow-200);
   --warning-subtle-border: var(--color-yellow-800);
   --destructive-subtle: var(--color-red-950);
   --destructive-subtle-foreground: var(--color-red-200);
@@ -381,6 +383,16 @@
   --heatmap-positive-high: #98b3a2;
   --heatmap-negative-low: #f5e3e0;
   --heatmap-negative-high: #d19a92;
+  --heatmap-positive-mid: color-mix(
+    in srgb,
+    var(--heatmap-positive-low),
+    var(--heatmap-positive-high)
+  );
+  --heatmap-negative-mid: color-mix(
+    in srgb,
+    var(--heatmap-negative-low),
+    var(--heatmap-negative-high)
+  );
   --heatmap-label-dark: #121212;
   --heatmap-label-light: #ffffff;
   --heatmap-accent: #357941;
@@ -473,6 +485,11 @@
   --chart-8: #a8a59b;
   --chart-9: #cdbfe8;
   --chart-stone: #5a5650;
+  --series-2: var(--chart-2);
+  --series-4: var(--chart-4);
+  --series-7: var(--chart-7);
+  --series-8: var(--chart-8);
+  --net-worth: #d4b66a;
   --sidebar: #0f0f10;
   --sidebar-foreground: #d4d4d8;
   --sidebar-primary: #f5f5f5;
@@ -485,11 +502,6 @@
   --heatmap-positive-low: #213a2c;
   --heatmap-positive-high: #86bf9c;
   --heatmap-negative-low: #44272a;
-  --series-2: var(--chart-2);
-  --series-4: var(--chart-4);
-  --series-7: var(--chart-7);
-  --series-8: var(--chart-8);
-  --net-worth: #d4b66a;
   --heatmap-negative-high: #ec8a7e;
   --heatmap-label-dark: #121212;
   --heatmap-label-light: #f4f4f5;
@@ -632,6 +644,16 @@
   --heatmap-positive-high: #8a9c57;
   --heatmap-negative-low: #fae2da;
   --heatmap-negative-high: #bd6f60;
+  --heatmap-positive-mid: color-mix(
+    in srgb,
+    var(--heatmap-positive-low),
+    var(--heatmap-positive-high)
+  );
+  --heatmap-negative-mid: color-mix(
+    in srgb,
+    var(--heatmap-negative-low),
+    var(--heatmap-negative-high)
+  );
   --heatmap-label-dark: #1b1a0c;
   --heatmap-label-light: #fdf8ec;
 }
@@ -671,6 +693,10 @@
   --chart-8: hsl(22 75% 20%);
   --chart-9: hsl(22 70% 15%);
   --chart-stone: #a89c88;
+  --spending-accent: hsl(22 80% 46%);
+  --spending-deep: hsl(22 80% 46%);
+  --spending-mid: hsl(24 84% 62%);
+  --net-worth: #da702c;
   --sidebar: #211f1d;
   --sidebar-foreground: #e8e0d0;
   --sidebar-primary: oklch(0.9 0.008 95);
@@ -683,10 +709,6 @@
   --fi-stream-1: hsl(25 92% 72%);
   --fi-stream-2: hsl(24 84% 62%);
   --fi-stream-3: hsl(23 78% 52%);
-  --spending-accent: hsl(22 80% 46%);
-  --spending-deep: hsl(22 80% 46%);
-  --spending-mid: hsl(24 84% 62%);
-  --net-worth: #da702c;
   --fi-stream-4: hsl(22 80% 42%);
   --fi-stream-5: hsl(22 78% 32%);
   --heatmap-accent: #879a39;
@@ -884,6 +906,16 @@
   --heatmap-positive-high: #6cbf83;
   --heatmap-negative-low: #fdeceb;
   --heatmap-negative-high: #ec7c74;
+  --heatmap-positive-mid: color-mix(
+    in srgb,
+    var(--heatmap-positive-low),
+    var(--heatmap-positive-high)
+  );
+  --heatmap-negative-mid: color-mix(
+    in srgb,
+    var(--heatmap-negative-low),
+    var(--heatmap-negative-high)
+  );
   --heatmap-label-dark: #1c1c1e;
   --heatmap-label-light: #ffffff;
 }
@@ -926,6 +958,13 @@
   --chart-9: #8e8e93;
   --chart-stone: #8e8e93;
   --chart-cursor: rgba(255, 255, 255, 0.06);
+  --series-3: var(--chart-3);
+  --series-4: var(--chart-4);
+  --series-8: var(--chart-8);
+  --spending-accent: #0a84ff;
+  --spending-deep: #409cff;
+  --spending-mid: #64d2ff;
+  --net-worth: #ff9f0a;
   --bar-stripe: rgba(0, 0, 0, 0.25);
   --sidebar: #161618;
   --sidebar-foreground: #ffffff;
@@ -938,13 +977,6 @@
   --success-subtle: #0f2415;
   --success-subtle-foreground: #30d158;
   --success-subtle-border: #1d4a2a;
-  --series-3: var(--chart-3);
-  --series-4: var(--chart-4);
-  --series-8: var(--chart-8);
-  --spending-accent: #0a84ff;
-  --spending-deep: #409cff;
-  --spending-mid: #64d2ff;
-  --net-worth: #ff9f0a;
   --destructive-subtle: #2c1210;
   --destructive-subtle-foreground: #ff6961;
   --destructive-subtle-border: #5c2320;

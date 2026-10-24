@@ -135,8 +135,6 @@
   --chart-8: #9f9d96;
   --chart-9: #cecdc3;
   --chart-stone: #b1aa9a;
-
-  /* Sidebar (full hsl colors) */
   /* Lines and markers compared side by side (performance comparisons, goal
      funding, risk scenarios): distinct hues at 3:1 or more on the card, which
      the area palette above can't give. Flexoki's accents, 600 on paper. */
@@ -153,6 +151,8 @@
   --spending-deep: #2a573f;
   --spending-mid: #71a290;
   --net-worth: #ad8301;
+
+  /* Sidebar (full hsl colors) */
   --sidebar: hsl(var(--flexoki-bg));
   --sidebar-foreground: hsl(var(--flexoki-tx));
   --sidebar-primary: hsl(var(--flexoki-tx));
@@ -233,14 +233,18 @@
   --allocation-over: var(--destructive);
   --allocation-under: var(--info);
 
-  /* Holdings treemap (composition-chart): gains lerp from positive-low to -high,
-     losses from negative-low to -high; labels are dark or light by tile
-     luminance. Dark mode draws the tiles at 0.45 over the card. Flexoki green
-     and red from 50 to 600, so the chart matches the chart palette and small
-     moves stay pale; labels in Flexoki's ink and paper. */
+  /* Holdings treemap (composition-chart): gains blend from positive-low through
+     -mid to -high, losses from negative-low through -mid to -high, and each label
+     takes whichever of label-dark and label-light has more contrast. Dark mode
+     draws the tiles at 0.45 over the card. Flexoki green and red at 50, 300 and
+     600, so the chart matches the chart palette and small moves stay pale; a
+     straight blend from 50 to 600 greys out in between. Labels in Flexoki's ink
+     and paper. A theme that sets low and high sets mid too, or it gets these. */
   --heatmap-positive-low: #edeecf;
+  --heatmap-positive-mid: #a0af54;
   --heatmap-positive-high: #66800b;
   --heatmap-negative-low: #ffe1d5;
+  --heatmap-negative-mid: #e8705f;
   --heatmap-negative-high: #af3029;
   --heatmap-label-dark: #100f0f;
   --heatmap-label-light: #fffcf0;
@@ -289,12 +293,6 @@
   --chart-8: #9f9d96;
   --chart-9: #878580;
   --chart-stone: hsl(49 8% 60%);
-
-  --success-subtle: var(--color-green-950);
-  --success-subtle-foreground: var(--color-green-200);
-  --success-subtle-border: var(--color-green-800);
-  --warning-subtle: var(--color-yellow-950);
-  --warning-subtle-foreground: var(--color-yellow-200);
   /* Series in Flexoki's 400 shades, as its dark theme uses them. */
   --series-1: #4385be;
   --series-2: #ce5d97;
@@ -309,6 +307,12 @@
   --spending-deep: hsl(156 28% 44%);
   --spending-mid: #2a573f;
   --net-worth: #d0a215;
+
+  --success-subtle: var(--color-green-950);
+  --success-subtle-foreground: var(--color-green-200);
+  --success-subtle-border: var(--color-green-800);
+  --warning-subtle: var(--color-yellow-950);
+  --warning-subtle-foreground: var(--color-yellow-200);
   --warning-subtle-border: var(--color-yellow-800);
   --destructive-subtle: var(--color-red-950);
   --destructive-subtle-foreground: var(--color-red-200);

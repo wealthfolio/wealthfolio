@@ -4,13 +4,16 @@ function noop() {
   return undefined;
 }
 
-// Treemap heatmap palette, from the theme's --heatmap-* roles: gains lerp from
-// --heatmap-positive-low to -high, losses from --heatmap-negative-low to -high,
-// and labels use --heatmap-label-dark or -light. The fallback is Classic's (classic.css).
+// Treemap heatmap palette, from the theme's --heatmap-* roles: gains blend from
+// --heatmap-positive-low through -mid to -high, losses from --heatmap-negative-low
+// through -mid to -high, and labels use --heatmap-label-dark or -light. The fallback
+// is Classic's (classic.css).
 export interface TreemapPalette {
   positiveLow: number[];
+  positiveMid: number[];
   positiveHigh: number[];
   negativeLow: number[];
+  negativeMid: number[];
   negativeHigh: number[];
   labelDark: number[];
   labelLight: number[];
@@ -19,8 +22,10 @@ export interface TreemapPalette {
 
 const paletteTokens = {
   positiveLow: "heatmap-positive-low",
+  positiveMid: "heatmap-positive-mid",
   positiveHigh: "heatmap-positive-high",
   negativeLow: "heatmap-negative-low",
+  negativeMid: "heatmap-negative-mid",
   negativeHigh: "heatmap-negative-high",
   labelDark: "heatmap-label-dark",
   labelLight: "heatmap-label-light",
@@ -28,8 +33,10 @@ const paletteTokens = {
 
 export const fallbackPalette: TreemapPalette = {
   positiveLow: [237, 238, 207],
+  positiveMid: [160, 175, 84],
   positiveHigh: [102, 128, 11],
   negativeLow: [255, 225, 213],
+  negativeMid: [232, 112, 95],
   negativeHigh: [175, 48, 41],
   labelDark: [16, 15, 15],
   labelLight: [255, 252, 240],
@@ -83,15 +90,26 @@ export function subscribeToTreemapTheme(onStoreChange: () => void): () => void {
 
 const lerp = (a: number, b: number, t: number) => Math.round(a + (b - a) * t);
 
+// WCAG contrast ratio between two sRGB colours.
+const luminance = (rgb: number[]) =>
+  rgb
+    .map((v) => v / 255)
+    .map((c) => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4))
+    .reduce((sum, c, i) => sum + c * [0.2126, 0.7152, 0.0722][i], 0);
+const contrast = (a: number[], b: number[]) => {
+  const [x, y] = [luminance(a), luminance(b)];
+  return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
+};
+
 interface TreemapTile {
   fill: string;
-  isLightTile: boolean; // bright fill → use dark text
+  isLightTile: boolean; // the dark label contrasts more than the light one
 }
 
 // Shade by return using a saturating curve `t = m / (m + k)` that maps
 // [0, ∞) → [0, 1). Unlike a hard cap, extreme winners/losers keep darkening
 // instead of collapsing into a single shade. `k` is the return magnitude that
-// maps to the mid-tone (losses ramp ~2× faster, matching the design). Values
+// lands on the middle stop (losses ramp ~2× faster, matching the design). Values
 // are fractions: 0.5 = +50%, 0.025 = +2.5% for the smaller daily returns.
 export function getTreemapColor(
   gain: number,
@@ -99,9 +117,9 @@ export function getTreemapColor(
   palette: TreemapPalette = fallbackPalette,
 ): TreemapTile {
   const isGain = isNaN(gain) || gain >= 0;
-  const [lo, hi] = isGain
-    ? [palette.positiveLow, palette.positiveHigh]
-    : [palette.negativeLow, palette.negativeHigh];
+  const [lo, mid, hi] = isGain
+    ? [palette.positiveLow, palette.positiveMid, palette.positiveHigh]
+    : [palette.negativeLow, palette.negativeMid, palette.negativeHigh];
   const k = isGain
     ? returnType === "daily"
       ? 0.025
@@ -112,8 +130,13 @@ export function getTreemapColor(
 
   const m = isNaN(gain) ? 0 : Math.abs(gain);
   const t = m / (m + k);
-  const c = lo.map((v, i) => lerp(v, hi[i], t));
-  // Perceived luminance (ITU-R BT.601); >150 reads as a light tile.
-  const luminance = 0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2];
-  return { fill: `rgb(${c.join(",")})`, isLightTile: luminance > 150 };
+  // Each half of the ramp is a straight blend: low to mid, then mid to high.
+  const c =
+    t < 0.5
+      ? lo.map((v, i) => lerp(v, mid[i], t * 2))
+      : mid.map((v, i) => lerp(v, hi[i], t * 2 - 1));
+  return {
+    fill: `rgb(${c.join(",")})`,
+    isLightTile: contrast(c, palette.labelDark) >= contrast(c, palette.labelLight),
+  };
 }
