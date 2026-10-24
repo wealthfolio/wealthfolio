@@ -45,6 +45,7 @@ import { generateId } from "@/lib/id";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
+import { buildAllocationTargetColorMap } from "./allocation-target-colors";
 import { BUILT_IN_PRESETS, ModelPresetPicker, type ModelPreset } from "./model-preset-picker";
 import { TargetWeightEditor, type WeightDraft } from "./target-weight-editor";
 import { DriftBandSlider } from "./drift-band-slider";
@@ -624,6 +625,19 @@ function TargetEditor({
       Object.fromEntries(categories.map((category) => [category.categoryId, category.percentage])),
     [categories],
   );
+  // One colour per category across the presets, the editor and the target pages. Unknown
+  // counts too: it takes a place among the categories held, as in the drift report.
+  const colorByCategory = React.useMemo(
+    () =>
+      buildAllocationTargetColorMap([
+        ...categoriesForTaxonomy(allocations, taxonomyId).map((category) => ({
+          categoryId: category.categoryId,
+          currentValue: category.value,
+        })),
+        ...targetCategories.map((category) => ({ categoryId: category.id, currentValue: 0 })),
+      ]),
+    [allocations, taxonomyId, targetCategories],
+  );
   const guidedWeightsKey = React.useMemo(() => {
     if (target && startId === "saved") return null;
     const categoryKey = targetCategories.map((category) => category.id).join("|");
@@ -1182,6 +1196,7 @@ function TargetEditor({
                 markDirty();
               }}
               currentCategories={categories}
+              colorByCategory={colorByCategory}
               compact
             />
           </section>
@@ -1213,6 +1228,7 @@ function TargetEditor({
                 categories={targetCategories}
                 weights={weights}
                 currentAllocation={currentAllocation}
+                colorByCategory={colorByCategory}
                 categoryLabel={categoryLabelForTaxonomy(selectedTaxonomy?.name, t)}
                 bandType={bandType}
                 driftBandBps={Math.round(driftBandPct * 100)}

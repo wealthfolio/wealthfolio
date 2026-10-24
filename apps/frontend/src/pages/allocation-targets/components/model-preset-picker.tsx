@@ -1,7 +1,10 @@
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import type { CategoryAllocation } from "@/lib/types";
-import { allocationTargetColor } from "./allocation-target-colors";
+import {
+  allocationTargetColorForRow,
+  type AllocationTargetColorMap,
+} from "./allocation-target-colors";
 import type { ModelPreset } from "./model-preset-data";
 import { BUILT_IN_PRESETS } from "./model-preset-data";
 
@@ -72,6 +75,7 @@ interface ModelPresetPickerProps {
   selected: string | null;
   onSelect: (presetId: string) => void;
   currentCategories: CategoryAllocation[];
+  colorByCategory: AllocationTargetColorMap;
   compact?: boolean;
 }
 
@@ -80,19 +84,13 @@ export function ModelPresetPicker({
   selected,
   onSelect,
   currentCategories,
+  colorByCategory,
   compact = false,
 }: ModelPresetPickerProps) {
   const { t } = useTranslation();
   const categoryNames = Object.fromEntries(
     currentCategories.map((category) => [category.categoryId, category.categoryName]),
   );
-  const currentColorMap = Object.fromEntries(
-    currentCategories.map((category, index) => [
-      category.categoryId,
-      allocationTargetColor(category.categoryId, category.categoryName, index),
-    ]),
-  );
-
   const currentWeights = Object.fromEntries(
     currentCategories.map((category) => [category.categoryId, category.percentage]),
   );
@@ -115,8 +113,7 @@ export function ModelPresetPicker({
     return Object.fromEntries(
       Object.keys(weights).map((categoryId, index) => [
         categoryId,
-        currentColorMap[categoryId] ??
-          allocationTargetColor(categoryId, categoryLabel(categoryId), index),
+        allocationTargetColorForRow({ categoryId }, colorByCategory, index),
       ]),
     );
   }

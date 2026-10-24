@@ -4,7 +4,10 @@ import type { TFunction } from "i18next";
 import { cn } from "@/lib/utils";
 import { Icons } from "@wealthfolio/ui";
 import type { BandType, TaxonomyCategory } from "@/lib/types";
-import { allocationTargetColor } from "./allocation-target-colors";
+import {
+  allocationTargetColorForRow,
+  type AllocationTargetColorMap,
+} from "./allocation-target-colors";
 
 export interface WeightDraft {
   categoryId: string;
@@ -17,6 +20,7 @@ interface TargetWeightEditorProps {
   categories: TaxonomyCategory[];
   weights: WeightDraft[];
   currentAllocation?: Record<string, number>; // categoryId → pct 0-100
+  colorByCategory: AllocationTargetColorMap;
   categoryLabel?: string;
   bandType: BandType;
   driftBandBps: number;
@@ -121,6 +125,7 @@ export function TargetWeightEditor({
   categories,
   weights,
   currentAllocation = {},
+  colorByCategory,
   categoryLabel,
   bandType,
   driftBandBps,
@@ -184,7 +189,7 @@ export function TargetWeightEditor({
       targetPct,
       drift,
       bandPct,
-      color: allocationTargetColor(cat.id, cat.name, index),
+      color: allocationTargetColorForRow({ categoryId: cat.id }, colorByCategory, index),
       isLocked: getIsLocked(cat.id),
       isEditing: editingId === cat.id,
     };
