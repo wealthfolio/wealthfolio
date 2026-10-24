@@ -8,6 +8,7 @@ import {
 } from "@wealthfolio/ui/components/ui/table";
 import { TooltipProvider } from "@wealthfolio/ui/components/ui/tooltip";
 import { Card } from "@wealthfolio/ui/components/ui/card";
+import { Checkbox } from "@wealthfolio/ui/components/ui/checkbox";
 import { IMPORT_REQUIRED_FIELDS } from "@/lib/constants";
 import {
   Account,
@@ -19,6 +20,7 @@ import {
 } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { motion } from "motion/react";
+import { useTranslation } from "react-i18next";
 import { MappingCell, MappingHeaderCell } from "./mapping-table-cells";
 
 interface MappingTableProps {
@@ -41,6 +43,15 @@ interface MappingTableProps {
   requiredFields?: readonly ImportFormat[];
   allowedActivityTypes?: readonly ActivityType[];
   getActivityTypeLabel?: (activityType: ActivityType) => string;
+  // A ticked row is imported; unticking one skips it
+  isRowIncluded?: (row: CsvRowData) => boolean;
+  onRowIncludedChange?: (row: CsvRowData, included: boolean) => void;
+  // The header checkbox's rows: all, some or none of them included
+  includedRowsState?: "all" | "some" | "none";
+  onIncludeAllChange?: (included: boolean) => void;
+  includeAllLabel?: string;
+  // Rows can share a lineNumber that comes from the CSV; a caller listing every row passes a unique key
+  getRowKey?: (row: CsvRowData) => string | number;
   className?: string;
 }
 
@@ -62,8 +73,15 @@ export function MappingTable({
   requiredFields = IMPORT_REQUIRED_FIELDS,
   allowedActivityTypes,
   getActivityTypeLabel,
+  isRowIncluded,
+  onRowIncludedChange,
+  includedRowsState,
+  onIncludeAllChange,
+  includeAllLabel,
+  getRowKey,
   className,
 }: MappingTableProps) {
+  const { t } = useTranslation();
   // Check if a field is mapped (supports fallback column arrays)
   const checkFieldMapped = (field: ImportFormat) => {
     const mappedHeader = mapping.fieldMappings[field];
@@ -89,8 +107,19 @@ export function MappingTable({
             <TableHeader className="bg-card sticky top-0 z-30 [&_th]:shadow-[0_-1px_0_var(--card)]">
               <TableRow>
                 <TableHead className="border-border bg-card sticky start-0 z-30 w-12 min-w-12 border-e border-b">
-                  <div className="bg-muted/50 flex items-center justify-center rounded-sm p-1">
-                    <span className="text-muted-foreground text-xs font-semibold">#</span>
+                  <div className="flex items-center gap-2">
+                    {onIncludeAllChange && (
+                      <Checkbox
+                        disabled={data.length === 0}
+                        checked={includedRowsState === "all"}
+                        indeterminate={includedRowsState === "some"}
+                        onCheckedChange={onIncludeAllChange}
+                        aria-label={includeAllLabel}
+                      />
+                    )}
+                    <div className="bg-muted/50 flex items-center justify-center rounded-sm p-1">
+                      <span className="text-muted-foreground text-xs font-semibold">#</span>
+                    </div>
                   </div>
                 </TableHead>
                 {visibleFields.map((field) => (
@@ -118,19 +147,32 @@ export function MappingTable({
             </TableHeader>
             <TableBody>
               {data.map((row, index) => {
+                const isIncluded = isRowIncluded?.(row) ?? true;
                 return (
                   <motion.tr
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.2, delay: index * 0.03 }}
-                    key={`row-${row.lineNumber}`}
+                    // Filtered views can list every row; cap the stagger so long lists still appear promptly
+                    transition={{ duration: 0.2, delay: Math.min(index, 10) * 0.03 }}
+                    key={getRowKey?.(row) ?? `row-${row.lineNumber}`}
                     className={cn(
                       "hover:bg-muted/50 group transition-colors",
                       index % 2 === 0 ? "bg-background" : "bg-muted/20",
                     )}
                   >
                     <TableCell className="border-border text-muted-foreground sticky start-0 z-20 w-12 border-e bg-[color-mix(in_srgb,var(--muted)_30%,var(--card))] font-mono text-xs font-medium group-hover:bg-[color-mix(in_srgb,var(--muted)_50%,var(--card))]">
-                      {row.lineNumber}
+                      <div className="flex items-center gap-2">
+                        {onRowIncludedChange && (
+                          <Checkbox
+                            checked={isIncluded}
+                            onCheckedChange={(checked) => onRowIncludedChange(row, checked)}
+                            aria-label={t("activity:import.mapping.includeRow", {
+                              line: row.lineNumber,
+                            })}
+                          />
+                        )}
+                        {row.lineNumber}
+                      </div>
                     </TableCell>
                     {visibleFields.map((field) => {
                       return (
@@ -139,6 +181,7 @@ export function MappingTable({
                           className={cn(
                             "border-border border-e p-2 text-xs transition-colors last:border-e-0",
                             "group-hover:bg-muted/50",
+                            !isIncluded && "opacity-50",
                           )}
                         >
                           <MappingCell

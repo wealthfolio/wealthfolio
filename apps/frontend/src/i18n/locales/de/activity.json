@@ -960,7 +960,15 @@
       "missingAccount": "Fehlendes Konto",
       "emptySymbol": "Leeres Symbol",
       "accountAssignmentBlankRows_one": "Ordnen Sie jede CSV-Zeile einem Konto zu. {{count}} Zeile ist noch leer. Wählen Sie ein Standardkonto beim Hochladen oder füllen Sie die Kontospalte aus.",
-      "accountAssignmentBlankRows_other": "Ordnen Sie jede CSV-Zeile einem Konto zu. {{count}} Zeilen sind noch leer. Wählen Sie ein Standardkonto beim Hochladen oder füllen Sie die Kontospalte aus."
+      "accountAssignmentBlankRows_other": "Ordnen Sie jede CSV-Zeile einem Konto zu. {{count}} Zeilen sind noch leer. Wählen Sie ein Standardkonto beim Hochladen oder füllen Sie die Kontospalte aus.",
+      "statusIncluded": "Einbezogen",
+      "skippedCount_one": "{{count}} übersprungen",
+      "skippedCount_other": "{{count}} übersprungen",
+      "allRowsSkipped": "Alle Zeilen werden übersprungen",
+      "allRowsSkippedDescription": "Beziehen Sie mindestens eine Zeile ein, um fortzufahren.",
+      "includeRow": "Zeile {{line}} einbeziehen",
+      "includeAllRows": "Alle Zeilen einbeziehen",
+      "includeMatchingRows": "Alle passenden Zeilen einbeziehen"
     },
     "csvViewer": {
       "status": "Status",

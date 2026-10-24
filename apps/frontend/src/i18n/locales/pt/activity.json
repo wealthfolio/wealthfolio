@@ -981,7 +981,16 @@
       "emptySymbol": "Símbolo vazio",
       "accountAssignmentBlankRows_one": "Atribua cada linha do CSV a uma conta. {{count}} linha ainda está em branco; escolha uma conta padrão em Enviar ou preencha a coluna de conta.",
       "accountAssignmentBlankRows_other": "Atribua cada linha do CSV a uma conta. {{count}} linhas ainda estão em branco; escolha uma conta padrão em Enviar ou preencha a coluna de conta.",
-      "accountAssignmentBlankRows_many": "Atribua cada linha do CSV a uma conta. {{count}} linhas ainda estão em branco; escolha uma conta padrão em Enviar ou preencha a coluna de conta."
+      "accountAssignmentBlankRows_many": "Atribua cada linha do CSV a uma conta. {{count}} linhas ainda estão em branco; escolha uma conta padrão em Enviar ou preencha a coluna de conta.",
+      "statusIncluded": "Incluídas",
+      "skippedCount_one": "{{count}} ignorada",
+      "skippedCount_many": "{{count}} ignoradas",
+      "skippedCount_other": "{{count}} ignoradas",
+      "allRowsSkipped": "Todas as linhas estão ignoradas",
+      "allRowsSkippedDescription": "Inclua pelo menos uma linha para continuar.",
+      "includeRow": "Incluir a linha {{line}}",
+      "includeAllRows": "Incluir todas as linhas",
+      "includeMatchingRows": "Incluir todas as linhas correspondentes"
     },
     "csvViewer": {
       "status": "Status",

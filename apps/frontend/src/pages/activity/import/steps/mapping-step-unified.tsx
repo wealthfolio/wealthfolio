@@ -6,6 +6,7 @@ import {
   parseCsv,
   saveImportTemplate,
 } from "@/adapters";
+import { FacetedFilter } from "@wealthfolio/ui";
 import { Button } from "@wealthfolio/ui/components/ui/button";
 import { CardContent } from "@wealthfolio/ui/components/ui/card";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
@@ -24,6 +25,7 @@ import {
   setParseConfig,
   setParsedData,
   setSelectedTemplate,
+  setSkippedRows,
   setSuppressLinkedTemplate,
   useImportContext,
 } from "../context";
@@ -58,7 +60,7 @@ import { ImportType } from "@/lib/types";
 export function MappingStepUnified() {
   const { state, dispatch } = useImportContext();
   const { t } = useTranslation();
-  const { headers, parsedRows, mapping, accountId } = state;
+  const { headers, parsedRows, mapping, accountId, skippedRowIndexes } = state;
   const queryClient = useQueryClient();
   const [templateName, setTemplateName] = useState(mapping?.name ?? "");
   const [templateError, setTemplateError] = useState<string | null>(null);
@@ -95,6 +97,16 @@ export function MappingStepUnified() {
       return rowData;
     });
   }, [parsedRows, headers]);
+
+  // Rows skipped here are left out of the mapping checks below and of the import
+  const skippedRowSet = useMemo(() => new Set(skippedRowIndexes), [skippedRowIndexes]);
+  const keptData = useMemo(
+    () => data.filter((_, rowIndex) => !skippedRowSet.has(rowIndex)),
+    [data, skippedRowSet],
+  );
+  // Skips go by position in parsedRows: a CSV column named "lineNumber" replaces a row's number
+  const rowPositions = useMemo(() => new Map(data.map((row, rowIndex) => [row, rowIndex])), [data]);
+  const rowIndexOf = useCallback((row: CsvRowData) => rowPositions.get(row) ?? -1, [rowPositions]);
 
   // Use the import mapping hook
   const {
@@ -242,7 +254,7 @@ export function MappingStepUnified() {
       return { distinctSymbols: [], invalidSymbols: [] };
     }
 
-    data.forEach((row) => {
+    keptData.forEach((row) => {
       const symbol = getMappedValue(row, ImportFormat.SYMBOL)?.trim();
       if (!symbol) return;
 
@@ -264,17 +276,19 @@ export function MappingStepUnified() {
       distinctSymbols: Array.from(needed),
       invalidSymbols: Array.from(invalid),
     };
-  }, [data, effectiveActivityMappings, getMappedValue, importProfile.assetResolutionEnabled]);
+  }, [keptData, effectiveActivityMappings, getMappedValue, importProfile.assetResolutionEnabled]);
 
   // Account ID mappings
   const distinctAccountIds = useMemo(() => {
     if (!localMapping.fieldMappings[ImportFormat.ACCOUNT]) return [];
     return Array.from(
       new Set(
-        data.map((row) => getMappedValue(row, ImportFormat.ACCOUNT)?.trim() || "").filter(Boolean),
+        keptData
+          .map((row) => getMappedValue(row, ImportFormat.ACCOUNT)?.trim() || "")
+          .filter(Boolean),
       ),
     );
-  }, [data, localMapping.fieldMappings, getMappedValue]);
+  }, [keptData, localMapping.fieldMappings, getMappedValue]);
 
   const validAccountIds = useMemo(() => new Set(accounts.map((account) => account.id)), [accounts]);
   const invalidAccounts = useMemo(() => {
@@ -292,10 +306,16 @@ export function MappingStepUnified() {
       return 0;
     }
 
-    return data.reduce((count, row) => {
+    return keptData.reduce((count, row) => {
       return getMappedValue(row, ImportFormat.ACCOUNT)?.trim() ? count : count + 1;
     }, 0);
-  }, [accountId, data, getMappedValue, localMapping.accountMappings, localMapping.fieldMappings]);
+  }, [
+    accountId,
+    keptData,
+    getMappedValue,
+    localMapping.accountMappings,
+    localMapping.fieldMappings,
+  ]);
 
   const missingAccountRows = useMemo(() => {
     if (
@@ -306,15 +326,20 @@ export function MappingStepUnified() {
       return [];
     }
 
-    return data.filter((row) => !getMappedValue(row, ImportFormat.ACCOUNT)?.trim());
-  }, [accountId, data, getMappedValue, localMapping.accountMappings, localMapping.fieldMappings]);
+    return keptData.filter((row) => !getMappedValue(row, ImportFormat.ACCOUNT)?.trim());
+  }, [
+    accountId,
+    keptData,
+    getMappedValue,
+    localMapping.accountMappings,
+    localMapping.fieldMappings,
+  ]);
 
   // Activity type mappings
-  const { distinctActivityTypes, totalRows } = useMemo(() => {
+  const { distinctActivityTypes } = useMemo(() => {
     const activityTypeMap = new Map<string, { row: CsvRowData; count: number }>();
-    let total = 0;
 
-    data.forEach((row) => {
+    keptData.forEach((row) => {
       const csvType = getMappedValue(row, ImportFormat.ACTIVITY_TYPE);
       if (!csvType) return;
 
@@ -325,7 +350,6 @@ export function MappingStepUnified() {
         const current = activityTypeMap.get(normalizedCsvType)!;
         activityTypeMap.set(normalizedCsvType, { ...current, count: current.count + 1 });
       }
-      total++;
     });
 
     return {
@@ -343,9 +367,8 @@ export function MappingStepUnified() {
             : null;
         })(),
       })),
-      totalRows: total,
     };
-  }, [data, effectiveActivityMappings, getMappedValue, importProfile]);
+  }, [keptData, effectiveActivityMappings, getMappedValue, importProfile]);
 
   // Count unmapped items
   const activitiesToMapCount = useMemo(() => {
@@ -404,7 +427,7 @@ export function MappingStepUnified() {
     if (!importProfile.assetResolutionEnabled) return 0;
 
     const unresolved = new Set<string>();
-    data.forEach((row) => {
+    keptData.forEach((row) => {
       const symbol = getMappedValue(row, ImportFormat.SYMBOL)?.trim();
       if (!symbol) return;
 
@@ -422,7 +445,7 @@ export function MappingStepUnified() {
     });
     return unresolved.size;
   }, [
-    data,
+    keptData,
     getMappedValue,
     importProfile.assetResolutionEnabled,
     localMapping.symbolMappings,
@@ -435,7 +458,7 @@ export function MappingStepUnified() {
   const { distinctSymbolRows } = useMemo(() => {
     const symbolMap = new Map<string, { row: CsvRowData; count: number }>();
 
-    data.forEach((row) => {
+    keptData.forEach((row) => {
       const symbol = getMappedValue(row, ImportFormat.SYMBOL)?.trim();
       if (!symbol) return;
 
@@ -459,12 +482,12 @@ export function MappingStepUnified() {
         mappedSymbol: localMapping.symbolMappings?.[symbol],
       })),
     };
-  }, [data, getMappedValue, invalidSymbols, localMapping.symbolMappings, nonCashSymbolSet]);
+  }, [keptData, getMappedValue, invalidSymbols, localMapping.symbolMappings, nonCashSymbolSet]);
 
   const { distinctAccountRows } = useMemo(() => {
     const accountMap = new Map<string, { row: CsvRowData; count: number }>();
 
-    data.forEach((row) => {
+    keptData.forEach((row) => {
       const account = getMappedValue(row, ImportFormat.ACCOUNT)?.trim() || "";
       if (!account) return;
 
@@ -485,7 +508,7 @@ export function MappingStepUnified() {
         mappedAccount: localMapping.accountMappings?.[account],
       })),
     };
-  }, [data, getMappedValue, invalidAccounts, localMapping.accountMappings]);
+  }, [keptData, getMappedValue, invalidAccounts, localMapping.accountMappings]);
 
   const dataToMap = useMemo(() => {
     const rowsNeedingMapping = new Set<CsvRowData>();
@@ -539,6 +562,111 @@ export function MappingStepUnified() {
       return parseInt(a.lineNumber) - parseInt(b.lineNumber);
     });
   }, [distinctActivityTypes, distinctSymbolRows, distinctAccountRows, missingAccountRows]);
+
+  // Filters on the raw CSV values. With any filter on, the preview lists every matching
+  // row, skipped ones included, instead of one example row per value.
+  const [typeFilter, setTypeFilter] = useState<Set<string>>(new Set());
+  const [symbolFilter, setSymbolFilter] = useState<Set<string>>(new Set());
+  const [accountFilter, setAccountFilter] = useState<Set<string>>(new Set());
+  const [statusFilter, setStatusFilter] = useState<Set<string>>(new Set());
+  const hasActiveFilters =
+    typeFilter.size > 0 || symbolFilter.size > 0 || accountFilter.size > 0 || statusFilter.size > 0;
+  const skippedCount = data.length - keptData.length;
+
+  const filterOptions = useMemo(() => {
+    const valueOptions = (field: ImportFormat) => {
+      if (!visibleFieldSet.has(field)) return [];
+      const counts = new Map<string, number>();
+      data.forEach((row) => {
+        const value = getMappedValue(row, field)?.trim();
+        if (value) counts.set(value, (counts.get(value) ?? 0) + 1);
+      });
+      return Array.from(counts, ([value, count]) => ({ label: value, value, count })).sort((a, b) =>
+        a.label.localeCompare(b.label),
+      );
+    };
+    return {
+      types: valueOptions(ImportFormat.ACTIVITY_TYPE),
+      symbols: valueOptions(ImportFormat.SYMBOL),
+      accounts: valueOptions(ImportFormat.ACCOUNT),
+      statuses: [
+        { label: t("activity:import.review.statusSkipped"), value: "skipped", count: skippedCount },
+        {
+          label: t("activity:import.mapping.statusIncluded"),
+          value: "included",
+          count: keptData.length,
+        },
+      ],
+    };
+  }, [data, getMappedValue, keptData.length, skippedCount, t, visibleFieldSet]);
+
+  const filteredRows = useMemo(() => {
+    if (!hasActiveFilters) return [];
+    const matches = (filter: Set<string>, row: CsvRowData, field: ImportFormat) =>
+      filter.size === 0 || filter.has(getMappedValue(row, field)?.trim());
+    return data.filter(
+      (row, rowIndex) =>
+        (statusFilter.size === 0 ||
+          statusFilter.has(skippedRowSet.has(rowIndex) ? "skipped" : "included")) &&
+        matches(typeFilter, row, ImportFormat.ACTIVITY_TYPE) &&
+        matches(symbolFilter, row, ImportFormat.SYMBOL) &&
+        matches(accountFilter, row, ImportFormat.ACCOUNT),
+    );
+  }, [
+    accountFilter,
+    data,
+    getMappedValue,
+    hasActiveFilters,
+    skippedRowSet,
+    statusFilter,
+    symbolFilter,
+    typeFilter,
+  ]);
+
+  // Unticked rows stay listed after the example rows, so they can be ticked again
+  const previewRows = useMemo(
+    () =>
+      hasActiveFilters
+        ? filteredRows
+        : [...dataToMap, ...data.filter((_, rowIndex) => skippedRowSet.has(rowIndex))],
+    [data, dataToMap, filteredRows, hasActiveFilters, skippedRowSet],
+  );
+
+  // The header checkbox covers every matching row with a filter on, and every row without one
+  const { headerRowIndexes, includedRowsState } = useMemo(() => {
+    const indexes = (hasActiveFilters ? filteredRows : data).map(rowIndexOf);
+    const skipped = indexes.filter((rowIndex) => skippedRowSet.has(rowIndex)).length;
+    const state: "all" | "some" | "none" =
+      skipped === 0 ? "all" : skipped === indexes.length ? "none" : "some";
+    return { headerRowIndexes: indexes, includedRowsState: state };
+  }, [data, filteredRows, hasActiveFilters, rowIndexOf, skippedRowSet]);
+
+  const updateSkippedRows = useCallback(
+    (rowIndexes: number[], skip: boolean) => {
+      const next = new Set(skippedRowSet);
+      rowIndexes.forEach((rowIndex) => (skip ? next.add(rowIndex) : next.delete(rowIndex)));
+      dispatch(setSkippedRows(Array.from(next).sort((a, b) => a - b)));
+    },
+    [dispatch, skippedRowSet],
+  );
+  const isRowIncluded = useCallback(
+    (row: CsvRowData) => !skippedRowSet.has(rowIndexOf(row)),
+    [rowIndexOf, skippedRowSet],
+  );
+  const setRowIncluded = useCallback(
+    (row: CsvRowData, included: boolean) => updateSkippedRows([rowIndexOf(row)], !included),
+    [rowIndexOf, updateSkippedRows],
+  );
+  const setHeaderRowsIncluded = useCallback(
+    (included: boolean) => updateSkippedRows(headerRowIndexes, !included),
+    [headerRowIndexes, updateSkippedRows],
+  );
+  const clearFilters = useCallback(() => {
+    setTypeFilter(new Set());
+    setSymbolFilter(new Set());
+    setAccountFilter(new Set());
+    setStatusFilter(new Set());
+  }, []);
 
   // CSV data for raw file viewer
   const csvData = useMemo(() => {
@@ -910,13 +1038,25 @@ export function MappingStepUnified() {
           />
         )}
 
+      {data.length > 0 && keptData.length === 0 && (
+        <ImportAlert
+          variant="destructive"
+          size="sm"
+          title={t("activity:import.mapping.allRowsSkipped")}
+          description={t("activity:import.mapping.allRowsSkippedDescription")}
+          className="shrink-0"
+        />
+      )}
+
       {/* Mapping Editor with Preview Toggle */}
       <div className="flex min-h-80 flex-1 flex-col overflow-hidden">
         <Tabs defaultValue="preview" className="flex min-h-0 flex-1 flex-col">
           <div className="py-2">
             <div className="flex items-center justify-between">
               <div className="text-muted-foreground hidden px-3 text-sm md:block">
-                {t("activity:import.mapping.totalRows", { count: totalRows })}
+                {t("activity:import.mapping.totalRows", { count: data.length })}
+                {skippedCount > 0 &&
+                  ` · ${t("activity:import.mapping.skippedCount", { count: skippedCount })}`}
               </div>
               <TabsList className="bg-secondary flex space-x-1 rounded-full p-1">
                 <TabsTrigger
@@ -939,10 +1079,62 @@ export function MappingStepUnified() {
 
           <CardContent className="flex flex-1 flex-col overflow-y-auto p-0">
             <TabsContent value="preview" className="m-0 flex min-h-0 flex-1 flex-col border-0 p-0">
+              <div className="flex shrink-0 flex-wrap items-center gap-2 pb-2">
+                {filterOptions.types.length > 0 && (
+                  <FacetedFilter
+                    title={t("activity:import.review.filterType")}
+                    options={filterOptions.types}
+                    selectedValues={typeFilter}
+                    onFilterChange={setTypeFilter}
+                  />
+                )}
+                {filterOptions.symbols.length > 0 && (
+                  <FacetedFilter
+                    title={t("activity:import.review.filterSymbol")}
+                    options={filterOptions.symbols}
+                    selectedValues={symbolFilter}
+                    onFilterChange={setSymbolFilter}
+                  />
+                )}
+                {filterOptions.accounts.length > 0 && (
+                  <FacetedFilter
+                    title={t("activity:import.review.filterAccount")}
+                    options={filterOptions.accounts}
+                    selectedValues={accountFilter}
+                    onFilterChange={setAccountFilter}
+                  />
+                )}
+                <FacetedFilter
+                  title={t("activity:import.review.filterStatus")}
+                  options={filterOptions.statuses}
+                  selectedValues={statusFilter}
+                  onFilterChange={setStatusFilter}
+                />
+                {hasActiveFilters && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-muted-foreground h-7 text-xs"
+                    onClick={clearFilters}
+                  >
+                    {t("activity:import.review.clearFilters")}
+                  </Button>
+                )}
+              </div>
               <MappingTable
                 mapping={displayMapping}
                 headers={headers}
-                data={dataToMap}
+                data={previewRows}
+                getRowKey={rowIndexOf}
+                isRowIncluded={isRowIncluded}
+                onRowIncludedChange={setRowIncluded}
+                includedRowsState={includedRowsState}
+                onIncludeAllChange={setHeaderRowsIncluded}
+                includeAllLabel={t(
+                  hasActiveFilters
+                    ? "activity:import.mapping.includeMatchingRows"
+                    : "activity:import.mapping.includeAllRows",
+                )}
                 accounts={accounts}
                 handleColumnMapping={handleColumnMappingWithAccountMatch}
                 handleActivityTypeMapping={handleActivityTypeMapping}

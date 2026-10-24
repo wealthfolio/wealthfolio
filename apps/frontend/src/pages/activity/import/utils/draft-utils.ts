@@ -669,10 +669,11 @@ export function createDraftActivities(
   defaultAccountId: string,
   validAccountIds?: Set<string>,
   accountTypeById?: Map<string, string>,
-  options?: { importProfile?: ActivityImportProfile },
+  options?: { importProfile?: ActivityImportProfile; skippedRowIndexes?: readonly number[] },
 ): DraftActivity[] {
   const { fieldMappings, activityMappings, symbolMappings, accountMappings, symbolMappingMeta } =
     mapping;
+  const skippedRows = new Set(options?.skippedRowIndexes);
   const { dateFormat, decimalSeparator, thousandsSeparator, defaultCurrency } = parseConfig;
 
   // Create header index lookup
@@ -711,6 +712,9 @@ export function createDraftActivities(
       : undefined;
 
   return parsedRows.flatMap((row, rowIndex): DraftActivity[] => {
+    // Rows skipped in the mapping step are left out, keeping later rows' indexes
+    if (skippedRows.has(rowIndex)) return [];
+
     // Extract raw values from CSV
     const rawDate = getColumnValue(row, ImportFormat.DATE);
     const rawType = getColumnValue(row, ImportFormat.ACTIVITY_TYPE);

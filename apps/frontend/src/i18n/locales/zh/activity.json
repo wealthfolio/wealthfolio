@@ -950,7 +950,15 @@
       "mapSymbol": "映射代码",
       "missingAccount": "缺少账户",
       "emptySymbol": "空代码",
-      "accountAssignmentBlankRows_other": "请将每一行 CSV 映射到一个账户。仍有 {{count}} 行为空，请在“上传”中选择默认账户或填写账户列。"
+      "accountAssignmentBlankRows_other": "请将每一行 CSV 映射到一个账户。仍有 {{count}} 行为空，请在“上传”中选择默认账户或填写账户列。",
+      "statusIncluded": "已包含",
+      "skippedCount_one": "已跳过 {{count}} 行",
+      "skippedCount_other": "已跳过 {{count}} 行",
+      "allRowsSkipped": "所有行均已跳过",
+      "allRowsSkippedDescription": "请至少包含一行以继续。",
+      "includeRow": "包含第 {{line}} 行",
+      "includeAllRows": "包含所有行",
+      "includeMatchingRows": "包含所有匹配的行"
     },
     "csvViewer": {
       "status": "状态",

@@ -129,6 +129,10 @@ function useStepValidation(
 
         // Activity mode: existing validation logic
         if (!mapping) return false;
+        // Rows skipped in this step don't need their values mapped
+        const skippedRows = new Set(state.skippedRowIndexes);
+        const keptRows = parsedRows.filter((_, rowIndex) => !skippedRows.has(rowIndex));
+        if (keptRows.length === 0) return false;
         if (!state.accountId && !mapping.fieldMappings[ImportFormat.ACCOUNT]) {
           return false;
         }
@@ -141,7 +145,7 @@ function useStepValidation(
           }
 
           const validAccountIds = new Set((accounts ?? []).map((account) => account.id));
-          for (const row of parsedRows) {
+          for (const row of keptRows) {
             const rawAccount = row[accountHeaderIndex]?.trim();
             if (!rawAccount) {
               if (!state.accountId && !mapping.accountMappings?.[""]) {
@@ -174,7 +178,7 @@ function useStepValidation(
 
           if (atIndices.length > 0) {
             const uniqueValues = new Set<string>();
-            parsedRows.forEach((row) => {
+            keptRows.forEach((row) => {
               for (const idx of atIndices) {
                 const value = row[idx]?.trim();
                 if (value) {
@@ -223,7 +227,7 @@ function useStepValidation(
           if (symbolHeaderIndex !== -1) {
             const symbolsNeedingResolution = new Set<string>();
 
-            parsedRows.forEach((row) => {
+            keptRows.forEach((row) => {
               const symbol = row[symbolHeaderIndex]?.trim();
               if (!symbol) return;
 
@@ -546,7 +550,7 @@ function ImportWizardContent() {
           state.accountId,
           validAccountIds,
           accountTypeById,
-          { importProfile },
+          { importProfile, skippedRowIndexes: state.skippedRowIndexes },
         );
         dispatch(setDraftActivities(drafts));
         dispatch({ type: "SET_ASSET_PREVIEW_ITEMS", payload: [] });
@@ -597,6 +601,7 @@ function ImportWizardContent() {
     state.mapping,
     state.accountId,
     state.parsedRows,
+    state.skippedRowIndexes,
     state.parseConfig,
     state.draftActivities,
     state.draftRevision,

@@ -154,6 +154,32 @@ describe("expense reversal boundary reconciliation", () => {
   });
 });
 
+describe("createDraftActivities skipped rows", () => {
+  it("leaves out rows skipped in mapping and keeps the other rows' indexes", () => {
+    const rows = [
+      ["2024-03-15", "WITHDRAWAL", "100.00", "USD"],
+      ["2024-03-16", "WITHDRAWAL", "200.00", "USD"],
+      ["2024-03-17", "WITHDRAWAL", "300.00", "USD"],
+    ];
+
+    const drafts = createDraftActivities(
+      rows,
+      headers,
+      baseMapping,
+      parseConfig,
+      "account-1",
+      undefined,
+      undefined,
+      { skippedRowIndexes: [1] },
+    );
+
+    expect(drafts.map((draft) => [draft.rowIndex, draft.amount])).toEqual([
+      [0, "100.00"],
+      [2, "300.00"],
+    ]);
+  });
+});
+
 describe("createDraftActivities explicit activity mapping", () => {
   it("uses the resolved asset currency for security rows when the CSV has no currency column", () => {
     const [draft] = createDraftActivities(

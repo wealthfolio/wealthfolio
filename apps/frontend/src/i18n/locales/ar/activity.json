@@ -828,7 +828,19 @@
       "totalRows_zero": "إجمالي {{count}} صفوف",
       "transactionPreview": "معاينة المعاملات",
       "usingSelectedAccount": "استخدام الحساب المحدد",
-      "usingSelectedForAll": "استخدام الحساب المحدد لجميع الصفوف"
+      "usingSelectedForAll": "استخدام الحساب المحدد لجميع الصفوف",
+      "statusIncluded": "مضمّنة",
+      "skippedCount_zero": "تم تخطي {{count}} صف",
+      "skippedCount_one": "تم تخطي صف واحد",
+      "skippedCount_two": "تم تخطي صفين",
+      "skippedCount_few": "تم تخطي {{count}} صفوف",
+      "skippedCount_many": "تم تخطي {{count}} صفًا",
+      "skippedCount_other": "تم تخطي {{count}} صف",
+      "allRowsSkipped": "تم تخطي كل الصفوف",
+      "allRowsSkippedDescription": "ضمِّن صفًا واحدًا على الأقل للمتابعة.",
+      "includeRow": "تضمين الصف {{line}}",
+      "includeAllRows": "تضمين كل الصفوف",
+      "includeMatchingRows": "تضمين كل الصفوف المطابقة"
     },
     "page": {
       "csvDisabledDescription": "استيراد الحيازات من ملف CSV معطّل للحسابات المتصلة التي تستخدم تتبع الحيازات.",
