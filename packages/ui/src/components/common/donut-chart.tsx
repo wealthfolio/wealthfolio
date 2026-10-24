@@ -9,6 +9,9 @@ import { AmountDisplay } from "../financial/amount-display";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "../ui/chart";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../ui/tooltip";
 
+// The theme's first seven chart colours, then the same seven again mixed halfway
+// toward the card, round after round: a long tail stays coloured but reads as
+// the rest, and isn't mistaken for the leading slices.
 const COLORS = [
   "var(--chart-1)",
   "var(--chart-2)",
@@ -17,9 +20,21 @@ const COLORS = [
   "var(--chart-5)",
   "var(--chart-6)",
   "var(--chart-7)",
-  "var(--chart-8)",
-  "var(--chart-9)",
 ];
+
+/** Colour for the item at `index` of a composition (donut slice, strip segment, list
+ * swatch), so an item keeps its colour across views: the theme's first seven chart
+ * colours, then the same seven mixed halfway toward the card. */
+export function chartSliceColor(index: number): string {
+  const color = COLORS[index % COLORS.length];
+  return index < COLORS.length ? color : `color-mix(in oklab, ${color} 50%, var(--card))`;
+}
+
+// A 1 px edge, the slice's colour 15% toward the text colour, sets each slice off
+// the card, the pale tail included.
+function sliceEdge(index: number): string {
+  return `color-mix(in oklab, ${chartSliceColor(index)} 85%, var(--foreground))`;
+}
 
 const PADDING_ANGLE = 4;
 const CORNER_RADIUS = 6;
@@ -195,7 +210,9 @@ export const DonutChart: React.FC<DonutChartProps> = ({
             {data.map((_, index) => (
               <Cell
                 key={`cell-${index}`}
-                fill={COLORS[index % COLORS.length]}
+                fill={chartSliceColor(index)}
+                stroke={sliceEdge(index)}
+                strokeWidth={1}
                 style={{ cursor: onSectionClick ? "pointer" : "default" }}
               />
             ))}

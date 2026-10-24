@@ -515,7 +515,9 @@ export default function IncomePage() {
                             className="group relative h-5 cursor-pointer rounded-lg transition-all duration-300 ease-in-out hover:brightness-110"
                             style={{
                               width: `${percentage}%`,
-                              backgroundColor: colors[index % colors.length],
+                              backgroundColor: item.isOther
+                                ? "var(--chart-stone)"
+                                : colors[index % colors.length],
                             }}
                           >
                             {/* Tooltip */}
