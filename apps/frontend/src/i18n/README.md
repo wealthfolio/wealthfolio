@@ -148,6 +148,10 @@ interpolations, embedded durations, and financial terminology.
 - **Traditional Chinese (`zh-Hant`)**: contributed in PR #1566, machine-seeded
   from the English source and reviewed for Taiwan financial terminology by a
   native speaker; intended for continued community review.
+- **Vietnamese (`vi`)**: full-coverage translation of all 20 namespaces in
+  standard Vietnamese financial and investment terminology (`Danh mục đầu tư`,
+  `Giá trị tài sản ròng`, `Vị thế`, `Lãi/Lỗ`, `Hiệu suất`, `Giá vốn`, `Cổ tức`);
+  intended for community review.
 
 Non-English catalogs are machine-drafted and community-corrected. Terminology
 reports are expected and welcome — file them as issues against the locale.

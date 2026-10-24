@@ -1,0 +1,324 @@
+{
+  "opensInBrowser": "Mở trong trình duyệt",
+  "page": {
+    "title": "Đồng bộ & Kết nối",
+    "subtitle": "Tất cả thiết bị của bạn ở cùng một nơi.",
+    "subtitleWithBrokers": "Các công ty chứng khoán và thiết bị của bạn, tất cả ở một nơi.",
+    "brokerages": "Công ty chứng khoán",
+    "devices": "Thiết bị",
+    "recentActivity": "Hoạt động gần đây",
+    "manage": "Quản lý",
+    "timeAgo": "{{time}} trước",
+    "noBrokeragesConnected": "Chưa kết nối công ty chứng khoán nào",
+    "noBrokeragesDescription": "Liên kết công ty chứng khoán để bắt đầu đồng bộ các tài khoản của bạn.",
+    "noDevicesSyncing": "Chưa có thiết bị nào đang đồng bộ",
+    "noDevicesDescription": "Thiết lập đồng bộ thiết bị trong cài đặt để giữ dữ liệu đồng bộ trên các thiết bị.",
+    "noActivity": "Chưa có hoạt động nào",
+    "noActivityDescription": "Các cập nhật sẽ xuất hiện tại đây khi dữ liệu bắt đầu đồng bộ.",
+    "showMore_one": "Hiển thị thêm {{count}} mục",
+    "showMore_other": "Hiển thị thêm {{count}} mục",
+    "showLess": "Thu gọn"
+  },
+  "emptyState": {
+    "optional": "Tùy chọn",
+    "subtitle": "Tự động đồng bộ các tài khoản chứng khoán trong khi dữ liệu vẫn hoàn toàn riêng tư.",
+    "getStarted": "Bắt đầu với Connect",
+    "loginToAccount": "Đăng nhập vào tài khoản của bạn",
+    "learnMore": "Tìm hiểu thêm về Connect",
+    "features": {
+      "brokerageSync": {
+        "title": "Tài khoản đã liên kết",
+        "description": "Tự động đồng bộ giao dịch từ các công ty chứng khoán của bạn."
+      },
+      "deviceSync": {
+        "title": "Đồng bộ & Sao lưu thiết bị",
+        "description": "Đồng bộ mã hóa đầu cuối và tự động sao lưu lên đám mây."
+      },
+      "householdView": {
+        "title": "Danh mục gia đình",
+        "description": "Chế độ xem chung cho các khoản đầu tư của gia đình bạn."
+      }
+    }
+  },
+  "flow": {
+    "aggregatorExample": "(ví dụ: SnapTrade)",
+    "yourDevice": "Thiết bị của bạn",
+    "localDatabase": "Cơ sở dữ liệu cục bộ",
+    "dataStaysHere": "Dữ liệu lưu tại đây",
+    "aggregators": "Bên tích hợp kết nối",
+    "brokerages": "Công ty chứng khoán",
+    "banks": "Ngân hàng",
+    "crypto": "Tiền mã hóa"
+  },
+  "account": {
+    "userAvatar": "Ảnh đại diện người dùng",
+    "userFallback": "Người dùng",
+    "active": "Đang hoạt động",
+    "signOut": "Đăng xuất",
+    "signOutTitle": "Đăng xuất khỏi Wealthfolio Connect?",
+    "signOutMessage": "Bạn sẽ cần đăng nhập lại để truy cập các tài khoản chứng khoán đã đồng bộ. Dữ liệu cục bộ của bạn sẽ không bị ảnh hưởng.",
+    "signOutConfirm": "Đăng xuất",
+    "signingOut": "Đang đăng xuất..."
+  },
+  "accounts": {
+    "title": "Tài khoản",
+    "manage": "Quản lý tài khoản",
+    "accountFallback": "Tài khoản",
+    "platformFallback": "Nền tảng",
+    "brokerFallback": "Công ty chứng khoán",
+    "paper": "Tài khoản thử nghiệm",
+    "shared": "Đã chia sẻ",
+    "sharedBy": "Được chia sẻ bởi {{name}}",
+    "syncEnabled": "Đã bật đồng bộ",
+    "excludedFromSync": "Đã loại trừ khỏi đồng bộ",
+    "noDataYet": "Chưa có dữ liệu",
+    "dataAsOf": "Dữ liệu tính đến {{date}}",
+    "emptyTitle": "Chưa có tài khoản nào được đồng bộ",
+    "emptyDescription": "Kết nối công ty chứng khoán để bắt đầu đồng bộ tài khoản của bạn.",
+    "needsSetup": "Cần thiết lập"
+  },
+  "connections": {
+    "title": "Kết nối công ty chứng khoán",
+    "manage": "Quản lý kết nối",
+    "empty": "Chưa có kết nối công ty chứng khoán nào",
+    "connectBroker": "Kết nối công ty chứng khoán",
+    "unknownBroker": "Công ty chứng khoán không xác định",
+    "unknown": "Không xác định",
+    "connected": "Đã kết nối",
+    "disconnected": "Đã ngắt kết nối",
+    "reconnect": "Kết nối lại",
+    "noAccountsFound": "Không tìm thấy tài khoản nào",
+    "allAccountsExcluded": "Tất cả tài khoản bị loại trừ",
+    "accountsSyncing_one": "{{count}} tài khoản đang đồng bộ",
+    "accountsSyncing_other": "{{count}} tài khoản đang đồng bộ",
+    "partialSyncing_one": "{{syncing}} trên {{total}} tài khoản đang đồng bộ · {{excluded}} tài khoản bị loại trừ",
+    "partialSyncing_other": "{{syncing}} trên {{total}} tài khoản đang đồng bộ · {{excluded}} tài khoản bị loại trừ",
+    "accountCount_one": "{{count}} tài khoản",
+    "accountCount_other": "{{count}} tài khoản",
+    "excludedCount_one": "{{count}} bị loại trừ",
+    "excludedCount_other": "{{count}} bị loại trừ"
+  },
+  "sync": {
+    "syncNow": "Đồng bộ ngay",
+    "sync": "Đồng bộ",
+    "syncAll": "Đồng bộ tất cả",
+    "syncingShort": "Đang đồng bộ...",
+    "statusTitle": "Trạng thái đồng bộ",
+    "syncingBrokerData": "Đang đồng bộ dữ liệu chứng khoán...",
+    "startFailed": "Không thể bắt đầu đồng bộ: {{error}}",
+    "needAttention_one": "{{count}} tài khoản cần chú ý",
+    "needAttention_other": "{{count}} tài khoản cần chú ý"
+  },
+  "status": {
+    "upToDate": "Đã cập nhật mới nhất",
+    "syncing": "Đang đồng bộ",
+    "syncingEllipsis": "Đang đồng bộ...",
+    "needsReview": "Cần xem xét",
+    "failed": "Thất bại",
+    "notConnected": "Chưa kết nối",
+    "lastSynced": "Đồng bộ lần cuối {{time}}",
+    "neverSynced": "Chưa từng đồng bộ"
+  },
+  "runStatus": {
+    "running": "Đang chạy",
+    "applied": "Đã áp dụng",
+    "needsReview": "Cần xem xét",
+    "failed": "Thất bại",
+    "cancelled": "Đã hủy"
+  },
+  "syncRuns": {
+    "title": "Các lần đồng bộ gần đây",
+    "empty": "Chưa có lượt đồng bộ nào.",
+    "warningsCount_one": "{{count}} cảnh báo",
+    "warningsCount_other": "{{count}} cảnh báo",
+    "fetched": "Đã lấy về",
+    "inserted": "Đã thêm mới",
+    "updated": "Đã cập nhật",
+    "skipped": "Đã bỏ qua",
+    "warningsLabel": "Cảnh báo:",
+    "andMore": "... và {{count}} mục khác",
+    "reviewActivities": "Xem xét các hoạt động",
+    "duration": "Thời gian:",
+    "inProgress": "Đang tiến hành...",
+    "andMore_one": "... và {{count}} mục khác",
+    "andMore_other": "... và {{count}} mục khác"
+  },
+  "syncHistory": {
+    "title": "Lịch sử đồng bộ",
+    "success": "Thành công",
+    "review": "Xem xét",
+    "emptyTitle": "Chưa có lượt đồng bộ nào",
+    "emptyDescription": "Lịch sử đồng bộ của bạn sẽ xuất hiện ở đây sau lần đồng bộ đầu tiên",
+    "runCount_one": "{{count}} lượt",
+    "runCount_other": "{{count}} lượt",
+    "loadMore": "Tải thêm",
+    "lessThanOneSecond": "<1s",
+    "new": "mới",
+    "updated": "đã cập nhật",
+    "skipped": "đã bỏ qua",
+    "warningsCount_one": "{{count}} cảnh báo",
+    "warningsCount_other": "{{count}} cảnh báo",
+    "andMore": "+{{count}} mục khác",
+    "andMore_one": "+{{count}} mục khác",
+    "andMore_other": "+{{count}} mục khác"
+  },
+  "activity": {
+    "syncingData": "Đang đồng bộ dữ liệu của bạn...",
+    "somethingWentWrong": "Đã xảy ra sự cố",
+    "upToDate": "Mọi thứ đã được cập nhật mới nhất",
+    "itemsNeedReview_one": "{{count}} mục cần bạn xem xét",
+    "itemsNeedReview_other": "{{count}} mục cần bạn xem xét",
+    "newItems": {
+      "transaction_one": "{{count}} giao dịch mới",
+      "transaction_other": "{{count}} giao dịch mới",
+      "position_one": "{{count}} vị thế mới",
+      "position_other": "{{count}} vị thế mới"
+    },
+    "updatedItems": {
+      "transaction_one": "{{count}} giao dịch đã cập nhật",
+      "transaction_other": "{{count}} giao dịch đã cập nhật",
+      "position_one": "{{count}} vị thế đã cập nhật",
+      "position_other": "{{count}} vị thế đã cập nhật"
+    },
+    "removedItems": {
+      "transaction_one": "{{count}} giao dịch đã xóa",
+      "transaction_other": "{{count}} giao dịch đã xóa",
+      "position_one": "{{count}} vị thế đã xóa",
+      "position_other": "{{count}} vị thế đã xóa"
+    }
+  },
+  "attention": {
+    "title": "Đồng bộ công ty chứng khoán cần chú ý",
+    "description_one": "{{count}} tài khoản cần thử lại hoặc xem xét tại công ty chứng khoán.",
+    "description_other": "{{count}} tài khoản cần thử lại hoặc xem xét tại công ty chứng khoán.",
+    "heading": "Cần chú ý",
+    "connectionLost": "Mất kết nối",
+    "accountsNotSyncing_one": "{{count}} tài khoản không đồng bộ",
+    "accountsNotSyncing_other": "{{count}} tài khoản không đồng bộ",
+    "syncFailed": "Lần đồng bộ gần nhất thất bại"
+  },
+  "setup": {
+    "newAccountsTitle": "Các tài khoản mới cần thiết lập",
+    "newAccountsDescription_one": "{{count}} tài khoản cần thiết lập nhanh trước khi có thể bắt đầu đồng bộ.",
+    "newAccountsDescription_other": "{{count}} tài khoản cần thiết lập nhanh trước khi có thể bắt đầu đồng bộ.",
+    "reviewAccounts": "Xem xét tài khoản",
+    "setUp": "Thiết lập"
+  },
+  "devices": {
+    "thisDevice": "Thiết bị này",
+    "activeNow": "Đang hoạt động",
+    "lastSeen": "Thấy lần cuối {{time}}",
+    "online": "Trực tuyến",
+    "never": "Chưa từng",
+    "showInactive_one": "Hiển thị {{count}} thiết bị không hoạt động",
+    "showInactive_other": "Hiển thị {{count}} thiết bị không hoạt động",
+    "hideInactive": "Ẩn các thiết bị không hoạt động",
+    "platforms": {
+      "server": "Máy chủ",
+      "web": "Web"
+    }
+  },
+  "deviceStatus": {
+    "syncError": "Lỗi đồng bộ",
+    "syncPaused": "Tạm dừng đồng bộ",
+    "upToDate": "Đã cập nhật",
+    "syncing": "Đang đồng bộ"
+  },
+  "serviceUnavailable": {
+    "title": "Dịch vụ tạm thời không khả dụng",
+    "description": "Chúng tôi gặp sự cố khi kết nối tới Wealthfolio Connect. Sự cố này thường chỉ mang tính tạm thời và sẽ sớm được giải quyết.",
+    "retrying": "Đang thử lại...",
+    "tryAgain": "Thử lại"
+  },
+  "upgrade": {
+    "title": "Nâng cấp để đồng bộ tài khoản chứng khoán",
+    "description": "Kết nối các tài khoản chứng khoán của bạn để tự động đồng bộ danh mục đầu tư.",
+    "button": "Nâng cấp"
+  },
+  "privacy": {
+    "footnote": "Wealthfolio Connect không lưu trữ thông tin đăng nhập hoặc dữ liệu tài chính của bạn. Mọi thứ được đồng bộ an toàn qua bên tích hợp tới cơ sở dữ liệu cục bộ của bạn. Đồng bộ thiết bị sử dụng mã hóa đầu cuối. <privacyLink>Tìm hiểu thêm</privacyLink>"
+  },
+  "providers": {
+    "continueWithGoogle": "Tiếp tục với Google",
+    "continueWithApple": "Tiếp tục với Apple",
+    "continueWithEmail": "Tiếp tục với Email",
+    "lastUsed": "Đã dùng gần nhất"
+  },
+  "subscription": {
+    "copySupportEmail": "Sao chép email hỗ trợ",
+    "syncPausedTooltip": "Đồng bộ tạm dừng — cần gói đăng ký đang hoạt động",
+    "syncPausedTitle": "Đồng bộ bị tạm dừng",
+    "syncPausedDescription": "Cần có gói đăng ký đang hoạt động để đồng bộ. Dữ liệu cục bộ và các thay đổi đang chờ xử lý của bạn vẫn được bảo toàn.",
+    "comingSoon": "Sắp ra mắt",
+    "getStarted": "Bắt đầu",
+    "perMonthShort": "tháng",
+    "perYearShort": "năm",
+    "savings": "Tiết kiệm {{percent}}% so với gói tháng",
+    "choosePlan": "Chọn gói của bạn",
+    "choosePlanDescription": "Đăng ký để mở khóa tính năng đồng bộ công ty chứng khoán và đám mây.",
+    "monthly": "Hàng tháng",
+    "yearly": "Hàng năm",
+    "monthlyBilling": "Thanh toán hàng tháng",
+    "yearlyBilling": "Thanh toán hàng năm",
+    "alreadySubscribed": "Đã đăng ký rồi?",
+    "connectionIssueTitle": "Sự cố kết nối",
+    "connectionIssueDescription": "Chúng tôi gặp sự cố khi kết nối tới tài khoản của bạn. Điều này có thể xảy ra nếu phiên đăng nhập đã hết hạn.",
+    "unableToLoadTitle": "Không thể tải danh sách gói",
+    "unableToLoadDescription": "Hiện tại không thể tải các gói đăng ký. Đây thường là sự cố tạm thời.",
+    "contactSupport": "Liên hệ hỗ trợ",
+    "emailCopied": "Đã sao chép email vào khay nhớ tạm",
+    "reconnecting": "Đang kết nối lại...",
+    "reconnect": "Kết nối lại",
+    "refreshPage": "Làm mới trang"
+  },
+  "authCallback": {
+    "processing": "Đang xử lý xác thực...",
+    "completing": "Đang hoàn tất đăng nhập..."
+  },
+  "authErrors": {
+    "noSessionReturned": "Không có phiên đăng nhập nào được trả về sau khi hoàn tất đăng nhập.",
+    "completeSignInFailed": "Không thể hoàn tất đăng nhập",
+    "signInFailed": "Đăng nhập thất bại",
+    "signUpFailed": "Đăng ký thất bại",
+    "confirmEmail": "Vui lòng kiểm tra email để xác nhận tài khoản của bạn.",
+    "oauthFailed": "Đăng nhập OAuth thất bại",
+    "magicLinkFailed": "Không thể gửi magic link",
+    "invalidVerificationCode": "Mã xác thực không hợp lệ",
+    "signOutFailed": "Đăng xuất thất bại",
+    "fetchUserInfoFailed": "Không thể lấy thông tin người dùng"
+  },
+  "newAccounts": {
+    "title": "Đã tìm thấy tài khoản mới",
+    "description": "Chọn cách theo dõi từng tài khoản. Bạn có thể thay đổi điều này sau.",
+    "trackingInfo": "Chế độ <strong>Giao dịch</strong> theo dõi mọi lệnh giao dịch để phân tích hiệu suất đầy đủ. Chế độ <strong>Vị thế</strong> chỉ nhập ảnh chụp nhanh với các chỉ số giới hạn. <docsLink>Tìm hiểu thêm</docsLink>",
+    "accountName": "Tên tài khoản",
+    "group": "Nhóm (tùy chọn)",
+    "groupPlaceholder": "ví dụ: Hưu trí",
+    "trackingMode": "Chế độ theo dõi",
+    "transactions": "Giao dịch",
+    "transactionsDescription": "Phân tích hiệu suất đầy đủ",
+    "holdings": "Vị thế",
+    "holdingsDescription": "Chỉ ảnh chụp nhanh",
+    "holdingsWarning": "Các chỉ số hiệu suất sẽ bị giới hạn nếu không có lịch sử giao dịch.",
+    "notNow": "Không phải bây giờ",
+    "saving": "Đang lưu...",
+    "saveAndSync": "Lưu và đồng bộ",
+    "configured": "Đã cấu hình tài khoản",
+    "configuredDescription": "Đang bắt đầu đồng bộ với cài đặt đã chọn của bạn...",
+    "saveFailed": "Không thể lưu tài khoản"
+  },
+  "errors": {
+    "unknown": "Lỗi không xác định"
+  },
+  "session": {
+    "restoring": "Đang khôi phục Connect…",
+    "unavailable": "Connect tạm thời không khả dụng",
+    "localAvailable": "Danh mục cục bộ của bạn vẫn khả dụng. Thử lại để kết nối lại."
+  },
+  "rebind": {
+    "title": "Thay đổi kết nối Connect của hồ sơ này?",
+    "description": "Bạn đang kết nối một tài khoản hoặc gia đình khác. Dữ liệu danh mục cục bộ của bạn sẽ được giữ lại, nhưng các liên kết công ty chứng khoán và thiết lập đồng bộ thiết bị hiện có sẽ bị xóa. Tài khoản mới có thể thêm dữ liệu chứng khoán vào hồ sơ này. Hãy thiết lập lại đồng bộ thiết bị khi bạn đã sẵn sàng. Sử dụng một hồ sơ mới nếu bạn muốn giữ riêng biệt dữ liệu.",
+    "cancel": "Hủy",
+    "confirm": "Thay đổi kết nối"
+  }
+}

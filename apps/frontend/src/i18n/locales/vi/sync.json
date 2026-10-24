@@ -1,0 +1,289 @@
+{
+  "section": {
+    "deviceSync": "Đồng bộ thiết bị",
+    "connectedDevices": "Thiết bị đã kết nối",
+    "otherConnectedDevices": "Các thiết bị đã kết nối khác",
+    "manageDevices": "Quản lý thiết bị",
+    "options": "Tùy chọn",
+    "deviceActions": "Hành động trên thiết bị"
+  },
+  "setup": {
+    "cardDescription": "Đồng bộ dữ liệu của bạn một cách an toàn trên tất cả các thiết bị.",
+    "connectToSync": "Kết nối thiết bị này để đồng bộ",
+    "keepInSync": "Giữ các thiết bị của bạn luôn đồng bộ",
+    "foundOtherDevices": "Đã tìm thấy các thiết bị đã kết nối khác trên tài khoản của bạn. Tiếp tục để kết nối thiết bị này.",
+    "encryptedInfo": "Dữ liệu của bạn được mã hóa đầu cuối. Chỉ các thiết bị của bạn mới có thể đọc được.",
+    "morePreview": "+{{count}} mục khác",
+    "settingUp": "Đang thiết lập...",
+    "connectThisDevice": "Kết nối thiết bị này",
+    "enableDeviceSync": "Bật Đồng bộ thiết bị",
+    "morePreview_one": "+{{count}} mục khác",
+    "morePreview_other": "+{{count}} mục khác"
+  },
+  "status": {
+    "syncError": "Lỗi đồng bộ",
+    "syncPaused": "Đã tạm dừng đồng bộ",
+    "synced": "Đã đồng bộ",
+    "syncing": "Đang đồng bộ",
+    "connected": "Đã kết nối",
+    "needsSetup": "Cần thiết lập",
+    "revoked": "Đã thu hồi",
+    "notConnected": "Chưa kết nối",
+    "online": "Trực tuyến",
+    "never": "Chưa bao giờ",
+    "minutesAgo": "{{count}} phút trước",
+    "hoursAgo": "{{count}} giờ trước",
+    "daysAgo": "{{count}} ngày trước",
+    "thisDevice": "Thiết bị này",
+    "thisDeviceSuffix": "· Thiết bị này",
+    "minutesAgo_one": "{{count}} phút trước",
+    "minutesAgo_other": "{{count}} phút trước",
+    "hoursAgo_one": "{{count}} giờ trước",
+    "hoursAgo_other": "{{count}} giờ trước",
+    "daysAgo_one": "{{count}} ngày trước",
+    "daysAgo_other": "{{count}} ngày trước"
+  },
+  "engine": {
+    "pauseSync": "Tạm dừng đồng bộ",
+    "resumeSync": "Tiếp tục đồng bộ",
+    "updating": "Đang cập nhật...",
+    "backgroundPaused": "Đã tạm dừng đồng bộ nền",
+    "backgroundResumed": "Đã tiếp tục đồng bộ nền",
+    "updateFailed": "Không thể cập nhật đồng bộ nền"
+  },
+  "errorState": {
+    "failedToInitialize": "Không thể khởi tạo đồng bộ thiết bị.",
+    "initializationFailed": "Khởi tạo thất bại",
+    "failedToLoadDevices": "Không thể tải danh sách thiết bị",
+    "tryRefreshing": "Vui lòng thử làm mới lại."
+  },
+  "stale": {
+    "keysNeedUpdating": "Các khóa cần được cập nhật",
+    "keysNeedUpdatingDescription": "Cài đặt bảo mật đã thay đổi trên thiết bị khác. Kết nối lại thiết bị này để tiếp tục đồng bộ.",
+    "updateThisDevice": "Cập nhật thiết bị này"
+  },
+  "orphaned": {
+    "restoreTitle": "Dùng thiết bị này để khôi phục đồng bộ",
+    "restoreDescription": "Không có thiết bị kết nối nào khác khả dụng. Chúng tôi sẽ khởi động lại đồng bộ bằng dữ liệu hiện có trên thiết bị này.",
+    "confirmDescription": "Chúng tôi sẽ khởi động lại đồng bộ bằng dữ liệu hiện có trên thiết bị này.",
+    "restarting": "Đang khởi động lại..."
+  },
+  "untrusted": {
+    "notConnectedYet": "Thiết bị này chưa được kết nối",
+    "enterCodeFromDevices_one": "Nhập mã từ một trong {{count}} thiết bị đã kết nối khác của bạn.",
+    "enterCodeFromDevices_other": "Nhập mã từ một trong {{count}} thiết bị đã kết nối khác của bạn.",
+    "enterCodeGeneric": "Nhập mã từ thiết bị đã kết nối khác của bạn để đồng bộ dữ liệu.",
+    "connectThisDevice": "Kết nối thiết bị này",
+    "connectToStartSyncing": "Kết nối thiết bị này để bắt đầu đồng bộ."
+  },
+  "connect": {
+    "connectAnotherDevice": "Kết nối thiết bị khác",
+    "connectThisDevice": "Kết nối thiết bị này",
+    "pair": "Ghép đôi",
+    "unpair": "Hủy ghép đôi",
+    "revoke": "Thu hồi",
+    "rename": "Đổi tên",
+    "disconnect": "Ngắt kết nối"
+  },
+  "waitingSnapshot": {
+    "otherDeviceFinishing": "Thiết bị khác của bạn vẫn đang hoàn tất thiết lập.",
+    "setupAlmostDone": "Thiết lập của bạn gần như đã hoàn tất.",
+    "trustedHint": "Bạn có thể đẩy nhanh tiến trình bây giờ, hoặc chờ đợi và chúng tôi sẽ tự động tiếp tục ở chế độ nền.",
+    "untrustedHint": "Vui lòng hoàn tất thiết lập trên thiết bị đã kết nối khác của bạn trước. Trang này sẽ tự động cập nhật.",
+    "checking": "Đang kiểm tra...",
+    "checkAgain": "Kiểm tra lại",
+    "preparing": "Đang chuẩn bị...",
+    "speedUpSetup": "Đẩy nhanh thiết lập"
+  },
+  "bootstrap": {
+    "couldNotRetryTitle": "Không thể thử lại đồng bộ"
+  },
+  "snapshot": {
+    "uploadedTitle": "Đã tải lên ảnh chụp nhanh",
+    "uploadedDescription": "Các thiết bị mới kết nối giờ đây có thể hoàn tất đồng bộ từ ảnh chụp nhanh này.",
+    "skippedTitle": "Đã bỏ qua tải lên ảnh chụp nhanh",
+    "cancelledTitle": "Đã hủy tải lên ảnh chụp nhanh",
+    "resultTitle": "Kết quả tải lên ảnh chụp nhanh",
+    "failedTitle": "Tải lên ảnh chụp nhanh thất bại"
+  },
+  "reinit": {
+    "title": "Thiết lập lại đồng bộ từ thiết bị này?",
+    "description": "Chúng tôi sẽ giữ lại dữ liệu trên thiết bị này và dùng nó để khởi động lại đồng bộ. Các thiết bị đã kết nối khác có thể cần phải kết nối lại.",
+    "notNow": "Không phải bây giờ",
+    "continue": "Tiếp tục"
+  },
+  "recovery": {
+    "title": "Thiết lập lại thiết bị này",
+    "description": "Đồng bộ đã bị tắt cho thiết bị này. Thiết lập lại để luôn cập nhật dữ liệu trên các thiết bị của bạn.",
+    "notNow": "Không phải bây giờ",
+    "settingUp": "Đang thiết lập...",
+    "setUpAgain": "Thiết lập lại thiết bị này"
+  },
+  "disconnectDialog": {
+    "title": "Ngắt kết nối thiết bị này?",
+    "description": "Thao tác này sẽ xóa đồng bộ khỏi thiết bị này. Bạn có thể thiết lập lại sau.",
+    "disconnecting": "Đang ngắt kết nối...",
+    "disconnect": "Ngắt kết nối"
+  },
+  "unpairDialog": {
+    "titleLast": "Hủy ghép đôi thiết bị cuối cùng của bạn?",
+    "title": "Hủy ghép đôi thiết bị?",
+    "descriptionLast": "Đây là thiết bị kết nối duy nhất của bạn. Bạn sẽ cần kết nối lại một thiết bị để tiếp tục đồng bộ dữ liệu.",
+    "description": "Thao tác này sẽ xóa \"{{name}}\" khỏi tài khoản của bạn. Thiết bị sẽ cần được kết nối lại để đồng bộ dữ liệu.",
+    "unpairing": "Đang hủy ghép đôi...",
+    "unpair": "Hủy ghép đôi"
+  },
+  "toasts": {
+    "reinitFailed": "Không thể khởi tạo lại đồng bộ",
+    "disconnectFailed": "Không thể ngắt kết nối",
+    "unpairFailed": "Không thể hủy ghép đôi thiết bị"
+  },
+  "pairing": {
+    "connectThisDeviceTitle": "Kết nối thiết bị này",
+    "enterCodeDescription": "Nhập mã hiển thị trên thiết bị khác của bạn.",
+    "connectAnotherTitle": "Kết nối thiết bị khác",
+    "scanOrEnterDescription": "Quét mã này bằng thiết bị mới của bạn hoặc nhập trực tiếp mã vào đó.",
+    "gettingReadyTitle": "Đang chuẩn bị thiết bị này",
+    "gettingReadyDescription": "Quá trình này chỉ mất một chút thời gian.",
+    "prepareFailed": "Không thể hoàn tất chuẩn bị thiết bị này.",
+    "verifySecurityCode": "Kiểm tra mã bảo mật",
+    "transferringData": "Đang truyền dữ liệu của bạn",
+    "transferringDataDescription": "Đang mã hóa một bản sao dữ liệu cho thiết bị mới của bạn. Quá trình này có thể mất một phút.",
+    "preparingData": "Đang chuẩn bị dữ liệu của bạn",
+    "preparingDataDescription": "Đã xác nhận kết nối. Hãy mở Wealthfolio trên cả hai thiết bị trong khi dữ liệu được chuẩn bị.",
+    "securingConnection": "Đang bảo mật kết nối",
+    "securingConnectionDescription": "Đang trao đổi các khóa mã hóa với thiết bị khác của bạn."
+  },
+  "displayCode": {
+    "generating": "Đang tạo mã",
+    "copyCode": "Sao chép mã",
+    "copied": "Đã sao chép",
+    "expiresIn": "Hết hạn sau {{time}}",
+    "expiredTitle": "Mã này đã hết hạn",
+    "expiredDescription": "Mã hoạt động trong vài phút để bảo mật quá trình ghép đôi. Hãy lấy mã mới để tiếp tục.",
+    "newCode": "Lấy mã mới"
+  },
+  "enterCode": {
+    "openingCamera": "Đang mở máy ảnh…",
+    "scanQrCode": "Quét mã QR",
+    "scanInstructions": "Căn chỉnh mã QR vào bên trong khung hình.",
+    "or": "Hoặc",
+    "paste": "Dán",
+    "connecting": "Đang kết nối…",
+    "connect": "Kết nối",
+    "cameraOpenError": "Không thể mở máy ảnh. Vui lòng thử lại.",
+    "cameraCloseError": "Không thể đóng máy ảnh. Vui lòng thử lại.",
+    "cameraUnavailable": "Không có máy ảnh khả dụng. Hãy dùng thiết bị vật lý để quét hoặc nhập mã ghép đôi bên dưới.",
+    "scanHint": "Hướng máy ảnh vào mã trên thiết bị khác của bạn.",
+    "codeLabel": "Mã ghép đôi"
+  },
+  "sas": {
+    "description": "Đảm bảo thiết bị khác của bạn hiển thị cùng một mã. Điều này ngăn bất kỳ ai khác kết nối.",
+    "codesMatch": "Mã trùng khớp",
+    "codesDontMatch": "Mã không trùng khớp",
+    "waitingDescription": "Kiểm tra xem thiết bị khác của bạn có hiển thị mã này không, sau đó xác nhận ở đó.",
+    "mismatchTitle": "Đã dừng ghép đôi",
+    "mismatchDescription": "Mã không khớp nên không có thông tin nào được chia sẻ. Hãy thử lại với một mã mới."
+  },
+  "waiting": {
+    "waitingForConfirmation": "Đang chờ thiết bị khác của bạn xác nhận…"
+  },
+  "result": {
+    "allSet": "Bạn đã sẵn sàng!",
+    "connectedSuccessfully": "Thiết bị đã kết nối thành công",
+    "done": "Xong",
+    "connectionFailed": "Không thể kết nối",
+    "tryAgain": "Thử lại",
+    "devicesConnected": "Các thiết bị đã kết nối",
+    "finishOnOtherDevice": "Hoàn tất thiết lập trên thiết bị khác của bạn. Thiết bị sẽ hiển thị Sẵn sàng khi dữ liệu đã được cập nhật."
+  },
+  "restore": {
+    "dialogTitle": "Hoàn tất thiết lập thiết bị này",
+    "transferring": {
+      "title": "Đang truyền dữ liệu của bạn",
+      "description": "Đang tải xuống và kiểm tra bản sao mã hóa từ thiết bị khác của bạn."
+    },
+    "waiting": {
+      "title": "Đang chờ bản sao cập nhật mới nhất",
+      "description": "Bản sao mã hóa cập nhật mới nhất chưa sẵn sàng. Quá trình thiết lập sẽ tự động tiếp tục khi sẵn sàng."
+    },
+    "consent": {
+      "title": "Thay thế dữ liệu trong hồ sơ này?",
+      "titleNamed": "Thay thế dữ liệu trong \"{{profile}}\"?",
+      "description": "Dữ liệu từ thiết bị khác sẽ thay thế dữ liệu trên thiết bị này.",
+      "descriptionDated": "Dữ liệu từ thiết bị khác (sao chép ngày {{date}}) sẽ thay thế dữ liệu trên thiết bị này.",
+      "replace": "Thay thế dữ liệu",
+      "backupLabel": "Sao lưu hồ sơ này trước",
+      "backupAndReplace": "Sao lưu và thay thế",
+      "descriptionEmpty": "Thiết bị khác của bạn có danh mục trống. Việc tiếp tục sẽ thay thế danh mục trên thiết bị này bằng danh mục trống đó."
+    },
+    "backingUp": {
+      "title": "Đang sao lưu hồ sơ này",
+      "description": "Đang lưu một bản sao của hồ sơ này trước khi mọi thứ được thay thế."
+    },
+    "replacing": {
+      "title": "Đang thay thế dữ liệu trên thiết bị này",
+      "description": "Đang cập nhật dữ liệu từ thiết bị khác của bạn vào vị trí."
+    },
+    "ready": {
+      "title": "Sẵn sàng",
+      "description": "Thiết bị này đã được thiết lập và đồng bộ."
+    },
+    "cancelled": {
+      "title": "Thiết lập đã bị hủy",
+      "description": "Không có gì bị thay thế. Bạn có thể hoàn tất thiết lập bất cứ lúc nào."
+    },
+    "cancelSetup": "Hủy thiết lập",
+    "hide": "Ẩn",
+    "continueInBackground": "Tiếp tục ở chế độ nền",
+    "tryAgain": "Thử lại",
+    "startAgain": "Bắt đầu lại",
+    "finishSetup": "Hoàn tất thiết lập",
+    "retryHint": {
+      "transfer": "Không có gì bị thay thế. Bạn có thể thử truyền dữ liệu lại.",
+      "consent": "Không có gì bị thay thế. Thử lại sẽ hỏi lại sự đồng ý của bạn.",
+      "new_attempt": "Không có gì bị thay thế. Bắt đầu lại để sử dụng bản sao mới nhất từ thiết bị khác của bạn."
+    },
+    "errors": {
+      "SUBSCRIPTION_REQUIRED": "Đồng bộ thiết bị yêu cầu gói đăng ký đang hoạt động",
+      "DEVICE_NOT_READY": "Thiết bị này chưa sẵn sàng để đồng bộ",
+      "SNAPSHOT_WAIT_TIMED_OUT": "Bản sao cập nhật mới nhất không khả dụng kịp thời",
+      "SNAPSHOT_UNAVAILABLE": "Bản sao từ thiết bị khác của bạn không còn khả dụng",
+      "SNAPSHOT_SCHEMA_NEWER": "Cập nhật ứng dụng này để hoàn tất thiết lập",
+      "SNAPSHOT_INVALID": "Dữ liệu đã truyền không thể xác minh",
+      "TRANSFER_FAILED": "Quá trình truyền dữ liệu chưa hoàn tất",
+      "BACKUP_FAILED": "Quá trình sao lưu chưa hoàn tất",
+      "RESTORE_FAILED": "Dữ liệu không thể thay thế"
+    },
+    "banner": {
+      "title": "Thiết lập chưa hoàn tất trên thiết bị này",
+      "running": "Thiết lập đang tiếp tục ở chế độ nền.",
+      "needsApproval": "Cần sự đồng ý của bạn để thay thế dữ liệu của hồ sơ này.",
+      "failed": "Thiết lập đã dừng trước khi hoàn tất.",
+      "cancelled": "Thiết lập đã bị hủy. Hoàn tất thiết lập khi bạn đã sẵn sàng.",
+      "show": "Hiển thị tiến độ"
+    }
+  },
+  "errors": {},
+  "wizard": {
+    "progressLabel": "Tiến độ thiết lập",
+    "steps": {
+      "connect": "Kết nối",
+      "transfer": "Truyền",
+      "download": "Tải xuống",
+      "apply": "Áp dụng",
+      "done": "Xong"
+    },
+    "encryptedNote": "Được mã hóa đầu cuối. Chỉ các thiết bị của bạn mới có thể đọc dữ liệu của bạn.",
+    "backgroundNote": "Bạn có thể đóng cửa sổ này. Quá trình thiết lập vẫn tiếp tục ở chế độ nền.",
+    "details": {
+      "encrypt": "Mã hóa dữ liệu của bạn",
+      "upload": "Tải lên bản sao đã mã hóa",
+      "sendKeys": "Gửi các khóa đến thiết bị mới của bạn",
+      "waitForUpload": "Chờ bản sao cập nhật mới nhất",
+      "downloadAndVerify": "Tải xuống và xác minh bản sao đã mã hóa",
+      "replace": "Thay thế dữ liệu trên thiết bị này",
+      "backup": "Sao lưu hồ sơ này"
+    }
+  }
+}

@@ -1,0 +1,274 @@
+{
+  "issues": {
+    "price_manual_valuation_missing": {
+      "title_one": "Thiếu định giá thủ công cho {{symbol}}",
+      "title_other": "Thiếu định giá thủ công cho {{count}} vị thế",
+      "message": "Các vị thế thủ công/tùy chỉnh cần định giá thủ công trước khi có thể được tính vào các vị thế hiệu suất."
+    },
+    "price_no_market_data": {
+      "title_one": "Không có dữ liệu thị trường cho {{symbol}}",
+      "title_other": "Không có dữ liệu thị trường cho {{count}} vị thế",
+      "message": "Không thể lấy dữ liệu thị trường cho một số vị thế. Điều này có thể do mã chứng khoán không hợp lệ hoặc sự cố nhà cung cấp. Giá trị danh mục của bạn có thể không chính xác."
+    },
+    "price_stale_outdated": {
+      "title_one": "Giá đã cũ cho {{count}} vị thế",
+      "title_other": "Giá đã cũ cho {{count}} vị thế",
+      "message": "Một số vị thế đã không được cập nhật giá trong hơn 3 ngày. Giá trị danh mục của bạn có thể không chính xác."
+    },
+    "price_update_needed": {
+      "title_one": "Cần cập nhật giá cho {{count}} vị thế",
+      "title_other": "Cần cập nhật giá cho {{count}} vị thế",
+      "message": "Một số vị thế chưa được cập nhật giá gần đây. Hãy cân nhắc việc đồng bộ giá."
+    },
+    "fx_missing": {
+      "title_one": "Thiếu tỷ giá hối đoái cho {{currency}}",
+      "title_other": "Thiếu tỷ giá hối đoái cho {{count}} loại tiền tệ",
+      "message": "Không thể quy đổi một số vị thế sang đơn vị tiền tệ cơ sở của bạn. Điều này ảnh hưởng đến tổng giá trị danh mục."
+    },
+    "fx_stale_error": {
+      "title_one": "Tỷ giá hối đoái đã cũ",
+      "title_other": "Tỷ giá hối đoái đã cũ cho {{count}} loại tiền tệ",
+      "message": "Một số tỷ giá hối đoái đã không được cập nhật trong hơn 3 ngày. Quy đổi tiền tệ có thể không chính xác."
+    },
+    "fx_stale_warning": {
+      "title_one": "Cần cập nhật tỷ giá hối đoái",
+      "title_other": "Cần cập nhật tỷ giá hối đoái cho {{count}} loại tiền tệ",
+      "message": "Một số tỷ giá hối đoái chưa được cập nhật gần đây. Hãy cân nhắc việc làm mới tỷ giá."
+    },
+    "classification_missing_category": {
+      "title_one": "{{count}} vị thế cần phân loại danh mục",
+      "title_other": "{{count}} vị thế cần phân loại danh mục",
+      "message": "Một số vị thế chưa được gán {{taxonomy}}. Điều này ảnh hưởng đến biểu đồ phân bổ và phân tích của bạn."
+    },
+    "classification_legacy_migration": {
+      "title_one": "{{count}} tài sản có dữ liệu phân loại cũ",
+      "title_other": "{{count}} tài sản có dữ liệu phân loại cũ",
+      "message": "Một số tài sản có dữ liệu ngành/quốc gia từ định dạng cũ. Hãy di chuyển sang hệ thống phân loại mới để theo dõi phân bổ tốt hơn."
+    },
+    "data_orphan_activity_account": {
+      "title_one": "Giao dịch tham chiếu đến tài khoản không tồn tại",
+      "title_other": "{{count}} giao dịch tham chiếu đến tài khoản không tồn tại",
+      "message": "Một số giao dịch trỏ đến các tài khoản không còn tồn tại. Điều này có thể gây ra lỗi tính toán."
+    },
+    "data_orphan_activity_asset": {
+      "title_one": "Giao dịch tham chiếu đến tài sản không tồn tại",
+      "title_other": "{{count}} giao dịch tham chiếu đến tài sản không tồn tại",
+      "message": "Một số giao dịch trỏ đến các tài sản không còn tồn tại. Điều này có thể gây ra lỗi tính toán."
+    },
+    "data_negative_position": {
+      "title_one": "Vị thế có số lượng âm",
+      "title_other": "{{count}} vị thế có số lượng âm",
+      "message": "Một số vị thế hiển thị số lượng âm, điều này thường cho thấy thiếu hoặc sai sót giao dịch."
+    },
+    "data_legacy_classification": {
+      "title_one": "{{count}} tài sản có dữ liệu phân loại cũ",
+      "title_other": "{{count}} tài sản có dữ liệu phân loại cũ",
+      "message": "Một số tài sản có dữ liệu phân loại ngành/quốc gia cũ có thể di chuyển sang hệ thống mới."
+    },
+    "data_negative_account_balance": {
+      "title_one": "Tài khoản có số dư âm",
+      "title_other": "{{count}} tài khoản có số dư âm",
+      "message": "Một hoặc nhiều tài khoản đầu tư hiển thị tiền mặt âm hoặc tổng giá trị âm trong lịch sử, do đó lợi nhuận có thể bị sai. Điều này thường do giao dịch mua không có tiền nạp/chuyển vào trước đó, hoặc bán mà chưa có lệnh mua trước đó."
+    },
+    "data_negative_cash_balance": {
+      "title_one": "Tài khoản tiền mặt có số dư âm",
+      "title_other": "{{count}} tài khoản tiền mặt có số dư âm",
+      "message": "Một hoặc nhiều tài khoản tiền mặt hiển thị số dư âm trong lịch sử. Đây có thể là thấu chi bình thường hoặc thiếu mục ghi nhận tiền nạp."
+    },
+    "data_missing_lot_disposal_for_sell": {
+      "title_one": "Giao dịch bán thiếu khớp giá vốn",
+      "title_other": "{{count}} giao dịch bán thiếu khớp giá vốn",
+      "message": "Không thể khớp giao dịch bán với lô cổ phiếu nào, do đó lãi/lỗ đã thực hiện và phân bổ hiệu suất có thể chưa hoàn chỉnh."
+    },
+    "data_missing_generated_valuation": {
+      "title_one": "Lịch sử định giá được tạo chưa đầy đủ",
+      "title_other": "Thiếu {{count}} hàng định giá được tạo",
+      "message": "Một số ngày chụp nhanh vị thế không có các hàng định giá được tạo. Hãy tạo lại lịch sử tài khoản sau khi sửa các mức giá, định giá thủ công hoặc tỷ giá FX còn thiếu."
+    },
+    "data_incomplete_valuation_value": {
+      "title_one": "Mức độ bao phủ định giá chưa đầy đủ",
+      "title_other": "{{count}} hàng định giá có giá trị thị trường chưa đầy đủ",
+      "message": "Một số hàng định giá được tạo có phạm vi giá trị thị trường không đầy đủ. Hệ thống bảo vệ tính chính xác bằng cách đánh dấu lợi nhuận bị ảnh hưởng là không khả dụng hoặc bị suy giảm; hãy xem xét lại các mức giá hoặc định giá thủ công bị thiếu."
+    },
+    "data_incomplete_valuation_basis": {
+      "title_one": "Phạm vi giá vốn chưa đầy đủ",
+      "title_other": "{{count}} vị thế có giá vốn chưa đầy đủ",
+      "message": "Một số vị thế bị thiếu hoặc chỉ có một phần giá vốn mua vào. Giá trị thị trường vẫn có thể hiển thị, nhưng lãi/lỗ và lợi nhuận trên giá vốn có thể không khả dụng cho đến khi các hoạt động liên quan được khắc phục."
+    },
+    "data_unknown_performance_flow_source": {
+      "title_one": "Ranh giới dòng hiệu suất chưa xác định",
+      "title_other": "{{count}} hàng định giá có phân loại chuyển khoản chưa xác định",
+      "message": "Một số hàng định giá được tạo chứa chuyển khoản hoặc dòng tiền chưa rõ ranh giới danh mục. Hãy xem lại các hoạt động chuyển khoản vào những ngày bị ảnh hưởng và đánh dấu mỗi chuyển khoản là nội bộ hoặc liên kết với tài khoản tương ứng."
+    },
+    "account_unconfigured": {
+      "title_one": "{{count}} tài khoản cần thiết lập",
+      "title_other": "{{count}} tài khoản cần thiết lập",
+      "message_one": "Chọn một chế độ theo dõi để bắt đầu đồng bộ dữ liệu.",
+      "message_other": "Chọn các chế độ theo dõi để bắt đầu đồng bộ dữ liệu."
+    },
+    "account_timezone_missing": {
+      "title": "Chưa cấu hình múi giờ",
+      "message": "Đặt múi giờ của bạn trong Cài đặt chung để đảm bảo ngày tháng khớp với khu vực của bạn."
+    },
+    "account_timezone_invalid": {
+      "title": "Múi giờ đã cấu hình không hợp lệ",
+      "message": "Múi giờ \"{{timezone}}\" đã cấu hình không hợp lệ. Vui lòng cập nhật trong Cài đặt chung."
+    },
+    "account_timezone_mismatch": {
+      "title": "Múi giờ trình duyệt và ứng dụng khác nhau",
+      "message": "Múi giờ đã cấu hình là \"{{configured}}\" nhưng múi giờ trình duyệt là \"{{browser}}\". Ngày tháng sẽ tuân theo múi giờ đã cấu hình."
+    },
+    "quote_sync_error": {
+      "title_one": "Đồng bộ báo giá thất bại cho {{symbol}}",
+      "title_other": "Đồng bộ báo giá thất bại cho {{count}} tài sản",
+      "message": "Các tài sản này liên tục gặp lỗi khi đồng bộ giá. Hãy kiểm tra lại mã hoặc cài đặt nhà cung cấp dữ liệu."
+    },
+    "quote_sync_warning": {
+      "title_one": "Sự cố đồng bộ cho {{symbol}}",
+      "title_other": "Sự cố đồng bộ cho {{count}} tài sản",
+      "message": "Một số tài sản đang gặp sự cố khi đồng bộ giá. Vấn đề này có thể tự giải quyết."
+    },
+    "transfer_incomplete": {
+      "title_one": "Phát hiện chuyển khoản chưa hoàn chỉnh",
+      "title_other": "Phát hiện {{count}} chuyển khoản chưa hoàn chỉnh",
+      "message": "Một giao dịch chuyển khoản chưa ghép cặp hoặc thiếu nhánh đối ứng, do đó dòng tiền được coi là ngoại bộ và có thể làm sai lệch lợi nhuận. Hãy ghép cặp với chuyển khoản tương ứng hoặc đánh dấu là ngoại bộ nếu đúng ý bạn."
+    },
+    "data_stale_projection": {
+      "title_one": "Lịch sử tài khoản đã lỗi thời",
+      "title_other": "{{count}} lịch sử tài khoản đã lỗi thời",
+      "message": "Hoạt động, giá hoặc cài đặt đã thay đổi sau lần tính toán lịch sử tài khoản gần nhất. Hãy tạo lại để giá trị và lợi nhuận phản ánh dữ liệu hiện tại."
+    },
+    "data_rejected_activity": {
+      "title_one": "Không thể áp dụng giao dịch",
+      "title_other": "{{count}} giao dịch không thể áp dụng",
+      "message": "Các giao dịch này không thể áp dụng như đã ghi nhận (ví dụ: tiền tệ không có tỷ giá, hoặc mở/đóng vị thế bán khống mà không được đánh dấu), nên chúng bị loại khỏi số dư, vị thế và lợi nhuận. Hãy xem xét lại."
+    },
+    "data_oversold_activity": {
+      "title_one": "Giao dịch bán nhiều hơn số lượng nắm giữ",
+      "title_other": "{{count}} giao dịch bán nhiều hơn số lượng nắm giữ",
+      "message": "Các giao dịch này bán hoặc chuyển nhiều đơn vị hơn số lượng tài khoản nắm giữ tại thời điểm đó. Chỉ số lượng nắm giữ được trừ đi và phần còn lại không có giá vốn. Hãy kiểm tra giao dịch mua hoặc nhận chuyển khoản bị thiếu."
+    },
+    "data_missing_activity_amount": {
+      "title_one": "Giao dịch không có số tiền",
+      "title_other": "{{count}} giao dịch không có số tiền",
+      "message": "Các giao dịch này không có số tiền nên không làm thay đổi số dư tiền mặt. Thêm số tiền nếu có phát sinh dịch chuyển tiền mặt."
+    },
+    "fx_conflicting_rates": {
+      "title_one": "Tỷ giá hối đoái cho {{from}} và {{to}} xung đột",
+      "title_other": "Tỷ giá hối đoái xung đột cho {{count}} cặp tiền tệ",
+      "message": "Tỷ giá được ghi nhận theo cả hai chiều cho cùng những ngày đó nhưng không khớp nhau. Mỗi chiều được sử dụng như đã ghi, nên quy đổi một chiều rồi đổi ngược lại sẽ cho số tiền khác nhau. Hãy sửa hoặc xóa tỷ giá sai."
+    }
+  },
+  "page": {
+    "heading": "Sức khỏe dữ liệu",
+    "text": "Xác định và khắc phục các vấn đề về chất lượng dữ liệu"
+  },
+  "severity": {
+    "info": "Thông tin",
+    "warning": "Cảnh báo",
+    "error": "Lỗi",
+    "critical": "Nghiêm trọng"
+  },
+  "category": {
+    "prices": "Giá",
+    "fxRates": "Tỷ giá FX",
+    "categories": "Danh mục",
+    "data": "Dữ liệu",
+    "accounts": "Tài khoản",
+    "settings": "Cài đặt"
+  },
+  "actions": {
+    "fix": "Sửa",
+    "clear": "Xóa",
+    "sync_prices": "Đồng bộ giá",
+    "fetch_fx": "Lấy tỷ giá hối đoái",
+    "migrate_classifications": "Di chuyển phân loại",
+    "migrate_legacy_classifications": "Bắt đầu di chuyển",
+    "retry_sync": "Thử đồng bộ lại",
+    "to_holdings": "Xem vị thế",
+    "to_activities": "Xem hoạt động",
+    "to_accounts": "Xem tài khoản",
+    "to_taxonomies": "Xem phân loại",
+    "to_market_data": "Xem dữ liệu thị trường",
+    "to_general_settings": "Mở Cài đặt chung",
+    "to_connect": "Cấu hình tài khoản",
+    "review_transfers": "Xem xét chuyển khoản"
+  },
+  "updatedAt": "Đã cập nhật {{time}}",
+  "healthy": {
+    "title": "Dữ liệu của bạn rất tốt",
+    "description": "Không tìm thấy vấn đề nào. Dữ liệu danh mục của bạn nhất quán và luôn cập nhật."
+  },
+  "loadError": {
+    "title": "Không thể tải trạng thái sức khỏe dữ liệu",
+    "retry": "Thử lại"
+  },
+  "sheet": {
+    "groupedPriceMessage": "Wealthfolio đang sử dụng giá chuyển tiếp cho các ngày này. Hãy lấy lại hoặc thêm giá cho các ngày giao dịch thực tế; bỏ qua vấn đề nếu các ngày đó là ngày lễ hoặc ngày không giao dịch.",
+    "pricesByInvestment": "Giá theo khoản đầu tư",
+    "pricesByInvestmentHint": "Mở một khoản đầu tư để lấy lại hoặc thêm giá. Nếu đó là ngày lễ hoặc không giao dịch, hãy bỏ qua vấn đề.",
+    "priceHistoryNeedsReview": "Lịch sử giá cần xem xét",
+    "missingTradingDay_one": "1 ngày giao dịch bị thiếu: {{dates}}",
+    "missingTradingDay_other": "{{count}} ngày giao dịch bị thiếu: {{dates}}",
+    "dateRange": "{{from}} đến {{to}}",
+    "priceIssueSummary": "{{diagnosticCount}} vấn đề giá {{dateWord}} trên {{assetCount}} {{assetWord}}",
+    "priceDate_one": "ngày",
+    "priceDate_other": "ngày",
+    "investment_one": "khoản đầu tư",
+    "investment_other": "khoản đầu tư"
+  },
+  "detail": {
+    "categories": {
+      "priceStaleness": {
+        "label": "Độ trễ giá",
+        "description": "Giá thị trường đã cũ và cần được làm mới. Điều này có thể ảnh hưởng đến độ chính xác khi định giá danh mục của bạn."
+      },
+      "fxIntegrity": {
+        "label": "Tỷ giá hối đoái",
+        "description": "Thiếu hoặc tỷ giá hối đoái đã lỗi thời cho quy đổi tiền tệ. Điều này có thể tác động đến tính toán danh mục đa tiền tệ."
+      },
+      "classification": {
+        "label": "Phân loại",
+        "description": "Tài sản bị thiếu danh mục hoặc phân loại. Điều này ảnh hưởng đến việc phân tích cơ cấu và phân bổ danh mục."
+      },
+      "dataConsistency": {
+        "label": "Tính nhất quán dữ liệu",
+        "description": "Phát hiện sự không nhất quán trong dữ liệu danh mục. Điều này có thể gây ra báo cáo hoặc tính toán không chính xác."
+      },
+      "accountConfiguration": {
+        "label": "Thiết lập tài khoản",
+        "description": "Một số tài khoản cần cấu hình trước khi có thể đồng bộ dữ liệu. Đặt chế độ theo dõi để bắt đầu nhập dữ liệu."
+      },
+      "settingsConfiguration": {
+        "label": "Cài đặt",
+        "description": "Một số cài đặt ứng dụng cần được lưu ý để đảm bảo dữ liệu được hiểu chính xác."
+      },
+      "timezoneMissing": {
+        "label": "Cài đặt múi giờ",
+        "description": "Múi giờ ứng dụng chưa được cấu hình. Cho đến khi bạn thiết lập, ngày tháng hiển thị có thể không khớp với khu vực của bạn."
+      },
+      "timezoneInvalid": {
+        "label": "Cài đặt múi giờ",
+        "description": "Múi giờ đã cấu hình không hợp lệ. Cập nhật trong Cài đặt chung để khôi phục xử lý ngày tháng nhất quán."
+      },
+      "timezoneMismatch": {
+        "label": "Cài đặt múi giờ",
+        "description": "Múi giờ trình duyệt khác với múi giờ ứng dụng đã cấu hình. Ngày tháng danh mục tuân theo múi giờ đã cấu hình."
+      }
+    },
+    "affectedItems": "Mục bị ảnh hưởng ({{count}})",
+    "impact": "Tác động",
+    "affectedItemsCount": "Mục bị ảnh hưởng",
+    "portfolioImpact": "Tác động đến danh mục",
+    "details": "Chi tiết",
+    "aboutThisIssue": "Về vấn đề này",
+    "dismiss": "Bỏ qua",
+    "dismissConfirm": {
+      "title": "Bỏ qua vấn đề này?",
+      "message": "Thao tác này sẽ ẩn vấn đề khỏi trung tâm sức khỏe của bạn. Nó sẽ xuất hiện lại nếu dữ liệu gốc thay đổi.",
+      "pendingText": "Đang bỏ qua..."
+    },
+    "affectedItems_one": "Mục bị ảnh hưởng ({{count}})",
+    "affectedItems_other": "Mục bị ảnh hưởng ({{count}})"
+  }
+}
