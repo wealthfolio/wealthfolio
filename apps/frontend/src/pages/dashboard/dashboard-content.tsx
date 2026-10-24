@@ -18,7 +18,6 @@ import { usePersistentState } from "@/hooks/use-persistent-state";
 import { Skeleton } from "@wealthfolio/ui/components/ui/skeleton";
 import { format } from "date-fns";
 import { useMemo } from "react";
-import { PrivacyToggle } from "@/components/privacy-toggle";
 import type { AccountScope } from "@/lib/types";
 import { accountScopeKey } from "@/pages/allocation-targets/components/target-scope";
 import { useTranslation } from "react-i18next";
@@ -205,7 +204,6 @@ export function DashboardContent({
                 displayCurrency={true}
               />
             </PortfolioUpdateTrigger>
-            <PrivacyToggle className="hover:bg-muted/50 bg-transparent" />
           </div>
           <div className="text-md flex min-h-5 items-center space-x-3">
             {isPortfolioPerformanceLoading ? (
