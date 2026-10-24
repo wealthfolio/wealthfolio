@@ -1,7 +1,8 @@
 import { forwardRef, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useIsMobile as defaultUseIsMobile } from "../../hooks/use-mobile";
-import { worldCurrencies } from "../../lib/currencies";
+import { useCurrencyOptions } from "../../hooks/use-currency-options";
+import { matchesCurrencySearch } from "../../lib/currencies";
 import { cn } from "../../lib/utils";
 import type { ButtonProps } from "../ui/button";
 import { Button } from "../ui/button";
@@ -73,6 +74,7 @@ export const CurrencyInput = forwardRef<HTMLButtonElement, CurrencyInputProps>(
     const isMobileFromHook = useIsMobileHook();
     const isMobile = displayMode === "mobile" || (displayMode === "auto" && isMobileFromHook);
 
+    const { worldCurrencies } = useCurrencyOptions();
     const selectedCurrency = worldCurrencies.find((currency) => currency.value === value);
     const buttonLabel = selectedCurrency
       ? valueDisplay === "code"
@@ -97,11 +99,7 @@ export const CurrencyInput = forwardRef<HTMLButtonElement, CurrencyInputProps>(
     };
 
     if (isMobile) {
-      const filteredCurrencies = worldCurrencies.filter(
-        (curr) =>
-          curr.value.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          curr.label.toLowerCase().includes(searchQuery.toLowerCase()),
-      );
+      const filteredCurrencies = worldCurrencies.filter((curr) => matchesCurrencySearch(curr, searchQuery));
       const customCurrencyValue = getCustomCurrencyValue(searchQuery);
       const mobileDisplayText = selectedCurrency
         ? valueDisplay === "code"
@@ -312,6 +310,7 @@ export const CurrencyInput = forwardRef<HTMLButtonElement, CurrencyInputProps>(
                   {worldCurrencies.map((currency) => (
                     <CommandItem
                       value={currency.label}
+                      keywords={[currency.englishLabel]}
                       key={currency.value}
                       onSelect={() => {
                         handleSelect(currency.value);

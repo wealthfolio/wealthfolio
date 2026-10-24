@@ -43,7 +43,7 @@ import { useCustomProviders } from "@/hooks/use-custom-providers";
 import { useMarketDataProviders } from "@/hooks/use-market-data-providers";
 import { ExchangeRate } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { MoneyInput, worldCurrencies } from "@wealthfolio/ui";
+import { matchesCurrencySearch, MoneyInput, useCurrencyOptions } from "@wealthfolio/ui";
 
 interface ExchangeRateFormData {
   fromCurrency: string;
@@ -59,6 +59,7 @@ interface AddExchangeRateFormProps {
 
 export function AddExchangeRateForm({ onSubmit, onCancel }: AddExchangeRateFormProps) {
   const { t } = useTranslation();
+  const { worldCurrencies } = useCurrencyOptions();
   const exchangeRateSchema = z
     .object({
       fromCurrency: z.string().min(1, t("settings:fx_err_from_required")),
@@ -121,10 +122,8 @@ export function AddExchangeRateForm({ onSubmit, onCancel }: AddExchangeRateFormP
 
     const handleSearchChange = (value: string) => {
       setSearchValue(value);
-      const matchingCurrency = worldCurrencies.find(
-        (currency) =>
-          currency.label.toLowerCase().includes(value.toLowerCase()) ||
-          currency.value.includes(value),
+      const matchingCurrency = worldCurrencies.find((currency) =>
+        matchesCurrencySearch(currency, value),
       );
       if (!matchingCurrency && value) {
         form.setValue(fieldName, value.toUpperCase());
@@ -190,14 +189,11 @@ export function AddExchangeRateForm({ onSubmit, onCancel }: AddExchangeRateFormP
                         )}
 
                         {worldCurrencies
-                          .filter(
-                            (currency) =>
-                              currency.label.toLowerCase().includes(searchValue.toLowerCase()) ||
-                              currency.value.includes(searchValue),
-                          )
+                          .filter((currency) => matchesCurrencySearch(currency, searchValue))
                           .map((currency) => (
                             <CommandItem
                               value={currency.label}
+                              keywords={[currency.englishLabel]}
                               key={currency.value}
                               onSelect={() => {
                                 form.setValue(fieldName, currency.value);

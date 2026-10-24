@@ -24,7 +24,8 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { useBadgeOverflow } from "../../hooks/use-badge-overflow";
 import { useDebouncedCallback } from "../../hooks/use-debounced-callback";
-import { quoteCurrencies } from "../../lib/currencies";
+import { useCurrencyOptions } from "../../hooks/use-currency-options";
+import { matchesCurrencySearch } from "../../lib/currencies";
 import { generateId } from "../../lib/id";
 import { parseDateTimeInTimezone, parseLocalizedDecimalString } from "../../lib/formatting";
 import { cn, isKeyboardEventComposing } from "../../lib/utils";
@@ -2836,6 +2837,7 @@ export function CurrencyCell<TData>({
   cellState,
 }: DataGridCellProps<TData>) {
   const { t } = useTranslation();
+  const { quoteCurrencies } = useCurrencyOptions();
   const initialValue = cell.getValue() as string;
   const [value, setValue] = React.useState(initialValue ?? "");
   const [searchQuery, setSearchQuery] = React.useState("");
@@ -2854,11 +2856,8 @@ export function CurrencyCell<TData>({
     if (!searchQuery.trim()) {
       return quoteCurrencies;
     }
-    const query = searchQuery.toLowerCase();
-    return quoteCurrencies.filter(
-      (currency) => currency.value.toLowerCase().includes(query) || currency.label.toLowerCase().includes(query),
-    );
-  }, [searchQuery]);
+    return quoteCurrencies.filter((currency) => matchesCurrencySearch(currency, searchQuery));
+  }, [quoteCurrencies, searchQuery]);
 
   const handleSelect = React.useCallback(
     (currencyValue: string) => {

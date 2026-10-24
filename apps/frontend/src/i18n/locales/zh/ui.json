@@ -14,7 +14,14 @@
     "searchPrompt": "搜索任意货币，或从上方热门选项中选择。",
     "useCustom": "使用“{{value}}”作为自定义货币",
     "noneFound": "未找到与“{{query}}”匹配的货币。",
-    "noneFoundShort": "未找到货币。"
+    "noneFoundShort": "未找到货币。",
+    "quoteUnitNames": {
+      "britishPence": "英国便士",
+      "israeliAgorot": "以色列阿高洛",
+      "usCents": "美分",
+      "southAfricanCents": "南非分",
+      "kuwaitiFils": "科威特费尔"
+    }
   },
   "dataGrid": {
     "label": "数据网格",

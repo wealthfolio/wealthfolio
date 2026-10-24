@@ -14,7 +14,14 @@
     "searchPrompt": "Search for any currency or select from popular options above.",
     "useCustom": "Use \"{{value}}\" as custom currency",
     "noneFound": "No currencies found for \"{{query}}\".",
-    "noneFoundShort": "No currency found."
+    "noneFoundShort": "No currency found.",
+    "quoteUnitNames": {
+      "britishPence": "British pence",
+      "israeliAgorot": "Israeli agorot",
+      "usCents": "US cents",
+      "southAfricanCents": "South African cents",
+      "kuwaitiFils": "Kuwaiti fils"
+    }
   },
   "dataGrid": {
     "label": "Data grid",

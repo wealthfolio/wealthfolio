@@ -14,7 +14,14 @@
     "searchPrompt": "Busque qualquer moeda ou selecione uma das opções populares acima.",
     "useCustom": "Usar \"{{value}}\" como moeda personalizada",
     "noneFound": "Nenhuma moeda encontrada para \"{{query}}\".",
-    "noneFoundShort": "Nenhuma moeda encontrada."
+    "noneFoundShort": "Nenhuma moeda encontrada.",
+    "quoteUnitNames": {
+      "britishPence": "Pence britânicos",
+      "israeliAgorot": "Agorot israelenses",
+      "usCents": "Centavos americanos",
+      "southAfricanCents": "Centavos sul-africanos",
+      "kuwaitiFils": "Fils kuwaitianos"
+    }
   },
   "dataGrid": {
     "label": "Grade de dados",

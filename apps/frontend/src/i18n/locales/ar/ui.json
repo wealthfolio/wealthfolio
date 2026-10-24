@@ -9,6 +9,13 @@
     "noneFoundShort": "لم يتم العثور على عملة.",
     "placeholder": "اختر العملة",
     "popular": "الأكثر شيوعًا",
+    "quoteUnitNames": {
+      "britishPence": "بنس بريطاني",
+      "israeliAgorot": "أغورة إسرائيلية",
+      "kuwaitiFils": "فلس كويتي",
+      "southAfricanCents": "سنت جنوب أفريقيا",
+      "usCents": "سنت أمريكي"
+    },
     "search": "ابحث عن عملة...",
     "searchAll": "ابحث في جميع العملات...",
     "searchPrompt": "ابحث عن أي عملة أو اختر من الخيارات الشائعة أعلاه.",

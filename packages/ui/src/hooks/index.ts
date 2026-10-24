@@ -4,6 +4,7 @@ export { useAutoHeight } from "./use-auto-height";
 export { useBadgeOverflow } from "./use-badge-overflow";
 export { useBalancePrivacy, type BalancePrivacyHook } from "./use-balance-privacy";
 export { useCallbackRef } from "./use-callback-ref";
+export { useCurrencyOptions } from "./use-currency-options";
 export { useDebouncedCallback } from "./use-debounced-callback";
 export { dateFnsLocaleFor, useDateFnsLocale } from "./use-date-fns-locale";
 export { useIsMobile } from "./use-mobile";
