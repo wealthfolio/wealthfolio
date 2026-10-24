@@ -2,6 +2,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { FormattingProvider } from "@wealthfolio/ui";
 import { TooltipProvider } from "@wealthfolio/ui/components/ui/tooltip";
+import { Activity } from "react";
 import { afterEach, expect, it, vi } from "vitest";
 import type { AllocationTarget, AllocationTargetConstraint } from "@/lib/types";
 import { TargetsTab } from "./targets-tab";
@@ -105,3 +106,36 @@ it.each([undefined, {}])(
     expect(saved[1].id).not.toBe(existing.id);
   },
 );
+
+it("keeps an edited target as it was when its phone screen comes back", async () => {
+  // On a phone, a screen left for another tab is a hidden <Activity>.
+  const targets = [target];
+  const scope = { type: "all" as const };
+  const onTargetChange = vi.fn();
+  const tab = (hidden: boolean) => (
+    <FormattingProvider locale="en-US">
+      <TooltipProvider>
+        <Activity mode={hidden ? "hidden" : "visible"}>
+          <TargetsTab
+            targets={targets}
+            selectedTargetId={target.id}
+            accountScope={scope}
+            onTargetChange={onTargetChange}
+          />
+        </Activity>
+      </TooltipProvider>
+    </FormattingProvider>
+  );
+  const user = userEvent.setup();
+  const { rerender } = render(tab(false));
+  const name = screen.getByPlaceholderText("Target name");
+  await user.clear(name);
+  await user.type(name, "Retirement mix");
+  expect(screen.getByRole("button", { name: "Save target" })).toBeEnabled();
+
+  rerender(tab(true));
+  rerender(tab(false));
+
+  expect(screen.getByPlaceholderText("Target name")).toHaveValue("Retirement mix");
+  expect(screen.getByRole("button", { name: "Save target" })).toBeEnabled();
+});

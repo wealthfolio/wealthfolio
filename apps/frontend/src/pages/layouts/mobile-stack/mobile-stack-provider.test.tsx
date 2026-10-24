@@ -362,6 +362,23 @@ describe("tabs in the Android app", () => {
     expect(stackIndex).toBe(0);
   });
 
+  it("return to a tab's first screen in place when tapped again after a switch", async () => {
+    renderTabs("/dashboard");
+    act(() => void navigate("/accounts/acc-1"));
+    act(() => openTab("holdings"));
+    await waitFor(() => expect(pathname).toBe("/holdings"));
+    act(() => openTab("dashboard"));
+    await waitFor(() => expect(pathname).toBe("/accounts/acc-1"));
+
+    // The Dashboard's first screen is no longer in history.
+    act(() => openTab("dashboard"));
+    expect(pathname).toBe("/dashboard");
+    expect(stackIndex).toBe(0);
+    await waitFor(() => expect(android.listening).toBe(0));
+    act(() => void navigate(-1));
+    expect(pathname).toBe("/dashboard");
+  });
+
   it("go back to the home tab from another tab's first screen, then leave Back to Android", async () => {
     renderTabs("/holdings");
     await waitFor(() => expect(android.listening).toBe(1));

@@ -89,6 +89,15 @@ export function MobileNavBar({ navigation }: MobileNavBarProps) {
     [triggerHaptic, navigate, stack],
   );
 
+  // A stacked tab is current while its stack is shown, whatever screen is on
+  // top: a holding opened from Insights stays in Insights. Other destinations
+  // follow the address.
+  const isItemActive = (href: string) => {
+    const stackedTab = stack?.config.tabs.find((tab) => tab.rootPath === href);
+    if (stack && stackedTab) return stack.state.activeTab === stackedTab.id;
+    return isPathActive(location.pathname, href);
+  };
+
   const renderIcon = useCallback((icon?: ReactNode) => resolveNavigationIcon(icon, "size-6"), []);
 
   const primaryItems = navigation?.primary ?? [];
@@ -142,7 +151,7 @@ export function MobileNavBar({ navigation }: MobileNavBarProps) {
             className="grid auto-cols-fr grid-flow-col place-items-center gap-2 landscape:auto-cols-[2.75rem]"
           >
             {visibleItems.map((item) => {
-              const isActive = isPathActive(location.pathname, item.href);
+              const isActive = isItemActive(item.href);
               const isSearch = item.href === "#search";
 
               return (
@@ -204,7 +213,7 @@ export function MobileNavBar({ navigation }: MobileNavBarProps) {
                 aria-label={t("common:layout.more_options")}
                 className={buttonClassName}
               >
-                {moreItems.some((item) => isPathActive(location.pathname, item.href)) && (
+                {moreItems.some((item) => isItemActive(item.href)) && (
                   <motion.div
                     layoutId={`mobile-nav-indicator-${uniqueId}`}
                     className="absolute inset-0 -z-10 rounded-full border border-black/10 bg-black/5 shadow-sm dark:border-white/10 dark:bg-white/10"
@@ -293,7 +302,7 @@ export function MobileNavBar({ navigation }: MobileNavBarProps) {
                 )}
                 <div className="divide-border/70 divide-y">
                   {standardMenuItems.map((item) => {
-                    const isActive = isPathActive(location.pathname, item.href);
+                    const isActive = isItemActive(item.href);
 
                     return (
                       <Link
@@ -328,7 +337,7 @@ export function MobileNavBar({ navigation }: MobileNavBarProps) {
                     </div>
                     <div className="divide-border/70 divide-y">
                       {addonItems.map((item) => {
-                        const isActive = isPathActive(location.pathname, item.href);
+                        const isActive = isItemActive(item.href);
 
                         return (
                           <Link

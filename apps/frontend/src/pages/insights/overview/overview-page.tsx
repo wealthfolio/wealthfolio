@@ -38,6 +38,7 @@ import { PortfolioComposition } from "@/pages/holdings/components/composition-ch
 import { DrillableAccountChart } from "@/pages/holdings/components/drillable-account-chart";
 import { DrillableDonutChart } from "@/pages/holdings/components/drillable-donut-chart";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffectOnChange } from "@/hooks/use-effect-on-change";
 import { useTranslation } from "react-i18next";
 import { computeValueStrip, valueStripFromCurrentSummary } from "./allocation-derivations";
 import { PortfolioExplorer } from "./portfolio-explorer";
@@ -89,7 +90,8 @@ export function OverviewPage({
   const [pendingWorkspaceView, setPendingWorkspaceView] = useState<WorkspaceView | null>(null);
   const [pendingTargetId, setPendingTargetId] = useState<string | null>(null);
 
-  useEffect(() => {
+  // Another account scope has other targets; showing the page again keeps the pick.
+  useEffectOnChange(() => {
     setSelectedTargetId(null);
   }, [selectedAccountScopeKey]);
 

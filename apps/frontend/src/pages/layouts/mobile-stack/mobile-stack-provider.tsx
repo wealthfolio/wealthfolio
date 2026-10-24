@@ -196,7 +196,9 @@ export function MobileStackProvider({ config, children }: MobileStackProviderPro
             setAppWentBack(true);
             void navigate(-steps);
           } else {
-            void navigate(tab.rootPath);
+            // In Android's app history holds only the screens shown in this tab,
+            // so the first screen takes the shown one's place.
+            void navigate(tab.rootPath, { replace: isAndroidApp });
           }
         };
         const leaveGuard = leaveGuards.current.get(screens[screens.length - 1].id);

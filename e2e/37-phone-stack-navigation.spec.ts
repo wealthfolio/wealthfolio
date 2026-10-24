@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { devices, expect, test, type Page } from "@playwright/test";
 import { BASE_URL, completeOnboardingIfNeeded, gotoAppPath } from "./helpers";
 
 // The phone layout stacks the screens of Holdings and Settings: a pushed screen
@@ -11,7 +11,13 @@ const IPHONE_UA =
 
 test.use({ viewport: { width: 390, height: 844 }, userAgent: IPHONE_UA, hasTouch: true });
 
-test.beforeEach(async ({ page }) => {
+test.beforeEach(async ({ browser, page }) => {
+  // The iPhone app's onboarding has one step fewer than the shared helper walks
+  // through, so a fresh profile is onboarded from a desktop browser first.
+  // Contexts from `browser` take this file's phone options unless told otherwise.
+  const desktop = await browser.newContext({ ...devices["Desktop Chrome"] });
+  await completeOnboardingIfNeeded(await desktop.newPage());
+  await desktop.close();
   await completeOnboardingIfNeeded(page);
 });
 
@@ -205,8 +211,8 @@ test("a link to a nested page opens with its parent pages under it", async ({ pa
   await expect.poll(() => pathOf(page)).toBe("/settings");
 });
 
-test("a holding opens over the Holdings list and back returns to it", async ({ page }) => {
-  test.setTimeout(120_000);
+/** An account holding one manual asset, once its holding is computed. */
+async function seedHolding(page: Page) {
   const runId = Date.now().toString(36);
   const account = await page.request.post(`${BASE_URL}/api/v1/accounts`, {
     data: {
@@ -256,6 +262,12 @@ test("a holding opens over the Holdings list and back returns to it", async ({ p
     )
     .toBe(true);
 
+  return { accountId, assetId, symbol };
+}
+
+test("a holding opens over the Holdings list and back returns to it", async ({ page }) => {
+  test.setTimeout(120_000);
+  const { assetId, symbol } = await seedHolding(page);
   await gotoAppPath(page, "/holdings?swipe=app");
   const holding = page.getByText(symbol, { exact: true }).locator("visible=true").first();
   await expect(holding).toBeVisible({ timeout: 15_000 });
@@ -282,4 +294,25 @@ test("a holding opens over the Holdings list and back returns to it", async ({ p
   await expect.poll(() => pathOf(page)).toBe("/holdings");
   // The screen leaving slides out first.
   await expect.poll(async () => (await screens(page)).top).toBe(list);
+});
+
+test("a holding opened from an account keeps the Dashboard as the current tab", async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  const { accountId, assetId, symbol } = await seedHolding(page);
+
+  // A link to an account opens it over the Dashboard; its holding joins that stack.
+  await gotoAppPath(page, `/accounts/${accountId}`);
+  const holding = page.getByText(symbol, { exact: true }).locator("visible=true").first();
+  await expect(holding).toBeVisible({ timeout: 15_000 });
+  await holding.click();
+  await expect.poll(() => pathOf(page)).toBe(`/holdings/${encodeURIComponent(assetId)}`);
+
+  const nav = page.getByRole("navigation", { name: "Primary navigation" });
+  await expect(nav.getByRole("link", { name: "Dashboard" })).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
+  await expect(nav.locator('[aria-current="page"]')).toHaveCount(1);
 });
