@@ -15,6 +15,7 @@ import {
   CATEGORY_CSS_COLORS,
   deriveChange,
   formatChangePercent,
+  hadBalanceBefore,
   seriesFor,
   type Change,
   type ParsedHistoryPoint,
@@ -258,7 +259,11 @@ export function BreakdownTable({
                             ? (item.value / data.liabilities.total) * 100
                             : 0
                         }
-                        change={deriveChange(series, true)}
+                        change={deriveChange(
+                          series,
+                          true,
+                          hadBalanceBefore(history, item.firstValueDate),
+                        )}
                         currency={currency}
                         onClick={
                           item.assetId
@@ -269,6 +274,7 @@ export function BreakdownTable({
                                   value: item.value,
                                   isLiability: true,
                                   isInvestment: false,
+                                  firstValueDate: item.firstValueDate,
                                   children: [],
                                 })
                             : undefined

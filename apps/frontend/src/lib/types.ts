@@ -1641,6 +1641,8 @@ export interface BreakdownItem {
   value: string;
   /** Optional: asset ID for individual items */
   assetId?: string;
+  /** First day the item carried a balance (YYYY-MM-DD), when known. */
+  firstValueDate?: string;
   /** Individual items rolled up into this category, for drill-down. */
   children?: BreakdownItem[];
 }

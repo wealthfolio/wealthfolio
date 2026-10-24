@@ -142,6 +142,7 @@ export function NetWorthContent() {
           name: item.name,
           value: parseFloat(item.value) || 0,
           assetId: item.assetId,
+          firstValueDate: item.firstValueDate,
         })),
       },
     };

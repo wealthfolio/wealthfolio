@@ -9,6 +9,7 @@ import {
   CATEGORY_CSS_COLORS,
   deriveChange,
   formatChangePercent,
+  hadBalanceBefore,
   toneClass,
   toneColor,
   type ParsedHistoryPoint,
@@ -87,6 +88,7 @@ export function CategoryDetailSheet({
   const change = deriveChange(
     trend.map((t) => t.value),
     selected?.isLiability ?? false,
+    hadBalanceBefore(history, selected?.firstValueDate),
   );
   const sign = Math.abs(change.amount) < 0.005 ? "" : change.amount > 0 ? "+" : "-";
 

@@ -45,6 +45,8 @@ export interface BreakdownEntry {
   name: string;
   value: number;
   assetId?: string;
+  /** First day the row carried a balance (YYYY-MM-DD), when the backend knows it. */
+  firstValueDate?: string;
   children?: BreakdownEntry[];
 }
 
@@ -56,6 +58,7 @@ export interface SelectedCategory {
   value: number;
   isLiability: boolean;
   isInvestment: boolean;
+  firstValueDate?: string;
   children: BreakdownEntry[];
 }
 
@@ -158,8 +161,14 @@ const MULTIPLE_THRESHOLD = 10;
 /**
  * Change over the range from a value series. Liabilities are stored as positive
  * magnitudes, so a reduction is expressed as a positive (good) change.
+ * `hadEarlierBalance` marks a row that carried a balance before the range (a
+ * card paid off and then used again), which is not new despite starting at zero.
  */
-export function deriveChange(series: number[], isLiability: boolean): Change {
+export function deriveChange(
+  series: number[],
+  isLiability: boolean,
+  hadEarlierBalance = false,
+): Change {
   if (series.length < 2) return { amount: 0, percent: 0, isNew: false };
   const first = series[0];
   const last = series[series.length - 1];
@@ -169,8 +178,16 @@ export function deriveChange(series: number[], isLiability: boolean): Change {
   return {
     amount,
     percent: hasBaseline ? amount / base : null,
-    isNew: !hasBaseline && Math.abs(last) >= BASELINE_FLOOR,
+    isNew: !hasBaseline && !hadEarlierBalance && Math.abs(last) >= BASELINE_FLOOR,
   };
+}
+
+/** True when a row's first balance came before the history's first point. */
+export function hadBalanceBefore(
+  history: ParsedHistoryPoint[],
+  firstValueDate: string | undefined,
+): boolean {
+  return !!firstValueDate && history.length > 0 && firstValueDate < history[0].date;
 }
 
 /** True when the ratio is small enough to read as a plain percentage. */
