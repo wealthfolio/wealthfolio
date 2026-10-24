@@ -1743,14 +1743,14 @@ function SorrChart({
   );
 }
 
-// One colour per named scenario, from the theme's chart colours; the outcome
+// One colour per named scenario, from the theme's series colours; the outcome
 // of each is stated in text, so the colours only tell the lines apart.
 const SORR_COLORS = [
-  "var(--chart-1)",
-  "var(--chart-2)",
-  "var(--chart-3)",
-  "var(--chart-4)",
-  "var(--chart-5)",
+  "var(--series-1)",
+  "var(--series-2)",
+  "var(--series-3)",
+  "var(--series-4)",
+  "var(--series-5)",
 ];
 
 function sorrRiskAge(scenario: SorrScenario) {

@@ -68,6 +68,22 @@
   --chart-9: #8e8e93;
   --chart-stone: #8e8e93;
   --chart-cursor: rgba(0, 0, 0, 0.04);
+  /* Series (lines and markers) follow the chart colours; those under 3:1 on the
+     page or card are darkened to reach it, keeping their hue. Mint goes deeper than
+     that so it stays apart from cyan. */
+  --series-1: var(--chart-1);
+  --series-2: var(--chart-2);
+  --series-3: #0596ac;
+  --series-4: #c97502;
+  --series-5: var(--chart-5);
+  --series-6: var(--chart-6);
+  --series-7: var(--chart-7);
+  --series-8: #00807a;
+  /* Spending in systemBlue; Net Worth in systemOrange, deepened to 3:1. */
+  --spending-accent: #007aff;
+  --spending-deep: #0060c0;
+  --spending-mid: #5ac8fa;
+  --net-worth: #c97502;
   --bar-stripe: rgba(255, 255, 255, 0.3);
   --sidebar: #ebebf0;
   --sidebar-foreground: #000000;
@@ -199,6 +215,14 @@
   --success-subtle: #0f2415;
   --success-subtle-foreground: #30d158;
   --success-subtle-border: #1d4a2a;
+  /* In dark mode every chart colour reaches 3:1 as it is. */
+  --series-3: var(--chart-3);
+  --series-4: var(--chart-4);
+  --series-8: var(--chart-8);
+  --spending-accent: #0a84ff;
+  --spending-deep: #409cff;
+  --spending-mid: #64d2ff;
+  --net-worth: #ff9f0a;
   --destructive-subtle: #2c1210;
   --destructive-subtle-foreground: #ff6961;
   --destructive-subtle-border: #5c2320;

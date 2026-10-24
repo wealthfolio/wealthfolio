@@ -29,17 +29,17 @@ const TAX_BUCKET_COLORS: Record<string, string> = {
   tax_free: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
 };
 
-// The theme's chart colours, so the markers follow the theme like every chart;
-// a long list of accounts reuses them in order.
+// The theme's series colours, distinct and readable on the card; a long list
+// of accounts reuses them in order.
 const INDICATOR_COLORS = [
-  "var(--chart-1)",
-  "var(--chart-2)",
-  "var(--chart-3)",
-  "var(--chart-4)",
-  "var(--chart-5)",
-  "var(--chart-6)",
-  "var(--chart-7)",
-  "var(--chart-8)",
+  "var(--series-1)",
+  "var(--series-2)",
+  "var(--series-3)",
+  "var(--series-4)",
+  "var(--series-5)",
+  "var(--series-6)",
+  "var(--series-7)",
+  "var(--series-8)",
 ];
 
 const SHARE_EPSILON = 0.01;

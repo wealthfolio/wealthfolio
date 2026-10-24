@@ -76,6 +76,22 @@
   --chart-8: #9c998e;
   --chart-9: #b3a2cc;
   --chart-stone: #cfccc6;
+  /* Series (lines and markers) follow the chart colours; those under 3:1 on the
+     page or card are darkened to reach it, keeping their hue. Darkened, the sand matched
+     the gold, so the seventh line is a terracotta. */
+  --series-1: var(--chart-1);
+  --series-2: #aa8c3e;
+  --series-3: var(--chart-3);
+  --series-4: #748ec1;
+  --series-5: var(--chart-5);
+  --series-6: var(--chart-6);
+  --series-7: #a8604a;
+  --series-8: #939085;
+  /* Spending in the navy and sky the chart palette starts from; Net Worth in its gold. */
+  --spending-accent: var(--chart-1);
+  --spending-deep: var(--chart-1);
+  --spending-mid: var(--chart-4);
+  --net-worth: #aa8c3e;
   /* The sidebar is the page itself. */
   --sidebar: #f8f8f8;
   --sidebar-foreground: #262626;
@@ -211,6 +227,12 @@
   --heatmap-positive-low: #213a2c;
   --heatmap-positive-high: #86bf9c;
   --heatmap-negative-low: #44272a;
+  /* In dark mode every chart colour reaches 3:1 as it is. */
+  --series-2: var(--chart-2);
+  --series-4: var(--chart-4);
+  --series-7: var(--chart-7);
+  --series-8: var(--chart-8);
+  --net-worth: #d4b66a;
   --heatmap-negative-high: #ec8a7e;
   --heatmap-label-dark: #121212;
   --heatmap-label-light: #f4f4f5;

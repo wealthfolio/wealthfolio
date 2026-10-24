@@ -54,6 +54,11 @@
   --chart-8: hsl(50 14% 83%);
   --chart-9: hsl(51 21% 88%);
   --chart-stone: hsl(49 7% 70%);
+  /* Spending in a muted green; Net Worth in Flexoki orange. */
+  --spending-accent: #43675d;
+  --spending-deep: #43675d;
+  --spending-mid: #8aa597;
+  --net-worth: #bc5215;
   --sidebar: oklch(0.993 0 0);
   --sidebar-foreground: oklch(0.359 0.0051 106.6524);
   --sidebar-primary: hsl(40 3% 20%);
@@ -121,6 +126,11 @@
   --fi-stream-1: hsl(25 92% 72%);
   --fi-stream-2: hsl(24 84% 62%);
   --fi-stream-3: hsl(23 78% 52%);
+  /* Spending in the ember orange of the dark chart palette, light enough for 3:1. */
+  --spending-accent: hsl(22 80% 46%);
+  --spending-deep: hsl(22 80% 46%);
+  --spending-mid: hsl(24 84% 62%);
+  --net-worth: #da702c;
   --fi-stream-4: hsl(22 80% 42%);
   --fi-stream-5: hsl(22 78% 32%);
   --heatmap-accent: #879a39;

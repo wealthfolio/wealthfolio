@@ -32,7 +32,6 @@ import { CategoryDetailSheet } from "./components/category-detail-sheet";
 import { NetWorthAttention } from "./components/net-worth-attention";
 import { MomentumCard } from "./components/momentum-card";
 import {
-  THEME_COLOR,
   THEME_COLOR_LIGHT,
   computeMomentum,
   computeVelocity,
@@ -41,6 +40,7 @@ import {
   investmentAllocation,
   isPlainPercent,
   parseHistory,
+  themeColorTint,
   toneClass,
   type ParsedNetWorth,
   type SelectedCategory,
@@ -310,7 +310,7 @@ export function NetWorthContent() {
       <div
         className="flex grow flex-col"
         style={{
-          backgroundImage: `linear-gradient(to top, ${THEME_COLOR.replace(")", " / 0.30)")}, ${THEME_COLOR.replace(")", " / 0.15)")} 50%, transparent 100%)`,
+          backgroundImage: `linear-gradient(to top, ${themeColorTint(30)}, ${themeColorTint(15)} 50%, transparent 100%)`,
         }}
       >
         {/* Chart section */}

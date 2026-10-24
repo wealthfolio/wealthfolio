@@ -135,6 +135,22 @@
   --chart-stone: #b1aa9a;
 
   /* Sidebar (full hsl colors) */
+  /* Lines and markers compared side by side (performance comparisons, goal
+     funding, risk scenarios): distinct hues at 3:1 or more on the card, which
+     the area palette above can't give. Flexoki's accents, 600 on paper. */
+  --series-1: #205ea6;
+  --series-2: #a02f6f;
+  --series-3: #24837b;
+  --series-4: #5e409d;
+  --series-5: #66800b;
+  --series-6: #ad8301;
+  --series-7: #bc5215;
+  --series-8: #af3029;
+  /* Spending's main chart (forest) and the Net Worth line (gold, 3:1 on paper). */
+  --spending-accent: hsl(155 32% 26%);
+  --spending-deep: #2a573f;
+  --spending-mid: #71a290;
+  --net-worth: #ad8301;
   --sidebar: hsl(var(--flexoki-bg));
   --sidebar-foreground: hsl(var(--flexoki-tx));
   --sidebar-primary: hsl(var(--flexoki-tx));
@@ -277,6 +293,20 @@
   --success-subtle-border: var(--color-green-800);
   --warning-subtle: var(--color-yellow-950);
   --warning-subtle-foreground: var(--color-yellow-200);
+  /* Series in Flexoki's 400 shades, as its dark theme uses them. */
+  --series-1: #4385be;
+  --series-2: #ce5d97;
+  --series-3: #3aa99f;
+  --series-4: #8b7ec8;
+  --series-5: #879a39;
+  --series-6: #d0a215;
+  --series-7: #da702c;
+  --series-8: #d14d41;
+  /* Spending lifted for the dark card, as chart-1 is; Net Worth in Flexoki's gold. */
+  --spending-accent: hsl(156 28% 44%);
+  --spending-deep: hsl(156 28% 44%);
+  --spending-mid: #2a573f;
+  --net-worth: #d0a215;
   --warning-subtle-border: var(--color-yellow-800);
   --destructive-subtle: var(--color-red-950);
   --destructive-subtle-foreground: var(--color-red-200);

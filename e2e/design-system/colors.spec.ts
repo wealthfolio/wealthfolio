@@ -42,6 +42,11 @@ const roles = [
   "input-bg",
   "ring",
   ...Array.from({ length: 9 }, (_, index) => `chart-${index + 1}`),
+  ...Array.from({ length: 8 }, (_, index) => `series-${index + 1}`),
+  "net-worth",
+  "spending-accent",
+  "spending-deep",
+  "spending-mid",
   "allocation-over",
   "allocation-under",
   "sidebar",
@@ -109,9 +114,17 @@ const exceptions: {
   })),
 ];
 
+// Non-text graphics at 3:1 (WCAG 1.4.11): the focus ring; the series colours that
+// tell compared lines and markers apart; the Net Worth line; Spending's icons,
+// labels and bars; each on the page and on cards.
 const indicatorPairs = [
   ["ring", "background"],
   ["ring", "card"],
+  ...[
+    ...Array.from({ length: 8 }, (_, index) => `series-${index + 1}`),
+    "net-worth",
+    "spending-deep",
+  ].flatMap((role) => ["background", "card"].map((surface) => [role, surface] as const)),
 ] as const;
 
 // OKLab [L, a, b] of an sRGB colour (channels 0..255).

@@ -69,7 +69,7 @@ import {
   INSIGHTS_PERIOD_STORAGE_KEY,
   SPENDING_INTERVAL_STORAGE_KEY,
 } from "../lib/period-preferences";
-import { FOREST_THEME, themeBg, type Palette } from "../lib/theme";
+import { SPENDING_THEME, themeBg, type Palette } from "../lib/theme";
 import {
   addCalendarDays,
   addCalendarMonths,
@@ -401,7 +401,7 @@ export default function SpendingTabContent() {
     () => selectionData(selection, dateFormatting, appTimezone),
     [selection, dateFormatting, appTimezone],
   );
-  const theme: Palette = FOREST_THEME;
+  const theme: Palette = SPENDING_THEME;
 
   const [whereItWentView, setWhereItWentView] = usePersistentState<"list" | "map">(
     "spending-where-view",
