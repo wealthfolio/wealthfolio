@@ -56,7 +56,7 @@ function Harness({ csvHeaders, csvRows }: { csvHeaders: string[]; csvRows: strin
           [ImportFormat.QUANTITY]: "Quantity",
           [ImportFormat.UNIT_PRICE]: "Price",
         },
-        activityMappings: { [ActivityType.BUY]: ["BUY"] },
+        activityMappings: { [ActivityType.BUY]: ["BUY"], [ActivityType.SELL]: ["SELL"] },
         symbolMappings: { "FUND A DIRECT GROWTH": "0P0000TEST" },
       }),
     );
@@ -177,8 +177,8 @@ describe("skipping rows in the mapping step", { timeout: 15_000 }, () => {
     expect(screen.getByRole("checkbox", { name: "Include row 2" })).toBeChecked();
   });
 
-  it("skips the unticked row when the CSV has its own lineNumber column", async () => {
-    // The CSV's values replace the preview's row numbers: the first row shows 2, the second 1
+  it("numbers rows by position when the CSV has its own lineNumber column", async () => {
+    // The CSV's values run the other way: the first row says 2, the second 1
     const user = renderMapping(
       [...headers, "lineNumber"],
       [
@@ -188,7 +188,37 @@ describe("skipping rows in the mapping step", { timeout: 15_000 }, () => {
     );
     await user.click(await screen.findByRole("checkbox", { name: "Include row 2" }));
 
-    expect(screen.getByTestId("skipped-rows")).toHaveTextContent(/^0$/);
+    expect(screen.getByTestId("skipped-rows")).toHaveTextContent(/^1$/);
+  });
+
+  it("lists a row for each value to map when the CSV's lineNumber column is blank", async () => {
+    renderMapping(
+      [...headers, "lineNumber"],
+      rows.map((row) => [...row, ""]),
+    );
+    expect(await symbolsCard().findByText("1 of 2 mapped")).toBeInTheDocument();
+
+    // Unmapped FUND B first, then mapped FUND A
+    expect(
+      screen.getAllByRole("checkbox", { name: /^Include row/ }).map((box) => box.ariaLabel),
+    ).toEqual(["Include row 2", "Include row 1"]);
+  });
+
+  it("orders the preview by position when the CSV's lineNumber values aren't numbers", async () => {
+    // The SELL row is collected as an example before the second BUY row
+    renderMapping(
+      [...headers, "lineNumber"],
+      [
+        ["2026-10-01", "BUY", "AAPL", "1", "10", "a"],
+        ["2026-10-02", "BUY", "MSFT", "1", "10", "b"],
+        ["2026-10-03", "SELL", "AAPL", "1", "10", "c"],
+      ],
+    );
+    expect(await symbolsCard().findByText("2 of 2 mapped")).toBeInTheDocument();
+
+    expect(
+      screen.getAllByRole("checkbox", { name: /^Include row/ }).map((box) => box.ariaLabel),
+    ).toEqual(["Include row 1", "Include row 2", "Include row 3"]);
   });
 
   it("lists only matching rows when the CSV repeats a lineNumber value", async () => {
