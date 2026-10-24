@@ -2,7 +2,7 @@ import { ActivityType, InstrumentType } from "@/lib/constants";
 import type { ActivityDetails } from "@/lib/types";
 import { render, screen, waitFor } from "@/test/render";
 import userEvent from "@testing-library/user-event";
-import type { ReactNode } from "react";
+import { Activity, type ReactNode, type RefObject } from "react";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import type { AccountSelectOption } from "../../forms/fields";
 import { MobileActivityForm } from "../mobile-activity-form";
@@ -38,9 +38,11 @@ vi.mock("../mobile-details-step", async () => {
     MobileDetailsStep: ({
       activityType,
       isEditing,
+      amountWasEdited,
     }: {
       activityType?: string;
       isEditing?: boolean;
+      amountWasEdited?: RefObject<boolean>;
     }) => {
       const form = useFormContext();
       return (
@@ -56,6 +58,22 @@ vi.mock("../mobile-details-step", async () => {
             onClick={() => form.setValue("activityDate", new Date("2026-02-01T10:00:00Z"))}
           >
             Correct record date
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              form.setValue("accountId", "acc_1");
+              form.setValue("currency", "USD");
+              form.setValue("fee", 0);
+              form.setValue("tax", 0);
+              form.setValue("assetId", "AAPL");
+              form.setValue("quantity", 2);
+              form.setValue("unitPrice", 25);
+              form.setValue("amount", 60);
+              if (amountWasEdited) amountWasEdited.current = true;
+            }}
+          >
+            Enter a trade with its own total
           </button>
         </div>
       );
@@ -256,4 +274,33 @@ describe("mobile trade asset identity", () => {
       );
     },
   );
+});
+
+describe("a trade total typed on a phone screen left for another tab", () => {
+  it("is still submitted when the user comes back and saves", async () => {
+    noopMutation.mutateAsync.mockReset().mockResolvedValue({});
+    const user = userEvent.setup();
+    // On a phone, a screen left for another tab is a hidden <Activity>.
+    const form = (hidden: boolean) => (
+      <Activity mode={hidden ? "hidden" : "visible"}>
+        <MobileActivityForm accounts={accounts} open onClose={vi.fn()} />
+      </Activity>
+    );
+    const { rerender } = render(form(false));
+    await user.click(screen.getByRole("radio", { name: /^Buy\b/i }));
+    await user.click(screen.getByRole("button", { name: /Next/i }));
+    await user.click(
+      await screen.findByRole("button", { name: "Enter a trade with its own total" }),
+    );
+
+    rerender(form(true));
+    rerender(form(false));
+    await user.click(screen.getByRole("button", { name: "Add Activity" }));
+
+    await waitFor(() =>
+      expect(noopMutation.mutateAsync).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({ activityType: ActivityType.BUY, amount: 60 }),
+      ),
+    );
+  });
 });

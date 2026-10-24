@@ -29,7 +29,7 @@ import { generateId } from "@/lib/id";
 import { normalizeCurrency } from "@/lib/utils";
 import type { ActivityCreate, ActivityDetails, ActivityUpdate } from "@/lib/types";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useForm, type Resolver, type SubmitHandler } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
@@ -495,8 +495,9 @@ export function MobileActivityForm({
   // whatever was typed belonged to the previous type, so amount ownership
   // resets and the calculated trade total takes over again. Without this, a
   // deposit amount typed before switching to BUY/SELL would be submitted as
-  // an attested custom trade total.
-  useEffect(() => {
+  // an attested custom trade total. Only on a switch: a phone screen shown
+  // again replays its effects, which would drop a total typed after the switch.
+  useEffectOnChange(() => {
     if (form.getFieldState("activityType").isDirty) {
       amountWasEdited.current = false;
     }

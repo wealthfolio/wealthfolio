@@ -69,12 +69,13 @@ test("switching an account's sections keeps the page where it was", async ({ pag
     .toBeGreaterThanOrEqual(10);
 
   await gotoAppPath(page, `/accounts/${accountId}`);
+  // On a phone the account page opens over the Dashboard, which stays mounted.
+  const container = page.locator("[data-page-scroll-container]:visible");
   const activities = page.getByRole("button", { name: "Activities", exact: true });
   await expect(activities).toBeVisible({ timeout: 15_000 });
-  await expect(page.getByText(`SEC${runId}9`, { exact: true })).toBeVisible();
+  await expect(container.getByText(`SEC${runId}9`, { exact: true })).toBeVisible();
 
   // Bring the section switch near the top, with the holdings filling the screen.
-  const container = page.locator("[data-page-scroll-container]");
   const before = await container.evaluate((element) => {
     const toggle = [...element.querySelectorAll<HTMLElement>('[role="group"]')].find((group) =>
       /Activities/.test(group.textContent ?? ""),
