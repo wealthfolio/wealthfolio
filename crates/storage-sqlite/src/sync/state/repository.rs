@@ -464,10 +464,10 @@ mod tests {
     use std::sync::Arc;
     use tempfile::tempdir;
 
-    fn setup_repo() -> BrokerSyncStateRepository {
+    fn setup_repo() -> (BrokerSyncStateRepository, tempfile::TempDir) {
         std::env::set_var("CONNECT_API_URL", "http://test.local");
-        let temp_dir = tempdir().expect("tempdir").keep();
-        let db_path = temp_dir.join("test.db");
+        let temp_dir = tempdir().expect("tempdir");
+        let db_path = temp_dir.path().join("test.db");
         let db_path = db_path.to_string_lossy().to_string();
         run_migrations(&db_path).expect("migrate db");
         let pool = create_pool(&db_path).expect("create pool");
@@ -490,7 +490,10 @@ mod tests {
             .expect("insert account");
         }
 
-        BrokerSyncStateRepository::new(Arc::clone(&pool), writer)
+        (
+            BrokerSyncStateRepository::new(Arc::clone(&pool), writer),
+            temp_dir,
+        )
     }
 
     #[test]
@@ -509,7 +512,7 @@ mod tests {
 
     #[tokio::test]
     async fn upsert_success_stores_passed_cursor_date() {
-        let repo = setup_repo();
+        let (repo, _temp_dir) = setup_repo();
 
         repo.upsert_success(
             "account-1".to_string(),
