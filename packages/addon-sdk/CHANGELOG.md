@@ -12,6 +12,15 @@ and this project adheres to
   absent on hosts without themes. Addon pages get the theme's colours through
   the host's CSS variables and its `data-theme` attribute on `<html>`, and
   follow it when the user switches.
+- `chartSliceColor(index)` in `@wealthfolio/ui`: the colour for the item at a
+  position in a composition, the theme's first seven chart colours and then the
+  same seven mixed halfway toward the card. The host's donuts, breakdown lists
+  and allocation strips use it, so an addon chart that does matches them.
+- Chart colours as theme tokens: `--series-1` to `--series-8` for lines and
+  markers compared on one axis (each reaches 3:1 on the page and on cards),
+  `--net-worth`, and `--spending-accent`, `--spending-deep` and
+  `--spending-mid`. The treemap ramps gain `--heatmap-positive-mid` and
+  `--heatmap-negative-mid`.
 
 ### Changed
 
@@ -22,6 +31,12 @@ and this project adheres to
   `--segmented-thumb`, `--segmented-thumb-image` and `--segmented-thumb-shadow`,
   and the default `Button` takes its border colour from `--button-border`
   (transparent in Classic).
+- `DonutChart` gives slices past the seventh the first seven colours again,
+  mixed halfway toward the card, instead of repeating them at full strength, and
+  draws each slice with a 1 px edge in its colour, 15% toward the text colour.
+- Classic's chart colours (`--chart-1` to `--chart-9`) are Flexoki's: cyan,
+  green, yellow and orange lead, blue, purple and magenta follow, then two
+  greys. Addon charts that read them change colour in Classic.
 
 ## [3.11.0] - 2026-10-22
 
