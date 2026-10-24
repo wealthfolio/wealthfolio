@@ -69,16 +69,6 @@ function buildDriver(
   };
 }
 
-function markerTextColor(color: string): string {
-  const hex = color.replace("#", "");
-  if (hex.length !== 6) return "var(--background)";
-  const r = parseInt(hex.slice(0, 2), 16);
-  const g = parseInt(hex.slice(2, 4), 16);
-  const b = parseInt(hex.slice(4, 6), 16);
-  const luminance = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
-  return luminance > 0.58 ? "var(--foreground)" : "var(--background)";
-}
-
 export function DriftDriversCard({
   report,
   statusDescription,
@@ -126,9 +116,12 @@ export function DriftDriversCard({
                     <div className="flex min-w-0 items-center gap-2.5">
                       <span
                         className="text-2xs flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full font-bold tabular-nums"
+                        // A tint of the category colour with its ring, so the
+                        // number reads in the foreground whatever the theme.
                         style={{
-                          backgroundColor: rowColor,
-                          color: markerTextColor(rowColor),
+                          backgroundColor: `color-mix(in oklab, ${rowColor} 22%, var(--card))`,
+                          boxShadow: `inset 0 0 0 1px ${rowColor}`,
+                          color: "var(--foreground)",
                         }}
                       >
                         {index + 1}

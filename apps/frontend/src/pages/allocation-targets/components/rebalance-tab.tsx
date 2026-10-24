@@ -36,9 +36,11 @@ import { EligibleHoldingsSelector } from "./eligible-holdings-selector";
 import { accountScopeKey } from "./target-scope";
 
 // Drift direction colors — clay for overweight (+), slate-blue for underweight (−).
-const DRIFT_OVER = "#b4664a";
-const DRIFT_UNDER = "#4f6d99";
-const FOREST = "#355c4c";
+const DRIFT_OVER = "var(--allocation-over)";
+const DRIFT_UNDER = "var(--allocation-under)";
+const FOREST = "var(--chart-1)";
+// The tolerance band: the second chart colour, lightened toward the card.
+const TOLERANCE = "color-mix(in oklab, var(--chart-2) 75%, var(--card))";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -672,7 +674,7 @@ function DriftBar({
 
   return (
     <div>
-      <div className="dark:bg-muted relative h-3 w-full overflow-hidden rounded-full bg-[#e7e3d4]">
+      <div className="bg-muted relative h-3 w-full overflow-hidden rounded-full">
         {isAfter ? (
           <>
             {/* removed drift: hatched zone from after → before */}
@@ -682,7 +684,7 @@ function DriftBar({
                 insetInlineStart: `${afterPos}%`,
                 width: `${Math.max(beforePos - afterPos, 0)}%`,
                 backgroundImage:
-                  "repeating-linear-gradient(45deg, rgba(53,92,76,0.22) 0 5px, transparent 5px 10px)",
+                  "repeating-linear-gradient(45deg, color-mix(in oklab, var(--chart-1) 22%, transparent) 0 5px, transparent 5px 10px)",
               }}
             />
             {/* projected drift fill: 0 → after */}
@@ -696,7 +698,7 @@ function DriftBar({
             {/* tolerance band: solid to the tightest sleeve, soft to the widest sleeve */}
             <div
               className="absolute inset-y-0 start-0 rounded-full"
-              style={{ width: `${toleranceMinPos}%`, background: "#9db8a8" }}
+              style={{ width: `${toleranceMinPos}%`, background: TOLERANCE }}
             />
             {toleranceMaxPos > toleranceMinPos && (
               <div
@@ -704,7 +706,7 @@ function DriftBar({
                 style={{
                   insetInlineStart: `${toleranceMinPos}%`,
                   width: `${toleranceMaxPos - toleranceMinPos}%`,
-                  background: "#9db8a8",
+                  background: TOLERANCE,
                 }}
               />
             )}

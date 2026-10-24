@@ -54,7 +54,10 @@ function PresetBar({ weights, colorMap }: PresetBarProps) {
   return (
     <div className="flex h-3.5 w-full overflow-hidden rounded-sm">
       {nonZero.map(([key, pct]) => (
-        <div key={key} style={{ width: `${pct}%`, background: colorMap[key] ?? "#878580" }} />
+        <div
+          key={key}
+          style={{ width: `${pct}%`, background: colorMap[key] ?? "var(--chart-stone)" }}
+        />
       ))}
     </div>
   );

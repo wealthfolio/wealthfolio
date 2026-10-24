@@ -125,8 +125,8 @@ export function AllocationDonut({
                 style={{
                   color:
                     hoveredRow.status === "overweight" || hoveredRow.status === "not_targeted"
-                      ? "var(--destructive)"
-                      : "#2563eb",
+                      ? "var(--allocation-over)"
+                      : "var(--allocation-under)",
                 }}
               >
                 {hoveredRow.status === "underweight"

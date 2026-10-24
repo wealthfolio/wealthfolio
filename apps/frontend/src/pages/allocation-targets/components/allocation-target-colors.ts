@@ -1,26 +1,27 @@
-// Allocation palette — forest / sage / sand / clay / plum / stone (matches the design + chart tokens).
+// The theme's chart colours, as the donuts use them, then stone; categories past
+// the last take stone instead of repeating the leading colours.
 const CALM_PALETTE = [
-  "#355c4c", // forest
-  "#7e9f8c", // sage
-  "#cbba8c", // sand
-  "#c08a5f", // clay
-  "#9a7e92", // plum
-  "#b1aa9a", // stone
-  "#5a7d6b", // forest tint
-  "#a8b89e", // sage tint
-  "#8a6b49", // muted brown
+  "var(--chart-1)",
+  "var(--chart-2)",
+  "var(--chart-3)",
+  "var(--chart-4)",
+  "var(--chart-5)",
+  "var(--chart-6)",
+  "var(--chart-7)",
+  "var(--chart-8)",
+  "var(--chart-stone)",
 ];
 
 const NAMED_COLORS: Record<string, string> = {
-  equity: "#355c4c", // forest
-  fixed: "#7e9f8c", // sage
-  cash: "#cbba8c", // sand
-  commodities: "#c08a5f", // clay
-  real: "#c08a5f", // clay (real assets / real estate)
-  property: "#c08a5f", // clay
-  crypto: "#9a7e92", // plum
-  digital: "#9a7e92", // plum
-  alternatives: "#b1aa9a", // stone
+  equity: "var(--chart-1)",
+  fixed: "var(--chart-2)",
+  cash: "var(--chart-3)",
+  commodities: "var(--chart-4)",
+  real: "var(--chart-4)", // real assets / real estate
+  property: "var(--chart-4)",
+  crypto: "var(--chart-5)",
+  digital: "var(--chart-5)",
+  alternatives: "var(--chart-stone)",
 };
 
 export interface AllocationTargetColorRow {
@@ -38,7 +39,7 @@ export function allocationTargetColor(id: string, name: string, index = 0): stri
   const key = categoryKey(id, name);
   const named = Object.entries(NAMED_COLORS).find(([needle]) => key.includes(needle));
   if (named) return named[1];
-  return CALM_PALETTE[index % CALM_PALETTE.length];
+  return CALM_PALETTE[Math.min(index, CALM_PALETTE.length - 1)];
 }
 
 export function buildAllocationTargetColorMap(
