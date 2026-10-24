@@ -10,7 +10,7 @@ import { Button } from "@wealthfolio/ui/components/ui/button";
 import { Card, CardHeader } from "@wealthfolio/ui/components/ui/card";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { AnimatePresence, motion } from "motion/react";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useBackNavigation, useLeaveGuard } from "@/pages/layouts/mobile-stack/use-mobile-stack";
@@ -355,11 +355,14 @@ function ImportWizardContent() {
   );
 
   const [showCancelDialog, setShowCancelDialog] = useState(false);
-  // Mid-import, the edge swipe and Android's Back ask before discarding, as the
-  // page's own back and cancel buttons do.
-  useLeaveGuard(state.step !== "upload" && state.step !== "result", () =>
-    setShowCancelDialog(true),
-  );
+  // Mid-import, Android's Back and tapping the tab again ask before discarding,
+  // as the page's own back and cancel buttons do; agreeing makes the leave they
+  // asked for.
+  const heldLeave = useRef<(() => void) | null>(null);
+  useLeaveGuard(state.step !== "upload" && state.step !== "result", (proceed) => {
+    heldLeave.current = proceed;
+    setShowCancelDialog(true);
+  });
   const [isNextLoading, setIsNextLoading] = useState(false);
 
   // Fetch accounts to determine tracking mode based on selected account
@@ -615,12 +618,15 @@ function ImportWizardContent() {
       goBack();
     } else {
       // Show confirmation dialog for other steps
+      heldLeave.current = null;
       setShowCancelDialog(true);
     }
   }, [state.step, goBack]);
 
   const handleConfirmCancel = useCallback(() => {
-    goBack();
+    const leave = heldLeave.current ?? goBack;
+    heldLeave.current = null;
+    leave();
   }, [goBack]);
 
   // Get step-specific next button label

@@ -62,6 +62,14 @@ export default function GoalNewPage() {
   const navigate = useNavigate();
   const goBack = useBackNavigation("/goals");
   const createGoalFlow = useCreateGoalFlow();
+  // The new goal takes the form's place, so back from it returns to the list.
+  // Read from the saved result rather than the save's own callback: React Query
+  // skips that callback when the save ends while this screen is out of sight on
+  // a phone (another tab shown), and the form would come back ready to save again.
+  const createdGoalId = createGoalFlow.data?.goal.id;
+  useEffect(() => {
+    if (createdGoalId) void navigate(`/goals/${createdGoalId}`, { replace: true });
+  }, [createdGoalId, navigate]);
   const { goals } = useGoals();
   const { settings } = useSettingsContext();
   const todayISO = formatZonedDateKey(new Date(), settings?.timezone);
@@ -213,18 +221,10 @@ export default function GoalNewPage() {
         }
       : undefined;
 
-    createGoalFlow.mutate(
-      {
-        goal: goalInput,
-        initialPlan,
-      },
-      {
-        onSuccess: ({ goal }) => {
-          // The new goal takes the form's place: back from it returns to the list.
-          navigate(`/goals/${goal.id}`, { replace: true });
-        },
-      },
-    );
+    createGoalFlow.mutate({
+      goal: goalInput,
+      initialPlan,
+    });
   };
 
   return (

@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { DatePickerInput, PortalScope } from "@wealthfolio/ui";
-import { MemoryRouter, useLocation, useNavigate } from "react-router-dom";
+import { BrowserRouter, MemoryRouter, useLocation, useNavigate } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { StackScreenContext } from "./mobile-stack-contexts";
 import { useLeaveGuard, useMobileStack } from "./use-mobile-stack";
@@ -339,6 +339,29 @@ describe("tabs in the Android app", () => {
     expect(pathname).toBe("/dashboard");
   });
 
+  it("switch tabs from a screen reached by going back only once history has stepped back", async () => {
+    // Browser history steps back asynchronously, unlike the memory router's.
+    window.history.replaceState(null, "", "/dashboard");
+    render(
+      <BrowserRouter>
+        <MobileStackProvider config={tabsConfig}>
+          <Probe />
+        </MobileStackProvider>
+      </BrowserRouter>,
+    );
+    act(() => openTab("holdings"));
+    act(() => void navigate("/holdings/AMD"));
+    act(() => void navigate("/holdings/AMD/lots"));
+    act(() => void navigate(-1));
+    await waitFor(() => expect(pathname).toBe("/holdings/AMD"));
+
+    act(() => openTab("insights"));
+    await waitFor(() => expect(pathname).toBe("/insights"));
+    await act(() => new Promise((resolve) => setTimeout(resolve, 50)));
+    expect(pathname).toBe("/insights");
+    expect(stackIndex).toBe(0);
+  });
+
   it("go back to the home tab from another tab's first screen, then leave Back to Android", async () => {
     renderTabs("/holdings");
     await waitFor(() => expect(android.listening).toBe(1));
@@ -351,7 +374,7 @@ describe("tabs in the Android app", () => {
 describe("a screen holding unsaved work", () => {
   beforeEach(() => Object.assign(android, { handler: null, listening: 0, isAndroid: true }));
 
-  function Wizard({ onAttempt }: { onAttempt: () => void }) {
+  function Wizard({ onAttempt }: { onAttempt: (proceed: () => void) => void }) {
     useLeaveGuard(true, onAttempt);
     return null;
   }
@@ -374,6 +397,31 @@ describe("a screen holding unsaved work", () => {
     act(() => android.handler?.());
     expect(onAttempt).toHaveBeenCalledTimes(1);
     expect(pathname).toBe("/holdings/AMD");
+  });
+
+  it("asks the page before tapping its tab again discards it, and goes once agreed", () => {
+    let proceed: (() => void) | undefined;
+    const onAttempt = vi.fn((leave: () => void) => {
+      proceed = leave;
+    });
+    render(
+      <MemoryRouter initialEntries={["/holdings"]}>
+        <MobileStackProvider config={config}>
+          <Probe />
+          <StackScreenContext.Provider value="holdings:1">
+            <Wizard onAttempt={onAttempt} />
+          </StackScreenContext.Provider>
+        </MobileStackProvider>
+      </MemoryRouter>,
+    );
+    act(() => void navigate("/holdings/AMD"));
+
+    act(() => openTab("holdings"));
+    expect(onAttempt).toHaveBeenCalledTimes(1);
+    expect(pathname).toBe("/holdings/AMD");
+
+    act(() => proceed?.());
+    expect(pathname).toBe("/holdings");
   });
 });
 

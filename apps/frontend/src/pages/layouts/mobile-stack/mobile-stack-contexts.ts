@@ -19,10 +19,11 @@ export interface MobileStackContextValue {
    */
   popAnimated: boolean | null;
   /**
-   * Holds system backs (the edge swipe, Android's Back) on a screen with unsaved
-   * work: `onAttempt` runs instead, for the page to ask. Returns the release.
+   * Holds the stack's own ways off a screen with unsaved work (Android's Back,
+   * tapping its tab again; the edge swipe is off): `onAttempt` runs instead, for
+   * the page to ask, with the leave to make if the user agrees. Returns the release.
    */
-  guardScreen: (screenId: string, onAttempt: () => void) => () => void;
+  guardScreen: (screenId: string, onAttempt: (proceed: () => void) => void) => () => void;
   /** Screens whose system backs are held. */
   guardedScreens: ReadonlySet<string>;
 }

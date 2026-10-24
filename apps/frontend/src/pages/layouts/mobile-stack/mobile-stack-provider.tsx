@@ -108,13 +108,16 @@ export function MobileStackProvider({ config, children }: MobileStackProviderPro
   const [appWentBack, setAppWentBack] = useState(false);
   const [historyDriven, setHistoryDriven] = useState(false);
   const [popAnimated, setPopAnimated] = useState<boolean | null>(null);
-  // Android's app: a tab switch waiting for history to reach its first entry.
+  // Android's app: a tab switch waiting for history to reach its first entry,
+  // from the entry it was asked on (`from`).
   const [pendingTabSwitch, setPendingTabSwitch] = useState<{
     tab: string;
     target: StackLocation;
+    from: string;
   } | null>(null);
-  // Screens holding unsaved work: system backs go through the page instead.
-  const leaveGuards = useRef(new Map<string, () => void>());
+  // Screens holding unsaved work: leaving them goes through the page instead,
+  // with the leave to make once the user agrees.
+  const leaveGuards = useRef(new Map<string, (proceed: () => void) => void>());
   const [guardedScreens, setGuardedScreens] = useState<ReadonlySet<string>>(() => new Set());
 
   // Whether the browser animated a history step itself (a back swipe or back
@@ -187,13 +190,18 @@ export function MobileStackProvider({ config, children }: MobileStackProviderPro
         }
         // Back to the tab's first screen through history when the screens above
         // it are the latest entries, so no closed screen stays behind in history.
-        const steps = stepsBackToTabRoot(state, tabId);
-        if (steps) {
-          setAppWentBack(true);
-          void navigate(-steps);
-        } else {
-          void navigate(tab.rootPath);
-        }
+        const toFirstScreen = () => {
+          const steps = stepsBackToTabRoot(state, tabId);
+          if (steps) {
+            setAppWentBack(true);
+            void navigate(-steps);
+          } else {
+            void navigate(tab.rootPath);
+          }
+        };
+        const leaveGuard = leaveGuards.current.get(screens[screens.length - 1].id);
+        if (leaveGuard) leaveGuard(toFirstScreen);
+        else toFirstScreen();
         return;
       }
       const target = screens[screens.length - 1]?.location ?? {
@@ -207,7 +215,7 @@ export function MobileStackProvider({ config, children }: MobileStackProviderPro
       // shown: a switch goes back to the first entry and takes its place, so
       // Back walks the tab, then goes to the home tab, then leaves the app.
       if (isAndroidApp && state.index > 0) {
-        setPendingTabSwitch({ tab: tabId, target });
+        setPendingTabSwitch({ tab: tabId, target, from: location.key });
         void navigate(-state.index);
         return;
       }
@@ -215,11 +223,18 @@ export function MobileStackProvider({ config, children }: MobileStackProviderPro
       const { pathname, search, hash, state: locationState } = target;
       void navigate({ pathname, search, hash }, { replace: isAndroidApp, state: locationState });
     },
-    [config.tabs, isAndroidApp, navigate, state],
+    [config.tabs, isAndroidApp, location.key, navigate, state],
   );
 
   useEffect(() => {
-    if (!pendingTabSwitch || navigationType !== NavigationType.Pop || location.key !== seenKey) {
+    // History steps back asynchronously: wait for an entry other than the one
+    // the switch was asked on, even when the last step was a back already.
+    if (
+      !pendingTabSwitch ||
+      navigationType !== NavigationType.Pop ||
+      location.key !== seenKey ||
+      location.key === pendingTabSwitch.from
+    ) {
       return;
     }
     const { tab, target } = pendingTabSwitch;
@@ -229,7 +244,7 @@ export function MobileStackProvider({ config, children }: MobileStackProviderPro
     void navigate({ pathname, search, hash }, { replace: true, state: locationState });
   }, [location.key, navigate, navigationType, pendingTabSwitch, seenKey]);
 
-  const guardScreen = useCallback((screenId: string, onAttempt: () => void) => {
+  const guardScreen = useCallback((screenId: string, onAttempt: (proceed: () => void) => void) => {
     leaveGuards.current.set(screenId, onAttempt);
     setGuardedScreens((current) => new Set(current).add(screenId));
     return () => {
@@ -262,7 +277,7 @@ export function MobileStackProvider({ config, children }: MobileStackProviderPro
         new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }),
       );
     } else if (canGoBack && leaveGuard) {
-      leaveGuard();
+      leaveGuard(back);
     } else if (canGoBack) {
       back();
     } else if (atOtherTabRoot && config.homeTab) {

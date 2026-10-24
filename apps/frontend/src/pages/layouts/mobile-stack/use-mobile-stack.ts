@@ -35,13 +35,14 @@ export function useBackNavigation(fallbackTo?: string) {
 }
 
 /**
- * While `when` is true, a system back on this phone screen (the edge swipe,
- * Android's Back) goes through `onAttempt` instead of leaving, for the page to
- * ask before its work is discarded: the swipe is off and Back calls it. The
+ * While `when` is true, the stack's ways off this phone screen go through
+ * `onAttempt` instead of leaving, for the page to ask before its work is
+ * discarded: the edge swipe is off, and Android's Back or tapping the screen's
+ * tab again call it with `proceed`, the leave to make if the user agrees. The
  * page's own back button should ask the same way. Browser back and forward
  * can't be held.
  */
-export function useLeaveGuard(when: boolean, onAttempt: () => void) {
+export function useLeaveGuard(when: boolean, onAttempt: (proceed: () => void) => void) {
   const guardScreen = useContext(MobileStackContext)?.guardScreen;
   const screenId = useContext(StackScreenContext);
   const latest = useRef(onAttempt);
@@ -50,6 +51,6 @@ export function useLeaveGuard(when: boolean, onAttempt: () => void) {
   });
   useEffect(() => {
     if (!guardScreen || !screenId || !when) return;
-    return guardScreen(screenId, () => latest.current());
+    return guardScreen(screenId, (proceed) => latest.current(proceed));
   }, [guardScreen, screenId, when]);
 }
