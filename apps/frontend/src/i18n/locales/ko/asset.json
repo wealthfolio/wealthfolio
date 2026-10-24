@@ -697,6 +697,18 @@
       "precious_metal": "귀금속",
       "liability": "부채",
       "other": "기타"
+    },
+    "validation": {
+      "name_is_required": "이름을 입력해야 합니다",
+      "quantity_must_be_greater_than_0": "수량은 0보다 커야 합니다.",
+      "purchase_price_must_be_greater_than_0": "구매 가격은 0보다 커야 합니다.",
+      "notes_must_be_less_than_1000_characters": "메모는 1000자(영문 기준) 미만이어야 합니다.",
+      "address_must_be_less_than_200_characters": "주소는 200자 미만이어야 합니다.",
+      "interest_rate_must_be_100_or_less": "이자율은 100 이하여야 합니다.",
+      "name_must_be_less_than_100_characters": "이름은 100자(영문 기준) 미만이어야 합니다.",
+      "interest_rate_must_be_0_or_greater": "이자율은 0 이상이어야 합니다.",
+      "description_must_be_less_than_200_characters": "설명은 200자(영문 기준) 미만이어야 합니다.",
+      "original_amount_must_be_greater_than_0": "원래 금액은 0보다 커야 합니다."
     }
   },
   "updateValuation": {

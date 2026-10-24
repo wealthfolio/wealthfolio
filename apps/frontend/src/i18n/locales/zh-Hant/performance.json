@@ -55,6 +55,7 @@
     "holdings": "持有部位模式"
   },
   "exclusion": {
+    "holdings_not_mwr": "僅持倉模式不追蹤交易現金流，因此無法計算資金加權報酬率（MWR）。",
     "no_data": "目前所選項目沒有可用的績效資料。",
     "no_series": "此期間沒有可用的圖表資料。",
     "holdings_not_twr": "持有部位模式帳戶使用價值報酬，不以 TWR 繪製。",

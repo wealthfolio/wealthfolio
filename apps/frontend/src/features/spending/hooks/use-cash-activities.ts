@@ -1,3 +1,4 @@
+import i18n from "i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
@@ -92,7 +93,7 @@ export function useAssignActivityCategory() {
       });
       invalidateSpendingCaches(queryClient);
     },
-    onError: () => toast.error("Failed to set category."),
+    onError: () => toast.error(i18n.t("common:notifications.failed_to_set_category")),
   });
 }
 
@@ -103,7 +104,7 @@ export function useBulkAssignCategories() {
     onSuccess: () => {
       invalidateSpendingCaches(queryClient);
     },
-    onError: () => toast.error("Failed to apply categories."),
+    onError: () => toast.error(i18n.t("ai:categorization.failedApply")),
   });
 }
 
@@ -118,7 +119,7 @@ export function useUnassignActivityCategory() {
       });
       invalidateSpendingCaches(queryClient);
     },
-    onError: () => toast.error("Failed to clear category."),
+    onError: () => toast.error(i18n.t("common:notifications.failed_to_clear_category")),
   });
 }
 
@@ -135,7 +136,7 @@ export function useReplaceActivitySplits() {
       });
       invalidateSpendingCaches(queryClient);
     },
-    onError: () => toast.error("Failed to save split."),
+    onError: () => toast.error(i18n.t("common:notifications.failed_to_save_split")),
   });
 }
 
@@ -149,7 +150,7 @@ export function useClearActivitySplits() {
       });
       invalidateSpendingCaches(queryClient);
     },
-    onError: () => toast.error("Failed to clear split."),
+    onError: () => toast.error(i18n.t("common:notifications.failed_to_clear_split")),
   });
 }
 
@@ -161,6 +162,6 @@ export function useSetActivityEvent() {
     onSuccess: () => {
       invalidateSpendingCaches(queryClient);
     },
-    onError: () => toast.error("Failed to set event."),
+    onError: () => toast.error(i18n.t("common:notifications.failed_to_set_event")),
   });
 }

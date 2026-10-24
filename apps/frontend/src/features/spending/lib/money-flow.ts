@@ -138,6 +138,9 @@ export interface MoneyFlowLabels {
   more: (count: number) => string;
   direct: string;
   netSpending: string;
+  /** Optional display-only resolvers, applied after raw ordering and color selection. */
+  category?: (taxonomyId: string, categoryId: string, name: string) => string;
+  group?: (groupId: string, name: string) => string;
 }
 
 export interface MoneyFlowInput {
@@ -220,7 +223,7 @@ export function buildMoneyFlowGraph(
     spendingMeta,
   );
 
-  const refundMembers: MoneyFlowMember[] = [];
+  const refundMembers: (MoneyFlowMember & { categoryId?: string })[] = [];
   const groups: (Entry & { categories: Entry[]; netRefunds: number })[] = [];
   for (const row of input.groupRows) {
     const groupColor = row.group.color || row.categories.find((c) => c.color)?.color;
@@ -242,7 +245,7 @@ export function buildMoneyFlowGraph(
           ),
         });
       } else if (c.actual < -EPSILON) {
-        refundMembers.push({ name: c.name, value: -c.actual });
+        refundMembers.push({ categoryId: c.categoryId, name: c.name, value: -c.actual });
         netRefunds -= c.actual;
       }
     }
@@ -263,6 +266,25 @@ export function buildMoneyFlowGraph(
     refundMembers.push({ name: labels.uncategorized, value: -input.uncategorizedSpent });
   }
   refundMembers.sort(byValueDesc);
+
+  // These entries are newly built presentation data, never query/cache records.
+  // Resolve names only after sorting so language changes cannot reorder equal flows.
+  const localizeEntries = (taxonomyId: string, entries: Entry[]) => {
+    for (const entry of entries) {
+      entry.name = labels.category?.(taxonomyId, entry.id, entry.name) ?? entry.name;
+      for (const child of entry.subcategories ?? []) {
+        if (child.id !== DIRECT_ROW_ID) {
+          child.name = labels.category?.(taxonomyId, child.id, child.name) ?? child.name;
+        }
+      }
+    }
+  };
+  localizeEntries("income_sources", income);
+  localizeEntries("savings_categories", savings);
+  for (const group of groups) {
+    group.name = labels.group?.(group.id, group.name) ?? group.name;
+    localizeEntries(SPENDING_TAXONOMY, group.categories);
+  }
   const uncategorized = input.uncategorizedSpent > EPSILON ? input.uncategorizedSpent : 0;
 
   const incomeTotal = sum(income);
@@ -313,7 +335,12 @@ export function buildMoneyFlowGraph(
         value: refunds,
         color: REFUNDS_COLOR,
         column: 0,
-        members: refundMembers,
+        members: refundMembers.map(({ categoryId, name, value }) => ({
+          name: categoryId
+            ? (labels.category?.(SPENDING_TAXONOMY, categoryId, name) ?? name)
+            : name,
+          value,
+        })),
       });
     }
     if (shortfall > 0) {
@@ -493,7 +520,8 @@ function focusSpendingCategory(
   const refundMembers = subcategories
     .filter((entry) => entry.value < -EPSILON)
     .map((entry) => ({ name: entry.name, value: -entry.value }))
-    .sort(byValueDesc);
+    // Equal amounts retain the builder's raw-name order, not translated-name order.
+    .sort((a, b) => b.value - a.value);
   const gross = sum(spent);
   const refunds = sum(refundMembers);
   const rootColumn = refunds > EPSILON ? 1 : 0;

@@ -1,4 +1,11 @@
-import { render, screen, waitFor } from "@/test/render";
+import { createInstance } from "i18next";
+import { I18nextProvider, initReactI18next } from "react-i18next";
+import { useTaxonomy } from "@/hooks/use-taxonomies";
+import enCommon from "@/i18n/locales/en/common.json";
+import zhCommon from "@/i18n/locales/zh/common.json";
+import enSpending from "@/i18n/locales/en/spending.json";
+import zhSpending from "@/i18n/locales/zh/spending.json";
+import { act, render, screen, waitFor } from "@/test/render";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
@@ -43,7 +50,7 @@ vi.mock("@/hooks/use-settings", () => {
 vi.mock("@/hooks/use-platform", () => ({ useIsMobileViewport: () => false }));
 vi.mock("@/hooks/use-taxonomies", () => {
   const result = { data: null };
-  return { useTaxonomy: () => result };
+  return { useTaxonomy: vi.fn(() => result) };
 });
 vi.mock("../hooks/use-spending-settings", () => {
   const settings = { accountIds: ["card", "euro", "chequing"] };
@@ -189,4 +196,87 @@ describe("CashActivityForm currency", () => {
       fxRate: null,
     });
   });
+});
+
+describe("CashActivityForm category display", () => {
+  it.each([
+    { parentName: "Food & Dining", name: "Groceries" },
+    { parentName: "My food", name: "My groceries" },
+  ])(
+    "localizes only unchanged seed names ($name) and retains raw save inputs",
+    async ({ parentName, name }) => {
+      vi.clearAllMocks();
+      const categories = [
+        {
+          id: "cat_food",
+          taxonomyId: "spending_categories",
+          name: parentName,
+          parentId: null,
+          color: "#123456",
+        },
+        {
+          id: "cat_groceries",
+          taxonomyId: "spending_categories",
+          name,
+          parentId: "cat_food",
+          color: "#123456",
+        },
+      ];
+      const original = structuredClone(categories);
+      const data = { data: { categories } } as ReturnType<typeof useTaxonomy>;
+      const empty = { data: null } as unknown as ReturnType<typeof useTaxonomy>;
+      vi.mocked(useTaxonomy).mockImplementation((id) =>
+        id === "spending_categories" ? data : empty,
+      );
+      const i18n = createInstance();
+      await i18n.use(initReactI18next).init({
+        lng: "zh",
+        fallbackLng: "en",
+        interpolation: { escapeValue: false },
+        resources: {
+          en: { common: enCommon, spending: enSpending },
+          zh: { common: zhCommon, spending: zhSpending },
+        },
+      });
+      const activity = {
+        ...foreignCharge,
+        categoryTaxonomyId: "spending_categories",
+        categoryId: "cat_groceries",
+        categoryAssignmentId: "assignment-1",
+      };
+      const user = userEvent.setup();
+      const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      render(
+        <QueryClientProvider client={client}>
+          <I18nextProvider i18n={i18n}>
+            <CashActivityForm open onOpenChange={vi.fn()} activity={activity} />
+          </I18nextProvider>
+        </QueryClientProvider>,
+      );
+      const displayParent =
+        parentName === "Food & Dining"
+          ? zhCommon.categoryNames.spending_categories.cat_food
+          : parentName;
+      const displayName =
+        name === "Groceries" ? zhCommon.categoryNames.spending_categories.cat_groceries : name;
+      expect(screen.getByText(`${displayParent} / ${displayName}`)).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", {
+          name: i18n.t("spending:transactions.changeCategory", { name: displayName }),
+        }),
+      ).toBeInTheDocument();
+      await act(() => i18n.changeLanguage("en"));
+      expect(screen.getByText(`${parentName} / ${name}`)).toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: /update/i }));
+      await waitFor(() => expect(updateActivity).toHaveBeenCalled());
+      expect(vi.mocked(updateActivity).mock.lastCall?.[0]).toMatchObject({
+        id: activity.id,
+        amount: 9.59,
+        currency: "USD",
+        fxRate: 1.37,
+      });
+      expect(categories).toEqual(original);
+      vi.mocked(useTaxonomy).mockReturnValue(empty);
+    },
+  );
 });

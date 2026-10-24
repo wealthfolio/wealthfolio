@@ -358,5 +358,87 @@
     "protectedAccountsNote": "不会从这些账户生成卖出。",
     "addAccount": "添加账户",
     "allAccountsProtected": "所有账户均受保护"
+  },
+  "categoryNouns": {
+    "assetClass": "资产类别",
+    "region": "地区",
+    "industry": "行业",
+    "category": "类别",
+    "region_other": "地区",
+    "category_other": "类别",
+    "assetClass_other": "资产类别",
+    "industry_other": "行业"
+  },
+  "builtInPresets": {
+    "balanced_60_40": {
+      "name": "均衡型 60 / 40",
+      "description": "经典的股票与债券组合"
+    },
+    "growth_80_20": {
+      "name": "成长型 80 / 20",
+      "description": "以成长为主，搭配债券平衡波动"
+    },
+    "all_weather": {
+      "name": "全天候",
+      "description": "分散配置，适应不同市场环境"
+    },
+    "income_20_80": {
+      "name": "收益型 20 / 80",
+      "description": "以债券为主，注重资产保值"
+    },
+    "conservative_growth_40_60": {
+      "name": "稳健成长型 40 / 60",
+      "description": "较保守的股票与债券组合"
+    },
+    "aggressive_90_10": {
+      "name": "进取型 90 / 10",
+      "description": "高股票比例的成长组合"
+    },
+    "permanent_portfolio": {
+      "name": "永久投资组合",
+      "description": "股票、债券、现金与大宗商品等权配置"
+    },
+    "gics_sp500_weight": {
+      "name": "标普 500",
+      "description": "标普 500 行业权重（2026 年 5 月）"
+    },
+    "gics_equal_weight": {
+      "name": "行业等权",
+      "description": "在 11 个 GICS 行业间等权配置"
+    },
+    "regions_equal_weight": {
+      "name": "地区等权",
+      "description": "在五大洲间等权配置"
+    },
+    "gics_defensive": {
+      "name": "防御型股票",
+      "description": "侧重医疗保健、必需消费品和公用事业"
+    },
+    "risk_conservative": {
+      "name": "保守型",
+      "description": "以低风险资产为主，少量配置高风险资产"
+    },
+    "risk_balanced": {
+      "name": "均衡型",
+      "description": "以中等风险资产为核心，搭配低风险资产"
+    },
+    "risk_aggressive": {
+      "name": "进取型",
+      "description": "以成长为目标，主要配置高风险资产"
+    },
+    "regions_global_cap": {
+      "name": "全球市值加权",
+      "description": "全球市值权重近似值（2026 年 4 月）"
+    },
+    "regions_international_proxy": {
+      "name": "国际市场参考",
+      "description": "按洲划分的非美国股票市场参考配置"
+    }
+  },
+  "riskLabels": {
+    "Conservative": "保守型",
+    "Moderate": "稳健型",
+    "Aggressive": "进取型",
+    "From holdings": "基于当前持仓"
   }
 }

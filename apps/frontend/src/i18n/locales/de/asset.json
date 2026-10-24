@@ -697,6 +697,18 @@
       "precious_metal": "Edelmetall",
       "liability": "Verbindlichkeit",
       "other": "Sonstiges"
+    },
+    "validation": {
+      "name_is_required": "Name ist erforderlich",
+      "quantity_must_be_greater_than_0": "Die Menge muss größer als 0 sein",
+      "purchase_price_must_be_greater_than_0": "Der Kaufpreis muss größer als 0 sein",
+      "notes_must_be_less_than_1000_characters": "Notizen müssen weniger als 1000 Zeichen lang sein",
+      "address_must_be_less_than_200_characters": "Die Adresse muss weniger als 200 Zeichen lang sein",
+      "interest_rate_must_be_100_or_less": "Der Zinssatz muss 100 oder weniger betragen",
+      "name_must_be_less_than_100_characters": "Der Name muss weniger als 100 Zeichen lang sein",
+      "interest_rate_must_be_0_or_greater": "Der Zinssatz muss 0 oder höher sein",
+      "description_must_be_less_than_200_characters": "Die Beschreibung muss weniger als 200 Zeichen lang sein",
+      "original_amount_must_be_greater_than_0": "Der ursprüngliche Betrag muss größer als 0 sein"
     }
   },
   "updateValuation": {

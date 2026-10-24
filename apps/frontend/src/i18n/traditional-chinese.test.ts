@@ -60,6 +60,7 @@ const GLOSSARY: readonly {
   use: string;
   insteadOf: readonly string[];
   note?: string;
+  allowed?: readonly string[];
 }[] = [
   {
     concept: "Return",
@@ -74,7 +75,13 @@ const GLOSSARY: readonly {
   { concept: "Required field", use: "必填欄位", insteadOf: ["必填項"] },
   { concept: "Item", use: "項目", insteadOf: [] },
   { concept: "Yield", use: "殖利率", insteadOf: ["股息率", "收益率"] },
-  { concept: "Brokerage fee", use: "手續費", insteadOf: ["傭金", "佣金"] },
+  {
+    concept: "Brokerage fee",
+    use: "手續費",
+    insteadOf: ["傭金", "佣金"],
+    // Earned commission is income, not the brokerage fee paid on a trade.
+    allowed: ["common:categoryNames.income_sources.cat_income_commission"],
+  },
   { concept: "Stock split", use: "拆股", insteadOf: [] },
   { concept: "Inflation", use: "通膨", insteadOf: ["通脹"] },
   { concept: "Contribution", use: "提撥", insteadOf: ["供款"] },
@@ -131,11 +138,11 @@ describe("Traditional Chinese translations", () => {
     }
   });
 
-  it.each(GLOSSARY)("says $concept as $use everywhere", ({ use, insteadOf, note }) => {
+  it.each(GLOSSARY)("says $concept as $use everywhere", ({ use, insteadOf, note, allowed }) => {
     expect(offenders(use).length, `expected the catalog to use ${use}`).toBeGreaterThan(0);
 
     for (const alternate of insteadOf) {
-      const found = offenders(alternate);
+      const found = offenders(alternate, new Set(allowed));
       expect(found, `use ${use}${note ? ` — ${note}` : ""}:\n  ${found.join("\n  ")}`).toEqual([]);
     }
   });

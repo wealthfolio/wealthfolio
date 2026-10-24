@@ -1,3 +1,4 @@
+import i18n from "i18next";
 import { getTransferPairForActivity, logger } from "@/adapters";
 import { buildAssetResolutionInput } from "@/lib/asset-resolution-input";
 import { ActivityStatus, ActivityType } from "@/lib/constants";
@@ -380,7 +381,7 @@ export function useActivityForm({
         }
       } catch (err) {
         const message = extractErrorMessage(err);
-        toast.error("Failed to save activity", { description: message });
+        toast.error(i18n.t("activity:mobile_form.save_failed"), { description: message });
         logger.error(`Activity Form Submit Error: ${JSON.stringify({ error: err, formData })}`);
       }
     },

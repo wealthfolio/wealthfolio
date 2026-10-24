@@ -940,7 +940,40 @@
     "failed_count_one": "{{count}} fehlgeschlagen",
     "failed_count_other": "{{count}} fehlgeschlagen",
     "priority_decrease": "Prioritätszahl verringern",
-    "priority_increase": "Prioritätszahl erhöhen"
+    "priority_increase": "Prioritätszahl erhöhen",
+    "feature_dividends": "Dividenden",
+    "providerDescriptions": {
+      "US_TREASURY_CALC": "Berechnet die Kurse von US-Staatsanleihen anhand der vom US-Finanzministerium veröffentlichten Zinskurvendaten.",
+      "BOERSE_FRANKFURT": "Börse Frankfurt stellt Preisdaten für Anleihen und Wertpapiere für europäische Märkte bereit.",
+      "OPENFIGI": "OpenFIGI bietet einen Mapping-Service für Finanzinstrument-Identifikatoren (FIGI, ISIN, CUSIP, Ticker).",
+      "METAL_PRICE_API": "Bietet Echtzeit- und historische Spotpreise für Edelmetalle (Gold, Silber, Platin, Palladium).",
+      "CUSTOM_SCRAPER": "Laufzeit-Dispatch-Provider für benutzerdefinierte benutzerdefinierte Quellen",
+      "YAHOO": "Yahoo Finance ist ein führender Finanzdatenanbieter für viele Märkte. Es liefert historische und Echtzeit-Bestandsdaten.",
+      "MARKETDATA_APP": "MarketData.app bietet Echtzeit- und historische Daten für US-Aktien, Optionen, ETFs, Investmentfonds und mehr.",
+      "ALPHA_VANTAGE": "Alpha Vantage bietet kostenlose APIs für Echtzeit- und historische Daten zu Aktien, Devisen und Kryptowährungen.",
+      "FINNHUB": "Finnhub bietet weltweite Echtzeitdaten zu Aktien, Devisen und Kryptowährungen. Der kostenlose Tarif umfasst 60 API-Aufrufe pro Minute."
+    },
+    "coverageLabels": {
+      "Global": "Global",
+      "US only": "Nur in den USA",
+      "USD only": "Nur USD",
+      "US Treasury": "US-Finanzministerium",
+      "User-defined": "Benutzerdefiniert"
+    },
+    "feature_no_api_key": "Kein API-Schlüssel",
+    "us_treasury_name": "US-Finanzministerium (berechnet)",
+    "templateDescriptions": {
+      "workplace_fund_prices_fund_code": "Preise für Arbeitsplatzfonds (Fondscode)",
+      "free_crypto_use_coin_id_bitcoin_ethereum": "Kostenlose Krypto (verwenden Sie die Münz-ID: bitcoin, ethereum ...)",
+      "free_currency_rates": "Kostenlose Wechselkurse",
+      "lse_etfs_equities": "LSE-ETFs und -Aktien",
+      "eu_funds_equities_isin_mic": "EU-Fonds & Aktien (ISIN-MIC)",
+      "stocks_crypto_fx_set_api_key_in_headers": "Aktien, Krypto, FX (API-Schlüssel in Headern festlegen)",
+      "italian_bonds_stocks": "Italienische Anleihen und Aktien",
+      "workplace_fund_price_history_fund_code": "Preisverlauf des Arbeitsplatzfonds (Fondscode)",
+      "lse_etfs_equities_html_table": "LSE ETFs und Aktien (HTML-Tabelle)",
+      "daily_crypto_history_use_coin_id_bitcoin_ethereum": "Täglicher Kryptoverlauf (Coin-ID verwenden: bitcoin, ethereum ...)"
+    }
   },
   "addon_permission_none_detected": "Keine Datenzugriffsberechtigungen erkannt. Dieses Add-on scheint minimalen Systemzugriff zu haben.",
   "addon_permission_list_title": "Berechtigungen",

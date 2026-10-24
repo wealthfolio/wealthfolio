@@ -408,7 +408,8 @@
     "monthlyAverage": "月均",
     "byType": "按类型",
     "monthlyIncome": "月收入",
-    "sources": "来源"
+    "sources": "来源",
+    "yoyShort": "同比"
   },
   "categorizationContext": {
     "loading": "正在加载归类上下文…",

@@ -1,3 +1,4 @@
+import { getCategoryLabel } from "@/lib/taxonomy-labels";
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
@@ -223,7 +224,7 @@ export function TargetWeightEditor({
                     style={{ background: row.color }}
                   />
                   <span className="text-foreground truncate text-sm font-medium">
-                    {row.cat.name}
+                    {getCategoryLabel(t, row.cat.taxonomyId, row.cat.id, row.cat.name)}
                   </span>
                 </div>
 
@@ -255,7 +256,7 @@ export function TargetWeightEditor({
                   {row.isEditing ? (
                     <input
                       type="number"
-                      aria-label={`${row.cat.name} ${t("allocation:vsTarget.target")}`}
+                      aria-label={`${getCategoryLabel(t, row.cat.taxonomyId, row.cat.id, row.cat.name)} ${t("allocation:vsTarget.target")}`}
                       min={0}
                       max={100}
                       step={1}
@@ -377,11 +378,21 @@ export function TargetWeightEditor({
             <span className="text-foreground font-medium">
               {biggestMove.drift > 0
                 ? t("allocation:editor.biggestMoveTrim", {
-                    category: biggestMove.cat.name,
+                    category: getCategoryLabel(
+                      t,
+                      biggestMove.cat.taxonomyId,
+                      biggestMove.cat.id,
+                      biggestMove.cat.name,
+                    ),
                     value: Math.abs(biggestMove.drift).toFixed(1),
                   })
                 : t("allocation:editor.biggestMoveAdd", {
-                    category: biggestMove.cat.name,
+                    category: getCategoryLabel(
+                      t,
+                      biggestMove.cat.taxonomyId,
+                      biggestMove.cat.id,
+                      biggestMove.cat.name,
+                    ),
                     value: Math.abs(biggestMove.drift).toFixed(1),
                   })}
             </span>

@@ -1,3 +1,4 @@
+import { getCategoryPathLabel } from "@/lib/taxonomy-labels";
 import { updateToolResult } from "@/adapters";
 import { QuickCategorizePopover } from "@/features/spending/components/quick-categorize-popover";
 import { useBulkAssignCategories } from "@/features/spending/hooks/use-cash-activities";
@@ -370,7 +371,17 @@ function CategorizationProposalsContentImpl({
                       className="h-2 w-2 rounded-full"
                       style={{ backgroundColor: row.categoryColor }}
                     />
-                    <span className="max-w-45 truncate">{row.categoryPath}</span>
+                    <span className="max-w-45 truncate">
+                      {getCategoryPathLabel(
+                        t,
+                        row.taxonomyId,
+                        row.categoryId,
+                        row.categoryPath,
+                        result.taxonomies?.find(
+                          (taxonomy) => taxonomy.taxonomyId === row.taxonomyId,
+                        )?.categories ?? [],
+                      )}
+                    </span>
                   </button>
                 }
                 selectedCategoryId={row.categoryId}

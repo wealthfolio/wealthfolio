@@ -1,3 +1,4 @@
+import { getEventTypeLabel } from "@/lib/taxonomy-labels";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
@@ -373,7 +374,11 @@ export function EventFormDialog({
                                 aria-label={
                                   selectedType
                                     ? t("spending:eventForm.changeEventType", {
-                                        name: selectedType.name,
+                                        name: getEventTypeLabel(
+                                          t,
+                                          selectedType.id,
+                                          selectedType.name,
+                                        ),
                                       })
                                     : t("spending:eventForm.selectEventType")
                                 }
@@ -390,7 +395,9 @@ export function EventFormDialog({
                                     aria-hidden="true"
                                   />
                                 )}
-                                <span className="truncate">{selectedType.name}</span>
+                                <span className="truncate">
+                                  {getEventTypeLabel(t, selectedType.id, selectedType.name)}
+                                </span>
                               </span>
                             ) : (
                               <span className="text-muted-foreground">
@@ -410,26 +417,27 @@ export function EventFormDialog({
                               <CommandEmpty>{t("spending:eventForm.noTypesFound")}</CommandEmpty>
                               {eventTypes.length > 0 && (
                                 <CommandGroup>
-                                  {eventTypes.map((t) => {
-                                    const isSelected = field.value === t.id;
+                                  {eventTypes.map((type) => {
+                                    const label = getEventTypeLabel(t, type.id, type.name);
+                                    const isSelected = field.value === type.id;
                                     return (
                                       <CommandItem
-                                        key={t.id}
-                                        value={t.name}
+                                        key={type.id}
+                                        value={`${type.name} ${label}`}
                                         onSelect={() => {
-                                          field.onChange(t.id);
+                                          field.onChange(type.id);
                                           setTypePopoverOpen(false);
                                         }}
                                         className="flex items-center gap-2"
                                       >
-                                        {t.color && (
+                                        {type.color && (
                                           <span
                                             className="h-2.5 w-2.5 shrink-0 rounded-full"
-                                            style={{ backgroundColor: t.color }}
+                                            style={{ backgroundColor: type.color }}
                                             aria-hidden="true"
                                           />
                                         )}
-                                        <span className="min-w-0 flex-1 truncate">{t.name}</span>
+                                        <span className="min-w-0 flex-1 truncate">{label}</span>
                                         {isSelected && (
                                           <Icons.Check className="text-muted-foreground h-3.5 w-3.5" />
                                         )}

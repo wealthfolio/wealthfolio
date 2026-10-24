@@ -408,7 +408,8 @@
     "monthlyAverage": "월평균",
     "byType": "유형별",
     "monthlyIncome": "월별 소득",
-    "sources": "출처"
+    "sources": "출처",
+    "yoyShort": "전년 대비"
   },
   "categorizationContext": {
     "loading": "분류 컨텍스트를 불러오는 중…",

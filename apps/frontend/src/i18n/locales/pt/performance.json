@@ -55,6 +55,7 @@
     "holdings": "Modo de posições"
   },
   "exclusion": {
+    "holdings_not_mwr": "A rentabilidade ponderada pelo dinheiro (MWR) não está disponível no modo somente posições porque os fluxos de caixa das transações não são registrados.",
     "no_data": "Os dados de desempenho não estão disponíveis para esta seleção.",
     "no_series": "Não há nenhuma série de gráfico disponível para este período.",
     "holdings_not_twr": "As contas no modo de posições usam Rentabilidade por valor e não são representadas com TWR.",

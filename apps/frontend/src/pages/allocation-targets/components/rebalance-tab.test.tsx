@@ -1,6 +1,13 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { createInstance } from "i18next";
+import { I18nextProvider, initReactI18next } from "react-i18next";
+
+import enCommon from "@/i18n/locales/en/common.json";
+import zhCommon from "@/i18n/locales/zh/common.json";
+import enAllocation from "@/i18n/locales/en/allocation.json";
+import zhAllocation from "@/i18n/locales/zh/allocation.json";
 
 import { HoldingType } from "@/lib/constants";
 import type { AllocationTarget, DriftReport, Holding } from "@/lib/types";
@@ -243,4 +250,90 @@ describe("RebalanceTab exports", () => {
     click.mockRestore();
     vi.unstubAllGlobals();
   });
+
+  it.each([
+    { categoryName: "Equity", displayName: zhCommon.categoryNames.asset_classes.EQUITY },
+    { categoryName: "My equities", displayName: "My equities" },
+  ])(
+    "keeps $categoryName raw in CSV while localizing the on-screen and clipboard report",
+    async ({ categoryName, displayName }) => {
+      const rawPlan = {
+        ...plan,
+        trades: plan.trades.map((trade) => ({
+          ...trade,
+          categoryId: "EQUITY",
+          categoryName,
+          symbol: undefined,
+        })),
+        afterBpsByCategory: { EQUITY: 10000 },
+      };
+      const original = structuredClone(rawPlan);
+      useRebalancePlanMock.mockImplementation((params: { sourceKey: string }) => ({
+        data: { plan: rawPlan, sourceKey: params.sourceKey },
+        isFetching: false,
+        refetch: refetchMock,
+      }));
+      const i18n = createInstance();
+      await i18n.use(initReactI18next).init({
+        lng: "zh",
+        fallbackLng: "en",
+        interpolation: { escapeValue: false },
+        resources: {
+          en: { common: enCommon, allocation: enAllocation },
+          zh: { common: zhCommon, allocation: zhAllocation },
+        },
+      });
+      let csv: Blob | undefined;
+      const writeText = vi.fn().mockResolvedValue(undefined);
+      vi.stubGlobal("navigator", { ...navigator, clipboard: { writeText } });
+      vi.stubGlobal("URL", {
+        ...URL,
+        createObjectURL: vi.fn((blob: Blob) => {
+          csv = blob;
+          return "blob:csv";
+        }),
+        revokeObjectURL: vi.fn(),
+      });
+      const click = vi
+        .spyOn(HTMLAnchorElement.prototype, "click")
+        .mockImplementation(() => undefined);
+      try {
+        render(
+          <I18nextProvider i18n={i18n}>
+            <RebalanceTab
+              profile={profile}
+              driftReport={{
+                ...driftReport,
+                rows: driftReport.rows.map((row) => ({
+                  ...row,
+                  categoryId: "EQUITY",
+                  categoryName,
+                })),
+              }}
+              accountScope={{ type: "all" }}
+              holdings={holdings}
+              availableCash={100}
+              sourceVersion="source-1"
+              isSourceLoading={false}
+            />
+          </I18nextProvider>,
+        );
+        expect(screen.getAllByText(displayName).length).toBeGreaterThan(0);
+        fireEvent.click(screen.getByRole("button", { name: zhAllocation.rebalance.copyAsText }));
+        expect(writeText.mock.lastCall?.[0]).toContain(`BUY  ${displayName}  `);
+        fireEvent.click(screen.getByRole("button", { name: zhAllocation.rebalance.exportCsv }));
+        const chineseRow = (await csv!.text()).split("\n").at(-1);
+        expect(chineseRow).toContain(`"${categoryName}"`);
+        expect(rawPlan).toEqual(original);
+
+        await act(() => i18n.changeLanguage("en"));
+        fireEvent.click(screen.getByRole("button", { name: enAllocation.rebalance.exportCsv }));
+        expect((await csv!.text()).split("\n").at(-1)).toBe(chineseRow);
+        expect(rawPlan).toEqual(original);
+      } finally {
+        click.mockRestore();
+        vi.unstubAllGlobals();
+      }
+    },
+  );
 });

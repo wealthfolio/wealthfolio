@@ -1,3 +1,4 @@
+import i18n from "i18next";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { updateAssetProfile, updateQuoteMode, logger } from "@/adapters";
@@ -21,7 +22,7 @@ export const useAssetProfileMutations = () => {
 
   const handleError = (action: string, description?: string) => {
     toast({
-      title: "Uh oh! Something went wrong.",
+      title: i18n.t("settings:settings_update_error_title"),
       description: description ?? `There was a problem ${action}.`,
       variant: "destructive",
     });

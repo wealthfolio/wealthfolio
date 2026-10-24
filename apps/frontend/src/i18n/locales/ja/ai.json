@@ -408,7 +408,8 @@
     "monthlyAverage": "月平均",
     "byType": "種類別",
     "monthlyIncome": "月次収入",
-    "sources": "収入源"
+    "sources": "収入源",
+    "yoyShort": "前年比"
   },
   "categorizationContext": {
     "loading": "分類コンテキストを読み込み中…",

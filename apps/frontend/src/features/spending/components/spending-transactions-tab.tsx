@@ -1,3 +1,4 @@
+import { getCategoryLabel } from "@/lib/taxonomy-labels";
 import {
   forwardRef,
   useCallback,
@@ -910,8 +911,12 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
       [spendingAccounts],
     );
     const categoryOptions = useMemo<FilterOption[]>(
-      () => topLevelCategories.map((c) => ({ value: c.id, label: c.name })),
-      [topLevelCategories],
+      () =>
+        topLevelCategories.map((c) => ({
+          value: c.id,
+          label: getCategoryLabel(t, c.taxonomyId, c.id, c.name),
+        })),
+      [topLevelCategories, t],
     );
     const subcategoryOptions = useMemo<FilterOption[]>(
       () =>
@@ -919,10 +924,12 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
           const parent = c.parentId ? allCategories.get(c.parentId) : null;
           return {
             value: c.id,
-            label: parent ? `${parent.name} / ${c.name}` : c.name,
+            label: parent
+              ? `${getCategoryLabel(t, parent.taxonomyId, parent.id, parent.name)} / ${getCategoryLabel(t, c.taxonomyId, c.id, c.name)}`
+              : getCategoryLabel(t, c.taxonomyId, c.id, c.name),
           };
         }),
-      [subcategoriesForFilter, allCategories],
+      [subcategoriesForFilter, allCategories, t],
     );
     const eventOptions = useMemo<FilterOption[]>(
       () => events.map((e) => ({ value: e.id, label: e.name })),

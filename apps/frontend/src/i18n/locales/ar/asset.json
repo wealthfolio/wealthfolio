@@ -278,7 +278,19 @@
     "select_vehicle_type": "اختر نوع المركبة",
     "unit": "الوحدة",
     "vehicle_type": "نوع المركبة",
-    "weight_unit": "وحدة الوزن"
+    "weight_unit": "وحدة الوزن",
+    "validation": {
+      "name_is_required": "الاسم مطلوب",
+      "quantity_must_be_greater_than_0": "يجب أن تكون الكمية أكبر من 0",
+      "purchase_price_must_be_greater_than_0": "يجب أن يكون سعر الشراء أكبر من 0",
+      "notes_must_be_less_than_1000_characters": "يجب أن تكون الملاحظات أقل من 1000 حرف",
+      "address_must_be_less_than_200_characters": "يجب أن يكون العنوان أقل من 200 حرف",
+      "interest_rate_must_be_100_or_less": "يجب أن يكون سعر الفائدة 100 أو أقل",
+      "name_must_be_less_than_100_characters": "يجب أن يكون الاسم أقل من 100 حرف",
+      "interest_rate_must_be_0_or_greater": "يجب أن يكون سعر الفائدة 0 أو أكبر",
+      "description_must_be_less_than_200_characters": "يجب أن يكون الوصف أقل من 200 حرف",
+      "original_amount_must_be_greater_than_0": "يجب أن يكون المبلغ الأصلي أكبر من 0"
+    }
   },
   "editSheet": {
     "add": "إضافة",

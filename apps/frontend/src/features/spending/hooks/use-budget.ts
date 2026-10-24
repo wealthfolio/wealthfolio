@@ -1,3 +1,4 @@
+import i18n from "i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
@@ -43,39 +44,39 @@ export function useBudgetMutations(periodKey?: string) {
   const upsertTarget = useMutation({
     mutationFn: (target: NewBudgetTarget) => upsertBudgetTarget(target, periodKey),
     onSuccess: invalidate,
-    onError: () => toast.error("Failed to save budget target."),
+    onError: () => toast.error(i18n.t("common:notifications.failed_to_save_budget_target")),
   });
 
   const removeTarget = useMutation({
     mutationFn: (id: string) => deleteBudgetTarget(id, periodKey),
     onSuccess: invalidate,
-    onError: () => toast.error("Failed to remove budget target."),
+    onError: () => toast.error(i18n.t("common:notifications.failed_to_remove_budget_target")),
   });
 
   const upsertRollover = useMutation({
     mutationFn: (setting: NewBudgetRolloverSetting) =>
       upsertBudgetRolloverSetting(setting, periodKey),
     onSuccess: invalidate,
-    onError: () => toast.error("Failed to save rollover setting."),
+    onError: () => toast.error(i18n.t("common:notifications.failed_to_save_rollover_setting")),
   });
 
   const removeRollover = useMutation({
     mutationFn: (id: string) => deleteBudgetRolloverSetting(id, periodKey),
     onSuccess: invalidate,
-    onError: () => toast.error("Failed to remove rollover setting."),
+    onError: () => toast.error(i18n.t("common:notifications.failed_to_remove_rollover_setting")),
   });
 
   const createGroup = useMutation({
     mutationFn: (group: NewBudgetGroup) => createBudgetGroup(group, periodKey),
     onSuccess: invalidate,
-    onError: () => toast.error("Failed to create budget group."),
+    onError: () => toast.error(i18n.t("common:notifications.failed_to_create_budget_group")),
   });
 
   const updateGroup = useMutation({
     mutationFn: ({ id, patch }: { id: string; patch: UpdateBudgetGroup }) =>
       updateBudgetGroup(id, patch, periodKey),
     onSuccess: invalidate,
-    onError: () => toast.error("Failed to update budget group."),
+    onError: () => toast.error(i18n.t("common:notifications.failed_to_update_budget_group")),
   });
 
   const removeGroup = useMutation({
@@ -92,13 +93,13 @@ export function useBudgetMutations(periodKey?: string) {
     mutationFn: ({ categoryId, groupId }: { categoryId: string; groupId: string }) =>
       assignCategoryToGroup(categoryId, groupId, periodKey),
     onSuccess: invalidate,
-    onError: () => toast.error("Failed to move category."),
+    onError: () => toast.error(i18n.t("common:notifications.failed_to_move_category")),
   });
 
   const resetGroups = useMutation({
     mutationFn: () => resetBudgetGroups(periodKey),
     onSuccess: invalidate,
-    onError: () => toast.error("Failed to reset budget groups."),
+    onError: () => toast.error(i18n.t("common:notifications.failed_to_reset_budget_groups")),
   });
 
   const copyFromMonth = useMutation({
@@ -114,7 +115,7 @@ export function useBudgetMutations(periodKey?: string) {
     },
     onSuccess: () => {
       invalidate();
-      toast.success("Plan copied.");
+      toast.success(i18n.t("common:notifications.plan_copied"));
     },
     onError: (error) => {
       const message = error instanceof Error ? error.message : "Failed to copy plan.";

@@ -1,3 +1,4 @@
+import { localizeAllocation } from "@/lib/taxonomy-labels";
 import { AllocationBreadcrumb } from "@/components/allocation-breadcrumb";
 import { useDrillDownState } from "@/hooks/use-drill-down-state";
 import { namedChildren } from "@/lib/allocation-children";
@@ -32,13 +33,17 @@ interface DrillableDonutChartProps {
  */
 export function DrillableDonutChart({
   title,
-  allocation,
+  allocation: sourceAllocation,
   baseCurrency = "USD",
   isLoading,
   onCategoryClick,
   onCardClick,
 }: DrillableDonutChartProps) {
   const { t } = useTranslation();
+  const allocation = useMemo(
+    () => (sourceAllocation ? localizeAllocation(t, sourceAllocation) : undefined),
+    [sourceAllocation, t],
+  );
   const [activeIndex, setActiveIndex] = useState(0);
   const { path, drillDown, navigateTo, isAtRoot } = useDrillDownState();
 
@@ -60,7 +65,7 @@ export function DrillableDonutChart({
         currency: baseCurrency,
         color: cat.color,
       }));
-  }, [allocation, baseCurrency]);
+  }, [allocation, baseCurrency, t]);
 
   // Drilled-down data from allocation.categories[].children
   const drilledData = useMemo(() => {
@@ -97,12 +102,12 @@ export function DrillableDonutChart({
   }
 
   const handleSectionClick = (
-    sectionData: { name: string; value: number; currency: string },
+    _sectionData: { name: string; value: number; currency: string },
     index: number,
   ) => {
     setActiveIndex(index);
 
-    const clickedItem = data.find((d) => d.name === sectionData.name);
+    const clickedItem = data[index];
     if (!clickedItem) return;
 
     // At root level, check if this category has children to drill into
@@ -153,7 +158,13 @@ export function DrillableDonutChart({
         ) : (
           <div onClick={(e) => e.stopPropagation()}>
             <AllocationBreadcrumb
-              path={path}
+              path={path.map((item) => ({
+                ...item,
+                name:
+                  allocation?.categories
+                    .flatMap((c) => [c, ...(c.children ?? [])])
+                    .find((c) => c.categoryId === item.id)?.categoryName ?? item.name,
+              }))}
               rootLabel={title}
               onNavigate={handleBreadcrumbNavigate}
             />

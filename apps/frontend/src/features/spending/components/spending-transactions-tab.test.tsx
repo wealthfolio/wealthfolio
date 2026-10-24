@@ -1,3 +1,7 @@
+import { createInstance, type TFunction } from "i18next";
+import zhCommon from "@/i18n/locales/zh/common.json";
+import type { TaxonomyCategory } from "@/lib/types";
+import type { FilterOption } from "./transactions-filter-bar";
 import { render, screen, waitFor } from "@/test/render";
 import { ActivityStatus, ActivityType } from "@/lib/constants";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -63,6 +67,11 @@ const mocks = vi.hoisted(() => {
   };
 
   return {
+    categories: [] as TaxonomyCategory[],
+    translate: undefined as TFunction | undefined,
+    filterProps: undefined as
+      | { categoryOptions: FilterOption[]; subcategoryOptions: FilterOption[] }
+      | undefined,
     accounts,
     transferOut,
     mutation,
@@ -84,7 +93,10 @@ vi.mock("@/adapters", () => ({
 }));
 
 vi.mock("react-i18next", () => ({
-  useTranslation: () => ({ t: (key: string) => key, i18n: { language: "en" } }),
+  useTranslation: () => ({
+    t: (key: string) => mocks.translate?.(key) ?? key,
+    i18n: { language: "en" },
+  }),
 }));
 
 vi.mock("react-router-dom", () => ({
@@ -124,7 +136,9 @@ vi.mock("@/hooks/use-virtual-scroll-container", () => ({
   }),
 }));
 vi.mock("@/hooks/use-debounced-value", () => ({ useDebouncedValue: (value: unknown) => value }));
-vi.mock("@/hooks/use-taxonomies", () => ({ useTaxonomy: () => ({ data: { categories: [] } }) }));
+vi.mock("@/hooks/use-taxonomies", () => ({
+  useTaxonomy: () => ({ data: { categories: mocks.categories } }),
+}));
 vi.mock("@/lib/settings-provider", () => ({
   useSettingsContext: () => ({ settings: { timezone: undefined } }),
 }));
@@ -179,7 +193,12 @@ vi.mock("./transaction-card", () => ({ TransactionCard: () => null }));
 vi.mock("./selection-toolbar", () => ({ SelectionToolbar: () => null }));
 vi.mock("./split-transaction-sheet", () => ({ SplitTransactionSheet: () => null }));
 vi.mock("./transactions-bulk-bar", () => ({ TransactionsBulkBar: () => null }));
-vi.mock("./transactions-filter-bar", () => ({ TransactionsFilterBar: () => null }));
+vi.mock("./transactions-filter-bar", () => ({
+  TransactionsFilterBar: (props: NonNullable<typeof mocks.filterProps>) => {
+    mocks.filterProps = props;
+    return null;
+  },
+}));
 
 vi.mock("./transaction-day-header", async () => {
   const React = await import("react");
@@ -415,4 +434,50 @@ describe("SpendingTransactionsTab selection", () => {
     select.click();
     await waitFor(() => expect(list).not.toHaveAttribute("data-selecting"));
   });
+});
+
+it("localizes category filter options but keeps IDs and renamed labels raw", async () => {
+  mocks.useMutation.mockReset().mockReturnValue(mocks.mutation);
+  const i18n = createInstance();
+  await i18n.init({ lng: "zh", resources: { zh: { common: zhCommon } } });
+  mocks.translate = i18n.getFixedT("zh");
+  mocks.categories = [
+    {
+      id: "cat_food",
+      taxonomyId: "spending_categories",
+      name: "Food & Dining",
+      parentId: null,
+      sortOrder: 0,
+    },
+    {
+      id: "cat_groceries",
+      taxonomyId: "spending_categories",
+      name: "Groceries",
+      parentId: "cat_food",
+      sortOrder: 1,
+    },
+    {
+      id: "cat_coffee",
+      taxonomyId: "spending_categories",
+      name: "My coffee",
+      parentId: "cat_food",
+      sortOrder: 2,
+    },
+  ] as TaxonomyCategory[];
+  const original = structuredClone(mocks.categories);
+  try {
+    render(<SpendingTransactionsTab />);
+    const labels = zhCommon.categoryNames.spending_categories;
+    expect(mocks.filterProps?.categoryOptions).toEqual([
+      { value: "cat_food", label: labels.cat_food },
+    ]);
+    expect(mocks.filterProps?.subcategoryOptions).toEqual([
+      { value: "cat_groceries", label: `${labels.cat_food} / ${labels.cat_groceries}` },
+      { value: "cat_coffee", label: `${labels.cat_food} / My coffee` },
+    ]);
+    expect(mocks.categories).toEqual(original);
+  } finally {
+    mocks.categories = [];
+    mocks.translate = undefined;
+  }
 });

@@ -1079,7 +1079,40 @@
     "failed_count_other": "{{count}} échouées",
     "failed_count_many": "{{count}} échouées",
     "priority_decrease": "Diminuer le numéro de priorité",
-    "priority_increase": "Augmenter le numéro de priorité"
+    "priority_increase": "Augmenter le numéro de priorité",
+    "feature_dividends": "Dividendes",
+    "providerDescriptions": {
+      "YAHOO": "Yahoo Finance est l'un des principaux fournisseurs de données financières pour de nombreux marchés. Il fournit des données boursières historiques et en temps réel.",
+      "MARKETDATA_APP": "MarketData.app fournit des données historiques et en temps réel sur les actions, options, ETF, fonds communs de placement américains, etc.",
+      "ALPHA_VANTAGE": "Alpha Vantage fournit des API gratuites pour les données historiques et en temps réel sur les actions, le forex et les crypto-monnaies.",
+      "US_TREASURY_CALC": "Calcule les prix des obligations du Trésor américain à partir des données de courbe de rendement publiées par le Département du Trésor américain.",
+      "BOERSE_FRANKFURT": "Börse Frankfurt fournit des données sur les prix des obligations et des titres pour les marchés européens.",
+      "OPENFIGI": "OpenFIGI fournit un service de cartographie des identifiants d'instruments financiers (FIGI, ISIN, CUSIP, ticker).",
+      "METAL_PRICE_API": "Fournit les prix au comptant historiques et en temps réel des métaux précieux (or, argent, platine, palladium).",
+      "CUSTOM_SCRAPER": "Fournisseur de répartition d'exécution pour les sources personnalisées définies par l'utilisateur",
+      "FINNHUB": "Finnhub fournit des données mondiales en temps réel sur les actions, le forex et les cryptomonnaies. L’offre gratuite comprend 60 appels API par minute."
+    },
+    "coverageLabels": {
+      "Global": "Mondial",
+      "US only": "États-Unis uniquement",
+      "USD only": "USD uniquement",
+      "US Treasury": "Trésor américain",
+      "User-defined": "Défini par l'utilisateur"
+    },
+    "feature_no_api_key": "Aucune clé API",
+    "us_treasury_name": "Trésor américain (calculé)",
+    "templateDescriptions": {
+      "workplace_fund_prices_fund_code": "Prix ​​des fonds d’entreprise (code du fonds)",
+      "free_crypto_use_coin_id_bitcoin_ethereum": "Crypto gratuite (utilisez l'identifiant de pièce : bitcoin, ethereum...)",
+      "free_currency_rates": "Taux de change gratuits",
+      "lse_etfs_equities": "ETF et actions LSE",
+      "eu_funds_equities_isin_mic": "Fonds et actions de l'UE (ISIN-MIC)",
+      "stocks_crypto_fx_set_api_key_in_headers": "Actions, crypto, FX (définir la clé API dans les en-têtes)",
+      "italian_bonds_stocks": "Obligations et actions italiennes",
+      "workplace_fund_price_history_fund_code": "Historique des prix des fonds Workplace (code du fonds)",
+      "lse_etfs_equities_html_table": "ETF et actions LSE (tableau HTML)",
+      "daily_crypto_history_use_coin_id_bitcoin_ethereum": "Historique quotidien des cryptomonnaies (utilisez l'identifiant de la pièce : bitcoin, ethereum...)"
+    }
   },
   "addon_permission_none_detected": "Aucune permission d’accès aux données détectée. Cette extension semble avoir un accès système minimal.",
   "addon_permission_list_title": "Permissions",

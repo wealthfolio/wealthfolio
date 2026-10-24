@@ -1038,7 +1038,40 @@
     "imported_count_other": "已导入 {{count}} 条",
     "failed_count_other": "失败 {{count}} 条",
     "priority_decrease": "减小优先级数值",
-    "priority_increase": "增大优先级数值"
+    "priority_increase": "增大优先级数值",
+    "feature_dividends": "股息",
+    "coverageLabels": {
+      "User-defined": "用户自定义",
+      "Global": "全球",
+      "US only": "仅限美国",
+      "USD only": "仅限美元",
+      "US Treasury": "美国国债"
+    },
+    "feature_no_api_key": "无需 API 密钥",
+    "us_treasury_name": "美国财政部（计算）",
+    "providerDescriptions": {
+      "YAHOO": "Yahoo Finance 提供多个市场的历史及实时股票数据。",
+      "MARKETDATA_APP": "MarketData.app 提供美国股票、期权、ETF、共同基金等的实时和历史数据。",
+      "ALPHA_VANTAGE": "Alpha Vantage 为股票、外汇和加密货币的实时和历史数据提供免费的 API。",
+      "US_TREASURY_CALC": "根据美国财政部公布的收益率曲线计算美国国债价格。",
+      "BOERSE_FRANKFURT": "法兰克福交易所提供欧洲市场的债券和证券定价数据。",
+      "OPENFIGI": "OpenFIGI 提供金融工具标识符（FIGI、ISIN、CUSIP、股票代码）的映射服务。",
+      "METAL_PRICE_API": "提供贵金属（黄金、白银、铂金、钯金）的实时和历史现货价格。",
+      "CUSTOM_SCRAPER": "为用户自定义数据源提供运行时调度。",
+      "FINNHUB": "Finnhub 提供覆盖全球的实时股票、外汇及加密货币数据。免费方案每分钟支持 60 次 API 调用。"
+    },
+    "templateDescriptions": {
+      "workplace_fund_prices_fund_code": "雇主退休计划基金价格（基金代码）",
+      "free_crypto_use_coin_id_bitcoin_ethereum": "免费加密货币报价（使用币种 ID：bitcoin、ethereum 等）",
+      "free_currency_rates": "免费货币汇率",
+      "lse_etfs_equities": "伦敦证券交易所 ETF 和股票",
+      "eu_funds_equities_isin_mic": "欧盟基金和股票 (ISIN-MIC)",
+      "stocks_crypto_fx_set_api_key_in_headers": "股票、加密货币、外汇（在标头中设置 API 密钥）",
+      "italian_bonds_stocks": "意大利债券和股票",
+      "workplace_fund_price_history_fund_code": "雇主退休计划基金历史价格（基金代码）",
+      "lse_etfs_equities_html_table": "LSE ETF 和股票（HTML 表格）",
+      "daily_crypto_history_use_coin_id_bitcoin_ethereum": "加密货币每日历史价格（使用币种 ID：bitcoin、ethereum 等）"
+    }
   },
   "addon_permission_none_detected": "未检测到数据访问权限。此插件似乎对系统的访问权限极少。",
   "addon_permission_list_title": "权限",

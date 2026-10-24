@@ -1,3 +1,9 @@
+import { createInstance, type i18n } from "i18next";
+import { I18nextProvider, initReactI18next } from "react-i18next";
+import enPerformance from "@/i18n/locales/en/performance.json";
+import zhPerformance from "@/i18n/locales/zh/performance.json";
+import enCommon from "@/i18n/locales/en/common.json";
+import zhCommon from "@/i18n/locales/zh/common.json";
 import { useAccountScopeStore } from "@/lib/account-scope-store";
 import { QueryKeys } from "@/lib/query-keys";
 import type { Account, AccountScope, TrackedItem } from "@/lib/types";
@@ -103,7 +109,7 @@ function savedItems(): TrackedItem[] {
   return JSON.parse(localStorage.getItem("performance:selectedItems") ?? "[]");
 }
 
-function renderPage(seedAccounts = true) {
+function renderPage(seedAccounts = true, i18n?: i18n) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false, staleTime: Infinity } },
   });
@@ -119,6 +125,10 @@ function renderPage(seedAccounts = true) {
           <PerformancePage />
         </QueryClientProvider>
       </StrictMode>,
+      {
+        wrapper: ({ children }) =>
+          i18n ? <I18nextProvider i18n={i18n}>{children}</I18nextProvider> : <>{children}</>,
+      },
     ),
   };
 }
@@ -633,5 +643,103 @@ describe("PerformancePage shared scope", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe("PerformancePage built-in display labels", () => {
+  async function language() {
+    const i18n = createInstance();
+    await i18n.use(initReactI18next).init({
+      lng: "zh",
+      fallbackLng: "en",
+      interpolation: { escapeValue: false },
+      resources: {
+        en: { common: enCommon, performance: enPerformance },
+        zh: { common: zhCommon, performance: zhPerformance },
+      },
+    });
+    return i18n;
+  }
+
+  beforeEach(() => {
+    localStorage.clear();
+    useAccountScopeStore.setState(initialState, true);
+    mocks.mobile = false;
+    mocks.settings = { timezone: "Asia/Shanghai" };
+    mocks.getAccounts.mockResolvedValue(accounts);
+    mocks.performance.mockReturnValue({
+      data: [],
+      isLoading: false,
+      hasErrors: false,
+      errorMessages: [],
+    });
+  });
+
+  it("translates only the synthetic portfolio and retains raw persisted comparison names", async () => {
+    const i18n = await language();
+    const items: TrackedItem[] = [
+      ALL_PORTFOLIO_ITEM,
+      {
+        id: "a",
+        type: "account",
+        name: "All Portfolio",
+        accountScope: { type: "account", accountId: "a" },
+      },
+    ];
+    localStorage.setItem("performance:selectedItems", JSON.stringify(items));
+    renderPage(true, i18n);
+    expect(
+      await screen.findAllByRole("button", { name: new RegExp(`^${zhPerformance.all_portfolio}`) }),
+    ).toHaveLength(2);
+    expect(screen.getAllByRole("button", { name: /^All Portfolio/ })).toHaveLength(2);
+    expect(
+      screen.getAllByRole("button", {
+        name: i18n.t("performance:remove_item", {
+          name: zhPerformance.all_portfolio,
+        }),
+      }),
+    ).toHaveLength(2);
+    expect(savedItems()).toEqual(items);
+    expect(mocks.performance).toHaveBeenLastCalledWith(
+      expect.objectContaining({ selectedItems: items }),
+    );
+    await act(() => i18n.changeLanguage("en"));
+    expect(screen.getAllByRole("button", { name: /^All Portfolio/ })).toHaveLength(4);
+    expect(savedItems()).toEqual(items);
+  });
+
+  it.each([
+    {
+      raw: "IRR unavailable for holdings-only scopes because transaction cash flows are not tracked.",
+      known: true,
+    },
+    { raw: "MWR provider detail: keep this wording.", known: false },
+  ])("localizes only the exact known MWR reason ($known)", async ({ raw, known }) => {
+    const i18n = await language();
+    const data = {
+      ...resultWithWarning,
+      dataQuality: { status: "partial", warnings: [], notApplicableReasons: [raw] },
+    };
+    const original = structuredClone(data);
+    mocks.performance.mockReturnValue({
+      data: [data],
+      isLoading: false,
+      hasErrors: false,
+      errorMessages: [],
+    });
+    renderPage(true, i18n);
+    const label = known ? zhPerformance.exclusion.holdings_not_mwr : raw;
+    expect((await screen.findAllByText(label)).length).toBeGreaterThan(0);
+    if (known)
+      expect(
+        screen.queryByText(
+          "MWR unavailable for holdings-only scopes because transaction cash flows are not tracked.",
+        ),
+      ).not.toBeInTheDocument();
+    await act(() => i18n.changeLanguage("en"));
+    expect(
+      screen.getAllByText(known ? enPerformance.exclusion.holdings_not_mwr : raw).length,
+    ).toBeGreaterThan(0);
+    expect(data).toEqual(original);
   });
 });

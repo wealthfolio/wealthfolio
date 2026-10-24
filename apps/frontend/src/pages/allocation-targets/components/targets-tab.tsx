@@ -1,3 +1,5 @@
+import { getPresetName } from "./model-preset-data";
+import { getTaxonomyLabel } from "@/lib/taxonomy-labels";
 import React, { useState, useEffect } from "react";
 import {
   AlertDialog,
@@ -654,11 +656,18 @@ function TargetEditor({
   const suggestedTargetName = stripBidiControls(
     startId === "scratch" || startId === "current"
       ? t("allocation:editor.suggestedTargetName", {
-          name: selectedTaxonomy?.name ?? t("allocation:editor.customFallback"),
+          name:
+            (selectedTaxonomy
+              ? getTaxonomyLabel(t, selectedTaxonomy.id, selectedTaxonomy.name)
+              : undefined) ?? t("allocation:editor.customFallback"),
         })
       : t("allocation:editor.suggestedTargetName", {
           name:
-            selectedPreset?.name ?? selectedTaxonomy?.name ?? t("allocation:editor.customFallback"),
+            (selectedPreset ? getPresetName(t, selectedPreset) : undefined) ??
+            (selectedTaxonomy
+              ? getTaxonomyLabel(t, selectedTaxonomy.id, selectedTaxonomy.name)
+              : undefined) ??
+            t("allocation:editor.customFallback"),
         }),
   );
   const savedWeightDrafts = React.useMemo(
@@ -773,7 +782,8 @@ function TargetEditor({
       ? t("allocation:editor.savedTarget")
       : startId === "scratch"
         ? t("allocation:presets.buildFromScratch")
-        : (selectedPreset?.name ?? t("allocation:presets.currentAllocation"));
+        : ((selectedPreset ? getPresetName(t, selectedPreset) : undefined) ??
+          t("allocation:presets.currentAllocation"));
   const showEditorSkeleton =
     taxonomyLoading || (!!target && existingWeightsLoading && weights.length === 0);
 
@@ -994,7 +1004,7 @@ function TargetEditor({
                   >
                     <span className="min-w-0">
                       <span className="text-foreground block truncate text-xs font-semibold">
-                        {taxonomy.name}
+                        {getTaxonomyLabel(t, taxonomy.id, taxonomy.name)}
                       </span>
                       <span className="text-muted-foreground text-2xs">
                         {t("allocation:editor.currentCategories", { count })}

@@ -1,3 +1,4 @@
+import { getCategoryLabel } from "@/lib/taxonomy-labels";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Navigate, useSearchParams } from "react-router-dom";
@@ -146,7 +147,11 @@ export default function SpendingCategoriesPage() {
       { taxonomyId: category.taxonomyId, categoryId: category.id },
       {
         onSuccess: () =>
-          toast.success(t("settings:spending.categories.deleted", { name: category.name })),
+          toast.success(
+            t("settings:spending.categories.deleted", {
+              name: getCategoryLabel(t, category.taxonomyId, category.id, category.name),
+            }),
+          ),
         onError: () => toast.error(t("settings:spending.categories.delete_error")),
       },
     );

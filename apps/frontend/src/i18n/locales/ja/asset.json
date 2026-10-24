@@ -697,6 +697,18 @@
       "precious_metal": "貴金属",
       "liability": "負債",
       "other": "その他"
+    },
+    "validation": {
+      "name_is_required": "名前は必須です",
+      "quantity_must_be_greater_than_0": "数量は 0 より大きくなければなりません",
+      "purchase_price_must_be_greater_than_0": "購入価格は0より大きくなければなりません",
+      "notes_must_be_less_than_1000_characters": "メモは 1000 文字未満にする必要があります",
+      "address_must_be_less_than_200_characters": "住所は 200 文字未満である必要があります",
+      "interest_rate_must_be_100_or_less": "金利は 100 以下でなければなりません",
+      "name_must_be_less_than_100_characters": "名前は 100 文字未満にする必要があります",
+      "interest_rate_must_be_0_or_greater": "金利は 0 以上である必要があります",
+      "description_must_be_less_than_200_characters": "説明は 200 文字未満にする必要があります",
+      "original_amount_must_be_greater_than_0": "元の金額は 0 より大きくなければなりません"
     }
   },
   "updateValuation": {

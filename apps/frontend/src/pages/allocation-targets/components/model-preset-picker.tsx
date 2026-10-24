@@ -1,9 +1,10 @@
+import { getCategoryLabel } from "@/lib/taxonomy-labels";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import type { CategoryAllocation } from "@/lib/types";
 import { allocationTargetColor } from "./allocation-target-colors";
 import type { ModelPreset } from "./model-preset-data";
-import { BUILT_IN_PRESETS } from "./model-preset-data";
+import { BUILT_IN_PRESETS, getPresetName } from "./model-preset-data";
 
 export type { ModelPreset };
 export { BUILT_IN_PRESETS };
@@ -105,7 +106,12 @@ export function ModelPresetPicker({
   };
 
   function categoryLabel(categoryId: string): string {
-    return categoryNames[categoryId] ?? CATEGORY_LABELS[categoryId] ?? categoryId;
+    return getCategoryLabel(
+      t,
+      taxonomyId,
+      categoryId,
+      categoryNames[categoryId] ?? CATEGORY_LABELS[categoryId] ?? categoryId,
+    );
   }
 
   function colorMapForWeights(weights: Record<string, number>): Record<string, string> {
@@ -113,7 +119,11 @@ export function ModelPresetPicker({
       Object.keys(weights).map((categoryId, index) => [
         categoryId,
         currentColorMap[categoryId] ??
-          allocationTargetColor(categoryId, categoryLabel(categoryId), index),
+          allocationTargetColor(
+            categoryId,
+            categoryNames[categoryId] ?? CATEGORY_LABELS[categoryId] ?? categoryId,
+            index,
+          ),
       ]),
     );
   }
@@ -161,7 +171,7 @@ export function ModelPresetPicker({
               RISK_BADGE[preset.risk] ?? "bg-muted text-muted-foreground",
             )}
           >
-            {preset.risk}
+            {t(`allocation:riskLabels.${preset.risk}`, { defaultValue: preset.risk })}
           </span>
           {selected === preset.id && (
             <span className="bg-foreground text-background text-2xs flex h-5 w-5 shrink-0 items-center justify-center rounded-full">
@@ -175,7 +185,7 @@ export function ModelPresetPicker({
             compact ? "mt-3" : "mt-4",
           )}
         >
-          {preset.name}
+          {getPresetName(t, preset)}
         </span>
         <p
           className={cn(
@@ -183,7 +193,9 @@ export function ModelPresetPicker({
             compact ? "max-h-9 min-h-9 overflow-hidden" : "min-h-10",
           )}
         >
-          {preset.description}
+          {t(`allocation:builtInPresets.${preset.id}.description`, {
+            defaultValue: preset.description,
+          })}
         </p>
         <div className={cn("mt-auto space-y-2.5", compact ? "pt-4" : "pt-7")}>
           <PresetBar weights={preset.weights} colorMap={colorMapForWeights(preset.weights)} />
@@ -229,7 +241,7 @@ export function ModelPresetPicker({
               )}
               title={allocationSummary(preset.weights)}
             >
-              {preset.name}
+              {getPresetName(t, preset)}
               {selected === preset.id && <span className="text-2xs">✓</span>}
             </button>
           ))}

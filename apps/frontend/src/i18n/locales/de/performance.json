@@ -55,6 +55,7 @@
     "holdings": "Bestandsmodus"
   },
   "exclusion": {
+    "holdings_not_mwr": "Die geldgewichtete Rendite (MWR) ist im reinen Bestandsmodus nicht verfügbar, da die Zahlungsströme der Transaktionen nicht erfasst werden.",
     "no_data": "Für diese Auswahl sind keine Performancedaten verfügbar.",
     "no_series": "Für diesen Zeitraum ist keine Diagrammreihe verfügbar.",
     "holdings_not_twr": "Konten im Bestandsmodus verwenden die Wertrendite und werden nicht mit dem TWR dargestellt.",

@@ -1,3 +1,4 @@
+import { getCategoryLabel } from "@/lib/taxonomy-labels";
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
@@ -182,7 +183,11 @@ export function CategoryTransactionsSheet({
       return {
         ...row,
         name:
-          row.id === DIRECT_ROW_ID ? t("spending:categorySheet.direct") : (meta?.name ?? row.id),
+          row.id === DIRECT_ROW_ID
+            ? t("spending:categorySheet.direct")
+            : meta
+              ? getCategoryLabel(t, meta.taxonomyId, meta.id, meta.name)
+              : row.id,
         color: meta?.color ?? "var(--muted-foreground)",
       };
     });
@@ -243,7 +248,9 @@ export function CategoryTransactionsSheet({
             </span>
             <div className="min-w-0 flex-1">
               <SheetTitle className="text-foreground truncate text-2xl font-semibold tracking-tight">
-                {category?.name ?? t("spending:categorySheet.categoryFallback")}
+                {category
+                  ? getCategoryLabel(t, category.taxonomyId, category.id, category.name)
+                  : t("spending:categorySheet.categoryFallback")}
               </SheetTitle>
               <p className="text-muted-foreground mt-0.5 text-xs">
                 {formatRangeLabel(rangeStart, rangeEnd, dateFormatting)} ·{" "}

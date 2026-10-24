@@ -26,9 +26,9 @@ export function OverviewTab({
   const { data: taxonomy } = useTaxonomy(taxonomyId);
   const resolvedReport = resolveDriftReportCategories(report, taxonomy?.categories);
   const taxonomyName = taxonomy?.taxonomy.name;
-  const categoryLabel = categoryNoun(taxonomyId, taxonomyName, report.outOfBandCount);
-  const pluralCategoryLabel = categoryNoun(taxonomyId, taxonomyName, 2);
-  const displayTaxonomy = taxonomyLabel(taxonomyId, taxonomyName);
+  const categoryLabel = categoryNoun(t, taxonomyId, taxonomyName, report.outOfBandCount);
+  const pluralCategoryLabel = categoryNoun(t, taxonomyId, taxonomyName);
+  const displayTaxonomy = taxonomyLabel(t, taxonomyId, taxonomyName);
   const gapStatus =
     report.outOfBandCount === 0
       ? t("allocation:overview.allInsideTarget", { categories: pluralCategoryLabel })
@@ -57,11 +57,13 @@ export function OverviewTab({
     <div className="space-y-5">
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1.7fr)_minmax(21.25rem,0.75fr)]">
         <CurrentVsTargetCard
+          taxonomyId={taxonomyId}
           report={resolvedReport}
           taxonomyLabel={displayTaxonomy}
-          targetLabel={targetLabel(targetName)}
+          targetLabel={targetLabel(t, targetName)}
         />
         <DriftDriversCard
+          taxonomyId={taxonomyId}
           report={resolvedReport}
           statusDescription={gapStatus}
           bandLabel={bandLabel}
@@ -69,7 +71,7 @@ export function OverviewTab({
         />
       </div>
 
-      <HoldingsTable report={resolvedReport} />
+      <HoldingsTable taxonomyId={taxonomyId} report={resolvedReport} />
     </div>
   );
 }

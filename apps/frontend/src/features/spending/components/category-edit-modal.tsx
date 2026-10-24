@@ -1,3 +1,4 @@
+import { getCategoryLabel } from "@/lib/taxonomy-labels";
 import { useTranslation } from "react-i18next";
 
 import {
@@ -47,7 +48,11 @@ export function CategoryEditModal({
   const getDescription = () => {
     if (isEditing) return t("spending:category.editDescription");
     if (isSubcategory)
-      return t("spending:category.addSubcategoryDescription", { name: parentCategory?.name });
+      return t("spending:category.addSubcategoryDescription", {
+        name: parentCategory
+          ? getCategoryLabel(t, parentCategory.taxonomyId, parentCategory.id, parentCategory.name)
+          : undefined,
+      });
     return t("spending:category.addDescription");
   };
 

@@ -217,7 +217,9 @@ export function DashboardContent({
             ) : (
               <>
                 {gainLossAmount == null ? (
-                  <span className="text-muted-foreground lg:text-md text-sm font-light">N/A</span>
+                  <span className="text-muted-foreground lg:text-md text-sm font-light">
+                    {t("performance:not_available")}
+                  </span>
                 ) : (
                   <GainAmount
                     className="lg:text-md text-sm font-light"
@@ -228,7 +230,9 @@ export function DashboardContent({
                 )}
                 <div className="border-secondary my-1 border-e pe-2" />
                 {simpleReturn == null ? (
-                  <span className="text-muted-foreground lg:text-md text-sm font-light">N/A</span>
+                  <span className="text-muted-foreground lg:text-md text-sm font-light">
+                    {t("performance:not_available")}
+                  </span>
                 ) : (
                   <GainPercent
                     className="lg:text-md text-sm font-light"

@@ -1330,7 +1330,40 @@
     "validation_url_required": "عنوان URL مطلوب",
     "website": "الموقع الإلكتروني",
     "priority_decrease": "إنقاص رقم الأولوية",
-    "priority_increase": "زيادة رقم الأولوية"
+    "priority_increase": "زيادة رقم الأولوية",
+    "feature_dividends": "توزيعات الأرباح",
+    "providerDescriptions": {
+      "YAHOO": "Yahoo Finance هي شركة رائدة في توفير البيانات المالية للعديد من الأسواق. ويوفر بيانات المخزون التاريخية وفي الوقت الحقيقي.",
+      "MARKETDATA_APP": "يوفر تطبيق MarketData.app بيانات تاريخية وفي الوقت الفعلي للأسهم الأمريكية والخيارات وصناديق الاستثمار المتداولة وصناديق الاستثمار المشتركة والمزيد.",
+      "ALPHA_VANTAGE": "توفر Alpha Vantage واجهات برمجة التطبيقات (APIs) المجانية للبيانات التاريخية واللحظية المتعلقة بالأسهم والعملات الأجنبية والعملات المشفرة.",
+      "US_TREASURY_CALC": "يحسب أسعار سندات الخزانة الأمريكية من بيانات منحنى العائد التي نشرتها وزارة الخزانة الأمريكية.",
+      "BOERSE_FRANKFURT": "توفر بورصة فرانكفورت بيانات أسعار السندات والأوراق المالية للأسواق الأوروبية.",
+      "OPENFIGI": "يوفر OpenFIGI خدمة رسم الخرائط لمعرفات الأدوات المالية (FIGI وISIN وCUSIP وTicker).",
+      "METAL_PRICE_API": "يوفر الأسعار الفورية والتاريخية للمعادن الثمينة (الذهب والفضة والبلاتين والبلاديوم).",
+      "CUSTOM_SCRAPER": "مزود إرسال وقت التشغيل للمصادر المخصصة المعرفة من قبل المستخدم",
+      "FINNHUB": "توفر Finnhub بيانات عالمية آنية للأسهم والعملات الأجنبية والعملات المشفرة. تشمل الخطة المجانية 60 طلب API في الدقيقة."
+    },
+    "coverageLabels": {
+      "Global": "عالمي",
+      "US only": "الولايات المتحدة فقط",
+      "USD only": "دولار أمريكي فقط",
+      "US Treasury": "الخزانة الأمريكية",
+      "User-defined": "المعرفة من قبل المستخدم"
+    },
+    "feature_no_api_key": "لا يوجد مفتاح API",
+    "us_treasury_name": "الخزانة الأمريكية (محسوبة)",
+    "templateDescriptions": {
+      "workplace_fund_prices_fund_code": "أسعار صندوق مكان العمل (رمز الصندوق)",
+      "free_crypto_use_coin_id_bitcoin_ethereum": "تشفير مجاني (استخدم معرف العملة: bitcoin، ethereum...)",
+      "free_currency_rates": "أسعار العملات المجانية",
+      "lse_etfs_equities": "صناديق الاستثمار المتداولة والأسهم في بورصة لندن",
+      "eu_funds_equities_isin_mic": "صناديق وأسهم الاتحاد الأوروبي (ISIN-MIC)",
+      "stocks_crypto_fx_set_api_key_in_headers": "الأسهم والعملات المشفرة والعملات الأجنبية (قم بتعيين مفتاح واجهة برمجة التطبيقات في الرؤوس)",
+      "italian_bonds_stocks": "السندات والأسهم الإيطالية",
+      "workplace_fund_price_history_fund_code": "تاريخ أسعار صندوق مكان العمل (رمز الصندوق)",
+      "lse_etfs_equities_html_table": "صناديق الاستثمار المتداولة والأسهم في بورصة لندن (جدول HTML)",
+      "daily_crypto_history_use_coin_id_bitcoin_ethereum": "سجل العملات المشفرة اليومي (استخدم معرف العملة: bitcoin، ethereum...)"
+    }
   },
   "market_data_provider_api_key": "مفتاح API",
   "market_data_provider_api_key_placeholder": "أدخل مفتاح API",

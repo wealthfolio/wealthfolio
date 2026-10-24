@@ -1,3 +1,4 @@
+import { getCategoryLabel } from "@/lib/taxonomy-labels";
 import { useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@wealthfolio/ui";
 import { useTranslation } from "react-i18next";
@@ -13,6 +14,7 @@ import { hasVisibleAllocation } from "./drift-row-utils";
 
 interface CurrentVsTargetCardProps {
   report: DriftReport;
+  taxonomyId: string;
   taxonomyLabel: string;
   targetLabel: string;
 }
@@ -30,6 +32,7 @@ function formatTargetBps(bps: number): string {
 
 export function CurrentVsTargetCard({
   report,
+  taxonomyId,
   taxonomyLabel,
   targetLabel,
 }: CurrentVsTargetCardProps) {
@@ -52,6 +55,7 @@ export function CurrentVsTargetCard({
         <div className="grid items-center gap-6 pt-3 xl:grid-cols-[17.5rem_minmax(0,1fr)] xl:pt-5">
           <div className="mx-auto shrink-0">
             <AllocationDonut
+              taxonomyId={taxonomyId}
               rows={visibleRows}
               colorByCategory={colorByCategory}
               totalValue={report.totalValue}
@@ -93,7 +97,7 @@ export function CurrentVsTargetCard({
                         style={{ background: rowColor }}
                       />
                       <span className="text-foreground truncate text-xs font-semibold">
-                        {row.categoryName}
+                        {getCategoryLabel(t, taxonomyId, row.categoryId, row.categoryName)}
                       </span>
                     </div>
 

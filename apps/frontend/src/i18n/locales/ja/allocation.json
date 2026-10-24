@@ -358,5 +358,87 @@
     "protectedAccountsNote": "これらの口座からは売却が生成されません。",
     "addAccount": "口座を追加",
     "allAccountsProtected": "すべての口座が保護されています"
+  },
+  "categoryNouns": {
+    "assetClass": "資産クラス",
+    "region": "地域",
+    "industry": "産業",
+    "category": "カテゴリ",
+    "region_other": "地域",
+    "category_other": "カテゴリ",
+    "assetClass_other": "資産クラス",
+    "industry_other": "産業"
+  },
+  "builtInPresets": {
+    "balanced_60_40": {
+      "name": "バランス 60 / 40",
+      "description": "古典的な株式と債券の組み合わせ"
+    },
+    "growth_80_20": {
+      "name": "成長 80 / 20",
+      "description": "結合安定剤による成長志向"
+    },
+    "all_weather": {
+      "name": "全天候型",
+      "description": "市場体制全体で多様化"
+    },
+    "income_20_80": {
+      "name": "収入 20 / 80",
+      "description": "結合剤の多い保存料混合物"
+    },
+    "conservative_growth_40_60": {
+      "name": "保守的な成長 40 / 60",
+      "description": "保守的な株式と債券の組み合わせ"
+    },
+    "aggressive_90_10": {
+      "name": "アグレッシブ 90 / 10",
+      "description": "高資本の成長ミックス"
+    },
+    "permanent_portfolio": {
+      "name": "永久ポートフォリオ",
+      "description": "株式、債券、現金、商品が同等"
+    },
+    "gics_sp500_weight": {
+      "name": "S&P500",
+      "description": "S&P 500 セクター ウェイト (2026 年 5 月)"
+    },
+    "gics_equal_weight": {
+      "name": "等しい重み",
+      "description": "11 の GICS セクターすべてに均等に割り当て"
+    },
+    "regions_equal_weight": {
+      "name": "等しい重み",
+      "description": "5 大陸すべてで均等に曝露される"
+    },
+    "gics_defensive": {
+      "name": "ディフェンス・エクイティ",
+      "description": "ヘルスケア、生活必需品、公共事業の傾き"
+    },
+    "risk_conservative": {
+      "name": "保守的",
+      "description": "重度の低リスクベース、最小限の高リスクリスク"
+    },
+    "risk_balanced": {
+      "name": "バランスのとれた",
+      "description": "中リスクの炉心と低リスクのバラスト"
+    },
+    "risk_aggressive": {
+      "name": "攻撃的",
+      "description": "成長志向であり、大部分が高リスクのエクスポージャである"
+    },
+    "regions_global_cap": {
+      "name": "グローバルキャップ",
+      "description": "世界の時価総額の概算ウェイト (2026 年 4 月)"
+    },
+    "regions_international_proxy": {
+      "name": "国際代理人",
+      "description": "大陸バケットを使用した米国以外の株式プロキシ"
+    }
+  },
+  "riskLabels": {
+    "From holdings": "所蔵品から",
+    "Conservative": "保守的",
+    "Aggressive": "攻撃的",
+    "Moderate": "適度"
   }
 }

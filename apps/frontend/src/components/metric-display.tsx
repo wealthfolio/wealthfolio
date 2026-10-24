@@ -76,7 +76,9 @@ export const MetricDisplay: React.FC<MetricDisplayProps> = ({
 
   const displayValue =
     value === undefined ? (
-      <span className={cn("text-muted-foreground text-base font-medium", valueClassName)}>N/A</span>
+      <span className={cn("text-muted-foreground text-base font-medium", valueClassName)}>
+        {t("performance:not_available")}
+      </span>
     ) : isPercentage && tone === "neutral" ? (
       <span className={cn("text-foreground text-base font-medium", valueClassName)}>
         {formatting.formatPercent(value)}

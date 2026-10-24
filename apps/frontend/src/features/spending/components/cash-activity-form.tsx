@@ -1,3 +1,4 @@
+import { getCategoryLabel } from "@/lib/taxonomy-labels";
 import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
@@ -210,16 +211,28 @@ export function CashActivityForm({
   const allCategoriesById = useMemo(() => {
     const map = new Map<string, { name: string; color: string | null; parentId: string | null }>();
     (spending.data?.categories ?? []).forEach((c) =>
-      map.set(c.id, { name: c.name, color: c.color, parentId: c.parentId ?? null }),
+      map.set(c.id, {
+        name: getCategoryLabel(t, c.taxonomyId, c.id, c.name),
+        color: c.color,
+        parentId: c.parentId ?? null,
+      }),
     );
     (income.data?.categories ?? []).forEach((c) =>
-      map.set(c.id, { name: c.name, color: c.color, parentId: c.parentId ?? null }),
+      map.set(c.id, {
+        name: getCategoryLabel(t, c.taxonomyId, c.id, c.name),
+        color: c.color,
+        parentId: c.parentId ?? null,
+      }),
     );
     (savings.data?.categories ?? []).forEach((c) =>
-      map.set(c.id, { name: c.name, color: c.color, parentId: c.parentId ?? null }),
+      map.set(c.id, {
+        name: getCategoryLabel(t, c.taxonomyId, c.id, c.name),
+        color: c.color,
+        parentId: c.parentId ?? null,
+      }),
     );
     return map;
-  }, [spending.data?.categories, income.data?.categories, savings.data?.categories]);
+  }, [spending.data?.categories, income.data?.categories, savings.data?.categories, t]);
 
   // Event lookup for the trigger label. Errors surface only via the
   // QuickEventPopover the user opens to pick an event (handled there);

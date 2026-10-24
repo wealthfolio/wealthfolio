@@ -55,6 +55,7 @@
     "holdings": "Mode avoirs"
   },
   "exclusion": {
+    "holdings_not_mwr": "Le rendement pondéré par les flux (MWR) est indisponible en mode positions seules, car les flux de trésorerie des transactions ne sont pas suivis.",
     "no_data": "Les données de performance ne sont pas disponibles pour cette sélection.",
     "no_series": "Aucune série de graphique n'est disponible pour cette période.",
     "holdings_not_twr": "Les comptes en mode avoirs utilisent le rendement en valeur et ne sont pas tracés avec le TWR.",

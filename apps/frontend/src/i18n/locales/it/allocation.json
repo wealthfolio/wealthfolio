@@ -371,5 +371,95 @@
     "protectedAccountsNote": "Da questi conti non vengono generate vendite.",
     "addAccount": "Aggiungi conto",
     "allAccountsProtected": "Tutti i conti sono protetti"
+  },
+  "categoryNouns": {
+    "assetClass": "classi di attività",
+    "region": "regioni",
+    "industry": "industrie",
+    "category": "categorie",
+    "region_other": "regioni",
+    "category_other": "categorie",
+    "assetClass_one": "classe di attività",
+    "assetClass_other": "classi di attività",
+    "assetClass_many": "classi di attività",
+    "region_one": "regione",
+    "industry_one": "industria",
+    "industry_other": "industrie",
+    "industry_many": "industrie",
+    "category_one": "categoria",
+    "region_many": "regioni",
+    "category_many": "categorie"
+  },
+  "builtInPresets": {
+    "balanced_60_40": {
+      "name": "Equilibrato 60/40",
+      "description": "Classico mix di azioni e obbligazioni"
+    },
+    "growth_80_20": {
+      "name": "Crescita 80/20",
+      "description": "Orientato alla crescita con uno stabilizzatore obbligazionario"
+    },
+    "all_weather": {
+      "name": "Tutto il tempo",
+      "description": "Diversificazione tra i regimi di mercato"
+    },
+    "income_20_80": {
+      "name": "Reddito 20/80",
+      "description": "Miscela di conservazione ad alto legame"
+    },
+    "conservative_growth_40_60": {
+      "name": "Crescita conservativa 40/60",
+      "description": "Mix conservativo di azioni e obbligazioni"
+    },
+    "aggressive_90_10": {
+      "name": "Aggressivo 90/10",
+      "description": "Mix di crescita ad alto contenuto azionario"
+    },
+    "permanent_portfolio": {
+      "name": "Portafoglio permanente",
+      "description": "Azioni, obbligazioni, contanti e materie prime uguali"
+    },
+    "gics_sp500_weight": {
+      "name": "S&P500",
+      "description": "Pesi settoriali S&P 500 (maggio 2026)"
+    },
+    "gics_equal_weight": {
+      "name": "Uguale peso",
+      "description": "Uguale allocazione in tutti gli 11 settori GICS"
+    },
+    "regions_equal_weight": {
+      "name": "Uguale peso",
+      "description": "Uguale esposizione in tutti e cinque i continenti"
+    },
+    "gics_defensive": {
+      "name": "Equità difensiva",
+      "description": "Sanità, beni di prima necessità e servizi di pubblica utilità in tilt"
+    },
+    "risk_conservative": {
+      "name": "Conservatore",
+      "description": "Base pesante a basso rischio, esposizione minima ad alto rischio"
+    },
+    "risk_balanced": {
+      "name": "Equilibrato",
+      "description": "Nucleo a medio rischio con zavorra a basso rischio"
+    },
+    "risk_aggressive": {
+      "name": "Aggressivo",
+      "description": "Orientato alla crescita con esposizione prevalentemente ad alto rischio"
+    },
+    "regions_global_cap": {
+      "name": "Limite globale",
+      "description": "Ponderazioni approssimative della capitalizzazione di mercato mondiale (aprile 2026)"
+    },
+    "regions_international_proxy": {
+      "name": "Procura internazionale",
+      "description": "Proxy azionario non statunitense utilizzando categorie di continenti"
+    }
+  },
+  "riskLabels": {
+    "Conservative": "Conservatore",
+    "Aggressive": "Aggressivo",
+    "Moderate": "Moderare",
+    "From holdings": "Dalle partecipazioni"
   }
 }

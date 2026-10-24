@@ -701,6 +701,18 @@
       "precious_metal": "Metallo prezioso",
       "liability": "Passività",
       "other": "Altro"
+    },
+    "validation": {
+      "name_is_required": "Il nome è obbligatorio",
+      "quantity_must_be_greater_than_0": "La quantità deve essere maggiore di 0",
+      "purchase_price_must_be_greater_than_0": "Il prezzo di acquisto deve essere maggiore di 0",
+      "notes_must_be_less_than_1000_characters": "Le note devono contenere meno di 1000 caratteri",
+      "address_must_be_less_than_200_characters": "L'indirizzo deve contenere meno di 200 caratteri",
+      "interest_rate_must_be_100_or_less": "Il tasso di interesse deve essere pari o inferiore a 100",
+      "name_must_be_less_than_100_characters": "Il nome deve contenere meno di 100 caratteri",
+      "interest_rate_must_be_0_or_greater": "Il tasso di interesse deve essere 0 o superiore",
+      "description_must_be_less_than_200_characters": "La descrizione deve contenere meno di 200 caratteri",
+      "original_amount_must_be_greater_than_0": "L'importo originale deve essere maggiore di 0"
     }
   },
   "updateValuation": {

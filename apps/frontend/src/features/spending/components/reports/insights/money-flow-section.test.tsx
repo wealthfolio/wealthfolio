@@ -1,4 +1,10 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
+import { createInstance } from "i18next";
+import { I18nextProvider, initReactI18next } from "react-i18next";
+import enCommon from "@/i18n/locales/en/common.json";
+import zhCommon from "@/i18n/locales/zh/common.json";
+import enSpending from "@/i18n/locales/en/spending.json";
+import zhSpending from "@/i18n/locales/zh/spending.json";
 import { FormattingProvider } from "@wealthfolio/ui";
 import { cloneElement, isValidElement, type ReactNode } from "react";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
@@ -661,4 +667,52 @@ describe("MoneyFlowSection subcategories", () => {
     expect(screen.getByRole("tooltip")).toHaveTextContent("Returns");
     expect(container.textContent).not.toMatch(/\$\d/);
   });
+});
+
+it("refreshes raw category and budget-group names inside an already-open Sankey", async () => {
+  const i18n = createInstance();
+  await i18n.use(initReactI18next).init({
+    lng: "zh",
+    fallbackLng: "en",
+    interpolation: { escapeValue: false },
+    resources: {
+      en: { common: enCommon, spending: enSpending },
+      zh: { common: zhCommon, spending: zhSpending },
+    },
+  });
+  const seededGroup = {
+    ...needs,
+    group: { ...needs.group, id: "032ecb02-5912-42e8-9724-2cd566fc08d5" },
+  };
+  const snapshot = { computed: { groupRows: [seededGroup] } } as unknown as BudgetSnapshot;
+  const original = structuredClone(snapshot);
+  const onCategoryClick = vi.fn();
+  render(
+    <I18nextProvider i18n={i18n}>{flow({ groups: snapshot, onCategoryClick })}</I18nextProvider>,
+  );
+  expect(
+    screen.getByText(zhCommon.categoryNames.income_sources.cat_income_salary),
+  ).toBeInTheDocument();
+  fireEvent.click(
+    screen.getByRole("button", {
+      name: new RegExp(
+        `^${zhCommon.budgetGroupNames[seededGroup.group.id as keyof typeof zhCommon.budgetGroupNames]}`,
+      ),
+    }),
+  );
+  expect(
+    screen.getByRole("heading", {
+      name: zhCommon.budgetGroupNames[
+        seededGroup.group.id as keyof typeof zhCommon.budgetGroupNames
+      ],
+    }),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByText(zhCommon.categoryNames.spending_categories.cat_housing),
+  ).toBeInTheDocument();
+  await act(() => i18n.changeLanguage("en"));
+  expect(screen.getByRole("heading", { name: "Needs" })).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Housing, $1,498. View transactions" }));
+  expect(onCategoryClick).toHaveBeenCalledWith("cat_housing");
+  expect(snapshot).toEqual(original);
 });

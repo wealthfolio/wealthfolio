@@ -1,3 +1,4 @@
+import { getCategoryLabel } from "@/lib/taxonomy-labels";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Navigate } from "react-router-dom";
@@ -109,11 +110,11 @@ export default function SpendingRulesPage() {
           const parent = c.parentId ? byId.get(c.parentId) : null;
           return {
             value: `${taxonomyId}:${c.id}`,
-            label: c.name,
+            label: getCategoryLabel(t, taxonomyId, c.id, c.name),
             taxonomyId,
             categoryId: c.id,
             color: c.color,
-            parentName: parent?.name ?? null,
+            parentName: parent ? getCategoryLabel(t, taxonomyId, parent.id, parent.name) : null,
           } satisfies RuleFormCategoryOption;
         });
     };
@@ -133,7 +134,7 @@ export default function SpendingRulesPage() {
       meta[o.categoryId] ??= entry;
     });
     return { categoryOptions: opts, categoryMeta: meta };
-  }, [spending.data?.categories, income.data?.categories, savings.data?.categories]);
+  }, [spending.data?.categories, income.data?.categories, savings.data?.categories, t]);
 
   const presetMeta = useMemo<Record<string, RulePresetMeta>>(() => {
     const meta: Record<string, RulePresetMeta> = {};

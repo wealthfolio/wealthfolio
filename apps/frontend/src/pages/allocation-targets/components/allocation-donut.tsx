@@ -1,3 +1,4 @@
+import { getCategoryLabel } from "@/lib/taxonomy-labels";
 import type { DriftRow } from "@/lib/types";
 import { useAmountFormatting } from "@wealthfolio/ui";
 import { useTranslation } from "react-i18next";
@@ -9,6 +10,7 @@ import {
 
 interface AllocationDonutProps {
   rows: DriftRow[];
+  taxonomyId: string;
   colorByCategory?: AllocationTargetColorMap;
   totalValue: number;
   currency: string;
@@ -22,6 +24,7 @@ const CORNER_RADIUS = 6;
 
 export function AllocationDonut({
   rows,
+  taxonomyId,
   colorByCategory,
   totalValue,
   currency,
@@ -102,7 +105,7 @@ export function AllocationDonut({
         {hoveredRow ? (
           <>
             <div className="text-muted-foreground text-2xs max-w-[75%] truncate uppercase tracking-wider">
-              {hoveredRow.categoryName}
+              {getCategoryLabel(t, taxonomyId, hoveredRow.categoryId, hoveredRow.categoryName)}
             </div>
             <div
               className="text-foreground mt-0.5 font-semibold tabular-nums"

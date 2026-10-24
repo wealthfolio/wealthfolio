@@ -1,3 +1,4 @@
+import i18n from "i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@wealthfolio/ui/components/ui/use-toast";
 import { submitAddonRating, getAddonRatings } from "@/adapters";
@@ -19,8 +20,8 @@ export function useAddonRatingMutation() {
     },
     onSuccess: () => {
       toast({
-        title: "Rating submitted",
-        description: "Thank you for your feedback!",
+        title: i18n.t("common:notifications.rating_submitted"),
+        description: i18n.t("common:notifications.thank_you_for_your_feedback"),
       });
 
       // Invalidate relevant queries to refresh data
@@ -36,7 +37,7 @@ export function useAddonRatingMutation() {
     onError: (error: Error) => {
       console.error("Failed to submit rating:", error);
       toast({
-        title: "Rating submission failed",
+        title: i18n.t("common:notifications.rating_submission_failed"),
         description: error.message || "Failed to submit rating",
         variant: "destructive",
       });

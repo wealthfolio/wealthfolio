@@ -1,10 +1,18 @@
-import { render, screen, fireEvent } from "@/test/render";
+import { act, render, screen, fireEvent } from "@/test/render";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, useLocation } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { createInstance } from "i18next";
+import { I18nextProvider, initReactI18next } from "react-i18next";
+import enCommon from "@/i18n/locales/en/common.json";
+import zhCommon from "@/i18n/locales/zh/common.json";
+import enSpending from "@/i18n/locales/en/spending.json";
+import zhSpending from "@/i18n/locales/zh/spending.json";
+import type { TaxonomyCategory } from "@/lib/types";
 import SpendingInsightsPage from "./spending-insights-page";
 
-const { insightQuery, eventsQuery, cashQuery, testSettings } = vi.hoisted(() => ({
+const { insightQuery, eventsQuery, cashQuery, testSettings, taxonomyData } = vi.hoisted(() => ({
+  taxonomyData: { categories: [] as TaxonomyCategory[] },
   insightQuery: vi.fn(),
   eventsQuery: vi.fn(),
   cashQuery: vi.fn(),
@@ -19,7 +27,7 @@ vi.mock("@/hooks/use-balance-privacy", () => ({
   useBalancePrivacy: () => ({ isBalanceHidden: false }),
 }));
 vi.mock("@/hooks/use-accounts", () => ({ useAccounts: () => ({ accounts: [] }) }));
-vi.mock("@/hooks/use-taxonomies", () => ({ useTaxonomy: () => ({}) }));
+vi.mock("@/hooks/use-taxonomies", () => ({ useTaxonomy: () => ({ data: taxonomyData }) }));
 vi.mock("../hooks/use-spending-settings", () => ({
   useSpendingSettings: () => ({ isEnabled: true, isLoading: false }),
 }));
@@ -45,10 +53,24 @@ vi.mock("../components/reports/insights/where-i-am-stage", () => ({
   WhereIAmStage: () => <div>Where stage</div>,
 }));
 vi.mock("../components/reports/insights/what-changed-stage", () => ({
-  WhatChangedStage: () => <div>Changed stage</div>,
+  WhatChangedStage: ({ taxonomyCategories }: { taxonomyCategories: TaxonomyCategory[] }) => (
+    <div>
+      Changed stage
+      <output data-testid="report-category-names">
+        {taxonomyCategories.map((row) => row.name).join(" / ")}
+      </output>
+    </div>
+  ),
 }));
 vi.mock("../components/reports/insights/when-where-stage", () => ({
-  WhenWhereStage: () => <div>When stage</div>,
+  WhenWhereStage: ({ taxonomyCategories }: { taxonomyCategories: TaxonomyCategory[] }) => (
+    <div>
+      When stage
+      <output data-testid="report-category-names">
+        {taxonomyCategories.map((row) => row.name).join(" / ")}
+      </output>
+    </div>
+  ),
 }));
 vi.mock("../components/reports/category-transactions-sheet", () => ({
   CategoryTransactionsSheet: () => null,
@@ -77,6 +99,7 @@ beforeEach(() => {
   localStorage.clear();
   vi.clearAllMocks();
   testSettings.timezone = "America/Toronto";
+  taxonomyData.categories = [];
 });
 
 describe("This month comparisons", () => {
@@ -221,5 +244,56 @@ it.each(["where", "changed", "when"])(
       </MemoryRouter>,
     );
     expect(screen.getByTestId("spending-selected-range")).toHaveTextContent("February 2025");
+  },
+);
+
+it.each(["changed", "when"])(
+  "refreshes %s display labels from stable raw query data",
+  async (stage) => {
+    const i18n = createInstance();
+    await i18n.use(initReactI18next).init({
+      lng: "zh",
+      fallbackLng: "en",
+      interpolation: { escapeValue: false },
+      resources: {
+        en: { common: enCommon, spending: enSpending },
+        zh: { common: zhCommon, spending: zhSpending },
+      },
+    });
+    taxonomyData.categories = [
+      ["cat_housing", "Housing"],
+      ["cat_food", "My meals"],
+      ["custom-housing", "Housing"],
+    ].map(([id, name]) => ({
+      id,
+      name,
+      taxonomyId: "spending_categories",
+      color: "#123456",
+      parentId: null,
+      key: id,
+      sortOrder: 0,
+      createdAt: "",
+      updatedAt: "",
+    }));
+    const raw = structuredClone(taxonomyData);
+    render(
+      <MemoryRouter initialEntries={[`/spending/insights?stage=${stage}&period=MTD`]}>
+        <I18nextProvider i18n={i18n}>
+          <SpendingInsightsPage />
+        </I18nextProvider>
+      </MemoryRouter>,
+    );
+    expect(screen.getByTestId("report-category-names")).toHaveTextContent(
+      `${zhCommon.categoryNames.spending_categories.cat_housing} / My meals / Housing`,
+    );
+    const initialRequests = new Set(insightQuery.mock.calls.map((args) => JSON.stringify(args)));
+    await act(() => i18n.changeLanguage("en"));
+    expect(screen.getByTestId("report-category-names")).toHaveTextContent(
+      "Housing / My meals / Housing",
+    );
+    expect(new Set(insightQuery.mock.calls.map((args) => JSON.stringify(args)))).toEqual(
+      initialRequests,
+    );
+    expect(taxonomyData).toEqual(raw);
   },
 );

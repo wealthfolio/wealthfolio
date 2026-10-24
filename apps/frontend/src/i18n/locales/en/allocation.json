@@ -361,5 +361,91 @@
     "protectedAccountsNote": "No sells are generated from these accounts.",
     "addAccount": "Add account",
     "allAccountsProtected": "All accounts are protected"
+  },
+  "builtInPresets": {
+    "balanced_60_40": {
+      "name": "Balanced 60 / 40",
+      "description": "Classic stock and bond mix"
+    },
+    "growth_80_20": {
+      "name": "Growth 80 / 20",
+      "description": "Growth-oriented with a bond stabilizer"
+    },
+    "all_weather": {
+      "name": "All Weather",
+      "description": "Diversified across market regimes"
+    },
+    "income_20_80": {
+      "name": "Income 20 / 80",
+      "description": "Bond-heavy preservation mix"
+    },
+    "conservative_growth_40_60": {
+      "name": "Conservative Growth 40 / 60",
+      "description": "Conservative stock and bond mix"
+    },
+    "aggressive_90_10": {
+      "name": "Aggressive 90 / 10",
+      "description": "High-equity growth mix"
+    },
+    "permanent_portfolio": {
+      "name": "Permanent Portfolio",
+      "description": "Equal stocks, bonds, cash and commodities"
+    },
+    "gics_sp500_weight": {
+      "name": "S&P 500",
+      "description": "S&P 500 sector weights (May 2026)"
+    },
+    "gics_equal_weight": {
+      "name": "Equal Weight",
+      "description": "Equal allocation across all 11 GICS sectors"
+    },
+    "gics_defensive": {
+      "name": "Defensive Equity",
+      "description": "Health care, staples and utilities tilt"
+    },
+    "risk_conservative": {
+      "name": "Conservative",
+      "description": "Heavy low-risk base, minimal high-risk exposure"
+    },
+    "risk_balanced": {
+      "name": "Balanced",
+      "description": "Medium-risk core with lower-risk ballast"
+    },
+    "risk_aggressive": {
+      "name": "Aggressive",
+      "description": "Growth-oriented with majority high-risk exposure"
+    },
+    "regions_global_cap": {
+      "name": "Global Cap",
+      "description": "Approximate world market-cap weights (Apr 2026)"
+    },
+    "regions_international_proxy": {
+      "name": "International Proxy",
+      "description": "Non-US equity proxy using continent buckets"
+    },
+    "regions_equal_weight": {
+      "name": "Equal Weight",
+      "description": "Equal exposure across all five continents"
+    }
+  },
+  "riskLabels": {
+    "Conservative": "Conservative",
+    "Moderate": "Moderate",
+    "Aggressive": "Aggressive",
+    "From holdings": "From holdings"
+  },
+  "categoryNouns": {
+    "assetClass": "asset classes",
+    "region": "regions",
+    "industry": "industries",
+    "category": "categories",
+    "assetClass_one": "asset class",
+    "assetClass_other": "asset classes",
+    "region_one": "region",
+    "region_other": "regions",
+    "industry_one": "industry",
+    "industry_other": "industries",
+    "category_one": "category",
+    "category_other": "categories"
   }
 }

@@ -1,3 +1,4 @@
+import i18n from "i18next";
 import type { BaseSyntheticEvent } from "react";
 import type {
   FieldErrors,
@@ -95,7 +96,7 @@ export function showValidationToast<T extends FieldValues>(
   });
   const suffix = issues.length > 3 ? ` (+${issues.length - 3} more)` : "";
 
-  toast.error("Please fix form errors", {
+  toast.error(i18n.t("activity:form.toast_fix_form_errors"), {
     id: "activity-form-validation",
     description: `${lines.join(" • ")}${suffix}`,
   });
@@ -119,7 +120,7 @@ export function createValidatedSubmit<T extends FieldValues>(
       await handler(event);
     } catch (err) {
       console.error("[ActivityForm] Unhandled submit error:", err);
-      toast.error("An unexpected error occurred", {
+      toast.error(i18n.t("holdings:unexpected_error"), {
         description: err instanceof Error ? err.message : String(err),
       });
     }

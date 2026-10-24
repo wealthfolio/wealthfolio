@@ -21,6 +21,7 @@ import { usePersistentState } from "@/hooks/use-persistent-state";
 
 import { CategoryTransactionsSheet } from "../components/reports/category-transactions-sheet";
 import { HeatmapCellSheet } from "../components/reports/heatmap-cell-sheet";
+import { localizeReportCategories } from "../components/reports/report-localization";
 import { StageNav, type InsightsStage } from "../components/reports/insights/stage-nav";
 import { WhatChangedStage } from "../components/reports/insights/what-changed-stage";
 import { WhenWhereStage } from "../components/reports/insights/when-where-stage";
@@ -307,6 +308,10 @@ export default function SpendingInsightsPage() {
   const taxonomy = useTaxonomy(SPENDING_TAXONOMY);
   const incomeTaxonomy = useTaxonomy(INCOME_TAXONOMY);
   const savingsTaxonomy = useTaxonomy(SAVINGS_TAXONOMY);
+  const displaySpendingCategories = useMemo(
+    () => localizeReportCategories(t, taxonomy.data?.categories ?? EMPTY_TAXONOMY),
+    [taxonomy.data?.categories, t],
+  );
   const { accounts = [] } = useAccounts({ filterActive: false });
 
   // ─── Single reconciled source of truth for the "Where I am" stage ─────────
@@ -377,7 +382,7 @@ export default function SpendingInsightsPage() {
   // other's aggregate would divide a partial-month total by a full month.
   const categorySheetInsight = stage === "changed" ? whatChangedInsight : insight;
   const taxonomyCategoriesForWhereIAm = useMemo(() => {
-    const base = taxonomy.data?.categories ?? [];
+    const base = taxonomy.data?.categories ?? EMPTY_TAXONOMY;
     if (!insight || insight.uncategorized.txnCount === 0) return base;
     // Synthetic top-level row so the breakdown table renders an
     // "Uncategorized" line. Matches the colors/shape of a regular category.
@@ -399,6 +404,10 @@ export default function SpendingInsightsPage() {
       },
     ];
   }, [insight, taxonomy.data?.categories, t]);
+  const displayComparisonCategories = useMemo(
+    () => localizeReportCategories(t, taxonomyCategoriesForWhereIAm),
+    [taxonomyCategoriesForWhereIAm, t],
+  );
 
   // Custom selections also scope the weekday × hour heatmap.
   const heatmapRequest = useMemo(() => {
@@ -623,7 +632,7 @@ export default function SpendingInsightsPage() {
             currentReport={whatChangedProjection?.currentReport}
             priorReport={whatChangedProjection?.priorReport}
             months={whatChangedProjection?.months ?? []}
-            taxonomyCategories={taxonomyCategoriesForWhereIAm}
+            taxonomyCategories={displayComparisonCategories}
             currency={whatChangedInsight?.currency ?? insight?.currency ?? baseCurrency}
             isLoading={isWhatChangedLoading}
             onCategoryClick={handleCategoryClick}
@@ -648,7 +657,7 @@ export default function SpendingInsightsPage() {
             events={events}
             eventsErrored={eventsErrored}
             onRetryEvents={() => refetchEvents()}
-            taxonomyCategories={taxonomyCategories}
+            taxonomyCategories={displaySpendingCategories}
             currency={heatmapInsight?.currency ?? baseCurrency}
             timezone={appTimezone}
             rangeStart={eventsRange.start}

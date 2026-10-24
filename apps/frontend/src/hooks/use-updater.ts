@@ -1,3 +1,4 @@
+import i18n from "i18next";
 import { profilePreferenceKey } from "@/hooks/use-persistent-state";
 import {
   isTauri,
@@ -87,8 +88,8 @@ export function useCheckForUpdates() {
 
       if (!updateInfo) {
         toast({
-          title: "You're up to date",
-          description: "You already have the latest version installed.",
+          title: i18n.t("common:notifications.you_re_up_to_date"),
+          description: i18n.t("common:notifications.you_already_have_the_latest_version_installed"),
         });
       }
       // If update available, the UpdateDialog will show via the query data
@@ -96,8 +97,8 @@ export function useCheckForUpdates() {
     onError: (error: Error) => {
       logger.error("Update check failed: " + error.message);
       toast({
-        title: "Update check failed",
-        description: "We couldn't complete the update check. Please try again later.",
+        title: i18n.t("common:notifications.update_check_failed"),
+        description: i18n.t("common:notifications.update_check_error_description"),
         variant: "destructive",
       });
     },

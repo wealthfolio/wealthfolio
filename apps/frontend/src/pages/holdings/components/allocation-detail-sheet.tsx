@@ -1,3 +1,4 @@
+import { getCategoryLabel, getTaxonomyLabel, localizeAllocation } from "@/lib/taxonomy-labels";
 import { Button } from "@wealthfolio/ui/components/ui/button";
 import {
   Sheet,
@@ -9,7 +10,7 @@ import {
 } from "@wealthfolio/ui/components/ui/sheet";
 import { AmountDisplay, Skeleton } from "@wealthfolio/ui";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { Trans, useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -205,6 +206,14 @@ export function AllocationDetailSheet({
 
   const categories = allocation?.categories ?? [];
   const hasData = categories.length > 0;
+  const displayAllocation = useMemo(
+    () => (allocation ? localizeAllocation(t, allocation) : undefined),
+    [allocation, t],
+  );
+  const selectedLabel =
+    displayAllocation?.categories
+      .flatMap((row) => [row, ...(row.children ?? [])])
+      .find((row) => row.categoryId === selectedCategoryId)?.categoryName ?? selectedCategoryName;
 
   return (
     <Sheet open={isOpen} onOpenChange={handleOpenChange}>
@@ -217,7 +226,9 @@ export function AllocationDetailSheet({
       >
         <SheetHeader className="mt-4">
           <SheetTitle ref={titleRef} tabIndex={-1} className="outline-none">
-            {allocation?.taxonomyName ?? t("holdings:allocation")}
+            {allocation
+              ? getTaxonomyLabel(t, allocation.taxonomyId, allocation.taxonomyName)
+              : t("holdings:allocation")}
           </SheetTitle>
         </SheetHeader>
 
@@ -270,7 +281,12 @@ export function AllocationDetailSheet({
                         style={{ backgroundColor: category.color }}
                       />
                       <span className="min-w-0 flex-1 truncate text-sm font-medium">
-                        {category.categoryName}
+                        {getCategoryLabel(
+                          t,
+                          allocation?.taxonomyId ?? "",
+                          category.categoryId,
+                          category.categoryName,
+                        )}
                       </span>
 
                       {/* Value + percentage */}
@@ -315,7 +331,21 @@ export function AllocationDetailSheet({
                                     style={{ backgroundColor: child.color }}
                                   />
                                   <span className="text-muted-foreground min-w-0 flex-1 truncate text-xs">
-                                    {child.categoryName}
+                                    {child.isResidual
+                                      ? t("common:allocation_other_in_category", {
+                                          category: getCategoryLabel(
+                                            t,
+                                            allocation?.taxonomyId ?? "",
+                                            category.categoryId,
+                                            category.categoryName,
+                                          ),
+                                        })
+                                      : getCategoryLabel(
+                                          t,
+                                          allocation?.taxonomyId ?? "",
+                                          child.categoryId,
+                                          child.categoryName,
+                                        )}
                                   </span>
                                   <AmountDisplay
                                     value={child.value}
@@ -346,7 +376,7 @@ export function AllocationDetailSheet({
                 <h3 className="text-sm font-medium">
                   <Trans
                     i18nKey="holdings:holdings_in_category"
-                    values={{ category: selectedCategoryName }}
+                    values={{ category: selectedLabel }}
                     components={{
                       1: <span style={{ color: selectedColor ?? undefined }} />,
                     }}

@@ -1,3 +1,4 @@
+import { getCategoryLabel } from "@/lib/taxonomy-labels";
 import { useEffect, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
@@ -170,7 +171,11 @@ export function CategoryForm({
             style={{ backgroundColor: currentColor }}
           />
           <h3 className="text-lg font-semibold">
-            {isCreateMode ? t("settings:tax_new_category") : category?.name}
+            {isCreateMode
+              ? t("settings:tax_new_category")
+              : category
+                ? getCategoryLabel(t, category.taxonomyId, category.id, category.name)
+                : undefined}
           </h3>
         </div>
         <Button variant="ghost" size="icon" onClick={onClose} aria-label={t("common:close")}>

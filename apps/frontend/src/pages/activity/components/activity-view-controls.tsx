@@ -136,8 +136,12 @@ export function ActivityViewControls({
   );
 
   const instrumentTypeOptions = useMemo(
-    () => INSTRUMENT_TYPE_OPTIONS.map((opt) => ({ value: opt.value, label: opt.label })),
-    [],
+    () =>
+      INSTRUMENT_TYPE_OPTIONS.map((opt) => ({
+        value: opt.value,
+        label: t(`asset:createSecurity.instrumentType.${opt.value.toLowerCase()}`),
+      })),
+    [t],
   );
 
   const statusOptions = useMemo(

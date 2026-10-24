@@ -55,6 +55,7 @@
     "holdings": "Modalità posizioni"
   },
   "exclusion": {
+    "holdings_not_mwr": "Il rendimento ponderato per il capitale (MWR) non è disponibile in modalità sole posizioni perché i flussi di cassa delle transazioni non vengono registrati.",
     "no_data": "I dati di performance non sono disponibili per questa selezione.",
     "no_series": "Nessuna serie del grafico disponibile per questo periodo.",
     "holdings_not_twr": "I conti in modalità posizioni usano il Rendimento da valore e non vengono rappresentati con il TWR.",

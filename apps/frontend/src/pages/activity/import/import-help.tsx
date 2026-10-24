@@ -164,13 +164,13 @@ function ActivitiesHelpContent({ transactionImport }: { transactionImport: boole
               <li>INTEREST</li>
               <li>DEPOSIT</li>
               <li>WITHDRAWAL</li>
-              <li>TRANSFER_IN (Moves cash/assets in)</li>
-              <li>TRANSFER_OUT (Moves cash/assets out)</li>
+              <li>TRANSFER_IN ({t("common:notifications.moves_cash_assets_in")})</li>
+              <li>TRANSFER_OUT ({t("common:notifications.moves_cash_assets_out")})</li>
               <li>FEE</li>
               <li>TAX</li>
-              <li>SPLIT (Use Amount as the split ratio, e.g. 2 for 2:1)</li>
-              <li>CREDIT (Cash credits: refunds, rebates, bonuses)</li>
-              <li>ADJUSTMENT (Non-trade corrections)</li>
+              <li>SPLIT ({t("common:notifications.split_ratio_example")})</li>
+              <li>CREDIT ({t("common:notifications.cash_credits_refunds_rebates_bonuses")})</li>
+              <li>ADJUSTMENT ({t("common:notifications.non_trade_corrections")})</li>
             </ul>
           </pre>
         </div>

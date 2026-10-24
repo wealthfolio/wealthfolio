@@ -55,6 +55,7 @@
     "holdings": "持仓模式"
   },
   "exclusion": {
+    "holdings_not_mwr": "仅持仓模式不跟踪交易现金流，因此无法计算资金加权收益率（MWR）。",
     "no_data": "此选择项无可用的表现数据。",
     "no_series": "此时间段无可用的图表序列。",
     "holdings_not_twr": "持仓模式账户使用价值回报，不以 TWR 绘制。",

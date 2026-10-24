@@ -1,3 +1,4 @@
+import { getTaxonomyLabel } from "@/lib/taxonomy-labels";
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -104,7 +105,7 @@ export function ClassificationSheet({
                   key={taxonomy.id}
                   taxonomyId={taxonomy.id}
                   assetId={assetId}
-                  label={taxonomy.name}
+                  label={getTaxonomyLabel(t, taxonomy.id, taxonomy.name)}
                 />
               ))}
 
@@ -115,7 +116,7 @@ export function ClassificationSheet({
                   key={taxonomy.id}
                   taxonomyId={taxonomy.id}
                   assetId={assetId}
-                  label={taxonomy.name}
+                  label={getTaxonomyLabel(t, taxonomy.id, taxonomy.name)}
                 />
               ))}
 

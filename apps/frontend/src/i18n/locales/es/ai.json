@@ -452,7 +452,8 @@
     "monthlyAverage": "Promedio mensual",
     "byType": "Por tipo",
     "monthlyIncome": "Ingresos mensuales",
-    "sources": "Fuentes"
+    "sources": "Fuentes",
+    "yoyShort": "Interanual"
   },
   "categorizationContext": {
     "loading": "Cargando el contexto de categorización…",

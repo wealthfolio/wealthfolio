@@ -1,3 +1,4 @@
+import { getCategoryLabel } from "@/lib/taxonomy-labels";
 import { memo, type Ref } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -221,7 +222,14 @@ function TransactionRowImpl({
                 type="button"
                 aria-label={
                   row.category
-                    ? t("spending:transactions.changeCategory", { name: row.category.name })
+                    ? t("spending:transactions.changeCategory", {
+                        name: getCategoryLabel(
+                          t,
+                          row.category.taxonomyId,
+                          row.category.id,
+                          row.category.name,
+                        ),
+                      })
                     : t("spending:transactions.assignCategory")
                 }
                 className="hover:bg-muted/60 -mx-1 inline-flex max-w-full items-center gap-1.5 rounded-md px-1.5 py-0.5 text-start transition-colors"
@@ -235,7 +243,14 @@ function TransactionRowImpl({
                         aria-hidden="true"
                       />
                     )}
-                    <span className="truncate text-sm">{row.category.name}</span>
+                    <span className="truncate text-sm">
+                      {getCategoryLabel(
+                        t,
+                        row.category.taxonomyId,
+                        row.category.id,
+                        row.category.name,
+                      )}
+                    </span>
                   </>
                 ) : (
                   <span className="text-muted-foreground inline-flex items-center gap-1 text-xs italic">

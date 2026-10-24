@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import NumberFlow from "@number-flow/react";
 import { useAmountFormatting } from "@wealthfolio/ui";
@@ -27,6 +28,7 @@ const Balance: React.FC<BalanceProps> = ({
   isUnavailable = false,
 }) => {
   const amountFormatting = useAmountFormatting();
+  const { t } = useTranslation();
   const locale = amountFormatting.currencyLocale(currency);
 
   const { isBalanceHidden } = useBalancePrivacy();
@@ -72,7 +74,7 @@ const Balance: React.FC<BalanceProps> = ({
         className="font-heading text-muted-foreground text-3xl font-bold tracking-tight"
         data-testid="portfolio-balance"
       >
-        N/A
+        {t("performance:not_available")}
       </h1>
     );
   }

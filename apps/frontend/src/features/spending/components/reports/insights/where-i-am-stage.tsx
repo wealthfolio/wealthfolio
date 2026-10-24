@@ -5,6 +5,7 @@ import { Link } from "react-router-dom";
 
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import type { TaxonomyCategory } from "@/lib/types";
+import { getCategoryLabel } from "@/lib/taxonomy-labels";
 import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
@@ -698,7 +699,7 @@ function buildShareSegments(
   const sorted = positiveEntries
     .map(([id, e]) => ({
       id,
-      name: e.name,
+      name: getCategoryLabel(t, SPENDING_TAXONOMY, id, e.name),
       color: e.color ?? "#9CA3AF",
       amount: e.amount,
       share: (e.amount / positiveTotal) * 100,

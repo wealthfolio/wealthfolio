@@ -151,3 +151,34 @@ interpolations, embedded durations, and financial terminology.
 
 Non-English catalogs are machine-drafted and community-corrected. Terminology
 reports are expected and welcome — file them as issues against the locale.
+
+## Built-in names versus user data
+
+`lib/taxonomy-labels.ts` translates built-in taxonomy/category and budget-group
+names only when both the stable ID and the original seed name match the English
+catalog. Event-type labels use the same guard; event names remain user data.
+`common:taxonomyNames`, `common:categoryNames`, and `common:budgetGroupNames`
+therefore retain the canonical English seed names. Keep these entries in sync
+when introducing or changing built-in seed data. `lib/provider-labels.ts`
+applies the same rule to built-in provider descriptions; unknown coverage values
+and custom descriptions remain verbatim.
+
+Call these helpers in the presentation layer. Keep query results, selection IDs,
+mutation inputs, editable name fields, and persisted data raw. Translate search
+labels while retaining the original name in search keywords. Derived chart data
+must depend on `t` so an already-open chart updates when the language changes.
+Calculate colors, weights, and other behavior from the original data.
+
+A saved name identical to a seed name cannot be distinguished from the default
+without edit history; it is translated for display, but never rewritten.
+
+Key parity does not detect strings that never call `t()`, including API
+metadata, constant tables, callback notifications, or English inserted into
+translated sentences. Use `i18n:lint` together with a source review; brands,
+technical identifiers, CSV examples, and test galleries are expected false
+positives.
+
+The additional built-in catalogs are machine-drafted for all supported locales
+and remain subject to native-speaker review. Country labels use CLDR names.
+Translation preparation is development-only; the application uses local JSON
+resources and makes no translation-service requests.

@@ -697,6 +697,18 @@
       "precious_metal": "贵金属",
       "liability": "负债",
       "other": "其他"
+    },
+    "validation": {
+      "name_is_required": "名称为必填项",
+      "quantity_must_be_greater_than_0": "数量必须大于0",
+      "purchase_price_must_be_greater_than_0": "购买价格必须大于0",
+      "notes_must_be_less_than_1000_characters": "注释必须少于 1000 个字符",
+      "address_must_be_less_than_200_characters": "地址必须少于 200 个字符",
+      "interest_rate_must_be_100_or_less": "利率必须为 100 或更低",
+      "name_must_be_less_than_100_characters": "名称必须少于 100 个字符",
+      "interest_rate_must_be_0_or_greater": "利率必须为 0 或更大",
+      "description_must_be_less_than_200_characters": "描述必须少于 200 个字符",
+      "original_amount_must_be_greater_than_0": "原始金额必须大于0"
     }
   },
   "updateValuation": {

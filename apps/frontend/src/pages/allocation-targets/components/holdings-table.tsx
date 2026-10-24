@@ -1,3 +1,4 @@
+import { getCategoryLabel } from "@/lib/taxonomy-labels";
 import { TickerAvatar } from "@/components/ticker-avatar";
 import { useAccounts } from "@/hooks/use-accounts";
 import type { DriftHoldingRow, DriftReport } from "@/lib/types";
@@ -21,6 +22,7 @@ import { formatPp } from "./drift-copy";
 
 interface HoldingsTableProps {
   report: DriftReport;
+  taxonomyId: string;
 }
 
 const EMPTY_DRIFT_ROWS: DriftHoldingRow[] = [];
@@ -107,7 +109,7 @@ function canNavigateToHolding(row: DriftHoldingRow): boolean {
   return !row.isCash && row.assetId.trim().length > 0;
 }
 
-export function HoldingsTable({ report }: HoldingsTableProps) {
+export function HoldingsTable({ report, taxonomyId }: HoldingsTableProps) {
   const dateFormatting = useDateFormatting();
   const formatting = useAmountFormatting();
   const numberFormatting = useNumberFormatting();
@@ -197,7 +199,9 @@ export function HoldingsTable({ report }: HoldingsTableProps) {
                         style={{ background: row.categoryColor }}
                       />
                     )}
-                    <span className="truncate">{row.categoryName}</span>
+                    <span className="truncate">
+                      {getCategoryLabel(t, taxonomyId, row.categoryId, row.categoryName)}
+                    </span>
                   </div>
                   <span
                     className={cn(
@@ -293,7 +297,7 @@ export function HoldingsTable({ report }: HoldingsTableProps) {
                         )}
                         <span className="min-w-0">
                           <span className="text-muted-foreground block truncate text-xs">
-                            {row.categoryName}
+                            {getCategoryLabel(t, taxonomyId, row.categoryId, row.categoryName)}
                           </span>
                           {row.isUnknownCategory && (
                             <span className="text-muted-foreground/80 text-2xs max-w-55 block truncate">

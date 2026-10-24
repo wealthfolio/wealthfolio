@@ -697,6 +697,18 @@
       "precious_metal": "Precious Metal",
       "liability": "Liability",
       "other": "Other"
+    },
+    "validation": {
+      "quantity_must_be_greater_than_0": "Quantity must be greater than 0",
+      "name_is_required": "Name is required",
+      "purchase_price_must_be_greater_than_0": "Purchase price must be greater than 0",
+      "notes_must_be_less_than_1000_characters": "Notes must be less than 1000 characters",
+      "address_must_be_less_than_200_characters": "Address must be less than 200 characters",
+      "interest_rate_must_be_100_or_less": "Interest rate must be 100 or less",
+      "name_must_be_less_than_100_characters": "Name must be less than 100 characters",
+      "interest_rate_must_be_0_or_greater": "Interest rate must be 0 or greater",
+      "description_must_be_less_than_200_characters": "Description must be less than 200 characters",
+      "original_amount_must_be_greater_than_0": "Original amount must be greater than 0"
     }
   },
   "updateValuation": {

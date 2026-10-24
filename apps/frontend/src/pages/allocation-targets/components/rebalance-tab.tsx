@@ -1,3 +1,4 @@
+import { getCategoryLabel } from "@/lib/taxonomy-labels";
 import type {
   AccountScope,
   AllocationTarget,
@@ -177,13 +178,22 @@ function computeSleeveSummary(driftReport: DriftReport, plan: RebalancePlan): Sl
 }
 
 /** "Cash is at 42%, above a 0% target." — describes the largest current drift driver. */
-function driftDriverSentence(driftReport: DriftReport, t: TFunction): string | null {
+function driftDriverSentence(
+  driftReport: DriftReport,
+  t: TFunction,
+  taxonomyId: string,
+): string | null {
   let top: { name: string; drift: number; cur: number; tgt: number } | null = null;
   for (const r of driftReport.rows) {
     if (r.status === "not_targeted" && r.currentBps === 0) continue;
     const drift = r.currentBps - r.targetBps;
     if (!top || Math.abs(drift) > Math.abs(top.drift)) {
-      top = { name: r.categoryName, drift, cur: r.currentBps, tgt: r.targetBps };
+      top = {
+        name: getCategoryLabel(t, taxonomyId, r.categoryId, r.categoryName),
+        drift,
+        cur: r.currentBps,
+        tgt: r.targetBps,
+      };
     }
   }
   if (!top) return null;
@@ -767,6 +777,7 @@ function driftLabelPlacement(pos: number): { className: string; style: CSSProper
 // ── Planner result column (right panel) ───────────────────────────────────────
 
 function PlannerResult({
+  taxonomyId,
   driftReport,
   plan,
   currency,
@@ -774,6 +785,7 @@ function PlannerResult({
   scaleMaxBps,
   onReview,
 }: {
+  taxonomyId: string;
   driftReport: DriftReport;
   plan: RebalancePlan | null;
   currency: string;
@@ -785,7 +797,7 @@ function PlannerResult({
   const formatting = useAmountFormatting();
   if (!plan) {
     // ── Before Calculate ──
-    const driver = driftDriverSentence(driftReport, t);
+    const driver = driftDriverSentence(driftReport, t, taxonomyId);
     return (
       <div className="flex h-full flex-col">
         <Eyebrow>{t("allocation:result.currentMaxDrift")}</Eyebrow>
@@ -1409,7 +1421,22 @@ export function RebalanceTab({
   });
   const cachedPlan = planQuery.data ?? null;
   const hasStalePlan = !!cachedPlan && cachedPlan.sourceKey !== sourceKey;
-  const plan = hasStalePlan ? null : (cachedPlan?.plan ?? null);
+  const rawPlan = hasStalePlan ? null : (cachedPlan?.plan ?? null);
+  const plan =
+    rawPlan && profile
+      ? {
+          ...rawPlan,
+          trades: rawPlan.trades.map((trade) => ({
+            ...trade,
+            categoryName: getCategoryLabel(
+              t,
+              profile.taxonomyId,
+              trade.categoryId,
+              trade.categoryName,
+            ),
+          })),
+        }
+      : rawPlan;
   const isSellMode = scenarioMode !== "cash_flow_only";
 
   useEffect(() => {
@@ -1476,7 +1503,13 @@ export function RebalanceTab({
   const beforeDrift = plan?.maxDriftBpsBefore ?? baseDrift;
   const scaleMaxBps = driftScaleMaxBps(Math.max(beforeDrift, baseDrift), tolerance.maxBps);
 
-  const sleeveSummary = plan && driftReport ? computeSleeveSummary(driftReport, plan) : [];
+  const sleeveSummary =
+    plan && driftReport
+      ? computeSleeveSummary(driftReport, plan).map((row) => ({
+          ...row,
+          categoryName: getCategoryLabel(t, profile.taxonomyId, row.categoryId, row.categoryName),
+        }))
+      : [];
   const isCalculating = planQuery.isFetching;
 
   const reviewTrades = () =>
@@ -1537,6 +1570,7 @@ export function RebalanceTab({
                 </div>
               ) : (
                 <PlannerResult
+                  taxonomyId={profile.taxonomyId}
                   driftReport={driftReport}
                   plan={plan}
                   currency={currency}
@@ -1557,7 +1591,7 @@ export function RebalanceTab({
       )}
 
       {/* ── Plan results ── */}
-      {plan && !isCalculating && (
+      {rawPlan && plan && !isCalculating && (
         <>
           <Warnings items={plan.warnings} />
 
@@ -1631,7 +1665,7 @@ export function RebalanceTab({
                 size="sm"
                 className="min-w-0 justify-center"
                 onClick={() => {
-                  exportCsv(plan, currency, profile.name, t, amountFormatting);
+                  exportCsv(rawPlan, currency, profile.name, t, amountFormatting);
                   toast.success(t("allocation:toast.csvDownloaded"));
                 }}
               >

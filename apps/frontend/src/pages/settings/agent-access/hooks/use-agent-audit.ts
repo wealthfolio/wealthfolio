@@ -1,3 +1,4 @@
+import i18n from "i18next";
 import { type AgentAuditQuery, listAgentAuditLog, logger, purgeAgentAuditLog } from "@/adapters";
 import { QueryKeys } from "@/lib/query-keys";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -17,7 +18,7 @@ export function useAgentAudit(query: AgentAuditQuery) {
     onSuccess: (purged) => {
       queryClient.invalidateQueries({ queryKey: [QueryKeys.AGENT_AUDIT_LOG] });
       toast({
-        title: "Audit log cleared",
+        title: i18n.t("common:notifications.audit_log_cleared"),
         description: `${purged} ${purged === 1 ? "entry" : "entries"} removed.`,
         variant: "success",
       });
@@ -25,7 +26,7 @@ export function useAgentAudit(query: AgentAuditQuery) {
     onError: (error) => {
       logger.error(`Error purging agent audit log: ${String(error)}`);
       toast({
-        title: "Failed to clear audit log",
+        title: i18n.t("common:notifications.failed_to_clear_audit_log"),
         description: error instanceof Error ? error.message : "An unknown error occurred",
         variant: "destructive",
       });

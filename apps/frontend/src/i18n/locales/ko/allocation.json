@@ -358,5 +358,87 @@
     "protectedAccountsNote": "이 계좌에서는 매도가 발생하지 않습니다.",
     "addAccount": "계좌 추가",
     "allAccountsProtected": "모든 계좌가 보호되고 있습니다"
+  },
+  "categoryNouns": {
+    "assetClass": "자산 클래스",
+    "region": "지역",
+    "industry": "산업",
+    "category": "카테고리",
+    "region_other": "지역",
+    "category_other": "카테고리",
+    "assetClass_other": "자산 클래스",
+    "industry_other": "산업"
+  },
+  "builtInPresets": {
+    "balanced_60_40": {
+      "name": "균형 잡힌 60/40",
+      "description": "전형적인 주식과 채권의 혼합"
+    },
+    "growth_80_20": {
+      "name": "성장 80 / 20",
+      "description": "채권안정제로 성장지향적"
+    },
+    "all_weather": {
+      "name": "모든 날씨",
+      "description": "시장 체제 전반에 걸쳐 다양화"
+    },
+    "income_20_80": {
+      "name": "소득 20 / 80",
+      "description": "본드가 많은 보존 혼합물"
+    },
+    "conservative_growth_40_60": {
+      "name": "보수적 성장 40 / 60",
+      "description": "보수적인 주식과 채권 혼합"
+    },
+    "aggressive_90_10": {
+      "name": "공격적 90 / 10",
+      "description": "고자본 성장 믹스"
+    },
+    "permanent_portfolio": {
+      "name": "영구 포트폴리오",
+      "description": "주식, 채권, 현금 및 원자재가 동일함"
+    },
+    "gics_sp500_weight": {
+      "name": "S&P 500",
+      "description": "S&P 500 부문 가중치(2026년 5월)"
+    },
+    "gics_equal_weight": {
+      "name": "동일한 가중치",
+      "description": "11개 GICS 부문 전체에 걸쳐 균등 할당"
+    },
+    "regions_equal_weight": {
+      "name": "동일한 가중치",
+      "description": "5개 대륙 전체에 걸쳐 동일한 노출"
+    },
+    "gics_defensive": {
+      "name": "방어 형평성",
+      "description": "건강 관리, 필수품 및 유틸리티 기울기"
+    },
+    "risk_conservative": {
+      "name": "보수적인",
+      "description": "무거운 저위험 기반, 최소한의 고위험 노출"
+    },
+    "risk_balanced": {
+      "name": "균형 잡힌",
+      "description": "위험도가 낮은 밸러스트를 갖춘 중간 위험 코어"
+    },
+    "risk_aggressive": {
+      "name": "공격적인",
+      "description": "대다수가 고위험 노출인 성장 지향적"
+    },
+    "regions_global_cap": {
+      "name": "글로벌 한도",
+      "description": "대략적인 세계 시가총액 가중치(2026년 4월)"
+    },
+    "regions_international_proxy": {
+      "name": "국제 대리",
+      "description": "대륙 버킷을 사용하는 미국 외 지역 주식 프록시"
+    }
+  },
+  "riskLabels": {
+    "Conservative": "보수적인",
+    "Aggressive": "공격적인",
+    "Moderate": "보통의",
+    "From holdings": "보유 자산에서"
   }
 }

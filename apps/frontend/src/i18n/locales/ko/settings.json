@@ -1038,7 +1038,40 @@
     "imported_count_other": "{{count}}건 가져옴",
     "failed_count_other": "{{count}}건 실패",
     "priority_decrease": "우선순위 숫자 낮추기",
-    "priority_increase": "우선순위 숫자 높이기"
+    "priority_increase": "우선순위 숫자 높이기",
+    "feature_dividends": "배당금",
+    "providerDescriptions": {
+      "YAHOO": "Yahoo Finance는 많은 시장에서 선도적인 금융 데이터 제공업체입니다. 과거 및 실시간 주식 데이터를 제공합니다.",
+      "MARKETDATA_APP": "MarketData.app은 미국 주식, 옵션, ETF, 뮤추얼 펀드 등에 대한 실시간 및 과거 데이터를 제공합니다.",
+      "ALPHA_VANTAGE": "Alpha Vantage는 주식, 외환 및 암호화폐에 대한 실시간 및 과거 데이터를 위한 무료 API를 제공합니다.",
+      "US_TREASURY_CALC": "미국 재무부가 발표한 수익률 곡선 데이터를 바탕으로 미국 국채 가격을 계산합니다.",
+      "BOERSE_FRANKFURT": "Börse 프랑크푸르트는 유럽 시장에 대한 채권 및 증권 가격 데이터를 제공합니다.",
+      "OPENFIGI": "OpenFIGI는 금융상품 식별자(FIGI, ISIN, CUSIP, 티커)에 대한 매핑 서비스를 제공합니다.",
+      "METAL_PRICE_API": "귀금속(금, 은, 백금, 팔라듐)에 대한 실시간 및 과거 현물 가격을 제공합니다.",
+      "CUSTOM_SCRAPER": "사용자 정의 사용자 정의 소스를 위한 런타임 디스패치 공급자",
+      "FINNHUB": "Finnhub는 전 세계 주식, 외환 및 암호화폐 실시간 데이터를 제공합니다. 무료 요금제는 분당 API 호출 60회를 지원합니다."
+    },
+    "coverageLabels": {
+      "Global": "글로벌",
+      "US only": "미국만 해당",
+      "USD only": "USD만 가능",
+      "US Treasury": "미국 재무부",
+      "User-defined": "사용자 정의"
+    },
+    "feature_no_api_key": "API 키 없음",
+    "us_treasury_name": "미국 재무부(계산)",
+    "templateDescriptions": {
+      "workplace_fund_prices_fund_code": "직장 펀드 가격(펀드 코드)",
+      "free_crypto_use_coin_id_bitcoin_ethereum": "무료 암호화폐(코인 ID 사용: bitcoin, ethereum...)",
+      "free_currency_rates": "자유 환율",
+      "lse_etfs_equities": "LSE ETF 및 주식",
+      "eu_funds_equities_isin_mic": "EU 펀드 및 주식(ISIN-MIC)",
+      "stocks_crypto_fx_set_api_key_in_headers": "주식, 암호화폐, FX(헤더에 API 키 설정)",
+      "italian_bonds_stocks": "이탈리아 채권 및 주식",
+      "workplace_fund_price_history_fund_code": "직장 펀드 가격 내역(펀드 코드)",
+      "lse_etfs_equities_html_table": "LSE ETF 및 주식(HTML 테이블)",
+      "daily_crypto_history_use_coin_id_bitcoin_ethereum": "일일 암호화폐 기록(코인 ID 사용: bitcoin, ethereum...)"
+    }
   },
   "addon_permission_none_detected": "감지된 데이터 접근 권한이 없습니다. 이 애드온은 시스템 접근 권한이 최소한인 것으로 보입니다.",
   "addon_permission_list_title": "권한",

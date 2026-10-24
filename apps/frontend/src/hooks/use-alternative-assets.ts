@@ -1,3 +1,4 @@
+import i18n from "i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "@wealthfolio/ui/components/ui/use-toast";
 import { logger } from "@/adapters";
@@ -43,8 +44,8 @@ export function useCreateAlternativeAsset(options?: UseAlternativeAssetMutations
       invalidatePerformanceCaches(queryClient);
 
       toast({
-        title: "Asset created successfully",
-        description: `Created ${data.assetId}`,
+        title: i18n.t("common:notifications.asset_created_successfully"),
+        description: i18n.t("common:notifications.asset_created_id", { assetId: data.assetId }),
         variant: "success",
       });
 
@@ -53,8 +54,8 @@ export function useCreateAlternativeAsset(options?: UseAlternativeAssetMutations
     onError: (error) => {
       logger.error(`Error creating alternative asset: ${error}`);
       toast({
-        title: "Failed to create asset",
-        description: "There was a problem creating the asset. Please try again.",
+        title: i18n.t("common:notifications.failed_to_create_asset"),
+        description: i18n.t("common:notifications.asset_create_error_description"),
         variant: "destructive",
       });
     },
@@ -86,8 +87,10 @@ export function useUpdateValuation(options?: UseAlternativeAssetMutationsOptions
       invalidatePerformanceCaches(queryClient);
 
       toast({
-        title: "Valuation updated",
-        description: "The asset valuation has been updated successfully.",
+        title: i18n.t("common:notifications.valuation_updated"),
+        description: i18n.t(
+          "common:notifications.the_asset_valuation_has_been_updated_successfully",
+        ),
         variant: "success",
       });
 
@@ -96,8 +99,8 @@ export function useUpdateValuation(options?: UseAlternativeAssetMutationsOptions
     onError: (error) => {
       logger.error(`Error updating valuation: ${error}`);
       toast({
-        title: "Failed to update valuation",
-        description: "There was a problem updating the valuation. Please try again.",
+        title: i18n.t("common:notifications.failed_to_update_valuation"),
+        description: i18n.t("common:notifications.valuation_update_error_description"),
         variant: "destructive",
       });
     },
@@ -121,8 +124,10 @@ export function useDeleteAlternativeAsset(options?: UseAlternativeAssetMutations
       invalidatePerformanceCaches(queryClient);
 
       toast({
-        title: "Asset deleted",
-        description: "The asset and its associated data have been removed.",
+        title: i18n.t("common:notifications.asset_deleted"),
+        description: i18n.t(
+          "common:notifications.the_asset_and_its_associated_data_have_been_removed",
+        ),
         variant: "success",
       });
 
@@ -131,8 +136,8 @@ export function useDeleteAlternativeAsset(options?: UseAlternativeAssetMutations
     onError: (error) => {
       logger.error(`Error deleting alternative asset: ${error}`);
       toast({
-        title: "Failed to delete asset",
-        description: "There was a problem deleting the asset. Please try again.",
+        title: i18n.t("common:notifications.failed_to_delete_asset"),
+        description: i18n.t("common:notifications.asset_delete_error_description"),
         variant: "destructive",
       });
     },
@@ -162,8 +167,8 @@ export function useLinkLiability(options?: UseAlternativeAssetMutationsOptions) 
       queryClient.invalidateQueries({ queryKey: [QueryKeys.NET_WORTH_HISTORY] });
 
       toast({
-        title: "Liability linked",
-        description: "The liability has been linked to the asset.",
+        title: i18n.t("common:notifications.liability_linked"),
+        description: i18n.t("common:notifications.the_liability_has_been_linked_to_the_asset"),
         variant: "success",
       });
 
@@ -172,8 +177,8 @@ export function useLinkLiability(options?: UseAlternativeAssetMutationsOptions) 
     onError: (error) => {
       logger.error(`Error linking liability: ${error}`);
       toast({
-        title: "Failed to link liability",
-        description: "There was a problem linking the liability. Please try again.",
+        title: i18n.t("common:notifications.failed_to_link_liability"),
+        description: i18n.t("common:notifications.liability_link_error_description"),
         variant: "destructive",
       });
     },
@@ -198,8 +203,8 @@ export function useUnlinkLiability(options?: UseAlternativeAssetMutationsOptions
       queryClient.invalidateQueries({ queryKey: [QueryKeys.NET_WORTH_HISTORY] });
 
       toast({
-        title: "Liability unlinked",
-        description: "The liability has been unlinked from the asset.",
+        title: i18n.t("common:notifications.liability_unlinked"),
+        description: i18n.t("common:notifications.the_liability_has_been_unlinked_from_the_asset"),
         variant: "success",
       });
 
@@ -208,8 +213,8 @@ export function useUnlinkLiability(options?: UseAlternativeAssetMutationsOptions
     onError: (error) => {
       logger.error(`Error unlinking liability: ${error}`);
       toast({
-        title: "Failed to unlink liability",
-        description: "There was a problem unlinking the liability. Please try again.",
+        title: i18n.t("common:notifications.failed_to_unlink_liability"),
+        description: i18n.t("common:notifications.liability_unlink_error_description"),
         variant: "destructive",
       });
     },

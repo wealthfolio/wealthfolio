@@ -267,7 +267,9 @@ export const ActivityMobileFilterSheet = ({
                       )
                     }
                   >
-                    <span>{option.label}</span>
+                    <span>
+                      {t(`asset:createSecurity.instrumentType.${option.value.toLowerCase()}`)}
+                    </span>
                   </FilterOptionRow>
                 ))}
               </ul>

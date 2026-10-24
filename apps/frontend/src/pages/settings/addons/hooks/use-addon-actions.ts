@@ -1,3 +1,4 @@
+import i18n from "i18next";
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@wealthfolio/ui/components/ui/use-toast";
@@ -126,8 +127,8 @@ export function useAddonActions() {
       const isZip = file.name.toLowerCase().endsWith(".zip") || file.type === "application/zip";
       if (!isZip) {
         toast({
-          title: "Invalid file type",
-          description: "Please select a .zip addon package.",
+          title: i18n.t("common:notifications.invalid_file_type"),
+          description: i18n.t("common:notifications.please_select_a_zip_addon_package"),
           variant: "destructive",
         });
         return;
@@ -139,7 +140,7 @@ export function useAddonActions() {
     } catch (error) {
       envLogger.error("Error loading addon: " + (error as Error).message);
       toast({
-        title: "Error loading addon",
+        title: i18n.t("common:notifications.error_loading_addon"),
         description: error instanceof Error ? error.message : "Failed to load addon",
         variant: "destructive",
       });
@@ -172,7 +173,7 @@ export function useAddonActions() {
     } catch (error) {
       console.error("Error analyzing addon permissions:", error);
       toast({
-        title: "Permission analysis failed",
+        title: i18n.t("common:notifications.permission_analysis_failed"),
         description:
           error instanceof Error ? error.message : "Could not analyze addon permissions.",
         variant: "destructive",
@@ -202,7 +203,7 @@ export function useAddonActions() {
           queryClient.invalidateQueries({ queryKey: [QueryKeys.INSTALLED_ADDONS] });
           await reloadAllAddons();
           toast({
-            title: "Addon installed successfully",
+            title: i18n.t("common:notifications.addon_installed_successfully"),
             description: `${extractedAddon.metadata.name} has been installed and is now active.`,
           });
         } catch (error) {
@@ -239,7 +240,7 @@ export function useAddonActions() {
       await reloadAllAddons();
 
       toast({
-        title: "Addon installed successfully",
+        title: i18n.t("common:notifications.addon_installed_successfully"),
         description: `${metadata.name} has been installed and is now active.`,
       });
     } catch (error) {
@@ -270,7 +271,7 @@ export function useAddonActions() {
     } catch (error) {
       console.error("Error toggling addon:", error);
       toast({
-        title: "Error toggling addon",
+        title: i18n.t("common:notifications.error_toggling_addon"),
         description: error instanceof Error ? error.message : "Failed to toggle addon",
         variant: "destructive",
       });
@@ -290,7 +291,7 @@ export function useAddonActions() {
       queryClient.invalidateQueries({ queryKey: [QueryKeys.INSTALLED_ADDONS] });
 
       toast({
-        title: "Addon uninstalled",
+        title: i18n.t("common:notifications.addon_uninstalled"),
         description: `${addon.metadata.name} has been completely removed.`,
       });
 
@@ -299,7 +300,7 @@ export function useAddonActions() {
     } catch (error) {
       console.error("Error uninstalling addon:", error);
       toast({
-        title: "Error uninstalling addon",
+        title: i18n.t("common:notifications.error_uninstalling_addon"),
         description: error instanceof Error ? error.message : "Failed to uninstall addon",
         variant: "destructive",
       });
@@ -323,8 +324,8 @@ export function useAddonActions() {
     } catch (error) {
       console.error("Error loading addon permissions:", error);
       toast({
-        title: "Error loading permissions",
-        description: "Could not load addon permissions.",
+        title: i18n.t("common:notifications.error_loading_permissions"),
+        description: i18n.t("common:notifications.could_not_load_addon_permissions"),
         variant: "destructive",
       });
     }
@@ -342,13 +343,13 @@ export function useAddonActions() {
       await reloadAllAddons();
 
       toast({
-        title: "Network permissions updated",
+        title: i18n.t("common:notifications.network_permissions_updated"),
         description: `${metadata.name} network host approvals have been saved.`,
       });
     } catch (error) {
       console.error("Error updating network approvals:", error);
       toast({
-        title: "Error updating network permissions",
+        title: i18n.t("common:notifications.error_updating_network_permissions"),
         description:
           error instanceof Error ? error.message : "Failed to update network host approvals",
         variant: "destructive",

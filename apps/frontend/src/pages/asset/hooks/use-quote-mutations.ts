@@ -1,3 +1,4 @@
+import i18n from "i18next";
 import { logger, deleteQuote, updateQuote } from "@/adapters";
 import { toast } from "@wealthfolio/ui/components/ui/use-toast";
 import { QueryKeys } from "@/lib/query-keys";
@@ -43,7 +44,7 @@ export const useQuoteMutations = (
 
   const handleError = (action: string) => {
     toast({
-      title: "Uh oh! Something went wrong.",
+      title: i18n.t("settings:settings_update_error_title"),
       description: `There was a problem ${action}.`,
       variant: "destructive",
     });

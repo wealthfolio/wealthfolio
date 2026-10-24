@@ -106,6 +106,11 @@ function sortComparisonItems(items: TrackedItem[]): TrackedItem[] {
   });
 }
 
+/** Only the reserved all-portfolio item is synthetic; real account/portfolio names stay raw. */
+function performanceItemLabel(item: { id: string; name: string }, t: TFunction): string {
+  return item.id === PORTFOLIO_SCOPE_ID ? t("performance:all_portfolio") : item.name;
+}
+
 function chartMetricForResult(result: PerformanceResult): PerformanceMetric {
   return result.mode === "valueReturn" ? "valueReturn" : "twr";
 }
@@ -352,6 +357,12 @@ function presentMoneyWeightedWarning(
   t: TFunction,
   formatting: Pick<FormattingApi, "formatDecimal">,
 ): string {
+  if (
+    text ===
+    "IRR unavailable for holdings-only scopes because transaction cash flows are not tracked."
+  ) {
+    return t("performance:exclusion.holdings_not_mwr");
+  }
   return presentWarning(text, namesById, formatting)
     .replace(/\bXIRR\b/gi, t("performance:metric.annualized_mwr"))
     .replace(/\bIRR\b/g, "MWR");
@@ -1028,6 +1039,7 @@ const SelectedItemBadge = ({
   color?: string;
 }) => {
   const { t } = useTranslation();
+  const label = performanceItemLabel(item, t);
   return (
     <Badge
       className={cn(
@@ -1064,7 +1076,7 @@ const SelectedItemBadge = ({
           style={isPlotted && color ? { backgroundColor: color } : undefined}
         />
         <span className="group-hover:text-foreground max-w-40 truncate text-xs font-medium transition-colors sm:text-sm">
-          {item.name}
+          {label}
         </span>
         {!isPlotted && (
           <span className="bg-background/70 text-muted-foreground text-2xs rounded px-1.5 py-0.5 font-medium">
@@ -1086,7 +1098,7 @@ const SelectedItemBadge = ({
           "focus-visible:ring-destructive/50 focus-visible:ring-2",
         )}
         onClick={onDelete}
-        aria-label={t("performance:remove_item", { name: item.name })}
+        aria-label={t("performance:remove_item", { name: label })}
       >
         <Icons.Close className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
       </Button>
@@ -1210,8 +1222,8 @@ export default function PerformancePage() {
     if (!targetId) return null;
     const found = performanceData.find((item) => item?.id === targetId);
     if (!found) return null;
-    const name =
-      selectedItems.find((item) => item.id === found.id)?.name ?? t("performance:unknown");
+    const selectedItem = selectedItems.find((item) => item.id === found.id);
+    const name = selectedItem ? performanceItemLabel(selectedItem, t) : t("performance:unknown");
     return {
       result: found,
       name,
@@ -1228,8 +1240,8 @@ export default function PerformancePage() {
       performanceData,
       selectedChartMetric,
       activeChartAnchorId ?? null,
-    );
-  }, [activeChartAnchorId, performanceData, selectedChartMetric]);
+    ).map((item) => ({ ...item, name: performanceItemLabel(item, t) }));
+  }, [activeChartAnchorId, performanceData, selectedChartMetric, t]);
 
   const chartColorMap = useMemo(() => {
     const map = new Map<string, string>();

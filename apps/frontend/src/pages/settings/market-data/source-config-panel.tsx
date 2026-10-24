@@ -451,17 +451,23 @@ export function SourceConfigPanel({ form, prefix, runtime, onUrlChange }: Source
                 {t("settings:market_data_page.quick_start")}
               </Label>
               <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                {templates.map((t) => (
+                {templates.map((template) => (
                   <button
-                    key={t.name}
+                    key={template.name}
                     type="button"
-                    onClick={() => runtime.applyTemplate(t)}
+                    onClick={() => runtime.applyTemplate(template)}
                     className="bg-muted/30 hover:bg-muted/50 flex min-w-0 items-center gap-2 rounded-lg border border-transparent px-3 py-2 text-xs transition-colors"
                   >
                     <Icons.Globe className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
                     <span className="min-w-0 truncate">
-                      <span className="font-medium">{t.name}</span>
-                      <span className="text-muted-foreground"> · {t.description}</span>
+                      <span className="font-medium">{template.name}</span>
+                      <span className="text-muted-foreground">
+                        {" "}
+                        ·{" "}
+                        {t(
+                          `settings:market_data_page.templateDescriptions.${template.descriptionKey}`,
+                        )}
+                      </span>
                     </span>
                   </button>
                 ))}

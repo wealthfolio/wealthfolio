@@ -8,6 +8,7 @@ import { useTranslation } from "react-i18next";
 
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import type { Activity } from "@/lib/types";
+import { getEventTypeLabel } from "@/lib/taxonomy-labels";
 import { cn, parseLocalDate } from "@/lib/utils";
 import {
   Button,
@@ -229,13 +230,15 @@ export const EventsTimelineCard: FC<EventsTimelineCardProps> = ({
       const c = getEventColors(ev);
       map.set(ev.eventTypeId, {
         id: ev.eventTypeId,
-        name: ev.eventTypeName ?? tr("spending:eventsCard.title"),
+        name: ev.eventTypeName
+          ? getEventTypeLabel(tr, ev.eventTypeId, ev.eventTypeName)
+          : tr("spending:eventsCard.title"),
         stroke: c.stroke,
         fill: c.fill,
       });
     }
     return Array.from(map.values());
-  }, [events]);
+  }, [events, tr]);
 
   return (
     <div className={CARD_CLASS} ref={containerRef}>
@@ -459,7 +462,7 @@ export const EventsTimelineCard: FC<EventsTimelineCardProps> = ({
             const days = Math.max(1, inclusiveDays(start, end));
             const expected = computed.normalPace * days;
             const lift = ev.totalSpending - expected;
-            const kindLabel = (ev.eventTypeName ?? "").toUpperCase();
+            const kindLabel = getEventTypeLabel(tr, ev.eventTypeId, ev.eventTypeName ?? "");
             const labelRowIdx = labelRowByEventId[ev.eventId] ?? 0;
             const labelYOffset = -4 - labelRowIdx * 12;
             const isWide = w > WIDE_THRESHOLD;

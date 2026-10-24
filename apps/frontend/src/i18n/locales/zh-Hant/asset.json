@@ -697,6 +697,18 @@
       "precious_metal": "貴金屬",
       "liability": "負債",
       "other": "其他"
+    },
+    "validation": {
+      "name_is_required": "名稱為必填欄位",
+      "quantity_must_be_greater_than_0": "數量必須大於0",
+      "purchase_price_must_be_greater_than_0": "購買價格必須大於0",
+      "notes_must_be_less_than_1000_characters": "注釋必須少於 1000 個字符",
+      "address_must_be_less_than_200_characters": "地址必須少於 200 個字符",
+      "interest_rate_must_be_100_or_less": "利率必須為 100 或更低",
+      "name_must_be_less_than_100_characters": "名稱必須少於 100 個字符",
+      "interest_rate_must_be_0_or_greater": "利率必須為 0 或更大",
+      "description_must_be_less_than_200_characters": "描述必須少於 200 個字符",
+      "original_amount_must_be_greater_than_0": "原始金額必須大於0"
     }
   },
   "updateValuation": {

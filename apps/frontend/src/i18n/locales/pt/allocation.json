@@ -371,5 +371,95 @@
     "protectedAccountsNote": "Nenhuma venda é gerada a partir destas contas.",
     "addAccount": "Adicionar conta",
     "allAccountsProtected": "Todas as contas estão protegidas"
+  },
+  "categoryNouns": {
+    "assetClass": "classes de ativos",
+    "region": "regiões",
+    "industry": "indústrias",
+    "category": "categorias",
+    "region_other": "regiões",
+    "category_other": "categorias",
+    "assetClass_one": "classe de ativos",
+    "assetClass_other": "classes de ativos",
+    "assetClass_many": "classes de ativos",
+    "region_one": "região",
+    "industry_one": "indústria",
+    "industry_other": "indústrias",
+    "industry_many": "indústrias",
+    "category_one": "categoria",
+    "region_many": "regiões",
+    "category_many": "categorias"
+  },
+  "builtInPresets": {
+    "balanced_60_40": {
+      "name": "Equilibrado 60/40",
+      "description": "Mix clássico de ações e títulos"
+    },
+    "growth_80_20": {
+      "name": "Crescimento 80/20",
+      "description": "Orientado para o crescimento com um estabilizador de títulos"
+    },
+    "all_weather": {
+      "name": "Todos os climas",
+      "description": "Diversificado entre regimes de mercado"
+    },
+    "income_20_80": {
+      "name": "Renda 20/80",
+      "description": "Mistura de preservação pesada"
+    },
+    "conservative_growth_40_60": {
+      "name": "Crescimento Conservador 40/60",
+      "description": "Mix conservador de ações e títulos"
+    },
+    "aggressive_90_10": {
+      "name": "Agressivo 90/10",
+      "description": "Mix de crescimento de alto patrimônio"
+    },
+    "permanent_portfolio": {
+      "name": "Portfólio Permanente",
+      "description": "Ações, títulos, dinheiro e commodities iguais"
+    },
+    "gics_sp500_weight": {
+      "name": "S&P 500",
+      "description": "Pesos do setor S&P 500 (maio de 2026)"
+    },
+    "gics_equal_weight": {
+      "name": "Peso igual",
+      "description": "Alocação igual em todos os 11 setores do GICS"
+    },
+    "regions_equal_weight": {
+      "name": "Peso igual",
+      "description": "Exposição igual em todos os cinco continentes"
+    },
+    "gics_defensive": {
+      "name": "Patrimônio Defensivo",
+      "description": "Cuidados de saúde, produtos básicos e serviços públicos inclinam-se"
+    },
+    "risk_conservative": {
+      "name": "Conservador",
+      "description": "Base pesada de baixo risco, exposição mínima de alto risco"
+    },
+    "risk_balanced": {
+      "name": "Equilibrado",
+      "description": "Núcleo de médio risco com lastro de baixo risco"
+    },
+    "risk_aggressive": {
+      "name": "Agressivo",
+      "description": "Orientado para o crescimento com exposição majoritária a alto risco"
+    },
+    "regions_global_cap": {
+      "name": "Limite global",
+      "description": "Pesos aproximados de capitalização de mercado mundial (abril de 2026)"
+    },
+    "regions_international_proxy": {
+      "name": "Procuração Internacional",
+      "description": "Proxy de ações fora dos EUA usando intervalos de continentes"
+    }
+  },
+  "riskLabels": {
+    "Conservative": "Conservador",
+    "Aggressive": "Agressivo",
+    "Moderate": "Moderado",
+    "From holdings": "De participações"
   }
 }

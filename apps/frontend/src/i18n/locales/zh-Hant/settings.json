@@ -1050,7 +1050,40 @@
     "imported_count_one": "已匯入 {{count}} 筆",
     "failed_count_one": "{{count}} 筆失敗",
     "priority_decrease": "減少優先順序數值",
-    "priority_increase": "增加優先順序數值"
+    "priority_increase": "增加優先順序數值",
+    "feature_dividends": "股利",
+    "providerDescriptions": {
+      "US_TREASURY_CALC": "根據美國財政部公佈的殖利率曲線計算美國國債價格。",
+      "BOERSE_FRANKFURT": "法蘭克福交易所提供歐洲市場的債券和證券定價資料。",
+      "OPENFIGI": "OpenFIGI 提供金融工具標識符（FIGI、ISIN、CUSIP、股票代碼）的映射服務。",
+      "METAL_PRICE_API": "提供貴金屬（黃金、白銀、鉑金、鈀金）的實時和歷史現貨價格。",
+      "CUSTOM_SCRAPER": "為使用者自訂資料源提供運行時調度。",
+      "YAHOO": "Yahoo Finance 提供多個市場的歷史及實時股票資料。",
+      "MARKETDATA_APP": "MarketData.app 提供美國股票、期權、ETF、共同基金等的實時和歷史資料。",
+      "ALPHA_VANTAGE": "Alpha Vantage 為股票、外匯和加密貨幣的實時和歷史資料提供免費的 API。",
+      "FINNHUB": "Finnhub 提供覆蓋全球的實時股票、外匯及加密貨幣資料。免費方案每分鐘支持 60 次 API 調用。"
+    },
+    "coverageLabels": {
+      "Global": "全球",
+      "US only": "僅限美國",
+      "USD only": "僅限美元",
+      "US Treasury": "美國國債",
+      "User-defined": "使用者自訂"
+    },
+    "feature_no_api_key": "不需 API 金鑰",
+    "us_treasury_name": "美國財政部（計算）",
+    "templateDescriptions": {
+      "workplace_fund_prices_fund_code": "雇主退休計畫基金價格（基金代碼）",
+      "free_crypto_use_coin_id_bitcoin_ethereum": "免費加密貨幣報價（使用幣種 ID：bitcoin、ethereum 等）",
+      "free_currency_rates": "免費貨幣匯率",
+      "lse_etfs_equities": "倫敦證券交易所 ETF 和股票",
+      "eu_funds_equities_isin_mic": "歐盟基金和股票 (ISIN-MIC)",
+      "stocks_crypto_fx_set_api_key_in_headers": "股票、加密貨幣、外匯（在標頭中設置 API 密鑰）",
+      "italian_bonds_stocks": "義大利債券和股票",
+      "workplace_fund_price_history_fund_code": "雇主退休計畫基金歷史價格（基金代碼）",
+      "lse_etfs_equities_html_table": "LSE ETF 和股票（HTML 表格）",
+      "daily_crypto_history_use_coin_id_bitcoin_ethereum": "加密貨幣每日歷史價格（使用幣種 ID：bitcoin、ethereum 等）"
+    }
   },
   "addon_permission_none_detected": "未偵測到資料存取權限。此擴充功能對系統的存取權限似乎很少。",
   "addon_permission_list_title": "權限",

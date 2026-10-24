@@ -382,7 +382,7 @@ export function useActivityColumns({
             variant: "select",
             options: INSTRUMENT_TYPE_OPTIONS.map((opt) => ({
               value: opt.value,
-              label: opt.label,
+              label: t(`asset:createSecurity.instrumentType.${opt.value.toLowerCase()}`),
             })),
             allowEmpty: true,
             emptyLabel: t("activity:datagrid.instrument_auto"),

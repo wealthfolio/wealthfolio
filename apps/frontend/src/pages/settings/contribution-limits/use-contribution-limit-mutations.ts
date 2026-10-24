@@ -1,3 +1,4 @@
+import i18n from "i18next";
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import {
   deleteContributionLimit,
@@ -19,8 +20,8 @@ export const useContributionLimitProgress = (limitId: string) => {
       } catch (e) {
         logger.error(`Error calculating deposits for limit: ${String(e)}`);
         toast({
-          title: "Error calculating deposits",
-          description: "There was a problem calculating the deposits for this limit.",
+          title: i18n.t("common:notifications.error_calculating_deposits"),
+          description: i18n.t("common:notifications.deposit_calculation_error_description"),
           variant: "destructive",
         });
         throw e;
@@ -45,7 +46,7 @@ export const useContributionLimitMutations = () => {
 
   const handleError = (action: string) => {
     toast({
-      title: "Uh oh! Something went wrong.",
+      title: i18n.t("settings:settings_update_error_title"),
       description: `There was a problem ${action}.`,
       variant: "destructive",
     });

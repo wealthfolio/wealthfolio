@@ -1,3 +1,5 @@
+import { getCategoryLabel } from "@/lib/taxonomy-labels";
+import type { TFunction } from "i18next";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -77,12 +79,15 @@ function makeLine(taxonomyId: string, categoryId = "", amount?: number, note = "
 }
 
 function categoryLabel(
+  t: TFunction,
   category: TaxonomyCategory | undefined,
   categories: Map<string, TaxonomyCategory>,
 ) {
   if (!category) return null;
   const parent = category.parentId ? categories.get(category.parentId) : null;
-  return parent ? `${parent.name} / ${category.name}` : category.name;
+  return parent
+    ? `${getCategoryLabel(t, parent.taxonomyId, parent.id, parent.name)} / ${getCategoryLabel(t, category.taxonomyId, category.id, category.name)}`
+    : getCategoryLabel(t, category.taxonomyId, category.id, category.name);
 }
 
 function fallbackLineColor(index: number) {
@@ -340,7 +345,7 @@ export function SplitTransactionSheet({
           <div className="border-border divide-border divide-y border-y">
             {lines.map((line, index) => {
               const category = categories.get(line.categoryId);
-              const label = categoryLabel(category, categories);
+              const label = categoryLabel(t, category, categories);
               const color = splitLineColor(category, index);
               const amountUnits = toSplitUnits(line.amount, splitDecimals);
               const showNoteInput = line.note.trim().length > 0 || expandedNoteLineIds.has(line.id);

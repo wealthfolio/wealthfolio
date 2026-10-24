@@ -1,3 +1,4 @@
+import i18n from "i18next";
 import {
   logger,
   addExchangeRate as addExchangeRateApi,
@@ -54,7 +55,7 @@ export function useExchangeRates() {
     onError: (error) => {
       logger.error(`Error updating exchange rate: ${error}`);
       toast({
-        title: "Uh oh! Something went wrong.",
+        title: i18n.t("settings:settings_update_error_title"),
         description: `There was a problem updating the exchange rate: ${error?.message}`,
         variant: "destructive",
       });
@@ -70,7 +71,7 @@ export function useExchangeRates() {
     onError: (error) => {
       logger.error(`Error adding exchange rate: ${error}`);
       toast({
-        title: "Error adding exchange rate",
+        title: i18n.t("common:notifications.error_adding_exchange_rate"),
         description: `There was a problem adding the exchange rate: ${error?.message}`,
         variant: "destructive",
       });
@@ -86,7 +87,7 @@ export function useExchangeRates() {
     onError: (error) => {
       logger.error(`Error deleting exchange rate: ${error}`);
       toast({
-        title: "Error deleting exchange rate",
+        title: i18n.t("common:notifications.error_deleting_exchange_rate"),
         description: `There was a problem deleting the exchange rate: ${error?.message}`,
         variant: "destructive",
       });

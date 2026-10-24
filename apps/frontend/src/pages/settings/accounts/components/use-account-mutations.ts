@@ -1,3 +1,4 @@
+import i18n from "i18next";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "@wealthfolio/ui/components/ui/use-toast";
 import { createAccount, updateAccount, deleteAccount, logger } from "@/adapters";
@@ -29,7 +30,7 @@ export function useAccountMutations({ onSuccess = () => undefined }: UseAccountM
   const handleError = (action: string) => {
     toast({
       title: `Uh oh! Something went wrong ${action} this account.`,
-      description: "Please try again or report an issue if the problem persists.",
+      description: i18n.t("activity:import.errors.importErrorDescription"),
       variant: "destructive",
     });
   };

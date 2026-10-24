@@ -361,5 +361,91 @@
     "protectedAccountsNote": "Aus diesen Konten werden keine Verkäufe generiert.",
     "addAccount": "Konto hinzufügen",
     "allAccountsProtected": "Alle Konten sind geschützt"
+  },
+  "categoryNouns": {
+    "assetClass": "Anlageklassen",
+    "region": "Regionen",
+    "industry": "Branchen",
+    "category": "Kategorien",
+    "region_other": "Regionen",
+    "category_other": "Kategorien",
+    "region_one": "Region",
+    "category_one": "Kategorie",
+    "assetClass_one": "Anlageklasse",
+    "assetClass_other": "Anlageklassen",
+    "industry_one": "Branche",
+    "industry_other": "Branchen"
+  },
+  "builtInPresets": {
+    "balanced_60_40": {
+      "name": "Ausgewogen 60/40",
+      "description": "Klassischer Aktien- und Anleihenmix"
+    },
+    "growth_80_20": {
+      "name": "Wachstum 80/20",
+      "description": "Wachstumsorientiert mit einem Bindungsstabilisator"
+    },
+    "all_weather": {
+      "name": "Bei jedem Wetter",
+      "description": "Diversifiziert über alle Marktregime hinweg"
+    },
+    "income_20_80": {
+      "name": "Einkommen 20 / 80",
+      "description": "Bindungsstarke Konservierungsmischung"
+    },
+    "conservative_growth_40_60": {
+      "name": "Konservatives Wachstum 40/60",
+      "description": "Konservativer Aktien- und Anleihenmix"
+    },
+    "aggressive_90_10": {
+      "name": "Aggressiv 90/10",
+      "description": "Wachstumsmix mit hohem Eigenkapitalanteil"
+    },
+    "permanent_portfolio": {
+      "name": "Permanentes Portfolio",
+      "description": "Gleiche Aktien, Anleihen, Bargeld und Rohstoffe"
+    },
+    "gics_sp500_weight": {
+      "name": "S&P 500",
+      "description": "S&P 500-Sektorgewichte (Mai 2026)"
+    },
+    "gics_equal_weight": {
+      "name": "Gleiches Gewicht",
+      "description": "Gleiche Verteilung auf alle 11 GICS-Sektoren"
+    },
+    "regions_equal_weight": {
+      "name": "Gleiches Gewicht",
+      "description": "Gleiche Präsenz auf allen fünf Kontinenten"
+    },
+    "gics_defensive": {
+      "name": "Defensives Eigenkapital",
+      "description": "Gesundheitswesen, Grundnahrungsmittel und Versorgungsunternehmen neigen sich"
+    },
+    "risk_conservative": {
+      "name": "Konservativ",
+      "description": "Schwere Basis mit geringem Risiko, minimale Exposition mit hohem Risiko"
+    },
+    "risk_balanced": {
+      "name": "Ausgewogen",
+      "description": "Kern mit mittlerem Risiko und Ballast mit geringerem Risiko"
+    },
+    "risk_aggressive": {
+      "name": "Aggressiv",
+      "description": "Wachstumsorientiert mit überwiegend hohem Risikoengagement"
+    },
+    "regions_global_cap": {
+      "name": "Globale Obergrenze",
+      "description": "Ungefähre Weltmarktkapitalisierungsgewichte (April 2026)"
+    },
+    "regions_international_proxy": {
+      "name": "Internationaler Proxy",
+      "description": "Nicht-US-Aktien-Proxy unter Verwendung von Kontinent-Buckets"
+    }
+  },
+  "riskLabels": {
+    "Conservative": "Konservativ",
+    "Aggressive": "Aggressiv",
+    "Moderate": "Mäßig",
+    "From holdings": "Aus Beständen"
   }
 }

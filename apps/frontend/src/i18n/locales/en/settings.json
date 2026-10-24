@@ -1007,7 +1007,40 @@
     "failed_count_one": "{{count}} failed",
     "failed_count_other": "{{count}} failed",
     "priority_decrease": "Decrease priority number",
-    "priority_increase": "Increase priority number"
+    "priority_increase": "Increase priority number",
+    "providerDescriptions": {
+      "YAHOO": "Yahoo Finance is a leading financial data provider for many markets. It provides historical and real-time stock data.",
+      "MARKETDATA_APP": "MarketData.app provides real-time and historical data for U.S. stocks, options, ETFs, mutual funds, and more.",
+      "ALPHA_VANTAGE": "Alpha Vantage provides free APIs for real-time and historical data on stocks, forex, and cryptocurrencies.",
+      "US_TREASURY_CALC": "Calculates US Treasury bond prices from yield curve data published by the US Treasury Department.",
+      "BOERSE_FRANKFURT": "Börse Frankfurt provides bond and security pricing data for European markets.",
+      "OPENFIGI": "OpenFIGI provides a mapping service for financial instrument identifiers (FIGI, ISIN, CUSIP, ticker).",
+      "METAL_PRICE_API": "Provides real-time and historical spot prices for precious metals (gold, silver, platinum, palladium).",
+      "CUSTOM_SCRAPER": "Runtime dispatch provider for user-defined custom sources",
+      "FINNHUB": "Finnhub provides real-time stock, forex, and cryptocurrency data with global coverage. Free tier includes 60 API calls/minute."
+    },
+    "coverageLabels": {
+      "Global": "Global",
+      "US only": "US only",
+      "USD only": "USD only",
+      "US Treasury": "US Treasury",
+      "User-defined": "User-defined"
+    },
+    "feature_dividends": "Dividends",
+    "feature_no_api_key": "No API key",
+    "us_treasury_name": "US Treasury (Calculated)",
+    "templateDescriptions": {
+      "workplace_fund_prices_fund_code": "Workplace fund prices (fund code)",
+      "free_crypto_use_coin_id_bitcoin_ethereum": "Free crypto (use coin ID: bitcoin, ethereum...)",
+      "free_currency_rates": "Free currency rates",
+      "lse_etfs_equities": "LSE ETFs & equities",
+      "eu_funds_equities_isin_mic": "EU funds & equities (ISIN-MIC)",
+      "stocks_crypto_fx_set_api_key_in_headers": "Stocks, crypto, FX (set API key in headers)",
+      "italian_bonds_stocks": "Italian bonds & stocks",
+      "workplace_fund_price_history_fund_code": "Workplace fund price history (fund code)",
+      "lse_etfs_equities_html_table": "LSE ETFs & equities (HTML table)",
+      "daily_crypto_history_use_coin_id_bitcoin_ethereum": "Daily crypto history (use coin ID: bitcoin, ethereum...)"
+    }
   },
   "addon_permission_none_detected": "No data access permissions detected. This addon appears to have minimal system access.",
   "addon_permission_list_title": "Permissions",

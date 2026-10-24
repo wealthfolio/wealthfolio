@@ -371,5 +371,95 @@
     "protectedAccountsNote": "No se generan ventas desde estas cuentas.",
     "addAccount": "Agregar cuenta",
     "allAccountsProtected": "Todas las cuentas están protegidas"
+  },
+  "categoryNouns": {
+    "assetClass": "clases de activos",
+    "region": "regiones",
+    "industry": "industrias",
+    "category": "categorías",
+    "region_other": "regiones",
+    "category_other": "categorías",
+    "assetClass_one": "clase de activos",
+    "assetClass_other": "clases de activos",
+    "assetClass_many": "clases de activos",
+    "region_one": "región",
+    "industry_one": "industria",
+    "industry_other": "industrias",
+    "industry_many": "industrias",
+    "category_one": "categoría",
+    "region_many": "regiones",
+    "category_many": "categorías"
+  },
+  "builtInPresets": {
+    "balanced_60_40": {
+      "name": "Equilibrado 60 / 40",
+      "description": "Combinación clásica de acciones y bonos"
+    },
+    "growth_80_20": {
+      "name": "Crecimiento 80 / 20",
+      "description": "Orientado al crecimiento con un estabilizador de bonos"
+    },
+    "all_weather": {
+      "name": "Todo clima",
+      "description": "Diversificado en todos los regímenes de mercado"
+    },
+    "income_20_80": {
+      "name": "Ingresos 20 / 80",
+      "description": "Mezcla de preservación con mucha adherencia"
+    },
+    "conservative_growth_40_60": {
+      "name": "Crecimiento conservador 40/60",
+      "description": "Mezcla conservadora de acciones y bonos"
+    },
+    "aggressive_90_10": {
+      "name": "Agresivo 90 / 10",
+      "description": "Combinación de crecimiento de alto capital"
+    },
+    "permanent_portfolio": {
+      "name": "Portafolio Permanente",
+      "description": "Acciones, bonos, efectivo y materias primas iguales"
+    },
+    "gics_sp500_weight": {
+      "name": "S&P 500",
+      "description": "Ponderaciones sectoriales del S&P 500 (mayo de 2026)"
+    },
+    "gics_equal_weight": {
+      "name": "Peso igual",
+      "description": "Asignación equitativa en los 11 sectores GICS"
+    },
+    "regions_equal_weight": {
+      "name": "Peso igual",
+      "description": "Igual exposición en los cinco continentes"
+    },
+    "gics_defensive": {
+      "name": "Equidad defensiva",
+      "description": "La atención sanitaria, los productos básicos y los servicios públicos se inclinan"
+    },
+    "risk_conservative": {
+      "name": "Conservador",
+      "description": "Base pesada de bajo riesgo, exposición mínima de alto riesgo"
+    },
+    "risk_balanced": {
+      "name": "Equilibrado",
+      "description": "Núcleo de riesgo medio con lastre de menor riesgo"
+    },
+    "risk_aggressive": {
+      "name": "Agresivo",
+      "description": "Orientado al crecimiento con exposición mayoritaria a alto riesgo"
+    },
+    "regions_global_cap": {
+      "name": "Límite global",
+      "description": "Ponderaciones aproximadas de la capitalización del mercado mundial (abril de 2026)"
+    },
+    "regions_international_proxy": {
+      "name": "Proxy Internacional",
+      "description": "Proxy de acciones no estadounidenses utilizando categorías continentales"
+    }
+  },
+  "riskLabels": {
+    "Conservative": "Conservador",
+    "Aggressive": "Agresivo",
+    "Moderate": "Moderado",
+    "From holdings": "De participaciones"
   }
 }

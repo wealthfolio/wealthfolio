@@ -1,3 +1,4 @@
+import type { TFunction } from "i18next";
 export interface ModelPreset {
   id: string;
   taxonomyId: string;
@@ -172,3 +173,7 @@ export const BUILT_IN_PRESETS: ModelPreset[] = [
     weights: { R10: 20, R20: 20, R30: 20, R40: 20, R50: 20 },
   },
 ];
+
+export function getPresetName(t: TFunction, preset: ModelPreset): string {
+  return t(`allocation:builtInPresets.${preset.id}.name`, { defaultValue: preset.name });
+}

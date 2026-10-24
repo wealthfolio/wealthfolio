@@ -1,3 +1,4 @@
+import { getTaxonomyLabel } from "@/lib/taxonomy-labels";
 import { getExchanges, resolveSymbolQuote } from "@/adapters";
 import { MultiSelectTaxonomy } from "@/components/classification/multi-select-taxonomy";
 import { SingleSelectTaxonomy } from "@/components/classification/single-select-taxonomy";
@@ -1178,7 +1179,7 @@ export function AssetEditSheet({
                       key={taxonomy.id}
                       taxonomyId={taxonomy.id}
                       assetId={asset.id}
-                      label={taxonomy.name}
+                      label={getTaxonomyLabel(t, taxonomy.id, taxonomy.name)}
                     />
                   ))}
 
@@ -1188,7 +1189,7 @@ export function AssetEditSheet({
                       key={taxonomy.id}
                       taxonomyId={taxonomy.id}
                       assetId={asset.id}
-                      label={taxonomy.name}
+                      label={getTaxonomyLabel(t, taxonomy.id, taxonomy.name)}
                     />
                   ))}
               </div>

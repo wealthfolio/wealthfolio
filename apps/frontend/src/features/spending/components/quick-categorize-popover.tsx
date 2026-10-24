@@ -1,3 +1,4 @@
+import { getCategoryLabel } from "@/lib/taxonomy-labels";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -126,13 +127,13 @@ export function QuickCategorizePopover({
                 <CommandGroup key={groupKey} heading={groupLabels[groupKey]}>
                   {items.map((opt) => {
                     const label = opt.parent
-                      ? `${opt.parent.name} / ${opt.category.name}`
-                      : opt.category.name;
+                      ? `${getCategoryLabel(t, opt.taxonomyId, opt.parent.id, opt.parent.name)} / ${getCategoryLabel(t, opt.taxonomyId, opt.category.id, opt.category.name)}`
+                      : getCategoryLabel(t, opt.taxonomyId, opt.category.id, opt.category.name);
                     const isSelected = selectedCategoryId === opt.category.id;
                     return (
                       <CommandItem
                         key={`${opt.taxonomyId}:${opt.category.id}`}
-                        value={`${groupKey} ${label}`}
+                        value={`${groupKey} ${label} ${opt.category.name} ${opt.parent?.name ?? ""}`}
                         onSelect={() => handleSelect(opt)}
                         className="flex items-center gap-2"
                       >

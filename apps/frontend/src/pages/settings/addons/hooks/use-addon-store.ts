@@ -1,3 +1,4 @@
+import i18n from "i18next";
 import {
   logger,
   clearAddonStaging,
@@ -38,7 +39,7 @@ export function useAddonStore() {
     if (storeError) {
       logger.error(`Failed to fetch store listings: ${String(storeError)}`);
       toast({
-        title: "Failed to load addon store",
+        title: i18n.t("common:notifications.failed_to_load_addon_store"),
         description: storeError instanceof Error ? storeError.message : "Unknown error occurred",
         variant: "destructive",
       });
@@ -56,8 +57,10 @@ export function useAddonStore() {
     ) => {
       if (!onShowPermissionDialog) {
         toast({
-          title: "Permission handler not provided",
-          description: "Please use the addon actions hook for installation.",
+          title: i18n.t("common:notifications.permission_handler_not_provided"),
+          description: i18n.t(
+            "common:notifications.please_use_the_addon_actions_hook_for_installation",
+          ),
           variant: "destructive",
         });
         return;
@@ -85,7 +88,7 @@ export function useAddonStore() {
           logger.error(`Failed to clean up staging after error: ${String(cleanupError)}`);
         }
         toast({
-          title: "Installation failed",
+          title: i18n.t("common:notifications.installation_failed"),
           description: error instanceof Error ? error.message : "Failed to download the addon",
           variant: "destructive",
         });
@@ -110,7 +113,7 @@ export function useAddonStore() {
     } catch (error) {
       logger.error(`Failed to clear staging directory: ${String(error)}`);
       toast({
-        title: "Failed to clear staging",
+        title: i18n.t("common:notifications.failed_to_clear_staging"),
         description: error instanceof Error ? error.message : "Failed to clear staging directory",
         variant: "destructive",
       });
@@ -124,8 +127,8 @@ export function useAddonStore() {
         await submitAddonRating(addonId, rating, review);
 
         toast({
-          title: "Rating submitted",
-          description: "Thank you for your feedback!",
+          title: i18n.t("common:notifications.rating_submitted"),
+          description: i18n.t("common:notifications.thank_you_for_your_feedback"),
         });
 
         // Invalidate store listings to refresh ratings data
@@ -133,7 +136,7 @@ export function useAddonStore() {
       } catch (error) {
         logger.error(`Failed to submit rating: ${String(error)}`);
         toast({
-          title: "Rating submission failed",
+          title: i18n.t("common:notifications.rating_submission_failed"),
           description: error instanceof Error ? error.message : "Failed to submit rating",
           variant: "destructive",
         });
@@ -152,7 +155,7 @@ export function useAddonStore() {
       } catch (error) {
         logger.error(`Failed to fetch ratings: ${String(error)}`);
         toast({
-          title: "Failed to load ratings",
+          title: i18n.t("common:notifications.failed_to_load_ratings"),
           description: error instanceof Error ? error.message : "Failed to fetch addon ratings",
           variant: "destructive",
         });

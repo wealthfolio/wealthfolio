@@ -358,7 +358,7 @@ export function IncomeContentImpl({ args, result, status }: IncomeContentProps) 
               <span>{getPeriodLabel(parsed.period, t)}</span>
               {parsed.yoyGrowth !== undefined && parsed.yoyGrowth !== null && (
                 <Badge variant="outline" className="text-2xs px-1.5 py-0">
-                  <span className="me-0.5">YoY</span>
+                  <span className="me-0.5">{t("ai:income.yoyShort")}</span>
                   <GainPercent value={parsed.yoyGrowth} />
                 </Badge>
               )}

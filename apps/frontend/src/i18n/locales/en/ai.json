@@ -420,7 +420,8 @@
     "monthlyAverage": "Monthly Average",
     "byType": "By Type",
     "monthlyIncome": "Monthly Income",
-    "sources": "Sources"
+    "sources": "Sources",
+    "yoyShort": "YoY"
   },
   "categorizationContext": {
     "loading": "Loading categorization context…",

@@ -55,6 +55,7 @@
     "holdings": "Holdings mode"
   },
   "exclusion": {
+    "holdings_not_mwr": "MWR unavailable for holdings-only scopes because transaction cash flows are not tracked.",
     "no_data": "Performance data is not available for this selection.",
     "no_series": "No chart series is available for this period.",
     "holdings_not_twr": "Holdings-mode accounts use Value Return and are not plotted with TWR.",

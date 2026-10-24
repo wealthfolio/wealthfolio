@@ -361,5 +361,91 @@
     "protectedAccountsNote": "不會從這些帳戶產生賣出交易。",
     "addAccount": "新增帳戶",
     "allAccountsProtected": "所有帳戶均受保護"
+  },
+  "categoryNouns": {
+    "assetClass": "資產類別",
+    "region": "地區",
+    "industry": "行業",
+    "category": "類別",
+    "region_other": "地區",
+    "category_other": "類別",
+    "assetClass_one": "資產類別",
+    "assetClass_other": "資產類別",
+    "region_one": "地區",
+    "industry_one": "行業",
+    "industry_other": "行業",
+    "category_one": "類別"
+  },
+  "builtInPresets": {
+    "balanced_60_40": {
+      "name": "均衡型 60 / 40",
+      "description": "經典的股票與債券組合"
+    },
+    "growth_80_20": {
+      "name": "成長型 80 / 20",
+      "description": "以成長為主，搭配債券平衡波動"
+    },
+    "all_weather": {
+      "name": "全天候",
+      "description": "分散配置，適應不同市場環境"
+    },
+    "income_20_80": {
+      "name": "收益型 20 / 80",
+      "description": "以債券為主，注重資產保值"
+    },
+    "conservative_growth_40_60": {
+      "name": "穩健成長型 40 / 60",
+      "description": "較保守的股票與債券組合"
+    },
+    "aggressive_90_10": {
+      "name": "進取型 90 / 10",
+      "description": "高股票比例的成長組合"
+    },
+    "permanent_portfolio": {
+      "name": "永久投資組合",
+      "description": "股票、債券、現金與大宗商品等權配置"
+    },
+    "gics_sp500_weight": {
+      "name": "標普 500",
+      "description": "標普 500 行業權重（2026 年 5 月）"
+    },
+    "gics_equal_weight": {
+      "name": "行業等權",
+      "description": "在 11 個 GICS 行業間等權配置"
+    },
+    "regions_equal_weight": {
+      "name": "地區等權",
+      "description": "在五大洲間等權配置"
+    },
+    "gics_defensive": {
+      "name": "防禦型股票",
+      "description": "側重醫療保健、必需消費品和公用事業"
+    },
+    "risk_conservative": {
+      "name": "保守型",
+      "description": "以低風險資產為主，少量配置高風險資產"
+    },
+    "risk_balanced": {
+      "name": "均衡型",
+      "description": "以中等風險資產為核心，搭配低風險資產"
+    },
+    "risk_aggressive": {
+      "name": "進取型",
+      "description": "以成長為目標，主要配置高風險資產"
+    },
+    "regions_global_cap": {
+      "name": "全球市值加權",
+      "description": "全球市值權重近似值（2026 年 4 月）"
+    },
+    "regions_international_proxy": {
+      "name": "國際市場參考",
+      "description": "按洲劃分的非美國股票市場參考配置"
+    }
+  },
+  "riskLabels": {
+    "Conservative": "保守型",
+    "Aggressive": "進取型",
+    "Moderate": "穩健型",
+    "From holdings": "基於當前持倉"
   }
 }

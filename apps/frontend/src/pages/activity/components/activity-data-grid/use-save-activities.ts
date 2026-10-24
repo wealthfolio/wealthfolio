@@ -1,3 +1,4 @@
+import i18n from "i18next";
 import { logger } from "@/adapters";
 import { toast } from "@wealthfolio/ui/components/ui/use-toast";
 import type { ActivityBulkMutationRequest } from "@/lib/types";
@@ -63,7 +64,7 @@ export function useSaveActivities({
         .join(", ");
 
       toast({
-        title: "Validation failed",
+        title: i18n.t("common:notifications.validation_failed"),
         description: errorMessages + (validation.errors.length > 3 ? "..." : ""),
         variant: "destructive",
       });
@@ -113,7 +114,7 @@ export function useSaveActivities({
         if (!hasSuccesses) {
           // Complete failure - no items were saved
           toast({
-            title: "Failed to save activities",
+            title: i18n.t("ai:recordActivities.failedSave"),
             description: errorMessages + suffix,
             variant: "destructive",
           });
@@ -122,7 +123,7 @@ export function useSaveActivities({
 
         // Partial success - some items saved, some failed
         toast({
-          title: "Some activities failed to save",
+          title: i18n.t("common:notifications.some_activities_failed_to_save"),
           description: errorMessages + suffix,
           variant: "destructive",
         });
@@ -168,8 +169,8 @@ export function useSaveActivities({
 
       if (!hasErrors) {
         toast({
-          title: "Activities saved",
-          description: "Your pending changes are now saved.",
+          title: i18n.t("activity:datagrid_activities_saved"),
+          description: i18n.t("common:notifications.pending_changes_saved"),
           variant: "success",
         });
       }

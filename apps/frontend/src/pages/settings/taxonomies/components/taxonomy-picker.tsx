@@ -1,3 +1,4 @@
+import { getCategoryLabel } from "@/lib/taxonomy-labels";
 import { useState, useMemo, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -160,7 +161,9 @@ export function TaxonomyPicker({
                 className="h-3 w-3 shrink-0 rounded-full"
                 style={{ backgroundColor: selectedCategory.color }}
               />
-              <span className="truncate">{selectedCategory.name}</span>
+              <span className="truncate">
+                {getCategoryLabel(t, taxonomyId, selectedCategory.id, selectedCategory.name)}
+              </span>
             </>
           ) : (
             <span>{resolvedPlaceholder}</span>
@@ -194,7 +197,7 @@ export function TaxonomyPicker({
               {flattenedCategories.map((category) => (
                 <CommandItem
                   key={category.id}
-                  value={`${category.name} ${category.id}`}
+                  value={`${category.name} ${getCategoryLabel(t, taxonomyId, category.id, category.name)} ${category.id}`}
                   onSelect={() => handleSelect(category.id)}
                   className="flex items-center py-1.5"
                 >
@@ -209,7 +212,9 @@ export function TaxonomyPicker({
                       style={{ backgroundColor: category.color }}
                     />
                     {/* Category name */}
-                    <span className="truncate">{category.name}</span>
+                    <span className="truncate">
+                      {getCategoryLabel(t, taxonomyId, category.id, category.name)}
+                    </span>
                   </div>
                   {/* Check icon for selected item */}
                   <Icons.Check

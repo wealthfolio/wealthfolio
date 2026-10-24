@@ -401,5 +401,107 @@
     "thingsToKnow_zero": "{{count}} أمور يجب معرفتها عن هذه الخطة",
     "turnoverCap": "حد معدل الدوران",
     "unclassified": "غير مصنف"
+  },
+  "categoryNouns": {
+    "assetClass": "فئات الأصول",
+    "region": "المناطق",
+    "industry": "الصناعات",
+    "category": "الفئات",
+    "region_other": "منطقة",
+    "category_other": "فئة",
+    "assetClass_one": "فئة أصول",
+    "assetClass_other": "فئة أصول",
+    "assetClass_few": "فئات أصول",
+    "assetClass_many": "فئة أصول",
+    "assetClass_two": "فئتا أصول",
+    "assetClass_zero": "فئات أصول",
+    "region_one": "منطقة",
+    "industry_one": "صناعة",
+    "industry_other": "صناعة",
+    "industry_few": "صناعات",
+    "industry_many": "صناعة",
+    "industry_two": "صناعتان",
+    "industry_zero": "صناعات",
+    "category_one": "فئة",
+    "region_few": "مناطق",
+    "region_many": "منطقة",
+    "region_two": "منطقتان",
+    "region_zero": "مناطق",
+    "category_few": "فئات",
+    "category_many": "فئة",
+    "category_two": "فئتان",
+    "category_zero": "فئات"
+  },
+  "builtInPresets": {
+    "balanced_60_40": {
+      "name": "متوازن 60/40",
+      "description": "مزيج الأسهم والسندات الكلاسيكية"
+    },
+    "growth_80_20": {
+      "name": "النمو 80 / 20",
+      "description": "موجه نحو النمو مع مثبت السندات"
+    },
+    "all_weather": {
+      "name": "جميع الأحوال الجوية",
+      "description": "متنوعة عبر أنظمة السوق"
+    },
+    "income_20_80": {
+      "name": "الدخل 20 / 80",
+      "description": "مزيج الحفاظ على السندات الثقيلة"
+    },
+    "conservative_growth_40_60": {
+      "name": "النمو المحافظ 40 / 60",
+      "description": "مزيج المحافظين من الأسهم والسندات"
+    },
+    "aggressive_90_10": {
+      "name": "عدوانية 90 / 10",
+      "description": "مزيج نمو عالي الأسهم"
+    },
+    "permanent_portfolio": {
+      "name": "المحفظة الدائمة",
+      "description": "الأسهم والسندات والنقد والسلع على قدم المساواة"
+    },
+    "gics_sp500_weight": {
+      "name": "ستاندرد آند بورز 500",
+      "description": "أوزان قطاع S&P 500 (مايو 2026)"
+    },
+    "gics_equal_weight": {
+      "name": "الوزن المتساوي",
+      "description": "التوزيع المتساوي في جميع قطاعات GICS الـ 11"
+    },
+    "regions_equal_weight": {
+      "name": "الوزن المتساوي",
+      "description": "التعرض المتساوي في جميع القارات الخمس"
+    },
+    "gics_defensive": {
+      "name": "الأسهم الدفاعية",
+      "description": "الرعاية الصحية والمواد الأساسية والمرافق إمالة"
+    },
+    "risk_conservative": {
+      "name": "محافظ",
+      "description": "قاعدة ثقيلة منخفضة المخاطر، والحد الأدنى من التعرض للمخاطر العالية"
+    },
+    "risk_balanced": {
+      "name": "متوازن",
+      "description": "نواة متوسطة المخاطر مع صابورة منخفضة المخاطر"
+    },
+    "risk_aggressive": {
+      "name": "عنيف",
+      "description": "موجه نحو النمو مع تعرض الأغلبية للمخاطر العالية"
+    },
+    "regions_global_cap": {
+      "name": "كاب العالمية",
+      "description": "الأوزان التقريبية لقيمة السوق العالمية (أبريل 2026)"
+    },
+    "regions_international_proxy": {
+      "name": "الوكيل الدولي",
+      "description": "وكيل الأسهم غير الأمريكية باستخدام دلاء القارة"
+    }
+  },
+  "riskLabels": {
+    "Conservative": "محافظ",
+    "Aggressive": "عنيف",
+    "Moderate": "معتدل",
+    "From holdings": "من المقتنيات"
   }
 }

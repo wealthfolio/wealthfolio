@@ -371,5 +371,95 @@
     "protectedAccountsNote": "Aucune vente n'est générée à partir de ces comptes.",
     "addAccount": "Ajouter un compte",
     "allAccountsProtected": "Tous les comptes sont protégés"
+  },
+  "categoryNouns": {
+    "assetClass": "classes d'actifs",
+    "region": "régions",
+    "industry": "industries",
+    "category": "catégories",
+    "region_other": "régions",
+    "category_other": "catégories",
+    "assetClass_one": "classe d'actifs",
+    "assetClass_other": "classes d'actifs",
+    "assetClass_many": "classes d'actifs",
+    "region_one": "région",
+    "industry_one": "industrie",
+    "industry_other": "industries",
+    "industry_many": "industries",
+    "category_one": "catégorie",
+    "region_many": "régions",
+    "category_many": "catégories"
+  },
+  "builtInPresets": {
+    "balanced_60_40": {
+      "name": "Equilibré 60/40",
+      "description": "Mélange classique d'actions et d'obligations"
+    },
+    "growth_80_20": {
+      "name": "Croissance 80 / 20",
+      "description": "Orienté vers la croissance avec un stabilisateur obligataire"
+    },
+    "all_weather": {
+      "name": "Tous temps",
+      "description": "Diversifié selon les régimes de marché"
+    },
+    "income_20_80": {
+      "name": "Revenu 20 / 80",
+      "description": "Mélange de préservation à forte adhérence"
+    },
+    "conservative_growth_40_60": {
+      "name": "Croissance conservatrice 40/60",
+      "description": "Une répartition prudente des actions et des obligations"
+    },
+    "aggressive_90_10": {
+      "name": "Agressif 90/10",
+      "description": "Mix de croissance à forte participation"
+    },
+    "permanent_portfolio": {
+      "name": "Portefeuille permanent",
+      "description": "Actions, obligations, liquidités et matières premières égales"
+    },
+    "gics_sp500_weight": {
+      "name": "S&P500",
+      "description": "Pondérations sectorielles du S&P 500 (mai 2026)"
+    },
+    "gics_equal_weight": {
+      "name": "Poids égal",
+      "description": "Répartition égale dans les 11 secteurs GICS"
+    },
+    "regions_equal_weight": {
+      "name": "Poids égal",
+      "description": "Une exposition égale sur les cinq continents"
+    },
+    "gics_defensive": {
+      "name": "Actions défensives",
+      "description": "Incidence sur les soins de santé, les produits de base et les services publics"
+    },
+    "risk_conservative": {
+      "name": "Conservateur",
+      "description": "Base importante à faible risque, exposition minimale à haut risque"
+    },
+    "risk_balanced": {
+      "name": "Équilibré",
+      "description": "Noyau à risque moyen avec ballast à faible risque"
+    },
+    "risk_aggressive": {
+      "name": "Agressif",
+      "description": "Orienté vers la croissance avec une exposition majoritaire aux risques élevés"
+    },
+    "regions_global_cap": {
+      "name": "Plafond mondial",
+      "description": "Pondérations approximatives de la capitalisation boursière mondiale (avril 2026)"
+    },
+    "regions_international_proxy": {
+      "name": "Mandataire international",
+      "description": "Proxy des actions non américaines à l'aide de catégories de continents"
+    }
+  },
+  "riskLabels": {
+    "Conservative": "Conservateur",
+    "Aggressive": "Agressif",
+    "Moderate": "Modéré",
+    "From holdings": "À partir des avoirs"
   }
 }

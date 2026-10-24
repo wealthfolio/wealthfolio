@@ -1,3 +1,4 @@
+import { getCategoryLabel } from "@/lib/taxonomy-labels";
 import { isExpiredOptionAsset } from "./asset-utils";
 import { createActivity, getAssetHoldings, getAssetLots, searchActivities } from "@/adapters";
 import { ActionPalette, type ActionPaletteGroup } from "@/components/action-palette";
@@ -393,7 +394,7 @@ export const AssetProfilePage = () => {
       if (category) {
         badges.push({
           id: category.id,
-          categoryName: category.name,
+          categoryName: getCategoryLabel(t, category.taxonomyId, category.id, category.name),
           categoryColor: category.color,
           taxonomyName: t("asset:profile.class"),
         });
@@ -409,7 +410,7 @@ export const AssetProfilePage = () => {
       if (category) {
         badges.push({
           id: category.id,
-          categoryName: category.name === "Exchange Traded Fund (ETF)" ? "ETF" : category.name,
+          categoryName: getCategoryLabel(t, category.taxonomyId, category.id, category.name),
           categoryColor: category.color,
           taxonomyName: t("asset:profile.type"),
         });
@@ -425,9 +426,11 @@ export const AssetProfilePage = () => {
       if (category) {
         badges.push({
           id: category.id,
-          categoryName: t("asset:profile.risk", { name: category.name }),
+          categoryName: t("asset:profile.risk", {
+            name: getCategoryLabel(t, category.taxonomyId, category.id, category.name),
+          }),
           categoryColor: category.color,
-          taxonomyName: "Risk",
+          taxonomyName: t("allocation:editor.riskCategory"),
         });
       }
     }
@@ -443,9 +446,9 @@ export const AssetProfilePage = () => {
         if (category) {
           badges.push({
             id: `industry-${category.id}`,
-            categoryName: category.name,
+            categoryName: getCategoryLabel(t, category.taxonomyId, category.id, category.name),
             categoryColor: category.color,
-            taxonomyName: "Industry",
+            taxonomyName: t("allocation:editor.industry"),
           });
         }
       }
@@ -462,9 +465,9 @@ export const AssetProfilePage = () => {
         if (category) {
           badges.push({
             id: `region-${category.id}`,
-            categoryName: category.name,
+            categoryName: getCategoryLabel(t, category.taxonomyId, category.id, category.name),
             categoryColor: category.color,
-            taxonomyName: "Region",
+            taxonomyName: t("allocation:editor.region"),
           });
         }
       }

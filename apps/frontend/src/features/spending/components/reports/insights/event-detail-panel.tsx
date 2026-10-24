@@ -17,6 +17,7 @@ import { useNavigate } from "react-router-dom";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import { useIsMobileViewport } from "@/hooks/use-platform";
 import type { Activity, TaxonomyCategory } from "@/lib/types";
+import { getCategoryLabel, getEventTypeLabel } from "@/lib/taxonomy-labels";
 import { cn, parseLocalDate } from "@/lib/utils";
 import {
   Button,
@@ -78,6 +79,7 @@ export const EventDetailPanel: FC<EventDetailPanelProps> = ({
     heatmapActivities,
     accountTypeById,
     taxonomyCategories,
+    t("spending:insightsPage.uncategorized"),
     dailySpendByDate,
     baselinePeriod,
   );
@@ -90,7 +92,7 @@ export const EventDetailPanel: FC<EventDetailPanelProps> = ({
     expected,
     lift,
     dailyDeltaPct,
-    categories,
+    categories: rawCategories,
     categoriesTotal,
     dailySeries,
     tagged,
@@ -102,6 +104,14 @@ export const EventDetailPanel: FC<EventDetailPanelProps> = ({
     hangoverPct,
     outOfRange,
   } = chart;
+  const categories = useMemo(
+    () =>
+      rawCategories.map((category) => ({
+        ...category,
+        name: getCategoryLabel(t, "spending_categories", category.id, category.name),
+      })),
+    [rawCategories, t],
+  );
 
   const tagColor = event.eventTypeColor ?? "var(--event-default)";
 
@@ -259,7 +269,9 @@ export const EventDetailPanel: FC<EventDetailPanelProps> = ({
           {formatRange(startDate, endDate, dateFormatting)} ·{" "}
           {t("spending:eventDetail.daysCount", { count: days })} ·{" "}
           {t("spending:eventDetail.transactionCount", { count: event.transactionCount })}
-          {event.eventTypeName ? ` · ${event.eventTypeName.toLowerCase()}` : ""}
+          {event.eventTypeName
+            ? ` · ${getEventTypeLabel(t, event.eventTypeId, event.eventTypeName)}`
+            : ""}
         </div>
       </div>
 

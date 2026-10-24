@@ -60,21 +60,32 @@ export const VEHICLE_TYPES = [
 // Base schema for common fields across all asset types
 const baseSchema = z.object({
   // Name field (required, editable)
-  name: z.string().min(1, "Name is required").max(100, "Name must be less than 100 characters"),
+  name: z
+    .string()
+    .min(1, "asset:detailsSheet.validation.name_is_required")
+    .max(100, "asset:detailsSheet.validation.name_must_be_less_than_100_characters"),
   // Common fields for all types
   purchasePrice: z.coerce
     .number()
-    .positive("Purchase price must be greater than 0")
+    .positive("asset:detailsSheet.validation.purchase_price_must_be_greater_than_0")
     .optional()
     .nullable(),
   purchaseDate: z.date().optional().nullable(),
-  notes: z.string().max(1000, "Notes must be less than 1000 characters").optional().nullable(),
+  notes: z
+    .string()
+    .max(1000, "asset:detailsSheet.validation.notes_must_be_less_than_1000_characters")
+    .optional()
+    .nullable(),
 });
 
 // Property-specific schema
 export const propertyDetailsSchema = baseSchema.extend({
   kind: z.literal(AlternativeAssetKind.PROPERTY),
-  address: z.string().max(200, "Address must be less than 200 characters").optional().nullable(),
+  address: z
+    .string()
+    .max(200, "asset:detailsSheet.validation.address_must_be_less_than_200_characters")
+    .optional()
+    .nullable(),
   propertyType: z.enum(["residence", "rental", "land", "commercial"]).optional().nullable(),
 });
 
@@ -84,7 +95,7 @@ export const vehicleDetailsSchema = baseSchema.extend({
   vehicleType: z.enum(["car", "motorcycle", "boat", "rv"]).optional().nullable(),
   description: z
     .string()
-    .max(200, "Description must be less than 200 characters")
+    .max(200, "asset:detailsSheet.validation.description_must_be_less_than_200_characters")
     .optional()
     .nullable(),
 });
@@ -95,7 +106,7 @@ export const collectibleDetailsSchema = baseSchema.extend({
   collectibleType: z.enum(["art", "wine", "watch", "jewelry", "memorabilia"]).optional().nullable(),
   description: z
     .string()
-    .max(200, "Description must be less than 200 characters")
+    .max(200, "asset:detailsSheet.validation.description_must_be_less_than_200_characters")
     .optional()
     .nullable(),
 });
@@ -104,11 +115,15 @@ export const collectibleDetailsSchema = baseSchema.extend({
 export const preciousMetalDetailsSchema = baseSchema.extend({
   kind: z.literal(AlternativeAssetKind.PRECIOUS_METAL),
   metalType: z.enum(["gold", "silver", "platinum", "palladium"]).optional().nullable(),
-  quantity: z.coerce.number().positive("Quantity must be greater than 0").optional().nullable(),
+  quantity: z.coerce
+    .number()
+    .positive("asset:detailsSheet.validation.quantity_must_be_greater_than_0")
+    .optional()
+    .nullable(),
   unit: z.enum(["oz", "g", "kg"]).optional().nullable(),
   description: z
     .string()
-    .max(200, "Description must be less than 200 characters")
+    .max(200, "asset:detailsSheet.validation.description_must_be_less_than_200_characters")
     .optional()
     .nullable(),
 });
@@ -130,7 +145,7 @@ export const liabilityDetailsSchema = baseSchema.extend({
     .nullable(),
   originalAmount: z.coerce
     .number()
-    .positive("Original amount must be greater than 0")
+    .positive("asset:detailsSheet.validation.original_amount_must_be_greater_than_0")
     .optional()
     .nullable(),
   originationDate: z.date().optional().nullable(),
@@ -140,8 +155,8 @@ export const liabilityDetailsSchema = baseSchema.extend({
   amortizationEndDate: z.date().optional().nullable(),
   interestRate: z.coerce
     .number()
-    .min(0, "Interest rate must be 0 or greater")
-    .max(100, "Interest rate must be 100 or less")
+    .min(0, "asset:detailsSheet.validation.interest_rate_must_be_0_or_greater")
+    .max(100, "asset:detailsSheet.validation.interest_rate_must_be_100_or_less")
     .optional()
     .nullable(),
   automaticLoan: z.boolean().optional(),
@@ -162,7 +177,7 @@ export const otherDetailsSchema = baseSchema.extend({
   kind: z.literal(AlternativeAssetKind.OTHER),
   description: z
     .string()
-    .max(200, "Description must be less than 200 characters")
+    .max(200, "asset:detailsSheet.validation.description_must_be_less_than_200_characters")
     .optional()
     .nullable(),
 });

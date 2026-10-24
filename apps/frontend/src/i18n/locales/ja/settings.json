@@ -1038,7 +1038,40 @@
     "imported_count_other": "{{count}}件インポート",
     "failed_count_other": "{{count}}件失敗",
     "priority_decrease": "優先度の数値を下げる",
-    "priority_increase": "優先度の数値を上げる"
+    "priority_increase": "優先度の数値を上げる",
+    "feature_dividends": "配当",
+    "providerDescriptions": {
+      "YAHOO": "Yahoo Finance は、多くの市場を対象とする大手金融データ プロバイダーです。過去およびリアルタイムの株式データを提供します。",
+      "MARKETDATA_APP": "MarketData.app は、米国株、オプション、ETF、投資信託などのリアルタイム データと履歴データを提供します。",
+      "ALPHA_VANTAGE": "Alpha Vantage は、株式、外国為替、暗号通貨に関するリアルタイムおよび履歴データ用の無料 API を提供します。",
+      "US_TREASURY_CALC": "米国財務省が公表するイールドカーブデータから米国国債価格を計算します。",
+      "BOERSE_FRANKFURT": "Börse Frankfurt は、欧州市場向けの債券および証券の価格データを提供しています。",
+      "OPENFIGI": "OpenFIGI は、金融商品識別子 (FIGI、ISIN、CUSIP、ティッカー) のマッピング サービスを提供します。",
+      "METAL_PRICE_API": "貴金属 (金、銀、プラチナ、パラジウム) のリアルタイムおよび過去のスポット価格を提供します。",
+      "CUSTOM_SCRAPER": "ユーザー定義のカスタム ソースのランタイム ディスパッチ プロバイダー",
+      "FINNHUB": "Finnhub は世界の株式、外国為替、暗号資産のリアルタイムデータを提供します。無料プランでは毎分 60 回の API 呼び出しが可能です。"
+    },
+    "coverageLabels": {
+      "Global": "グローバル",
+      "US only": "米国のみ",
+      "USD only": "米ドルのみ",
+      "US Treasury": "米国財務省",
+      "User-defined": "ユーザー定義"
+    },
+    "feature_no_api_key": "APIキーがありません",
+    "us_treasury_name": "米国財務省 (計算値)",
+    "templateDescriptions": {
+      "workplace_fund_prices_fund_code": "職場基金の価格（基金コード）",
+      "free_crypto_use_coin_id_bitcoin_ethereum": "無料の暗号通貨 (コイン ID を使用: bitcoin、ethereumなど)",
+      "free_currency_rates": "無料通貨レート",
+      "lse_etfs_equities": "LSE ETF と株式",
+      "eu_funds_equities_isin_mic": "EU のファンドと株式 (ISIN-MIC)",
+      "stocks_crypto_fx_set_api_key_in_headers": "株、仮想通貨、FX（ヘッダーにAPIキーを設定）",
+      "italian_bonds_stocks": "イタリアの債券と株式",
+      "workplace_fund_price_history_fund_code": "職場基金の価格履歴 (基金コード)",
+      "lse_etfs_equities_html_table": "LSE ETF と株式 (HTML テーブル)",
+      "daily_crypto_history_use_coin_id_bitcoin_ethereum": "毎日の暗号通貨履歴 (コイン ID を使用: bitcoin、ethereumなど)"
+    }
   },
   "addon_permission_none_detected": "データへのアクセス権限は検出されませんでした。このアドオンのシステムアクセスは最小限のようです。",
   "addon_permission_list_title": "権限",

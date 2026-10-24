@@ -420,7 +420,8 @@
     "monthlyAverage": "Monatlicher Durchschnitt",
     "byType": "Nach Typ",
     "monthlyIncome": "Monatliche Erträge",
-    "sources": "Quellen"
+    "sources": "Quellen",
+    "yoyShort": "Zum Vorjahr"
   },
   "categorizationContext": {
     "loading": "Kategorisierungskontext wird geladen…",

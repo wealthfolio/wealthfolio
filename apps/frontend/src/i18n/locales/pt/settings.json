@@ -1077,7 +1077,40 @@
     "failed_count_other": "{{count}} falhas",
     "failed_count_many": "{{count}} falhas",
     "priority_decrease": "Diminuir o número de prioridade",
-    "priority_increase": "Aumentar o número de prioridade"
+    "priority_increase": "Aumentar o número de prioridade",
+    "feature_dividends": "Dividendos",
+    "providerDescriptions": {
+      "YAHOO": "O Yahoo Finance é um fornecedor líder de dados financeiros para muitos mercados. Ele fornece dados históricos e de estoque em tempo real.",
+      "MARKETDATA_APP": "MarketData.app fornece dados históricos e em tempo real para ações, opções, ETFs, fundos mútuos dos EUA e muito mais.",
+      "ALPHA_VANTAGE": "Alpha Vantage fornece APIs gratuitas para dados históricos e em tempo real sobre ações, forex e criptomoedas.",
+      "US_TREASURY_CALC": "Calcula os preços dos títulos do Tesouro dos EUA a partir de dados da curva de rendimento publicados pelo Departamento do Tesouro dos EUA.",
+      "BOERSE_FRANKFURT": "A Börse Frankfurt fornece dados sobre preços de títulos e valores mobiliários para os mercados europeus.",
+      "OPENFIGI": "OpenFIGI fornece um serviço de mapeamento para identificadores de instrumentos financeiros (FIGI, ISIN, CUSIP, ticker).",
+      "METAL_PRICE_API": "Fornece preços spot históricos e em tempo real para metais preciosos (ouro, prata, platina, paládio).",
+      "CUSTOM_SCRAPER": "Provedor de despacho de tempo de execução para origens personalizadas definidas pelo usuário",
+      "FINNHUB": "A Finnhub oferece dados globais em tempo real de ações, câmbio e criptomoedas. O plano gratuito inclui 60 chamadas de API por minuto."
+    },
+    "coverageLabels": {
+      "Global": "Global",
+      "US only": "Somente EUA",
+      "USD only": "Somente dólares americanos",
+      "US Treasury": "Tesouro dos EUA",
+      "User-defined": "Definido pelo usuário"
+    },
+    "feature_no_api_key": "Nenhuma chave de API",
+    "us_treasury_name": "Tesouro dos EUA (calculado)",
+    "templateDescriptions": {
+      "workplace_fund_prices_fund_code": "Preços dos fundos do local de trabalho (código do fundo)",
+      "free_crypto_use_coin_id_bitcoin_ethereum": "Criptografia gratuita (use ID de moeda: bitcoin, ethereum...)",
+      "free_currency_rates": "Taxas de câmbio gratuitas",
+      "lse_etfs_equities": "ETFs e ações da LSE",
+      "eu_funds_equities_isin_mic": "Fundos e ações da UE (ISIN-MIC)",
+      "stocks_crypto_fx_set_api_key_in_headers": "Ações, criptografia, FX (definir chave de API nos cabeçalhos)",
+      "italian_bonds_stocks": "Títulos e ações italianos",
+      "workplace_fund_price_history_fund_code": "Histórico de preços do fundo do local de trabalho (código do fundo)",
+      "lse_etfs_equities_html_table": "ETFs e ações da LSE (tabela HTML)",
+      "daily_crypto_history_use_coin_id_bitcoin_ethereum": "Histórico diário de criptografia (use ID da moeda: bitcoin, ethereum...)"
+    }
   },
   "addon_permission_none_detected": "Nenhuma permissão de acesso a dados detectada. Esta extensão parece ter acesso mínimo ao sistema.",
   "addon_permission_list_title": "Permissões",
