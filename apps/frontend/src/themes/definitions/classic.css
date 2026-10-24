@@ -122,16 +122,18 @@
      which forced-colors mode keeps; it needs 3:1 against the page and cards. */
   --ring: hsl(var(--flexoki-tx-2));
 
-  /* Charts (allocation palette: forest / sage / sand / clay / plum + stone) */
-  --chart-1: #355c4c;
-  --chart-2: #7e9f8c;
-  --chart-3: #cbba8c;
-  --chart-4: #c08a5f;
-  --chart-5: #9a7e92;
-  --chart-6: hsl(49 7% 70%);
-  --chart-7: hsl(55 10% 79%);
-  --chart-8: hsl(50 14% 83%);
-  --chart-9: hsl(51 21% 88%);
+  /* Charts: Flexoki, cyan / green / yellow / orange in the 500s lead; blue /
+     purple / magenta in the 400s sit back; then base. No red: it reads as a loss.
+     Slices past the last slot take the last, so a long tail ends in grey. */
+  --chart-1: #2f968d;
+  --chart-2: #768d21;
+  --chart-3: #be9207;
+  --chart-4: #cb6120;
+  --chart-5: #4385be;
+  --chart-6: #8b7ec8;
+  --chart-7: #ce5d97;
+  --chart-8: #9f9d96;
+  --chart-9: #cecdc3;
   --chart-stone: #b1aa9a;
 
   /* Sidebar (full hsl colors) */
@@ -233,13 +235,15 @@
 
   /* Holdings treemap (composition-chart): gains lerp from positive-low to -high,
      losses from negative-low to -high; labels are dark or light by tile
-     luminance. Dark mode draws the tiles at 0.45 over the card. */
-  --heatmap-positive-low: #cdd9bf;
-  --heatmap-positive-high: #355c4c;
-  --heatmap-negative-low: #e9b3a8;
-  --heatmap-negative-high: #d14e42;
-  --heatmap-label-dark: #1c2a24;
-  --heatmap-label-light: #f5f3ec;
+     luminance. Dark mode draws the tiles at 0.45 over the card. Flexoki green
+     and red from 50 to 600, so the chart matches the chart palette and small
+     moves stay pale; labels in Flexoki's ink and paper. */
+  --heatmap-positive-low: #edeecf;
+  --heatmap-positive-high: #66800b;
+  --heatmap-negative-low: #ffe1d5;
+  --heatmap-negative-high: #af3029;
+  --heatmap-label-dark: #100f0f;
+  --heatmap-label-light: #fffcf0;
 
   /* Spending-module shared chart tokens. --status-warn is the "approaching
      budget" amber (was #C28B47); --bar-stripe is the diagonal-stripe overlay on
@@ -274,18 +278,16 @@
   --button-outline-bg: color-mix(in oklab, var(--input) 30%, transparent);
   --button-outline-hover-bg: color-mix(in oklab, var(--input) 50%, transparent);
 
-  /* Dark chart palette — same semantic hues as light (forest / sage / sand /
-     clay / plum + stone), tuned for the dark surface: forest is lifted for
-     contrast, the stones are pulled down so they stay calm instead of glaring. */
-  --chart-1: hsl(156 28% 44%);
-  --chart-2: #7e9f8c;
-  --chart-3: #cbba8c;
-  --chart-4: #c08a5f;
-  --chart-5: #9a7e92;
-  --chart-6: hsl(49 8% 60%);
-  --chart-7: hsl(55 10% 67%);
-  --chart-8: hsl(50 13% 72%);
-  --chart-9: hsl(51 18% 77%);
+  /* Dark charts: the leading four in the 400s, the next three in the 300s. */
+  --chart-1: #3aa99f;
+  --chart-2: #879a39;
+  --chart-3: #d0a215;
+  --chart-4: #da702c;
+  --chart-5: #66a0c8;
+  --chart-6: #a699d0;
+  --chart-7: #e47da8;
+  --chart-8: #9f9d96;
+  --chart-9: #878580;
   --chart-stone: hsl(49 8% 60%);
 
   --success-subtle: var(--color-green-950);
