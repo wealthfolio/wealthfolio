@@ -140,8 +140,14 @@ export function CSVFileViewer({ data, className, maxHeight = "400px" }: CSVFileV
         const content = row.getValue("content");
         const isHeader = row.original.id === 0;
 
+        // `allow-select` keeps the CSV text selectable under the desktop app's lockdown
         return (
-          <div className={cn("whitespace-nowrap font-mono text-xs", isHeader && "font-semibold")}>
+          <div
+            className={cn(
+              "allow-select whitespace-nowrap font-mono text-xs",
+              isHeader && "font-semibold",
+            )}
+          >
             {(content as React.ReactNode) || (
               <span className="text-muted-foreground italic">
                 {t("activity:import.csvViewer.emptyLine")}
