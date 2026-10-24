@@ -28,6 +28,7 @@ import {
   isTransferCashActivity,
   type TransactionRowVM,
 } from "../lib/transactions-helpers";
+import { CategoryIconTile } from "./category-chips";
 import { QuickCategorizePopover } from "./quick-categorize-popover";
 import { QuickEventPopover } from "./quick-event-popover";
 import {
@@ -228,13 +229,13 @@ function TransactionRowImpl({
               >
                 {row.category ? (
                   <>
-                    {row.category.color && (
-                      <span
-                        className="h-2.5 w-2.5 shrink-0 rounded-full"
-                        style={{ backgroundColor: row.category.color }}
-                        aria-hidden="true"
-                      />
-                    )}
+                    {/* h-5 matches the text-sm line height, so the row keeps its height. */}
+                    <CategoryIconTile
+                      icon={row.category.icon}
+                      color={row.category.color}
+                      className="h-5 w-5"
+                      iconClassName="h-3 w-3"
+                    />
                     <span className="truncate text-sm">{row.category.name}</span>
                   </>
                 ) : (
