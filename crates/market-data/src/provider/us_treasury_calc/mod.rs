@@ -98,6 +98,7 @@ struct TdSecurityItem {
     #[serde(default)]
     maturity_date: Option<String>,
     #[serde(default)]
+    #[serde(alias = "frequencyOfInterestPayments")]
     interest_payment_frequency: Option<String>,
 }
 
@@ -1210,6 +1211,42 @@ mod tests {
             assert_eq!(details.coupon_rate, None);
         }
         assert!(parse_bond_details(fixture("", "4", "2030-01-01")).is_err());
+    }
+
+    #[test]
+    fn treasury_parses_live_frequency_of_interest_payments_key() {
+        let note: TdSecurityItem = serde_json::from_value(serde_json::json!({
+            "cusip": "91282CRF0", "type": "Note", "securityTerm": "10-Year",
+            "maturityDate": "2036-08-15T00:00:00", "interestRate": "4.625",
+            "frequencyOfInterestPayments": "Semi-Annual"
+        }))
+        .unwrap();
+        let note = parse_bond_details(note).unwrap();
+        assert_eq!(note.coupon_rate, Some(dec!(0.04625)));
+        assert_eq!(note.maturity_date, NaiveDate::from_ymd_opt(2036, 8, 15));
+        assert_eq!(note.coupon_frequency.as_deref(), Some("SEMI_ANNUAL"));
+
+        let bond: TdSecurityItem = serde_json::from_value(serde_json::json!({
+            "cusip": "912810UW6", "type": "Bond",
+            "maturityDate": "2056-08-15T00:00:00", "interestRate": "5.125",
+            "frequencyOfInterestPayments": "Semi-Annual"
+        }))
+        .unwrap();
+        let bond = parse_bond_details(bond).unwrap();
+        assert_eq!(bond.coupon_rate, Some(dec!(0.05125)));
+        assert_eq!(bond.maturity_date, NaiveDate::from_ymd_opt(2056, 8, 15));
+        assert_eq!(bond.coupon_frequency.as_deref(), Some("SEMI_ANNUAL"));
+
+        let legacy: TdSecurityItem = serde_json::from_value(serde_json::json!({
+            "cusip": "912810TH1", "type": "Note",
+            "maturityDate": "2030-01-01", "interestRate": "4",
+            "interestPaymentFrequency": "Semi-Annual"
+        }))
+        .unwrap();
+        assert_eq!(
+            parse_bond_details(legacy).unwrap().coupon_frequency.as_deref(),
+            Some("SEMI_ANNUAL")
+        );
     }
 
     #[test]
