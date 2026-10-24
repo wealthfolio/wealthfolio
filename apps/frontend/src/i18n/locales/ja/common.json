@@ -245,7 +245,6 @@
     "asset_type_option": "オプション",
     "asset_type_metal": "金属(コモディティ)",
     "asset_type_other": "その他",
-    "select_currency": "通貨を選択...",
     "select_symbol": "銘柄を選択...",
     "symbol_type_security": "証券",
     "symbol_type_crypto": "暗号資産",

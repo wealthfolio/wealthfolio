@@ -243,7 +243,6 @@
     "asset_type_option": "Option",
     "asset_type_metal": "Metall (Rohstoff)",
     "asset_type_other": "Sonstiges",
-    "select_currency": "Währung auswählen...",
     "select_symbol": "Symbol auswählen...",
     "symbol_type_security": "Wertpapier",
     "symbol_type_crypto": "Krypto",
