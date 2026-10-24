@@ -11,6 +11,8 @@
 //! The last test guards the other half of the rule: an entity with a random
 //! UUID stays deleted when newer writes for its ID arrive.
 
+mod common;
+
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -62,12 +64,12 @@ const HOUSE_GOAL: &str = "goal-house-deposit";
 const TRAVEL_EVENT_TYPE: &str = "255600dc-c2a3-47e0-979d-a602c21fc337";
 
 fn setup_db() -> (
-    tempfile::TempDir,
+    common::TestDir,
     std::sync::Arc<db::DbPool>,
     db::WriteHandle,
     std::sync::Arc<wealthfolio_storage_sqlite::sync::ProfileSyncState>,
 ) {
-    let dir = tempfile::tempdir().unwrap();
+    let dir = common::TestDir::new();
     let access = db::DbAccess::plaintext(dir.path().join("app.db").to_str().unwrap());
     access.prepare().unwrap();
     access.run_migrations().unwrap();
@@ -84,7 +86,7 @@ fn setup_db() -> (
 
 /// One profile database with its writer and sync repository.
 struct Device {
-    _dir: tempfile::TempDir,
+    _dir: common::TestDir,
     pool: Arc<db::DbPool>,
     writer: db::WriteHandle,
     sync: AppSyncRepository,

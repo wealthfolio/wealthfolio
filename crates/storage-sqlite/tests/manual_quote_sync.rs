@@ -1,6 +1,8 @@
 //! Manual quotes on two devices: the outbox rows that saving, editing and
 //! deleting them on one device write, and those rows replayed on the other.
 #![allow(clippy::unwrap_used, clippy::panic, reason = "test code")]
+mod common;
+
 use std::sync::Arc;
 
 use chrono::{NaiveDate, Utc};
@@ -49,12 +51,12 @@ struct Device {
     >,
     sync: AppSyncRepository,
     pool: Arc<db::DbPool>,
-    _dir: tempfile::TempDir,
+    _dir: common::TestDir,
 }
 
 /// A device holding the manually valued pension asset.
 async fn device() -> Device {
-    let dir = tempfile::tempdir().unwrap();
+    let dir = common::TestDir::new();
     let access = db::DbAccess::plaintext(dir.path().join("app.db").to_str().unwrap());
     access.prepare().unwrap();
     access.run_migrations().unwrap();

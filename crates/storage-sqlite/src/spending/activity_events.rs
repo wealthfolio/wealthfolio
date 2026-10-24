@@ -221,26 +221,28 @@ impl ActivityEventsRepositoryTrait for ActivityEventsRepository {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db::{create_pool, get_connection, init, run_migrations, write_actor::spawn_writer};
+    use crate::db::{
+        create_pool, get_connection, init, run_migrations, write_actor::spawn_writer, TestDir,
+    };
     use crate::schema::{activities, spending_activity_events, sync_outbox};
     use diesel::r2d2::{ConnectionManager, Pool};
     use diesel::sqlite::SqliteConnection;
     use std::sync::Arc;
-    use tempfile::tempdir;
     use wealthfolio_spending::activity_events::ActivityEventsRepositoryTrait;
 
-    fn setup_db() -> (Arc<Pool<ConnectionManager<SqliteConnection>>>, WriteHandle) {
+    fn setup_db() -> (
+        Arc<Pool<ConnectionManager<SqliteConnection>>>,
+        WriteHandle,
+        TestDir,
+    ) {
         std::env::set_var("CONNECT_API_URL", "http://test.local");
-        let app_data = tempdir()
-            .expect("tempdir")
-            .keep()
-            .to_string_lossy()
-            .to_string();
+        let dir = TestDir::new();
+        let app_data = dir.path().to_string_lossy().to_string();
         let db_path = init(&app_data).expect("init db");
         run_migrations(&db_path).expect("migrate db");
         let pool = create_pool(&db_path).expect("create pool");
         let writer = spawn_writer(pool.as_ref().clone()).expect("spawn writer");
-        (pool, writer)
+        (pool, writer, dir)
     }
 
     fn insert_account_and_activity(conn: &mut SqliteConnection, id: &str, source_system: &str) {
@@ -314,7 +316,7 @@ mod tests {
 
     #[tokio::test]
     async fn broker_activity_event_tag_is_local_only_but_manual_tag_still_syncs() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         {
             let mut conn = get_connection(&pool).expect("conn");
             insert_account_and_activity(&mut conn, "broker-activity", "SNAPTRADE");
@@ -351,7 +353,7 @@ mod tests {
 
     #[tokio::test]
     async fn list_for_events_returns_tags_for_requested_events_only() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         {
             let mut conn = get_connection(&pool).expect("conn");
             insert_account_and_activity(&mut conn, "activity-a", "MANUAL");

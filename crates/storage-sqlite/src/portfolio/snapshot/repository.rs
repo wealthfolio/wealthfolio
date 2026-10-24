@@ -928,14 +928,15 @@ impl SnapshotRepositoryTrait for SnapshotRepository {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db::{create_pool, get_connection, run_migrations, write_actor::spawn_writer};
+    use crate::db::{
+        create_pool, get_connection, run_migrations, write_actor::spawn_writer, TestDir,
+    };
     use crate::schema::sync_outbox;
     use chrono::NaiveDate;
     use diesel::dsl::count_star;
     use diesel::RunQueryDsl;
     use rust_decimal::Decimal;
     use std::collections::HashMap;
-    use tempfile::tempdir;
     use wealthfolio_core::portfolio::snapshot::SnapshotSource;
 
     /// Creates a test repository with an in-memory-like temp database
@@ -943,11 +944,11 @@ mod tests {
     async fn create_test_repository() -> (
         SnapshotRepository,
         Arc<Pool<ConnectionManager<SqliteConnection>>>,
-        tempfile::TempDir,
+        TestDir,
     ) {
         std::env::set_var("CONNECT_API_URL", "http://test.local");
 
-        let temp_dir = tempdir().expect("Failed to create temp directory");
+        let temp_dir = TestDir::new();
         let db_path = temp_dir.path().join("test.db");
         let db_path_str = db_path.to_string_lossy().to_string();
 

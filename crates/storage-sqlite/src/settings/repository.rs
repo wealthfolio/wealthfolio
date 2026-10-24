@@ -306,11 +306,11 @@ impl SettingsRepositoryTrait for SettingsRepository {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db::{create_pool, run_migrations, write_actor::spawn_writer};
+    use crate::db::{create_pool, run_migrations, write_actor::spawn_writer, TestDir};
     use serde_json::json;
 
-    async fn setup() -> (SettingsRepository, tempfile::TempDir) {
-        let dir = tempfile::tempdir().unwrap();
+    async fn setup() -> (SettingsRepository, TestDir) {
+        let dir = TestDir::new();
         let db_path = dir.path().join("settings.db").to_string_lossy().to_string();
         run_migrations(&db_path).unwrap();
         let pool = create_pool(&db_path).unwrap();

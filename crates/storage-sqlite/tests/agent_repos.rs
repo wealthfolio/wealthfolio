@@ -2,19 +2,15 @@
 //! personal_access_tokens and mcp_audit_log migrations apply cleanly and
 //! the repositories round-trip against a real SQLite database.
 #![allow(clippy::unwrap_used, clippy::panic, reason = "test code")]
+mod common;
 
-use tempfile::tempdir;
 use wealthfolio_storage_sqlite::agent::{
     AuditFilter, McpAuditRepository, NewMcpAuditLogDB, NewPersonalAccessToken, PatRepository,
 };
 use wealthfolio_storage_sqlite::db;
 
-fn setup() -> (
-    tempfile::TempDir,
-    std::sync::Arc<db::DbPool>,
-    db::WriteHandle,
-) {
-    let dir = tempdir().unwrap();
+fn setup() -> (common::TestDir, std::sync::Arc<db::DbPool>, db::WriteHandle) {
+    let dir = common::TestDir::new();
     let access = db::DbAccess::plaintext(db::get_db_path(dir.path().to_str().unwrap()));
     access.prepare().unwrap();
     access.run_migrations().unwrap();

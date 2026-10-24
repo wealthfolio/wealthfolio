@@ -412,7 +412,6 @@ mod tests {
 
     use chrono::{NaiveDate, Utc};
     use rust_decimal::Decimal;
-    use tempfile::tempdir;
     use wealthfolio_core::lots::{LotDisposal, LotRecord, LotRepositoryTrait};
     use wealthfolio_core::portfolio::economic_events::BasisStatus;
     use wealthfolio_core::portfolio::projection::{ActivityIssueKind, LotBook};
@@ -422,18 +421,20 @@ mod tests {
     };
 
     use super::*;
-    use crate::db::{create_pool, get_connection, run_migrations, write_actor::spawn_writer};
+    use crate::db::{
+        create_pool, get_connection, run_migrations, write_actor::spawn_writer, TestDir,
+    };
     use crate::lots::LotsRepository;
     use crate::portfolio::valuation::ValuationRepository;
     struct Db {
         pool: Arc<DbPool>,
         writer: WriteHandle,
-        _dir: tempfile::TempDir,
+        _dir: TestDir,
     }
 
     fn setup() -> Db {
         std::env::set_var("CONNECT_API_URL", "http://test.local");
-        let dir = tempdir().unwrap();
+        let dir = TestDir::new();
         let db_path = dir.path().join("test.db").to_string_lossy().to_string();
         run_migrations(&db_path).unwrap();
         let pool = create_pool(&db_path).unwrap();

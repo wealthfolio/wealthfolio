@@ -944,10 +944,44 @@ mod test_helpers {
     pub(crate) fn create_pool(db_path: &str) -> Result<Arc<DbPool>> {
         DbAccess::plaintext(db_path).create_pool()
     }
+
+    /// Temporary directory for a database opened through a pool.
+    ///
+    /// r2d2 opens connections on its own threads, and a test can end while one
+    /// is still opening. If SQLite's open lands after `TempDir` has unlinked
+    /// the database, it creates the file again, removing the directory fails
+    /// because it is not empty, and `TempDir` ignores the error. Removing it
+    /// again works: once the directory is gone, a late open cannot create the
+    /// file. Windows can't remove a database that is still open, so there the
+    /// directory stays behind, as with `TempDir`.
+    pub(crate) struct TestDir(PathBuf);
+
+    impl TestDir {
+        pub(crate) fn new() -> Self {
+            Self(tempfile::tempdir().expect("create temp dir").keep())
+        }
+
+        pub(crate) fn path(&self) -> &Path {
+            &self.0
+        }
+    }
+
+    impl Drop for TestDir {
+        fn drop(&mut self) {
+            for _ in 0..10 {
+                match fs::remove_dir_all(&self.0) {
+                    Err(e) if e.kind() == io::ErrorKind::DirectoryNotEmpty => {
+                        std::thread::sleep(Duration::from_millis(10));
+                    }
+                    _ => return,
+                }
+            }
+        }
+    }
 }
 
 #[cfg(test)]
-pub(crate) use test_helpers::{create_pool, init, run_migrations};
+pub(crate) use test_helpers::{create_pool, init, run_migrations, TestDir};
 
 pub fn get_db_path(input: &str) -> String {
     #[cfg(any(target_os = "android", target_os = "ios"))]
