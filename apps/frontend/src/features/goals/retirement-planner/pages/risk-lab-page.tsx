@@ -1004,7 +1004,7 @@ function MonteCarloDistributionSection({
         {running && (
           <div className="bg-muted/20 m-5 rounded-xl border md:m-6">
             <div className="flex min-h-44 flex-col items-center justify-center px-5 py-8 text-center">
-              <span className="flex size-11 items-center justify-center rounded-full bg-[hsl(91,34%,29%)]/10 text-[hsl(91,34%,29%)]">
+              <span className="bg-success-subtle text-success-subtle-foreground flex size-11 items-center justify-center rounded-full">
                 <Spinner className="size-5" />
               </span>
               <p className="mt-4 text-sm font-semibold">
@@ -1017,11 +1017,11 @@ function MonteCarloDistributionSection({
           </div>
         )}
         {!running && !result && (
-          <div className="m-5 rounded-xl bg-[hsl(88,45%,84%)] px-4 py-4 text-[hsl(91,31%,24%)] md:m-6 md:px-5">
+          <div className="bg-success-subtle text-success-subtle-foreground m-5 rounded-xl px-4 py-4 md:m-6 md:px-5">
             <div className="flex flex-col gap-4 text-center md:flex-row md:items-center md:justify-between md:text-start">
               <div>
                 <p className="text-sm font-semibold">{t("goals:risk_lab.montecarlo.no_run_yet")}</p>
-                <p className="mt-1 max-w-4xl text-sm leading-relaxed text-[hsl(91,22%,32%)]">
+                <p className="text-success-subtle-foreground/85 mt-1 max-w-4xl text-sm leading-relaxed">
                   {moneyLastsCta}
                 </p>
               </div>
@@ -1030,7 +1030,7 @@ function MonteCarloDistributionSection({
                   size="sm"
                   onClick={() => onRun(10_000)}
                   disabled={running}
-                  className="bg-[hsl(91,34%,29%)] text-white hover:bg-[hsl(91,34%,24%)]"
+                  className="bg-success text-success-foreground hover:bg-success/90"
                 >
                   <Icons.Sparkles className="me-2 size-3.5" />
                   {running && activeSims === 10_000
@@ -1042,7 +1042,7 @@ function MonteCarloDistributionSection({
                   size="sm"
                   onClick={() => onRun(100_000)}
                   disabled={running}
-                  className="text-[hsl(91,31%,24%)] hover:bg-[hsl(91,34%,29%)]/10"
+                  className="text-success-subtle-foreground hover:bg-success-subtle-foreground/10"
                 >
                   {running && activeSims === 100_000
                     ? t("goals:risk_lab.montecarlo.running_short")

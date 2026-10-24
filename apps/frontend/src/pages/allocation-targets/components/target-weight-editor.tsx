@@ -108,12 +108,12 @@ function driftTone(
   if (drift > 0) {
     return {
       label: t("allocation:editor.over", { value: drift.toFixed(1) }),
-      className: "bg-[#eadbd3] text-[#8a5b45]",
+      className: "bg-allocation-over/15 text-allocation-over",
     };
   }
   return {
     label: t("allocation:editor.under", { value: drift.toFixed(1) }),
-    className: "bg-[#dfe8dc] text-[#4f6544]",
+    className: "bg-allocation-under/15 text-allocation-under",
   };
 }
 

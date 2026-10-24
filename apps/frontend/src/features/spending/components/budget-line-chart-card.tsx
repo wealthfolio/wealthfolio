@@ -47,22 +47,22 @@ const STATUS_ACCENTS: Record<
   }
 > = {
   over: {
-    lineColor: "#B85544",
+    lineColor: "var(--destructive)",
     pillBg: "var(--destructive)",
     accent: "var(--destructive)",
     Icon: Icons.AlertTriangle,
     labelKey: "spending:budgetChart.overBudget",
   },
   warn: {
-    lineColor: "#C28B47",
-    pillBg: "#C28B47",
-    accent: "#C28B47",
+    lineColor: "var(--status-warn)",
+    pillBg: "var(--status-warn)",
+    accent: "var(--status-warn)",
     Icon: Icons.AlertCircle,
     labelKey: "spending:budgetChart.trendingHigh",
   },
   ok: {
-    lineColor: "hsl(73 84% 27%)",
-    pillBg: "hsl(73 84% 27%)",
+    lineColor: "var(--success)",
+    pillBg: "var(--success)",
     accent: "var(--success)",
     Icon: Icons.CheckCircle ?? Icons.AlertCircle,
     labelKey: "spending:budgetChart.onTrack",
@@ -439,7 +439,7 @@ export function BudgetLineChartCard({
           // SVG uses preserveAspectRatio="none", which would stretch a circle
           // into an ellipse.
           <div
-            className="absolute h-[0.5625rem] w-[0.5625rem] rounded-full bg-white"
+            className="bg-card absolute h-[0.5625rem] w-[0.5625rem] rounded-full"
             style={{
               left: `${pillLeftPctRaw}%`,
               top: `${endY}px`,
@@ -456,7 +456,7 @@ export function BudgetLineChartCard({
               top: `${pillTopPx}px`,
               transform: pillFlip ? "translateX(calc(-100% - 6px))" : undefined,
               backgroundColor: a.pillBg,
-              color: "white",
+              color: "var(--card)",
             }}
           >
             {gapLabel}
@@ -726,7 +726,11 @@ function BudgetRing({
   const { isBalanceHidden } = useBalancePrivacy();
   const isOver = ring.spent > ring.target;
   const remaining = ring.target - ring.spent;
-  const ringColor = isOver ? "var(--destructive)" : ring.pct > 0.85 ? "#C28B47" : "var(--success)";
+  const ringColor = isOver
+    ? "var(--destructive)"
+    : ring.pct > 0.85
+      ? "var(--status-warn)"
+      : "var(--success)";
   const displayAmount = Math.abs(isOver ? ring.spent - ring.target : remaining);
 
   const size = 56;

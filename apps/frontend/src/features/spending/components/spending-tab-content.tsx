@@ -87,7 +87,7 @@ import { EventsCard } from "./events-card";
 import { RecentActivityCard } from "./recent-activity-card";
 import { SpendingPeriodSelector } from "./spending-period-toggle";
 
-const FUTURE_BAR = "#E5E7EB";
+const FUTURE_BAR = "var(--muted)";
 const SPENDING_TAXONOMY = "spending_categories";
 type SpendingDashboardPeriod = "MTD" | "LAST_MONTH" | "3M" | "6M" | "YTD" | "1Y";
 
@@ -1019,7 +1019,7 @@ export default function SpendingTabContent() {
                   minTickGap={granularity === "day" ? 8 : 16}
                 />
                 <Tooltip
-                  cursor={{ fill: "rgba(0,0,0,0.04)" }}
+                  cursor={{ fill: "var(--muted)", opacity: 0.3 }}
                   content={({ active, payload }) => {
                     if (!active || !payload?.length) return null;
                     const p = payload[0].payload as {
@@ -1233,7 +1233,7 @@ export default function SpendingTabContent() {
                         <span
                           className="w-4 shrink-0 text-base font-bold leading-none"
                           style={{
-                            color: ins.icon === "!" ? "#C28B47" : theme.deep,
+                            color: ins.icon === "!" ? "var(--status-warn)" : theme.deep,
                           }}
                         >
                           {ins.icon}
@@ -1457,7 +1457,7 @@ function CategoryTreemapMono({
             }}
           >
             <Tooltip
-              cursor={{ fill: "rgba(0,0,0,0.04)" }}
+              cursor={{ fill: "var(--muted)", opacity: 0.3 }}
               content={({ active, payload }) => {
                 if (!active || !payload?.length) return null;
                 const p = payload[0].payload as { name: string; amount: number; pct: number };
