@@ -64,7 +64,7 @@ import { AdvancedOptionsSection } from "@/pages/activity/components/forms/fields
 import { useSpendingSettings } from "../hooks/use-spending-settings";
 import { QuickCategorizePopover } from "./quick-categorize-popover";
 import { QuickEventPopover } from "./quick-event-popover";
-import type { CashFlowBucket } from "../types/cash-activity";
+import type { ActivitySplit, CashFlowBucket } from "../types/cash-activity";
 import {
   cashActivityFlowMetadata,
   resolveCashActivitySubtype,
@@ -168,6 +168,7 @@ interface CashActivityFormProps {
   onOpenChange: (open: boolean) => void;
   activity?: Activity & {
     cashFlowBucket?: CashFlowBucket;
+    splits?: ActivitySplit[];
     categoryAssignmentId?: string;
     categoryTaxonomyId?: string;
     categoryId?: string;
@@ -728,7 +729,11 @@ export function CashActivityForm({
                             <FormLabel>
                               {isNeutralBucket ? t("spending:filters.category") : categoryLabel}
                             </FormLabel>
-                            {isNeutralBucket ? (
+                            {(activity?.splits?.length ?? 0) > 0 ? (
+                              <p className="text-muted-foreground rounded-md border px-3 py-2 text-sm">
+                                {t("spending:split.categoryProtected")}
+                              </p>
+                            ) : isNeutralBucket ? (
                               <div className="border-input bg-muted/40 text-muted-foreground h-input-height flex items-center rounded-md border px-3 py-2 text-sm">
                                 {t("spending:cashForm.neutralTransfer")}
                               </div>

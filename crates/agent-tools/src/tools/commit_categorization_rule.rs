@@ -64,6 +64,13 @@ fn validate_draft(rule: &NewCategorizationRule) -> Result<(), AgentToolError> {
             "rule.taxonomyId and rule.categoryId are required".to_string(),
         ));
     }
+    if !rule.taxonomy_id.as_deref().is_some_and(|id| {
+        wealthfolio_spending::cash_activities::TRANSACTION_TAXONOMY_IDS.contains(&id)
+    }) {
+        return Err(AgentToolError::InvalidInput(
+            "Only Spending transaction taxonomies are allowed".to_string(),
+        ));
+    }
     // Drafts are user-created rules, never preset imports. Do not let an MCP
     // caller mark a new rule as owned by a bundled preset.
     if rule.preset_id.is_some() || rule.preset_rule_key.is_some() || rule.preset_version.is_some() {
@@ -123,10 +130,7 @@ impl AgentTool for CommitCategorizationRule {
     }
 
     fn required_scopes(&self) -> &'static [AgentScope] {
-        &[
-            AgentScope::ClassificationSuggest,
-            AgentScope::ClassificationWrite,
-        ]
+        &[AgentScope::SpendingRead, AgentScope::SpendingWrite]
     }
 
     fn access_level(&self) -> AgentToolAccess {
@@ -150,7 +154,9 @@ impl AgentTool for CommitCategorizationRule {
         env: Arc<dyn AgentEnvironment>,
         args: serde_json::Value,
     ) -> Result<AgentToolResult, AgentToolError> {
-        let args: CommitCategorizationRuleArgs = serde_json::from_value(args)?;
+        let args: CommitCategorizationRuleArgs = serde_json::from_value(args).map_err(|_| {
+            AgentToolError::InvalidInput("Invalid categorization rule draft".to_string())
+        })?;
         validate_draft(&args.rule)?;
 
         let created = env

@@ -80,6 +80,8 @@ pub struct ProposalSummary {
     pub proposed: usize,
     pub unproposed: usize,
     pub avg_confidence: f32,
+    #[serde(default)]
+    pub protected_splits: usize,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -154,6 +156,7 @@ impl ProposeCategories {
                     proposed: 0,
                     unproposed: 0,
                     avg_confidence: 0.0,
+                    protected_splits: state.protected_splits,
                 },
                 taxonomies: Vec::new(),
                 examples: Vec::new(),
@@ -210,6 +213,7 @@ impl ProposeCategories {
                 proposed,
                 unproposed: total.saturating_sub(proposed),
                 avg_confidence,
+                protected_splits: state.protected_splits,
             },
             taxonomies: state.taxonomies,
             examples: state.examples,
@@ -275,13 +279,7 @@ impl AgentTool for ProposeCategories {
     }
 
     fn required_scopes(&self) -> &'static [AgentScope] {
-        // Returns cash-activity rows AND the taxonomy tree, so it requires
-        // activities:read and classification:read alongside classification:suggest.
-        &[
-            AgentScope::ActivitiesRead,
-            AgentScope::ClassificationRead,
-            AgentScope::ClassificationSuggest,
-        ]
+        &[AgentScope::SpendingRead]
     }
 
     fn access_level(&self) -> AgentToolAccess {
@@ -326,6 +324,9 @@ pub(crate) fn merge_ai_proposals(
         else {
             continue;
         };
+        if row.allowed_taxonomy_id.as_deref() != Some(tax_id.as_str()) {
+            continue;
+        }
         let confidence = ai.confidence.unwrap_or(0.7).clamp(0.5, 0.95);
         accepted.insert(
             row.activity_id.clone(),
@@ -369,6 +370,7 @@ mod tests {
             currency: "USD".to_string(),
             notes: Some("STARBUCKS".to_string()),
             reason: "test".to_string(),
+            allowed_taxonomy_id: Some("tax1".to_string()),
         }
     }
 
@@ -391,6 +393,26 @@ mod tests {
             ),
         );
         m
+    }
+
+    #[test]
+    fn incompatible_ai_taxonomy_stays_unproposed() {
+        let mut row = make_unproposed("a1");
+        row.allowed_taxonomy_id = Some("income_sources".to_string());
+        let (proposed, remaining) = merge_ai_proposals(
+            vec![row],
+            vec![],
+            &make_key_lookup(),
+            vec![AiProposal {
+                activity_id: "a1".to_string(),
+                taxonomy_id: "tax1".to_string(),
+                category_key: "groceries".to_string(),
+                confidence: None,
+                reason: None,
+            }],
+        );
+        assert!(proposed.is_empty());
+        assert_eq!(remaining.len(), 1);
     }
 
     #[test]

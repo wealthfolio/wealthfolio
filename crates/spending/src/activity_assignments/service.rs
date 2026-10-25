@@ -1,5 +1,7 @@
 use std::sync::Arc;
 
+use crate::activity_splits::ActivitySplit;
+
 use anyhow::Result;
 
 use super::model::{ActivityTaxonomyAssignment, NewActivityTaxonomyAssignment};
@@ -41,6 +43,7 @@ impl ActivityTaxonomyAssignmentService {
                 activity_id: activity_id.to_string(),
                 taxonomy_id: taxonomy_id.to_string(),
                 category_id: category_id.to_string(),
+                expected_splits: None,
             }])
             .await?;
         assigned
@@ -59,6 +62,7 @@ impl ActivityTaxonomyAssignmentService {
                 activity_id: activity_id.to_string(),
                 taxonomy_id: taxonomy_id.to_string(),
                 category_id: category_id.to_string(),
+                expected_splits: None,
             }])
             .await?;
         assigned
@@ -123,7 +127,17 @@ impl ActivityTaxonomyAssignmentService {
             })
             .collect();
         self.repo
-            .assign_many_single_select_clearing_splits(news)
+            .assign_many_single_select_clearing_splits(
+                news,
+                items
+                    .iter()
+                    .filter_map(|item| {
+                        item.expected_splits
+                            .as_ref()
+                            .map(|splits| (item.activity_id.clone(), splits.clone()))
+                    })
+                    .collect(),
+            )
             .await
     }
 
@@ -163,4 +177,8 @@ pub struct BulkCategoryAssignment {
     pub activity_id: String,
     pub taxonomy_id: String,
     pub category_id: String,
+    /// Present only after explicitly reviewing replacement of these split lines.
+    /// Compared in the writer transaction, including content and timestamps.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub expected_splits: Option<Vec<ActivitySplit>>,
 }

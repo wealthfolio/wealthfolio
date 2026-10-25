@@ -228,14 +228,39 @@ impl BudgetService {
         currency: &str,
         timezone: &str,
     ) -> Result<BudgetSnapshot> {
+        self.get_snapshot(period_key, currency, timezone, true)
+            .await
+    }
+
+    /// Agent reads synthesize missing system groups in memory. No seed writes,
+    /// outbox rows or events occur, and the native snapshot calculator is reused.
+    pub async fn get_readonly(
+        &self,
+        period_key: Option<String>,
+        currency: &str,
+        timezone: &str,
+    ) -> Result<BudgetSnapshot> {
+        self.get_snapshot(period_key, currency, timezone, false)
+            .await
+    }
+
+    async fn get_snapshot(
+        &self,
+        period_key: Option<String>,
+        currency: &str,
+        timezone: &str,
+        initialize_groups: bool,
+    ) -> Result<BudgetSnapshot> {
         let period_key = normalize_period_key(period_key, timezone)?;
         let settings = self.spending_settings.get().await?;
         if !settings.enabled {
             return Ok(BudgetSnapshot::empty(period_key, currency.to_string()));
         }
 
-        self.ensure_system_groups().await?;
-        let groups = self.repo.list_groups().await?;
+        if initialize_groups {
+            self.ensure_system_groups().await?;
+        }
+        let groups = effective_groups(self.repo.list_groups().await?);
         let assignments = self.repo.list_group_assignments().await?;
         let targets = self.repo.list_targets().await?;
         let rollover_settings = self.repo.list_rollover_settings().await?;
@@ -1157,6 +1182,32 @@ fn compute_rollover_for_month(
     )
 }
 
+/// One pure default resolution for Budget and Insight. Persisted user edits and
+/// custom groups remain authoritative; synthesize only absent system keys.
+/// Epoch timestamps identify definitions without pretending a read persisted them.
+pub(crate) fn effective_groups(mut groups: Vec<BudgetGroup>) -> Vec<BudgetGroup> {
+    for default in DEFAULT_GROUPS {
+        if groups
+            .iter()
+            .any(|group| group.key == default.key || group.id == default.id)
+        {
+            continue;
+        }
+        groups.push(BudgetGroup {
+            id: default.id.to_string(),
+            name: default.name.to_string(),
+            key: default.key.to_string(),
+            color: Some(default.color.to_string()),
+            icon: Some(default.icon.to_string()),
+            sort_order: default.sort_order,
+            is_system: true,
+            created_at: chrono::DateTime::UNIX_EPOCH.naive_utc(),
+            updated_at: chrono::DateTime::UNIX_EPOCH.naive_utc(),
+        });
+    }
+    groups
+}
+
 fn default_group_inputs() -> Vec<NewBudgetGroup> {
     DEFAULT_GROUPS
         .iter()
@@ -1749,6 +1800,51 @@ mod tests {
         );
         assert!(index.has_default_category(SPENDING_TAXONOMY, "cat_groceries"));
         assert!(index.has_month_category("2026-03", SPENDING_TAXONOMY, "cat_groceries"));
+    }
+
+    #[test]
+    fn pure_group_resolution_fills_only_missing_defaults_and_preserves_custom_edits() {
+        let defaults = effective_groups(Vec::new());
+        assert_eq!(defaults.len(), DEFAULT_GROUPS.len());
+        for removed in [
+            vec![],
+            vec![OTHER_GROUP_KEY],
+            vec!["needs", "wants", OTHER_GROUP_KEY],
+        ] {
+            let mut persisted = defaults
+                .iter()
+                .filter(|group| !removed.contains(&group.key.as_str()))
+                .cloned()
+                .collect::<Vec<_>>();
+            if let Some(group) = persisted.first_mut() {
+                group.name = "My group".to_string();
+                group.color = Some("#123456".to_string());
+            }
+            let mut custom = defaults[0].clone();
+            custom.id = "custom".to_string();
+            custom.key = "custom".to_string();
+            custom.is_system = false;
+            persisted.push(custom);
+            let resolved = effective_groups(persisted.clone());
+            assert_eq!(resolved.len(), DEFAULT_GROUPS.len() + 1);
+            for original in persisted {
+                let found = resolved
+                    .iter()
+                    .find(|group| group.id == original.id)
+                    .unwrap();
+                assert_eq!(found.name, original.name);
+                assert_eq!(found.color, original.color);
+                assert_eq!(found.is_system, original.is_system);
+            }
+            assert_eq!(
+                resolved
+                    .iter()
+                    .find(|g| g.key == OTHER_GROUP_KEY)
+                    .unwrap()
+                    .id,
+                BUDGET_GROUP_OTHER_ID
+            );
+        }
     }
 
     #[test]

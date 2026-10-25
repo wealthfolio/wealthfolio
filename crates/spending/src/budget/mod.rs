@@ -12,3 +12,5 @@ pub use model::{
 };
 pub use service::BudgetService;
 pub use traits::BudgetRepositoryTrait;
+
+pub use traits::BudgetServiceTrait;

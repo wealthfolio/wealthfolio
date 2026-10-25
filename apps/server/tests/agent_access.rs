@@ -25,6 +25,7 @@ const READ_ONLY_SCOPES: &[&str] = &[
     "financial-planning:read",
     "health:read",
     "classification:read",
+    "spending:read",
 ];
 
 /// Env vars are process-global; serialize config/state construction
@@ -237,7 +238,7 @@ async fn mcp_pat_lifecycle() {
     assert_eq!(created["name"], "ci token");
     assert_eq!(created["tokenPrefix"].as_str().unwrap().len(), 12);
     assert!(pat[4..].starts_with(created["tokenPrefix"].as_str().unwrap()));
-    assert_eq!(created["scopes"].as_array().unwrap().len(), 7);
+    assert_eq!(created["scopes"].as_array().unwrap().len(), 8);
     let token_id = created["id"].as_str().unwrap().to_string();
 
     // Empty name is rejected.
@@ -298,7 +299,7 @@ async fn mcp_pat_lifecycle() {
 
     // tools/list -> the read-only catalog: 16 read tools + get_import_mapping
     // and find_transfer_matches (also activities:read) + list_categorization_rules
-    // (classification:read) = 19.
+    // (spending:read), plus the two Spending proposal tools = 21.
     let response = mcp_post(
         &server,
         Some(&pat),
@@ -311,8 +312,8 @@ async fn mcp_pat_lifecycle() {
     let tools = list["result"]["tools"].as_array().unwrap();
     assert_eq!(
         tools.len(),
-        19,
-        "read-only catalog must expose 19 tools (incl. get_import_mapping): {tools:?}"
+        24,
+        "read-only catalog must expose 24 tools (including Spending reads and proposals): {tools:?}"
     );
 
     // (h) tools/call succeeds and writes an audit row (awaited before the
@@ -475,6 +476,8 @@ async fn mcp_write_scoped_token_sees_write_tools() {
             "activities:write",
             "classification:suggest",
             "classification:write",
+            "spending:write",
+            "budget:write",
             "market-data:write",
         ])
         .collect();
@@ -485,7 +488,7 @@ async fn mcp_write_scoped_token_sees_write_tools() {
     )
     .await;
     assert_eq!(status, 201);
-    assert_eq!(created["scopes"].as_array().unwrap().len(), 12);
+    assert_eq!(created["scopes"].as_array().unwrap().len(), 15);
     let pat = created["token"].as_str().unwrap().to_string();
 
     let session = mcp_initialize(&server, &pat).await;
@@ -502,8 +505,8 @@ async fn mcp_write_scoped_token_sees_write_tools() {
     let names: Vec<&str> = tools.iter().map(|t| t["name"].as_str().unwrap()).collect();
     assert_eq!(
         tools.len(),
-        38,
-        "full-scope token must see all 38 tools: {names:?}"
+        41,
+        "full-scope token must see all 41 tools: {names:?}"
     );
     for name in [
         "list_categorization_rules",
@@ -2505,7 +2508,7 @@ async fn category_writer_session(server: &TestServer, cookie: &str) -> (String, 
         cookie,
         serde_json::json!({
             "name": "category writer",
-            "scopes": ["activities:read", "classification:read", "classification:suggest", "classification:write"]
+            "scopes": ["spending:read", "spending:write"]
         }),
     )
     .await;
@@ -2729,8 +2732,35 @@ async fn mcp_category_save_rolls_back_assignments_and_split_clearing() {
     let prior_splits = category_splits(&server, &cookie, &activities[0]).await;
     assert_eq!(prior_splits.as_array().unwrap().len(), 2);
 
-    // The second category exists, but in another taxonomy. This fails the FK
-    // after the first assignment and split deletion enter the write transaction.
+    let proposed = mcp_call_tool(&server, &pat, &session, "propose_transaction_categories",
+        serde_json::json!({"activityIds": [activities[0]["id"], activities[1]["id"]], "status": "all"})).await;
+    assert_eq!(proposed["summary"]["protectedSplits"], 1);
+    assert!(!proposed["proposals"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|p| p["activityId"] == activities[0]["id"]));
+    assert!(!proposed["unproposed"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|p| p["activityId"] == activities[0]["id"]));
+    let conflict = mcp_call_tool(&server, &pat, &session, "commit_transaction_categories",
+        serde_json::json!({"assignments": [category_assignment(&activities[1], &second), category_assignment(&activities[0], &second)]})).await;
+    assert_eq!(conflict["draftStatus"], "conflict");
+    assert_eq!(conflict["assignmentCount"], 0);
+    assert_eq!(conflict["conflicts"][0]["activityId"], activities[0]["id"]);
+    assert_eq!(conflict["conflicts"][0]["reason"], "protected_splits");
+    assert_eq!(
+        category_rows(&server, &cookie, &activities[1]).await,
+        prior_rows
+    );
+    assert_eq!(
+        category_splits(&server, &cookie, &activities[0]).await,
+        prior_splits
+    );
+
+    // A category in another taxonomy is rejected before any persistence.
     let error = mcp_call_tool_error(
         &server,
         &pat,
@@ -2768,7 +2798,7 @@ async fn mcp_category_save_rolls_back_assignments_and_split_clearing() {
         ),
         (
             category_assignment(&activities[1], "missing-category"),
-            "FOREIGN KEY constraint failed",
+            "Category does not belong to the selected cash-flow taxonomy",
         ),
         (
             serde_json::json!({"activityId": activities[1]["id"], "taxonomyId": "missing-taxonomy", "categoryId": first}),
@@ -2793,7 +2823,10 @@ async fn mcp_category_save_rolls_back_assignments_and_split_clearing() {
         &pat,
         &session,
         "commit_transaction_categories",
-        serde_json::json!({"assignments": [category_assignment(&activities[0], &second)]}),
+        serde_json::json!({"assignments": [{
+            "activityId": activities[0]["id"], "taxonomyId": "spending_categories", "categoryId": second,
+            "expectedSplits": prior_splits,
+        }]}),
     )
     .await;
     assert!(category_splits(&server, &cookie, &activities[0])
@@ -2926,4 +2959,171 @@ async fn mcp_category_save_denies_insufficient_scopes_and_redacts_audit_errors()
         );
         assert!(!text.contains(&first), "{row}");
     }
+}
+
+#[tokio::test]
+async fn spending_only_reads_are_scoped_paginated_and_available_without_investment_grants() {
+    let server = spawn_server(true, false).await;
+    let cookie = login(&server).await;
+    let (account, activities, first, _, _) = category_save_fixture(&server, &cookie).await;
+    let (status, token) = create_pat(
+        &server,
+        &cookie,
+        serde_json::json!({"name":"spending reader", "scopes":["spending:read"]}),
+    )
+    .await;
+    assert_eq!(status, 201);
+    let pat = token["token"].as_str().unwrap();
+    let session = mcp_initialize(&server, pat).await;
+    let context = mcp_call_tool(
+        &server,
+        pat,
+        &session,
+        "get_spending_context",
+        serde_json::json!({}),
+    )
+    .await;
+    assert_eq!(context["availability"], "available");
+    assert_eq!(context["accountIds"], serde_json::json!([account["id"]]));
+    let list = mcp_post(
+        &server,
+        Some(pat),
+        Some(&session),
+        serde_json::json!({"jsonrpc":"2.0","id":2,"method":"tools/list"}),
+    )
+    .await;
+    let list = parse_sse_data(&list.text().await.unwrap());
+    let names = list["result"]["tools"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|t| t["name"].as_str().unwrap())
+        .collect::<Vec<_>>();
+    for name in [
+        "get_spending_context",
+        "search_spending_transactions",
+        "list_transaction_categories",
+        "list_categorization_context",
+        "propose_transaction_categories",
+        "create_categorization_rule",
+        "list_categorization_rules",
+    ] {
+        assert!(names.contains(&name), "{name}");
+    }
+    for name in [
+        "search_activities",
+        "get_holdings",
+        "list_asset_taxonomies",
+        "commit_transaction_categories",
+        "rerun_categorization_rules",
+    ] {
+        assert!(!names.contains(&name), "{name}");
+        assert!(
+            mcp_call_tool_error(&server, pat, &session, name, serde_json::json!({}))
+                .await
+                .contains("Scope denied")
+        );
+    }
+    let page = mcp_call_tool(
+        &server,
+        pat,
+        &session,
+        "search_spending_transactions",
+        serde_json::json!({"limit":1,"sortDir":"asc"}),
+    )
+    .await;
+    assert_eq!(page["items"].as_array().unwrap().len(), 1);
+    assert_eq!(page["totalCount"], 2);
+    assert_eq!(page["hasMore"], true);
+    assert_eq!(page["fxRequested"], false);
+    assert_eq!(page["items"][0]["accountId"], account["id"]);
+    let next = mcp_call_tool(
+        &server,
+        pat,
+        &session,
+        "search_spending_transactions",
+        serde_json::json!({"offset":1,"limit":1,"sortDir":"asc"}),
+    )
+    .await;
+    assert_eq!(next["hasMore"], false);
+    assert_ne!(next["items"][0]["id"], page["items"][0]["id"]);
+    let outside = mcp_call_tool(
+        &server,
+        pat,
+        &session,
+        "search_spending_transactions",
+        serde_json::json!({"accountIds":["not-enrolled"]}),
+    )
+    .await;
+    assert_eq!(outside["totalCount"], 0);
+    assert_eq!(outside["context"]["accountIds"], serde_json::json!([]));
+    api_put(&server, &cookie, &format!("spending/activities/{}/splits", activities[0]["id"].as_str().unwrap()),
+        serde_json::json!([{"taxonomyId":"spending_categories","categoryId":first,"amount":"12.50"}])).await;
+    let split = mcp_call_tool(
+        &server,
+        pat,
+        &session,
+        "search_spending_transactions",
+        serde_json::json!({"activityIds":[activities[0]["id"]],"status":"categorized"}),
+    )
+    .await;
+    assert_eq!(split["totalCount"], 1);
+    assert_eq!(
+        split["items"][0]["effectiveAllocations"][0]["categoryId"],
+        first
+    );
+    assert_eq!(split["items"][0]["splits"].as_array().unwrap().len(), 1);
+    let uncategorized = mcp_call_tool(
+        &server,
+        pat,
+        &session,
+        "search_spending_transactions",
+        serde_json::json!({"activityIds":[activities[0]["id"]],"status":"uncategorized"}),
+    )
+    .await;
+    assert_eq!(uncategorized["totalCount"], 0);
+    let categories = mcp_call_tool(
+        &server,
+        pat,
+        &session,
+        "list_transaction_categories",
+        serde_json::json!({}),
+    )
+    .await;
+    assert_eq!(categories["taxonomies"].as_array().unwrap().len(), 3);
+    api_put(
+        &server,
+        &cookie,
+        "spending/settings",
+        serde_json::json!({"enabled":false}),
+    )
+    .await;
+    let context = mcp_call_tool(
+        &server,
+        pat,
+        &session,
+        "get_spending_context",
+        serde_json::json!({}),
+    )
+    .await;
+    assert_eq!(context["availability"], "disabled");
+    assert_eq!(context["accountIds"], serde_json::json!([]));
+    let disabled = mcp_call_tool(
+        &server,
+        pat,
+        &session,
+        "search_spending_transactions",
+        serde_json::json!({"activityIds":[activities[0]["id"]]}),
+    )
+    .await;
+    assert_eq!(disabled["totalCount"], 0);
+    let configuration = mcp_call_tool(
+        &server,
+        pat,
+        &session,
+        "list_transaction_categories",
+        serde_json::json!({}),
+    )
+    .await;
+    assert_eq!(configuration, categories);
 }

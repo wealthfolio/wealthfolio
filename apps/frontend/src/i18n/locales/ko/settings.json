@@ -1457,7 +1457,7 @@
         "description": "포트폴리오 상태와 진단 점검을 읽습니다."
       },
       "classification_read": {
-        "label": "분류 (읽기)",
+        "label": "자산 분류 (읽기)",
         "description": "상품 분류와 분류 체계를 읽습니다."
       },
       "activities_draft": {
@@ -1469,27 +1469,44 @@
         "description": "거래를 확정하고 기존 거래를 수정하며 이체를 연결하거나 연결 해제합니다. 초안 범위가 필요합니다."
       },
       "classification_suggest": {
-        "label": "분류 — 제안",
+        "label": "자산 분류 — 제안",
         "description": "검토용 상품 분류를 제안합니다."
       },
       "classification_write": {
-        "label": "분류 — 적용/쓰기",
+        "label": "자산 분류 — 적용/쓰기",
         "description": "검토된 분류 초안을 적용합니다. 제안 범위가 필요합니다."
       },
       "market_data_write": {
         "label": "시장 데이터 — 쓰기",
         "description": "기존 자산의 검토된 가격(시세)을 저장합니다. 보유 종목 및 가치 (읽기) 범위가 필요합니다."
+      },
+      "spending_read": {
+        "label": "지출 보기",
+        "description": "지출 계좌의 거래, 카테고리, 분할, 규칙, 이벤트, 보고서 및 예산을 읽습니다."
+      },
+      "spending_write": {
+        "label": "지출 정리",
+        "description": "지출 카테고리, 할당, 분할, 규칙 및 이벤트를 관리합니다. 지출 보기가 필요합니다."
+      },
+      "budget_write": {
+        "label": "예산 관리",
+        "description": "기본 및 월별 예산, 그룹, 여유 자금 및 이월을 변경합니다. 지출 보기가 필요합니다."
       }
     },
     "preset": {
       "read_only": "읽기 전용",
       "read_activity_draft": "읽기 + 초안",
       "read_activity_write": "읽기 + 쓰기",
-      "read_activity_write_classification_suggest": "읽기 + 쓰기 + 분류"
+      "read_activity_write_classification_suggest": "읽기 + 거래 쓰기 + 자산 분류",
+      "spending_view": "지출 — 보기",
+      "spending_organize": "지출 — 정리",
+      "spending_budgets": "지출 — 예산"
     },
     "copied_generic": "{{label}}이(가) 클립보드에 복사되었습니다.",
     "hero_aria": "AI 에이전트 접근 상태",
-    "pat_scope_custom_other": "사용자 지정 · 범위 {{count}}개"
+    "pat_scope_custom_other": "사용자 지정 · 범위 {{count}}개",
+    "scope_locked_spending_title": "지출 정리 또는 예산 관리에 필요",
+    "dialog_presets": "접근 권한 프리셋"
   },
   "tax_add_category": "카테고리 추가",
   "tax_export": "내보내기",

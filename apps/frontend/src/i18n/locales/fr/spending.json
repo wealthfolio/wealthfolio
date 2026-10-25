@@ -447,7 +447,12 @@
     "removeLine": "Supprimer la ligne de ventilation {{number}}",
     "addLine": "Ajouter une ligne",
     "distributeEvenly": "Répartir équitablement",
-    "clearSplit": "Effacer la ventilation"
+    "clearSplit": "Effacer la ventilation",
+    "replaceWithCategory": "Remplacer les ventilations par une catégorie",
+    "replaceDescription_one": "Remplacer {{count}} ventilation par {{category}} ? Les ventilations existantes seront supprimées.",
+    "replaceDescription_other": "Remplacer {{count}} ventilations par {{category}} ? Les ventilations existantes seront supprimées.",
+    "replaceDescription_many": "Remplacer {{count}} ventilations par {{category}} ? Les ventilations existantes seront supprimées.",
+    "categoryProtected": "Les ventilations sont protégées. Modifiez-les ou remplacez-les explicitement dans leur éditeur."
   },
   "hierarchy": {
     "noCategorizedSpending": "Aucune dépense catégorisée sur cette période.",

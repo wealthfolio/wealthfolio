@@ -31,6 +31,7 @@ pub mod propose_categories;
 pub mod quote_import;
 pub mod record_activities;
 pub mod record_activity;
+pub mod spending_reads;
 pub mod transfer_links;
 pub mod valuation;
 

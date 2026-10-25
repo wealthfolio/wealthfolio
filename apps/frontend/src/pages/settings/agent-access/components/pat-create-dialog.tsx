@@ -15,6 +15,9 @@ import { Label } from "@wealthfolio/ui/components/ui/label";
 import { toast } from "@wealthfolio/ui/components/ui/use-toast";
 import {
   applyScopeDependencies,
+  matchPreset,
+  presetLabel,
+  SCOPE_PRESETS,
   READ_SCOPES,
   scopeDescription,
   scopeLabel,
@@ -146,13 +149,19 @@ export function PatCreateDialog({
     const description = scopeDescription(t, scope.key);
     const lockedByMarketData =
       scope.key === "holdings:read" && selectedScopes.includes("market-data:write");
+    const lockedBySpending =
+      scope.key === "spending:read" &&
+      (selectedScopes.includes("spending:write") || selectedScopes.includes("budget:write"));
     const locked =
+      lockedBySpending ||
       lockedByMarketData ||
       (scope.key === "activities:draft" && selectedScopes.includes("activities:write")) ||
       (scope.key === "classification:suggest" && selectedScopes.includes("classification:write"));
-    const lockedTitle = lockedByMarketData
-      ? t("settings:agentAccess.scope_locked_market_data_title")
-      : t("settings:agentAccess.scope_locked_title");
+    const lockedTitle = lockedBySpending
+      ? t("settings:agentAccess.scope_locked_spending_title")
+      : lockedByMarketData
+        ? t("settings:agentAccess.scope_locked_market_data_title")
+        : t("settings:agentAccess.scope_locked_title");
     return (
       <button
         key={scope.key}
@@ -197,7 +206,7 @@ export function PatCreateDialog({
           <div className="md:grid md:grid-cols-[1fr_22rem]">
             {/* Left: the form */}
             <div className="flex flex-col md:max-h-[85vh]">
-              <div className="space-y-1 px-6 pt-6 pb-4">
+              <div className="space-y-1 px-6 pb-4 pt-6">
                 <DialogTitle>{t("settings:agentAccess.dialog_new_title")}</DialogTitle>
                 <DialogDescription>
                   {t("settings:agentAccess.dialog_new_description")}
@@ -243,14 +252,34 @@ export function PatCreateDialog({
                 </div>
 
                 <div className="space-y-2">
-                  <p className="text-muted-foreground text-xs font-medium tracking-wider uppercase">
+                  <p className="text-muted-foreground text-xs font-medium uppercase tracking-wider">
+                    {t("settings:agentAccess.dialog_presets")}
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {SCOPE_PRESETS.map((preset) => (
+                      <Button
+                        key={preset.key}
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        aria-pressed={matchPreset(selectedScopes)?.key === preset.key}
+                        onClick={() => setSelected(new Set(preset.scopes))}
+                      >
+                        {presetLabel(t, preset)}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <p className="text-muted-foreground text-xs font-medium uppercase tracking-wider">
                     {t("settings:agentAccess.dialog_read_access")}
                   </p>
                   <div className="grid gap-2 sm:grid-cols-2">{READ_GROUP.map(renderScope)}</div>
                 </div>
 
                 <div className="space-y-2">
-                  <p className="text-muted-foreground text-xs font-medium tracking-wider uppercase">
+                  <p className="text-muted-foreground text-xs font-medium uppercase tracking-wider">
                     {t("settings:agentAccess.dialog_write_access")}
                   </p>
                   <div className="grid gap-2 sm:grid-cols-2">{WRITE_GROUP.map(renderScope)}</div>
@@ -261,7 +290,7 @@ export function PatCreateDialog({
             {/* Right: live capability summary + action */}
             <aside className="bg-muted/30 flex flex-col border-t md:max-h-[85vh] md:border-s md:border-t-0">
               <div className="flex-1 space-y-3 overflow-y-auto px-5 py-6">
-                <p className="text-muted-foreground text-2xs font-medium tracking-wider uppercase">
+                <p className="text-muted-foreground text-2xs font-medium uppercase tracking-wider">
                   {t("settings:agentAccess.dialog_capabilities_title")}
                 </p>
                 {selectedScopes.length === 0 ? (
@@ -319,7 +348,7 @@ export function PatCreateDialog({
             <div className="space-y-1.5">
               <Label>{t("settings:agentAccess.dialog_access_token")}</Label>
               <div className="flex items-center gap-2">
-                <p className="bg-muted min-w-0 flex-1 truncate rounded-md px-3 py-2 font-mono text-xs select-all">
+                <p className="bg-muted min-w-0 flex-1 select-all truncate rounded-md px-3 py-2 font-mono text-xs">
                   {newToken}
                 </p>
                 <Button

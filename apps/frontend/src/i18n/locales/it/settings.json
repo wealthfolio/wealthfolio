@@ -1514,7 +1514,7 @@
         "description": "Leggi lo stato di salute del portafoglio e le verifiche diagnostiche."
       },
       "classification_read": {
-        "label": "Classificazione (lettura)",
+        "label": "Classificazione degli asset (lettura)",
         "description": "Leggi le classificazioni e le tassonomie degli strumenti."
       },
       "activities_draft": {
@@ -1526,29 +1526,46 @@
         "description": "Conferma i movimenti, aggiorna quelli esistenti e collega o scollega i trasferimenti. Richiede l'ambito bozza."
       },
       "classification_suggest": {
-        "label": "Classificazione — suggerisci",
+        "label": "Classificazione degli asset — suggerisci",
         "description": "Suggerisci classificazioni degli strumenti per la revisione."
       },
       "classification_write": {
-        "label": "Classificazione — applica/scrittura",
+        "label": "Classificazione degli asset — applica/scrittura",
         "description": "Applica le bozze di classificazione revisionate. Richiede l'ambito suggerimento."
       },
       "market_data_write": {
         "label": "Dati di mercato — scrittura",
         "description": "Salva prezzi (quotazioni) revisionati per asset esistenti. Richiede l'ambito posizioni (lettura)."
+      },
+      "spending_read": {
+        "label": "Visualizza spese",
+        "description": "Leggi transazioni dei conti di spesa, categorie, suddivisioni, regole, eventi, resoconti e budget."
+      },
+      "spending_write": {
+        "label": "Organizza spese",
+        "description": "Gestisci categorie, assegnazioni, suddivisioni, regole ed eventi. Richiede Visualizza spese."
+      },
+      "budget_write": {
+        "label": "Gestisci budget",
+        "description": "Modifica budget predefiniti e mensili, gruppi, riserve e riporti. Richiede Visualizza spese."
       }
     },
     "preset": {
       "read_only": "Solo lettura",
       "read_activity_draft": "Lettura + bozza",
       "read_activity_write": "Lettura + scrittura",
-      "read_activity_write_classification_suggest": "Lettura + scrittura + classificazione"
+      "read_activity_write_classification_suggest": "Lettura + scrittura transazioni + classificazione degli asset",
+      "spending_view": "Spese — visualizzazione",
+      "spending_organize": "Spese — organizzazione",
+      "spending_budgets": "Spese — budget"
     },
     "copied_generic": "{{label}} copiato negli appunti.",
     "hero_aria": "Stato dell'accesso agenti IA",
     "pat_scope_custom_one": "Personalizzato · {{count}} ambito",
     "pat_scope_custom_many": "Personalizzato · {{count}} ambiti",
-    "pat_scope_custom_other": "Personalizzato · {{count}} ambiti"
+    "pat_scope_custom_other": "Personalizzato · {{count}} ambiti",
+    "scope_locked_spending_title": "Richiesto da Organizza spese o Gestisci budget",
+    "dialog_presets": "Preimpostazioni di accesso"
   },
   "tax_add_category": "Aggiungi categoria",
   "tax_export": "Esporta",

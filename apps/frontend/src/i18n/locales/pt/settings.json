@@ -1514,7 +1514,7 @@
         "description": "Ler a saúde da carteira e as verificações de diagnóstico."
       },
       "classification_read": {
-        "label": "Classificação (leitura)",
+        "label": "Classificação de ativos (leitura)",
         "description": "Ler as classificações e taxonomias de instrumentos."
       },
       "activities_draft": {
@@ -1526,29 +1526,46 @@
         "description": "Confirmar atividades, atualizar as existentes e vincular ou desvincular transferências. Requer o escopo de rascunho."
       },
       "classification_suggest": {
-        "label": "Classificação: sugerir",
+        "label": "Classificação de ativos — Classificação: sugerir",
         "description": "Sugerir classificações de instrumentos para revisão."
       },
       "classification_write": {
-        "label": "Classificação: aplicar/gravar",
+        "label": "Classificação de ativos — Classificação: aplicar/gravar",
         "description": "Aplicar rascunhos de classificação revisados. Requer o escopo de sugestão."
       },
       "market_data_write": {
         "label": "Dados de mercado: gravar",
         "description": "Salvar preços (cotações) revisados de ativos existentes. Requer o escopo de posições (leitura)."
+      },
+      "spending_read": {
+        "label": "Ver despesas",
+        "description": "Ler transações de contas de despesas, categorias, divisões, regras, eventos, relatórios e orçamentos."
+      },
+      "spending_write": {
+        "label": "Organizar despesas",
+        "description": "Gerir categorias, atribuições, divisões, regras e eventos. Requer Ver despesas."
+      },
+      "budget_write": {
+        "label": "Gerir orçamentos",
+        "description": "Alterar orçamentos predefinidos e mensais, grupos, reservas e saldos transitados. Requer Ver despesas."
       }
     },
     "preset": {
       "read_only": "Somente leitura",
       "read_activity_draft": "Leitura + rascunho",
       "read_activity_write": "Leitura + escrita",
-      "read_activity_write_classification_suggest": "Leitura + escrita + classificar"
+      "read_activity_write_classification_suggest": "Leitura + escrita de transações + classificação de ativos",
+      "spending_view": "Despesas — consulta",
+      "spending_organize": "Despesas — organização",
+      "spending_budgets": "Despesas — orçamentos"
     },
     "copied_generic": "{{label}} copiado para a área de transferência.",
     "hero_aria": "Status do acesso de agentes de IA",
     "pat_scope_custom_one": "Personalizado · {{count}} escopo",
     "pat_scope_custom_other": "Personalizado · {{count}} escopos",
-    "pat_scope_custom_many": "Personalizado · {{count}} escopos"
+    "pat_scope_custom_many": "Personalizado · {{count}} escopos",
+    "scope_locked_spending_title": "Necessário para Organizar despesas ou Gerir orçamentos",
+    "dialog_presets": "Predefinições de acesso"
   },
   "tax_add_category": "Adicionar categoria",
   "tax_export": "Exportar",

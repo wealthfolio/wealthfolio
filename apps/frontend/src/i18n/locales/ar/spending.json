@@ -891,7 +891,15 @@
     "remainingOf": "المتبقي من {{amount}}",
     "removeLine": "إزالة سطر التقسيم {{number}}",
     "title": "تقسيم المعاملة",
-    "transactionFallback": "معاملة"
+    "transactionFallback": "معاملة",
+    "replaceWithCategory": "استبدال التقسيمات بفئة واحدة",
+    "replaceDescription_one": "هل تريد استبدال تقسيم واحد ({{count}}) بالفئة {{category}}؟ ستُحذف التقسيمات الحالية.",
+    "replaceDescription_other": "هل تريد استبدال {{count}} تقسيمات بالفئة {{category}}؟ ستُحذف التقسيمات الحالية.",
+    "replaceDescription_zero": "هل تريد استبدال {{count}} تقسيمات بالفئة {{category}}؟ ستُحذف التقسيمات الحالية.",
+    "replaceDescription_two": "هل تريد استبدال {{count}} تقسيمات بالفئة {{category}}؟ ستُحذف التقسيمات الحالية.",
+    "replaceDescription_few": "هل تريد استبدال {{count}} تقسيمات بالفئة {{category}}؟ ستُحذف التقسيمات الحالية.",
+    "replaceDescription_many": "هل تريد استبدال {{count}} تقسيمات بالفئة {{category}}؟ ستُحذف التقسيمات الحالية.",
+    "categoryProtected": "التقسيمات محمية. عدّلها أو استبدلها صراحةً في محرر التقسيمات."
   },
   "tabContent": {
     "aboutSame": "تقريبًا مثل الفترة السابقة",

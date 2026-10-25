@@ -107,6 +107,8 @@ export interface BulkCategoryAssignment {
   activityId: string;
   taxonomyId: string;
   categoryId: string;
+  /** Explicitly reviewed split state; omit to preserve splits. */
+  expectedSplits?: ActivitySplit[];
 }
 
 /** Atomic batch — all rows committed in a single DB transaction. */

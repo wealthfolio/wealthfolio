@@ -127,8 +127,23 @@ impl CashActivityService {
     /// Accounts opted in to spending tracking; empty when tracking is disabled.
     /// The same scope the rerun command passes to `rerun_all`.
     pub async fn spending_account_ids(&self) -> Result<Vec<String>> {
-        let s = self.settings.get().await?;
-        Ok(if s.enabled { s.account_ids } else { Vec::new() })
+        Ok(self.context().await?.account_ids)
+    }
+
+    /// Read availability and effective enrollment without exposing other accounts.
+    pub async fn context(&self) -> Result<super::model::SpendingContext> {
+        let settings = self.settings.get().await?;
+        let account_ids = if settings.enabled {
+            self.resolve_target_accounts(None, &settings.account_ids)?
+                .ids
+        } else {
+            Vec::new()
+        };
+        Ok(super::model::SpendingContext {
+            enabled: settings.enabled,
+            account_ids,
+            excluded_category_ids: settings.excluded_category_ids,
+        })
     }
 
     /// List cash activities matching the (legacy) filter, scoped to opted-in
@@ -468,6 +483,11 @@ impl CashActivityService {
             }
         }
 
+        if let Some(ids) = req.activity_ids.as_ref() {
+            let ids: HashSet<&str> = ids.iter().map(String::as_str).collect();
+            activities.retain(|activity| ids.contains(activity.id.as_str()));
+        }
+
         if let Some(min) = req.min_amount {
             activities.retain(|a| {
                 a.amount
@@ -517,7 +537,7 @@ impl CashActivityService {
                 let asgs = by_activity.get(a.id.as_str());
                 let activity_splits = splits_by_activity.get(a.id.as_str());
                 let bucket = cash_flow_bucket_for(a, &account_types, &transfer_groups);
-                let expected_taxonomy = taxonomy_for_bucket(bucket);
+                let expected_taxonomy = bucket.taxonomy_id();
                 let has_category =
                     expected_taxonomy.map_or(bucket == CashFlowBucket::Neutral, |taxonomy_id| {
                         asgs.map(|v| v.iter().any(|asg| asg.taxonomy_id == taxonomy_id))
@@ -824,11 +844,15 @@ impl CashActivityService {
         taxonomy_id: &str,
         category_id: &str,
     ) -> Result<ActivityTaxonomyAssignment> {
-        self.ensure_activity_assignment_allowed(activity_id, taxonomy_id, true)
-            .await?;
-        self.assignments
-            .assign_single_clearing_splits(activity_id, taxonomy_id, category_id)
-            .await
+        self.bulk_assign_categories(&[BulkCategoryAssignment {
+            activity_id: activity_id.to_string(),
+            taxonomy_id: taxonomy_id.to_string(),
+            category_id: category_id.to_string(),
+            expected_splits: None,
+        }])
+        .await?
+        .pop()
+        .ok_or_else(|| anyhow::anyhow!("assignment write returned no row"))
     }
 
     pub async fn unassign_category(&self, activity_id: &str, taxonomy_id: &str) -> Result<()> {
@@ -841,9 +865,36 @@ impl CashActivityService {
         &self,
         items: &[BulkCategoryAssignment],
     ) -> Result<Vec<ActivityTaxonomyAssignment>> {
+        let mut activity_ids = HashSet::new();
+        let mut categories_by_taxonomy: HashMap<String, Vec<String>> = HashMap::new();
         for item in items {
+            if !activity_ids.insert(&item.activity_id) {
+                return Err(SpendingError::InvalidInput {
+                    message: "Category batch repeats an activity".to_string(),
+                }
+                .into());
+            }
             self.ensure_activity_assignment_allowed(&item.activity_id, &item.taxonomy_id, true)
                 .await?;
+            categories_by_taxonomy
+                .entry(item.taxonomy_id.clone())
+                .or_default()
+                .push(item.category_id.clone());
+        }
+        for (taxonomy_id, mut category_ids) in categories_by_taxonomy {
+            category_ids.sort();
+            category_ids.dedup();
+            if !self
+                .splits
+                .categories_belong_to_taxonomy(&taxonomy_id, &category_ids)
+                .await?
+            {
+                return Err(SpendingError::InvalidInput {
+                    message: "Category does not belong to the selected cash-flow taxonomy"
+                        .to_string(),
+                }
+                .into());
+            }
         }
         self.assignments
             .assign_many_single_select_clearing_splits(items)
@@ -1049,7 +1100,7 @@ impl CashActivityService {
             account_type,
             &transfer_groups,
         ));
-        let Some(expected_taxonomy) = taxonomy_for_bucket(bucket) else {
+        let Some(expected_taxonomy) = bucket.taxonomy_id() else {
             return Err(SpendingError::InvalidInput {
                 message: "Neutral transfers cannot be categorized. Change or unlink the transfer if it should count as spending.".to_string(),
             }
@@ -1097,7 +1148,7 @@ impl CashActivityService {
             account_type,
             &transfer_groups,
         ));
-        let Some(expected_taxonomy) = taxonomy_for_bucket(bucket) else {
+        let Some(expected_taxonomy) = bucket.taxonomy_id() else {
             return Err(SpendingError::InvalidInput {
                 message: "Neutral transfers cannot be split. Change or unlink the transfer if it should count as spending.".to_string(),
             }
@@ -1214,15 +1265,6 @@ fn cash_flow_bucket_from_classification(classification: SpendingClassification) 
         SpendingClassification::InternalTransfer | SpendingClassification::Ignored => {
             CashFlowBucket::Neutral
         }
-    }
-}
-
-fn taxonomy_for_bucket(bucket: CashFlowBucket) -> Option<&'static str> {
-    match bucket {
-        CashFlowBucket::Spending => Some(SPENDING_TAXONOMY),
-        CashFlowBucket::Income => Some(INCOME_TAXONOMY),
-        CashFlowBucket::Saving => Some(SAVINGS_TAXONOMY),
-        CashFlowBucket::Neutral => None,
     }
 }
 
@@ -1779,6 +1821,7 @@ mod tests {
         async fn assign_many_single_select_clearing_splits(
             &self,
             _: Vec<NewActivityTaxonomyAssignment>,
+            _: std::collections::HashMap<String, Vec<crate::activity_splits::ActivitySplit>>,
         ) -> Result<Vec<ActivityTaxonomyAssignment>> {
             unimplemented!()
         }

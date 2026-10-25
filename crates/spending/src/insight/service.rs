@@ -147,7 +147,8 @@ impl InsightService {
         let target_account_ids: HashSet<String> = account_ids.iter().cloned().collect();
 
         // ── 3. Load reference data ────────────────────────────────────────────
-        let groups = self.budget_repo.list_groups().await?;
+        let groups =
+            crate::budget::service::effective_groups(self.budget_repo.list_groups().await?);
         let group_assignments = self.budget_repo.list_group_assignments().await?;
         let targets = self.budget_repo.list_targets().await?;
         let taxonomy = self.taxonomy_service.get_taxonomy(SPENDING_TAXONOMY)?;

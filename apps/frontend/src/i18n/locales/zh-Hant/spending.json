@@ -428,7 +428,11 @@
     "removeLine": "移除拆分行 {{number}}",
     "addLine": "新增行",
     "distributeEvenly": "平均分配",
-    "clearSplit": "清除拆分"
+    "clearSplit": "清除拆分",
+    "replaceWithCategory": "將拆分取代為一個類別",
+    "replaceDescription_one": "將 {{count}} 個拆分分配取代為 {{category}}？這將刪除現有拆分。",
+    "replaceDescription_other": "將 {{count}} 個拆分分配取代為 {{category}}？這將刪除現有拆分。",
+    "categoryProtected": "拆分分配受到保護。請在拆分編輯器中編輯或明確取代。"
   },
   "hierarchy": {
     "noCategorizedSpending": "此週期內沒有已歸類的支出。",

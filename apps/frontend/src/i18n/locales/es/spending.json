@@ -447,7 +447,12 @@
     "removeLine": "Quitar línea dividida {{number}}",
     "addLine": "Añadir línea",
     "distributeEvenly": "Distribuir uniformemente",
-    "clearSplit": "Borrar división"
+    "clearSplit": "Borrar división",
+    "replaceWithCategory": "Reemplazar divisiones por una categoría",
+    "replaceDescription_one": "¿Reemplazar {{count}} división por {{category}}? Se eliminarán las divisiones actuales.",
+    "replaceDescription_other": "¿Reemplazar {{count}} divisiones por {{category}}? Se eliminarán las divisiones actuales.",
+    "replaceDescription_many": "¿Reemplazar {{count}} divisiones por {{category}}? Se eliminarán las divisiones actuales.",
+    "categoryProtected": "Las divisiones están protegidas. Edítelas o reemplácelas explícitamente en el editor de divisiones."
   },
   "hierarchy": {
     "noCategorizedSpending": "No hay gastos categorizados en este periodo.",

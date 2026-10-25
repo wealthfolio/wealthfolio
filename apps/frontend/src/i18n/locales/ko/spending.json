@@ -422,7 +422,11 @@
     "removeLine": "분할 항목 {{number}} 삭제",
     "addLine": "항목 추가",
     "distributeEvenly": "균등 분배",
-    "clearSplit": "분할 지우기"
+    "clearSplit": "분할 지우기",
+    "replaceWithCategory": "분할을 하나의 카테고리로 대체",
+    "replaceDescription_one": "분할 {{count}}개를 {{category}}(으)로 대체할까요? 기존 분할이 삭제됩니다.",
+    "replaceDescription_other": "분할 {{count}}개를 {{category}}(으)로 대체할까요? 기존 분할이 삭제됩니다.",
+    "categoryProtected": "분할이 보호되어 있습니다. 분할 편집기에서 편집하거나 명시적으로 대체하세요."
   },
   "hierarchy": {
     "noCategorizedSpending": "이 기간에 분류된 지출이 없습니다.",

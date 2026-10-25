@@ -103,6 +103,7 @@ import { invalidateSpendingCaches } from "../lib/invalidation";
 import type {
   CashActivitySearchRequest,
   CashActivityStatusFilter,
+  ActivitySplit,
   NewActivitySplit,
 } from "../types/cash-activity";
 
@@ -738,17 +739,22 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
       async (taxonomyId: string, categoryId: string) => {
         const ids = Array.from(selectedRowIds);
         if (ids.length === 0) return;
+        if (rows.some((row) => selectedRowIds.has(row.activity.id) && row.splitCount > 0)) {
+          toast.error(t("spending:split.categoryProtected"));
+          return;
+        }
         try {
           const result = await bulkAssignMutation.mutateAsync(
             ids.map((activityId) => ({ activityId, taxonomyId, categoryId })),
           );
           toast.success(t("spending:txTab.categorizedCount", { count: result.length }));
+          setSelectedRowIds(new Set());
         } catch {
           // Hook already toasts on error.
         }
-        setSelectedRowIds(new Set());
+        // Keep the selection on conflict so the user can review a corrected batch.
       },
-      [selectedRowIds, bulkAssignMutation, t],
+      [selectedRowIds, rows, bulkAssignMutation, t],
     );
 
     const handleBulkSetEvent = useCallback(
@@ -803,6 +809,20 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
         toast.success(t("spending:txTab.splitSaved"));
       },
       [replaceSplitsMutation, t],
+    );
+    const handleReplaceSplitsWithCategory = useCallback(
+      async (
+        activityId: string,
+        taxonomyId: string,
+        categoryId: string,
+        expectedSplits: ActivitySplit[],
+      ) => {
+        await bulkAssignMutation.mutateAsync([
+          { activityId, taxonomyId, categoryId, expectedSplits },
+        ]);
+        toast.success(t("spending:txTab.categorizedCount", { count: 1 }));
+      },
+      [bulkAssignMutation, t],
     );
     const handleClearSplits = useCallback(
       async (activityId: string) => {
@@ -1348,12 +1368,17 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
           open={!!splittingActivity}
           row={splittingActivity}
           categories={allCategories}
-          isSaving={replaceSplitsMutation.isPending || clearSplitsMutation.isPending}
+          isSaving={
+            replaceSplitsMutation.isPending ||
+            clearSplitsMutation.isPending ||
+            bulkAssignMutation.isPending
+          }
           onOpenChange={(open) => {
             if (!open) setSplittingActivity(null);
           }}
           onSave={handleSaveSplits}
           onClear={handleClearSplits}
+          onReplace={handleReplaceSplitsWithCategory}
         />
 
         {showTransferForm &&

@@ -43,6 +43,11 @@ impl AgentToolCatalog {
         tools.extend(crate::tools::draft_suggest_tools());
         tools.extend(crate::tools::commit_tools());
         tools.extend(crate::tools::categorization_rule_tools());
+        tools.extend([
+            Arc::new(crate::tools::spending_reads::GetSpendingContext) as Arc<dyn AgentTool>,
+            Arc::new(crate::tools::spending_reads::SearchSpendingTransactions),
+            Arc::new(crate::tools::spending_reads::ListTransactionCategories),
+        ]);
         tools.extend(crate::tools::import_tools());
         tools.extend(crate::tools::transfer_link_tools());
         tools.extend(crate::tools::quote_import_tools());
@@ -122,6 +127,15 @@ mod tests {
 
     #[async_trait::async_trait]
     impl wealthfolio_spending::cash_activities::CashActivityServiceTrait for TestCashService {
+        async fn context(
+            &self,
+        ) -> anyhow::Result<wealthfolio_spending::cash_activities::SpendingContext> {
+            Ok(wealthfolio_spending::cash_activities::SpendingContext {
+                enabled: true,
+                account_ids: self.spending_account_ids.clone(),
+                excluded_category_ids: Vec::new(),
+            })
+        }
         async fn search(
             &self,
             _: wealthfolio_spending::cash_activities::CashActivitySearchRequest,
@@ -200,6 +214,24 @@ mod tests {
     }
 
     impl AgentEnvironment for PanicEnv {
+        fn budget_service(&self) -> Arc<dyn wealthfolio_spending::budget::BudgetServiceTrait> {
+            unimplemented!("MCP-only service")
+        }
+        fn spending_events_service(
+            &self,
+        ) -> Arc<dyn wealthfolio_spending::events::EventsServiceTrait> {
+            unimplemented!("MCP-only service")
+        }
+        fn spending_analytics_service(
+            &self,
+        ) -> Arc<dyn wealthfolio_spending::analytics::AnalyticsServiceTrait> {
+            unimplemented!("MCP-only service")
+        }
+        fn spending_insight_service(
+            &self,
+        ) -> Arc<dyn wealthfolio_spending::insight::InsightServiceTrait> {
+            unimplemented!("MCP-only service")
+        }
         fn base_currency(&self) -> String {
             "USD".to_string()
         }
@@ -390,12 +422,15 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn category_commit_requires_both_classification_scopes() {
+    async fn category_commit_requires_spending_read_and_write() {
         let catalog = AgentToolCatalog::mcp_catalog();
         for scopes in [
             vec!["classification:read"],
             vec!["classification:suggest"],
             vec!["classification:write"],
+            vec!["spending:read"],
+            vec!["spending:write"],
+            vec!["spending:read", "budget:write"],
         ] {
             let error = catalog
                 .execute(
@@ -414,7 +449,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn rule_tools_need_their_classification_scopes() {
+    async fn rule_tools_reject_legacy_classification_scopes() {
         let catalog = AgentToolCatalog::mcp_catalog();
         let cases = [
             ("list_categorization_rules", vec!["classification:suggest"]),
@@ -441,9 +476,72 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn spending_and_investment_permissions_are_isolated() {
+        let catalog = AgentToolCatalog::mcp_catalog();
+        let spending =
+            AgentScopeSet::from_strs(["spending:read", "spending:write", "budget:write"]);
+        for name in [
+            "search_activities",
+            "get_holdings",
+            "prepare_asset_classification",
+            "commit_activity_draft",
+        ] {
+            let tool = catalog.get(name).expect("published tool");
+            assert!(!spending.grants_all(tool.required_scopes()), "{name}");
+            let error = catalog
+                .execute(
+                    Arc::new(PanicEnv::default()),
+                    &spending,
+                    name,
+                    serde_json::json!({}),
+                )
+                .await
+                .unwrap_err();
+            assert!(
+                matches!(error, AgentToolError::ScopeDenied { .. }),
+                "{name}: {error}"
+            );
+        }
+        let legacy = AgentScopeSet::from_strs([
+            "activities:read",
+            "classification:read",
+            "classification:suggest",
+            "classification:write",
+        ]);
+        for name in [
+            "get_spending_context",
+            "search_spending_transactions",
+            "list_transaction_categories",
+            "list_categorization_context",
+            "propose_transaction_categories",
+            "create_categorization_rule",
+            "commit_transaction_categories",
+            "commit_categorization_rule",
+            "list_categorization_rules",
+            "rerun_categorization_rules",
+        ] {
+            let tool = catalog.get(name).expect("published spending tool");
+            assert!(spending.grants_all(tool.required_scopes()), "{name}");
+            let error = catalog
+                .execute(
+                    Arc::new(PanicEnv::default()),
+                    &legacy,
+                    name,
+                    serde_json::json!({}),
+                )
+                .await
+                .unwrap_err();
+            assert!(
+                matches!(error, AgentToolError::ScopeDenied { .. }),
+                "{name}: {error}"
+            );
+        }
+    }
+
+    #[tokio::test]
     async fn rerun_runs_rules_over_the_spending_accounts() {
         let catalog = AgentToolCatalog::mcp_catalog();
-        let writable = AgentScopeSet::from_strs(["classification:suggest", "classification:write"]);
+        let writable = AgentScopeSet::from_strs(["spending:read", "spending:write"]);
         let rules = Arc::new(TestRuleService::default());
         let env = Arc::new(PanicEnv {
             rules: Some(rules.clone()),
@@ -486,7 +584,7 @@ mod tests {
     #[tokio::test]
     async fn category_commit_rejects_generated_duplicate_pairs_before_service_access() {
         let catalog = AgentToolCatalog::mcp_catalog();
-        let scopes = AgentScopeSet::from_strs(["classification:suggest", "classification:write"]);
+        let scopes = AgentScopeSet::from_strs(["spending:read", "spending:write"]);
         let mut seed = 0x6a09_e667_f3bc_c909_u64;
         for _ in 0..256 {
             seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1);
@@ -541,7 +639,7 @@ mod tests {
             }
         });
 
-        let suggest_only = AgentScopeSet::from_strs(["classification:suggest"]);
+        let suggest_only = AgentScopeSet::from_strs(["spending:read"]);
         let denied = catalog
             .execute(
                 env.clone(),
@@ -554,7 +652,7 @@ mod tests {
         assert!(matches!(denied, AgentToolError::ScopeDenied { .. }));
         assert!(rules.created.lock().unwrap().is_empty());
 
-        let writable = AgentScopeSet::from_strs(["classification:suggest", "classification:write"]);
+        let writable = AgentScopeSet::from_strs(["spending:read", "spending:write"]);
         let result = catalog
             .execute(env, &writable, "commit_categorization_rule", input)
             .await

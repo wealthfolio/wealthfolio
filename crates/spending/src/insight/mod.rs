@@ -20,3 +20,7 @@ pub use model::{
     SpendingInsight, SpendingInsightRequest, UncategorizedBucket,
 };
 pub use service::InsightService;
+
+pub mod traits;
+
+pub use traits::InsightServiceTrait;

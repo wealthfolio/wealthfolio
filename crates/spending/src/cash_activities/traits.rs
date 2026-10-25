@@ -2,7 +2,9 @@ use crate::activity_assignments::{ActivityTaxonomyAssignment, BulkCategoryAssign
 use anyhow::Result;
 use async_trait::async_trait;
 
-use super::model::{CashActivity, CashActivitySearchRequest, CashActivitySearchResponse};
+use super::model::{
+    CashActivity, CashActivitySearchRequest, CashActivitySearchResponse, SpendingContext,
+};
 use super::service::CashActivityService;
 
 /// Surface of `CashActivityService` consumed by agent tools.
@@ -17,10 +19,14 @@ pub trait CashActivityServiceTrait: Send + Sync {
         items: &[BulkCategoryAssignment],
     ) -> Result<Vec<ActivityTaxonomyAssignment>>;
     async fn spending_account_ids(&self) -> Result<Vec<String>>;
+    async fn context(&self) -> Result<SpendingContext>;
 }
 
 #[async_trait]
 impl CashActivityServiceTrait for CashActivityService {
+    async fn context(&self) -> Result<SpendingContext> {
+        CashActivityService::context(self).await
+    }
     async fn search(&self, req: CashActivitySearchRequest) -> Result<CashActivitySearchResponse> {
         // `None`: the agent surface reads rows, not a headline figure, so it has
         // no base currency to convert into and skips FX entirely — which also

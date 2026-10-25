@@ -715,6 +715,7 @@ mod tests {
         async fn assign_many_single_select_clearing_splits(
             &self,
             items: Vec<NewActivityTaxonomyAssignment>,
+            _: std::collections::HashMap<String, Vec<crate::activity_splits::ActivitySplit>>,
         ) -> Result<Vec<ActivityTaxonomyAssignment>> {
             self.assign_many_single_select(items).await
         }

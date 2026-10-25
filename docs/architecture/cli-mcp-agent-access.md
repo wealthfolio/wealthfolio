@@ -471,8 +471,9 @@ and account scope. `origin` is `user`, `preset` (with `presetId`,
 the rules page over the accounts opted in to spending tracking, and does nothing
 when tracking is off. With `onlyUncategorized` (default `true`) it only fills
 activities without a category in the rule's taxonomy; with `false` it also
-replaces rule, import and AI categories. Manual categories are never changed. It
-returns the number of spending accounts and of activities a rule matched.
+replaces rule, import and AI categories. Manual categories and split allocations
+are never changed. It returns the number of spending accounts and of activities
+a rule matched.
 
 ### MCP-only CSV Import Tools
 
@@ -639,16 +640,25 @@ activity/taxonomy pairs. It calls the same bulk spending service as the in-app
 Apply action. Activities must belong to eligible, opted-in spending accounts
 with spending enabled; each taxonomy must match the activity's cash-flow bucket,
 and each category must belong to that taxonomy. The entire batch succeeds or
-fails together, including split removal.
+fails together. Split replacement requires explicit intent and the expected
+current split state.
 
 Each confirmed assignment replaces the current category for its
-activity/taxonomy pair and clears splits for that activity. Financial activity
-fields stay unchanged. The result includes `draftStatus: "applied"`,
-`assignmentCount`, the stored `assignments` (source `manual`, weight `10000`),
-and `appliedAt`. Repeating the same payload keeps one assignment with its
-existing ID; timestamps may change. There is no draft-version check: a delayed
-commit or retry can overwrite an intervening category edit or clear newly added
-splits. Refresh the proposals and reconfirm when the intended assignment
+activity/taxonomy pair. Ordinary assignments protect split transactions: if any
+submitted row has splits, the whole batch conflicts and nothing is written. An
+explicit single-category replacement includes `expectedSplits`, the full current
+split rows returned by `search_spending_transactions`. Inside the existing
+SQLite writer transaction, IDs, categories, amounts, notes, sort order and
+timestamps are compared before clearing splits and assigning the category.
+Changed state returns `draftStatus: "conflict"`, `assignmentCount: 0` and
+per-row `conflicts`. Native bulk Apply uses the same guard; the split editor has
+a separate confirmed replacement action. Financial activity fields stay
+unchanged. The result includes `draftStatus: "applied"`, `assignmentCount`, the
+stored `assignments` (source `manual`, weight `10000`), and `appliedAt`.
+Repeating the same payload keeps one assignment with its existing ID; timestamps
+may change. There is no draft-version check: a delayed commit or retry can
+overwrite an intervening single-category edit. New or changed splits are
+protected. Refresh the proposals and reconfirm when the intended assignment
 changes. Audit arguments retain only the assignment count.
 
 For categorization rules, `create_categorization_rule` returns an in-memory
@@ -706,9 +716,11 @@ activities:read          search_activities, get_import_mapping,
                          find_transfer_matches
 financial-planning:read  get_goals, get_contribution_limits
 health:read              get_health_status
-classification:read      list_asset_taxonomies, get_asset_taxonomy_assignments,
-                         list_categorization_context,
-                         list_categorization_rules
+classification:read      list_asset_taxonomies, get_asset_taxonomy_assignments
+spending:read            get_spending_context, search_spending_transactions,
+                         list_transaction_categories, list_categorization_context,
+                         list_categorization_rules, propose_transaction_categories,
+                         create_categorization_rule
 ```
 
 Write / draft / suggest scopes:
@@ -725,17 +737,29 @@ activities:write         commit_activity_draft / commit_activity_drafts,
                          commit_activity_updates
                          (each also requires activities:read and
                          activities:draft)
-classification:suggest   propose_transaction_categories,
-                         create_categorization_rule,
-                         prepare_asset_classification
-classification:write     commit_asset_classification_draft,
-                         commit_categorization_rule,
-                         commit_transaction_categories,
-                         rerun_categorization_rules
+classification:suggest   prepare_asset_classification
+classification:write     commit_asset_classification_draft
                          (also requires classification:suggest)
+spending:write           commit_categorization_rule, commit_transaction_categories,
+                         rerun_categorization_rules (also requires spending:read)
+budget:write             budget management (also requires spending:read;
+                         independent of spending:write)
 market-data:write        prepare_quote_import, commit_quote_import
                          (each also requires holdings:read)
 ```
+
+Spending tools no longer accept `classification:*` or `activities:read` as a
+substitute for `spending:read`. Persisted tokens keep their exact grants; there
+is no automatic scope migration or compatibility alias. Investment and general
+activity tools retain their own scopes. Both Spending writes require
+`spending:read` and neither implies the other.
+
+`get_spending_context` reports disabled/no-account states, effective enrollment,
+exclusions, currency and timezone. `search_spending_transactions` intersects all
+filters with that enrollment and returns native-currency rows, full splits,
+canonical `effectiveAllocations`, a `hasHiddenAssignment` diagnostic for legacy
+dual-state rows, and explicit pagination. It requests no FX. Category discovery
+is independent of transaction history and the enabled toggle.
 
 Dependency rules: `activities:write` requires `activities:draft`, and
 `classification:write` requires `classification:suggest` (you cannot commit
@@ -746,11 +770,16 @@ tool without it. Token creation validates this, and no preset grants
 
 Presets (`AgentScopeSet` constructors):
 
-- `read-only` — all read scopes.
+- `read-only` — all read scopes, including `spending:read` for newly minted
+  tokens.
+- `spending-view` — `spending:read`.
+- `spending-organize` — `spending:read` + `spending:write`.
+- `spending-budgets` — `spending:read` + `budget:write`.
 - `read-activity-draft` — read + `activities:draft`.
 - `read-activity-write` — read + `activities:draft` + `activities:write`.
 - `read-activity-write-classification-suggest` — the above plus
-  `classification:suggest` and `classification:write`.
+  `classification:suggest` and `classification:write` for assets; no Spending
+  writes.
 
 Scope strings are parsed with `AgentScope::parse`, which rejects unknown scopes
 (including the removed `portfolio:read`). Token creation rejects unknown scopes;

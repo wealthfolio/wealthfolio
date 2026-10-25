@@ -422,7 +422,11 @@
     "removeLine": "移除拆分行 {{number}}",
     "addLine": "添加行",
     "distributeEvenly": "平均分配",
-    "clearSplit": "清除拆分"
+    "clearSplit": "清除拆分",
+    "replaceWithCategory": "将拆分替换为一个类别",
+    "replaceDescription_one": "将 {{count}} 个拆分分配替换为 {{category}}？这将删除现有拆分。",
+    "replaceDescription_other": "将 {{count}} 个拆分分配替换为 {{category}}？这将删除现有拆分。",
+    "categoryProtected": "拆分分配受到保护。请在拆分编辑器中编辑或明确替换。"
   },
   "hierarchy": {
     "noCategorizedSpending": "此周期内没有已归类的支出。",

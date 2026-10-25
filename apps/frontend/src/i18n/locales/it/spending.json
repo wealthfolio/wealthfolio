@@ -447,7 +447,12 @@
     "removeLine": "Rimuovi riga divisa {{number}}",
     "addLine": "Aggiungi riga",
     "distributeEvenly": "Distribuisci equamente",
-    "clearSplit": "Cancella divisione"
+    "clearSplit": "Cancella divisione",
+    "replaceWithCategory": "Sostituisci le suddivisioni con una categoria",
+    "replaceDescription_one": "Sostituire {{count}} suddivisione con {{category}}? Le suddivisioni esistenti saranno rimosse.",
+    "replaceDescription_other": "Sostituire {{count}} suddivisioni con {{category}}? Le suddivisioni esistenti saranno rimosse.",
+    "replaceDescription_many": "Sostituire {{count}} suddivisioni con {{category}}? Le suddivisioni esistenti saranno rimosse.",
+    "categoryProtected": "Le suddivisioni sono protette. Modificale o sostituiscile esplicitamente nel relativo editor."
   },
   "hierarchy": {
     "noCategorizedSpending": "Nessuna spesa categorizzata in questo periodo.",

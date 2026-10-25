@@ -1596,6 +1596,11 @@ pub struct MockCashActivityService {
 
 #[async_trait]
 impl CashActivityServiceTrait for MockCashActivityService {
+    async fn context(
+        &self,
+    ) -> anyhow::Result<wealthfolio_spending::cash_activities::SpendingContext> {
+        Ok(wealthfolio_spending::cash_activities::SpendingContext::default())
+    }
     async fn bulk_assign_categories(
         &self,
         _: &[wealthfolio_spending::activity_assignments::BulkCategoryAssignment],
@@ -1700,6 +1705,22 @@ impl MockEnvironment {
 }
 
 impl AgentEnvironment for MockEnvironment {
+    fn budget_service(&self) -> Arc<dyn wealthfolio_spending::budget::BudgetServiceTrait> {
+        unimplemented!("MCP-only service")
+    }
+    fn spending_events_service(&self) -> Arc<dyn wealthfolio_spending::events::EventsServiceTrait> {
+        unimplemented!("MCP-only service")
+    }
+    fn spending_analytics_service(
+        &self,
+    ) -> Arc<dyn wealthfolio_spending::analytics::AnalyticsServiceTrait> {
+        unimplemented!("MCP-only service")
+    }
+    fn spending_insight_service(
+        &self,
+    ) -> Arc<dyn wealthfolio_spending::insight::InsightServiceTrait> {
+        unimplemented!("MCP-only service")
+    }
     fn base_currency(&self) -> String {
         self.base_currency.clone()
     }

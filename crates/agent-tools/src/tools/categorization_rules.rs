@@ -181,7 +181,7 @@ impl AgentTool for ListCategorizationRules {
     }
 
     fn required_scopes(&self) -> &'static [AgentScope] {
-        &[AgentScope::ClassificationRead]
+        &[AgentScope::SpendingRead]
     }
 
     fn access_level(&self) -> AgentToolAccess {
@@ -285,10 +285,7 @@ impl AgentTool for RerunCategorizationRules {
     }
 
     fn required_scopes(&self) -> &'static [AgentScope] {
-        &[
-            AgentScope::ClassificationSuggest,
-            AgentScope::ClassificationWrite,
-        ]
+        &[AgentScope::SpendingRead, AgentScope::SpendingWrite]
     }
 
     fn access_level(&self) -> AgentToolAccess {

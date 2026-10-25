@@ -428,7 +428,11 @@
     "removeLine": "Aufteilungszeile {{number}} entfernen",
     "addLine": "Zeile hinzufügen",
     "distributeEvenly": "Gleichmäßig verteilen",
-    "clearSplit": "Aufteilung löschen"
+    "clearSplit": "Aufteilung löschen",
+    "replaceWithCategory": "Aufteilungen durch eine Kategorie ersetzen",
+    "replaceDescription_one": "{{count}} Aufteilung durch {{category}} ersetzen? Die bestehenden Aufteilungen werden entfernt.",
+    "replaceDescription_other": "{{count}} Aufteilungen durch {{category}} ersetzen? Die bestehenden Aufteilungen werden entfernt.",
+    "categoryProtected": "Aufteilungen sind geschützt. Bearbeiten oder ersetzen Sie sie ausdrücklich im Aufteilungseditor."
   },
   "hierarchy": {
     "noCategorizedSpending": "Keine kategorisierten Ausgaben in diesem Zeitraum.",

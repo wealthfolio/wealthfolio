@@ -19,11 +19,14 @@ pub enum AgentScope {
     FinancialPlanningRead,
     HealthRead,
     ClassificationRead,
+    SpendingRead,
     ActivitiesDraft,
     ActivitiesWrite,
     ClassificationSuggest,
     ClassificationWrite,
     MarketDataWrite,
+    SpendingWrite,
+    BudgetWrite,
 }
 
 impl AgentScope {
@@ -37,11 +40,14 @@ impl AgentScope {
         AgentScope::FinancialPlanningRead,
         AgentScope::HealthRead,
         AgentScope::ClassificationRead,
+        AgentScope::SpendingRead,
         AgentScope::ActivitiesDraft,
         AgentScope::ActivitiesWrite,
         AgentScope::ClassificationSuggest,
         AgentScope::ClassificationWrite,
         AgentScope::MarketDataWrite,
+        AgentScope::SpendingWrite,
+        AgentScope::BudgetWrite,
     ];
 
     /// The read-only scopes — what the `read-only` preset grants. Kept
@@ -55,6 +61,7 @@ impl AgentScope {
         AgentScope::FinancialPlanningRead,
         AgentScope::HealthRead,
         AgentScope::ClassificationRead,
+        AgentScope::SpendingRead,
     ];
 
     /// Canonical wire format, e.g. `"accounts:read"`.
@@ -72,6 +79,9 @@ impl AgentScope {
             AgentScope::ClassificationSuggest => "classification:suggest",
             AgentScope::ClassificationWrite => "classification:write",
             AgentScope::MarketDataWrite => "market-data:write",
+            AgentScope::SpendingRead => "spending:read",
+            AgentScope::SpendingWrite => "spending:write",
+            AgentScope::BudgetWrite => "budget:write",
         }
     }
 
@@ -132,7 +142,8 @@ impl AgentScopeSet {
         set
     }
 
-    /// Read-only + activity writes + classification suggestions/writes.
+    /// All reads + activity writes + asset-classification suggestions/writes.
+    /// Does not grant Spending organization or budget writes.
     pub fn read_activity_write_classification_suggest() -> Self {
         let mut set = Self::read_activity_write();
         set.insert(AgentScope::ClassificationSuggest);
@@ -191,6 +202,11 @@ impl AgentScopeSet {
                 "market-data:write requires holdings:read (quote imports show stored quotes)"
                     .to_string(),
             );
+        }
+        for scope in [AgentScope::SpendingWrite, AgentScope::BudgetWrite] {
+            if self.contains(scope) && !self.contains(AgentScope::SpendingRead) {
+                return Some(format!("{scope} requires spending:read"));
+            }
         }
         None
     }
@@ -254,6 +270,29 @@ mod tests {
         assert!(full.contains(AgentScope::ClassificationWrite));
         // Quote writes are only granted explicitly, never by a preset.
         assert!(!full.contains(AgentScope::MarketDataWrite));
+    }
+
+    #[test]
+    fn spending_writes_require_read_but_are_independent() {
+        for write in [AgentScope::SpendingWrite, AgentScope::BudgetWrite] {
+            let mut set = AgentScopeSet::from_iter([write]);
+            assert!(set.dependency_error().is_some());
+            set.insert(AgentScope::SpendingRead);
+            assert!(set.dependency_error().is_none());
+            assert!(!set.contains(AgentScope::ActivitiesRead));
+            assert!(!set.contains(AgentScope::ClassificationSuggest));
+        }
+        let old = AgentScopeSet::from_strs([
+            "classification:read",
+            "classification:suggest",
+            "classification:write",
+        ]);
+        assert!(!old.contains(AgentScope::SpendingRead));
+        assert!(!old.contains(AgentScope::SpendingWrite));
+        let reads = AgentScopeSet::read_only();
+        assert!(reads.contains(AgentScope::SpendingRead));
+        assert!(!reads.contains(AgentScope::SpendingWrite));
+        assert!(!reads.contains(AgentScope::BudgetWrite));
     }
 
     #[test]

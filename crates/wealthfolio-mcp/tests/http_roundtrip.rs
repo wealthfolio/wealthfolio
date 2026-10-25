@@ -30,6 +30,22 @@ use wealthfolio_mcp::{
 struct StubEnv;
 
 impl AgentEnvironment for StubEnv {
+    fn budget_service(&self) -> Arc<dyn wealthfolio_spending::budget::BudgetServiceTrait> {
+        unimplemented!("MCP-only service")
+    }
+    fn spending_events_service(&self) -> Arc<dyn wealthfolio_spending::events::EventsServiceTrait> {
+        unimplemented!("MCP-only service")
+    }
+    fn spending_analytics_service(
+        &self,
+    ) -> Arc<dyn wealthfolio_spending::analytics::AnalyticsServiceTrait> {
+        unimplemented!("MCP-only service")
+    }
+    fn spending_insight_service(
+        &self,
+    ) -> Arc<dyn wealthfolio_spending::insight::InsightServiceTrait> {
+        unimplemented!("MCP-only service")
+    }
     fn base_currency(&self) -> String {
         "USD".to_string()
     }

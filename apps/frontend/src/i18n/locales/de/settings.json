@@ -1474,7 +1474,7 @@
         "description": "Portfoliozustand und Diagnoseprüfungen lesen."
       },
       "classification_read": {
-        "label": "Klassifizierung (Lesen)",
+        "label": "Anlageklassifizierung (Lesen)",
         "description": "Instrumentenklassifizierungen und Taxonomien lesen."
       },
       "activities_draft": {
@@ -1486,28 +1486,45 @@
         "description": "Aktivitäten bestätigen, bestehende aktualisieren und Transfers verknüpfen oder trennen. Erfordert die Entwurfs-Berechtigung."
       },
       "classification_suggest": {
-        "label": "Klassifizierung — vorschlagen",
+        "label": "Anlageklassifizierung — vorschlagen",
         "description": "Instrumentenklassifizierungen zur Prüfung vorschlagen."
       },
       "classification_write": {
-        "label": "Klassifizierung — anwenden/schreiben",
+        "label": "Anlageklassifizierung — anwenden/schreiben",
         "description": "Geprüfte Klassifizierungsentwürfe anwenden. Erfordert die Vorschlags-Berechtigung."
       },
       "market_data_write": {
         "label": "Marktdaten — schreiben",
         "description": "Geprüfte Kurse für vorhandene Vermögenswerte speichern. Erfordert die Berechtigung Bestände & Wert (Lesen)."
+      },
+      "spending_read": {
+        "label": "Ausgaben ansehen",
+        "description": "Transaktionen in Ausgabenkonten, Kategorien, Aufteilungen, Regeln, Ereignisse, Berichte und Budgets lesen."
+      },
+      "spending_write": {
+        "label": "Ausgaben organisieren",
+        "description": "Ausgabenkategorien, Zuordnungen, Aufteilungen, Regeln und Ereignisse verwalten. Erfordert Ausgaben ansehen."
+      },
+      "budget_write": {
+        "label": "Budgets verwalten",
+        "description": "Standard- und Monatsbudgets, Gruppen, Puffer und Überträge ändern. Erfordert Ausgaben ansehen."
       }
     },
     "preset": {
       "read_only": "Nur Lesen",
       "read_activity_draft": "Lesen + Entwurf",
       "read_activity_write": "Lesen + Schreiben",
-      "read_activity_write_classification_suggest": "Lesen + Schreiben + Klassifizieren"
+      "read_activity_write_classification_suggest": "Lesen + Transaktionen schreiben + Anlageklassifizierung",
+      "spending_view": "Ausgaben — ansehen",
+      "spending_organize": "Ausgaben — organisieren",
+      "spending_budgets": "Ausgaben — Budgets"
     },
     "copied_generic": "{{label}} in die Zwischenablage kopiert.",
     "hero_aria": "Status des KI-Agenten-Zugriffs",
     "pat_scope_custom_one": "Benutzerdefiniert · {{count}} Berechtigung",
-    "pat_scope_custom_other": "Benutzerdefiniert · {{count}} Berechtigungen"
+    "pat_scope_custom_other": "Benutzerdefiniert · {{count}} Berechtigungen",
+    "scope_locked_spending_title": "Für Ausgaben organisieren oder Budgets verwalten erforderlich",
+    "dialog_presets": "Zugriffsvorlagen"
   },
   "tax_add_category": "Kategorie hinzufügen",
   "tax_export": "Exportieren",

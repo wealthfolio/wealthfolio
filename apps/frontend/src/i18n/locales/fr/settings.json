@@ -1514,7 +1514,7 @@
         "description": "Lire la santé du portefeuille et les vérifications de diagnostic."
       },
       "classification_read": {
-        "label": "Classification (lecture)",
+        "label": "Classification des actifs (lecture)",
         "description": "Lire les classifications d'instruments et les taxonomies."
       },
       "activities_draft": {
@@ -1526,29 +1526,46 @@
         "description": "Valider des activités, modifier les activités existantes et lier ou délier des transferts. Nécessite la portée brouillon."
       },
       "classification_suggest": {
-        "label": "Classification — suggérer",
+        "label": "Classification des actifs — suggérer",
         "description": "Suggérer des classifications d'instruments pour révision."
       },
       "classification_write": {
-        "label": "Classification — appliquer/écrire",
+        "label": "Classification des actifs — appliquer/écrire",
         "description": "Appliquer des brouillons de classification révisés. Nécessite la portée suggestion."
       },
       "market_data_write": {
         "label": "Données de marché — écrire",
         "description": "Enregistrer des cours révisés pour des actifs existants. Nécessite la portée positions (lecture)."
+      },
+      "spending_read": {
+        "label": "Consulter les dépenses",
+        "description": "Lire les opérations des comptes de dépenses, catégories, ventilations, règles, événements, rapports et budgets."
+      },
+      "spending_write": {
+        "label": "Organiser les dépenses",
+        "description": "Gérer les catégories, affectations, ventilations, règles et événements. Nécessite la consultation des dépenses."
+      },
+      "budget_write": {
+        "label": "Gérer les budgets",
+        "description": "Modifier les budgets par défaut et mensuels, groupes, réserves et reports. Nécessite la consultation des dépenses."
       }
     },
     "preset": {
       "read_only": "Lecture seule",
       "read_activity_draft": "Lecture + brouillon",
       "read_activity_write": "Lecture + écriture",
-      "read_activity_write_classification_suggest": "Lecture + écriture + classification"
+      "read_activity_write_classification_suggest": "Lecture + modification des opérations + classification des actifs",
+      "spending_view": "Dépenses — consultation",
+      "spending_organize": "Dépenses — organisation",
+      "spending_budgets": "Dépenses — budgets"
     },
     "copied_generic": "{{label}} copié dans le presse-papiers.",
     "hero_aria": "État de l'accès des agents IA",
     "pat_scope_custom_one": "Personnalisé · {{count}} portée",
     "pat_scope_custom_other": "Personnalisé · {{count}} portées",
-    "pat_scope_custom_many": "Personnalisé · {{count}} portées"
+    "pat_scope_custom_many": "Personnalisé · {{count}} portées",
+    "scope_locked_spending_title": "Requis pour organiser les dépenses ou gérer les budgets",
+    "dialog_presets": "Préréglages d’accès"
   },
   "tax_add_category": "Ajouter une catégorie",
   "tax_export": "Exporter",

@@ -1457,7 +1457,7 @@
         "description": "ポートフォリオの健全性と診断結果を読み取ります。"
       },
       "classification_read": {
-        "label": "分類(読み取り)",
+        "label": "資産分類 — 分類(読み取り)",
         "description": "銘柄の分類と分類体系を読み取ります。"
       },
       "activities_draft": {
@@ -1469,27 +1469,44 @@
         "description": "取引を確定し、既存の取引を更新し、振替をリンクまたはリンク解除します。下書きのスコープが必要です。"
       },
       "classification_suggest": {
-        "label": "分類 — 提案",
+        "label": "資産分類 — 提案",
         "description": "確認用に銘柄の分類を提案します。"
       },
       "classification_write": {
-        "label": "分類 — 適用/書き込み",
+        "label": "資産分類 — 適用/書き込み",
         "description": "確認済みの分類の下書きを適用します。提案のスコープが必要です。"
       },
       "market_data_write": {
         "label": "市場データ — 書き込み",
         "description": "既存の資産について確認済みの価格(相場)を保存します。保有銘柄と評価額(読み取り)のスコープが必要です。"
+      },
+      "spending_read": {
+        "label": "支出を表示",
+        "description": "支出対象口座の取引、カテゴリ、分割、ルール、イベント、レポート、予算を読み取ります。"
+      },
+      "spending_write": {
+        "label": "支出を整理",
+        "description": "支出カテゴリ、割り当て、分割、ルール、イベントを管理します。「支出を表示」が必要です。"
+      },
+      "budget_write": {
+        "label": "予算を管理",
+        "description": "デフォルト予算と月別予算、グループ、予備費、繰越を変更します。「支出を表示」が必要です。"
       }
     },
     "preset": {
       "read_only": "読み取りのみ",
       "read_activity_draft": "読み取り+下書き",
       "read_activity_write": "読み取り+書き込み",
-      "read_activity_write_classification_suggest": "読み取り+書き込み+分類"
+      "read_activity_write_classification_suggest": "読み取り + 取引の書き込み + 資産分類",
+      "spending_view": "支出 — 表示",
+      "spending_organize": "支出 — 整理",
+      "spending_budgets": "支出 — 予算"
     },
     "copied_generic": "{{label}}をクリップボードにコピーしました。",
     "hero_aria": "AIエージェントアクセスの状態",
-    "pat_scope_custom_other": "カスタム · {{count}}個のスコープ"
+    "pat_scope_custom_other": "カスタム · {{count}}個のスコープ",
+    "scope_locked_spending_title": "「支出を整理」または「予算を管理」に必要",
+    "dialog_presets": "アクセスのプリセット"
   },
   "tax_add_category": "カテゴリを追加",
   "tax_export": "エクスポート",

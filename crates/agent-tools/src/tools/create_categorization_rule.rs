@@ -84,9 +84,8 @@ impl CreateCategorizationRule {
         args: CreateCategorizationRuleArgs,
     ) -> Result<CreateCategorizationRuleOutput, AgentToolError> {
         debug!(
-            "create_categorization_rule called: pattern_len={}, categoryKey={}",
-            args.pattern.chars().count(),
-            args.category_key
+            "create_categorization_rule called: pattern_len={}",
+            args.pattern.chars().count()
         );
 
         let pattern = args.pattern.trim().to_string();
@@ -119,7 +118,10 @@ impl CreateCategorizationRule {
 
         let mut key_lookup: HashMap<(String, String), (String, Vec<String>)> = HashMap::new();
         for entry in &taxonomies {
-            if entry.taxonomy.scope != "activity" {
+            if entry.taxonomy.scope != "activity"
+                || !wealthfolio_spending::cash_activities::TRANSACTION_TAXONOMY_IDS
+                    .contains(&entry.taxonomy.id.as_str())
+            {
                 continue;
             }
             let cats_by_id: HashMap<&str, &_> = entry
@@ -288,12 +290,7 @@ impl AgentTool for CreateCategorizationRule {
     }
 
     fn required_scopes(&self) -> &'static [AgentScope] {
-        // Reads the taxonomy tree to resolve/validate the category, so it
-        // requires classification:read alongside classification:suggest.
-        &[
-            AgentScope::ClassificationRead,
-            AgentScope::ClassificationSuggest,
-        ]
+        &[AgentScope::SpendingRead]
     }
 
     fn access_level(&self) -> AgentToolAccess {

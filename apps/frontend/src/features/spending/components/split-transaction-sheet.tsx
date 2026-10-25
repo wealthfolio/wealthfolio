@@ -6,6 +6,12 @@ import { useIsMobileViewport } from "@/hooks/use-platform";
 import type { TaxonomyCategory } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
   Button,
   Icons,
   Input,
@@ -28,7 +34,7 @@ import {
   toSplitUnits,
 } from "../lib/split-utils";
 import type { TransactionRowVM } from "../lib/transactions-helpers";
-import type { NewActivitySplit } from "../types/cash-activity";
+import type { ActivitySplit, NewActivitySplit } from "../types/cash-activity";
 import { QuickCategorizePopover, type QuickCategorizeScope } from "./quick-categorize-popover";
 
 const SPENDING_TAXONOMY = "spending_categories";
@@ -52,6 +58,12 @@ interface SplitTransactionSheetProps {
   onOpenChange: (open: boolean) => void;
   onSave: (activityId: string, splits: NewActivitySplit[]) => Promise<void>;
   onClear: (activityId: string) => Promise<void>;
+  onReplace: (
+    activityId: string,
+    taxonomyId: string,
+    categoryId: string,
+    expectedSplits: ActivitySplit[],
+  ) => Promise<void>;
 }
 
 function taxonomyForBucket(bucket: string | undefined): string | null {
@@ -107,6 +119,7 @@ export function SplitTransactionSheet({
   onOpenChange,
   onSave,
   onClear,
+  onReplace,
 }: SplitTransactionSheetProps) {
   const formatting = useAmountFormatting();
   const { t } = useTranslation();
@@ -121,12 +134,19 @@ export function SplitTransactionSheet({
   const totalUnits = toSplitUnits(activity?.amount, splitDecimals);
   const totalAmount = splitUnitsToAmount(Math.abs(totalUnits), splitDecimals);
 
+  const [replacement, setReplacement] = useState<{
+    activityId: string;
+    taxonomyId: string;
+    categoryId: string;
+    expectedSplits: ActivitySplit[];
+  } | null>(null);
   const [lines, setLines] = useState<SplitLineState[]>([]);
   const [expandedNoteLineIds, setExpandedNoteLineIds] = useState<Set<string>>(new Set());
 
   useEffectOnChange(() => {
     if (!open || !row || !taxonomyId) return;
     setExpandedNoteLineIds(new Set());
+    setReplacement(null);
     const existing = (row.activity.splits ?? [])
       .filter((split) => split.taxonomyId === taxonomyId)
       .sort((a, b) => a.sortOrder - b.sortOrder);
@@ -452,6 +472,28 @@ export function SplitTransactionSheet({
           </div>
         </div>
 
+        {hasExistingSplits && (
+          <QuickCategorizePopover
+            scope={scopeForTaxonomy(taxonomyId)}
+            selectedCategoryId={null}
+            onSelect={(tax, cat) => {
+              if (activity)
+                setReplacement({
+                  activityId: activity.id,
+                  taxonomyId: tax,
+                  categoryId: cat,
+                  expectedSplits: structuredClone(activity.splits),
+                });
+            }}
+            onClear={() => setReplacement(null)}
+            trigger={
+              <Button type="button" variant="outline" disabled={isSaving}>
+                {t("spending:split.replaceWithCategory")}
+              </Button>
+            }
+          />
+        )}
+
         <SheetFooter
           className={cn(
             "border-t",
@@ -518,6 +560,52 @@ export function SplitTransactionSheet({
           )}
         </SheetFooter>
       </SheetContent>
+      <AlertDialog
+        open={replacement !== null}
+        onOpenChange={(value) => {
+          if (!value) setReplacement(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("spending:split.replaceWithCategory")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("spending:split.replaceDescription", {
+                count: replacement?.expectedSplits.length ?? 0,
+                category: replacement
+                  ? (categoryLabel(categories.get(replacement.categoryId), categories) ??
+                    replacement.categoryId)
+                  : "",
+              })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <Button variant="outline" disabled={isSaving} onClick={() => setReplacement(null)}>
+              {t("common:cancel")}
+            </Button>
+            <Button
+              disabled={isSaving}
+              onClick={async () => {
+                if (!replacement) return;
+                try {
+                  await onReplace(
+                    replacement.activityId,
+                    replacement.taxonomyId,
+                    replacement.categoryId,
+                    replacement.expectedSplits,
+                  );
+                  setReplacement(null);
+                  onOpenChange(false);
+                } catch {
+                  // The mutation reports the conflict; leave the reviewed state visible.
+                }
+              }}
+            >
+              {t("spending:split.replaceWithCategory")}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Sheet>
   );
 }

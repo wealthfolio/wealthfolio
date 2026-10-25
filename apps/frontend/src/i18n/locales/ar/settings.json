@@ -387,8 +387,11 @@
     "preset": {
       "read_activity_draft": "قراءة + مسودة",
       "read_activity_write": "قراءة + كتابة",
-      "read_activity_write_classification_suggest": "قراءة + كتابة + تصنيف",
-      "read_only": "قراءة فقط"
+      "read_activity_write_classification_suggest": "قراءة + كتابة المعاملات + تصنيف الأصول",
+      "read_only": "قراءة فقط",
+      "spending_view": "الإنفاق — عرض",
+      "spending_organize": "الإنفاق — تنظيم",
+      "spending_budgets": "الإنفاق — ميزانيات"
     },
     "scope": {
       "accounts_read": {
@@ -409,15 +412,15 @@
       },
       "classification_read": {
         "description": "قراءة تصنيفات الأدوات المالية والتصنيفات الهرمية.",
-        "label": "التصنيف (قراءة)"
+        "label": "تصنيف الأصول (قراءة)"
       },
       "classification_suggest": {
         "description": "اقتراح تصنيفات للأدوات المالية للمراجعة.",
-        "label": "التصنيف — اقتراح"
+        "label": "تصنيف الأصول — اقتراح"
       },
       "classification_write": {
         "description": "تطبيق مسودات التصنيف التي تمت مراجعتها. يتطلب نطاق الاقتراح.",
-        "label": "التصنيف — تطبيق/كتابة"
+        "label": "تصنيف الأصول — تطبيق/كتابة"
       },
       "financial_planning_read": {
         "description": "قراءة الأهداف وحدود المساهمات وبيانات التخطيط.",
@@ -438,6 +441,18 @@
       "performance_read": {
         "description": "قراءة سجل الأداء والملخصات.",
         "label": "الأداء (قراءة)"
+      },
+      "spending_read": {
+        "label": "عرض الإنفاق",
+        "description": "قراءة معاملات حسابات الإنفاق والفئات والتقسيمات والقواعد والأحداث والتقارير والميزانيات."
+      },
+      "spending_write": {
+        "label": "تنظيم الإنفاق",
+        "description": "إدارة فئات الإنفاق والتعيينات والتقسيمات والقواعد والأحداث. يتطلب عرض الإنفاق."
+      },
+      "budget_write": {
+        "label": "إدارة الميزانيات",
+        "description": "تعديل الميزانيات الافتراضية والشهرية والمجموعات والاحتياطيات والترحيل. يتطلب عرض الإنفاق."
       }
     },
     "scope_locked_market_data_title": "مطلوب من قِبل بيانات السوق — كتابة",
@@ -458,7 +473,9 @@
     "web_status_error_description": "تعذّر التحقق مما إذا كانت نقطة نهاية MCP مفعّلة على هذا الخادم.",
     "web_status_error_title": "تعذّر تحميل حالة MCP",
     "web_title_enabled": "وصول وكلاء الذكاء الاصطناعي · مفعّل",
-    "web_title_off": "وصول وكلاء الذكاء الاصطناعي · متوقف"
+    "web_title_off": "وصول وكلاء الذكاء الاصطناعي · متوقف",
+    "scope_locked_spending_title": "مطلوب لتنظيم الإنفاق أو إدارة الميزانيات",
+    "dialog_presets": "إعدادات الوصول المسبقة"
   },
   "ai_providers_description": "اضبط مزودي الذكاء الاصطناعي للحصول على رؤى حول المحفظة.",
   "ai_providers_empty_description": "سيظهر مزودو الذكاء الاصطناعي هنا بعد ضبطهم. تحقق لاحقًا أو تواصل مع الدعم.",

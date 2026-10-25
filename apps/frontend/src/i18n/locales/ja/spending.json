@@ -422,7 +422,11 @@
     "removeLine": "分割明細{{number}}を削除",
     "addLine": "明細を追加",
     "distributeEvenly": "均等に配分",
-    "clearSplit": "分割をクリア"
+    "clearSplit": "分割をクリア",
+    "replaceWithCategory": "分割を1つのカテゴリに置換",
+    "replaceDescription_one": "{{count}}件の分割を{{category}}に置き換えますか？既存の分割は削除されます。",
+    "replaceDescription_other": "{{count}}件の分割を{{category}}に置き換えますか？既存の分割は削除されます。",
+    "categoryProtected": "分割は保護されています。分割エディタで編集するか、明示的に置き換えてください。"
   },
   "hierarchy": {
     "noCategorizedSpending": "この期間に分類済みの支出はありません。",

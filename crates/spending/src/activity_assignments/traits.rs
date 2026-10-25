@@ -1,3 +1,6 @@
+use std::collections::HashMap;
+
+use crate::activity_splits::ActivitySplit;
 use anyhow::Result;
 use async_trait::async_trait;
 
@@ -34,11 +37,13 @@ pub trait ActivityTaxonomyAssignmentRepositoryTrait: Send + Sync {
     ) -> Result<Vec<ActivityTaxonomyAssignment>>;
 
     /// Same single-select assignment semantics as `assign_many_single_select`,
-    /// but also clears split lines for the affected activities in the same
-    /// repository transaction.
+    /// but protects split lines unless the caller explicitly provides their
+    /// expected current state. Revalidation and replacement are atomic across
+    /// the entire batch, including rows that acquired splits since preview.
     async fn assign_many_single_select_clearing_splits(
         &self,
         items: Vec<NewActivityTaxonomyAssignment>,
+        split_replacements: HashMap<String, Vec<ActivitySplit>>,
     ) -> Result<Vec<ActivityTaxonomyAssignment>>;
 
     /// Rule-rerun variant of `assign_many_single_select`.

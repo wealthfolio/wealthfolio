@@ -75,6 +75,23 @@ const foreignCharge = {
 } as unknown as Activity;
 
 describe("CashActivityForm currency", () => {
+  it("directs split category changes to the explicit split editor", () => {
+    render(
+      <CashActivityForm
+        open
+        onOpenChange={vi.fn()}
+        activity={{ ...foreignCharge, splits: [{ id: "split-1" } as never] }}
+      />,
+      { wrapper },
+    );
+    expect(
+      screen.getByText(
+        "Split allocations are protected. Edit or explicitly replace them in the split editor.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Pick a category" })).not.toBeInTheDocument();
+  });
+
   beforeEach(() => vi.clearAllMocks());
 
   /**

@@ -1,8 +1,9 @@
 //! Storage adapter for spending::activity_assignments — Diesel impl over the
 //! `activity_taxonomy_assignments` table.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
+use wealthfolio_spending::activity_splits::ActivitySplit;
 
 use anyhow::Result;
 use async_trait::async_trait;
@@ -19,7 +20,8 @@ use crate::spending::deterministic_ids::activity_taxonomy_assignment_id;
 use wealthfolio_core::sync::SyncEntity;
 use wealthfolio_spending::activity_assignments::{
     ActivityTaxonomyAssignment, ActivityTaxonomyAssignmentRepositoryTrait,
-    NewActivityTaxonomyAssignment,
+    CategoryAssignmentConflicts, NewActivityTaxonomyAssignment, SplitAssignmentConflict,
+    SplitAssignmentConflictReason,
 };
 
 #[derive(
@@ -315,6 +317,7 @@ impl ActivityTaxonomyAssignmentRepositoryTrait for ActivityTaxonomyAssignmentRep
     async fn assign_many_single_select_clearing_splits(
         &self,
         items: Vec<NewActivityTaxonomyAssignment>,
+        split_replacements: HashMap<String, Vec<ActivitySplit>>,
     ) -> Result<Vec<ActivityTaxonomyAssignment>> {
         if items.is_empty() {
             return Ok(Vec::new());
@@ -333,9 +336,40 @@ impl ActivityTaxonomyAssignmentRepositoryTrait for ActivityTaxonomyAssignmentRep
             .collect::<Vec<_>>();
 
         let now = chrono::Utc::now().to_rfc3339();
-        let inserted_dbs: Vec<ActivityTaxonomyAssignmentDB> = self
+        let outcome = self
             .writer
             .exec_tx(move |tx| {
+                // Check every row before changing assignments or emitting outbox entries.
+                // Splits may have changed since a native or MCP preview was shown.
+                let mut conflicts = Vec::new();
+                for activity_id in &activity_ids {
+                    let mut current: Vec<ActivitySplit> = spending_activity_splits::table
+                        .filter(spending_activity_splits::activity_id.eq(activity_id))
+                        .load::<ActivitySplitDB>(tx.conn())
+                        .map_err(StorageError::from)?
+                        .into_iter()
+                        .map(Into::into)
+                        .collect();
+                    if let Some(expected) = split_replacements.get(activity_id) {
+                        let mut expected = expected.clone();
+                        current.sort_by(|a, b| a.id.cmp(&b.id));
+                        expected.sort_by(|a, b| a.id.cmp(&b.id));
+                        if current != expected {
+                            conflicts.push(SplitAssignmentConflict {
+                                activity_id: activity_id.clone(),
+                                reason: SplitAssignmentConflictReason::SplitStateChanged,
+                            });
+                        }
+                    } else if !current.is_empty() {
+                        conflicts.push(SplitAssignmentConflict {
+                            activity_id: activity_id.clone(),
+                            reason: SplitAssignmentConflictReason::ProtectedSplits,
+                        });
+                    }
+                }
+                if !conflicts.is_empty() {
+                    return Ok(Err(CategoryAssignmentConflicts { conflicts }));
+                }
                 clear_splits_for_activities_tx(tx, &activity_ids)?;
 
                 let mut out = Vec::with_capacity(items.len());
@@ -396,11 +430,12 @@ impl ActivityTaxonomyAssignmentRepositoryTrait for ActivityTaxonomyAssignmentRep
                     }
                     out.push(inserted);
                 }
-                Ok(out)
+                Ok(Ok(out))
             })
             .await
             .map_err(|e| anyhow::anyhow!(e))?;
 
+        let inserted_dbs = outcome?;
         Ok(inserted_dbs
             .into_iter()
             .map(ActivityTaxonomyAssignment::from)
@@ -429,6 +464,15 @@ impl ActivityTaxonomyAssignmentRepositoryTrait for ActivityTaxonomyAssignmentRep
                         weight,
                         source,
                     } = item;
+                    let has_splits = diesel::select(diesel::dsl::exists(
+                        spending_activity_splits::table
+                            .filter(spending_activity_splits::activity_id.eq(&activity_id)),
+                    ))
+                    .get_result::<bool>(tx.conn())
+                    .map_err(StorageError::from)?;
+                    if has_splits {
+                        continue;
+                    }
                     let existing: Vec<ActivityTaxonomyAssignmentDB> =
                         activity_taxonomy_assignments::table
                             .filter(activity_taxonomy_assignments::activity_id.eq(&activity_id))
@@ -640,6 +684,151 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn rule_reruns_preserve_split_allocations_in_both_modes() {
+        for only_uncategorized in [true, false] {
+            let (pool, writer) = setup_db();
+            {
+                let mut conn = get_connection(&pool).expect("conn");
+                insert_account_and_activity(&mut conn, "split-activity", "MANUAL");
+                insert_split(&mut conn, "split-1", "split-activity");
+            }
+            let repo = ActivityTaxonomyAssignmentRepository::new(pool.clone(), writer);
+            let applied = repo
+                .assign_rule_many_single_select(
+                    vec![NewActivityTaxonomyAssignment {
+                        id: None,
+                        activity_id: "split-activity".to_string(),
+                        taxonomy_id: "spending_categories".to_string(),
+                        category_id: "cat_groceries".to_string(),
+                        weight: 10_000,
+                        source: "rule".to_string(),
+                    }],
+                    only_uncategorized,
+                )
+                .await
+                .expect("rerun rules");
+            assert!(applied.is_empty());
+            assert!(repo
+                .list_for_activity("split-activity")
+                .await
+                .unwrap()
+                .is_empty());
+            let mut conn = get_connection(&pool).expect("conn");
+            assert_eq!(
+                spending_activity_splits::table
+                    .count()
+                    .get_result::<i64>(&mut conn)
+                    .unwrap(),
+                1
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn ordinary_bulk_assignment_rejects_split_rows_atomically() {
+        let (pool, writer) = setup_db();
+        {
+            let mut conn = get_connection(&pool).expect("conn");
+            insert_account_and_activity(&mut conn, "ordinary", "MANUAL");
+            insert_account_and_activity(&mut conn, "split-activity", "MANUAL");
+            insert_split(&mut conn, "split-1", "split-activity");
+        }
+        let repo = ActivityTaxonomyAssignmentRepository::new(pool.clone(), writer);
+        let items = ["ordinary", "split-activity"]
+            .map(|id| NewActivityTaxonomyAssignment {
+                id: None,
+                activity_id: id.to_string(),
+                taxonomy_id: "spending_categories".to_string(),
+                category_id: "cat_groceries".to_string(),
+                weight: 10_000,
+                source: "manual".to_string(),
+            })
+            .to_vec();
+        assert!(repo
+            .assign_many_single_select_clearing_splits(items, HashMap::new())
+            .await
+            .is_err());
+        assert!(repo.list_for_activity("ordinary").await.unwrap().is_empty());
+        assert!(repo
+            .list_for_activity("split-activity")
+            .await
+            .unwrap()
+            .is_empty());
+        let mut conn = get_connection(&pool).expect("conn");
+        assert_eq!(
+            spending_activity_splits::table
+                .count()
+                .get_result::<i64>(&mut conn)
+                .unwrap(),
+            1
+        );
+    }
+
+    #[tokio::test]
+    async fn stale_split_content_rejects_the_whole_replacement() {
+        let (pool, writer) = setup_db();
+        let expected = {
+            let mut conn = get_connection(&pool).expect("conn");
+            insert_account_and_activity(&mut conn, "ordinary", "MANUAL");
+            insert_account_and_activity(&mut conn, "split-activity", "MANUAL");
+            insert_split(&mut conn, "split-1", "split-activity");
+            let expected = spending_activity_splits::table
+                .load::<ActivitySplitDB>(&mut conn)
+                .unwrap()
+                .into_iter()
+                .map(ActivitySplit::from)
+                .collect::<Vec<_>>();
+            // Same ID and timestamps: comparing identifiers alone loses this edit.
+            diesel::update(spending_activity_splits::table.find("split-1"))
+                .set(spending_activity_splits::note.eq("Changed after review"))
+                .execute(&mut conn)
+                .unwrap();
+            expected
+        };
+        let repo = ActivityTaxonomyAssignmentRepository::new(pool.clone(), writer);
+        let items = ["ordinary", "split-activity"]
+            .map(|id| NewActivityTaxonomyAssignment {
+                id: None,
+                activity_id: id.to_string(),
+                taxonomy_id: "spending_categories".to_string(),
+                category_id: "cat_groceries".to_string(),
+                weight: 10_000,
+                source: "manual".to_string(),
+            })
+            .to_vec();
+        let error = repo
+            .assign_many_single_select_clearing_splits(
+                items,
+                HashMap::from([("split-activity".to_string(), expected)]),
+            )
+            .await
+            .unwrap_err();
+        assert!(error.to_string().contains("changed"));
+        assert!(repo.list_for_activity("ordinary").await.unwrap().is_empty());
+        assert!(repo
+            .list_for_activity("split-activity")
+            .await
+            .unwrap()
+            .is_empty());
+        let mut conn = get_connection(&pool).expect("conn");
+        assert_eq!(
+            spending_activity_splits::table
+                .find("split-1")
+                .select(spending_activity_splits::note)
+                .first::<Option<String>>(&mut conn)
+                .unwrap(),
+            Some("Changed after review".to_string())
+        );
+        assert_eq!(
+            crate::schema::sync_outbox::table
+                .count()
+                .get_result::<i64>(&mut conn)
+                .unwrap(),
+            0
+        );
+    }
+
+    #[tokio::test]
     async fn assigning_category_clears_existing_splits_in_same_write() {
         let (pool, writer) = setup_db();
         {
@@ -649,14 +838,26 @@ mod tests {
         }
 
         let repo = ActivityTaxonomyAssignmentRepository::new(pool.clone(), writer);
-        repo.assign_many_single_select_clearing_splits(vec![NewActivityTaxonomyAssignment {
-            id: None,
-            activity_id: "manual-activity".to_string(),
-            taxonomy_id: "spending_categories".to_string(),
-            category_id: "cat_groceries".to_string(),
-            weight: 10_000,
-            source: "manual".to_string(),
-        }])
+        let expected = {
+            let mut conn = get_connection(&pool).expect("conn");
+            spending_activity_splits::table
+                .load::<ActivitySplitDB>(&mut conn)
+                .unwrap()
+                .into_iter()
+                .map(ActivitySplit::from)
+                .collect::<Vec<_>>()
+        };
+        repo.assign_many_single_select_clearing_splits(
+            vec![NewActivityTaxonomyAssignment {
+                id: None,
+                activity_id: "manual-activity".to_string(),
+                taxonomy_id: "spending_categories".to_string(),
+                category_id: "cat_groceries".to_string(),
+                weight: 10_000,
+                source: "manual".to_string(),
+            }],
+            HashMap::from([("manual-activity".to_string(), expected)]),
+        )
         .await
         .expect("assign category");
 

@@ -57,3 +57,26 @@ pub trait BudgetRepositoryTrait: Send + Sync {
         overwrite: bool,
     ) -> Result<Vec<BudgetTarget>>;
 }
+
+/// Service surface consumed directly by agent tools, shared by both hosts.
+#[async_trait]
+pub trait BudgetServiceTrait: Send + Sync {
+    async fn get_readonly(
+        &self,
+        period_key: Option<String>,
+        currency: &str,
+        timezone: &str,
+    ) -> Result<super::model::BudgetSnapshot>;
+}
+
+#[async_trait]
+impl BudgetServiceTrait for super::service::BudgetService {
+    async fn get_readonly(
+        &self,
+        period_key: Option<String>,
+        currency: &str,
+        timezone: &str,
+    ) -> Result<super::model::BudgetSnapshot> {
+        super::service::BudgetService::get_readonly(self, period_key, currency, timezone).await
+    }
+}

@@ -28,3 +28,20 @@ pub trait EventsRepositoryTrait: Send + Sync {
     /// raw Diesel FK violation.
     async fn count_by_type(&self, event_type_id: &str) -> Result<usize>;
 }
+
+/// Service surface consumed directly by agent tools, shared by both hosts.
+#[async_trait]
+pub trait EventsServiceTrait: Send + Sync {
+    async fn list_types(&self) -> Result<Vec<super::model::EventType>>;
+    async fn list_events(&self) -> Result<Vec<super::model::Event>>;
+}
+
+#[async_trait]
+impl EventsServiceTrait for super::service::EventsService {
+    async fn list_types(&self) -> Result<Vec<super::model::EventType>> {
+        super::service::EventsService::list_types(self).await
+    }
+    async fn list_events(&self) -> Result<Vec<super::model::Event>> {
+        super::service::EventsService::list_events(self).await
+    }
+}

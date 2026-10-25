@@ -48,6 +48,10 @@ pub struct ServerAiEnvironment {
     cash_activity_service: Arc<CashActivityService>,
     activity_taxonomy_assignment_service: Arc<ActivityTaxonomyAssignmentService>,
     categorization_rules_service: Arc<CategorizationRulesService>,
+    budget_service: Arc<dyn wealthfolio_spending::budget::BudgetServiceTrait>,
+    spending_events_service: Arc<dyn wealthfolio_spending::events::EventsServiceTrait>,
+    spending_analytics_service: Arc<dyn wealthfolio_spending::analytics::AnalyticsServiceTrait>,
+    spending_insight_service: Arc<dyn wealthfolio_spending::insight::InsightServiceTrait>,
 }
 
 impl ServerAiEnvironment {
@@ -76,6 +80,10 @@ impl ServerAiEnvironment {
         cash_activity_service: Arc<CashActivityService>,
         activity_taxonomy_assignment_service: Arc<ActivityTaxonomyAssignmentService>,
         categorization_rules_service: Arc<CategorizationRulesService>,
+        budget_service: Arc<dyn wealthfolio_spending::budget::BudgetServiceTrait>,
+        spending_events_service: Arc<dyn wealthfolio_spending::events::EventsServiceTrait>,
+        spending_analytics_service: Arc<dyn wealthfolio_spending::analytics::AnalyticsServiceTrait>,
+        spending_insight_service: Arc<dyn wealthfolio_spending::insight::InsightServiceTrait>,
     ) -> Self {
         Self {
             base_currency,
@@ -100,11 +108,31 @@ impl ServerAiEnvironment {
             cash_activity_service,
             activity_taxonomy_assignment_service,
             categorization_rules_service,
+            budget_service,
+            spending_events_service,
+            spending_analytics_service,
+            spending_insight_service,
         }
     }
 }
 
 impl AgentEnvironment for ServerAiEnvironment {
+    fn budget_service(&self) -> Arc<dyn wealthfolio_spending::budget::BudgetServiceTrait> {
+        self.budget_service.clone()
+    }
+    fn spending_events_service(&self) -> Arc<dyn wealthfolio_spending::events::EventsServiceTrait> {
+        self.spending_events_service.clone()
+    }
+    fn spending_analytics_service(
+        &self,
+    ) -> Arc<dyn wealthfolio_spending::analytics::AnalyticsServiceTrait> {
+        self.spending_analytics_service.clone()
+    }
+    fn spending_insight_service(
+        &self,
+    ) -> Arc<dyn wealthfolio_spending::insight::InsightServiceTrait> {
+        self.spending_insight_service.clone()
+    }
     fn base_currency(&self) -> String {
         self.base_currency
             .read()

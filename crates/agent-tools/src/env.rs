@@ -86,4 +86,12 @@ pub trait AgentEnvironment: Send + Sync {
 
     /// Get the categorization-rules service for the rules-first pass in category proposals.
     fn categorization_rules_service(&self) -> Arc<dyn CategorizationRulesServiceTrait>;
+    fn budget_service(&self) -> Arc<dyn wealthfolio_spending::budget::BudgetServiceTrait>;
+    fn spending_events_service(&self) -> Arc<dyn wealthfolio_spending::events::EventsServiceTrait>;
+    fn spending_analytics_service(
+        &self,
+    ) -> Arc<dyn wealthfolio_spending::analytics::AnalyticsServiceTrait>;
+    fn spending_insight_service(
+        &self,
+    ) -> Arc<dyn wealthfolio_spending::insight::InsightServiceTrait>;
 }

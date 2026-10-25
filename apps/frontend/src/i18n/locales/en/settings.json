@@ -1431,7 +1431,7 @@
         "description": "Read portfolio health and diagnostic checks."
       },
       "classification_read": {
-        "label": "Classification (read)",
+        "label": "Asset classification (read)",
         "description": "Read instrument classifications and taxonomies."
       },
       "activities_draft": {
@@ -1443,28 +1443,45 @@
         "description": "Commit activities, update existing ones, and link or unlink transfers. Requires the draft scope."
       },
       "classification_suggest": {
-        "label": "Classification — suggest",
+        "label": "Asset classification — suggest",
         "description": "Suggest instrument classifications for review."
       },
       "classification_write": {
-        "label": "Classification — apply/write",
-        "description": "Apply reviewed classification drafts. Requires the suggest scope."
+        "label": "Asset classification — apply/write",
+        "description": "Apply reviewed asset classifications. Requires the suggest scope."
       },
       "market_data_write": {
         "label": "Market data — write",
         "description": "Save reviewed prices (quotes) for existing assets. Requires the holdings read scope."
+      },
+      "spending_read": {
+        "label": "View spending",
+        "description": "Read transactions in Spending accounts, categories, splits, rules, events, reports, and budgets."
+      },
+      "spending_write": {
+        "label": "Organize spending",
+        "description": "Manage spending categories, assignments, splits, rules, and events. Requires View spending."
+      },
+      "budget_write": {
+        "label": "Manage budgets",
+        "description": "Change default and monthly budgets, groups, buffers, and rollovers. Requires View spending."
       }
     },
     "preset": {
       "read_only": "Read-only",
       "read_activity_draft": "Read + draft",
       "read_activity_write": "Read + write",
-      "read_activity_write_classification_suggest": "Read + write + classify"
+      "read_activity_write_classification_suggest": "Read + activity write + asset classification",
+      "spending_view": "Spending — view",
+      "spending_organize": "Spending — organize",
+      "spending_budgets": "Spending — budgets"
     },
     "copied_generic": "{{label}} copied to clipboard.",
     "hero_aria": "AI Agent Access status",
     "pat_scope_custom_one": "Custom · {{count}} scope",
-    "pat_scope_custom_other": "Custom · {{count}} scopes"
+    "pat_scope_custom_other": "Custom · {{count}} scopes",
+    "scope_locked_spending_title": "Required by Organize spending or Manage budgets",
+    "dialog_presets": "Access presets"
   },
   "tax_add_category": "Add Category",
   "tax_export": "Export",

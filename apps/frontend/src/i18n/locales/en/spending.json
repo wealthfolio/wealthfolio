@@ -428,7 +428,11 @@
     "removeLine": "Remove split line {{number}}",
     "addLine": "Add line",
     "distributeEvenly": "Distribute evenly",
-    "clearSplit": "Clear split"
+    "clearSplit": "Clear split",
+    "replaceWithCategory": "Replace splits with one category",
+    "replaceDescription_one": "Replace {{count}} split allocation with {{category}}? This removes the existing splits.",
+    "replaceDescription_other": "Replace {{count}} split allocations with {{category}}? This removes the existing splits.",
+    "categoryProtected": "Split allocations are protected. Edit or explicitly replace them in the split editor."
   },
   "hierarchy": {
     "noCategorizedSpending": "No categorized spending in this period.",
