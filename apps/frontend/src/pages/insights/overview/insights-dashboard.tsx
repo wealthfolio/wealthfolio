@@ -1,3 +1,4 @@
+import { profilePreferenceKey, readProfilePreference } from "@/hooks/use-persistent-state";
 import { useIsMobileViewport } from "@/hooks/use-platform";
 import { useSettingsContext } from "@/lib/settings-provider";
 import {
@@ -41,6 +42,19 @@ import "react-grid-layout/css/styles.css";
 import "./insights-dashboard.css";
 
 const GRID_BREAKPOINTS = { desktop: 1100, tablet: 700, mobile: 0 };
+const HEIGHTS_KEY = "insights-widget-heights";
+
+type WidgetHeights = Partial<Record<LayoutBreakpoint, Partial<Record<WidgetId, number>>>>;
+
+// Opening with the last measured heights places every card where it ended up last time instead
+// of starting from the layout defaults; ResizeObserver still corrects stale entries.
+function readWidgetHeights(): WidgetHeights {
+  try {
+    return JSON.parse(readProfilePreference(HEIGHTS_KEY) ?? "{}") as WidgetHeights;
+  } catch {
+    return {};
+  }
+}
 
 interface InsightsDashboardProps {
   widgets: Record<WidgetId, ReactNode>;
@@ -92,11 +106,17 @@ export function InsightsDashboard({ widgets, onCustomizeActionChange }: Insights
   const [draft, setDraft] = useState<InsightsLayout | null>(null);
   const [saving, setSaving] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
-  const { width, containerRef, mounted } = useContainerWidth();
+  // Without measuring first, the grid paints at the hook's 1280px default and then reflows.
+  const { width, containerRef, mounted } = useContainerWidth({ measureBeforeMount: true });
   const breakpoint = getBreakpointFromWidth<LayoutBreakpoint>(GRID_BREAKPOINTS, width);
-  const [heights, setHeights] = useState<
-    Partial<Record<LayoutBreakpoint, Partial<Record<WidgetId, number>>>>
-  >({});
+  const [heights, setHeights] = useState(readWidgetHeights);
+  useEffect(() => {
+    try {
+      localStorage.setItem(profilePreferenceKey(HEIGHTS_KEY), JSON.stringify(heights));
+    } catch {
+      // Storage can be unavailable; heights are re-measured on every visit anyway.
+    }
+  }, [heights]);
   const heightCallbacks = useMemo(
     () =>
       Object.fromEntries(

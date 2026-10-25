@@ -19,6 +19,13 @@ body:has(.insights-dashboard .react-grid-item:is(.resizing, .react-draggable-dra
   left: 0;
 }
 
+/* Width and measured heights settle right after mount; animating them slid every card on each
+   visit. Motion is kept for editing, where it follows drags and resizes. */
+.insights-dashboard .react-grid-layout,
+.insights-dashboard .react-grid-item:not(.insights-widget-editing) {
+  transition: none;
+}
+
 .insights-widget-content > * {
   min-height: inherit;
 }

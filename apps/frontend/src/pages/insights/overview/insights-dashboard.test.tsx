@@ -114,6 +114,7 @@ beforeEach(() => {
       disconnect = vi.fn();
     },
   );
+  localStorage.clear();
   state.settings = { insightsOverviewLayout: undefined };
   state.width = 1200;
   state.isLoading = false;
@@ -132,6 +133,18 @@ describe("insights dashboard editing", () => {
     bounds.mockReturnValue({ height: 810 } as DOMRect);
     act(() => observer.callback([], {} as ResizeObserver));
     expect(state.gridProps.layouts.desktop.find((item) => item.i === "breakdown")?.h).toBe(826);
+  });
+
+  it("opens with the heights measured on the previous visit", () => {
+    const { unmount } = render(<InsightsDashboard widgets={widgets} />);
+    const observer = observers.find(({ element }) => element?.textContent === "widget:breakdown")!;
+    vi.spyOn(observer.element!, "getBoundingClientRect").mockReturnValue({
+      height: 420,
+    } as DOMRect);
+    act(() => observer.callback([], {} as ResizeObserver));
+    unmount();
+    render(<InsightsDashboard widgets={widgets} />);
+    expect(state.gridProps.layouts.desktop.find((item) => item.i === "breakdown")?.h).toBe(436);
   });
 
   it.each([
