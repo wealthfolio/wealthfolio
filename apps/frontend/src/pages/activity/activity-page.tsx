@@ -359,13 +359,6 @@ const ActivityPage = () => {
     [debouncedUpdateSearch, hasActivityUrlFilters, materializeInvestmentFilters, setSearchInput],
   );
 
-  // Cleanup debounced function on unmount
-  useEffect(() => {
-    return () => {
-      debouncedUpdateSearch.cancel();
-    };
-  }, [debouncedUpdateSearch]);
-
   const { data: accounts = [] } = useQuery<Account[], Error>({
     queryKey: [QueryKeys.ACCOUNTS],
     queryFn: () => getAccounts(),
