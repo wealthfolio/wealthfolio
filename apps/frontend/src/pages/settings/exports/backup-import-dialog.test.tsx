@@ -1,5 +1,6 @@
-import { fireEvent, render, screen, waitFor } from "@/test/render";
+import { act, fireEvent, render, screen, waitFor } from "@/test/render";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { Activity } from "react";
 import { beforeEach, expect, it, vi } from "vitest";
 import copy from "@/i18n/locales/en/settings.json";
 import { BackupImportDialog } from "./backup-import-dialog";
@@ -154,6 +155,86 @@ it("discards an unconfirmed preview on unmount", async () => {
   view.unmount();
   expect(mocks.discard).toHaveBeenCalledWith("immutable-id");
   expect(mocks.confirm).not.toHaveBeenCalled();
+});
+// A phone screen kept under another one is a hidden <Activity>: its effects
+// clean up while it is out of sight, and run again when it is shown.
+function mountKept() {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const close = vi.fn();
+  const view = (hidden: boolean) => (
+    <QueryClientProvider client={client}>
+      <Activity mode={hidden ? "hidden" : "visible"}>
+        <BackupImportDialog filename="old.db" onClose={close} />
+      </Activity>
+    </QueryClientProvider>
+  );
+  const rendered = render(view(false));
+  return {
+    hide: () => rendered.rerender(view(true)),
+    show: () => rendered.rerender(view(false)),
+    // The stack keeps only a few screens: older hidden ones are dropped unseen.
+    drop: () => rendered.rerender(<QueryClientProvider client={client} />),
+  };
+}
+it("keeps an inspected backup to restore when its phone screen is shown again", async () => {
+  const kept = mountKept();
+  fireEvent.click(screen.getByRole("button", { name: copy.recovery_inspect }));
+  const restore = await screen.findByRole("button", { name: copy.backup_restore_title });
+  await waitFor(() => expect(restore).toBeEnabled());
+
+  kept.hide();
+  kept.show();
+
+  expect(mocks.discard).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole("button", { name: copy.backup_restore_title }));
+  await waitFor(() => expect(mocks.confirm).toHaveBeenCalledWith("immutable-id"));
+});
+it("finishes a backup check that ends while its phone screen is hidden", async () => {
+  let finish: () => void = () => undefined;
+  mocks.saved.mockReturnValueOnce(
+    new Promise((resolve) => {
+      finish = () =>
+        resolve({ id: "immutable-id", summary: { accountCount: 2, activityCount: 15 } });
+    }),
+  );
+  const kept = mountKept();
+  fireEvent.click(screen.getByRole("button", { name: copy.recovery_inspect }));
+  await waitFor(() => expect(mocks.saved).toHaveBeenCalledOnce());
+
+  kept.hide();
+  act(() => finish());
+  kept.show();
+
+  expect(await screen.findByRole("button", { name: copy.backup_restore_title })).toBeVisible();
+  expect(mocks.discard).not.toHaveBeenCalled();
+});
+it("discards an inspected backup when its hidden phone screen is dropped", async () => {
+  const kept = mountKept();
+  fireEvent.click(screen.getByRole("button", { name: copy.recovery_inspect }));
+  await screen.findByRole("button", { name: copy.backup_restore_title });
+
+  kept.hide();
+  expect(mocks.discard).not.toHaveBeenCalled();
+  kept.drop();
+
+  await waitFor(() => expect(mocks.discard).toHaveBeenCalledWith("immutable-id"));
+});
+it("stops a backup check when its hidden phone screen is dropped", async () => {
+  mocks.saved.mockReturnValueOnce(
+    new Promise(() => {
+      /* Keep the check running. */
+    }),
+  );
+  const kept = mountKept();
+  fireEvent.click(screen.getByRole("button", { name: copy.recovery_inspect }));
+  await waitFor(() => expect(mocks.saved).toHaveBeenCalledOnce());
+  const signal = mocks.saved.mock.calls[0][1] as AbortSignal;
+
+  kept.hide();
+  expect(signal.aborted).toBe(false);
+  kept.drop();
+
+  await waitFor(() => expect(signal.aborted).toBe(true));
 });
 it("explains a failed backup check without offering restore", async () => {
   mocks.saved.mockRejectedValueOnce(new Error("SQLCipher failure"));

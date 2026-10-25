@@ -64,14 +64,39 @@ export function BackupImportDialog({
   const previewId = useRef<string | null>(initialPreview?.id ?? null);
   // StrictMode remounts once in development, so a caller's preview is discarded on close only.
   const callerPreviewId = useRef(initialPreview?.id);
-  useEffect(
-    () => () => {
-      operation.current?.abort();
-      if (previewId.current && previewId.current !== callerPreviewId.current)
-        void discardDatabaseBackupImport(previewId.current).catch(() => undefined);
-    },
-    [],
-  );
+  // The title as last shown; React lets go of `stepHeading` when the dialog hides or unmounts.
+  const shownTitle = useRef<HTMLHeadingElement | null>(null);
+  const hiddenWatch = useRef<MutationObserver | null>(null);
+  useEffect(() => {
+    hiddenWatch.current?.disconnect();
+    hiddenWatch.current = null;
+    const callerId = callerPreviewId.current;
+    return () => {
+      const release = () => {
+        operation.current?.abort();
+        if (previewId.current && previewId.current !== callerId)
+          void discardDatabaseBackupImport(previewId.current).catch(() => undefined);
+      };
+      // A phone screen kept under another one (a hidden <Activity>) runs this
+      // cleanup too, but keeps its nodes in the page: the preview stays on
+      // screen there, to restore once the screen is shown again. An unmounted
+      // dialog's nodes are gone by the time this runs.
+      const title = shownTitle.current;
+      if (!title?.isConnected) {
+        release();
+        return;
+      }
+      // A hidden screen that is dropped without being shown again runs no
+      // cleanup; its nodes leaving the page is the only sign.
+      const watch = new MutationObserver(() => {
+        if (title.isConnected) return;
+        watch.disconnect();
+        release();
+      });
+      watch.observe(document.body, { childList: true, subtree: true });
+      hiddenWatch.current = watch;
+    };
+  }, []);
   useEffect(() => {
     if (scrollBody.current) scrollBody.current.scrollTop = 0;
     if (preview) stepHeading.current?.focus();
@@ -189,7 +214,14 @@ export function BackupImportDialog({
         showCloseButton={pending !== "restore"}
       >
         <DialogHeader className={restored ? "sr-only" : "shrink-0 px-6 pb-4 pt-6 text-start"}>
-          <DialogTitle ref={stepHeading} tabIndex={-1} className="pe-8 outline-none">
+          <DialogTitle
+            ref={(node) => {
+              stepHeading.current = node;
+              if (node) shownTitle.current = node;
+            }}
+            tabIndex={-1}
+            className="pe-8 outline-none"
+          >
             {t(
               restored
                 ? "settings:backup_restored_title"
