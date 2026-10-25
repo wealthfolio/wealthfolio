@@ -410,6 +410,41 @@ mod tests {
     }
 
     #[test]
+    fn italian_sky_wifi_outranks_streaming() {
+        for (notes, category) in [
+            ("ADDEBITO SDD SKY WIFI", "bills_internet"),
+            ("SkyWifi FATTURA", "bills_internet"),
+            ("ADDEBITO SDD SKY ITALIA", "entertainment_streaming"),
+            ("NETFLIX.COM", "entertainment_streaming"),
+            ("FASTWEB MOBILE RICARICA", "bills_phone"),
+            ("FASTWEB SPA FATTURA", "bills_internet"),
+        ] {
+            assert_eq!(
+                match_preset("it", notes).as_deref(),
+                Some(category),
+                "{notes}"
+            );
+        }
+    }
+
+    #[test]
+    fn italian_eni_gas_outranks_fuel() {
+        for (notes, category) in [
+            ("ADDEBITO SDD ENI GAS E LUCE", "housing_utilities"),
+            ("Eni Gas FATTURA", "housing_utilities"),
+            ("ENI PLENITUDE BOLLETTA LUCE", "housing_utilities"),
+            ("ENI STATION A1 SUD", "transport_gas"),
+            ("ENI GASOLIO", "transport_gas"),
+        ] {
+            assert_eq!(
+                match_preset("it", notes).as_deref(),
+                Some(category),
+                "{notes}"
+            );
+        }
+    }
+
+    #[test]
     fn italian_rules_respect_activity_types() {
         for (notes, activity_type, category) in [
             ("AGENZIA ENTRATE — PAGAMENTO F24", "TAX", "fees"),
@@ -420,6 +455,8 @@ mod tests {
             ("INPS PENSIONE OTTOBRE", "DEPOSIT", "income_other"),
             ("RIMBORSO IRPEF 730", "DEPOSIT", "income_tax_refund"),
             ("AMAZON — RIMBORSO ORDINE", "DEPOSIT", "income_refunds"),
+            ("RIMBORSO SKY WIFI", "DEPOSIT", "income_refunds"),
+            ("RIMBORSO ENI GAS E LUCE", "DEPOSIT", "income_refunds"),
             ("INTERESSI CREDITORI", "INTEREST", "income_interest"),
         ] {
             assert_eq!(
@@ -431,6 +468,9 @@ mod tests {
         // Merchant rules leave money coming in alone, and income rules never
         // file spending.
         assert_eq!(match_preset_as("it", "CONAD", "DEPOSIT"), None);
+        for notes in ["SKY WIFI", "SKYWIFI", "ENI GAS E LUCE"] {
+            assert_eq!(match_preset_as("it", notes, "DEPOSIT"), None, "{notes}");
+        }
         assert_eq!(match_preset("it", "ACME SRL — STIPENDIO OTTOBRE"), None);
     }
 

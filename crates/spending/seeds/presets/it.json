@@ -112,7 +112,7 @@
     {
       "key": "it.housing_utilities",
       "name": "Electricity, gas & water",
-      "pattern": "(?i)\\benel\\b|\\ba2a\\b|\\bhera\\b|\\biren\\b|\\bedison\\b|\\bacea\\b|sorgenia|\\bengie\\b|e\\.? ?on energia|plenitude|illumia|octopus energy|servizio elettrico|acquedotto|\\bsmat\\b|\\babbanoa\\b|\\bacqua(e)? spa\\b|\\bpulsee\\b|\\bhera comm\\b",
+      "pattern": "(?i)\\benel\\b|\\ba2a\\b|\\bhera\\b|\\biren\\b|\\bedison\\b|\\bacea\\b|sorgenia|\\bengie\\b|e\\.? ?on energia|plenitude|\\beni gas\\b|illumia|octopus energy|servizio elettrico|acquedotto|\\bsmat\\b|\\babbanoa\\b|\\bacqua(e)? spa\\b|\\bpulsee\\b|\\bhera comm\\b",
       "matchType": "regex",
       "categoryKey": "housing_utilities",
       "priority": 85,
@@ -130,10 +130,19 @@
     {
       "key": "it.bills_internet",
       "name": "Home internet",
-      "pattern": "(?i)\\bfastweb\\b|\\beolo\\b|\\blinkem\\b|\\btiscali\\b|sky wifi|open fiber|\\bstarlink\\b",
+      "pattern": "(?i)\\bfastweb\\b|\\beolo\\b|\\blinkem\\b|\\btiscali\\b|open fiber|\\bstarlink\\b",
       "matchType": "regex",
       "categoryKey": "bills_internet",
       "priority": 84,
+      "activityType": "WITHDRAWAL"
+    },
+    {
+      "key": "it.bills_internet_sky_wifi",
+      "name": "Sky WiFi",
+      "pattern": "(?i)\\bsky\\s*wifi\\b",
+      "matchType": "regex",
+      "categoryKey": "bills_internet",
+      "priority": 91,
       "activityType": "WITHDRAWAL"
     },
     {
