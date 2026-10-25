@@ -1,5 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { ExternalLink } from "@/components/external-link";
+import { useEffectOnChange } from "@/hooks/use-effect-on-change";
 import { Button } from "@wealthfolio/ui/components/ui/button";
 import { Input } from "@wealthfolio/ui/components/ui/input";
 import { Label } from "@wealthfolio/ui/components/ui/label";
@@ -58,7 +59,7 @@ export function NewAccountsFoundModal({
   const [accountSetups, setAccountSetups] = useState<Record<string, AccountSetup>>({});
 
   // Reset accountSetups when accounts change
-  useEffect(() => {
+  useEffectOnChange(() => {
     const initial: Record<string, AccountSetup> = {};
     accounts.forEach((acc) => {
       initial[acc.id] = {

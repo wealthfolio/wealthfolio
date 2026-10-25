@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { Activity, type ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@/test/render";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -190,5 +190,31 @@ describe("linking a withdrawal from its account", () => {
     await screen.findByRole("button", { name: "Use this withdrawal instead" });
     fireEvent.change(loan, { target: { value: "" } });
     expect(screen.queryByRole("button", { name: "Use this withdrawal instead" })).toBeNull();
+  });
+
+  it("keeps the replace offer when its phone screen is shown again", async () => {
+    // A phone screen kept under another one is a hidden <Activity>, whose
+    // effects run again when it is shown.
+    mocks.link.mockRejectedValueOnce("LOAN_PAYMENT_DUPLICATES_EVENT");
+    const client = new QueryClient();
+    const activity = withdrawal();
+    const view = (hidden: boolean) => (
+      <QueryClientProvider client={client}>
+        <Activity mode={hidden ? "hidden" : "visible"}>
+          <ActivityLoanPaymentSheet activity={activity} open onOpenChange={vi.fn()} />
+        </Activity>
+      </QueryClientProvider>
+    );
+    const { rerender } = render(view(false));
+    fireEvent.change(screen.getByRole("combobox", { name: "Loan" }), {
+      target: { value: "mortgage" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Link" }));
+    await screen.findByRole("button", { name: "Use this withdrawal instead" });
+
+    rerender(view(true));
+    rerender(view(false));
+
+    expect(screen.getByRole("button", { name: "Use this withdrawal instead" })).toBeInTheDocument();
   });
 });

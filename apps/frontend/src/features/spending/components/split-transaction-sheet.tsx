@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { useEffectOnChange } from "@/hooks/use-effect-on-change";
 import { useIsMobileViewport } from "@/hooks/use-platform";
 import type { TaxonomyCategory } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -123,7 +124,7 @@ export function SplitTransactionSheet({
   const [lines, setLines] = useState<SplitLineState[]>([]);
   const [expandedNoteLineIds, setExpandedNoteLineIds] = useState<Set<string>>(new Set());
 
-  useEffect(() => {
+  useEffectOnChange(() => {
     if (!open || !row || !taxonomyId) return;
     setExpandedNoteLineIds(new Set());
     const existing = (row.activity.splits ?? [])

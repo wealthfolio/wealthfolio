@@ -1,9 +1,10 @@
-import { saveManualHoldings } from "@/adapters";
+import { getSnapshotByDate, saveManualHoldings } from "@/adapters";
 import { AccountType, HoldingType } from "@/lib/constants";
 import type { Account, Holding } from "@/lib/types";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { FormattingProvider } from "@wealthfolio/ui";
+import { Activity } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { HoldingsEditMode } from "./holdings-edit-mode";
 
@@ -302,5 +303,38 @@ describe("HoldingsEditMode cost fields", () => {
     fireEvent.click(screen.getByRole("button", { name: "Save Changes" }));
     await waitFor(() => expect(saveMock).toHaveBeenCalledTimes(1));
     expect(saveMock.mock.calls[0]?.[1]?.[0]?.averageCost).toBe("0.000000025");
+  });
+});
+
+describe("HoldingsEditMode on a kept screen", () => {
+  it("keeps snapshot edits when its phone screen is shown again", async () => {
+    // A phone screen kept under another one is a hidden <Activity>, whose
+    // effects run again when it is shown.
+    vi.mocked(getSnapshotByDate).mockResolvedValue([makeHolding()]);
+    const client = new QueryClient();
+    const view = (hidden: boolean) => (
+      <QueryClientProvider client={client}>
+        <FormattingProvider locale="US">
+          <Activity mode={hidden ? "hidden" : "visible"}>
+            <HoldingsEditMode
+              holdings={[]}
+              account={account}
+              isLoading={false}
+              onClose={vi.fn()}
+              existingSnapshotDate="2026-01-01"
+            />
+          </Activity>
+        </FormattingProvider>
+      </QueryClientProvider>
+    );
+    const { rerender } = render(view(false));
+    fireEvent.change(await screen.findByTestId("holding-shares-AAPL"), {
+      target: { value: "20" },
+    });
+
+    rerender(view(true));
+    rerender(view(false));
+
+    expect(screen.getByTestId("holding-shares-AAPL")).toHaveValue("20");
   });
 });

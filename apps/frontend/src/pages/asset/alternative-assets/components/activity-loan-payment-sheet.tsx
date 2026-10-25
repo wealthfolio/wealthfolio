@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from "react";
+import { useId, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button, MoneyInput, ResponsiveSelect, Spinner } from "@wealthfolio/ui";
@@ -81,7 +81,9 @@ export function ActivityLoanPaymentSheet({
     setError(null);
   }, [open, linkedTo]);
   // The replace prompt answers the link it was shown for, not a changed one.
-  useEffect(() => setDuplicate(null), [open, loanId, target, escrow]);
+  useEffectOnChange(() => {
+    setDuplicate(null);
+  }, [open, loanId, target, escrow]);
 
   const change = async (link: Parameters<typeof linkLoanPayment>[1]) => {
     setBusy(true);

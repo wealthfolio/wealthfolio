@@ -22,7 +22,7 @@ import { Label } from "@wealthfolio/ui/components/ui/label";
 import { ScrollArea } from "@wealthfolio/ui/components/ui/scroll-area";
 import { Skeleton } from "@wealthfolio/ui/components/ui/skeleton";
 import { format, parseISO } from "date-fns";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
@@ -34,6 +34,7 @@ import {
 } from "@/adapters";
 import { TickerAvatar } from "@/components/ticker-avatar";
 import TickerSearchInput from "@/components/ticker-search";
+import { useEffectOnChange } from "@/hooks/use-effect-on-change";
 import { getAssetIdFromSearchResult } from "@/lib/asset-utils";
 import { HoldingType } from "@/lib/constants";
 import { QueryKeys } from "@/lib/query-keys";
@@ -213,7 +214,7 @@ export const HoldingsEditMode = ({
   const [cashBalances, setCashBalances] = useState<EditableCashBalance[]>(initialCashBalances);
 
   // Update editable holdings when snapshot holdings are loaded
-  useEffect(() => {
+  useEffectOnChange(() => {
     if (isEditingExistingSnapshot && snapshotHoldings) {
       setEditableHoldings(convertToEditableHoldings(snapshotHoldings));
       setCashBalances(convertToCashBalances(snapshotHoldings));

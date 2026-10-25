@@ -9,7 +9,7 @@ import {
 } from "@wealthfolio/ui/components/ui/sheet";
 import { AmountDisplay, Skeleton } from "@wealthfolio/ui";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useRef } from "react";
 import { Trans, useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -18,6 +18,7 @@ import { getHoldingsByAllocation } from "@/adapters";
 import { namedChild, namedChildren } from "@/lib/allocation-children";
 import { TickerAvatar } from "@/components/ticker-avatar";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
+import { useEffectOnChange } from "@/hooks/use-effect-on-change";
 import { HoldingType } from "@/lib/constants";
 import type {
   AccountScope,
@@ -63,7 +64,7 @@ export function AllocationDetailSheet({
   );
 
   // Set initial category when sheet opens
-  useEffect(() => {
+  useEffectOnChange(() => {
     if (isOpen && allocation?.categories?.length) {
       const categoryId = initialCategoryId ?? allocation.categories[0]?.categoryId ?? null;
       // Try direct match on top-level

@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import type { ReactNode } from "react";
+import { Activity, type ReactNode } from "react";
 import { beforeEach, expect, it, vi } from "vitest";
 import { AlternativeAssetKind } from "@/lib/types";
 import { AlternativeAssetQuickAddModal } from "./alternative-asset-quick-add-modal";
@@ -247,6 +247,40 @@ it("clears a save refusal once the form changes", async () => {
   expect(await screen.findByRole("alert")).toBeInTheDocument();
   fireEvent.change(screen.getByLabelText("Years"), { target: { value: "20" } });
   await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
+});
+
+it("keeps a save refusal when its phone screen is shown again", async () => {
+  // A phone screen kept under another one is a hidden <Activity>, whose
+  // effects run again when it is shown.
+  create.mockRejectedValueOnce(new Error("LOAN_AMORTIZATION_INVALID"));
+  const client = new QueryClient();
+  const originationDate = new Date(2025, 5, 1);
+  const view = (hidden: boolean) => (
+    <QueryClientProvider client={client}>
+      <Activity mode={hidden ? "hidden" : "visible"}>
+        <AlternativeAssetQuickAddModal
+          open
+          onOpenChange={() => undefined}
+          defaultKind={AlternativeAssetKind.LIABILITY}
+          defaultName="Mortgage"
+          defaultOriginationDate={originationDate}
+        />
+      </Activity>
+    </QueryClientProvider>
+  );
+  const { rerender } = render(view(false));
+  await screen.findByRole("combobox", { name: "Select Liability Type" });
+  fireEvent.change(screen.getAllByLabelText("Amount")[0], { target: { value: "400000" } });
+  fireEvent.change(screen.getByLabelText("Years"), { target: { value: "25" } });
+  fireEvent.change(screen.getByLabelText("Interest Rate (%)"), { target: { value: "5" } });
+  await screen.findByText(/300 payments/);
+  fireEvent.click(screen.getByRole("button", { name: "Add Liability" }));
+  await screen.findByRole("alert");
+
+  rerender(view(true));
+  rerender(view(false));
+
+  expect(screen.getByRole("alert")).toBeInTheDocument();
 });
 
 it("asks for no preview, and shows no error, until the terms are entered", async () => {

@@ -342,7 +342,9 @@ export function AlternativeAssetQuickAddModal({
 
   const [submitError, setSubmitError] = useState<string | null>(null);
   // A refusal answers what was submitted, not the form as edited since.
-  useEffect(() => setSubmitError(null), [formData]);
+  useEffectOnChange(() => {
+    setSubmitError(null);
+  }, [formData]);
   const handleSubmit = async () => {
     if (!canProceed || refusedTerms || createMutation.isPending) return;
 

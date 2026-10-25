@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { FormattingProvider } from "@wealthfolio/ui";
+import { Activity } from "react";
 import { describe, expect, it, vi } from "vitest";
 import type { TransactionRowVM } from "../lib/transactions-helpers";
 import { SplitTransactionSheet } from "./split-transaction-sheet";
@@ -109,5 +110,36 @@ describe("SplitTransactionSheet", () => {
 
     expect(line).toHaveValue("3.333");
     expect(screen.getByText(/^6\.667\sKWD$/)).toBeInTheDocument();
+  });
+
+  it("keeps edited split lines when its phone screen is shown again", async () => {
+    // A phone screen kept under another one is a hidden <Activity>, whose
+    // effects run again when it is shown.
+    const user = userEvent.setup();
+    const row = splitRow("10", "USD", ["10"]);
+    const view = (hidden: boolean) => (
+      <FormattingProvider locale="en-US">
+        <Activity mode={hidden ? "hidden" : "visible"}>
+          <SplitTransactionSheet
+            open
+            row={row}
+            categories={new Map()}
+            isSaving={false}
+            onOpenChange={vi.fn()}
+            onSave={vi.fn()}
+            onClear={vi.fn()}
+          />
+        </Activity>
+      </FormattingProvider>
+    );
+    const { rerender } = render(view(false));
+    const [line] = screen.getAllByRole("textbox");
+    await user.clear(line);
+    await user.type(line, "4");
+
+    rerender(view(true));
+    rerender(view(false));
+
+    expect(screen.getAllByRole("textbox")[0]).toHaveValue("4");
   });
 });

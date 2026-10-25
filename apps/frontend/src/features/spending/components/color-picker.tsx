@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Icons, Input, Popover, PopoverContent, PopoverTrigger } from "@wealthfolio/ui";
 
+import { useEffectOnChange } from "@/hooks/use-effect-on-change";
 import { cn } from "@/lib/utils";
 
 /** Curated extended palette — shades grouped roughly by hue, in 5 columns × 7 rows. */
@@ -81,7 +82,7 @@ export function ColorPicker({ value, onChange, presets = [] }: ColorPickerProps)
   const [open, setOpen] = useState(false);
   const [hexInput, setHexInput] = useState(value ?? "#888888");
 
-  useEffect(() => {
+  useEffectOnChange(() => {
     if (value) setHexInput(value);
   }, [value]);
 
