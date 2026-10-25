@@ -71,14 +71,7 @@
   "pnpm": {
     "overrides": {
       "qs@<6.16.0": "6.16.0",
-      "browserslist@<4.28.7": "4.28.9",
-      "baseline-browser-mapping@>=2 <2.11.0": "2.11.22",
-      "js-yaml@>=4 <4.3.2": "4.3.2",
-      "@humanfs/node@>=0.16 <0.16.8": "0.16.8",
-      "@babel/core@<=7.29.0": "^7.29.6",
       "esbuild@>=0.27.3 <0.28.1": "^0.28.1",
-      "brace-expansion@<1.1.21": "1.1.21",
-      "brace-expansion@>=4 <5.0.12": "5.0.12",
       "postcss-selector-parser@<7.1.6": "^7.1.7"
     }
   }
