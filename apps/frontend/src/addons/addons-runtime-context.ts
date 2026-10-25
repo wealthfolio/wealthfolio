@@ -24,6 +24,7 @@ import {
   saveInternalTransferPair,
   linkTransferActivities,
   unlinkTransferActivities,
+  getNetWorth,
 } from "@/adapters";
 import {
   addExchangeRate,
@@ -514,6 +515,7 @@ export function createAddonHostAPI(
           endDate,
         ),
       getLatestValuations,
+      getNetWorth,
       calculatePerformanceHistory,
       calculatePerformanceSummary,
       calculateAccountsSimplePerformance,
