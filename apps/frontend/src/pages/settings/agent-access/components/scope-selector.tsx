@@ -2,7 +2,15 @@ import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { Button } from "@wealthfolio/ui/components/ui/button";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
-import { SCOPES, SCOPE_PRESETS, matchPreset, presetLabel, scopeDescription, scopeLabel, type ScopeKey } from "../scopes";
+import {
+  SCOPES,
+  SCOPE_PRESETS,
+  matchPreset,
+  presetLabel,
+  scopeDescription,
+  scopeLabel,
+  type ScopeKey,
+} from "../scopes";
 
 interface ScopeSelectorProps {
   selectedScopes: ScopeKey[];
@@ -11,7 +19,12 @@ interface ScopeSelectorProps {
   onSelectPreset: (scopes: ScopeKey[]) => void;
 }
 
-export function ScopeSelector({ selectedScopes, onToggle, disabled, onSelectPreset }: ScopeSelectorProps) {
+export function ScopeSelector({
+  selectedScopes,
+  onToggle,
+  disabled,
+  onSelectPreset,
+}: ScopeSelectorProps) {
   const { t } = useTranslation();
   const renderScope = (scope: (typeof SCOPES)[number]) => {
     const checked = selectedScopes.includes(scope.key);
@@ -19,15 +32,19 @@ export function ScopeSelector({ selectedScopes, onToggle, disabled, onSelectPres
     const description = scopeDescription(t, scope.key);
     const lockedByMarketData =
       scope.key === "holdings:read" && selectedScopes.includes("market-data:write");
-    const lockedBySpending = scope.key === "spending:read" && (selectedScopes.includes("spending:write") || selectedScopes.includes("budget:write"));
+    const lockedBySpending =
+      scope.key === "spending:read" &&
+      (selectedScopes.includes("spending:write") || selectedScopes.includes("budget:write"));
     const locked =
       lockedBySpending ||
       lockedByMarketData ||
       (scope.key === "activities:draft" && selectedScopes.includes("activities:write")) ||
       (scope.key === "classification:suggest" && selectedScopes.includes("classification:write"));
-    const lockedTitle = lockedBySpending ? t("settings:agentAccess.scope_locked_spending_title") : lockedByMarketData
-      ? t("settings:agentAccess.scope_locked_market_data_title")
-      : t("settings:agentAccess.scope_locked_title");
+    const lockedTitle = lockedBySpending
+      ? t("settings:agentAccess.scope_locked_spending_title")
+      : lockedByMarketData
+        ? t("settings:agentAccess.scope_locked_market_data_title")
+        : t("settings:agentAccess.scope_locked_title");
     return (
       <button
         key={scope.key}
@@ -66,12 +83,24 @@ export function ScopeSelector({ selectedScopes, onToggle, disabled, onSelectPres
   return (
     <>
       <div className="space-y-2">
-        <p className="text-muted-foreground text-xs font-medium uppercase tracking-wider">{t("settings:agentAccess.dialog_presets")}</p>
-        <div className="flex flex-wrap gap-2">{SCOPE_PRESETS.map((preset) => (
-          <Button key={preset.key} type="button" size="sm" variant="outline" disabled={disabled}
-            aria-pressed={matchPreset(selectedScopes)?.key === preset.key}
-            onClick={() => onSelectPreset(preset.scopes)}>{presetLabel(t, preset)}</Button>
-        ))}</div>
+        <p className="text-muted-foreground text-xs font-medium uppercase tracking-wider">
+          {t("settings:agentAccess.dialog_presets")}
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {SCOPE_PRESETS.map((preset) => (
+            <Button
+              key={preset.key}
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={disabled}
+              aria-pressed={matchPreset(selectedScopes)?.key === preset.key}
+              onClick={() => onSelectPreset(preset.scopes)}
+            >
+              {presetLabel(t, preset)}
+            </Button>
+          ))}
+        </div>
       </div>
       {(["read", "write"] as const).map((group) => (
         <div key={group} className="space-y-2">

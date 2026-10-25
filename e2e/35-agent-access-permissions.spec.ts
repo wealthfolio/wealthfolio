@@ -1,12 +1,33 @@
 import { expect, test } from "@playwright/test";
-import { BASE_URL, loginIfNeeded } from "./helpers";
+import { BASE_URL } from "./helpers";
 
 for (const direction of ["ltr", "rtl"]) {
   test(`edit token permissions without replacing the credential (${direction})`, async ({
     page,
   }) => {
     if (direction === "rtl") await page.setViewportSize({ width: 390, height: 844 });
-    await loginIfNeeded(page);
+    // Select the fresh test installation's profile before entering settings.
+    const stateResponse = await page.request.post(`${BASE_URL}/api/v1/profiles/get_profile_state`, {
+      data: {},
+    });
+    expect(stateResponse.ok()).toBeTruthy();
+    const state = await stateResponse.json();
+    const unlockedResponse = await page.request.post(`${BASE_URL}/api/v1/profiles/unlock_profile`, {
+      data: { profileId: state.profiles[0].id },
+    });
+    expect(unlockedResponse.ok()).toBeTruthy();
+    const session = await unlockedResponse.json();
+    const settings = await page.request.put(`${BASE_URL}/api/v1/settings`, {
+      headers: { "x-wf-profile-scope": session.scopeId },
+      data: {
+        onboardingCompleted: true,
+        language: "en",
+        theme: "light",
+        syncEnabled: false,
+        autoUpdateCheckEnabled: false,
+      },
+    });
+    expect(settings.ok()).toBeTruthy();
     await page.goto(`${BASE_URL}/settings/agent-access?dir=${direction}`);
     const name = `Permission test ${direction}`;
     await page.getByRole("button", { name: "Create token", exact: true }).click();
@@ -27,7 +48,7 @@ for (const direction of ["ltr", "rtl"]) {
       .last();
     await row.getByRole("button", { name: "Edit permissions", exact: true }).click();
     const edit = page.getByRole("dialog");
-    const scope = edit.getByRole("checkbox", { name: /^Activities — draft/ });
+    const scope = edit.getByRole("checkbox", { name: /^Organize spending/ });
     await expect(scope).toHaveAttribute("aria-checked", "false");
     await scope.focus();
     await page.keyboard.press("Space");
@@ -40,7 +61,9 @@ for (const direction of ["ltr", "rtl"]) {
     const response = await saved;
     expect(response.ok()).toBeTruthy();
     const metadata = await response.json();
-    expect(metadata.scopes).toContain("activities:draft");
+    expect(metadata.scopes).toContain("spending:write");
+    expect(metadata.scopes).toContain("spending:read");
+    expect(metadata.scopes).not.toContain("budget:write");
     for (const field of ["id", "name", "tokenPrefix", "createdAt", "expiresAt"]) {
       expect(metadata[field]).toEqual(createdMetadata[field]);
     }
@@ -49,7 +72,7 @@ for (const direction of ["ltr", "rtl"]) {
     await expect(edit).not.toBeVisible();
     await row.getByRole("button", { name: "Edit permissions", exact: true }).click();
     await expect(
-      page.getByRole("dialog").getByRole("checkbox", { name: /^Activities — draft/ }),
+      page.getByRole("dialog").getByRole("checkbox", { name: /^Organize spending/ }),
     ).toHaveAttribute("aria-checked", "true");
     await page.getByRole("dialog").getByRole("button", { name: "Cancel", exact: true }).click();
   });

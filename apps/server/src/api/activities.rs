@@ -9,10 +9,10 @@ use axum::{
 };
 use wealthfolio_core::activities::{
     import_type, Activity, ActivityBulkMutationRequest, ActivityBulkMutationResult, ActivityImport,
-    ActivitySearchResponse, ActivityUpdate, ImportActivitiesResult, ImportAssetCandidate,
-    ImportAssetPreviewItem, ImportMappingData, ImportTemplateData, InternalTransferPairRequest,
-    InternalTransferPairResponse, NewActivity, ParseConfig, ParsedCsvResult,
-    TransferMatchCandidate, TransferMatchCandidateRequest,
+    ActivitySearchResponse, ActivitySplitEffect, ActivityUpdate, ImportActivitiesResult,
+    ImportAssetCandidate, ImportAssetPreviewItem, ImportMappingData, ImportTemplateData,
+    InternalTransferPairRequest, InternalTransferPairResponse, NewActivity, ParseConfig,
+    ParsedCsvResult, TransferMatchCandidate, TransferMatchCandidateRequest,
 };
 use wealthfolio_core::utils::time_utils::{
     local_date_range_utc_bounds, parse_user_timezone_or_default,
@@ -135,6 +135,17 @@ async fn create_activity(
 
     // Domain events handle asset enrichment and portfolio recalculation
     Ok(Json(created))
+}
+
+async fn review_activity_split_effects(
+    axum::Extension(state): axum::Extension<Arc<AppState>>,
+    Json(activity): Json<ActivityUpdate>,
+) -> ApiResult<Json<Vec<ActivitySplitEffect>>> {
+    Ok(Json(
+        state
+            .activity_service
+            .review_activity_split_effects(activity)?,
+    ))
 }
 
 async fn update_activity(
@@ -460,6 +471,10 @@ pub fn router<S: Clone + Send + Sync + 'static>() -> Router<S> {
         .route("/activities/search", post(search_activities))
         .route("/activities", post(create_activity).put(update_activity))
         .route("/activities/bulk", post(save_activities))
+        .route(
+            "/activities/split-effects",
+            post(review_activity_split_effects),
+        )
         .route("/activities/{id}", delete(delete_activity))
         .route(
             "/activities/{id}/transfer-pair",

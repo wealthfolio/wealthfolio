@@ -696,13 +696,21 @@ impl AgentTool for ListCategorizationContext {
         AgentToolAccess::Read
     }
 
+    fn sanitize_args_for_audit(&self, _: &serde_json::Value) -> serde_json::Value {
+        serde_json::json!({"categorizationArguments":"[redacted]"})
+    }
+
     async fn call(
         &self,
         env: Arc<dyn AgentEnvironment>,
         args: serde_json::Value,
     ) -> Result<AgentToolResult, AgentToolError> {
         debug!("list_categorization_context called");
-        let args: ListCategorizationContextArgs = serde_json::from_value(args)?;
+        let args: ListCategorizationContextArgs = serde_json::from_value(args).map_err(|_| {
+            AgentToolError::InvalidInput(
+                "Invalid categorization arguments; see the input schema".into(),
+            )
+        })?;
 
         let state = compute_categorization_state(
             env.as_ref(),

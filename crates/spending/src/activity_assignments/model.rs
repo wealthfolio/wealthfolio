@@ -58,3 +58,19 @@ pub enum SplitAssignmentConflictReason {
 pub struct CategoryAssignmentConflicts {
     pub conflicts: Vec<SplitAssignmentConflict>,
 }
+
+/// Decisions observed by the shared rule writer (or its read-only preview).
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RuleAssignmentResult {
+    #[serde(skip)]
+    pub assignments: Vec<ActivityTaxonomyAssignment>,
+    pub eligible: usize,
+    pub changed: usize,
+    pub protected_splits: usize,
+    pub protected_manual: usize,
+    pub skipped_existing: usize,
+    pub unchanged: usize,
+    pub incompatible: usize,
+    pub without_target: usize,
+}

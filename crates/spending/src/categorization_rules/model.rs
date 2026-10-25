@@ -71,7 +71,7 @@ impl RuleAmountOp {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CategorizationRule {
     pub id: String,
@@ -259,4 +259,12 @@ mod tests {
             Some(Some("55".parse::<Decimal>().unwrap()))
         );
     }
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CategorizationRunSummary {
+    pub matched: usize,
+    #[serde(flatten)]
+    pub decisions: crate::activity_assignments::RuleAssignmentResult,
 }

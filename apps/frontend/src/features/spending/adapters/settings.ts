@@ -20,3 +20,12 @@ export const updateSpendingSettings = async (
     throw error;
   }
 };
+
+export interface SpendingContext {
+  enabled: boolean;
+  accountIds: string[];
+  excludedCategoryIds: string[];
+}
+/** Effective eligible enrollment, rather than raw saved account IDs. */
+export const getSpendingContext = (): Promise<SpendingContext> =>
+  invoke<SpendingContext>("get_spending_context");

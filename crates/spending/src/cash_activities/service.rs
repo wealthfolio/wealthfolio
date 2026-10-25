@@ -911,6 +911,41 @@ impl CashActivityService {
         activity_id: &str,
         splits: Vec<NewActivitySplit>,
     ) -> Result<Vec<ActivitySplit>> {
+        let taxonomy = self.validate_splits(activity_id, &splits).await?;
+        self.splits
+            .replace_for_activity_clearing_assignment(activity_id, taxonomy, splits)
+            .await
+    }
+
+    pub async fn replace_splits_reviewed(
+        &self,
+        expected: crate::activity_splits::SplitReviewState,
+        splits: Vec<NewActivitySplit>,
+    ) -> Result<Vec<ActivitySplit>> {
+        let taxonomy = self.validate_splits(&expected.activity.id, &splits).await?;
+        self.splits
+            .replace_reviewed(expected, taxonomy, splits)
+            .await
+    }
+
+    pub async fn clear_allocations_reviewed(
+        &self,
+        expected: crate::activity_splits::SplitReviewState,
+        taxonomy_id: &str,
+    ) -> Result<()> {
+        self.ensure_activity_assignment_allowed(&expected.activity.id, taxonomy_id, false)
+            .await?;
+        self.splits
+            .replace_reviewed(expected, taxonomy_id, Vec::new())
+            .await?;
+        Ok(())
+    }
+
+    pub async fn validate_splits(
+        &self,
+        activity_id: &str,
+        splits: &[NewActivitySplit],
+    ) -> Result<&'static str> {
         let (activity, expected_taxonomy) = self.ensure_activity_split_allowed(activity_id).await?;
         if splits.is_empty() {
             return Err(SpendingError::InvalidInput {
@@ -921,7 +956,7 @@ impl CashActivityService {
 
         let mut sum = Decimal::ZERO;
         let mut category_ids = Vec::with_capacity(splits.len());
-        for split in &splits {
+        for split in splits {
             if split.taxonomy_id != expected_taxonomy {
                 return Err(SpendingError::InvalidInput {
                     message: "Split line taxonomy must match the activity cash-flow bucket"
@@ -962,9 +997,7 @@ impl CashActivityService {
             .into());
         }
 
-        self.splits
-            .replace_for_activity_clearing_assignment(activity_id, expected_taxonomy, splits)
-            .await
+        Ok(expected_taxonomy)
     }
 
     pub async fn clear_splits(&self, activity_id: &str) -> Result<()> {
@@ -999,6 +1032,26 @@ impl CashActivityService {
             .set_activity_event_tag(activity_id, event_id)
             .await?;
         Ok(activity)
+    }
+
+    pub async fn set_event_reviewed(
+        &self,
+        activity_id: &str,
+        expected: Option<String>,
+        event_id: Option<String>,
+    ) -> Result<()> {
+        self.ensure_activity_in_spending_scope(activity_id).await?;
+        if let Some(id) = &event_id {
+            if self.events.get_event(id).await?.is_none() {
+                return Err(SpendingError::InvalidInput {
+                    message: "Spending event not found".into(),
+                }
+                .into());
+            }
+        }
+        self.activity_events
+            .set_event_reviewed(activity_id, expected, event_id)
+            .await
     }
 
     fn resolve_target_accounts(
@@ -1196,6 +1249,12 @@ impl CashActivityService {
             .into());
         }
 
+        if !is_visible_cash_activity(&activity, &account.account_type) {
+            return Err(SpendingError::InvalidInput {
+                message: "Activity is not an eligible Spending cash transaction".into(),
+            }
+            .into());
+        }
         Ok(activity)
     }
 }
@@ -1858,6 +1917,15 @@ mod tests {
 
     #[async_trait]
     impl ActivitySplitRepositoryTrait for MockSplitRepo {
+        async fn replace_reviewed(
+            &self,
+            _: crate::activity_splits::SplitReviewState,
+            _: &str,
+            _: Vec<NewActivitySplit>,
+        ) -> Result<Vec<ActivitySplit>> {
+            unimplemented!("reviewed MCP path")
+        }
+
         async fn list_for_activity(&self, _: &str) -> Result<Vec<ActivitySplit>> {
             Ok(Vec::new())
         }
@@ -1927,6 +1995,15 @@ mod tests {
 
     #[async_trait]
     impl crate::activity_events::ActivityEventsRepositoryTrait for MockActivityEventsRepo {
+        async fn set_event_reviewed(
+            &self,
+            _: &str,
+            _: Option<String>,
+            _: Option<String>,
+        ) -> Result<()> {
+            unimplemented!("reviewed tags")
+        }
+
         async fn list_for_activities(
             &self,
             _: &[String],
@@ -1983,6 +2060,13 @@ mod tests {
 
     #[async_trait]
     impl crate::events::EventsRepositoryTrait for MockEventsRepo {
+        async fn update_reviewed(&self, _: Event, _: crate::events::UpdateEvent) -> Result<Event> {
+            unimplemented!("reviewed events")
+        }
+        async fn delete_reviewed(&self, _: Event, _: usize) -> Result<()> {
+            unimplemented!("reviewed events")
+        }
+
         async fn list(&self) -> Result<Vec<Event>> {
             Ok(Vec::new())
         }
@@ -2283,6 +2367,28 @@ mod tests {
 
     #[async_trait]
     impl TaxonomyServiceTrait for MockTaxonomyService {
+        async fn update_category_reviewed(
+            &self,
+            _: wealthfolio_core::taxonomies::Category,
+            _: wealthfolio_core::taxonomies::Category,
+        ) -> wealthfolio_core::Result<wealthfolio_core::taxonomies::Category> {
+            unimplemented!("reviewed categories are not used by this fixture")
+        }
+        async fn delete_category_reviewed(
+            &self,
+            _: wealthfolio_core::taxonomies::Category,
+        ) -> wealthfolio_core::Result<usize> {
+            unimplemented!("reviewed categories are not used by this fixture")
+        }
+
+        fn get_category_references(
+            &self,
+            _: &str,
+            _: &str,
+        ) -> wealthfolio_core::Result<wealthfolio_core::taxonomies::CategoryReferences> {
+            unimplemented!("category references are not used by this fixture")
+        }
+
         fn get_taxonomies(&self) -> wealthfolio_core::Result<Vec<Taxonomy>> {
             unimplemented!()
         }

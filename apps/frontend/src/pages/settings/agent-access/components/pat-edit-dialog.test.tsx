@@ -21,11 +21,14 @@ describe("PatEditDialog", () => {
   it("edits an existing key to Spending-only grants without adding investment access", async () => {
     const save = vi.fn().mockResolvedValue({});
     render(<PatEditDialog token={token} onClose={vi.fn()} onSave={save} isSaving={false} />);
-    fireEvent.click(screen.getByRole("button", { name: "Spending — organize", exact: true }));
+    fireEvent.click(screen.getByRole("button", { name: "Spending — organize" }));
     expect(screen.getByRole("checkbox", { name: /^View spending/ })).toBeDisabled();
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
     await waitFor(() => expect(save).toHaveBeenCalledWith(["spending:read", "spending:write"]));
-    expect(screen.getByRole("checkbox", { name: /^Manage budgets/ })).toHaveAttribute("aria-checked", "false");
+    expect(screen.getByRole("checkbox", { name: /^Manage budgets/ })).toHaveAttribute(
+      "aria-checked",
+      "false",
+    );
   });
 
   it("preserves the selection on failure, then saves without exposing a credential", async () => {

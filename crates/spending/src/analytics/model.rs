@@ -16,6 +16,8 @@ pub struct ReportRequest {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PeriodSummary {
+    #[serde(default)]
+    pub calculation_quality: crate::CalculationQuality,
     /// Sum of DEPOSIT/TRANSFER_IN/INTEREST amounts (absolute)
     pub income: f64,
     /// Consumption outflow (WITHDRAWAL/FEE/external TRANSFER_OUT), savings excluded.
@@ -120,6 +122,8 @@ pub struct EventCategorySpending {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EventSpendingSummary {
+    #[serde(default)]
+    pub calculation_quality: crate::CalculationQuality,
     pub event_id: String,
     pub event_name: String,
     pub event_type_id: String,

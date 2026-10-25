@@ -165,6 +165,7 @@ describe("SplitTransactionSheet", () => {
             onOpenChange={vi.fn()}
             onSave={vi.fn()}
             onClear={vi.fn()}
+            onReplace={vi.fn()}
           />
         </Activity>
       </FormattingProvider>

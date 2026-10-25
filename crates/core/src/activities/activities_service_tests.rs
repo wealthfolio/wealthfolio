@@ -1657,9 +1657,17 @@ pub(crate) mod tests {
             })
         }
 
-        async fn create_activities(&self, _activities: Vec<NewActivity>) -> Result<usize> {
+        async fn create_activities(&self, activities: Vec<NewActivity>) -> Result<usize> {
+            self.create_activities_returning(activities)
+                .await
+                .map(|rows| rows.len())
+        }
+        async fn create_activities_returning(
+            &self,
+            _activities: Vec<NewActivity>,
+        ) -> Result<Vec<Activity>> {
             let mut stored = self.activities.lock().unwrap();
-            let mut count = 0usize;
+            let mut created = Vec::new();
             for new_activity in _activities {
                 let asset_id = new_activity.get_symbol_id().map(|s| s.to_string());
                 let metadata = new_activity
@@ -1667,7 +1675,7 @@ pub(crate) mod tests {
                     .as_deref()
                     .and_then(|metadata| serde_json::from_str(metadata).ok());
                 let activity_date = parse_test_activity_datetime(&new_activity.activity_date);
-                stored.push(Activity {
+                let row = Activity {
                     id: new_activity.id.unwrap_or_else(|| "test-id".to_string()),
                     account_id: new_activity.account_id,
                     asset_id,
@@ -1698,10 +1706,11 @@ pub(crate) mod tests {
                     needs_review: new_activity.needs_review.unwrap_or(false),
                     created_at: Utc::now(),
                     updated_at: Utc::now(),
-                });
-                count += 1;
+                };
+                stored.push(row.clone());
+                created.push(row);
             }
-            Ok(count)
+            Ok(created)
         }
 
         fn get_first_activity_date(
@@ -2033,6 +2042,7 @@ pub(crate) mod tests {
         currency: &str,
     ) -> ActivityUpdate {
         ActivityUpdate {
+            split_review: None,
             id: id.to_string(),
             account_id: account_id.to_string(),
             asset,
@@ -2160,6 +2170,7 @@ pub(crate) mod tests {
 
         let updated = activity_service
             .update_activity(ActivityUpdate {
+                split_review: None,
                 id: "activity-1".to_string(),
                 account_id: "acc-cad".to_string(),
                 asset: Some(AssetResolutionInput {
@@ -2218,6 +2229,7 @@ pub(crate) mod tests {
 
         let updated = activity_service
             .update_activity(ActivityUpdate {
+                split_review: None,
                 id: "activity-recalc".to_string(),
                 account_id: "acc-usd".to_string(),
                 asset: Some(AssetResolutionInput {
@@ -2289,6 +2301,7 @@ pub(crate) mod tests {
 
         let updated = activity_service
             .update_activity(ActivityUpdate {
+                split_review: None,
                 id: "activity-1".to_string(),
                 account_id: "acc-cad".to_string(),
                 asset: Some(AssetResolutionInput {
@@ -2350,6 +2363,7 @@ pub(crate) mod tests {
 
         let updated = activity_service
             .update_activity(ActivityUpdate {
+                split_review: None,
                 id: "activity-mini".to_string(),
                 account_id: "acc-usd".to_string(),
                 asset: Some(AssetResolutionInput {
@@ -2536,6 +2550,7 @@ pub(crate) mod tests {
 
         let updated = activity_service
             .update_activity(ActivityUpdate {
+                split_review: None,
                 id: "activity-swap".to_string(),
                 account_id: "acc-usd".to_string(),
                 asset: Some(AssetResolutionInput {
@@ -2595,6 +2610,7 @@ pub(crate) mod tests {
 
         let updated = activity_service
             .update_activity(ActivityUpdate {
+                split_review: None,
                 id: "activity-tag".to_string(),
                 account_id: "acc-usd".to_string(),
                 asset: Some(AssetResolutionInput {
@@ -2657,6 +2673,7 @@ pub(crate) mod tests {
 
         let updated = activity_service
             .update_activity(ActivityUpdate {
+                split_review: None,
                 id: "activity-meta".to_string(),
                 account_id: "acc-usd".to_string(),
                 asset: Some(AssetResolutionInput {
@@ -2844,6 +2861,7 @@ pub(crate) mod tests {
 
         let updated = activity_service
             .update_activity(ActivityUpdate {
+                split_review: None,
                 id: "activity-1".to_string(),
                 account_id: "acc-usd".to_string(),
                 asset: Some(AssetResolutionInput {
@@ -3011,6 +3029,7 @@ pub(crate) mod tests {
         );
 
         let update = ActivityUpdate {
+            split_review: None,
             id: "deposit-draft".to_string(),
             account_id: "acc-usd".to_string(),
             asset: None,
@@ -3058,6 +3077,7 @@ pub(crate) mod tests {
 
         let approved = activity_service
             .update_activity(ActivityUpdate {
+                split_review: None,
                 id: "deposit-draft".to_string(),
                 account_id: "acc-usd".to_string(),
                 asset: None,
@@ -3110,6 +3130,7 @@ pub(crate) mod tests {
 
         let approved = activity_service
             .update_activity(ActivityUpdate {
+                split_review: None,
                 id: "buy-custom".to_string(),
                 account_id: "acc-usd".to_string(),
                 asset: Some(AssetResolutionInput {
@@ -3161,6 +3182,7 @@ pub(crate) mod tests {
 
         let updated = activity_service
             .update_activity(ActivityUpdate {
+                split_review: None,
                 id: "buy-edited".to_string(),
                 account_id: "acc-usd".to_string(),
                 asset: Some(AssetResolutionInput {
@@ -3861,6 +3883,7 @@ pub(crate) mod tests {
 
         let updated = activity_service
             .update_activity(ActivityUpdate {
+                split_review: None,
                 id: "buy-custom-econ".to_string(),
                 account_id: "acc-usd".to_string(),
                 asset: Some(AssetResolutionInput {
@@ -3913,6 +3936,7 @@ pub(crate) mod tests {
 
         let updated = activity_service
             .update_activity(ActivityUpdate {
+                split_review: None,
                 id: "buy-calc-econ".to_string(),
                 account_id: "acc-usd".to_string(),
                 asset: Some(AssetResolutionInput {
@@ -3967,6 +3991,7 @@ pub(crate) mod tests {
 
         let updated = activity_service
             .update_activity(ActivityUpdate {
+                split_review: None,
                 id: "buy-fee-waived".to_string(),
                 account_id: "acc-usd".to_string(),
                 asset: Some(AssetResolutionInput {
@@ -4021,6 +4046,7 @@ pub(crate) mod tests {
 
         let updated = activity_service
             .update_activity(ActivityUpdate {
+                split_review: None,
                 id: "buy-reviewed".to_string(),
                 account_id: "acc-usd".to_string(),
                 asset: Some(AssetResolutionInput {
@@ -4075,6 +4101,7 @@ pub(crate) mod tests {
 
         let updated = activity_service
             .update_activity(ActivityUpdate {
+                split_review: None,
                 id: "buy-to-option".to_string(),
                 account_id: "acc-usd".to_string(),
                 asset: Some(AssetResolutionInput {
@@ -13575,6 +13602,7 @@ pub(crate) mod tests {
             .bulk_mutate_activities(ActivityBulkMutationRequest {
                 creates: vec![],
                 updates: vec![ActivityUpdate {
+                    split_review: None,
                     id: "cash-activity".to_string(),
                     account_id: "acc-usd".to_string(),
                     asset: None,
@@ -15350,6 +15378,7 @@ pub(crate) mod tests {
         ]);
 
         let update = crate::activities::ActivityUpdate {
+            split_review: None,
             id: "transfer-out".to_string(),
             account_id: "acc-out".to_string(),
             asset: None,
@@ -15437,6 +15466,7 @@ pub(crate) mod tests {
 
         let updated = activity_service
             .update_activity(ActivityUpdate {
+                split_review: None,
                 id: "deposit-1".to_string(),
                 account_id: "acc-1".to_string(),
                 asset: None,
@@ -15504,6 +15534,7 @@ pub(crate) mod tests {
 
         activity_service
             .update_activity(crate::activities::ActivityUpdate {
+                split_review: None,
                 id: "transfer-out".to_string(),
                 account_id: "acc-out".to_string(),
                 asset: None,
@@ -15573,6 +15604,7 @@ pub(crate) mod tests {
 
         activity_service
             .update_activity(crate::activities::ActivityUpdate {
+                split_review: None,
                 id: "transfer-out".to_string(),
                 account_id: "acc-out".to_string(),
                 asset: None,
@@ -16469,6 +16501,7 @@ pub(crate) mod tests {
                 // A grid save echoes the edited leg's date and notes, even
                 // when the deliberate changes are amount and approval only.
                 let mut update = ActivityUpdate {
+                    split_review: None,
                     id: primary.id.clone(),
                     account_id: primary.account_id.clone(),
                     asset: None,
@@ -16587,6 +16620,7 @@ pub(crate) mod tests {
                     let counterpart = repository.get_activity(counterpart_id).unwrap();
                     let before = stored_snapshot(&repository);
                     let preview = service.preview_activity_update(ActivityUpdate {
+                        split_review: None,
                         id: primary.id.clone(),
                         account_id: primary.account_id.clone(),
                         asset: None,
@@ -17004,6 +17038,7 @@ pub(crate) mod tests {
         let before = stored_snapshot(&activity_repository);
 
         let update = ActivityUpdate {
+            split_review: None,
             id: "pair-out".to_string(),
             account_id: "acc-a".to_string(),
             asset: None,

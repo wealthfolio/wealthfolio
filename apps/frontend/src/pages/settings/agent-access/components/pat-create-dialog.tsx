@@ -185,7 +185,11 @@ export function PatCreateDialog({
                   </div>
                 </div>
 
-                <ScopeSelector selectedScopes={selectedScopes} onToggle={toggleScope} onSelectPreset={(scopes) => setSelected(new Set(scopes))} />
+                <ScopeSelector
+                  selectedScopes={selectedScopes}
+                  onToggle={toggleScope}
+                  onSelectPreset={(scopes) => setSelected(new Set(scopes))}
+                />
               </div>
             </div>
 

@@ -8,6 +8,7 @@ import type {
   ActivityDetails,
   ActivitySearchResponse,
   ActivityUpdate,
+  ActivitySplitEffect,
   ActivityImport,
   ImportAssetCandidate,
   ImportAssetPreviewItem,
@@ -145,6 +146,11 @@ export const createActivity = async (activity: ActivityCreate): Promise<Activity
     throw err;
   }
 };
+
+export const reviewActivitySplitEffects = (
+  activity: ActivityUpdate,
+): Promise<ActivitySplitEffect[]> =>
+  invoke("review_activity_split_effects", { activity: serializeActivityMetadata(activity) });
 
 export const updateActivity = async (activity: ActivityUpdate): Promise<Activity> => {
   try {

@@ -1041,5 +1041,12 @@
     "overridesTitle_one": "Anpassung · {{count}}",
     "overridesTitle_other": "Anpassungen · {{count}}",
     "sourceMonth": "Quellmonat"
+  },
+  "splitEditReview": {
+    "title": "Entfernen der Aufteilungen prüfen",
+    "hiddenCategory": "Nach dem Entfernen wird eine vorhandene Kategorie wirksam.",
+    "confirm": "Speichern und Aufteilungen entfernen",
+    "removed_one": "Diese Änderung entfernt {{count}} Aufteilung.",
+    "removed_other": "Diese Änderung entfernt {{count}} Aufteilungen."
   }
 }

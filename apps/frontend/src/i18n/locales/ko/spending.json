@@ -1030,5 +1030,11 @@
     "addSource_other": "수입원 추가 (사용 가능 {{count}}개)",
     "overridesTitle_other": "재정의 · {{count}}개",
     "sourceMonth": "원본 월"
+  },
+  "splitEditReview": {
+    "title": "분할 삭제 검토",
+    "removed_other": "이 변경으로 분할 배분 {{count}}개가 삭제됩니다.",
+    "hiddenCategory": "분할을 삭제하면 기존 카테고리가 적용됩니다.",
+    "confirm": "저장하고 분할 삭제"
   }
 }

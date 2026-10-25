@@ -5,8 +5,15 @@ describe("Spending permission composition", () => {
   it("keeps organization and budgets independent", () => {
     expect(applyScopeDependencies(["spending:write"])).toEqual(["spending:read", "spending:write"]);
     expect(applyScopeDependencies(["budget:write"])).toEqual(["spending:read", "budget:write"]);
-    expect(applyScopeDependencies(["spending:write", "budget:write"])).toEqual(["spending:read", "spending:write", "budget:write"]);
-    expect(applyScopeDependencies(["classification:write"])).toEqual(["classification:suggest", "classification:write"]);
+    expect(applyScopeDependencies(["spending:write", "budget:write"])).toEqual([
+      "spending:read",
+      "spending:write",
+      "budget:write",
+    ]);
+    expect(applyScopeDependencies(["classification:write"])).toEqual([
+      "classification:suggest",
+      "classification:write",
+    ]);
   });
   it("does not interpret legacy read tokens as broader new presets", () => {
     const legacy = READ_SCOPES.filter((scope) => scope !== "spending:read");
@@ -16,7 +23,9 @@ describe("Spending permission composition", () => {
   });
   it("keeps every write grant explicit in presets", () => {
     for (const preset of SCOPE_PRESETS) {
-      expect(applyScopeDependencies(preset.scopes)).toEqual(applyScopeDependencies(new Set(preset.scopes)));
+      expect(applyScopeDependencies(preset.scopes)).toEqual(
+        applyScopeDependencies(new Set(preset.scopes)),
+      );
       if (!preset.key.startsWith("spending-")) {
         expect(preset.scopes).not.toContain("spending:write");
         expect(preset.scopes).not.toContain("budget:write");

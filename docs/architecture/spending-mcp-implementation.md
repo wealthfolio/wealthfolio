@@ -1,0 +1,229 @@
+# Spending MCP access
+
+This implements the access plan on top of merged #2251. Spending accounting
+remains owned by the native services. Transfer returns, net savings and savings
+budget targets are separate core decisions; this change does not resolve #2257
+or #1288.
+
+## Permissions and compatibility
+
+| Scope            | Label             | Allows                                                                                                           |
+| ---------------- | ----------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `spending:read`  | View spending     | Opted-in cash transactions, effective allocations, configuration, reports, insights, events and budget snapshots |
+| `spending:write` | Organize spending | Categories, assignments, splits, rules, presets, event definitions and tags                                      |
+| `budget:write`   | Manage budgets    | Default/monthly targets, buffers, groups, category-group mappings, copying, rollovers and group reset            |
+
+Both write scopes depend on `spending:read`; they are independent of each other.
+`classification:*` continues to mean asset classification. General activity
+reads and financial edits retain Activities permissions. Spending-only tokens
+cannot search investment activities or edit financial amounts. Enabling the
+module and enrolling accounts remain native setup actions.
+
+Persisted tokens retain their exact grant arrays and credentials. Existing
+integrations need explicit Spending grants; the settings UI can edit permissions
+without replacing a credential. Authentication checks grants on every request,
+including an existing MCP session. Clients caching tool lists may need to
+refresh or reconnect. Expired credentials remain expired.
+
+New all-domain read-only tokens visibly include Spending reads. Spending view,
+organization and budget presets are separate. No preset silently adds either
+Spending write to an existing token.
+
+## Tools and workflows
+
+All discovery/preparation tools below require `spending:read`. Their commits
+require `spending:write` as well, except budget commits, which require
+`budget:write` instead.
+
+- Context and transactions: `get_spending_context`,
+  `search_spending_transactions`. Effective account enrollment, availability,
+  exclusions, timezone and currency are explicit. Search is bounded/paginated,
+  uses native transaction units, and returns canonical effective allocations,
+  raw split lines and a hidden-single-assignment diagnostic.
+- Calculations: `get_spending_report`, `get_spending_insight`, `get_budget`,
+  `get_event_spending_summaries`. They call the composed native services
+  directly. There is no MCP calculator or HTTP loopback.
+- Categories: `list_transaction_categories`, `prepare_transaction_category`,
+  `commit_transaction_category`, `prepare_transaction_category_change`,
+  `commit_transaction_category_change`. Only the three built-in activity
+  taxonomies are reachable. Changes preserve identity and validate keys,
+  same-taxonomy parents, cycles and deletion references.
+- Categorization: existing context/proposal/assignment tools now use Spending
+  grants. Compatible rule/history/AI suggestions stay within each transaction's
+  native cashflow taxonomy. Manual commits retain all-or-nothing semantics.
+- Rules: `list_categorization_rules`, existing reviewed rule creation,
+  `prepare_categorization_rule_change`, `commit_categorization_rule_change`,
+  `preview_categorization_rules`, `rerun_categorization_rules`.
+- Presets: `list_categorization_presets`, `prepare_categorization_preset`,
+  `commit_categorization_preset`. Import upgrades native unmodified rules and
+  preserves edits/deletion tracking; removal retains edited rules. Saving or
+  importing a rule never implicitly reruns history.
+- Allocations: `prepare_spending_splits`, `commit_spending_splits`,
+  `prepare_spending_allocation_clear`, `commit_spending_allocation_clear`.
+  Proposals show replaced state, exact decimal lines, total/remaining and
+  receipt interpretation notes. They reuse native validation. No OCR/upload
+  subsystem.
+- Events: `list_spending_events`, `prepare_spending_event`,
+  `commit_spending_event`, `prepare_spending_event_tag`,
+  `commit_spending_event_tag`. Discovery includes event types. Tags can refer to
+  purchases outside event dates as native behavior allows. Reviewed deletion
+  discloses affected tag count.
+- Budgets: `prepare_budget_change`, `commit_budget_change` support one explicit
+  native operation at a time: set/remove target or buffer, copy targets with
+  overwrite choice, create/edit/reorder/delete groups with reassignment,
+  category-group assignment, set/remove rollover, and reset group defaults.
+  Snapshot configuration is checked again in the existing writer transaction.
+- Import metadata: `prepare_spending_import_metadata` resolves
+  taxonomy-qualified category/subcategory keys and event names/IDs against saved
+  financial rows. Unknown/ambiguous inputs require review; no implicit
+  category/event creation. Use the returned eligible assignment batch and
+  separate reviewed event changes with their existing commits. A row with an
+  unresolved mapping is not silently half-applied. Financial import returns
+  actual saved IDs by original source index, including deduplicated existing
+  rows. Retry metadata against those IDs; never reimport successful financial
+  rows to retry categorization.
+
+General `search_activities` also exposes `query` for existing notes/ticker/name
+matching, retaining `symbol` as a compatibility alias. Use one argument.
+
+## Split safety and financial edits
+
+The shared native/SQLite category writer protects split rows. Ordinary manual
+batches containing a protected split row fail atomically; previews identify
+protected rows so a caller can explicitly submit the eligible subset. Replacing
+splits with one category requires explicit replacement intent and the exact
+current split snapshot. Clearing and assignment insertion use one existing
+transaction/outbox path. Automatic rule reruns preserve manual assignments and
+splits inside that transaction, skip unchanged allocations, and report matched,
+eligible, changed, protected, existing, incompatible and no-target counts. Rerun
+preview is advisory; execution re-evaluates current state.
+
+Legacy rows containing both splits and a single assignment retain native
+splits-win behavior. No repair migration rewrites historical data. Category
+reference checks include split references; only untouched automatic budget-group
+links are removable during a valid category deletion. User-edited seeded links,
+children, rules, assignments, targets, rollovers and other configuration remain
+blockers. Default-group reset does not recreate a deleted category.
+
+The financial writer's split invalidation policy remains unchanged. Native
+financial edit forms/grid and MCP updates now preview removed-split counts and
+whether a hidden existing category becomes effective. A transient fingerprint
+binds current transaction/allocation state and the split-relevant proposed
+fields. Both single and bulk writers reject stale reviews atomically. The
+fingerprint discloses no category names or amounts, so this review needs no
+extra Spending grant. Native confirmation is shared through a profile-scoped,
+in-memory dialog; cancellation/profile unmount performs no mutation.
+
+Non-interactive broker/import/sync callers omit this review field and retain
+their existing atomic invalidation behavior. There is no confirmation gate,
+version table, migration, new lock, worker, retry queue or persisted draft.
+
+## Calculation semantics
+
+Default budget targets apply to **every** month without an explicit monthly
+override, including past months. Editing defaults can change historical rollover
+results. Removing a monthly override restores the current default, or zero when
+none exists. Both changes use the same budget permission.
+
+Agent/addon budget snapshots are pure reads. Missing system groups are resolved
+in memory using stable native IDs/default definitions. Insight shares that
+resolver; this deliberately fixes missing-system-group grouping while keeping
+unaffected financial totals unchanged. Native `get_budget` still seeds defaults
+at its existing point in the lifecycle.
+
+Reports use snapshot-date FX at each report window end; transaction lists keep
+native units unless the native surface explicitly converts them. Native totals
+still omit unavailable conversions rather than mixing units. Additive
+`calculationQuality` reports `missingFxTransactions` and sorted
+`missingFxCurrencies`, counted from the existing conversion attempts. Insight
+includes separate current/prior coverage. Budget coverage includes historical
+months needed for rollover. Zero missing FX is not a claim about source-data
+completeness or accounting correctness. No additional FX/provider request is
+introduced to collect these counts.
+
+## Addons
+
+MCP scopes and addon grants are distinct. Exact per-function guards remain in
+force; previously installed grants do not expand.
+
+| Addon functions                                         | Permission category |
+| ------------------------------------------------------- | ------------------- |
+| `getContext`, `getBudget`, `getEvents`, `getEventTypes` | medium `spending`   |
+| `assignCategory`, `unassignCategory`, `setEvent`        | high `activities`   |
+| `upsertBudgetTarget`                                    | high `budgets`      |
+
+The bridge and iframe allowlist call existing native adapters. Category writes
+keep native manual provenance and split protections. Budget target writes use
+explicit period keys. Both runtimes expose the pure budget snapshot/context
+commands; existing native calls retain their behavior.
+
+## Architecture impact
+
+Changes are in the owning Spending/core services and existing SQLite writer,
+transactions, outbox, events, per-request PAT authorization and tool catalog.
+Both Tauri and Axum compose the same services; frontend commands are wired
+through shared adapters and each runtime registration/map/route.
+
+Observable changes: explicit category-versus-split protection; eligible-only
+rule reruns and accurate counts; safe category deletion; missing-default Insight
+group resolution; reviewed financial-edit consequences; additive pure APIs and
+calculation coverage. Financial import now returns persisted row identities
+without changing UUID generation, deduplication or sync identity. Saved
+assistant category/rule cards unwrap persisted result envelopes and retain
+applied state.
+
+Provider settings, network resolution policy, synchronous/background ownership,
+SQLite/local-first storage, secrets, financial accounting and non-interactive
+financial invalidation stay unchanged. Mutation errors propagate; no automatic
+retry is added. Audit summaries omit drafts, notes, patterns, receipts, names
+and amounts for the new Spending workflows. MCP authorization permits a
+mutation; it cannot prove a human reviewed a preview. Clients must present the
+review.
+
+## Related reports and limits
+
+| Reports               | Coverage                                                                                                                                                                                                   |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| #2288 / #1259         | Shared split protection, compatible proposals, explicit replacement/clear, exact split workflow, protected rule reruns                                                                                     |
+| #1987 / #2040 / #2213 | Category discovery/create/edit/delete, atomic validation and reference protection                                                                                                                          |
+| #2247                 | Existing credential permission editing, adapted to independent Spending grants                                                                                                                             |
+| #1749 / #2269         | Addon effective scope/budgets/events and explicitly granted metadata/target writes                                                                                                                         |
+| #2042                 | Discoverable text-query alias                                                                                                                                                                              |
+| #2201                 | Applied/reopened category and rule cards; regression fails before the fix                                                                                                                                  |
+| #1272 / #1411         | MCP import mapping and recoverable metadata stage; broader native CSV UI requests remain open                                                                                                              |
+| #1615                 | Investigated run/message IDs, request-local Tauri channel/web stream and reasoning parser. No reproduction of Ollama gemma4:26b interleaving; **fix not verified**. No speculative provider/stream rewrite |
+| #2257 / #1288         | Separate core accounting and savings-target decisions; not fixed or gated by MCP access                                                                                                                    |
+| #1692                 | Future recurring-commitment model; separate domain extension                                                                                                                                               |
+
+## Validation status
+
+Completed before implementation cross-review:
+
+- Rust unit suites: core 2,009; Spending 180; SQLite 476; agent tools 148.
+- SQLite category-reference/restart tests 6; two-device sync replay tests 15.
+- Server MCP/auth/native-service integration tests 32; MCP crate tests 15.
+- AI output parity 51 plus schema snapshots 20; the existing live Ollama test
+  remains ignored because it requires Ollama and `WF_TEST_OLLAMA_MODEL`.
+- Frontend 495 tests across 56 affected feature/adapter/addon suites with four
+  workers; `pnpm check`; all 11 locales/20 namespaces; web and Tauri frontend
+  builds. An unchanged MCP setup-card test failed in the initial unconstrained
+  parallel run, then passed isolated and in the complete bounded-worker rerun.
+- Permission-edit browser tests in desktop LTR/mobile RTL, and financial-edit
+  split-review/cancel/apply browser tests in desktop LTR/mobile RTL. Synthetic
+  data and separate test ports/profile; the user's running app was untouched.
+- Addon sandbox: 10 Chromium/WebKit tests passed. Five Firefox cases could not
+  launch the bundled browser: macOS sandbox extension errors, SWGL framebuffer
+  failure and launch timeout. Firefox remains unverified in this environment; no
+  browser security setting or project configuration was changed to bypass it.
+- `cargo fmt --all -- --check`; Clippy for all affected crates and both runtime
+  packages with all targets/features and warnings denied; ordinary `cargo check`
+  for `wealthfolio-app` and `wealthfolio-server`; final whitespace/diff review.
+
+Regression evidence includes fail-before/pass-after split protection, category
+reference deletion and persisted assistant-card tests. Review scope does not
+include mobile SDK builds or a live Ollama reproduction. Cross-review findings
+and final revision are recorded after review.
+
+Do not treat the report-coverage table as a claim that every original issue is
+fully reproduced or closed. No production data migration or issue auto-closure
+is part of this change.

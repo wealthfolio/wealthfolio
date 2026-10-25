@@ -340,7 +340,15 @@ export interface ActivityCreate {
 /**
  * Payload for updating an EXISTING activity.
  */
+export interface ActivitySplitEffect {
+  activityId: string;
+  removedSplits: number;
+  existingCategoryBecomesEffective: boolean;
+  fingerprint: string;
+}
+
 export interface ActivityUpdate {
+  splitReview?: ActivitySplitEffect[];
   id: string;
   accountId: string;
   activityType: string;

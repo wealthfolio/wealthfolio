@@ -1030,5 +1030,11 @@
     "addSource_other": "収入源を追加({{count}}件利用可能)",
     "overridesTitle_other": "個別設定 · {{count}}",
     "sourceMonth": "コピー元の月"
+  },
+  "splitEditReview": {
+    "title": "分割の削除を確認",
+    "hiddenCategory": "分割の削除後、既存のカテゴリが適用されます。",
+    "confirm": "保存して分割を削除",
+    "removed_other": "この変更により {{count}} 件の分割が削除されます。"
   }
 }

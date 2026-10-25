@@ -1,3 +1,4 @@
+import { isActivityEditCancelled, useActivitySplitReview } from "./activity-split-review-provider";
 import { useEffect, useMemo, useState } from "react";
 import { useForm, type Resolver } from "react-hook-form";
 import { useTranslation } from "react-i18next";
@@ -184,6 +185,7 @@ export function CashActivityForm({
   onTransferClick,
 }: CashActivityFormProps) {
   const { t } = useTranslation();
+  const reviewEdits = useActivitySplitReview();
   const formSchema = useMemo(() => buildFormSchema(t), [t]);
   const isEditing = !!activity?.id;
   const isMobile = useIsMobileViewport();
@@ -376,7 +378,8 @@ export function CashActivityForm({
           comment: values.notes ?? null,
           metadata: cashActivityFlowMetadata(values.activityType, subtype, activity?.metadata),
         };
-        saved = await updateActivity(update);
+        const [reviewed] = await reviewEdits([update]);
+        saved = await updateActivity(reviewed);
       } else {
         const create: ActivityCreate = {
           accountId: values.accountId,
@@ -427,6 +430,7 @@ export function CashActivityForm({
       onOpenChange(false);
     },
     onError: (e: unknown) => {
+      if (isActivityEditCancelled(e)) return;
       toast.error(t("spending:cashForm.saveFailed", { message: (e as Error).message ?? e }));
     },
   });

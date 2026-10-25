@@ -278,7 +278,7 @@ impl BudgetService {
         let top_income_categories = top_level_categories(&income_categories);
 
         let is_month_view = period_key != DEFAULT_PERIOD_KEY;
-        let actuals_by_month = if is_month_view {
+        let (actuals_by_month, calculation_quality) = if is_month_view {
             let earliest_rollover_month = rollover_settings
                 .iter()
                 .filter(|s| s.enabled && s.start_month <= period_key)
@@ -295,7 +295,7 @@ impl BudgetService {
             )
             .await?
         } else {
-            HashMap::new()
+            (HashMap::new(), Default::default())
         };
         let current_actuals = actuals_by_month
             .get(&period_key)
@@ -571,6 +571,7 @@ impl BudgetService {
                 rollover_settings,
             },
             computed: BudgetSnapshotComputed {
+                calculation_quality,
                 currency: currency.to_string(),
                 period_key,
                 fx_as_of,
@@ -813,6 +814,242 @@ impl BudgetService {
             .await
     }
 
+    /// Prepare against the same pure snapshot exposed by get_budget. This is
+    /// transient evidence; no draft row, seeding, event or outbox write occurs.
+    pub async fn prepare_change(
+        &self,
+        mut operation: super::model::BudgetOperation,
+        period_key: Option<String>,
+        currency: &str,
+        timezone: &str,
+    ) -> Result<super::model::BudgetReview> {
+        let snapshot = self.get_readonly(period_key, currency, timezone).await?;
+        if snapshot.state.groups.is_empty() {
+            return Err(invalid_budget_input(
+                "Enable Spending before editing budgets",
+            ));
+        }
+        if let super::model::BudgetOperation::CreateGroup { group } = &mut operation {
+            group.id = Some(
+                group
+                    .id
+                    .take()
+                    .unwrap_or_else(|| Uuid::new_v4().to_string()),
+            );
+            group.key = Some(format!(
+                "custom_{}",
+                group.id.as_deref().expect("assigned id")
+            ));
+            group.is_system = false;
+        }
+        self.validate_operation(&operation, &snapshot.state).await?;
+        Ok(super::model::BudgetReview {
+            expected: snapshot.state,
+            operation,
+            period_key: snapshot.computed.period_key,
+            currency: currency.into(),
+        })
+    }
+
+    pub async fn commit_change(
+        &self,
+        review: super::model::BudgetReview,
+        currency: &str,
+        timezone: &str,
+    ) -> Result<BudgetSnapshot> {
+        if review.currency != currency {
+            return Err(invalid_budget_input("Budget currency changed since review"));
+        }
+        validate_period_key(&review.period_key)?;
+        if !self.spending_settings.get().await?.enabled {
+            return Err(invalid_budget_input("Spending is disabled"));
+        }
+        self.validate_operation(&review.operation, &review.expected)
+            .await?;
+        self.repo
+            .apply_reviewed(review.expected, review.operation)
+            .await?;
+        self.get_readonly(Some(review.period_key), currency, timezone)
+            .await
+    }
+
+    async fn validate_operation(
+        &self,
+        operation: &super::model::BudgetOperation,
+        state: &BudgetSnapshotState,
+    ) -> Result<()> {
+        use super::model::BudgetOperation::*;
+        let has_group = |id: &str| state.groups.iter().any(|g| g.id == id);
+        let category = |taxonomy: &str, id: &str| -> Result<()> {
+            if ![SPENDING_TAXONOMY, INCOME_TAXONOMY].contains(&taxonomy) {
+                return Err(invalid_budget_input(
+                    "Budget targets currently support expense and income categories",
+                ));
+            }
+            if !self
+                .taxonomy_categories(taxonomy)?
+                .iter()
+                .any(|c| c.id == id && c.parent_id.is_none())
+            {
+                return Err(invalid_budget_input(
+                    "Select a top-level category in the target taxonomy",
+                ));
+            }
+            Ok(())
+        };
+        match operation {
+            SetTarget { target } => {
+                validate_period_key(&target.period_key)?;
+                validate_budget_target(target)?;
+                if target
+                    .amount
+                    .parse::<Decimal>()
+                    .map_or(true, |n| n < Decimal::ZERO)
+                {
+                    return Err(invalid_budget_input(
+                        "Target amount must be a nonnegative decimal",
+                    ));
+                }
+                match target.target_type {
+                    BudgetTargetType::Category => category(
+                        target.taxonomy_id.as_deref().unwrap_or(""),
+                        target.category_id.as_deref().unwrap_or(""),
+                    )?,
+                    BudgetTargetType::GroupBuffer => {
+                        if !has_group(target.group_id.as_deref().unwrap_or("")) {
+                            return Err(invalid_budget_input("Budget group not found"));
+                        }
+                    }
+                }
+            }
+            RemoveTarget { id } => {
+                if !state.targets.iter().any(|t| t.id == *id) {
+                    return Err(invalid_budget_input("Budget target not found"));
+                }
+            }
+            CopyTargets {
+                source_period_key,
+                target_period_key,
+                ..
+            } => {
+                validate_period_key(source_period_key)?;
+                validate_month_key(target_period_key)?;
+                if source_period_key == target_period_key {
+                    return Err(invalid_budget_input("Source and destination must differ"));
+                }
+            }
+            CreateGroup { group } => {
+                if group.is_system
+                    || group
+                        .id
+                        .as_deref()
+                        .is_none_or(|id| uuid::Uuid::parse_str(id).is_err())
+                    || group.name.trim().is_empty()
+                    || state
+                        .groups
+                        .iter()
+                        .any(|g| Some(g.id.as_str()) == group.id.as_deref())
+                {
+                    return Err(invalid_budget_input(
+                        "Provide a new custom group with a nonempty name",
+                    ));
+                }
+            }
+            UpdateGroup { id, changes } => {
+                if !has_group(id) || changes.name.as_ref().is_some_and(|n| n.trim().is_empty()) {
+                    return Err(invalid_budget_input(
+                        "Provide an existing group and a nonempty name",
+                    ));
+                }
+            }
+            DeleteGroup {
+                id,
+                reassign_to_group_id,
+            } => {
+                if !state.groups.iter().any(|g| g.id == *id && !g.is_system)
+                    || id == reassign_to_group_id
+                    || !has_group(reassign_to_group_id)
+                {
+                    return Err(invalid_budget_input(
+                        "Only custom groups can be deleted; select a different destination group",
+                    ));
+                }
+                if state
+                    .rollover_settings
+                    .iter()
+                    .any(|r| r.group_id.as_deref() == Some(id.as_str()))
+                {
+                    return Err(invalid_budget_input(
+                        "Remove the group's rollover setting before deleting it",
+                    ));
+                }
+            }
+            AssignCategory {
+                category_id,
+                group_id,
+            } => {
+                category(SPENDING_TAXONOMY, category_id)?;
+                if !has_group(group_id) {
+                    return Err(invalid_budget_input("Budget group not found"));
+                }
+            }
+            SetRollover { setting } => {
+                validate_month_key(&setting.start_month)?;
+                validate_rollover_setting(setting)?;
+                match setting.target_type {
+                    BudgetRolloverTargetType::Category => {
+                        category(
+                            SPENDING_TAXONOMY,
+                            setting.category_id.as_deref().unwrap_or(""),
+                        )?;
+                        if setting.enabled {
+                            let group_id = state
+                                .group_assignments
+                                .iter()
+                                .find(|a| {
+                                    a.taxonomy_id == SPENDING_TAXONOMY
+                                        && a.category_id
+                                            == setting.category_id.as_deref().unwrap_or("")
+                                })
+                                .map(|a| a.group_id.clone())
+                                .or_else(|| {
+                                    state
+                                        .groups
+                                        .iter()
+                                        .find(|g| g.key == OTHER_GROUP_KEY)
+                                        .map(|g| g.id.clone())
+                                })
+                                .ok_or_else(|| {
+                                    invalid_budget_input("Missing Other budget group")
+                                })?;
+                            if state.rollover_settings.iter().any(|r| {
+                                r.enabled
+                                    && matches!(r.target_type, BudgetRolloverTargetType::Group)
+                                    && r.group_id.as_deref() == Some(group_id.as_str())
+                            }) {
+                                return Err(invalid_budget_input(
+                                    "Disable group rollover before enabling category rollover",
+                                ));
+                            }
+                        }
+                    }
+                    BudgetRolloverTargetType::Group => {
+                        if !has_group(setting.group_id.as_deref().unwrap_or("")) {
+                            return Err(invalid_budget_input("Budget group not found"));
+                        }
+                    }
+                }
+            }
+            RemoveRollover { id } => {
+                if !state.rollover_settings.iter().any(|r| r.id == *id) {
+                    return Err(invalid_budget_input("Rollover setting not found"));
+                }
+            }
+            ResetGroups => (),
+        }
+        Ok(())
+    }
+
     async fn ensure_system_groups(&self) -> Result<()> {
         let existing_keys: HashSet<String> = self
             .repo
@@ -910,10 +1147,10 @@ impl BudgetService {
         income_meta: &HashMap<String, Category>,
         currency: &str,
         timezone: &str,
-    ) -> Result<HashMap<String, MonthActuals>> {
+    ) -> Result<(HashMap<String, MonthActuals>, crate::CalculationQuality)> {
         let settings = self.spending_settings.get().await?;
         if !settings.enabled || settings.account_ids.is_empty() {
-            return Ok(HashMap::new());
+            return Ok((HashMap::new(), Default::default()));
         }
         let accounts = self
             .account_repo
@@ -925,7 +1162,7 @@ impl BudgetService {
             .map(|a| (a.id, a.account_type))
             .collect();
         if account_types.is_empty() {
-            return Ok(HashMap::new());
+            return Ok((HashMap::new(), Default::default()));
         }
         let account_ids = account_types.keys().cloned().collect::<Vec<_>>();
         let (start, _) = local_month_bounds_utc(start_period, timezone)?;
@@ -954,6 +1191,7 @@ impl BudgetService {
         // filter in `get`, the snapshot rows); income actuals never filter.
         let exclusions = ExclusionIndex::new(&settings.excluded_category_ids, spending_meta);
         let no_exclusions = ExclusionIndex::empty();
+        let mut calculation_quality = crate::CalculationQuality::default();
         let mut actuals: HashMap<String, MonthActuals> = HashMap::new();
         for activity in activities {
             let Some(account_type) = account_types.get(&activity.account_id) else {
@@ -971,7 +1209,7 @@ impl BudgetService {
             // mirroring insight::compute_by_month.
             let month = period_key_for_date_in_tz(activity.activity_date, timezone);
             let month_actuals = actuals.entry(month).or_default();
-            add_allocated_actuals(
+            let spending_missing = add_allocated_actuals(
                 month_actuals,
                 &activity.id,
                 SPENDING_TAXONOMY,
@@ -985,7 +1223,7 @@ impl BudgetService {
                 currency,
                 fx_as_of,
             );
-            add_allocated_actuals(
+            let income_missing = add_allocated_actuals(
                 month_actuals,
                 &activity.id,
                 INCOME_TAXONOMY,
@@ -999,8 +1237,11 @@ impl BudgetService {
                 currency,
                 fx_as_of,
             );
+            if spending_missing || income_missing {
+                calculation_quality.record_missing(&activity.currency);
+            }
         }
-        Ok(actuals)
+        Ok((actuals, calculation_quality))
     }
 }
 
@@ -1018,7 +1259,7 @@ fn add_allocated_actuals(
     from_currency: &str,
     target_currency: &str,
     fx_as_of: NaiveDate,
-) {
+) -> bool {
     // Filter before the top_category_id rollup — an excluded subcategory must
     // not roll its spend into an included parent.
     let (allocations, _excluded_native) = split_spending_allocations(
@@ -1029,6 +1270,7 @@ fn add_allocated_actuals(
         splits_by_activity,
         exclusions,
     );
+    let mut missing = false;
     for allocation in allocations {
         let amount = crate::fx::convert(
             fx,
@@ -1036,8 +1278,9 @@ fn add_allocated_actuals(
             from_currency,
             target_currency,
             fx_as_of,
-        )
-        .unwrap_or(Decimal::ZERO);
+        );
+        missing |= amount.is_none();
+        let amount = amount.unwrap_or(Decimal::ZERO);
         if amount == Decimal::ZERO {
             continue;
         }
@@ -1046,6 +1289,7 @@ fn add_allocated_actuals(
             .entry((taxonomy_id.to_string(), top_id))
             .or_insert(Decimal::ZERO) += amount;
     }
+    missing
 }
 
 pub(crate) struct TargetIndex<'a> {
@@ -1185,7 +1429,7 @@ fn compute_rollover_for_month(
 /// One pure default resolution for Budget and Insight. Persisted user edits and
 /// custom groups remain authoritative; synthesize only absent system keys.
 /// Epoch timestamps identify definitions without pretending a read persisted them.
-pub(crate) fn effective_groups(mut groups: Vec<BudgetGroup>) -> Vec<BudgetGroup> {
+pub fn effective_groups(mut groups: Vec<BudgetGroup>) -> Vec<BudgetGroup> {
     for default in DEFAULT_GROUPS {
         if groups
             .iter()
@@ -1208,7 +1452,7 @@ pub(crate) fn effective_groups(mut groups: Vec<BudgetGroup>) -> Vec<BudgetGroup>
     groups
 }
 
-fn default_group_inputs() -> Vec<NewBudgetGroup> {
+pub fn default_group_inputs() -> Vec<NewBudgetGroup> {
     DEFAULT_GROUPS
         .iter()
         .map(|g| NewBudgetGroup {
@@ -1223,7 +1467,7 @@ fn default_group_inputs() -> Vec<NewBudgetGroup> {
         .collect()
 }
 
-fn default_assignment_inputs(
+pub fn default_assignment_inputs(
     group_by_key: &HashMap<String, String>,
 ) -> Vec<NewBudgetGroupAssignment> {
     DEFAULT_ASSIGNMENTS
@@ -1504,6 +1748,17 @@ fn parse_month(period_key: &str) -> Result<(i32, u32)> {
         .parse()
         .map_err(|_| invalid_budget_input("Invalid budget period key"))?;
     Ok((year, month))
+}
+
+/// Canonical transient review state, including the same synthesized defaults as
+/// pure reads. Sorting avoids conflicts caused only by repository row order.
+pub fn canonical_review_state(mut state: BudgetSnapshotState) -> BudgetSnapshotState {
+    state.groups = effective_groups(state.groups);
+    state.groups.sort_by(|a, b| a.id.cmp(&b.id));
+    state.group_assignments.sort_by(|a, b| a.id.cmp(&b.id));
+    state.targets.sort_by(|a, b| a.id.cmp(&b.id));
+    state.rollover_settings.sort_by(|a, b| a.id.cmp(&b.id));
+    state
 }
 
 #[cfg(test)]

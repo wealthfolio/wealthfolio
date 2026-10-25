@@ -2041,6 +2041,7 @@ impl ActivityService {
         };
         let mut updates = vec![
             ActivityUpdate {
+                split_review: None,
                 id: pair.transfer_out.id.clone(),
                 account_id: request.from_account_id.clone(),
                 asset: None,
@@ -2064,6 +2065,7 @@ impl ActivityService {
                 metadata: metadata.clone(),
             },
             ActivityUpdate {
+                split_review: None,
                 id: pair.transfer_in.id.clone(),
                 account_id: request.to_account_id.clone(),
                 asset: None,
@@ -2162,6 +2164,7 @@ impl ActivityService {
         });
 
         let mut counterpart_update = ActivityUpdate {
+            split_review: update.split_review.clone(),
             id: counterpart.id.clone(),
             account_id: counterpart.account_id.clone(),
             asset: Self::activity_asset_input(counterpart),
@@ -5363,6 +5366,28 @@ impl ActivityServiceTrait for ActivityService {
         Ok(ActivityUpdatePreview { activity, linked })
     }
 
+    fn review_activity_split_effects(
+        &self,
+        mut activity: ActivityUpdate,
+    ) -> Result<Vec<ActivitySplitEffect>> {
+        // Split invalidation does not depend on resolving a replacement symbol.
+        // Use the stored identity for this pure preview; actual asset resolution
+        // remains in the existing native update path.
+        let existing = self.activity_repository.get_activity(&activity.id)?;
+        activity.asset = Self::activity_asset_input(&existing);
+        let preview = self.preview_activity_update(activity)?;
+        let mut effects = vec![self
+            .activity_repository
+            .preview_split_effect(&preview.activity.update)?];
+        if let Some(linked) = preview.linked {
+            effects.push(
+                self.activity_repository
+                    .preview_split_effect(&linked.update)?,
+            );
+        }
+        Ok(effects)
+    }
+
     /// Deletes an activity
     async fn delete_activity(&self, activity_id: String) -> Result<Activity> {
         if let Some(pair) = self.load_internal_transfer_pair_for_activity(&activity_id)? {
@@ -6242,6 +6267,7 @@ impl ActivityServiceTrait for ActivityService {
 
         if valid.is_empty() {
             return Ok(ImportActivitiesResult {
+                persisted_rows: Vec::new(),
                 activities: ordered.into_iter().flatten().collect(),
                 import_run_id: String::new(),
                 summary: ImportActivitiesSummary {
@@ -6394,6 +6420,7 @@ impl ActivityServiceTrait for ActivityService {
                 ordered[idx] = Some(activity);
             }
             return Ok(ImportActivitiesResult {
+                persisted_rows: Vec::new(),
                 activities: ordered.into_iter().flatten().collect(),
                 import_run_id: String::new(),
                 summary: ImportActivitiesSummary {
@@ -6660,15 +6687,19 @@ impl ActivityServiceTrait for ActivityService {
             .collect();
 
         // ── 9. Insert all non-duplicate activities in one transaction ────────
-        let inserted_count = if insertable_new_activities.is_empty() {
-            0
+        let persisted_sources = insertable_sources
+            .iter()
+            .map(|(index, _)| *index)
+            .collect::<Vec<_>>();
+        let persisted = if insertable_new_activities.is_empty() {
+            Vec::new()
         } else {
             match self
                 .activity_repository
-                .create_activities(insertable_new_activities)
+                .create_activities_returning(insertable_new_activities)
                 .await
             {
-                Ok(n) => n as u32,
+                Ok(rows) => rows,
                 Err(e) => {
                     if let Some(ref repo) = self.import_run_repository {
                         let mut failed_run = import_run.clone();
@@ -6681,6 +6712,16 @@ impl ActivityServiceTrait for ActivityService {
                 }
             }
         };
+
+        let inserted_count = persisted.len() as u32;
+        let persisted_rows = persisted_sources
+            .into_iter()
+            .zip(persisted)
+            .map(|(index, row)| crate::activities::ImportedActivityIdentity {
+                index,
+                activity_id: row.id,
+            })
+            .collect();
 
         // ── 10. Finalize ImportRun ────────────────────────────────────────────
         if let Some(ref repo) = self.import_run_repository {
@@ -6712,6 +6753,7 @@ impl ActivityServiceTrait for ActivityService {
         }
 
         Ok(ImportActivitiesResult {
+            persisted_rows,
             activities: ordered.into_iter().flatten().collect(),
             import_run_id,
             summary: ImportActivitiesSummary {

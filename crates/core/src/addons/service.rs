@@ -254,7 +254,12 @@ pub fn detect_addon_permissions(addon_files: &[AddonFile]) -> Vec<AddonPermissio
         (
             "activities",
             "spending",
-            vec!["searchCashActivities"],
+            vec![
+                "searchCashActivities",
+                "assignCategory",
+                "unassignCategory",
+                "setEvent",
+            ],
             "Access to categorized spending transactions",
         ),
         (
@@ -329,6 +334,10 @@ pub fn detect_addon_permissions(addon_files: &[AddonFile]) -> Vec<AddonPermissio
             vec![
                 "isEnabled",
                 "getCategories",
+                "getContext",
+                "getBudget",
+                "getEvents",
+                "getEventTypes",
                 "getReport",
                 "getRules",
                 "saveRule",
@@ -336,6 +345,12 @@ pub fn detect_addon_permissions(addon_files: &[AddonFile]) -> Vec<AddonPermissio
                 "rerunRules",
             ],
             "Access to spending reports, categories, and categorization rules",
+        ),
+        (
+            "budgets",
+            "spending",
+            vec!["upsertBudgetTarget"],
+            "Change default and monthly budget targets",
         ),
         (
             "settings",

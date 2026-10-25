@@ -435,11 +435,23 @@ impl AgentTool for PrepareActivityImport {
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CommitActivityImportOutput {
+    /// Confirmed saved IDs (or existing duplicate IDs), for metadata-only follow-up.
+    pub financial_rows: Vec<ImportFinancialRowStatus>,
     pub import_run_id: String,
     pub summary: ImportActivitiesSummary,
     /// Rows that failed validation/import (with their errors).
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub failed: Vec<ImportRowResult>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImportFinancialRowStatus {
+    pub index: usize,
+    pub line_number: Option<i32>,
+    pub financial_status: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub activity_id: Option<String>,
 }
 
 /// Import mapped rows through the real pipeline (dedup-safe, one import run).
@@ -452,7 +464,7 @@ impl AgentTool for CommitActivityImport {
     }
 
     fn description(&self) -> &'static str {
-        "Import a batch of mapped activity rows through Wealthfolio's import pipeline as one import run. Include the reviewed identity fields returned by prepare_activity_import to preserve the selected assets; bare symbols are resolved again. Duplicates are skipped unless a row sets forceImport=true. Nothing is imported if any row fails validation; fix or remove the failed rows and retry. A row that passes validation but fails while being written is skipped and listed in failed, with success false; the other rows are still imported. This MUTATES data — only call after previewing with prepare_activity_import and confirming with the user. Returns the import run id, a summary (imported/skipped/duplicates/assets created), and any failed rows."
+        "Import a batch of mapped activity rows through Wealthfolio's import pipeline as one import run. Include the reviewed identity fields returned by prepare_activity_import to preserve the selected assets; bare symbols are resolved again. Duplicates are skipped unless a row sets forceImport=true. Nothing is imported if any row fails validation; fix or remove the failed rows and retry. A row that passes validation but fails while being written is skipped and listed in failed, with success false; the other rows are still imported. This MUTATES data — only call after previewing with prepare_activity_import and confirming with the user. Returns the import run id, financialRows with saved/existing IDs and per-row financial status, a summary, and failed rows. For Spending category/event columns, use prepare_spending_import_metadata against those saved IDs, review, then commit only metadata. A metadata failure must never trigger reimporting successful financial rows."
     }
 
     fn input_schema(&self) -> serde_json::Value {
@@ -511,6 +523,7 @@ impl AgentTool for CommitActivityImport {
             .collect();
         if !failed.is_empty() {
             let output = CommitActivityImportOutput {
+                financial_rows: Vec::new(),
                 import_run_id: String::new(),
                 summary: ImportActivitiesSummary {
                     total: checked.len() as u32,
@@ -556,7 +569,40 @@ impl AgentTool for CommitActivityImport {
                 "Some activities failed while being written; see failed.".to_string()
             });
         }
+        let financial_rows = result
+            .activities
+            .iter()
+            .enumerate()
+            .map(|(index, row)| {
+                let duplicate = is_duplicate(row) && !row.force_import;
+                let status = if is_rejected(row) {
+                    "failed"
+                } else if duplicate {
+                    "duplicate_skipped"
+                } else {
+                    "imported"
+                };
+                let id = if status == "imported" {
+                    result
+                        .persisted_rows
+                        .iter()
+                        .find(|saved| saved.index == index)
+                        .map(|saved| saved.activity_id.clone())
+                } else if duplicate {
+                    row.duplicate_of_id.clone()
+                } else {
+                    None
+                };
+                ImportFinancialRowStatus {
+                    index,
+                    line_number: row.line_number,
+                    financial_status: status,
+                    activity_id: id,
+                }
+            })
+            .collect();
         let output = CommitActivityImportOutput {
+            financial_rows,
             import_run_id: result.import_run_id,
             summary,
             failed,

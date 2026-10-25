@@ -1030,5 +1030,11 @@
     "addSource_other": "添加来源（{{count}} 个可用）",
     "overridesTitle_other": "覆盖设置 · {{count}}",
     "sourceMonth": "源月份"
+  },
+  "splitEditReview": {
+    "title": "确认删除拆分",
+    "hiddenCategory": "删除拆分后，将应用已有分类。",
+    "confirm": "保存并删除拆分",
+    "removed_other": "此更改将删除 {{count}} 个拆分分配。"
   }
 }

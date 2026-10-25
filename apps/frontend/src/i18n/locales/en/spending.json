@@ -1041,5 +1041,12 @@
     "overridesTitle_one": "Override · {{count}}",
     "overridesTitle_other": "Overrides · {{count}}",
     "sourceMonth": "Source month"
+  },
+  "splitEditReview": {
+    "title": "Review split removal",
+    "hiddenCategory": "An existing category will become effective after the splits are removed.",
+    "confirm": "Save and remove splits",
+    "removed_one": "This edit will remove {{count}} split allocation.",
+    "removed_other": "This edit will remove {{count}} split allocations."
   }
 }

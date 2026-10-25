@@ -1458,7 +1458,7 @@
         "description": "读取投资组合健康度和诊断检查。"
       },
       "classification_read": {
-        "label": "资产分类 — 分类（读取）",
+        "label": "资产分类（读取）",
         "description": "读取金融工具分类和分类法。"
       },
       "activities_draft": {
@@ -1470,11 +1470,11 @@
         "description": "提交活动、更新现有活动，并关联或取消关联转账。需要草稿作用域。"
       },
       "classification_suggest": {
-        "label": "资产分类 — 分类——建议",
+        "label": "资产分类 — 建议",
         "description": "为审核建议金融工具分类。"
       },
       "classification_write": {
-        "label": "资产分类 — 分类——应用/写入",
+        "label": "资产分类 — 应用/写入",
         "description": "应用已审核的分类草稿。需要建议作用域。"
       },
       "market_data_write": {

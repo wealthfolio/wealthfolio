@@ -1,3 +1,4 @@
+import { ActivitySplitReviewProvider } from "@/features/spending/components/activity-split-review-provider";
 import { ProfileShell } from "@/features/profiles/profile-shell";
 import { NativeDatabaseGate } from "@/features/database-recovery/native-database-gate";
 import { isWeb } from "@/adapters";
@@ -46,10 +47,12 @@ function App() {
           <TooltipProvider>
             <Toaster mobileOffset={{ top: "68px" }} closeButton expand={false} />
             <AddonRuntimeLoader />
-            <EventDialogProvider>
-              <AssetLogoRegistrySync />
-              <AppRoutes />
-            </EventDialogProvider>
+            <ActivitySplitReviewProvider>
+              <EventDialogProvider>
+                <AssetLogoRegistrySync />
+                <AppRoutes />
+              </EventDialogProvider>
+            </ActivitySplitReviewProvider>
           </TooltipProvider>
         </PrivacyProvider>
       </WealthfolioConnectProvider>

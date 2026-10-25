@@ -145,3 +145,8 @@ describe("mobile activity currency backfill", () => {
     await waitFor(() => expect(screen.getByTestId("currency")).toHaveTextContent("CAD"));
   });
 });
+
+vi.mock("@/features/spending/components/activity-split-review-provider", () => ({
+  useActivitySplitReview: () => async (updates: unknown[]) => updates,
+  isActivityEditCancelled: () => false,
+}));

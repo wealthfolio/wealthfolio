@@ -861,6 +861,28 @@ methods your addon calls.
 category or rule belongs to: `"expense"`, `"income"`, or `"saving"`. Asset
 classification taxonomies aren't reachable through this API.
 
+### Context, budget, events and explicit metadata writes
+
+The following methods require a release shipping the expanded Spending API.
+Declare each exact function; existing addon grants are never widened.
+
+| Method                                         | Permission category | Behavior                                                                                                |
+| ---------------------------------------------- | ------------------- | ------------------------------------------------------------------------------------------------------- |
+| `getContext()`                                 | medium `spending`   | Enabled/availability state, effective opted-in account IDs, timezone, base currency and exclusions      |
+| `getBudget(periodKey?)`                        | medium `spending`   | Pure native snapshot with groups, mappings, targets, rollovers and computed actuals; no default seeding |
+| `getEvents()` / `getEventTypes()`              | medium `spending`   | Existing event definitions/type metadata                                                                |
+| `assignCategory(activityId, kind, categoryId)` | high `activities`   | Native manual assignment; protects split rows and validates the cashflow taxonomy                       |
+| `unassignCategory(activityId, kind)`           | high `activities`   | Clear the selected single assignment; split rows require the explicit native split workflow             |
+| `setEvent(activityId, eventIdOrNull)`          | high `activities`   | Tag/untag an eligible opted-in cash transaction; dates may lie outside the event                        |
+| `upsertBudgetTarget(target, periodKey?)`       | high `budgets`      | Native target write and resulting snapshot; `target.periodKey` explicitly selects default or month      |
+
+Defaults affect every month that inherits them, including historical months;
+monthly overrides remain authoritative. Missing-FX conversions are omitted from
+native totals; additive `calculationQuality` reports affected transaction counts
+and currencies on report periods, event summaries and `budget.computed`. Budget
+coverage includes historical actuals read for rollovers. A zero count only
+describes conversion coverage, not source-data completeness.
+
 ### Methods
 
 #### `isEnabled(): Promise<boolean>`

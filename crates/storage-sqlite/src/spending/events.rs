@@ -238,6 +238,119 @@ impl EventsRepository {
     pub fn new(pool: Arc<DbPool>, writer: WriteHandle) -> Self {
         Self { pool, writer }
     }
+    async fn update_with_expectation(
+        &self,
+        id: &str,
+        patch: UpdateEvent,
+        expected: Option<Event>,
+    ) -> Result<Event> {
+        let id = id.to_string();
+        self.writer
+            .exec_tx(move |tx| {
+                let mut existing: EventDB = spending_events::table
+                    .find(&id)
+                    .first::<EventDB>(tx.conn())
+                    .map_err(StorageError::from)?;
+                if expected
+                    .as_ref()
+                    .is_some_and(|e| e != &Event::from(existing.clone()))
+                {
+                    return Err(wealthfolio_core::errors::ValidationError::InvalidInput(
+                        "Event changed since review".into(),
+                    )
+                    .into());
+                }
+                if let Some(v) = patch.name {
+                    existing.name = v;
+                }
+                if let Some(v) = patch.description {
+                    existing.description = v;
+                }
+                if let Some(v) = patch.event_type_id {
+                    existing.event_type_id = v;
+                }
+                if let Some(v) = patch.start_date {
+                    existing.start_date = v;
+                }
+                if let Some(v) = patch.end_date {
+                    existing.end_date = v;
+                }
+                existing.updated_at = chrono::Utc::now().to_rfc3339();
+
+                diesel::update(spending_events::table.find(&id))
+                    .set((
+                        spending_events::name.eq(&existing.name),
+                        spending_events::description.eq(&existing.description),
+                        spending_events::event_type_id.eq(&existing.event_type_id),
+                        spending_events::start_date.eq(&existing.start_date),
+                        spending_events::end_date.eq(&existing.end_date),
+                        spending_events::updated_at.eq(&existing.updated_at),
+                    ))
+                    .execute(tx.conn())
+                    .map_err(StorageError::from)?;
+                tx.update(&existing)?;
+                Ok(existing)
+            })
+            .await
+            .map(Event::from)
+            .map_err(|e| anyhow::anyhow!(e))
+    }
+
+    async fn delete_with_expectation(
+        &self,
+        id: &str,
+        expected: Option<(Event, usize)>,
+    ) -> Result<()> {
+        let id = id.to_string();
+        self.writer
+            .exec_tx(move |tx| {
+                let affected_activity_event_ids: Vec<String> = spending_activity_events::table
+                    .filter(spending_activity_events::event_id.eq(&id))
+                    .select(spending_activity_events::activity_id)
+                    .load::<String>(tx.conn())
+                    .map_err(StorageError::from)?;
+
+                if let Some((expected, count)) = expected {
+                    let current = spending_events::table
+                        .find(&id)
+                        .first::<EventDB>(tx.conn())
+                        .optional()
+                        .map_err(StorageError::from)?
+                        .map(Event::from);
+                    if current.as_ref() != Some(&expected)
+                        || affected_activity_event_ids.len() != count
+                    {
+                        return Err(wealthfolio_core::errors::ValidationError::InvalidInput(
+                            "Event or tag count changed since review".into(),
+                        )
+                        .into());
+                    }
+                }
+                let removed_activity_events = diesel::delete(
+                    spending_activity_events::table
+                        .filter(spending_activity_events::event_id.eq(&id)),
+                )
+                .execute(tx.conn())
+                .map_err(StorageError::from)?;
+                if removed_activity_events > 0 {
+                    for activity_id in affected_activity_event_ids {
+                        if should_sync_activity_local_id_outbox(tx.conn(), &activity_id)? {
+                            tx.delete::<ActivityEventDB>(activity_id);
+                        }
+                    }
+                }
+
+                let affected = diesel::delete(spending_events::table.find(&id))
+                    .execute(tx.conn())
+                    .map_err(StorageError::from)?;
+                if affected > 0 {
+                    tx.delete::<EventDB>(id.clone());
+                }
+                Ok(())
+            })
+            .await
+            .map_err(|e| anyhow::anyhow!(e))
+    }
 }
 
 #[async_trait]
@@ -291,83 +404,19 @@ impl EventsRepositoryTrait for EventsRepository {
     }
 
     async fn update(&self, id: &str, patch: UpdateEvent) -> Result<Event> {
-        let id = id.to_string();
-        self.writer
-            .exec_tx(move |tx| {
-                let mut existing: EventDB = spending_events::table
-                    .find(&id)
-                    .first::<EventDB>(tx.conn())
-                    .map_err(StorageError::from)?;
-                if let Some(v) = patch.name {
-                    existing.name = v;
-                }
-                if let Some(v) = patch.description {
-                    existing.description = v;
-                }
-                if let Some(v) = patch.event_type_id {
-                    existing.event_type_id = v;
-                }
-                if let Some(v) = patch.start_date {
-                    existing.start_date = v;
-                }
-                if let Some(v) = patch.end_date {
-                    existing.end_date = v;
-                }
-                existing.updated_at = chrono::Utc::now().to_rfc3339();
-
-                diesel::update(spending_events::table.find(&id))
-                    .set((
-                        spending_events::name.eq(&existing.name),
-                        spending_events::description.eq(&existing.description),
-                        spending_events::event_type_id.eq(&existing.event_type_id),
-                        spending_events::start_date.eq(&existing.start_date),
-                        spending_events::end_date.eq(&existing.end_date),
-                        spending_events::updated_at.eq(&existing.updated_at),
-                    ))
-                    .execute(tx.conn())
-                    .map_err(StorageError::from)?;
-                tx.update(&existing)?;
-                Ok(existing)
-            })
+        self.update_with_expectation(id, patch, None).await
+    }
+    async fn update_reviewed(&self, expected: Event, patch: UpdateEvent) -> Result<Event> {
+        self.update_with_expectation(&expected.id.clone(), patch, Some(expected))
             .await
-            .map(Event::from)
-            .map_err(|e| anyhow::anyhow!(e))
     }
 
     async fn delete(&self, id: &str) -> Result<()> {
-        let id = id.to_string();
-        self.writer
-            .exec_tx(move |tx| {
-                let affected_activity_event_ids: Vec<String> = spending_activity_events::table
-                    .filter(spending_activity_events::event_id.eq(&id))
-                    .select(spending_activity_events::activity_id)
-                    .load::<String>(tx.conn())
-                    .map_err(StorageError::from)?;
-
-                let removed_activity_events = diesel::delete(
-                    spending_activity_events::table
-                        .filter(spending_activity_events::event_id.eq(&id)),
-                )
-                .execute(tx.conn())
-                .map_err(StorageError::from)?;
-                if removed_activity_events > 0 {
-                    for activity_id in affected_activity_event_ids {
-                        if should_sync_activity_local_id_outbox(tx.conn(), &activity_id)? {
-                            tx.delete::<ActivityEventDB>(activity_id);
-                        }
-                    }
-                }
-
-                let affected = diesel::delete(spending_events::table.find(&id))
-                    .execute(tx.conn())
-                    .map_err(StorageError::from)?;
-                if affected > 0 {
-                    tx.delete::<EventDB>(id.clone());
-                }
-                Ok(())
-            })
+        self.delete_with_expectation(id, None).await
+    }
+    async fn delete_reviewed(&self, expected: Event, count: usize) -> Result<()> {
+        self.delete_with_expectation(&expected.id.clone(), Some((expected, count)))
             .await
-            .map_err(|e| anyhow::anyhow!(e))
     }
 
     async fn count_by_type(&self, event_type_id: &str) -> Result<usize> {

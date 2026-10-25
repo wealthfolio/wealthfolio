@@ -1099,5 +1099,13 @@
     "overridesTitle_other": "Exceções · {{count}}",
     "overridesTitle_many": "Exceções · {{count}}",
     "sourceMonth": "Mês de origem"
+  },
+  "splitEditReview": {
+    "title": "Rever a remoção das divisões",
+    "hiddenCategory": "Uma categoria existente será aplicada após remover as divisões.",
+    "confirm": "Guardar e remover divisões",
+    "removed_one": "Esta alteração removerá {{count}} divisão.",
+    "removed_many": "Esta alteração removerá {{count}} divisões.",
+    "removed_other": "Esta alteração removerá {{count}} divisões."
   }
 }

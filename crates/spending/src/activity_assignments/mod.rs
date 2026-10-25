@@ -7,7 +7,7 @@ pub mod traits;
 
 pub use model::{
     ActivityTaxonomyAssignment, CategoryAssignmentConflicts, NewActivityTaxonomyAssignment,
-    SplitAssignmentConflict, SplitAssignmentConflictReason,
+    RuleAssignmentResult, SplitAssignmentConflict, SplitAssignmentConflictReason,
 };
 pub use service::{ActivityTaxonomyAssignmentService, BulkCategoryAssignment};
 pub use traits::ActivityTaxonomyAssignmentRepositoryTrait;

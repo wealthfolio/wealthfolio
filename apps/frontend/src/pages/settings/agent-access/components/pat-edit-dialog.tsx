@@ -47,7 +47,12 @@ export function PatEditDialog({ token, onClose, onSave, isSaving }: PatEditDialo
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-3xl">
         <DialogTitle>{t("settings:agentAccess.edit_title", { name: token.name })}</DialogTitle>
         <DialogDescription>{t("settings:agentAccess.edit_description")}</DialogDescription>
-        <ScopeSelector selectedScopes={scopes} onToggle={toggleScope} disabled={isSaving} onSelectPreset={(scopes) => setSelected(new Set(scopes))} />
+        <ScopeSelector
+          selectedScopes={scopes}
+          onToggle={toggleScope}
+          disabled={isSaving}
+          onSelectPreset={(scopes) => setSelected(new Set(scopes))}
+        />
         <div className="flex justify-end gap-2">
           <Button variant="ghost" disabled={isSaving} onClick={onClose}>
             {t("common:cancel")}

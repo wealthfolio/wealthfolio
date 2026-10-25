@@ -1099,5 +1099,13 @@
     "overridesTitle_other": "Ajustements · {{count}}",
     "overridesTitle_many": "Ajustements · {{count}}",
     "sourceMonth": "Mois source"
+  },
+  "splitEditReview": {
+    "title": "Vérifier la suppression des répartitions",
+    "hiddenCategory": "Une catégorie existante deviendra effective après la suppression des répartitions.",
+    "confirm": "Enregistrer et supprimer les répartitions",
+    "removed_one": "Cette modification supprimera {{count}} répartition.",
+    "removed_many": "Cette modification supprimera {{count}} répartitions.",
+    "removed_other": "Cette modification supprimera {{count}} répartitions."
   }
 }

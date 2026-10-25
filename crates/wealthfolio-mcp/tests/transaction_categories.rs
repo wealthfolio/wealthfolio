@@ -43,11 +43,7 @@ impl Fixture {
         self.catalog
             .execute(
                 self.env.clone(),
-                &AgentScopeSet::from_strs([
-                    "classification:read",
-                    "classification:suggest",
-                    "classification:write",
-                ]),
+                &AgentScopeSet::from_strs(["spending:read", "spending:write"]),
                 name,
                 args,
             )
@@ -544,7 +540,7 @@ async fn mcp_transport_exposes_tools_and_audits_redacted_prepare_and_commit() {
         .map(|tool| tool["name"].as_str().unwrap())
         .collect();
     assert!(names.contains(&"list_transaction_categories"));
-    assert!(!names.contains(&"prepare_transaction_category"));
+    assert!(names.contains(&"prepare_transaction_category"));
     assert!(!names.contains(&"commit_transaction_category"));
     let denied = rpc(
         &read_only,
@@ -604,4 +600,73 @@ async fn mcp_transport_exposes_tools_and_audits_redacted_prepare_and_commit() {
         assert!(!format!("{entry:?}").contains("private_consulting"));
     }
     server.abort();
+}
+
+#[tokio::test]
+async fn reviewed_category_edit_delete_and_stale_replay() {
+    let f = Fixture::new();
+    let draft = f.draft("spending_categories", "reviewed_change").await;
+    let original = f
+        .call("commit_transaction_category", json!({"category":draft}))
+        .await
+        .unwrap()["created"]
+        .clone();
+    let mut proposed = original.clone();
+    proposed["name"] = json!("Renamed");
+    let args = json!({"expected":original,"proposed":proposed});
+    let preview = f
+        .call("prepare_transaction_category_change", args.clone())
+        .await
+        .unwrap();
+    assert_eq!(preview["canCommit"], true);
+    assert_eq!(
+        f.env
+            .taxonomies
+            .get_taxonomy("spending_categories")
+            .unwrap()
+            .unwrap()
+            .categories
+            .iter()
+            .find(|c| c.id == draft["id"].as_str().unwrap())
+            .unwrap()
+            .name,
+        "Legal"
+    );
+    let current = f
+        .call(
+            "commit_transaction_category_change",
+            preview["change"].clone(),
+        )
+        .await
+        .unwrap()["updated"]
+        .clone();
+    assert_eq!(current["name"], "Renamed");
+    assert!(f
+        .call("commit_transaction_category_change", args)
+        .await
+        .is_err());
+    let deletion = f
+        .call(
+            "prepare_transaction_category_change",
+            json!({"expected":current,"proposed":null}),
+        )
+        .await
+        .unwrap();
+    assert_eq!(deletion["canCommit"], true);
+    assert_eq!(
+        f.call(
+            "commit_transaction_category_change",
+            deletion["change"].clone()
+        )
+        .await
+        .unwrap()["deletedCount"],
+        1
+    );
+    assert!(f
+        .call(
+            "commit_transaction_category_change",
+            deletion["change"].clone()
+        )
+        .await
+        .is_err());
 }

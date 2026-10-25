@@ -681,3 +681,99 @@ describe("Addon Type Bridge", () => {
     });
   });
 });
+
+describe("Spending integration grant separation", () => {
+  const declared = (category: string, names: string[]) => [
+    {
+      category,
+      purpose: "Synthetic test",
+      functions: names.map((name) => ({ name, isDeclared: true, isDetected: false })),
+    },
+  ];
+  it("old Spending grants cannot write categories, events or budgets", () => {
+    const internal = {
+      assignSpendingCategory: vi.fn(),
+      unassignSpendingCategory: vi.fn(),
+      setSpendingEvent: vi.fn(),
+      upsertBudgetTarget: vi.fn(),
+    };
+    const api = createSDKHostAPIBridge(
+      internal as unknown as InternalHostAPI,
+      "test",
+      createPermissionGuard(
+        "test",
+        declared("spending", [
+          "getReport",
+          "getRules",
+          "saveRule",
+          "rerunRules",
+          "assignCategory",
+          "setEvent",
+          "upsertBudgetTarget",
+        ]),
+      ),
+    );
+    expect(() => api.spending.assignCategory("a", "expense", "c")).toThrow(
+      "activities.assignCategory",
+    );
+    expect(() => api.spending.unassignCategory("a", "expense")).toThrow(
+      "activities.unassignCategory",
+    );
+    expect(() => api.spending.setEvent("a", null)).toThrow("activities.setEvent");
+    expect(() =>
+      api.spending.upsertBudgetTarget({
+        periodKey: "default",
+        targetType: "category",
+        taxonomyId: "spending_categories",
+        categoryId: "c",
+        amount: "100",
+      }),
+    ).toThrow("budgets.upsertBudgetTarget");
+    for (const method of Object.values(internal)) expect(method).not.toHaveBeenCalled();
+  });
+  it("maps taxonomy-qualified metadata writes only after explicit function grants", async () => {
+    const internal = {
+      assignSpendingCategory: vi.fn().mockResolvedValue({}),
+      unassignSpendingCategory: vi.fn().mockResolvedValue(undefined),
+      setSpendingEvent: vi.fn().mockResolvedValue({}),
+    };
+    const api = createSDKHostAPIBridge(
+      internal as unknown as InternalHostAPI,
+      "test",
+      createPermissionGuard(
+        "test",
+        declared("activities", ["assignCategory", "unassignCategory", "setEvent"]),
+      ),
+    );
+    await api.spending.assignCategory("a", "saving", "c");
+    expect(internal.assignSpendingCategory).toHaveBeenCalledWith("a", "savings_categories", "c");
+    await api.spending.unassignCategory("a", "income");
+    expect(internal.unassignSpendingCategory).toHaveBeenCalledWith("a", "income_sources");
+    await api.spending.setEvent("a", null);
+    expect(internal.setSpendingEvent).toHaveBeenCalledWith("a", null);
+    expect(getPermissionCategory("activities")?.riskLevel).toBe("high");
+    expect(getPermissionCategory("budgets")?.riskLevel).toBe("high");
+  });
+  it("budget grants neither grant organization nor require it", async () => {
+    const internal = {
+      upsertBudgetTarget: vi.fn().mockResolvedValue({}),
+      assignSpendingCategory: vi.fn(),
+    };
+    const api = createSDKHostAPIBridge(
+      internal as unknown as InternalHostAPI,
+      "test",
+      createPermissionGuard("test", declared("budgets", ["upsertBudgetTarget"])),
+    );
+    const target = {
+      periodKey: "2026-10",
+      targetType: "group_buffer" as const,
+      groupId: "g",
+      amount: "20.25",
+    };
+    await api.spending.upsertBudgetTarget(target, "2026-10");
+    expect(internal.upsertBudgetTarget).toHaveBeenCalledWith(target, "2026-10");
+    expect(() => api.spending.assignCategory("a", "expense", "c")).toThrow(
+      "activities.assignCategory",
+    );
+  });
+});

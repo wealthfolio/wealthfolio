@@ -1475,7 +1475,7 @@
         "description": "讀取投資組合健康度與診斷檢查。"
       },
       "classification_read": {
-        "label": "資產分類 — 分類（讀取）",
+        "label": "資產分類（讀取）",
         "description": "讀取金融工具分類與分類法。"
       },
       "activities_draft": {
@@ -1491,7 +1491,7 @@
         "description": "為審核建議金融工具分類。"
       },
       "classification_write": {
-        "label": "資產分類 — 套用／寫入",
+        "label": "資產分類 — 套用/寫入",
         "description": "套用已審核的分類草稿。需要建議範圍。"
       },
       "market_data_write": {

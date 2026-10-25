@@ -1,5 +1,6 @@
 ---
 source: crates/ai/tests/tool_schemas.rs
+assertion_line: 170
 expression: snapshot
 ---
 {
@@ -38,6 +39,9 @@ expression: snapshot
       "pageSize": {
         "default": 50,
         "type": "integer"
+      },
+      "query": {
+        "type": "string"
       },
       "symbol": {
         "type": "string"

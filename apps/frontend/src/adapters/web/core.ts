@@ -104,6 +104,7 @@ export const COMMANDS: CommandMap = {
   // Activities
   search_activities: { method: "POST", path: "/activities/search" },
   create_activity: { method: "POST", path: "/activities" },
+  review_activity_split_effects: { method: "POST", path: "/activities/split-effects" },
   update_activity: { method: "PUT", path: "/activities" },
   save_activities: { method: "POST", path: "/activities/bulk" },
   delete_activity: { method: "DELETE", path: "/activities" },
@@ -197,6 +198,8 @@ export const COMMANDS: CommandMap = {
   migrate_legacy_classifications: { method: "POST", path: "/taxonomies/migration/run" },
   // Spending budget
   get_budget: { method: "GET", path: "/spending/budget" },
+  get_budget_readonly: { method: "GET", path: "/spending/budget/snapshot" },
+  get_spending_context: { method: "GET", path: "/spending/context" },
   upsert_budget_target: { method: "POST", path: "/spending/budget/targets" },
   delete_budget_target: { method: "DELETE", path: "/spending/budget/targets" },
   upsert_budget_rollover_setting: { method: "POST", path: "/spending/budget/rollovers" },
@@ -862,6 +865,7 @@ export const invoke = async <T>(command: string, payload?: Record<string, unknow
       body = JSON.stringify(activity);
       break;
     }
+    case "review_activity_split_effects":
     case "update_activity": {
       const { activity } = payload as { activity: Record<string, unknown> };
       body = JSON.stringify(activity);
@@ -1273,7 +1277,8 @@ export const invoke = async <T>(command: string, payload?: Record<string, unknow
     case "migrate_legacy_classifications":
       break;
     // Spending budget commands
-    case "get_budget": {
+    case "get_budget":
+    case "get_budget_readonly": {
       const { periodKey } = (payload ?? {}) as { periodKey?: string };
       addPeriodKey(periodKey);
       break;
@@ -1364,6 +1369,7 @@ export const invoke = async <T>(command: string, payload?: Record<string, unknow
       break;
     }
     // Spending settings
+    case "get_spending_context":
     case "get_spending_settings":
       break;
     case "update_spending_settings": {

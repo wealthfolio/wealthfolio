@@ -1,5 +1,13 @@
 # Wealthfolio CLI and MCP Agent Access Design
 
+## Spending access
+
+See [Spending MCP access](spending-mcp-implementation.md) for the implemented
+permission matrix, tools, reviewed writes, compatibility and accounting limits.
+Spending read/organization/budget grants are independent of asset
+classification; old stored tokens require explicit reauthorization. Default and
+monthly budgets share `budget:write` and retain native inheritance semantics.
+
 ## Editing API key permissions
 
 Existing API key permissions can be edited from AI Agent Access through the
@@ -498,9 +506,9 @@ commit_transaction_category       -- persist the reviewed category after confirm
 
 These tools only support `spending_categories`, `income_sources`, and
 `savings_categories`; they never create or modify asset taxonomies. Listing
-requires `classification:read` and works before any accounts or transactions
-exist. Preparation also requires `classification:suggest`; committing
-additionally requires `classification:write`.
+requires `spending:read` and works before any accounts or transactions exist.
+Preparation also uses `spending:read`; committing additionally requires
+`spending:write`.
 
 Call `list_transaction_categories` with an optional `taxonomyId` to discover
 existing category IDs, keys, and parent relationships. Prepare a category with

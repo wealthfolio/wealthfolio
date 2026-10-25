@@ -512,6 +512,7 @@ fn summarize(
     let mut outflow = Decimal::ZERO;
     let mut saved = Decimal::ZERO;
     let mut count = 0;
+    let mut calculation_quality = crate::CalculationQuality::default();
     for a in acts {
         let Some(account_type) = account_types.get(&a.account_id) else {
             continue;
@@ -548,12 +549,19 @@ fn summarize(
         }
         // FX-convert each activity to the report currency at `fx_as_of`,
         // matching insight::aggregate_spend so the two services agree.
-        income += crate::fx::convert(fx, income_native, &a.currency, target_currency, fx_as_of)
-            .unwrap_or(Decimal::ZERO);
-        outflow += crate::fx::convert(fx, spending_native, &a.currency, target_currency, fx_as_of)
-            .unwrap_or(Decimal::ZERO);
-        saved += crate::fx::convert(fx, saving_native, &a.currency, target_currency, fx_as_of)
-            .unwrap_or(Decimal::ZERO);
+        let income_converted =
+            crate::fx::convert(fx, income_native, &a.currency, target_currency, fx_as_of);
+        let spending_converted =
+            crate::fx::convert(fx, spending_native, &a.currency, target_currency, fx_as_of);
+        let saving_converted =
+            crate::fx::convert(fx, saving_native, &a.currency, target_currency, fx_as_of);
+        if income_converted.is_none() || spending_converted.is_none() || saving_converted.is_none()
+        {
+            calculation_quality.record_missing(&a.currency);
+        }
+        income += income_converted.unwrap_or(Decimal::ZERO);
+        outflow += spending_converted.unwrap_or(Decimal::ZERO);
+        saved += saving_converted.unwrap_or(Decimal::ZERO);
         // `count` is "activities that contributed income OR outflow" — it
         // counts each activity once, regardless of how many spending/income
         // category assignments it carries. Consumers that need spending-only
@@ -567,6 +575,7 @@ fn summarize(
     // `Headline.net_cashflow`. `outflow` is consumption-only (savings excluded);
     // UI that wants a non-negative "Spent" badge clamps at render time.
     PeriodSummary {
+        calculation_quality,
         income: decimal_to_f64(income),
         outflow: decimal_to_f64(outflow),
         saved: decimal_to_f64(saved),
@@ -1434,6 +1443,7 @@ impl AnalyticsService {
             let acts = by_event.remove(&ev.event.id).unwrap_or_default();
 
             let mut total = Decimal::ZERO;
+            let mut calculation_quality = crate::CalculationQuality::default();
             let mut by_category: HashMap<String, CategoryAccumulator> = HashMap::new();
             let mut daily: HashMap<String, Decimal> = HashMap::new();
             let mut transaction_count = 0;
@@ -1466,6 +1476,7 @@ impl AnalyticsService {
                 let Some(amt) =
                     crate::fx::convert(fx, amt_native, &a.currency, &currency, fx_as_of)
                 else {
+                    calculation_quality.record_missing(&a.currency);
                     continue;
                 };
                 if amt == Decimal::ZERO {
@@ -1541,6 +1552,7 @@ impl AnalyticsService {
                 .collect();
 
             out.push(EventSpendingSummary {
+                calculation_quality,
                 event_id: ev.event.id,
                 event_name: ev.event.name,
                 event_type_id: ev.event.event_type_id.clone(),
@@ -2181,6 +2193,35 @@ mod tests {
 
         assert_eq!(summary.total_spending, 200.0);
         assert_eq!(summary.by_category["groceries"].amount, 200.0);
+    }
+
+    #[test]
+    fn report_summary_counts_missing_fx_once_per_included_transaction() {
+        let (mut foreign, _) = spending_activity("foreign", "WITHDRAWAL", 100, "groceries", 1);
+        foreign.currency = "EUR".into();
+        let (domestic, _) = spending_activity("domestic", "WITHDRAWAL", 25, "groceries", 2);
+        let types = HashMap::from([("card-account".into(), account_types::CREDIT_CARD.into())]);
+        let summary = summarize(
+            &[&foreign, &domestic],
+            &types,
+            &HashSet::new(),
+            &HashMap::new(),
+            &SplitsByActivity::new(),
+            &ExclusionIndex::empty(),
+            &FailingFx,
+            "USD",
+            NaiveDate::from_ymd_opt(2024, 1, 31).unwrap(),
+        );
+        assert_eq!(summary.outflow, 25.0);
+        assert_eq!(summary.calculation_quality.missing_fx_transactions, 1);
+        assert_eq!(
+            summary
+                .calculation_quality
+                .missing_fx_currencies
+                .into_iter()
+                .collect::<Vec<_>>(),
+            vec!["EUR"]
+        );
     }
 
     #[test]

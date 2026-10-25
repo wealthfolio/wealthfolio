@@ -1099,5 +1099,13 @@
     "overridesTitle_other": "Excepciones · {{count}}",
     "overridesTitle_many": "Excepciones · {{count}}",
     "sourceMonth": "Mes de origen"
+  },
+  "splitEditReview": {
+    "title": "Revisar la eliminación de divisiones",
+    "hiddenCategory": "Una categoría existente se aplicará después de eliminar las divisiones.",
+    "confirm": "Guardar y eliminar divisiones",
+    "removed_one": "Este cambio eliminará {{count}} división.",
+    "removed_many": "Este cambio eliminará {{count}} divisiones.",
+    "removed_other": "Este cambio eliminará {{count}} divisiones."
   }
 }

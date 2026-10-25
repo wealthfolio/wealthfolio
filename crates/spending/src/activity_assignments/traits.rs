@@ -55,6 +55,31 @@ pub trait ActivityTaxonomyAssignmentRepositoryTrait: Send + Sync {
         only_uncategorized: bool,
     ) -> Result<Vec<ActivityTaxonomyAssignment>>;
 
+    async fn assign_rules_detailed(
+        &self,
+        items: Vec<NewActivityTaxonomyAssignment>,
+        only_uncategorized: bool,
+    ) -> Result<super::RuleAssignmentResult> {
+        let assignments = self
+            .assign_rule_many_single_select(items, only_uncategorized)
+            .await?;
+        Ok(super::RuleAssignmentResult {
+            eligible: assignments.len(),
+            changed: assignments.len(),
+            assignments,
+            ..Default::default()
+        })
+    }
+    async fn preview_rules(
+        &self,
+        _items: Vec<NewActivityTaxonomyAssignment>,
+        _only_uncategorized: bool,
+    ) -> Result<super::RuleAssignmentResult> {
+        Err(anyhow::anyhow!(
+            "Rule preview is unavailable for this repository"
+        ))
+    }
+
     /// Remove a single assignment by id.
     async fn delete(&self, id: &str) -> Result<()>;
 

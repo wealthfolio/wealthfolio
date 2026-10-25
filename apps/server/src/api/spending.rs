@@ -83,7 +83,7 @@ fn spawn_auto_categorize(state: &AppState, account_ids: Vec<String>) {
             .await
         {
             Ok(count) if count > 0 => {
-                tracing::info!("Auto-categorization wrote {} assignment(s)", count);
+                tracing::info!("Auto-categorization matched {} transaction(s)", count);
             }
             Ok(_) => {}
             Err(e) => tracing::warn!("Auto-categorization failed: {}", e),
@@ -501,6 +501,27 @@ async fn get_budget(
     ))
 }
 
+async fn get_budget_readonly(
+    axum::Extension(state): axum::Extension<Arc<AppState>>,
+    Query(query): Query<BudgetQuery>,
+) -> ApiResult<Json<BudgetSnapshot>> {
+    Ok(Json(
+        state
+            .budget_service
+            .get_readonly(
+                query.period_key,
+                &state.base_currency()?,
+                &state.timezone()?,
+            )
+            .await?,
+    ))
+}
+async fn get_spending_context(
+    axum::Extension(state): axum::Extension<Arc<AppState>>,
+) -> ApiResult<Json<wealthfolio_spending::cash_activities::SpendingContext>> {
+    Ok(Json(state.cash_activity_service.context().await?))
+}
+
 async fn upsert_budget_target(
     axum::Extension(state): axum::Extension<Arc<AppState>>,
     Query(query): Query<BudgetQuery>,
@@ -801,6 +822,8 @@ pub fn router<S: Clone + Send + Sync + 'static>() -> Router<S> {
             put(update_event).delete(delete_event),
         )
         .route("/spending/budget", get(get_budget))
+        .route("/spending/budget/snapshot", get(get_budget_readonly))
+        .route("/spending/context", get(get_spending_context))
         .route("/spending/budget/targets", post(upsert_budget_target))
         .route(
             "/spending/budget/targets/{id}",

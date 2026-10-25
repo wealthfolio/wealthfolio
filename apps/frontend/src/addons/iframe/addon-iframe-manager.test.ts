@@ -767,6 +767,35 @@ describe("AddonIframeManager", () => {
     },
   );
 
+  it.each(["assignCategory", "unassignCategory", "setEvent", "upsertBudgetTarget"])(
+    "dispatches explicitly permitted spending.%s calls through the sandbox allowlist",
+    async (method) => {
+      const manager = new AddonIframeManager();
+      const postMessage = vi.fn();
+      const invoke = vi.fn().mockResolvedValue({ saved: true });
+      const runtime = {
+        addonId: input.addonId,
+        api: { spending: { [method]: invoke } },
+        iframe: { contentWindow: { postMessage } },
+        nonce: "nonce-1",
+      };
+      const internals = manager as unknown as {
+        dispatchMessage: (runtime: unknown, message: unknown) => Promise<void>;
+      };
+      await internals.dispatchMessage(runtime, {
+        type: "api",
+        method: `spending.${method}`,
+        args: ["activity", null],
+        requestId: "write",
+      });
+      expect(invoke).toHaveBeenCalledExactlyOnceWith("activity", null);
+      expect(postMessage).toHaveBeenCalledWith(
+        expect.objectContaining({ ok: true, result: { saved: true } }),
+        "*",
+      );
+    },
+  );
+
   it("whitelists the transfer pairing methods for addon API calls", async () => {
     const manager = new AddonIframeManager();
     const postMessage = vi.fn();

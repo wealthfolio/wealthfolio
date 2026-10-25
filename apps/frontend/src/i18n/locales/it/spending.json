@@ -1099,5 +1099,13 @@
     "overridesTitle_many": "Eccezioni · {{count}}",
     "overridesTitle_other": "Eccezioni · {{count}}",
     "sourceMonth": "Mese di origine"
+  },
+  "splitEditReview": {
+    "title": "Verifica la rimozione delle suddivisioni",
+    "hiddenCategory": "Una categoria esistente verrà applicata dopo la rimozione delle suddivisioni.",
+    "confirm": "Salva e rimuovi le suddivisioni",
+    "removed_one": "Questa modifica rimuoverà {{count}} suddivisione.",
+    "removed_many": "Questa modifica rimuoverà {{count}} suddivisioni.",
+    "removed_other": "Questa modifica rimuoverà {{count}} suddivisioni."
   }
 }

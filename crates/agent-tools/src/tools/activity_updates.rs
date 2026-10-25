@@ -25,13 +25,14 @@ use rust_decimal::Decimal;
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::{json, Value};
 use wealthfolio_core::activities::{
-    is_securities_transfer, Activity, ActivityServiceTrait, ActivityStatus, ActivityUpdate,
-    ActivityUpdatePreview, AssetResolutionInput, PreviewedActivityUpdate, ACTIVITY_SUBTYPE_BONUS,
-    ACTIVITY_SUBTYPE_DIVIDEND_IN_KIND, ACTIVITY_SUBTYPE_DRIP, ACTIVITY_SUBTYPE_OPTION_EXPIRY,
-    ACTIVITY_SUBTYPE_POSITION_CLOSE, ACTIVITY_SUBTYPE_POSITION_OPEN, ACTIVITY_SUBTYPE_REBATE,
-    ACTIVITY_SUBTYPE_REFUND, ACTIVITY_SUBTYPE_REIMBURSEMENT, ACTIVITY_SUBTYPE_STAKING_REWARD,
-    ACTIVITY_TYPE_ADJUSTMENT, ACTIVITY_TYPE_BUY, ACTIVITY_TYPE_CREDIT, ACTIVITY_TYPE_DIVIDEND,
-    ACTIVITY_TYPE_INTEREST, ACTIVITY_TYPE_SELL,
+    is_securities_transfer, Activity, ActivityServiceTrait, ActivitySplitEffect, ActivityStatus,
+    ActivityUpdate, ActivityUpdatePreview, AssetResolutionInput, PreviewedActivityUpdate,
+    ACTIVITY_SUBTYPE_BONUS, ACTIVITY_SUBTYPE_DIVIDEND_IN_KIND, ACTIVITY_SUBTYPE_DRIP,
+    ACTIVITY_SUBTYPE_OPTION_EXPIRY, ACTIVITY_SUBTYPE_POSITION_CLOSE,
+    ACTIVITY_SUBTYPE_POSITION_OPEN, ACTIVITY_SUBTYPE_REBATE, ACTIVITY_SUBTYPE_REFUND,
+    ACTIVITY_SUBTYPE_REIMBURSEMENT, ACTIVITY_SUBTYPE_STAKING_REWARD, ACTIVITY_TYPE_ADJUSTMENT,
+    ACTIVITY_TYPE_BUY, ACTIVITY_TYPE_CREDIT, ACTIVITY_TYPE_DIVIDEND, ACTIVITY_TYPE_INTEREST,
+    ACTIVITY_TYPE_SELL,
 };
 use wealthfolio_core::errors::{DatabaseError, Error as CoreError};
 use wealthfolio_core::fx::currency::get_normalization_rule;
@@ -103,6 +104,8 @@ where
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct UpdateRow {
+    #[serde(default)]
+    split_review: Option<Vec<ActivitySplitEffect>>,
     activity_id: String,
     #[serde(default)]
     date: Option<String>,
@@ -281,6 +284,7 @@ fn build_update(row: &UpdateRow, existing: &Activity) -> Result<ActivityUpdate, 
     };
 
     Ok(ActivityUpdate {
+        split_review: row.split_review.clone(),
         id: existing.id.clone(),
         account_id: non_empty(&row.account_id, "accountId")?
             .unwrap_or_else(|| existing.account_id.clone()),
@@ -483,6 +487,7 @@ struct PlannedRow {
     update: ActivityUpdate,
     preview: ActivityUpdatePreview,
     changes: Vec<FieldChange>,
+    split_effects: Vec<ActivitySplitEffect>,
 }
 
 /// Validates one row as core would update it, without writing.
@@ -505,7 +510,11 @@ fn plan_row(
         ));
     }
     check_guards(&preview, &changes)?;
+    let split_effects = activity_service
+        .review_activity_split_effects(update.clone())
+        .map_err(|_| "Unable to review allocation effects".to_string())?;
     Ok(PlannedRow {
+        split_effects,
         update,
         preview,
         changes,
@@ -607,6 +616,7 @@ fn updates_schema(action: &str) -> Value {
                         "tax": decimal_schema("Tax in the activity currency."),
                         "fxRate": decimal_schema("Activity currency to account currency rate."),
                         "notes": { "type": ["string", "null"] },
+                        "splitReview": { "type": "array", "description": "Opaque effects returned by prepare_activity_updates. Copy unchanged after reviewing removedSplits and existingCategoryBecomesEffective; stale state conflicts.", "items": { "type": "object", "properties": { "activityId": {"type":"string"}, "removedSplits": {"type":"integer", "minimum":0}, "existingCategoryBecomesEffective": {"type":"boolean"}, "fingerprint": {"type":"string"}}, "required":["activityId","removedSplits","existingCategoryBecomesEffective","fingerprint"], "additionalProperties":false } },
                         "approve": { "type": "boolean", "description": "true approves an activity waiting for review; a draft becomes posted." }
                     },
                     "required": ["activityId"],
@@ -622,6 +632,7 @@ fn updates_schema(action: &str) -> Value {
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ActivityUpdatePreviewRow {
+    pub split_review: Vec<ActivitySplitEffect>,
     pub index: usize,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub activity_id: Option<String>,
@@ -664,7 +675,7 @@ impl AgentTool for PrepareActivityUpdates {
     }
 
     fn description(&self) -> &'static str {
-        "Preview corrections to existing activities without writing anything. Each row names an activityId (find it with search_activities) and only the fields to change; omitted fields keep their stored value and null clears an optional one. The fields are those the activity grid edits: date, accountId, activityType, subtype, assetId, quantity, unitPrice, amount, currency, fee, tax, fxRate, notes, and approve (approves an activity waiting for review; a draft becomes posted). A bare YYYY-MM-DD date lands on that day in the configured timezone. Change an asset only by the assetId of an asset already stored; symbols are refused. For a security TRANSFER_IN, the cost basis is quantity x unitPrice, or amount without a unit price. Each ready row lists every field that would change with its current and proposed value, including values the app derives (a trade total recalculated from quantity and price, a cleared stale amount, the review flag); for one leg of a linked transfer, linkedChanges lists what the other leg receives (amount and approval; dates also mirror for same-account FX conversions or when neither leg has a source record ID; notes mirror only when neither leg has a source record ID). An invalid row gives its error: a missing activity, an invalid value, nothing to change, a change to the account, currency, type or asset of a linked transfer leg (or the quantity of a security transfer, or the fxRate of a cross-currency cash transfer; unlink the pair first with unlink_transfer_activities). Up to 100 rows. Show the preview to the user, then apply the confirmed rows with commit_activity_updates."
+        "Preview corrections to existing activities without writing anything. Each row names an activityId (find it with search_activities) and only the fields to change; omitted fields keep their stored value and null clears an optional one. The fields are those the activity grid edits: date, accountId, activityType, subtype, assetId, quantity, unitPrice, amount, currency, fee, tax, fxRate, notes, and approve (approves an activity waiting for review; a draft becomes posted). A bare YYYY-MM-DD date lands on that day in the configured timezone. Change an asset only by the assetId of an asset already stored; symbols are refused. For a security TRANSFER_IN, the cost basis is quantity x unitPrice, or amount without a unit price. Each ready row lists every field that would change with its current and proposed value, including values the app derives (a trade total recalculated from quantity and price, a cleared stale amount, the review flag); for one leg of a linked transfer, linkedChanges lists what the other leg receives (amount and approval; dates also mirror for same-account FX conversions or when neither leg has a source record ID; notes mirror only when neither leg has a source record ID). An invalid row gives its error: a missing activity, an invalid value, nothing to change, a change to the account, currency, type or asset of a linked transfer leg (or the quantity of a security transfer, or the fxRate of a cross-currency cash transfer; unlink the pair first with unlink_transfer_activities). Up to 100 rows. splitReview reports removed splits and whether an existing hidden category becomes effective, including linked legs, without disclosing category details. Copy splitReview unchanged into the confirmed commit. Show the preview to the user, then apply the confirmed rows with commit_activity_updates."
     }
 
     fn input_schema(&self) -> Value {
@@ -705,6 +716,7 @@ impl AgentTool for PrepareActivityUpdates {
                     .and_then(|(id, row)| plan_row(env.activity_service().as_ref(), id, row));
                 match planned {
                     Ok(planned) => ActivityUpdatePreviewRow {
+                        split_review: planned.split_effects,
                         index,
                         activity_id: Some(planned.update.id.clone()),
                         status: "ready",
@@ -723,6 +735,7 @@ impl AgentTool for PrepareActivityUpdates {
                         error: None,
                     },
                     Err(message) => ActivityUpdatePreviewRow {
+                        split_review: Vec::new(),
                         index,
                         activity_id: row_activity_id(raw),
                         status: "invalid",
@@ -786,7 +799,17 @@ async fn apply_row(
     activity_id: &str,
     row: &UpdateRow,
 ) -> Result<UpdatedActivity, String> {
-    let planned = plan_row(activity_service, activity_id, row)?;
+    let mut planned = plan_row(activity_service, activity_id, row)?;
+    if planned.update.split_review.is_none() {
+        if planned
+            .split_effects
+            .iter()
+            .any(|effect| effect.removed_splits > 0)
+        {
+            return Err("This edit removes split allocations. Prepare and review it, then include the returned splitReview.".into());
+        }
+        planned.update.split_review = Some(planned.split_effects.clone());
+    }
     let updated = activity_service
         .update_activity(planned.update)
         .await

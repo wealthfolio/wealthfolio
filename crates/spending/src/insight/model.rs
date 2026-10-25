@@ -211,6 +211,10 @@ pub struct MonthBucket {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SpendingInsight {
+    #[serde(default)]
+    pub prior_calculation_quality: crate::CalculationQuality,
+    #[serde(default)]
+    pub calculation_quality: crate::CalculationQuality,
     pub period: PeriodMeta,
     pub prior: PeriodMeta,
     /// Target/report currency. All monetary fields below are denominated in

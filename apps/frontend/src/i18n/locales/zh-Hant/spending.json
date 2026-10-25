@@ -1041,5 +1041,11 @@
     "addSource_one": "新增來源（{{count}} 個可用）",
     "overridesTitle_one": "覆寫 · {{count}}",
     "sourceMonth": "來源月份"
+  },
+  "splitEditReview": {
+    "title": "確認刪除拆分",
+    "hiddenCategory": "刪除拆分後，將套用現有分類。",
+    "confirm": "儲存並刪除拆分",
+    "removed_other": "此變更將刪除 {{count}} 個拆分配置。"
   }
 }

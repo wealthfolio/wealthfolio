@@ -5,6 +5,11 @@
 
 import type { EventCallback, UnlistenFn } from './types';
 import type {
+  BudgetSnapshot,
+  NewBudgetTarget,
+  SpendingEvent,
+  EventType,
+  SpendingContext,
   Account,
   Activity,
   ActivityBulkMutationRequest,
@@ -476,6 +481,30 @@ export interface ExchangeRatesAPI {
  * classify activities through Wealthfolio's categorization-rules engine.
  */
 export interface SpendingAPI {
+  /** Effective Spending enrollment. Requires spending.getContext. Never enrolls accounts. */
+  getContext(): Promise<SpendingContext>;
+  /** Pure native budget snapshot (default or YYYY-MM). Requires spending.getBudget. */
+  getBudget(periodKey?: string): Promise<BudgetSnapshot>;
+  /** Stored event definitions, independent of transaction availability. Requires spending.getEvents. */
+  getEvents(): Promise<SpendingEvent[]>;
+  /** Event type metadata. Requires spending.getEventTypes. */
+  getEventTypes(): Promise<EventType[]>;
+  /** Explicit high-risk activities.assignCategory grant. Protects splits; uses native manual provenance. */
+  assignCategory(
+    activityId: string,
+    kind: SpendCategoryKind,
+    categoryId: string,
+  ): Promise<void>;
+  /** Explicit high-risk activities.unassignCategory grant. Does not clear split allocations. */
+  unassignCategory(activityId: string, kind: SpendCategoryKind): Promise<void>;
+  /** Explicit high-risk activities.setEvent grant. Null explicitly untags; event dates do not restrict assignment. */
+  setEvent(activityId: string, eventId: string | null): Promise<void>;
+  /** Explicit high-risk budgets.upsertBudgetTarget grant. Defaults affect every inheriting month, including historical months; monthly overrides win. */
+  upsertBudgetTarget(
+    target: NewBudgetTarget,
+    periodKey?: string,
+  ): Promise<BudgetSnapshot>;
+
   /**
    * Whether the user has Spending enabled. Rules and categories still work
    * when it's off, but re-running rules is a no-op until the user opts an

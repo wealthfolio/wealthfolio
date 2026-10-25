@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use crate::cash_activities::CashActivityServiceTrait;
 use anyhow::Result;
 use tokio::sync::Mutex;
-use wealthfolio_core::activities::ActivityRepositoryTrait;
 
 use rust_decimal::Decimal;
 
@@ -21,28 +21,22 @@ use crate::error::SpendingError;
 
 pub struct CategorizationRulesService {
     repo: Arc<dyn CategorizationRulesRepositoryTrait>,
-    activity_repo: Arc<dyn ActivityRepositoryTrait>,
+    cash_service: Arc<dyn CashActivityServiceTrait>,
     assignment_service: Arc<ActivityTaxonomyAssignmentService>,
-    /// Serializes `rerun_all` against itself and against in-progress user
-    /// assignments. Without this, a background rerun's pre-built skip-set
-    /// can become stale relative to a concurrent manual assign, causing the
-    /// rerun's bulk_apply to clobber the manual write (race tracked in #28).
-    /// User-initiated `assign_*` calls are atomic at the DB layer for a
-    /// single (activity, taxonomy) pair and do NOT take this lock — the lock
-    /// only forces reruns to complete-or-wait, so a manual write that lands
-    /// during a rerun is sequenced after the rerun's transaction.
+    /// Serializes reruns against each other. Current manual/split protection
+    /// is enforced independently inside the shared assignment writer.
     rerun_lock: Arc<Mutex<()>>,
 }
 
 impl CategorizationRulesService {
     pub fn new(
         repo: Arc<dyn CategorizationRulesRepositoryTrait>,
-        activity_repo: Arc<dyn ActivityRepositoryTrait>,
+        cash_service: Arc<dyn CashActivityServiceTrait>,
         assignment_service: Arc<ActivityTaxonomyAssignmentService>,
     ) -> Self {
         Self {
             repo,
-            activity_repo,
+            cash_service,
             assignment_service,
             rerun_lock: Arc::new(Mutex::new(())),
         }
@@ -125,6 +119,48 @@ impl CategorizationRulesService {
         self.repo.delete(id).await
     }
 
+    pub async fn update_reviewed(
+        &self,
+        expected: CategorizationRule,
+        proposed: NewCategorizationRule,
+    ) -> Result<CategorizationRule> {
+        if proposed.id.as_deref() != Some(expected.id.as_str())
+            || proposed.preset_id != expected.preset_id
+            || proposed.preset_rule_key != expected.preset_rule_key
+            || proposed.preset_version != expected.preset_version
+        {
+            return Err(SpendingError::InvalidInput {
+                message: "Rule identity and provenance must be preserved".into(),
+            }
+            .into());
+        }
+        validate_rule_scope(proposed.is_global, proposed.account_id.as_deref())?;
+        validate_rule_pattern(&proposed.match_type, &proposed.pattern)?;
+        validate_rule_amount(
+            proposed.amount_op,
+            proposed.amount_value,
+            proposed.amount_value2,
+        )?;
+        let patch = UpdateCategorizationRule {
+            name: Some(proposed.name),
+            pattern: Some(proposed.pattern),
+            match_type: Some(proposed.match_type),
+            taxonomy_id: Some(proposed.taxonomy_id),
+            category_id: Some(proposed.category_id),
+            activity_type: Some(proposed.activity_type),
+            amount_op: Some(proposed.amount_op),
+            amount_value: Some(proposed.amount_value),
+            amount_value2: Some(proposed.amount_value2),
+            priority: Some(proposed.priority),
+            is_global: Some(proposed.is_global),
+            account_id: Some(proposed.account_id),
+        };
+        self.repo.update_reviewed(expected, patch).await
+    }
+    pub async fn delete_reviewed(&self, expected: CategorizationRule) -> Result<()> {
+        self.repo.delete_reviewed(expected).await
+    }
+
     /// Atomically create-or-update the rule identified by `new_rule.id`.
     /// Unlike `create`/`update`, callers must supply an explicit id — this is
     /// meant for callers (e.g. the addon bridge) that derive a stable id up
@@ -164,48 +200,62 @@ impl CategorizationRulesService {
         account_ids: &[String],
         only_uncategorized: bool,
     ) -> Result<usize> {
+        Ok(self
+            .rerun_detailed(account_ids, only_uncategorized)
+            .await?
+            .matched)
+    }
+    pub async fn rerun_detailed(
+        &self,
+        account_ids: &[String],
+        only_uncategorized: bool,
+    ) -> Result<super::model::CategorizationRunSummary> {
         if account_ids.is_empty() {
-            return Ok(0);
+            return Ok(Default::default());
         }
-        // Hold for the entire read-skip-set + write phase so two reruns can't
-        // interleave (each computes its own skip-set, then both writes fire).
         let _guard = self.rerun_lock.lock().await;
-        let activities = self
-            .activity_repo
-            .get_activities_by_account_ids(account_ids)
-            .map_err(|e| anyhow::anyhow!(e.to_string()))?;
-
-        let ids: Vec<String> = activities.iter().map(|a| a.id.clone()).collect();
-        let assignments = self.assignment_service.list_for_activities(&ids).await?;
-
-        // Skip-key is (activity_id, taxonomy_id) — never `activity_id` alone.
-        // That preserves cross-taxonomy independence: a manual `income_sources`
-        // assignment must not block a `spending_categories` rule for the same
-        // activity. We also no longer hardcode the taxonomy ids — we trust the
-        // assignment row's own `source` field.
-        //
-        // - `manual_keys`: pairs that must never be overwritten (manual wins).
-        // - `any_keys`:    pairs with any existing assignment — used only when
-        //   `only_uncategorized=true` to block rule-overwrites of rule/import/ai
-        //   assignments.
-        let mut manual_keys: std::collections::HashSet<(String, String)> =
-            std::collections::HashSet::new();
-        let mut any_keys: std::collections::HashSet<(String, String)> =
-            std::collections::HashSet::new();
-        for a in &assignments {
-            let key = (a.activity_id.clone(), a.taxonomy_id.clone());
-            if a.source == "manual" {
-                manual_keys.insert(key.clone());
-            }
-            any_keys.insert(key);
+        let (matched, items, incompatible, without_target) = self.plan_rerun(account_ids).await?;
+        let mut decisions = self
+            .assignment_service
+            .apply_rules_detailed(items, only_uncategorized)
+            .await?;
+        decisions.incompatible = incompatible;
+        decisions.without_target = without_target;
+        Ok(super::model::CategorizationRunSummary { matched, decisions })
+    }
+    pub async fn preview_rerun(
+        &self,
+        account_ids: &[String],
+        only_uncategorized: bool,
+    ) -> Result<super::model::CategorizationRunSummary> {
+        if account_ids.is_empty() {
+            return Ok(Default::default());
         }
+        let (matched, items, incompatible, without_target) = self.plan_rerun(account_ids).await?;
+        let mut decisions = self
+            .assignment_service
+            .preview_rules(items, only_uncategorized)
+            .await?;
+        decisions.incompatible = incompatible;
+        decisions.without_target = without_target;
+        Ok(super::model::CategorizationRunSummary { matched, decisions })
+    }
+
+    async fn plan_rerun(
+        &self,
+        account_ids: &[String],
+    ) -> Result<(usize, Vec<NewActivityTaxonomyAssignment>, usize, usize)> {
+        let activities = self.cash_service.list_for_rules(account_ids).await?;
 
         let rules = self.repo.list().await?;
         let compiled = compile_rules(&rules);
 
         let mut matched_count = 0usize;
+        let mut incompatible = 0;
+        let mut without_target = 0;
         let mut writes: Vec<NewActivityTaxonomyAssignment> = Vec::with_capacity(activities.len());
-        for a in &activities {
+        for row in &activities {
+            let a = &row.activity;
             let notes_raw = a.notes.as_deref().unwrap_or("");
             let notes_upper = notes_raw.to_uppercase();
             let Some(m) = match_compiled(
@@ -222,11 +272,8 @@ impl CategorizationRulesService {
             if let (Some(tax_id), Some(cat_id)) =
                 (m.rule.taxonomy_id.clone(), m.rule.category_id.clone())
             {
-                let key = (a.id.clone(), tax_id.clone());
-                if manual_keys.contains(&key) {
-                    continue;
-                }
-                if only_uncategorized && any_keys.contains(&key) {
+                if row.cash_flow_bucket.taxonomy_id() != Some(tax_id.as_str()) {
+                    incompatible += 1;
                     continue;
                 }
                 writes.push(NewActivityTaxonomyAssignment {
@@ -237,13 +284,12 @@ impl CategorizationRulesService {
                     weight: 10_000,
                     source: "rule".to_string(),
                 });
+            } else {
+                without_target += 1;
             }
         }
 
-        self.assignment_service
-            .bulk_apply_rule_assignments(writes, only_uncategorized)
-            .await?;
-        Ok(matched_count)
+        Ok((matched_count, writes, incompatible, without_target))
     }
 
     /// List the bundled presets, marking which ones the user already has installed
@@ -363,6 +409,13 @@ impl CategorizationRulesService {
     }
 }
 
+/// Pure native validation for previews and reviewed rule edits.
+pub fn validate_rule_input(rule: &NewCategorizationRule) -> Result<()> {
+    validate_rule_scope(rule.is_global, rule.account_id.as_deref())?;
+    validate_rule_pattern(&rule.match_type, &rule.pattern)?;
+    validate_rule_amount(rule.amount_op, rule.amount_value, rule.amount_value2)
+}
+
 fn validate_rule_pattern(match_type: &RuleMatchType, pattern: &str) -> Result<()> {
     if !matches!(match_type, RuleMatchType::Regex) {
         return Ok(());
@@ -442,6 +495,7 @@ mod tests {
     use async_trait::async_trait;
     use chrono::{DateTime, NaiveDate, Utc};
     use std::sync::Mutex;
+    use wealthfolio_core::activities::ActivityRepositoryTrait;
     use wealthfolio_core::activities::{
         Activity, ActivityBulkMutationResult, ActivitySearchResponse, ActivityStatus,
         ActivityUpdate, ActivityUpsert, BulkUpsertResult, ImportMapping, ImportTemplate,
@@ -455,6 +509,17 @@ mod tests {
 
     #[async_trait]
     impl CategorizationRulesRepositoryTrait for MockRulesRepo {
+        async fn update_reviewed(
+            &self,
+            _: CategorizationRule,
+            _: UpdateCategorizationRule,
+        ) -> Result<CategorizationRule> {
+            unimplemented!("reviewed rule")
+        }
+        async fn delete_reviewed(&self, _: CategorizationRule) -> Result<()> {
+            unimplemented!("reviewed rule")
+        }
+
         async fn list(&self) -> Result<Vec<CategorizationRule>> {
             Ok(self.rules.lock().unwrap().clone())
         }
@@ -770,6 +835,93 @@ mod tests {
         }
     }
 
+    #[async_trait]
+    impl CashActivityServiceTrait for MockActivityRepo {
+        async fn list_for_rules(
+            &self,
+            account_ids: &[String],
+        ) -> Result<Vec<crate::cash_activities::CashActivity>> {
+            let all = self
+                .activities
+                .iter()
+                .filter(|a| account_ids.contains(&a.account_id))
+                .collect::<Vec<_>>();
+            let groups = crate::activity_classification::within_spending_transfer_groups(&all);
+            all.into_iter()
+                .map(|a| {
+                    let classification =
+                        crate::activity_classification::classify_activity_for_aggregation(
+                            a,
+                            wealthfolio_core::accounts::account_types::CASH,
+                            &groups,
+                        );
+                    let bucket = if classification.income_amount(Decimal::ONE) != Decimal::ZERO {
+                        "income"
+                    } else if classification.saving_amount(Decimal::ONE) != Decimal::ZERO {
+                        "saving"
+                    } else if classification.spending_amount(Decimal::ONE) != Decimal::ZERO {
+                        "spending"
+                    } else {
+                        "neutral"
+                    };
+                    let mut row = serde_json::to_value(a)?;
+                    row["cashFlowBucket"] = serde_json::json!(bucket);
+                    row["assignments"] = serde_json::json!([]);
+                    row["splits"] = serde_json::json!([]);
+                    row["netAmount"] = serde_json::json!(0.0);
+                    row["visibleSpendingAmount"] = serde_json::json!(0.0);
+                    serde_json::from_value(row).map_err(Into::into)
+                })
+                .collect()
+        }
+        async fn context(&self) -> Result<crate::cash_activities::SpendingContext> {
+            unimplemented!()
+        }
+        async fn search(
+            &self,
+            _: crate::cash_activities::CashActivitySearchRequest,
+        ) -> Result<crate::cash_activities::CashActivitySearchResponse> {
+            unimplemented!()
+        }
+        async fn get_by_activity_ids(
+            &self,
+            _: &[String],
+        ) -> Result<Vec<crate::cash_activities::CashActivity>> {
+            unimplemented!()
+        }
+        async fn bulk_assign_categories(
+            &self,
+            _: &[crate::activity_assignments::BulkCategoryAssignment],
+        ) -> Result<Vec<ActivityTaxonomyAssignment>> {
+            unimplemented!()
+        }
+        async fn spending_account_ids(&self) -> Result<Vec<String>> {
+            unimplemented!()
+        }
+        async fn validate_splits(
+            &self,
+            _: &str,
+            _: &[crate::activity_splits::NewActivitySplit],
+        ) -> Result<()> {
+            unimplemented!()
+        }
+        async fn replace_splits_reviewed(
+            &self,
+            _: crate::activity_splits::SplitReviewState,
+            _: Vec<crate::activity_splits::NewActivitySplit>,
+        ) -> Result<Vec<crate::activity_splits::ActivitySplit>> {
+            unimplemented!()
+        }
+        async fn set_event_reviewed(
+            &self,
+            _: &str,
+            _: Option<String>,
+            _: Option<String>,
+        ) -> Result<()> {
+            unimplemented!()
+        }
+    }
+
     struct MockActivityRepo {
         activities: Vec<Activity>,
     }
@@ -1064,7 +1216,7 @@ mod tests {
         ));
         let svc = CategorizationRulesService::new(
             rules_repo as Arc<dyn CategorizationRulesRepositoryTrait>,
-            activity_repo as Arc<dyn ActivityRepositoryTrait>,
+            activity_repo as Arc<dyn CashActivityServiceTrait>,
             assignment_service,
         );
 
@@ -1119,7 +1271,7 @@ mod tests {
         ));
         let svc = CategorizationRulesService::new(
             rules_repo as Arc<dyn CategorizationRulesRepositoryTrait>,
-            activity_repo as Arc<dyn ActivityRepositoryTrait>,
+            activity_repo as Arc<dyn CashActivityServiceTrait>,
             assignment_service,
         );
 
@@ -1152,7 +1304,7 @@ mod tests {
         ));
         let svc = Arc::new(CategorizationRulesService::new(
             rules_repo as Arc<dyn CategorizationRulesRepositoryTrait>,
-            activity_repo as Arc<dyn ActivityRepositoryTrait>,
+            activity_repo as Arc<dyn CashActivityServiceTrait>,
             assignment_service,
         ));
 
@@ -1198,7 +1350,7 @@ mod tests {
         let activity_repo = Arc::new(MockActivityRepo { activities: vec![] });
         let svc = CategorizationRulesService::new(
             rules_repo as Arc<dyn CategorizationRulesRepositoryTrait>,
-            activity_repo as Arc<dyn ActivityRepositoryTrait>,
+            activity_repo as Arc<dyn CashActivityServiceTrait>,
             assignment_service,
         );
 
@@ -1240,7 +1392,7 @@ mod tests {
         let activity_repo = Arc::new(MockActivityRepo { activities: vec![] });
         let svc = CategorizationRulesService::new(
             rules_repo as Arc<dyn CategorizationRulesRepositoryTrait>,
-            activity_repo as Arc<dyn ActivityRepositoryTrait>,
+            activity_repo as Arc<dyn CashActivityServiceTrait>,
             assignment_service,
         );
 
@@ -1282,7 +1434,7 @@ mod tests {
         let activity_repo = Arc::new(MockActivityRepo { activities: vec![] });
         let svc = CategorizationRulesService::new(
             rules_repo as Arc<dyn CategorizationRulesRepositoryTrait>,
-            activity_repo as Arc<dyn ActivityRepositoryTrait>,
+            activity_repo as Arc<dyn CashActivityServiceTrait>,
             assignment_service,
         );
 
@@ -1328,7 +1480,7 @@ mod tests {
         let activity_repo = Arc::new(MockActivityRepo { activities: vec![] });
         let svc = CategorizationRulesService::new(
             rules_repo as Arc<dyn CategorizationRulesRepositoryTrait>,
-            activity_repo as Arc<dyn ActivityRepositoryTrait>,
+            activity_repo as Arc<dyn CashActivityServiceTrait>,
             assignment_service,
         );
 
@@ -1372,7 +1524,7 @@ mod tests {
         let activity_repo = Arc::new(MockActivityRepo { activities: vec![] });
         let svc = CategorizationRulesService::new(
             rules_repo.clone() as Arc<dyn CategorizationRulesRepositoryTrait>,
-            activity_repo as Arc<dyn ActivityRepositoryTrait>,
+            activity_repo as Arc<dyn CashActivityServiceTrait>,
             assignment_service,
         );
         let mut resolver = HashMap::new();
@@ -1548,7 +1700,7 @@ mod tests {
         let activity_repo = Arc::new(MockActivityRepo { activities });
         let svc = CategorizationRulesService::new(
             rules_repo.clone() as Arc<dyn CategorizationRulesRepositoryTrait>,
-            activity_repo as Arc<dyn ActivityRepositoryTrait>,
+            activity_repo as Arc<dyn CashActivityServiceTrait>,
             assignment_service,
         );
         (svc, rules_repo, assignment_repo)

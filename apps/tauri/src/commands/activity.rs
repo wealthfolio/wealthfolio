@@ -4,10 +4,10 @@ use std::collections::HashMap;
 use log::debug;
 use wealthfolio_core::activities::{
     Activity, ActivityBulkMutationRequest, ActivityBulkMutationResult, ActivityImport,
-    ActivitySearchResponse, ActivityUpdate, ImportActivitiesResult, ImportAssetCandidate,
-    ImportAssetPreviewItem, ImportMappingData, ImportTemplateData, InternalTransferPairRequest,
-    InternalTransferPairResponse, NewActivity, ParseConfig, ParsedCsvResult, Sort,
-    TransferMatchCandidate, TransferMatchCandidateRequest,
+    ActivitySearchResponse, ActivitySplitEffect, ActivityUpdate, ImportActivitiesResult,
+    ImportAssetCandidate, ImportAssetPreviewItem, ImportMappingData, ImportTemplateData,
+    InternalTransferPairRequest, InternalTransferPairResponse, NewActivity, ParseConfig,
+    ParsedCsvResult, Sort, TransferMatchCandidate, TransferMatchCandidateRequest,
 };
 use wealthfolio_core::health::HealthServiceTrait;
 use wealthfolio_core::utils::time_utils::{
@@ -84,6 +84,18 @@ pub async fn create_activity(
         .map_err(|e| e.to_string())?;
     context.health_service().clear_cache().await;
     Ok(created)
+}
+
+#[tauri::command]
+pub async fn review_activity_split_effects(
+    activity: ActivityUpdate,
+    state: ProfileAccess,
+) -> Result<Vec<ActivitySplitEffect>, String> {
+    state
+        .context()?
+        .activity_service()
+        .review_activity_split_effects(activity)
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]

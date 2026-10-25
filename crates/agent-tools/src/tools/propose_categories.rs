@@ -286,12 +286,20 @@ impl AgentTool for ProposeCategories {
         AgentToolAccess::Suggest
     }
 
+    fn sanitize_args_for_audit(&self, _: &serde_json::Value) -> serde_json::Value {
+        serde_json::json!({"categorizationArguments":"[redacted]"})
+    }
+
     async fn call(
         &self,
         env: Arc<dyn AgentEnvironment>,
         args: serde_json::Value,
     ) -> Result<AgentToolResult, AgentToolError> {
-        let args: ProposeCategoriesArgs = serde_json::from_value(args)?;
+        let args: ProposeCategoriesArgs = serde_json::from_value(args).map_err(|_| {
+            AgentToolError::InvalidInput(
+                "Invalid categorization arguments; see the input schema".into(),
+            )
+        })?;
         let output = ProposeCategories::build_output(env.as_ref(), args).await?;
         Ok(AgentToolResult {
             content: serde_json::to_value(output)?,

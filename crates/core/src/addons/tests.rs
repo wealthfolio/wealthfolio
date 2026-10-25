@@ -536,6 +536,38 @@ fn test_detect_addon_permissions_spending() {
 }
 
 #[test]
+fn spending_metadata_writes_and_budgets_are_detected_under_explicit_high_risk_categories() {
+    let files=vec![AddonFile{name:"addon.js".into(),content:r#"
+        ctx.api.spending.getContext(); ctx.api.spending.getBudget(); ctx.api.spending.getEvents(); ctx.api.spending.getEventTypes();
+        ctx.api.spending.assignCategory('a','expense','c'); ctx.api.spending.unassignCategory('a','expense'); ctx.api.spending.setEvent('a',null);
+        ctx.api.spending.upsertBudgetTarget({});
+    "#.into(),is_main:true}];
+    let permissions = detect_addon_permissions(&files);
+    let functions = |category: &str| {
+        permissions
+            .iter()
+            .find(|p| p.category == category)
+            .unwrap()
+            .functions
+            .iter()
+            .map(|f| f.name.as_str())
+            .collect::<std::collections::HashSet<_>>()
+    };
+    assert_eq!(
+        functions("spending"),
+        std::collections::HashSet::from(["getContext", "getBudget", "getEvents", "getEventTypes"])
+    );
+    assert_eq!(
+        functions("activities"),
+        std::collections::HashSet::from(["assignCategory", "unassignCategory", "setEvent"])
+    );
+    assert_eq!(
+        functions("budgets"),
+        std::collections::HashSet::from(["upsertBudgetTarget"])
+    );
+}
+
+#[test]
 fn test_addon_manifest_to_installed() {
     let manifest = AddonManifest {
         id: "test-addon".to_string(),

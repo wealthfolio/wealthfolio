@@ -155,6 +155,23 @@ impl ActivityTaxonomyAssignmentService {
         self.repo.assign_many_single_select(items).await
     }
 
+    pub async fn apply_rules_detailed(
+        &self,
+        items: Vec<NewActivityTaxonomyAssignment>,
+        only_uncategorized: bool,
+    ) -> Result<super::RuleAssignmentResult> {
+        self.repo
+            .assign_rules_detailed(items, only_uncategorized)
+            .await
+    }
+    pub async fn preview_rules(
+        &self,
+        items: Vec<NewActivityTaxonomyAssignment>,
+        only_uncategorized: bool,
+    ) -> Result<super::RuleAssignmentResult> {
+        self.repo.preview_rules(items, only_uncategorized).await
+    }
+
     pub async fn bulk_apply_rule_assignments(
         &self,
         items: Vec<NewActivityTaxonomyAssignment>,

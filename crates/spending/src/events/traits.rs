@@ -18,6 +18,9 @@ pub trait EventTypesRepositoryTrait: Send + Sync {
 
 #[async_trait]
 pub trait EventsRepositoryTrait: Send + Sync {
+    async fn update_reviewed(&self, expected: Event, patch: UpdateEvent) -> Result<Event>;
+    async fn delete_reviewed(&self, expected: Event, expected_tag_count: usize) -> Result<()>;
+
     async fn list(&self) -> Result<Vec<Event>>;
     async fn get(&self, id: &str) -> Result<Option<Event>>;
     async fn create(&self, new_event: NewEvent) -> Result<Event>;
@@ -32,12 +35,36 @@ pub trait EventsRepositoryTrait: Send + Sync {
 /// Service surface consumed directly by agent tools, shared by both hosts.
 #[async_trait]
 pub trait EventsServiceTrait: Send + Sync {
+    async fn create_event(&self, event: NewEvent) -> Result<Event>;
+    async fn update_event_reviewed(&self, expected: Event, patch: UpdateEvent) -> Result<Event>;
+    async fn delete_event_reviewed(&self, expected: Event, expected_tag_count: usize)
+        -> Result<()>;
+    async fn event_tag_count(&self, event_id: &str) -> Result<usize>;
+
     async fn list_types(&self) -> Result<Vec<super::model::EventType>>;
     async fn list_events(&self) -> Result<Vec<super::model::Event>>;
 }
 
 #[async_trait]
 impl EventsServiceTrait for super::service::EventsService {
+    async fn create_event(&self, event: NewEvent) -> Result<Event> {
+        super::service::EventsService::create_event(self, event).await
+    }
+    async fn update_event_reviewed(&self, expected: Event, patch: UpdateEvent) -> Result<Event> {
+        super::service::EventsService::update_event_reviewed(self, expected, patch).await
+    }
+    async fn delete_event_reviewed(
+        &self,
+        expected: Event,
+        expected_tag_count: usize,
+    ) -> Result<()> {
+        super::service::EventsService::delete_event_reviewed(self, expected, expected_tag_count)
+            .await
+    }
+    async fn event_tag_count(&self, event_id: &str) -> Result<usize> {
+        super::service::EventsService::event_tag_count(self, event_id).await
+    }
+
     async fn list_types(&self) -> Result<Vec<super::model::EventType>> {
         super::service::EventsService::list_types(self).await
     }

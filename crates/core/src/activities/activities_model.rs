@@ -662,10 +662,24 @@ pub struct ActivityUpdatePreview {
     pub linked: Option<PreviewedActivityUpdate>,
 }
 
+/// Transient review of the existing financial writer's split invalidation.
+/// The fingerprint is opaque: it contains no category or financial details.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ActivitySplitEffect {
+    pub activity_id: String,
+    pub removed_splits: usize,
+    pub existing_category_becomes_effective: bool,
+    pub fingerprint: String,
+}
+
 /// Input model for updating an existing activity
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ActivityUpdate {
+    /// User review only; omitted by non-interactive sync/import callers.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub split_review: Option<Vec<ActivitySplitEffect>>,
     pub id: String,
     pub account_id: String,
 
@@ -1961,12 +1975,23 @@ pub struct IncomeData {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ImportActivitiesResult {
+    /// Actual writer-assigned IDs in source row order. Review row IDs remain
+    /// untouched; metadata follow-up must use these persisted identities.
+    #[serde(default)]
+    pub persisted_rows: Vec<ImportedActivityIdentity>,
     /// The validated/imported activities
     pub activities: Vec<ActivityImport>,
     /// Import run ID for tracking this batch
     pub import_run_id: String,
     /// Summary statistics for the import
     pub summary: ImportActivitiesSummary,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImportedActivityIdentity {
+    pub index: usize,
+    pub activity_id: String,
 }
 
 /// Summary statistics for an activity import

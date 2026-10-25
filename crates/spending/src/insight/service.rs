@@ -507,6 +507,8 @@ impl InsightService {
             category_breakdown_rows(SAVINGS_TAXONOMY, &current_agg.savings_by_category);
 
         let insight = SpendingInsight {
+            calculation_quality: current_agg.calculation_quality,
+            prior_calculation_quality: prior_agg.calculation_quality,
             period,
             prior,
             currency: currency.to_string(),
@@ -536,6 +538,7 @@ impl InsightService {
 /// during aggregation.
 #[derive(Default)]
 struct SpendAggregate {
+    calculation_quality: crate::CalculationQuality,
     /// Consumption outflow (sum of spending_amount for non-saving outflows,
     /// converted to target currency). Excludes money routed to the Savings
     /// taxonomy — that lives in `total_saved`.
@@ -626,10 +629,12 @@ fn aggregate_spend_with_splits(
         {
             continue;
         }
-        let income = crate::fx::convert(fx, income_native, &a.currency, target_currency, fx_as_of)
-            .unwrap_or(Decimal::ZERO);
-        let saved = crate::fx::convert(fx, saving_native, &a.currency, target_currency, fx_as_of)
-            .unwrap_or(Decimal::ZERO);
+        let income_converted =
+            crate::fx::convert(fx, income_native, &a.currency, target_currency, fx_as_of);
+        let saving_converted =
+            crate::fx::convert(fx, saving_native, &a.currency, target_currency, fx_as_of);
+        let income = income_converted.unwrap_or(Decimal::ZERO);
+        let saved = saving_converted.unwrap_or(Decimal::ZERO);
         agg.total_income += income;
         agg.total_saved += saved;
 
@@ -677,6 +682,10 @@ fn aggregate_spend_with_splits(
         let included_native = spending_native - excluded_native;
         let spending_converted =
             crate::fx::convert(fx, included_native, &a.currency, target_currency, fx_as_of);
+        if income_converted.is_none() || saving_converted.is_none() || spending_converted.is_none()
+        {
+            agg.calculation_quality.record_missing(&a.currency);
+        }
         let spending = spending_converted.unwrap_or(Decimal::ZERO);
         if spending == Decimal::ZERO {
             continue;
@@ -1583,6 +1592,8 @@ fn empty_insight(period: PeriodMeta, prior: PeriodMeta, currency: &str) -> Spend
         expected_spend_to_date: 0.0,
     };
     SpendingInsight {
+        calculation_quality: Default::default(),
+        prior_calculation_quality: Default::default(),
         period,
         prior,
         currency: currency.to_string(),
@@ -2788,5 +2799,13 @@ mod tests {
 
         assert_eq!(agg.total_outflow, Decimal::ZERO);
         assert!(agg.native_outflow_by_currency.is_empty());
+        assert_eq!(agg.calculation_quality.missing_fx_transactions, 1);
+        assert_eq!(
+            agg.calculation_quality
+                .missing_fx_currencies
+                .into_iter()
+                .collect::<Vec<_>>(),
+            vec!["EUR"]
+        );
     }
 }

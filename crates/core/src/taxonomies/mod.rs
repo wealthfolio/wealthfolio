@@ -14,7 +14,7 @@ pub const TRANSACTION_CATEGORY_TAXONOMY_IDS: [&str; 3] = [
 ];
 
 pub use taxonomy_model::{
-    AssetTaxonomyAssignment, Category, CategoryJson, InstrumentMappingJson,
+    AssetTaxonomyAssignment, Category, CategoryJson, CategoryReferences, InstrumentMappingJson,
     NewAssetTaxonomyAssignment, NewCategory, NewTaxonomy, Taxonomy, TaxonomyJson,
     TaxonomyWithCategories,
 };

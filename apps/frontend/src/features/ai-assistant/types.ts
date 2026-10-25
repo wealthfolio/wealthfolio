@@ -724,6 +724,7 @@ export interface ProposeCategoryProposal {
 }
 
 export interface ProposeCategoryUnproposed {
+  allowedTaxonomyId?: string | null;
   activityId: string;
   activityDate: string;
   amount: number;

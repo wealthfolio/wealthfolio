@@ -6,7 +6,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use uuid::Uuid;
 use wealthfolio_core::taxonomies::{
-    NewCategory, TaxonomyServiceTrait, TaxonomyWithCategories, TRANSACTION_CATEGORY_TAXONOMY_IDS,
+    Category, NewCategory, TaxonomyServiceTrait, TaxonomyWithCategories,
+    TRANSACTION_CATEGORY_TAXONOMY_IDS,
 };
 
 use crate::{
@@ -125,7 +126,11 @@ fn validate_category(
             ));
         }
     }
-    if taxonomy.categories.iter().any(|cat| cat.key == args.key) {
+    if taxonomy
+        .categories
+        .iter()
+        .any(|cat| cat.key == args.key && Some(cat.id.as_str()) != id)
+    {
         return Err(AgentToolError::InvalidInput(
             "A category with this key already exists in the taxonomy".into(),
         ));
@@ -366,6 +371,178 @@ impl AgentTool for CommitTransactionCategory {
         Ok(AgentToolResult {
             content: json!({"created": created}),
         })
+    }
+}
+
+/// Stateless review: the full category snapshot is compared inside the writer.
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct CategoryChange {
+    expected: Category,
+    /// None deletes the category; Some updates editable presentation/tree fields.
+    #[serde(deserialize_with = "super::required_nullable")]
+    proposed: Option<Category>,
+}
+
+fn validate_change(
+    service: &dyn TaxonomyServiceTrait,
+    change: &CategoryChange,
+) -> Result<(), AgentToolError> {
+    let taxonomy = load_taxonomy(service, &change.expected.taxonomy_id)?;
+    if !taxonomy
+        .categories
+        .iter()
+        .any(|cat| cat == &change.expected)
+    {
+        return Err(AgentToolError::InvalidInput(
+            "Category changed since review; refresh and review again".into(),
+        ));
+    }
+    if let Some(proposed) = &change.proposed {
+        if proposed.id != change.expected.id
+            || proposed.taxonomy_id != change.expected.taxonomy_id
+            || proposed.key != change.expected.key
+            || proposed.created_at != change.expected.created_at
+            || proposed.updated_at != change.expected.updated_at
+        {
+            return Err(AgentToolError::InvalidInput(
+                "Category identity, key and timestamps must be preserved".into(),
+            ));
+        }
+        if proposed.name.trim().is_empty()
+            || proposed.name.chars().any(char::is_control)
+            || proposed.color.len() != 7
+            || !proposed.color.starts_with('#')
+            || !proposed.color[1..].bytes().all(|c| c.is_ascii_hexdigit())
+        {
+            return Err(AgentToolError::InvalidInput(
+                "Provide a nonempty name and #RRGGBB color".into(),
+            ));
+        }
+        let mut visited = std::collections::HashSet::from([proposed.id.as_str()]);
+        let mut parent = proposed.parent_id.as_deref();
+        while let Some(id) = parent {
+            if !visited.insert(id) {
+                return Err(AgentToolError::InvalidInput(
+                    "Category hierarchy cannot contain a cycle".into(),
+                ));
+            }
+            parent = taxonomy
+                .categories
+                .iter()
+                .find(|cat| cat.id == id)
+                .ok_or_else(|| {
+                    AgentToolError::InvalidInput("Parent must belong to the same taxonomy".into())
+                })?
+                .parent_id
+                .as_deref();
+        }
+    }
+    Ok(())
+}
+
+fn snapshot_schema() -> Value {
+    json!({"type":"object", "additionalProperties":false,
+        "properties": {
+            "id":{"type":"string"}, "taxonomyId":{"type":"string", "enum":TRANSACTION_CATEGORY_TAXONOMY_IDS},
+            "name":{"type":"string"}, "key":{"type":"string"}, "color":{"type":"string"},
+            "parentId":{"type":["string","null"]}, "description":{"type":["string","null"]},
+            "icon":{"type":["string","null"]}, "sortOrder":{"type":"integer"},
+            "createdAt":{"type":"string"}, "updatedAt":{"type":"string"}
+        }, "required":["id","taxonomyId","name","key","color","parentId","description","sortOrder","createdAt","updatedAt"]})
+}
+
+pub struct PrepareTransactionCategoryChange;
+#[async_trait::async_trait]
+impl AgentTool for PrepareTransactionCategoryChange {
+    fn name(&self) -> &'static str {
+        "prepare_transaction_category_change"
+    }
+    fn description(&self) -> &'static str {
+        "Review an existing transaction category update or deletion. Supply expected as the complete category from discovery; proposed is the edited snapshot, or null to delete. Names, descriptions, colors, icons, sort order and parent may change; IDs, stable key and timestamps stay unchanged. Returns reference blockers and automatic links removed on deletion. No writes. User budget references block deletion; organization permission never deletes budget configuration."
+    }
+    fn input_schema(&self) -> Value {
+        json!({"type":"object", "additionalProperties":false, "properties":{
+            "expected":snapshot_schema(), "proposed":{"anyOf":[snapshot_schema(), {"type":"null"}]}
+        }, "required":["expected","proposed"]})
+    }
+    fn required_scopes(&self) -> &'static [AgentScope] {
+        &[AgentScope::SpendingRead]
+    }
+    fn access_level(&self) -> AgentToolAccess {
+        AgentToolAccess::Read
+    }
+    fn sanitize_args_for_audit(&self, _: &Value) -> Value {
+        json!({"change":"[redacted]"})
+    }
+    async fn call(
+        &self,
+        env: Arc<dyn AgentEnvironment>,
+        args: Value,
+    ) -> Result<AgentToolResult, AgentToolError> {
+        let change: CategoryChange = parse_args(args)?;
+        let service = env.taxonomy_service();
+        validate_change(service.as_ref(), &change)?;
+        let refs = service
+            .get_category_references(&change.expected.taxonomy_id, &change.expected.id)
+            .map_err(|_| {
+                AgentToolError::ExecutionFailed("Unable to inspect category references".into())
+            })?;
+        Ok(AgentToolResult {
+            content: json!({"change":change, "references":refs,
+            "canCommit":change.proposed.is_some() || refs.blocking_count() == 0,
+            "message":"Review the change before committing. Deletion rechecks references atomically; concurrent edits require a fresh review."}),
+        })
+    }
+}
+
+pub struct CommitTransactionCategoryChange;
+#[async_trait::async_trait]
+impl AgentTool for CommitTransactionCategoryChange {
+    fn name(&self) -> &'static str {
+        "commit_transaction_category_change"
+    }
+    fn description(&self) -> &'static str {
+        "MUTATES data. Apply the reviewed change from prepare_transaction_category_change. Rechecks the full category state and deletion references inside the shared SQLite writer. Stale edits or new blockers reject the operation without deleting user data. Does not rewrite financial activities or budgets."
+    }
+    fn input_schema(&self) -> Value {
+        PrepareTransactionCategoryChange.input_schema()
+    }
+    fn required_scopes(&self) -> &'static [AgentScope] {
+        &[AgentScope::SpendingRead, AgentScope::SpendingWrite]
+    }
+    fn access_level(&self) -> AgentToolAccess {
+        AgentToolAccess::Write
+    }
+    fn sanitize_args_for_audit(&self, _: &Value) -> Value {
+        json!({"change":"[redacted]"})
+    }
+    async fn call(
+        &self,
+        env: Arc<dyn AgentEnvironment>,
+        args: Value,
+    ) -> Result<AgentToolResult, AgentToolError> {
+        let change: CategoryChange = parse_args(args)?;
+        let service = env.taxonomy_service();
+        validate_change(service.as_ref(), &change)?;
+        let result = if let Some(proposed) = change.proposed {
+            service
+                .update_category_reviewed(change.expected, proposed)
+                .await
+                .map(|category| json!({"updated":category}))
+        } else {
+            service
+                .delete_category_reviewed(change.expected)
+                .await
+                .map(|count| json!({"deletedCount":count}))
+        }
+        .map_err(|_| {
+            AgentToolError::ExecutionFailed(
+                "Category change rejected; refresh category and references, then review again"
+                    .into(),
+            )
+        })?;
+        Ok(AgentToolResult { content: result })
     }
 }
 

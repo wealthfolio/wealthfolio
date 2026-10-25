@@ -17,7 +17,8 @@ pub struct SearchActivitiesArgs {
     pub account_id: Option<String>,
     /// Activity type filter (e.g., "BUY", "SELL", "DIVIDEND").
     pub activity_type: Option<String>,
-    /// Symbol/asset keyword filter.
+    /// Text search across transaction notes and asset identity; legacy symbol alias.
+    #[serde(alias = "query")]
     pub symbol: Option<String>,
     /// Start date filter in YYYY-MM-DD format (optional).
     pub date_from: Option<String>,
@@ -98,9 +99,13 @@ impl AgentTool for SearchActivities {
                     "description": "Filter by activity type",
                     "enum": ["BUY", "SELL", "DIVIDEND", "DEPOSIT", "WITHDRAWAL", "TRANSFER_IN", "TRANSFER_OUT", "INTEREST", "FEE", "SPLIT", "TAX"]
                 },
+                "query": {
+                    "type": "string",
+                    "description": "Search transaction notes, ticker and asset name. Use query or the legacy symbol alias, not both."
+                },
                 "symbol": {
                     "type": "string",
-                    "description": "Filter by symbol or asset keyword"
+                    "description": "Compatibility alias for query; searches notes and asset identity, not just tickers."
                 },
                 "dateFrom": {
                     "type": "string",
@@ -297,5 +302,25 @@ impl AgentTool for SearchActivities {
         Ok(AgentToolResult {
             content: serde_json::to_value(output)?,
         })
+    }
+}
+
+#[cfg(test)]
+mod query_alias_tests {
+    use super::*;
+    #[test]
+    fn query_and_legacy_symbol_reach_the_same_native_text_filter() {
+        for field in ["query", "symbol"] {
+            let args: SearchActivitiesArgs =
+                serde_json::from_value(serde_json::json!({field:"Coffee"})).unwrap();
+            assert_eq!(args.symbol.as_deref(), Some("Coffee"));
+            assert!(SearchActivities.input_schema()["properties"]
+                .get(field)
+                .is_some());
+        }
+        assert!(serde_json::from_value::<SearchActivitiesArgs>(
+            serde_json::json!({"query":"a","symbol":"b"})
+        )
+        .is_err());
     }
 }

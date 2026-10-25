@@ -143,6 +143,63 @@ fn clear_splits_for_activities_tx(
     Ok(())
 }
 
+enum RuleDecision {
+    Eligible(bool),
+    Split,
+    Manual,
+    Existing,
+    Unchanged,
+}
+fn rule_decision(
+    conn: &mut SqliteConnection,
+    item: &NewActivityTaxonomyAssignment,
+    only_uncategorized: bool,
+) -> wealthfolio_core::Result<RuleDecision> {
+    if diesel::select(diesel::dsl::exists(
+        spending_activity_splits::table
+            .filter(spending_activity_splits::activity_id.eq(&item.activity_id)),
+    ))
+    .get_result::<bool>(conn)
+    .map_err(StorageError::from)?
+    {
+        return Ok(RuleDecision::Split);
+    }
+    let existing = activity_taxonomy_assignments::table
+        .filter(activity_taxonomy_assignments::activity_id.eq(&item.activity_id))
+        .filter(activity_taxonomy_assignments::taxonomy_id.eq(&item.taxonomy_id))
+        .load::<ActivityTaxonomyAssignmentDB>(conn)
+        .map_err(StorageError::from)?;
+    if existing
+        .iter()
+        .any(|a| a.source.eq_ignore_ascii_case("manual"))
+    {
+        return Ok(RuleDecision::Manual);
+    }
+    if only_uncategorized && !existing.is_empty() {
+        return Ok(RuleDecision::Existing);
+    }
+    if existing.len() == 1
+        && existing[0].category_id == item.category_id
+        && existing[0].weight == item.weight
+        && existing[0].source == item.source
+    {
+        return Ok(RuleDecision::Unchanged);
+    }
+    Ok(RuleDecision::Eligible(!existing.is_empty()))
+}
+fn count_rule_decision(
+    summary: &mut wealthfolio_spending::activity_assignments::RuleAssignmentResult,
+    decision: &RuleDecision,
+) {
+    match decision {
+        RuleDecision::Eligible(_) => summary.eligible += 1,
+        RuleDecision::Split => summary.protected_splits += 1,
+        RuleDecision::Manual => summary.protected_manual += 1,
+        RuleDecision::Existing => summary.skipped_existing += 1,
+        RuleDecision::Unchanged => summary.unchanged += 1,
+    }
+}
+
 #[async_trait]
 impl ActivityTaxonomyAssignmentRepositoryTrait for ActivityTaxonomyAssignmentRepository {
     async fn list_for_activity(
@@ -447,15 +504,45 @@ impl ActivityTaxonomyAssignmentRepositoryTrait for ActivityTaxonomyAssignmentRep
         items: Vec<NewActivityTaxonomyAssignment>,
         only_uncategorized: bool,
     ) -> Result<Vec<ActivityTaxonomyAssignment>> {
+        Ok(self
+            .assign_rules_detailed(items, only_uncategorized)
+            .await?
+            .assignments)
+    }
+    async fn preview_rules(
+        &self,
+        items: Vec<NewActivityTaxonomyAssignment>,
+        only_uncategorized: bool,
+    ) -> Result<wealthfolio_spending::activity_assignments::RuleAssignmentResult> {
+        let mut conn = get_connection(&self.pool).map_err(|e| anyhow::anyhow!(e))?;
+        let mut result =
+            wealthfolio_spending::activity_assignments::RuleAssignmentResult::default();
+        for item in items {
+            let decision = rule_decision(&mut conn, &item, only_uncategorized)?;
+            count_rule_decision(&mut result, &decision);
+        }
+        Ok(result)
+    }
+    async fn assign_rules_detailed(
+        &self,
+        items: Vec<NewActivityTaxonomyAssignment>,
+        only_uncategorized: bool,
+    ) -> Result<wealthfolio_spending::activity_assignments::RuleAssignmentResult> {
         if items.is_empty() {
-            return Ok(Vec::new());
+            return Ok(Default::default());
         }
         let now = chrono::Utc::now().to_rfc3339();
-        let inserted_dbs: Vec<ActivityTaxonomyAssignmentDB> = self
+        let result = self
             .writer
             .exec_tx(move |tx| {
-                let mut out = Vec::with_capacity(items.len());
+                let mut result =
+                    wealthfolio_spending::activity_assignments::RuleAssignmentResult::default();
                 for item in items {
+                    let decision = rule_decision(tx.conn(), &item, only_uncategorized)?;
+                    count_rule_decision(&mut result, &decision);
+                    let RuleDecision::Eligible(had_existing) = decision else {
+                        continue;
+                    };
                     let NewActivityTaxonomyAssignment {
                         id,
                         activity_id,
@@ -464,33 +551,6 @@ impl ActivityTaxonomyAssignmentRepositoryTrait for ActivityTaxonomyAssignmentRep
                         weight,
                         source,
                     } = item;
-                    let has_splits = diesel::select(diesel::dsl::exists(
-                        spending_activity_splits::table
-                            .filter(spending_activity_splits::activity_id.eq(&activity_id)),
-                    ))
-                    .get_result::<bool>(tx.conn())
-                    .map_err(StorageError::from)?;
-                    if has_splits {
-                        continue;
-                    }
-                    let existing: Vec<ActivityTaxonomyAssignmentDB> =
-                        activity_taxonomy_assignments::table
-                            .filter(activity_taxonomy_assignments::activity_id.eq(&activity_id))
-                            .filter(activity_taxonomy_assignments::taxonomy_id.eq(&taxonomy_id))
-                            .load::<ActivityTaxonomyAssignmentDB>(tx.conn())
-                            .map_err(StorageError::from)?;
-
-                    if existing
-                        .iter()
-                        .any(|row| row.source.eq_ignore_ascii_case("manual"))
-                    {
-                        continue;
-                    }
-                    if only_uncategorized && !existing.is_empty() {
-                        continue;
-                    }
-
-                    let had_existing = !existing.is_empty();
                     let id = id.unwrap_or_else(|| {
                         activity_taxonomy_assignment_id(&activity_id, &taxonomy_id)
                     });
@@ -529,17 +589,17 @@ impl ActivityTaxonomyAssignmentRepositoryTrait for ActivityTaxonomyAssignmentRep
                             tx.insert(&inserted)?;
                         }
                     }
-                    out.push(inserted);
+                    result
+                        .assignments
+                        .push(ActivityTaxonomyAssignment::from(inserted));
+                    result.changed += 1;
                 }
-                Ok(out)
+                Ok(result)
             })
             .await
             .map_err(|e| anyhow::anyhow!(e))?;
 
-        Ok(inserted_dbs
-            .into_iter()
-            .map(ActivityTaxonomyAssignment::from)
-            .collect())
+        Ok(result)
     }
 
     async fn delete(&self, id: &str) -> Result<()> {

@@ -1458,7 +1458,7 @@
         "description": "ポートフォリオの健全性と診断結果を読み取ります。"
       },
       "classification_read": {
-        "label": "資産分類 — 分類(読み取り)",
+        "label": "資産分類（読み取り）",
         "description": "銘柄の分類と分類体系を読み取ります。"
       },
       "activities_draft": {
@@ -1474,7 +1474,7 @@
         "description": "確認用に銘柄の分類を提案します。"
       },
       "classification_write": {
-        "label": "資産分類 — 適用/書き込み",
+        "label": "資産分類 — 適用・書き込み",
         "description": "確認済みの分類の下書きを適用します。提案のスコープが必要です。"
       },
       "market_data_write": {

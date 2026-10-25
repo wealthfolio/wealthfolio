@@ -43,7 +43,7 @@ impl AgentToolCatalog {
         tools.extend(crate::tools::draft_suggest_tools());
         tools.extend(crate::tools::commit_tools());
         tools.extend(crate::tools::categorization_rule_tools());
-        tools.extend(crate::tools::spending_read_tools());
+        tools.extend(crate::tools::spending_access_tools());
         tools.extend(crate::tools::import_tools());
         tools.extend(crate::tools::transfer_link_tools());
         tools.extend(crate::tools::quote_import_tools());
@@ -101,6 +101,140 @@ impl AgentToolCatalog {
 mod tests {
     use super::*;
     use std::sync::Mutex;
+    use wealthfolio_core::taxonomies::{
+        AssetTaxonomyAssignment, Category, NewAssetTaxonomyAssignment, NewCategory, NewTaxonomy,
+        Taxonomy, TaxonomyServiceTrait, TaxonomyWithCategories,
+    };
+    struct TestTaxonomyService;
+    #[async_trait::async_trait]
+    impl TaxonomyServiceTrait for TestTaxonomyService {
+        async fn update_category_reviewed(
+            &self,
+            _: wealthfolio_core::taxonomies::Category,
+            _: wealthfolio_core::taxonomies::Category,
+        ) -> wealthfolio_core::Result<wealthfolio_core::taxonomies::Category> {
+            unimplemented!("reviewed categories are not used by this fixture")
+        }
+        async fn delete_category_reviewed(
+            &self,
+            _: wealthfolio_core::taxonomies::Category,
+        ) -> wealthfolio_core::Result<usize> {
+            unimplemented!("reviewed categories are not used by this fixture")
+        }
+
+        fn get_category_references(
+            &self,
+            _: &str,
+            _: &str,
+        ) -> wealthfolio_core::Result<wealthfolio_core::taxonomies::CategoryReferences> {
+            unimplemented!("category references are not used by this fixture")
+        }
+
+        fn get_taxonomies(&self) -> wealthfolio_core::Result<Vec<Taxonomy>> {
+            unimplemented!()
+        }
+        fn get_taxonomy(
+            &self,
+            id: &str,
+        ) -> wealthfolio_core::Result<Option<TaxonomyWithCategories>> {
+            let time = chrono::DateTime::from_timestamp(0, 0).unwrap().naive_utc();
+            Ok(Some(TaxonomyWithCategories {
+                taxonomy: Taxonomy {
+                    id: id.into(),
+                    name: "Transaction categories".into(),
+                    color: "#808080".into(),
+                    description: None,
+                    is_system: true,
+                    is_single_select: true,
+                    sort_order: 0,
+                    created_at: time,
+                    updated_at: time,
+                    scope: "activity".into(),
+                },
+                categories: vec![Category {
+                    id: "food".into(),
+                    taxonomy_id: id.into(),
+                    parent_id: None,
+                    name: "Food".into(),
+                    key: "food".into(),
+                    color: "#808080".into(),
+                    description: None,
+                    sort_order: 0,
+                    created_at: time,
+                    updated_at: time,
+                    icon: None,
+                }],
+            }))
+        }
+        fn get_taxonomies_with_categories(
+            &self,
+        ) -> wealthfolio_core::Result<Vec<TaxonomyWithCategories>> {
+            unimplemented!()
+        }
+        async fn create_taxonomy(&self, _: NewTaxonomy) -> wealthfolio_core::Result<Taxonomy> {
+            unimplemented!()
+        }
+        async fn update_taxonomy(&self, _: Taxonomy) -> wealthfolio_core::Result<Taxonomy> {
+            unimplemented!()
+        }
+        async fn delete_taxonomy(&self, _: &str) -> wealthfolio_core::Result<usize> {
+            unimplemented!()
+        }
+        async fn create_category(&self, _: NewCategory) -> wealthfolio_core::Result<Category> {
+            unimplemented!()
+        }
+        async fn update_category(&self, _: Category) -> wealthfolio_core::Result<Category> {
+            unimplemented!()
+        }
+        async fn delete_category(&self, _: &str, _: &str) -> wealthfolio_core::Result<usize> {
+            unimplemented!()
+        }
+        async fn move_category(
+            &self,
+            _: &str,
+            _: &str,
+            _: Option<String>,
+            _: i32,
+        ) -> wealthfolio_core::Result<Category> {
+            unimplemented!()
+        }
+        async fn import_taxonomy_json(&self, _: &str) -> wealthfolio_core::Result<Taxonomy> {
+            unimplemented!()
+        }
+        fn export_taxonomy_json(&self, _: &str) -> wealthfolio_core::Result<String> {
+            unimplemented!()
+        }
+        fn get_asset_assignments(
+            &self,
+            _: &str,
+        ) -> wealthfolio_core::Result<Vec<AssetTaxonomyAssignment>> {
+            unimplemented!()
+        }
+        fn get_category_assignments(
+            &self,
+            _: &str,
+            _: &str,
+        ) -> wealthfolio_core::Result<Vec<AssetTaxonomyAssignment>> {
+            unimplemented!()
+        }
+        async fn assign_asset_to_category(
+            &self,
+            _: NewAssetTaxonomyAssignment,
+        ) -> wealthfolio_core::Result<AssetTaxonomyAssignment> {
+            unimplemented!()
+        }
+        async fn replace_asset_taxonomy_assignments(
+            &self,
+            _: &str,
+            _: &str,
+            _: Vec<NewAssetTaxonomyAssignment>,
+        ) -> wealthfolio_core::Result<Vec<AssetTaxonomyAssignment>> {
+            unimplemented!()
+        }
+        async fn remove_asset_assignment(&self, _: &str) -> wealthfolio_core::Result<usize> {
+            unimplemented!()
+        }
+    }
     use wealthfolio_spending::categorization_rules::{CategorizationRule, NewCategorizationRule};
 
     /// Stub environment for authorization tests: service access panics unless
@@ -124,6 +258,30 @@ mod tests {
 
     #[async_trait::async_trait]
     impl wealthfolio_spending::cash_activities::CashActivityServiceTrait for TestCashService {
+        async fn set_event_reviewed(
+            &self,
+            _: &str,
+            _: Option<String>,
+            _: Option<String>,
+        ) -> anyhow::Result<()> {
+            unimplemented!("reviewed tags")
+        }
+
+        async fn validate_splits(
+            &self,
+            _: &str,
+            _: &[wealthfolio_spending::activity_splits::NewActivitySplit],
+        ) -> anyhow::Result<()> {
+            unimplemented!("reviewed splits")
+        }
+        async fn replace_splits_reviewed(
+            &self,
+            _: wealthfolio_spending::activity_splits::SplitReviewState,
+            _: Vec<wealthfolio_spending::activity_splits::NewActivitySplit>,
+        ) -> anyhow::Result<Vec<wealthfolio_spending::activity_splits::ActivitySplit>> {
+            unimplemented!("reviewed splits")
+        }
+
         async fn context(
             &self,
         ) -> anyhow::Result<wealthfolio_spending::cash_activities::SpendingContext> {
@@ -166,6 +324,42 @@ mod tests {
     impl wealthfolio_spending::categorization_rules::CategorizationRulesServiceTrait
         for TestRuleService
     {
+        async fn update_reviewed(
+            &self,
+            _: wealthfolio_spending::categorization_rules::CategorizationRule,
+            _: wealthfolio_spending::categorization_rules::NewCategorizationRule,
+        ) -> anyhow::Result<wealthfolio_spending::categorization_rules::CategorizationRule>
+        {
+            unimplemented!("reviewed rules")
+        }
+        async fn delete_reviewed(
+            &self,
+            _: wealthfolio_spending::categorization_rules::CategorizationRule,
+        ) -> anyhow::Result<()> {
+            unimplemented!("reviewed rules")
+        }
+        async fn list_presets(
+            &self,
+        ) -> anyhow::Result<
+            Vec<wealthfolio_spending::categorization_rules::presets::RulePresetSummary>,
+        > {
+            unimplemented!("presets")
+        }
+        async fn import_preset(
+            &self,
+            _: &str,
+            _: &std::collections::HashMap<String, (String, String)>,
+        ) -> anyhow::Result<wealthfolio_spending::categorization_rules::presets::ImportPresetResult>
+        {
+            unimplemented!("presets")
+        }
+        async fn remove_preset(
+            &self,
+            _: &str,
+        ) -> anyhow::Result<wealthfolio_spending::categorization_rules::presets::RemovePresetResult>
+        {
+            unimplemented!("presets")
+        }
         async fn list(&self) -> anyhow::Result<Vec<CategorizationRule>> {
             unreachable!("not used by the commit test")
         }
@@ -279,7 +473,8 @@ mod tests {
             unimplemented!("PanicEnv")
         }
         fn taxonomy_service(&self) -> Arc<dyn wealthfolio_core::taxonomies::TaxonomyServiceTrait> {
-            unimplemented!("PanicEnv")
+            self.rules.as_ref().expect("PanicEnv");
+            Arc::new(TestTaxonomyService)
         }
         fn portfolio_service(
             &self,
@@ -338,23 +533,19 @@ mod tests {
             (
                 "list_transaction_categories",
                 crate::AgentToolAccess::Read,
-                vec![crate::AgentScope::ClassificationRead],
+                vec![crate::AgentScope::SpendingRead],
             ),
             (
                 "prepare_transaction_category",
                 crate::AgentToolAccess::Draft,
-                vec![
-                    crate::AgentScope::ClassificationRead,
-                    crate::AgentScope::ClassificationSuggest,
-                ],
+                vec![crate::AgentScope::SpendingRead],
             ),
             (
                 "commit_transaction_category",
                 crate::AgentToolAccess::Write,
                 vec![
-                    crate::AgentScope::ClassificationRead,
-                    crate::AgentScope::ClassificationSuggest,
-                    crate::AgentScope::ClassificationWrite,
+                    crate::AgentScope::SpendingRead,
+                    crate::AgentScope::SpendingWrite,
                 ],
             ),
         ] {
@@ -397,11 +588,7 @@ mod tests {
     #[tokio::test]
     async fn transaction_category_parse_errors_do_not_echo_private_input() {
         let catalog = AgentToolCatalog::mcp_catalog();
-        let granted = AgentScopeSet::from_strs([
-            "classification:read",
-            "classification:suggest",
-            "classification:write",
-        ]);
+        let granted = AgentScopeSet::from_strs(["spending:read", "spending:write"]);
         for name in [
             "list_transaction_categories",
             "prepare_transaction_category",
@@ -658,7 +845,7 @@ mod tests {
             .unwrap();
         assert_eq!(
             result.content,
-            serde_json::json!({ "onlyUncategorized": true, "accounts": 2, "matched": 4 })
+            serde_json::json!({ "onlyUncategorized": true, "accounts": 2, "matched": 4, "eligible":0,"changed":0,"protectedSplits":0,"protectedManual":0,"skippedExisting":0,"unchanged":0,"incompatible":0,"withoutTarget":0 })
         );
         catalog
             .execute(
@@ -956,5 +1143,113 @@ mod tests {
             .await
             .unwrap_err();
         assert!(matches!(err, AgentToolError::NotFound(_)));
+    }
+    #[tokio::test]
+    async fn every_spending_write_respects_the_independent_budget_boundary() {
+        let catalog = AgentToolCatalog::mcp_catalog();
+        for tool in catalog.iter() {
+            let denied = if tool
+                .required_scopes()
+                .contains(&crate::AgentScope::SpendingWrite)
+            {
+                Some(AgentScopeSet::from_strs(["spending:read", "budget:write"]))
+            } else if tool
+                .required_scopes()
+                .contains(&crate::AgentScope::BudgetWrite)
+            {
+                Some(AgentScopeSet::from_strs([
+                    "spending:read",
+                    "spending:write",
+                ]))
+            } else {
+                None
+            };
+            if let Some(scopes) = denied {
+                let error = catalog
+                    .execute(
+                        Arc::new(PanicEnv::default()),
+                        &scopes,
+                        tool.name(),
+                        serde_json::json!({}),
+                    )
+                    .await
+                    .unwrap_err();
+                assert!(
+                    matches!(error, AgentToolError::ScopeDenied { .. }),
+                    "{}: {error}",
+                    tool.name()
+                );
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn malformed_spending_changes_are_data_free_and_never_treat_omission_as_deletion() {
+        let catalog = AgentToolCatalog::mcp_catalog();
+        let scopes = AgentScopeSet::from_strs(["spending:read", "spending:write", "budget:write"]);
+        for name in [
+            "prepare_budget_change",
+            "commit_budget_change",
+            "prepare_spending_event",
+            "commit_spending_event",
+            "prepare_spending_event_tag",
+            "commit_spending_event_tag",
+            "prepare_spending_splits",
+            "commit_spending_splits",
+            "prepare_transaction_category_change",
+            "commit_transaction_category_change",
+            "prepare_categorization_rule_change",
+            "commit_categorization_rule_change",
+            "prepare_categorization_preset",
+            "commit_categorization_preset",
+            "prepare_spending_import_metadata",
+        ] {
+            let input = serde_json::json!({"confidential_unknown":"private amount and notes"});
+            let tool = catalog.get(name).expect("registered workflow");
+            assert!(
+                !tool
+                    .sanitize_args_for_audit(&input)
+                    .to_string()
+                    .contains("private"),
+                "{name}"
+            );
+            let error = catalog
+                .execute(Arc::new(PanicEnv::default()), &scopes, name, input)
+                .await
+                .unwrap_err();
+            assert!(
+                matches!(error, AgentToolError::InvalidInput(_)),
+                "{name}: {error}"
+            );
+            assert!(
+                !error.to_string().contains("confidential")
+                    && !error.to_string().contains("private"),
+                "{name}: {error}"
+            );
+        }
+        for (name, input) in [
+            (
+                "prepare_categorization_rule_change",
+                serde_json::json!({"ruleId":"r"}),
+            ),
+            ("prepare_spending_event", serde_json::json!({"eventId":"e"})),
+            (
+                "prepare_spending_event_tag",
+                serde_json::json!({"activityId":"a"}),
+            ),
+            (
+                "commit_spending_event_tag",
+                serde_json::json!({"activityId":"a","eventId":null}),
+            ),
+        ] {
+            let error = catalog
+                .execute(Arc::new(PanicEnv::default()), &scopes, name, input)
+                .await
+                .unwrap_err();
+            assert!(
+                matches!(error, AgentToolError::InvalidInput(_)),
+                "{name}: {error}"
+            );
+        }
     }
 }

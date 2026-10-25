@@ -81,6 +81,52 @@ fn validate_draft(rule: &NewCategorizationRule) -> Result<(), AgentToolError> {
     Ok(())
 }
 
+/// Validate target ownership and enrollment before touching a mutation service.
+pub(super) async fn validate_target(
+    env: &dyn AgentEnvironment,
+    rule: &NewCategorizationRule,
+) -> Result<(), AgentToolError> {
+    let taxonomy = rule
+        .taxonomy_id
+        .as_deref()
+        .ok_or_else(|| AgentToolError::InvalidInput("A transaction taxonomy is required".into()))?;
+    if !wealthfolio_core::taxonomies::TRANSACTION_CATEGORY_TAXONOMY_IDS.contains(&taxonomy) {
+        return Err(AgentToolError::InvalidInput(
+            "Only transaction category taxonomies are allowed".into(),
+        ));
+    }
+    let entry = env
+        .taxonomy_service()
+        .get_taxonomy(taxonomy)
+        .map_err(|_| AgentToolError::ExecutionFailed("Unable to resolve rule target".into()))?
+        .filter(|entry| entry.taxonomy.scope == "activity")
+        .ok_or_else(|| AgentToolError::InvalidInput("Transaction taxonomy unavailable".into()))?;
+    if !entry
+        .categories
+        .iter()
+        .any(|cat| Some(cat.id.as_str()) == rule.category_id.as_deref())
+    {
+        return Err(AgentToolError::InvalidInput(
+            "Rule category must belong to the chosen taxonomy".into(),
+        ));
+    }
+    if let Some(id) = &rule.account_id {
+        let accounts = env
+            .cash_activity_service()
+            .spending_account_ids()
+            .await
+            .map_err(|_| {
+                AgentToolError::ExecutionFailed("Unable to resolve Spending scope".into())
+            })?;
+        if !accounts.contains(id) {
+            return Err(AgentToolError::InvalidInput(
+                "Rule account is outside effective Spending scope".into(),
+            ));
+        }
+    }
+    Ok(())
+}
+
 /// Commit one reviewed categorization rule draft.
 pub struct CommitCategorizationRule;
 
@@ -158,12 +204,17 @@ impl AgentTool for CommitCategorizationRule {
             AgentToolError::InvalidInput("Invalid categorization rule draft".to_string())
         })?;
         validate_draft(&args.rule)?;
+        validate_target(env.as_ref(), &args.rule).await?;
 
         let created = env
             .categorization_rules_service()
             .create(args.rule)
             .await
-            .map_err(|e| AgentToolError::ExecutionFailed(e.to_string()))?;
+            .map_err(|_| {
+                AgentToolError::ExecutionFailed(
+                    "Rule could not be saved; refresh and review again".into(),
+                )
+            })?;
         Ok(AgentToolResult {
             content: serde_json::to_value(CommitCategorizationRuleOutput { created })?,
         })
