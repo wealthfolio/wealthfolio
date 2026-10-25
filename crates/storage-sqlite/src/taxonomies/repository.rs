@@ -121,19 +121,30 @@ fn validate_transaction_category_tree(
     if !TRANSACTION_CATEGORY_TAXONOMY_IDS.contains(&taxonomy_id) {
         return Ok(());
     }
-    let duplicate = diesel::select(diesel::dsl::exists(
-        taxonomy_categories::table
-            .filter(taxonomy_categories::taxonomy_id.eq(taxonomy_id))
-            .filter(taxonomy_categories::key.eq(key))
-            .filter(taxonomy_categories::id.ne(category_id)),
-    ))
-    .get_result::<bool>(conn)
-    .map_err(StorageError::from)?;
-    if duplicate {
-        return Err(wealthfolio_core::errors::DatabaseError::UniqueViolation(
-            "A category with this key already exists in the taxonomy".into(),
-        )
-        .into());
+    // Legacy imports may contain duplicate keys. Cosmetic edits must not force
+    // an unrelated cleanup; only creation or a changed key can add a collision.
+    let stored_key = taxonomy_categories::table
+        .filter(taxonomy_categories::taxonomy_id.eq(taxonomy_id))
+        .filter(taxonomy_categories::id.eq(category_id))
+        .select(taxonomy_categories::key)
+        .first::<String>(conn)
+        .optional()
+        .map_err(StorageError::from)?;
+    if stored_key.as_deref() != Some(key) {
+        let duplicate = diesel::select(diesel::dsl::exists(
+            taxonomy_categories::table
+                .filter(taxonomy_categories::taxonomy_id.eq(taxonomy_id))
+                .filter(taxonomy_categories::key.eq(key))
+                .filter(taxonomy_categories::id.ne(category_id)),
+        ))
+        .get_result::<bool>(conn)
+        .map_err(StorageError::from)?;
+        if duplicate {
+            return Err(wealthfolio_core::errors::DatabaseError::UniqueViolation(
+                "A category with this key already exists in the taxonomy".into(),
+            )
+            .into());
+        }
     }
     let mut visited = std::collections::HashSet::from([category_id.to_string()]);
     let mut parent_id = parent_id.map(str::to_string);

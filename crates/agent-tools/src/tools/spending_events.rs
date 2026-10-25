@@ -37,8 +37,11 @@ async fn validate(env: &dyn AgentEnvironment, event: &NewEvent) -> Result<(), Ag
     if event.name.trim().is_empty() || event.id.as_deref().is_none_or(|id| id.trim().is_empty()) {
         return Err(invalid());
     }
-    wealthfolio_spending::events::service::validate_event_range(&event.start_date, &event.end_date)
-        .map_err(|_| invalid())?;
+    wealthfolio_spending::events::service::validate_event_range_strict(
+        &event.start_date,
+        &event.end_date,
+    )
+    .map_err(|_| invalid())?;
     if !env
         .spending_events_service()
         .list_types()

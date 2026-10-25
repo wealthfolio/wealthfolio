@@ -118,9 +118,11 @@ fingerprint discloses no category names or amounts, so this review needs no
 extra Spending grant. Native confirmation is shared through a profile-scoped,
 in-memory dialog; cancellation/profile unmount performs no mutation. Each save
 uses one batched review request. Records without splits capture current state
-without resolving replacement symbols or deriving trade amounts. Independent
-non-destructive previews may overlap. A second destructive confirmation cannot
-overwrite the open dialog; no review queue or automatic retry is introduced.
+without resolving replacement symbols or deriving trade amounts. A split cash
+row changing account/type with a new symbol also previews the writer's existing
+removal rule without resolving that symbol. Independent non-destructive previews
+may overlap. A second destructive confirmation cannot overwrite the open dialog;
+no review queue or automatic retry is introduced.
 
 Non-interactive broker/import/sync callers omit this review field and retain
 their existing atomic invalidation behavior. There is no confirmation gate,
@@ -173,12 +175,14 @@ Both Tauri and Axum compose the same services; frontend commands are wired
 through shared adapters and each runtime registration/map/route.
 
 Observable changes: explicit category-versus-split protection; eligible-only
-rule reruns and accurate counts; safe category deletion; missing-default Insight
-group resolution; reviewed financial-edit consequences; additive pure APIs and
-calculation coverage. Financial import now returns persisted row identities
-without changing UUID generation, deduplication or sync identity. Saved
-assistant category/rule cards unwrap persisted result envelopes and retain
-applied state.
+rule reruns and accurate counts; safe category deletion; native category
+create/update/move parent-cycle validation and collision prevention for new or
+changed keys (unchanged legacy duplicates permit cosmetic edits);
+missing-default Insight group resolution; reviewed financial-edit consequences;
+additive pure APIs and calculation coverage. Financial import now returns
+persisted row identities without changing UUID generation, deduplication or sync
+identity. Saved assistant category/rule cards unwrap persisted result envelopes
+and retain applied state.
 
 Provider settings, network resolution policy, synchronous/background ownership,
 SQLite/local-first storage, secrets, financial accounting and non-interactive
@@ -186,7 +190,10 @@ financial invalidation stay unchanged. Mutation errors propagate; no automatic
 retry is added. Audit summaries omit drafts, notes, patterns, receipts, names
 and amounts for the new Spending workflows. MCP authorization permits a
 mutation; it cannot prove a human reviewed a preview. Clients must present the
-review.
+review. Strict date formats apply to new reviewed MCP event proposals. Native
+event range validation retains its prior sortable-string fallback; existing
+native event-update parsing behavior is unchanged. Date validation errors do not
+echo the input.
 
 ## Related reports and limits
 
@@ -209,8 +216,8 @@ Completed implementation validation (including focused checks after review
 fixes):
 
 - Rust unit suites: core 2,009; Spending 180; SQLite 476; agent tools 148.
-- SQLite category-reference/restart tests 6; two-device sync replay tests 15.
-- Server MCP/auth/native-service integration tests 33; desktop MCP/router tests
+- SQLite category-reference/restart tests 7; two-device sync replay tests 15.
+- Server MCP/auth/native-service integration tests 35; desktop MCP/router tests
   12; MCP crate tests 15.
 - AI output parity 51 plus schema snapshots 20; the existing live Ollama test
   remains ignored because it requires Ollama and `WF_TEST_OLLAMA_MODEL`.
@@ -235,9 +242,12 @@ failure found by Claude. The asset regression passes through MCP, native single
 and native bulk updates. Review follow-up reran core/tool unit suites and all 53
 activity repository tests; native no-split symbol previews stay off providers.
 Batch/concurrent non-destructive review behavior and both runtime command maps
-are covered. Native bulk financial errors remain atomic. Review scope does not
-include mobile SDK builds or a live Ollama reproduction. Cross-review findings
-and final revision are recorded after review.
+are covered. Three further fail-before/pass-after regressions verify legacy
+category cosmetic edits, split cash-to-new-symbol trade saves, and native legacy
+event creation with strict, redacted MCP proposal validation. Native bulk
+financial errors remain atomic. Review scope does not include mobile SDK builds
+or a live Ollama reproduction. Cross-review findings and final revision are
+recorded after review.
 
 Do not treat the report-coverage table as a claim that every original issue is
 fully reproduced or closed. No production data migration or issue auto-closure

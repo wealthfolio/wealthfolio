@@ -5398,6 +5398,39 @@ impl ActivityServiceTrait for ActivityService {
             }
             return Ok(effects);
         }
+        // Account/type changes already invalidate splits in the financial
+        // writer, independently of a new symbol's resolution or multiplier.
+        // Capture that effect directly and leave asset creation to the write.
+        if activity
+            .get_symbol_id()
+            .is_none_or(|id| id.trim().is_empty())
+            && activity
+                .get_symbol_code()
+                .is_some_and(|s| !s.trim().is_empty())
+            && (activity.account_id != existing.account_id
+                || !activity
+                    .activity_type
+                    .trim()
+                    .eq_ignore_ascii_case(effective_activity_type(
+                        &existing.activity_type,
+                        existing.activity_type_override.as_deref(),
+                    )))
+        {
+            let effect = self.activity_repository.preview_split_effect(&activity)?;
+            if effect.removed_splits > 0 {
+                let mut effects = vec![effect];
+                if let Some(mut counterpart) = counterpart {
+                    let stored = self.activity_repository.get_activity(&counterpart.id)?;
+                    self.hydrate_and_validate_update_against_existing(&mut counterpart, &stored)?;
+                    let preview = self.preview_prepared_update(counterpart, stored)?;
+                    effects.push(
+                        self.activity_repository
+                            .preview_split_effect(&preview.update)?,
+                    );
+                }
+                return Ok(effects);
+            }
+        }
         // Stored IDs can be priced locally and must retain their own multiplier.
         // Symbol-only native inputs still avoid adding provider calls to review.
         if activity

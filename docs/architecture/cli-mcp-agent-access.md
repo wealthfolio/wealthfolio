@@ -522,8 +522,9 @@ whitespace or control characters. Reusing a committed draft fails rather than
 creating a second category. Creation uses the native taxonomy service and SQLite
 writer. All native `create_category` callers, including REST and Tauri, now
 reject duplicate keys in these three activity taxonomies, including concurrent
-creates. Existing native update and bulk-import paths are unchanged and can
-still introduce duplicate keys; this is a creation-time check, not a global
+creates. Native updates and moves share the same parent/cycle checks and reject
+changed keys that introduce collisions. Unchanged legacy duplicate keys permit
+cosmetic edits. Bulk import remains unchanged; this is not a global SQL
 uniqueness constraint or a cleanup of existing data. Names, keys, descriptions,
 and parent IDs are redacted from MCP audit arguments.
 

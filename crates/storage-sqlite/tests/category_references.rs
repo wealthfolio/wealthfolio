@@ -231,3 +231,41 @@ async fn deleted_unused_seed_category_stays_deleted_after_budget_reset_and_resta
         .unwrap()
         .is_none());
 }
+
+#[tokio::test]
+async fn legacy_duplicate_keys_allow_cosmetic_edits_but_not_new_collisions() {
+    let f = Fixture::new().await;
+    f.seed("INSERT INTO taxonomy_categories (id,taxonomy_id,name,key,color,sort_order,created_at,updated_at) SELECT 'legacy-duplicate',taxonomy_id,'Legacy duplicate',key,color,0,created_at,updated_at FROM taxonomy_categories WHERE id='custom'");
+    let mut category = f
+        .repo
+        .get_category("spending_categories", "custom")
+        .unwrap()
+        .unwrap();
+    category.name = "Renamed legacy category".into();
+    let renamed = f.repo.update_category(category).await.unwrap();
+    let mut recolored = renamed.clone();
+    recolored.color = "#123456".into();
+    let current = f
+        .repo
+        .update_category_reviewed(renamed, recolored)
+        .await
+        .unwrap();
+    assert_eq!(current.key, "custom_delete_test");
+    f.service
+        .create_category(NewCategory {
+            id: Some("taken".into()),
+            taxonomy_id: "spending_categories".into(),
+            name: "Taken".into(),
+            key: "taken".into(),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    let mut collision = current.clone();
+    collision.key = "taken".into();
+    assert!(f
+        .repo
+        .update_category_reviewed(current, collision)
+        .await
+        .is_err());
+}

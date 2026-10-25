@@ -4265,3 +4265,58 @@ async fn reviewed_asset_multiplier_swaps_succeed_through_mcp_single_and_bulk_nat
     let review=api_post(&server,&cookie,"activities/split-effects",serde_json::json!([{"id":cash["id"],"accountId":account["id"],"activityType":"BUY","activityDate":"2026-04-02T12:00:00Z","currency":"EUR","asset":{"symbol":"ZZNEWSYMBOL","kind":"SECURITY","instrumentType":"EQUITY","quoteMode":"MANUAL"},"quantity":"1","unitPrice":"2"}])).await;
     assert_eq!(review[0][0]["removedSplits"], 0);
 }
+
+#[tokio::test]
+async fn review_followup_split_cash_to_new_symbol_trade_preserves_native_edits() {
+    let server = spawn_server(true, false).await;
+    let cookie = login(&server).await;
+    let (_, activities, first, second, _) = category_save_fixture(&server, &cookie).await;
+    let securities = create_eur_account(&server, &cookie, "Moved split trade").await;
+    api_put(&server,&cookie,&format!("spending/activities/{}/splits",activities[0]["id"].as_str().unwrap()),serde_json::json!([{"taxonomyId":"spending_categories","categoryId":first,"amount":"8"},{"taxonomyId":"spending_categories","categoryId":second,"amount":"4.5"}])).await;
+    let mut update = serde_json::json!({"id":activities[0]["id"],"accountId":securities["id"],"activityType":"BUY","activityDate":"2026-04-01T12:00:00Z","currency":"EUR","asset":{"symbol":"ZZSPLITTRADE","kind":"SECURITY","instrumentType":"EQUITY","quoteMode":"MANUAL"},"quantity":"1","unitPrice":"10","amount":null});
+    let review = api_post(
+        &server,
+        &cookie,
+        "activities/split-effects",
+        serde_json::json!([update.clone()]),
+    )
+    .await;
+    assert_eq!(review[0][0]["removedSplits"], 2, "{review}");
+    update["splitReview"] = review[0].clone();
+    let saved = api_put(&server, &cookie, "activities", update.clone()).await;
+    assert_eq!(saved["accountId"], securities["id"]);
+    assert!(saved["assetId"].as_str().is_some(), "{saved}");
+    update["asset"] = serde_json::json!({"id":saved["assetId"]});
+    update["amount"] = serde_json::json!("11");
+    let after = api_post(
+        &server,
+        &cookie,
+        "activities/split-effects",
+        serde_json::json!([update]),
+    )
+    .await;
+    assert_eq!(
+        after[0][0]["removedSplits"], 0,
+        "splits cleared by the existing financial writer: {after}"
+    );
+}
+
+#[tokio::test]
+async fn review_followup_native_legacy_event_dates_keep_their_validation_contract() {
+    let server = spawn_server(true, false).await;
+    let cookie = login(&server).await;
+    let types = category_api_get(&server, &cookie, "spending/event-types").await;
+    let event = serde_json::json!({"name":"Legacy date event","eventTypeId":types[0]["id"],"startDate":"2026-06-01T00:00:00","endDate":"2026-06-02T00:00:00"});
+    let saved = api_post(&server, &cookie, "spending/events", event.clone()).await;
+    assert_eq!(saved["startDate"], event["startDate"]);
+    let (pat, session) = category_writer_session(&server, &cookie).await;
+    let error = mcp_call_tool_error(
+        &server,
+        &pat,
+        &session,
+        "prepare_spending_event",
+        serde_json::json!({"eventId":saved["id"],"event":event}),
+    )
+    .await;
+    assert!(!error.contains("2026-06-01"), "{error}");
+}

@@ -217,10 +217,20 @@ impl EventsService {
     }
 }
 
-/// Reject `start_date > end_date`. Accepts either RFC3339 timestamps or
-/// `YYYY-MM-DD` date strings; lexicographic comparison works for both (RFC3339
-/// is sortable and pure dates are sortable).
+/// Preserve the native range check, including legacy sortable date strings.
 pub fn validate_event_range(start: &str, end: &str) -> Result<()> {
+    let bad = match (parse_event_start_bound(start), parse_event_end_bound(end)) {
+        (Ok(start), Ok(end)) => start > end,
+        _ => start > end,
+    };
+    if bad {
+        return Err(SpendingError::InvalidEventRange.into());
+    }
+    Ok(())
+}
+
+/// Reviewed agent proposals require explicit calendar dates or zoned timestamps.
+pub fn validate_event_range_strict(start: &str, end: &str) -> Result<()> {
     let bad = parse_event_start_bound(start)? > parse_event_end_bound(end)?;
     if bad {
         return Err(SpendingError::InvalidEventRange.into());
@@ -246,7 +256,7 @@ fn parse_event_start_bound(s: &str) -> Result<DateTime<Utc>> {
         return Ok(DateTime::<Utc>::from_naive_utc_and_offset(naive, Utc));
     }
     Err(SpendingError::InvalidInput {
-        message: format!("Unparseable event date: {s}"),
+        message: "Event dates must use YYYY-MM-DD or RFC3339".into(),
     }
     .into())
 }
@@ -265,7 +275,7 @@ fn parse_event_end_bound(s: &str) -> Result<DateTime<Utc>> {
         return Ok(DateTime::<Utc>::from_naive_utc_and_offset(naive, Utc));
     }
     Err(SpendingError::InvalidInput {
-        message: format!("Unparseable event date: {s}"),
+        message: "Event dates must use YYYY-MM-DD or RFC3339".into(),
     }
     .into())
 }
