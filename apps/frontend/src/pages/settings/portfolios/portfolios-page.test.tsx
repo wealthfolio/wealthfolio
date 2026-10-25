@@ -1,5 +1,7 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { QueryClient, QueryClientProvider, useMutation } from "@tanstack/react-query";
 import userEvent from "@testing-library/user-event";
+import { Activity } from "react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import PortfoliosPage from "./portfolios-page";
@@ -62,8 +64,8 @@ describe("PortfoliosPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     hookMocks.usePortfolioMutations.mockReturnValue({
-      createMutation: { mutate: createMutate, isPending: false },
-      updateMutation: { mutate: updateMutate, isPending: false },
+      createMutation: { mutateAsync: createMutate, isPending: false },
+      updateMutation: { mutateAsync: updateMutate, isPending: false },
       deleteMutation: { mutate: deleteMutate, isPending: false },
     });
   });
@@ -141,5 +143,46 @@ describe("PortfoliosPage", () => {
 
     expect(screen.getByText("Deleted account: missing-account")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+  });
+
+  it("closes the new portfolio dialog when its save ends while the screen is out of sight", async () => {
+    // On a phone, a screen left for another tab is a hidden <Activity>.
+    let finish: () => void = () => undefined;
+    const saved = new Promise<void>((resolve) => (finish = resolve));
+    hookMocks.usePortfolios.mockReturnValue({ data: [], isLoading: false });
+    hookMocks.useAccounts.mockReturnValue({ accounts: [account("account-1", "Roth IRA")] });
+    hookMocks.usePortfolioMutations.mockImplementation(() => ({
+      createMutation: useMutation({ mutationFn: () => saved }),
+      updateMutation: { mutateAsync: updateMutate, isPending: false },
+      deleteMutation: { mutate: deleteMutate, isPending: false },
+    }));
+    const client = new QueryClient();
+    const page = (hidden: boolean) => (
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <Activity mode={hidden ? "hidden" : "visible"}>
+            <PortfoliosPage />
+          </Activity>
+        </MemoryRouter>
+      </QueryClientProvider>
+    );
+    const saveStatus = () => client.getMutationCache().getAll()[0]?.state.status;
+    // jsdom never ends the closing animation, so a closed dialog stays in the page.
+    const dialogOpen = () => screen.queryByRole("dialog")?.hasAttribute("data-open") ?? false;
+    const user = userEvent.setup();
+    const { rerender } = render(page(false));
+    await user.click(screen.getAllByRole("button", { name: "Add portfolio" })[0]);
+    await user.type(await screen.findByLabelText("Name"), "Retirement");
+    await user.click(screen.getByRole("checkbox"));
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(saveStatus()).toBe("pending"));
+    expect(dialogOpen()).toBe(true);
+
+    rerender(page(true));
+    act(() => finish());
+    await waitFor(() => expect(saveStatus()).toBe("success"));
+    rerender(page(false));
+
+    await waitFor(() => expect(dialogOpen()).toBe(false));
   });
 });

@@ -22,7 +22,8 @@ import {
 } from "@wealthfolio/ui";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { Badge } from "@wealthfolio/ui/components/ui/badge";
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffectEvent } from "react";
+import { useEffectOnChange } from "@/hooks/use-effect-on-change";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router-dom";
 import { ActionPalette, type ActionPaletteGroup } from "@/components/action-palette";
@@ -66,6 +67,15 @@ export default function GoalDetailPage() {
   const { savePlanMutation } = useGoalPlanMutations(goalId ?? "");
   const { mutate: savePlan } = savePlanMutation;
   const { deleteMutation } = useGoalMutations();
+  // Back to the list once the goal is deleted, from the result rather than the
+  // delete's own callback: React Query skips that callback while a phone screen
+  // is out of sight, which left the deleted goal's page open. Only a change of
+  // the result steps back, so a screen still on its way out can't step twice.
+  const leaveDeletedGoal = useEffectEvent(() => goBack());
+  const goalDeleted = deleteMutation.isSuccess;
+  useEffectOnChange(() => {
+    if (goalDeleted) leaveDeletedGoal();
+  }, [goalDeleted]);
   const { settings } = useSettingsContext();
   const todayISO = formatZonedDateKey(new Date(), settings?.timezone);
   const today = useMemo(() => parseLocalDate(todayISO), [todayISO]);
@@ -132,9 +142,7 @@ export default function GoalDetailPage() {
 
   const handleDelete = () => {
     if (!goalId) return;
-    deleteMutation.mutate(goalId, {
-      onSuccess: () => goBack(),
-    });
+    deleteMutation.mutate(goalId);
   };
 
   if (isLoading) {

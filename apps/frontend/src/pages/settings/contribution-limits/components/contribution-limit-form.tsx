@@ -83,7 +83,7 @@ export function ContributionLimitForm({
     }
   }, [contributionYear]);
 
-  function onSubmit(data: NewContributionLimit) {
+  async function onSubmit(data: NewContributionLimit) {
     const { id, ...rest } = data;
 
     // Convert date objects to ISO strings (RFC 3339 compatible format)
@@ -93,13 +93,19 @@ export function ContributionLimitForm({
       endDate: rest.endDate instanceof Date ? rest.endDate.toISOString() : rest.endDate,
     };
 
-    if (id) {
-      return updateContributionLimitMutation.mutate(
-        { id, updatedLimit: formattedData },
-        { onSuccess },
-      );
+    // Finishes once the save itself ends rather than from a callback passed to
+    // mutate(): React Query skips those while a phone screen is out of sight,
+    // which left the form open, ready to add the limit a second time.
+    try {
+      if (id) {
+        await updateContributionLimitMutation.mutateAsync({ id, updatedLimit: formattedData });
+      } else {
+        await addContributionLimitMutation.mutateAsync(formattedData);
+      }
+      onSuccess();
+    } catch {
+      // The mutation reports the error; the form stays open to try again.
     }
-    return addContributionLimitMutation.mutate(formattedData, { onSuccess });
   }
 
   return (

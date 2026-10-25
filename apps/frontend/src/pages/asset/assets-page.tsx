@@ -173,9 +173,14 @@ export default function AssetsPage() {
         open={createDialogOpen}
         onOpenChange={setCreateDialogOpen}
         onSubmit={(payload) => {
-          createAssetMutation.mutate(payload, {
-            onSuccess: () => setCreateDialogOpen(false),
-          });
+          // Closes once the save itself ends: React Query skips callbacks passed
+          // to mutate() while a phone screen is out of sight, which left the
+          // dialog open, ready to create the security a second time.
+          void createAssetMutation.mutateAsync(payload).then(
+            () => setCreateDialogOpen(false),
+            // The mutation reports the error; the dialog stays open to try again.
+            () => undefined,
+          );
         }}
         isPending={createAssetMutation.isPending}
       />

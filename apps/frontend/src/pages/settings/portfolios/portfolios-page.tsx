@@ -64,6 +64,21 @@ export default function PortfoliosPage() {
   const [editing, setEditing] = useState<PortfolioWithAccounts | null>(null);
   const [deleting, setDeleting] = useState<PortfolioWithAccounts | null>(null);
 
+  // Closes once the save itself ends rather than from a callback passed to
+  // mutate(): React Query skips those while a phone screen is out of sight,
+  // which left the dialog open, ready to save the portfolio a second time.
+  const savePortfolio = async (
+    data: NewPortfolio | Omit<PortfolioWithAccounts, "createdAt" | "updatedAt">,
+  ) => {
+    try {
+      if (editing) await updateMutation.mutateAsync({ ...editing, ...data });
+      else await createMutation.mutateAsync(data as NewPortfolio);
+      setOpen(false);
+    } catch {
+      // The mutation reports the error; the dialog stays open to try again.
+    }
+  };
+
   const openCreate = () => {
     setEditing(null);
     setOpen(true);
@@ -216,13 +231,7 @@ export default function PortfoliosPage() {
         portfolio={editing}
         accountOptions={accounts}
         onClose={() => setOpen(false)}
-        onSave={(data) => {
-          if (editing) {
-            updateMutation.mutate({ ...editing, ...data }, { onSuccess: () => setOpen(false) });
-          } else {
-            createMutation.mutate(data as NewPortfolio, { onSuccess: () => setOpen(false) });
-          }
-        }}
+        onSave={(data) => void savePortfolio(data)}
         isSaving={createMutation.isPending || updateMutation.isPending}
       />
 

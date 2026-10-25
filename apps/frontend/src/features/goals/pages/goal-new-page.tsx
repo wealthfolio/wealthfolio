@@ -22,7 +22,8 @@ import {
 } from "@wealthfolio/ui/components/ui/card";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { Textarea } from "@wealthfolio/ui/components/ui/textarea";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useEffectEvent, useMemo, useState } from "react";
+import { useEffectOnChange } from "@/hooks/use-effect-on-change";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { useCreateGoalFlow } from "../hooks/use-create-goal-flow";
@@ -66,10 +67,14 @@ export default function GoalNewPage() {
   // Read from the saved result rather than the save's own callback: React Query
   // skips that callback when the save ends while this screen is out of sight on
   // a phone (another tab shown), and the form would come back ready to save again.
+  // Only a change of the result opens it, so it can't open twice.
+  const openCreatedGoal = useEffectEvent((goalId: string) =>
+    navigate(`/goals/${goalId}`, { replace: true }),
+  );
   const createdGoalId = createGoalFlow.data?.goal.id;
-  useEffect(() => {
-    if (createdGoalId) void navigate(`/goals/${createdGoalId}`, { replace: true });
-  }, [createdGoalId, navigate]);
+  useEffectOnChange(() => {
+    if (createdGoalId) void openCreatedGoal(createdGoalId);
+  }, [createdGoalId]);
   const { goals } = useGoals();
   const { settings } = useSettingsContext();
   const todayISO = formatZonedDateKey(new Date(), settings?.timezone);
