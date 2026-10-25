@@ -44,28 +44,22 @@ interface FlatOption {
   group: "Expense" | "Savings" | "Income";
 }
 
-// Children's sortOrder is relative to their siblings, so a flat sort interleaves levels.
+// Children's sortOrder is relative to their siblings, so a flat sort interleaves
+// levels. Categories whose parent is missing are listed as top level.
 function flattenTaxonomy(
   taxonomyId: string,
   cats: TaxonomyCategory[],
   group: FlatOption["group"],
 ): FlatOption[] {
   const byId = new Map(cats.map((c) => [c.id, c]));
-  const bySortOrder = (a: TaxonomyCategory, b: TaxonomyCategory) => a.sortOrder - b.sortOrder;
-  const toOption = (c: TaxonomyCategory, parent: TaxonomyCategory | null) => ({
-    taxonomyId,
-    category: c,
-    parent,
-    group,
-  });
-  const roots = cats.filter((c) => !c.parentId || !byId.has(c.parentId)).sort(bySortOrder);
-  return roots.flatMap((root) => [
-    toOption(root, null),
-    ...cats
-      .filter((c) => c.parentId === root.id)
-      .sort(bySortOrder)
-      .map((c) => toOption(c, root)),
-  ]);
+  const parentIdOf = (c: TaxonomyCategory) =>
+    c.parentId && byId.has(c.parentId) ? c.parentId : null;
+  const walk = (parent: TaxonomyCategory | null): FlatOption[] =>
+    cats
+      .filter((c) => parentIdOf(c) === (parent?.id ?? null))
+      .sort((a, b) => a.sortOrder - b.sortOrder)
+      .flatMap((c) => [{ taxonomyId, category: c, parent, group }, ...walk(c)]);
+  return walk(null);
 }
 
 export function QuickCategorizePopover({
