@@ -6,6 +6,7 @@
  */
 import { getInitialIntervalData, type TimePeriod } from "@wealthfolio/ui";
 
+import { isAllTimeDateRange } from "@/lib/performance-date-range";
 import type { DateRange } from "@/lib/types";
 import { formatDateISO, parseLocalDate } from "@/lib/utils";
 
@@ -93,6 +94,21 @@ export function spendingViewForPick(
 
 export function rangePick(range: SpendingDateRange): DashboardPeriodPick {
   return { kind: "range", from: formatDateISO(range.from), to: formatDateISO(range.to) };
+}
+
+/**
+ * The pick for a range chosen on a selector without period codes (Performance):
+ * a portfolio preset when the dates match one, otherwise the dates themselves.
+ */
+export function pickForPortfolioRange(
+  range: DateRange | undefined,
+  todayISO: string,
+): DashboardPeriodPick | null {
+  if (!range?.from || isAllTimeDateRange(range)) return { kind: "portfolio", code: "ALL" };
+  if (!range.to) return null;
+  const dates = { from: range.from, to: range.to };
+  const code = matchingPreset(dates, todayISO);
+  return code ? { kind: "portfolio", code } : rangePick(dates);
 }
 
 function pickedRange(

@@ -11,8 +11,8 @@
  * - The Budget page (uses `MonthSwitcher` — budgets are inherently
  *   per-month with rollover, no useful "1Y" view).
  *
- * Dashboard links use shared period-preference keys so the most recent explicit
- * dashboard or insights period selection wins when moving between surfaces.
+ * The dashboard tabs and the insights page share the last explicit period pick
+ * (see `lib/dashboard-period-sync.ts`).
  */
 import { useMemo, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";

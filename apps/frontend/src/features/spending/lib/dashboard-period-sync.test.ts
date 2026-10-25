@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { formatDateISO } from "@/lib/utils";
+import { formatDateISO, parseLocalDate } from "@/lib/utils";
 
 import {
+  pickForPortfolioRange,
   portfolioViewForPick,
   spendingViewForPick,
   type DashboardPeriodPick,
@@ -79,6 +80,21 @@ describe("dashboard period sync", () => {
   it("highlights the preset whose dates a picked range matches", () => {
     expect(portfolio({ kind: "range", from: "2026-03-24", to: "2026-03-31" })?.code).toBe("1W");
     expect(portfolio({ kind: "range", from: "2026-01-01", to: "2026-03-31" })?.code).toBe("YTD");
+  });
+
+  it("turns a Performance range into a preset when the dates match one", () => {
+    const day = (iso: string) => parseLocalDate(iso);
+    expect(
+      pickForPortfolioRange({ from: day("2025-12-31"), to: day("2026-03-31") }, TODAY),
+    ).toEqual({ kind: "portfolio", code: "3M" });
+    expect(
+      pickForPortfolioRange({ from: new Date(1970, 0, 1), to: day("2026-03-31") }, TODAY),
+    ).toEqual({ kind: "portfolio", code: "ALL" });
+    // 3Y exists only on Performance, so it travels as dates.
+    expect(
+      pickForPortfolioRange({ from: day("2023-03-31"), to: day("2026-03-31") }, TODAY),
+    ).toEqual({ kind: "range", from: "2023-03-31", to: "2026-03-31" });
+    expect(pickForPortfolioRange({ from: day("2026-03-01"), to: undefined }, TODAY)).toBeNull();
   });
 
   it("ignores unreadable picks so each tab falls back to its own period", () => {

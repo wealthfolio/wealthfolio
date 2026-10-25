@@ -65,14 +65,6 @@ import {
   parseMonthKey,
 } from "../lib/month-period";
 import { spendingActivityHref } from "../lib/navigation";
-import {
-  DASHBOARD_PERIOD_UPDATED_AT_STORAGE_KEY,
-  INSIGHTS_PERIOD_STORAGE_KEY,
-  INSIGHTS_PERIOD_UPDATED_AT_STORAGE_KEY,
-  normalizeReportsPeriod,
-  periodPreferenceTimestamp,
-  shouldPreferDashboardPeriod,
-} from "../lib/period-preferences";
 import type { ReportsPeriod } from "../lib/reports-period";
 import { FOREST_THEME, themeBg, type Palette } from "../lib/theme";
 import {
@@ -374,18 +366,6 @@ export default function SpendingTabContent() {
     SPENDING_MONTH_STORAGE_KEY,
     null,
   );
-  const [persistedInsightPeriod] = usePersistentState<string | null>(
-    INSIGHTS_PERIOD_STORAGE_KEY,
-    null,
-  );
-  const [insightPeriodUpdatedAt] = usePersistentState<string>(
-    INSIGHTS_PERIOD_UPDATED_AT_STORAGE_KEY,
-    "0",
-  );
-  const [dashboardPeriodUpdatedAt, setDashboardPeriodUpdatedAt] = usePersistentState<string>(
-    DASHBOARD_PERIOD_UPDATED_AT_STORAGE_KEY,
-    "0",
-  );
   const [sharedPick, setSharedPick] = usePersistentState<DashboardPeriodPick | null>(
     DASHBOARD_PERIOD_STORAGE_KEY,
     null,
@@ -570,26 +550,16 @@ export default function SpendingTabContent() {
   // accounts. Single-currency users see the same number either way.
   const currency = baseCurrency;
   const dashboardInsightHref = useMemo(() => {
-    const preferDashboardPeriod =
-      selection.kind === "range" ||
-      shouldPreferDashboardPeriod({
-        persistedInsightPeriod,
-        dashboardUpdatedAt: dashboardPeriodUpdatedAt,
-        insightUpdatedAt: insightPeriodUpdatedAt,
-      });
-    const linkPeriod = preferDashboardPeriod
-      ? insightPeriod
-      : (normalizeReportsPeriod(persistedInsightPeriod) ?? insightPeriod);
+    // Insights opens on the period shown here, which every dashboard tab and
+    // the insights page share.
     const monthParams =
-      preferDashboardPeriod && selection.kind === "month"
-        ? `&${SPENDING_MONTH_PARAM}=${selection.monthKey}`
-        : "";
+      selection.kind === "month" ? `&${SPENDING_MONTH_PARAM}=${selection.monthKey}` : "";
     const rangeParams =
       selection.kind === "range"
         ? `&${SPENDING_RANGE_FROM_PARAM}=${formatDateISO(selection.range.from)}&${SPENDING_RANGE_TO_PARAM}=${formatDateISO(selection.range.to)}`
         : "";
     const href = (stage: (typeof INSIGHT_STAGES)[number]["stage"], hash = "") =>
-      `/spending/insights?stage=${stage}&period=${linkPeriod}${monthParams}${rangeParams}${hash}`;
+      `/spending/insights?stage=${stage}&period=${insightPeriod}${monthParams}${rangeParams}${hash}`;
     const cashflow = href("where", "#cashflow");
     return {
       where: href("where"),
@@ -597,13 +567,7 @@ export default function SpendingTabContent() {
       when: href("when"),
       cashflow,
     };
-  }, [
-    dashboardPeriodUpdatedAt,
-    insightPeriod,
-    insightPeriodUpdatedAt,
-    persistedInsightPeriod,
-    selection,
-  ]);
+  }, [insightPeriod, selection]);
   // "Where it went" deep-links carry the selected period (interval or month)
   // so the activities spending tab opens pre-filtered to the same range.
   const activityHrefFor = useCallback(
@@ -642,7 +606,6 @@ export default function SpendingTabContent() {
     setPersistedInterval(code);
     setPersistedMonth(null);
     shareSpendingPeriod(code);
-    setDashboardPeriodUpdatedAt(periodPreferenceTimestamp());
     setSearchParams(
       (prev) => {
         const p = new URLSearchParams(prev);
@@ -667,7 +630,6 @@ export default function SpendingTabContent() {
     setPersistedMonth(monthKey);
     if (monthKey) setSharedPick({ kind: "month", monthKey });
     else shareSpendingPeriod(restoreCode);
-    setDashboardPeriodUpdatedAt(periodPreferenceTimestamp());
     setSearchParams(
       (prev) => {
         const p = new URLSearchParams(prev);
@@ -698,7 +660,6 @@ export default function SpendingTabContent() {
     setPersistedMonth(null);
     if (range?.from && range.to) setSharedPick(rangePick({ from: range.from, to: range.to }));
     else shareSpendingPeriod(restoreCode);
-    setDashboardPeriodUpdatedAt(periodPreferenceTimestamp());
     setSearchParams(
       (prev) => {
         const p = new URLSearchParams(prev);

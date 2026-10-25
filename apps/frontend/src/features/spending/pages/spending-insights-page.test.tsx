@@ -223,3 +223,48 @@ it.each(["where", "changed", "when"])(
     expect(screen.getByTestId("spending-selected-range")).toHaveTextContent("February 2025");
   },
 );
+
+describe("period shared with the dashboard", () => {
+  function renderAt(search: string) {
+    render(
+      <MemoryRouter initialEntries={[`/spending/insights${search}`]}>
+        <SpendingInsightsPage />
+        <Location />
+      </MemoryRouter>,
+    );
+    return userEvent.setup();
+  }
+
+  it("follows the period picked on the dashboard when the URL names none", () => {
+    localStorage.setItem("dashboard-period", JSON.stringify({ kind: "portfolio", code: "6M" }));
+    renderAt("?stage=where");
+    expect(screen.getByRole("button", { name: "6M" })).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("shows dashboard custom dates", () => {
+    localStorage.setItem(
+      "dashboard-period",
+      JSON.stringify({ kind: "range", from: "2025-03-08", to: "2025-03-10" }),
+    );
+    renderAt("?stage=where");
+    expect(screen.getByTestId("spending-selected-range")).toHaveTextContent(
+      "Mar 8, 2025 – Mar 10, 2025",
+    );
+  });
+
+  it("lets a period in the URL win over the shared one", () => {
+    localStorage.setItem("dashboard-period", JSON.stringify({ kind: "portfolio", code: "6M" }));
+    renderAt("?stage=where&period=YTD");
+    expect(screen.getByRole("button", { name: "YTD" })).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("shares a period picked here with the dashboard", async () => {
+    const user = renderAt("?stage=where");
+    await user.click(screen.getByRole("button", { name: /Last month/ }));
+    expect(JSON.parse(localStorage.getItem("dashboard-period") ?? "null")).toEqual({
+      kind: "spending",
+      code: "LAST_MONTH",
+    });
+    expect(JSON.parse(localStorage.getItem("dashboard-interval") ?? "null")).toBe("1M");
+  });
+});

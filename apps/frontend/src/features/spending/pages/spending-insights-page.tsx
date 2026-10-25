@@ -42,11 +42,14 @@ import {
   SPENDING_MONTH_STORAGE_KEY,
 } from "../lib/month-period";
 import {
-  INSIGHTS_PERIOD_STORAGE_KEY,
-  INSIGHTS_PERIOD_UPDATED_AT_STORAGE_KEY,
-  normalizeReportsPeriod,
-  periodPreferenceTimestamp,
-} from "../lib/period-preferences";
+  DASHBOARD_INTERVAL_STORAGE_KEY,
+  DASHBOARD_PERIOD_STORAGE_KEY,
+  portfolioPresetForSpendingPeriod,
+  rangePick,
+  spendingViewForPick,
+  type DashboardPeriodPick,
+} from "../lib/dashboard-period-sync";
+import { INSIGHTS_PERIOD_STORAGE_KEY, normalizeReportsPeriod } from "../lib/period-preferences";
 import {
   SPENDING_RANGE_FROM_PARAM,
   SPENDING_RANGE_TO_PARAM,
@@ -67,6 +70,7 @@ import {
   calendarMonthsBetweenInclusive,
   createZonedDayHourFormatter,
   daysInCalendarMonth,
+  formatZonedDateKey,
   getZonedDateParts,
   zonedCalendarDateBoundaryToDate,
 } from "../lib/timezone";
@@ -154,24 +158,57 @@ export default function SpendingInsightsPage() {
     INSIGHTS_PERIOD_STORAGE_KEY,
     DEFAULT_REPORTS_PERIOD,
   );
-  const [, setPeriodUpdatedAt] = usePersistentState<string>(
-    INSIGHTS_PERIOD_UPDATED_AT_STORAGE_KEY,
-    "0",
-  );
   const [persistedMonth, setPersistedMonth] = usePersistentState<string | null>(
     SPENDING_MONTH_STORAGE_KEY,
     null,
   );
-  const period = normalizeReportsPeriod(persistedPeriod) ?? DEFAULT_REPORTS_PERIOD;
+  const [sharedPick, setSharedPick] = usePersistentState<DashboardPeriodPick | null>(
+    DASHBOARD_PERIOD_STORAGE_KEY,
+    null,
+  );
+  const [, setPortfolioPreset] = usePersistentState<string>(DASHBOARD_INTERVAL_STORAGE_KEY, "3M");
+  const todayISO = formatZonedDateKey(new Date(), appTimezone);
+  // Without period params in the URL, follow the period last picked on the
+  // dashboard tabs or here.
+  const hasUrlPeriod =
+    searchParams.has("period") ||
+    searchParams.has(SPENDING_MONTH_PARAM) ||
+    searchParams.has(SPENDING_RANGE_FROM_PARAM);
+  const sharedView = useMemo(
+    () => (!hasUrlPeriod && sharedPick ? spendingViewForPick(sharedPick, todayISO) : null),
+    [hasUrlPeriod, sharedPick, todayISO],
+  );
+  const period =
+    sharedView?.kind === "period"
+      ? sharedView.code
+      : (normalizeReportsPeriod(persistedPeriod) ?? DEFAULT_REPORTS_PERIOD);
   const [stage, setStage] = usePersistentState<InsightsStage>(STAGE_STORAGE_KEY, "where");
   const urlMonth = parseMonthKey(searchParams.get(SPENDING_MONTH_PARAM))
     ? searchParams.get(SPENDING_MONTH_PARAM)
     : null;
-  const customRange = useMemo(() => spendingRangeFromParams(searchParams), [searchParams]);
+  const customRange = useMemo(
+    () =>
+      spendingRangeFromParams(searchParams) ??
+      (sharedView?.kind === "range" ? sharedView.range : undefined),
+    [searchParams, sharedView],
+  );
   const customMonth = customRange
     ? null
     : (urlMonth ??
-      (!searchParams.has("period") && parseMonthKey(persistedMonth) ? persistedMonth : null));
+      (sharedView
+        ? sharedView.kind === "month"
+          ? sharedView.monthKey
+          : null
+        : !searchParams.has("period") && parseMonthKey(persistedMonth)
+          ? persistedMonth
+          : null));
+  const sharePeriod = useCallback(
+    (code: ReportsPeriod) => {
+      setSharedPick({ kind: "spending", code });
+      setPortfolioPreset(portfolioPresetForSpendingPeriod(code));
+    },
+    [setSharedPick, setPortfolioPreset],
+  );
 
   // ─── URL ↔ state sync ─────────────────────────────────────────────────────
   // ?stage=where|changed|when and ?period=MTD|LAST_MONTH|3M|6M|YTD|1Y drive the page
@@ -214,7 +251,7 @@ export default function SpendingInsightsPage() {
   const setPeriodAndUrl = useCallback(
     (next: ReportsPeriod) => {
       setPersistedPeriod(next);
-      setPeriodUpdatedAt(periodPreferenceTimestamp());
+      sharePeriod(next);
       setPersistedMonth(null);
       setSearchParams(
         (prev) => {
@@ -228,13 +265,14 @@ export default function SpendingInsightsPage() {
         { replace: true },
       );
     },
-    [setPersistedPeriod, setPeriodUpdatedAt, setPersistedMonth, setSearchParams],
+    [setPersistedPeriod, sharePeriod, setPersistedMonth, setSearchParams],
   );
 
   const setCustomMonthAndUrl = useCallback(
     (next: string | null) => {
       setPersistedMonth(next);
-      setPeriodUpdatedAt(periodPreferenceTimestamp());
+      if (next) setSharedPick({ kind: "month", monthKey: next });
+      else sharePeriod(period);
       setSearchParams(
         (prev) => {
           const p = new URLSearchParams(prev);
@@ -248,13 +286,14 @@ export default function SpendingInsightsPage() {
         { replace: true },
       );
     },
-    [period, setPersistedMonth, setPeriodUpdatedAt, setSearchParams],
+    [period, setPersistedMonth, setSharedPick, sharePeriod, setSearchParams],
   );
 
   const setCustomRangeAndUrl = (next: DateRange | undefined) => {
     if (next && (!next.from || !next.to)) return;
     setPersistedMonth(null);
-    setPeriodUpdatedAt(periodPreferenceTimestamp());
+    if (next?.from && next.to) setSharedPick(rangePick({ from: next.from, to: next.to }));
+    else sharePeriod(period);
     setSearchParams(
       (prev) => {
         const p = new URLSearchParams(prev);

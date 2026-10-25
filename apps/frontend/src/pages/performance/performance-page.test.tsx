@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   getAccounts: vi.fn(),
   settings: { timezone: "Asia/Shanghai" } as { timezone: string } | null,
   mobile: false,
+  dateRangeChange: undefined as undefined | ((range: { from?: Date; to?: Date }) => void),
 }));
 vi.mock("@/lib/settings-provider", () => ({
   useSettingsContext: () => ({ settings: mocks.settings }),
@@ -58,7 +59,10 @@ vi.mock("@wealthfolio/ui", async (importOriginal) => {
     Carousel: Container,
     CarouselContent: Container,
     CarouselItem: Container,
-    DateRangeSelector: () => null,
+    DateRangeSelector: ({ onChange }: { onChange: typeof mocks.dateRangeChange }) => {
+      mocks.dateRangeChange = onChange;
+      return null;
+    },
   };
 });
 
@@ -633,5 +637,65 @@ describe("PerformancePage shared scope", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe("PerformancePage period shared with the dashboard", () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-03-31T04:00:00Z"));
+    mocks.settings = { timezone: "Asia/Shanghai" };
+    mocks.mobile = false;
+    localStorage.clear();
+    useAccountScopeStore.setState(initialState, true);
+    mocks.performance.mockReturnValue({
+      data: [],
+      isLoading: false,
+      hasErrors: false,
+      errorMessages: [],
+    });
+    mocks.getAccounts.mockResolvedValue(accounts);
+    return () => vi.useRealTimers();
+  });
+
+  it("shows the range Investments shows", () => {
+    localStorage.setItem("dashboard-period", JSON.stringify({ kind: "portfolio", code: "6M" }));
+    renderPage();
+    expect(mocks.performance).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        dateRange: { from: new Date(2025, 8, 30), to: new Date(2026, 2, 31) },
+      }),
+    );
+  });
+
+  it("shows a week for the dashboard's 1D, which Performance does not offer", () => {
+    localStorage.setItem("dashboard-period", JSON.stringify({ kind: "portfolio", code: "1D" }));
+    renderPage();
+    expect(mocks.performance).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        dateRange: { from: new Date(2026, 2, 24), to: new Date(2026, 2, 31) },
+      }),
+    );
+    expect(JSON.parse(localStorage.getItem("dashboard-period")!)).toEqual({
+      kind: "portfolio",
+      code: "1D",
+    });
+  });
+
+  it("shares a range picked here, as a preset when it matches one", () => {
+    renderPage();
+    act(() => mocks.dateRangeChange?.({ from: new Date(2025, 2, 31), to: new Date(2026, 2, 31) }));
+    expect(JSON.parse(localStorage.getItem("dashboard-period")!)).toEqual({
+      kind: "portfolio",
+      code: "1Y",
+    });
+    expect(JSON.parse(localStorage.getItem("dashboard-interval")!)).toBe("1Y");
+
+    act(() => mocks.dateRangeChange?.({ from: new Date(2023, 2, 31), to: new Date(2026, 2, 31) }));
+    expect(JSON.parse(localStorage.getItem("dashboard-period")!)).toEqual({
+      kind: "range",
+      from: "2023-03-31",
+      to: "2026-03-31",
+    });
   });
 });

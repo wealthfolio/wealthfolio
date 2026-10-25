@@ -1,3 +1,10 @@
+import {
+  DASHBOARD_INTERVAL_STORAGE_KEY,
+  DASHBOARD_PERIOD_STORAGE_KEY,
+  pickForPortfolioRange,
+  portfolioViewForPick,
+  type DashboardPeriodPick,
+} from "@/features/spending/lib/dashboard-period-sync";
 import { formatZonedDateKey } from "@/features/spending/lib/timezone";
 import { useSettingsContext } from "@/lib/settings-provider";
 import { AccountScopeSelector } from "@/components/account-filter-selector";
@@ -1110,21 +1117,44 @@ export default function PerformancePage() {
   const { settings } = useSettingsContext();
   const todayISO = formatZonedDateKey(new Date(), settings?.timezone);
   const today = useMemo(() => parseLocalDate(todayISO), [todayISO]);
-  const [savedDateRange, setDateRange] = usePersistentState<DateRange | undefined | null>(
+  const [savedDateRange, setSavedDateRange] = usePersistentState<DateRange | undefined | null>(
     "performance:dateRange",
     null,
   );
-  const dateRange = useMemo(
-    () => (savedDateRange === null ? { from: subMonths(today, 12), to: today } : savedDateRange),
-    [savedDateRange, today],
+  const [sharedPick, setSharedPick] = usePersistentState<DashboardPeriodPick | null>(
+    DASHBOARD_PERIOD_STORAGE_KEY,
+    null,
   );
+  const [, setDashboardPreset] = usePersistentState<string>(DASHBOARD_INTERVAL_STORAGE_KEY, "3M");
+  // Once any dashboard tab has picked a period, show the range Investments shows.
+  const sharedRange = useMemo(() => {
+    const view = sharedPick && portfolioViewForPick(sharedPick, todayISO);
+    if (!view) return null;
+    // Performance has no 1D preset, and its All time preset starts at local 1970-01-01.
+    if (view.code === "1D") return { from: subDays(today, 7), to: today };
+    if (view.code === "ALL") return { from: new Date(1970, 0, 1), to: today };
+    return view.range;
+  }, [sharedPick, today, todayISO]);
+  const dateRange = useMemo(
+    () =>
+      sharedRange ??
+      (savedDateRange === null ? { from: subMonths(today, 12), to: today } : savedDateRange),
+    [sharedRange, savedDateRange, today],
+  );
+  const setDateRange = (range: DateRange | undefined) => {
+    setSavedDateRange(range);
+    const pick = pickForPortfolioRange(range, todayISO);
+    if (!pick) return;
+    setSharedPick(pick);
+    if (pick.kind === "portfolio") setDashboardPreset(pick.code);
+  };
 
   useEffect(() => {
     if (!dateRange?.from || !dateRange?.to) return;
     if (isSameDay(dateRange.from, subDays(today, 1)) && isSameDay(dateRange.to, today)) {
-      setDateRange({ from: subDays(today, 7), to: today });
+      setSavedDateRange({ from: subDays(today, 7), to: today });
     }
-  }, [dateRange, setDateRange, today]);
+  }, [dateRange, setSavedDateRange, today]);
   // Scope selectors include hidden accounts and mixed account types. Resolve
   // their names from the full inventory; the backend applies report eligibility.
   const {
