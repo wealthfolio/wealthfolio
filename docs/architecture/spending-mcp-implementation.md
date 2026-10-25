@@ -263,3 +263,24 @@ decision.
 Do not treat the report-coverage table as a claim that every original issue is
 fully reproduced or closed. No production data migration or issue auto-closure
 is part of this change.
+
+## Frontend CI follow-up
+
+The first CI run exposed gaps in the original focused validation: an extracted
+scope selector retained a status tint rejected by the per-file design ratchet,
+Traditional Chinese lacked the English catalog's singular split-review key, and
+the desktop account/FX form fixture omitted the required split-review provider.
+Both translation-contract tests and all 13 FX cases were reproduced failing
+locally before the correction.
+
+The selector now uses the theme's success surface/foreground/border tokens. The
+Traditional Chinese catalog includes both plural keys. The FX fixture mounts the
+real provider around the component that owns the mutation hook and mocks only
+its native review read; it also checks that review runs before the financial
+save. The production provider requirement and financial behavior are unchanged.
+
+Validation after correction: both complete frontend shards pass (2,037 and 2,216
+tests; 470 files total), the 118-test focused regression set passes, and the
+design ratchet, `pnpm check`, all-locale translation checks and both frontend
+builds pass. The original CI revision also passed Rust, iOS/Android compilation,
+Docker and frontend browser checks; the correction changes no Rust code.

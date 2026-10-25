@@ -59,7 +59,7 @@ export function ScopeSelector({
           "flex w-full items-center justify-between gap-2 rounded-md border px-3 py-2 text-start text-sm transition-colors",
           "focus-visible:ring-ring focus-visible:outline-none focus-visible:ring-2",
           checked
-            ? "border-success/50 bg-success/10"
+            ? "border-success-subtle-border bg-success-subtle text-success-subtle-foreground"
             : "border-border hover:border-muted-foreground/30 hover:bg-muted/40",
           locked && "cursor-not-allowed opacity-80",
         )}
@@ -69,7 +69,7 @@ export function ScopeSelector({
           className={cn(
             "grid h-4 w-4 shrink-0 place-items-center transition-colors",
             checked
-              ? "bg-success rounded-[0.3125rem] text-white"
+              ? "bg-success text-success-foreground rounded-[0.3125rem]"
               : "border-muted-foreground/30 rounded-full border-2",
           )}
           aria-hidden

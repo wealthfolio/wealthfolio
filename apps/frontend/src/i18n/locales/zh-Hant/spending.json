@@ -1046,6 +1046,7 @@
     "title": "確認刪除拆分",
     "hiddenCategory": "現有分類配置會保留，刪除拆分後可能會套用。",
     "confirm": "儲存並刪除拆分",
+    "removed_one": "此變更將刪除 {{count}} 個拆分配置。",
     "removed_other": "此變更將刪除 {{count}} 個拆分配置。"
   }
 }

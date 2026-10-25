@@ -1,3 +1,4 @@
+import { ActivitySplitReviewProvider } from "@/features/spending/components/activity-split-review-provider";
 import { ActivityType } from "@/lib/constants";
 import { render, screen, waitFor } from "@/test/render";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -10,6 +11,7 @@ import { TaxForm } from "../tax-form";
 
 const adapter = vi.hoisted(() => ({
   updateActivity: vi.fn(),
+  reviewActivitiesSplitEffects: vi.fn(),
   deleteActivity: vi.fn(),
   logger: { error: vi.fn() },
 }));
@@ -71,6 +73,9 @@ describe("account currency change through validated desktop submission", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     adapter.updateActivity.mockResolvedValue({ id: "synthetic-activity" });
+    adapter.reviewActivitiesSplitEffects.mockImplementation(async (updates: unknown[]) =>
+      updates.map(() => []),
+    );
   });
   describe.each(["DEPOSIT", "FEE", "TAX"] as const)("%s", (type) => {
     it.each(["USD", "CAD", "EUR"])(
@@ -78,7 +83,9 @@ describe("account currency change through validated desktop submission", () => {
       async (currency) => {
         render(
           <QueryClientProvider client={new QueryClient()}>
-            <EditDeposit type={type} destinationCurrency={currency} />
+            <ActivitySplitReviewProvider>
+              <EditDeposit type={type} destinationCurrency={currency} />
+            </ActivitySplitReviewProvider>
           </QueryClientProvider>,
         );
         const user = userEvent.setup();
@@ -88,6 +95,7 @@ describe("account currency change through validated desktop submission", () => {
         await user.keyboard("[End][Enter]");
         await user.click(screen.getByRole("button", { name: /update/i }));
         await waitFor(() => expect(adapter.updateActivity).toHaveBeenCalledTimes(1));
+        expect(adapter.reviewActivitiesSplitEffects).toHaveBeenCalledTimes(1);
         const payload = JSON.parse(JSON.stringify(adapter.updateActivity.mock.calls[0][0]));
         expect(payload).toMatchObject({
           accountId: "new",
@@ -107,7 +115,9 @@ describe("account currency change through validated desktop submission", () => {
       async (storedRate) => {
         render(
           <QueryClientProvider client={new QueryClient()}>
-            <EditDeposit type={type} destinationCurrency="USD" storedRate={storedRate} />
+            <ActivitySplitReviewProvider>
+              <EditDeposit type={type} destinationCurrency="USD" storedRate={storedRate} />
+            </ActivitySplitReviewProvider>
           </QueryClientProvider>,
         );
         const user = userEvent.setup();
