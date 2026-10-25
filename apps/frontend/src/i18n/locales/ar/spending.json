@@ -1074,7 +1074,8 @@
     "splitLines_zero": "مقسّمة · {{count}} بند",
     "splitTransaction": "تقسيم المعاملة",
     "tagEvent": "وسم الحدث",
-    "unlinkTransfer": "إلغاء ربط التحويل"
+    "unlinkTransfer": "إلغاء ربط التحويل",
+    "convertToTransfer": "جعله تحويلاً..."
   },
   "txTab": {
     "addFirst": "أضف معاملتك الأولى للبدء.",

@@ -1353,6 +1353,83 @@ async fn mcp_transfer_lookups_see_every_linked_pair() {
 }
 
 /// Runs the Health Center checks and counts the transfer legs they flag.
+#[tokio::test]
+async fn convert_to_transfer_pairs_a_withdrawal_with_another_account() {
+    let server = spawn_server(false, false).await;
+    let cookie = login(&server).await;
+    disable_market_data_providers(&server, &cookie).await;
+    let chequing = create_eur_account(&server, &cookie, "Chequing").await;
+    let savings = create_eur_account(&server, &cookie, "Savings").await;
+    let cash = |account: &serde_json::Value, activity_type: &str, amount: &str| {
+        api_post(
+            &server,
+            &cookie,
+            "activities",
+            serde_json::json!({
+                "accountId": account["id"], "activityType": activity_type,
+                "activityDate": "2026-04-01T12:00:00Z", "currency": "EUR", "amount": amount,
+                "comment": "e-Transfer: Me Savings"
+            }),
+        )
+    };
+    let withdrawal = cash(&chequing, "WITHDRAWAL", "100").await;
+    let deposit = cash(&savings, "DEPOSIT", "100").await;
+
+    let candidates = api_post(
+        &server,
+        &cookie,
+        "activities/transfer-match-candidates",
+        serde_json::json!({ "activityId": withdrawal["id"] }),
+    )
+    .await;
+    assert_eq!(
+        candidates[0]["activity"]["id"], deposit["id"],
+        "{candidates}"
+    );
+
+    let pair = api_post(
+        &server,
+        &cookie,
+        "activities/convert-to-transfer",
+        serde_json::json!({
+            "activityId": withdrawal["id"], "counterpartActivityId": deposit["id"]
+        }),
+    )
+    .await;
+    assert_eq!(pair["transferOut"]["id"], withdrawal["id"], "{pair}");
+    assert_eq!(
+        pair["transferOut"]["activityType"], "TRANSFER_OUT",
+        "{pair}"
+    );
+    assert_eq!(pair["transferIn"]["id"], deposit["id"], "{pair}");
+    assert_eq!(pair["transferIn"]["activityType"], "TRANSFER_IN", "{pair}");
+    assert!(pair["transferIn"]["sourceGroupId"].is_string(), "{pair}");
+    assert_eq!(
+        pair["transferIn"]["sourceGroupId"], pair["transferOut"]["sourceGroupId"],
+        "{pair}"
+    );
+
+    // Without a matching deposit, the other side is created in the chosen account.
+    let second = cash(&chequing, "WITHDRAWAL", "40").await;
+    let created = api_post(
+        &server,
+        &cookie,
+        "activities/convert-to-transfer",
+        serde_json::json!({ "activityId": second["id"], "counterpartAccountId": savings["id"] }),
+    )
+    .await;
+    assert_eq!(
+        created["transferIn"]["accountId"], savings["id"],
+        "{created}"
+    );
+    assert_eq!(created["transferIn"]["amount"], "40", "{created}");
+    assert_eq!(
+        created["transferIn"]["notes"], "e-Transfer: Me Savings",
+        "{created}"
+    );
+    assert_eq!(transfer_issue_legs(&server, &cookie).await, 0);
+}
+
 async fn transfer_issue_legs(server: &TestServer, cookie: &str) -> u64 {
     let status = api_post(server, cookie, "health/check", serde_json::json!({})).await;
     status["issues"]

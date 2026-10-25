@@ -328,7 +328,8 @@
   "operations": {
     "more_details": "更多詳細資訊",
     "unlink_transfer": "取消轉帳配對",
-    "link_transfer": "配對轉帳……"
+    "link_transfer": "配對轉帳……",
+    "convert_to_transfer": "轉為轉帳..."
   },
   "date_sheet": {
     "title": "{{date}} 的交易紀錄",
@@ -466,7 +467,16 @@
     "error_load_pair": "無法載入已配對的轉帳。",
     "error_search": "無法搜尋交易紀錄。",
     "within_days_other": "{{count}} 天內",
-    "within_days_one": "{{count}} 天內"
+    "within_days_one": "{{count}} 天內",
+    "convert_title": "轉為轉帳",
+    "convert_desc": "將此活動轉為帳戶之間的轉帳。選擇另一帳戶中對應的活動，或在該帳戶中建立。",
+    "convert_no_matches": "7 天內沒有相符的活動。",
+    "convert_new": "在另一帳戶中建立",
+    "convert_account": "另一帳戶",
+    "convert_amount": "{{currency}} 金額",
+    "convert_button": "轉為轉帳",
+    "convert_success": "已轉為轉帳",
+    "convert_error": "轉為轉帳失敗"
   },
   "form": {
     "section_conversion": "基金轉換",

@@ -16,6 +16,7 @@ import { Row } from "@tanstack/react-table";
 import { Fragment, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ActivityDetailSheet } from "./activity-detail-sheet";
+import { canConvertToTransfer } from "./transfer-link-utils";
 import { ActivityLoanPaymentSheet } from "@/pages/asset/alternative-assets/components/activity-loan-payment-sheet";
 
 export interface ActivityOperationsProps<TData> {
@@ -61,6 +62,7 @@ export function ActivityOperations<TData>({
     activity.activityType === ActivityType.TRANSFER_OUT;
   const isNew = (activity as ActivityDetails & { isNew?: boolean }).isNew === true;
   const canShowTransferActions = isTransfer && !isNew && (onLinkTransfer || onUnlinkTransfer);
+  const canConvert = !isNew && !!onLinkTransfer && canConvertToTransfer(activity);
   // A withdrawal can be counted as a payment on a loan; the sheet checks the account.
   const canPayLoan = activity.activityType === ActivityType.WITHDRAWAL && !isNew;
 
@@ -99,6 +101,15 @@ export function ActivityOperations<TData>({
                   },
                 ]
               : []
+          : []),
+        ...(canConvert && onLinkTransfer
+          ? [
+              {
+                icon: Icons.ArrowLeftRight,
+                label: t("activity:operations.convert_to_transfer"),
+                onClick: () => onLinkTransfer(activity),
+              },
+            ]
           : []),
         ...(canPayLoan
           ? [

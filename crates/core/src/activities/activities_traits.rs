@@ -524,6 +524,10 @@ pub trait ActivityServiceTrait: Send + Sync {
         &self,
         request: InternalTransferPairRequest,
     ) -> Result<InternalTransferPairResponse>;
+    async fn convert_to_internal_transfer(
+        &self,
+        request: ConvertToTransferRequest,
+    ) -> Result<InternalTransferPairResponse>;
     async fn link_transfer_activities(
         &self,
         activity_a_id: String,

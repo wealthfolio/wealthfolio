@@ -4,10 +4,10 @@ use std::collections::HashMap;
 use log::debug;
 use wealthfolio_core::activities::{
     Activity, ActivityBulkMutationRequest, ActivityBulkMutationResult, ActivityImport,
-    ActivitySearchResponse, ActivitySplitEffect, ActivityUpdate, ImportActivitiesResult,
-    ImportAssetCandidate, ImportAssetPreviewItem, ImportMappingData, ImportTemplateData,
-    InternalTransferPairRequest, InternalTransferPairResponse, NewActivity, ParseConfig,
-    ParsedCsvResult, Sort, TransferMatchCandidate, TransferMatchCandidateRequest,
+    ActivitySearchResponse, ActivitySplitEffect, ActivityUpdate, ConvertToTransferRequest,
+    ImportActivitiesResult, ImportAssetCandidate, ImportAssetPreviewItem, ImportMappingData,
+    ImportTemplateData, InternalTransferPairRequest, InternalTransferPairResponse, NewActivity,
+    ParseConfig, ParsedCsvResult, Sort, TransferMatchCandidate, TransferMatchCandidateRequest,
 };
 use wealthfolio_core::health::HealthServiceTrait;
 use wealthfolio_core::utils::time_utils::{
@@ -181,6 +181,22 @@ pub async fn save_internal_transfer_pair(
     let pair = context
         .activity_service()
         .save_internal_transfer_pair(request)
+        .await
+        .map_err(|e| e.to_string())?;
+    context.health_service().clear_cache().await;
+    Ok(pair)
+}
+
+#[tauri::command]
+pub async fn convert_to_internal_transfer(
+    request: ConvertToTransferRequest,
+    state: ProfileAccess,
+) -> Result<InternalTransferPairResponse, String> {
+    let context = state.context()?;
+    debug!("Converting activity into an internal transfer...");
+    let pair = context
+        .activity_service()
+        .convert_to_internal_transfer(request)
         .await
         .map_err(|e| e.to_string())?;
     context.health_service().clear_cache().await;
