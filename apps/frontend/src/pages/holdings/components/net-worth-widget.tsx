@@ -169,21 +169,21 @@ export const NetWorthWidget = ({
 
   const [isBreakdownOpen, setIsBreakdownOpen] = useState(false);
 
-  // Parse numeric values from the response (stored as strings for precision)
+  // Totals and labelled breakdown rows from the response
   const parsedValues = useMemo(() => {
     if (!netWorthData) return null;
 
     return {
-      netWorth: parseFloat(netWorthData.netWorth) || 0,
-      totalAssets: parseFloat(netWorthData.assets.total) || 0,
-      totalLiabilities: parseFloat(netWorthData.liabilities.total) || 0,
+      netWorth: netWorthData.netWorth,
+      totalAssets: netWorthData.assets.total,
+      totalLiabilities: netWorthData.liabilities.total,
       assetsBreakdown: netWorthData.assets.breakdown.map((item) => ({
         label: getNetWorthCategoryLabel(t, item.category, item.name),
-        value: parseFloat(item.value) || 0,
+        value: item.value,
       })),
       liabilitiesBreakdown: netWorthData.liabilities.breakdown.map((item) => ({
         label: item.name,
-        value: parseFloat(item.value) || 0,
+        value: item.value,
         isDebt: true,
       })),
     };

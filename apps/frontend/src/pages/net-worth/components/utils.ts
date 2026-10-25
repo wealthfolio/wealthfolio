@@ -103,13 +103,10 @@ export interface ParsedHistoryPoint {
   breakdown: Record<string, number>;
 }
 
-const num = (value: string | number | undefined | null): number => {
-  if (value == null) return 0;
-  const parsed = typeof value === "number" ? value : parseFloat(value);
-  return Number.isFinite(parsed) ? parsed : 0;
-};
+const num = (value: number | undefined | null): number =>
+  value != null && Number.isFinite(value) ? value : 0;
 
-/** Parse the raw history response (decimal strings, or numbers in web mode) into numbers. */
+/** Parse the raw history response, treating missing or non-finite values as zero. */
 export function parseHistory(history: NetWorthHistoryPoint[] | undefined): ParsedHistoryPoint[] {
   if (!history) return [];
   return history.map((point) => {

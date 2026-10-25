@@ -119,28 +119,28 @@ export function NetWorthContent() {
   const parsedData = useMemo((): ParsedNetWorth | null => {
     if (!netWorthData) return null;
     return {
-      netWorth: parseFloat(netWorthData.netWorth) || 0,
+      netWorth: netWorthData.netWorth,
       assets: {
-        total: parseFloat(netWorthData.assets.total) || 0,
+        total: netWorthData.assets.total,
         breakdown: (netWorthData.assets.breakdown || []).map((item) => ({
           category: item.category,
           name: getNetWorthCategoryLabel(t, item.category, item.name),
-          value: parseFloat(item.value) || 0,
+          value: item.value,
           assetId: item.assetId,
           children: (item.children ?? []).map((child) => ({
             category: child.category,
             name: child.name,
-            value: parseFloat(child.value) || 0,
+            value: child.value,
             assetId: child.assetId,
           })),
         })),
       },
       liabilities: {
-        total: parseFloat(netWorthData.liabilities.total) || 0,
+        total: netWorthData.liabilities.total,
         breakdown: (netWorthData.liabilities.breakdown || []).map((item) => ({
           category: item.category,
           name: item.name,
-          value: parseFloat(item.value) || 0,
+          value: item.value,
           assetId: item.assetId,
           firstValueDate: item.firstValueDate,
         })),

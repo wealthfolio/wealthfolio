@@ -181,12 +181,12 @@ function Fixture() {
             <NetWorthChart
               data={(params.get("chart") ?? "").split(",").map((value, index) => ({
                 date: `2026-09-${10 + index}`,
-                netWorth: value,
-                totalAssets: "100000",
-                totalLiabilities: String(100000 - Number(value)),
-                portfolioValue: "100000",
-                alternativeAssetsValue: "0",
-                netContribution: "0",
+                netWorth: Number(value),
+                totalAssets: 100000,
+                totalLiabilities: 100000 - Number(value),
+                portfolioValue: 100000,
+                alternativeAssetsValue: 0,
+                netContribution: 0,
                 currency: "USD",
                 breakdown: {},
               }))}

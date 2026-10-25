@@ -17,12 +17,12 @@ import {
 function rawPoint(overrides: Partial<NetWorthHistoryPoint>): NetWorthHistoryPoint {
   return {
     date: "2024-01-01",
-    portfolioValue: "0",
-    alternativeAssetsValue: "0",
-    totalLiabilities: "0",
-    totalAssets: "0",
-    netWorth: "0",
-    netContribution: "0",
+    portfolioValue: 0,
+    alternativeAssetsValue: 0,
+    totalLiabilities: 0,
+    totalAssets: 0,
+    netWorth: 0,
+    netContribution: 0,
     breakdown: {},
     currency: "USD",
     ...overrides,
@@ -44,16 +44,16 @@ function point(overrides: Partial<ParsedHistoryPoint>): ParsedHistoryPoint {
 }
 
 describe("net worth utils", () => {
-  it("parses decimal strings and breakdown values into finite numbers", () => {
+  it("parses history and breakdown values into finite numbers", () => {
     const parsed = parseHistory([
       rawPoint({
-        portfolioValue: "100.25",
-        alternativeAssetsValue: "50",
-        totalLiabilities: "25",
-        totalAssets: "150.25",
-        netWorth: "125.25",
-        netContribution: "80",
-        breakdown: { cash: "10.5", investments: "bad-value" },
+        portfolioValue: 100.25,
+        alternativeAssetsValue: 50,
+        totalLiabilities: 25,
+        totalAssets: 150.25,
+        netWorth: 125.25,
+        netContribution: 80,
+        breakdown: { cash: 10.5, investments: Number.NaN },
       }),
     ]);
 

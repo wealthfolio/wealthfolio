@@ -111,9 +111,9 @@ const CustomTooltip = ({ active, payload, isBalanceHidden, t }: CustomTooltipPro
 function transformData(data: NetWorthHistoryPoint[]): ChartDataPoint[] {
   return data.map((point) => ({
     date: point.date,
-    netWorth: parseFloat(point.netWorth) || 0,
-    totalAssets: parseFloat(point.totalAssets) || 0,
-    totalLiabilities: parseFloat(point.totalLiabilities) || 0,
+    netWorth: point.netWorth,
+    totalAssets: point.totalAssets,
+    totalLiabilities: point.totalLiabilities,
     currency: point.currency,
   }));
 }
