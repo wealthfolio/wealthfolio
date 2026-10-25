@@ -226,7 +226,11 @@ export function LoanTimeline({
   );
 
   return (
-    <Card className={cn("flex flex-col", className)} role="region" aria-label={title}>
+    <Card
+      className={cn("flex flex-col overflow-hidden", className)}
+      role="region"
+      aria-label={title}
+    >
       <CardHeader className="flex flex-row items-center justify-between space-y-0">
         <CardTitle className="text-md">
           <HoverCard>
