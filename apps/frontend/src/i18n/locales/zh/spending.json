@@ -187,7 +187,8 @@
     "duplicate": "复制",
     "unlinkTransfer": "取消关联转账",
     "linkTransfer": "关联转账……",
-    "deleteConfirmMany_other": "确定要删除 {{count}} 笔交易吗？"
+    "deleteConfirmMany_other": "确定要删除 {{count}} 笔交易吗？",
+    "convertToTransfer": "转为转账..."
   },
   "cashFlow": {
     "income": "收入",

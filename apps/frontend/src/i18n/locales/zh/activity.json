@@ -327,7 +327,8 @@
   "operations": {
     "more_details": "更多详情",
     "unlink_transfer": "取消关联转账",
-    "link_transfer": "关联转账……"
+    "link_transfer": "关联转账……",
+    "convert_to_transfer": "转为转账..."
   },
   "date_sheet": {
     "title": "{{date}} 的活动",
@@ -463,7 +464,16 @@
     "error_load_suggestions": "无法加载建议匹配项。",
     "error_load_pair": "无法加载关联的转账对。",
     "error_search": "无法搜索活动。",
-    "within_days_other": "{{count}} 天内"
+    "within_days_other": "{{count}} 天内",
+    "convert_title": "转为转账",
+    "convert_desc": "将此活动转为账户之间的转账。选择另一账户中对应的活动，或在该账户中创建。",
+    "convert_no_matches": "7 天内没有匹配的活动。",
+    "convert_new": "在另一账户中创建",
+    "convert_account": "另一账户",
+    "convert_amount": "{{currency}} 金额",
+    "convert_button": "转为转账",
+    "convert_success": "已转为转账",
+    "convert_error": "转为转账失败"
   },
   "form": {
     "section_conversion": "基金转换",

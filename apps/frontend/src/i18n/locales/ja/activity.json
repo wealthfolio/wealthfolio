@@ -327,7 +327,8 @@
   "operations": {
     "more_details": "詳細を表示",
     "unlink_transfer": "振替のリンクを解除",
-    "link_transfer": "振替をリンク..."
+    "link_transfer": "振替をリンク...",
+    "convert_to_transfer": "振替に変換..."
   },
   "date_sheet": {
     "title": "{{date}}の取引",
@@ -463,7 +464,16 @@
     "error_load_suggestions": "マッチ候補を読み込めませんでした。",
     "error_load_pair": "リンクされた振替ペアを読み込めませんでした。",
     "error_search": "取引を検索できませんでした。",
-    "within_days_other": "{{count}}日以内"
+    "within_days_other": "{{count}}日以内",
+    "convert_title": "振替に変換",
+    "convert_desc": "このアクティビティを口座間の振替に変換します。相手口座の対応するアクティビティを選ぶか、そこに作成してください。",
+    "convert_no_matches": "7日以内に一致するアクティビティはありません。",
+    "convert_new": "別の口座に作成",
+    "convert_account": "相手口座",
+    "convert_amount": "{{currency}}での金額",
+    "convert_button": "振替に変換",
+    "convert_success": "振替に変換しました",
+    "convert_error": "振替への変換に失敗しました"
   },
   "form": {
     "section_conversion": "スイッチング",

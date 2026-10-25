@@ -188,7 +188,8 @@
     "unlinkTransfer": "Überweisung trennen",
     "linkTransfer": "Überweisung verknüpfen...",
     "deleteConfirmMany_one": "Möchten Sie wirklich {{count}} Transaktion löschen?",
-    "deleteConfirmMany_other": "Möchten Sie wirklich {{count}} Transaktionen löschen?"
+    "deleteConfirmMany_other": "Möchten Sie wirklich {{count}} Transaktionen löschen?",
+    "convertToTransfer": "In Überweisung umwandeln..."
   },
   "cashFlow": {
     "income": "Einnahmen",

@@ -948,6 +948,26 @@ pub struct TransferMatchCandidateRequest {
     pub limit: Option<usize>,
 }
 
+/// Turns a cash deposit or withdrawal (or an unlinked cash transfer) into one
+/// leg of an internal transfer. The other leg is either an existing activity in
+/// another account (`counterpart_activity_id`) or a new one created in
+/// `counterpart_account_id`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConvertToTransferRequest {
+    pub activity_id: String,
+    #[serde(default)]
+    pub counterpart_activity_id: Option<String>,
+    #[serde(default)]
+    pub counterpart_account_id: Option<String>,
+    /// Amount for a new leg whose account currency differs from the source's.
+    #[serde(
+        default,
+        deserialize_with = "decimal_input_format::deserialize_option_decimal"
+    )]
+    pub counterpart_amount: Option<Decimal>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TransferMatchCandidate {

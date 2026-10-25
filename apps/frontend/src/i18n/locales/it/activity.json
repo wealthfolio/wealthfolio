@@ -329,7 +329,8 @@
   "operations": {
     "more_details": "Maggiori dettagli",
     "unlink_transfer": "Scollega trasferimento",
-    "link_transfer": "Collega trasferimento..."
+    "link_transfer": "Collega trasferimento...",
+    "convert_to_transfer": "Converti in trasferimento..."
   },
   "date_sheet": {
     "title": "Movimenti del {{date}}",
@@ -471,7 +472,16 @@
     "error_search": "Impossibile cercare i movimenti.",
     "within_days_one": "Entro {{count}} giorno",
     "within_days_many": "Entro {{count}} giorni",
-    "within_days_other": "Entro {{count}} giorni"
+    "within_days_other": "Entro {{count}} giorni",
+    "convert_title": "Converti in trasferimento",
+    "convert_desc": "Trasforma questa attività in un trasferimento tra i tuoi conti. Scegli l’attività corrispondente nell’altro conto o creala lì.",
+    "convert_no_matches": "Nessuna attività corrispondente entro 7 giorni.",
+    "convert_new": "Creala in un altro conto",
+    "convert_account": "Altro conto",
+    "convert_amount": "Importo in {{currency}}",
+    "convert_button": "Converti in trasferimento",
+    "convert_success": "Convertita in trasferimento",
+    "convert_error": "Impossibile convertire in trasferimento"
   },
   "form": {
     "section_conversion": "Switch",

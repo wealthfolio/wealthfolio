@@ -328,7 +328,8 @@
   "operations": {
     "more_details": "More details",
     "unlink_transfer": "Unlink transfer",
-    "link_transfer": "Link transfer..."
+    "link_transfer": "Link transfer...",
+    "convert_to_transfer": "Make it a transfer..."
   },
   "date_sheet": {
     "title": "Activities on {{date}}",
@@ -466,7 +467,16 @@
     "error_load_pair": "Could not load the linked transfer pair.",
     "error_search": "Could not search activities.",
     "within_days_one": "Within {{count}} day",
-    "within_days_other": "Within {{count}} days"
+    "within_days_other": "Within {{count}} days",
+    "convert_title": "Make it a transfer",
+    "convert_desc": "Turn this activity into a transfer between your accounts. Pick the matching activity in the other account, or create it there.",
+    "convert_no_matches": "No matching activity within 7 days.",
+    "convert_new": "Create it in another account",
+    "convert_account": "Other account",
+    "convert_amount": "Amount in {{currency}}",
+    "convert_button": "Convert to transfer",
+    "convert_success": "Converted into a transfer",
+    "convert_error": "Failed to convert into a transfer"
   },
   "form": {
     "section_conversion": "Fund conversion",
