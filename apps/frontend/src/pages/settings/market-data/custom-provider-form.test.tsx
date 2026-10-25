@@ -32,11 +32,11 @@ vi.mock("@/adapters", () => ({
 
 vi.mock("@/hooks/use-custom-providers", () => ({
   useCreateCustomProvider: () => ({
-    mutate: createProvider,
+    mutateAsync: createProvider,
     isPending: false,
   }),
   useUpdateCustomProvider: () => ({
-    mutate: updateProvider,
+    mutateAsync: updateProvider,
     isPending: false,
   }),
   useTestCustomProviderSource: () => ({

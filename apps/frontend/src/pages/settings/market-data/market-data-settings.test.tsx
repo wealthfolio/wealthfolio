@@ -1,7 +1,7 @@
-import { fireEvent, render, screen, within } from "@/test/render";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { act, fireEvent, render, screen, waitFor, within } from "@/test/render";
+import { QueryClient, QueryClientProvider, useMutation } from "@tanstack/react-query";
 import userEvent from "@testing-library/user-event";
-import type { ReactNode } from "react";
+import { Activity, type ReactNode } from "react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -31,7 +31,22 @@ vi.mock("@/adapters", () => ({
 
 vi.mock("@wealthfolio/ui", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@wealthfolio/ui")>()),
-  ActionConfirm: ({ button }: { button: ReactNode }) => <>{button}</>,
+  ActionConfirm: ({
+    button,
+    handleConfirm,
+    isPending,
+  }: {
+    button: ReactNode;
+    handleConfirm: () => void;
+    isPending?: boolean;
+  }) => (
+    <>
+      {button}
+      <button type="button" disabled={isPending} onClick={handleConfirm}>
+        Confirm delete
+      </button>
+    </>
+  ),
 }));
 
 vi.mock("@/hooks/use-calculate-portfolio", () => ({
@@ -216,6 +231,83 @@ describe("MarketDataSettingsPage", () => {
       screen.getByText(name).closest<HTMLElement>(".flex.items-center.gap-4.px-4.py-3")!;
     return { user, row };
   }
+
+  it("frees a provider's switch once a change ends while the screen is out of sight", async () => {
+    // On a phone, a screen kept under another one is a hidden <Activity>.
+    let finish: () => void = () => undefined;
+    hookMocks.useUpdateCustomProvider.mockImplementation(() =>
+      useMutation({ mutationFn: () => new Promise<void>((resolve) => (finish = resolve)) }),
+    );
+    hookMocks.useCustomProviders.mockReturnValue({
+      data: [customProvider("fund", "Private fund", false, "https://funds.example.com/{ISIN}")],
+    });
+    const client = new QueryClient();
+    const page = (hidden: boolean) => (
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <Activity mode={hidden ? "hidden" : "visible"}>
+            <MarketDataSettingsPage />
+          </Activity>
+        </MemoryRouter>
+      </QueryClientProvider>
+    );
+    const changeStatus = () => client.getMutationCache().getAll()[0]?.state.status;
+    const user = userEvent.setup();
+    const { rerender } = render(page(false));
+    await user.click(screen.getByRole("tab", { name: /custom providers/i }));
+    await user.click(screen.getByRole("switch", { name: "Private fund" }));
+    await waitFor(() => expect(changeStatus()).toBe("pending"));
+    expect(screen.getByRole("switch", { name: "Private fund" })).toHaveAttribute("data-disabled");
+
+    rerender(page(true));
+    act(() => finish());
+    await waitFor(() => expect(changeStatus()).toBe("success"));
+    rerender(page(false));
+
+    await waitFor(() =>
+      expect(screen.getByRole("switch", { name: "Private fund" })).not.toHaveAttribute(
+        "data-disabled",
+      ),
+    );
+  });
+
+  it("frees a provider's delete once it fails while the screen is out of sight", async () => {
+    let fail: () => void = () => undefined;
+    hookMocks.useDeleteCustomProvider.mockImplementation(() =>
+      useMutation({
+        mutationFn: () => new Promise<void>((_, reject) => (fail = () => reject(new Error()))),
+      }),
+    );
+    hookMocks.useCustomProviders.mockReturnValue({
+      data: [customProvider("fund", "Private fund", false, "https://funds.example.com/{ISIN}")],
+    });
+    const client = new QueryClient();
+    const page = (hidden: boolean) => (
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <Activity mode={hidden ? "hidden" : "visible"}>
+            <MarketDataSettingsPage />
+          </Activity>
+        </MemoryRouter>
+      </QueryClientProvider>
+    );
+    const deleteStatus = () => client.getMutationCache().getAll()[0]?.state.status;
+    const user = userEvent.setup();
+    const { rerender } = render(page(false));
+    await user.click(screen.getByRole("tab", { name: /custom providers/i }));
+    await user.click(screen.getByRole("button", { name: "Confirm delete" }));
+    await waitFor(() => expect(deleteStatus()).toBe("pending"));
+    expect(screen.getByRole("button", { name: "Confirm delete" })).toBeDisabled();
+
+    rerender(page(true));
+    act(() => fail());
+    await waitFor(() => expect(deleteStatus()).toBe("error"));
+    rerender(page(false));
+
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Confirm delete" })).toBeEnabled(),
+    );
+  });
 
   it("marks fallback providers and counts the securities each one serves", async () => {
     const { row } = await openCustomProviders();

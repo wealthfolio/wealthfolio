@@ -53,15 +53,32 @@ const formatBytes = (bytes: number) =>
 
 export function AssetLogoDialog({ open, onOpenChange, ...bodyProps }: AssetLogoDialogProps) {
   const isMobile = useIsMobileViewport();
+  // Held here so the dialog stays open while a save or reset runs: its end
+  // closes the dialog, which could by then be one opened again.
+  const { setLogo, resetLogo } = useAssetLogoMutations();
+  const isBusy = setLogo.isPending || resetLogo.isPending;
   return (
-    <Dialog open={open} onOpenChange={onOpenChange} useIsMobile={useIsMobileViewport}>
+    <Dialog
+      open={open}
+      onOpenChange={(next, details) => {
+        if (!next && isBusy) {
+          details.cancel();
+          return;
+        }
+        onOpenChange(next);
+      }}
+      useIsMobile={useIsMobileViewport}
+    >
       <DialogContent
         className="sm:max-w-lg"
         mobileClassName="flex h-[90vh] flex-col gap-0 overflow-hidden p-0"
         data-testid="asset-logo-dialog"
+        showCloseButton={!isBusy}
       >
         <AssetLogoDialogBody
           {...bodyProps}
+          setLogo={setLogo}
+          resetLogo={resetLogo}
           isMobile={isMobile}
           onClose={() => onOpenChange(false)}
         />
@@ -76,6 +93,8 @@ interface AssetLogoDialogBodyProps {
   exchangeMic?: string | null;
   instrumentType?: string | null;
   name?: string | null;
+  setLogo: ReturnType<typeof useAssetLogoMutations>["setLogo"];
+  resetLogo: ReturnType<typeof useAssetLogoMutations>["resetLogo"];
   isMobile: boolean;
   onClose: () => void;
 }
@@ -87,12 +106,13 @@ function AssetLogoDialogBody({
   exchangeMic,
   instrumentType,
   name,
+  setLogo,
+  resetLogo,
   isMobile,
   onClose,
 }: AssetLogoDialogBodyProps) {
   const { t } = useTranslation("asset");
   const dateFormatting = useDateFormatting();
-  const { setLogo, resetLogo } = useAssetLogoMutations();
   const override = useAssetLogoOverride({ assetId });
   const hasCustom = !!override.ref;
 
@@ -113,16 +133,27 @@ function AssetLogoDialogBody({
     );
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (state.status !== "ready") return;
-    setLogo.mutate(
-      { assetId, dataBase64: state.candidate.dataBase64, displayCode: symbol },
-      { onSuccess: onClose },
-    );
+    try {
+      await setLogo.mutateAsync({
+        assetId,
+        dataBase64: state.candidate.dataBase64,
+        displayCode: symbol,
+      });
+      onClose();
+    } catch {
+      // The hook reports the error; the dialog stays open to try again.
+    }
   };
 
-  const handleReset = () => {
-    resetLogo.mutate(assetId, { onSuccess: onClose });
+  const handleReset = async () => {
+    try {
+      await resetLogo.mutateAsync(assetId);
+      onClose();
+    } catch {
+      // The hook reports the error; the dialog stays open to try again.
+    }
   };
 
   return (

@@ -761,8 +761,10 @@ export default function MarketDataSettingsPage() {
     () => new Map(customProviders.map((cp) => [cp.id, getCustomProviderUsage(assets, cp.id)])),
     [customProviders, assets],
   );
-  const { mutate: deleteCustomProvider } = useDeleteCustomProvider();
-  const { mutate: updateCustomProvider } = useUpdateCustomProvider();
+  // Each card's busy state comes from its mutation, which knows when it ends
+  // even if that happened while the screen was out of sight.
+  const deleteProvider = useDeleteCustomProvider();
+  const toggleProvider = useUpdateCustomProvider();
 
   const [priorityInputs, setPriorityInputs] = useState<Record<string, number>>({});
   const [resetHistoryOpen, setResetHistoryOpen] = useState(false);
@@ -770,8 +772,6 @@ export default function MarketDataSettingsPage() {
   const [providersTab, setProvidersTab] = useState("builtin");
   const [customFormOpen, setCustomFormOpen] = useState(false);
   const [editingProvider, setEditingProvider] = useState<CustomProviderWithSources | undefined>();
-  const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [togglingId, setTogglingId] = useState<string | null>(null);
   const showHealthBanner = searchParams.get("healthContext") === "marketData";
 
   // Split providers into built-in providers and the CUSTOM_SCRAPER aggregate
@@ -1141,21 +1141,14 @@ export default function MarketDataSettingsPage() {
                     setEditingProvider(cp);
                     setCustomFormOpen(true);
                   }}
-                  onDelete={() => {
-                    setDeletingId(cp.id);
-                    deleteCustomProvider(cp.id, {
-                      onSettled: () => setDeletingId(null),
-                    });
-                  }}
-                  onToggleEnabled={(enabled) => {
-                    setTogglingId(cp.id);
-                    updateCustomProvider(
-                      { providerId: cp.id, payload: { enabled } },
-                      { onSettled: () => setTogglingId(null) },
-                    );
-                  }}
-                  isDeleting={deletingId === cp.id}
-                  isToggling={togglingId === cp.id}
+                  onDelete={() => deleteProvider.mutate(cp.id)}
+                  onToggleEnabled={(enabled) =>
+                    toggleProvider.mutate({ providerId: cp.id, payload: { enabled } })
+                  }
+                  isDeleting={deleteProvider.isPending && deleteProvider.variables === cp.id}
+                  isToggling={
+                    toggleProvider.isPending && toggleProvider.variables?.providerId === cp.id
+                  }
                   isLast={index === customProviders.length - 1}
                 />
               ))}

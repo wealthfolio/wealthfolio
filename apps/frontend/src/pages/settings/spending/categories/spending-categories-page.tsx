@@ -141,15 +141,16 @@ export default function SpendingCategoriesPage() {
     setVisibleModal(true);
   };
 
-  const handleDeleteCategory = (category: CategoryNode) => {
-    deleteCategory.mutate(
-      { taxonomyId: category.taxonomyId, categoryId: category.id },
-      {
-        onSuccess: () =>
-          toast.success(t("settings:spending.categories.deleted", { name: category.name })),
-        onError: () => toast.error(t("settings:spending.categories.delete_error")),
-      },
-    );
+  const handleDeleteCategory = async (category: CategoryNode) => {
+    try {
+      await deleteCategory.mutateAsync({
+        taxonomyId: category.taxonomyId,
+        categoryId: category.id,
+      });
+      toast.success(t("settings:spending.categories.deleted", { name: category.name }));
+    } catch {
+      toast.error(t("settings:spending.categories.delete_error"));
+    }
   };
 
   const slugify = (s: string) =>
@@ -188,8 +189,8 @@ export default function SpendingCategoriesPage() {
       }
     } else {
       const taxonomyId = parentCategory ? parentCategory.taxonomyId : activeTaxonomyId;
-      createCategory.mutate(
-        {
+      try {
+        await createCategory.mutateAsync({
           taxonomyId,
           parentId: parentCategory?.id ?? null,
           name: values.name,
@@ -197,15 +198,12 @@ export default function SpendingCategoriesPage() {
           color: values.color ?? "#808080",
           sortOrder: 999,
           icon: values.icon ?? null,
-        },
-        {
-          onSuccess: () => {
-            toast.success(t("settings:spending.categories.created"));
-            setVisibleModal(false);
-          },
-          onError: () => toast.error(t("settings:spending.categories.create_error")),
-        },
-      );
+        });
+        toast.success(t("settings:spending.categories.created"));
+        setVisibleModal(false);
+      } catch {
+        toast.error(t("settings:spending.categories.create_error"));
+      }
     }
   };
 

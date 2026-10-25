@@ -279,13 +279,14 @@ export function AuditLogTable({ disabledNotice }: { disabledNotice?: string }) {
             <AlertDialogAction
               variant="destructive"
               disabled={purgeMutation.isPending}
-              onClick={() => {
-                purgeMutation.mutate(undefined, {
-                  onSuccess: () => {
-                    setPurgeOpen(false);
-                    setPage(1);
-                  },
-                });
+              onClick={async () => {
+                try {
+                  await purgeMutation.mutateAsync();
+                  setPurgeOpen(false);
+                  setPage(1);
+                } catch {
+                  // The mutation reports the error.
+                }
               }}
             >
               <Icons.Trash className="me-2 h-4 w-4" />

@@ -296,8 +296,8 @@ function CustomProviderFormContent({
 }) {
   const { t } = useTranslation();
   const isEditing = !!provider;
-  const { mutate: createProvider, isPending: isCreating } = useCreateCustomProvider();
-  const { mutate: updateProvider, isPending: isUpdating } = useUpdateCustomProvider();
+  const { mutateAsync: createProvider, isPending: isCreating } = useCreateCustomProvider();
+  const { mutateAsync: updateProvider, isPending: isUpdating } = useUpdateCustomProvider();
   const { settings } = useSettingsContext();
   const isSaving = isCreating || isUpdating;
 
@@ -458,7 +458,7 @@ function CustomProviderFormContent({
   ]);
 
   const handleSave = useCallback(
-    (values: FormValues) => {
+    async (values: FormValues) => {
       const mapSource = (
         src: SourceFormValues,
         kind: "latest" | "historical",
@@ -488,9 +488,9 @@ function CustomProviderFormContent({
       if (values.latestEnabled) sources.push(mapSource(values.latestSource, "latest"));
       if (values.historicalEnabled) sources.push(mapSource(values.historicalSource, "historical"));
 
-      if (isEditing && provider) {
-        updateProvider(
-          {
+      try {
+        if (isEditing && provider) {
+          await updateProvider({
             providerId: provider.id,
             payload: {
               name: values.name,
@@ -499,21 +499,20 @@ function CustomProviderFormContent({
               useAsFallback: values.useAsFallback,
               sources,
             },
-          },
-          { onSuccess: () => onOpenChange(false) },
-        );
-      } else {
-        createProvider(
-          {
+          });
+        } else {
+          await createProvider({
             code: values.code,
             name: values.name,
             description: values.description || undefined,
             priority: values.priority,
             useAsFallback: values.useAsFallback,
             sources,
-          },
-          { onSuccess: () => onOpenChange(false) },
-        );
+          });
+        }
+        onOpenChange(false);
+      } catch {
+        // The mutation reports the error; the form stays open to try again.
       }
     },
     [isEditing, provider, createProvider, updateProvider, onOpenChange],

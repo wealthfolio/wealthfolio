@@ -90,24 +90,22 @@ export function GoalEditDialog({ goal, open, onClose }: Props) {
   const trimmedTitle = title.trim();
   const trimmedDescription = description.trim();
 
-  const handleSave = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSave = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!trimmedTitle) return;
 
-    updateMutation.mutate(
-      {
+    try {
+      await updateMutation.mutateAsync({
         ...goal,
         title: trimmedTitle,
         description: trimmedDescription || undefined,
         statusLifecycle: lifecycle,
-      },
-      {
-        onSuccess: () => {
-          toast.success(t("goals:goal_saved"));
-          onClose();
-        },
-      },
-    );
+      });
+      toast.success(t("goals:goal_saved"));
+      onClose();
+    } catch {
+      // The mutation reports the error; the dialog stays open to try again.
+    }
   };
 
   return (

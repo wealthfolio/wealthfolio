@@ -276,8 +276,14 @@ export function BackupRestoreForm() {
         pending={remove.isPending}
         pendingLabel={t("settings:backup_deleting")}
         onCancel={() => setDeleting(null)}
-        onConfirm={() => {
-          if (deleting) remove.mutate(deleting.filename, { onSettled: () => setDeleting(null) });
+        onConfirm={async () => {
+          if (!deleting) return;
+          try {
+            await remove.mutateAsync(deleting.filename);
+          } catch {
+            // The mutation reports the error; the dialog closes either way.
+          }
+          setDeleting(null);
         }}
       />
       {isWeb && (

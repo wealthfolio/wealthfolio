@@ -33,6 +33,7 @@ vi.mock("@tanstack/react-query", async (importOriginal) => ({
   useQuery: () => ({ data: [], isLoading: false }),
 }));
 
+vi.mock("@/components/asset-logo/asset-logo-dialog", () => ({ AssetLogoDialog: () => null }));
 vi.mock("@/hooks/use-custom-providers", () => ({ useCustomProviders: () => ({ data: [] }) }));
 vi.mock("@/hooks/use-market-data-providers", () => ({
   useMarketDataProviders: () => ({ data: [] }),
