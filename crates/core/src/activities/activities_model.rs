@@ -669,7 +669,7 @@ pub struct ActivityUpdatePreview {
 pub struct ActivitySplitEffect {
     pub activity_id: String,
     pub removed_splits: usize,
-    pub existing_category_becomes_effective: bool,
+    pub has_retained_category_assignment: bool,
     pub fingerprint: String,
 }
 

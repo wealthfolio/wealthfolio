@@ -865,7 +865,11 @@ export const invoke = async <T>(command: string, payload?: Record<string, unknow
       body = JSON.stringify(activity);
       break;
     }
-    case "review_activity_split_effects":
+    case "review_activity_split_effects": {
+      const { activities } = payload as { activities: Record<string, unknown>[] };
+      body = JSON.stringify(activities);
+      break;
+    }
     case "update_activity": {
       const { activity } = payload as { activity: Record<string, unknown> };
       body = JSON.stringify(activity);

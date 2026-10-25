@@ -1033,7 +1033,7 @@
   },
   "splitEditReview": {
     "title": "分割の削除を確認",
-    "hiddenCategory": "分割の削除後、既存のカテゴリが適用されます。",
+    "hiddenCategory": "既存のカテゴリ割り当ては保持され、分割の削除後に適用される場合があります。",
     "confirm": "保存して分割を削除",
     "removed_other": "この変更により {{count}} 件の分割が削除されます。"
   }

@@ -329,8 +329,9 @@ mod tests {
         tools.extend([
             Arc::new(categorization_context::ListCategorizationContext) as Arc<dyn AgentTool>,
             Arc::new(propose_categories::ProposeCategories),
+            Arc::new(activities::SearchActivities),
         ]);
-        let args = serde_json::json!({"notes":"private-financial-detail","pattern":"private-financial-detail",
+        let args = serde_json::json!({"query":"private-financial-detail","symbol":"private-financial-detail","notes":"private-financial-detail","pattern":"private-financial-detail",
             "aiProposals":[{"reason":"private-financial-detail"}],"unexpected-private-financial-detail":"private-financial-detail"});
         for tool in tools {
             assert!(

@@ -107,12 +107,20 @@ blockers. Default-group reset does not recreate a deleted category.
 
 The financial writer's split invalidation policy remains unchanged. Native
 financial edit forms/grid and MCP updates now preview removed-split counts and
-whether a hidden existing category becomes effective. A transient fingerprint
-binds current transaction/allocation state and the split-relevant proposed
-fields. Both single and bulk writers reject stale reviews atomically. The
+whether existing category assignments are retained and may apply after removal.
+This stays accurate when a type/account change also changes the effective
+cashflow taxonomy; core does not duplicate Spending's economic classifier. A
+transient fingerprint binds the current transaction/allocation state. Both
+single and bulk writers recompute the actual removal effects and reject stale
+state or unreviewed effects atomically. Derived amounts are not fingerprints:
+native asset resolution keeps ownership of multipliers and trade totals. The
 fingerprint discloses no category names or amounts, so this review needs no
 extra Spending grant. Native confirmation is shared through a profile-scoped,
-in-memory dialog; cancellation/profile unmount performs no mutation.
+in-memory dialog; cancellation/profile unmount performs no mutation. Each save
+uses one batched review request. Records without splits capture current state
+without resolving replacement symbols or deriving trade amounts. Independent
+non-destructive previews may overlap. A second destructive confirmation cannot
+overwrite the open dialog; no review queue or automatic retry is introduced.
 
 Non-interactive broker/import/sync callers omit this review field and retain
 their existing atomic invalidation behavior. There is no confirmation gate,
@@ -197,14 +205,16 @@ review.
 
 ## Validation status
 
-Completed before implementation cross-review:
+Completed implementation validation (including focused checks after review
+fixes):
 
 - Rust unit suites: core 2,009; Spending 180; SQLite 476; agent tools 148.
 - SQLite category-reference/restart tests 6; two-device sync replay tests 15.
-- Server MCP/auth/native-service integration tests 32; MCP crate tests 15.
+- Server MCP/auth/native-service integration tests 33; desktop MCP/router tests
+  12; MCP crate tests 15.
 - AI output parity 51 plus schema snapshots 20; the existing live Ollama test
   remains ignored because it requires Ollama and `WF_TEST_OLLAMA_MODEL`.
-- Frontend 495 tests across 56 affected feature/adapter/addon suites with four
+- Frontend 496 tests across 56 affected feature/adapter/addon suites with four
   workers; `pnpm check`; all 11 locales/20 namespaces; web and Tauri frontend
   builds. An unchanged MCP setup-card test failed in the initial unconstrained
   parallel run, then passed isolated and in the complete bounded-worker rerun.
@@ -220,7 +230,12 @@ Completed before implementation cross-review:
   for `wealthfolio-app` and `wealthfolio-server`; final whitespace/diff review.
 
 Regression evidence includes fail-before/pass-after split protection, category
-reference deletion and persisted assistant-card tests. Review scope does not
+reference deletion, persisted assistant-card tests, and the reviewed asset-swap
+failure found by Claude. The asset regression passes through MCP, native single
+and native bulk updates. Review follow-up reran core/tool unit suites and all 53
+activity repository tests; native no-split symbol previews stay off providers.
+Batch/concurrent non-destructive review behavior and both runtime command maps
+are covered. Native bulk financial errors remain atomic. Review scope does not
 include mobile SDK builds or a live Ollama reproduction. Cross-review findings
 and final revision are recorded after review.
 

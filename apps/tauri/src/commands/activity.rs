@@ -88,13 +88,13 @@ pub async fn create_activity(
 
 #[tauri::command]
 pub async fn review_activity_split_effects(
-    activity: ActivityUpdate,
+    activities: Vec<ActivityUpdate>,
     state: ProfileAccess,
-) -> Result<Vec<ActivitySplitEffect>, String> {
+) -> Result<Vec<Vec<ActivitySplitEffect>>, String> {
     state
         .context()?
         .activity_service()
-        .review_activity_split_effects(activity)
+        .review_activity_split_effects_batch(activities)
         .map_err(|e| e.to_string())
 }
 

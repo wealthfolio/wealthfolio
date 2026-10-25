@@ -1102,7 +1102,7 @@
   },
   "splitEditReview": {
     "title": "Rever a remoção das divisões",
-    "hiddenCategory": "Uma categoria existente será aplicada após remover as divisões.",
+    "hiddenCategory": "As categorias existentes são mantidas e podem aplicar-se após remover as divisões.",
     "confirm": "Guardar e remover divisões",
     "removed_one": "Esta alteração removerá {{count}} divisão.",
     "removed_many": "Esta alteração removerá {{count}} divisões.",

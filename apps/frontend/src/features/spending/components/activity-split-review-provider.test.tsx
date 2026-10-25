@@ -7,7 +7,7 @@ import {
 } from "./activity-split-review-provider";
 
 const mocks = vi.hoisted(() => ({ preview: vi.fn(), saved: vi.fn(), cancelled: vi.fn() }));
-vi.mock("@/adapters", () => ({ reviewActivitySplitEffects: mocks.preview }));
+vi.mock("@/adapters", () => ({ reviewActivitiesSplitEffects: mocks.preview }));
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
     t: (key: string, opts?: { count?: number }) =>
@@ -24,7 +24,7 @@ const update = {
 const effect = {
   activityId: "cash",
   removedSplits: 2,
-  existingCategoryBecomesEffective: true,
+  hasRetainedCategoryAssignment: true,
   fingerprint: "opaque-review",
 };
 function Editor() {
@@ -50,7 +50,7 @@ function mount() {
 }
 beforeEach(() => {
   vi.clearAllMocks();
-  mocks.preview.mockResolvedValue([effect]);
+  mocks.preview.mockResolvedValue([[effect]]);
 });
 
 describe("financial split effects review", () => {
@@ -80,7 +80,7 @@ describe("financial split effects review", () => {
   });
   it("guards edits even when the preview currently has no removable splits", async () => {
     mocks.preview.mockResolvedValue([
-      { ...effect, removedSplits: 0, existingCategoryBecomesEffective: false },
+      [{ ...effect, removedSplits: 0, hasRetainedCategoryAssignment: false }],
     ]);
     mount();
     await act(async () => fireEvent.click(screen.getByText("Save edit")));
@@ -88,8 +88,56 @@ describe("financial split effects review", () => {
     expect(mocks.saved).toHaveBeenCalledWith([
       {
         ...update,
-        splitReview: [{ ...effect, removedSplits: 0, existingCategoryBecomesEffective: false }],
+        splitReview: [{ ...effect, removedSplits: 0, hasRetainedCategoryAssignment: false }],
       },
     ]);
+  });
+  it("batches a grid save and allows overlapping non-destructive previews", async () => {
+    let resolveFirst!: (value: unknown) => void;
+    let resolveSecond!: (value: unknown) => void;
+    mocks.preview
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveFirst = resolve;
+          }),
+      )
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveSecond = resolve;
+          }),
+      );
+    function BatchEditor() {
+      const review = useActivitySplitReview();
+      return (
+        <button
+          onClick={() => {
+            void review([update, { ...update, id: "other" }]).then(mocks.saved, mocks.cancelled);
+          }}
+        >
+          Batch edit
+        </button>
+      );
+    }
+    render(
+      <ActivitySplitReviewProvider>
+        <BatchEditor />
+      </ActivitySplitReviewProvider>,
+    );
+    fireEvent.click(screen.getByText("Batch edit"));
+    fireEvent.click(screen.getByText("Batch edit"));
+    expect(mocks.preview).toHaveBeenCalledTimes(2);
+    expect(mocks.preview).toHaveBeenCalledWith([update, { ...update, id: "other" }]);
+    const snapshots = [
+      [{ ...effect, removedSplits: 0, hasRetainedCategoryAssignment: false }],
+      [{ ...effect, activityId: "other", removedSplits: 0, hasRetainedCategoryAssignment: false }],
+    ];
+    await act(async () => {
+      resolveFirst(snapshots);
+      resolveSecond(snapshots);
+    });
+    expect(mocks.saved).toHaveBeenCalledTimes(2);
+    expect(mocks.cancelled).not.toHaveBeenCalled();
   });
 });

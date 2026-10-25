@@ -1044,7 +1044,7 @@
   },
   "splitEditReview": {
     "title": "Entfernen der Aufteilungen prüfen",
-    "hiddenCategory": "Nach dem Entfernen wird eine vorhandene Kategorie wirksam.",
+    "hiddenCategory": "Vorhandene Kategoriezuweisungen bleiben erhalten und können nach dem Entfernen der Aufteilungen gelten.",
     "confirm": "Speichern und Aufteilungen entfernen",
     "removed_one": "Diese Änderung entfernt {{count}} Aufteilung.",
     "removed_other": "Diese Änderung entfernt {{count}} Aufteilungen."

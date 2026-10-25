@@ -119,7 +119,7 @@ export {
   saveActivities,
   searchActivities,
   updateActivity,
-  reviewActivitySplitEffects,
+  reviewActivitiesSplitEffects,
 } from "../shared/activities";
 export { parseCsv } from "./activities";
 

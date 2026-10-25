@@ -139,12 +139,12 @@ async fn create_activity(
 
 async fn review_activity_split_effects(
     axum::Extension(state): axum::Extension<Arc<AppState>>,
-    Json(activity): Json<ActivityUpdate>,
-) -> ApiResult<Json<Vec<ActivitySplitEffect>>> {
+    Json(activities): Json<Vec<ActivityUpdate>>,
+) -> ApiResult<Json<Vec<Vec<ActivitySplitEffect>>>> {
     Ok(Json(
         state
             .activity_service
-            .review_activity_split_effects(activity)?,
+            .review_activity_split_effects_batch(activities)?,
     ))
 }
 

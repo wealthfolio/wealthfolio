@@ -438,3 +438,95 @@ async fn permission_edits_apply_without_recreating_desktop_session() {
         }
     }
 }
+
+#[tokio::test]
+async fn spending_grants_remain_independent_and_refresh_in_desktop_sessions() {
+    let (repo, dir) = pat_repo();
+    let token = mint_pat(&repo, &["spending:read"]).await;
+    let row = repo.list().unwrap().remove(0);
+    let base = spawn_server_with_repo(repo.clone(), dir).await;
+    let client = reqwest::Client::new();
+    let init = mcp_post(&client, &base)
+        .bearer_auth(&token)
+        .send()
+        .await
+        .unwrap();
+    let session = init
+        .headers()
+        .get("mcp-session-id")
+        .unwrap()
+        .to_str()
+        .unwrap()
+        .to_string();
+    for (scopes, read, organize, budgets) in [
+        (vec!["spending:read"], true, false, false),
+        (vec!["spending:read", "spending:write"], true, true, false),
+        (vec!["spending:read", "budget:write"], true, false, true),
+        (
+            vec!["spending:read", "spending:write", "budget:write"],
+            true,
+            true,
+            true,
+        ),
+        (vec!["classification:read"], false, false, false),
+    ] {
+        let updated = repo
+            .update_scopes(&row.id, scopes.into_iter().map(str::to_string).collect())
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(updated.token_hash, row.token_hash);
+        let request = |body| {
+            client
+                .post(format!("{base}/mcp"))
+                .header("Content-Type", "application/json")
+                .header("Accept", "application/json, text/event-stream")
+                .bearer_auth(&token)
+                .header("mcp-session-id", &session)
+                .json(&body)
+        };
+        let response = request(serde_json::json!({"jsonrpc":"2.0","id":2,"method":"tools/list"}))
+            .send()
+            .await
+            .unwrap();
+        let list = parse_sse_data(&response.text().await.unwrap());
+        let tools = list["result"]["tools"].as_array().unwrap();
+        for (name, visible) in [
+            ("search_spending_transactions", read),
+            ("commit_transaction_categories", organize),
+            ("commit_budget_change", budgets),
+            ("get_holdings", false),
+            ("search_activities", false),
+        ] {
+            assert_eq!(
+                tools.iter().any(|tool| tool["name"] == name),
+                visible,
+                "{name}: {tools:?}"
+            );
+        }
+        // Allowed calls reach malformed-input validation; denied calls never
+        // touch the deliberately unimplemented service graph.
+        for (name, args, allowed) in [
+            (
+                "commit_transaction_categories",
+                serde_json::json!({"assignments":false}),
+                organize,
+            ),
+            (
+                "commit_budget_change",
+                serde_json::json!({"review":true}),
+                budgets,
+            ),
+        ] {
+            let response=request(serde_json::json!({"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":name,"arguments":args}})).send().await.unwrap();
+            let result = parse_sse_data(&response.text().await.unwrap());
+            assert_eq!(result["result"]["isError"], true, "{result}");
+            let message = result["result"]["content"][0]["text"].as_str().unwrap();
+            assert_eq!(
+                message.contains("Scope denied"),
+                !allowed,
+                "{name}: {message}"
+            );
+        }
+    }
+}

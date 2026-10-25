@@ -138,6 +138,10 @@ impl AgentTool for SearchActivities {
         AgentToolAccess::Read
     }
 
+    fn sanitize_args_for_audit(&self, _: &serde_json::Value) -> serde_json::Value {
+        serde_json::json!({"activitySearch":"[redacted]"})
+    }
+
     async fn call(
         &self,
         env: Arc<dyn AgentEnvironment>,
@@ -145,7 +149,11 @@ impl AgentTool for SearchActivities {
     ) -> Result<AgentToolResult, AgentToolError> {
         use chrono::NaiveDate;
 
-        let args: SearchActivitiesArgs = serde_json::from_value(args)?;
+        let args: SearchActivitiesArgs = serde_json::from_value(args).map_err(|_| {
+            AgentToolError::InvalidInput(
+                "Invalid activity search arguments; see the input schema".into(),
+            )
+        })?;
 
         // Pagination: external tool API is 1-based, backend search uses 0-based page index
         let page = args.page.unwrap_or(1).max(1);

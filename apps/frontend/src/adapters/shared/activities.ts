@@ -147,10 +147,12 @@ export const createActivity = async (activity: ActivityCreate): Promise<Activity
   }
 };
 
-export const reviewActivitySplitEffects = (
-  activity: ActivityUpdate,
-): Promise<ActivitySplitEffect[]> =>
-  invoke("review_activity_split_effects", { activity: serializeActivityMetadata(activity) });
+export const reviewActivitiesSplitEffects = (
+  activities: ActivityUpdate[],
+): Promise<ActivitySplitEffect[][]> =>
+  invoke("review_activity_split_effects", {
+    activities: activities.map(serializeActivityMetadata),
+  });
 
 export const updateActivity = async (activity: ActivityUpdate): Promise<Activity> => {
   try {

@@ -287,28 +287,13 @@ fn split_effect(
         .load::<ActivityTaxonomyAssignmentDB>(conn)
         .map_err(StorageError::from)?;
     let invalidates = activity_update_invalidates_spending_splits(before, after);
-    let hidden = invalidates
-        && splits.iter().any(|split| {
-            assignments
-                .iter()
-                .any(|assignment| assignment.taxonomy_id == split.taxonomy_id)
-        });
-    let state = serde_json::to_vec(&(
-        before,
-        &splits,
-        &assignments,
-        &after.account_id,
-        &after.activity_type,
-        type_override(after.activity_type_override.as_deref()),
-        &after.subtype,
-        &after.amount,
-        &after.source_group_id,
-    ))
-    .map_err(|_| ActivityError::InvalidData("Unable to review split effects".into()))?;
+    let hidden = invalidates && !splits.is_empty() && !assignments.is_empty();
+    let state = serde_json::to_vec(&(before, &splits, &assignments))
+        .map_err(|_| ActivityError::InvalidData("Unable to review split effects".into()))?;
     Ok(ActivitySplitEffect {
         activity_id: before.id.clone(),
         removed_splits: if invalidates { splits.len() } else { 0 },
-        existing_category_becomes_effective: hidden,
+        has_retained_category_assignment: hidden,
         fingerprint: format!("{:x}", Sha256::digest(state)),
     })
 }
@@ -1008,6 +993,17 @@ impl ActivityRepositoryTrait for ActivityRepository {
                 Ok(activity)
             })
             .await
+    }
+
+    fn has_spending_splits(&self, activity_id: &str) -> Result<bool> {
+        let mut conn = get_connection(&self.pool)?;
+        diesel::select(diesel::dsl::exists(
+            spending_activity_splits::table
+                .filter(spending_activity_splits::activity_id.eq(activity_id)),
+        ))
+        .get_result(&mut conn)
+        .map_err(StorageError::from)
+        .map_err(Error::from)
     }
 
     fn preview_split_effect(&self, update: &ActivityUpdate) -> Result<ActivitySplitEffect> {
@@ -4899,7 +4895,7 @@ mod tests {
         let mut update: ActivityUpdate = serde_json::from_value(serde_json::json!({"id":"review-activity","accountId":"review-account","activityType":"WITHDRAWAL","activityDate":"2024-01-15T00:00:00Z","currency":"USD","amount":"125"})).expect("update");
         let effect = repo.preview_split_effect(&update).expect("pure preview");
         assert_eq!(effect.removed_splits, 1);
-        assert!(effect.existing_category_becomes_effective);
+        assert!(effect.has_retained_category_assignment);
         let public = serde_json::to_string(&effect).expect("effect");
         assert!(!public.contains("cat_food"));
         assert!(!public.contains("125"));

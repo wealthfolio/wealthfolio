@@ -10,6 +10,9 @@ use std::collections::{HashMap, HashSet};
 /// Trait defining the contract for Activity repository operations.
 #[async_trait]
 pub trait ActivityRepositoryTrait: Send + Sync {
+    fn has_spending_splits(&self, _activity_id: &str) -> Result<bool> {
+        Err(crate::activities::ActivityError::InvalidData("Split review unavailable".into()).into())
+    }
     fn preview_split_effect(&self, _update: &ActivityUpdate) -> Result<ActivitySplitEffect> {
         Err(crate::activities::ActivityError::InvalidData("Split review unavailable".into()).into())
     }
@@ -453,6 +456,15 @@ pub trait ActivityServiceTrait: Send + Sync {
     /// for the activity and a linked transfer leg, without writing anything.
     /// The asset may only be named by id: resolving a symbol may create one.
     fn preview_activity_update(&self, activity: ActivityUpdate) -> Result<ActivityUpdatePreview>;
+    fn review_activity_split_effects_batch(
+        &self,
+        activities: Vec<ActivityUpdate>,
+    ) -> Result<Vec<Vec<ActivitySplitEffect>>> {
+        activities
+            .into_iter()
+            .map(|activity| self.review_activity_split_effects(activity))
+            .collect()
+    }
     fn review_activity_split_effects(
         &self,
         _activity: ActivityUpdate,

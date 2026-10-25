@@ -343,7 +343,7 @@ export interface ActivityCreate {
 export interface ActivitySplitEffect {
   activityId: string;
   removedSplits: number;
-  existingCategoryBecomesEffective: boolean;
+  hasRetainedCategoryAssignment: boolean;
   fingerprint: string;
 }
 

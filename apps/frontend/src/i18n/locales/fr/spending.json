@@ -1102,7 +1102,7 @@
   },
   "splitEditReview": {
     "title": "Vérifier la suppression des répartitions",
-    "hiddenCategory": "Une catégorie existante deviendra effective après la suppression des répartitions.",
+    "hiddenCategory": "Les catégories existantes sont conservées et peuvent s’appliquer après la suppression des répartitions.",
     "confirm": "Enregistrer et supprimer les répartitions",
     "removed_one": "Cette modification supprimera {{count}} répartition.",
     "removed_many": "Cette modification supprimera {{count}} répartitions.",

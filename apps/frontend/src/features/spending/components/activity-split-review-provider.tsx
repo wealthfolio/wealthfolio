@@ -1,4 +1,4 @@
-import { reviewActivitySplitEffects } from "@/adapters";
+import { reviewActivitiesSplitEffects } from "@/adapters";
 import type { ActivitySplitEffect, ActivityUpdate } from "@/lib/types";
 import {
   AlertDialog,
@@ -41,7 +41,6 @@ export function ActivitySplitReviewProvider({ children }: { children: React.Reac
   const { t } = useTranslation();
   const [effects, setEffects] = useState<ActivitySplitEffect[] | null>(null);
   const pending = useRef<((approved: boolean) => void) | null>(null);
-  const busy = useRef(false);
   const mounted = useRef(true);
   useEffect(() => {
     mounted.current = true;
@@ -54,33 +53,27 @@ export function ActivitySplitReviewProvider({ children }: { children: React.Reac
 
   const review = useCallback<ReviewEdits>(async (updates) => {
     if (updates.length === 0) return updates;
-    if (busy.current) throw new Error("An activity edit is already awaiting review");
-    busy.current = true;
-    try {
-      // Sequential reads keep linked/bulk previews bounded. The writer checks
-      // each snapshot again in the existing mutation transaction.
-      const reviewed: ActivityUpdate[] = [];
-      for (const update of updates) {
-        const splitReview = await reviewActivitySplitEffects(update);
-        if (!mounted.current) throw new ActivityEditCancelled();
-        reviewed.push({ ...update, splitReview });
-      }
-      const unique = new Map<string, ActivitySplitEffect>();
-      for (const update of reviewed) {
-        for (const effect of update.splitReview ?? []) unique.set(effect.activityId, effect);
-      }
-      const destructive = [...unique.values()].filter((effect) => effect.removedSplits > 0);
-      if (destructive.length > 0) {
-        setEffects(destructive);
-        const approved = await new Promise<boolean>((resolve) => {
-          pending.current = resolve;
-        });
-        if (!approved) throw new ActivityEditCancelled();
-      }
-      return reviewed;
-    } finally {
-      busy.current = false;
+    const snapshots = await reviewActivitiesSplitEffects(updates);
+    if (!mounted.current) throw new ActivityEditCancelled();
+    if (snapshots.length !== updates.length) throw new Error("Incomplete activity split review");
+    const reviewed = updates.map((update, index) => ({ ...update, splitReview: snapshots[index] }));
+    const unique = new Map<string, ActivitySplitEffect>();
+    for (const update of reviewed) {
+      for (const effect of update.splitReview ?? []) unique.set(effect.activityId, effect);
     }
+    const destructive = [...unique.values()].filter((effect) => effect.removedSplits > 0);
+    if (destructive.length > 0) {
+      // Ordinary independent saves can preview concurrently. A second
+      // destructive review must never overwrite the displayed confirmation.
+      if (pending.current) throw new Error("An activity edit is already awaiting confirmation");
+      setEffects(destructive);
+      const approved = await new Promise<boolean>((resolve) => {
+        pending.current = resolve;
+      });
+      if (!approved) throw new ActivityEditCancelled();
+    }
+    if (!mounted.current) throw new ActivityEditCancelled();
+    return reviewed;
   }, []);
 
   const finish = (approved: boolean) => {
@@ -100,7 +93,7 @@ export function ActivitySplitReviewProvider({ children }: { children: React.Reac
               {t("spending:splitEditReview.removed", {
                 count: effects?.reduce((sum, effect) => sum + effect.removedSplits, 0) ?? 0,
               })}
-              {effects?.some((effect) => effect.existingCategoryBecomesEffective) && (
+              {effects?.some((effect) => effect.hasRetainedCategoryAssignment) && (
                 <> {t("spending:splitEditReview.hiddenCategory")}</>
               )}
             </AlertDialogDescription>

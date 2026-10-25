@@ -4198,3 +4198,70 @@ async fn activity_write_reviews_split_loss_without_a_spending_grant_and_rejects_
         .unwrap()
         .is_empty());
 }
+
+#[tokio::test]
+async fn reviewed_asset_multiplier_swaps_succeed_through_mcp_single_and_bulk_native_updates() {
+    let server = spawn_server(true, false).await;
+    let cookie = login(&server).await;
+    disable_market_data_providers(&server, &cookie).await;
+    let account = create_eur_account(&server, &cookie, "Reviewed multiplier edits").await;
+    let mut assets = Vec::new();
+    for (kind, symbol, multiplier) in [
+        ("EQUITY", "ZZREVIEWSTOCK", 1),
+        ("OPTION", "ZZREVIEWOPTION", 100),
+    ] {
+        assets.push(api_post(&server,&cookie,"assets",serde_json::json!({"kind":"INVESTMENT","name":symbol,"instrumentSymbol":symbol,"instrumentType":kind,"quoteCcy":"EUR","quoteMode":"MANUAL","metadata":{"contractMultiplier":multiplier}})).await);
+    }
+    let (pat, session) = activity_writer_session(&server, &cookie).await;
+    for mode in ["mcp", "single", "bulk"] {
+        let activity=api_post(&server,&cookie,"activities",serde_json::json!({"accountId":account["id"],"activityType":"BUY","activityDate":"2026-04-01T12:00:00Z","currency":"EUR","asset":{"id":assets[0]["id"]},"quantity":"1","unitPrice":"2","notes":format!("Multiplier review {mode}")})).await;
+        if mode == "mcp" {
+            let mut args = serde_json::json!({"updates":[{"activityId":activity["id"],"assetId":assets[1]["id"]}]});
+            let preview = mcp_call_tool(
+                &server,
+                &pat,
+                &session,
+                "prepare_activity_updates",
+                args.clone(),
+            )
+            .await;
+            assert_eq!(preview["rows"][0]["status"], "ready", "{preview}");
+            args["updates"][0]["splitReview"] = preview["rows"][0]["splitReview"].clone();
+            let result =
+                mcp_call_tool(&server, &pat, &session, "commit_activity_updates", args).await;
+            assert_eq!(result["errors"], serde_json::json!([]), "{result}");
+            assert_eq!(result["updated"].as_array().unwrap().len(), 1);
+        } else {
+            let mut update = serde_json::json!({"id":activity["id"],"accountId":account["id"],"activityType":"BUY","activityDate":"2026-04-01T12:00:00Z","currency":"EUR","asset":{"id":assets[1]["id"]},"notes":format!("Multiplier review {mode}")});
+            let review = api_post(
+                &server,
+                &cookie,
+                "activities/split-effects",
+                serde_json::json!([update.clone()]),
+            )
+            .await;
+            assert_eq!(review[0][0]["removedSplits"], 0);
+            update["splitReview"] = review[0].clone();
+            if mode == "single" {
+                api_put(&server, &cookie, "activities", update).await;
+            } else {
+                let result = api_post(
+                    &server,
+                    &cookie,
+                    "activities/bulk",
+                    serde_json::json!({"creates":[],"updates":[update],"deleteIds":[]}),
+                )
+                .await;
+                assert_eq!(result["errors"], serde_json::json!([]), "{result}");
+            }
+        }
+        let stored = stored_activities(&server, &cookie, &account).await;
+        let updated = activity_by_id(&stored, &activity["id"]);
+        assert_eq!(updated["amount"], "200", "{mode}: {updated}");
+    }
+    // A cash -> trade edit with a new symbol has no allocations to preview.
+    // The read must leave symbol resolution to the existing native write path.
+    let cash=api_post(&server,&cookie,"activities",serde_json::json!({"accountId":account["id"],"activityType":"DEPOSIT","activityDate":"2026-04-02T12:00:00Z","currency":"EUR","amount":"2"})).await;
+    let review=api_post(&server,&cookie,"activities/split-effects",serde_json::json!([{"id":cash["id"],"accountId":account["id"],"activityType":"BUY","activityDate":"2026-04-02T12:00:00Z","currency":"EUR","asset":{"symbol":"ZZNEWSYMBOL","kind":"SECURITY","instrumentType":"EQUITY","quoteMode":"MANUAL"},"quantity":"1","unitPrice":"2"}])).await;
+    assert_eq!(review[0][0]["removedSplits"], 0);
+}

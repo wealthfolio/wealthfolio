@@ -5370,11 +5370,48 @@ impl ActivityServiceTrait for ActivityService {
         &self,
         mut activity: ActivityUpdate,
     ) -> Result<Vec<ActivitySplitEffect>> {
-        // Split invalidation does not depend on resolving a replacement symbol.
-        // Use the stored identity for this pure preview; actual asset resolution
-        // remains in the existing native update path.
         let existing = self.activity_repository.get_activity(&activity.id)?;
-        activity.asset = Self::activity_asset_input(&existing);
+        let pair = self.load_internal_transfer_pair_for_activity(&activity.id)?;
+        let counterpart = pair
+            .as_ref()
+            .map(|pair| self.build_counterpart_update(&activity, &existing, pair))
+            .transpose()?
+            .flatten();
+        // With no allocations on either leg, only capture state. Resolving a
+        // new symbol or deriving its multiplier belongs to the existing write;
+        // it cannot remove splits that are absent at this snapshot.
+        let mut ids = vec![activity.id.as_str()];
+        if let Some(counterpart) = &counterpart {
+            ids.push(&counterpart.id);
+        }
+        let mut any_splits = false;
+        for id in ids {
+            any_splits |= self.activity_repository.has_spending_splits(id)?;
+        }
+        if !any_splits {
+            let mut effects = vec![self.activity_repository.preview_split_effect(&activity)?];
+            if let Some(counterpart) = counterpart {
+                effects.push(
+                    self.activity_repository
+                        .preview_split_effect(&counterpart)?,
+                );
+            }
+            return Ok(effects);
+        }
+        // Stored IDs can be priced locally and must retain their own multiplier.
+        // Symbol-only native inputs still avoid adding provider calls to review.
+        if activity
+            .get_symbol_code()
+            .is_some_and(|symbol| !symbol.trim().is_empty())
+        {
+            activity.asset = match activity.get_symbol_id().filter(|id| !id.trim().is_empty()) {
+                Some(id) => Some(AssetResolutionInput {
+                    id: Some(id.to_string()),
+                    ..Default::default()
+                }),
+                None => Self::activity_asset_input(&existing),
+            };
+        }
         let preview = self.preview_activity_update(activity)?;
         let mut effects = vec![self
             .activity_repository
