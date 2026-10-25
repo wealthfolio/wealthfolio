@@ -252,6 +252,17 @@ pub fn activity_update_tools() -> Vec<Arc<dyn AgentTool>> {
     ]
 }
 
+/// New Spending reads stay MCP-only until assistant result renderers support them.
+pub fn spending_read_tools() -> Vec<Arc<dyn AgentTool>> {
+    vec![
+        Arc::new(spending_reads::GetSpendingContext),
+        Arc::new(spending_reads::SearchSpendingTransactions),
+        Arc::new(spending_reads::ListTransactionCategories),
+        Arc::new(spending_reads::GetBudget),
+        Arc::new(spending_reads::ListSpendingEvents),
+    ]
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

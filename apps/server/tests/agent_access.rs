@@ -323,8 +323,8 @@ async fn mcp_pat_lifecycle() {
     let tools = list["result"]["tools"].as_array().unwrap();
     assert_eq!(
         tools.len(),
-        24,
-        "read-only catalog must expose 24 tools (including Spending reads and proposals): {tools:?}"
+        26,
+        "read-only catalog must expose 26 tools (including Spending reads and proposals): {tools:?}"
     );
 
     // (h) tools/call succeeds and writes an audit row (awaited before the
@@ -516,8 +516,8 @@ async fn mcp_write_scoped_token_sees_write_tools() {
     let names: Vec<&str> = tools.iter().map(|t| t["name"].as_str().unwrap()).collect();
     assert_eq!(
         tools.len(),
-        41,
-        "full-scope token must see all 41 tools: {names:?}"
+        43,
+        "full-scope token must see all 43 tools: {names:?}"
     );
     for name in [
         "list_categorization_rules",

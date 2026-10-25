@@ -354,6 +354,12 @@ mod request_validation_tests {
         assert!(validate_requested_scopes(&["activities:write".into()]).is_err());
         assert!(validate_requested_scopes(&["classification:write".into()]).is_err());
         assert!(validate_requested_scopes(&["market-data:write".into()]).is_err());
+        assert!(validate_requested_scopes(&["spending:write".into()]).is_err());
+        assert!(validate_requested_scopes(&["budget:write".into()]).is_err());
+        assert_eq!(
+            validate_requested_scopes(&["budget:write".into(), "spending:read".into()]).unwrap(),
+            vec!["spending:read", "budget:write"]
+        );
         assert_eq!(
             validate_requested_scopes(&[
                 "holdings:read".into(),

@@ -227,6 +227,7 @@ impl AgentTool for SearchSpendingTransactions {
         let offset = request.offset;
         let limit = request.limit;
         let requested_accounts = request.account_ids.clone();
+        let period = json!({"start":request.start_date,"end":request.end_date});
         let response = env
             .cash_activity_service()
             .search(request)
@@ -262,7 +263,7 @@ impl AgentTool for SearchSpendingTransactions {
             })
             .collect::<Vec<_>>();
         Ok(AgentToolResult {
-            content: json!({"context":context,"items":items,"totalCount":response.total_count,"offset":offset,"limit":limit,
+            content: json!({"context":context,"period":period,"items":items,"totalCount":response.total_count,"offset":offset,"limit":limit,
             "hasMore":offset.saturating_add(items.len()) < response.total_count,
             "amountCurrency":"per_transaction","fxRequested":false}),
         })
@@ -311,6 +312,93 @@ impl AgentTool for ListTransactionCategories {
             .collect::<Vec<_>>();
         Ok(AgentToolResult {
             content: json!({"taxonomies":taxonomies}),
+        })
+    }
+}
+
+pub struct GetBudget;
+pub struct ListSpendingEvents;
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct BudgetArgs {
+    period_key: Option<String>,
+}
+
+#[async_trait::async_trait]
+impl AgentTool for GetBudget {
+    fn name(&self) -> &'static str {
+        "get_budget"
+    }
+    fn description(&self) -> &'static str {
+        "Read the native budget configuration and computed snapshot without initializing or changing stored data. periodKey is YYYY-MM (omitted: current month in the configured timezone), or default for base targets. Default targets are inherited by ANY month without an override, including historical months; they are not effective-dated. Explicit monthly overrides win. Removing a monthly override restores the current default. Missing default groups are resolved in memory with native stable IDs. Amounts use the user's base currency and the native budget period FX convention."
+    }
+    fn input_schema(&self) -> Value {
+        json!({"type":"object","properties":{"periodKey":{"type":"string","description":"YYYY-MM or default; omit for the current local month."}},"additionalProperties":false})
+    }
+    fn required_scopes(&self) -> &'static [AgentScope] {
+        &[AgentScope::SpendingRead]
+    }
+    fn access_level(&self) -> AgentToolAccess {
+        AgentToolAccess::Read
+    }
+    fn sanitize_args_for_audit(&self, _: &Value) -> Value {
+        json!({})
+    }
+    async fn call(
+        &self,
+        env: Arc<dyn AgentEnvironment>,
+        args: Value,
+    ) -> Result<AgentToolResult, AgentToolError> {
+        let args: BudgetArgs = serde_json::from_value(args).map_err(|_| {
+            AgentToolError::InvalidInput("Invalid budget read arguments".to_string())
+        })?;
+        let context = context(env.as_ref()).await?;
+        let snapshot = env
+            .budget_service()
+            .get_readonly(
+                args.period_key,
+                &env.base_currency(),
+                &timezone(env.as_ref())?,
+            )
+            .await
+            .map_err(execution_error)?;
+        Ok(AgentToolResult {
+            content: json!({"context":context,"budget":snapshot,"defaultPolicy":"All months without an explicit override inherit the current default, including historical months."}),
+        })
+    }
+}
+
+#[async_trait::async_trait]
+impl AgentTool for ListSpendingEvents {
+    fn name(&self) -> &'static str {
+        "list_spending_events"
+    }
+    fn description(&self) -> &'static str {
+        "List stored Spending event definitions and event types. Configuration is discoverable even with Spending disabled or no opted-in accounts. A transaction may be tagged outside an event's date range, including purchases before a trip. Use search_spending_transactions with eventIds to inspect opted-in transactions."
+    }
+    fn input_schema(&self) -> Value {
+        json!({"type":"object","properties":{},"additionalProperties":false})
+    }
+    fn required_scopes(&self) -> &'static [AgentScope] {
+        &[AgentScope::SpendingRead]
+    }
+    fn access_level(&self) -> AgentToolAccess {
+        AgentToolAccess::Read
+    }
+    fn sanitize_args_for_audit(&self, _: &Value) -> Value {
+        json!({})
+    }
+    async fn call(
+        &self,
+        env: Arc<dyn AgentEnvironment>,
+        _: Value,
+    ) -> Result<AgentToolResult, AgentToolError> {
+        let service = env.spending_events_service();
+        let events = service.list_events().await.map_err(execution_error)?;
+        let event_types = service.list_types().await.map_err(execution_error)?;
+        Ok(AgentToolResult {
+            content: json!({"events":events,"eventTypes":event_types}),
         })
     }
 }

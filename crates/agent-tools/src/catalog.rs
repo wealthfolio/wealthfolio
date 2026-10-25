@@ -43,11 +43,7 @@ impl AgentToolCatalog {
         tools.extend(crate::tools::draft_suggest_tools());
         tools.extend(crate::tools::commit_tools());
         tools.extend(crate::tools::categorization_rule_tools());
-        tools.extend([
-            Arc::new(crate::tools::spending_reads::GetSpendingContext) as Arc<dyn AgentTool>,
-            Arc::new(crate::tools::spending_reads::SearchSpendingTransactions),
-            Arc::new(crate::tools::spending_reads::ListTransactionCategories),
-        ]);
+        tools.extend(crate::tools::spending_read_tools());
         tools.extend(crate::tools::import_tools());
         tools.extend(crate::tools::transfer_link_tools());
         tools.extend(crate::tools::quote_import_tools());
@@ -510,6 +506,8 @@ mod tests {
         ]);
         for name in [
             "get_spending_context",
+            "get_budget",
+            "list_spending_events",
             "search_spending_transactions",
             "list_transaction_categories",
             "list_categorization_context",
