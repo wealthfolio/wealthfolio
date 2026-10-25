@@ -293,6 +293,16 @@ mod tests {
     };
     use wealthfolio_core::limits::ContributionActivity;
 
+    #[test]
+    fn strict_event_date_errors_do_not_echo_input() {
+        let private_input = "private-event-details-not-a-date";
+        let error = validate_event_range_strict(private_input, "2026-06-02")
+            .unwrap_err()
+            .to_string();
+        assert!(!error.contains(private_input));
+        assert!(error.contains("YYYY-MM-DD or RFC3339"));
+    }
+
     // --------------- Mock events repo ---------------
 
     #[derive(Default)]

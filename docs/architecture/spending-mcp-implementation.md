@@ -191,9 +191,10 @@ retry is added. Audit summaries omit drafts, notes, patterns, receipts, names
 and amounts for the new Spending workflows. MCP authorization permits a
 mutation; it cannot prove a human reviewed a preview. Clients must present the
 review. Strict date formats apply to new reviewed MCP event proposals. Native
-event range validation retains its prior sortable-string fallback; existing
-native event-update parsing behavior is unchanged. Date validation errors do not
-echo the input.
+event range validation retains its existing parsed-bound comparison, with a
+sortable-string fallback when either bound cannot be parsed. Existing native
+event-update parsing behavior is unchanged. Date validation errors do not echo
+the input.
 
 ## Related reports and limits
 
@@ -215,13 +216,13 @@ echo the input.
 Completed implementation validation (including focused checks after review
 fixes):
 
-- Rust unit suites: core 2,009; Spending 180; SQLite 476; agent tools 148.
+- Rust unit suites: core 2,010; Spending 183; SQLite 476; agent tools 148.
 - SQLite category-reference/restart tests 7; two-device sync replay tests 15.
 - Server MCP/auth/native-service integration tests 35; desktop MCP/router tests
   12; MCP crate tests 15.
 - AI output parity 51 plus schema snapshots 20; the existing live Ollama test
   remains ignored because it requires Ollama and `WF_TEST_OLLAMA_MODEL`.
-- Frontend 496 tests across 56 affected feature/adapter/addon suites with four
+- Frontend 499 tests across 58 affected feature/adapter/addon suites with four
   workers; `pnpm check`; all 11 locales/20 namespaces; web and Tauri frontend
   builds. An unchanged MCP setup-card test failed in the initial unconstrained
   parallel run, then passed isolated and in the complete bounded-worker rerun.
@@ -246,8 +247,18 @@ are covered. Three further fail-before/pass-after regressions verify legacy
 category cosmetic edits, split cash-to-new-symbol trade saves, and native legacy
 event creation with strict, redacted MCP proposal validation. Native bulk
 financial errors remain atomic. Review scope does not include mobile SDK builds
-or a live Ollama reproduction. Cross-review findings and final revision are
-recorded after review.
+or a live Ollama reproduction.
+
+Cross-review completed in three Claude rounds; final verdict: **approve**, with
+no blocking findings. Commit `36a9149a3` fixes the asset-multiplier regression
+and batch/concurrent review concerns. Commit `eb7b4d37f` fixes the three
+verified compatibility findings (legacy category keys, split-to-new-symbol
+trades and native legacy event creation) with fail-before/pass-after tests. The
+final review's claim that parsed-time comparison differs from baseline was
+rejected: `d26177173` and `origin/main` already use that same parsed comparison
+and fallback. Documentation now spells it out, and a direct service test
+protects date-error redaction. No open review disagreements require a product
+decision.
 
 Do not treat the report-coverage table as a claim that every original issue is
 fully reproduced or closed. No production data migration or issue auto-closure
