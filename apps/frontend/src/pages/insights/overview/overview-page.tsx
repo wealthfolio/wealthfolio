@@ -430,6 +430,7 @@ export function OverviewPage({
   return (
     <>
       <InsightsDashboard
+        loading={isLoading || (driftLoading && !driftReport)}
         onCustomizeActionChange={onCustomizeActionChange}
         widgets={{
           value: (

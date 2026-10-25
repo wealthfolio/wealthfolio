@@ -397,7 +397,7 @@ export function PortfolioComposition({ holdings, isLoading }: PortfolioCompositi
             height={200}
             data={data}
             dataKey="marketValueConverted"
-            animationDuration={100}
+            isAnimationActive={false}
             content={(props: TreemapNode) => (
               <CustomizedContent
                 {...props}

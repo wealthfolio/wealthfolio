@@ -58,6 +58,8 @@ function readWidgetHeights(): WidgetHeights {
 
 interface InsightsDashboardProps {
   widgets: Record<WidgetId, ReactNode>;
+  // Skeletons are shorter than the loaded cards; measuring them would discard the cached heights.
+  loading?: boolean;
   onCustomizeActionChange?: (action: ReactNode | null) => void;
 }
 
@@ -95,7 +97,11 @@ function WidgetContent({
   );
 }
 
-export function InsightsDashboard({ widgets, onCustomizeActionChange }: InsightsDashboardProps) {
+export function InsightsDashboard({
+  widgets,
+  loading = false,
+  onCustomizeActionChange,
+}: InsightsDashboardProps) {
   const { t } = useTranslation();
   const isMobile = useIsMobileViewport();
   const { settings, updateSettings, isLoading, isError } = useSettingsContext();
@@ -123,6 +129,7 @@ export function InsightsDashboard({ widgets, onCustomizeActionChange }: Insights
         WIDGET_IDS.map((id) => [
           id,
           (height: number) => {
+            if (loading) return;
             setHeights((prev) =>
               prev[breakpoint]?.[id] === height
                 ? prev
@@ -134,7 +141,7 @@ export function InsightsDashboard({ widgets, onCustomizeActionChange }: Insights
           },
         ]),
       ) as Record<WidgetId, (height: number) => void>,
-    [breakpoint],
+    [breakpoint, loading],
   );
   const editing = draft !== null;
   const current = draft ?? saved;
@@ -470,20 +477,22 @@ export function InsightsDashboard({ widgets, onCustomizeActionChange }: Insights
                   minHeight={
                     SUMMARY_WIDGET_IDS.includes(id)
                       ? summaryHeight(id, breakpoint) || undefined
-                      : id === "targets" &&
-                          breakpoint === "desktop" &&
-                          !current.hiddenWidgets.includes("composition") &&
-                          current.layouts.desktop.find((item) => item.i === "targets")?.y ===
-                            current.layouts.desktop.find((item) => item.i === "composition")?.y
-                        ? heights.desktop?.composition
-                        : id === "concentration" &&
-                            breakpoint !== "mobile" &&
-                            !current.hiddenWidgets.includes("movers") &&
-                            current.layouts[breakpoint].find((item) => item.i === "concentration")
-                              ?.y ===
-                              current.layouts[breakpoint].find((item) => item.i === "movers")?.y
-                          ? heights[breakpoint]?.movers
-                          : undefined
+                      : loading
+                        ? heights[breakpoint]?.[id]
+                        : id === "targets" &&
+                            breakpoint === "desktop" &&
+                            !current.hiddenWidgets.includes("composition") &&
+                            current.layouts.desktop.find((item) => item.i === "targets")?.y ===
+                              current.layouts.desktop.find((item) => item.i === "composition")?.y
+                          ? heights.desktop?.composition
+                          : id === "concentration" &&
+                              breakpoint !== "mobile" &&
+                              !current.hiddenWidgets.includes("movers") &&
+                              current.layouts[breakpoint].find((item) => item.i === "concentration")
+                                ?.y ===
+                                current.layouts[breakpoint].find((item) => item.i === "movers")?.y
+                            ? heights[breakpoint]?.movers
+                            : undefined
                   }
                 >
                   {widgets[id]}

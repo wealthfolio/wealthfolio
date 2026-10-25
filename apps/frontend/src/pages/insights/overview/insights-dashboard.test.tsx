@@ -143,7 +143,14 @@ describe("insights dashboard editing", () => {
     } as DOMRect);
     act(() => observer.callback([], {} as ResizeObserver));
     unmount();
-    render(<InsightsDashboard widgets={widgets} />);
+    render(<InsightsDashboard widgets={widgets} loading />);
+    const skeleton = observers
+      .filter(({ element }) => element?.textContent === "widget:breakdown")
+      .pop()!;
+    vi.spyOn(skeleton.element!, "getBoundingClientRect").mockReturnValue({
+      height: 120,
+    } as DOMRect);
+    act(() => skeleton.callback([], {} as ResizeObserver));
     expect(state.gridProps.layouts.desktop.find((item) => item.i === "breakdown")?.h).toBe(436);
   });
 
