@@ -122,16 +122,18 @@
      which forced-colors mode keeps; it needs 3:1 against the page and cards. */
   --ring: hsl(var(--flexoki-tx-2));
 
-  /* Charts: Flexoki, cyan / green / yellow / orange in the 500s lead; blue /
-     purple / magenta in the 400s sit back; then base. No red: it reads as a loss.
-     Slices past the last slot take the last, so a long tail ends in grey. */
-  --chart-1: #2f968d;
-  --chart-2: #768d21;
-  --chart-3: #be9207;
-  --chart-4: #cb6120;
-  --chart-5: #4385be;
-  --chart-6: #8b7ec8;
-  --chart-7: #ce5d97;
+  /* Charts: Flexoki's hues, calmed. Cyan / green / yellow / orange from the 500s
+     lead and blue / purple / magenta from the 400s follow, each with 40% of its
+     chroma taken out (OKLCH) and lifted a little, so slices and markers stay
+     apart without competing with the heatmap; then base. No red: it reads as a
+     loss. */
+  --chart-1: #659892;
+  --chart-2: #83925b;
+  --chart-3: #b99f64;
+  --chart-4: #bb7b5b;
+  --chart-5: #688daf;
+  --chart-6: #938dba;
+  --chart-7: #c07b9b;
   --chart-8: #9f9d96;
   --chart-9: #cecdc3;
   --chart-stone: #b1aa9a;
@@ -236,16 +238,16 @@
   /* Holdings treemap (composition-chart): gains blend from positive-low through
      -mid to -high, losses from negative-low through -mid to -high, and each label
      takes whichever of label-dark and label-light has more contrast. Dark mode
-     draws the tiles at 0.45 over the card. Flexoki green and red at 50, 300 and
-     600, so the chart matches the chart palette and small moves stay pale; a
-     straight blend from 50 to 600 greys out in between. Labels in Flexoki's ink
-     and paper. A theme that sets low and high sets mid too, or it gets these. */
-  --heatmap-positive-low: #edeecf;
-  --heatmap-positive-mid: #a0af54;
-  --heatmap-positive-high: #66800b;
-  --heatmap-negative-low: #ffe1d5;
-  --heatmap-negative-mid: #e8705f;
-  --heatmap-negative-high: #af3029;
+     draws the tiles at 0.45 over the card. Soft sage and rose, so the treemap
+     tells gains from losses without dominating the page; the middle stop is the
+     midpoint, so each ramp is one straight blend. Labels in Flexoki's ink and
+     paper. A theme that sets low and high sets mid too, or it gets these. */
+  --heatmap-positive-low: #e6ecd5;
+  --heatmap-positive-mid: #b8c496;
+  --heatmap-positive-high: #8a9c57;
+  --heatmap-negative-low: #fae2da;
+  --heatmap-negative-mid: #dca89d;
+  --heatmap-negative-high: #bd6f60;
   --heatmap-label-dark: #100f0f;
   --heatmap-label-light: #fffcf0;
 
@@ -282,14 +284,23 @@
   --button-outline-bg: color-mix(in oklab, var(--input) 30%, transparent);
   --button-outline-hover-bg: color-mix(in oklab, var(--input) 50%, transparent);
 
-  /* Dark charts: the leading four in the 400s, the next three in the 300s. */
-  --chart-1: #3aa99f;
-  --chart-2: #879a39;
-  --chart-3: #d0a215;
-  --chart-4: #da702c;
-  --chart-5: #66a0c8;
-  --chart-6: #a699d0;
-  --chart-7: #e47da8;
+  /* Dark charts: the leading four from the 400s, the next three from the 300s,
+     with 28% of their chroma taken out. */
+  --chart-1: #5ea49c;
+  --chart-2: #899857;
+  --chart-3: #c5a556;
+  --chart-4: #c87c51;
+  --chart-5: #769ebb;
+  --chart-6: #a59cc4;
+  --chart-7: #d489a7;
+  /* The treemap at 0.45 over the dark card: the light sage and rose blur gains
+     into losses there, so dark takes Flexoki green and red at 50, 200 and 400. */
+  --heatmap-positive-low: #edeecf;
+  --heatmap-positive-mid: #bec97e;
+  --heatmap-positive-high: #879a39;
+  --heatmap-negative-low: #ffe1d5;
+  --heatmap-negative-mid: #f89a8a;
+  --heatmap-negative-high: #d14d41;
   --chart-8: #9f9d96;
   --chart-9: #878580;
   --chart-stone: hsl(49 8% 60%);

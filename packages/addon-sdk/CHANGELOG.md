@@ -34,9 +34,11 @@ and this project adheres to
 - `DonutChart` gives slices past the seventh the first seven colours again,
   mixed halfway toward the card, instead of repeating them at full strength, and
   draws each slice with a 1 px edge in its colour, 15% toward the text colour.
-- Classic's chart colours (`--chart-1` to `--chart-9`) are Flexoki's: cyan,
-  green, yellow and orange lead, blue, purple and magenta follow, then two
-  greys. Addon charts that read them change colour in Classic.
+- Classic's chart colours (`--chart-1` to `--chart-9`) are Flexoki's hues,
+  softened: teal, olive, ochre and clay lead, slate, lavender and rose follow,
+  then two greys. Its treemap ramps (`--heatmap-*`) are soft sage and rose in
+  light mode and Flexoki green and red (50, 200 and 400) in dark. Addon charts
+  that read them change colour in Classic.
 
 ## [3.11.0] - 2026-10-22
 

@@ -32,12 +32,12 @@ const paletteTokens = {
 } as const;
 
 export const fallbackPalette: TreemapPalette = {
-  positiveLow: [237, 238, 207],
-  positiveMid: [160, 175, 84],
-  positiveHigh: [102, 128, 11],
-  negativeLow: [255, 225, 213],
-  negativeMid: [232, 112, 95],
-  negativeHigh: [175, 48, 41],
+  positiveLow: [230, 236, 213],
+  positiveMid: [184, 196, 150],
+  positiveHigh: [138, 156, 87],
+  negativeLow: [250, 226, 218],
+  negativeMid: [220, 168, 157],
+  negativeHigh: [189, 111, 96],
   labelDark: [16, 15, 15],
   labelLight: [255, 252, 240],
   isDark: false,
