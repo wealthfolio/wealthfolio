@@ -1,4 +1,5 @@
 import { ActivityType, QuoteMode } from "@/lib/constants";
+import { isoDateTimeSchema } from "@/lib/schemas";
 import { invalidTypeError } from "@/lib/zod-errors";
 import { z } from "zod";
 
@@ -16,7 +17,7 @@ export const assetMetadataSchema = z
 export const baseActivitySchema = z.object({
   id: z.string().optional(),
   accountId: z.string().min(1, { message: "Please select an account." }),
-  activityDate: z.union([z.date(), z.string().datetime()]).default(new Date()),
+  activityDate: z.union([z.date(), isoDateTimeSchema]).default(new Date()),
   currency: z.string().min(1, { message: "Currency is required." }),
   comment: z.string().optional().nullable(),
   subtype: z.string().optional().nullable(), // Semantic variation (DRIP, STAKING_REWARD, etc.)

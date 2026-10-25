@@ -1716,6 +1716,20 @@ describe("Form Schemas Validation", () => {
       }
     });
 
+    it("accepts activity date strings with or without seconds", () => {
+      for (const activityDate of ["2024-03-04T12:00Z", "2024-03-04T12:00:00.000Z"]) {
+        const result = newActivitySchema.safeParse({
+          accountId: "acc-123",
+          activityType: "DEPOSIT",
+          activityDate,
+          amount: 10,
+          currency: "USD",
+        });
+
+        expect(result.success).toBe(true);
+      }
+    });
+
     it("accepts credit activities", () => {
       const result = newActivitySchema.safeParse({
         accountId: "acc-123",

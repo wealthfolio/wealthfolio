@@ -1,8 +1,24 @@
 import { describe, expect, it } from "vitest";
 import { QuoteMode } from "./constants";
-import { importActivitySchema, importMappingSchema } from "./schemas";
+import { importActivitySchema, importMappingSchema, newContributionLimitSchema } from "./schemas";
 
 describe("schemas", () => {
+  describe("newContributionLimitSchema", () => {
+    it("accepts date strings with or without seconds", () => {
+      for (const date of ["2024-01-01T12:00Z", "2024-01-01T12:00:00.000Z"]) {
+        const result = newContributionLimitSchema.safeParse({
+          groupName: "TFSA",
+          contributionYear: 2024,
+          limitAmount: 7000,
+          startDate: date,
+          endDate: date,
+        });
+
+        expect(result.success).toBe(true);
+      }
+    });
+  });
+
   describe("importMappingSchema", () => {
     it("should accept valid quoteMode values in symbolMappingMeta", () => {
       const validMapping = {

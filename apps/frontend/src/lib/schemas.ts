@@ -17,6 +17,9 @@ import {
 } from "./activity-utils";
 import { invalidTypeError, requiredError } from "./zod-errors";
 
+/** An ISO 8601 UTC date-time string, with or without seconds. */
+export const isoDateTimeSchema = z.union([z.iso.datetime(), z.iso.datetime({ precision: -1 })]);
+
 /**
  * Configuration for CSV parsing (delimiter, date format, etc.)
  */
@@ -382,6 +385,6 @@ export const newContributionLimitSchema = z.object({
     .number({ error: invalidTypeError("Limit amount must be a positive number.") })
     .min(0, { message: "Price must be a non-negative number." }),
   accountIds: z.string().nullable().optional(),
-  startDate: z.union([z.date(), z.string().datetime(), z.null()]).optional(),
-  endDate: z.union([z.date(), z.string().datetime(), z.null()]).optional(),
+  startDate: z.union([z.date(), isoDateTimeSchema, z.null()]).optional(),
+  endDate: z.union([z.date(), isoDateTimeSchema, z.null()]).optional(),
 });
