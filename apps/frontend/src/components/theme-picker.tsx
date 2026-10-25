@@ -1,6 +1,7 @@
 import { useId, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Icons, useNumberFormatting } from "@wealthfolio/ui";
+import { cardSurfaceClassName } from "@wealthfolio/ui/components/ui/card";
 import { cn } from "@/lib/utils";
 import { designedForKeys, fontLabelKeys, type FontRole } from "@/themes/selection";
 import { isThemeId, resolveThemeId, themes, type ThemeDefinition } from "@/themes/themes";
@@ -187,10 +188,12 @@ export function ThemePicker({ value, font, onChange, className }: ThemePickerPro
               }}
               className="peer sr-only"
             />
+            {/* The option is a card in the current theme: its border, shadow and corners. */}
             <div
               className={cn(
-                "peer-focus-visible:outline-ring peer-focus-visible:outline-solid overflow-hidden rounded-xl border-2 transition-colors peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2",
-                selected ? "border-primary" : "border-border hover:border-primary/50",
+                cardSurfaceClassName,
+                "peer-focus-visible:outline-ring peer-focus-visible:outline-solid overflow-hidden transition-shadow peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2",
+                selected ? "ring-primary ring-2" : "hover:ring-primary/40 hover:ring-2",
               )}
             >
               <ThemePreview theme={theme} font={currentFont} />
