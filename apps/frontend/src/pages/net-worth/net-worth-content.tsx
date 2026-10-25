@@ -11,11 +11,11 @@ import {
   GainAmount,
   GainPercent,
   IntervalSelector,
-  getInitialIntervalData,
   useNumberFormatting,
   type TimePeriod,
 } from "@wealthfolio/ui";
-import { usePersistentState } from "@/hooks/use-persistent-state";
+import { SpendingDatePicker } from "@/features/spending/components/spending-date-picker";
+import { useDashboardPeriod } from "@/pages/dashboard/use-dashboard-period";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { Skeleton } from "@wealthfolio/ui/components/ui/skeleton";
 import {
@@ -50,6 +50,7 @@ import { NetWorthChart } from "./net-worth-chart";
 import { formatZonedDateKey } from "@/features/spending/lib/timezone";
 
 const DEFAULT_INTERVAL: TimePeriod = "ALL";
+// Read only until any dashboard tab picks a shared period.
 const INTERVAL_STORAGE_KEY = "networth-interval";
 const MS_PER_DAY = 86_400_000;
 
@@ -68,16 +69,13 @@ export function NetWorthContent() {
   });
   const isMobile = useIsMobileViewport();
 
-  const [periodCode, setPeriodCode] = usePersistentState<TimePeriod>(
-    INTERVAL_STORAGE_KEY,
-    DEFAULT_INTERVAL,
-  );
+  const period = useDashboardPeriod(currentDateISO, {
+    key: INTERVAL_STORAGE_KEY,
+    initial: DEFAULT_INTERVAL,
+  });
+  const { code: periodCode, range: dateRange } = period;
   // A local Date carries the configured calendar day for the date-only interval helper.
   const currentDate = useMemo(() => parseLocalDate(currentDateISO), [currentDateISO]);
-  const dateRange = useMemo(
-    () => getInitialIntervalData(periodCode, currentDate).range,
-    [periodCode, currentDate],
-  );
 
   // ISO date strings for the selected-range history query.
   const historyDates = useMemo(() => {
@@ -111,10 +109,6 @@ export function NetWorthContent() {
     endDate: longHistoryDates?.endDate ?? "",
     enabled: !!longHistoryDates,
   });
-
-  const handleIntervalSelect = (code: TimePeriod) => {
-    setPeriodCode(code);
-  };
 
   const parsedData = useMemo((): ParsedNetWorth | null => {
     if (!netWorthData) return null;
@@ -187,8 +181,8 @@ export function NetWorthContent() {
 
   const currency = netWorthData?.currency || settings?.baseCurrency || "USD";
   const hasStaleValuations = netWorthData && netWorthData.staleAssets.length > 0;
-  const periodLabel = periodCode;
-  const localizedPeriodLabel = t(`ui:interval.${periodCode}`);
+  const periodLabel = periodCode ?? period.label;
+  const localizedPeriodLabel = period.label;
 
   // Breakdown row → detail drawer. Investments open the existing asset-class
   // allocation sheet; every other row opens the category detail sheet.
@@ -303,11 +297,9 @@ export function NetWorthContent() {
                   )}
                 </>
               )}
-              {periodCode && (
-                <span className="lg:text-md text-muted-foreground ms-1 text-sm font-light">
-                  {t(`ui:interval.${periodCode}`)}
-                </span>
-              )}
+              <span className="lg:text-md text-muted-foreground ms-1 text-sm font-light">
+                {localizedPeriodLabel}
+              </span>
             </div>
           </div>
         </div>
@@ -338,12 +330,21 @@ export function NetWorthContent() {
           )}
           {historyData && historyData.length > 0 && (
             <div className="flex w-full justify-center">
-              <IntervalSelector
-                className="pointer-events-auto relative z-20 w-full max-w-screen-sm sm:max-w-screen-md md:max-w-2xl lg:max-w-3xl"
-                onIntervalSelect={handleIntervalSelect}
-                isLoading={isHistoryLoading}
-                value={periodCode}
-              />
+              <div className="pointer-events-auto relative z-20 flex w-full min-w-0 max-w-screen-sm items-center justify-center gap-1.5 pe-4 sm:max-w-screen-md md:max-w-2xl md:pe-0 lg:max-w-3xl">
+                <IntervalSelector
+                  className="w-auto"
+                  onIntervalSelect={period.selectPreset}
+                  isLoading={isHistoryLoading}
+                  value={periodCode}
+                />
+                <SpendingDatePicker
+                  customMonth={period.customMonth}
+                  customRange={period.customRange}
+                  maxMonth={period.maxMonth}
+                  onCustomMonthChange={period.selectMonth}
+                  onCustomRangeChange={period.selectRange}
+                />
+              </div>
             </div>
           )}
         </div>

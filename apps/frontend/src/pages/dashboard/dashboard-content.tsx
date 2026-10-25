@@ -1,5 +1,4 @@
 import { formatZonedDateKey } from "@/features/spending/lib/timezone";
-import { parseLocalDate } from "@/lib/utils";
 import { calculatePerformanceSummary } from "@/adapters";
 import { HistoryChart } from "@/components/history-chart";
 import { useHapticFeedback } from "@/hooks";
@@ -13,24 +12,21 @@ import { useSettingsContext } from "@/lib/settings-provider";
 import { PortfolioUpdateTrigger } from "@/pages/dashboard/portfolio-update-trigger";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import type { TimePeriod as UITimePeriod } from "@wealthfolio/ui";
-import { GainAmount, GainPercent, getInitialIntervalData, IntervalSelector } from "@wealthfolio/ui";
-import { usePersistentState } from "@/hooks/use-persistent-state";
+import { GainAmount, GainPercent, IntervalSelector } from "@wealthfolio/ui";
+import { SpendingDatePicker } from "@/features/spending/components/spending-date-picker";
 import { Skeleton } from "@wealthfolio/ui/components/ui/skeleton";
 import { format } from "date-fns";
 import { useMemo } from "react";
 import { PrivacyToggle } from "@/components/privacy-toggle";
 import type { AccountScope } from "@/lib/types";
 import { accountScopeKey } from "@/pages/allocation-targets/components/target-scope";
-import { useTranslation } from "react-i18next";
 import { AccountsSummary } from "./accounts-summary";
 import Balance from "./balance";
 import SavingGoals from "./goals";
 import TopHoldings from "./top-holdings";
+import { useDashboardPeriod } from "./use-dashboard-period";
 
-const DEFAULT_INTERVAL: UITimePeriod = "3M";
-const INTERVAL_STORAGE_KEY = "dashboard-interval";
-
-function getDashboardChartMinDomainSpanRatio(period: UITimePeriod): number {
+function getDashboardChartMinDomainSpanRatio(period: UITimePeriod | null): number {
   switch (period) {
     case "1D":
     case "1W":
@@ -50,7 +46,9 @@ function getDashboardChartMinDomainSpanRatio(period: UITimePeriod): number {
   }
 }
 
-function getDashboardNetContributionMaxDomainSpanRatio(period: UITimePeriod): number | undefined {
+function getDashboardNetContributionMaxDomainSpanRatio(
+  period: UITimePeriod | null,
+): number | undefined {
   switch (period) {
     case "1D":
     case "1W":
@@ -81,17 +79,10 @@ export function DashboardContent({
   scopeLabel,
   accountIds,
 }: DashboardContentProps) {
-  const { t } = useTranslation();
   const { settings } = useSettingsContext();
   const todayISO = formatZonedDateKey(new Date(), settings?.timezone);
-  const [selectedInterval, setSelectedInterval] = usePersistentState<UITimePeriod>(
-    INTERVAL_STORAGE_KEY,
-    DEFAULT_INTERVAL,
-  );
-  const dateRange = useMemo(
-    () => getInitialIntervalData(selectedInterval, parseLocalDate(todayISO)).range,
-    [selectedInterval, todayISO],
-  );
+  const period = useDashboardPeriod(todayISO);
+  const { code: selectedInterval, range: dateRange } = period;
   const isAllTime = selectedInterval === "ALL";
 
   const { holdings: allHoldings, isLoading: isHoldingsLoading } = useHoldings(scope);
@@ -238,11 +229,9 @@ export function DashboardContent({
                 )}
               </>
             )}
-            {selectedInterval && (
-              <span className="lg:text-md text-muted-foreground ms-1 text-sm font-light">
-                {t(`ui:interval.${selectedInterval}`)}
-              </span>
-            )}
+            <span className="lg:text-md text-muted-foreground ms-1 text-sm font-light">
+              {period.label}
+            </span>
           </div>
         </div>
       </div>
@@ -265,13 +254,22 @@ export function DashboardContent({
           />
           {valuationHistory && chartData.length > 0 && (
             <div className="flex w-full justify-center">
-              <IntervalSelector
-                className="pointer-events-auto relative z-20 w-full max-w-screen-sm sm:max-w-screen-md md:max-w-2xl lg:max-w-3xl"
-                onIntervalSelect={setSelectedInterval}
-                onHaptic={triggerHaptic}
-                isLoading={isValuationHistoryLoading}
-                value={selectedInterval}
-              />
+              <div className="pointer-events-auto relative z-20 flex w-full min-w-0 max-w-screen-sm items-center justify-center gap-1.5 pe-4 sm:max-w-screen-md md:max-w-2xl md:pe-0 lg:max-w-3xl">
+                <IntervalSelector
+                  className="w-auto"
+                  onIntervalSelect={period.selectPreset}
+                  onHaptic={triggerHaptic}
+                  isLoading={isValuationHistoryLoading}
+                  value={selectedInterval}
+                />
+                <SpendingDatePicker
+                  customMonth={period.customMonth}
+                  customRange={period.customRange}
+                  maxMonth={period.maxMonth}
+                  onCustomMonthChange={period.selectMonth}
+                  onCustomRangeChange={period.selectRange}
+                />
+              </div>
             </div>
           )}
         </div>

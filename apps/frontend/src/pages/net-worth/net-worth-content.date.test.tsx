@@ -40,6 +40,9 @@ vi.mock("./components/velocity-card", () => ({
   ),
 }));
 vi.mock("./net-worth-chart", () => ({ NetWorthChart: () => null }));
+vi.mock("@/features/spending/components/spending-date-picker", () => ({
+  SpendingDatePicker: () => null,
+}));
 vi.mock("@wealthfolio/ui", async () => {
   const { getInitialIntervalData } =
     await import("@wealthfolio/ui/components/financial/interval-selector");
@@ -68,6 +71,7 @@ vi.mock("@wealthfolio/ui", async () => {
         new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 }).format(value),
     }),
     usePersistentState: () => useState(intervalMocks.period),
+    useDateFormatting: () => ({ formatCalendarDate: () => "" }),
   };
 });
 vi.mock("@wealthfolio/ui/components/ui/icons", () => ({

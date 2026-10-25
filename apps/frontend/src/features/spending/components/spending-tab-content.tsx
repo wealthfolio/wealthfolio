@@ -40,6 +40,15 @@ import { useSpendingReport } from "../hooks/use-spending-report";
 import { useSpendingSettings } from "../hooks/use-spending-settings";
 import { SAVINGS_ROW_COLOR, SAVINGS_ROW_ID, buildWhereItWentRows } from "../lib/category-rollup";
 import {
+  DASHBOARD_INTERVAL_STORAGE_KEY,
+  DASHBOARD_PERIOD_STORAGE_KEY,
+  portfolioPresetForSpendingPeriod,
+  rangePick,
+  spendingViewForPick,
+  type DashboardPeriodPick,
+  type SpendingPeriodView,
+} from "../lib/dashboard-period-sync";
+import {
   SPENDING_RANGE_FROM_PARAM,
   SPENDING_RANGE_TO_PARAM,
   spendingRangeFromParams,
@@ -205,12 +214,20 @@ function selectionFromParams(
   params: URLSearchParams,
   persistedInterval: string,
   persistedMonth: string | null,
+  shared: SpendingPeriodView | null,
 ): SpendingSelection {
   const intervalParam = params.get("spendingInterval");
   const monthParam = params.get(SPENDING_MONTH_PARAM);
   const restoreCode = normalizeSpendingDashboardPeriod(intervalParam ?? persistedInterval);
   const customRange = spendingRangeFromParams(params);
   if (customRange) return { kind: "range", range: customRange, restoreCode };
+  // Without URL params (they are cleared on every tab switch), follow the period
+  // last picked on any dashboard tab.
+  if (intervalParam === null && monthParam === null && shared) {
+    if (shared.kind === "period") return { kind: "period", code: shared.code };
+    if (shared.kind === "month") return { kind: "month", monthKey: shared.monthKey, restoreCode };
+    return { kind: "range", range: shared.range, restoreCode };
+  }
   const monthKey = monthParam ?? (intervalParam === null ? persistedMonth : null);
   if (monthKey && parseMonthKey(monthKey)) return { kind: "month", monthKey, restoreCode };
   return { kind: "period", code: restoreCode };
@@ -369,10 +386,24 @@ export default function SpendingTabContent() {
     DASHBOARD_PERIOD_UPDATED_AT_STORAGE_KEY,
     "0",
   );
-  const selection = useMemo(
-    () => selectionFromParams(searchParams, persistedInterval, persistedMonth),
-    [searchParams, persistedInterval, persistedMonth],
+  const [sharedPick, setSharedPick] = usePersistentState<DashboardPeriodPick | null>(
+    DASHBOARD_PERIOD_STORAGE_KEY,
+    null,
   );
+  const [, setPortfolioPreset] = usePersistentState<string>(DASHBOARD_INTERVAL_STORAGE_KEY, "3M");
+  const todayISO = formatZonedDateKey(new Date(), appTimezone);
+  const sharedView = useMemo(
+    () => (sharedPick ? spendingViewForPick(sharedPick, todayISO) : null),
+    [sharedPick, todayISO],
+  );
+  const selection = useMemo(
+    () => selectionFromParams(searchParams, persistedInterval, persistedMonth, sharedView),
+    [searchParams, persistedInterval, persistedMonth, sharedView],
+  );
+  const shareSpendingPeriod = (code: SpendingDashboardPeriod) => {
+    setSharedPick({ kind: "spending", code });
+    setPortfolioPreset(portfolioPresetForSpendingPeriod(code));
+  };
   const selectedPeriod = selection.kind === "period" ? selection.code : null;
   const customMonth = selection.kind === "month" ? selection.monthKey : null;
   const customRange = selection.kind === "range" ? selection.range : undefined;
@@ -610,6 +641,7 @@ export default function SpendingTabContent() {
   const handleIntervalSelect = (code: SpendingDashboardPeriod) => {
     setPersistedInterval(code);
     setPersistedMonth(null);
+    shareSpendingPeriod(code);
     setDashboardPeriodUpdatedAt(periodPreferenceTimestamp());
     setSearchParams(
       (prev) => {
@@ -633,6 +665,8 @@ export default function SpendingTabContent() {
 
   const handleCustomMonthSelect = (monthKey: string | null) => {
     setPersistedMonth(monthKey);
+    if (monthKey) setSharedPick({ kind: "month", monthKey });
+    else shareSpendingPeriod(restoreCode);
     setDashboardPeriodUpdatedAt(periodPreferenceTimestamp());
     setSearchParams(
       (prev) => {
@@ -662,6 +696,8 @@ export default function SpendingTabContent() {
   const handleCustomRangeSelect = (range: DateRange | undefined) => {
     if (range && (!range.from || !range.to)) return;
     setPersistedMonth(null);
+    if (range?.from && range.to) setSharedPick(rangePick({ from: range.from, to: range.to }));
+    else shareSpendingPeriod(restoreCode);
     setDashboardPeriodUpdatedAt(periodPreferenceTimestamp());
     setSearchParams(
       (prev) => {
