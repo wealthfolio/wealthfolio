@@ -21,6 +21,11 @@ import {
   FormLabel,
   FormMessage,
   FormDescription,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
   DatePickerInput,
   Input,
   Spinner,
@@ -165,6 +170,47 @@ export function ContributionLimitForm({
                       </FormControl>
                       <FormDescription className="text-muted-foreground mt-1 text-sm">
                         {t("settings:limits_form_limit_amount_description")}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="contributionType"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-base font-medium">
+                        {t("settings:limits_form_contribution_type_label")}
+                      </FormLabel>
+                      <FormControl>
+                        <Select
+                          value={field.value ?? "all"}
+                          onValueChange={(value) =>
+                            field.onChange(
+                              value === "employee" || value === "employer" ? value : null,
+                            )
+                          }
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">
+                              {t("settings:limits_form_contribution_type_all")}
+                            </SelectItem>
+                            <SelectItem value="employee">
+                              {t("settings:limits_form_contribution_type_employee")}
+                            </SelectItem>
+                            <SelectItem value="employer">
+                              {t("settings:limits_form_contribution_type_employer")}
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </FormControl>
+                      <FormDescription className="text-muted-foreground mt-1 text-sm">
+                        {t("settings:limits_form_contribution_type_description")}
                       </FormDescription>
                       <FormMessage />
                     </FormItem>

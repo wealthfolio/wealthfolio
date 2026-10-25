@@ -3,7 +3,7 @@ use diesel::expression_methods::ExpressionMethods;
 use diesel::prelude::*;
 use diesel::r2d2::{ConnectionManager, Pool};
 use diesel::sql_query;
-use diesel::sql_types::{Bool, Nullable, Text};
+use diesel::sql_types::{Bool, Integer, Nullable, Text};
 use diesel::sqlite::Sqlite;
 use diesel::sqlite::SqliteConnection;
 use rust_decimal::Decimal;
@@ -2243,13 +2243,14 @@ impl ActivityRepositoryTrait for ActivityRepository {
             .await
     }
 
-    /// Fetches contribution-eligible activities (DEPOSIT, TRANSFER_IN, TRANSFER_OUT, CREDIT)
-    /// for the given accounts within the date range.
+    /// Fetches contribution-eligible activities. Annual limit queries include activities with an
+    /// explicit contribution year outside their activity-date range.
     fn get_contribution_activities(
         &self,
         account_ids: &[String],
         start_utc: chrono::DateTime<Utc>,
         end_exclusive_utc: chrono::DateTime<Utc>,
+        contribution_year: Option<i32>,
     ) -> Result<Vec<ContributionActivity>> {
         let mut conn = get_connection(&self.pool)?;
 
@@ -2272,12 +2273,29 @@ impl ActivityRepositoryTrait for ActivityRepository {
             return Ok(Vec::new());
         }
 
-        let results = activities::table
+        let mut query = activities::table
+            .into_boxed::<Sqlite>()
             .filter(activities::account_id.eq_any(eligible_account_ids))
             .filter(activities::status.eq("POSTED"))
-            .filter(sql::<Text>(&effective_type_sql("activities")).eq_any(CONTRIBUTION_TYPES))
-            .filter(activities::activity_date.ge(start_utc.to_rfc3339()))
-            .filter(activities::activity_date.lt(end_exclusive_utc.to_rfc3339()))
+            .filter(sql::<Text>(&effective_type_sql("activities")).eq_any(CONTRIBUTION_TYPES));
+
+        let date_range = activities::activity_date
+            .ge(start_utc.to_rfc3339())
+            .and(activities::activity_date.lt(end_exclusive_utc.to_rfc3339()));
+        if let Some(year) = contribution_year {
+            let attributed_year = sql::<Bool>(
+                "CASE WHEN json_valid(activities.metadata) \
+                 AND json_type(activities.metadata, '$.contribution_year') = 'integer' \
+                 THEN json_extract(activities.metadata, '$.contribution_year') = ",
+            )
+            .bind::<Integer, _>(year)
+            .sql(" ELSE 0 END");
+            query = query.filter(date_range.or(attributed_year));
+        } else {
+            query = query.filter(date_range);
+        }
+
+        let results = query
             .select((
                 activities::account_id,
                 sql::<Text>(&effective_type_sql("activities")),
@@ -3321,7 +3339,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn contribution_limit_uses_final_amount_and_preserves_transfer_classification() {
+    async fn contribution_limit_preserves_transfers_and_filters_prior_year_sources() {
         let (pool, writer) = setup_db();
         let activity_repository = ActivityRepository::new(pool.clone(), writer.clone());
         let limit_repository = ContributionLimitRepository::new(pool.clone(), writer.clone());
@@ -3360,6 +3378,14 @@ mod tests {
                  ('unflagged-transfer-in', 'second-registered-account', 'TRANSFER_IN', 'POSTED',
                   '2025-08-15T12:00:00Z', '4', '25', NULL, 'USD', NULL, 'MANUAL', 0, 0,
                   CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+                 ('prior-year-employee', 'registered-account', 'DEPOSIT', 'POSTED',
+                  '2024-10-09T12:00:00Z', NULL, NULL, '150', 'USD',
+                  '{\"contribution_year\":2025,\"contribution_type\":\"employee\"}',
+                  'MANUAL', 0, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+                 ('prior-year-employer', 'registered-account', 'DEPOSIT', 'POSTED',
+                  '2024-10-09T12:00:00Z', NULL, NULL, '75', 'USD',
+                  '{\"contribution_year\":2025,\"contribution_type\":\"employer\"}',
+                  'MANUAL', 0, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
                  ('draft-deposit', 'registered-account', 'DEPOSIT', 'DRAFT',
                   '2025-09-15T12:00:00Z', NULL, NULL, '999', 'USD', NULL, 'MANUAL', 0, 1,
                   CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
@@ -3407,10 +3433,18 @@ mod tests {
             diesel::sql_query(
                 "INSERT INTO contribution_limits
                  (id, group_name, contribution_year, limit_amount, account_ids,
-                  created_at, updated_at, start_date, end_date)
+                  contribution_type, created_at, updated_at, start_date, end_date)
                  VALUES
                  ('registered-limit', 'Registered', 2025, 1000,
-                  'registered-account,second-registered-account',
+                  'registered-account,second-registered-account', NULL,
+                  CURRENT_TIMESTAMP, CURRENT_TIMESTAMP,
+                  '2025-01-01T00:00:00Z', '2025-12-31T23:59:59Z'),
+                 ('employee-limit', 'Employee', 2025, 1000,
+                  'registered-account,second-registered-account', 'employee',
+                  CURRENT_TIMESTAMP, CURRENT_TIMESTAMP,
+                  '2025-01-01T00:00:00Z', '2025-12-31T23:59:59Z'),
+                 ('employer-limit', 'Employer', 2025, 1000,
+                  'registered-account,second-registered-account', 'employer',
                   CURRENT_TIMESTAMP, CURRENT_TIMESTAMP,
                   '2025-01-01T00:00:00Z', '2025-12-31T23:59:59Z')",
             )
@@ -3426,15 +3460,23 @@ mod tests {
         let deposits = service
             .calculate_deposits_for_contribution_limit("registered-limit", "USD")
             .expect("calculate deposits");
+        let employee_deposits = service
+            .calculate_deposits_for_contribution_limit("employee-limit", "USD")
+            .expect("calculate employee deposits");
+        let employer_deposits = service
+            .calculate_deposits_for_contribution_limit("employer-limit", "USD")
+            .expect("calculate employer deposits");
 
-        assert_eq!(deposits.total, Decimal::from(350));
+        assert_eq!(deposits.total, Decimal::from(575));
         assert_eq!(
             deposits.by_account["registered-account"].amount,
-            Decimal::from(350)
+            Decimal::from(575)
         );
         assert!(!deposits
             .by_account
             .contains_key("second-registered-account"));
+        assert_eq!(employee_deposits.total, Decimal::from(150));
+        assert_eq!(employer_deposits.total, Decimal::from(75));
     }
 
     fn insert_holdings_snapshot(

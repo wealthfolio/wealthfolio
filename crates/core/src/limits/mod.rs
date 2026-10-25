@@ -5,7 +5,7 @@ mod limits_service;
 mod limits_traits;
 
 pub use limits_model::{
-    AccountDeposit, ContributionActivity, ContributionLimit, DepositsCalculation,
+    AccountDeposit, ContributionActivity, ContributionLimit, ContributionType, DepositsCalculation,
     NewContributionLimit,
 };
 pub use limits_service::ContributionLimitService;

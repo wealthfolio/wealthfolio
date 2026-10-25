@@ -150,13 +150,14 @@ pub trait ActivityRepositoryTrait: Send + Sync {
     }
     fn get_trading_activities(&self) -> Result<Vec<Activity>>;
     fn get_income_activities(&self) -> Result<Vec<Activity>>;
-    /// Fetches contribution-eligible activities (DEPOSIT, TRANSFER_IN, TRANSFER_OUT, CREDIT)
-    /// for the given accounts within the date range. Filtering logic applied in service layer.
+    /// Fetches contribution-eligible activities. Annual queries also include activities explicitly
+    /// attributed to the requested contribution year.
     fn get_contribution_activities(
         &self,
         account_ids: &[String],
         start_utc: DateTime<Utc>,
         end_exclusive_utc: DateTime<Utc>,
+        contribution_year: Option<i32>,
     ) -> Result<Vec<ContributionActivity>>;
     #[allow(clippy::too_many_arguments)]
     fn search_activities(

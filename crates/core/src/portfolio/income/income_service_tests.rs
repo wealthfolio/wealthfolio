@@ -55,6 +55,7 @@ impl ActivityRepositoryTrait for MockActivityRepository {
         _account_ids: &[String],
         _start_utc: DateTime<Utc>,
         _end_exclusive_utc: DateTime<Utc>,
+        _contribution_year: Option<i32>,
     ) -> Result<Vec<ContributionActivity>> {
         unimplemented!("unused in income service tests")
     }

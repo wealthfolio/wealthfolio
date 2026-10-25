@@ -1237,6 +1237,7 @@ export interface ContributionLimit {
   contributionYear: number;
   limitAmount: number;
   accountIds?: string | null;
+  contributionType?: "employee" | "employer" | null;
   startDate?: string | null;
   endDate?: string | null;
   createdAt?: string;

@@ -90,6 +90,7 @@ vi.mock("@wealthfolio/ui/components/ui/icons", () => ({
     Spinner: () => <span data-testid="spinner">Loading...</span>,
     Check: () => <span data-testid="check-icon">Check</span>,
     Plus: () => <span data-testid="plus-icon">Plus</span>,
+    ChevronDown: () => <span data-testid="chevron-down-icon" />,
   },
 }));
 
@@ -185,6 +186,20 @@ describe("DepositForm", () => {
   });
 
   describe("Default Values", () => {
+    it("renders the contribution year picker and allows choosing a year", async () => {
+      const user = userEvent.setup();
+      render(<DepositForm accounts={mockAccounts} onSubmit={mockOnSubmit} />);
+
+      const picker = screen.getByRole("combobox", { name: /contribution year/i });
+      expect(picker).toHaveTextContent("Activity date year");
+
+      await user.click(picker);
+      const nextYear = String(new Date().getFullYear() + 1);
+      await user.click(await screen.findByRole("option", { name: nextYear }));
+
+      expect(picker).toHaveTextContent(nextYear);
+    });
+
     it("auto-selects account when only one account is provided", () => {
       const singleAccount: AccountSelectOption[] = [
         { value: "acc-single", label: "Only Account", currency: "USD" },

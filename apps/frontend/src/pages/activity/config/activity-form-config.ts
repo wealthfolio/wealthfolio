@@ -321,12 +321,33 @@ export const ACTIVITY_FORM_CONFIG: Record<
     getDefaults: (activity, accounts) => ({
       ...getBaseDefaults(activity, accounts),
       amount: absNum(activity?.amount),
+      contributionYear:
+        typeof activity?.metadata?.contribution_year === "number"
+          ? activity.metadata.contribution_year
+          : undefined,
+      contributionType:
+        activity?.metadata?.contribution_type === "employee" ||
+        activity?.metadata?.contribution_type === "employer"
+          ? activity.metadata.contribution_type
+          : undefined,
+      metadata: activity?.metadata ?? {},
       // Advanced options
       currency: activity?.currency,
       fxRate: activity?.fxRate == null ? undefined : Number(activity.fxRate),
     }),
     toPayload: (data) => {
       const d = data as DepositFormValues;
+      const metadata = { ...(d.metadata ?? {}) };
+      if (d.contributionYear == null) {
+        delete metadata.contribution_year;
+      } else {
+        metadata.contribution_year = d.contributionYear;
+      }
+      if (d.contributionType == null) {
+        delete metadata.contribution_type;
+      } else {
+        metadata.contribution_type = d.contributionType;
+      }
       return {
         accountId: d.accountId,
         activityDate: d.activityDate,
@@ -334,6 +355,7 @@ export const ACTIVITY_FORM_CONFIG: Record<
         comment: d.comment,
         currency: d.currency,
         fxRate: d.fxRate,
+        metadata,
       };
     },
   },

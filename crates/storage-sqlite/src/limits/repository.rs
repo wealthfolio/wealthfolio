@@ -71,6 +71,9 @@ impl ContributionLimitRepositoryTrait for ContributionLimitRepository {
                     contribution_limits::contribution_year.eq(new_limit_owned.contribution_year),
                     contribution_limits::limit_amount.eq(new_limit_owned.limit_amount),
                     contribution_limits::account_ids.eq(new_limit_owned.account_ids),
+                    contribution_limits::contribution_type.eq(new_limit_owned
+                        .contribution_type
+                        .map(|value| value.as_str().to_string())),
                     contribution_limits::start_date.eq(new_limit_owned.start_date),
                     contribution_limits::end_date.eq(new_limit_owned.end_date),
                     contribution_limits::created_at.eq(chrono::Utc::now().naive_utc()),
@@ -105,6 +108,9 @@ impl ContributionLimitRepositoryTrait for ContributionLimitRepository {
                             .eq(updated_limit_owned.contribution_year),
                         contribution_limits::limit_amount.eq(updated_limit_owned.limit_amount),
                         contribution_limits::account_ids.eq(updated_limit_owned.account_ids),
+                        contribution_limits::contribution_type.eq(updated_limit_owned
+                            .contribution_type
+                            .map(|value| value.as_str().to_string())),
                         contribution_limits::start_date.eq(updated_limit_owned.start_date),
                         contribution_limits::end_date.eq(updated_limit_owned.end_date),
                         contribution_limits::updated_at.eq(chrono::Utc::now().naive_utc()),

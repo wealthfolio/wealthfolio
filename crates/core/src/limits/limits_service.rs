@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, RwLock};
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Datelike, Utc};
 use rust_decimal::Decimal;
 
 use crate::activities::ActivityRepositoryTrait;
@@ -12,7 +12,7 @@ use crate::utils::time_utils::{
 };
 
 use super::limits_model::{
-    AccountDeposit, ContributionActivity, ContributionLimit, DepositsCalculation,
+    AccountDeposit, ContributionActivity, ContributionLimit, ContributionType, DepositsCalculation,
     NewContributionLimit,
 };
 use super::limits_traits::{ContributionLimitRepositoryTrait, ContributionLimitServiceTrait};
@@ -72,11 +72,86 @@ impl ContributionLimitService {
             .unwrap_or(false)
     }
 
+    fn activity_contribution_year(activity: &ContributionActivity) -> Option<i32> {
+        activity
+            .metadata
+            .as_ref()
+            .and_then(|metadata| serde_json::from_str::<serde_json::Value>(metadata).ok())
+            .and_then(|value| value.get("contribution_year")?.as_i64())
+            .and_then(|year| i32::try_from(year).ok())
+    }
+
+    fn activity_contribution_type(activity: &ContributionActivity) -> Option<ContributionType> {
+        activity
+            .metadata
+            .as_ref()
+            .and_then(|metadata| serde_json::from_str::<serde_json::Value>(metadata).ok())
+            .and_then(|value| match value.get("contribution_type")?.as_str()? {
+                "employee" => Some(ContributionType::Employee),
+                "employer" => Some(ContributionType::Employer),
+                _ => None,
+            })
+    }
+
+    fn is_full_contribution_year_range(
+        start: DateTime<Utc>,
+        end_inclusive: DateTime<Utc>,
+        year: i32,
+        timezone: chrono_tz::Tz,
+    ) -> bool {
+        let Some(first_day) = chrono::NaiveDate::from_ymd_opt(year, 1, 1) else {
+            return false;
+        };
+        let Some(last_day) = chrono::NaiveDate::from_ymd_opt(year, 12, 31) else {
+            return false;
+        };
+
+        activity_date_in_tz(start, timezone) == first_day
+            && activity_date_in_tz(end_inclusive, timezone) == last_day
+    }
+
     fn calculate_contributions_by_period(
         &self,
         account_ids: &[String],
         start_utc: DateTime<Utc>,
         end_exclusive_utc: DateTime<Utc>,
+        base_currency: &str,
+    ) -> Result<DepositsCalculation> {
+        self.calculate_contributions_by_attributed_period(
+            account_ids,
+            start_utc,
+            end_exclusive_utc,
+            None,
+            None,
+            base_currency,
+        )
+    }
+
+    fn calculate_contributions_by_filtered_period(
+        &self,
+        account_ids: &[String],
+        start_utc: DateTime<Utc>,
+        end_exclusive_utc: DateTime<Utc>,
+        contribution_type: Option<ContributionType>,
+        base_currency: &str,
+    ) -> Result<DepositsCalculation> {
+        self.calculate_contributions_by_attributed_period(
+            account_ids,
+            start_utc,
+            end_exclusive_utc,
+            None,
+            contribution_type,
+            base_currency,
+        )
+    }
+
+    fn calculate_contributions_by_attributed_period(
+        &self,
+        account_ids: &[String],
+        start_utc: DateTime<Utc>,
+        end_exclusive_utc: DateTime<Utc>,
+        contribution_year: Option<i32>,
+        contribution_type: Option<ContributionType>,
         base_currency: &str,
     ) -> Result<DepositsCalculation> {
         if account_ids.is_empty() {
@@ -91,8 +166,22 @@ impl ContributionLimitService {
             account_ids,
             start_utc,
             end_exclusive_utc,
+            contribution_year,
         )?;
         let tz = self.user_timezone();
+        let activities: Vec<_> = activities
+            .into_iter()
+            .filter(|activity| {
+                let matches_year = contribution_year.is_none_or(|year| {
+                    let activity_date = activity_date_in_tz(activity.activity_instant, tz);
+                    Self::activity_contribution_year(activity).unwrap_or(activity_date.year())
+                        == year
+                });
+                let matches_type = contribution_type
+                    .is_none_or(|kind| Self::activity_contribution_type(activity) == Some(kind));
+                matches_year && matches_type
+            })
+            .collect();
 
         // Build set of limit account_ids for O(1) lookup
         let limit_accounts: HashSet<&str> = account_ids.iter().map(|s| s.as_str()).collect();
@@ -113,6 +202,7 @@ impl ContributionLimitService {
         let mut by_account: HashMap<String, AccountDeposit> = HashMap::new();
 
         for activity in &activities {
+            let activity_date = activity_date_in_tz(activity.activity_instant, tz);
             // Determine if this activity counts as a contribution
             let should_count = match activity.activity_type.as_str() {
                 "DEPOSIT" => true,
@@ -144,8 +234,6 @@ impl ContributionLimitService {
                     activity.activity_type, activity.account_id
                 )))
             })?;
-
-            let activity_date = activity_date_in_tz(activity.activity_instant, tz);
 
             // Convert using the exchange rate on the activity date
             let converted_amount = self.fx_service.convert_currency_for_date(
@@ -235,21 +323,52 @@ impl ContributionLimitServiceTrait for ContributionLimitService {
             let end_inclusive = DateTime::parse_from_rfc3339(&end_str)
                 .map(|dt| dt.with_timezone(&Utc))
                 .map_err(|e| Error::Validation(ValidationError::DateTimeParse(e)))?;
-            let end_exclusive = end_inclusive + chrono::Duration::seconds(1);
-            self.calculate_contributions_by_period(
-                &account_ids,
+            let timezone = self.user_timezone();
+            if Self::is_full_contribution_year_range(
                 start,
-                end_exclusive,
-                base_currency,
-            )
+                end_inclusive,
+                limit.contribution_year,
+                timezone,
+            ) {
+                let (start_utc, end_exclusive_utc) =
+                    local_year_utc_bounds(limit.contribution_year, timezone)?;
+                self.calculate_contributions_by_attributed_period(
+                    &account_ids,
+                    start_utc,
+                    end_exclusive_utc,
+                    Some(limit.contribution_year),
+                    limit.contribution_type,
+                    base_currency,
+                )
+            } else {
+                let end_exclusive = end_inclusive + chrono::Duration::seconds(1);
+                if limit.contribution_type.is_some() {
+                    self.calculate_contributions_by_filtered_period(
+                        &account_ids,
+                        start,
+                        end_exclusive,
+                        limit.contribution_type,
+                        base_currency,
+                    )
+                } else {
+                    self.calculate_contributions_by_period(
+                        &account_ids,
+                        start,
+                        end_exclusive,
+                        base_currency,
+                    )
+                }
+            }
         } else {
             let year = limit.contribution_year;
             let tz = self.user_timezone();
             let (start_utc, end_exclusive_utc) = local_year_utc_bounds(year, tz)?;
-            self.calculate_contributions_by_period(
+            self.calculate_contributions_by_attributed_period(
                 &account_ids,
                 start_utc,
                 end_exclusive_utc,
+                Some(year),
+                limit.contribution_type,
                 base_currency,
             )
         }
@@ -290,6 +409,7 @@ mod tests {
             account_ids: &[String],
             start_utc: DateTime<Utc>,
             end_exclusive_utc: DateTime<Utc>,
+            contribution_year: Option<i32>,
         ) -> Result<Vec<ContributionActivity>> {
             let account_set: HashSet<&str> = account_ids.iter().map(|s| s.as_str()).collect();
             Ok(self
@@ -298,9 +418,13 @@ mod tests {
                 .unwrap()
                 .iter()
                 .filter(|a| {
+                    let in_date_range =
+                        a.activity_instant >= start_utc && a.activity_instant < end_exclusive_utc;
+                    let matches_contribution_year = contribution_year.is_some_and(|year| {
+                        ContributionLimitService::activity_contribution_year(a) == Some(year)
+                    });
                     account_set.contains(a.account_id.as_str())
-                        && a.activity_instant >= start_utc
-                        && a.activity_instant < end_exclusive_utc
+                        && (in_date_range || matches_contribution_year)
                 })
                 .cloned()
                 .collect())

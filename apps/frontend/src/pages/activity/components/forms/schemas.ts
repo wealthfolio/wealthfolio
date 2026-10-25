@@ -175,6 +175,7 @@ export const cashActivitySchema = baseActivitySchema.extend({
     .min(0, { message: "Fee must be a non-negative number." })
     .default(0)
     .optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
   quoteMode: z.enum([QuoteMode.MARKET, QuoteMode.MANUAL]).default(QuoteMode.MANUAL),
 });
 

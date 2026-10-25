@@ -2492,6 +2492,7 @@ mod tests {
             _account_ids: &[String],
             _start_utc: chrono::DateTime<Utc>,
             _end_exclusive_utc: chrono::DateTime<Utc>,
+            _contribution_year: Option<i32>,
         ) -> Result<Vec<crate::limits::ContributionActivity>> {
             Ok(Vec::new())
         }

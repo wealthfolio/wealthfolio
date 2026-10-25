@@ -367,6 +367,7 @@ impl ActivityRepositoryTrait for InMemoryActivityRepository {
         _account_ids: &[String],
         _start_utc: DateTime<Utc>,
         _end_exclusive_utc: DateTime<Utc>,
+        _contribution_year: Option<i32>,
     ) -> Result<Vec<ContributionActivity>> {
         not_needed!("ActivityRepositoryTrait::get_contribution_activities")
     }

@@ -186,6 +186,7 @@ diesel::table! {
         contribution_year -> Integer,
         limit_amount -> Double,
         account_ids -> Nullable<Text>,
+        contribution_type -> Nullable<Text>,
         created_at -> Timestamp,
         updated_at -> Timestamp,
         start_date -> Nullable<Timestamp>,

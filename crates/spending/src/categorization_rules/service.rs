@@ -840,6 +840,7 @@ mod tests {
             _: &[String],
             _: DateTime<Utc>,
             _: DateTime<Utc>,
+            _: Option<i32>,
         ) -> wealthfolio_core::Result<Vec<ContributionActivity>> {
             unimplemented!()
         }

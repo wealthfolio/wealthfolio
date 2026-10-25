@@ -37,6 +37,9 @@ export function ContributionLimitItem({
 
   const { t } = useTranslation();
   const [isExpanded, setIsExpanded] = useState(false);
+  const contributionTypeLabel = limit.contributionType
+    ? t(`settings:limits_form_contribution_type_${limit.contributionType}`)
+    : null;
 
   useEffect(() => {
     if (!limit.accountIds || limit.accountIds.length === 0) {
@@ -82,7 +85,14 @@ export function ContributionLimitItem({
             <div className="flex items-center gap-2">
               {isComplete && <Icons.CheckCircle className="text-success h-5 w-5 shrink-0" />}
               {isOverLimit && <Icons.AlertTriangle className="text-destructive h-5 w-5 shrink-0" />}
-              <CardTitle className="text-base">{limit.groupName}</CardTitle>
+              <CardTitle className="text-base">
+                {limit.groupName}
+                {contributionTypeLabel && (
+                  <span className="text-muted-foreground ms-2 text-xs font-normal">
+                    {contributionTypeLabel}
+                  </span>
+                )}
+              </CardTitle>
             </div>
             <div className="flex items-center">
               <Button
@@ -173,7 +183,14 @@ export function ContributionLimitItem({
             <div className="flex items-center">
               {isComplete && <Icons.CheckCircle className="text-success me-2 h-5 w-5" />}
               {isOverLimit && <Icons.AlertTriangle className="text-destructive me-2 h-5 w-5" />}
-              <CardTitle className="text-lg">{limit.groupName}</CardTitle>
+              <CardTitle className="text-lg">
+                {limit.groupName}
+                {contributionTypeLabel && (
+                  <span className="text-muted-foreground ms-2 text-xs font-normal">
+                    {contributionTypeLabel}
+                  </span>
+                )}
+              </CardTitle>
             </div>
 
             {limit.startDate && limit.endDate && (

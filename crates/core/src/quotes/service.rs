@@ -3762,6 +3762,7 @@ mod tests {
             _account_ids: &[String],
             _start_date: chrono::DateTime<chrono::Utc>,
             _end_date: chrono::DateTime<chrono::Utc>,
+            _contribution_year: Option<i32>,
         ) -> Result<Vec<ContributionActivity>> {
             unimplemented!("unused in this test")
         }

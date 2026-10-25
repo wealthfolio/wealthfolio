@@ -5,6 +5,22 @@ use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ContributionType {
+    Employee,
+    Employer,
+}
+
+impl ContributionType {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Employee => "employee",
+            Self::Employer => "employer",
+        }
+    }
+}
+
 /// Domain model for contribution limit
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -14,6 +30,7 @@ pub struct ContributionLimit {
     pub contribution_year: i32,
     pub limit_amount: f64,
     pub account_ids: Option<String>,
+    pub contribution_type: Option<ContributionType>,
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
     pub start_date: Option<String>,
@@ -29,6 +46,7 @@ pub struct NewContributionLimit {
     pub contribution_year: i32,
     pub limit_amount: f64,
     pub account_ids: Option<String>,
+    pub contribution_type: Option<ContributionType>,
     pub start_date: Option<String>,
     pub end_date: Option<String>,
 }

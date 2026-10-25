@@ -1,6 +1,19 @@
 import { useSettings } from "@/hooks/use-settings";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Button } from "@wealthfolio/ui/components/ui/button";
+import {
+  Button,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@wealthfolio/ui";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
@@ -42,6 +55,9 @@ export const createDepositFormSchema = (t?: TFunction) =>
       .min(0, {
         message: msg(t, "activity:form.err_amount_non_negative", "Amount must be non-negative."),
       }),
+    contributionYear: z.number().int().min(1900).max(3000).optional(),
+    contributionType: z.enum(["employee", "employer"]).optional(),
+    metadata: z.record(z.string(), z.unknown()).optional(),
     comment: z.string().optional().nullable(),
     // Advanced options
     currency: z
@@ -85,6 +101,22 @@ export function DepositForm({
   const baseCurrency = settings?.baseCurrency;
 
   const schema = useMemo(() => createDepositFormSchema(t), [t]);
+  const contributionYears = useMemo(() => {
+    const currentYear = new Date().getFullYear();
+    const latestYear = Math.max(currentYear + 1, defaultValues?.contributionYear ?? currentYear);
+
+    return Array.from({ length: latestYear - 1900 + 1 }, (_, index) => latestYear - index);
+  }, [defaultValues?.contributionYear]);
+  const contributionYearItems = useMemo(
+    () => [
+      {
+        value: "activity-date-year",
+        label: t("activity:form.option_contribution_year_activity_date"),
+      },
+      ...contributionYears.map((year) => ({ value: year.toString(), label: year.toString() })),
+    ],
+    [contributionYears, t],
+  );
 
   // Compute initial account and currency for defaultValues
   const initialAccountId =
@@ -99,6 +131,9 @@ export function DepositForm({
       accountId: initialAccountId,
       activityDate: new Date(),
       amount: undefined,
+      contributionYear: undefined,
+      contributionType: undefined,
+      metadata: {},
       comment: null,
       fxRate: undefined,
       ...defaultValues,
@@ -129,6 +164,81 @@ export function DepositForm({
         <FormSection title={t("activity:form.section_account")}>
           <AccountSelect name="accountId" accounts={accounts} />
           <DatePicker name="activityDate" label={t("activity:field_date")} />
+          <FormField
+            control={form.control}
+            name="contributionYear"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t("activity:form.label_contribution_year")}</FormLabel>
+                <FormControl>
+                  <Select
+                    items={contributionYearItems}
+                    value={field.value?.toString() ?? "activity-date-year"}
+                    onValueChange={(value) =>
+                      field.onChange(value === "activity-date-year" ? undefined : Number(value))
+                    }
+                  >
+                    <SelectTrigger
+                      ref={field.ref}
+                      aria-label={t("activity:form.label_contribution_year")}
+                      data-testid="contribution-year-picker"
+                      onBlur={field.onBlur}
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="activity-date-year">
+                        {t("activity:form.option_contribution_year_activity_date")}
+                      </SelectItem>
+                      {contributionYears.map((year) => (
+                        <SelectItem key={year} value={year.toString()}>
+                          {year}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </FormControl>
+                <FormDescription>{t("activity:form.help_contribution_year")}</FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="contributionType"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t("activity:form.label_contribution_type")}</FormLabel>
+                <FormControl>
+                  <Select
+                    value={field.value ?? "unclassified"}
+                    onValueChange={(value) =>
+                      field.onChange(
+                        value === "employee" || value === "employer" ? value : undefined,
+                      )
+                    }
+                  >
+                    <SelectTrigger aria-label={t("activity:form.label_contribution_type")}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="unclassified">
+                        {t("activity:form.option_contribution_type_unclassified")}
+                      </SelectItem>
+                      <SelectItem value="employee">
+                        {t("activity:form.option_contribution_type_employee")}
+                      </SelectItem>
+                      <SelectItem value="employer">
+                        {t("activity:form.option_contribution_type_employer")}
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </FormControl>
+                <FormDescription>{t("activity:form.help_contribution_type")}</FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
         </FormSection>
 
         <FormSection title={t("activity:form.section_amount")}>

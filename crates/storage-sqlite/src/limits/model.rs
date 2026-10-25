@@ -16,6 +16,7 @@ pub struct ContributionLimitDB {
     pub contribution_year: i32,
     pub limit_amount: f64,
     pub account_ids: Option<String>,
+    pub contribution_type: Option<String>,
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
     pub start_date: Option<String>,
@@ -32,6 +33,7 @@ pub struct NewContributionLimitDB {
     pub contribution_year: i32,
     pub limit_amount: f64,
     pub account_ids: Option<String>,
+    pub contribution_type: Option<String>,
     pub start_date: Option<String>,
     pub end_date: Option<String>,
 }
@@ -45,6 +47,14 @@ impl From<ContributionLimitDB> for ContributionLimit {
             contribution_year: db.contribution_year,
             limit_amount: db.limit_amount,
             account_ids: db.account_ids,
+            contribution_type: db
+                .contribution_type
+                .as_deref()
+                .and_then(|value| match value {
+                    "employee" => Some(wealthfolio_core::limits::ContributionType::Employee),
+                    "employer" => Some(wealthfolio_core::limits::ContributionType::Employer),
+                    _ => None,
+                }),
             created_at: db.created_at,
             updated_at: db.updated_at,
             start_date: db.start_date,
@@ -61,6 +71,9 @@ impl From<NewContributionLimit> for NewContributionLimitDB {
             contribution_year: domain.contribution_year,
             limit_amount: domain.limit_amount,
             account_ids: domain.account_ids,
+            contribution_type: domain
+                .contribution_type
+                .map(|value| value.as_str().to_string()),
             start_date: domain.start_date,
             end_date: domain.end_date,
         }
@@ -75,6 +88,9 @@ impl From<ContributionLimit> for ContributionLimitDB {
             contribution_year: domain.contribution_year,
             limit_amount: domain.limit_amount,
             account_ids: domain.account_ids,
+            contribution_type: domain
+                .contribution_type
+                .map(|value| value.as_str().to_string()),
             created_at: domain.created_at,
             updated_at: domain.updated_at,
             start_date: domain.start_date,
