@@ -21,7 +21,7 @@ import type { TaxonomyCategory } from "@/lib/types";
 
 import { ActionPalette, type ActionPaletteGroup } from "@/components/action-palette";
 
-import { CategoryIcon } from "./category-chips";
+import { CategoryIconTile } from "./category-chips";
 
 export interface CategoryNode extends TaxonomyCategory {
   children?: CategoryNode[];
@@ -117,21 +117,12 @@ export function CategoryItem({
             </Button>
           )}
           {!hasChildren && !isSubcategory && <div className="w-6 shrink-0" />}
-          <span
-            className={`flex shrink-0 items-center justify-center rounded-md ${
-              isSubcategory ? "h-6 w-6" : "h-7 w-7"
-            }`}
-            style={{
-              backgroundColor: category.color ? `${category.color}1F` : "var(--muted)",
-              color: category.color ?? "var(--muted-foreground)",
-            }}
-          >
-            <CategoryIcon
-              icon={category.icon ?? null}
-              fallback={category.name}
-              className={isSubcategory ? "h-3 w-3" : "h-3.5 w-3.5"}
-            />
-          </span>
+          <CategoryIconTile
+            icon={category.icon ?? null}
+            color={category.color ?? null}
+            className={isSubcategory ? undefined : "h-7 w-7"}
+            iconClassName={isSubcategory ? "h-3 w-3" : undefined}
+          />
           <span className={`min-w-0 truncate ${isSubcategory ? "text-sm" : "text-sm font-medium"}`}>
             {category.name}
           </span>
