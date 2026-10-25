@@ -6,11 +6,11 @@
      lavender for information and focus. Charts take the Spending colours. Green
      is kept to gains. */
   --radius: 1rem;
-  /* Pills for actions, badges and segmented controls; round cards. */
+  /* Pills for actions, badges and segmented controls; cards at the base radius. */
   --button-radius: 9999px;
   --control-radius: 1rem;
   --control-height: 2.5rem;
-  --card-radius: 1.5rem;
+  --card-radius: var(--radius);
   --card-border: transparent;
   --card-shadow:
     0 0 0 0.5px rgb(18 18 18 / 0.05), 0 1px 2px rgb(18 18 18 / 0.03),
