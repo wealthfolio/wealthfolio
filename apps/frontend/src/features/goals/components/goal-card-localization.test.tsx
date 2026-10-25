@@ -52,7 +52,8 @@ describe("GoalCard localization", () => {
         </MemoryRouter>,
       );
       expect(screen.queryByText(/DUE/)).not.toBeInTheDocument();
-      expect(screen.getByText(/0M LEFT/)).toBeInTheDocument();
+      // The card shows the time left in capitals; the strings are stored in normal case.
+      expect(screen.getByText("0m left")).toHaveClass("uppercase");
     } finally {
       vi.useRealTimers();
     }

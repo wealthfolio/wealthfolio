@@ -206,7 +206,8 @@ export function GoalCard({ goal }: { goal: Goal }) {
             <div className="min-w-0 flex-1">
               <h3 className="truncate font-serif text-xl leading-tight">{goal.title}</h3>
               <p className="text-muted-foreground text-2xs mt-0.5 tracking-[0.15em]">
-                {targetDateStr ? `${targetDateStr} · ${timeLeftStr}` : timeLeftStr}
+                {targetDateStr ? `${targetDateStr} · ` : null}
+                <span className="uppercase">{timeLeftStr}</span>
               </p>
             </div>
             <div className="text-end">

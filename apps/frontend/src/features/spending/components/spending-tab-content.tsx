@@ -1106,12 +1106,15 @@ export default function SpendingTabContent() {
           </div>
         </div>
 
-        <div className="grow px-4 pb-[var(--mobile-nav-total-offset)] pt-24 md:px-6 md:pb-6 md:pt-20 lg:px-10 lg:pb-8 lg:pt-24">
-          <div className="flex flex-col gap-6 lg:grid lg:grid-cols-3 lg:gap-20">
-            <div className="contents lg:col-span-2 lg:block lg:space-y-6">
+        {/* Two columns once the content area, not the window (the sidebar may be open),
+            fits the main column beside the 24rem right column; below that the cards
+            interleave in one column (order-*). */}
+        <div className="@container grow px-4 pb-[var(--mobile-nav-total-offset)] pt-24 md:px-6 md:pb-6 md:pt-20 lg:px-10 lg:pb-8 lg:pt-24">
+          <div className="@min-[53rem]:grid @min-[53rem]:grid-cols-[minmax(0,2fr)_minmax(24rem,1fr)] @min-[53rem]:gap-20 flex flex-col gap-6">
+            <div className="@min-[53rem]:block @min-[53rem]:space-y-6 contents">
               <DashboardCard
                 title={t("spending:tabContent.whereItWent")}
-                className="order-1 overflow-hidden lg:order-none"
+                className="@min-[53rem]:order-none order-1 overflow-hidden"
                 action={
                   <div className="flex items-center gap-3">
                     <SegmentedToggle
@@ -1156,7 +1159,7 @@ export default function SpendingTabContent() {
                 )}
               </DashboardCard>
 
-              <div className="order-3 lg:order-none">
+              <div className="@min-[53rem]:order-none order-3">
                 <RecentActivityCard
                   activities={activities}
                   accountTypeById={accountTypeById}
@@ -1165,7 +1168,7 @@ export default function SpendingTabContent() {
                 />
               </div>
 
-              <div className="order-6 lg:order-none">
+              <div className="@min-[53rem]:order-none order-6">
                 <h2 className="pb-2 text-sm font-semibold tracking-tight">
                   {t("spending:tabContent.digDeeper")}
                 </h2>
@@ -1192,8 +1195,8 @@ export default function SpendingTabContent() {
               </div>
             </div>
 
-            <div className="contents lg:col-span-1 lg:block lg:space-y-6">
-              <div className="order-2 lg:order-none">
+            <div className="@min-[53rem]:block @min-[53rem]:space-y-6 contents">
+              <div className="@min-[53rem]:order-none order-2">
                 <BudgetLineChartCard
                   monthKey={budgetMonthKey}
                   today={todayParts}
@@ -1217,7 +1220,7 @@ export default function SpendingTabContent() {
               </div>
 
               {insights.length > 0 && (
-                <div className="border-border/40 bg-card/70 order-4 rounded-xl border p-4 backdrop-blur-xl md:p-5 lg:order-none">
+                <div className="border-border/40 bg-card/70 @min-[53rem]:order-none order-4 rounded-xl border p-4 backdrop-blur-xl md:p-5">
                   <div className="mb-2 flex items-center gap-2">
                     <Icons.AlertCircle className="h-4 w-4 shrink-0" style={{ color: theme.deep }} />
                     <h3 className="text-foreground text-sm font-semibold">
@@ -1256,7 +1259,7 @@ export default function SpendingTabContent() {
                 </div>
               )}
 
-              <div className="order-5 lg:order-none">
+              <div className="@min-[53rem]:order-none order-5">
                 <EventsCard
                   activities={activities}
                   accountTypeById={accountTypeById}

@@ -88,7 +88,7 @@ function HoldingRow({
 
   return (
     <div
-      className="border-border hover:bg-muted/30 group flex cursor-pointer items-center justify-between gap-3 border-b py-3 transition-colors last:border-0"
+      className="border-border hover:bg-muted/30 group flex cursor-pointer items-center justify-between gap-3 border-b py-3 transition-colors last:border-0 md:py-4"
       onClick={onClick}
       role="button"
       tabIndex={0}
@@ -100,11 +100,11 @@ function HoldingRow({
           exchangeMic={holding.instrument?.exchangeMic}
           instrumentType={holding.instrument?.instrumentType}
           assetId={holding.instrument?.id}
-          className="size-9 shrink-0"
+          className="size-8 shrink-0"
         />
         <div className="flex min-w-0 flex-col">
-          <span className="truncate text-sm font-semibold">{title}</span>
-          <span className="text-muted-foreground truncate text-xs">{subtitle}</span>
+          <span className="truncate text-sm font-semibold md:text-base">{title}</span>
+          <span className="text-muted-foreground truncate text-xs md:text-sm">{subtitle}</span>
         </div>
       </div>
       <div className="flex shrink-0 flex-col items-end gap-1">
@@ -112,19 +112,20 @@ function HoldingRow({
           value={marketValue}
           currency={baseCurrency}
           isHidden={isHidden}
-          className="text-sm font-semibold"
+          className="text-sm font-semibold md:text-base"
         />
         <div className="flex items-center gap-2">
           <GainAmount
             value={gainAmount}
             currency={baseCurrency}
             displayCurrency={false}
-            className="text-xs"
+            className="text-xs md:text-sm"
           />
+          {/* The badge variant draws light text; normal matches the amount beside it. */}
           <HoldingPerformancePercent
             value={gainPercent}
             variant="badge"
-            className="min-w-15 justify-center text-center text-xs"
+            className="min-w-15 justify-center text-center text-xs font-normal md:text-sm"
           />
         </div>
       </div>

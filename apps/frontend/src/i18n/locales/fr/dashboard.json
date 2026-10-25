@@ -65,8 +65,8 @@
     "more_goals_one": "+{{count}} objectif de plus",
     "more_goals_other": "+{{count}} objectifs de plus",
     "more_goals_many": "+{{count}} objectifs de plus",
-    "time_no_deadline": "SANS ÉCHÉANCE",
-    "time_due": "ÉCHU"
+    "time_no_deadline": "Sans échéance",
+    "time_due": "Échu"
   },
   "tabs": {
     "investments": "Investissements",

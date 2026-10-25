@@ -266,7 +266,7 @@ const AccountSummaryComponent = React.memo(
           {gainAmountToDisplay != null && (
             <>
               <GainAmount
-                className="text-xs font-medium md:text-sm md:font-medium"
+                className="text-xs md:text-sm"
                 value={gainAmountToDisplay}
                 currency={gainDisplayCurrency}
                 displayCurrency={false}
@@ -274,10 +274,7 @@ const AccountSummaryComponent = React.memo(
               <Separator orientation="vertical" className="h-3 md:h-4" />
             </>
           )}
-          <GainPercent
-            className="text-xs font-medium md:text-sm md:font-medium"
-            value={gainPercentToDisplay}
-          />
+          <GainPercent className="text-xs md:text-sm" value={gainPercentToDisplay} />
         </>
       );
       shouldExposeSecondaryMetric = true;

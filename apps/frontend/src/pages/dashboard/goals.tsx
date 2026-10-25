@@ -162,7 +162,9 @@ export function SavingGoals() {
               <div className="min-w-0 flex-1">
                 {/* Title row with status dot */}
                 <div className="flex items-center gap-2">
-                  <h3 className="truncate text-sm font-semibold leading-tight">{goal.title}</h3>
+                  <h3 className="truncate text-sm font-semibold leading-tight md:text-base">
+                    {goal.title}
+                  </h3>
                   <span
                     className={cn(
                       "h-1.5 w-1.5 shrink-0 rounded-full",
@@ -175,7 +177,7 @@ export function SavingGoals() {
                 </div>
 
                 {/* Amounts directly under title */}
-                <div className="text-muted-foreground text-2xs mt-0.5 tabular-nums">
+                <div className="text-muted-foreground mt-0.5 text-xs tabular-nums md:text-sm">
                   {currentDisplay} / {targetDisplay}
                 </div>
               </div>
@@ -185,9 +187,7 @@ export function SavingGoals() {
                 <div className="text-base font-semibold tabular-nums leading-none">
                   {pctDisplay}
                 </div>
-                <div className="text-muted-foreground text-2xs mt-1 tracking-[0.1em]">
-                  {timeStr}
-                </div>
+                <div className="text-muted-foreground mt-1 text-xs md:text-sm">{timeStr}</div>
               </div>
             </div>
 

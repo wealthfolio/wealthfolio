@@ -65,8 +65,8 @@
     "more_goals_one": "+{{count}} meta",
     "more_goals_other": "+{{count}} metas",
     "more_goals_many": "+{{count}} metas",
-    "time_no_deadline": "SEM PRAZO",
-    "time_due": "VENCE"
+    "time_no_deadline": "Sem prazo",
+    "time_due": "Vence"
   },
   "tabs": {
     "investments": "Investimentos",
