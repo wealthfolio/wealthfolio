@@ -14,6 +14,7 @@ import {
 import { CurrencyInput } from "@wealthfolio/ui";
 import { getQuoteUnitCurrency } from "@wealthfolio/ui/lib/currencies";
 import { useSettingsContext } from "@/lib/settings-provider";
+import { requiredError } from "@/lib/zod-errors";
 import {
   Card,
   CardContent,
@@ -38,7 +39,7 @@ export function BaseCurrencyForm() {
   const { settings, updateBaseCurrency } = useSettingsContext();
   const baseCurrencyFormSchema = z.object({
     baseCurrency: z
-      .string({ required_error: t("settings:currency_select_error") })
+      .string({ error: requiredError(t("settings:currency_select_error")) })
       .refine(isBaseCurrencyCode, t("settings:currency_code_error")),
   });
   const defaultValues: Partial<BaseCurrencyFormValues> = {

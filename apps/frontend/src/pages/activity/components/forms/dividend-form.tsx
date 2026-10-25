@@ -24,6 +24,7 @@ import {
   type AccountSelectOption,
 } from "./fields";
 import { calculateIncomeFinalAmount } from "@/lib/activity-final-amount";
+import { invalidTypeError, requiredError } from "@/lib/zod-errors";
 import { assetMetadataSchema } from "./schemas";
 import { Spinner } from "@wealthfolio/ui";
 
@@ -48,22 +49,21 @@ export const createDividendFormSchema = (t?: TFunction) =>
       existingAssetId: z.string().nullable().optional(),
       exchangeMic: z.string().nullable().optional(),
       activityDate: z.date({
-        required_error: msg(t, "activity:form.err_select_date", "Please select a date."),
+        error: requiredError(msg(t, "activity:form.err_select_date", "Please select a date.")),
       }),
       amount: z.coerce
         .number({
-          required_error: msg(t, "activity:form.err_enter_amount", "Please enter an amount."),
-          invalid_type_error: msg(t, "activity:form.err_amount_number", "Amount must be a number."),
+          error: invalidTypeError(
+            msg(t, "activity:form.err_amount_number", "Amount must be a number."),
+          ),
         })
         .min(0, {
           message: msg(t, "activity:form.err_amount_non_negative", "Amount must be non-negative."),
         }),
       tax: z.coerce
         .number({
-          invalid_type_error: msg(
-            t,
-            "activity:form.err_withholding_tax_number",
-            "Withholding tax must be a number.",
+          error: invalidTypeError(
+            msg(t, "activity:form.err_withholding_tax_number", "Withholding tax must be a number."),
           ),
         })
         .min(0, {
@@ -81,10 +81,8 @@ export const createDividendFormSchema = (t?: TFunction) =>
       }),
       fxRate: z.coerce
         .number({
-          invalid_type_error: msg(
-            t,
-            "activity:form.err_fxrate_number",
-            "FX Rate must be a number.",
+          error: invalidTypeError(
+            msg(t, "activity:form.err_fxrate_number", "FX Rate must be a number."),
           ),
         })
         .positive({
@@ -98,19 +96,19 @@ export const createDividendFormSchema = (t?: TFunction) =>
       // and a top-level .positive() would reject editing them.
       unitPrice: z.coerce
         .number({
-          invalid_type_error: msg(
-            t,
-            "activity:form.err_fmv_number",
-            "FMV per unit must be a number.",
+          error: invalidTypeError(
+            msg(t, "activity:form.err_fmv_number", "FMV per unit must be a number."),
           ),
         })
         .optional(),
       quantity: z.coerce
         .number({
-          invalid_type_error: msg(
-            t,
-            "activity:form.err_received_quantity_number",
-            "Received quantity must be a number.",
+          error: invalidTypeError(
+            msg(
+              t,
+              "activity:form.err_received_quantity_number",
+              "Received quantity must be a number.",
+            ),
           ),
         })
         .optional(),

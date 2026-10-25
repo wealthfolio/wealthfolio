@@ -116,4 +116,14 @@ describe("activity form error messages", () => {
       ),
     ).toEqual(["Shares must be a number."]);
   });
+
+  it("does not reuse the number message for a range check without its own message", () => {
+    const messages = messagesAt(
+      tradeActivitySchema,
+      { ...buy, activityType: "BUY", quantity: 0 },
+      "quantity",
+    );
+    expect(messages).toHaveLength(1);
+    expect(messages).not.toContain("Quantity must be a number.");
+  });
 });

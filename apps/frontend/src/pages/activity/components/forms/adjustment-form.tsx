@@ -1,5 +1,6 @@
 import { useSettings } from "@/hooks/use-settings";
 import { ACTIVITY_SUBTYPES, ActivityType, InstrumentType, QuoteMode } from "@/lib/constants";
+import { invalidTypeError, requiredError } from "@/lib/zod-errors";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { AnimatedToggleGroup } from "@wealthfolio/ui/components/ui/animated-toggle-group";
 import { Button } from "@wealthfolio/ui/components/ui/button";
@@ -47,11 +48,13 @@ export const createAdjustmentFormSchema = (t?: TFunction) =>
         message: msg(t, "activity:form.err_select_account", "Please select an account."),
       }),
       activityDate: z.date({
-        required_error: msg(t, "activity:form.err_select_date", "Please select a date."),
+        error: requiredError(msg(t, "activity:form.err_select_date", "Please select a date.")),
       }),
       amount: z.coerce
         .number({
-          invalid_type_error: msg(t, "activity:form.err_amount_number", "Amount must be a number."),
+          error: invalidTypeError(
+            msg(t, "activity:form.err_amount_number", "Amount must be a number."),
+          ),
         })
         .nonnegative({
           message: msg(t, "activity:form.err_amount_non_negative", "Amount must be non-negative."),
@@ -62,10 +65,8 @@ export const createAdjustmentFormSchema = (t?: TFunction) =>
       existingAssetId: z.string().nullable().optional(),
       quantity: z.coerce
         .number({
-          invalid_type_error: msg(
-            t,
-            "activity:form.err_quantity_number",
-            "Quantity must be a number.",
+          error: invalidTypeError(
+            msg(t, "activity:form.err_quantity_number", "Quantity must be a number."),
           ),
         })
         .nonnegative()
@@ -73,7 +74,9 @@ export const createAdjustmentFormSchema = (t?: TFunction) =>
         .nullable(),
       unitPrice: z.coerce
         .number({
-          invalid_type_error: msg(t, "activity:form.err_price_number", "Price must be a number."),
+          error: invalidTypeError(
+            msg(t, "activity:form.err_price_number", "Price must be a number."),
+          ),
         })
         .nonnegative()
         .optional()
@@ -84,10 +87,8 @@ export const createAdjustmentFormSchema = (t?: TFunction) =>
       }),
       fxRate: z.coerce
         .number({
-          invalid_type_error: msg(
-            t,
-            "activity:form.err_fxrate_number",
-            "FX Rate must be a number.",
+          error: invalidTypeError(
+            msg(t, "activity:form.err_fxrate_number", "FX Rate must be a number."),
           ),
         })
         .positive({

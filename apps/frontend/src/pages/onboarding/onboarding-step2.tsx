@@ -1,5 +1,6 @@
 import { DEFAULT_LOCALE, SUPPORTED_LOCALES } from "@/i18n/locales";
 import { useSettingsContext } from "@/lib/settings-provider";
+import { requiredError } from "@/lib/zod-errors";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { createFormatter, Icons, resolveFormattingLocale } from "@wealthfolio/ui";
 import { Card, CardContent } from "@wealthfolio/ui/components/ui/card";
@@ -22,10 +23,10 @@ import * as z from "zod";
 function createOnboardingSettingsSchema(t: TFunction) {
   return z.object({
     baseCurrency: z
-      .string({ required_error: t("onboarding:steps.preferences.currencyRequired") })
+      .string({ error: requiredError(t("onboarding:steps.preferences.currencyRequired")) })
       .min(1, t("onboarding:steps.preferences.currencyRequired")),
     timezone: z
-      .string({ required_error: t("onboarding:steps.preferences.timezoneRequired") })
+      .string({ error: requiredError(t("onboarding:steps.preferences.timezoneRequired")) })
       .min(1, t("onboarding:steps.preferences.timezoneRequired")),
   });
 }

@@ -1,4 +1,5 @@
 import { ActivityType, QuoteMode } from "@/lib/constants";
+import { invalidTypeError } from "@/lib/zod-errors";
 import { z } from "zod";
 
 // Asset metadata schema for custom assets
@@ -50,7 +51,7 @@ export const transferActivitySchema = baseActivitySchema.extend({
   transferRate: z.coerce.number().positive().optional().nullable(),
   sourceCurrency: z.string().optional(),
   destinationCurrency: z.string().optional(),
-  fee: z.coerce.number().min(0).default(0).optional(),
+  fee: z.coerce.number().min(0).optional(),
   assetId: z.string().optional().nullable(),
   quantity: z.coerce.number().positive().optional().nullable(),
   unitPrice: z.coerce.number().positive().optional().nullable(),
@@ -71,16 +72,10 @@ export const bulkHoldingRowSchema = z
     canonicalSymbol: z.string().optional(),
     name: z.string().optional(),
     sharesOwned: z.coerce
-      .number({
-        required_error: "Shares owned is required.",
-        invalid_type_error: "Shares must be a number.",
-      })
+      .number({ error: invalidTypeError("Shares must be a number.") })
       .positive({ message: "Shares must be greater than 0" }),
     averageCost: z.coerce
-      .number({
-        required_error: "Average cost is required.",
-        invalid_type_error: "Average cost must be a number.",
-      })
+      .number({ error: invalidTypeError("Average cost must be a number.") })
       .positive({ message: "Average cost must be greater than 0" }),
     totalValue: z.number().optional(),
     assetId: z.string().optional(),
@@ -110,39 +105,24 @@ export const bulkHoldingsFormSchema = baseActivitySchema.extend({
   holdings: z.array(bulkHoldingRowSchema).min(1, { message: "At least one holding is required" }),
 });
 
-// NOTE: Option fields are `.optional()` here because Zod's `discriminatedUnion`
-// requires `ZodObject` branches — `.superRefine()` produces `ZodEffects` which
-// breaks the union. Option field validation is enforced at runtime:
+// NOTE: Option fields are `.optional()` here. Option field validation is
+// enforced at runtime:
 //   - Desktop: `buyFormSchema`/`sellFormSchema` have their own `.superRefine()`
 //   - Mobile: `validateTradeFields()` in the submit handler
 export const tradeActivitySchema = baseActivitySchema.extend({
   activityType: z.enum([ActivityType.BUY, ActivityType.SELL]),
   assetId: z.string().default(""), // Relaxed: options build OCC symbol at submit
-  quantity: z.coerce
-    .number({
-      required_error: "Please enter a valid quantity.",
-      invalid_type_error: "Quantity must be a number.",
-    })
-    .positive(),
+  quantity: z.coerce.number({ error: invalidTypeError("Quantity must be a number.") }).positive(),
   unitPrice: z.coerce
-    .number({
-      required_error: "Please enter a valid unit price.",
-      invalid_type_error: "Unit price must be a number.",
-    })
+    .number({ error: invalidTypeError("Unit price must be a number.") })
     .positive(),
   amount: z.coerce.number().min(0).optional(),
   fee: z.coerce
-    .number({
-      required_error: "Please enter a valid fee.",
-      invalid_type_error: "Fee must be a positive number.",
-    })
+    .number({ error: invalidTypeError("Fee must be a positive number.") })
     .min(0, { message: "Fee must be a non-negative number." })
     .default(0),
   tax: z.coerce
-    .number({
-      required_error: "Please enter a valid tax.",
-      invalid_type_error: "Tax must be a positive number.",
-    })
+    .number({ error: invalidTypeError("Tax must be a positive number.") })
     .min(0, { message: "Tax must be a non-negative number." })
     .default(0),
   quoteMode: z.enum([QuoteMode.MARKET, QuoteMode.MANUAL]).default(QuoteMode.MARKET),
@@ -154,7 +134,7 @@ export const tradeActivitySchema = baseActivitySchema.extend({
   strikePrice: z.coerce.number().positive().optional(),
   expirationDate: z.string().optional(),
   optionType: z.enum(["CALL", "PUT"]).optional(),
-  contractMultiplier: z.coerce.number().positive().default(100).optional(),
+  contractMultiplier: z.coerce.number().positive().optional(),
 });
 
 // Cash activity schema - DEPOSIT/WITHDRAWAL only
@@ -162,18 +142,10 @@ export const tradeActivitySchema = baseActivitySchema.extend({
 export const cashActivitySchema = baseActivitySchema.extend({
   activityType: z.enum([ActivityType.DEPOSIT, ActivityType.WITHDRAWAL]),
   assetId: z.string().optional(),
-  amount: z.coerce
-    .number({
-      required_error: "Please enter a valid amount.",
-      invalid_type_error: "Amount must be a positive number.",
-    })
-    .min(0),
+  amount: z.coerce.number({ error: invalidTypeError("Amount must be a positive number.") }).min(0),
   fee: z.coerce
-    .number({
-      invalid_type_error: "Fee must be a positive number.",
-    })
+    .number({ error: invalidTypeError("Fee must be a positive number.") })
     .min(0, { message: "Fee must be a non-negative number." })
-    .default(0)
     .optional(),
   quoteMode: z.enum([QuoteMode.MARKET, QuoteMode.MANUAL]).default(QuoteMode.MANUAL),
 });
@@ -186,25 +158,14 @@ export const incomeActivitySchema = baseActivitySchema.extend({
   // for asset-backed subtypes is enforced by validateAssetBackedIncomeFields.
   quantity: z.coerce.number().default(0),
   unitPrice: z.coerce.number().optional(),
-  amount: z.coerce
-    .number({
-      required_error: "Please enter a valid amount.",
-      invalid_type_error: "Amount must be a positive number.",
-    })
-    .min(0),
+  amount: z.coerce.number({ error: invalidTypeError("Amount must be a positive number.") }).min(0),
   fee: z.coerce
-    .number({
-      invalid_type_error: "Fee must be a positive number.",
-    })
+    .number({ error: invalidTypeError("Fee must be a positive number.") })
     .min(0, { message: "Fee must be a non-negative number." })
-    .default(0)
     .optional(),
   tax: z.coerce
-    .number({
-      invalid_type_error: "Tax must be a positive number.",
-    })
+    .number({ error: invalidTypeError("Tax must be a positive number.") })
     .min(0, { message: "Tax must be a non-negative number." })
-    .default(0)
     .optional(),
 });
 
@@ -214,28 +175,17 @@ export const otherActivitySchema = baseActivitySchema.extend({
   amount: z.coerce.number().min(0).optional(),
   quantity: z.coerce.number().nonnegative().optional(),
   fee: z.coerce
-    .number({
-      invalid_type_error: "Fee must be a positive number.",
-    })
+    .number({ error: invalidTypeError("Fee must be a positive number.") })
     .min(0, { message: "Fee must be a non-negative number." })
-    .default(0)
     .optional(),
 });
 
 export const creditActivitySchema = baseActivitySchema.extend({
   activityType: z.enum([ActivityType.CREDIT]),
-  amount: z.coerce
-    .number({
-      required_error: "Please enter a valid amount.",
-      invalid_type_error: "Amount must be a positive number.",
-    })
-    .min(0),
+  amount: z.coerce.number({ error: invalidTypeError("Amount must be a positive number.") }).min(0),
   fee: z.coerce
-    .number({
-      invalid_type_error: "Fee must be a positive number.",
-    })
+    .number({ error: invalidTypeError("Fee must be a positive number.") })
     .min(0, { message: "Fee must be a non-negative number." })
-    .default(0)
     .optional(),
   quoteMode: z.enum([QuoteMode.MARKET, QuoteMode.MANUAL]).default(QuoteMode.MANUAL),
 });
@@ -247,11 +197,8 @@ export const adjustmentActivitySchema = baseActivitySchema.extend({
   unitPrice: z.coerce.number().nonnegative().optional().nullable(),
   amount: z.coerce.number().optional().nullable(),
   fee: z.coerce
-    .number({
-      invalid_type_error: "Fee must be a positive number.",
-    })
+    .number({ error: invalidTypeError("Fee must be a positive number.") })
     .min(0, { message: "Fee must be a non-negative number." })
-    .default(0)
     .optional(),
   quoteMode: z.enum([QuoteMode.MARKET, QuoteMode.MANUAL]).default(QuoteMode.MARKET),
 });

@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useState } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, type Resolver } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import * as z from "zod";
 
@@ -43,6 +43,7 @@ import { useCustomProviders } from "@/hooks/use-custom-providers";
 import { useMarketDataProviders } from "@/hooks/use-market-data-providers";
 import { ExchangeRate } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { invalidTypeError } from "@/lib/zod-errors";
 import { MoneyInput, worldCurrencies } from "@wealthfolio/ui";
 
 interface ExchangeRateFormData {
@@ -64,9 +65,7 @@ export function AddExchangeRateForm({ onSubmit, onCancel }: AddExchangeRateFormP
       fromCurrency: z.string().min(1, t("settings:fx_err_from_required")),
       toCurrency: z.string().min(1, t("settings:fx_err_to_required")),
       rate: z.coerce
-        .number({
-          invalid_type_error: t("settings:fx_err_rate_type"),
-        })
+        .number({ error: invalidTypeError(t("settings:fx_err_rate_type")) })
         .min(0, { message: t("settings:fx_err_rate_negative") })
         .optional(),
       source: z.string().min(1, t("settings:fx_err_source_required")),
@@ -91,7 +90,7 @@ export function AddExchangeRateForm({ onSubmit, onCancel }: AddExchangeRateFormP
     providers?.filter((p) => p.id !== "CUSTOM_SCRAPER" && p.providerType !== "custom") ?? [];
   const enabledCustomProviders = customProviders.filter((cp) => cp.enabled);
   const form = useForm<ExchangeRateFormData>({
-    resolver: zodResolver(exchangeRateSchema),
+    resolver: zodResolver(exchangeRateSchema) as Resolver<ExchangeRateFormData>,
     defaultValues: {
       fromCurrency: "",
       toCurrency: "",

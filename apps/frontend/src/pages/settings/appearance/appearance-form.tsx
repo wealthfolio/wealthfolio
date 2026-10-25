@@ -19,6 +19,7 @@ import { Switch } from "@wealthfolio/ui/components/ui/switch";
 import { Item, ItemActions, ItemContent, ItemTitle } from "@wealthfolio/ui/components/ui/item";
 import { usePlatform } from "@/hooks/use-platform";
 import { useSettingsContext } from "@/lib/settings-provider";
+import { requiredError } from "@/lib/zod-errors";
 import { useNavigationMode } from "@/pages/layouts/navigation/navigation-mode-context";
 
 interface AppearanceFormValues {
@@ -34,11 +35,16 @@ export function AppearanceForm() {
   const { mode: navigationMode, setMode: setNavigationMode } = useNavigationMode();
   const appearanceFormSchema = z.object({
     theme: z.enum(["light", "dark", "system"], {
-      required_error: t("settings:appearance_theme_required"),
+      error: requiredError(t("settings:appearance_theme_required")),
     }),
     font: z.enum(["font-mono", "font-sans", "font-serif"], {
-      invalid_type_error: t("settings:appearance_font_error"),
-      required_error: t("settings:appearance_font_required"),
+      // An unknown font name keeps the default message.
+      error: (issue) =>
+        issue.input === undefined
+          ? t("settings:appearance_font_required")
+          : typeof issue.input === "string"
+            ? undefined
+            : t("settings:appearance_font_error"),
     }),
     menuBarVisible: z.boolean(),
   });

@@ -15,6 +15,7 @@ import {
   isFeeActivity,
   isSplitActivity,
 } from "./activity-utils";
+import { invalidTypeError, requiredError } from "./zod-errors";
 
 /**
  * Configuration for CSV parsing (delimiter, date format, etc.)
@@ -85,7 +86,7 @@ export const trackingModeSchema = z.enum(["TRANSACTIONS", "HOLDINGS", "NOT_SET"]
 
 export const newAccountSchema = z
   .object({
-    id: z.string().uuid().optional(),
+    id: z.guid().optional(),
     name: z
       .string()
       .min(2, {
@@ -99,7 +100,7 @@ export const newAccountSchema = z
     isActive: z.boolean().optional(),
     isArchived: z.boolean().optional().default(false),
     accountType: accountTypeSchema,
-    currency: z.string({ required_error: "Please select a currency." }),
+    currency: z.string({ error: requiredError("Please select a currency.") }),
     trackingMode: trackingModeSchema.optional().default("NOT_SET"),
     meta: z.string().nullable().optional(),
   })
@@ -112,7 +113,7 @@ export const newAccountSchema = z
   );
 
 export const newGoalSchema = z.object({
-  id: z.string().uuid().optional(),
+  id: z.guid().optional(),
   goalType: z.enum([
     "retirement",
     "education",
@@ -124,10 +125,7 @@ export const newGoalSchema = z.object({
   title: z.string(),
   description: z.string().optional(),
   targetAmount: z.coerce
-    .number({
-      required_error: "Please enter a valid target amount.",
-      invalid_type_error: "Target amount must be a positive number.",
-    })
+    .number({ error: invalidTypeError("Target amount must be a positive number.") })
     .min(0, { message: "Target amount must be a positive number." }),
   coverImageKey: z.string().optional(),
   currency: z.string().optional(),
@@ -161,7 +159,7 @@ const decimalLikeSchema = z.union([
 
 export const importActivitySchema = z
   .object({
-    id: z.string().uuid().optional(),
+    id: z.guid().optional(),
     accountId: z.string().min(1, { message: "Please select an account." }),
     currency: z.string().optional(),
     activityType: activityTypeSchema,
@@ -381,10 +379,7 @@ export const newContributionLimitSchema = z.object({
   groupName: z.string().min(1, "Group name is required"),
   contributionYear: z.number().int().min(1900, "Invalid year"),
   limitAmount: z.coerce
-    .number({
-      required_error: "Please enter a valid limit amount.",
-      invalid_type_error: "Limit amount must be a positive number.",
-    })
+    .number({ error: invalidTypeError("Limit amount must be a positive number.") })
     .min(0, { message: "Price must be a non-negative number." }),
   accountIds: z.string().nullable().optional(),
   startDate: z.union([z.date(), z.string().datetime(), z.null()]).optional(),

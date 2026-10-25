@@ -1,5 +1,6 @@
 import { useSettings } from "@/hooks/use-settings";
 import { ActivityType } from "@/lib/constants";
+import { invalidTypeError, requiredError } from "@/lib/zod-errors";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@wealthfolio/ui/components/ui/button";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
@@ -40,19 +41,12 @@ export const createSplitFormSchema = (t?: TFunction) =>
     existingAssetId: z.string().nullable().optional(),
     exchangeMic: z.string().nullable().optional(),
     activityDate: z.date({
-      required_error: msg(t, "activity:form.err_select_date", "Please select a date."),
+      error: requiredError(msg(t, "activity:form.err_select_date", "Please select a date.")),
     }),
     splitRatio: z.coerce
       .number({
-        required_error: msg(
-          t,
-          "activity:form.err_enter_split_ratio",
-          "Please enter a split ratio.",
-        ),
-        invalid_type_error: msg(
-          t,
-          "activity:form.err_split_ratio_number",
-          "Split ratio must be a number.",
+        error: invalidTypeError(
+          msg(t, "activity:form.err_split_ratio_number", "Split ratio must be a number."),
         ),
       })
       .positive({

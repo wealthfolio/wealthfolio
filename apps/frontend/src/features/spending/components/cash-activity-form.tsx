@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, type Resolver } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -16,6 +16,7 @@ import { QueryKeys } from "@/lib/query-keys";
 import { cn } from "@/lib/utils";
 import { invalidateSpendingCaches } from "../lib/invalidation";
 import type { Account, Activity, ActivityCreate, ActivityUpdate } from "@/lib/types";
+import { invalidTypeError, requiredError } from "@/lib/zod-errors";
 
 import {
   Button,
@@ -87,14 +88,14 @@ function buildFormSchema(t: TFunction) {
       "INTEREST",
       "CREDIT",
     ]),
-    activityDate: z.date({ required_error: t("spending:cashForm.pickDate") }),
+    activityDate: z.date({ error: requiredError(t("spending:cashForm.pickDate")) }),
     amount: z.coerce.number().min(0, { message: t("spending:cashForm.amountNonNegative") }),
     notes: z.string().optional(),
     // Advanced options. Currency defaults to the account's, so the common case
     // never sees these; a foreign charge on a domestic card needs both.
     currency: z.string().optional(),
     fxRate: z.coerce
-      .number({ invalid_type_error: t("activity:form.err_fxrate_number") })
+      .number({ error: invalidTypeError(t("activity:form.err_fxrate_number")) })
       .positive({ message: t("activity:form.err_fxrate_positive") })
       .optional(),
     /** "<taxonomyId>:<categoryId>" or "" */
@@ -236,7 +237,7 @@ export function CashActivityForm({
   const [eventId, setEventId] = useState<string | null>(activity?.eventId ?? null);
 
   const form = useForm<FormValues>({
-    resolver: zodResolver(formSchema),
+    resolver: zodResolver(formSchema) as Resolver<FormValues>,
     defaultValues: {
       accountId: activity?.accountId ?? "",
       activityType: (activity?.activityType as FormValues["activityType"]) ?? "WITHDRAWAL",

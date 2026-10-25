@@ -58,7 +58,7 @@ import { Textarea } from "@wealthfolio/ui/components/ui/textarea";
 import { toast } from "@wealthfolio/ui/components/ui/use-toast";
 import type { TFunction } from "i18next";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
-import { type Path, useFieldArray, useForm, useWatch } from "react-hook-form";
+import { type Path, type Resolver, useFieldArray, useForm, useWatch } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import * as z from "zod";
 import {
@@ -574,7 +574,7 @@ export function AssetEditSheet({
   }, [taxonomies]);
 
   const form = useForm<AssetFormValues>({
-    resolver: zodResolver(assetFormSchema(t)),
+    resolver: zodResolver(assetFormSchema(t)) as Resolver<AssetFormValues>,
     defaultValues: {
       name: asset?.name ?? "",
       notes: asset?.notes ?? "",

@@ -3,6 +3,7 @@ import { useSettings } from "@/hooks/use-settings";
 import { ACTIVITY_SUBTYPES, ActivityType, QuoteMode } from "@/lib/constants";
 import { buildOccSymbol, isValidOptionExpiration } from "@/lib/occ-symbol";
 import { normalizeCurrency } from "@/lib/utils";
+import { invalidTypeError, requiredError } from "@/lib/zod-errors";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useNumberFormatting, Spinner } from "@wealthfolio/ui";
 import { Alert, AlertDescription } from "@wealthfolio/ui/components/ui/alert";
@@ -63,15 +64,12 @@ export const createBuyFormSchema = (t?: TFunction) =>
       assetId: z.string().default(""),
       existingAssetId: z.string().nullable().optional(),
       activityDate: z.date({
-        required_error: msg(t, "activity:form.err_select_date", "Please select a date."),
+        error: requiredError(msg(t, "activity:form.err_select_date", "Please select a date.")),
       }),
       quantity: z.coerce
         .number({
-          required_error: msg(t, "activity:form.err_enter_quantity", "Please enter a quantity."),
-          invalid_type_error: msg(
-            t,
-            "activity:form.err_quantity_number",
-            "Quantity must be a number.",
+          error: invalidTypeError(
+            msg(t, "activity:form.err_quantity_number", "Quantity must be a number."),
           ),
         })
         .positive({
@@ -79,8 +77,9 @@ export const createBuyFormSchema = (t?: TFunction) =>
         }),
       unitPrice: z.coerce
         .number({
-          required_error: msg(t, "activity:form.err_enter_price", "Please enter a price."),
-          invalid_type_error: msg(t, "activity:form.err_price_number", "Price must be a number."),
+          error: invalidTypeError(
+            msg(t, "activity:form.err_price_number", "Price must be a number."),
+          ),
         })
         .positive({
           message: msg(t, "activity:form.err_price_gt_zero", "Price must be greater than 0."),
@@ -88,7 +87,7 @@ export const createBuyFormSchema = (t?: TFunction) =>
       amount: z.coerce.number().min(0).optional(),
       fee: z.coerce
         .number({
-          invalid_type_error: msg(t, "activity:form.err_fee_number", "Fee must be a number."),
+          error: invalidTypeError(msg(t, "activity:form.err_fee_number", "Fee must be a number.")),
         })
         .min(0, {
           message: msg(t, "activity:form.err_fee_non_negative", "Fee must be non-negative."),
@@ -96,7 +95,7 @@ export const createBuyFormSchema = (t?: TFunction) =>
         .default(0),
       tax: z.coerce
         .number({
-          invalid_type_error: msg(t, "activity:form.err_tax_number", "Tax must be a number."),
+          error: invalidTypeError(msg(t, "activity:form.err_tax_number", "Tax must be a number.")),
         })
         .min(0, {
           message: msg(t, "activity:form.err_tax_non_negative", "Tax must be non-negative."),
@@ -110,10 +109,8 @@ export const createBuyFormSchema = (t?: TFunction) =>
       }),
       fxRate: z.coerce
         .number({
-          invalid_type_error: msg(
-            t,
-            "activity:form.err_fxrate_number",
-            "FX Rate must be a number.",
+          error: invalidTypeError(
+            msg(t, "activity:form.err_fxrate_number", "FX Rate must be a number."),
           ),
         })
         .positive({
@@ -133,7 +130,7 @@ export const createBuyFormSchema = (t?: TFunction) =>
       strikePrice: z.coerce.number().positive().optional(),
       expirationDate: z.string().optional(),
       optionType: z.enum(["CALL", "PUT"]).optional(),
-      contractMultiplier: z.coerce.number().positive().default(100).optional(),
+      contractMultiplier: z.coerce.number().positive().optional(),
     })
     .superRefine((data, ctx) => {
       // Options build their symbol at submit time; stocks/bonds require it upfront

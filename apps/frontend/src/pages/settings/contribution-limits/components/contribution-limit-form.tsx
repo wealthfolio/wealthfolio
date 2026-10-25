@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm, useWatch } from "react-hook-form";
+import { useForm, useWatch, type Resolver } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import * as z from "zod";
 
@@ -50,7 +50,7 @@ export function ContributionLimitForm({
     useContributionLimitMutations();
 
   const form = useForm<NewContributionLimit>({
-    resolver: zodResolver(newContributionLimitSchema),
+    resolver: zodResolver(newContributionLimitSchema) as Resolver<NewContributionLimit>,
     defaultValues: {
       ...defaultValues,
       startDate: defaultValues?.startDate ? new Date(defaultValues.startDate) : undefined,
