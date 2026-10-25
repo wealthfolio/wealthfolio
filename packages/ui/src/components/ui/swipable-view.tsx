@@ -96,9 +96,19 @@ export function SwipableView({
     [onInitProp],
   );
 
+  // A screen shown again (React <Activity>) builds its carousel anew, on
+  // initialIndex. It goes back to the view it showed without reporting a change,
+  // which would switch the page's tab.
+  const placedApi = React.useRef<CarouselApi>(undefined);
   React.useEffect(() => {
     if (!emblaApi) return;
 
+    if (placedApi.current !== emblaApi) {
+      placedApi.current = emblaApi;
+      if (emblaApi.selectedScrollSnap() !== previousIndexRef.current) {
+        emblaApi.scrollTo(previousIndexRef.current, true);
+      }
+    }
     onInit(emblaApi);
     onSelect(emblaApi);
     emblaApi.on("reInit", onInit);

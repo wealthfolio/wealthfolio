@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 
+import { useEffectOnChange } from "@/hooks/use-effect-on-change";
 import { cn } from "@/lib/utils";
 
 export type InsightsStage = "where" | "changed" | "when";
@@ -23,8 +24,9 @@ export function StageNav({ stage, onStageChange }: StageNavProps) {
   const activeRef = useRef<HTMLButtonElement | null>(null);
   // When the URL deep-links to a stage on mount or `stage` changes
   // (e.g. via the dashboard "Where I am" link), scroll the active chip
-  // into view so it isn't off-screen on a 375px column.
-  useEffect(() => {
+  // into view so it isn't off-screen on a 375px column. Not when a phone
+  // screen is shown again: the page keeps the scroll it was left with.
+  useEffectOnChange(() => {
     activeRef.current?.scrollIntoView({
       behavior: "smooth",
       block: "nearest",

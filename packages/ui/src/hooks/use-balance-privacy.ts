@@ -35,17 +35,24 @@ export interface BalancePrivacyHook {
  * }
  * ```
  */
+function readBalanceHidden(): boolean {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    return stored ? JSON.parse(stored) : false;
+  } catch {
+    return false;
+  }
+}
+
 export function useBalancePrivacy(): BalancePrivacyHook {
-  const [isBalanceHidden, setIsBalanceHidden] = useState(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      return stored ? JSON.parse(stored) : false;
-    } catch {
-      return false;
-    }
-  });
+  const [isBalanceHidden, setIsBalanceHidden] = useState(readBalanceHidden);
 
   useEffect(() => {
+    // A screen kept hidden (React <Activity>) drops these listeners and adds
+    // them back when it is shown again: read the setting first, so balances
+    // hidden or shown in the meantime are hidden or shown here too.
+    setIsBalanceHidden(readBalanceHidden());
+
     // Listen for localStorage changes from other contexts (main app, other addons)
     const handleStorageChange = (e: StorageEvent) => {
       if (e.key === STORAGE_KEY && e.newValue !== null) {
