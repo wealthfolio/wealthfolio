@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { basename, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { ESLint } from "eslint";
@@ -24,10 +24,18 @@ test("Oxlint preserves typed, package, custom hook, and import restrictions", as
     export async function typedRuleProbe() { await 123; }
   `;
   const source = join(frontendDir, "source.tsx");
+  const suppressed = join(frontendDir, "suppressed.tsx");
   const exemptTest = join(frontendDir, "source.test.tsx");
   const javascript = join(frontendDir, "source.mjs");
   const sdk = join(sdkDir, "source.ts");
   await writeFile(source, component);
+  await writeFile(
+    suppressed,
+    component.replace(
+      "      useEffectOnChange(",
+      "      // oxlint-disable-next-line react/exhaustive-deps\n      useEffectOnChange(",
+    ),
+  );
   await writeFile(exemptTest, component);
   await writeFile(javascript, "export const platform = process.platform; console.warn(platform);");
   await writeFile(sdk, "export const unsafeValue: any = 1; const unusedValue = 1;");
@@ -40,6 +48,7 @@ test("Oxlint preserves typed, package, custom hook, and import restrictions", as
       "--format",
       "json",
       source,
+      suppressed,
       exemptTest,
       javascript,
       sdk,
@@ -57,6 +66,15 @@ test("Oxlint preserves typed, package, custom hook, and import restrictions", as
     );
   assert.ok(hasRule(source, "typescript(await-thenable)", "error"));
   assert.ok(hasRule(source, "react-hooks(exhaustive-deps)", "warning"));
+  assert.ok(hasRule(suppressed, "typescript(await-thenable)", "error"));
+  assert.ok(!hasRule(suppressed, "react-hooks(exhaustive-deps)", "warning"));
+  assert.ok(
+    !diagnostics.some(
+      (diagnostic) =>
+        join(root, diagnostic.filename) === suppressed &&
+        diagnostic.message.includes("Unused oxlint-disable"),
+    ),
+  );
   assert.ok(hasRule(source, "eslint(no-restricted-imports)", "error"));
   assert.ok(!hasRule(exemptTest, "eslint(no-restricted-imports)", "error"));
   assert.ok(hasRule(sdk, "typescript(no-explicit-any)", "error"));
@@ -93,4 +111,41 @@ test("ESLint retains typed Query rules, React deprecations, and optional-chain c
     result.messages.filter((message) => message.ruleId === "no-unsafe-optional-chaining").length,
     1,
   );
+});
+
+test("workspace lint commands report unused Oxlint suppressions", async (t) => {
+  for (const [directory, name] of [
+    ["apps/frontend", "frontend"],
+    ["packages/ui", "@wealthfolio/ui"],
+    ["packages/addon-sdk", "@wealthfolio/addon-sdk"],
+  ]) {
+    const fixtureDir = await mkdtemp(join(root, directory, "src/tooling-check-"));
+    t.after(() => rm(fixtureDir, { recursive: true }));
+    const filename = `unused-directive-${basename(directory)}.ts`;
+    await writeFile(
+      join(fixtureDir, filename),
+      "// oxlint-disable-next-line no-console\nexport const value = 1;\n",
+    );
+
+    const manifest = JSON.parse(await readFile(join(root, directory, "package.json"), "utf8"));
+    // Exercise the configured Oxlint phase; the separate guard above covers ESLint.
+    const nativeCommand = manifest.scripts.lint.split(" && ")[0];
+    const result = spawnSync(`${nativeCommand} --format json`, {
+      cwd: join(root, directory),
+      encoding: "utf8",
+      maxBuffer: 16 * 1024 * 1024,
+      shell: true,
+    });
+    assert.equal(result.status, 0, result.stderr + result.stdout.slice(0, 4000));
+    const { diagnostics } = JSON.parse(result.stdout);
+    assert.ok(
+      diagnostics.some(
+        (diagnostic) =>
+          basename(diagnostic.filename) === filename &&
+          diagnostic.message.includes("Unused oxlint-disable directive") &&
+          diagnostic.severity === "warning",
+      ),
+      `${name} did not report the unused suppression`,
+    );
+  }
 });

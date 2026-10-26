@@ -57,7 +57,10 @@ checking alone does not verify both runtime configurations. Use `pnpm build` and
 
 `pnpm lint` runs typed Oxlint across the frontend, UI, and SDK, followed by the
 remaining ESLint rules. `pnpm lint:quiet` and `pnpm lint:fix` use the same
-scope. Each workspace also exposes these commands independently.
+scope. Each workspace also exposes these commands independently. Workspace
+commands run Oxlint from the repository root with their own directory as the
+file scope, so root-only options such as unused-suppression reporting apply
+consistently.
 
 `oxlint.base.json` contains the migrated ESLint recommended rules and the
 typescript-eslint recommended/stylistic typed rules, with the existing
