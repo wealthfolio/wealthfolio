@@ -51,9 +51,9 @@ describe("GoalCard localization", () => {
           <GoalCard goal={{ ...goal, targetDate: "2026-01-01" }} />
         </MemoryRouter>,
       );
-      expect(screen.queryByText(/DUE/)).not.toBeInTheDocument();
-      // The card shows the time left in capitals; the strings are stored in normal case.
-      expect(screen.getByText("0m left")).toHaveClass("uppercase");
+      expect(screen.queryByText(/\bdue\b/i)).not.toBeInTheDocument();
+      // The date line reads in normal case: "<date> · 0m left".
+      expect(screen.getByText(/ · 0m left$/)).not.toHaveClass("uppercase");
     } finally {
       vi.useRealTimers();
     }

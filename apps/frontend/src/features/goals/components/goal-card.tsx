@@ -4,6 +4,7 @@ import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import { useSettingsContext } from "@/lib/settings-provider";
 import type { Goal } from "@/lib/types";
 import {
+  Badge,
   Card,
   cn,
   useAmountFormatting,
@@ -60,7 +61,7 @@ function formatTargetDate(
     day: "numeric",
     year: "numeric",
   });
-  return formatted === "-" ? null : formatted.toUpperCase();
+  return formatted === "-" ? null : formatted;
 }
 
 export function ProgressBar({ progress, fillClass }: { progress: number; fillClass: string }) {
@@ -116,23 +117,14 @@ export function GoalCard({ goal }: { goal: Goal }) {
       ? "bg-destructive"
       : "bg-muted-foreground/50";
 
-  // Only render the status pill for attention-worthy states.
-  let pill: { label: string; className: string } | null = null;
+  // Only render the status badge for attention-worthy states.
+  let pill: { label: string; variant: "success-subtle" | "destructive-subtle" } | null = null;
   if (isAchieved) {
-    pill = {
-      label: t("goals:card.achieved"),
-      className: "bg-success-subtle text-success-subtle-foreground",
-    };
+    pill = { label: t("goals:card.achieved"), variant: "success-subtle" };
   } else if (isOffTrack) {
-    pill = {
-      label: t("goals:card.off_track"),
-      className: "bg-destructive-subtle text-destructive-subtle-foreground",
-    };
+    pill = { label: t("goals:card.off_track"), variant: "destructive-subtle" };
   } else if (isAtRisk) {
-    pill = {
-      label: t("goals:card.at_risk"),
-      className: "bg-destructive-subtle text-destructive-subtle-foreground",
-    };
+    pill = { label: t("goals:card.at_risk"), variant: "destructive-subtle" };
   }
 
   const deadline = goal.targetDate ?? goal.projectedCompletionDate;
@@ -160,7 +152,7 @@ export function GoalCard({ goal }: { goal: Goal }) {
     <Link to={`/goals/${goal.id}`} className="group block">
       <Card className="overflow-hidden p-0 transition-shadow hover:shadow-md">
         {/* Top cover image panel */}
-        <div className="bg-secondary/50 h-39 relative overflow-hidden">
+        <div className="bg-secondary/50 relative h-24 overflow-hidden">
           <img
             src={coverImage}
             alt=""
@@ -177,22 +169,17 @@ export function GoalCard({ goal }: { goal: Goal }) {
           {/* Bottom gradient — quote legibility in both themes */}
           <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/70 via-black/20 via-60% to-transparent" />
 
-          {/* Top-left status pill — only for attention-worthy states */}
+          {/* Top-left status badge — only for attention-worthy states */}
           {pill && (
-            <div
-              className={cn(
-                "text-2xs absolute start-3 top-3 inline-flex h-5 items-center px-2 font-medium leading-none tracking-[0.14em] shadow-sm",
-                pill.className,
-              )}
-            >
+            <Badge variant={pill.variant} className="absolute start-3 top-3">
               {pill.label}
-            </div>
+            </Badge>
           )}
 
           {/* Bottom-left italic quote */}
           {quote && (
             <div className="absolute bottom-2.5 end-3 start-3">
-              <span className="text-2xs line-clamp-1 block font-serif italic text-white/95 drop-shadow-[0_1px_2px_rgba(0,0,0,0.7)]">
+              <span className="line-clamp-1 block text-xs italic text-white/95 drop-shadow-[0_1px_2px_rgba(0,0,0,0.7)]">
                 &ldquo;{quote}&rdquo;
               </span>
             </div>
@@ -204,35 +191,32 @@ export function GoalCard({ goal }: { goal: Goal }) {
           {/* Title + % */}
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0 flex-1">
-              <h3 className="truncate font-serif text-xl leading-tight">{goal.title}</h3>
-              <p className="text-muted-foreground text-2xs mt-0.5 tracking-[0.15em]">
-                {targetDateStr ? `${targetDateStr} · ` : null}
-                <span className="uppercase">{timeLeftStr}</span>
+              <h3 className="truncate text-base font-semibold leading-tight">{goal.title}</h3>
+              <p className="text-muted-foreground mt-0.5 text-sm">
+                {targetDateStr ? `${targetDateStr} · ${timeLeftStr}` : timeLeftStr}
               </p>
             </div>
             <div className="text-end">
-              <div className={cn("font-serif text-xl leading-none", accentClass)}>
+              <div
+                className={cn("text-base font-semibold tabular-nums leading-tight", accentClass)}
+              >
                 {progressPct}
               </div>
-              <div className="text-muted-foreground text-2xs mt-0.5 tracking-[0.15em]">
-                {t("goals:card.complete")}
-              </div>
+              <div className="text-muted-foreground mt-0.5 text-sm">{t("goals:card.complete")}</div>
             </div>
           </div>
 
           {/* Amounts row: saved · remaining */}
           <div className="mt-2.5 flex items-end justify-between gap-3">
             <div>
-              <div className="font-serif text-sm font-semibold tabular-nums">{currentDisplay}</div>
-              <div className="text-muted-foreground text-2xs mt-0.5">
+              <div className="text-sm font-semibold tabular-nums">{currentDisplay}</div>
+              <div className="text-muted-foreground mt-0.5 text-xs">
                 {t("goals:card.saved_of")} <span className="tabular-nums">{targetDisplay}</span>
               </div>
             </div>
             <div className="text-end">
-              <div className="font-serif text-sm font-semibold tabular-nums">
-                {remainingDisplay}
-              </div>
-              <div className="text-muted-foreground text-2xs mt-0.5">
+              <div className="text-sm font-semibold tabular-nums">{remainingDisplay}</div>
+              <div className="text-muted-foreground mt-0.5 text-xs">
                 {hasRemaining ? t("goals:card.remaining") : t("goals:card.target_met")}
               </div>
             </div>
