@@ -77,6 +77,7 @@ export function QuickCategorizePopover({
     Income: t("spending:cashFlow.income"),
   };
   const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
   const spending = useTaxonomy(SPENDING_TAXONOMY);
   const income = useTaxonomy(INCOME_TAXONOMY);
   const savings = useTaxonomy(SAVINGS_TAXONOMY);
@@ -95,32 +96,71 @@ export function QuickCategorizePopover({
     return out;
   }, [spending.data?.categories, savings.data?.categories, income.data?.categories, scope]);
 
+  // cmdk's own filter ranks rows by score, which breaks the tree and hides the
+  // parent of a matching child. Keep tree order and show each match with its
+  // ancestors and descendants. Ancestors that only give context are disabled so
+  // cmdk highlights the first real match and Enter picks it.
+  const { visible, contextOnly } = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    if (!query) return { visible: options, contextOnly: new Set<FlatOption>() };
+    const byKey = new Map(options.map((o) => [`${o.taxonomyId}:${o.category.id}`, o]));
+    const ancestorsOf = (o: FlatOption) => {
+      const out: FlatOption[] = [];
+      for (let p = o.parent; p;) {
+        const po = byKey.get(`${o.taxonomyId}:${p.id}`);
+        if (!po) break;
+        out.push(po);
+        p = po.parent;
+      }
+      return out;
+    };
+    const matches = (o: FlatOption) => o.category.name.toLowerCase().includes(query);
+    const isHit = (o: FlatOption) => matches(o) || ancestorsOf(o).some(matches);
+    const context = new Set<FlatOption>();
+    options
+      .filter(matches)
+      .forEach((o) => ancestorsOf(o).forEach((a) => !isHit(a) && context.add(a)));
+    return {
+      visible: options.filter((o) => isHit(o) || context.has(o)),
+      contextOnly: context,
+    };
+  }, [options, search]);
+
   const grouped = useMemo(() => {
     const groups: Record<FlatOption["group"], FlatOption[]> = {
       Expense: [],
       Savings: [],
       Income: [],
     };
-    options.forEach((o) => groups[o.group].push(o));
+    visible.forEach((o) => groups[o.group].push(o));
     return groups;
-  }, [options]);
+  }, [visible]);
+
+  const handleOpenChange = (next: boolean) => {
+    setOpen(next);
+    if (!next) setSearch("");
+  };
 
   const handleSelect = (opt: FlatOption) => {
     onSelect(opt.taxonomyId, opt.category.id);
-    setOpen(false);
+    handleOpenChange(false);
   };
 
   const handleClear = () => {
     onClear?.();
-    setOpen(false);
+    handleOpenChange(false);
   };
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={handleOpenChange}>
       <PopoverTrigger render={trigger} />
       <PopoverContent className="w-70 p-0" align={align}>
-        <Command>
-          <CommandInput placeholder={t("spending:category.searchCategories")} />
+        <Command shouldFilter={false}>
+          <CommandInput
+            value={search}
+            onValueChange={setSearch}
+            placeholder={t("spending:category.searchCategories")}
+          />
           <CommandList>
             <CommandEmpty>{t("spending:category.noCategoriesFound")}</CommandEmpty>
             {(["Expense", "Savings", "Income"] as const).map((groupKey) => {
@@ -136,6 +176,7 @@ export function QuickCategorizePopover({
                         key={`${opt.taxonomyId}:${opt.category.id}`}
                         value={`${groupKey} ${opt.parent?.name ?? ""} / ${opt.category.name}`}
                         onSelect={() => handleSelect(opt)}
+                        disabled={contextOnly.has(opt)}
                         className={cn("flex items-center gap-2", isChild && "ps-8")}
                       >
                         <CategoryIconTile

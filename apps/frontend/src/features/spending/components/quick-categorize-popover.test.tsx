@@ -34,8 +34,7 @@ if (!HTMLElement.prototype.scrollIntoView) {
   HTMLElement.prototype.scrollIntoView = () => undefined;
 }
 
-it("lists each parent followed by its children in sibling order", async () => {
-  const user = userEvent.setup();
+function renderPicker() {
   render(
     <QuickCategorizePopover
       scope="expense"
@@ -44,6 +43,11 @@ it("lists each parent followed by its children in sibling order", async () => {
       trigger={<button type="button">Pick</button>}
     />,
   );
+}
+
+it("lists each parent followed by its children in sibling order", async () => {
+  const user = userEvent.setup();
+  renderPicker();
 
   await user.click(screen.getByRole("button", { name: "Pick" }));
 
@@ -54,4 +58,22 @@ it("lists each parent followed by its children in sibling order", async () => {
     "Restaurants",
     "Coffee",
   ]);
+});
+
+it("keeps the parent above a matching child and highlights the match", async () => {
+  const user = userEvent.setup();
+  renderPicker();
+
+  await user.click(screen.getByRole("button", { name: "Pick" }));
+  await user.type(screen.getByRole("combobox"), "co");
+
+  expect(screen.getAllByRole("option").map((o) => o.textContent)).toEqual([
+    "Food & Dining",
+    "Coffee",
+  ]);
+  expect(screen.getByRole("option", { name: "Food & Dining" })).toHaveAttribute(
+    "aria-disabled",
+    "true",
+  );
+  expect(screen.getByRole("option", { name: "Coffee" })).toHaveAttribute("aria-selected", "true");
 });
