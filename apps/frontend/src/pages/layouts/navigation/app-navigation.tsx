@@ -28,14 +28,14 @@ function buildStaticNavigation(t: TFunction): NavigationProps {
   return {
     primary: [
       {
-        icon: <Icons.Dashboard className="size-6" />,
+        icon: <Icons.Insight className="size-6" />,
         title: t("common:dashboard"),
         href: "/dashboard",
         keywords: ["home", "overview", "summary"],
         label: t("common:nav.label_dashboard"),
       },
       {
-        icon: <Icons.Insight className="size-6" />,
+        icon: <Icons.Dashboard className="size-6" />,
         title: t("common:insights"),
         href: "/insights",
         keywords: ["insights", "Analytics"],
