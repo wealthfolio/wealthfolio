@@ -420,7 +420,7 @@
     "customSubtitle": "所選期間的交易"
   },
   "split": {
-    "staleTaxonomy": "這些拆分使用先前的類別類型。請先檢查並清除或取代它們，再對這筆交易進行分類。",
+    "staleTaxonomy": "這些拆分使用先前的類別類型，已不再適用於此交易。",
     "title": "拆分交易",
     "transactionFallback": "交易",
     "remainingOf": "剩餘，共 {{amount}}",

@@ -194,3 +194,42 @@ it("shows protected splits from a previous taxonomy and exposes explicit clear/r
   expect(screen.getByRole("button", { name: "Clear split" })).toBeEnabled();
   expect(screen.getByRole("button", { name: "Replace splits with one category" })).toBeEnabled();
 });
+
+it("clears the previous row's editor when opening a neutral transaction", () => {
+  const previous = splitRow("25", "USD", ["17"]);
+  previous.activity.splits[0].note = "Previous transaction note";
+  const neutral = splitRow("30", "USD", ["30"]);
+  neutral.activity.id = "neutral-row";
+  neutral.activity.cashFlowBucket = "neutral";
+  neutral.activity.splits[0].categoryId = "old-neutral-category";
+  const onClear = vi.fn().mockResolvedValue(undefined);
+  const onSave = vi.fn();
+  const view = (row: TransactionRowVM) => (
+    <FormattingProvider locale="en-US">
+      <SplitTransactionSheet
+        open
+        row={row}
+        categories={new Map()}
+        isSaving={false}
+        onOpenChange={vi.fn()}
+        onSave={onSave}
+        onClear={onClear}
+        onReplace={vi.fn()}
+      />
+    </FormattingProvider>
+  );
+  const { rerender } = render(view(previous));
+  expect(screen.getByDisplayValue("Previous transaction note")).toBeInTheDocument();
+  rerender(view(neutral));
+  expect(screen.queryAllByRole("textbox")).toHaveLength(0);
+  expect(screen.queryByRole("button", { name: "Add line" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Distribute evenly" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Save" })).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("button", { name: "Replace splits with one category" }),
+  ).not.toBeInTheDocument();
+  expect(screen.getByText(/old-neutral-category/)).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Clear split" }));
+  expect(onClear).toHaveBeenCalledExactlyOnceWith("neutral-row");
+  expect(onSave).not.toHaveBeenCalled();
+});

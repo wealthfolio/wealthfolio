@@ -439,7 +439,7 @@
     "customSubtitle": "Transacciones en el período seleccionado"
   },
   "split": {
-    "staleTaxonomy": "Estas divisiones usan un tipo de categoría anterior. Revísalas y bórralas o reemplázalas antes de categorizar esta transacción.",
+    "staleTaxonomy": "Estas divisiones usan un tipo de categoría anterior. Ya no se aplican a esta transacción.",
     "title": "Dividir transacción",
     "transactionFallback": "Transacción",
     "remainingOf": "Restante de {{amount}}",

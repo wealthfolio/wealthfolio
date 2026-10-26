@@ -332,3 +332,10 @@ design ratchet, both frontend builds, affected-crate Clippy with all
 targets/features and warnings denied, and both Rust runtime compilation checks
 pass. The six real browser regressions pass in desktop LTR and mobile RTL,
 covering both financial editors and old-taxonomy split repair.
+
+The follow-up Claude review approved the correction batch and identified one
+minor neutral-row display issue. A new regression reproduced retained lines from
+the previously opened transaction. The sheet now resets that state and hides
+category-edit controls when the current transaction has no taxonomy; the notice
+describes the inactive allocations without suggesting unsupported actions. The
+existing kept-screen editing regression remains covered.

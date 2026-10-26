@@ -420,7 +420,7 @@
     "weekOf": "Week of {{date}}"
   },
   "split": {
-    "staleTaxonomy": "These splits use a previous category type. Review them, then clear or replace them before categorizing this transaction.",
+    "staleTaxonomy": "These splits use a previous category type. They no longer apply to this transaction.",
     "title": "Split Transaction",
     "transactionFallback": "Transaction",
     "remainingOf": "Remaining of {{amount}}",

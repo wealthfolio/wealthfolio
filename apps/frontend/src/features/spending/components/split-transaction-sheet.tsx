@@ -144,9 +144,13 @@ export function SplitTransactionSheet({
   const [expandedNoteLineIds, setExpandedNoteLineIds] = useState<Set<string>>(new Set());
 
   useEffectOnChange(() => {
-    if (!open || !row || !taxonomyId) return;
+    if (!open || !row) return;
     setExpandedNoteLineIds(new Set());
     setReplacement(null);
+    if (!taxonomyId) {
+      setLines([]);
+      return;
+    }
     const existing = (row.activity.splits ?? [])
       .filter((split) => split.taxonomyId === taxonomyId)
       .sort((a, b) => a.sortOrder - b.sortOrder);
@@ -309,183 +313,190 @@ export function SplitTransactionSheet({
         </SheetHeader>
 
         <div className={cn("min-h-0 flex-1 overflow-y-auto", isMobile ? "px-4" : "px-1")}>
-          <div className="space-y-4 py-4">
-            {staleSplits.length > 0 && (
-              <div className="border-warning-subtle-border bg-warning-subtle text-warning-subtle-foreground rounded-md border p-3 text-sm">
-                <p>{t("spending:split.staleTaxonomy")}</p>
-                <ul className="mt-2 space-y-1">
-                  {staleSplits.map((split) => (
-                    <li key={split.id}>
-                      {categoryLabel(categories.get(split.categoryId), categories) ??
-                        split.categoryId}
-                      {" · "}
-                      {formatting.formatPrice(Number(split.amount), currency)} {currency}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-            {/* Splits are summed in at least cents, so these keep cents even for currencies without them. */}
-            <div className="bg-muted/50 flex items-center justify-between rounded-2xl px-4 py-4">
-              <span className="text-muted-foreground text-sm">
-                {t("spending:split.remainingOf", {
-                  amount: formatting.formatPrice(
-                    splitUnitsToAmount(totalAbsUnits, splitDecimals),
-                    currency,
-                  ),
-                })}
-              </span>
-              <span
-                className={cn(
-                  "font-mono text-lg font-semibold tabular-nums",
-                  remainingUnits === 0
-                    ? "text-success"
-                    : remainingUnits < 0
-                      ? "text-destructive"
-                      : "text-foreground",
-                )}
-              >
-                {formatting.formatPrice(
-                  splitUnitsToAmount(remainingUnits, splitDecimals),
-                  currency,
-                  false,
-                )}{" "}
-                {activity?.currency}
-              </span>
+          {staleSplits.length > 0 && (
+            <div className="border-warning-subtle-border bg-warning-subtle text-warning-subtle-foreground my-4 rounded-md border p-3 text-sm">
+              <p>{t("spending:split.staleTaxonomy")}</p>
+              <ul className="mt-2 space-y-1">
+                {staleSplits.map((split) => (
+                  <li key={split.id}>
+                    {categoryLabel(categories.get(split.categoryId), categories) ??
+                      split.categoryId}
+                    {" · "}
+                    {formatting.formatPrice(Number(split.amount), currency)} {currency}
+                  </li>
+                ))}
+              </ul>
             </div>
-
-            <div className="flex h-4 overflow-hidden rounded-full">
-              {allocationSegments.length > 0 ? (
-                allocationSegments.map((segment, index) => (
+          )}
+          {taxonomyId && (
+            <>
+              <div className="space-y-4 py-4">
+                {/* Splits are summed in at least cents, so these keep cents even for currencies without them. */}
+                <div className="bg-muted/50 flex items-center justify-between rounded-2xl px-4 py-4">
+                  <span className="text-muted-foreground text-sm">
+                    {t("spending:split.remainingOf", {
+                      amount: formatting.formatPrice(
+                        splitUnitsToAmount(totalAbsUnits, splitDecimals),
+                        currency,
+                      ),
+                    })}
+                  </span>
                   <span
-                    key={segment.id}
-                    className={cn(index > 0 && "ms-1")}
-                    style={{
-                      flexBasis: 0,
-                      flexGrow: segment.amountUnits,
-                      backgroundColor: segment.color,
-                    }}
-                    aria-hidden="true"
-                  />
-                ))
-              ) : (
-                <span className="bg-muted h-full w-full" aria-hidden="true" />
-              )}
-            </div>
-          </div>
-
-          <div className="border-border divide-border divide-y border-y">
-            {lines.map((line, index) => {
-              const category = categories.get(line.categoryId);
-              const label = categoryLabel(category, categories);
-              const color = splitLineColor(category, index);
-              const amountUnits = toSplitUnits(line.amount, splitDecimals);
-              const showNoteInput = line.note.trim().length > 0 || expandedNoteLineIds.has(line.id);
-              return (
-                <div key={line.id} className="py-2.5">
-                  <div className="grid grid-cols-[minmax(0,1fr)_auto_6rem_2rem] items-start gap-2">
-                    <div className="min-w-0">
-                      <QuickCategorizePopover
-                        scope={scopeForTaxonomy(taxonomyId)}
-                        selectedCategoryId={line.categoryId || null}
-                        onSelect={(nextTaxonomyId, categoryId) =>
-                          updateLine(line.id, { taxonomyId: nextTaxonomyId, categoryId })
-                        }
-                        trigger={
-                          <button
-                            type="button"
-                            className="hover:text-foreground flex h-7 max-w-full min-w-0 items-center gap-2 text-start transition-colors"
-                          >
-                            <span
-                              className="h-2.5 w-2.5 shrink-0 rounded-full"
-                              style={{ backgroundColor: color }}
-                              aria-hidden="true"
-                            />
-                            <span
-                              className={cn(
-                                "min-w-0 truncate text-sm font-medium",
-                                !label && "text-muted-foreground",
-                              )}
-                            >
-                              {label ?? t("spending:filters.category")}
-                            </span>
-                            <Icons.ChevronDown
-                              className="text-muted-foreground h-3.5 w-3.5 shrink-0"
-                              aria-hidden="true"
-                            />
-                          </button>
-                        }
-                      />
-
-                      {showNoteInput ? (
-                        <Input
-                          value={line.note}
-                          onChange={(event) => updateLine(line.id, { note: event.target.value })}
-                          placeholder={t("spending:split.note")}
-                          className="bg-muted/40 ms-5 mt-1 !h-7 rounded-md border-0 px-2 text-xs shadow-none md:text-xs"
-                        />
-                      ) : (
-                        <button
-                          type="button"
-                          className="text-muted-foreground hover:text-foreground ms-5 mt-1 inline-flex h-5 items-center gap-1.5 text-xs font-medium transition-colors"
-                          onClick={() => handleShowNote(line.id)}
-                        >
-                          <Icons.Plus className="h-3 w-3" aria-hidden="true" />
-                          {t("spending:split.noteLower")}
-                        </button>
-                      )}
-                    </div>
-
-                    <span className="bg-muted/60 text-muted-foreground inline-flex h-8 items-center rounded-md px-2 text-xs font-medium tabular-nums">
-                      {linePercentage(amountUnits, totalAbsUnits)}%
-                    </span>
-                    <div className="relative w-24">
-                      <span className="text-muted-foreground pointer-events-none absolute start-2 top-1/2 -translate-y-1/2 text-xs">
-                        {currencySymbol}
-                      </span>
-                      <MoneyInput
-                        aria-label={t("common:amount")}
-                        value={line.amount ?? 0}
-                        maxDecimalPlaces={splitDecimals}
-                        onValueChange={(value: number | undefined) =>
-                          updateLine(line.id, { amount: value ?? undefined })
-                        }
-                        className="bg-background hover:bg-muted !h-8 rounded-md px-2 ps-5 text-end text-sm shadow-none transition-colors focus-visible:ring-2 md:text-sm"
-                      />
-                    </div>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="text-muted-foreground hover:text-foreground h-8 w-8"
-                      onClick={() => handleRemoveLine(line.id)}
-                      disabled={lines.length <= 1}
-                      aria-label={t("spending:split.removeLine", { number: index + 1 })}
-                    >
-                      <Icons.X className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
+                    className={cn(
+                      "font-mono text-lg font-semibold tabular-nums",
+                      remainingUnits === 0
+                        ? "text-success"
+                        : remainingUnits < 0
+                          ? "text-destructive"
+                          : "text-foreground",
+                    )}
+                  >
+                    {formatting.formatPrice(
+                      splitUnitsToAmount(remainingUnits, splitDecimals),
+                      currency,
+                      false,
+                    )}{" "}
+                    {activity?.currency}
+                  </span>
                 </div>
-              );
-            })}
-          </div>
 
-          <div className="flex flex-wrap gap-2 py-4">
-            <Button type="button" variant="outline" size="sm" onClick={handleAddLine}>
-              <Icons.Plus className="me-2 h-4 w-4" />
-              {t("spending:split.addLine")}
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={handleDistribute}
-              disabled={!canDistribute}
-            >
-              <Icons.SplitHorizontal className="me-2 h-4 w-4" />
-              {t("spending:split.distributeEvenly")}
-            </Button>
-          </div>
+                <div className="flex h-4 overflow-hidden rounded-full">
+                  {allocationSegments.length > 0 ? (
+                    allocationSegments.map((segment, index) => (
+                      <span
+                        key={segment.id}
+                        className={cn(index > 0 && "ms-1")}
+                        style={{
+                          flexBasis: 0,
+                          flexGrow: segment.amountUnits,
+                          backgroundColor: segment.color,
+                        }}
+                        aria-hidden="true"
+                      />
+                    ))
+                  ) : (
+                    <span className="bg-muted h-full w-full" aria-hidden="true" />
+                  )}
+                </div>
+              </div>
+
+              <div className="border-border divide-border divide-y border-y">
+                {lines.map((line, index) => {
+                  const category = categories.get(line.categoryId);
+                  const label = categoryLabel(category, categories);
+                  const color = splitLineColor(category, index);
+                  const amountUnits = toSplitUnits(line.amount, splitDecimals);
+                  const showNoteInput =
+                    line.note.trim().length > 0 || expandedNoteLineIds.has(line.id);
+                  return (
+                    <div key={line.id} className="py-2.5">
+                      <div className="grid grid-cols-[minmax(0,1fr)_auto_6rem_2rem] items-start gap-2">
+                        <div className="min-w-0">
+                          <QuickCategorizePopover
+                            scope={scopeForTaxonomy(taxonomyId)}
+                            selectedCategoryId={line.categoryId || null}
+                            onSelect={(nextTaxonomyId, categoryId) =>
+                              updateLine(line.id, { taxonomyId: nextTaxonomyId, categoryId })
+                            }
+                            trigger={
+                              <button
+                                type="button"
+                                className="hover:text-foreground flex h-7 min-w-0 max-w-full items-center gap-2 text-start transition-colors"
+                              >
+                                <span
+                                  className="h-2.5 w-2.5 shrink-0 rounded-full"
+                                  style={{ backgroundColor: color }}
+                                  aria-hidden="true"
+                                />
+                                <span
+                                  className={cn(
+                                    "min-w-0 truncate text-sm font-medium",
+                                    !label && "text-muted-foreground",
+                                  )}
+                                >
+                                  {label ?? t("spending:filters.category")}
+                                </span>
+                                <Icons.ChevronDown
+                                  className="text-muted-foreground h-3.5 w-3.5 shrink-0"
+                                  aria-hidden="true"
+                                />
+                              </button>
+                            }
+                          />
+
+                          {showNoteInput ? (
+                            <Input
+                              value={line.note}
+                              onChange={(event) =>
+                                updateLine(line.id, { note: event.target.value })
+                              }
+                              placeholder={t("spending:split.note")}
+                              className="bg-muted/40 ms-5 mt-1 !h-7 rounded-md border-0 px-2 text-xs shadow-none md:text-xs"
+                            />
+                          ) : (
+                            <button
+                              type="button"
+                              className="text-muted-foreground hover:text-foreground ms-5 mt-1 inline-flex h-5 items-center gap-1.5 text-xs font-medium transition-colors"
+                              onClick={() => handleShowNote(line.id)}
+                            >
+                              <Icons.Plus className="h-3 w-3" aria-hidden="true" />
+                              {t("spending:split.noteLower")}
+                            </button>
+                          )}
+                        </div>
+
+                        <span className="bg-muted/60 text-muted-foreground inline-flex h-8 items-center rounded-md px-2 text-xs font-medium tabular-nums">
+                          {linePercentage(amountUnits, totalAbsUnits)}%
+                        </span>
+                        <div className="relative w-24">
+                          <span className="text-muted-foreground pointer-events-none absolute start-2 top-1/2 -translate-y-1/2 text-xs">
+                            {currencySymbol}
+                          </span>
+                          <MoneyInput
+                            aria-label={t("common:amount")}
+                            value={line.amount ?? 0}
+                            maxDecimalPlaces={splitDecimals}
+                            onValueChange={(value: number | undefined) =>
+                              updateLine(line.id, { amount: value ?? undefined })
+                            }
+                            className="bg-background hover:bg-muted !h-8 rounded-md px-2 ps-5 text-end text-sm shadow-none transition-colors focus-visible:ring-2 md:text-sm"
+                          />
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="text-muted-foreground hover:text-foreground h-8 w-8"
+                          onClick={() => handleRemoveLine(line.id)}
+                          disabled={lines.length <= 1}
+                          aria-label={t("spending:split.removeLine", { number: index + 1 })}
+                        >
+                          <Icons.X className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="flex flex-wrap gap-2 py-4">
+                <Button type="button" variant="outline" size="sm" onClick={handleAddLine}>
+                  <Icons.Plus className="me-2 h-4 w-4" />
+                  {t("spending:split.addLine")}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleDistribute}
+                  disabled={!canDistribute}
+                >
+                  <Icons.SplitHorizontal className="me-2 h-4 w-4" />
+                  {t("spending:split.distributeEvenly")}
+                </Button>
+              </div>
+            </>
+          )}
         </div>
 
         {hasExistingSplits && taxonomyId && (
@@ -520,10 +531,12 @@ export function SplitTransactionSheet({
         >
           {isMobile ? (
             <div className="flex w-full flex-col gap-2">
-              <Button type="button" onClick={handleSave} disabled={!canSave || isSaving}>
-                {isSaving && <Spinner className="me-2 h-4 w-4" />}
-                {t("common:save")}
-              </Button>
+              {taxonomyId && (
+                <Button type="button" onClick={handleSave} disabled={!canSave || isSaving}>
+                  {isSaving && <Spinner className="me-2 h-4 w-4" />}
+                  {t("common:save")}
+                </Button>
+              )}
               <div className="flex gap-2">
                 {hasExistingSplits && (
                   <Button
@@ -568,10 +581,12 @@ export function SplitTransactionSheet({
               >
                 {t("common:cancel")}
               </Button>
-              <Button type="button" onClick={handleSave} disabled={!canSave || isSaving}>
-                {isSaving && <Spinner className="me-2 h-4 w-4" />}
-                {t("common:save")}
-              </Button>
+              {taxonomyId && (
+                <Button type="button" onClick={handleSave} disabled={!canSave || isSaving}>
+                  {isSaving && <Spinner className="me-2 h-4 w-4" />}
+                  {t("common:save")}
+                </Button>
+              )}
             </>
           )}
         </SheetFooter>
