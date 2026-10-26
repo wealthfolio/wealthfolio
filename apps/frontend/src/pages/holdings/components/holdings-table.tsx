@@ -24,6 +24,11 @@ import { Icons } from "@wealthfolio/ui/components/ui/icons";
 
 import { TickerAvatar } from "@/components/ticker-avatar";
 import { HoldingPerformancePercent } from "@/components/holding-performance-percent";
+import {
+  HOLDINGS_TABLE_DENSITY,
+  PERCENT_BADGE,
+  ROW_ACTIONS_TRIGGER,
+} from "./holdings-table-styles";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import { HoldingType } from "@/lib/constants";
 import { getBaseHoldingPerformancePercent } from "@/lib/holding-performance";
@@ -229,7 +234,7 @@ export const HoldingsTable = ({
   ];
 
   return (
-    <div className="flex h-full flex-col">
+    <div className={`flex h-full flex-col ${HOLDINGS_TABLE_DENSITY}`}>
       <DataTable
         data={holdings}
         columns={columns}
@@ -376,7 +381,7 @@ const getColumns = (
           />
           <div className="flex flex-col">
             <div className="flex items-center gap-1.5">
-              <bdi className="font-medium">{displaySymbol}</bdi>
+              <bdi className="font-semibold">{displaySymbol}</bdi>
               {isManual && !isCash && (
                 <Badge variant="secondary" className="text-2xs h-4 px-1 py-0">
                   {t("holdings:manual")}
@@ -552,7 +557,11 @@ const getColumns = (
           {percentage == null ? (
             <span className="text-muted-foreground">—</span>
           ) : (
-            <HoldingPerformancePercent value={percentage} />
+            <HoldingPerformancePercent
+              variant="badge"
+              className={PERCENT_BADGE}
+              value={percentage}
+            />
           )}
         </div>
       );
@@ -645,7 +654,11 @@ const getColumns = (
       return (
         <div className="flex min-h-10 flex-col items-end justify-center px-4">
           <PriceDisplay value={price} currency={currency} />
-          <GainPercent className="text-xs" value={holding.dayChangePct || 0} />
+          <GainPercent
+            variant="badge"
+            className={PERCENT_BADGE}
+            value={holding.dayChangePct || 0}
+          />
         </div>
       );
     },
@@ -830,7 +843,7 @@ const getColumns = (
       return (
         <div className="flex min-h-10 flex-col items-end justify-center px-4">
           <AmountDisplay value={value} currency={currency} colorFormat={true} isHidden={isHidden} />
-          <HoldingPerformancePercent className="text-xs" value={percentage} />
+          <HoldingPerformancePercent variant="badge" className={PERCENT_BADGE} value={percentage} />
         </div>
       );
     },
@@ -875,7 +888,7 @@ const getColumns = (
       return (
         <div className="flex min-h-10 flex-col items-end justify-center px-4">
           <AmountDisplay value={value} currency={currency} colorFormat={true} isHidden={isHidden} />
-          <HoldingPerformancePercent className="text-xs" value={percentage} />
+          <HoldingPerformancePercent variant="badge" className={PERCENT_BADGE} value={percentage} />
         </div>
       );
     },
@@ -912,7 +925,11 @@ const getColumns = (
       return (
         <div className="flex min-h-10 flex-col items-end justify-center px-4">
           <AmountDisplay value={value} currency={currency} colorFormat={true} isHidden={isHidden} />
-          <GainPercent className="text-xs" value={holding.dayChangePct || 0} />
+          <GainPercent
+            variant="badge"
+            className={PERCENT_BADGE}
+            value={holding.dayChangePct || 0}
+          />
         </div>
       );
     },
@@ -952,7 +969,7 @@ const getColumns = (
       return (
         <div className="flex min-h-10 flex-col items-end justify-center px-4">
           <AmountDisplay value={value} currency={currency} colorFormat={true} isHidden={isHidden} />
-          <HoldingPerformancePercent className="text-xs" value={percentage} />
+          <HoldingPerformancePercent variant="badge" className={PERCENT_BADGE} value={percentage} />
         </div>
       );
     },
@@ -992,7 +1009,7 @@ const getColumns = (
       return (
         <div className="flex min-h-10 flex-col items-end justify-center px-4">
           <AmountDisplay value={value} currency={currency} colorFormat={true} isHidden={isHidden} />
-          <HoldingPerformancePercent className="text-xs" value={percentage} />
+          <HoldingPerformancePercent variant="badge" className={PERCENT_BADGE} value={percentage} />
         </div>
       );
     },
@@ -1098,6 +1115,7 @@ const getColumns = (
                   variant="ghost"
                   size="sm"
                   aria-label={t("common:actions_for", { name: holding.instrument?.symbol ?? "" })}
+                  className={ROW_ACTIONS_TRIGGER}
                 />
               }
             >
