@@ -1392,6 +1392,15 @@ pub(crate) mod tests {
 
     #[async_trait]
     impl ActivityRepositoryTrait for MockActivityRepository {
+        fn preview_split_effect(&self, update: &ActivityUpdate) -> Result<ActivitySplitEffect> {
+            self.get_activity(&update.id)?;
+            Ok(ActivitySplitEffect {
+                activity_id: update.id.clone(),
+                removed_splits: 0,
+                has_retained_category_assignment: false,
+                fingerprint: "mock-review".into(),
+            })
+        }
         fn get_activity(&self, activity_id: &str) -> Result<Activity> {
             let activities = self.activities.lock().unwrap();
             activities
@@ -17626,5 +17635,53 @@ pub(crate) mod tests {
         assert_eq!(json["cashBalance"], "70");
         assert_eq!(json["cashBalanceCurrency"], "USD");
         assert_eq!(json["cashBalanceScope"], "DAY");
+    }
+    #[tokio::test]
+    async fn internal_pair_preview_does_not_register_new_fx_or_emit_events() {
+        let repository = Arc::new(MockActivityRepository::new());
+        seed_cash_fx_pair(&repository);
+        let fx = Arc::new(MockFxService::new());
+        let events = Arc::new(MockDomainEventSink::new());
+        let service =
+            preview_test_service(repository.clone(), fx.clone()).with_event_sink(events.clone());
+        let request = InternalTransferPairRequest {
+            split_review: None,
+            edited_activity_id: Some("pair-out".into()),
+            transfer_out_id: Some("pair-out".into()),
+            transfer_in_id: Some("pair-in".into()),
+            source_group_id: None,
+            from_account_id: "acc-a".into(),
+            to_account_id: "acc-a".into(),
+            activity_date: "2026-01-19T00:00:00Z".into(),
+            source_amount: Some(dec!(100)),
+            destination_amount: Some(dec!(14000)),
+            source_currency: "USD".into(),
+            destination_currency: "JPY".into(),
+            fx_rate: None,
+            notes: None,
+            transfer_mode: Some("cash".into()),
+        };
+        let before = stored_snapshot(&repository);
+        let effects = service
+            .review_internal_transfer_pair_split_effects(request.clone())
+            .await
+            .unwrap();
+        assert_eq!(effects.len(), 2);
+        assert!(
+            fx.get_registered_pairs().is_empty(),
+            "Preview must not register FX assets or start their quote sync"
+        );
+        assert!(events.events().is_empty());
+        assert_eq!(stored_snapshot(&repository), before);
+        service.save_internal_transfer_pair(request).await.unwrap();
+        assert!(
+            fx.get_registered_pairs()
+                .contains(&("JPY".into(), "USD".into())),
+            "Commit must retain its existing FX registration"
+        );
+        assert!(events
+            .events()
+            .iter()
+            .any(|event| matches!(event, DomainEvent::ActivitiesChanged { .. })));
     }
 }

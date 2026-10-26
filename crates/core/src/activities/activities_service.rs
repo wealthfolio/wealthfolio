@@ -2111,7 +2111,7 @@ impl ActivityService {
         Ok(updates)
     }
 
-    async fn prepare_internal_pair_updates(
+    fn build_internal_pair_update_inputs(
         &self,
         request: &InternalTransferPairRequest,
         pair_values: &InternalPairValues,
@@ -2142,11 +2142,7 @@ impl ActivityService {
             let existing = self.activity_repository.get_activity(&update.id)?;
             self.hydrate_and_validate_update_against_existing(update, &existing)?;
         }
-        let mut prepared_updates = Vec::new();
-        for update in updates {
-            prepared_updates.push(self.prepare_update_activity(update).await?);
-        }
-        Ok((pair, prepared_updates))
+        Ok((pair, updates))
     }
 
     fn validate_internal_cash_pair_currency_update(
@@ -5547,12 +5543,17 @@ impl ActivityServiceTrait for ActivityService {
         request: InternalTransferPairRequest,
     ) -> Result<Vec<ActivitySplitEffect>> {
         let values = self.validate_internal_pair_request(&request)?;
-        let (_, updates) = self
-            .prepare_internal_pair_updates(&request, &values)
-            .await?;
+        let (_, updates) = self.build_internal_pair_update_inputs(&request, &values)?;
         updates
-            .iter()
-            .map(|update| self.activity_repository.preview_split_effect(update))
+            .into_iter()
+            .map(|update| {
+                let existing = self.activity_repository.get_activity(&update.id)?;
+                // Cash pair inputs have no asset. This existing pure path shares
+                // save normalization without registering proposed FX currencies.
+                let preview = self.preview_prepared_update(update, existing)?;
+                self.activity_repository
+                    .preview_split_effect(&preview.update)
+            })
             .collect()
     }
 
@@ -5686,9 +5687,11 @@ impl ActivityServiceTrait for ActivityService {
         let mut old_activities: Vec<Activity> = Vec::new();
 
         let persisted = if is_update {
-            let (pair, prepared_updates) = self
-                .prepare_internal_pair_updates(&request, &pair_values)
-                .await?;
+            let (pair, updates) = self.build_internal_pair_update_inputs(&request, &pair_values)?;
+            let mut prepared_updates = Vec::new();
+            for update in updates {
+                prepared_updates.push(self.prepare_update_activity(update).await?);
+            }
 
             for activity in [&pair.transfer_out, &pair.transfer_in] {
                 Self::add_activity_to_event_sets(

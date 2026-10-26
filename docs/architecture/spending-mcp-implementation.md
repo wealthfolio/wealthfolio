@@ -391,7 +391,7 @@ write. This adds no endpoint, state persistence or change to accounting rules.
 ### Internal transfer pair review
 
 The dedicated internal cash-transfer form also reviews both existing legs before
-saving. Its preview and commit share the same core preparation helper, including
+saving. Its preview and commit share the same core pair-input builder, including
 cash amount/currency normalization, source-record date/note precedence and
 valuation-rate patches. The optional `splitReview` on the pair request is
 forwarded to both existing updates and checked by the same SQLite writer.
@@ -413,4 +413,12 @@ success.
 Regression tests cover both-leg confirmation and cancellation without writes,
 read-only previews, missing and stale proofs rolling back both legs/splits and
 outbox, and reclassified broker pair responses. Existing source-date, amount, FX
-and account-change service tests exercise the shared preparation helper.
+and account-change service tests exercise the shared pair-input builder.
+
+The third cross-review found that full save preparation could register a newly
+proposed FX currency during preview. A new core regression reproduced that
+registration before the fix. Pair review now uses the existing pure preview
+normalization after shared pair-input construction; it cannot reach FX
+registration. A foreign-currency native HTTP regression asserts no new FX asset,
+activity mutation or outbox work, while the core regression checks no FX
+registration/events during preview and retains registration/events on commit.

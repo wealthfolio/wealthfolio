@@ -5131,6 +5131,38 @@ async fn internal_transfer_pair_reviews_match_commits_and_reject_stale_legs_atom
             (rows, splits, outbox)
         };
         let original = snapshot();
+        // A new currency belongs only to the proposed edit. Cancelling its
+        // review must not register an FX asset, queue sync or mutate either leg.
+        let fx_assets = || -> i64 {
+            db.query_row(
+                "SELECT COUNT(*) FROM assets WHERE instrument_key='FX:JPY/EUR'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap()
+        };
+        assert_eq!(fx_assets(), 0);
+        let mut foreign_preview = request.clone();
+        foreign_preview["destinationCurrency"] = serde_json::json!("JPY");
+        let foreign_effects = api_post(
+            &server,
+            &cookie,
+            "activities/transfer-pair/split-effects",
+            foreign_preview,
+        )
+        .await;
+        assert_eq!(foreign_effects.as_array().unwrap().len(), 2);
+        assert_eq!(
+            fx_assets(),
+            0,
+            "Read-only review must not register a proposed currency"
+        );
+        assert_eq!(
+            snapshot(),
+            original,
+            "Foreign-currency preview must not enqueue outbox work or write activities"
+        );
+
         let effects = api_post(
             &server,
             &cookie,
