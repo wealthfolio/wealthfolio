@@ -64,6 +64,7 @@ import {
   TAXONOMY_ID_TO_SPEND_CATEGORY_KIND,
 } from "../adapters/shared/spending";
 import type {
+  ActivityUpdate as SDKActivityUpdate,
   ActivityType,
   CategorizationRule as SDKCategorizationRule,
   CategorizationRuleInput,
@@ -352,6 +353,37 @@ export function createPermissionGuard(
   };
 }
 
+// Native update controls are not addon capabilities. Keep this projection
+// explicit when the native DTO grows; `notes` is a legacy alias for `comment`.
+const ADDON_ACTIVITY_UPDATE_FIELDS = new Set<string>([
+  "id",
+  "accountId",
+  "activityType",
+  "subtype",
+  "activityDate",
+  "sourceGroupId",
+  "asset",
+  "symbol",
+  "quantity",
+  "unitPrice",
+  "amount",
+  "currency",
+  "fee",
+  "tax",
+  "status",
+  "needsReview",
+  "comment",
+  "notes",
+  "fxRate",
+  "metadata",
+] satisfies (keyof SDKActivityUpdate | "notes")[]);
+
+function addonActivityUpdate(input: ActivityUpdate): ActivityUpdate {
+  return Object.fromEntries(
+    Object.entries(input).filter(([key]) => ADDON_ACTIVITY_UPDATE_FIELDS.has(key)),
+  ) as unknown as ActivityUpdate;
+}
+
 function guardNamespace<T extends Record<string, unknown>>(
   namespace: T,
   category: string,
@@ -514,11 +546,17 @@ export function createSDKHostAPIBridge(
       getAll: internalAPI.getActivities,
       search: internalAPI.searchActivities,
       create: internalAPI.createActivity,
-      update: internalAPI.updateActivity,
-      saveMany: (input: ActivityUpdate[] | ActivityBulkMutationRequest) =>
-        Array.isArray(input)
-          ? internalAPI.saveActivities({ updates: input })
-          : internalAPI.saveActivities(input),
+      update: (input: ActivityUpdate) => internalAPI.updateActivity(addonActivityUpdate(input)),
+      saveMany: (input: ActivityUpdate[] | ActivityBulkMutationRequest) => {
+        const request = Array.isArray(input) ? { updates: input } : input;
+        return internalAPI.saveActivities({
+          ...(request.creates === undefined ? {} : { creates: request.creates }),
+          ...(request.updates === undefined
+            ? {}
+            : { updates: request.updates.map(addonActivityUpdate) }),
+          ...(request.deleteIds === undefined ? {} : { deleteIds: request.deleteIds }),
+        });
+      },
       import: (activities: ActivityImport[]) => internalAPI.importActivities({ activities }),
       checkImport: (activities: ActivityImport[]) =>
         internalAPI.checkActivitiesImport({ activities }),

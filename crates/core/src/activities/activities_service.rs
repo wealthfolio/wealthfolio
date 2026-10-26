@@ -2150,6 +2150,17 @@ impl ActivityService {
             return Ok(None);
         };
 
+        if let Some(counterpart_id) = &update.unlink_transfer_pair_id {
+            if counterpart_id != &counterpart.id {
+                return Err(Self::invalid_activity_data(
+                    "Transfer pair changed; refresh before editing",
+                ));
+            }
+            // Unlinking changes only link metadata on this leg. It must never
+            // enter financial preparation or projection (including type overrides).
+            return Ok(None);
+        }
+
         // Lifecycle fields are pair-level actions, but only deliberate
         // transitions travel: the grid echoes the primary's current status on
         // every save, and an ordinary edit must not disturb the counterpart's
@@ -2174,7 +2185,7 @@ impl ActivityService {
             id: counterpart.id.clone(),
             account_id: counterpart.account_id.clone(),
             asset: Self::activity_asset_input(counterpart),
-            activity_type: counterpart.activity_type.clone(),
+            activity_type: counterpart.effective_type().to_string(),
             subtype: None,
             activity_date: update.activity_date.clone(),
             quantity: None,
@@ -2189,20 +2200,6 @@ impl ActivityService {
             fx_rate: None,
             metadata: None,
         };
-
-        if let Some(counterpart_id) = &update.unlink_transfer_pair_id {
-            if counterpart_id != &counterpart.id {
-                return Err(Self::invalid_activity_data(
-                    "Transfer pair changed; refresh before editing",
-                ));
-            }
-            counterpart_update.unlink_transfer_pair_id = Some(existing.id.clone());
-            counterpart_update.activity_date = counterpart.activity_date.to_rfc3339();
-            counterpart_update.notes = counterpart.notes.clone();
-            counterpart_update.status = None;
-            counterpart_update.needs_review = None;
-            return Ok(Some(counterpart_update));
-        }
 
         if Self::transfer_pair_has_source_records(pair) {
             if !Self::transfer_pair_shares_date(pair) {
@@ -5247,22 +5244,24 @@ impl ActivityServiceTrait for ActivityService {
         }
         let prepared = self.prepare_update_activity(activity).await?;
 
-        if let Some(mut counterpart_update) = counterpart_update {
-            let counterpart_existing = self
-                .activity_repository
-                .get_activity(&counterpart_update.id)?;
-            self.hydrate_and_validate_update_against_existing(
-                &mut counterpart_update,
-                &counterpart_existing,
-            )?;
-            let prepared_counterpart = self.prepare_update_activity(counterpart_update).await?;
+        if let Some(pair) = pair {
+            let counterpart_id = if existing.id == pair.transfer_in.id {
+                &pair.transfer_out.id
+            } else {
+                &pair.transfer_in.id
+            };
+            let counterpart_existing = self.activity_repository.get_activity(counterpart_id)?;
+            let mut updates = vec![prepared.clone()];
+            if let Some(mut counterpart_update) = counterpart_update {
+                self.hydrate_and_validate_update_against_existing(
+                    &mut counterpart_update,
+                    &counterpart_existing,
+                )?;
+                updates.push(self.prepare_update_activity(counterpart_update).await?);
+            }
             let persisted = self
                 .activity_repository
-                .bulk_mutate_activities(
-                    Vec::new(),
-                    vec![prepared.clone(), prepared_counterpart],
-                    Vec::new(),
-                )
+                .bulk_mutate_activities(Vec::new(), updates, Vec::new())
                 .await?;
 
             let mut account_ids_set: HashSet<String> = HashSet::new();
@@ -5369,6 +5368,11 @@ impl ActivityServiceTrait for ActivityService {
         self.hydrate_and_validate_update_against_existing(&mut activity, &existing)?;
 
         let pair = self.load_internal_transfer_pair_for_activity(&activity.id)?;
+        if activity.unlink_transfer_pair_id.is_some() && pair.is_none() {
+            return Err(Self::invalid_activity_data(
+                "Transfer pair changed; refresh before editing",
+            ));
+        }
         let counterpart_update = match pair.as_ref() {
             Some(pair) => self.build_counterpart_update(&activity, &existing, pair)?,
             None => None,
@@ -5402,6 +5406,20 @@ impl ActivityServiceTrait for ActivityService {
             .map(|pair| self.build_counterpart_update(&activity, &existing, pair))
             .transpose()?
             .flatten();
+        let unlink_effect = match activity.unlink_transfer_pair_id.as_deref() {
+            Some(counterpart_id) => {
+                if pair.is_none() {
+                    return Err(Self::invalid_activity_data(
+                        "Transfer pair changed; refresh before editing",
+                    ));
+                }
+                Some(
+                    self.activity_repository
+                        .preview_unchanged_split_effect(counterpart_id)?,
+                )
+            }
+            None => None,
+        };
         // With no allocations on either leg, only capture state. Resolving a
         // new symbol or deriving its multiplier belongs to the existing write;
         // it cannot remove splits that are absent at this snapshot.
@@ -5421,6 +5439,7 @@ impl ActivityServiceTrait for ActivityService {
                         .preview_split_effect(&counterpart)?,
                 );
             }
+            effects.extend(unlink_effect);
             return Ok(effects);
         }
         // Account/type changes already invalidate splits in the financial
@@ -5453,6 +5472,7 @@ impl ActivityServiceTrait for ActivityService {
                             .preview_split_effect(&preview.update)?,
                     );
                 }
+                effects.extend(unlink_effect);
                 return Ok(effects);
             }
         }
@@ -5480,6 +5500,7 @@ impl ActivityServiceTrait for ActivityService {
                     .preview_split_effect(&linked.update)?,
             );
         }
+        effects.extend(unlink_effect);
         Ok(effects)
     }
 

@@ -777,3 +777,133 @@ describe("Spending integration grant separation", () => {
     );
   });
 });
+
+describe("addon activity update payload boundary", () => {
+  it.each(["update", "array", "object"] as const)(
+    "does not forward native controls through %s with only that method granted",
+    async (shape) => {
+      const updateActivity = vi.fn().mockResolvedValue({ id: "a" });
+      const saveActivities = vi.fn().mockResolvedValue({ updated: [] });
+      const unlinkTransferActivities = vi.fn();
+      const method = shape === "update" ? "update" : "saveMany";
+      const guard = createPermissionGuard("limited-addon", [
+        {
+          category: "activities",
+          purpose: "Edit transactions",
+          functions: [{ name: method, isDeclared: true, isDetected: false }],
+        },
+      ]);
+      const api = createSDKHostAPIBridge(
+        { updateActivity, saveActivities, unlinkTransferActivities } as unknown as InternalHostAPI,
+        "limited-addon",
+        guard,
+      );
+      const input = {
+        id: "a",
+        accountId: "account",
+        activityType: "TRANSFER_OUT",
+        activityDate: "2026-04-01",
+        currency: "USD",
+        amount: "25",
+        comment: "Edited",
+        notes: "Legacy alias",
+        asset: {},
+        metadata: { flow: { is_external: true } },
+        unlinkTransferPairId: "b",
+        splitReview: [],
+        futureNativeControl: true,
+      };
+      expect(() => api.activities.unlinkTransfer("a", "b")).toThrow("activities.unlinkTransfer");
+      if (shape === "update") await api.activities.update(input);
+      else if (shape === "array") await api.activities.saveMany([input] as never);
+      else {
+        const request = {
+          updates: [input],
+          creates: [],
+          deleteIds: [],
+          futureNativeBatchControl: true,
+        };
+        await api.activities.saveMany(request);
+      }
+      const forwarded =
+        shape === "update"
+          ? updateActivity.mock.calls[0][0]
+          : saveActivities.mock.calls[0][0].updates[0];
+      expect(forwarded).toEqual({
+        id: "a",
+        accountId: "account",
+        activityType: "TRANSFER_OUT",
+        activityDate: "2026-04-01",
+        currency: "USD",
+        amount: "25",
+        comment: "Edited",
+        notes: "Legacy alias",
+        asset: {},
+        metadata: { flow: { is_external: true } },
+      });
+      if (shape !== "update") {
+        expect(saveActivities.mock.calls[0][0]).toEqual(
+          shape === "array"
+            ? { updates: [forwarded] }
+            : { updates: [forwarded], creates: [], deleteIds: [] },
+        );
+      }
+      expect(input.unlinkTransferPairId).toBe("b");
+      expect(unlinkTransferActivities).not.toHaveBeenCalled();
+    },
+  );
+});
+
+it("preserves SDK update values, legacy aliases, and bulk create/delete requests", async () => {
+  const updateActivity = vi.fn().mockResolvedValue({ id: "a" });
+  const saveActivities = vi.fn().mockResolvedValue({ updated: [] });
+  const api = createSDKHostAPIBridge(
+    { updateActivity, saveActivities } as unknown as InternalHostAPI,
+    "addon",
+    createPermissionGuard("addon", [
+      {
+        category: "activities",
+        purpose: "Manage transactions",
+        functions: ["update", "saveMany"].map((name) => ({
+          name,
+          isDeclared: true,
+          isDetected: false,
+        })),
+      },
+    ]),
+  );
+  const update = {
+    id: "a",
+    accountId: "account",
+    activityType: "BUY",
+    activityDate: new Date("2026-04-01T12:00:00Z"),
+    currency: "EUR",
+    sourceGroupId: "legacy-group",
+    symbol: { symbol: "IBM" },
+    subtype: null,
+    quantity: "1.234567890123456789",
+    unitPrice: "10",
+    amount: null,
+    fee: 0,
+    tax: null,
+    fxRate: "1.1",
+    needsReview: true,
+    status: "POSTED" as const,
+    comment: "Comment",
+    notes: "Legacy notes",
+    metadata: { original: "value" },
+  };
+  await api.activities.update(update);
+  expect(updateActivity).toHaveBeenCalledExactlyOnceWith(update);
+  const creates = [
+    {
+      accountId: "account",
+      activityType: "DEPOSIT" as const,
+      activityDate: "2026-04-01",
+      currency: "USD",
+      amount: "5",
+    },
+  ];
+  await api.activities.saveMany({ creates, deleteIds: ["old"] });
+  expect(saveActivities).toHaveBeenCalledExactlyOnceWith({ creates, deleteIds: ["old"] });
+});

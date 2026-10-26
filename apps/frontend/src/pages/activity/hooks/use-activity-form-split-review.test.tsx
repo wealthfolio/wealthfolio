@@ -4,7 +4,7 @@ import { beforeEach, it, expect, vi } from "vitest";
 import { useActivityForm } from "./use-activity-form";
 import { ActivitySplitReviewProvider } from "@/features/spending/components/activity-split-review-provider";
 import { ActivityType } from "@/lib/constants";
-import type { ActivityDetails } from "@/lib/types";
+import type { ActivityDetails, ActivityUpdate } from "@/lib/types";
 const mocks = vi.hoisted(() => ({
   reviewActivitiesSplitEffects: vi.fn(),
   updateActivity: vi.fn(),
@@ -72,16 +72,26 @@ function mount(transfer = false) {
 }
 beforeEach(() => {
   vi.clearAllMocks();
-  mocks.reviewActivitiesSplitEffects.mockResolvedValue([
-    [
+  mocks.reviewActivitiesSplitEffects.mockImplementation(async (updates: ActivityUpdate[]) =>
+    updates.map((update) => [
       {
-        activityId: "a",
+        activityId: update.id,
         removedSplits: 2,
         hasRetainedCategoryAssignment: false,
         fingerprint: "review",
       },
-    ],
-  ]);
+      ...(update.unlinkTransferPairId
+        ? [
+            {
+              activityId: update.unlinkTransferPairId,
+              removedSplits: 0,
+              hasRetainedCategoryAssignment: false,
+              fingerprint: "counterpart-review",
+            },
+          ]
+        : []),
+    ]),
+  );
   mocks.unlinkTransferActivities.mockResolvedValue({});
 });
 it("cancelling split removal leaves the desktop form neutral and saves nothing", async () => {
@@ -122,7 +132,14 @@ it("approving transfer externalization submits the unlink and edit with the same
       id: "a",
       amount: "25",
       unlinkTransferPairId: "b",
-      splitReview: [expect.objectContaining({ activityId: "a", fingerprint: "review" })],
+      splitReview: [
+        expect.objectContaining({ activityId: "a", fingerprint: "review" }),
+        expect.objectContaining({
+          activityId: "b",
+          fingerprint: "counterpart-review",
+          removedSplits: 0,
+        }),
+      ],
     }),
   );
   expect(mocks.unlinkTransferActivities).not.toHaveBeenCalled();

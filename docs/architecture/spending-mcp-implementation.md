@@ -300,12 +300,12 @@ Cancellation in the main desktop and mobile activity forms leaves the form open
 without an error toast or error state. Converting a linked transfer to external
 uses the transient `ActivityUpdate.unlinkTransferPairId` (the counterpart ID).
 Both legs are reviewed before any mutation. Core expands the edit into the
-existing bulk writer; SQLite validates the reciprocal pair, writes the edit,
-clears only the financially invalidated allocations, unlinks both legs and
-queues their final states in one existing transaction. Failure rolls back every
-write and outbox append. The untouched leg retains its amounts, date, notes,
-status, review flag and allocations. Standalone unlink and non-interactive
-callers keep their existing behavior.
+existing bulk writer; SQLite validates the pair and both review proofs, writes
+the edit, clears only the financially invalidated allocations, unlinks both legs
+and queues their final states in one existing transaction. Failure rolls back
+every write and outbox append. The untouched leg retains its amounts, date,
+notes, status, review flag and allocations. Standalone unlink and
+non-interactive callers keep their existing behavior.
 
 Stored splits from an earlier cashflow taxonomy stay visible in transaction
 rows. The split sheet explains these allocations and offers explicit clearing or
@@ -339,3 +339,44 @@ the previously opened transaction. The sheet now resets that state and hides
 category-edit controls when the current transaction has no taxonomy; the notice
 describes the inactive allocations without suggesting unsupported actions. The
 existing kept-screen editing regression remains covered.
+
+### Transfer provenance and addon boundary corrections
+
+Externalization now sends only the edited leg through financial preparation and
+projection. The counterpart is reviewed against its unchanged database state,
+then written only by the existing unlink helper inside the same transaction. Its
+raw type, effective override, lifecycle, financial fields and allocations remain
+intact. A stale counterpart proof rejects the entire edit before writes; missing
+proofs, duplicate edited legs, simultaneous counterpart edits and paired deletes
+are rejected. Both native single and bulk callers receive both final rows. An
+unchanged broker counterpart produces no user-patch outbox entry.
+
+Ordinary linked edits also preserve source classification: the mirrored update
+uses the effective type, and the shared writer preserves both raw type and
+override when that effective type is unchanged. Explicit broker reclassification
+and reset still follow the existing source-aware policy. This also preserves
+legacy manual overrides without normalizing their raw type or deleting splits.
+
+Addon `activities.update` and both `saveMany` signatures project update payloads
+onto the public SDK fields, preserving the legacy `notes` alias. Native review
+and unlink controls and unknown batch controls are not forwarded. Explicit
+`activities.unlinkTransfer` retains its separate function grant. The addon API
+reference and SDK release notes document exact decimal split strings and the
+change from 3.11.0 numeric output.
+
+**Architecture impact:** these corrections reuse the existing SQLite writer
+transaction, review fingerprint, unlink helper, events and outbox policy. They
+introduce no migration, persisted state, queue, worker, retry, synchronization
+primitive or network dependency. Provider settings, user-edit precedence and
+core accounting rules remain unchanged. The classification preservation applies
+to shared financial writes; the addon projection applies at the host boundary.
+
+Regression coverage includes 96 native HTTP combinations of edited/counterpart
+manual or broker provenance, both transfer directions, three split-presence
+states, unlink or ordinary edits, and single or bulk saves. Assertions compare
+all counterpart database fields, allocations, stale-review rollback and broker
+patch absence. Additional negative tests cover malformed paired requests; addon
+tests cover each grant and payload signature, public-field compatibility,
+unknown controls and input immutability. These tests reproduced the reported
+loss and scope bypass before the fixes. Cross-device replay of the combined edit
+remains covered only indirectly by the existing writer/outbox tests.

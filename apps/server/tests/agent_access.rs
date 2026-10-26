@@ -4498,8 +4498,8 @@ async fn reviewed_external_transfer_edit_is_atomic_and_preserves_the_other_legs_
     assert_eq!(review[0][0]["removedSplits"], 1);
     assert_eq!(review[0][1]["removedSplits"], 0);
     update["splitReview"] = review[0].clone();
-    // Change only the other leg after review. Its guard runs after the primary
-    // write inside the transaction: failure must roll back that write and outbox.
+    // Change only the other leg after review. Its guard is checked inside the
+    // transaction: failure must leave both legs, allocations and outbox unchanged.
     db.execute(
         "UPDATE activities SET notes='Changed counterpart' WHERE id=?1",
         [incoming["id"].as_str().unwrap()],
@@ -4636,4 +4636,426 @@ async fn reviewed_external_transfer_edit_is_atomic_and_preserves_the_other_legs_
         remaining,
         vec![incoming["id"].as_str().unwrap().to_string()]
     );
+}
+
+#[tokio::test]
+async fn transfer_edits_preserve_classification_and_unlink_only_counterpart_fields() {
+    let server = spawn_server(true, false).await;
+    let cookie = login(&server).await;
+    let (cash, _, category, _, _) = category_save_fixture(&server, &cookie).await;
+    let destination = create_eur_account(&server, &cookie, "Counterpart preservation").await;
+    let profile = api_post(
+        &server,
+        &cookie,
+        "profiles/get_profile_state",
+        serde_json::json!({}),
+    )
+    .await;
+    let path = server
+        ._tmp
+        .path()
+        .join("profiles")
+        .join(profile["session"]["profileId"].as_str().unwrap())
+        .join("app.db");
+    let db = wealthfolio_storage_sqlite::db::DbAccess::plaintext(path.to_str().unwrap())
+        .connect_rusqlite()
+        .unwrap();
+    db.execute(
+        "UPDATE accounts SET provider_account_id='preservation-provider' WHERE id=?1",
+        [destination["id"].as_str().unwrap()],
+    )
+    .unwrap();
+    let database_rows = |sql: &str, id: &str| -> Vec<serde_json::Value> {
+        let mut statement = db.prepare(sql).unwrap();
+        let columns: Vec<String> = statement
+            .column_names()
+            .iter()
+            .map(|name| name.to_string())
+            .collect();
+        statement
+            .query_map([id], |row| {
+                let mut object = serde_json::Map::new();
+                for (index, name) in columns.iter().enumerate() {
+                    let value = row.get_ref(index)?;
+                    let value = if let Ok(value) = value.as_str() {
+                        serde_json::json!(value)
+                    } else if let Ok(value) = value.as_i64() {
+                        serde_json::json!(value)
+                    } else if let Ok(value) = value.as_f64() {
+                        serde_json::json!(value)
+                    } else {
+                        serde_json::Value::Null
+                    };
+                    object.insert(name.clone(), value);
+                }
+                Ok(serde_json::Value::Object(object))
+            })
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap()
+    };
+    db.execute(
+        "UPDATE accounts SET provider_account_id='preservation-primary-provider' WHERE id=?1",
+        [cash["id"].as_str().unwrap()],
+    )
+    .unwrap();
+    let mut case = 0;
+    for unlink in [true, false] {
+        for (edited_broker, broker) in [(false, true), (false, false), (true, false), (true, true)]
+        {
+            for primary_type in ["TRANSFER_OUT", "TRANSFER_IN"] {
+                for allocations in ["both", "counterpart", "none"] {
+                    for bulk in [false, true] {
+                        case += 1;
+                        let activity_date = (chrono::NaiveDate::from_ymd_opt(2026, 4, 1).unwrap()
+                            + chrono::Duration::days(case))
+                        .format("%Y-%m-%dT12:00:00Z")
+                        .to_string();
+                        let other_type = if primary_type == "TRANSFER_OUT" {
+                            "TRANSFER_IN"
+                        } else {
+                            "TRANSFER_OUT"
+                        };
+                        let primary = api_post(&server, &cookie, "activities", serde_json::json!({
+                        "accountId":cash["id"],"activityType":primary_type,"activityDate":activity_date,"currency":"EUR","amount":"12.50","metadata":"{\"flow\":{\"is_external\":true}}"
+                    })).await;
+                        let other = api_post(&server, &cookie, "activities", serde_json::json!({
+                        "accountId":destination["id"],"activityType":other_type,"activityDate":activity_date,"currency":"EUR","amount":"12.50","metadata":"{\"flow\":{\"is_external\":true}}"
+                    })).await;
+                        let primary_id = primary["id"].as_str().unwrap();
+                        let other_id = other["id"].as_str().unwrap();
+                        api_post(
+                            &server,
+                            &cookie,
+                            "activities/link",
+                            serde_json::json!({"activityAId":primary_id,"activityBId":other_id}),
+                        )
+                        .await;
+                        if edited_broker {
+                            let primary_raw = if primary_type == "TRANSFER_IN" {
+                                "DEPOSIT"
+                            } else {
+                                "WITHDRAWAL"
+                            };
+                            db.execute("UPDATE activities SET activity_type=?1,activity_type_override=?2,source_system='SNAPTRADE',source_record_id=?3 WHERE id=?4",[primary_raw,primary_type,format!("primary-record-{case}").as_str(),primary_id]).unwrap();
+                        }
+                        // Reclassified broker and manual rows must retain BOTH raw and effective types.
+                        let record_id = format!("preservation-record-{case}");
+                        let raw = if other_type == "TRANSFER_IN" {
+                            "DEPOSIT"
+                        } else {
+                            "WITHDRAWAL"
+                        };
+                        db.execute("UPDATE activities SET activity_type=?1,activity_type_override=?2,source_system=?3,source_record_id=?4,notes='Counterpart note',status='DRAFT',needs_review=1,fee='0.10',tax='0.20' WHERE id=?5", [Some(raw),Some(other_type),Some(if broker {"SNAPTRADE"} else {"MANUAL"}),if broker {Some(record_id.as_str())} else {None},Some(other_id)]).unwrap();
+                        for (id, include) in [
+                            (primary_id, allocations == "both"),
+                            (other_id, allocations != "none"),
+                        ] {
+                            if include {
+                                db.execute("INSERT INTO spending_activity_splits(id,activity_id,taxonomy_id,category_id,amount,note,sort_order,created_at,updated_at) VALUES(?1,?2,'spending_categories',?3,'12.50','Keep allocation',0,'2026-04-01','2026-04-01')",[format!("preserve-{case}-{id}").as_str(),id,category.as_str()]).unwrap();
+                            }
+                        }
+                        let mut update = serde_json::json!({"id":primary_id,"accountId":cash["id"],"activityType":primary_type,"activityDate":activity_date,"currency":"EUR","amount":"25","notes":"Primary edit","unlinkTransferPairId":other_id,"metadata":"{\"flow\":{\"is_external\":true}}"});
+                        if !unlink {
+                            let object = update.as_object_mut().unwrap();
+                            object.remove("unlinkTransferPairId");
+                            object.remove("metadata");
+                            update["amount"] = serde_json::json!("12.50");
+                        }
+                        let review = api_post(
+                            &server,
+                            &cookie,
+                            "activities/split-effects",
+                            serde_json::json!([update.clone()]),
+                        )
+                        .await;
+                        update["splitReview"] = review[0].clone();
+                        let primary_before =
+                            database_rows("SELECT * FROM activities WHERE id=?1", primary_id);
+                        let splits_before = database_rows(
+                            "SELECT * FROM spending_activity_splits WHERE activity_id=?1",
+                            other_id,
+                        );
+                        db.execute(
+                            "UPDATE activities SET notes='Concurrent counterpart edit' WHERE id=?1",
+                            [other_id],
+                        )
+                        .unwrap();
+                        let counterpart_before =
+                            database_rows("SELECT * FROM activities WHERE id=?1", other_id);
+                        let before_rowid: i64 = db
+                            .query_row(
+                                "SELECT COALESCE(MAX(rowid),0) FROM sync_outbox",
+                                [],
+                                |row| row.get(0),
+                            )
+                            .unwrap();
+                        let request = if bulk {
+                            server
+                                .client
+                                .post(format!("{}/api/v1/activities/bulk", server.base))
+                                .json(&serde_json::json!({"updates":[update.clone()]}))
+                        } else {
+                            server
+                                .client
+                                .put(format!("{}/api/v1/activities", server.base))
+                                .json(&update)
+                        };
+                        let response = request
+                            .header(header::COOKIE, format!("wf_session={cookie}"))
+                            .send()
+                            .await
+                            .unwrap();
+                        let status = response.status();
+                        let body: serde_json::Value = response.json().await.unwrap();
+                        assert!(
+                            !status.is_success()
+                                || body["errors"]
+                                    .as_array()
+                                    .is_some_and(|rows| !rows.is_empty()),
+                            "stale counterpart must reject {case}"
+                        );
+                        assert_eq!(
+                            database_rows("SELECT * FROM activities WHERE id=?1", primary_id),
+                            primary_before
+                        );
+                        assert_eq!(
+                            database_rows(
+                                "SELECT * FROM spending_activity_splits WHERE activity_id=?1",
+                                other_id
+                            ),
+                            splits_before
+                        );
+                        assert_eq!(
+                            db.query_row(
+                                "SELECT COUNT(*) FROM sync_outbox WHERE rowid>?1",
+                                [before_rowid],
+                                |row| row.get::<_, i64>(0)
+                            )
+                            .unwrap(),
+                            0
+                        );
+                        let review = api_post(
+                            &server,
+                            &cookie,
+                            "activities/split-effects",
+                            serde_json::json!([update.clone()]),
+                        )
+                        .await;
+                        update["splitReview"] = review[0].clone();
+                        if bulk {
+                            let result = api_post(
+                                &server,
+                                &cookie,
+                                "activities/bulk",
+                                serde_json::json!({"updates":[update]}),
+                            )
+                            .await;
+                            assert_eq!(result["errors"], serde_json::json!([]));
+                            assert_eq!(result["updated"].as_array().unwrap().len(), 2);
+                        } else {
+                            api_put(&server, &cookie, "activities", update).await;
+                        }
+                        let mut expected = counterpart_before[0].clone();
+                        let mut actual =
+                            database_rows("SELECT * FROM activities WHERE id=?1", other_id)
+                                .remove(0);
+                        assert_eq!(actual["source_group_id"].is_null(), unlink);
+                        if !unlink {
+                            assert_eq!(actual["source_group_id"], expected["source_group_id"]);
+                        }
+                        if !unlink && !edited_broker && !broker {
+                            expected["notes"] = serde_json::json!("Primary edit");
+                        }
+                        assert_eq!(actual["is_user_modified"], 1);
+                        let mut expected_metadata: serde_json::Value =
+                            serde_json::from_str(expected["metadata"].as_str().unwrap()).unwrap();
+                        if unlink {
+                            expected_metadata["flow"]["is_external"] = serde_json::json!(true);
+                        }
+                        assert_eq!(
+                            serde_json::from_str::<serde_json::Value>(
+                                actual["metadata"].as_str().unwrap()
+                            )
+                            .unwrap(),
+                            expected_metadata
+                        );
+                        for field in [
+                            "source_group_id",
+                            "metadata",
+                            "updated_at",
+                            "is_user_modified",
+                        ] {
+                            expected.as_object_mut().unwrap().remove(field);
+                            actual.as_object_mut().unwrap().remove(field);
+                        }
+                        assert_eq!(
+                            actual, expected,
+                            "unlink-only counterpart changed in case {case}"
+                        );
+                        assert_eq!(
+                            database_rows(
+                                "SELECT * FROM spending_activity_splits WHERE activity_id=?1",
+                                other_id
+                            ),
+                            splits_before
+                        );
+                        assert_eq!(
+                            review[0]
+                                .as_array()
+                                .unwrap()
+                                .iter()
+                                .find(|effect| effect["activityId"] == other_id)
+                                .unwrap()["removedSplits"],
+                            0
+                        );
+                        let primary_after =
+                            database_rows("SELECT * FROM activities WHERE id=?1", primary_id)
+                                .remove(0);
+                        assert_eq!(primary_after["source_group_id"].is_null(), unlink);
+                        assert_eq!(
+                            primary_after["activity_type"],
+                            primary_before[0]["activity_type"]
+                        );
+                        assert_eq!(
+                            primary_after["activity_type_override"],
+                            primary_before[0]["activity_type_override"]
+                        );
+                        assert_eq!(
+                            primary_after["amount"]
+                                .as_str()
+                                .unwrap()
+                                .parse::<rust_decimal::Decimal>()
+                                .unwrap(),
+                            if unlink {
+                                rust_decimal::Decimal::from(25)
+                            } else {
+                                "12.50".parse::<rust_decimal::Decimal>().unwrap()
+                            }
+                        );
+                        assert_eq!(
+                        db.query_row(
+                            "SELECT COUNT(*) FROM spending_activity_splits WHERE activity_id=?1",
+                            [primary_id],
+                            |row| row.get::<_, i64>(0)
+                        )
+                        .unwrap(),
+                        if !unlink && allocations=="both" { 1 } else { 0 }
+                    );
+                        if broker {
+                            assert_eq!(db.query_row("SELECT COUNT(*) FROM sync_outbox WHERE rowid>?1 AND entity='broker_activity_user_patch' AND json_extract(payload,'$.source_record_id')=?2",(before_rowid,record_id.as_str()),|row|row.get::<_,i64>(0)).unwrap(),0);
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[tokio::test]
+async fn paired_unlink_rejects_unreviewed_or_ambiguous_requests_without_writes() {
+    let server = spawn_server(true, false).await;
+    let cookie = login(&server).await;
+    let (cash, _, _, _, _) = category_save_fixture(&server, &cookie).await;
+    let destination = create_eur_account(&server, &cookie, "Unlink request validation").await;
+    let primary = api_post(&server,&cookie,"activities",serde_json::json!({"accountId":cash["id"],"activityType":"TRANSFER_OUT","activityDate":"2026-04-02T12:00:00Z","currency":"EUR","amount":"12.50","metadata":"{\"flow\":{\"is_external\":true}}"})).await;
+    let other = api_post(&server,&cookie,"activities",serde_json::json!({"accountId":destination["id"],"activityType":"TRANSFER_IN","activityDate":"2026-04-02T12:00:00Z","currency":"EUR","amount":"12.50","metadata":"{\"flow\":{\"is_external\":true}}"})).await;
+    let primary_id = primary["id"].as_str().unwrap();
+    let other_id = other["id"].as_str().unwrap();
+    api_post(
+        &server,
+        &cookie,
+        "activities/link",
+        serde_json::json!({"activityAId":primary_id,"activityBId":other_id}),
+    )
+    .await;
+    let profile = api_post(
+        &server,
+        &cookie,
+        "profiles/get_profile_state",
+        serde_json::json!({}),
+    )
+    .await;
+    let path = server
+        ._tmp
+        .path()
+        .join("profiles")
+        .join(profile["session"]["profileId"].as_str().unwrap())
+        .join("app.db");
+    let db = wealthfolio_storage_sqlite::db::DbAccess::plaintext(path.to_str().unwrap())
+        .connect_rusqlite()
+        .unwrap();
+    let snapshot = || {
+        db.prepare("SELECT json_object('id',id,'group',source_group_id,'amount',amount,'notes',notes,'metadata',metadata,'updated',updated_at) FROM activities WHERE id IN (?1,?2) ORDER BY id").unwrap().query_map([primary_id,other_id],|row|row.get::<_,String>(0)).unwrap().collect::<Result<Vec<_>,_>>().unwrap()
+    };
+    let before = snapshot();
+    let outbox_before: i64 = db
+        .query_row("SELECT COUNT(*) FROM sync_outbox", [], |row| row.get(0))
+        .unwrap();
+    let unreviewed = serde_json::json!({"id":primary_id,"accountId":cash["id"],"activityType":"TRANSFER_OUT","activityDate":"2026-04-02T12:00:00Z","currency":"EUR","amount":"25","unlinkTransferPairId":other_id,"metadata":"{\"flow\":{\"is_external\":true}}"});
+    let review = api_post(
+        &server,
+        &cookie,
+        "activities/split-effects",
+        serde_json::json!([unreviewed.clone()]),
+    )
+    .await;
+    assert_eq!(review[0].as_array().unwrap().len(), 2);
+    let mut reviewed = unreviewed.clone();
+    reviewed["splitReview"] = review[0].clone();
+    let mut missing_other = reviewed.clone();
+    missing_other["splitReview"] = serde_json::json!([review[0][0]]);
+    let mut duplicate_other = reviewed.clone();
+    duplicate_other["splitReview"]
+        .as_array_mut()
+        .unwrap()
+        .push(review[0][1].clone());
+    for update in [unreviewed, missing_other, duplicate_other] {
+        let response = server
+            .client
+            .put(format!("{}/api/v1/activities", server.base))
+            .header(header::COOKIE, format!("wf_session={cookie}"))
+            .json(&update)
+            .send()
+            .await
+            .unwrap();
+        assert!(!response.status().is_success());
+        assert_eq!(snapshot(), before);
+        assert_eq!(
+            db.query_row("SELECT COUNT(*) FROM sync_outbox", [], |row| row
+                .get::<_, i64>(0))
+                .unwrap(),
+            outbox_before
+        );
+    }
+    let other_update = serde_json::json!({"id":other_id,"accountId":destination["id"],"activityType":"TRANSFER_IN","activityDate":"2026-04-02T12:00:00Z","currency":"EUR","amount":"99"});
+    for request in [
+        serde_json::json!({"updates":[reviewed.clone(),reviewed.clone()]}),
+        serde_json::json!({"updates":[reviewed.clone(),other_update]}),
+        serde_json::json!({"updates":[reviewed],"deleteIds":[other_id]}),
+    ] {
+        let response = server
+            .client
+            .post(format!("{}/api/v1/activities/bulk", server.base))
+            .header(header::COOKIE, format!("wf_session={cookie}"))
+            .json(&request)
+            .send()
+            .await
+            .unwrap();
+        let status = response.status();
+        let body: serde_json::Value = response.json().await.unwrap();
+        assert!(
+            !status.is_success()
+                || body["errors"]
+                    .as_array()
+                    .is_some_and(|errors| !errors.is_empty())
+        );
+        assert_eq!(snapshot(), before);
+        assert_eq!(
+            db.query_row("SELECT COUNT(*) FROM sync_outbox", [], |row| row
+                .get::<_, i64>(0))
+                .unwrap(),
+            outbox_before
+        );
+    }
 }

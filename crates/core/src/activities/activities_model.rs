@@ -677,7 +677,8 @@ pub struct ActivitySplitEffect {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ActivityUpdate {
-    /// Explicit paired unlink combined atomically with this financial edit.
+    /// ID of the other leg to unlink atomically with this financial edit.
+    /// That leg is unlink-only, with both legs reviewed before commit.
     /// Transient; never persisted. Sync/import callers omit it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub unlink_transfer_pair_id: Option<String>,

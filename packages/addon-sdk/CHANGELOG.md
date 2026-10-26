@@ -39,6 +39,15 @@ and this project adheres to
   then two greys. Its treemap ramps (`--heatmap-*`) are soft sage and rose in
   light mode and Flexoki green and red (50, 200 and 400) in dark. Addon charts
   that read them change colour in Classic.
+- `spending.searchCashActivities()` returns split amounts as exact decimal
+  strings, preserving replacement evidence without floating-point rounding.
+  Wealthfolio 3.11.0 returned numbers. The existing `string | number` SDK type
+  accepts both; JavaScript consumers must use explicit decimal arithmetic for
+  totals instead of adding raw values with `+`.
+- Activity updates sent through the addon bridge are projected onto the public
+  SDK fields (including the legacy `notes` alias). Native-only controls such as
+  `unlinkTransferPairId` are not forwarded by `update` or `saveMany`;
+  `activities.unlinkTransfer` retains its separate function grant.
 
 ## [3.11.0] - 2026-10-22
 

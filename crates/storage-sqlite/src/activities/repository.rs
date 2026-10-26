@@ -182,6 +182,7 @@ fn project_activity_update(
     let asset_patch_supplied = update.asset.is_some();
     let subtype_patch = update.subtype.clone();
     let existing_activity_type = existing.activity_type.clone();
+    let existing_activity_type_override = existing.activity_type_override.clone();
     let provider_account_id = provider_account_id_for_broker_activity(conn, existing)?;
     let existing = existing.clone();
     let mut activity_to_update: ActivityDB = update.clone().into();
@@ -259,9 +260,10 @@ fn project_activity_update(
         activity_to_update.metadata = metadata;
     }
     clear_invalid_source_group_for_external_transfer(conn, &mut activity_to_update)?;
-    preserve_broker_base_type(
+    preserve_source_classification(
         &mut activity_to_update,
         &existing_activity_type,
+        existing_activity_type_override.as_deref(),
         provider_account_id.as_deref(),
     );
     activity_to_update.activity_type_override =
@@ -352,11 +354,21 @@ fn clear_spending_splits_for_activity_tx(
     Ok(())
 }
 
-fn preserve_broker_base_type(
+fn preserve_source_classification(
     activity: &mut ActivityDB,
     existing_activity_type: &str,
+    existing_activity_type_override: Option<&str>,
     provider_account_id: Option<&str>,
 ) {
+    // Echoing the displayed type is not a reclassification. Keep both source
+    // facts intact, including legacy manual rows with a type override.
+    if activity.activity_type
+        == type_override(existing_activity_type_override).unwrap_or(existing_activity_type)
+    {
+        activity.activity_type = existing_activity_type.to_string();
+        activity.activity_type_override = existing_activity_type_override.map(str::to_string);
+        return;
+    }
     if broker_activity_identity(
         activity.source_system.as_deref(),
         provider_account_id,
@@ -1108,6 +1120,19 @@ impl ActivityRepositoryTrait for ActivityRepository {
         .map_err(Error::from)
     }
 
+    fn preview_unchanged_split_effect(&self, activity_id: &str) -> Result<ActivitySplitEffect> {
+        let mut conn = get_connection(&self.pool)?;
+        conn.transaction::<_, StorageError, _>(|conn| {
+            let before = activities::table
+                .select(ActivityDB::as_select())
+                .find(activity_id)
+                .first::<ActivityDB>(conn)
+                .map_err(StorageError::from)?;
+            split_effect(conn, &before, &before).map_err(StorageError::from)
+        })
+        .map_err(Error::from)
+    }
+
     async fn update_activity(&self, activity_update: ActivityUpdate) -> Result<Activity> {
         if activity_update.unlink_transfer_pair_id.is_some() {
             return Err(ActivityError::InvalidData(
@@ -1349,23 +1374,28 @@ impl ActivityRepositoryTrait for ActivityRepository {
                     if let Some(other_id) = &update.unlink_transfer_pair_id {
                         if delete_ids.contains(&update.id)
                             || delete_ids.contains(other_id)
-                            || !updates.iter().any(|other| {
-                                other.id == *other_id
-                                    && other.unlink_transfer_pair_id.as_deref()
-                                        == Some(update.id.as_str())
-                            })
+                            || updates.iter().any(|other| other.id == *other_id)
+                            || updates.iter().filter(|other| other.id == update.id).count() != 1
+                            || unlink_ids.contains(&update.id)
+                            || unlink_ids.contains(other_id)
+                            || update.split_review.is_none()
                         {
                             return Err(ActivityError::InvalidData(
-                                "Paired unlink requires both reviewed updates".into(),
+                                "Paired unlink requires one edited leg and review of both legs"
+                                    .into(),
                             )
                             .into());
                         }
-                        if !unlink_ids.contains(&update.id) {
-                            let pair = load_transfer_unlink_pair(tx.conn(), &update.id, other_id)?;
-                            unlink_ids.insert(pair.0.id.clone());
-                            unlink_ids.insert(pair.1.id.clone());
-                            unlink_pairs.push(pair);
-                        }
+                        let pair = load_transfer_unlink_pair(tx.conn(), &update.id, other_id)?;
+                        let counterpart = if pair.0.id == *other_id {
+                            &pair.0
+                        } else {
+                            &pair.1
+                        };
+                        validate_split_review(tx.conn(), counterpart, counterpart, update)?;
+                        unlink_ids.insert(pair.0.id.clone());
+                        unlink_ids.insert(pair.1.id.clone());
+                        unlink_pairs.push(pair);
                     }
                 }
                 let mut outcome = ActivityBulkMutationResult::default();
@@ -1490,6 +1520,8 @@ impl ActivityRepositoryTrait for ActivityRepository {
                         if let Some(row) = outcome.updated.iter_mut().find(|row| row.id == after.id)
                         {
                             *row = Activity::from(after.clone());
+                        } else {
+                            outcome.updated.push(Activity::from(after.clone()));
                         }
                     }
                 }

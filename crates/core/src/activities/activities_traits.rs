@@ -16,6 +16,10 @@ pub trait ActivityRepositoryTrait: Send + Sync {
     fn preview_split_effect(&self, _update: &ActivityUpdate) -> Result<ActivitySplitEffect> {
         Err(crate::activities::ActivityError::InvalidData("Split review unavailable".into()).into())
     }
+    /// Review an unlink-only counterpart without projecting a financial edit.
+    fn preview_unchanged_split_effect(&self, _activity_id: &str) -> Result<ActivitySplitEffect> {
+        Err(crate::activities::ActivityError::InvalidData("Split review unavailable".into()).into())
+    }
     fn get_activity(&self, activity_id: &str) -> Result<Activity>;
     fn get_activities(&self) -> Result<Vec<Activity>>;
     fn get_activities_by_ids(&self, activity_ids: &[String]) -> Result<Vec<Activity>> {
