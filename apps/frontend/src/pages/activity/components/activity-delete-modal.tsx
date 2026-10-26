@@ -16,6 +16,7 @@ export interface ActivityDeleteModalProps {
   isOpen?: boolean;
   isDeleting?: boolean;
   linkedTransfer?: boolean;
+  brokerSynced?: boolean;
   onConfirm: () => void;
   onCancel?: () => void;
 }
@@ -24,6 +25,7 @@ export function ActivityDeleteModal({
   isOpen,
   isDeleting,
   linkedTransfer,
+  brokerSynced,
   onConfirm,
   onCancel,
 }: ActivityDeleteModalProps) {
@@ -41,7 +43,9 @@ export function ActivityDeleteModal({
           <AlertDialogDescription className="max-sm:text-base">
             {linkedTransfer
               ? t("activity:delete_modal.linked_transfer_desc")
-              : t("activity:delete_modal.description")}
+              : brokerSynced
+                ? t("activity:delete_modal.broker_synced_desc")
+                : t("activity:delete_modal.description")}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
