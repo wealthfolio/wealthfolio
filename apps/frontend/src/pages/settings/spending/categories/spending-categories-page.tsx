@@ -235,12 +235,22 @@ export default function SpendingCategoriesPage() {
       }
     } else {
       const taxonomyId = parentCategory ? parentCategory.taxonomyId : activeTaxonomyId;
+      const categories =
+        taxonomyId === SPENDING_TAXONOMY
+          ? spending.data?.categories
+          : taxonomyId === INCOME_TAXONOMY
+            ? income.data?.categories
+            : savings.data?.categories;
+      const keys = new Set((categories ?? []).map((category) => category.key));
+      const baseKey = slugify(values.name) || `cat_${Date.now()}`;
+      let key = baseKey;
+      for (let suffix = 2; keys.has(key); suffix += 1) key = `${baseKey}_${suffix}`;
       try {
         await createCategory.mutateAsync({
           taxonomyId,
           parentId: parentCategory?.id ?? null,
           name: values.name,
-          key: slugify(values.name) || `cat_${Date.now()}`,
+          key,
           color: values.color ?? "#808080",
           sortOrder: 999,
           icon: values.icon ?? null,

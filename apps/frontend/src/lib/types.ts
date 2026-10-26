@@ -348,6 +348,7 @@ export interface ActivitySplitEffect {
 }
 
 export interface ActivityUpdate {
+  unlinkTransferPairId?: string;
   splitReview?: ActivitySplitEffect[];
   id: string;
   accountId: string;

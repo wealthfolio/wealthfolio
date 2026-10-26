@@ -414,6 +414,7 @@
     "customSubtitle": "선택한 기간의 거래"
   },
   "split": {
+    "staleTaxonomy": "이 분할에는 이전 카테고리 유형이 사용됩니다. 내용을 확인한 후 분할을 지우거나 교체하고 이 거래를 분류하세요.",
     "title": "거래 분할",
     "transactionFallback": "거래",
     "remainingOf": "{{amount}} 중 남은 금액",

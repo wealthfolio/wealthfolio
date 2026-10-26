@@ -439,6 +439,7 @@
     "customSubtitle": "Transactions sur la période sélectionnée"
   },
   "split": {
+    "staleTaxonomy": "Ces répartitions utilisent un ancien type de catégorie. Vérifiez-les, puis effacez-les ou remplacez-les avant de catégoriser cette transaction.",
     "title": "Ventiler la transaction",
     "transactionFallback": "Transaction",
     "remainingOf": "Restant sur {{amount}}",

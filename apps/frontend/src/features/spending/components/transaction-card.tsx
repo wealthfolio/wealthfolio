@@ -160,7 +160,7 @@ function TransactionCardImpl({
           <div className="text-muted-foreground text-2xs mt-0.5 flex items-center gap-1.5">
             <span className="shrink-0">{time}</span>
             <span aria-hidden="true">·</span>
-            {isNeutral ? (
+            {isNeutral && row.splitCount === 0 ? (
               <span className="shrink-0">{t("spending:transactions.neutral")}</span>
             ) : row.splitCount > 0 ? (
               <button type="button" className={INLINE} onClick={() => onEditSplits(row)}>

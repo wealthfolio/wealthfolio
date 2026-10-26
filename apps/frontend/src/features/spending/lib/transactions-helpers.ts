@@ -6,7 +6,6 @@ import {
   isCashActivityIncome,
 } from "./constants";
 import type {
-  ActivitySplit,
   ActivityTaxonomyAssignment,
   CashActivity,
   CurrencyNet,
@@ -147,9 +146,9 @@ export function toRowVM(
         (x: ActivityTaxonomyAssignment) => x.taxonomyId === expectedTaxonomy,
       )
     : undefined;
-  const splits = expectedTaxonomy
-    ? (item.splits ?? []).filter((x: ActivitySplit) => x.taxonomyId === expectedTaxonomy)
-    : [];
+  // All stored split rows are protected, including allocations from a previous
+  // cashflow bucket after an account/type edit. Keep their repair entry visible.
+  const splits = item.splits ?? [];
   const cat = asg ? allCategories.get(asg.categoryId) : undefined;
   const parent = cat?.parentId ? allCategories.get(cat.parentId) : undefined;
 

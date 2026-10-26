@@ -7,7 +7,9 @@ import type { CategoryNode } from "@/features/spending/components/category-item"
 import SpendingCategoriesPage from "./spending-categories-page";
 
 const mocks = vi.hoisted(() => ({
-  create: vi.fn<() => Promise<void>>(),
+  create:
+    vi.fn<(category: { key: string; name: string; parentId: string | null }) => Promise<void>>(),
+  name: "Travel",
   remove: vi.fn<() => Promise<void>>(),
   toast: { success: vi.fn(), error: vi.fn() },
 }));
@@ -25,7 +27,26 @@ vi.mock("@/hooks/use-taxonomies", () => ({
     data: {
       categories:
         taxonomyId === "spending_categories"
-          ? [{ id: "food", taxonomyId, name: "Food", parentId: null, sortOrder: 0 }]
+          ? [
+              { id: "food", taxonomyId, name: "Food", key: "food", parentId: null, sortOrder: 0 },
+              {
+                id: "travel",
+                taxonomyId,
+                name: "Travel",
+                key: "travel",
+                parentId: null,
+                sortOrder: 1,
+              },
+              { id: "misc", taxonomyId, name: "Misc", key: "misc", parentId: "food", sortOrder: 0 },
+              {
+                id: "misc-two",
+                taxonomyId,
+                name: "Misc",
+                key: "misc_2",
+                parentId: "food",
+                sortOrder: 1,
+              },
+            ]
           : [],
     },
     isLoading: false,
@@ -39,7 +60,7 @@ vi.mock("@/features/spending/components/category-edit-modal", () => ({
   CategoryEditModal: ({ open, onSave }: { open: boolean; onSave: (values: object) => void }) =>
     open ? (
       <div role="dialog">
-        <button type="button" onClick={() => onSave({ name: "Travel" })}>
+        <button type="button" onClick={() => onSave({ name: mocks.name })}>
           Save category
         </button>
       </div>
@@ -49,17 +70,27 @@ vi.mock("@/features/spending/components/category-item", () => ({
   CategoryItem: ({
     category,
     onDelete,
+    onAddSubcategory,
   }: {
     category: CategoryNode;
     onDelete: (category: CategoryNode) => void;
+    onAddSubcategory: (category: CategoryNode) => void;
   }) => (
-    <button type="button" onClick={() => onDelete(category)}>
-      Delete {category.name}
-    </button>
+    <>
+      <button type="button" onClick={() => onDelete(category)}>
+        Delete {category.name}
+      </button>
+      <button type="button" onClick={() => onAddSubcategory(category)}>
+        Add under {category.name}
+      </button>
+    </>
   ),
 }));
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+  mocks.name = "Travel";
+});
 
 // On a phone, a screen kept under another one is a hidden <Activity>.
 function renderKept() {
@@ -145,4 +176,21 @@ it("keeps the generic toast for other create failures", async () => {
   fireEvent.click(screen.getAllByRole("button", { name: "Add category" })[0]);
   fireEvent.click(screen.getByRole("button", { name: "Save category" }));
   await waitFor(() => expect(mocks.toast.error).toHaveBeenCalledWith("Failed to create category."));
+});
+
+it.each([
+  ["Food", "food_2"],
+  ["Misc", "misc_3"],
+])("creates a %s subcategory with a unique internal key", async (name, key) => {
+  mocks.name = name;
+  mocks.create.mockResolvedValue(undefined);
+  renderKept();
+  fireEvent.click(screen.getByRole("button", { name: "Add under Travel" }));
+  fireEvent.click(screen.getByRole("button", { name: "Save category" }));
+  await waitFor(() =>
+    expect(mocks.create).toHaveBeenCalledWith(
+      expect.objectContaining({ name, key, parentId: "travel" }),
+      expect.anything(),
+    ),
+  );
 });

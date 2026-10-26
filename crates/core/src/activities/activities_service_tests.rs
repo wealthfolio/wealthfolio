@@ -2042,6 +2042,7 @@ pub(crate) mod tests {
         currency: &str,
     ) -> ActivityUpdate {
         ActivityUpdate {
+            unlink_transfer_pair_id: None,
             split_review: None,
             id: id.to_string(),
             account_id: account_id.to_string(),
@@ -2170,6 +2171,7 @@ pub(crate) mod tests {
 
         let updated = activity_service
             .update_activity(ActivityUpdate {
+                unlink_transfer_pair_id: None,
                 split_review: None,
                 id: "activity-1".to_string(),
                 account_id: "acc-cad".to_string(),
@@ -2229,6 +2231,7 @@ pub(crate) mod tests {
 
         let updated = activity_service
             .update_activity(ActivityUpdate {
+                unlink_transfer_pair_id: None,
                 split_review: None,
                 id: "activity-recalc".to_string(),
                 account_id: "acc-usd".to_string(),
@@ -2301,6 +2304,7 @@ pub(crate) mod tests {
 
         let updated = activity_service
             .update_activity(ActivityUpdate {
+                unlink_transfer_pair_id: None,
                 split_review: None,
                 id: "activity-1".to_string(),
                 account_id: "acc-cad".to_string(),
@@ -2363,6 +2367,7 @@ pub(crate) mod tests {
 
         let updated = activity_service
             .update_activity(ActivityUpdate {
+                unlink_transfer_pair_id: None,
                 split_review: None,
                 id: "activity-mini".to_string(),
                 account_id: "acc-usd".to_string(),
@@ -2550,6 +2555,7 @@ pub(crate) mod tests {
 
         let updated = activity_service
             .update_activity(ActivityUpdate {
+                unlink_transfer_pair_id: None,
                 split_review: None,
                 id: "activity-swap".to_string(),
                 account_id: "acc-usd".to_string(),
@@ -2610,6 +2616,7 @@ pub(crate) mod tests {
 
         let updated = activity_service
             .update_activity(ActivityUpdate {
+                unlink_transfer_pair_id: None,
                 split_review: None,
                 id: "activity-tag".to_string(),
                 account_id: "acc-usd".to_string(),
@@ -2673,6 +2680,7 @@ pub(crate) mod tests {
 
         let updated = activity_service
             .update_activity(ActivityUpdate {
+                unlink_transfer_pair_id: None,
                 split_review: None,
                 id: "activity-meta".to_string(),
                 account_id: "acc-usd".to_string(),
@@ -2861,6 +2869,7 @@ pub(crate) mod tests {
 
         let updated = activity_service
             .update_activity(ActivityUpdate {
+                unlink_transfer_pair_id: None,
                 split_review: None,
                 id: "activity-1".to_string(),
                 account_id: "acc-usd".to_string(),
@@ -3029,6 +3038,7 @@ pub(crate) mod tests {
         );
 
         let update = ActivityUpdate {
+            unlink_transfer_pair_id: None,
             split_review: None,
             id: "deposit-draft".to_string(),
             account_id: "acc-usd".to_string(),
@@ -3077,6 +3087,7 @@ pub(crate) mod tests {
 
         let approved = activity_service
             .update_activity(ActivityUpdate {
+                unlink_transfer_pair_id: None,
                 split_review: None,
                 id: "deposit-draft".to_string(),
                 account_id: "acc-usd".to_string(),
@@ -3130,6 +3141,7 @@ pub(crate) mod tests {
 
         let approved = activity_service
             .update_activity(ActivityUpdate {
+                unlink_transfer_pair_id: None,
                 split_review: None,
                 id: "buy-custom".to_string(),
                 account_id: "acc-usd".to_string(),
@@ -3182,6 +3194,7 @@ pub(crate) mod tests {
 
         let updated = activity_service
             .update_activity(ActivityUpdate {
+                unlink_transfer_pair_id: None,
                 split_review: None,
                 id: "buy-edited".to_string(),
                 account_id: "acc-usd".to_string(),
@@ -3883,6 +3896,7 @@ pub(crate) mod tests {
 
         let updated = activity_service
             .update_activity(ActivityUpdate {
+                unlink_transfer_pair_id: None,
                 split_review: None,
                 id: "buy-custom-econ".to_string(),
                 account_id: "acc-usd".to_string(),
@@ -3936,6 +3950,7 @@ pub(crate) mod tests {
 
         let updated = activity_service
             .update_activity(ActivityUpdate {
+                unlink_transfer_pair_id: None,
                 split_review: None,
                 id: "buy-calc-econ".to_string(),
                 account_id: "acc-usd".to_string(),
@@ -3991,6 +4006,7 @@ pub(crate) mod tests {
 
         let updated = activity_service
             .update_activity(ActivityUpdate {
+                unlink_transfer_pair_id: None,
                 split_review: None,
                 id: "buy-fee-waived".to_string(),
                 account_id: "acc-usd".to_string(),
@@ -4046,6 +4062,7 @@ pub(crate) mod tests {
 
         let updated = activity_service
             .update_activity(ActivityUpdate {
+                unlink_transfer_pair_id: None,
                 split_review: None,
                 id: "buy-reviewed".to_string(),
                 account_id: "acc-usd".to_string(),
@@ -4101,6 +4118,7 @@ pub(crate) mod tests {
 
         let updated = activity_service
             .update_activity(ActivityUpdate {
+                unlink_transfer_pair_id: None,
                 split_review: None,
                 id: "buy-to-option".to_string(),
                 account_id: "acc-usd".to_string(),
@@ -13602,6 +13620,7 @@ pub(crate) mod tests {
             .bulk_mutate_activities(ActivityBulkMutationRequest {
                 creates: vec![],
                 updates: vec![ActivityUpdate {
+                    unlink_transfer_pair_id: None,
                     split_review: None,
                     id: "cash-activity".to_string(),
                     account_id: "acc-usd".to_string(),
@@ -15378,6 +15397,7 @@ pub(crate) mod tests {
         ]);
 
         let update = crate::activities::ActivityUpdate {
+            unlink_transfer_pair_id: None,
             split_review: None,
             id: "transfer-out".to_string(),
             account_id: "acc-out".to_string(),
@@ -15466,6 +15486,7 @@ pub(crate) mod tests {
 
         let updated = activity_service
             .update_activity(ActivityUpdate {
+                unlink_transfer_pair_id: None,
                 split_review: None,
                 id: "deposit-1".to_string(),
                 account_id: "acc-1".to_string(),
@@ -15534,6 +15555,7 @@ pub(crate) mod tests {
 
         activity_service
             .update_activity(crate::activities::ActivityUpdate {
+                unlink_transfer_pair_id: None,
                 split_review: None,
                 id: "transfer-out".to_string(),
                 account_id: "acc-out".to_string(),
@@ -15604,6 +15626,7 @@ pub(crate) mod tests {
 
         activity_service
             .update_activity(crate::activities::ActivityUpdate {
+                unlink_transfer_pair_id: None,
                 split_review: None,
                 id: "transfer-out".to_string(),
                 account_id: "acc-out".to_string(),
@@ -16501,6 +16524,7 @@ pub(crate) mod tests {
                 // A grid save echoes the edited leg's date and notes, even
                 // when the deliberate changes are amount and approval only.
                 let mut update = ActivityUpdate {
+                    unlink_transfer_pair_id: None,
                     split_review: None,
                     id: primary.id.clone(),
                     account_id: primary.account_id.clone(),
@@ -16620,6 +16644,7 @@ pub(crate) mod tests {
                     let counterpart = repository.get_activity(counterpart_id).unwrap();
                     let before = stored_snapshot(&repository);
                     let preview = service.preview_activity_update(ActivityUpdate {
+                        unlink_transfer_pair_id: None,
                         split_review: None,
                         id: primary.id.clone(),
                         account_id: primary.account_id.clone(),
@@ -17038,6 +17063,7 @@ pub(crate) mod tests {
         let before = stored_snapshot(&activity_repository);
 
         let update = ActivityUpdate {
+            unlink_transfer_pair_id: None,
             split_review: None,
             id: "pair-out".to_string(),
             account_id: "acc-a".to_string(),

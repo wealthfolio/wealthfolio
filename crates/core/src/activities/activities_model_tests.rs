@@ -648,6 +648,7 @@ mod tests {
 
     fn create_test_activity_update() -> ActivityUpdate {
         ActivityUpdate {
+            unlink_transfer_pair_id: None,
             split_review: None,
             id: "activity-1".to_string(),
             account_id: "account-1".to_string(),

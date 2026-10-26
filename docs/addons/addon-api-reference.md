@@ -868,7 +868,7 @@ Declare each exact function; existing addon grants are never widened.
 
 | Method                                         | Permission category | Behavior                                                                                                |
 | ---------------------------------------------- | ------------------- | ------------------------------------------------------------------------------------------------------- |
-| `getContext()`                                 | medium `spending`   | Enabled/availability state, effective opted-in account IDs, timezone, base currency and exclusions      |
+| `getContext()`                                 | medium `spending`   | Enabled state, effective opted-in account IDs and excluded category IDs                                 |
 | `getBudget(periodKey?)`                        | medium `spending`   | Pure native snapshot with groups, mappings, targets, rollovers and computed actuals; no default seeding |
 | `getEvents()` / `getEventTypes()`              | medium `spending`   | Existing event definitions/type metadata                                                                |
 | `assignCategory(activityId, kind, categoryId)` | high `activities`   | Native manual assignment; protects split rows and validates the cashflow taxonomy                       |

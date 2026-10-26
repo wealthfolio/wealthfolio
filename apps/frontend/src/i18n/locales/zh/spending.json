@@ -414,6 +414,7 @@
     "customSubtitle": "所选期间内的交易"
   },
   "split": {
+    "staleTaxonomy": "这些拆分使用之前的类别类型。请先检查并清除或替换它们，再对这笔交易进行分类。",
     "title": "拆分交易",
     "transactionFallback": "交易",
     "remainingOf": "剩余，共 {{amount}}",

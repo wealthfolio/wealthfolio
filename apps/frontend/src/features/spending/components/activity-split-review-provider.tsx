@@ -13,7 +13,7 @@ import {
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-class ActivityEditCancelled extends Error {
+export class ActivityEditCancelled extends Error {
   constructor() {
     super("Activity edit cancelled");
     this.name = "ActivityEditCancelled";

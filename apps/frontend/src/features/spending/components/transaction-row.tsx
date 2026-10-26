@@ -195,7 +195,7 @@ function TransactionRowImpl({
         </div>
       </TableCell>
       <TableCell className="hidden w-44 px-3 py-2 sm:table-cell">
-        {isNeutral ? (
+        {isNeutral && row.splitCount === 0 ? (
           <span className="text-muted-foreground text-xs">
             {t("spending:transactions.neutral")}
           </span>

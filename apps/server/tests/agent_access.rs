@@ -4320,3 +4320,320 @@ async fn review_followup_native_legacy_event_dates_keep_their_validation_contrac
     .await;
     assert!(!error.contains("2026-06-01"), "{error}");
 }
+
+#[tokio::test]
+async fn reviewed_budget_group_patches_preserve_omissions_and_allow_explicit_clears() {
+    let server = spawn_server(true, false).await;
+    let cookie = login(&server).await;
+    category_save_fixture(&server, &cookie).await;
+    let (_, token) = create_pat(
+        &server,
+        &cookie,
+        serde_json::json!({"name":"review","scopes":["spending:read","budget:write"]}),
+    )
+    .await;
+    let pat = token["token"].as_str().unwrap();
+    let session = mcp_initialize(&server, pat).await;
+    let created=reviewed_budget_change(&server,pat,&session,serde_json::json!({"operation":"create_group","group":{"name":"Appearance","color":"#123456","icon":"Plane"}}),"2026-04").await;
+    let group = created["state"]["groups"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|g| g["name"] == "Appearance")
+        .unwrap();
+    assert_eq!(group["color"], "#123456");
+    assert_eq!(group["icon"], "Plane");
+    let renamed=reviewed_budget_change(&server,pat,&session,serde_json::json!({"operation":"update_group","id":group["id"],"changes":{"name":"Renamed","sortOrder":99}}),"2026-04").await;
+    let after = renamed["state"]["groups"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|g| g["id"] == group["id"])
+        .unwrap();
+    assert_eq!(after["name"], "Renamed");
+    assert_eq!(after["color"], "#123456");
+    assert_eq!(after["icon"], "Plane");
+    let cleared=reviewed_budget_change(&server,pat,&session,serde_json::json!({"operation":"update_group","id":group["id"],"changes":{"color":null,"icon":null}}),"2026-04").await;
+    let final_group = cleared["state"]["groups"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|g| g["id"] == group["id"])
+        .unwrap();
+    assert!(final_group["color"].is_null());
+    assert!(final_group["icon"].is_null());
+    assert_eq!(final_group["name"], "Renamed");
+    assert_eq!(final_group["sortOrder"], 99);
+}
+
+#[tokio::test]
+async fn spending_reads_preserve_exact_split_evidence_for_category_replacement() {
+    let server = spawn_server(true, false).await;
+    let cookie = login(&server).await;
+    let (_, activities, first, second, _) = category_save_fixture(&server, &cookie).await;
+    let (pat, session) = category_writer_session(&server, &cookie).await;
+    let id = activities[0]["id"].as_str().unwrap();
+    let path = format!("spending/activities/{id}/splits");
+    let lines = serde_json::json!([
+        {"taxonomyId":"spending_categories","categoryId":first,"amount":"1.234567890123456789"},
+        {"taxonomyId":"spending_categories","categoryId":second,"amount":"11.265432109876543211"}
+    ]);
+    api_put(&server, &cookie, &path, lines.clone()).await;
+    let found = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "search_spending_transactions",
+        serde_json::json!({"activityIds":[id]}),
+    )
+    .await;
+    let splits = found["items"][0]["splits"].clone();
+    for rows in [&splits, &found["items"][0]["effectiveAllocations"]] {
+        assert_eq!(rows.as_array().unwrap().len(), 2);
+        assert!(rows
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|row| row["amount"].is_string()));
+        assert_eq!(
+            rows.as_array()
+                .unwrap()
+                .iter()
+                .find(|row| row["categoryId"] == first)
+                .unwrap()["amount"],
+            "1.234567890123456789"
+        );
+    }
+    let result = mcp_call_tool(
+        &server, &pat, &session, "commit_transaction_categories",
+        serde_json::json!({"assignments":[{"activityId":id,"taxonomyId":"spending_categories","categoryId":first,"expectedSplits":splits}]}),
+    ).await;
+    assert_eq!(result["draftStatus"], "applied");
+    assert_eq!(result["assignmentCount"], 1);
+    assert!(category_splits(&server, &cookie, &activities[0])
+        .await
+        .as_array()
+        .unwrap()
+        .is_empty());
+
+    // The native/addon read is replacement evidence too. Returning a JSON
+    // number here would make the same exact comparison fail after rounding.
+    api_put(&server, &cookie, &path, lines).await;
+    let native = category_splits(&server, &cookie, &activities[0]).await;
+    assert_eq!(
+        native
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|row| row["categoryId"] == first)
+            .unwrap()["amount"],
+        "1.234567890123456789"
+    );
+    api_post(&server, &cookie, "spending/assignments/bulk", serde_json::json!([{
+        "activityId":id, "taxonomyId":"spending_categories", "categoryId":second, "expectedSplits":native
+    }])).await;
+    assert!(category_splits(&server, &cookie, &activities[0])
+        .await
+        .as_array()
+        .unwrap()
+        .is_empty());
+}
+
+#[tokio::test]
+async fn reviewed_external_transfer_edit_is_atomic_and_preserves_the_other_legs_economics() {
+    let server = spawn_server(true, false).await;
+    let cookie = login(&server).await;
+    let (cash, _, first, _, _) = category_save_fixture(&server, &cookie).await;
+    let securities = create_eur_account(&server, &cookie, "Atomic transfer destination").await;
+    let outgoing = api_post(&server,&cookie,"activities",serde_json::json!({"accountId":cash["id"],"activityType":"TRANSFER_OUT","activityDate":"2026-04-01T12:00:00Z","currency":"EUR","amount":"12.50","metadata":"{\"flow\":{\"is_external\":true}}"})).await;
+    let incoming = api_post(&server,&cookie,"activities",serde_json::json!({"accountId":securities["id"],"activityType":"TRANSFER_IN","activityDate":"2026-04-01T12:00:00Z","currency":"EUR","amount":"12.50","metadata":"{\"flow\":{\"is_external\":true}}"})).await;
+    let (pat, session) = activity_writer_session(&server, &cookie).await;
+    let link = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "link_transfer_activities",
+        serde_json::json!({"pairs":[{"activityAId":outgoing["id"],"activityBId":incoming["id"]}]}),
+    )
+    .await;
+    assert_eq!(link["errors"], serde_json::json!([]));
+    let profile = api_post(
+        &server,
+        &cookie,
+        "profiles/get_profile_state",
+        serde_json::json!({}),
+    )
+    .await;
+    let path = server
+        ._tmp
+        .path()
+        .join("profiles")
+        .join(profile["session"]["profileId"].as_str().unwrap())
+        .join("app.db");
+    let db = wealthfolio_storage_sqlite::db::DbAccess::plaintext(path.to_str().unwrap())
+        .connect_rusqlite()
+        .unwrap();
+    // Legacy allocations can survive linking or an account/type change. The
+    // financial edit removes only the edited row's splits; unlink alone retains them.
+    for (id, activity) in [("out-allocation", &outgoing), ("in-allocation", &incoming)] {
+        db.execute("INSERT INTO spending_activity_splits (id,activity_id,taxonomy_id,category_id,amount,sort_order,created_at,updated_at) VALUES (?1,?2,'spending_categories',?3,'12.5',0,'2026-04-01T12:00:00Z','2026-04-01T12:00:00Z')",[id,activity["id"].as_str().unwrap(),first.as_str()]).unwrap();
+    }
+    db.execute(
+        "UPDATE activities SET status='DRAFT', needs_review=1 WHERE id IN (?1,?2)",
+        [
+            outgoing["id"].as_str().unwrap(),
+            incoming["id"].as_str().unwrap(),
+        ],
+    )
+    .unwrap();
+    let mut update = serde_json::json!({"id":outgoing["id"],"accountId":cash["id"],"activityType":"TRANSFER_OUT","activityDate":"2026-04-01T12:00:00Z","currency":"EUR","amount":"25","status":"POSTED","needsReview":false,"unlinkTransferPairId":incoming["id"],"metadata":"{\"flow\":{\"is_external\":true}}"});
+    let review = api_post(
+        &server,
+        &cookie,
+        "activities/split-effects",
+        serde_json::json!([update.clone()]),
+    )
+    .await;
+    assert_eq!(review[0].as_array().unwrap().len(), 2);
+    assert_eq!(review[0][0]["removedSplits"], 1);
+    assert_eq!(review[0][1]["removedSplits"], 0);
+    update["splitReview"] = review[0].clone();
+    // Change only the other leg after review. Its guard runs after the primary
+    // write inside the transaction: failure must roll back that write and outbox.
+    db.execute(
+        "UPDATE activities SET notes='Changed counterpart' WHERE id=?1",
+        [incoming["id"].as_str().unwrap()],
+    )
+    .unwrap();
+    let outbox = || {
+        db.query_row("SELECT COUNT(*) FROM sync_outbox", [], |row| {
+            row.get::<_, i64>(0)
+        })
+        .unwrap()
+    };
+    let before_outbox = outbox();
+    let before_rowid: i64 = db
+        .query_row(
+            "SELECT COALESCE(MAX(rowid),0) FROM sync_outbox",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    let response = server
+        .client
+        .put(format!("{}/api/v1/activities", server.base))
+        .header(header::COOKIE, format!("wf_session={cookie}"))
+        .json(&update)
+        .send()
+        .await
+        .unwrap();
+    assert!(!response.status().is_success());
+    assert_eq!(outbox(), before_outbox);
+    for row in [&outgoing, &incoming] {
+        let group: Option<String> = db
+            .query_row(
+                "SELECT source_group_id FROM activities WHERE id=?1",
+                [row["id"].as_str().unwrap()],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert!(group.is_some());
+    }
+    let amount: String = db
+        .query_row(
+            "SELECT amount FROM activities WHERE id=?1",
+            [outgoing["id"].as_str().unwrap()],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(
+        amount.parse::<rust_decimal::Decimal>().unwrap(),
+        "12.5".parse::<rust_decimal::Decimal>().unwrap()
+    );
+    let count: i64 = db
+        .query_row("SELECT COUNT(*) FROM spending_activity_splits", [], |row| {
+            row.get(0)
+        })
+        .unwrap();
+    assert_eq!(count, 2);
+    let fresh = api_post(
+        &server,
+        &cookie,
+        "activities/split-effects",
+        serde_json::json!([update.clone()]),
+    )
+    .await;
+    update["splitReview"] = fresh[0].clone();
+    api_put(&server, &cookie, "activities", update).await;
+    for row in [&outgoing, &incoming] {
+        let group: Option<String> = db
+            .query_row(
+                "SELECT source_group_id FROM activities WHERE id=?1",
+                [row["id"].as_str().unwrap()],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert!(group.is_none());
+    }
+    let rows = stored_activities(&server, &cookie, &securities).await;
+    let other = activity_by_id(&rows, &incoming["id"]);
+    assert_eq!(
+        other["amount"]
+            .as_str()
+            .unwrap()
+            .parse::<rust_decimal::Decimal>()
+            .unwrap(),
+        "12.5".parse::<rust_decimal::Decimal>().unwrap()
+    );
+    assert_eq!(other["comment"], "Changed counterpart");
+    let lifecycle: (String, bool) = db
+        .query_row(
+            "SELECT status,needs_review FROM activities WHERE id=?1",
+            [incoming["id"].as_str().unwrap()],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .unwrap();
+    assert_eq!(lifecycle, ("DRAFT".to_string(), true));
+    let payloads: Vec<String> = db
+        .prepare(
+            "SELECT payload FROM sync_outbox WHERE rowid>?1 AND entity='activity' ORDER BY rowid",
+        )
+        .unwrap()
+        .query_map([before_rowid], |row| row.get(0))
+        .unwrap()
+        .collect::<Result<_, _>>()
+        .unwrap();
+    assert_eq!(payloads.len(), 2, "one final-state update per leg");
+    for payload in payloads {
+        let row: serde_json::Value = serde_json::from_str(&payload).unwrap();
+        assert!(row["source_group_id"].is_null());
+        let metadata: serde_json::Value =
+            serde_json::from_str(row["metadata"].as_str().unwrap()).unwrap();
+        assert_eq!(metadata["flow"]["is_external"], true);
+        assert_eq!(
+            row["amount"]
+                .as_str()
+                .unwrap()
+                .parse::<rust_decimal::Decimal>()
+                .unwrap(),
+            if row["id"] == outgoing["id"] {
+                "25"
+            } else {
+                "12.5"
+            }
+            .parse::<rust_decimal::Decimal>()
+            .unwrap()
+        );
+    }
+    let remaining: Vec<String> = db
+        .prepare("SELECT activity_id FROM spending_activity_splits")
+        .unwrap()
+        .query_map([], |row| row.get(0))
+        .unwrap()
+        .collect::<Result<_, _>>()
+        .unwrap();
+    assert_eq!(
+        remaining,
+        vec![incoming["id"].as_str().unwrap().to_string()]
+    );
+}

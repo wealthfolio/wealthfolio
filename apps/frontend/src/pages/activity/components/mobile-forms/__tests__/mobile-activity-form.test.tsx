@@ -1,3 +1,5 @@
+import { ActivityEditCancelled } from "@/features/spending/components/activity-split-review-provider";
+import { toast } from "sonner";
 import { ActivityType, InstrumentType } from "@/lib/constants";
 import type { ActivityDetails } from "@/lib/types";
 import { render, screen, waitFor } from "@/test/render";
@@ -303,4 +305,26 @@ describe("a trade total typed on a phone screen left for another tab", () => {
       ),
     );
   });
+});
+
+it("keeps a mobile edit open without a failure toast when split review is cancelled", async () => {
+  const previousCalls = noopMutation.mutateAsync.mock.calls.length;
+  noopMutation.mutateAsync.mockRejectedValueOnce(new ActivityEditCancelled());
+  const errorToast = vi.spyOn(toast, "error");
+  const close = vi.fn();
+  const user = userEvent.setup();
+  render(
+    <MobileActivityForm
+      accounts={accounts}
+      open
+      onClose={close}
+      activity={{ ...activity(ActivityType.DEPOSIT), amount: "100" }}
+    />,
+  );
+  await user.click(screen.getByRole("button", { name: "Update Activity" }));
+  await waitFor(() => expect(noopMutation.mutateAsync).toHaveBeenCalledTimes(previousCalls + 1));
+  expect(errorToast).not.toHaveBeenCalled();
+  expect(close).not.toHaveBeenCalled();
+  expect(screen.getByTestId("details-step")).toBeInTheDocument();
+  errorToast.mockRestore();
 });

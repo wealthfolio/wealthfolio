@@ -31,11 +31,21 @@ pub struct NewBudgetGroup {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateBudgetGroup {
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
-    #[serde(default, deserialize_with = "deserialize_optional_string")]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_string",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub color: Option<Option<String>>,
-    #[serde(default, deserialize_with = "deserialize_optional_string")]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_string",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub icon: Option<Option<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub sort_order: Option<i32>,
 }
 
@@ -49,6 +59,23 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn update_budget_group_roundtrip_preserves_omission_and_explicit_clear() {
+        for input in [
+            serde_json::json!({"name":"Renamed"}),
+            serde_json::json!({"sortOrder":7}),
+            serde_json::json!({"color":null,"icon":null}),
+        ] {
+            let patch: UpdateBudgetGroup = serde_json::from_value(input.clone()).expect("patch");
+            let serialized = serde_json::to_value(patch).expect("serialize");
+            assert_eq!(serialized, input);
+            let restored: UpdateBudgetGroup =
+                serde_json::from_value(serialized).expect("roundtrip");
+            assert_eq!(restored.color, input.get("color").map(|_| None));
+            assert_eq!(restored.icon, input.get("icon").map(|_| None));
+        }
+    }
 
     #[test]
     fn update_budget_group_preserves_explicit_null_nullable_fields() {

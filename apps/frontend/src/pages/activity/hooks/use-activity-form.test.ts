@@ -439,7 +439,7 @@ describe("useActivityForm", () => {
     });
   });
 
-  it("unlinks a valid grouped transfer before saving it as external", async () => {
+  it("includes paired unlink intent in the reviewed external edit", async () => {
     adapterMocks.getTransferPairForActivity.mockResolvedValue({
       transferOut: { id: "transfer-out-id" },
       transferIn: { id: "transfer-in-id" },
@@ -482,20 +482,15 @@ describe("useActivityForm", () => {
     });
 
     expect(adapterMocks.getTransferPairForActivity).toHaveBeenCalledWith("transfer-in-id");
-    expect(mutationMocks.unlinkMutateAsync).toHaveBeenCalledWith({
-      activityAId: "transfer-out-id",
-      activityBId: "transfer-in-id",
-    });
+    expect(mutationMocks.unlinkMutateAsync).not.toHaveBeenCalled();
     expect(mutationMocks.updateMutateAsync).toHaveBeenCalledWith(
       expect.objectContaining({
         id: "transfer-in-id",
         accountId: "acc-cad",
         activityType: ActivityType.TRANSFER_IN,
         metadata: { flow: { is_external: true } },
+        unlinkTransferPairId: "transfer-out-id",
       }),
-    );
-    expect(mutationMocks.unlinkMutateAsync.mock.invocationCallOrder[0]).toBeLessThan(
-      mutationMocks.updateMutateAsync.mock.invocationCallOrder[0],
     );
   });
 

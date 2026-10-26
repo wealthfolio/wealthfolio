@@ -181,3 +181,16 @@ describe("SplitTransactionSheet", () => {
     expect(screen.getAllByRole("textbox")[0]).toHaveValue("4");
   });
 });
+
+it("shows protected splits from a previous taxonomy and exposes explicit clear/replacement", () => {
+  const row = splitRow("25", "USD", ["25"]);
+  row.activity.splits[0].taxonomyId = "income_sources";
+  row.activity.splits[0].categoryId = "old-interest";
+  // Even an older caller's effective split count must not hide stored rows.
+  row.splitCount = 0;
+  renderSheet(row, "en-US");
+  expect(screen.getByText(/These splits use a previous category type/)).toBeInTheDocument();
+  expect(screen.getByText(/old-interest/)).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Clear split" })).toBeEnabled();
+  expect(screen.getByRole("button", { name: "Replace splits with one category" })).toBeEnabled();
+});

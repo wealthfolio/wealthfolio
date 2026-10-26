@@ -414,6 +414,7 @@
     "customSubtitle": "選択した期間の取引"
   },
   "split": {
+    "staleTaxonomy": "これらの分割には以前のカテゴリ種別が使われています。内容を確認して削除または置き換えてから、この取引を分類してください。",
     "title": "取引を分割",
     "transactionFallback": "取引",
     "remainingOf": "{{amount}}のうち残り",

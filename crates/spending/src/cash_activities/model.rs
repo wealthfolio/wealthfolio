@@ -261,6 +261,7 @@ pub struct SpendingContext {
 pub struct EffectiveCategoryAllocation {
     pub taxonomy_id: String,
     pub category_id: String,
+    #[serde(with = "rust_decimal::serde::str")]
     pub amount: rust_decimal::Decimal,
 }
 

@@ -215,7 +215,8 @@ export function SplitTransactionSheet({
         ]
       : lineSegments;
   }, [categories, lines, remainingUnits, splitDecimals]);
-  const hasExistingSplits = (row?.splitCount ?? 0) > 0;
+  const hasExistingSplits = (activity?.splits.length ?? 0) > 0;
+  const staleSplits = (activity?.splits ?? []).filter((split) => split.taxonomyId !== taxonomyId);
 
   const updateLine = (id: string, patch: Partial<SplitLineState>) => {
     setLines((current) => current.map((line) => (line.id === id ? { ...line, ...patch } : line)));
@@ -309,6 +310,21 @@ export function SplitTransactionSheet({
 
         <div className={cn("min-h-0 flex-1 overflow-y-auto", isMobile ? "px-4" : "px-1")}>
           <div className="space-y-4 py-4">
+            {staleSplits.length > 0 && (
+              <div className="border-warning-subtle-border bg-warning-subtle text-warning-subtle-foreground rounded-md border p-3 text-sm">
+                <p>{t("spending:split.staleTaxonomy")}</p>
+                <ul className="mt-2 space-y-1">
+                  {staleSplits.map((split) => (
+                    <li key={split.id}>
+                      {categoryLabel(categories.get(split.categoryId), categories) ??
+                        split.categoryId}
+                      {" · "}
+                      {formatting.formatPrice(Number(split.amount), currency)} {currency}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
             {/* Splits are summed in at least cents, so these keep cents even for currencies without them. */}
             <div className="bg-muted/50 flex items-center justify-between rounded-2xl px-4 py-4">
               <span className="text-muted-foreground text-sm">
@@ -472,7 +488,7 @@ export function SplitTransactionSheet({
           </div>
         </div>
 
-        {hasExistingSplits && (
+        {hasExistingSplits && taxonomyId && (
           <QuickCategorizePopover
             scope={scopeForTaxonomy(taxonomyId)}
             selectedCategoryId={null}

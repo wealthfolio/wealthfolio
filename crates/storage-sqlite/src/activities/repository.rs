@@ -562,6 +562,94 @@ fn validate_link_transfer_asset_shape(
     }
 }
 
+fn load_transfer_unlink_pair(
+    conn: &mut SqliteConnection,
+    activity_a_id: &str,
+    activity_b_id: &str,
+) -> Result<(ActivityDB, ActivityDB)> {
+    if activity_a_id == activity_b_id {
+        return Err(
+            ActivityError::InvalidData("Cannot unlink an activity from itself".into()).into(),
+        );
+    }
+    let a = activities::table
+        .select(ActivityDB::as_select())
+        .find(activity_a_id)
+        .first::<ActivityDB>(conn)
+        .map_err(|e| Error::from(ActivityError::NotFound(e.to_string())))?;
+    let b = activities::table
+        .select(ActivityDB::as_select())
+        .find(activity_b_id)
+        .first::<ActivityDB>(conn)
+        .map_err(|e| Error::from(ActivityError::NotFound(e.to_string())))?;
+
+    let (transfer_in, transfer_out) =
+        match (effective_activity_type(&a), effective_activity_type(&b)) {
+            (ACTIVITY_TYPE_TRANSFER_IN, ACTIVITY_TYPE_TRANSFER_OUT) => (a, b),
+            (ACTIVITY_TYPE_TRANSFER_OUT, ACTIVITY_TYPE_TRANSFER_IN) => (b, a),
+            _ => {
+                return Err(Error::from(ActivityError::InvalidData(
+                    "Unlinking requires one TRANSFER_IN and one TRANSFER_OUT activity".to_string(),
+                )));
+            }
+        };
+
+    let Some(in_group_id) = transfer_in.source_group_id.clone() else {
+        return Err(Error::from(ActivityError::InvalidData(
+            "Both activities must already be linked".to_string(),
+        )));
+    };
+    let Some(out_group_id) = transfer_out.source_group_id.clone() else {
+        return Err(Error::from(ActivityError::InvalidData(
+            "Both activities must already be linked".to_string(),
+        )));
+    };
+    if in_group_id != out_group_id {
+        return Err(Error::from(ActivityError::InvalidData(
+            "Selected activities belong to different linked transfers".to_string(),
+        )));
+    }
+
+    Ok((transfer_in, transfer_out))
+}
+
+fn unlink_transfer_pair_tx(
+    tx: &mut crate::db::write_actor::DbWriteTx<'_>,
+    mut transfer_in: ActivityDB,
+    mut transfer_out: ActivityDB,
+) -> Result<(ActivityDB, ActivityDB)> {
+    let now = chrono::Utc::now().to_rfc3339();
+    transfer_in.source_group_id = None;
+    transfer_in.metadata = set_transfer_flow_external(transfer_in.metadata, true);
+    transfer_in.is_user_modified = 1;
+    transfer_in.updated_at = now.clone();
+    transfer_out.source_group_id = None;
+    transfer_out.metadata = set_transfer_flow_external(transfer_out.metadata, true);
+    transfer_out.is_user_modified = 1;
+    transfer_out.updated_at = now;
+
+    let updated_in = diesel::update(activities::table.find(&transfer_in.id))
+        .set((
+            activities::source_group_id.eq(None::<String>),
+            activities::metadata.eq(transfer_in.metadata.clone()),
+            activities::is_user_modified.eq(1),
+            activities::updated_at.eq(&transfer_in.updated_at),
+        ))
+        .get_result::<ActivityDB>(tx.conn())
+        .map_err(StorageError::from)?;
+    let updated_out = diesel::update(activities::table.find(&transfer_out.id))
+        .set((
+            activities::source_group_id.eq(None::<String>),
+            activities::metadata.eq(transfer_out.metadata.clone()),
+            activities::is_user_modified.eq(1),
+            activities::updated_at.eq(&transfer_out.updated_at),
+        ))
+        .get_result::<ActivityDB>(tx.conn())
+        .map_err(StorageError::from)?;
+
+    Ok((updated_in, updated_out))
+}
+
 // Inherent methods for ActivityRepository
 impl ActivityRepository {
     /// Creates a new ActivityRepository instance
@@ -1021,6 +1109,12 @@ impl ActivityRepositoryTrait for ActivityRepository {
     }
 
     async fn update_activity(&self, activity_update: ActivityUpdate) -> Result<Activity> {
+        if activity_update.unlink_transfer_pair_id.is_some() {
+            return Err(ActivityError::InvalidData(
+                "Paired unlink requires an atomic batch".into(),
+            )
+            .into());
+        }
         activity_update.validate()?;
         self.writer
             .exec_tx(move |tx| -> Result<Activity> {
@@ -1226,90 +1320,17 @@ impl ActivityRepositoryTrait for ActivityRepository {
         activity_a_id: String,
         activity_b_id: String,
     ) -> Result<(Activity, Activity)> {
-        use wealthfolio_core::activities::{ACTIVITY_TYPE_TRANSFER_IN, ACTIVITY_TYPE_TRANSFER_OUT};
-
-        if activity_a_id == activity_b_id {
-            return Err(Error::from(ActivityError::InvalidData(
-                "Cannot unlink an activity from itself".to_string(),
-            )));
-        }
-
         self.writer
-            .exec_tx(move |tx| -> Result<(Activity, Activity)> {
-                let a = activities::table
-                    .select(ActivityDB::as_select())
-                    .find(&activity_a_id)
-                    .first::<ActivityDB>(tx.conn())
-                    .map_err(|e| Error::from(ActivityError::NotFound(e.to_string())))?;
-                let b = activities::table
-                    .select(ActivityDB::as_select())
-                    .find(&activity_b_id)
-                    .first::<ActivityDB>(tx.conn())
-                    .map_err(|e| Error::from(ActivityError::NotFound(e.to_string())))?;
-
-                let (mut transfer_in, mut transfer_out) =
-                    match (effective_activity_type(&a), effective_activity_type(&b)) {
-                        (ACTIVITY_TYPE_TRANSFER_IN, ACTIVITY_TYPE_TRANSFER_OUT) => (a, b),
-                        (ACTIVITY_TYPE_TRANSFER_OUT, ACTIVITY_TYPE_TRANSFER_IN) => (b, a),
-                        _ => {
-                            return Err(Error::from(ActivityError::InvalidData(
-                                "Unlinking requires one TRANSFER_IN and one TRANSFER_OUT activity"
-                                    .to_string(),
-                            )));
-                        }
-                    };
-
-                let Some(in_group_id) = transfer_in.source_group_id.clone() else {
-                    return Err(Error::from(ActivityError::InvalidData(
-                        "Both activities must already be linked".to_string(),
-                    )));
-                };
-                let Some(out_group_id) = transfer_out.source_group_id.clone() else {
-                    return Err(Error::from(ActivityError::InvalidData(
-                        "Both activities must already be linked".to_string(),
-                    )));
-                };
-                if in_group_id != out_group_id {
-                    return Err(Error::from(ActivityError::InvalidData(
-                        "Selected activities belong to different linked transfers".to_string(),
-                    )));
-                }
-
-                let now = chrono::Utc::now().to_rfc3339();
-                transfer_in.source_group_id = None;
-                transfer_in.metadata = set_transfer_flow_external(transfer_in.metadata, true);
-                transfer_in.is_user_modified = 1;
-                transfer_in.updated_at = now.clone();
-                transfer_out.source_group_id = None;
-                transfer_out.metadata = set_transfer_flow_external(transfer_out.metadata, true);
-                transfer_out.is_user_modified = 1;
-                transfer_out.updated_at = now;
-
-                let updated_in = diesel::update(activities::table.find(&transfer_in.id))
-                    .set((
-                        activities::source_group_id.eq(None::<String>),
-                        activities::metadata.eq(transfer_in.metadata.clone()),
-                        activities::is_user_modified.eq(1),
-                        activities::updated_at.eq(&transfer_in.updated_at),
-                    ))
-                    .get_result::<ActivityDB>(tx.conn())
-                    .map_err(StorageError::from)?;
-                let updated_out = diesel::update(activities::table.find(&transfer_out.id))
-                    .set((
-                        activities::source_group_id.eq(None::<String>),
-                        activities::metadata.eq(transfer_out.metadata.clone()),
-                        activities::is_user_modified.eq(1),
-                        activities::updated_at.eq(&transfer_out.updated_at),
-                    ))
-                    .get_result::<ActivityDB>(tx.conn())
-                    .map_err(StorageError::from)?;
-
+            .exec_tx(move |tx| {
+                let (transfer_in, transfer_out) =
+                    load_transfer_unlink_pair(tx.conn(), &activity_a_id, &activity_b_id)?;
+                let (updated_in, updated_out) =
+                    unlink_transfer_pair_tx(tx, transfer_in, transfer_out)?;
                 if should_sync_transfer_pair_raw_outbox(&updated_in, &updated_out) {
                     tx.update(&updated_in)?;
                     tx.update(&updated_out)?;
                 }
-
-                Ok((Activity::from(updated_in), Activity::from(updated_out)))
+                Ok((updated_in.into(), updated_out.into()))
             })
             .await
     }
@@ -1322,6 +1343,31 @@ impl ActivityRepositoryTrait for ActivityRepository {
     ) -> Result<ActivityBulkMutationResult> {
         self.writer
             .exec_tx(move |tx| -> Result<ActivityBulkMutationResult> {
+                let mut unlink_pairs = Vec::new();
+                let mut unlink_ids = HashSet::new();
+                for update in &updates {
+                    if let Some(other_id) = &update.unlink_transfer_pair_id {
+                        if delete_ids.contains(&update.id)
+                            || delete_ids.contains(other_id)
+                            || !updates.iter().any(|other| {
+                                other.id == *other_id
+                                    && other.unlink_transfer_pair_id.as_deref()
+                                        == Some(update.id.as_str())
+                            })
+                        {
+                            return Err(ActivityError::InvalidData(
+                                "Paired unlink requires both reviewed updates".into(),
+                            )
+                            .into());
+                        }
+                        if !unlink_ids.contains(&update.id) {
+                            let pair = load_transfer_unlink_pair(tx.conn(), &update.id, other_id)?;
+                            unlink_ids.insert(pair.0.id.clone());
+                            unlink_ids.insert(pair.1.id.clone());
+                            unlink_pairs.push(pair);
+                        }
+                    }
+                }
                 let mut outcome = ActivityBulkMutationResult::default();
 
                 let delete_id_set: std::collections::HashSet<&str> =
@@ -1410,13 +1456,42 @@ impl ActivityRepositoryTrait for ActivityRepository {
                     ) {
                         clear_spending_splits_for_activity_tx(tx, &updated_activity.id)?;
                     }
-                    queue_activity_update_outbox(
-                        tx,
-                        &existing_before_update,
-                        &updated_activity,
-                        provider_account_id.as_deref(),
-                    )?;
+                    if !unlink_ids.contains(&updated_activity.id) {
+                        queue_activity_update_outbox(
+                            tx,
+                            &existing_before_update,
+                            &updated_activity,
+                            provider_account_id.as_deref(),
+                        )?;
+                    }
                     outcome.updated.push(Activity::from(updated_activity));
+                }
+
+                for (before_in, before_out) in unlink_pairs {
+                    let current_in = activities::table
+                        .find(&before_in.id)
+                        .first::<ActivityDB>(tx.conn())
+                        .map_err(StorageError::from)?;
+                    let current_out = activities::table
+                        .find(&before_out.id)
+                        .first::<ActivityDB>(tx.conn())
+                        .map_err(StorageError::from)?;
+                    let (after_in, after_out) =
+                        unlink_transfer_pair_tx(tx, current_in, current_out)?;
+                    for (before, after) in [(&before_in, &after_in), (&before_out, &after_out)] {
+                        let provider_account_id =
+                            provider_account_id_for_broker_activity(tx.conn(), before)?;
+                        queue_activity_update_outbox(
+                            tx,
+                            before,
+                            after,
+                            provider_account_id.as_deref(),
+                        )?;
+                        if let Some(row) = outcome.updated.iter_mut().find(|row| row.id == after.id)
+                        {
+                            *row = Activity::from(after.clone());
+                        }
+                    }
                 }
 
                 for new_activity in creates {
@@ -3646,6 +3721,7 @@ mod tests {
         }
 
         repo.update_activity(ActivityUpdate {
+            unlink_transfer_pair_id: None,
             split_review: None,
             id: "broker-local-activity".to_string(),
             account_id: "broker-local-account".to_string(),
@@ -4188,6 +4264,7 @@ mod tests {
         }
 
         repo.update_activity(ActivityUpdate {
+            unlink_transfer_pair_id: None,
             split_review: None,
             id: "broker-activity-with-override".to_string(),
             account_id: "broker-local-account".to_string(),
@@ -4225,6 +4302,7 @@ mod tests {
         assert_eq!(type_row.2.as_deref(), Some("New note"));
 
         repo.update_activity(ActivityUpdate {
+            unlink_transfer_pair_id: None,
             split_review: None,
             id: "broker-activity-with-override".to_string(),
             account_id: "broker-local-account".to_string(),
@@ -4279,6 +4357,7 @@ mod tests {
         }
 
         repo.update_activity(ActivityUpdate {
+            unlink_transfer_pair_id: None,
             split_review: None,
             id: "broker-owned-local-edit".to_string(),
             account_id: "broker-local-account".to_string(),
@@ -4577,6 +4656,7 @@ mod tests {
             .expect("flag activity for review");
 
         let mut patch = ActivityUpdate {
+            unlink_transfer_pair_id: None,
             split_review: None,
             id: "activity-subtype".to_string(),
             account_id: "acc-subtype".to_string(),
@@ -4653,6 +4733,7 @@ mod tests {
         drop(conn);
 
         let omitted_update = || ActivityUpdate {
+            unlink_transfer_pair_id: None,
             split_review: None,
             id: "security-adjustment".to_string(),
             account_id: "acc-adjustment".to_string(),
@@ -4692,6 +4773,7 @@ mod tests {
 
         let updated = repo
             .update_activity(ActivityUpdate {
+                unlink_transfer_pair_id: None,
                 split_review: None,
                 id: "security-adjustment".to_string(),
                 account_id: "acc-adjustment".to_string(),
@@ -4983,6 +5065,7 @@ mod tests {
         }
 
         let mut amount_update = ActivityUpdate {
+            unlink_transfer_pair_id: None,
             split_review: None,
             id: "activity-with-splits".to_string(),
             account_id: "acc-splits".to_string(),
@@ -5351,6 +5434,7 @@ mod tests {
             insert_spending_split(&mut conn, &format!("{id}-split"), id);
         }
         let notes_edit = |id: &str| ActivityUpdate {
+            unlink_transfer_pair_id: None,
             split_review: None,
             id: id.to_string(),
             account_id: "acc-override".to_string(),
@@ -6085,6 +6169,7 @@ mod tests {
 
         let updated = repo
             .update_activity(ActivityUpdate {
+                unlink_transfer_pair_id: None,
                 split_review: None,
                 id: "orphan-in".to_string(),
                 account_id: "acc-a".to_string(),

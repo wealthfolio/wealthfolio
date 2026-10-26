@@ -420,6 +420,7 @@
     "customSubtitle": "Transaktionen im ausgewählten Zeitraum"
   },
   "split": {
+    "staleTaxonomy": "Diese Aufteilungen verwenden einen früheren Kategorietyp. Prüfe sie und lösche oder ersetze sie, bevor du diese Transaktion kategorisierst.",
     "title": "Transaktion aufteilen",
     "transactionFallback": "Transaktion",
     "remainingOf": "Verbleibend von {{amount}}",

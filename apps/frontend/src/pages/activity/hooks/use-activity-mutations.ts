@@ -197,7 +197,9 @@ export function useActivityMutations(
   });
 
   const updateActivityMutation = useMutation({
-    mutationFn: async (data: NewActivityFormValues & { id: string }) => {
+    mutationFn: async (
+      data: NewActivityFormValues & { id: string; unlinkTransferPairId?: string },
+    ) => {
       // Extract asset-related fields from form data
       const {
         assetId,

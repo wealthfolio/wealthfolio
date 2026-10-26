@@ -284,3 +284,51 @@ tests; 470 files total), the 118-test focused regression set passes, and the
 design ratchet, `pnpm check`, all-locale translation checks and both frontend
 builds pass. The original CI revision also passed Rust, iOS/Android compilation,
 Docker and frontend browser checks; the correction changes no Rust code.
+
+## Verified review corrections
+
+Reviewed budget-group patches preserve omitted fields through prepare/commit;
+explicit null still clears color or icon. Native category creation chooses an
+unused key within its taxonomy, so names such as Food and repeated Misc
+subcategories remain available without weakening the writer's uniqueness check.
+Shared split reads (native, addon and MCP) and MCP effective allocation amounts
+serialize as exact decimal strings, allowing callers to reuse the returned split
+snapshot without floating-point rounding or looser conflict checks. Existing
+numeric inputs remain accepted; frontend/addon contracts already allow strings.
+
+Cancellation in the main desktop and mobile activity forms leaves the form open
+without an error toast or error state. Converting a linked transfer to external
+uses the transient `ActivityUpdate.unlinkTransferPairId` (the counterpart ID).
+Both legs are reviewed before any mutation. Core expands the edit into the
+existing bulk writer; SQLite validates the reciprocal pair, writes the edit,
+clears only the financially invalidated allocations, unlinks both legs and
+queues their final states in one existing transaction. Failure rolls back every
+write and outbox append. The untouched leg retains its amounts, date, notes,
+status, review flag and allocations. Standalone unlink and non-interactive
+callers keep their existing behavior.
+
+Stored splits from an earlier cashflow taxonomy stay visible in transaction
+rows. The split sheet explains these allocations and offers explicit clearing or
+reviewed replacement with a category in the current taxonomy. No background
+cleanup changes financial classification or historical allocations. The two
+unused assignment service helpers were removed, and addon `getContext()` docs
+match its actual enabled/account/exclusion response.
+
+**Architecture impact:** the external-transfer editor replaces two independent
+writes with one existing atomic bulk transaction and emits the existing domain
+event only after success. Final-state sync projections reuse the existing raw
+activity/user-overlay policy. No new endpoint, persisted field, migration,
+queue, worker, retry or lock is introduced. Provider/network settings, account
+enrollment, permissions, core accounting and secret handling are unchanged.
+Regression tests cover cancellation before writes, stale counterpart rollback,
+final outbox payloads, counterpart preservation, exact decimal replacement,
+patch omission/null behavior, duplicate display names and old-taxonomy repair.
+Cross-device replay of this specific combined edit is not separately simulated.
+
+Correction validation: both full frontend shards pass (4,261 tests, 471 files).
+38 server integration tests, 184 Spending unit tests, 71 AI parity/schema
+checks, both MCP host/transport suites, `pnpm check`, translation parity, the
+design ratchet, both frontend builds, affected-crate Clippy with all
+targets/features and warnings denied, and both Rust runtime compilation checks
+pass. The six real browser regressions pass in desktop LTR and mobile RTL,
+covering both financial editors and old-taxonomy split repair.

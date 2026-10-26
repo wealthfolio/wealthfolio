@@ -1,3 +1,4 @@
+import { isActivityEditCancelled } from "@/features/spending/components/activity-split-review-provider";
 import { getTransferRate } from "../../hooks/use-internal-transfer-currencies";
 import { logger } from "@/adapters";
 import { buildAssetResolutionInput } from "@/lib/asset-resolution-input";
@@ -874,6 +875,7 @@ export function MobileActivityForm({
       form.reset(defaultValues);
       setCurrentStep(initialStep);
     } catch (error) {
+      if (isActivityEditCancelled(error)) return;
       toast.error(t("activity:mobile_form.save_failed"), {
         description: extractErrorMessage(error, t),
       });

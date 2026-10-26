@@ -2041,6 +2041,7 @@ impl ActivityService {
         };
         let mut updates = vec![
             ActivityUpdate {
+                unlink_transfer_pair_id: None,
                 split_review: None,
                 id: pair.transfer_out.id.clone(),
                 account_id: request.from_account_id.clone(),
@@ -2065,6 +2066,7 @@ impl ActivityService {
                 metadata: metadata.clone(),
             },
             ActivityUpdate {
+                unlink_transfer_pair_id: None,
                 split_review: None,
                 id: pair.transfer_in.id.clone(),
                 account_id: request.to_account_id.clone(),
@@ -2114,6 +2116,9 @@ impl ActivityService {
         existing: &Activity,
         pair: &TransferPair,
     ) -> Result<()> {
+        if update.unlink_transfer_pair_id.is_some() {
+            return Ok(());
+        }
         if Self::is_cash_transfer_pair(pair)
             && (update.account_id != existing.account_id
                 || (!update.currency.is_empty() && update.currency != existing.currency)
@@ -2164,6 +2169,7 @@ impl ActivityService {
         });
 
         let mut counterpart_update = ActivityUpdate {
+            unlink_transfer_pair_id: None,
             split_review: update.split_review.clone(),
             id: counterpart.id.clone(),
             account_id: counterpart.account_id.clone(),
@@ -2183,6 +2189,20 @@ impl ActivityService {
             fx_rate: None,
             metadata: None,
         };
+
+        if let Some(counterpart_id) = &update.unlink_transfer_pair_id {
+            if counterpart_id != &counterpart.id {
+                return Err(Self::invalid_activity_data(
+                    "Transfer pair changed; refresh before editing",
+                ));
+            }
+            counterpart_update.unlink_transfer_pair_id = Some(existing.id.clone());
+            counterpart_update.activity_date = counterpart.activity_date.to_rfc3339();
+            counterpart_update.notes = counterpart.notes.clone();
+            counterpart_update.status = None;
+            counterpart_update.needs_review = None;
+            return Ok(Some(counterpart_update));
+        }
 
         if Self::transfer_pair_has_source_records(pair) {
             if !Self::transfer_pair_shares_date(pair) {
@@ -5220,6 +5240,11 @@ impl ActivityServiceTrait for ActivityService {
             None => None,
         };
 
+        if activity.unlink_transfer_pair_id.is_some() && pair.is_none() {
+            return Err(Self::invalid_activity_data(
+                "Transfer pair changed; refresh before editing",
+            ));
+        }
         let prepared = self.prepare_update_activity(activity).await?;
 
         if let Some(mut counterpart_update) = counterpart_update {
