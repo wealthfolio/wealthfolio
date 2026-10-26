@@ -26,7 +26,7 @@
    *    for running/developing the Wealthflolio app and managing GUI display output.
    *
    * 4. **VS Code Setup**: Preconfigured VS Code extensions for Rust, Tauri,
-   *    Docker, ESLint, Prettier, and Git integration, making it a seamless
+   *    Docker, Oxlint, Oxfmt, ESLint, TypeScript 7, and Git integration, making it a seamless
    *    environment for development and debugging.
    *
    * 5. **Volumes**: Docker volumes are used to persist app data and build caches

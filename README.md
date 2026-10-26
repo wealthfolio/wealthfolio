@@ -825,8 +825,9 @@ for maintained addon examples including:
 
 - **Vite**: Next-generation frontend tooling.
 - **TypeScript**: Typed superset of JavaScript.
-- **ESLint**: Pluggable linting utility for JavaScript and JSX.
-- **Prettier**: Code formatter.
+- **Oxlint**: JavaScript/TypeScript linting with type-aware checks.
+- **ESLint**: Retained checks that need its plugin or parser APIs.
+- **Oxfmt**: Code formatting and Tailwind class sorting.
 - **pnpm**: Fast, disk space efficient package manager.
 - **Turborepo**: High-performance build system for JavaScript and TypeScript
   codebases.
