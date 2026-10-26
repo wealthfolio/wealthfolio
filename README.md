@@ -165,9 +165,12 @@ See [ROADMAP.md](./ROADMAP.md).
 
 Ensure you have the following installed on your machine:
 
-- [Node.js](https://nodejs.org/)
-- [pnpm](https://pnpm.io/)
-- [Rust](https://www.rust-lang.org/)
+- [Node.js](https://nodejs.org/), using the version in
+  [`.node-version`](.node-version)
+- [pnpm](https://pnpm.io/), using the `packageManager` version in
+  [`package.json`](package.json)
+- [Rust](https://www.rust-lang.org/), using
+  [`rust-toolchain.toml`](rust-toolchain.toml)
 - [Tauri](https://tauri.app/)
 
 ### Building from Source
@@ -182,8 +185,12 @@ Ensure you have the following installed on your machine:
 2. **Install dependencies using pnpm**:
 
    ```bash
-   pnpm install
+   pnpm install --frozen-lockfile
+   pnpm build:types
    ```
+
+   See [Frontend tooling](docs/frontend-tooling.md) for editor setup, checks,
+   and instructions for updating an existing checkout.
 
 3. **Setup environment configuration**:
 

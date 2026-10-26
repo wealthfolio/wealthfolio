@@ -3,6 +3,38 @@
 Use the Node version in `.node-version` and the pnpm version in `package.json`.
 Install with `pnpm install --frozen-lockfile`.
 
+## Updating an existing checkout
+
+After pulling the tooling update, select the Node version in `.node-version` and
+the pnpm version in `package.json`, then run:
+
+```bash
+pnpm install --frozen-lockfile
+pnpm build:types
+pnpm check
+```
+
+The install supplies the platform-specific compiler, linter, and formatter
+binaries. Keep optional dependencies enabled; no separate Go installation or
+Rust build is needed for these frontend checks. Rust is still required for
+building and running Wealthfolio's native applications and server.
+
+In VS Code, install the recommended Oxc, ESLint, and TypeScript native
+extensions from `.vscode/extensions.json`, then reload the window. Oxfmt
+replaces Prettier as the workspace formatter; keep ESLint enabled for the
+retained checks. The workspace settings enable TypeScript 7 and point its SDK
+path to `node_modules/@typescript/native`, rather than the TypeScript 6 API
+compatibility package. To enable it manually, open a TypeScript file and run
+`TypeScript: Enable TypeScript 7`; see the
+[extension's setup instructions](https://marketplace.visualstudio.com/items?itemName=TypeScriptTeam.native-preview).
+Other editors should use their Oxc and TypeScript 7 language-server
+integrations. Rebuild an existing devcontainer to pick up its updated extension
+list.
+
+Installed Git hooks continue to call the same package scripts; reinstalling them
+is unnecessary. For a new clone, `pnpm hooks:install` enables the optional
+pre-push checks.
+
 ## TypeScript
 
 The `@typescript/native` dependency aliases TypeScript 7 and provides `tsc` for
@@ -54,12 +86,18 @@ strictness, custom hook dependencies, import restriction exemptions, JavaScript
 globals, and the retained ESLint checks. It also runs through
 `pnpm test:scripts`.
 
+Use `oxlint-disable-*` comments for rules owned by Oxlint, such as
+`react/exhaustive-deps` or `typescript/no-explicit-any`. Reserve
+`eslint-disable-*` comments for retained ESLint rules, such as
+`@tanstack/query/exhaustive-deps`.
+
 ## Formatting and editors
 
-`pnpm format` and `pnpm format:check` use Oxfmt. Root and package configs
-preserve the existing quote styles, line widths, Markdown overrides, Tailwind
-sorting, and ignored paths. Package-field and import sorting remain disabled.
-TOML stays outside formatting, as it was with Prettier.
+`pnpm format` and `pnpm format:check` use Oxfmt. The root `.oxfmtrc.json` and
+its workspace overrides preserve the existing quote styles, line widths,
+Markdown overrides, Tailwind sorting, and ignored paths. Package-field and
+import sorting remain disabled. TOML stays outside formatting, as it was with
+Prettier.
 
 The theme generator uses Oxfmt's API with the root formatter options and rejects
 formatter errors. `pnpm themes:check` verifies that its committed output remains
@@ -68,3 +106,19 @@ current.
 VS Code and devcontainers recommend Oxc, ESLint for the retained checks, and the
 TypeScript native language server. The committed editor settings use Oxfmt on
 save and run both linters' fixes. The agent formatting hook also uses Oxfmt.
+
+## GitHub Actions
+
+Existing workflows continue to use the package scripts: `pnpm format:check`,
+`pnpm lint`, `pnpm build:types`, package type checks, and frontend builds. The
+PR and native build workflows select Node from `.node-version` and pnpm from
+`package.json`; the lockfile selects the tooling versions. No new Actions job or
+separately installed Go toolchain is required. The Docker frontend stage also
+installs the tools from the same lockfile, using its Node 24 image.
+
+The PR workflow builds package declarations before typed linting, and its
+existing script-test step runs the tooling regression tests. The formatting
+job's `pnpm install --frozen-lockfile --ignore-scripts` remains supported
+because the formatter uses prebuilt platform binaries. Keep optional
+dependencies and development dependencies enabled in jobs that run frontend
+checks.

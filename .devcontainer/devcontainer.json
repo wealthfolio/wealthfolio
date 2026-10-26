@@ -140,7 +140,7 @@
 
   // Use 'postCreateCommand' to run commands after the container is created.
   "postCreateCommand": {
-    "DEPENDENCIES": "yes|pnpm install" // Install project dependencies using pnpm after the container setup
+    "DEPENDENCIES": "pnpm install --frozen-lockfile && pnpm build:types" // Install pinned dependencies and prepare workspace declarations
   },
 
   // Use 'postStartCommand' to run commands after the container is started.

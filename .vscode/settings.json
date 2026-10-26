@@ -14,6 +14,8 @@
   "eslint.workingDirectories": ["./apps/frontend", "./packages/ui", "./packages/addon-sdk"],
 
   // TypeScript settings
+  "js/ts.experimental.useTsgo": true,
+  "js/ts.tsdk.path": "./node_modules/@typescript/native",
   "typescript.preferences.organizeImportsIgnoreCase": "auto",
   "typescript.preferences.includePackageJsonAutoImports": "auto",
   "typescript.inlayHints.parameterNames.enabled": "literals",
