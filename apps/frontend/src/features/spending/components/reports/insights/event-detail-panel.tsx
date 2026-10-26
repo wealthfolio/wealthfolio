@@ -41,6 +41,7 @@ import { useEventDialog } from "../../event-dialog-provider";
 import { getEventColors } from "./event-colors";
 import { formatMonthDay } from "./format";
 import { CARD_CLASS, LABEL_CLASS } from "./insights-shared";
+import { Card } from "@wealthfolio/ui/components/ui/card";
 
 export interface EventDetailPanelProps {
   event: EventSpendingSummary;
@@ -172,7 +173,7 @@ export const EventDetailPanel: FC<EventDetailPanelProps> = ({
   };
 
   return (
-    <div className={CARD_CLASS}>
+    <Card className={CARD_CLASS}>
       {/* HEADER */}
       <div className="mb-3">
         <div className="flex items-center justify-between gap-2">
@@ -512,7 +513,7 @@ export const EventDetailPanel: FC<EventDetailPanelProps> = ({
           );
         })}
       </div>
-    </div>
+    </Card>
   );
 };
 

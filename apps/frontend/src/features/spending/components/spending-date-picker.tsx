@@ -36,6 +36,8 @@ interface SpendingDatePickerProps {
   maxMonth: string;
   onCustomMonthChange: (month: string | null) => void;
   onCustomRangeChange?: (range: DateRange | undefined) => void;
+  /** "header" draws the trigger as the page-header date selector does: a plain icon button. */
+  appearance?: "chart" | "header";
 }
 
 export function SpendingDatePicker({
@@ -44,6 +46,7 @@ export function SpendingDatePicker({
   maxMonth,
   onCustomMonthChange,
   onCustomRangeChange,
+  appearance = "chart",
 }: SpendingDatePickerProps) {
   const { t } = useTranslation();
   const isMobile = useIsMobile();
@@ -83,7 +86,10 @@ export function SpendingDatePicker({
       type="button"
       variant={active ? "default" : "ghost"}
       size="icon"
-      className={cn("h-8 w-8 shrink-0 rounded-full", !active && "bg-muted")}
+      className={cn(
+        "h-8 w-8 shrink-0 rounded-full",
+        appearance === "header" ? "w-9" : !active && "bg-muted",
+      )}
       aria-label={t("spending:period.selectDates")}
     >
       <Icons.Calendar className="h-4 w-4" />

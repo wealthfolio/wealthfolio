@@ -29,6 +29,7 @@ import type { EventSpendingSummary } from "../../../types/event";
 import { useEventDialog } from "../../event-dialog-provider";
 import { getEventColors } from "./event-colors";
 import { CARD_CLASS, LABEL_CLASS } from "./insights-shared";
+import { Card } from "@wealthfolio/ui/components/ui/card";
 
 export interface EventsTimelineCardProps {
   events: EventSpendingSummary[];
@@ -238,7 +239,7 @@ export const EventsTimelineCard: FC<EventsTimelineCardProps> = ({
   }, [events]);
 
   return (
-    <div className={CARD_CLASS} ref={containerRef}>
+    <Card className={CARD_CLASS} ref={containerRef}>
       {/* HEADER */}
       <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
         <div>
@@ -672,7 +673,7 @@ export const EventsTimelineCard: FC<EventsTimelineCardProps> = ({
           </SummaryCell>
         )}
       </div>
-    </div>
+    </Card>
   );
 };
 

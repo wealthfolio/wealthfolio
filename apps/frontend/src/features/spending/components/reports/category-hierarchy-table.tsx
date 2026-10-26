@@ -20,6 +20,7 @@ import {
   type NodeRow,
 } from "./category-hierarchy/builders";
 import { badgeVariants } from "@wealthfolio/ui";
+import { cardSurfaceClassName } from "@wealthfolio/ui/components/ui/card";
 
 export type { CategorySort };
 
@@ -635,7 +636,8 @@ function DeltaPill({ delta, priorSpent }: { delta: number; priorSpent: number })
   );
 }
 
-const MOBILE_CARD = "border-border/40 bg-card/40 rounded-2xl border";
+// The card surface on list items (Card itself is a div).
+const MOBILE_CARD = cardSurfaceClassName;
 
 const MobileGroupRow = memo(function MobileGroupRow({
   group,
@@ -680,7 +682,7 @@ const MobileGroupRow = memo(function MobileGroupRow({
     <li className={MOBILE_CARD}>
       <button
         type="button"
-        className="hover:bg-muted/20 block w-full rounded-2xl px-4 pb-3 pt-3 text-start transition-colors"
+        className="hover:bg-muted/20 rounded-(--card-radius) block w-full px-4 pb-3 pt-3 text-start transition-colors"
         onClick={hasChildren ? onToggle : undefined}
         disabled={!hasChildren}
       >

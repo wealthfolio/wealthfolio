@@ -537,7 +537,7 @@ export default function SpendingInsightsPage() {
       onCustomRangeChange={selectCustomRange}
       maxMonth={maxPickerMonth}
       onCustomMonthChange={selectCustomMonth}
-      className="w-[calc(100vw-6rem)] max-w-[calc(100vw-6rem)] sm:w-full sm:max-w-screen-md md:max-w-2xl"
+      appearance="header"
     />
   );
 

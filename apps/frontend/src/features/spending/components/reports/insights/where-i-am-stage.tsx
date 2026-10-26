@@ -38,11 +38,13 @@ import {
 } from "./format";
 import { MoneyFlowSection } from "./money-flow-section";
 import { badgeVariants } from "@wealthfolio/ui";
+import { Card } from "@wealthfolio/ui/components/ui/card";
 
 // ─── shared chrome ────────────────────────────────────────────────────────
 
+// Padding and the soft diagonal sheen these cards keep over the theme's card surface.
 const CARD_CLASS =
-  "border-border/60 bg-card/40 bg-gradient-to-br from-white/[0.07] via-transparent to-black/[0.04] dark:from-white/[0.025] dark:to-black/[0.06] rounded-2xl border p-5 backdrop-blur-xl";
+  "bg-linear-to-br from-white/[0.07] via-transparent to-black/[0.04] p-5 dark:from-white/[0.025] dark:to-black/[0.06]";
 const LABEL_CLASS = "text-muted-foreground/70 text-2xs font-semibold uppercase tracking-[0.12em]";
 const SAVINGS_GROUP_KEY = "savings";
 const SPENDING_TAXONOMY = "spending_categories";
@@ -202,13 +204,13 @@ const PaceCard: FC<PaceCardProps> = ({
 
   if (isLoading) {
     return (
-      <div className={CARD_CLASS}>
+      <Card className={CARD_CLASS}>
         <Skeleton className="h-2 w-full" />
         <Skeleton className="mt-4 h-3 w-32" />
         <Skeleton className="mt-3 h-20 w-full" />
         <Skeleton className="mt-6 h-2 w-full" />
         <Skeleton className="mt-2 h-3 w-2/3" />
-      </div>
+      </Card>
     );
   }
 
@@ -228,7 +230,7 @@ const PaceCard: FC<PaceCardProps> = ({
 
   if (target <= 0) {
     return (
-      <div className={CARD_CLASS}>
+      <Card className={CARD_CLASS}>
         <div className={LABEL_CLASS}>{t("spending:whereIAm.noBudgetSet")}</div>
         <p className="text-foreground mt-3 text-lg font-semibold leading-snug tracking-tight">
           {t("spending:whereIAm.noBudgetTitle")}
@@ -242,12 +244,12 @@ const PaceCard: FC<PaceCardProps> = ({
         >
           {t("spending:whereIAm.createBudget")}
         </Link>
-      </div>
+      </Card>
     );
   }
 
   return (
-    <div className={CARD_CLASS}>
+    <Card className={CARD_CLASS}>
       {/* Row 1 — label + context (matches the other two cards' top row) */}
       <div className="flex items-baseline justify-between gap-2">
         <div className="inline-flex items-center gap-1.5">
@@ -285,7 +287,7 @@ const PaceCard: FC<PaceCardProps> = ({
           })}
         />
       </div>
-    </div>
+    </Card>
   );
 };
 
@@ -581,17 +583,17 @@ const SpentThisPeriodCard: FC<SpentThisPeriodCardProps> = ({
 
   if (isLoading) {
     return (
-      <div className={CARD_CLASS}>
+      <Card className={CARD_CLASS}>
         <Skeleton className="h-3 w-24" />
         <Skeleton className="mt-3 h-7 w-32" />
         <Skeleton className="mt-4 h-1.5 w-full rounded-full" />
         <Skeleton className="mt-3 h-3 w-3/4" />
-      </div>
+      </Card>
     );
   }
 
   return (
-    <div className={CARD_CLASS}>
+    <Card className={CARD_CLASS}>
       <div className={LABEL_CLASS}>{periodLabel}</div>
       <div className="mt-2 flex flex-wrap items-baseline justify-between gap-2">
         <div className="text-foreground text-lg font-semibold tabular-nums tracking-tight md:text-xl">
@@ -662,7 +664,7 @@ const SpentThisPeriodCard: FC<SpentThisPeriodCardProps> = ({
           {t("spending:hierarchy.noCategorizedSpending")}
         </div>
       )}
-    </div>
+    </Card>
   );
 };
 
@@ -747,12 +749,12 @@ const NetCashflowCard: FC<NetCashflowCardProps> = ({ months, currency, isLoading
 
   if (isLoading) {
     return (
-      <div className={CARD_CLASS}>
+      <Card className={CARD_CLASS}>
         <Skeleton className="h-3 w-24" />
         <Skeleton className="mt-3 h-7 w-32" />
         <Skeleton className="mt-4 h-1.5 w-full rounded-full" />
         <Skeleton className="mt-2 h-1.5 w-full rounded-full" />
-      </div>
+      </Card>
     );
   }
 
@@ -763,7 +765,7 @@ const NetCashflowCard: FC<NetCashflowCardProps> = ({ months, currency, isLoading
   const netToneClass = totals.net >= 0 ? "text-success" : "text-destructive";
 
   return (
-    <div className={CARD_CLASS}>
+    <Card className={CARD_CLASS}>
       <div className="flex items-baseline justify-between">
         <div className={LABEL_CLASS}>{t("spending:whereIAm.netCashflow")}</div>
       </div>
@@ -857,7 +859,7 @@ const NetCashflowCard: FC<NetCashflowCardProps> = ({ months, currency, isLoading
           </div>
         )}
       </div>
-    </div>
+    </Card>
   );
 };
 
