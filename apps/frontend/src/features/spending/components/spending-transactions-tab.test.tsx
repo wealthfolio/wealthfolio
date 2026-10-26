@@ -1,6 +1,11 @@
-import { render, screen, waitFor } from "@/test/render";
+import { act, fireEvent, render, screen, waitFor } from "@/test/render";
 import { ActivityStatus, ActivityType } from "@/lib/constants";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { ActivityUpdate } from "@/lib/types";
+import {
+  ActivityEditCancelled,
+  ActivitySplitReviewProvider,
+} from "./activity-split-review-provider";
 import type { TransactionRowVM } from "../lib/transactions-helpers";
 import { SpendingTransactionsTab } from "./spending-transactions-tab";
 
@@ -69,6 +74,10 @@ const mocks = vi.hoisted(() => {
     getTransferPairForActivity: vi.fn(),
     invalidateQueries: vi.fn(),
     createActivity: vi.fn(),
+    updateActivity: vi.fn(),
+    reviewActivitiesSplitEffects: vi.fn(),
+    toastError: vi.fn(),
+    toastSuccess: vi.fn(),
     saveActivities: vi.fn(),
     useMutation: vi.fn(),
   };
@@ -78,10 +87,13 @@ vi.mock("@/adapters", () => ({
   createActivity: mocks.createActivity,
   saveActivities: mocks.saveActivities,
   deleteActivity: vi.fn(),
-  updateActivity: vi.fn(),
+  updateActivity: mocks.updateActivity,
+  reviewActivitiesSplitEffects: mocks.reviewActivitiesSplitEffects,
   logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn() },
   getTransferPairForActivity: mocks.getTransferPairForActivity,
 }));
+
+vi.mock("sonner", () => ({ toast: { error: mocks.toastError, success: mocks.toastSuccess } }));
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (key: string) => key, i18n: { language: "en" } }),
@@ -414,5 +426,97 @@ describe("SpendingTransactionsTab selection", () => {
 
     select.click();
     await waitFor(() => expect(list).not.toHaveAttribute("data-selecting"));
+  });
+});
+
+describe("SpendingTransactionsTab reimbursement split review", () => {
+  const effect = {
+    activityId: "income-1",
+    removedSplits: 2,
+    hasRetainedCategoryAssignment: true,
+    fingerprint: "reviewed-income",
+  };
+  const row = {
+    activity: {
+      ...mocks.transferOut,
+      id: "income-1",
+      activityType: ActivityType.DEPOSIT,
+      status: ActivityStatus.POSTED,
+      cashFlowBucket: "income",
+    },
+    category: null,
+    splitCount: 2,
+    needsReview: false,
+  } as TransactionRowVM;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.useMutation.mockReset().mockReturnValue(mocks.mutation);
+    mocks.updateActivity.mockResolvedValue({ ...row.activity, activityType: "CREDIT" });
+    mocks.reviewActivitiesSplitEffects.mockReset().mockResolvedValue([[effect]]);
+  });
+
+  function mount() {
+    render(
+      <ActivitySplitReviewProvider>
+        <SpendingTransactionsTab />
+      </ActivitySplitReviewProvider>,
+    );
+    return mocks.useMutation.mock.calls[1][0] as {
+      mutationFn: (row: TransactionRowVM) => Promise<unknown>;
+      onError: (error: unknown) => void;
+    };
+  }
+
+  it.each([false, true])(
+    "reviews split removal before reimbursement (approve=%s)",
+    async (approve) => {
+      const options = mount();
+      let result = Promise.resolve<unknown>(undefined);
+      act(() => {
+        result = options.mutationFn(row).catch((error) => {
+          options.onError(error);
+          return error;
+        });
+      });
+      await screen.findByRole("alertdialog");
+      expect(mocks.reviewActivitiesSplitEffects).toHaveBeenCalledExactlyOnceWith([
+        expect.objectContaining({
+          id: row.activity.id,
+          activityType: "CREDIT",
+          subtype: "REIMBURSEMENT",
+        }),
+      ]);
+      expect(mocks.updateActivity).not.toHaveBeenCalled();
+      fireEvent.click(
+        screen.getByText(approve ? "spending:splitEditReview.confirm" : "common:cancel"),
+      );
+      let outcome: unknown;
+      await act(async () => {
+        outcome = await result;
+      });
+      if (approve) {
+        const update = mocks.reviewActivitiesSplitEffects.mock.calls[0][0][0] as ActivityUpdate;
+        expect(mocks.updateActivity).toHaveBeenCalledExactlyOnceWith({
+          ...update,
+          splitReview: [effect],
+        });
+      } else {
+        expect(outcome).toBeInstanceOf(ActivityEditCancelled);
+        expect(mocks.updateActivity).not.toHaveBeenCalled();
+        expect(mocks.invalidateQueries).not.toHaveBeenCalled();
+      }
+      expect(mocks.toastError).not.toHaveBeenCalled();
+      expect(mocks.toastSuccess).not.toHaveBeenCalled();
+    },
+  );
+
+  it("does not write when review fails and keeps ordinary error reporting", async () => {
+    mocks.reviewActivitiesSplitEffects.mockRejectedValue(new Error("Review unavailable"));
+    const options = mount();
+    await expect(options.mutationFn(row)).rejects.toThrow("Review unavailable");
+    options.onError(new Error("Review unavailable"));
+    expect(mocks.updateActivity).not.toHaveBeenCalled();
+    expect(mocks.toastError).toHaveBeenCalledWith("spending:txTab.markReimbursementFailed");
   });
 });

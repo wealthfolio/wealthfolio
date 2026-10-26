@@ -175,3 +175,73 @@ for (const direction of ["ltr", "rtl"]) {
     await expect(page.getByRole("button", { name: "Assign category", exact: true })).toBeVisible();
   });
 }
+
+for (const direction of ["ltr", "rtl"]) {
+  test(`reimbursement reviews income splits before reclassification (${direction})`, async ({
+    page,
+  }) => {
+    if (direction === "rtl") await page.setViewportSize({ width: 390, height: 844 });
+    const api = await spendingSession(page);
+    const account = await api("accounts", {
+      name: `Reimbursement review ${direction}`,
+      accountType: "CASH",
+      currency: "USD",
+      isDefault: false,
+      isActive: true,
+      trackingMode: "TRANSACTIONS",
+    });
+    await api("spending/settings", { enabled: true, accountIds: [account.id] }, "PUT");
+    const category = await api("taxonomies/categories", {
+      taxonomyId: "income_sources",
+      name: `Reimbursement income ${direction}`,
+      key: `reimbursement_income_${direction}`,
+      color: "#123456",
+      sortOrder: 0,
+    });
+    const activity = await api("activities", {
+      accountId: account.id,
+      activityType: "DEPOSIT",
+      activityDate: new Date().toISOString(),
+      currency: "USD",
+      amount: "25",
+      notes: `Reimbursement transaction ${direction}`,
+    });
+    const splitPath = `spending/activities/${activity.id}/splits`;
+    await api(
+      splitPath,
+      [
+        { taxonomyId: "income_sources", categoryId: category.id, amount: "10" },
+        { taxonomyId: "income_sources", categoryId: category.id, amount: "15" },
+      ],
+      "PUT",
+    );
+    const originalSplits = await api(splitPath, undefined, "GET");
+    await page.goto(`${BASE_URL}/activities?tab=spending&dir=${direction}`);
+    const markReimbursement = async () => {
+      await page.getByRole("button", { name: "Row actions", exact: true }).click();
+      await page
+        .getByRole(direction === "rtl" ? "button" : "menuitem", {
+          name: "Mark as reimbursement",
+          exact: true,
+        })
+        .click();
+    };
+    await markReimbursement();
+    const review = page.getByRole("alertdialog");
+    await expect(review).toContainText("This edit will remove 2 split allocations.");
+    expect(await api(splitPath, undefined, "GET")).toEqual(originalSplits);
+    await review.getByRole("button", { name: "Cancel", exact: true }).click();
+    await expect(review).not.toBeVisible();
+    expect(await api(splitPath, undefined, "GET")).toEqual(originalSplits);
+    await expect(
+      page.getByRole("dialog", { name: "Edit Transaction", exact: true }),
+    ).not.toBeVisible();
+    await expect(page.getByText("Failed to mark reimbursement.", { exact: true })).toHaveCount(0);
+    await expect(page.getByText("Marked as reimbursement.", { exact: true })).toHaveCount(0);
+    await markReimbursement();
+    await expect(review).toBeVisible();
+    await review.getByRole("button", { name: "Save and remove splits", exact: true }).click();
+    await expect(page.getByRole("dialog", { name: "Edit Transaction", exact: true })).toBeVisible();
+    expect(await api(splitPath, undefined, "GET")).toEqual([]);
+  });
+}

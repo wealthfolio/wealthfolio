@@ -52,6 +52,7 @@ import {
 } from "@wealthfolio/ui";
 
 import { CashActivityForm } from "./cash-activity-form";
+import { isActivityEditCancelled, useActivitySplitReview } from "./activity-split-review-provider";
 import { ActivityForm } from "@/pages/activity/components/activity-form";
 import { MobileActivityForm } from "@/pages/activity/components/mobile-forms/mobile-activity-form";
 import { TransferMatchDialog } from "@/pages/activity/components/transfer-match-dialog";
@@ -241,6 +242,7 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
     const urlAmountMax = searchParams.get("amountMax");
 
     const qc = useQueryClient();
+    const reviewEdits = useActivitySplitReview();
     const { settings } = useSettingsContext();
     const appTimezone = settings?.timezone?.trim() || undefined;
     const applyingUrlParamsRef = useRef(false);
@@ -681,17 +683,20 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
     const markReimbursementMutation = useMutation({
       mutationFn: async (row: TransactionRowVM) => {
         const a = row.activity;
-        return updateActivity({
-          id: a.id,
-          accountId: a.accountId,
-          activityType: "CREDIT",
-          subtype: "REIMBURSEMENT",
-          activityDate: a.activityDate,
-          amount: Math.abs(Number.parseFloat(a.amount ?? "0")),
-          currency: a.currency,
-          comment: a.notes ?? null,
-          metadata: cashActivityFlowMetadata("CREDIT", "REIMBURSEMENT", a.metadata),
-        });
+        const [reviewed] = await reviewEdits([
+          {
+            id: a.id,
+            accountId: a.accountId,
+            activityType: "CREDIT",
+            subtype: "REIMBURSEMENT",
+            activityDate: a.activityDate,
+            amount: Math.abs(Number.parseFloat(a.amount ?? "0")),
+            currency: a.currency,
+            comment: a.notes ?? null,
+            metadata: cashActivityFlowMetadata("CREDIT", "REIMBURSEMENT", a.metadata),
+          },
+        ]);
+        return updateActivity(reviewed);
       },
       onSuccess: (_, row) => {
         invalidateSpendingCaches(qc);
@@ -712,7 +717,10 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
         setShowForm(true);
         toast.success(t("spending:txTab.markedReimbursement"));
       },
-      onError: () => toast.error(t("spending:txTab.markReimbursementFailed")),
+      onError: (error) => {
+        if (!isActivityEditCancelled(error))
+          toast.error(t("spending:txTab.markReimbursementFailed"));
+      },
     });
 
     const deleteMutation = useMutation({

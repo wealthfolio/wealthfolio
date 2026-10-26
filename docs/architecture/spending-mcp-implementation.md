@@ -380,3 +380,10 @@ tests cover each grant and payload signature, public-field compatibility,
 unknown controls and input immutability. These tests reproduced the reported
 loss and scope bypass before the fixes. Cross-device replay of the combined edit
 remains covered only indirectly by the existing writer/outbox tests.
+
+The cross-review also identified the Spending row's reimbursement action as a
+financial edit that skipped review. It now uses the same transient split-review
+provider as the forms and grid, forwards the reviewed proof, and treats cancel
+as a neutral result. Tests reproduce the bypass before the fix and cover
+approval, cancellation without a write or toast, and review failure without a
+write. This adds no endpoint, state persistence or change to accounting rules.
