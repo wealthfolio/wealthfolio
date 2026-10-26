@@ -69,6 +69,12 @@ export function useDashboardPeriod(
     setLastPreset(code);
   };
   const clearCustom = () => setPick({ kind: "portfolio", code: lastPreset });
+  // Clear returns to the preset this tab showed before the custom pick, which
+  // can differ from the last preset picked (Net Worth's own ALL, for example).
+  const pickCustom = (next: DashboardPeriodPick) => {
+    if (view.code) setLastPreset(view.code);
+    setPick(next);
+  };
 
   return {
     code: view.code,
@@ -80,10 +86,10 @@ export function useDashboardPeriod(
     maxMonth: addMonthsToMonthKey(todayISO.slice(0, 7), -1),
     selectPreset,
     selectMonth: (monthKey: string | null) =>
-      monthKey ? setPick({ kind: "month", monthKey }) : clearCustom(),
+      monthKey ? pickCustom({ kind: "month", monthKey }) : clearCustom(),
     selectRange: (range: DateRange | undefined) => {
       if (!range) clearCustom();
-      else if (range.from && range.to) setPick(rangePick({ from: range.from, to: range.to }));
+      else if (range.from && range.to) pickCustom(rangePick({ from: range.from, to: range.to }));
     },
   };
 }

@@ -160,7 +160,8 @@ export function DateRangeSelector({ value, onChange, hiddenRanges = [], asOf = n
           label: range.label,
           title: t("ui:dateRange.presets." + range.label, range.name),
         }))}
-        value={selectedLabel}
+        // Null keeps the group controlled, so a custom range highlights no preset.
+        value={selectedLabel ?? null}
         onValueChange={(newValue) => {
           if (!newValue) {
             return;
