@@ -7,6 +7,7 @@ import { ActivityType } from "@/lib/constants";
 import type { ActivityDetails, ActivityUpdate } from "@/lib/types";
 const mocks = vi.hoisted(() => ({
   reviewActivitiesSplitEffects: vi.fn(),
+  reviewInternalTransferPairSplitEffects: vi.fn(),
   updateActivity: vi.fn(),
   deleteActivity: vi.fn(),
   createActivity: vi.fn(),
@@ -24,9 +25,18 @@ vi.mock("react-i18next", async (importOriginal) => ({
   ...(await importOriginal<object>()),
   useTranslation: () => ({ t: (key: string) => key }),
 }));
-function Editor({ transfer = false }: { transfer?: boolean }) {
+function Editor({
+  transfer = false,
+  internal = false,
+}: {
+  transfer?: boolean;
+  internal?: boolean;
+}) {
   const form = useActivityForm({
-    accounts: [{ value: "account", label: "Account", currency: "USD" }],
+    accounts: [
+      { value: "account", label: "Account", currency: "USD" },
+      { value: "destination", label: "Destination", currency: "USD" },
+    ],
     selectedType: transfer ? "TRANSFER" : ActivityType.WITHDRAWAL,
     activity: {
       id: "a",
@@ -47,7 +57,14 @@ function Editor({ transfer = false }: { transfer?: boolean }) {
             activityDate: new Date("2026-04-01T12:00:00Z"),
             currency: "USD",
             amount: 25,
-            ...(transfer ? { transferMode: "cash", isExternal: true, direction: "out" } : {}),
+            ...(transfer
+              ? {
+                  transferMode: "cash",
+                  isExternal: !internal,
+                  direction: "out",
+                  ...(internal ? { fromAccountId: "account", toAccountId: "destination" } : {}),
+                }
+              : {}),
           } as never)
         }
       >
@@ -59,13 +76,13 @@ function Editor({ transfer = false }: { transfer?: boolean }) {
     </>
   );
 }
-function mount(transfer = false) {
+function mount(transfer = false, internal = false) {
   render(
     <QueryClientProvider
       client={new QueryClient({ defaultOptions: { mutations: { retry: false } } })}
     >
       <ActivitySplitReviewProvider>
-        <Editor transfer={transfer} />
+        <Editor transfer={transfer} internal={internal} />
       </ActivitySplitReviewProvider>
     </QueryClientProvider>,
   );
@@ -93,6 +110,18 @@ beforeEach(() => {
     ]),
   );
   mocks.unlinkTransferActivities.mockResolvedValue({});
+  mocks.reviewInternalTransferPairSplitEffects.mockResolvedValue(
+    ["a", "b"].map((activityId) => ({
+      activityId,
+      removedSplits: 1,
+      hasRetainedCategoryAssignment: false,
+      fingerprint: `${activityId}-pair-review`,
+    })),
+  );
+  mocks.saveInternalTransferPair.mockResolvedValue({
+    transferOut: { id: "a", accountId: "account" },
+    transferIn: { id: "b", accountId: "destination" },
+  });
 });
 it("cancelling split removal leaves the desktop form neutral and saves nothing", async () => {
   mount();
@@ -145,3 +174,84 @@ it("approving transfer externalization submits the unlink and edit with the same
   expect(mocks.unlinkTransferActivities).not.toHaveBeenCalled();
   expect(mocks.toast.error).not.toHaveBeenCalled();
 });
+
+it.each([false, true])(
+  "internal pair edits review both legs before saving (approve=%s)",
+  async (approve) => {
+    mount(true, true);
+    fireEvent.click(screen.getByText("Save edit"));
+    await screen.findByRole("alertdialog");
+    expect(mocks.reviewInternalTransferPairSplitEffects).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({
+        transferOutId: "a",
+        transferInId: "b",
+        sourceAmount: 25,
+        destinationAmount: 25,
+      }),
+    );
+    expect(mocks.saveInternalTransferPair).not.toHaveBeenCalled();
+    fireEvent.click(
+      screen.getByText(approve ? "spending:splitEditReview.confirm" : "common:cancel"),
+    );
+    await waitFor(() => expect(screen.getByTestId("is-loading").textContent).toBe("false"));
+    if (approve) {
+      expect(mocks.saveInternalTransferPair).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({
+          splitReview: [
+            expect.objectContaining({ activityId: "a", fingerprint: "a-pair-review" }),
+            expect.objectContaining({ activityId: "b", fingerprint: "b-pair-review" }),
+          ],
+        }),
+      );
+    } else {
+      expect(mocks.saveInternalTransferPair).not.toHaveBeenCalled();
+      expect(screen.getByTestId("is-error").textContent).toBe("false");
+      expect(screen.getByTestId("error").textContent).toBe("null");
+    }
+    expect(mocks.updateActivity).not.toHaveBeenCalled();
+    expect(mocks.toast.error).not.toHaveBeenCalled();
+  },
+);
+
+it("internal pair edits carry both proofs even when no allocations are removed", async () => {
+  mocks.reviewInternalTransferPairSplitEffects.mockResolvedValue(
+    ["a", "b"].map((activityId) => ({
+      activityId,
+      removedSplits: 0,
+      hasRetainedCategoryAssignment: false,
+      fingerprint: `${activityId}-unchanged`,
+    })),
+  );
+  mount(true, true);
+  fireEvent.click(screen.getByText("Save edit"));
+  await waitFor(() => expect(mocks.saveInternalTransferPair).toHaveBeenCalledOnce());
+  expect(screen.queryByRole("alertdialog")).toBeNull();
+  expect(mocks.saveInternalTransferPair).toHaveBeenCalledWith(
+    expect.objectContaining({
+      splitReview: [
+        expect.objectContaining({ activityId: "a", fingerprint: "a-unchanged" }),
+        expect.objectContaining({ activityId: "b", fingerprint: "b-unchanged" }),
+      ],
+    }),
+  );
+});
+
+it.each([["a"], ["a", "a"], ["a", "other"]])(
+  "does not save a pair when review returns the wrong legs (%j)",
+  async (...ids) => {
+    mocks.reviewInternalTransferPairSplitEffects.mockResolvedValue(
+      ids.map((activityId) => ({
+        activityId,
+        removedSplits: 0,
+        hasRetainedCategoryAssignment: false,
+        fingerprint: "incomplete",
+      })),
+    );
+    mount(true, true);
+    fireEvent.click(screen.getByText("Save edit"));
+    await waitFor(() => expect(mocks.toast.error).toHaveBeenCalled());
+    expect(mocks.saveInternalTransferPair).not.toHaveBeenCalled();
+    expect(mocks.updateActivity).not.toHaveBeenCalled();
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+  },
+);

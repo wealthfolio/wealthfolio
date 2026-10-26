@@ -475,6 +475,12 @@ pub trait ActivityServiceTrait: Send + Sync {
     ) -> Result<Vec<ActivitySplitEffect>> {
         Err(crate::activities::ActivityError::InvalidData("Split review unavailable".into()).into())
     }
+    async fn review_internal_transfer_pair_split_effects(
+        &self,
+        _request: InternalTransferPairRequest,
+    ) -> Result<Vec<ActivitySplitEffect>> {
+        Err(crate::activities::ActivityError::InvalidData("Split review unavailable".into()).into())
+    }
     async fn delete_activity(&self, activity_id: String) -> Result<Activity>;
     /// Returns the internal transfer pair for the activity, or `None` when the
     /// activity exists but is not part of a valid internal transfer pair.

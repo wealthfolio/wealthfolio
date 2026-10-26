@@ -120,6 +120,7 @@ export {
   searchActivities,
   updateActivity,
   reviewActivitiesSplitEffects,
+  reviewInternalTransferPairSplitEffects,
 } from "../shared/activities";
 export { parseCsv } from "./activities";
 

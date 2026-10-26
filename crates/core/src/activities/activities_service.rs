@@ -2042,7 +2042,7 @@ impl ActivityService {
         let mut updates = vec![
             ActivityUpdate {
                 unlink_transfer_pair_id: None,
-                split_review: None,
+                split_review: request.split_review.clone(),
                 id: pair.transfer_out.id.clone(),
                 account_id: request.from_account_id.clone(),
                 asset: None,
@@ -2067,7 +2067,7 @@ impl ActivityService {
             },
             ActivityUpdate {
                 unlink_transfer_pair_id: None,
-                split_review: None,
+                split_review: request.split_review.clone(),
                 id: pair.transfer_in.id.clone(),
                 account_id: request.to_account_id.clone(),
                 asset: None,
@@ -2109,6 +2109,44 @@ impl ActivityService {
             }
         }
         Ok(updates)
+    }
+
+    async fn prepare_internal_pair_updates(
+        &self,
+        request: &InternalTransferPairRequest,
+        pair_values: &InternalPairValues,
+    ) -> Result<(TransferPair, Vec<ActivityUpdate>)> {
+        let transfer_out_id = request
+            .transfer_out_id
+            .clone()
+            .ok_or_else(|| Self::invalid_activity_data("Transfer out id is required"))?;
+        let transfer_in_id = request
+            .transfer_in_id
+            .clone()
+            .ok_or_else(|| Self::invalid_activity_data("Transfer in id is required"))?;
+
+        let pair = self.require_internal_transfer_pair_for_activity(&transfer_out_id)?;
+        if pair.transfer_in.id != transfer_in_id {
+            return Err(Self::invalid_activity_data(
+                "Transfer legs do not belong to the same pair",
+            ));
+        }
+        if !Self::is_cash_transfer_pair(&pair) {
+            return Err(Self::invalid_activity_data(
+                "Pair save currently supports internal cash transfers only",
+            ));
+        }
+
+        let mut updates = self.build_internal_pair_updates(request, &pair, pair_values)?;
+        for update in &mut updates {
+            let existing = self.activity_repository.get_activity(&update.id)?;
+            self.hydrate_and_validate_update_against_existing(update, &existing)?;
+        }
+        let mut prepared_updates = Vec::new();
+        for update in updates {
+            prepared_updates.push(self.prepare_update_activity(update).await?);
+        }
+        Ok((pair, prepared_updates))
     }
 
     fn validate_internal_cash_pair_currency_update(
@@ -5504,6 +5542,20 @@ impl ActivityServiceTrait for ActivityService {
         Ok(effects)
     }
 
+    async fn review_internal_transfer_pair_split_effects(
+        &self,
+        request: InternalTransferPairRequest,
+    ) -> Result<Vec<ActivitySplitEffect>> {
+        let values = self.validate_internal_pair_request(&request)?;
+        let (_, updates) = self
+            .prepare_internal_pair_updates(&request, &values)
+            .await?;
+        updates
+            .iter()
+            .map(|update| self.activity_repository.preview_split_effect(update))
+            .collect()
+    }
+
     /// Deletes an activity
     async fn delete_activity(&self, activity_id: String) -> Result<Activity> {
         if let Some(pair) = self.load_internal_transfer_pair_for_activity(&activity_id)? {
@@ -5634,26 +5686,9 @@ impl ActivityServiceTrait for ActivityService {
         let mut old_activities: Vec<Activity> = Vec::new();
 
         let persisted = if is_update {
-            let transfer_out_id = request
-                .transfer_out_id
-                .clone()
-                .ok_or_else(|| Self::invalid_activity_data("Transfer out id is required"))?;
-            let transfer_in_id = request
-                .transfer_in_id
-                .clone()
-                .ok_or_else(|| Self::invalid_activity_data("Transfer in id is required"))?;
-
-            let pair = self.require_internal_transfer_pair_for_activity(&transfer_out_id)?;
-            if pair.transfer_in.id != transfer_in_id {
-                return Err(Self::invalid_activity_data(
-                    "Transfer legs do not belong to the same pair",
-                ));
-            }
-            if !Self::is_cash_transfer_pair(&pair) {
-                return Err(Self::invalid_activity_data(
-                    "Pair save currently supports internal cash transfers only",
-                ));
-            }
+            let (pair, prepared_updates) = self
+                .prepare_internal_pair_updates(&request, &pair_values)
+                .await?;
 
             for activity in [&pair.transfer_out, &pair.transfer_in] {
                 Self::add_activity_to_event_sets(
@@ -5665,15 +5700,6 @@ impl ActivityServiceTrait for ActivityService {
                 old_activities.push(activity.clone());
             }
 
-            let mut updates = self.build_internal_pair_updates(&request, &pair, &pair_values)?;
-            for update in &mut updates {
-                let existing = self.activity_repository.get_activity(&update.id)?;
-                self.hydrate_and_validate_update_against_existing(update, &existing)?;
-            }
-            let mut prepared_updates = Vec::new();
-            for update in updates {
-                prepared_updates.push(self.prepare_update_activity(update).await?);
-            }
             self.activity_repository
                 .bulk_mutate_activities(Vec::new(), prepared_updates, Vec::new())
                 .await?
@@ -5693,14 +5719,14 @@ impl ActivityServiceTrait for ActivityService {
             .created
             .iter()
             .chain(persisted.updated.iter())
-            .find(|activity| activity.activity_type == ACTIVITY_TYPE_TRANSFER_OUT)
+            .find(|activity| activity.effective_type() == ACTIVITY_TYPE_TRANSFER_OUT)
             .cloned()
             .ok_or_else(|| Self::invalid_activity_data("Transfer out leg was not returned"))?;
         let transfer_in = persisted
             .created
             .iter()
             .chain(persisted.updated.iter())
-            .find(|activity| activity.activity_type == ACTIVITY_TYPE_TRANSFER_IN)
+            .find(|activity| activity.effective_type() == ACTIVITY_TYPE_TRANSFER_IN)
             .cloned()
             .ok_or_else(|| Self::invalid_activity_data("Transfer in leg was not returned"))?;
 

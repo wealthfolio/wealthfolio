@@ -154,6 +154,25 @@ export const reviewActivitiesSplitEffects = (
     activities: activities.map(serializeActivityMetadata),
   });
 
+function serializeInternalTransferPair(
+  request: InternalTransferPairRequest,
+): InternalTransferPairRequest {
+  return {
+    ...request,
+    activityDate:
+      request.activityDate instanceof Date
+        ? request.activityDate.toISOString()
+        : request.activityDate,
+  };
+}
+
+export const reviewInternalTransferPairSplitEffects = (
+  request: InternalTransferPairRequest,
+): Promise<ActivitySplitEffect[]> =>
+  invoke("review_internal_transfer_pair_split_effects", {
+    request: serializeInternalTransferPair(request),
+  });
+
 export const updateActivity = async (activity: ActivityUpdate): Promise<Activity> => {
   try {
     return await invoke<Activity>("update_activity", {
@@ -219,13 +238,7 @@ export const findTransferMatchCandidates = async (
 export const saveInternalTransferPair = async (
   request: InternalTransferPairRequest,
 ): Promise<InternalTransferPairResponse> => {
-  const payload: InternalTransferPairRequest = {
-    ...request,
-    activityDate:
-      request.activityDate instanceof Date
-        ? request.activityDate.toISOString()
-        : request.activityDate,
-  };
+  const payload = serializeInternalTransferPair(request);
   try {
     return await invoke<InternalTransferPairResponse>("save_internal_transfer_pair", {
       request: payload,

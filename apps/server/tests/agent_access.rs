@@ -5059,3 +5059,156 @@ async fn paired_unlink_rejects_unreviewed_or_ambiguous_requests_without_writes()
         );
     }
 }
+
+#[tokio::test]
+async fn internal_transfer_pair_reviews_match_commits_and_reject_stale_legs_atomically() {
+    let server = spawn_server(true, false).await;
+    let cookie = login(&server).await;
+    let (cash, _, category, _, _) = category_save_fixture(&server, &cookie).await;
+    let destination = create_eur_account(&server, &cookie, "Pair review destination").await;
+    let profile = api_post(
+        &server,
+        &cookie,
+        "profiles/get_profile_state",
+        serde_json::json!({}),
+    )
+    .await;
+    let path = server
+        ._tmp
+        .path()
+        .join("profiles")
+        .join(profile["session"]["profileId"].as_str().unwrap())
+        .join("app.db");
+    let db = wealthfolio_storage_sqlite::db::DbAccess::plaintext(path.to_str().unwrap())
+        .connect_rusqlite()
+        .unwrap();
+    for broker in [false, true] {
+        let date = if broker {
+            "2026-04-02T12:00:00Z"
+        } else {
+            "2026-04-01T12:00:00Z"
+        };
+        let mut request = serde_json::json!({"fromAccountId":cash["id"],"toAccountId":destination["id"],"activityDate":date,"sourceAmount":"12.50","destinationAmount":"12.50","sourceCurrency":"EUR","destinationCurrency":"EUR","transferMode":"cash","notes":"Original pair"});
+        let pair = api_post(
+            &server,
+            &cookie,
+            "activities/transfer-pair",
+            request.clone(),
+        )
+        .await;
+        let out_id = pair["transferOut"]["id"].as_str().unwrap();
+        let in_id = pair["transferIn"]["id"].as_str().unwrap();
+        for id in [out_id, in_id] {
+            db.execute("INSERT INTO spending_activity_splits (id,activity_id,taxonomy_id,category_id,amount,sort_order,created_at,updated_at) VALUES (?1,?1,'spending_categories',?2,'12.5',0,'2026-04-01T12:00:00Z','2026-04-01T12:00:00Z')", [id, category.as_str()]).unwrap();
+        }
+        if broker {
+            db.execute("UPDATE accounts SET provider_account_id='pair-preview-provider' WHERE id IN (?1,?2)", [cash["id"].as_str().unwrap(),destination["id"].as_str().unwrap()]).unwrap();
+            for (id, raw, effective) in [
+                (out_id, "WITHDRAWAL", "TRANSFER_OUT"),
+                (in_id, "DEPOSIT", "TRANSFER_IN"),
+            ] {
+                db.execute("UPDATE activities SET source_system='SNAPTRADE',source_record_id=id,activity_type=?2,activity_type_override=?3 WHERE id=?1", [id,raw,effective]).unwrap();
+            }
+        }
+        request["transferOutId"] = serde_json::json!(out_id);
+        request["transferInId"] = serde_json::json!(in_id);
+        request["editedActivityId"] = serde_json::json!(out_id);
+        request["sourceAmount"] = serde_json::json!("25");
+        request["destinationAmount"] = serde_json::json!("25");
+        request["activityDate"] = serde_json::json!("2026-04-03T12:00:00Z");
+        let snapshot = || -> (String, i64, i64) {
+            let rows = db.query_row("SELECT json_group_array(json_object('id',id,'amount',amount,'date',activity_date,'notes',notes,'group',source_group_id,'type',activity_type,'override',activity_type_override,'updated',updated_at)) FROM (SELECT * FROM activities WHERE id IN (?1,?2) ORDER BY id)",[out_id,in_id],|row|row.get(0)).unwrap();
+            let splits = db
+                .query_row(
+                    "SELECT COUNT(*) FROM spending_activity_splits WHERE activity_id IN (?1,?2)",
+                    [out_id, in_id],
+                    |row| row.get(0),
+                )
+                .unwrap();
+            let outbox = db
+                .query_row("SELECT COUNT(*) FROM sync_outbox", [], |row| row.get(0))
+                .unwrap();
+            (rows, splits, outbox)
+        };
+        let original = snapshot();
+        let effects = api_post(
+            &server,
+            &cookie,
+            "activities/transfer-pair/split-effects",
+            request.clone(),
+        )
+        .await;
+        assert_eq!(effects.as_array().unwrap().len(), 2);
+        assert!(effects
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|effect| effect["removedSplits"] == 1));
+        assert_eq!(
+            snapshot(),
+            original,
+            "preview must not write or clear splits"
+        );
+        for invalid in [
+            serde_json::json!([]),
+            serde_json::json!([effects[0].clone()]),
+        ] {
+            request["splitReview"] = invalid;
+            let response = server
+                .client
+                .post(format!("{}/api/v1/activities/transfer-pair", server.base))
+                .header(header::COOKIE, format!("wf_session={cookie}"))
+                .json(&request)
+                .send()
+                .await
+                .unwrap();
+            assert!(!response.status().is_success());
+            assert_eq!(
+                snapshot(),
+                original,
+                "incomplete proofs must roll back the whole pair"
+            );
+        }
+        request["splitReview"] = effects;
+        db.execute(
+            "UPDATE activities SET notes='Concurrent counterpart edit' WHERE id=?1",
+            [in_id],
+        )
+        .unwrap();
+        let concurrent = snapshot();
+        let response = server
+            .client
+            .post(format!("{}/api/v1/activities/transfer-pair", server.base))
+            .header(header::COOKIE, format!("wf_session={cookie}"))
+            .json(&request)
+            .send()
+            .await
+            .unwrap();
+        assert!(!response.status().is_success());
+        assert_eq!(
+            snapshot(),
+            concurrent,
+            "stale counterpart review must leave both legs, splits and outbox intact"
+        );
+        request["splitReview"] = api_post(
+            &server,
+            &cookie,
+            "activities/transfer-pair/split-effects",
+            request.clone(),
+        )
+        .await;
+        let result = api_post(&server, &cookie, "activities/transfer-pair", request).await;
+        assert_eq!(result["transferOut"]["id"], out_id);
+        assert_eq!(result["transferIn"]["id"], in_id);
+        assert_eq!(snapshot().1, 0);
+        for (id, raw, effective) in [
+            (out_id, "WITHDRAWAL", "TRANSFER_OUT"),
+            (in_id, "DEPOSIT", "TRANSFER_IN"),
+        ] {
+            let (kind,overridden,amount):(String,Option<String>,String)=db.query_row("SELECT activity_type,activity_type_override,amount FROM activities WHERE id=?1",[id],|row|Ok((row.get(0)?,row.get(1)?,row.get(2)?))).unwrap();
+            assert_eq!(kind, if broker { raw } else { effective });
+            assert_eq!(overridden, broker.then(|| effective.to_string()));
+            assert_eq!(amount, "25");
+        }
+    }
+}

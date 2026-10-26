@@ -148,6 +148,18 @@ async fn review_activity_split_effects(
     ))
 }
 
+async fn review_internal_transfer_pair_split_effects(
+    axum::Extension(state): axum::Extension<Arc<AppState>>,
+    Json(request): Json<InternalTransferPairRequest>,
+) -> ApiResult<Json<Vec<ActivitySplitEffect>>> {
+    Ok(Json(
+        state
+            .activity_service
+            .review_internal_transfer_pair_split_effects(request)
+            .await?,
+    ))
+}
+
 async fn update_activity(
     axum::Extension(state): axum::Extension<Arc<AppState>>,
     Json(activity): Json<ActivityUpdate>,
@@ -474,6 +486,10 @@ pub fn router<S: Clone + Send + Sync + 'static>() -> Router<S> {
         .route(
             "/activities/split-effects",
             post(review_activity_split_effects),
+        )
+        .route(
+            "/activities/transfer-pair/split-effects",
+            post(review_internal_transfer_pair_split_effects),
         )
         .route("/activities/{id}", delete(delete_activity))
         .route(

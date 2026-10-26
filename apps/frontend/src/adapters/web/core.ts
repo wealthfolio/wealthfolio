@@ -104,6 +104,10 @@ export const COMMANDS: CommandMap = {
   // Activities
   search_activities: { method: "POST", path: "/activities/search" },
   create_activity: { method: "POST", path: "/activities" },
+  review_internal_transfer_pair_split_effects: {
+    method: "POST",
+    path: "/activities/transfer-pair/split-effects",
+  },
   review_activity_split_effects: { method: "POST", path: "/activities/split-effects" },
   update_activity: { method: "PUT", path: "/activities" },
   save_activities: { method: "POST", path: "/activities/bulk" },
@@ -895,6 +899,7 @@ export const invoke = async <T>(command: string, payload?: Record<string, unknow
       body = JSON.stringify(request);
       break;
     }
+    case "review_internal_transfer_pair_split_effects":
     case "save_internal_transfer_pair": {
       const { request } = payload as { request: Record<string, unknown> };
       body = JSON.stringify(request);

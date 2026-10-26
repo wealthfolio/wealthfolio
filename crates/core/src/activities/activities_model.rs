@@ -867,6 +867,9 @@ pub struct ActivityFinalCashMigrationResult {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct InternalTransferPairRequest {
+    /// Optional native review of both existing legs; validated by the shared writer.
+    #[serde(default)]
+    pub split_review: Option<Vec<ActivitySplitEffect>>,
     /// The record whose date and notes the existing activity form is editing.
     #[serde(default)]
     pub edited_activity_id: Option<String>,

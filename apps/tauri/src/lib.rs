@@ -312,6 +312,7 @@ pub fn run() {
             commands::activity::create_activity,
             commands::activity::update_activity,
             commands::activity::review_activity_split_effects,
+            commands::activity::review_internal_transfer_pair_split_effects,
             commands::activity::save_activities,
             commands::activity::delete_activity,
             commands::activity::get_transfer_pair_for_activity,

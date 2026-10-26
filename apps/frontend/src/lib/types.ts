@@ -397,6 +397,7 @@ export interface ActivityBulkMutationResult {
 }
 
 export interface InternalTransferPairRequest {
+  splitReview?: ActivitySplitEffect[];
   editedActivityId?: string;
   transferOutId?: string;
   transferInId?: string;

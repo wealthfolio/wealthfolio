@@ -99,6 +99,19 @@ pub async fn review_activity_split_effects(
 }
 
 #[tauri::command]
+pub async fn review_internal_transfer_pair_split_effects(
+    request: InternalTransferPairRequest,
+    state: ProfileAccess,
+) -> Result<Vec<ActivitySplitEffect>, String> {
+    state
+        .context()?
+        .activity_service()
+        .review_internal_transfer_pair_split_effects(request)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 pub async fn update_activity(
     activity: ActivityUpdate,
     state: ProfileAccess,

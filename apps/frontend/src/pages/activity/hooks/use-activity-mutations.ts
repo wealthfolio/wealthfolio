@@ -1,6 +1,7 @@
 import {
   isActivityEditCancelled,
   useActivitySplitReview,
+  useInternalTransferPairSplitReview,
 } from "@/features/spending/components/activity-split-review-provider";
 import {
   createActivity,
@@ -34,6 +35,7 @@ export function useActivityMutations(
   onSuccess?: (activity: { accountId?: string | null }) => void,
 ) {
   const reviewEdits = useActivitySplitReview();
+  const reviewPair = useInternalTransferPairSplitReview();
   const queryClient = useQueryClient();
 
   const buildActivityAssetInput = ({
@@ -473,7 +475,9 @@ export function useActivityMutations(
 
   const saveInternalTransferPairMutation = useMutation({
     mutationFn: async (request: InternalTransferPairRequest) => {
-      return await saveInternalTransferPair(request);
+      const reviewed =
+        request.transferOutId || request.transferInId ? await reviewPair(request) : request;
+      return await saveInternalTransferPair(reviewed);
     },
     onSuccess: (result: InternalTransferPairResponse) => {
       queryClient.invalidateQueries();

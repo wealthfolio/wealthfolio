@@ -387,3 +387,30 @@ provider as the forms and grid, forwards the reviewed proof, and treats cancel
 as a neutral result. Tests reproduce the bypass before the fix and cover
 approval, cancellation without a write or toast, and review failure without a
 write. This adds no endpoint, state persistence or change to accounting rules.
+
+### Internal transfer pair review
+
+The dedicated internal cash-transfer form also reviews both existing legs before
+saving. Its preview and commit share the same core preparation helper, including
+cash amount/currency normalization, source-record date/note precedence and
+valuation-rate patches. The optional `splitReview` on the pair request is
+forwarded to both existing updates and checked by the same SQLite writer.
+Creation and non-interactive callers that omit review retain their existing
+behavior. Pair results select legs by effective type so reclassified broker raw
+types remain valid responses.
+
+**Architecture impact:** this follow-up adds one read-only native command and
+HTTP route, `review_internal_transfer_pair_split_effects` and
+`POST /activities/transfer-pair/split-effects`, wired through the shared
+adapter, Tauri registration and web mapping. Generic activity preview cannot
+represent the dedicated pair editor's account/currency and sourced date/note
+rules; the new read therefore reuses the save's exact preparation. It adds no
+persistence, migration, queue, worker, retry, lock, provider request or event.
+Both forms use the existing shared confirmation provider and mutation hook.
+Existing saves still commit in the same writer transaction and emit events after
+success.
+
+Regression tests cover both-leg confirmation and cancellation without writes,
+read-only previews, missing and stale proofs rolling back both legs/splits and
+outbox, and reclassified broker pair responses. Existing source-date, amount, FX
+and account-change service tests exercise the shared preparation helper.

@@ -12633,6 +12633,7 @@ pub(crate) mod tests {
 
         let result = activity_service
             .save_internal_transfer_pair(InternalTransferPairRequest {
+                split_review: None,
                 edited_activity_id: None,
                 transfer_out_id: None,
                 transfer_in_id: None,
@@ -12694,6 +12695,7 @@ pub(crate) mod tests {
 
         let result = activity_service
             .save_internal_transfer_pair(InternalTransferPairRequest {
+                split_review: None,
                 edited_activity_id: None,
                 transfer_out_id: None,
                 transfer_in_id: None,
@@ -12739,6 +12741,7 @@ pub(crate) mod tests {
 
         let created = activity_service
             .save_internal_transfer_pair(InternalTransferPairRequest {
+                split_review: None,
                 edited_activity_id: None,
                 transfer_out_id: None,
                 transfer_in_id: None,
@@ -12775,6 +12778,7 @@ pub(crate) mod tests {
 
         let updated = activity_service
             .save_internal_transfer_pair(InternalTransferPairRequest {
+                split_review: None,
                 edited_activity_id: None,
                 transfer_out_id: Some(created.transfer_out.id.clone()),
                 transfer_in_id: Some(created.transfer_in.id.clone()),
@@ -12828,6 +12832,7 @@ pub(crate) mod tests {
             Arc::new(MockQuoteService),
         );
         let request = InternalTransferPairRequest {
+            split_review: None,
             edited_activity_id: None,
             transfer_out_id: None,
             transfer_in_id: None,
@@ -13163,6 +13168,7 @@ pub(crate) mod tests {
         let (_, _, request) = independent_transfer_fixture();
         let created = service
             .save_internal_transfer_pair(InternalTransferPairRequest {
+                split_review: None,
                 destination_currency: "HKD".into(),
                 destination_amount: Some(dec!(780)),
                 ..request
@@ -13208,6 +13214,7 @@ pub(crate) mod tests {
         // A single leg is still not converted on its own.
         let created = service
             .save_internal_transfer_pair(InternalTransferPairRequest {
+                split_review: None,
                 activity_date: "2026-06-04T20:20:00Z".into(),
                 ..independent_transfer_fixture().2
             })
@@ -13302,6 +13309,7 @@ pub(crate) mod tests {
         let (service, repository, request) = independent_transfer_fixture();
         let created = service
             .save_internal_transfer_pair(InternalTransferPairRequest {
+                split_review: None,
                 to_account_id: "other".into(),
                 source_amount: Some(dec!(1000)),
                 destination_amount: Some(dec!(920)),
@@ -16697,6 +16705,7 @@ pub(crate) mod tests {
                 let before = stored_snapshot(&repository);
                 let result = service
                     .save_internal_transfer_pair(InternalTransferPairRequest {
+                        split_review: None,
                         edited_activity_id: None,
                         transfer_out_id: Some("pair-out".into()),
                         transfer_in_id: Some("pair-in".into()),
@@ -16727,6 +16736,7 @@ pub(crate) mod tests {
         let before = repository.get_activities().unwrap();
         let saved = service
             .save_internal_transfer_pair(InternalTransferPairRequest {
+                split_review: None,
                 edited_activity_id: None,
                 transfer_out_id: Some("pair-out".into()),
                 transfer_in_id: Some("pair-in".into()),
@@ -16815,6 +16825,7 @@ pub(crate) mod tests {
                         let before = repository.get_activities().unwrap();
                         let result = service
                             .save_internal_transfer_pair(InternalTransferPairRequest {
+                                split_review: None,
                                 edited_activity_id: Some(selected.into()),
                                 transfer_out_id: Some("pair-out".into()),
                                 transfer_in_id: Some("pair-in".into()),
@@ -16912,6 +16923,7 @@ pub(crate) mod tests {
                 let before = repository.get_activities().unwrap();
                 let saved = service
                     .save_internal_transfer_pair(InternalTransferPairRequest {
+                        split_review: None,
                         edited_activity_id: Some(selected.into()),
                         transfer_out_id: Some("pair-out".into()),
                         transfer_in_id: Some("pair-in".into()),
@@ -16963,6 +16975,7 @@ pub(crate) mod tests {
         seed_sourced_cash_transfer_pair(&repository);
         let service = preview_test_service(repository.clone(), Arc::new(MockFxService::new()));
         let mut request = InternalTransferPairRequest {
+            split_review: None,
             edited_activity_id: Some("unrelated-record".into()),
             transfer_out_id: Some("pair-out".into()),
             transfer_in_id: Some("pair-in".into()),

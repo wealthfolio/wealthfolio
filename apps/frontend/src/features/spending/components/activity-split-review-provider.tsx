@@ -1,5 +1,5 @@
-import { reviewActivitiesSplitEffects } from "@/adapters";
-import type { ActivitySplitEffect, ActivityUpdate } from "@/lib/types";
+import { reviewActivitiesSplitEffects, reviewInternalTransferPairSplitEffects } from "@/adapters";
+import type { ActivitySplitEffect, ActivityUpdate, InternalTransferPairRequest } from "@/lib/types";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -10,7 +10,15 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@wealthfolio/ui";
-import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useTranslation } from "react-i18next";
 
 export class ActivityEditCancelled extends Error {
@@ -23,14 +31,26 @@ export class ActivityEditCancelled extends Error {
 export const isActivityEditCancelled = (error: unknown) => error instanceof ActivityEditCancelled;
 
 type ReviewEdits = (updates: ActivityUpdate[]) => Promise<ActivityUpdate[]>;
-const Context = createContext<ReviewEdits | null>(null);
+type ReviewPair = (request: InternalTransferPairRequest) => Promise<InternalTransferPairRequest>;
+const Context = createContext<{ reviewEdits: ReviewEdits; reviewPair: ReviewPair } | null>(null);
 
 export function useActivitySplitReview(): ReviewEdits {
   const review = useContext(Context);
   return useCallback(
     (updates) => {
       if (!review) throw new Error("Activity split review provider is missing");
-      return review(updates);
+      return review.reviewEdits(updates);
+    },
+    [review],
+  );
+}
+
+export function useInternalTransferPairSplitReview(): ReviewPair {
+  const review = useContext(Context);
+  return useCallback(
+    (request) => {
+      if (!review) throw new Error("Activity split review provider is missing");
+      return review.reviewPair(request);
     },
     [review],
   );
@@ -51,16 +71,9 @@ export function ActivitySplitReviewProvider({ children }: { children: React.Reac
     };
   }, []);
 
-  const review = useCallback<ReviewEdits>(async (updates) => {
-    if (updates.length === 0) return updates;
-    const snapshots = await reviewActivitiesSplitEffects(updates);
+  const confirmEffects = useCallback(async (snapshots: ActivitySplitEffect[]) => {
     if (!mounted.current) throw new ActivityEditCancelled();
-    if (snapshots.length !== updates.length) throw new Error("Incomplete activity split review");
-    const reviewed = updates.map((update, index) => ({ ...update, splitReview: snapshots[index] }));
-    const unique = new Map<string, ActivitySplitEffect>();
-    for (const update of reviewed) {
-      for (const effect of update.splitReview ?? []) unique.set(effect.activityId, effect);
-    }
+    const unique = new Map(snapshots.map((effect) => [effect.activityId, effect]));
     const destructive = [...unique.values()].filter((effect) => effect.removedSplits > 0);
     if (destructive.length > 0) {
       // Ordinary independent saves can preview concurrently. A second
@@ -73,8 +86,37 @@ export function ActivitySplitReviewProvider({ children }: { children: React.Reac
       if (!approved) throw new ActivityEditCancelled();
     }
     if (!mounted.current) throw new ActivityEditCancelled();
-    return reviewed;
   }, []);
+
+  const review = useCallback<ReviewEdits>(
+    async (updates) => {
+      if (updates.length === 0) return updates;
+      const snapshots = await reviewActivitiesSplitEffects(updates);
+      if (snapshots.length !== updates.length) throw new Error("Incomplete activity split review");
+      await confirmEffects(snapshots.flat());
+      return updates.map((update, index) => ({ ...update, splitReview: snapshots[index] }));
+    },
+    [confirmEffects],
+  );
+
+  const reviewPair = useCallback<ReviewPair>(
+    async (request) => {
+      const snapshots = await reviewInternalTransferPairSplitEffects(request);
+      const ids = new Set(snapshots.map((effect) => effect.activityId));
+      if (
+        snapshots.length !== 2 ||
+        ids.size !== 2 ||
+        !ids.has(request.transferOutId ?? "") ||
+        !ids.has(request.transferInId ?? "")
+      ) {
+        throw new Error("Incomplete transfer split review");
+      }
+      await confirmEffects(snapshots);
+      return { ...request, splitReview: snapshots };
+    },
+    [confirmEffects],
+  );
+  const context = useMemo(() => ({ reviewEdits: review, reviewPair }), [review, reviewPair]);
 
   const finish = (approved: boolean) => {
     pending.current?.(approved);
@@ -83,7 +125,7 @@ export function ActivitySplitReviewProvider({ children }: { children: React.Reac
   };
 
   return (
-    <Context.Provider value={review}>
+    <Context.Provider value={context}>
       {children}
       <AlertDialog open={effects !== null} onOpenChange={(open) => !open && finish(false)}>
         <AlertDialogContent>
