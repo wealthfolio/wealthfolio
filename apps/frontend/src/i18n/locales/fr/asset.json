@@ -827,7 +827,8 @@
       "closure_date_invalid": "La clôture doit être comprise entre l'octroi et aujourd'hui.",
       "required": "Obligatoire",
       "first_payment_after_origination": "Le premier paiement doit suivre la date d’octroi.",
-      "payment_positive": "Le paiement doit être supérieur à 0."
+      "payment_positive": "Le paiement doit être supérieur à 0.",
+      "term_too_long": "La durée ne peut pas dépasser 100 ans."
     },
     "accelerated_biweekly": "Aux deux semaines accéléré",
     "first_payment_date": "Date du premier paiement",

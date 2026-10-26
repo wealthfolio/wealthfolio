@@ -819,7 +819,8 @@
       "closure_date_invalid": "Das Abschlussdatum muss zwischen Auszahlung und heute liegen.",
       "required": "Erforderlich",
       "first_payment_after_origination": "Die erste Zahlung muss nach dem Auszahlungsdatum liegen.",
-      "payment_positive": "Die Zahlung muss größer als 0 sein."
+      "payment_positive": "Die Zahlung muss größer als 0 sein.",
+      "term_too_long": "Die Laufzeit darf höchstens 100 Jahre betragen."
     },
     "accelerated_biweekly": "Beschleunigt zweiwöchentlich",
     "first_payment_date": "Erster Zahlungstermin",

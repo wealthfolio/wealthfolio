@@ -827,7 +827,8 @@
       "closure_date_invalid": "La data di chiusura deve essere compresa tra l'erogazione e oggi.",
       "required": "Obbligatorio",
       "first_payment_after_origination": "Il primo pagamento deve essere successivo alla data di erogazione.",
-      "payment_positive": "Il pagamento deve essere maggiore di 0."
+      "payment_positive": "Il pagamento deve essere maggiore di 0.",
+      "term_too_long": "La durata non può superare 100 anni."
     },
     "accelerated_biweekly": "Ogni due settimane accelerato",
     "first_payment_date": "Data del primo pagamento",

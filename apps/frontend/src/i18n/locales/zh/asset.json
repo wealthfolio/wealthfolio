@@ -819,7 +819,8 @@
       "closure_date_invalid": "结清日期必须在贷款发放日至今天之间。",
       "required": "必填",
       "first_payment_after_origination": "首次还款日期必须晚于放款日期。",
-      "payment_positive": "还款额必须大于 0。"
+      "payment_positive": "还款额必须大于 0。",
+      "term_too_long": "期限不能超过 100 年。"
     },
     "accelerated_biweekly": "加速双周还款",
     "first_payment_date": "首次还款日期",

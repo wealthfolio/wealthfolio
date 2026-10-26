@@ -134,8 +134,20 @@ export const liabilityDetailsSchema = baseSchema.extend({
     .optional()
     .nullable(),
   originationDate: z.date().optional().nullable(),
-  amortizationYears: z.number().int().min(0).max(100).optional().nullable(),
-  amortizationMonths: z.number().int().min(0).max(1200).optional().nullable(),
+  amortizationYears: z
+    .number()
+    .int()
+    .min(0)
+    .max(100, "asset:loanActions.validation.term_too_long")
+    .optional()
+    .nullable(),
+  amortizationMonths: z
+    .number()
+    .int()
+    .min(0)
+    .max(1200, "asset:loanActions.validation.term_too_long")
+    .optional()
+    .nullable(),
   /** Stored horizon, kept unless the entered amortization no longer matches it. */
   amortizationEndDate: z.date().optional().nullable(),
   interestRate: z.coerce

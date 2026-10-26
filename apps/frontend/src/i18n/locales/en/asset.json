@@ -775,7 +775,8 @@
       "closure_date_invalid": "The closure date must be between origination and today.",
       "required": "Required",
       "first_payment_after_origination": "The first payment must be after the origination date.",
-      "payment_positive": "The payment must be greater than 0."
+      "payment_positive": "The payment must be greater than 0.",
+      "term_too_long": "The term can't be longer than 100 years."
     },
     "accelerated_biweekly": "Accelerated biweekly",
     "first_payment_date": "First payment date",

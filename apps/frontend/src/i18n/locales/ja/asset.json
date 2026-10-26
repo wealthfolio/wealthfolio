@@ -819,7 +819,8 @@
       "closure_date_invalid": "完済日は借入日から今日までの範囲にしてください。",
       "required": "必須",
       "first_payment_after_origination": "初回支払日は融資実行日より後にしてください。",
-      "payment_positive": "支払額は0より大きい値である必要があります。"
+      "payment_positive": "支払額は0より大きい値である必要があります。",
+      "term_too_long": "期間は100年以内にしてください。"
     },
     "accelerated_biweekly": "加速型隔週払い",
     "first_payment_date": "初回支払日",
