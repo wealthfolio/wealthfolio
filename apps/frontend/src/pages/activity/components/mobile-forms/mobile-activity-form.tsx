@@ -962,7 +962,7 @@ export function MobileActivityForm({
 
   return (
     <Sheet open={open} onOpenChange={handleOpenChange}>
-      <SheetContent side="bottom" className="rounded-t-4xl mx-1 flex h-[90vh] flex-col p-0">
+      <SheetContent side="bottom" className="mx-1 flex h-[90vh] flex-col rounded-t-4xl p-0">
         <SheetHeader className="border-b px-6 py-4">
           <div className="flex flex-col items-center space-y-2">
             <SheetTitle>

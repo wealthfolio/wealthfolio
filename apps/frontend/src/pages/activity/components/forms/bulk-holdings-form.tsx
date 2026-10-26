@@ -470,7 +470,7 @@ export const BulkHoldingsForm = ({ onAccountChange, defaultAccount }: BulkHoldin
             <div className="col-span-5">{t("activity:tickers")}</div>
             <div className="col-span-1 text-end">{t("activity:form.bulk_col_shares")}</div>
             <div className="col-span-2 text-end">{t("activity:form.bulk_col_average_cost")}</div>
-            <div className="col-span-3 whitespace-nowrap text-end">{t("activity:total_value")}</div>
+            <div className="col-span-3 text-end whitespace-nowrap">{t("activity:total_value")}</div>
             <div className="col-span-1 text-end"></div>
           </div>
 

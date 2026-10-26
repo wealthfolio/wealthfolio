@@ -88,8 +88,8 @@ export function CSVFileViewer({ data, className, maxHeight = "400px" }: CSVFileV
         const lineNumber = row.original.id + 1;
 
         return isValid ? (
-          <div className="w-15 flex items-center gap-1 text-xs">
-            <div className="text-success-subtle-foreground bg-current/15 flex h-5 w-5 items-center justify-center rounded-full">
+          <div className="flex w-15 items-center gap-1 text-xs">
+            <div className="text-success-subtle-foreground flex h-5 w-5 items-center justify-center rounded-full bg-current/15">
               <Icons.CheckCircle className="h-3.5 w-3.5" />
             </div>
             <span className="text-muted-foreground text-xs">
@@ -101,9 +101,9 @@ export function CSVFileViewer({ data, className, maxHeight = "400px" }: CSVFileV
             <Tooltip>
               <TooltipTrigger
                 delay={30}
-                render={<div className="w-15 flex cursor-help items-center gap-1 text-xs" />}
+                render={<div className="flex w-15 cursor-help items-center gap-1 text-xs" />}
               >
-                <div className="text-destructive-subtle-foreground bg-current/15 flex h-5 w-5 items-center justify-center rounded-full">
+                <div className="text-destructive-subtle-foreground flex h-5 w-5 items-center justify-center rounded-full bg-current/15">
                   <Icons.XCircle className="h-3.5 w-3.5" />
                 </div>
                 <span className="text-muted-foreground text-xs">

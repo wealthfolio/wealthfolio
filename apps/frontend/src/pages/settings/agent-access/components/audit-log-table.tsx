@@ -137,14 +137,14 @@ export function AuditLogTable({ disabledNotice }: { disabledNotice?: string }) {
 
         {(logHasData || hasFilters) && (
           <div className="flex flex-wrap items-center gap-2">
-            <div className="w-37.5 lg:w-62.5 relative">
+            <div className="relative w-37.5 lg:w-62.5">
               <Icons.Search className="text-muted-foreground pointer-events-none absolute start-2.5 top-1/2 h-4 w-4 -translate-y-1/2" />
               <input
                 type="text"
                 value={search}
                 onChange={(event) => onFilter(setSearch, event.target.value)}
                 placeholder={t("settings:agentAccess.audit_search_placeholder")}
-                className="shadow-inner-xs bg-muted/90 hover:bg-muted/80 placeholder:text-muted-foreground focus:ring-ring/50 h-8 w-full rounded-md pe-3 ps-8 text-sm outline-none transition-colors focus:ring-2"
+                className="shadow-inner-xs bg-muted/90 hover:bg-muted/80 placeholder:text-muted-foreground focus:ring-ring/50 h-8 w-full rounded-md ps-8 pe-3 text-sm transition-colors outline-none focus:ring-2"
               />
             </div>
             <FacetedFilter
@@ -204,7 +204,7 @@ export function AuditLogTable({ disabledNotice }: { disabledNotice?: string }) {
                 <TableBody>
                   {items.map((entry) => (
                     <TableRow key={entry.id}>
-                      <TableCell className="text-muted-foreground whitespace-nowrap text-sm">
+                      <TableCell className="text-muted-foreground text-sm whitespace-nowrap">
                         {formatting.formatDateTime(new Date(entry.createdAt), {
                           dateStyle: "medium",
                           timeStyle: "medium",

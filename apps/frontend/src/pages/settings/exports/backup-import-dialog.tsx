@@ -213,7 +213,7 @@ export function BackupImportDialog({
         mobileClassName="h-[min(42rem,85dvh)]"
         showCloseButton={pending !== "restore"}
       >
-        <DialogHeader className={restored ? "sr-only" : "shrink-0 px-6 pb-4 pt-6 text-start"}>
+        <DialogHeader className={restored ? "sr-only" : "shrink-0 px-6 pt-6 pb-4 text-start"}>
           <DialogTitle
             ref={(node) => {
               stepHeading.current = node;
@@ -244,7 +244,7 @@ export function BackupImportDialog({
               initial={reduceMotion ? false : { scale: 0.6, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               transition={{ type: "spring", stiffness: 200, damping: 15 }}
-              className="text-success-subtle-foreground bg-current/15 flex size-20 items-center justify-center rounded-full"
+              className="text-success-subtle-foreground flex size-20 items-center justify-center rounded-full bg-current/15"
             >
               <Icons.CheckCircle className="size-10" aria-hidden />
             </motion.div>
@@ -286,7 +286,7 @@ export function BackupImportDialog({
                         ].map(({ label, value }) => (
                           <div key={label} className="flex flex-col gap-0.5 px-4">
                             <dt className="text-muted-foreground text-xs">{label}</dt>
-                            <dd className="order-first text-xl font-semibold tabular-nums tracking-tight">
+                            <dd className="order-first text-xl font-semibold tracking-tight tabular-nums">
                               {value.toLocaleString(i18n.resolvedLanguage)}
                             </dd>
                           </div>
@@ -346,7 +346,7 @@ export function BackupImportDialog({
                             type="button"
                             variant="ghost"
                             size="icon-sm"
-                            className="pointer-coarse:size-11 shrink-0"
+                            className="shrink-0 pointer-coarse:size-11"
                             disabled={pending !== null}
                             onClick={() => void choose()}
                             aria-label={t("settings:recovery_change_file")}
@@ -417,7 +417,7 @@ export function BackupImportDialog({
                 {error && <BackupAlert error={error} />}
               </motion.div>
             </div>
-            <DialogFooter className="bg-background shrink-0 border-t px-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-4 sm:pb-6">
+            <DialogFooter className="bg-background shrink-0 border-t px-6 pt-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] sm:pb-6">
               <Button
                 type="button"
                 variant="ghost"

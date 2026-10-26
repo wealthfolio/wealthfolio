@@ -11,7 +11,7 @@ function ScrollArea({ className, children, ...props }: ScrollAreaProps) {
     <ScrollAreaPrimitive.Root data-slot="scroll-area" className={cn("relative overflow-hidden", className)} {...props}>
       <ScrollAreaPrimitive.Viewport
         data-slot="scroll-area-viewport"
-        className="focus-visible:outline-solid focus-visible:outline-ring h-full w-full rounded-[inherit] outline-none focus-visible:outline-2 focus-visible:-outline-offset-2"
+        className="focus-visible:outline-ring h-full w-full rounded-[inherit] outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-solid"
       >
         {/* Grows with content wider than the viewport, as Radix's wrapper did. */}
         <ScrollAreaPrimitive.Content data-slot="scroll-area-content">{children}</ScrollAreaPrimitive.Content>

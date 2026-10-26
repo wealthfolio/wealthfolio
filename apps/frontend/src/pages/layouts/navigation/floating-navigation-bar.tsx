@@ -182,7 +182,7 @@ export function FloatingNavigationBar({ navigation }: FloatingNavigationBarProps
                   side="top"
                   align="end"
                   sideOffset={16}
-                  className="mb-0 me-0 flex w-48 flex-col gap-1 border-0 bg-transparent p-0 shadow-none ring-0 ring-offset-0"
+                  className="me-0 mb-0 flex w-48 flex-col gap-1 border-0 bg-transparent p-0 shadow-none ring-0 ring-offset-0"
                 >
                   {moreItems.map((item) => {
                     const isActive = isPathActive(location.pathname, item.href);

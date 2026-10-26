@@ -313,7 +313,7 @@ function ProviderSettings({
             <div className="grid gap-6 md:grid-cols-2">
               {/* Left column - Capabilities */}
               <div className="space-y-4">
-                <h4 className="text-muted-foreground text-xs font-medium uppercase tracking-wide">
+                <h4 className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
                   {t("settings:market_data_page.capabilities")}
                 </h4>
                 <div className="space-y-3">
@@ -387,7 +387,7 @@ function ProviderSettings({
 
               {/* Right column - Settings */}
               <div className="space-y-4">
-                <h4 className="text-muted-foreground text-xs font-medium uppercase tracking-wide">
+                <h4 className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
                   {t("settings:market_data_page.settings")}
                 </h4>
                 <div className="space-y-4">
@@ -653,7 +653,7 @@ function CustomProviderCard({
                 <Icons.Trash className="h-4 w-4" />
               </PopoverTrigger>
               <PopoverContent className="w-80 space-y-3" align="end">
-                <h4 className="font-medium leading-none">
+                <h4 className="leading-none font-medium">
                   {t("settings:market_data_page.delete_provider_in_use_title", {
                     name: provider.name,
                   })}
@@ -1111,7 +1111,7 @@ export default function MarketDataSettingsPage() {
                     msg = msg.slice(bracketMatch[0].length);
                   }
                   return (
-                    <p key={i} className="mt-1 break-all text-xs">
+                    <p key={i} className="mt-1 text-xs break-all">
                       {providerLabel && <span className="font-medium">{providerLabel}: </span>}
                       {msg}
                     </p>

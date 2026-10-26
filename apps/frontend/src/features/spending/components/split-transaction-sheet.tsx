@@ -358,7 +358,7 @@ export function SplitTransactionSheet({
                         trigger={
                           <button
                             type="button"
-                            className="hover:text-foreground flex h-7 min-w-0 max-w-full items-center gap-2 text-start transition-colors"
+                            className="hover:text-foreground flex h-7 max-w-full min-w-0 items-center gap-2 text-start transition-colors"
                           >
                             <span
                               className="h-2.5 w-2.5 shrink-0 rounded-full"

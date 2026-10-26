@@ -28,8 +28,8 @@ export function McpModuleCard() {
       }
       hint={t("settings:agentAccess.desktop_hint")}
       action={
-        <label className="flex shrink-0 cursor-pointer select-none items-center gap-2">
-          <span className="text-background/55 hidden text-xs font-medium uppercase tracking-widest sm:inline">
+        <label className="flex shrink-0 cursor-pointer items-center gap-2 select-none">
+          <span className="text-background/55 hidden text-xs font-medium tracking-widest uppercase sm:inline">
             {enabled
               ? t("settings:agentAccess.enabled_label")
               : t("settings:agentAccess.disabled_label")}

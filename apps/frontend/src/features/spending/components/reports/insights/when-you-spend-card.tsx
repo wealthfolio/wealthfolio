@@ -230,7 +230,7 @@ function Row({
               key={i}
               type="button"
               onClick={() => onCellClick(weekdayIndex, startHour, Math.min(24, endHour + 1))}
-              className="aspect-square rounded-[3px] transition-all hover:scale-110 hover:ring-1 hover:ring-[var(--ring)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--ring)]"
+              className="aspect-square rounded-[3px] transition-all hover:scale-110 hover:ring-1 hover:ring-[var(--ring)] focus-visible:ring-1 focus-visible:ring-[var(--ring)] focus-visible:outline-none"
               style={{ backgroundColor: "var(--heatmap-accent)", opacity }}
               title={label}
               aria-label={label}

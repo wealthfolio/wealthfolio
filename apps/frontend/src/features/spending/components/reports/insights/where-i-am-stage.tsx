@@ -232,7 +232,7 @@ const PaceCard: FC<PaceCardProps> = ({
     return (
       <Card className={CARD_CLASS}>
         <div className={LABEL_CLASS}>{t("spending:whereIAm.noBudgetSet")}</div>
-        <p className="text-foreground mt-3 text-lg font-semibold leading-snug tracking-tight">
+        <p className="text-foreground mt-3 text-lg leading-snug font-semibold tracking-tight">
           {t("spending:whereIAm.noBudgetTitle")}
         </p>
         <p className="text-muted-foreground/80 mt-2 text-sm">
@@ -596,7 +596,7 @@ const SpentThisPeriodCard: FC<SpentThisPeriodCardProps> = ({
     <Card className={CARD_CLASS}>
       <div className={LABEL_CLASS}>{periodLabel}</div>
       <div className="mt-2 flex flex-wrap items-baseline justify-between gap-2">
-        <div className="text-foreground text-lg font-semibold tabular-nums tracking-tight md:text-xl">
+        <div className="text-foreground text-lg font-semibold tracking-tight tabular-nums md:text-xl">
           <PrivacyAmount value={spent} currency={currency} />
         </div>
         {deltaPct != null && (
@@ -992,7 +992,7 @@ function BreakdownCanvas({
           <DropdownMenu>
             <DropdownMenuTrigger
               aria-label={t("spending:whereIAm.sortByLabel", { label: t(SORT_LABEL_KEYS[sort]) })}
-              className="bg-secondary text-foreground hover:bg-secondary/80 inline-flex h-7 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium tabular-nums focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--ring)]"
+              className="bg-secondary text-foreground hover:bg-secondary/80 inline-flex h-7 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium tabular-nums focus-visible:ring-1 focus-visible:ring-[var(--ring)] focus-visible:outline-none"
             >
               {t(SORT_LABEL_KEYS[sort])}
               <Icons.ChevronDown className="size-3 opacity-60" />
@@ -1045,7 +1045,7 @@ function BreakdownCanvas({
         })}
       </div>
 
-      <div className="md:bg-card md:text-card-foreground md:shadow-(--card-shadow) md:rounded-(--card-radius) md:border-(color:--card-border) md:overflow-hidden md:border">
+      <div className="md:bg-card md:text-card-foreground md:overflow-hidden md:rounded-(--card-radius) md:border md:border-(color:--card-border) md:shadow-(--card-shadow)">
         <CategoryHierarchyTable
           breakdown={filteredBreakdown}
           priorBreakdown={priorBreakdown}

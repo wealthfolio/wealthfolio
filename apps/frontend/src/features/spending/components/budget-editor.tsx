@@ -313,11 +313,11 @@ function BudgetSummary({
     <section className={cn(CARD_CLASS, "overflow-hidden p-3 sm:p-4")}>
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <div className="text-muted-foreground text-2xs font-semibold uppercase tracking-[0.08em]">
+          <div className="text-muted-foreground text-2xs font-semibold tracking-[0.08em] uppercase">
             {headingLabel}
           </div>
           <div className="mt-0.5 flex items-baseline gap-1.5">
-            <span className="text-foreground truncate text-lg font-semibold tabular-nums tracking-tight sm:text-xl">
+            <span className="text-foreground truncate text-lg font-semibold tracking-tight tabular-nums sm:text-xl">
               <PrivacyAmount value={planned} currency={currency} />
             </span>
             {income > 0 && (
@@ -528,7 +528,7 @@ function GroupBudgetSection({
           type="button"
           onClick={() => mode === "setup" && setEditOpen(true)}
           disabled={mode !== "setup"}
-          className="ring-offset-background focus-visible:ring-ring flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 enabled:hover:scale-105 disabled:cursor-default disabled:hover:scale-100"
+          className="ring-offset-background focus-visible:ring-ring flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-transform focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none enabled:hover:scale-105 disabled:cursor-default disabled:hover:scale-100"
           style={{ backgroundColor: tint(accent, 0.12), color: accent }}
           aria-label={
             mode === "setup"
@@ -579,7 +579,7 @@ function GroupBudgetSection({
           <div className="text-sm font-semibold tabular-nums">
             <PrivacyAmount value={row.plannedTotal} currency={currency} />
           </div>
-          <div className="text-muted-foreground text-2xs uppercase tracking-wide">
+          <div className="text-muted-foreground text-2xs tracking-wide uppercase">
             {totalSuffix}
           </div>
         </div>
@@ -600,7 +600,7 @@ function GroupBudgetSection({
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48">
               <DropdownMenuGroup>
-                <DropdownMenuLabel className="text-muted-foreground/70 text-2xs font-normal uppercase tracking-wide">
+                <DropdownMenuLabel className="text-muted-foreground/70 text-2xs font-normal tracking-wide uppercase">
                   {t("spending:budgetEditor.categoryCount", { count: row.categories.length })}
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
@@ -862,10 +862,10 @@ function AddCategoryRow({
           <SheetTrigger render={trigger} />
           <SheetContent side="bottom" showCloseButton={false} className="pb-safe rounded-t-2xl p-0">
             {/* iOS-style drag indicator — backdrop tap and swipe-down dismiss the sheet */}
-            <div className="flex justify-center pb-1 pt-2">
+            <div className="flex justify-center pt-2 pb-1">
               <div className="bg-muted-foreground/30 h-1 w-10 rounded-full" />
             </div>
-            <SheetHeader className="px-4 pb-3 pt-1 text-start">
+            <SheetHeader className="px-4 pt-1 pb-3 text-start">
               <SheetTitle className="text-base">
                 {t("spending:budgetEditor.addCategoryTo", { name: groupName })}
               </SheetTitle>
@@ -886,7 +886,7 @@ function AddCategoryRow({
               emptyState
             ) : (
               <>
-                <div className="text-muted-foreground border-border/60 text-2xs border-b px-3 py-2 font-medium uppercase tracking-widest">
+                <div className="text-muted-foreground border-border/60 text-2xs border-b px-3 py-2 font-medium tracking-widest uppercase">
                   {t("spending:budgetEditor.moveExistingCategory")}
                 </div>
                 {list}
@@ -1012,7 +1012,7 @@ function GroupEditDialogBody({
 
       <div className="space-y-4 py-2">
         <div className="space-y-1.5">
-          <label className="text-muted-foreground text-2xs font-semibold uppercase tracking-wide">
+          <label className="text-muted-foreground text-2xs font-semibold tracking-wide uppercase">
             {t("common:name")}
           </label>
           <div className="bg-muted/60 border-border/60 focus-within:ring-ring/50 flex h-9 items-center rounded-md border px-3 transition-shadow focus-within:ring-2">
@@ -1033,14 +1033,14 @@ function GroupEditDialogBody({
         </div>
 
         <div className="space-y-1.5">
-          <label className="text-muted-foreground text-2xs font-semibold uppercase tracking-wide">
+          <label className="text-muted-foreground text-2xs font-semibold tracking-wide uppercase">
             {t("spending:category.color")}
           </label>
           <GroupColorSwatchGrid value={draftColor} onChange={setDraftColor} />
         </div>
 
         <div className="space-y-1.5">
-          <label className="text-muted-foreground text-2xs font-semibold uppercase tracking-wide">
+          <label className="text-muted-foreground text-2xs font-semibold tracking-wide uppercase">
             {t("spending:category.icon")}
           </label>
           <IconPicker value={draftIcon} accent={draftColor} onChange={setDraftIcon} />
@@ -1212,7 +1212,7 @@ function BudgetCategoryLine({
                 value={row.groupId ?? ""}
                 onValueChange={(value) => onMoveCategory(row.categoryId, value)}
               >
-                <DropdownMenuLabel className="text-2xs font-semibold uppercase tracking-wide">
+                <DropdownMenuLabel className="text-2xs font-semibold tracking-wide uppercase">
                   {t("spending:budgetEditor.moveToGroup")}
                 </DropdownMenuLabel>
                 {groups.map((group) => (
@@ -1661,7 +1661,7 @@ function CopyFromMonthRow({
             max={currentPeriodKey}
             aria-label={t("spending:budgetEditor.sourceMonth")}
             onChange={(event) => setSourceMonth(event.target.value || previousMonth)}
-            className="text-foreground w-30 h-7 bg-transparent px-2 text-xs outline-none"
+            className="text-foreground h-7 w-30 bg-transparent px-2 text-xs outline-none"
           />
         </div>
         <label className="text-muted-foreground text-2xs inline-flex items-center gap-1.5">
@@ -1751,7 +1751,7 @@ function TotalLine({
 }) {
   return (
     <div className="flex min-w-0 flex-col">
-      <span className="text-muted-foreground text-2xs uppercase tracking-wide">{label}</span>
+      <span className="text-muted-foreground text-2xs tracking-wide uppercase">{label}</span>
       <span
         className={cn(
           "truncate text-sm font-semibold tabular-nums",
@@ -1768,7 +1768,7 @@ function PanelHeader({ title, icon }: { title: string; icon: ReactNode }) {
   return (
     <div className="flex items-center gap-1.5">
       <span className="text-muted-foreground">{icon}</span>
-      <h2 className="text-muted-foreground text-2xs font-semibold uppercase tracking-[0.08em]">
+      <h2 className="text-muted-foreground text-2xs font-semibold tracking-[0.08em] uppercase">
         {title}
       </h2>
     </div>

@@ -260,7 +260,7 @@ export const AlternativeAssetContent: React.FC<AlternativeAssetContentProps> = (
                     />
                   </>
                 ) : (
-                  <div className="h-50 flex items-center justify-center">
+                  <div className="flex h-50 items-center justify-center">
                     <Empty>
                       <EmptyHeader>
                         <EmptyMedia variant="icon">

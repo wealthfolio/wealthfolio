@@ -566,7 +566,7 @@ function HoldingsContentImpl({ args, result, status }: HoldingsContentProps) {
 
   // Treemap view component
   const TreemapView = () => (
-    <div className="pb-2 pt-4">
+    <div className="pt-4 pb-2">
       <div className="flex flex-wrap items-start justify-between gap-2 px-4 pb-2">
         <div>
           <p className="text-sm font-medium">
@@ -711,7 +711,7 @@ function HoldingsContentImpl({ args, result, status }: HoldingsContentProps) {
                       <div>
                         <div className="font-medium">{holding.symbol}</div>
                         {holding.name && (
-                          <div className="text-muted-foreground text-2xs max-w-30 sm:max-w-50 truncate">
+                          <div className="text-muted-foreground text-2xs max-w-30 truncate sm:max-w-50">
                             {holding.name}
                           </div>
                         )}
@@ -798,7 +798,7 @@ function HoldingsContentImpl({ args, result, status }: HoldingsContentProps) {
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-0">
         {ReturnTypeToggle}
       </CardHeader>
-      <CardContent className="px-0 pb-0 pt-4">
+      <CardContent className="px-0 pt-4 pb-0">
         <TableView />
       </CardContent>
     </Card>

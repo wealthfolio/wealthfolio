@@ -87,7 +87,7 @@ export function BackupCardHeader({
         {icon}
       </div>
       <div className="col-start-1 row-start-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 md:col-start-2">
-        <h2 className="text-base font-semibold leading-6 tracking-tight">{title}</h2>
+        <h2 className="text-base leading-6 font-semibold tracking-tight">{title}</h2>
         {info}
         {badge}
       </div>
@@ -168,7 +168,7 @@ export function BackupList<T>({
         <Button
           variant="ghost"
           size="sm"
-          className="text-muted-foreground pointer-coarse:min-h-11 w-full"
+          className="text-muted-foreground w-full pointer-coarse:min-h-11"
           aria-expanded={expanded}
           onClick={() => setExpanded((value) => !value)}
         >
@@ -216,7 +216,7 @@ export function BackupRow({
     <li className="flex items-center gap-3 py-3 first:pt-0 last:pb-0">
       <BackupFileTile className="hidden md:flex" />
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium leading-5">{title}</p>
+        <p className="truncate text-sm leading-5 font-medium">{title}</p>
         <p className="text-muted-foreground mt-0.5 truncate text-xs leading-5">
           {parts.map(({ part, detail }, index) => (
             <span
@@ -272,7 +272,7 @@ export function BackupActions({
     <Button
       variant="ghost"
       size="icon-sm"
-      className="pointer-coarse:size-11 shrink-0 aria-busy:opacity-100"
+      className="shrink-0 aria-busy:opacity-100 pointer-coarse:size-11"
       aria-label={label}
       aria-busy={busy}
       disabled={disabled}
@@ -311,7 +311,7 @@ export function BackupActions({
         <Button
           variant="outline"
           size="sm"
-          className="pointer-coarse:h-11 aria-busy:opacity-100"
+          className="aria-busy:opacity-100 pointer-coarse:h-11"
           disabled={disabled || primary.disabled}
           aria-busy={!!primary.pending}
           aria-label={primary.ariaLabel}
@@ -356,7 +356,7 @@ export function BackupEmpty({ title, description }: { title: string; description
     <div className="flex items-start gap-3 rounded-lg border border-dashed p-4">
       <Icons.History className="text-muted-foreground mt-0.5 size-5 shrink-0" aria-hidden />
       <div className="space-y-0.5">
-        <p className="text-sm font-medium leading-5">{title}</p>
+        <p className="text-sm leading-5 font-medium">{title}</p>
         <p className="text-muted-foreground text-sm">{description}</p>
       </div>
     </div>

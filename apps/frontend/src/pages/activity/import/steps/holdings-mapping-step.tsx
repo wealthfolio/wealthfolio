@@ -158,7 +158,7 @@ function CsvPreviewTable({ headers, rows, mapping }: CsvPreviewProps) {
 
   // `isolate` stops WebKitGTK painting the sticky header over this scrollbar inside a scrolling parent
   return (
-    <div className="max-h-75 isolate overflow-auto rounded-lg border">
+    <div className="isolate max-h-75 overflow-auto rounded-lg border">
       <table className="w-full text-sm">
         <thead className="bg-muted/50 sticky top-0">
           <tr>

@@ -124,7 +124,7 @@ function Section({ title, meta, children }: SectionProps) {
   return (
     <section>
       <div className="mb-3.5 flex items-baseline justify-between gap-3">
-        <h2 className="text-muted-foreground text-xs font-medium uppercase tracking-widest">
+        <h2 className="text-muted-foreground text-xs font-medium tracking-widest uppercase">
           {title}
         </h2>
         {meta && <span className="text-muted-foreground/80 hidden text-xs sm:inline">{meta}</span>}

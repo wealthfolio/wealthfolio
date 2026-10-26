@@ -608,7 +608,7 @@ export const EventsTimelineCard: FC<EventsTimelineCardProps> = ({
       {/* Summary strip */}
       <div className="border-border/40 mt-3 grid grid-cols-2 gap-x-0 gap-y-3 border-t pt-3 md:grid-cols-4">
         <SummaryCell label={tr("spending:timeline.acrossEvents", { count: events.length })}>
-          <div className="text-foreground text-sm font-semibold tabular-nums tracking-tight">
+          <div className="text-foreground text-sm font-semibold tracking-tight tabular-nums">
             <PrivacyAmount value={computed.totalSpent} currency={currency} />
           </div>
           <div className="text-muted-foreground/80 text-2xs mt-0.5">

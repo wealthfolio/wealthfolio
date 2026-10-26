@@ -220,7 +220,7 @@ function ValuationContentImpl({ args, result, status }: ValuationContentProps) {
         )}
       </CardHeader>
       <CardContent>
-        <div className="bg-background/60 h-50 min-w-70 w-full rounded-xl border p-3 shadow-inner">
+        <div className="bg-background/60 h-50 w-full min-w-70 rounded-xl border p-3 shadow-inner">
           {shouldRenderChart ? (
             <HistoryChart data={chartData} isLoading={false} />
           ) : (

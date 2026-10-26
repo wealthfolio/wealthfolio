@@ -64,7 +64,7 @@ export function CurrentVsTargetCard({
 
           <div className="min-w-0">
             {/* Column headers */}
-            <div className="text-muted-foreground text-2xs hidden grid-cols-[minmax(7.5rem,1fr)_minmax(10rem,1.25fr)_3.5rem_3.5rem_5rem] gap-x-3 px-2 pb-2 font-medium uppercase tracking-wider md:grid">
+            <div className="text-muted-foreground text-2xs hidden grid-cols-[minmax(7.5rem,1fr)_minmax(10rem,1.25fr)_3.5rem_3.5rem_5rem] gap-x-3 px-2 pb-2 font-medium tracking-wider uppercase md:grid">
               <span>{t("allocation:vsTarget.category")}</span>
               <span>{t("allocation:vsTarget.currentAllocation")}</span>
               <span className="text-end">{t("allocation:vsTarget.current")}</span>

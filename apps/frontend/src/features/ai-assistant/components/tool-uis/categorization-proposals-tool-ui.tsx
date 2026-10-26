@@ -395,7 +395,7 @@ function CategorizationProposalsContentImpl({
 
           {visibleUnproposed.length > 0 && (
             <div className="mt-3 border-t pt-2">
-              <p className="text-muted-foreground text-2xs px-4 pb-1 uppercase tracking-wide">
+              <p className="text-muted-foreground text-2xs px-4 pb-1 tracking-wide uppercase">
                 {t("ai:categorization.needsManualChoice", { count: visibleUnproposed.length })}
               </p>
               {visibleUnproposed.map((row) => (
@@ -471,7 +471,7 @@ function CategorizationProposalsContentImpl({
             <Alert variant="error">
               <Icons.AlertCircle className="h-4 w-4" />
               <AlertTitle>{t("ai:categorization.failedApplyTitle")}</AlertTitle>
-              <AlertDescription className="break-words text-xs">{submitError}</AlertDescription>
+              <AlertDescription className="text-xs break-words">{submitError}</AlertDescription>
             </Alert>
           </div>
         )}

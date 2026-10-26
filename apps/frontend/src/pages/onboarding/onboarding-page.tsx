@@ -167,7 +167,7 @@ const OnboardingPage = () => {
                 )}
                 <Button
                   data-testid="onboarding-finish-button"
-                  className="from-primary to-primary/90 bg-linear-to-r order-1 sm:order-2"
+                  className="from-primary to-primary/90 order-1 bg-linear-to-r sm:order-2"
                   onClick={() => updateSettings({ onboardingCompleted: true })}
                 >
                   {t("onboarding:buttons.getStarted")}

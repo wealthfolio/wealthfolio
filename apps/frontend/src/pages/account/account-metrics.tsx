@@ -336,7 +336,7 @@ const AccountMetrics: React.FC<AccountMetricsProps> = ({
           isHoldingsMode={isHoldingsMode}
         />
       </CardContent>
-      <CardFooter className="mt-auto flex flex-col items-start gap-1 px-3 pb-3 pt-0">
+      <CardFooter className="mt-auto flex flex-col items-start gap-1 px-3 pt-0 pb-3">
         {performanceError ? (
           <p className="text-muted-foreground m-0 p-0 text-xs">
             {lastUpdated && <>{t("account:last_updated", { date: lastUpdated })}</>}

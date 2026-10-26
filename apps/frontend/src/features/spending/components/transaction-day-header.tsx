@@ -33,7 +33,7 @@ function DayNet({ group }: { group: TransactionDayGroup }) {
   const { t } = useTranslation();
   if (!group.net) return null;
   return (
-    <span className="text-muted-foreground whitespace-nowrap text-xs tabular-nums">
+    <span className="text-muted-foreground text-xs whitespace-nowrap tabular-nums">
       <span className="sr-only">{t("spending:txTab.net")}</span>
       {group.net.amount < 0 ? "-" : "+"}
       <PrivacyAmount value={Math.abs(group.net.amount)} currency={group.net.currency} />

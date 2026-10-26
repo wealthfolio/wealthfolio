@@ -129,7 +129,7 @@ export function RulesOverviewCard() {
         )}
       </div>
 
-      <div className="bg-muted/30 group-hover:bg-foreground group-hover:text-background text-muted-foreground flex shrink-0 items-center justify-center gap-1.5 border-t px-4 py-3 text-xs font-medium uppercase tracking-widest transition-colors sm:w-24 sm:flex-col sm:gap-2 sm:border-s sm:border-t-0 sm:px-0 sm:py-0">
+      <div className="bg-muted/30 group-hover:bg-foreground group-hover:text-background text-muted-foreground flex shrink-0 items-center justify-center gap-1.5 border-t px-4 py-3 text-xs font-medium tracking-widest uppercase transition-colors sm:w-24 sm:flex-col sm:gap-2 sm:border-s sm:border-t-0 sm:px-0 sm:py-0">
         <span>{t("settings:spending.rules_overview.open")}</span>
         <Icons.ChevronRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5 rtl:rotate-180 rtl:group-hover:-translate-x-0.5" />
       </div>
@@ -140,10 +140,10 @@ export function RulesOverviewCard() {
 function Stat({ value, label }: { value: number; label: string }) {
   return (
     <div>
-      <div className="text-foreground text-xl font-semibold tabular-nums tracking-tight sm:text-2xl">
+      <div className="text-foreground text-xl font-semibold tracking-tight tabular-nums sm:text-2xl">
         {value}
       </div>
-      <div className="text-muted-foreground text-2xs mt-0.5 font-medium uppercase tracking-widest">
+      <div className="text-muted-foreground text-2xs mt-0.5 font-medium tracking-widest uppercase">
         {label}
       </div>
     </div>

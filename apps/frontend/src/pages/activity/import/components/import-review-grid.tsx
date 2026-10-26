@@ -242,8 +242,8 @@ function useImportReviewColumns({
                       side="inline-end"
                       className={
                         status === "error"
-                          ? "max-w-xs whitespace-pre-wrap text-xs"
-                          : "max-w-xs whitespace-pre-wrap text-xs"
+                          ? "max-w-xs text-xs whitespace-pre-wrap"
+                          : "max-w-xs text-xs whitespace-pre-wrap"
                       }
                     >
                       {title}

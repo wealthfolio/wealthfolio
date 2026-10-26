@@ -128,10 +128,10 @@ export function DrillableDonutChart({
   if (isLoading) {
     return (
       <Card className="overflow-hidden backdrop-blur-sm">
-        <CardHeader className="px-5 pb-1 pt-5">
-          <Skeleton className="w-30 h-4" />
+        <CardHeader className="px-5 pt-5 pb-1">
+          <Skeleton className="h-4 w-30" />
         </CardHeader>
-        <CardContent className="px-5 pb-5 pt-0">
+        <CardContent className="px-5 pt-0 pb-5">
           <div className="flex h-40 items-center justify-center">
             <Skeleton className="h-30 w-30 rounded-full" />
           </div>
@@ -145,9 +145,9 @@ export function DrillableDonutChart({
       className="hover:bg-muted/50 cursor-pointer overflow-hidden backdrop-blur-sm transition-colors"
       onClick={onCardClick}
     >
-      <CardHeader className="px-5 pb-1 pt-5">
+      <CardHeader className="px-5 pt-5 pb-1">
         {isAtRoot ? (
-          <CardTitle className="text-muted-foreground text-xs font-semibold uppercase tracking-[0.18em]">
+          <CardTitle className="text-muted-foreground text-xs font-semibold tracking-[0.18em] uppercase">
             {title}
           </CardTitle>
         ) : (
@@ -160,7 +160,7 @@ export function DrillableDonutChart({
           </div>
         )}
       </CardHeader>
-      <CardContent className="px-5 pb-5 pt-0">
+      <CardContent className="px-5 pt-0 pb-5">
         {data.length > 0 ? (
           <DonutChart
             data={data}

@@ -32,7 +32,7 @@ export function ActivityDeleteModal({
     <AlertDialog open={isOpen} onOpenChange={onCancel}>
       <AlertDialogContent className="max-sm:gap-5 max-sm:p-5">
         <AlertDialogHeader className="max-sm:items-center max-sm:space-y-3 max-sm:text-center">
-          <div className="text-destructive-subtle-foreground bg-current/15 flex size-12 items-center justify-center rounded-full sm:hidden">
+          <div className="text-destructive-subtle-foreground flex size-12 items-center justify-center rounded-full bg-current/15 sm:hidden">
             <Icons.Trash className="size-5" />
           </div>
           <AlertDialogTitle className="leading-tight max-sm:text-xl">

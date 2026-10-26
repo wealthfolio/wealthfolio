@@ -565,7 +565,7 @@ export function GoalFundingEditor({
               {/* Available accounts to add */}
               {availableAccounts.length > 0 && (
                 <div className="space-y-1">
-                  <p className="text-muted-foreground text-2xs px-1 uppercase tracking-wider">
+                  <p className="text-muted-foreground text-2xs px-1 tracking-wider uppercase">
                     {t("goals:funding.add_accounts")}
                   </p>
                   {availableAccounts.map((a) => (
@@ -684,9 +684,9 @@ function AllocationDetailsSheet({
             <p className="text-muted-foreground text-sm">{t("goals:funding.no_active_shares")}</p>
           ) : (
             <div className="overflow-x-auto">
-              <table className="min-w-160 w-full border-separate border-spacing-0 text-sm">
+              <table className="w-full min-w-160 border-separate border-spacing-0 text-sm">
                 <thead>
-                  <tr className="text-muted-foreground text-2xs text-start uppercase tracking-[0.18em]">
+                  <tr className="text-muted-foreground text-2xs text-start tracking-[0.18em] uppercase">
                     <th className="border-border border-b py-2 pe-4 font-medium">
                       {t("common:account")}
                     </th>

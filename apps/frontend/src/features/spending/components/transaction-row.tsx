@@ -137,7 +137,7 @@ function TransactionRowImpl({
           className={SELECTION_SLOT}
         />
       </TableCell>
-      <TableCell className="text-muted-foreground hidden w-20 whitespace-nowrap px-3 py-2 text-xs tabular-nums md:table-cell">
+      <TableCell className="text-muted-foreground hidden w-20 px-3 py-2 text-xs whitespace-nowrap tabular-nums md:table-cell">
         {time}
       </TableCell>
       {/* `max-w-0` hands this column whatever width the fixed-width columns
@@ -264,7 +264,7 @@ function TransactionRowImpl({
         <PrivacyAmount value={Math.abs(safeAmount)} currency={a.currency} />
       </TableCell>
       {showBalance && (
-        <TableCell className="text-muted-foreground hidden w-28 whitespace-nowrap px-3 py-2 text-end text-sm tabular-nums sm:table-cell">
+        <TableCell className="text-muted-foreground hidden w-28 px-3 py-2 text-end text-sm whitespace-nowrap tabular-nums sm:table-cell">
           {a.cashBalance != null && a.cashBalanceCurrency && (
             <PrivacyAmount value={Number(a.cashBalance)} currency={a.cashBalanceCurrency} />
           )}

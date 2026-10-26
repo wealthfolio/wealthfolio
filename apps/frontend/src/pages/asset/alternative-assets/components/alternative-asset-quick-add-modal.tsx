@@ -473,7 +473,7 @@ export function AlternativeAssetQuickAddModal({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="sm:max-w-140 flex max-h-[90dvh] flex-col gap-0 overflow-hidden p-0"
+        className="flex max-h-[90dvh] flex-col gap-0 overflow-hidden p-0 sm:max-w-140"
         mobileClassName="flex h-[90vh] flex-col"
       >
         {/* Header with progress indicator */}
@@ -837,7 +837,7 @@ export function AlternativeAssetQuickAddModal({
                           aria-expanded={moreOptions}
                           aria-controls={moreOptionsId}
                           onClick={() => setMoreOptions((shown) => !shown)}
-                          className="text-muted-foreground hover:text-foreground focus-visible:ring-ring flex items-center gap-1 rounded-sm text-sm focus-visible:outline-none focus-visible:ring-2"
+                          className="text-muted-foreground hover:text-foreground focus-visible:ring-ring flex items-center gap-1 rounded-sm text-sm focus-visible:ring-2 focus-visible:outline-none"
                         >
                           <Icons.ChevronRight
                             className={cn(

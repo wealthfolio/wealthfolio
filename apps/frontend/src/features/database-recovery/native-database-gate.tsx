@@ -221,14 +221,14 @@ function NativeStartup({ children }: { children: ReactNode }) {
   return (
     <div className="bg-background text-foreground relative min-h-dvh">
       <div data-tauri-drag-region className="absolute inset-x-0 top-0 h-8" />
-      <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center gap-6 px-6 pb-[calc(3rem+env(safe-area-inset-bottom,0px))] pt-[calc(3rem+env(safe-area-inset-top,0px))]">
+      <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center gap-6 px-6 pt-[calc(3rem+env(safe-area-inset-top,0px))] pb-[calc(3rem+env(safe-area-inset-bottom,0px))]">
         <header className="flex flex-col items-center gap-5 text-center">
           <img src="/logo.png" alt="Wealthfolio" className="size-16 object-contain" />
           <div className="space-y-2">
-            <h1 className="text-balance text-2xl font-semibold tracking-tight">
+            <h1 className="text-2xl font-semibold tracking-tight text-balance">
               {t("settings:recovery_title")}
             </h1>
-            <p className="text-muted-foreground text-pretty text-sm leading-relaxed">
+            <p className="text-muted-foreground text-sm leading-relaxed text-pretty">
               {t(
                 status.data?.canRecover
                   ? "settings:recovery_description"
@@ -245,8 +245,8 @@ function NativeStartup({ children }: { children: ReactNode }) {
               aria-hidden
             />
           </summary>
-          <div className="flex items-start gap-2 pb-3 pe-2 ps-4">
-            <p className="max-h-40 min-w-0 flex-1 select-text overflow-y-auto whitespace-pre-wrap break-words font-mono text-xs leading-relaxed">
+          <div className="flex items-start gap-2 ps-4 pe-2 pb-3">
+            <p className="max-h-40 min-w-0 flex-1 overflow-y-auto font-mono text-xs leading-relaxed break-words whitespace-pre-wrap select-text">
               {startupError}
             </p>
             <Button
@@ -342,7 +342,7 @@ function NativeStartup({ children }: { children: ReactNode }) {
                       )}
                     </Button>
                     {selected && (
-                      <p className="bg-muted/40 break-all rounded-xl px-4 py-2 font-mono text-xs">
+                      <p className="bg-muted/40 rounded-xl px-4 py-2 font-mono text-xs break-all">
                         {selected.split(/[\\/]/).pop()}
                       </p>
                     )}

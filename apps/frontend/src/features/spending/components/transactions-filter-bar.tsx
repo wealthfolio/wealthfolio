@@ -40,7 +40,7 @@ function CurrencyNetPill({ total }: { total: CurrencyNet }) {
   const { isBalanceHidden } = useBalancePrivacy();
   const isNegative = total.amount < 0;
   return (
-    <span className="bg-muted/45 inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2 py-0.5">
+    <span className="bg-muted/45 inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 whitespace-nowrap">
       <span
         className={cn("h-2 w-1 rounded-sm", isNegative ? "bg-destructive/70" : "bg-success/70")}
         aria-hidden="true"
@@ -280,7 +280,7 @@ export function TransactionsFilterBar({
           </Button>
         </div>
         <Sheet open={mobileFiltersOpen} onOpenChange={setMobileFiltersOpen}>
-          <SheetContent side="bottom" className="rounded-t-4xl mx-1 flex h-[80vh] flex-col p-0">
+          <SheetContent side="bottom" className="mx-1 flex h-[80vh] flex-col rounded-t-4xl p-0">
             <SheetHeader className="border-border border-b px-6 py-4 text-start">
               <SheetTitle>{t("spending:filters.filterTransactions")}</SheetTitle>
             </SheetHeader>
@@ -342,7 +342,7 @@ export function TransactionsFilterBar({
           <NetReadout label={t("spending:filters.selectedNet")} net={selectedNet} />
         )}
         {filteredNet && <NetReadout label={t("spending:filters.filteredNet")} net={filteredNet} />}
-        <span className="text-muted-foreground inline-flex items-center gap-1.5 whitespace-nowrap text-xs tabular-nums">
+        <span className="text-muted-foreground inline-flex items-center gap-1.5 text-xs whitespace-nowrap tabular-nums">
           {countLabel}
           {isRefreshing && (
             <Spinner className="h-3 w-3" aria-label={t("spending:filters.refreshing")} />

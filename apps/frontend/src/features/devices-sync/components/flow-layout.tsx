@@ -161,9 +161,9 @@ export function FlowScreen({
           className="flex flex-col gap-2"
           aria-live={live ? "polite" : undefined}
         >
-          <h2 className="text-xl font-semibold leading-tight tracking-tight">{title}</h2>
+          <h2 className="text-xl leading-tight font-semibold tracking-tight">{title}</h2>
           {description && (
-            <p className="text-muted-foreground mx-auto max-w-[44ch] whitespace-pre-line break-words text-sm leading-relaxed">
+            <p className="text-muted-foreground mx-auto max-w-[44ch] text-sm leading-relaxed break-words whitespace-pre-line">
               {description}
             </p>
           )}

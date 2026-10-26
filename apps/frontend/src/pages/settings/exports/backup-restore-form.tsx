@@ -100,7 +100,7 @@ export function BackupRestoreForm() {
           action={
             <Button
               size="sm"
-              className="pointer-coarse:h-11 aria-busy:opacity-100"
+              className="aria-busy:opacity-100 pointer-coarse:h-11"
               disabled={busy}
               aria-busy={create.isPending}
               onClick={() => create.mutate()}

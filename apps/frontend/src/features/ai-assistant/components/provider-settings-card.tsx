@@ -1313,7 +1313,7 @@ function AdvancedTuningSection({
               <div className="bg-muted/40 space-y-1.5 rounded-md p-3">
                 <div className="flex items-center gap-1.5">
                   <Icons.Settings className="text-muted-foreground h-3 w-3" />
-                  <span className="text-muted-foreground text-2xs font-medium uppercase tracking-wide">
+                  <span className="text-muted-foreground text-2xs font-medium tracking-wide uppercase">
                     {t("ai:providerSettings.structuredOptions")}
                   </span>
                 </div>
@@ -1387,7 +1387,7 @@ function TuningGroupCard({ title, blurb, fields, providerId, onCommit }: TuningG
   return (
     <div className="bg-muted/40 space-y-3 rounded-md p-3">
       <div className="space-y-0.5">
-        <span className="text-muted-foreground text-2xs font-medium uppercase tracking-wide">
+        <span className="text-muted-foreground text-2xs font-medium tracking-wide uppercase">
           {title}
         </span>
         <p className="text-muted-foreground/80 text-2xs leading-tight">{blurb}</p>
@@ -1576,7 +1576,7 @@ function EndpointGroupCard({
     <div className="bg-muted/40 space-y-3 rounded-md p-3">
       <div className="space-y-0.5">
         <div className="flex items-center justify-between">
-          <span className="text-muted-foreground text-2xs font-medium uppercase tracking-wide">
+          <span className="text-muted-foreground text-2xs font-medium tracking-wide uppercase">
             {t("ai:providerSettings.endpoint")}
           </span>
           {field.helpUrl && (

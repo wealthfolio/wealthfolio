@@ -327,7 +327,7 @@ export function PortfolioExplorer({
       <Card className="overflow-hidden p-0">
         {/* Title and lens tabs */}
         <div className="bg-muted/30 flex flex-wrap items-center gap-1 border-b px-6 py-2.5">
-          <CardTitle className="text-muted-foreground me-5 flex shrink-0 items-center gap-4 py-2 text-sm font-medium uppercase tracking-wider">
+          <CardTitle className="text-muted-foreground me-5 flex shrink-0 items-center gap-4 py-2 text-sm font-medium tracking-wider uppercase">
             {t("insights:insights.explorer.breakdown")}
             <Icons.ChevronRight className="h-4 w-4 opacity-40 rtl:rotate-180" aria-hidden="true" />
           </CardTitle>
@@ -358,8 +358,8 @@ export function PortfolioExplorer({
             </span>
           </div>
           <SegmentedBar nodes={barWeights} />
-          <div className="mb-1 mt-4 flex items-baseline justify-between">
-            <span className="text-muted-foreground text-2xs font-semibold uppercase tracking-wider">
+          <div className="mt-4 mb-1 flex items-baseline justify-between">
+            <span className="text-muted-foreground text-2xs font-semibold tracking-wider uppercase">
               {collapsible && !showAll
                 ? t("insights:insights.explorer.top_units", { unit: active.unit })
                 : active.label}

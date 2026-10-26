@@ -94,7 +94,7 @@ export function BackupExportDialog({ filename, displayName, onClose }: BackupExp
         </DialogHeader>
         <div className="bg-muted/50 flex min-w-0 items-center gap-3 rounded-lg border p-3">
           <Icons.FileArchive className="text-muted-foreground size-5 shrink-0" aria-hidden />
-          <p className="min-w-0 break-words text-sm font-medium" title={filename}>
+          <p className="min-w-0 text-sm font-medium break-words" title={filename}>
             {displayName ?? filename}
           </p>
         </div>
@@ -169,7 +169,7 @@ export function BackupExportDialog({ filename, displayName, onClose }: BackupExp
                   type="button"
                   variant="outline"
                   size="sm"
-                  className="min-w-0 max-md:h-auto max-md:min-h-11 max-md:shrink max-md:whitespace-normal max-md:py-2"
+                  className="min-w-0 max-md:h-auto max-md:min-h-11 max-md:shrink max-md:py-2 max-md:whitespace-normal"
                   disabled={pending}
                   onClick={() => {
                     const generated = generateBackupPassword();

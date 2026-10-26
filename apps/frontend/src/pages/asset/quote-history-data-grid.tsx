@@ -520,7 +520,7 @@ export function QuoteHistoryDataGrid({
 
                 return (
                   <div key={draft.id} className="bg-muted/30 space-y-3 p-3">
-                    <span className="block text-xs font-medium uppercase tracking-wide">
+                    <span className="block text-xs font-medium tracking-wide uppercase">
                       {draft.isNew
                         ? t("asset:quoteGrid.new_quote")
                         : t("asset:quoteGrid.edit_quote")}

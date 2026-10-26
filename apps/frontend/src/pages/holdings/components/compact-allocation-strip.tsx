@@ -140,7 +140,7 @@ export function CompactAllocationStrip({
   if (processedCategories.length === 0) {
     return (
       <Card className="p-3">
-        <p className="text-muted-foreground text-sm font-medium uppercase tracking-wider">
+        <p className="text-muted-foreground text-sm font-medium tracking-wider uppercase">
           {title}
         </p>
         <p className="text-muted-foreground mt-2 text-xs">{t("holdings:no_data")}</p>
@@ -152,7 +152,7 @@ export function CompactAllocationStrip({
     <Card className="p-3">
       <TooltipProvider>
         {/* Title */}
-        <p className="text-muted-foreground mb-2 text-sm font-medium uppercase tracking-wider">
+        <p className="text-muted-foreground mb-2 text-sm font-medium tracking-wider uppercase">
           {title}
         </p>
 

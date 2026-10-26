@@ -123,7 +123,7 @@ function KpiStat({
     return (
       <Link
         to={href}
-        className="hover:bg-foreground/5 focus-visible:ring-ring -m-1 flex flex-col rounded-md p-1 transition-colors focus-visible:outline-none focus-visible:ring-1"
+        className="hover:bg-foreground/5 focus-visible:ring-ring -m-1 flex flex-col rounded-md p-1 transition-colors focus-visible:ring-1 focus-visible:outline-none"
       >
         {content}
       </Link>

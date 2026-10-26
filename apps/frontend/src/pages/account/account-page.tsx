@@ -897,7 +897,7 @@ const AccountPage = () => {
                     <span className="flex min-w-0 items-center gap-1.5">
                       {account?.group ? (
                         <>
-                          <span className="text-muted-foreground truncate text-base font-semibold leading-tight md:text-lg">
+                          <span className="text-muted-foreground truncate text-base leading-tight font-semibold md:text-lg">
                             {account.group}
                           </span>
                           <span className="text-muted-foreground text-sm" aria-hidden="true">
@@ -905,7 +905,7 @@ const AccountPage = () => {
                           </span>
                         </>
                       ) : null}
-                      <span className="truncate text-base font-semibold leading-tight md:text-lg">
+                      <span className="truncate text-base leading-tight font-semibold md:text-lg">
                         {account?.name ?? t("account:account")}
                       </span>
                       <Icons.ChevronDown className="text-muted-foreground size-5 shrink-0" />
@@ -962,13 +962,13 @@ const AccountPage = () => {
                     }
                   >
                     <span className="flex min-w-0 items-center gap-1.5">
-                      <span className="truncate text-base font-semibold leading-tight">
+                      <span className="truncate text-base leading-tight font-semibold">
                         {account?.name ?? t("account:account")}
                       </span>
                       <Icons.ChevronDown className="text-muted-foreground h-5 w-5 shrink-0" />
                     </span>
                   </SheetTrigger>
-                  <SheetContent side="bottom" className="rounded-t-4xl mx-1 h-[80vh] p-0">
+                  <SheetContent side="bottom" className="mx-1 h-[80vh] rounded-t-4xl p-0">
                     <SheetHeader className="border-border border-b px-6 py-4">
                       <SheetTitle>{t("account:switch_account_title")}</SheetTitle>
                       <SheetDescription>{t("account:choose_account_to_view")}</SheetDescription>
@@ -1144,7 +1144,7 @@ const AccountPage = () => {
                           }}
                         />
                         <IntervalSelector
-                          className="relative bottom-10 end-0 start-0 z-10"
+                          className="relative start-0 end-0 bottom-10 z-10"
                           onIntervalSelect={handleIntervalSelect}
                           isLoading={isValuationHistoryLoading}
                           defaultValue={INITIAL_INTERVAL_CODE}

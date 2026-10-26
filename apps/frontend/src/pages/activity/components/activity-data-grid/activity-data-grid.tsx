@@ -181,32 +181,30 @@ export function ActivityDataGrid({
       try {
         const exchange = await buildSameAccountFxDuplicate(activity);
         if (exchange) {
-          const duplicates = exchange.map(
-            (leg): LocalTransaction => ({
-              ...source,
-              id: generateTempActivityId(),
-              idempotencyKey: leg.idempotencyKey,
-              sourceGroupId: leg.sourceGroupId,
-              activityType: leg.activityType,
-              date: leg.activityDate,
-              createdAt: now,
-              updatedAt: now,
-              isNew: true,
-              status: ActivityStatus.POSTED,
-              needsReview: false,
-              amount: leg.amount ?? null,
-              currency: leg.currency,
-              fee: leg.fee ?? null,
-              tax: leg.tax,
-              fxRate: leg.fxRate,
-              comment: leg.comment ?? undefined,
-              assetId: "",
-              assetSymbol: "CASH",
-              isExternal: false,
-              metadata: { flow: { is_external: false } },
-              _amountEdited: true,
-            }),
-          );
+          const duplicates = exchange.map((leg): LocalTransaction => ({
+            ...source,
+            id: generateTempActivityId(),
+            idempotencyKey: leg.idempotencyKey,
+            sourceGroupId: leg.sourceGroupId,
+            activityType: leg.activityType,
+            date: leg.activityDate,
+            createdAt: now,
+            updatedAt: now,
+            isNew: true,
+            status: ActivityStatus.POSTED,
+            needsReview: false,
+            amount: leg.amount ?? null,
+            currency: leg.currency,
+            fee: leg.fee ?? null,
+            tax: leg.tax,
+            fxRate: leg.fxRate,
+            comment: leg.comment ?? undefined,
+            assetId: "",
+            assetSymbol: "CASH",
+            isExternal: false,
+            metadata: { flow: { is_external: false } },
+            _amountEdited: true,
+          }));
           setLocalTransactions((prev) => [...duplicates, ...prev]);
           markDirtyBatch(duplicates.map((row) => row.id));
           return;

@@ -1579,7 +1579,7 @@ export const AssetProfilePage = () => {
             {/* Provider names read in their own direction, so a clipped one keeps its start. */}
             <h1
               dir="auto"
-              className="truncate text-base font-semibold leading-tight md:text-lg rtl:text-right"
+              className="truncate text-base leading-tight font-semibold md:text-lg rtl:text-right"
             >
               {assetProfile?.name ?? holding?.instrument?.name ?? assetId ?? "-"}
             </h1>

@@ -107,7 +107,7 @@ export function ModuleCard() {
         {/* Top row: state pulse + master toggle share the full row so the
             headline below gets full width on mobile. */}
         <div className="flex items-center justify-between gap-3">
-          <div className="text-background/60 flex min-w-0 items-center gap-2 text-xs font-medium uppercase tracking-widest">
+          <div className="text-background/60 flex min-w-0 items-center gap-2 text-xs font-medium tracking-widest uppercase">
             <span className="relative flex h-2 w-2 shrink-0">
               <span
                 className={cn(
@@ -134,8 +134,8 @@ export function ModuleCard() {
             )}
           </div>
 
-          <label className="flex shrink-0 cursor-pointer select-none items-center gap-2">
-            <span className="text-background/55 hidden text-xs font-medium uppercase tracking-widest sm:inline">
+          <label className="flex shrink-0 cursor-pointer items-center gap-2 select-none">
+            <span className="text-background/55 hidden text-xs font-medium tracking-widest uppercase sm:inline">
               {enabled
                 ? t("settings:spending.module.enabled")
                 : t("settings:spending.module.disabled")}
@@ -231,7 +231,7 @@ export function ModuleCard() {
                 {t("settings:spending.module.no_rules_prompt")}
               </span>
             </div>
-            <span className="text-background/70 group-hover:text-background flex shrink-0 items-center gap-1 text-xs font-medium uppercase tracking-widest">
+            <span className="text-background/70 group-hover:text-background flex shrink-0 items-center gap-1 text-xs font-medium tracking-widest uppercase">
               <span className="hidden sm:inline">{t("settings:spending.module.setup_rules")}</span>
               <Icons.ChevronRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5 rtl:rotate-180 rtl:group-hover:-translate-x-0.5" />
             </span>
@@ -254,7 +254,7 @@ interface HeroStatProps {
 function HeroStat({ label, value, unit, sub, valueClassName, sublineClassName }: HeroStatProps) {
   return (
     <div className="pe-4">
-      <div className="text-background/55 text-2xs font-medium uppercase tracking-widest">
+      <div className="text-background/55 text-2xs font-medium tracking-widest uppercase">
         {label}
       </div>
       <div className="mt-2 flex items-baseline gap-1 tabular-nums">

@@ -212,7 +212,7 @@ export function ModelPresetPicker({
       {(secondaryPresets.length > 0 || compact) && (
         <div className="flex flex-wrap items-center gap-2 pt-1">
           {secondaryPresets.length > 0 && (
-            <span className="text-muted-foreground text-2xs me-1 font-medium uppercase tracking-wider">
+            <span className="text-muted-foreground text-2xs me-1 font-medium tracking-wider uppercase">
               {t("allocation:presets.moreTemplates")}
             </span>
           )}

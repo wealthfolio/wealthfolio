@@ -746,7 +746,7 @@ function ComparisonTable({
     <Card className="overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
-          <tr className="border-border/40 text-muted-foreground/70 text-2xs border-b font-semibold uppercase tracking-[0.12em]">
+          <tr className="border-border/40 text-muted-foreground/70 text-2xs border-b font-semibold tracking-[0.12em] uppercase">
             <th className="px-3 py-3 text-start md:px-4">{t("spending:filters.category")}</th>
             <th className="px-2 py-3 text-end md:px-3">{labels.current}</th>
             <th className="px-2 py-3 text-end md:px-3">{labels.prior}</th>

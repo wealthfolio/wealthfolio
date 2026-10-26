@@ -65,7 +65,7 @@ export const ActionConfirm = ({
       <PopoverContent className="w-80" align="end" side={side}>
         <div className="space-y-4">
           <div className="space-y-2">
-            <h4 className="font-medium leading-none">{confirmTitle}</h4>
+            <h4 className="leading-none font-medium">{confirmTitle}</h4>
             <p className="text-muted-foreground text-sm">{confirmMessage}</p>
           </div>
           <div className="flex justify-end gap-2">

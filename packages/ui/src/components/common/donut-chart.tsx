@@ -58,7 +58,7 @@ const ChartCenterLabel: React.FC<ChartCenterLabelProps> = ({ activeData, totalVa
 
   return (
     <TooltipProvider>
-      <div className="top-27 pointer-events-auto absolute left-1/2 -translate-x-1/2 -translate-y-1/2 text-center">
+      <div className="pointer-events-auto absolute top-27 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center">
         <p className="text-muted-foreground text-xs font-medium">{activeData.name}</p>
         <Tooltip>
           <TooltipTrigger delay={100} render={<p className="text-foreground cursor-default text-xs font-bold" />}>

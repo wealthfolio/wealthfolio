@@ -106,11 +106,11 @@ export function ProfileStartupRecovery({ error, onStartNew }: ProfileStartupReco
           </p>
         )}
         <details className="border-border text-muted-foreground mt-6 border-t pt-4 text-xs">
-          <summary className="focus-visible:ring-ring cursor-pointer rounded-sm py-1 focus-visible:outline-none focus-visible:ring-2">
+          <summary className="focus-visible:ring-ring cursor-pointer rounded-sm py-1 focus-visible:ring-2 focus-visible:outline-none">
             {t("profiles.recoveryDetails")}
           </summary>
           <p className="mt-3 leading-relaxed">{t("profiles.registryRecoveryInstructions")}</p>
-          <pre className="bg-muted text-foreground mt-3 max-h-40 overflow-auto whitespace-pre-wrap break-words rounded-lg p-3 font-mono text-xs">
+          <pre className="bg-muted text-foreground mt-3 max-h-40 overflow-auto rounded-lg p-3 font-mono text-xs break-words whitespace-pre-wrap">
             {actionError ?? error}
           </pre>
         </details>

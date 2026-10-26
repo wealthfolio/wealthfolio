@@ -15,7 +15,7 @@ function Progress({ className, ...props }: ProgressProps) {
     >
       <ProgressPrimitive.Indicator
         data-slot="progress-indicator"
-        className="bg-primary data-indeterminate:w-0 h-full transition-all"
+        className="bg-primary h-full transition-all data-indeterminate:w-0"
       />
     </ProgressPrimitive.Root>
   );

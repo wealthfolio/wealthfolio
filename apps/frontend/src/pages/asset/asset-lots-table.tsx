@@ -410,7 +410,7 @@ function KpiCell({
 }) {
   return (
     <div className={cn("bg-card flex flex-col gap-1.5 px-4 py-5 tabular-nums", className)}>
-      <span className="text-muted-foreground text-2xs uppercase tracking-[0.1em]">{label}</span>
+      <span className="text-muted-foreground text-2xs tracking-[0.1em] uppercase">{label}</span>
       {children}
     </div>
   );
@@ -507,7 +507,7 @@ function AccountLotGroup({
           />
           <span className="text-foreground truncate text-sm font-medium">{group.accountName}</span>
           {group.allSnapshot && (
-            <Badge variant="secondary" className="text-2xs ms-1 uppercase tracking-wider">
+            <Badge variant="secondary" className="text-2xs ms-1 tracking-wider uppercase">
               {t("asset:lots.from_snapshot")}
             </Badge>
           )}
@@ -520,7 +520,7 @@ function AccountLotGroup({
 
         <div className="text-muted-foreground flex flex-wrap items-center justify-end gap-x-3 gap-y-1 text-xs">
           <span className="inline-flex items-center gap-1.5">
-            <span className="text-2xs uppercase tracking-wider">{t("asset:lots.basis")}</span>
+            <span className="text-2xs tracking-wider uppercase">{t("asset:lots.basis")}</span>
             <PrivacyAmount
               value={group.costBasis}
               currency={currency}
@@ -529,7 +529,7 @@ function AccountLotGroup({
           </span>
           <span className="bg-border hidden h-3 w-px sm:block" aria-hidden />
           <span className="inline-flex items-center gap-1.5">
-            <span className="text-2xs uppercase tracking-wider">{t("asset:lots.value")}</span>
+            <span className="text-2xs tracking-wider uppercase">{t("asset:lots.value")}</span>
             <PrivacyAmount
               value={group.marketValue}
               currency={currency}
@@ -564,22 +564,22 @@ function AccountLotGroup({
                 </colgroup>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="text-2xs uppercase tracking-[0.1em]">
+                    <TableHead className="text-2xs tracking-[0.1em] uppercase">
                       {t("asset:lots.date")}
                     </TableHead>
-                    <TableHead className="text-2xs text-end uppercase tracking-[0.1em]">
+                    <TableHead className="text-2xs text-end tracking-[0.1em] uppercase">
                       {t("asset:lots.qty")}
                     </TableHead>
-                    <TableHead className="text-2xs text-end uppercase tracking-[0.1em]">
+                    <TableHead className="text-2xs text-end tracking-[0.1em] uppercase">
                       {t("asset:lots.unit_cost")}
                     </TableHead>
-                    <TableHead className="text-2xs text-end uppercase tracking-[0.1em]">
+                    <TableHead className="text-2xs text-end tracking-[0.1em] uppercase">
                       {t("asset:lots.cost_basis_col")}
                     </TableHead>
-                    <TableHead className="text-2xs text-end uppercase tracking-[0.1em]">
+                    <TableHead className="text-2xs text-end tracking-[0.1em] uppercase">
                       {t("asset:lots.market_value_col")}
                     </TableHead>
-                    <TableHead className="text-2xs text-end uppercase tracking-[0.1em]">
+                    <TableHead className="text-2xs text-end tracking-[0.1em] uppercase">
                       {t("holdings:gain_loss")}
                     </TableHead>
                   </TableRow>

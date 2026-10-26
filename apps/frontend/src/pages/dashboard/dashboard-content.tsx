@@ -176,7 +176,7 @@ export function DashboardContent({
 
   return (
     <div className="flex min-h-full flex-col">
-      <div className="px-4 pb-1 pt-2 md:px-6 lg:px-8">
+      <div className="px-4 pt-2 pb-1 md:px-6 lg:px-8">
         <div className="min-w-0">
           {scope.type === "portfolio" && scopeLabel && (
             <p className="text-muted-foreground mb-1 truncate text-xs" title={scopeLabel}>
@@ -254,7 +254,7 @@ export function DashboardContent({
           />
           {valuationHistory && chartData.length > 0 && (
             <div className="flex w-full justify-center">
-              <div className="pointer-events-auto relative z-20 flex w-full min-w-0 max-w-screen-sm items-center justify-center gap-1.5 pe-4 sm:max-w-screen-md md:max-w-2xl md:pe-0 lg:max-w-3xl">
+              <div className="pointer-events-auto relative z-20 flex w-full max-w-screen-sm min-w-0 items-center justify-center gap-1.5 pe-4 sm:max-w-screen-md md:max-w-2xl md:pe-0 lg:max-w-3xl">
                 <IntervalSelector
                   className="w-auto"
                   onIntervalSelect={period.selectPreset}
@@ -276,8 +276,8 @@ export function DashboardContent({
 
         {/* Two columns once the content area, not the window (the sidebar may be open),
             fits Accounts beside the 24rem right column. */}
-        <div className="@container grow px-4 pb-[var(--mobile-nav-total-offset)] pt-14 md:px-6 md:pb-6 md:pt-12 lg:px-10 lg:pb-8 lg:pt-14">
-          <div className="@min-[53rem]:grid-cols-[minmax(0,2fr)_minmax(24rem,1fr)] @min-[53rem]:gap-20 grid grid-cols-1 gap-8">
+        <div className="@container grow px-4 pt-14 pb-[var(--mobile-nav-total-offset)] md:px-6 md:pt-12 md:pb-6 lg:px-10 lg:pt-14 lg:pb-8">
+          <div className="grid grid-cols-1 gap-8 @min-[53rem]:grid-cols-[minmax(0,2fr)_minmax(24rem,1fr)] @min-[53rem]:gap-20">
             <div>
               <AccountsSummary
                 accountIds={accountIds}

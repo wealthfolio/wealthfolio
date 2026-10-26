@@ -699,7 +699,7 @@ export function AccountForm({ defaultValues, onSuccess = () => undefined }: Acco
       {/* Mode Switch Confirmation Dialog */}
       <AlertDialog open={showModeConfirmation} onOpenChange={setShowModeConfirmation}>
         <AlertDialogContent className="max-w-105 gap-0 overflow-hidden p-0">
-          <div className="px-5 pb-4 pt-5">
+          <div className="px-5 pt-5 pb-4">
             <AlertDialogHeader className="space-y-3">
               <div className="flex items-center gap-3">
                 <div className="bg-warning-subtle flex h-9 w-9 shrink-0 items-center justify-center rounded-xl">

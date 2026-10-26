@@ -926,10 +926,10 @@ export default function SpendingTabContent() {
           </button>
         </div>
       )}
-      <div className="px-4 pb-6 pt-2 md:px-6 md:pb-2 lg:px-8">
+      <div className="px-4 pt-2 pb-6 md:px-6 md:pb-2 lg:px-8">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between sm:gap-8">
           <div>
-            <div className="text-muted-foreground/80 text-2xs font-semibold uppercase tracking-[0.12em]">
+            <div className="text-muted-foreground/80 text-2xs font-semibold tracking-[0.12em] uppercase">
               {t("spending:tabContent.spentLabel")}
               {selectedIntervalDescription
                 ? ` · ${selectedIntervalDescription.startsWith("spending:") ? t(selectedIntervalDescription) : selectedIntervalDescription}`
@@ -1109,12 +1109,12 @@ export default function SpendingTabContent() {
         {/* Two columns once the content area, not the window (the sidebar may be open),
             fits the main column beside the 24rem right column; below that the cards
             interleave in one column (order-*). */}
-        <div className="@container grow px-4 pb-[var(--mobile-nav-total-offset)] pt-24 md:px-6 md:pb-6 md:pt-20 lg:px-10 lg:pb-8 lg:pt-24">
-          <div className="@min-[53rem]:grid @min-[53rem]:grid-cols-[minmax(0,2fr)_minmax(24rem,1fr)] @min-[53rem]:gap-20 flex flex-col gap-6">
-            <div className="@min-[53rem]:block @min-[53rem]:space-y-6 contents">
+        <div className="@container grow px-4 pt-24 pb-[var(--mobile-nav-total-offset)] md:px-6 md:pt-20 md:pb-6 lg:px-10 lg:pt-24 lg:pb-8">
+          <div className="flex flex-col gap-6 @min-[53rem]:grid @min-[53rem]:grid-cols-[minmax(0,2fr)_minmax(24rem,1fr)] @min-[53rem]:gap-20">
+            <div className="contents @min-[53rem]:block @min-[53rem]:space-y-6">
               <DashboardCard
                 title={t("spending:tabContent.whereItWent")}
-                className="@min-[53rem]:order-none order-1 overflow-hidden"
+                className="order-1 overflow-hidden @min-[53rem]:order-none"
                 action={
                   <div className="flex items-center gap-3">
                     <SegmentedToggle
@@ -1159,7 +1159,7 @@ export default function SpendingTabContent() {
                 )}
               </DashboardCard>
 
-              <div className="@min-[53rem]:order-none order-3">
+              <div className="order-3 @min-[53rem]:order-none">
                 <RecentActivityCard
                   activities={activities}
                   accountTypeById={accountTypeById}
@@ -1168,7 +1168,7 @@ export default function SpendingTabContent() {
                 />
               </div>
 
-              <div className="@min-[53rem]:order-none order-6">
+              <div className="order-6 @min-[53rem]:order-none">
                 <h2 className="pb-2 text-sm font-semibold tracking-tight">
                   {t("spending:tabContent.digDeeper")}
                 </h2>
@@ -1195,8 +1195,8 @@ export default function SpendingTabContent() {
               </div>
             </div>
 
-            <div className="@min-[53rem]:block @min-[53rem]:space-y-6 contents">
-              <div className="@min-[53rem]:order-none order-2">
+            <div className="contents @min-[53rem]:block @min-[53rem]:space-y-6">
+              <div className="order-2 @min-[53rem]:order-none">
                 <BudgetLineChartCard
                   monthKey={budgetMonthKey}
                   today={todayParts}
@@ -1220,7 +1220,7 @@ export default function SpendingTabContent() {
               </div>
 
               {insights.length > 0 && (
-                <div className="border-border/40 bg-card/70 @min-[53rem]:order-none order-4 rounded-xl border p-4 backdrop-blur-xl md:p-5">
+                <div className="border-border/40 bg-card/70 order-4 rounded-xl border p-4 backdrop-blur-xl md:p-5 @min-[53rem]:order-none">
                   <div className="mb-2 flex items-center gap-2">
                     <Icons.AlertCircle className="h-4 w-4 shrink-0" style={{ color: theme.deep }} />
                     <h3 className="text-foreground text-sm font-semibold">
@@ -1234,7 +1234,7 @@ export default function SpendingTabContent() {
                     {insights.map((ins, i) => (
                       <div key={i} className="flex gap-2 text-xs">
                         <span
-                          className="w-4 shrink-0 text-base font-bold leading-none"
+                          className="w-4 shrink-0 text-base leading-none font-bold"
                           style={{
                             color: ins.icon === "!" ? "var(--status-warn)" : theme.deep,
                           }}
@@ -1259,7 +1259,7 @@ export default function SpendingTabContent() {
                 </div>
               )}
 
-              <div className="@min-[53rem]:order-none order-5">
+              <div className="order-5 @min-[53rem]:order-none">
                 <EventsCard
                   activities={activities}
                   accountTypeById={accountTypeById}
@@ -1885,7 +1885,7 @@ function GroupedCategoryBlock({
           className="block h-2.5 w-2.5 shrink-0 rounded-sm"
           style={{ backgroundColor: accent }}
         />
-        <span className="text-foreground min-w-0 flex-1 truncate text-start text-xs font-semibold uppercase tracking-wide">
+        <span className="text-foreground min-w-0 flex-1 truncate text-start text-xs font-semibold tracking-wide uppercase">
           {bucket.name}
         </span>
         <span className="text-muted-foreground/80 text-2xs w-12 text-end font-medium tabular-nums">

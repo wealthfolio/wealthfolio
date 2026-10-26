@@ -100,14 +100,14 @@ const NetWorthWidgetError = ({ error, compact = false }: { error: Error; compact
   return (
     <Card className={cn("p-4", compact && "p-3")}>
       <div className="flex items-start gap-3">
-        <div className="text-destructive-subtle-foreground bg-current/15 flex h-8 w-8 shrink-0 items-center justify-center rounded-full">
+        <div className="text-destructive-subtle-foreground flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-current/15">
           <Icons.AlertTriangle className="h-4 w-4" />
         </div>
         <div className="min-w-0 flex-1">
           <p className="text-destructive text-sm font-medium">
             {t("holdings:failed_to_load_net_worth")}
           </p>
-          <p className="text-muted-foreground mt-1 break-words text-xs">
+          <p className="text-muted-foreground mt-1 text-xs break-words">
             {error?.message || t("holdings:unexpected_error")}
           </p>
         </div>

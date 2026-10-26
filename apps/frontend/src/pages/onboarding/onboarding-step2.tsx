@@ -378,7 +378,7 @@ export const OnboardingStep2 = forwardRef<OnboardingStep2Handle, OnboardingStep2
                       <button
                         type="button"
                         onClick={() => setShowLanguageSearch(true)}
-                        className="border-border bg-background hover:border-primary/50 hover:bg-accent ring-offset-background focus-visible:ring-ring inline-flex min-h-10 cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap rounded-md border px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+                        className="border-border bg-background hover:border-primary/50 hover:bg-accent ring-offset-background focus-visible:ring-ring inline-flex min-h-10 cursor-pointer items-center justify-center gap-1.5 rounded-md border px-3 py-2 text-sm font-medium whitespace-nowrap transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
                       >
                         <Icons.Search className="size-4 shrink-0" />
                         {t("onboarding:steps.preferences.other")}
@@ -404,7 +404,7 @@ export const OnboardingStep2 = forwardRef<OnboardingStep2Handle, OnboardingStep2
                           key={locale}
                           type="button"
                           onClick={() => handleFormattingRegionSelect(locale)}
-                          className={`inline-flex min-h-10 max-w-full items-center rounded-md border px-3 py-2 text-start text-sm font-medium leading-tight transition-colors ${
+                          className={`inline-flex min-h-10 max-w-full items-center rounded-md border px-3 py-2 text-start text-sm leading-tight font-medium transition-colors ${
                             formattingRegion === locale
                               ? "border-primary bg-primary/10 text-primary"
                               : "border-border bg-background hover:border-primary/50 hover:bg-accent"
@@ -416,13 +416,13 @@ export const OnboardingStep2 = forwardRef<OnboardingStep2Handle, OnboardingStep2
                       <button
                         type="button"
                         onClick={() => setShowFormattingRegionSearch(true)}
-                        className="border-border bg-background hover:border-primary/50 hover:bg-accent ring-offset-background focus-visible:ring-ring inline-flex min-h-10 cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap rounded-md border px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+                        className="border-border bg-background hover:border-primary/50 hover:bg-accent ring-offset-background focus-visible:ring-ring inline-flex min-h-10 cursor-pointer items-center justify-center gap-1.5 rounded-md border px-3 py-2 text-sm font-medium whitespace-nowrap transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
                       >
                         <Icons.Search className="size-4 shrink-0" />
                         {t("onboarding:steps.preferences.other")}
                       </button>
                     </div>
-                    <p className="text-muted-foreground mt-2 break-words text-xs tabular-nums leading-relaxed">
+                    <p className="text-muted-foreground mt-2 text-xs leading-relaxed break-words tabular-nums">
                       {formattingPreview}
                     </p>
                   </div>
@@ -460,7 +460,7 @@ export const OnboardingStep2 = forwardRef<OnboardingStep2Handle, OnboardingStep2
                             <button
                               type="button"
                               onClick={() => setShowCurrencySearch(true)}
-                              className="border-border bg-background hover:border-primary/50 hover:bg-accent ring-offset-background focus-visible:ring-ring inline-flex min-h-10 cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap rounded-md border px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+                              className="border-border bg-background hover:border-primary/50 hover:bg-accent ring-offset-background focus-visible:ring-ring inline-flex min-h-10 cursor-pointer items-center justify-center gap-1.5 rounded-md border px-3 py-2 text-sm font-medium whitespace-nowrap transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
                             >
                               <Icons.Search className="size-4 shrink-0" />
                               {t("onboarding:steps.preferences.other")}
@@ -493,7 +493,7 @@ export const OnboardingStep2 = forwardRef<OnboardingStep2Handle, OnboardingStep2
                                 type="button"
                                 data-testid={`timezone-${tz.toLowerCase().replace(/\//g, "-")}-button`}
                                 onClick={() => field.onChange(tz)}
-                                className={`inline-flex min-h-10 max-w-full items-center rounded-md border px-3 py-2 text-sm font-medium leading-tight transition-colors ${
+                                className={`inline-flex min-h-10 max-w-full items-center rounded-md border px-3 py-2 text-sm leading-tight font-medium transition-colors ${
                                   field.value === tz
                                     ? "border-primary bg-primary/10 text-primary"
                                     : "border-border bg-background hover:border-primary/50 hover:bg-accent"
@@ -505,7 +505,7 @@ export const OnboardingStep2 = forwardRef<OnboardingStep2Handle, OnboardingStep2
                             <button
                               type="button"
                               onClick={() => setShowTimezoneSearch(true)}
-                              className="border-border bg-background hover:border-primary/50 hover:bg-accent ring-offset-background focus-visible:ring-ring inline-flex min-h-10 cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap rounded-md border px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+                              className="border-border bg-background hover:border-primary/50 hover:bg-accent ring-offset-background focus-visible:ring-ring inline-flex min-h-10 cursor-pointer items-center justify-center gap-1.5 rounded-md border px-3 py-2 text-sm font-medium whitespace-nowrap transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
                             >
                               <Icons.Search className="size-4 shrink-0" />
                               {t("onboarding:steps.preferences.other")}

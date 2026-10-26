@@ -66,11 +66,11 @@ export function SettingsHeader({
           </Button>
         )}
         <div className="grid min-w-0 gap-1">
-          <h1 className="font-heading break-words text-base font-bold sm:text-lg lg:text-xl">
+          <h1 className="font-heading text-base font-bold break-words sm:text-lg lg:text-xl">
             {heading}
           </h1>
           {text && (
-            <p className="text-muted-foreground lg:text-md hidden break-words text-sm font-light sm:block">
+            <p className="text-muted-foreground lg:text-md hidden text-sm font-light break-words sm:block">
               {text}
             </p>
           )}

@@ -348,10 +348,11 @@ export default function DashboardPage({
   const nextIncomeStartAge =
     coverageIncomeStreams
       .filter((stream) => stream.startAge > fireAgeForBudget)
-      .reduce<
-        number | null
-      >((earliest, stream) => (earliest === null ? stream.startAge : Math.min(earliest, stream.startAge)), null) ??
-    null;
+      .reduce<number | null>(
+        (earliest, stream) =>
+          earliest === null ? stream.startAge : Math.min(earliest, stream.startAge),
+        null,
+      ) ?? null;
 
   const hasPensionFunds = plan.incomeStreams.some(
     (s) => (s.currentValue ?? 0) > 0 || (s.monthlyContribution ?? 0) > 0,
@@ -451,9 +452,10 @@ export default function DashboardPage({
   const firstUnfundedAge = retirementOverview
     ? [retirementOverview.failureAge, spendingShortfallAge]
         .filter((age): age is number => typeof age === "number")
-        .reduce<
-          number | null
-        >((earliest, age) => (earliest == null ? age : Math.min(earliest, age)), null)
+        .reduce<number | null>(
+          (earliest, age) => (earliest == null ? age : Math.min(earliest, age)),
+          null,
+        )
     : null;
   const readiness = deriveRetirementReadiness(
     {
@@ -639,7 +641,7 @@ export default function DashboardPage({
                   </div>
 
                   {/* Sentence-style verdict */}
-                  <h1 className="max-w-[95%] font-serif text-2xl font-normal leading-[1.15] tracking-tight">
+                  <h1 className="max-w-[95%] font-serif text-2xl leading-[1.15] font-normal tracking-tight">
                     {isTraditionalMode ? (
                       traditionalStatus === "shortfall" &&
                       spendingShortfallAge != null &&
@@ -749,7 +751,7 @@ export default function DashboardPage({
                     )}
                   </h1>
 
-                  <p className="text-muted-foreground max-w-155 mt-4 text-sm leading-relaxed xl:max-w-4xl">
+                  <p className="text-muted-foreground mt-4 max-w-155 text-sm leading-relaxed xl:max-w-4xl">
                     <Trans
                       t={t}
                       i18nKey={
@@ -831,7 +833,7 @@ export default function DashboardPage({
                   <div className="mt-6">
                     <div className="mb-2 flex items-end justify-between gap-3">
                       <div className="flex flex-col gap-0.5">
-                        <span className="text-muted-foreground text-2xs uppercase tracking-wider">
+                        <span className="text-muted-foreground text-2xs tracking-wider uppercase">
                           {t("goals:dashboard.progress.portfolio_today")}
                         </span>
                         <span className="text-sm font-semibold tabular-nums">
@@ -842,7 +844,7 @@ export default function DashboardPage({
                         <Tooltip>
                           <TooltipTrigger
                             render={
-                              <span className="text-muted-foreground text-2xs cursor-help uppercase tracking-wider underline decoration-dotted underline-offset-2" />
+                              <span className="text-muted-foreground text-2xs cursor-help tracking-wider uppercase underline decoration-dotted underline-offset-2" />
                             }
                           >
                             {isTraditionalMode
@@ -891,7 +893,7 @@ export default function DashboardPage({
                         targetAtGoalDisplay > 0 &&
                         coastAmountDisplay > 0 && (
                           <div
-                            className="bg-foreground/55 absolute -bottom-0.5 -top-0.5 w-[2px]"
+                            className="bg-foreground/55 absolute -top-0.5 -bottom-0.5 w-[2px]"
                             style={{ insetInlineStart: `${coastPct}%` }}
                             title={t("goals:dashboard.milestone.coast_fire")}
                           />
@@ -941,7 +943,7 @@ export default function DashboardPage({
               <CardHeader className="pb-2">
                 <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
                   <div>
-                    <div className="text-muted-foreground text-2xs mb-0.5 font-semibold uppercase tracking-wider">
+                    <div className="text-muted-foreground text-2xs mb-0.5 font-semibold tracking-wider uppercase">
                       {t("goals:dashboard.chart.projection_age_range", {
                         start: plan.personal.currentAge,
                         end: plan.personal.planningHorizonAge,
@@ -1084,7 +1086,7 @@ export default function DashboardPage({
                   return (
                     <div key={m.key} className="p-4">
                       <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
-                        <span className="text-muted-foreground text-2xs font-semibold uppercase tracking-wider">
+                        <span className="text-muted-foreground text-2xs font-semibold tracking-wider uppercase">
                           {m.label}
                         </span>
                         <Tooltip>
@@ -1112,7 +1114,7 @@ export default function DashboardPage({
                           </Badge>
                         )}
                       </div>
-                      <div className="text-lg font-semibold tabular-nums tracking-tight">
+                      <div className="text-lg font-semibold tracking-tight tabular-nums">
                         {m.value == null ? "—" : formatting.formatCompactAmount(m.value, currency)}
                       </div>
                       <div className="bg-muted/60 mt-2 h-[3px] overflow-hidden rounded-sm">
@@ -1135,11 +1137,11 @@ export default function DashboardPage({
               <div className="min-w-0">
                 <div className="mb-1 flex items-center gap-2">
                   <Icons.CreditCard className="text-muted-foreground h-3.5 w-3.5" />
-                  <div className="text-muted-foreground text-2xs font-medium uppercase tracking-[0.15em]">
+                  <div className="text-muted-foreground text-2xs font-medium tracking-[0.15em] uppercase">
                     {t("goals:dashboard.coverage.kicker")}
                   </div>
                 </div>
-                <CardTitle className="text-lg font-semibold leading-none tracking-tight">
+                <CardTitle className="text-lg leading-none font-semibold tracking-tight">
                   {L.budgetAt}
                 </CardTitle>
                 <div className="mt-2 flex items-start gap-1.5">
@@ -1300,7 +1302,7 @@ export default function DashboardPage({
                   <div className="grid gap-4 lg:grid-cols-2">
                     {/* Expense breakdown — no color dots */}
                     <div className="min-w-0">
-                      <div className="text-muted-foreground text-2xs mb-1.5 font-semibold uppercase tracking-[0.14em]">
+                      <div className="text-muted-foreground text-2xs mb-1.5 font-semibold tracking-[0.14em] uppercase">
                         {t("goals:dashboard.coverage.spending_schedule")}
                       </div>
                       <div className="divide-border divide-y">
@@ -1339,7 +1341,7 @@ export default function DashboardPage({
 
                     {/* Income schedule + current-age funding sources */}
                     <div className="min-w-0 border-t pt-3 lg:border-s lg:border-t-0 lg:ps-4 lg:pt-0">
-                      <div className="text-muted-foreground text-2xs mb-1.5 font-semibold uppercase tracking-[0.14em]">
+                      <div className="text-muted-foreground text-2xs mb-1.5 font-semibold tracking-[0.14em] uppercase">
                         {t("goals:dashboard.coverage.income_schedule")}
                       </div>
                       <div className="space-y-1.5">
@@ -1407,7 +1409,7 @@ export default function DashboardPage({
                           coverageShortfallMonthly > 0 ||
                           coverageEstimatedTaxesMonthly > 0) && (
                           <div className="border-border mt-2 flex items-center justify-between gap-3 border-t pt-2">
-                            <div className="text-muted-foreground text-2xs font-semibold uppercase tracking-[0.14em]">
+                            <div className="text-muted-foreground text-2xs font-semibold tracking-[0.14em] uppercase">
                               {t("goals:dashboard.coverage.funding_at_age", {
                                 age: fireAgeForBudget,
                               })}

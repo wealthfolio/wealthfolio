@@ -159,7 +159,7 @@ function EventsErrorCard({ onRetry }: { onRetry?: () => void }) {
   const { t } = useTranslation();
   return (
     <Card className={CARD_CLASS}>
-      <p className="text-foreground text-base font-semibold leading-snug">
+      <p className="text-foreground text-base leading-snug font-semibold">
         {t("spending:whenWhere.errorTitle")}
       </p>
       <p className="text-muted-foreground/80 mt-2 text-sm">{t("spending:whenWhere.errorBody")}</p>
@@ -177,7 +177,7 @@ function EmptyEventsCard({ rangeStart, rangeEnd }: { rangeStart: Date; rangeEnd:
   const { openEventDialog } = useEventDialog();
   return (
     <Card className={CARD_CLASS}>
-      <p className="text-foreground text-base font-semibold leading-snug">
+      <p className="text-foreground text-base leading-snug font-semibold">
         {t("spending:whenWhere.emptyTitle")}
       </p>
       <p className="text-muted-foreground/80 mt-2 text-sm">{t("spending:whenWhere.emptyBody")}</p>

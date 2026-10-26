@@ -247,7 +247,7 @@ export default function GoalNewPage() {
               return (
                 <div
                   key={tmpl.type}
-                  className={`border-border/60 bg-card shadow-xs group overflow-hidden rounded-xl border transition-all ${
+                  className={`border-border/60 bg-card group overflow-hidden rounded-xl border shadow-xs transition-all ${
                     disabled
                       ? "cursor-not-allowed opacity-50"
                       : "hover:border-border cursor-pointer hover:shadow-md"
@@ -268,7 +268,7 @@ export default function GoalNewPage() {
                       <div className="text-muted-foreground/25">{tmpl.icon}</div>
                     </div>
                     <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-black/60 to-transparent" />
-                    <div className="absolute bottom-3 start-4">
+                    <div className="absolute start-4 bottom-3">
                       <p className="text-base font-semibold text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.4)]">
                         {tmpl.title}
                       </p>

@@ -251,7 +251,7 @@ export const IncomeHistoryChart: React.FC<IncomeHistoryChartProps> = ({
       </CardHeader>
       <CardContent className="flex flex-1 flex-col px-4 pt-0 md:px-6">
         {chartData.length === 0 ? (
-          <Empty className="h-62.5 max-w-105 md:h-75 mx-auto flex items-center justify-center">
+          <Empty className="mx-auto flex h-62.5 max-w-105 items-center justify-center md:h-75">
             <EmptyHeader>
               <EmptyMedia variant="icon">
                 {<Icons.Activity className="size-8 md:size-10" />}
@@ -291,7 +291,7 @@ export const IncomeHistoryChart: React.FC<IncomeHistoryChartProps> = ({
                       return (
                         <>
                           <div
-                            className="border-border bg-(--color-bg) h-2.5 w-2.5 shrink-0 rounded-[2px]"
+                            className="border-border h-2.5 w-2.5 shrink-0 rounded-[2px] bg-(--color-bg)"
                             style={
                               {
                                 "--color-bg": entry.color,
@@ -384,7 +384,7 @@ export const IncomeHistoryChart: React.FC<IncomeHistoryChartProps> = ({
                       return (
                         <>
                           <div
-                            className="border-border bg-(--color-bg) h-2.5 w-2.5 shrink-0 rounded-[2px]"
+                            className="border-border h-2.5 w-2.5 shrink-0 rounded-[2px] bg-(--color-bg)"
                             style={
                               {
                                 "--color-bg": entry.color,

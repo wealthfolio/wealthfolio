@@ -197,7 +197,7 @@ export default function ConnectPage() {
         <PageHeader heading={t("connect:page.title")} />
         <PageContent>
           <div className="@container mx-auto max-w-5xl pt-4 sm:pt-6">
-            <div className="@3xl:grid-cols-[minmax(0,1fr)_18rem] grid grid-cols-1 items-start gap-4">
+            <div className="grid grid-cols-1 items-start gap-4 @3xl:grid-cols-[minmax(0,1fr)_18rem]">
               {[5, 3].map((rows, i) => (
                 <Card key={i} className="overflow-hidden">
                   <div className="flex min-h-12 items-center border-b px-4">
@@ -299,7 +299,7 @@ export default function ConnectPage() {
       />
       <PageContent>
         <div className="@container mx-auto max-w-5xl pt-4 sm:pt-6">
-          <div className="@3xl:grid-cols-[minmax(0,1fr)_18rem] grid grid-cols-1 items-start gap-4">
+          <div className="grid grid-cols-1 items-start gap-4 @3xl:grid-cols-[minmax(0,1fr)_18rem]">
             <div className="min-w-0 space-y-4">
               {showBrokerSync ? (
                 <>
@@ -663,7 +663,7 @@ function BrokeragesCard({
             <Button
               size="sm"
               variant="outline"
-              className="pointer-coarse:h-11 mt-4"
+              className="mt-4 pointer-coarse:h-11"
               onClick={onRetry}
             >
               {t("connect:serviceUnavailable.tryAgain")}
@@ -679,7 +679,7 @@ function BrokeragesCard({
             <Button
               size="sm"
               variant="outline"
-              className="pointer-coarse:h-11 mt-4"
+              className="mt-4 pointer-coarse:h-11"
               title={t("connect:opensInBrowser")}
               onClick={() => openUrlInBrowser(connectionsUrl)}
             >
@@ -803,7 +803,7 @@ function BrokerageItem({
         />
       </button>
       {expanded && (
-        <ul className="bg-muted/30 border-t py-1 pe-4 ps-16">
+        <ul className="bg-muted/30 border-t py-1 ps-16 pe-4">
           {row.accounts.length === 0 ? (
             <li className="text-muted-foreground py-2 text-xs">
               {t("connect:connections.noAccountsFound")}
@@ -1071,11 +1071,11 @@ function SyncHistoryItem({
           isFailed ? "bg-destructive" : needsAttention ? "bg-warning" : "bg-success",
         )}
       />
-      <span className="text-muted-foreground shrink-0 whitespace-nowrap text-xs sm:min-w-20 sm:text-sm">
+      <span className="text-muted-foreground shrink-0 text-xs whitespace-nowrap sm:min-w-20 sm:text-sm">
         {t("connect:page.timeAgo", { time: timeAgo })}
       </span>
       {accountName && (
-        <span className="sm:min-w-25 hidden shrink-0 truncate text-sm font-medium sm:inline">
+        <span className="hidden shrink-0 truncate text-sm font-medium sm:inline sm:min-w-25">
           {accountName}
         </span>
       )}

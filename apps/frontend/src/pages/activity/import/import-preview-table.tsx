@@ -278,7 +278,7 @@ const ErrorCell = ({
             <Icons.AlertCircle className="text-destructive h-3.5 w-3.5 shrink-0" />
           </div>
         </TooltipTrigger>
-        <TooltipContent className="max-w-100 flex flex-col gap-2 p-3">
+        <TooltipContent className="flex max-w-100 flex-col gap-2 p-3">
           <ul className="list-disc space-y-1 ps-5 text-sm">
             {errorMessages.map((error, index) => (
               <li key={index}>{error}</li>
@@ -318,8 +318,8 @@ function getColumns(
         );
 
         return isValid ? (
-          <div className="w-15 flex items-center gap-1 text-xs">
-            <div className="text-success-subtle-foreground bg-current/15 flex h-5 w-5 items-center justify-center rounded-full">
+          <div className="flex w-15 items-center gap-1 text-xs">
+            <div className="text-success-subtle-foreground flex h-5 w-5 items-center justify-center rounded-full bg-current/15">
               <Icons.CheckCircle className="h-3.5 w-3.5" />
             </div>
             <span className="text-muted-foreground text-xs">
@@ -331,9 +331,9 @@ function getColumns(
             <Tooltip>
               <TooltipTrigger
                 delay={30}
-                render={<div className="w-15 flex cursor-help items-center gap-1 text-xs" />}
+                render={<div className="flex w-15 cursor-help items-center gap-1 text-xs" />}
               >
-                <div className="text-destructive-subtle-foreground bg-current/15 flex h-5 w-5 items-center justify-center rounded-full">
+                <div className="text-destructive-subtle-foreground flex h-5 w-5 items-center justify-center rounded-full bg-current/15">
                   <Icons.XCircle className="h-3.5 w-3.5" />
                 </div>
                 <span className="text-muted-foreground text-xs">

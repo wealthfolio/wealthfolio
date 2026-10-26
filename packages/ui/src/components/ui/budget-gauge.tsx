@@ -65,7 +65,7 @@ export const BudgetProgressRing: React.FC<BudgetProgressRingProps> = ({
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-        <span className="font-bold leading-tight" style={{ fontSize: size * 0.14 }}>
+        <span className="leading-tight font-bold" style={{ fontSize: size * 0.14 }}>
           <PrivacyAmount value={value} currency={currency} />
         </span>
         <span className="text-muted-foreground leading-tight" style={{ fontSize: size * 0.1 }}>

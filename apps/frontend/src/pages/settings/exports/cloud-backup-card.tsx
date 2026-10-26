@@ -161,13 +161,13 @@ function RecoveryDeadline({ data }: { data: CloudBackupStatus }) {
 function CloudBackupPromotion() {
   const { t } = useTranslation();
   return (
-    <Card className="@container border-connect-brand/15 from-connect-brand/5 via-card to-card overflow-hidden rounded-xl bg-gradient-to-br shadow-none">
-      <CardContent className="@min-[40rem]:grid-cols-[auto_minmax(0,1fr)_auto] @min-[40rem]:gap-x-4 grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-1 px-4 py-3">
+    <Card className="border-connect-brand/15 from-connect-brand/5 via-card to-card @container overflow-hidden rounded-xl bg-gradient-to-br shadow-none">
+      <CardContent className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-1 px-4 py-3 @min-[40rem]:grid-cols-[auto_minmax(0,1fr)_auto] @min-[40rem]:gap-x-4">
         <div className="bg-connect-brand/10 text-connect-brand row-start-1 flex size-8 shrink-0 items-center justify-center rounded-lg">
           <Icons.ShieldCheck className="size-4" aria-hidden />
         </div>
         <div className="min-w-0">
-          <h2 className="text-sm font-semibold leading-5">
+          <h2 className="text-sm leading-5 font-semibold">
             {t("settings:cloud_backup_promotion_title")}
           </h2>
           <p className="text-muted-foreground mt-1 text-xs leading-5">
@@ -176,7 +176,7 @@ function CloudBackupPromotion() {
         </div>
         <Link
           to="/settings/connect"
-          className="text-connect-brand hover:text-foreground focus-visible:ring-ring @min-[40rem]:col-start-3 @min-[40rem]:row-start-1 col-start-2 inline-flex min-h-11 w-fit items-center gap-1.5 rounded-md text-xs font-medium underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+          className="text-connect-brand hover:text-foreground focus-visible:ring-ring col-start-2 inline-flex min-h-11 w-fit items-center gap-1.5 rounded-md text-xs font-medium underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none @min-[40rem]:col-start-3 @min-[40rem]:row-start-1"
         >
           {t("settings:cloud_backup_promotion_action")}
           <Icons.ArrowRight className="size-3.5 shrink-0 rtl:rotate-180" aria-hidden />
@@ -592,7 +592,7 @@ function CloudBackupPanel({ backup }: { backup: ReturnType<typeof useCloudBackup
       return (
         <Button
           size="sm"
-          className="pointer-coarse:h-11 aria-busy:opacity-100"
+          className="aria-busy:opacity-100 pointer-coarse:h-11"
           disabled={busy || state === "running"}
           aria-busy={pending === "capture"}
           onClick={() => void perform("capture", () => captureCloudBackup())}
@@ -773,7 +773,7 @@ function CloudBackupPanel({ backup }: { backup: ReturnType<typeof useCloudBackup
                   <Button
                     variant="outline"
                     size="sm"
-                    className="pointer-coarse:h-11 aria-busy:opacity-100"
+                    className="aria-busy:opacity-100 pointer-coarse:h-11"
                     disabled={busy || accessRunning}
                     aria-busy={accessRunning}
                     onClick={() => void connectAccess()}
@@ -868,7 +868,7 @@ function CloudBackupPanel({ backup }: { backup: ReturnType<typeof useCloudBackup
             <Button
               variant="link"
               size="sm"
-              className="text-muted-foreground h-auto whitespace-normal p-0 text-start text-xs font-normal"
+              className="text-muted-foreground h-auto p-0 text-start text-xs font-normal whitespace-normal"
               onClick={() => showFlow("help")}
             >
               {t("settings:cloud_backup_restore_help")}
@@ -939,7 +939,7 @@ function CloudBackupPanel({ backup }: { backup: ReturnType<typeof useCloudBackup
           {flow === "help" ? (
             <div className="bg-muted/40 space-y-3 rounded-lg p-4">
               <p className="text-sm">{t("settings:cloud_backup_restore_help_steps")}</p>
-              <code className="bg-background block break-all rounded-md border p-3 font-mono text-xs">
+              <code className="bg-background block rounded-md border p-3 font-mono text-xs break-all">
                 wealthfolio-server db restore backup.wfrec --profile {profile?.id ?? "PROFILE_ID"}{" "}
                 --recovery-code-stdin
               </code>
@@ -950,13 +950,13 @@ function CloudBackupPanel({ backup }: { backup: ReturnType<typeof useCloudBackup
                 <Label className="text-muted-foreground text-xs">
                   {t("settings:cloud_backup_code")}
                 </Label>
-                <pre className="mt-2 select-all whitespace-pre-wrap break-all font-mono text-sm leading-6">
+                <pre className="mt-2 font-mono text-sm leading-6 break-all whitespace-pre-wrap select-all">
                   {recoveryCode}
                 </pre>
                 <Button
                   variant="outline"
                   size="sm"
-                  className="pointer-coarse:h-11 mt-3"
+                  className="mt-3 pointer-coarse:h-11"
                   onClick={() => {
                     void navigator.clipboard
                       .writeText(recoveryCode)
@@ -1019,7 +1019,7 @@ function CloudBackupPanel({ backup }: { backup: ReturnType<typeof useCloudBackup
               <div className="bg-muted/40 flex items-center gap-3 rounded-lg p-3">
                 <Icons.Laptop className="text-muted-foreground size-5 shrink-0" aria-hidden />
                 <div>
-                  <p className="text-sm font-medium leading-5">
+                  <p className="text-sm leading-5 font-medium">
                     {profile?.name ?? t("settings:cloud_backup_this_profile")}
                   </p>
                   <p className="text-muted-foreground text-xs">

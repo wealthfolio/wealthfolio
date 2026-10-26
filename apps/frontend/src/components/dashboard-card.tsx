@@ -42,7 +42,7 @@ export function DashboardCard({
         </div>
         {action ??
           (meta ? (
-            <span className="text-muted-foreground/70 text-xs font-medium uppercase tracking-wide">
+            <span className="text-muted-foreground/70 text-xs font-medium tracking-wide uppercase">
               {meta}
             </span>
           ) : null)}

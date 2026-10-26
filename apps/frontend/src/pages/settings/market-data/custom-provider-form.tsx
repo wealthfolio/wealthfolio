@@ -268,7 +268,7 @@ export function CustomProviderForm({
       }}
     >
       <DialogContent
-        className="max-w-350 flex h-[92vh] w-[98vw] flex-col overflow-hidden p-0 [--input-height:2.25rem]"
+        className="flex h-[92vh] w-[98vw] max-w-350 flex-col overflow-hidden p-0 [--input-height:2.25rem]"
         showCloseButton={false}
       >
         {open && (
@@ -589,7 +589,7 @@ function CustomProviderFormContent({
           <div className="min-h-0 space-y-3 overflow-y-auto border-e p-4">
             {/* Provider Mode */}
             <div>
-              <div className="text-muted-foreground text-2xs mb-2 font-medium uppercase tracking-wide">
+              <div className="text-muted-foreground text-2xs mb-2 font-medium tracking-wide uppercase">
                 {t("settings:market_data_page.provider_mode")}
               </div>
               <div className="grid gap-2 sm:grid-cols-3">
@@ -666,10 +666,10 @@ function CustomProviderFormContent({
                   name="name"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-muted-foreground text-2xs font-medium uppercase tracking-wide">
+                      <FormLabel className="text-muted-foreground text-2xs font-medium tracking-wide uppercase">
                         {t("settings:market_data_page.provider_name")}
                         {!nameManuallyEdited && !isEditing && form.getValues("name") && (
-                          <span className="text-muted-foreground ms-1 font-normal normal-case tracking-normal">
+                          <span className="text-muted-foreground ms-1 font-normal tracking-normal normal-case">
                             {t("settings:market_data_page.provider_name_from_url")}
                           </span>
                         )}
@@ -690,9 +690,9 @@ function CustomProviderFormContent({
                   name="code"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-muted-foreground text-2xs font-medium uppercase tracking-wide">
+                      <FormLabel className="text-muted-foreground text-2xs font-medium tracking-wide uppercase">
                         {t("settings:market_data_page.code")}{" "}
-                        <span className="font-normal normal-case tracking-normal">
+                        <span className="font-normal tracking-normal normal-case">
                           {t("settings:market_data_page.code_auto")}
                         </span>
                       </FormLabel>
@@ -718,9 +718,9 @@ function CustomProviderFormContent({
                 name="description"
                 render={({ field }) => (
                   <FormItem className="mt-3">
-                    <FormLabel className="text-muted-foreground text-2xs font-medium uppercase tracking-wide">
+                    <FormLabel className="text-muted-foreground text-2xs font-medium tracking-wide uppercase">
                       {t("common:description")}{" "}
-                      <span className="font-normal normal-case tracking-normal">
+                      <span className="font-normal tracking-normal normal-case">
                         {t("settings:market_data_page.description_optional")}
                       </span>
                     </FormLabel>
@@ -802,7 +802,7 @@ function CustomProviderFormContent({
 
               {isEditing && (
                 <div className="mt-3 space-y-2 border-t pt-3">
-                  <div className="text-muted-foreground text-2xs font-medium uppercase tracking-wide">
+                  <div className="text-muted-foreground text-2xs font-medium tracking-wide uppercase">
                     {t("settings:market_data_page.usage_used_by")}
                   </div>
                   {usageCount(usage) === 0 ? (

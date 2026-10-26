@@ -175,7 +175,7 @@ export function SavingGoals() {
               <ItemContent className="min-w-0 gap-0.5">
                 {/* Title row with status dot */}
                 <ItemTitle className="w-full min-w-0 gap-2">
-                  <h3 className="truncate text-sm font-semibold leading-tight md:text-base">
+                  <h3 className="truncate text-sm leading-tight font-semibold md:text-base">
                     {goal.title}
                   </h3>
                   <span
@@ -197,7 +197,7 @@ export function SavingGoals() {
 
               {/* Right: big % + time */}
               <ItemActions className="shrink-0 flex-col items-end gap-1 text-end">
-                <div className="text-base font-semibold tabular-nums leading-none">
+                <div className="text-base leading-none font-semibold tabular-nums">
                   {pctDisplay}
                 </div>
                 <div className="text-muted-foreground text-xs md:text-sm">{timeStr}</div>

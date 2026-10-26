@@ -131,7 +131,7 @@ export function DisplayCode({
             type="button"
             onClick={handleCopy}
             aria-label={t("sync:displayCode.copyCode")}
-            className="hover:bg-muted focus-visible:ring-ring group flex h-11 items-center gap-2.5 rounded-full px-4 transition-colors focus-visible:outline-none focus-visible:ring-2 active:scale-[0.97]"
+            className="hover:bg-muted focus-visible:ring-ring group flex h-11 items-center gap-2.5 rounded-full px-4 transition-colors focus-visible:ring-2 focus-visible:outline-none active:scale-[0.97]"
           >
             <PairingCodeText code={code} className="text-xl" />
             <span className="text-muted-foreground group-hover:text-foreground relative size-4 transition-colors">

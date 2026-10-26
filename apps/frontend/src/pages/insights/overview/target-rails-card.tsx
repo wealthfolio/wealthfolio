@@ -108,7 +108,7 @@ export function TargetRailsCard({
     <Card className="flex flex-col gap-4 p-5 xl:h-full">
       {/* Header: title + Details (top-right) */}
       <div className="flex items-center justify-between gap-3">
-        <div className="text-muted-foreground text-xs font-semibold uppercase tracking-[0.18em]">
+        <div className="text-muted-foreground text-xs font-semibold tracking-[0.18em] uppercase">
           {t("insights:insights.rails.target_allocation")}
         </div>
         {hasTarget && onViewDetails && (
@@ -185,7 +185,7 @@ export function TargetRailsCard({
 
           {/* Suggested moves — fills the remaining height */}
           <div className="flex flex-col pt-5 xl:flex-1">
-            <div className="text-muted-foreground text-2xs mb-2 font-semibold uppercase tracking-wider">
+            <div className="text-muted-foreground text-2xs mb-2 font-semibold tracking-wider uppercase">
               {t("insights:insights.rails.suggested_moves")}
             </div>
             {moves.length === 0 ? (
@@ -264,7 +264,7 @@ export function TargetRailsCard({
       ) : (
         <div className="flex flex-1 flex-col items-center justify-center gap-5 py-1 text-center">
           <div className="bg-muted/25 w-full rounded-xl border p-4">
-            <div className="text-muted-foreground text-2xs mb-4 flex items-center justify-between font-semibold uppercase tracking-wider">
+            <div className="text-muted-foreground text-2xs mb-4 flex items-center justify-between font-semibold tracking-wider uppercase">
               <span>{t("insights:insights.rails.current")}</span>
               <span>{t("insights:insights.rails.target")}</span>
             </div>

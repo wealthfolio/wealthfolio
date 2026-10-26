@@ -297,7 +297,7 @@ export default function SaveUpDetailPage({ goal, plan, overview }: Props) {
                   >
                     {status.label}
                   </span>
-                  <span className="text-muted-foreground text-xs font-medium uppercase tracking-[0.15em]">
+                  <span className="text-muted-foreground text-xs font-medium tracking-[0.15em] uppercase">
                     {t("goals:save_up.savings_plan")}
                   </span>
                 </div>
@@ -642,7 +642,7 @@ function formatGoalDate(
 function HeroMetric({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="min-w-0 px-5 py-4">
-      <div className="text-muted-foreground text-2xs font-semibold uppercase tracking-wider">
+      <div className="text-muted-foreground text-2xs font-semibold tracking-wider uppercase">
         {label}
       </div>
       <div className="mt-2 truncate text-lg font-semibold tabular-nums">{children}</div>
@@ -676,10 +676,10 @@ function MonthlyPlanCallout({
       <CardContent className="p-5">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div className="min-w-0">
-            <div className="text-muted-foreground mb-1 text-xs font-medium uppercase tracking-[0.15em]">
+            <div className="text-muted-foreground mb-1 text-xs font-medium tracking-[0.15em] uppercase">
               {t("goals:save_up.action")}
             </div>
-            <h3 className="text-md font-semibold leading-none tracking-tight">
+            <h3 className="text-md leading-none font-semibold tracking-tight">
               {t("goals:save_up.monthly_plan")}
             </h3>
           </div>
@@ -777,7 +777,7 @@ function SidebarCard({
     <Card>
       <CardHeader className="flex-row items-start justify-between pb-4">
         <div className="min-w-0">
-          <div className="text-muted-foreground mb-1 text-xs font-medium uppercase tracking-[0.15em]">
+          <div className="text-muted-foreground mb-1 text-xs font-medium tracking-[0.15em] uppercase">
             {kicker}
           </div>
           <CardTitle className="text-md leading-none tracking-tight">{title}</CardTitle>
@@ -827,7 +827,7 @@ function DateRow({
     <div className="py-4 first:pt-1 last:pb-1">
       <div className="mb-2 flex items-start justify-between gap-3">
         <div>
-          <div className="text-foreground text-sm font-semibold leading-tight">{label}</div>
+          <div className="text-foreground text-sm leading-tight font-semibold">{label}</div>
           <div className="text-muted-foreground mt-1 text-xs leading-tight">{hint}</div>
         </div>
       </div>

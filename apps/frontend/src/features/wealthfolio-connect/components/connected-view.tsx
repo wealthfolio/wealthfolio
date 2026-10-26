@@ -76,7 +76,7 @@ function ServiceUnavailableCard({ onRetry, isRetrying }: ServiceUnavailableCardP
     <Card className={statusSurfaceVariants({ status: "warning" })}>
       <CardContent className="py-8">
         <div className="flex flex-col items-center justify-center text-center">
-          <div className="text-warning-subtle-foreground bg-current/15 mb-4 rounded-full p-4">
+          <div className="text-warning-subtle-foreground mb-4 rounded-full bg-current/15 p-4">
             <Icons.CloudOff className="h-8 w-8" />
           </div>
           <h3 className="text-foreground mb-2 text-base font-medium">

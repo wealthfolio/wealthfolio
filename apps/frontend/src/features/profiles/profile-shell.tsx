@@ -694,7 +694,7 @@ export function ProfileShell({ children }: { children: ReactNode }) {
       <p
         id="profile-form-error"
         role="alert"
-        className="text-destructive break-words text-sm leading-relaxed"
+        className="text-destructive text-sm leading-relaxed break-words"
       >
         {profileErrorMessage(error, t)}
       </p>
@@ -704,7 +704,7 @@ export function ProfileShell({ children }: { children: ReactNode }) {
       className={
         mode === "recover"
           ? "flex flex-col gap-2 pt-2"
-          : "bg-background/95 fixed inset-x-0 bottom-0 z-20 flex justify-center gap-2 border-t px-6 pb-[calc(1rem+env(safe-area-inset-bottom,0px))] pt-3 backdrop-blur-md sm:static sm:justify-start sm:border-0 sm:bg-transparent sm:px-0 sm:pb-0 sm:pt-2 sm:backdrop-blur-none"
+          : "bg-background/95 fixed inset-x-0 bottom-0 z-20 flex justify-center gap-2 border-t px-6 pt-3 pb-[calc(1rem+env(safe-area-inset-bottom,0px))] backdrop-blur-md sm:static sm:justify-start sm:border-0 sm:bg-transparent sm:px-0 sm:pt-2 sm:pb-0 sm:backdrop-blur-none"
       }
     >
       <Button disabled={busy} type="submit">
@@ -911,7 +911,7 @@ export function ProfileShell({ children }: { children: ReactNode }) {
             </p>
             <div className="space-y-2">
               <div className="flex items-start gap-3 rounded-2xl border border-black/5 bg-white/50 p-4 dark:border-white/10 dark:bg-black/15">
-                <code className="min-w-0 flex-1 select-all break-words font-mono text-base leading-7 tracking-wide">
+                <code className="min-w-0 flex-1 font-mono text-base leading-7 tracking-wide break-words select-all">
                   {recovery}
                 </code>
                 <Button
@@ -1001,7 +1001,7 @@ export function ProfileShell({ children }: { children: ReactNode }) {
                           className="size-20 rounded-full [&_.profile-abstract-sculpture]:scale-90"
                         />
                       </span>
-                      <span className="block w-full break-words text-sm font-medium">
+                      <span className="block w-full text-sm font-medium break-words">
                         {profile.name}
                       </span>
                     </motion.button>
@@ -1126,7 +1126,7 @@ export function ProfileShell({ children }: { children: ReactNode }) {
                       className="size-24 rounded-full [&_.profile-abstract-sculpture]:scale-90"
                     />
                   </span>
-                  <div className="min-w-0 max-w-xs flex-1 space-y-2">
+                  <div className="max-w-xs min-w-0 flex-1 space-y-2">
                     <Label htmlFor="profile-name">{t("profiles.name")}</Label>
                     <Input
                       id="profile-name"

@@ -461,7 +461,7 @@ export function IssueDetailSheet({
           <div className="space-y-6 pe-4">
             {!hasDiagnostics && issue.affectedItems && issue.affectedItems.length > 0 && (
               <div className="space-y-3">
-                <h4 className="text-muted-foreground text-xs font-medium uppercase tracking-wide">
+                <h4 className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
                   {t("health:detail.affectedItems", { count: issue.affectedItems.length })}
                 </h4>
                 <div className="rounded-md border p-1">
@@ -503,7 +503,7 @@ export function IssueDetailSheet({
               !issue.affectedItems &&
               !isGroupedPrice && (
                 <div className="space-y-3">
-                  <h4 className="text-muted-foreground text-xs font-medium uppercase tracking-wide">
+                  <h4 className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
                     {t("health:detail.impact")}
                   </h4>
                   <div className="grid grid-cols-2 gap-4">
@@ -689,7 +689,7 @@ export function IssueDetailSheet({
 
             {shouldRenderDetails && detailItems.length > 0 && (
               <div className="space-y-2">
-                <h4 className="text-muted-foreground text-xs font-medium uppercase tracking-wide">
+                <h4 className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
                   {t("health:detail.details")}
                 </h4>
                 <div className="space-y-2">
@@ -751,7 +751,7 @@ export function IssueDetailSheet({
 
             {!isGroupedPrice && (
               <div className="space-y-2 border-t pt-6">
-                <h4 className="text-muted-foreground text-xs font-medium uppercase tracking-wide">
+                <h4 className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
                   {t("health:detail.aboutThisIssue")}
                 </h4>
                 <p className="text-muted-foreground text-sm">

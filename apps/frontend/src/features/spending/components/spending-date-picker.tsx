@@ -152,7 +152,7 @@ export function SpendingDatePicker({
               {t("spending:period.invalidRange")}
             </p>
           )}
-          <div className="flex justify-center px-2 pb-2 pt-3">
+          <div className="flex justify-center px-2 pt-3 pb-2">
             <Calendar
               mode="range"
               className="bg-transparent"
@@ -174,7 +174,7 @@ export function SpendingDatePicker({
           <button
             type="button"
             onClick={() => setMode(mode === "month" ? "range" : "month")}
-            className="text-muted-foreground hover:text-foreground focus-visible:ring-ring decoration-current/40 me-auto whitespace-nowrap rounded-sm text-xs underline underline-offset-4 transition-colors focus-visible:outline-none focus-visible:ring-2"
+            className="text-muted-foreground hover:text-foreground focus-visible:ring-ring me-auto rounded-sm text-xs whitespace-nowrap underline decoration-current/40 underline-offset-4 transition-colors focus-visible:ring-2 focus-visible:outline-none"
           >
             {t(
               mode === "month"
@@ -230,7 +230,7 @@ export function SpendingDatePicker({
       <SheetTrigger render={trigger} />
       <SheetContent
         side="bottom"
-        className="rounded-t-4xl mx-1 max-h-[90dvh] overflow-y-auto p-0 pb-[calc(env(safe-area-inset-bottom,0px)+0.5rem)]"
+        className="mx-1 max-h-[90dvh] overflow-y-auto rounded-t-4xl p-0 pb-[calc(env(safe-area-inset-bottom,0px)+0.5rem)]"
       >
         <SheetHeader className="border-border border-b px-5 py-4">
           <SheetTitle>{t("spending:period.selectDates")}</SheetTitle>

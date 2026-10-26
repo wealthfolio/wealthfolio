@@ -126,7 +126,7 @@ export function DriftDriversCard({
                       >
                         {index + 1}
                       </span>
-                      <p className="text-foreground truncate text-sm font-semibold leading-snug">
+                      <p className="text-foreground truncate text-sm leading-snug font-semibold">
                         {driver.title}
                       </p>
                     </div>

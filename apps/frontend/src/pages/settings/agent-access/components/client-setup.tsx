@@ -239,7 +239,7 @@ export function ClientSetup({ serverUrl, token }: { serverUrl: string; token?: s
         </p>
       </div>
       <div className="bg-muted relative rounded-md">
-        <pre className="text-muted-foreground max-h-56 overflow-y-auto whitespace-pre-wrap break-words py-2 pe-10 ps-3 font-mono text-xs leading-relaxed">
+        <pre className="text-muted-foreground max-h-56 overflow-y-auto py-2 ps-3 pe-10 font-mono text-xs leading-relaxed break-words whitespace-pre-wrap">
           {snippet}
         </pre>
         <CopyIconButton

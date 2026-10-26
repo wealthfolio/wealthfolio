@@ -204,7 +204,7 @@ const SettingsAccountsPage = () => {
               placeholder={t("settings:accounts.search_placeholder")}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="!h-9 pe-9 ps-9 text-sm"
+              className="!h-9 ps-9 pe-9 text-sm"
             />
             {searchQuery && (
               <button

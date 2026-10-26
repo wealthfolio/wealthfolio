@@ -558,7 +558,7 @@ const TickerSearchInput = forwardRef<HTMLButtonElement, SearchProps>(
           <PopoverContent
             side="bottom"
             align="start"
-            className="w-(--anchor-width) min-w-70 h-auto p-0"
+            className="h-auto w-(--anchor-width) min-w-70 p-0"
             initialFocus={autoFocusSearch ? inputRef : undefined}
             finalFocus={tabCloseDirection === null}
             onWheel={(e) => e.stopPropagation()}

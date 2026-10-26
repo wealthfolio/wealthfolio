@@ -29,7 +29,7 @@ export function McpHero({
     >
       <div className="p-5 sm:px-7 sm:py-6">
         <div className="flex items-center justify-between gap-3">
-          <div className="text-background/60 flex min-w-0 items-center gap-2 text-xs font-medium uppercase tracking-widest">
+          <div className="text-background/60 flex min-w-0 items-center gap-2 text-xs font-medium tracking-widest uppercase">
             <span className="relative flex h-2 w-2 shrink-0">
               <span
                 className={cn(

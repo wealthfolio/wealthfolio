@@ -85,7 +85,7 @@ export function BudgetOverviewCard() {
 
         <div className="mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
           <div>
-            <div className="tabular-nums leading-none">
+            <div className="leading-none tabular-nums">
               <span className="text-foreground text-xl font-semibold tracking-tight sm:text-2xl">
                 {fmt(spendingPlanned, currency)}
               </span>
@@ -95,7 +95,7 @@ export function BudgetOverviewCard() {
                 </span>
               )}
             </div>
-            <div className="text-muted-foreground text-2xs mt-1.5 font-medium uppercase tracking-widest">
+            <div className="text-muted-foreground text-2xs mt-1.5 font-medium tracking-widest uppercase">
               {incomePlanned > 0
                 ? t("settings:spending.budget_overview.planned_vs_income")
                 : t("settings:spending.budget_overview.planned_spending")}
@@ -157,7 +157,7 @@ export function BudgetOverviewCard() {
       </div>
 
       {/* CTA — bottom bar on mobile, right rail on desktop */}
-      <div className="bg-muted/30 group-hover:bg-foreground group-hover:text-background text-muted-foreground flex shrink-0 items-center justify-center gap-1.5 border-t px-4 py-3 text-xs font-medium uppercase tracking-widest transition-colors sm:w-24 sm:flex-col sm:gap-2 sm:border-s sm:border-t-0 sm:px-0 sm:py-0">
+      <div className="bg-muted/30 group-hover:bg-foreground group-hover:text-background text-muted-foreground flex shrink-0 items-center justify-center gap-1.5 border-t px-4 py-3 text-xs font-medium tracking-widest uppercase transition-colors sm:w-24 sm:flex-col sm:gap-2 sm:border-s sm:border-t-0 sm:px-0 sm:py-0">
         <span>{t("settings:spending.budget_overview.open")}</span>
         <Icons.ChevronRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5 rtl:rotate-180 rtl:group-hover:-translate-x-0.5" />
       </div>

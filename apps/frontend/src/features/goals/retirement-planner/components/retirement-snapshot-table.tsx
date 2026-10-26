@@ -66,7 +66,7 @@ export function RetirementSnapshotTable({
     <Card>
       <CardHeader className="flex-row items-start justify-between pb-3">
         <div>
-          <div className="text-muted-foreground text-2xs mb-0.5 font-semibold uppercase tracking-wider">
+          <div className="text-muted-foreground text-2xs mb-0.5 font-semibold tracking-wider uppercase">
             {t("goals:snapshot.table")}
           </div>
           <CardTitle className="text-sm">{t("goals:snapshot.title")}</CardTitle>
@@ -125,7 +125,7 @@ export function RetirementSnapshotTable({
             return (
               <div
                 key={snap.age}
-                className={`border-border border-b border-s-2 px-3 py-2.5 last:border-b-0 ${rowClassName}`}
+                className={`border-border border-s-2 border-b px-3 py-2.5 last:border-b-0 ${rowClassName}`}
               >
                 <div className="grid grid-cols-[2.25rem_minmax(0,1fr)_auto] items-center gap-2">
                   <div className="text-muted-foreground text-xs font-semibold tabular-nums">
@@ -155,7 +155,7 @@ export function RetirementSnapshotTable({
                   {mobileMetrics.map((metric) => (
                     <div key={metric.label} className="min-w-0">
                       <div className="text-muted-foreground leading-3">{metric.label}</div>
-                      <div className="truncate font-medium tabular-nums leading-4">
+                      <div className="truncate leading-4 font-medium tabular-nums">
                         <SnapshotAmount
                           value={metric.value}
                           age={snap.age}
@@ -187,7 +187,7 @@ export function RetirementSnapshotTable({
         </div>
 
         <div className="hidden overflow-x-auto md:block">
-          <table className="min-w-215 w-full text-xs">
+          <table className="w-full min-w-215 text-xs">
             <thead>
               <tr className="text-muted-foreground border-b">
                 <th className="pb-2 text-start">{t("goals:snapshot.col_age")}</th>

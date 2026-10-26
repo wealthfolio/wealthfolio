@@ -179,7 +179,7 @@ export function LoanTimeline({
     return date && balanceOnDate != null ? (
       <div
         role="tooltip"
-        className="bg-popover pointer-events-none grid min-w-44 max-w-64 grid-cols-1 gap-1.5 rounded-md border p-2 shadow-md"
+        className="bg-popover pointer-events-none grid max-w-64 min-w-44 grid-cols-1 gap-1.5 rounded-md border p-2 shadow-md"
       >
         <p className="text-muted-foreground text-xs">{dateLabel(date)}</p>
         <p className="text-xs font-semibold">
@@ -440,7 +440,7 @@ export function LoanTimeline({
             </div>
           )}
         </div>
-        <div className="pointer-events-none absolute bottom-2 end-0 start-0 flex justify-center">
+        <div className="pointer-events-none absolute start-0 end-0 bottom-2 flex justify-center">
           <AnimatedToggleGroup
             items={LOAN_RANGES.map((code) => ({
               value: code,

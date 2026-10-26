@@ -241,10 +241,10 @@ export function MobileNavBar({ navigation }: MobileNavBarProps) {
         <SheetContent
           side="bottom"
           showCloseButton={false}
-          className="bg-background inset-x-4 bottom-4 flex max-h-[min(82dvh,45rem)] flex-col gap-0 overflow-hidden rounded-[2rem] border-0 px-0 pb-[calc(env(safe-area-inset-bottom,0px)+1.25rem)] pt-0 shadow-2xl"
+          className="bg-background inset-x-4 bottom-4 flex max-h-[min(82dvh,45rem)] flex-col gap-0 overflow-hidden rounded-[2rem] border-0 px-0 pt-0 pb-[calc(env(safe-area-inset-bottom,0px)+1.25rem)] shadow-2xl"
         >
           <div className="bg-muted mx-auto mt-4 h-1.5 w-14 shrink-0 rounded-full" />
-          <div className="flex shrink-0 items-center justify-between px-8 pb-4 pt-7">
+          <div className="flex shrink-0 items-center justify-between px-8 pt-7 pb-4">
             <div className="flex min-w-0 items-center gap-3">
               {profileView && (
                 <button
@@ -332,7 +332,7 @@ export function MobileNavBar({ navigation }: MobileNavBarProps) {
 
                 {addonItems.length > 0 && (
                   <div className="pt-6">
-                    <div className="text-muted-foreground pb-3 text-xs font-semibold uppercase tracking-[0.35em]">
+                    <div className="text-muted-foreground pb-3 text-xs font-semibold tracking-[0.35em] uppercase">
                       {t("common:addons")}
                     </div>
                     <div className="divide-border/70 divide-y">

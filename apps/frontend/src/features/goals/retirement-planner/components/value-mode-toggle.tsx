@@ -56,7 +56,7 @@ export function ValueModeTooltip({
         {children}
       </TooltipTrigger>
       <TooltipContent className="max-w-xs text-xs">
-        <div className="text-2xs font-semibold uppercase tracking-wider">
+        <div className="text-2xs font-semibold tracking-wider uppercase">
           {t("goals:value_mode.showing", { label: showingLabel })}
         </div>
         <div className="mt-1 tabular-nums">

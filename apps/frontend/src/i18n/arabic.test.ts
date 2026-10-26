@@ -93,9 +93,7 @@ describe("Arabic plural output", () => {
     ).toBe(`الحسابات قيد المزامنة: 1 من ${total} · الحسابات المستبعدة: 0`);
     expect(
       i18n.t("settings:spending.module.headline_enabled", { count: total, tracked: 1, total }),
-    ).toBe(
-      `الحسابات النقدية المتتبعة: 1 من ${total}. أضف المعاملات عبر الاستيراد أو الإدخال اليدوي.`,
-    );
+    ).toBe(`الحسابات النقدية المتتبعة: 1 من ${total}. أضف المعاملات عبر الاستيراد أو الإدخال اليدوي.`);
   });
 
   it.each([

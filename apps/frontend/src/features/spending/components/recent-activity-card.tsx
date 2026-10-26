@@ -140,7 +140,7 @@ export function RecentActivityCard({
             key={dateKey}
             className={cn("px-4 py-3 md:px-5", gi > 0 && "border-border/60 border-t")}
           >
-            <div className="text-muted-foreground/70 text-2xs font-semibold uppercase tracking-wide">
+            <div className="text-muted-foreground/70 text-2xs font-semibold tracking-wide uppercase">
               {dayLabel(dateKey)}
             </div>
             {items.map((a) => {

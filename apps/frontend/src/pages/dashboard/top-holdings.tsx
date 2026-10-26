@@ -207,7 +207,7 @@ function TopHoldingsSkeleton() {
               <Skeleton className="h-3.5 w-24" />
               <div className="flex items-center gap-2">
                 <Skeleton className="h-3 w-16" />
-                <Skeleton className="w-15 h-5 rounded-md" />
+                <Skeleton className="h-5 w-15 rounded-md" />
               </div>
             </div>
           </div>
@@ -326,7 +326,7 @@ export function TopHoldings({ holdings, isLoading, baseCurrency }: TopHoldingsPr
               align="end"
               className="border-border/50 bg-card min-w-50 rounded-2xl border p-2 shadow-lg backdrop-blur-xl"
             >
-              <p className="text-muted-foreground px-2 py-1.5 text-xs font-medium uppercase tracking-wider">
+              <p className="text-muted-foreground px-2 py-1.5 text-xs font-medium tracking-wider uppercase">
                 {t("dashboard:holdings.filter_show")}
               </p>
               {(["daily", "unrealized", "pnl", "return"] as const).map((v) => (
@@ -357,7 +357,7 @@ export function TopHoldings({ holdings, isLoading, baseCurrency }: TopHoldingsPr
                 </button>
               ))}
               <div className="bg-border/70 mx-2 my-1.5 h-px" />
-              <p className="text-muted-foreground px-2 py-1.5 text-xs font-medium uppercase tracking-wider">
+              <p className="text-muted-foreground px-2 py-1.5 text-xs font-medium tracking-wider uppercase">
                 {t("dashboard:holdings.filter_sort_by")}
               </p>
               {(["value", "gain"] as const).map((v) => (
@@ -382,7 +382,7 @@ export function TopHoldings({ holdings, isLoading, baseCurrency }: TopHoldingsPr
                 </button>
               ))}
               <div className="bg-border/70 mx-2 my-1.5 h-px" />
-              <p className="text-muted-foreground px-2 py-1.5 text-xs font-medium uppercase tracking-wider">
+              <p className="text-muted-foreground px-2 py-1.5 text-xs font-medium tracking-wider uppercase">
                 {t("dashboard:holdings.filter_display")}
               </p>
               {(["symbol", "name"] as const).map((v) => (

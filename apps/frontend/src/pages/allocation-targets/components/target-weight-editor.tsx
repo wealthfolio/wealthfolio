@@ -203,7 +203,7 @@ export function TargetWeightEditor({
     <div className="space-y-1 overflow-x-auto">
       <div className="min-w-[58rem]">
         {/* Column headers */}
-        <div className="text-muted-foreground text-2xs grid grid-cols-[minmax(8rem,1fr)_minmax(12rem,2fr)_4.25rem_5rem_6rem_1.75rem] gap-4 border-b px-1 pb-2 font-medium uppercase tracking-wider">
+        <div className="text-muted-foreground text-2xs grid grid-cols-[minmax(8rem,1fr)_minmax(12rem,2fr)_4.25rem_5rem_6rem_1.75rem] gap-4 border-b px-1 pb-2 font-medium tracking-wider uppercase">
           <span>{resolvedCategoryLabel}</span>
           <span>{t("allocation:editor.todayVsTarget")}</span>
           <span className="text-end">{t("allocation:editor.current")}</span>
@@ -288,7 +288,7 @@ export function TargetWeightEditor({
                           setLiveBps(null);
                         }
                       }}
-                      className="border-primary bg-background focus:ring-primary w-12 rounded border px-1.5 py-1 text-end text-sm tabular-nums [appearance:textfield] focus:outline-none focus:ring-1 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                      className="border-primary bg-background focus:ring-primary w-12 [appearance:textfield] rounded border px-1.5 py-1 text-end text-sm tabular-nums focus:ring-1 focus:outline-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                     />
                   ) : (
                     <button

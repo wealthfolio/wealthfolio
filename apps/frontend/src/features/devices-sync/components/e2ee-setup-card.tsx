@@ -89,7 +89,7 @@ export function E2EESetupCard({ onPairingNeeded }: E2EESetupCardProps) {
             </Alert>
           )}
 
-          <Button onClick={handleEnable} disabled={enableSync.isPending} className="min-w-50 mt-4">
+          <Button onClick={handleEnable} disabled={enableSync.isPending} className="mt-4 min-w-50">
             {enableSync.isPending ? (
               <>
                 <Spinner className="me-2 h-4 w-4" />

@@ -39,7 +39,7 @@ export function TargetToolbarActions({
             render={
               <Button
                 variant="outline"
-                className="bg-secondary/30 hover:bg-muted/80 md:min-w-55 h-10 min-w-0 flex-1 justify-between gap-2 rounded-full border-none px-4 text-sm font-medium md:flex-none"
+                className="bg-secondary/30 hover:bg-muted/80 h-10 min-w-0 flex-1 justify-between gap-2 rounded-full border-none px-4 text-sm font-medium md:min-w-55 md:flex-none"
               />
             }
           >

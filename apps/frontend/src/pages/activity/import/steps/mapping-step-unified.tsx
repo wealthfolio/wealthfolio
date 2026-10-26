@@ -833,7 +833,7 @@ export function MappingStepUnified() {
             size="sm"
             title={t("activity:import.template.errorTitle")}
             description={templateError}
-            className="mb-0 mt-3"
+            className="mt-3 mb-0"
           />
         )}
       </div>

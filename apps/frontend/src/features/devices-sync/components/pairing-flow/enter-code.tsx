@@ -276,9 +276,9 @@ export function EnterCode({
             <DialogContent
               showCloseButton={false}
               finalFocus={scanButtonRef}
-              className="qr-overlay data-closed:animate-none data-open:animate-none fixed inset-0 start-0 top-0 z-[10000] flex h-full w-full max-w-none translate-x-0 translate-y-0 flex-col items-center justify-end overflow-hidden rounded-none border-0 bg-transparent px-6 pb-[max(2rem,env(safe-area-inset-bottom))] pt-[max(2rem,env(safe-area-inset-top))] text-white shadow-none duration-0"
+              className="qr-overlay fixed inset-0 start-0 top-0 z-[10000] flex h-full w-full max-w-none translate-x-0 translate-y-0 flex-col items-center justify-end overflow-hidden rounded-none border-0 bg-transparent px-6 pt-[max(2rem,env(safe-area-inset-top))] pb-[max(2rem,env(safe-area-inset-bottom))] text-white shadow-none duration-0 data-closed:animate-none data-open:animate-none"
             >
-              <div className="qr-scan-frame absolute left-1/2 top-1/2 aspect-square w-[min(68vw,34dvh,17.5rem)] -translate-x-1/2 -translate-y-1/2 rounded-3xl border border-white/25">
+              <div className="qr-scan-frame absolute top-1/2 left-1/2 aspect-square w-[min(68vw,34dvh,17.5rem)] -translate-x-1/2 -translate-y-1/2 rounded-3xl border border-white/25">
                 <div className="absolute bottom-full left-1/2 mb-6 w-[min(85vw,21.25rem)] -translate-x-1/2 text-center">
                   <div className="mb-2 inline-flex h-9 w-9 items-center justify-center rounded-xl border border-white/20 bg-white/10">
                     <Icons.QrCode className="h-5 w-5" aria-hidden="true" />
@@ -293,8 +293,8 @@ export function EnterCode({
                 <div aria-hidden="true">
                   <span className="absolute -start-px -top-px h-10 w-10 rounded-ss-3xl border-s-[3px] border-t-[3px] border-white" />
                   <span className="absolute -end-px -top-px h-10 w-10 rounded-se-3xl border-e-[3px] border-t-[3px] border-white" />
-                  <span className="absolute -bottom-px -start-px h-10 w-10 rounded-es-3xl border-b-[3px] border-s-[3px] border-white" />
-                  <span className="absolute -bottom-px -end-px h-10 w-10 rounded-ee-3xl border-b-[3px] border-e-[3px] border-white" />
+                  <span className="absolute -start-px -bottom-px h-10 w-10 rounded-es-3xl border-s-[3px] border-b-[3px] border-white" />
+                  <span className="absolute -end-px -bottom-px h-10 w-10 rounded-ee-3xl border-e-[3px] border-b-[3px] border-white" />
                 </div>
               </div>
               {scanError && (
@@ -346,7 +346,7 @@ export function EnterCode({
           {canScan && (
             <div className="flex items-center gap-4">
               <div className="bg-border h-px flex-1" />
-              <span className="text-muted-foreground text-xs font-medium uppercase tracking-wider">
+              <span className="text-muted-foreground text-xs font-medium tracking-wider uppercase">
                 {t("sync:enterCode.or")}
               </span>
               <div className="bg-border h-px flex-1" />

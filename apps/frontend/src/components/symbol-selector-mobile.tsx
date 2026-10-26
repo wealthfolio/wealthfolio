@@ -189,7 +189,7 @@ export const SymbolSelectorMobile = forwardRef<HTMLButtonElement, SymbolSelector
             <span className="truncate">{displayText}</span>
             <Icons.Search className="ms-2 h-4 w-4 shrink-0 opacity-50" />
           </SheetTrigger>
-          <SheetContent side="bottom" className="rounded-t-4xl mx-1 h-[85vh] p-0">
+          <SheetContent side="bottom" className="mx-1 h-[85vh] rounded-t-4xl p-0">
             {showCustomAssetForm ? (
               <>
                 {/* Custom Asset Form Header */}
@@ -325,7 +325,7 @@ export const SymbolSelectorMobile = forwardRef<HTMLButtonElement, SymbolSelector
                         placeholder={t("common:search_symbols")}
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        className="bg-background border-input ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring h-14 w-full rounded-md border px-4 py-3 ps-12 text-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+                        className="bg-background border-input ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring h-14 w-full rounded-md border px-4 py-3 ps-12 text-base focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
                         autoFocus
                       />
                     </div>

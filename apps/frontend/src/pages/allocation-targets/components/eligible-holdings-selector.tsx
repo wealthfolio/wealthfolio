@@ -78,7 +78,7 @@ export function EligibleHoldingsSelector({
 
   return (
     <div className="mt-4">
-      <div className="text-muted-foreground font-mono text-xs uppercase tracking-[0.14em]">
+      <div className="text-muted-foreground font-mono text-xs tracking-[0.14em] uppercase">
         {t("allocation:eligibleHoldings.label")}
       </div>
       <Popover>

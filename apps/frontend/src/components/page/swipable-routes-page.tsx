@@ -189,7 +189,7 @@ export function SwipableRoutesPage({
                   {isActive ? (
                     /* Current View Label */
                     <div
-                      className="bg-muted/80 text-foreground whitespace-nowrap rounded-full px-4 py-1.5 text-sm font-medium shadow-sm backdrop-blur-sm transition-all duration-300"
+                      className="bg-muted/80 text-foreground rounded-full px-4 py-1.5 text-sm font-medium whitespace-nowrap shadow-sm backdrop-blur-sm transition-all duration-300"
                       role="status"
                       aria-live="polite"
                     >
@@ -200,7 +200,7 @@ export function SwipableRoutesPage({
                     <button
                       type="button"
                       onClick={() => handleNavigate(route.path)}
-                      className="focus-visible:ring-ring bg-foreground/20 hover:bg-foreground/40 size-2 flex-shrink-0 rounded-full transition-all duration-300 hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+                      className="focus-visible:ring-ring bg-foreground/20 hover:bg-foreground/40 size-2 flex-shrink-0 rounded-full transition-all duration-300 hover:scale-110 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
                       aria-label={`Go to ${route.label}`}
                     />
                   )}

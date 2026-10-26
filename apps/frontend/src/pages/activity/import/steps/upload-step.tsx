@@ -198,7 +198,7 @@ function CsvPreviewTabs({
         <CardContent className="p-0">
           <TabsContent value="parsed" className="m-0 border-0 p-0">
             {/* `isolate` stops WebKitGTK painting the sticky header over this scrollbar inside a scrolling parent */}
-            <div className="max-h-75 isolate overflow-auto border-t">
+            <div className="isolate max-h-75 overflow-auto border-t">
               <CsvPreviewTable headers={headers} rows={rows} maxRows={50} />
             </div>
           </TabsContent>
@@ -427,7 +427,7 @@ function TemplateSelector({
           />
         </CollapsibleTrigger>
         <CollapsibleContent>
-          <div className="border-t px-3 pb-4 pt-3">
+          <div className="border-t px-3 pt-3 pb-4">
             <div className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3">
               {/* Header row checkbox spans full width on mobile */}
               <div className="col-span-2 flex items-center gap-2 sm:col-span-3">

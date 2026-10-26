@@ -20,7 +20,7 @@ function Switch({ className, size = "default", ...props }: SwitchProps) {
     >
       <SwitchPrimitive.Thumb
         data-slot="switch-thumb"
-        className="bg-(--switch-thumb) group-data-[size=default]/switch:data-checked:translate-x-[calc(var(--switch-width)-var(--switch-thumb-size)-0.25rem)] group-data-[size=sm]/switch:data-checked:translate-x-3.5 rtl:group-data-[size=default]/switch:data-checked:-translate-x-[calc(var(--switch-width)-var(--switch-thumb-size)-0.25rem)] rtl:group-data-[size=sm]/switch:data-checked:-translate-x-3.5 data-unchecked:translate-x-0 shadow-(--switch-thumb-shadow) group-data-[size=default]/switch:size-(--switch-thumb-size) pointer-events-none block rounded-full ring-0 transition-transform group-data-[size=sm]/switch:size-3.5"
+        className="pointer-events-none block rounded-full bg-(--switch-thumb) shadow-(--switch-thumb-shadow) ring-0 transition-transform group-data-[size=default]/switch:size-(--switch-thumb-size) group-data-[size=sm]/switch:size-3.5 group-data-[size=default]/switch:data-checked:translate-x-[calc(var(--switch-width)-var(--switch-thumb-size)-0.25rem)] group-data-[size=sm]/switch:data-checked:translate-x-3.5 data-unchecked:translate-x-0 rtl:group-data-[size=default]/switch:data-checked:-translate-x-[calc(var(--switch-width)-var(--switch-thumb-size)-0.25rem)] rtl:group-data-[size=sm]/switch:data-checked:-translate-x-3.5"
       />
     </SwitchPrimitive.Root>
   );

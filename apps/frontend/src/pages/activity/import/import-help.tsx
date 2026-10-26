@@ -118,7 +118,7 @@ function ActivitiesHelpContent({ transactionImport }: { transactionImport: boole
       <div className="space-y-4">
         <div>
           <p className="font-semibold">{t("activity:import.help.exampleFormat")}</p>
-          <pre className="bg-muted mt-2 select-all overflow-x-auto p-3 text-xs leading-relaxed">
+          <pre className="bg-muted mt-2 overflow-x-auto p-3 text-xs leading-relaxed select-all">
             <span className="text-muted-foreground">
               {t("activity:import.help.exampleStandard")}
             </span>
@@ -274,7 +274,7 @@ function HoldingsHelpContent() {
       <div className="space-y-4">
         <div>
           <p className="font-semibold">{t("activity:import.help.exampleFormat")}</p>
-          <pre className="bg-muted mt-2 select-all overflow-x-auto p-3 text-xs leading-relaxed">
+          <pre className="bg-muted mt-2 overflow-x-auto p-3 text-xs leading-relaxed select-all">
             <span className="text-muted-foreground">
               {t("activity:import.help.holdingsExampleSnapshot")}
             </span>
@@ -378,7 +378,7 @@ export function ImportHelpPopover({
         >
           <Icons.HelpCircle className="h-6 w-6" />
         </SheetTrigger>
-        <SheetContent side="bottom" className="rounded-t-4xl mx-1 h-[85vh]">
+        <SheetContent side="bottom" className="mx-1 h-[85vh] rounded-t-4xl">
           <SheetHeader>
             <SheetTitle>{t("activity:import.help.mobileTitle")}</SheetTitle>
           </SheetHeader>
@@ -396,7 +396,7 @@ export function ImportHelpPopover({
         <Icons.HelpCircle className="me-1 h-5 w-5" />
         {t("activity:import.help.button")}
       </PopoverTrigger>
-      <PopoverContent className="w-225 m-4 max-h-[80vh] max-w-[calc(100vw-2rem)] overflow-y-auto p-6 text-sm">
+      <PopoverContent className="m-4 max-h-[80vh] w-225 max-w-[calc(100vw-2rem)] overflow-y-auto p-6 text-sm">
         {helpContent}
       </PopoverContent>
     </Popover>

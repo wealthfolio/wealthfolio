@@ -44,7 +44,7 @@ export const PerformanceGrid: React.FC<PerformanceGridProps> = ({
       <div className={cn("w-full", className)}>
         <Alert
           variant="warning"
-          className="flex flex-col items-center gap-2 text-center [&>svg+div]:translate-y-0 [&>svg]:static [&>svg~*]:ps-0"
+          className="flex flex-col items-center gap-2 text-center [&>svg]:static [&>svg+div]:translate-y-0 [&>svg~*]:ps-0"
         >
           <Icons.AlertTriangle className="size-5" />
           <AlertDescription className="text-xs">{performanceError}</AlertDescription>

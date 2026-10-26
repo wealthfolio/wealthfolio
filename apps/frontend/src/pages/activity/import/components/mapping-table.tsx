@@ -88,7 +88,7 @@ export function MappingTable({
             {/* WebKit can pin the header a pixel below the box's top edge; the shadow covers the rows there */}
             <TableHeader className="bg-card sticky top-0 z-30 [&_th]:shadow-[0_-1px_0_var(--card)]">
               <TableRow>
-                <TableHead className="border-border bg-card sticky start-0 z-30 w-12 min-w-12 border-b border-e">
+                <TableHead className="border-border bg-card sticky start-0 z-30 w-12 min-w-12 border-e border-b">
                   <div className="bg-muted/50 flex items-center justify-center rounded-sm p-1">
                     <span className="text-muted-foreground text-xs font-semibold">#</span>
                   </div>

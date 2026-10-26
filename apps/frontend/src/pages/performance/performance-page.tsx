@@ -881,14 +881,14 @@ function AttributionDetailMetric({
             </SheetClose>
           </div>
           <div className="pt-3">
-            <div className="text-muted-foreground text-xs font-medium uppercase tracking-wide">
+            <div className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
               {t("performance:attribution.period_gain_loss_lower")}
             </div>
             <div className="mt-2 flex flex-wrap items-center gap-2">
               <AttributionAmount
                 value={periodPnl}
                 currency={currency}
-                className="text-xl font-semibold leading-tight"
+                className="text-xl leading-tight font-semibold"
               />
               {isPartial && (
                 <Badge variant="warning-subtle">{t("performance:attribution.partial_data")}</Badge>
@@ -911,21 +911,21 @@ function AttributionDetailMetric({
             </div>
           )}
           <div className="py-3.5">
-            <div className="text-muted-foreground mb-3 text-xs font-medium uppercase tracking-wide">
+            <div className="text-muted-foreground mb-3 text-xs font-medium tracking-wide uppercase">
               {t("performance:attribution.performance_drivers")}
             </div>
             <AttributionRows rows={driverRows} currency={currency} />
           </div>
 
           <div className="py-3.5">
-            <div className="text-muted-foreground mb-3 text-xs font-medium uppercase tracking-wide">
+            <div className="text-muted-foreground mb-3 text-xs font-medium tracking-wide uppercase">
               {t("performance:attribution.cash_flows")}
             </div>
             <AttributionRows rows={flowRows} currency={currency} amountTone="neutral" />
           </div>
         </div>
         <div className="border-border bg-background flex items-center justify-between gap-4 border-t px-6 py-4">
-          <div className="text-xs font-medium uppercase tracking-wide">
+          <div className="text-xs font-medium tracking-wide uppercase">
             {t("performance:attribution.total_gain_loss")}
           </div>
           <AttributionAmount
@@ -966,7 +966,7 @@ function PerformanceContent({
       )}
 
       {!chartData?.length && !isLoading && !hasErrors && (
-        <Empty className="max-w-105 mx-auto flex items-center justify-center">
+        <Empty className="mx-auto flex max-w-105 items-center justify-center">
           <EmptyHeader>
             <EmptyMedia variant="icon">{<Icons.BarChart className="size-10" />}</EmptyMedia>
             <EmptyTitle>{t("performance:empty.title")}</EmptyTitle>
@@ -981,7 +981,7 @@ function PerformanceContent({
           <div className="animate-subtle-pulse absolute inset-0 border-2 border-transparent">
             <div className="animate-progress-border bg-primary absolute start-0 top-0 h-[2px] rtl:-scale-x-100"></div>
           </div>
-          <div className="absolute bottom-4 end-4">
+          <div className="absolute end-4 bottom-4">
             <div className="bg-background/80 rounded-md border px-3 py-1.5 shadow-sm backdrop-blur-sm">
               <p className="text-muted-foreground flex items-center text-xs font-medium">
                 <span className="bg-primary me-2 inline-block h-2 w-2 animate-pulse rounded-full"></span>
@@ -1846,7 +1846,7 @@ export default function PerformancePage() {
                         </CarouselContent>
                       </Carousel>
                     ) : (
-                      <div className="relative w-full overflow-x-auto pb-1 pe-8 2xl:w-auto 2xl:overflow-visible">
+                      <div className="relative w-full overflow-x-auto pe-8 pb-1 2xl:w-auto 2xl:overflow-visible">
                         {selectedItemData && (
                           <StripHelpPopover items={selectedItemData.helpItems} />
                         )}

@@ -133,10 +133,10 @@ export const CurrencyInput = forwardRef<HTMLButtonElement, CurrencyInputProps>(
           <Sheet open={open} onOpenChange={setOpen}>
             <SheetContent
               side="bottom"
-              className="rounded-t-4xl mx-1 h-[85vh] p-0"
+              className="mx-1 h-[85vh] rounded-t-4xl p-0"
               initialFocus={autoFocusSearch ? searchInputRef : undefined}
             >
-              <SheetHeader className="border-border border-b px-6 pb-4 pt-6">
+              <SheetHeader className="border-border border-b px-6 pt-6 pb-4">
                 <SheetTitle>{t("ui:currency.selectTitle", "Select Currency")}</SheetTitle>
                 <SheetDescription>{t("ui:currency.selectDescription", "Choose a currency")}</SheetDescription>
               </SheetHeader>

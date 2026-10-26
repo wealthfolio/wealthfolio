@@ -109,7 +109,7 @@ function ChangeColumn({
   if (rows.length === 0) {
     return (
       <div>
-        <h3 className="text-muted-foreground/80 text-2xs mb-2 font-semibold uppercase tracking-wide">
+        <h3 className="text-muted-foreground/80 text-2xs mb-2 font-semibold tracking-wide uppercase">
           {heading}
         </h3>
         <p className="text-muted-foreground/60 text-xs italic">
@@ -124,7 +124,7 @@ function ChangeColumn({
 
   return (
     <div>
-      <h3 className="text-muted-foreground/80 text-2xs mb-2 font-semibold uppercase tracking-wide">
+      <h3 className="text-muted-foreground/80 text-2xs mb-2 font-semibold tracking-wide uppercase">
         {heading}
       </h3>
       <ul className="space-y-1.5">

@@ -712,7 +712,7 @@ function ImportWizardContent() {
 
       <PageContent withPadding={false}>
         <ErrorBoundary fallbackTitle={t("activity:import.page.somethingWentWrong")}>
-          <div className="px-2 pb-6 pt-2 sm:px-4 sm:pt-4 md:px-6 md:pt-6">
+          <div className="px-2 pt-2 pb-6 sm:px-4 sm:pt-4 md:px-6 md:pt-6">
             <Card className="flex max-h-[calc(100dvh-9rem)] w-full flex-col overflow-hidden">
               {/* Step indicator — hidden on result step */}
               {state.step !== "result" && (

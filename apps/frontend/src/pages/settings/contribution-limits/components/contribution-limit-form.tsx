@@ -140,7 +140,7 @@ export function ContributionLimitForm({
                   name="groupName"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-base font-medium leading-none">
+                      <FormLabel className="text-base leading-none font-medium">
                         {t("settings:limits_form_group_name_label")}
                       </FormLabel>
                       <FormControl>
@@ -163,7 +163,7 @@ export function ContributionLimitForm({
                   name="limitAmount"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-base font-medium leading-none">
+                      <FormLabel className="text-base leading-none font-medium">
                         {t("settings:limits_form_limit_amount_label")}
                       </FormLabel>
                       <FormControl>
@@ -187,7 +187,7 @@ export function ContributionLimitForm({
                       name="contributionYear"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel className="text-base font-medium leading-none">
+                          <FormLabel className="text-base leading-none font-medium">
                             {t("settings:limits_form_year_label")}
                           </FormLabel>
                           <FormControl>
@@ -209,7 +209,7 @@ export function ContributionLimitForm({
                       name="startDate"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel className="text-base font-medium leading-none">
+                          <FormLabel className="text-base leading-none font-medium">
                             {t("settings:limits_form_start_date_label")}
                           </FormLabel>
                           <div className="h-11">
@@ -231,7 +231,7 @@ export function ContributionLimitForm({
                       name="endDate"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel className="text-base font-medium leading-none">
+                          <FormLabel className="text-base leading-none font-medium">
                             {t("settings:limits_form_end_date_label")}
                           </FormLabel>
                           <div className="h-11">

@@ -48,7 +48,7 @@ function AccordionContent({ className, children, ...props }: AccordionContentPro
   return (
     <AccordionPrimitive.Panel
       data-slot="accordion-content"
-      className="data-ending-style:h-0 data-starting-style:h-0 h-[var(--accordion-panel-height)] overflow-hidden text-sm transition-[height] duration-200 ease-out"
+      className="h-[var(--accordion-panel-height)] overflow-hidden text-sm transition-[height] duration-200 ease-out data-ending-style:h-0 data-starting-style:h-0"
       {...props}
     >
       <div className={cn("pb-4 pt-0", className)}>{children}</div>

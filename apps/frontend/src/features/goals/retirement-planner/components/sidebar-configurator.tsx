@@ -129,7 +129,7 @@ function SidebarMonthlyRow({
   return (
     <div className="flex items-center justify-between gap-3 py-3 first:pt-1 last:pb-1">
       <div className="min-w-0">
-        <div className="text-foreground text-sm font-semibold leading-tight">{label}</div>
+        <div className="text-foreground text-sm leading-tight font-semibold">{label}</div>
         {meta && <div className="text-muted-foreground mt-0.5 text-xs leading-tight">{meta}</div>}
       </div>
       <div className="whitespace-nowrap tabular-nums">
@@ -148,7 +148,7 @@ function SidebarTotalRow({ amount, currency }: { amount: number; currency: strin
   const { t } = useTranslation();
   return (
     <div className="flex items-center justify-between gap-3 py-3">
-      <span className="text-muted-foreground text-xs uppercase tracking-[0.15em]">
+      <span className="text-muted-foreground text-xs tracking-[0.15em] uppercase">
         {t("common:total")}
       </span>
       <div className="whitespace-nowrap tabular-nums">
@@ -355,7 +355,7 @@ function SidebarCard({
       <CardHeader className="flex-row items-start justify-between pb-4">
         <div className="min-w-0">
           {kicker && (
-            <div className="text-muted-foreground mb-1 text-xs font-medium uppercase tracking-[0.15em]">
+            <div className="text-muted-foreground mb-1 text-xs font-medium tracking-[0.15em] uppercase">
               {kicker}
             </div>
           )}
@@ -627,7 +627,7 @@ export function SidebarConfigurator({
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-sm font-semibold">{t("goals:sidebar.plan.plan_type")}</p>
-                  <p className="text-muted-foreground max-w-65 mt-1 text-xs leading-snug">
+                  <p className="text-muted-foreground mt-1 max-w-65 text-xs leading-snug">
                     {t("goals:sidebar.plan.plan_type_help")}
                   </p>
                 </div>
@@ -655,7 +655,7 @@ export function SidebarConfigurator({
             <div className="py-4 first:pt-1 last:pb-1">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <div className="text-foreground text-sm font-semibold leading-tight">
+                  <div className="text-foreground text-sm leading-tight font-semibold">
                     {t("goals:sidebar.plan.birth_month")}
                   </div>
                   <div className="text-muted-foreground mt-1 max-w-60 text-xs leading-tight">
@@ -938,7 +938,7 @@ export function SidebarConfigurator({
                   </div>
 
                   {expanded && (
-                    <div className="space-y-4 border-t px-3 pb-3 pt-3">
+                    <div className="space-y-4 border-t px-3 pt-3 pb-3">
                       <Input
                         value={item.label}
                         onChange={(e) => updateExpenseItem(item.id, { label: e.target.value })}
@@ -1206,7 +1206,7 @@ export function SidebarConfigurator({
                   </div>
 
                   {expanded && (
-                    <div className="space-y-4 border-t px-3 pb-3 pt-3">
+                    <div className="space-y-4 border-t px-3 pt-3 pb-3">
                       <Input
                         value={s.label}
                         onChange={(e) => updateStream(s.id, { label: e.target.value })}
@@ -1710,7 +1710,7 @@ export function SidebarConfigurator({
 
             {taxBucketBalances && taxBucketTotal > 0 && (
               <div className="border-t pt-3">
-                <p className="text-muted-foreground text-2xs mb-1.5 flex items-center gap-1 uppercase tracking-wider">
+                <p className="text-muted-foreground text-2xs mb-1.5 flex items-center gap-1 tracking-wider uppercase">
                   {t("goals:sidebar.taxes.account_buckets")}
                   <Tooltip>
                     <TooltipTrigger

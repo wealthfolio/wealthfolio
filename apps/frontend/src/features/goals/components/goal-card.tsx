@@ -178,8 +178,8 @@ export function GoalCard({ goal }: { goal: Goal }) {
 
           {/* Bottom-left italic quote */}
           {quote && (
-            <div className="absolute bottom-2.5 end-3 start-3">
-              <span className="line-clamp-1 block text-xs italic text-white/95 drop-shadow-[0_1px_2px_rgba(0,0,0,0.7)]">
+            <div className="absolute start-3 end-3 bottom-2.5">
+              <span className="line-clamp-1 block text-xs text-white/95 italic drop-shadow-[0_1px_2px_rgba(0,0,0,0.7)]">
                 &ldquo;{quote}&rdquo;
               </span>
             </div>
@@ -187,11 +187,11 @@ export function GoalCard({ goal }: { goal: Goal }) {
         </div>
 
         {/* Bottom panel */}
-        <div className="px-4 pb-0 pt-3">
+        <div className="px-4 pt-3 pb-0">
           {/* Title + % */}
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0 flex-1">
-              <h3 className="truncate text-base font-semibold leading-tight">{goal.title}</h3>
+              <h3 className="truncate text-base leading-tight font-semibold">{goal.title}</h3>
               <p className="text-muted-foreground mt-0.5 text-sm">
                 {targetDateStr ? `${targetDateStr} · ${timeLeftStr}` : timeLeftStr}
               </p>

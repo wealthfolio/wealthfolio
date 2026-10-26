@@ -17,8 +17,8 @@ export function RiskLabSkeleton() {
                 <Skeleton className="h-2.5 w-24 rounded" />
                 <Skeleton className="h-7 w-[70%] rounded" />
                 <div className="space-y-2 pt-1">
-                  <Skeleton className="max-w-145 h-3 w-full rounded" />
-                  <Skeleton className="max-w-120 h-3 w-4/5 rounded" />
+                  <Skeleton className="h-3 w-full max-w-145 rounded" />
+                  <Skeleton className="h-3 w-4/5 max-w-120 rounded" />
                 </div>
               </div>
             </div>
@@ -40,8 +40,8 @@ export function RiskLabSkeleton() {
               <Skeleton className="h-2.5 w-20 rounded" />
               <Skeleton className="h-7 w-[55%] rounded" />
               <div className="space-y-2 pt-1">
-                <Skeleton className="max-w-205 h-3 w-full rounded" />
-                <Skeleton className="max-w-160 h-3 w-3/4 rounded" />
+                <Skeleton className="h-3 w-full max-w-205 rounded" />
+                <Skeleton className="h-3 w-3/4 max-w-160 rounded" />
               </div>
             </div>
           </div>
@@ -67,7 +67,7 @@ export function RiskLabSkeleton() {
       <section className="space-y-4">
         <div className="space-y-2">
           <Skeleton className="h-2.5 w-48 rounded" />
-          <Skeleton className="max-w-90 h-7 w-[45%] rounded" />
+          <Skeleton className="h-7 w-[45%] max-w-90 rounded" />
         </div>
         <div className="grid gap-3 lg:grid-cols-2">
           {Array.from({ length: 6 }).map((_, i) => (
@@ -82,7 +82,7 @@ export function RiskLabSkeleton() {
           <Skeleton className="h-2.5 w-40 rounded" />
           <Skeleton className="h-7 w-[40%] max-w-80 rounded" />
           <div className="space-y-2 pt-1">
-            <Skeleton className="max-w-170 h-3 w-full rounded" />
+            <Skeleton className="h-3 w-full max-w-170 rounded" />
           </div>
         </div>
         <div className="grid gap-3 lg:grid-cols-2">
@@ -104,7 +104,7 @@ function CalculatingBanner() {
       </span>
       <div className="min-w-0 flex-1">
         <p className="text-sm font-semibold">{t("goals:skeleton.calculating_title")}</p>
-        <p className="text-muted-foreground max-w-180 mt-1 text-sm leading-relaxed">
+        <p className="text-muted-foreground mt-1 max-w-180 text-sm leading-relaxed">
           {t("goals:skeleton.calculating_desc")}
         </p>
       </div>
