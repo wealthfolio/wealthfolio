@@ -80,7 +80,11 @@ function makeFormSchema(t: TFunction) {
         .min(1, t("settings:market_data_page.validation_code_required"))
         .regex(/^[a-z0-9-]+$/, t("settings:market_data_page.validation_code_format")),
       description: z.string().optional(),
-      priority: z.coerce.number().int().min(1).default(50),
+      priority: z.coerce
+        .number()
+        .int(t("settings:market_data_page.validation_priority_min"))
+        .min(1, t("settings:market_data_page.validation_priority_min"))
+        .default(50),
       useAsFallback: z.boolean().default(false),
       latestEnabled: z.boolean(),
       latestSource: sourceSchema,

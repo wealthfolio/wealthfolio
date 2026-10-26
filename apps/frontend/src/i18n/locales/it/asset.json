@@ -826,7 +826,8 @@
       "amount_exceeds_balance": "Il rimborso non può superare il saldo corrente.",
       "closure_date_invalid": "La data di chiusura deve essere compresa tra l'erogazione e oggi.",
       "required": "Obbligatorio",
-      "first_payment_after_origination": "Il primo pagamento deve essere successivo alla data di erogazione."
+      "first_payment_after_origination": "Il primo pagamento deve essere successivo alla data di erogazione.",
+      "payment_positive": "Il pagamento deve essere maggiore di 0."
     },
     "accelerated_biweekly": "Ogni due settimane accelerato",
     "first_payment_date": "Data del primo pagamento",

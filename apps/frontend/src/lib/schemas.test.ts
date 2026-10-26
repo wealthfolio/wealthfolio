@@ -1,6 +1,12 @@
+import type { TFunction } from "i18next";
 import { describe, expect, it } from "vitest";
 import { QuoteMode } from "./constants";
-import { importActivitySchema, importMappingSchema, newContributionLimitSchema } from "./schemas";
+import {
+  createContributionLimitSchema,
+  importActivitySchema,
+  importMappingSchema,
+  newContributionLimitSchema,
+} from "./schemas";
 
 describe("schemas", () => {
   describe("newContributionLimitSchema", () => {
@@ -16,6 +22,22 @@ describe("schemas", () => {
 
         expect(result.success).toBe(true);
       }
+    });
+
+    it("uses translated messages", () => {
+      const schema = createContributionLimitSchema(((key: string) => key) as unknown as TFunction);
+      const valid = { groupName: "TFSA", contributionYear: 2024, limitAmount: 7000 };
+      const messages = (input: Record<string, unknown>) => {
+        const result = schema.safeParse({ ...valid, ...input });
+        return result.success ? [] : result.error.issues.map((issue) => issue.message);
+      };
+      expect(messages({ groupName: "" })).toEqual(["settings:limits_form_group_name_required"]);
+      expect(messages({ contributionYear: undefined })).toEqual([
+        "settings:limits_form_year_invalid",
+      ]);
+      expect(messages({ limitAmount: -1 })).toEqual([
+        "settings:limits_form_limit_amount_non_negative",
+      ]);
     });
   });
 

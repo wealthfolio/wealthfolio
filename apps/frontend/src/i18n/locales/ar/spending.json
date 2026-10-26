@@ -862,6 +862,7 @@
     "patternRequired": "النمط مطلوب",
     "priority": "الأولوية {{value}}",
     "priorityHint": "يتم فحص القواعد ذات الأولوية الأعلى أولًا (0-100).",
+    "priorityInvalid": "يجب أن تكون الأولوية عددًا صحيحًا يساوي 0 أو أكثر",
     "priorityLabel": "الأولوية",
     "ruleActions": "إجراءات القاعدة",
     "ruleName": "اسم القاعدة",

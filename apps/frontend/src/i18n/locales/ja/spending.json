@@ -105,6 +105,7 @@
     "selectCategory": "カテゴリを選択",
     "priorityLabel": "優先度",
     "priorityHint": "優先度の高いルールから順に判定されます(0〜100)。",
+    "priorityInvalid": "優先度は0以上の整数で入力してください",
     "updateRule": "ルールを更新",
     "createRule": "ルールを作成",
     "scopeLabel": "適用対象",

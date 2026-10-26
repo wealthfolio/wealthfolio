@@ -826,7 +826,8 @@
       "amount_exceeds_balance": "El reembolso no puede superar el saldo actual.",
       "closure_date_invalid": "La fecha de cierre debe estar entre el origen y hoy.",
       "required": "Obligatorio",
-      "first_payment_after_origination": "El primer pago debe ser posterior a la fecha de originación."
+      "first_payment_after_origination": "El primer pago debe ser posterior a la fecha de originación.",
+      "payment_positive": "El pago debe ser mayor que 0."
     },
     "accelerated_biweekly": "Quincenal acelerado",
     "first_payment_date": "Fecha del primer pago",

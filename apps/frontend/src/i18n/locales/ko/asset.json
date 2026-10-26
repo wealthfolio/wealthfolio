@@ -818,7 +818,8 @@
       "amount_exceeds_balance": "상환액은 현재 잔액을 초과할 수 없습니다.",
       "closure_date_invalid": "완제일은 대출 실행일부터 오늘 사이여야 합니다.",
       "required": "필수",
-      "first_payment_after_origination": "첫 납부일은 대출 실행일 이후여야 합니다."
+      "first_payment_after_origination": "첫 납부일은 대출 실행일 이후여야 합니다.",
+      "payment_positive": "납입액은 0보다 커야 합니다."
     },
     "accelerated_biweekly": "가속 격주 납부",
     "first_payment_date": "첫 납부일",

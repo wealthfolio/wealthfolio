@@ -4,8 +4,13 @@ import type { ZodType } from "zod";
 import { buyFormSchema, createBuyFormSchema } from "../buy-form";
 import { createDepositFormSchema, depositFormSchema } from "../deposit-form";
 import { dividendFormSchema } from "../dividend-form";
-import { transferFormSchema } from "../transfer-form";
-import { bulkHoldingRowSchema, cashActivitySchema, tradeActivitySchema } from "../schemas";
+import { createTransferFormSchema, transferFormSchema } from "../transfer-form";
+import {
+  bulkHoldingRowSchema,
+  cashActivitySchema,
+  createActivitySchemas,
+  tradeActivitySchema,
+} from "../schemas";
 
 // Returns the translation key, so tests can tell which message was chosen.
 const t = ((key: string) => key) as unknown as TFunction;
@@ -117,13 +122,51 @@ describe("activity form error messages", () => {
     ).toEqual(["Shares must be a number."]);
   });
 
-  it("does not reuse the number message for a range check without its own message", () => {
-    const messages = messagesAt(
-      tradeActivitySchema,
-      { ...buy, activityType: "BUY", quantity: 0 },
-      "quantity",
-    );
-    expect(messages).toHaveLength(1);
-    expect(messages).not.toContain("Quantity must be a number.");
+  it("gives fields that used zod's built-in text their own messages", () => {
+    const buySchema = createBuyFormSchema(t);
+    expect(messagesAt(buySchema, { ...buy, currency: undefined }, "currency")).toEqual([
+      "activity:form.err_currency_required",
+    ]);
+    expect(messagesAt(buySchema, { ...buy, strikePrice: 0 }, "strikePrice")).toEqual([
+      "activity:form.err_strike_gt_zero",
+    ]);
+    expect(
+      messagesAt(buySchema, { ...buy, contractMultiplier: NaN }, "contractMultiplier"),
+    ).toEqual(["activity:form.err_multiplier_number"]);
+    expect(messagesAt(buySchema, { ...buy, contractMultiplier: 0 }, "contractMultiplier")).toEqual([
+      "activity:form.err_multiplier_gt_zero",
+    ]);
+    expect(
+      messagesAt(
+        createTransferFormSchema(t),
+        { isExternal: true, accountId: "acc-123", activityDate, currency: "USD", transferRate: 0 },
+        "transferRate",
+      ),
+    ).toEqual(["activity:form.err_transfer_rate_gt_zero"]);
+  });
+
+  it("translates the mobile and bulk holdings messages", () => {
+    const schemas = createActivitySchemas(t);
+    const trade = { ...buy, activityType: "BUY" };
+    expect(messagesAt(schemas.newActivity, { ...trade, quantity: 0 }, "quantity")).toEqual([
+      "activity:form.err_quantity_gt_zero",
+    ]);
+    expect(messagesAt(schemas.newActivity, { ...trade, currency: undefined }, "currency")).toEqual([
+      "activity:form.err_currency_required",
+    ]);
+    expect(
+      messagesAt(
+        schemas.newActivity,
+        { ...deposit, activityType: "DEPOSIT", amount: undefined },
+        "amount",
+      ),
+    ).toEqual(["activity:form.err_amount_positive_number"]);
+    expect(
+      messagesAt(
+        schemas.bulkHoldingRow,
+        { id: "row-1", ticker: "", sharesOwned: 1, averageCost: 1, symbolQuoteCcy: "USD" },
+        "ticker",
+      ),
+    ).toEqual(["activity:form.err_ticker_required"]);
   });
 });

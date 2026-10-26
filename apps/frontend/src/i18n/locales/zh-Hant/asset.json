@@ -818,7 +818,8 @@
       "amount_exceeds_balance": "還款金額不能超過目前餘額。",
       "closure_date_invalid": "結清日期必須在貸款發放日至今天之間。",
       "required": "必填",
-      "first_payment_after_origination": "首次還款日期必須晚於撥款日期。"
+      "first_payment_after_origination": "首次還款日期必須晚於撥款日期。",
+      "payment_positive": "還款額必須大於 0。"
     },
     "accelerated_biweekly": "加速雙週還款",
     "first_payment_date": "首次還款日期",

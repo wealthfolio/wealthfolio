@@ -83,7 +83,12 @@ export const createSellFormSchema = (t?: TFunction) =>
         .positive({
           message: msg(t, "activity:form.err_price_gt_zero", "Price must be greater than 0."),
         }),
-      amount: z.coerce.number().min(0).optional(),
+      amount: z.coerce
+        .number()
+        .min(0, {
+          message: msg(t, "activity:form.err_amount_non_negative", "Amount must be non-negative."),
+        })
+        .optional(),
       fee: z.coerce
         .number({
           error: invalidTypeError(msg(t, "activity:form.err_fee_number", "Fee must be a number.")),
@@ -103,9 +108,11 @@ export const createSellFormSchema = (t?: TFunction) =>
       comment: z.string().optional().nullable(),
       subtype: z.string().optional().nullable(),
       // Advanced options
-      currency: z.string().min(1, {
-        message: msg(t, "activity:form.err_currency_required", "Currency is required."),
-      }),
+      currency: z
+        .string({ error: msg(t, "activity:form.err_currency_required", "Currency is required.") })
+        .min(1, {
+          message: msg(t, "activity:form.err_currency_required", "Currency is required."),
+        }),
       fxRate: z.coerce
         .number({
           error: invalidTypeError(
@@ -126,10 +133,32 @@ export const createSellFormSchema = (t?: TFunction) =>
       assetMetadata: assetMetadataSchema,
       // Option-specific fields
       underlyingSymbol: z.string().optional(),
-      strikePrice: z.coerce.number().positive().optional(),
+      strikePrice: z.coerce
+        .number()
+        .positive({
+          message: msg(
+            t,
+            "activity:form.err_strike_gt_zero",
+            "Strike price must be greater than 0.",
+          ),
+        })
+        .optional(),
       expirationDate: z.string().optional(),
       optionType: z.enum(["CALL", "PUT"]).optional(),
-      contractMultiplier: z.coerce.number().positive().optional(),
+      contractMultiplier: z.coerce
+        .number({
+          error: invalidTypeError(
+            msg(t, "activity:form.err_multiplier_number", "Contract multiplier must be a number."),
+          ),
+        })
+        .positive({
+          message: msg(
+            t,
+            "activity:form.err_multiplier_gt_zero",
+            "Contract multiplier must be greater than 0.",
+          ),
+        })
+        .optional(),
     })
     .superRefine((data, ctx) => {
       // Options build their symbol at submit time; stocks/bonds require it upfront

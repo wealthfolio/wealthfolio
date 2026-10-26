@@ -146,7 +146,12 @@ export const liabilityDetailsSchema = baseSchema.extend({
     .nullable(),
   automaticLoan: z.boolean().optional(),
   renewalMaturity: z.date().optional().nullable(),
-  paymentAmount: z.number().finite().positive().optional().nullable(),
+  paymentAmount: z
+    .number()
+    .finite()
+    .positive("asset:loanActions.validation.payment_positive")
+    .optional()
+    .nullable(),
   paymentFrequency: z.enum(["monthly", "biweekly", "accelerated_biweekly"]).optional(),
   interestMethod: z.enum(["nominal_periodic", "monthly", "semiannual"]).optional(),
   firstPaymentDate: z.date().optional().nullable(),

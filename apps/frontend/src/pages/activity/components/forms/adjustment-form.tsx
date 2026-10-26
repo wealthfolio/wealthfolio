@@ -82,9 +82,11 @@ export const createAdjustmentFormSchema = (t?: TFunction) =>
         .optional()
         .nullable(),
       comment: z.string().optional().nullable(),
-      currency: z.string().min(1, {
-        message: msg(t, "activity:form.err_currency_required", "Currency is required."),
-      }),
+      currency: z
+        .string({ error: msg(t, "activity:form.err_currency_required", "Currency is required.") })
+        .min(1, {
+          message: msg(t, "activity:form.err_currency_required", "Currency is required."),
+        }),
       fxRate: z.coerce
         .number({
           error: invalidTypeError(

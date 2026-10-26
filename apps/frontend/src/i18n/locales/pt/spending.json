@@ -106,6 +106,7 @@
     "selectCategory": "Selecione uma categoria",
     "priorityLabel": "Prioridade",
     "priorityHint": "As regras de maior prioridade são verificadas primeiro (0-100).",
+    "priorityInvalid": "A prioridade deve ser um número inteiro maior ou igual a 0",
     "updateRule": "Atualizar regra",
     "createRule": "Criar regra",
     "scopeLabel": "Aplicar a",

@@ -1,4 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useMemo } from "react";
 import { useForm, useWatch, type Resolver } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import * as z from "zod";
@@ -26,7 +27,7 @@ import {
 } from "@wealthfolio/ui";
 
 import { useEffectOnChange } from "@/hooks/use-effect-on-change";
-import { newContributionLimitSchema } from "@/lib/schemas";
+import { createContributionLimitSchema, newContributionLimitSchema } from "@/lib/schemas";
 import { useContributionLimitMutations } from "../use-contribution-limit-mutations";
 import { MoneyInput } from "@wealthfolio/ui";
 
@@ -49,8 +50,10 @@ export function ContributionLimitForm({
   const { addContributionLimitMutation, updateContributionLimitMutation } =
     useContributionLimitMutations();
 
+  const schema = useMemo(() => createContributionLimitSchema(t), [t]);
+
   const form = useForm<NewContributionLimit>({
-    resolver: zodResolver(newContributionLimitSchema) as Resolver<NewContributionLimit>,
+    resolver: zodResolver(schema) as Resolver<NewContributionLimit>,
     defaultValues: {
       ...defaultValues,
       startDate: defaultValues?.startDate ? new Date(defaultValues.startDate) : undefined,

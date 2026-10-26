@@ -105,6 +105,7 @@
     "selectCategory": "Select category",
     "priorityLabel": "Priority",
     "priorityHint": "Higher priority rules are checked first (0-100).",
+    "priorityInvalid": "Priority must be a whole number of 0 or more",
     "updateRule": "Update Rule",
     "createRule": "Create Rule",
     "scopeLabel": "Applies To",

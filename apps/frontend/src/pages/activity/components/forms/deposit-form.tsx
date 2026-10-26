@@ -47,7 +47,7 @@ export const createDepositFormSchema = (t?: TFunction) =>
     comment: z.string().optional().nullable(),
     // Advanced options
     currency: z
-      .string()
+      .string({ error: msg(t, "activity:form.err_currency_required", "Currency is required.") })
       .min(1, { message: msg(t, "activity:form.err_currency_required", "Currency is required.") }),
     fxRate: z.coerce
       .number({

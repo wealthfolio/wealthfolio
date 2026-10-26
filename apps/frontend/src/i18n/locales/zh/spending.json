@@ -105,6 +105,7 @@
     "selectCategory": "选择类别",
     "priorityLabel": "优先级",
     "priorityHint": "优先级较高的规则会被优先检查（0-100）。",
+    "priorityInvalid": "优先级必须是大于或等于 0 的整数",
     "updateRule": "更新规则",
     "createRule": "创建规则",
     "scopeLabel": "适用于",

@@ -1,3 +1,4 @@
+import type { TFunction } from "i18next";
 import * as z from "zod";
 import {
   AccountType,
@@ -377,14 +378,38 @@ export const importActivitySchema = z
     },
   );
 
-export const newContributionLimitSchema = z.object({
-  id: z.string().optional(),
-  groupName: z.string().min(1, "Group name is required"),
-  contributionYear: z.number().int().min(1900, "Invalid year"),
-  limitAmount: z.coerce
-    .number({ error: invalidTypeError("Limit amount must be a positive number.") })
-    .min(0, { message: "Price must be a non-negative number." }),
-  accountIds: z.string().nullable().optional(),
-  startDate: z.union([z.date(), isoDateTimeSchema, z.null()]).optional(),
-  endDate: z.union([z.date(), isoDateTimeSchema, z.null()]).optional(),
-});
+// `t` is optional so the exported static schema keeps English messages (tests).
+export const createContributionLimitSchema = (t?: TFunction) => {
+  const msg = (key: string, en: string) => (t ? t(key) : en);
+  const invalidYear = msg("settings:limits_form_year_invalid", "Invalid year");
+  return z.object({
+    id: z.string().optional(),
+    groupName: z
+      .string()
+      .min(1, msg("settings:limits_form_group_name_required", "Group name is required")),
+    contributionYear: z
+      .number({ error: invalidYear })
+      .int({ message: invalidYear })
+      .min(1900, { message: invalidYear }),
+    limitAmount: z.coerce
+      .number({
+        error: invalidTypeError(
+          msg(
+            "settings:limits_form_limit_amount_number",
+            "Limit amount must be a positive number.",
+          ),
+        ),
+      })
+      .min(0, {
+        message: msg(
+          "settings:limits_form_limit_amount_non_negative",
+          "Limit amount must be non-negative.",
+        ),
+      }),
+    accountIds: z.string().nullable().optional(),
+    startDate: z.union([z.date(), isoDateTimeSchema, z.null()]).optional(),
+    endDate: z.union([z.date(), isoDateTimeSchema, z.null()]).optional(),
+  });
+};
+
+export const newContributionLimitSchema = createContributionLimitSchema();

@@ -123,6 +123,17 @@ describe("correcting original loan terms", () => {
     }
   });
 
+  it("explains a zero payment with its own message", () => {
+    const result = assetDetailsSchema.safeParse({ ...defaults(), paymentAmount: 0 });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const messages = result.error.issues
+        .filter((issue) => issue.path[0] === "paymentAmount")
+        .map((issue) => issue.message);
+      expect(messages[0]).toBe("asset:loanActions.validation.payment_positive");
+    }
+  });
+
   it("sends renewal maturity with the schedule, and none once cleared", () => {
     const values = assetDetailsSchema.parse({
       ...defaults(),

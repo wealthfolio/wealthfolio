@@ -105,6 +105,7 @@
     "selectCategory": "選取類別",
     "priorityLabel": "優先順序",
     "priorityHint": "會先檢查優先順序較高的規則（0-100）。",
+    "priorityInvalid": "優先順序必須是大於或等於 0 的整數",
     "updateRule": "更新規則",
     "createRule": "建立規則",
     "scopeLabel": "適用於",

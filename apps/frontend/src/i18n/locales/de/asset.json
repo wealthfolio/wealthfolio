@@ -818,7 +818,8 @@
       "amount_exceeds_balance": "Die Rückzahlung darf den aktuellen Saldo nicht überschreiten.",
       "closure_date_invalid": "Das Abschlussdatum muss zwischen Auszahlung und heute liegen.",
       "required": "Erforderlich",
-      "first_payment_after_origination": "Die erste Zahlung muss nach dem Auszahlungsdatum liegen."
+      "first_payment_after_origination": "Die erste Zahlung muss nach dem Auszahlungsdatum liegen.",
+      "payment_positive": "Die Zahlung muss größer als 0 sein."
     },
     "accelerated_biweekly": "Beschleunigt zweiwöchentlich",
     "first_payment_date": "Erster Zahlungstermin",

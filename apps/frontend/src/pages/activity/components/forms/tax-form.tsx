@@ -48,7 +48,7 @@ export const createTaxFormSchema = (t?: TFunction) =>
     comment: z.string().optional().nullable(),
     // Advanced options
     currency: z
-      .string()
+      .string({ error: msg(t, "activity:form.err_currency_required", "Currency is required.") })
       .min(1, { message: msg(t, "activity:form.err_currency_required", "Currency is required.") }),
     subtype: z.string().optional().nullable(),
     // Only carry an explicit reset; otherwise retain the stored rate on updates.

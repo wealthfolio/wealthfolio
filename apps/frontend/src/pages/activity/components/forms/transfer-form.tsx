@@ -118,7 +118,17 @@ export const createTransferFormSchema = (t?: TFunction) =>
         })
         .optional()
         .nullable(),
-      transferRate: z.coerce.number().positive().optional().nullable(),
+      transferRate: z.coerce
+        .number()
+        .positive({
+          message: msg(
+            t,
+            "activity:form.err_transfer_rate_gt_zero",
+            "Transfer exchange rate must be greater than 0.",
+          ),
+        })
+        .optional()
+        .nullable(),
       sourceCurrency: z.string().optional(),
       destinationCurrency: z.string().optional(),
       // Fields for security transfers
@@ -152,9 +162,11 @@ export const createTransferFormSchema = (t?: TFunction) =>
         .nullable(),
       comment: z.string().optional().nullable(),
       // Advanced options
-      currency: z.string().min(1, {
-        message: msg(t, "activity:form.err_currency_required", "Currency is required."),
-      }),
+      currency: z
+        .string({ error: msg(t, "activity:form.err_currency_required", "Currency is required.") })
+        .min(1, {
+          message: msg(t, "activity:form.err_currency_required", "Currency is required."),
+        }),
       fxRate: z.coerce
         .number({
           error: invalidTypeError(

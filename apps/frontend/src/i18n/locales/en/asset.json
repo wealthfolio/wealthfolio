@@ -774,7 +774,8 @@
       "amount_exceeds_balance": "The repayment cannot exceed the current balance.",
       "closure_date_invalid": "The closure date must be between origination and today.",
       "required": "Required",
-      "first_payment_after_origination": "The first payment must be after the origination date."
+      "first_payment_after_origination": "The first payment must be after the origination date.",
+      "payment_positive": "The payment must be greater than 0."
     },
     "accelerated_biweekly": "Accelerated biweekly",
     "first_payment_date": "First payment date",

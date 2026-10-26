@@ -81,7 +81,10 @@ export const buildRuleFormSchema = (t: Translate) =>
       amountOp: z.enum(["", "eq", "gt", "gte", "lt", "lte", "between"]),
       amountValue: z.string(),
       amountValue2: z.string(),
-      priority: z.coerce.number().int().min(0),
+      priority: z.coerce
+        .number()
+        .int(t("spending:rules.priorityInvalid"))
+        .min(0, t("spending:rules.priorityInvalid")),
       accountId: z.string().nullable(),
     })
     .refine((data) => data.categoryId || data.activityType, {

@@ -103,7 +103,11 @@ const assetFormSchema = (t: TFunction) =>
     // Optional/nullable is load-bearing: the Market Data tab submits this same
     // form, and a blocking error here would fail that save with no visible
     // FormMessage on that tab.
-    contractMultiplier: z.coerce.number().positive().optional().nullable(),
+    contractMultiplier: z.coerce
+      .number()
+      .positive({ message: t("activity:form.err_multiplier_gt_zero") })
+      .optional()
+      .nullable(),
     maturityDate: z.date().optional().nullable(),
     // min(0), not positive(): zero-coupon T-bills are valid and common.
     couponRate: z.coerce.number().min(0).optional().nullable(),

@@ -36,7 +36,7 @@ import type { TFunction } from "i18next";
 import { toast } from "sonner";
 import { useActivityMutations } from "../../hooks/use-activity-mutations";
 import { showValidationToast, type AccountSelectOption } from "../forms/fields";
-import { newActivitySchema, type NewActivityFormValues } from "../forms/schemas";
+import { createActivitySchemas, type NewActivityFormValues } from "../forms/schemas";
 import { MobileActivitySteps } from "./mobile-activity-steps";
 import { getMobileActivityAssetId, hasStoredCustomTradeAmount } from "./mobile-activity-utils";
 import { Spinner } from "@wealthfolio/ui";
@@ -113,8 +113,7 @@ function isValidMobileActivityType(
 }
 
 /**
- * Validates transfer-specific fields that the Zod schema can't enforce
- * (transferActivitySchema lives inside a discriminatedUnion which doesn't support superRefine).
+ * Validates transfer-specific fields that the Zod schema doesn't enforce.
  * Returns null if valid, or the first error found.
  */
 export function validateTransferFields(
@@ -232,7 +231,7 @@ export function validateTransferFields(
 }
 
 /**
- * Validates trade fields that the Zod schema can't enforce in a discriminatedUnion.
+ * Validates trade fields that the Zod schema doesn't enforce.
  * For options: requires all structured fields. For stocks/bonds: requires assetId.
  */
 export function validateTradeFields(
@@ -469,8 +468,10 @@ export function MobileActivityForm({
     };
   }, [activity]);
 
+  const schema = useMemo(() => createActivitySchemas(t).newActivity, [t]);
+
   const form = useForm<NewActivityFormValues>({
-    resolver: zodResolver(newActivitySchema) as Resolver<NewActivityFormValues>,
+    resolver: zodResolver(schema) as Resolver<NewActivityFormValues>,
     defaultValues: defaultValues as any,
   });
   const { reset } = form;
@@ -590,7 +591,7 @@ export function MobileActivityForm({
         submitData.symbolQuoteCcy = submitData.currency;
       }
 
-      // Validate transfer-specific required fields (schema can't use superRefine in discriminatedUnion)
+      // Validate transfer-specific required fields (not enforced by the schema)
       const transferError = validateTransferFields(
         {
           activityType: submitData.activityType,

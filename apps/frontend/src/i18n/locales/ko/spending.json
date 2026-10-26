@@ -105,6 +105,7 @@
     "selectCategory": "카테고리 선택",
     "priorityLabel": "우선순위",
     "priorityHint": "우선순위가 높은 규칙이 먼저 검사됩니다 (0-100).",
+    "priorityInvalid": "우선순위는 0 이상의 정수여야 합니다",
     "updateRule": "규칙 업데이트",
     "createRule": "규칙 생성",
     "scopeLabel": "적용 대상",

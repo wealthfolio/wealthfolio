@@ -78,6 +78,20 @@ it("offers Savings categories when editing a categorization rule", async () => {
   expect(screen.getByText("Investment Contributions")).toBeInTheDocument();
 });
 
+describe("rule form priority validation", () => {
+  it("asks for a whole number of 0 or more", () => {
+    for (const priority of [-1, 1.5]) {
+      const result = schema.safeParse({ ...baseValues, priority });
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.issues.map((issue) => issue.message)).toContain(
+          "spending:rules.priorityInvalid",
+        );
+      }
+    }
+  });
+});
+
 describe("rule form amount validation", () => {
   it("accepts 'Any amount' with blank value fields", () => {
     expect(schema.safeParse(baseValues).success).toBe(true);

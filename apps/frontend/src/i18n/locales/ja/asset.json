@@ -818,7 +818,8 @@
       "amount_exceeds_balance": "返済額は現在残高を超えることができません。",
       "closure_date_invalid": "完済日は借入日から今日までの範囲にしてください。",
       "required": "必須",
-      "first_payment_after_origination": "初回支払日は融資実行日より後にしてください。"
+      "first_payment_after_origination": "初回支払日は融資実行日より後にしてください。",
+      "payment_positive": "支払額は0より大きい値である必要があります。"
     },
     "accelerated_biweekly": "加速型隔週払い",
     "first_payment_date": "初回支払日",

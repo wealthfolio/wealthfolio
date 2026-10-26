@@ -470,6 +470,7 @@
       "amount_exceeds_balance": "لا يمكن أن يتجاوز السداد الرصيد الحالي.",
       "closure_date_invalid": "يجب أن يكون تاريخ الإغلاق بين تاريخ الإنشاء واليوم.",
       "first_payment_after_origination": "يجب أن تكون الدفعة الأولى بعد تاريخ الإنشاء.",
+      "payment_positive": "يجب أن تكون الدفعة أكبر من 0.",
       "required": "مطلوب"
     },
     "years": "السنوات",

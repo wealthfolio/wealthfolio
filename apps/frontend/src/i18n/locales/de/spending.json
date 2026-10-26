@@ -105,6 +105,7 @@
     "selectCategory": "Kategorie auswählen",
     "priorityLabel": "Priorität",
     "priorityHint": "Regeln mit höherer Priorität werden zuerst geprüft (0-100).",
+    "priorityInvalid": "Die Priorität muss eine ganze Zahl ab 0 sein",
     "updateRule": "Regel aktualisieren",
     "createRule": "Regel erstellen",
     "scopeLabel": "Gilt für",
