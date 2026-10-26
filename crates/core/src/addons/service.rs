@@ -17,7 +17,7 @@ pub const ADDON_STORE_API_BASE_URL: &str = "https://wealthfolio.app/api/addons";
 const MAX_ADDON_ARCHIVE_ENTRIES: usize = 256;
 const MAX_ADDON_ARCHIVE_FILE_SIZE: u64 = 5 * 1024 * 1024;
 const MAX_ADDON_ARCHIVE_TOTAL_SIZE: u64 = 25 * 1024 * 1024;
-const MAX_ADDON_ARCHIVE_COMPRESSED_SIZE: usize = 50 * 1024 * 1024;
+pub const MAX_ADDON_ARCHIVE_COMPRESSED_SIZE: usize = 50 * 1024 * 1024;
 const MAX_ADDON_STORAGE_KEY_LEN: usize = 128;
 /// Upper bound on the serialized `{addon_id, key, value}` sync payload — NOT the
 /// raw value length. A storage write emits a device-sync outbox event whose
