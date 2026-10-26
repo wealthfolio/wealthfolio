@@ -10,7 +10,6 @@ interface SandboxTickerAvatarProps {
 
 declare global {
   // Private sandbox bridge installed by addon-sandbox-entry.tsx.
-  // oxlint-disable-next-line no-var
   var __wealthfolioRequestTickerLogo:
     | ((
         symbol: string,
