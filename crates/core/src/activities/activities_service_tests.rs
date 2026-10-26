@@ -290,6 +290,7 @@ pub(crate) mod tests {
                     id: format!("created-{}", symbol),
                     display_code: Some(symbol.clone()),
                     instrument_symbol: spec.instrument_symbol.clone(),
+                    instrument_exchange_mic: spec.instrument_exchange_mic.clone(),
                     quote_ccy: spec.quote_ccy.clone(),
                     kind: spec.kind,
                     instrument_type: spec.instrument_type,
@@ -15963,6 +15964,255 @@ pub(crate) mod tests {
         assert!(stored[0].asset_id.is_some());
         assert_eq!(stored[0].amount, Some(dec!(101)));
         assert!(!stored[0].needs_review);
+    }
+
+    fn qa_msft_buy_row() -> ActivityImport {
+        let mut row = qa_import_row("qa-acc", "BUY", "USD");
+        row.date = "2024-05-02".to_string();
+        row.symbol = "MSFT".to_string();
+        row.exchange_mic = Some("XNAS".to_string());
+        row.quote_ccy = Some("USD".to_string());
+        row.instrument_type = Some("EQUITY".to_string());
+        row.quantity = Some(dec!(2));
+        row.unit_price = Some(dec!(400));
+        row.amount = Some(dec!(800));
+        row
+    }
+
+    // A symbol-only import keys its row by symbol@mic, and checking the same row
+    // once the asset exists keys it by asset ID. Each must find the other.
+    #[tokio::test]
+    async fn reimport_finds_trade_whose_asset_the_first_import_created() {
+        let (service, repository, _) = qa_import_service("USD", Vec::new());
+        let row = qa_msft_buy_row();
+
+        let first = service
+            .import_activities(vec![row.clone()])
+            .await
+            .expect("first import");
+        assert_eq!(first.summary.imported, 1);
+        assert_eq!(first.summary.assets_created, 1);
+        let stored_id = repository.get_activities().expect("stored")[0].id.clone();
+
+        let checked = service
+            .check_activities_import(vec![row.clone()])
+            .await
+            .expect("check");
+        assert!(checked[0].asset_id.is_some());
+        assert_eq!(
+            checked[0].duplicate_of_id.as_deref(),
+            Some(stored_id.as_str())
+        );
+
+        for rows in [checked, vec![row]] {
+            let result = service.import_activities(rows).await.expect("re-import");
+            assert_eq!(result.summary.imported, 0);
+            assert_eq!(result.summary.duplicates, 1);
+            assert_eq!(
+                result.activities[0].duplicate_of_id.as_deref(),
+                Some(stored_id.as_str())
+            );
+        }
+        assert_eq!(repository.get_activities().expect("stored").len(), 1);
+    }
+
+    #[tokio::test]
+    async fn symbol_only_import_finds_trade_stored_under_its_asset_id() {
+        let mut asset = create_test_asset_with_instrument(
+            "qa-msft",
+            "MSFT",
+            Some("XNAS"),
+            Some(InstrumentType::Equity),
+            "USD",
+        );
+        asset.instrument_key = Some("EQUITY:MSFT@XNAS".to_string());
+        let (service, repository, _) = qa_import_service("USD", vec![asset]);
+        let row = qa_msft_buy_row();
+        let mut with_asset_id = row.clone();
+        with_asset_id.asset_id = Some("qa-msft".to_string());
+
+        let first = service
+            .import_activities(vec![with_asset_id])
+            .await
+            .expect("first import");
+        assert_eq!(first.summary.imported, 1);
+        let stored_id = repository.get_activities().expect("stored")[0].id.clone();
+
+        let checked = service
+            .check_activities_import(vec![row.clone()])
+            .await
+            .expect("check");
+        assert_eq!(
+            checked[0].duplicate_of_id.as_deref(),
+            Some(stored_id.as_str())
+        );
+
+        let result = service
+            .import_activities(vec![row])
+            .await
+            .expect("re-import");
+        assert_eq!(result.summary.imported, 0);
+        assert_eq!(result.summary.duplicates, 1);
+        assert_eq!(
+            result.activities[0].duplicate_of_id.as_deref(),
+            Some(stored_id.as_str())
+        );
+        assert_eq!(repository.get_activities().expect("stored").len(), 1);
+    }
+
+    #[tokio::test]
+    async fn symbol_key_of_a_trade_in_another_asset_is_not_a_duplicate() {
+        let (service, repository, _) = qa_import_service("USD", Vec::new());
+        let row = qa_msft_buy_row();
+        service
+            .import_activities(vec![row.clone()])
+            .await
+            .expect("first import");
+        repository.activities.lock().unwrap()[0].asset_id = Some("qa-other".to_string());
+
+        let checked = service
+            .check_activities_import(vec![row])
+            .await
+            .expect("check");
+        assert!(checked[0].asset_id.is_some());
+        assert!(checked[0].duplicate_of_id.is_none());
+
+        let result = service.import_activities(checked).await.expect("re-import");
+        assert_eq!(result.summary.imported, 1);
+        assert_eq!(result.summary.duplicates, 0);
+    }
+
+    // Edits keep a trade's import key, so re-importing the row it came from is
+    // still a duplicate. The other key form must agree with the exact key.
+    #[tokio::test]
+    async fn edited_trade_stays_a_duplicate_in_both_key_forms() {
+        let (service, repository, _) = qa_import_service("USD", Vec::new());
+        let row = qa_msft_buy_row();
+        service.import_activities(vec![row.clone()]).await.unwrap();
+        repository.activities.lock().unwrap()[0].quantity = Some(dec!(3));
+
+        let checked = service
+            .check_activities_import(vec![row.clone()])
+            .await
+            .unwrap();
+        assert!(checked[0].duplicate_of_id.is_some());
+        for rows in [vec![row], checked] {
+            let result = service.import_activities(rows).await.unwrap();
+            assert_eq!(result.summary.imported, 0);
+            assert_eq!(result.summary.duplicates, 1);
+        }
+        assert_eq!(repository.get_activities().unwrap().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn asset_id_row_finds_trade_stored_under_its_symbol_key() {
+        for symbol in ["", "MSFT"] {
+            let (service, repository, _) = qa_import_service("USD", Vec::new());
+            let mut row = qa_msft_buy_row();
+            service.import_activities(vec![row.clone()]).await.unwrap();
+            row.asset_id = repository.get_activities().unwrap()[0].asset_id.clone();
+            row.symbol = symbol.to_string();
+            row.exchange_mic = None;
+            let checked = service
+                .check_activities_import(vec![row.clone()])
+                .await
+                .unwrap();
+            assert!(checked[0].duplicate_of_id.is_some());
+            for rows in [vec![row], checked] {
+                let result = service.import_activities(rows).await.unwrap();
+                assert_eq!(result.summary.imported, 0, "{symbol:?}");
+                assert_eq!(result.summary.duplicates, 1, "{symbol:?}");
+            }
+            assert_eq!(repository.get_activities().unwrap().len(), 1);
+        }
+    }
+
+    #[tokio::test]
+    async fn reimport_finds_trade_with_derived_gross_or_minor_unit_total() {
+        for amount in [None, Some(dec!(800)), Some(dec!(803))] {
+            for currency in ["USD", "GBp"] {
+                let (service, repository, _) = qa_import_service("USD", Vec::new());
+                let mut row = qa_msft_buy_row();
+                row.currency = currency.to_string();
+                row.amount = amount;
+                row.fee = Some(dec!(2));
+                row.tax = Some(dec!(1));
+                service.import_activities(vec![row.clone()]).await.unwrap();
+                let checked = service.check_activities_import(vec![row]).await.unwrap();
+                assert!(
+                    checked[0].duplicate_of_id.is_some(),
+                    "{amount:?} {currency}"
+                );
+                let result = service.import_activities(checked).await.unwrap();
+                assert_eq!(result.summary.imported, 0, "{amount:?} {currency}");
+                assert_eq!(result.summary.duplicates, 1, "{amount:?} {currency}");
+                assert_eq!(repository.get_activities().unwrap().len(), 1);
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn force_import_overrides_an_other_form_duplicate() {
+        let (service, repository, _) = qa_import_service("USD", Vec::new());
+        let mut row = qa_msft_buy_row();
+        service.import_activities(vec![row.clone()]).await.unwrap();
+        row.asset_id = repository.get_activities().unwrap()[0].asset_id.clone();
+        let mut forced = row.clone();
+        forced.force_import = true;
+        let mut fresh = row.clone();
+        fresh.date = "2024-05-03".to_string();
+        let result = service
+            .import_activities(vec![row, forced, fresh.clone(), fresh])
+            .await
+            .unwrap();
+        assert_eq!(result.summary.imported, 2);
+        assert_eq!(result.summary.duplicates, 2);
+        let stored = repository.get_activities().unwrap();
+        assert_eq!(stored.len(), 3);
+        assert_eq!(
+            stored
+                .iter()
+                .filter(|row| row.idempotency_key.is_none())
+                .count(),
+            1
+        );
+    }
+
+    #[tokio::test]
+    async fn symbol_only_rows_for_different_assets_keep_their_own_matches() {
+        let assets = ["USD", "EUR"]
+            .into_iter()
+            .map(|currency| {
+                let mut asset = create_test_asset_with_instrument(
+                    &format!("btc-{currency}"),
+                    "BTC",
+                    None,
+                    Some(InstrumentType::Crypto),
+                    currency,
+                );
+                asset.instrument_key = Some(format!("CRYPTO:BTC/{currency}"));
+                asset
+            })
+            .collect();
+        let (service, repository, _) = qa_import_service("USD", assets);
+        let mut usd = qa_msft_buy_row();
+        usd.symbol = "BTC".to_string();
+        usd.exchange_mic = None;
+        usd.instrument_type = Some("CRYPTO".to_string());
+        let mut eur = usd.clone();
+        eur.quote_ccy = Some("EUR".to_string());
+        let mut stored = eur.clone();
+        stored.asset_id = Some("btc-EUR".to_string());
+        service.import_activities(vec![stored]).await.unwrap();
+
+        let result = service.import_activities(vec![usd, eur]).await.unwrap();
+        assert_eq!(result.summary.imported, 1);
+        assert_eq!(result.summary.duplicates, 1);
+        assert!(repository
+            .get_activities()
+            .unwrap()
+            .iter()
+            .any(|row| row.asset_id.as_deref() == Some("btc-USD")));
     }
 
     #[tokio::test]

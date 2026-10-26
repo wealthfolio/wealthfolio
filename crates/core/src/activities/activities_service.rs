@@ -2418,6 +2418,82 @@ impl ActivityService {
         Ok(())
     }
 
+    /// An import key names the asset by ID when the row carries one and by
+    /// symbol@mic otherwise. A trade imported symbol-only keeps the symbol key
+    /// after its asset is created, but the check step fills in the asset ID
+    /// once the asset exists, and the CSV import sends it. For each row whose
+    /// asset is known, also look up the key in the other form. Returns the
+    /// matches by row position, since symbol-only rows for different assets
+    /// can share a key.
+    fn find_other_asset_form_duplicates<'a>(
+        &self,
+        activities: impl Iterator<Item = (usize, &'a ActivityImport, Option<&'a str>)>,
+        existing: &HashMap<String, String>,
+    ) -> Result<HashMap<usize, String>> {
+        let mut rows_by_other_key: HashMap<String, Vec<(usize, &'a str)>> = HashMap::new();
+        for (position, activity, asset_id) in activities {
+            let Some(asset_id) = asset_id.filter(|id| !id.trim().is_empty()) else {
+                continue;
+            };
+            let Some(account_id) = activity.account_id.as_deref() else {
+                continue;
+            };
+            let Some(key) = Self::build_import_idempotency_key(activity, account_id) else {
+                continue;
+            };
+            if existing.contains_key(&key) {
+                continue;
+            }
+            let mut other = activity.clone();
+            if activity.asset_id.is_some() {
+                // Fill a missing symbol or MIC from the asset, as the check
+                // step does.
+                if other.symbol.trim().is_empty() || other.exchange_mic.is_none() {
+                    self.hydrate_import_activity_from_asset_id(&mut other);
+                }
+                if other.symbol.trim().is_empty() {
+                    continue;
+                }
+                other.asset_id = None;
+            } else {
+                other.asset_id = Some(asset_id.to_string());
+            }
+            if let Some(other_key) = Self::build_import_idempotency_key(&other, account_id) {
+                rows_by_other_key
+                    .entry(other_key)
+                    .or_default()
+                    .push((position, asset_id));
+            }
+        }
+        if rows_by_other_key.is_empty() {
+            return Ok(HashMap::new());
+        }
+
+        let candidates =
+            self.check_existing_duplicates(rows_by_other_key.keys().cloned().collect())?;
+        let candidate_ids: Vec<String> = candidates.values().cloned().collect();
+        let stored_asset_ids: HashMap<String, Option<String>> = self
+            .activity_repository
+            .get_activities_by_ids(&candidate_ids)?
+            .into_iter()
+            .map(|stored| (stored.id, stored.asset_id))
+            .collect();
+        let mut duplicates = HashMap::new();
+        for (other_key, stored_id) in candidates {
+            let stored_asset_id = stored_asset_ids.get(&stored_id).and_then(Option::as_deref);
+            // A symbol key does not pin the asset, so require the stored row to
+            // hold the same one.
+            for (position, asset_id) in rows_by_other_key.get(&other_key).into_iter().flatten() {
+                if stored_asset_id == Some(*asset_id) {
+                    duplicates
+                        .entry(*position)
+                        .or_insert_with(|| stored_id.clone());
+                }
+            }
+        }
+        Ok(duplicates)
+    }
+
     fn add_activity_warning(activity: &mut ActivityImport, key: &str, message: &str) {
         let warnings = activity.warnings.get_or_insert_with(HashMap::new);
         let entry = warnings.entry(key.to_string()).or_default();
@@ -4881,13 +4957,27 @@ impl ActivityService {
                 .filter_map(|(activity, key)| key.as_ref().map(|_| activity)),
             &mut existing,
         )?;
+        let other_form_duplicates = self.find_other_asset_form_duplicates(
+            activities_with_status
+                .iter()
+                .zip(&keys)
+                .enumerate()
+                .filter_map(|(idx, (activity, key))| {
+                    key.as_ref()
+                        .map(|_| (idx, activity, activity.asset_id.as_deref()))
+                }),
+            &existing,
+        )?;
 
         for (idx, maybe_key) in keys.iter().enumerate() {
             let Some(key) = maybe_key else {
                 continue;
             };
 
-            if let Some(existing_id) = existing.get(key) {
+            if let Some(existing_id) = existing
+                .get(key)
+                .or_else(|| other_form_duplicates.get(&idx))
+            {
                 let activity = &mut activities_with_status[idx];
                 Self::add_activity_warning(
                     activity,
@@ -6475,6 +6565,19 @@ impl ActivityServiceTrait for ActivityService {
                 .map(|(_, activity)| activity),
             &mut existing_duplicates,
         )?;
+        // Pass the asset step 4.5 resolved, so a symbol-only row is also
+        // looked up under its asset ID.
+        let other_form_duplicates = self.find_other_asset_form_duplicates(
+            source_slice
+                .iter()
+                .zip(new_activities.iter())
+                .enumerate()
+                .filter(|(position, _)| !policy_failed_positions.contains(position))
+                .map(|(position, (activity, prepared))| {
+                    (position, activity, prepared.get_symbol_id())
+                }),
+            &existing_duplicates,
+        )?;
 
         let mut duplicate_count = 0u32;
         let mut insertable_positions: Vec<usize> = Vec::with_capacity(new_activities.len());
@@ -6494,7 +6597,10 @@ impl ActivityServiceTrait for ActivityService {
                 .get(position)
                 .is_some_and(|(_, imp)| imp.force_import);
 
-            if let Some(existing_id) = existing_duplicates.get(&key) {
+            if let Some(existing_id) = existing_duplicates
+                .get(&key)
+                .or_else(|| other_form_duplicates.get(&position))
+            {
                 if is_force_import {
                     // User explicitly chose to import despite DB duplicate.
                     // Clear key so the unique constraint is not violated.
