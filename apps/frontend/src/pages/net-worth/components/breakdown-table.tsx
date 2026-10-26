@@ -77,8 +77,11 @@ function BreakdownRow({
   negative,
   onClick,
 }: RowProps) {
+  // The hover is a layer reaching 8px past the row on each side, so the row, its
+  // subgrid columns and its divider stay put (the layout guard keeps rows inside
+  // their parent).
   const interactive = onClick
-    ? "hover:bg-muted/40 cursor-pointer rounded-md transition-colors"
+    ? "relative isolate cursor-pointer before:absolute before:-inset-x-2 before:inset-y-0 before:-z-10 before:rounded-md before:transition-colors hover:before:bg-muted/40"
     : "";
   return (
     <div

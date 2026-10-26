@@ -856,22 +856,25 @@ function MobileSubcategoryRow({
 }) {
   const clickable = !!onCategoryClick && node.id !== DIRECT_ROW_ID;
   return (
-    <li
-      className={cn(
-        "hover:bg-muted/20 flex items-center gap-2 py-1.5 text-sm transition-colors",
-        clickable && "cursor-pointer",
-      )}
-      onClick={clickable ? () => onCategoryClick?.(node.id) : undefined}
-    >
-      <span
-        className="h-1.5 w-1.5 shrink-0 rounded-full"
-        style={{ backgroundColor: parentColor, opacity: 0.6 }}
-      />
-      {/* No change pill: the insight has no prior-period amount per subcategory. */}
-      <span className="text-muted-foreground/90 flex-1 truncate">{node.name}</span>
-      <span className="text-muted-foreground/90 shrink-0 text-xs tabular-nums">
-        <PrivacyAmount value={node.spent} currency={currency} />
-      </span>
+    // The list's divider sits on the li so the row's hover can reach past its content.
+    <li>
+      <div
+        className={cn(
+          "hover:bg-muted/20 -mx-2 flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
+          clickable && "cursor-pointer",
+        )}
+        onClick={clickable ? () => onCategoryClick?.(node.id) : undefined}
+      >
+        <span
+          className="h-1.5 w-1.5 shrink-0 rounded-full"
+          style={{ backgroundColor: parentColor, opacity: 0.6 }}
+        />
+        {/* No change pill: the insight has no prior-period amount per subcategory. */}
+        <span className="text-muted-foreground/90 flex-1 truncate">{node.name}</span>
+        <span className="text-muted-foreground/90 shrink-0 text-xs tabular-nums">
+          <PrivacyAmount value={node.spent} currency={currency} />
+        </span>
+      </div>
     </li>
   );
 }

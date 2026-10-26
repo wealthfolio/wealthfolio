@@ -414,35 +414,39 @@ export function AllocationDetailSheet({
                         ].join(":")
                       : `${categoryId}:${holding.id}`;
                     return (
-                      <div
-                        key={rowKey}
-                        className={cn(
-                          "flex items-center gap-3 py-3 transition-colors",
-                          canNavigate ? "hover:bg-muted/30 cursor-pointer" : "cursor-default",
-                        )}
-                        onClick={() => handleHoldingClick(holding)}
-                      >
-                        <TickerAvatar
-                          symbol={avatarSymbol}
-                          assetId={holding.id}
-                          exchangeMic={holding.exchangeMic}
-                          instrumentType={holding.instrumentType}
-                          className="h-9 w-9"
-                        />
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-semibold">{primaryLabel}</p>
-                          <p className="text-muted-foreground truncate text-xs">{secondaryLabel}</p>
-                        </div>
-                        <div className="text-end">
-                          <AmountDisplay
-                            value={holding.marketValue}
-                            currency={baseCurrency}
-                            isHidden={isBalanceHidden}
-                            className="text-sm font-medium"
+                      // The list's divider sits on the wrapper so the row's hover can reach past its content.
+                      <div key={rowKey}>
+                        <div
+                          className={cn(
+                            "-mx-2 flex items-center gap-3 rounded-md px-2 py-3 transition-colors",
+                            canNavigate ? "hover:bg-muted/30 cursor-pointer" : "cursor-default",
+                          )}
+                          onClick={() => handleHoldingClick(holding)}
+                        >
+                          <TickerAvatar
+                            symbol={avatarSymbol}
+                            assetId={holding.id}
+                            exchangeMic={holding.exchangeMic}
+                            instrumentType={holding.instrumentType}
+                            className="h-9 w-9"
                           />
-                          <p className="text-muted-foreground text-xs">
-                            {holding.weightInCategory.toFixed(1)}%
-                          </p>
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-semibold">{primaryLabel}</p>
+                            <p className="text-muted-foreground truncate text-xs">
+                              {secondaryLabel}
+                            </p>
+                          </div>
+                          <div className="text-end">
+                            <AmountDisplay
+                              value={holding.marketValue}
+                              currency={baseCurrency}
+                              isHidden={isBalanceHidden}
+                              className="text-sm font-medium"
+                            />
+                            <p className="text-muted-foreground text-xs">
+                              {holding.weightInCategory.toFixed(1)}%
+                            </p>
+                          </div>
                         </div>
                       </div>
                     );

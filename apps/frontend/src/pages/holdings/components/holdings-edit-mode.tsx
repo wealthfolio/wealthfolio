@@ -533,84 +533,89 @@ export const HoldingsEditMode = ({
                 ) : (
                   editableHoldings.map((holding) => {
                     return (
+                      // The divider sits on the wrapper so the row's hover can reach past its content.
                       <div
                         key={holding.assetId}
-                        className="border-border/50 hover:bg-muted/50 grid grid-cols-12 items-center gap-2 rounded-lg border-b py-2 transition-colors last:border-b-0"
+                        className="border-border/50 border-b last:border-b-0"
                       >
-                        {/* Symbol */}
-                        <div className="col-span-5">
-                          <div className="flex items-center gap-2">
-                            <TickerAvatar
-                              symbol={holding.symbol}
-                              exchangeMic={holding.exchangeMic}
-                              instrumentType={holding.instrumentType}
-                              assetId={holding.assetId}
-                              className="h-7 w-7 shrink-0"
-                            />
-                            <div className="min-w-0">
-                              <div className="truncate text-sm font-medium">{holding.symbol}</div>
-                              {holding.name && (
-                                <div className="text-muted-foreground truncate text-xs">
-                                  {holding.name}
-                                </div>
-                              )}
+                        <div className="hover:bg-muted/50 -mx-2 grid grid-cols-12 items-center gap-2 rounded-lg px-2 py-2 transition-colors">
+                          {/* Symbol */}
+                          <div className="col-span-5">
+                            <div className="flex items-center gap-2">
+                              <TickerAvatar
+                                symbol={holding.symbol}
+                                exchangeMic={holding.exchangeMic}
+                                instrumentType={holding.instrumentType}
+                                assetId={holding.assetId}
+                                className="h-7 w-7 shrink-0"
+                              />
+                              <div className="min-w-0">
+                                <div className="truncate text-sm font-medium">{holding.symbol}</div>
+                                {holding.name && (
+                                  <div className="text-muted-foreground truncate text-xs">
+                                    {holding.name}
+                                  </div>
+                                )}
+                              </div>
                             </div>
                           </div>
-                        </div>
 
-                        {/* Shares */}
-                        <div className="col-span-2">
-                          <QuantityInput
-                            ref={(el) => {
-                              holdingSharesInputRefs.current[holding.assetId] = el;
-                            }}
-                            value={holding.quantity}
-                            onValueChange={(value) => handleQuantityChange(holding.assetId, value)}
-                            placeholder="0"
-                            data-testid={`holding-shares-${holding.assetId}`}
-                            className="h-8 text-sm"
-                          />
-                        </div>
+                          {/* Shares */}
+                          <div className="col-span-2">
+                            <QuantityInput
+                              ref={(el) => {
+                                holdingSharesInputRefs.current[holding.assetId] = el;
+                              }}
+                              value={holding.quantity}
+                              onValueChange={(value) =>
+                                handleQuantityChange(holding.assetId, value)
+                              }
+                              placeholder="0"
+                              data-testid={`holding-shares-${holding.assetId}`}
+                              className="h-8 text-sm"
+                            />
+                          </div>
 
-                        {/* Avg Cost */}
-                        <div className="col-span-2">
-                          <MoneyInput
-                            aria-label={t("holdings:avg_cost")}
-                            value={holding.averageCost}
-                            onValueChange={(value, isUserEdit) =>
-                              handleAverageCostChange(holding.assetId, value, isUserEdit)
-                            }
-                            maxDecimalPlaces={AVERAGE_COST_DISPLAY_DECIMALS}
-                            data-testid={`holding-average-cost-${holding.assetId}`}
-                            className="h-8 text-sm"
-                          />
-                        </div>
+                          {/* Avg Cost */}
+                          <div className="col-span-2">
+                            <MoneyInput
+                              aria-label={t("holdings:avg_cost")}
+                              value={holding.averageCost}
+                              onValueChange={(value, isUserEdit) =>
+                                handleAverageCostChange(holding.assetId, value, isUserEdit)
+                              }
+                              maxDecimalPlaces={AVERAGE_COST_DISPLAY_DECIMALS}
+                              data-testid={`holding-average-cost-${holding.assetId}`}
+                              className="h-8 text-sm"
+                            />
+                          </div>
 
-                        {/* Total cost */}
-                        <div className="col-span-2">
-                          <MoneyInput
-                            aria-label={t("holdings:total")}
-                            value={holding.totalCost}
-                            onValueChange={(value, isUserEdit) =>
-                              handleTotalCostChange(holding.assetId, value, isUserEdit)
-                            }
-                            data-testid={`holding-total-cost-${holding.assetId}`}
-                            className="h-8 text-sm"
-                          />
-                        </div>
+                          {/* Total cost */}
+                          <div className="col-span-2">
+                            <MoneyInput
+                              aria-label={t("holdings:total")}
+                              value={holding.totalCost}
+                              onValueChange={(value, isUserEdit) =>
+                                handleTotalCostChange(holding.assetId, value, isUserEdit)
+                              }
+                              data-testid={`holding-total-cost-${holding.assetId}`}
+                              className="h-8 text-sm"
+                            />
+                          </div>
 
-                        {/* Delete */}
-                        <div className="col-span-1 flex justify-end">
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleRemoveHolding(holding.assetId)}
-                            aria-label={t("common:remove")}
-                            className="hover:bg-destructive-subtle hover:text-destructive-subtle-foreground h-7 w-7 p-0"
-                          >
-                            <Icons.Trash className="h-3.5 w-3.5" />
-                          </Button>
+                          {/* Delete */}
+                          <div className="col-span-1 flex justify-end">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleRemoveHolding(holding.assetId)}
+                              aria-label={t("common:remove")}
+                              className="hover:bg-destructive-subtle hover:text-destructive-subtle-foreground h-7 w-7 p-0"
+                            >
+                              <Icons.Trash className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
                         </div>
                       </div>
                     );
@@ -690,43 +695,43 @@ export const HoldingsEditMode = ({
                   </div>
                 ) : (
                   cashBalances.map((cash) => (
-                    <div
-                      key={cash.currency}
-                      className="border-border/50 hover:bg-muted/50 grid grid-cols-12 items-center gap-2 rounded-lg border-b py-2 transition-colors last:border-b-0"
-                    >
-                      {/* Currency */}
-                      <div className="col-span-6">
-                        <div className="flex items-center gap-2">
-                          <TickerAvatar symbol={`CASH:${cash.currency}`} className="size-7" />
-                          <span className="text-sm font-medium">{cash.currency}</span>
+                    // The divider sits on the wrapper so the row's hover can reach past its content.
+                    <div key={cash.currency} className="border-border/50 border-b last:border-b-0">
+                      <div className="hover:bg-muted/50 -mx-2 grid grid-cols-12 items-center gap-2 rounded-lg px-2 py-2 transition-colors">
+                        {/* Currency */}
+                        <div className="col-span-6">
+                          <div className="flex items-center gap-2">
+                            <TickerAvatar symbol={`CASH:${cash.currency}`} className="size-7" />
+                            <span className="text-sm font-medium">{cash.currency}</span>
+                          </div>
                         </div>
-                      </div>
 
-                      {/* Amount */}
-                      <div className="col-span-5">
-                        <MoneyInput
-                          aria-label={t("holdings:amount")}
-                          ref={(el) => {
-                            cashAmountInputRefs.current[cash.currency] = el;
-                          }}
-                          value={cash.amount}
-                          onValueChange={(value) => handleCashAmountChange(cash.currency, value)}
-                          className="h-8 text-sm"
-                        />
-                      </div>
+                        {/* Amount */}
+                        <div className="col-span-5">
+                          <MoneyInput
+                            aria-label={t("holdings:amount")}
+                            ref={(el) => {
+                              cashAmountInputRefs.current[cash.currency] = el;
+                            }}
+                            value={cash.amount}
+                            onValueChange={(value) => handleCashAmountChange(cash.currency, value)}
+                            className="h-8 text-sm"
+                          />
+                        </div>
 
-                      {/* Delete */}
-                      <div className="col-span-1 flex justify-end">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleRemoveCashBalance(cash.currency)}
-                          aria-label={t("common:remove")}
-                          className="hover:bg-destructive-subtle hover:text-destructive-subtle-foreground h-7 w-7 p-0"
-                        >
-                          <Icons.Trash className="h-3.5 w-3.5" />
-                        </Button>
+                        {/* Delete */}
+                        <div className="col-span-1 flex justify-end">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleRemoveCashBalance(cash.currency)}
+                            aria-label={t("common:remove")}
+                            className="hover:bg-destructive-subtle hover:text-destructive-subtle-foreground h-7 w-7 p-0"
+                          >
+                            <Icons.Trash className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   ))
