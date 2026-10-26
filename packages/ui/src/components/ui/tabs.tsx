@@ -77,7 +77,7 @@ function TabsTrigger({ className, children, ...props }: TabsTriggerProps) {
               layout
               layoutId={layoutId}
               data-slot="segmented-thumb"
-              className="bg-(--segmented-thumb) bg-(image:--segmented-thumb-image) shadow-(--segmented-thumb-shadow) ring-border/40 pointer-events-none absolute inset-0 z-0 ring-1 group-data-[variant=line]/tabs-list:hidden"
+              className="ring-border/40 pointer-events-none absolute inset-0 z-0 bg-(--segmented-thumb) bg-(image:--segmented-thumb-image) shadow-(--segmented-thumb-shadow) ring-1 group-data-[variant=line]/tabs-list:hidden"
               style={{ borderRadius: "inherit" }}
               transition={{ type: "spring", stiffness: 500, damping: 35, mass: 0.6 }}
             />

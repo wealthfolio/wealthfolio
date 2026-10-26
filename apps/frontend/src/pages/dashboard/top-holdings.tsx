@@ -114,7 +114,7 @@ function HoldingRow({
         <ItemTitle className="block w-full truncate text-sm font-semibold md:text-base">
           {title}
         </ItemTitle>
-        <ItemDescription className="line-clamp-none truncate text-nowrap text-xs md:text-sm">
+        <ItemDescription className="line-clamp-none truncate text-xs text-nowrap md:text-sm">
           {subtitle}
         </ItemDescription>
       </ItemContent>

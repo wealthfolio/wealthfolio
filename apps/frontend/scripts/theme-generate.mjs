@@ -359,7 +359,8 @@ export async function generate({
   ]) {
     const path = resolve(out, name);
     const { code: content, errors } = await format(path, source, formatOptions);
-    if (errors.length) throw new Error(`${path}: ${errors.map(({ message }) => message).join("; ")}`);
+    if (errors.length)
+      throw new Error(`${path}: ${errors.map(({ message }) => message).join("; ")}`);
     const current = await readFile(path, "utf8").catch(() => undefined);
     if (current === content) continue;
     if (check) throw new Error(`${path} is stale: run pnpm themes:generate`);

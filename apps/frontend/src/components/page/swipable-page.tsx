@@ -47,7 +47,7 @@ function NavigationPills({
   const layoutId = React.useId();
 
   return (
-    <nav className="bg-muted/60 rounded-(--segmented-radius) inline-flex items-center p-1">
+    <nav className="bg-muted/60 inline-flex items-center rounded-(--segmented-radius) p-1">
       {views.map((view) => {
         const isActive = currentView === view.value;
         const IconComponent = view.icon;
@@ -68,7 +68,7 @@ function NavigationPills({
               <motion.div
                 layoutId={`nav-pill-${layoutId}`}
                 data-slot="segmented-thumb"
-                className="bg-(--segmented-thumb) bg-(image:--segmented-thumb-image) shadow-(--segmented-thumb-shadow) rounded-(--segmented-radius) absolute inset-0"
+                className="absolute inset-0 rounded-(--segmented-radius) bg-(--segmented-thumb) bg-(image:--segmented-thumb-image) shadow-(--segmented-thumb-shadow)"
                 initial={false}
                 transition={{
                   type: "spring",
@@ -132,7 +132,7 @@ function MobileNavigation({
               <motion.div
                 layoutId={`mobile-nav-bg-${layoutId}`}
                 data-slot="segmented-thumb"
-                className="bg-(--segmented-thumb) bg-(image:--segmented-thumb-image) shadow-(--segmented-thumb-shadow) rounded-(--segmented-radius) absolute inset-0"
+                className="absolute inset-0 rounded-(--segmented-radius) bg-(--segmented-thumb) bg-(image:--segmented-thumb-image) shadow-(--segmented-thumb-shadow)"
                 initial={false}
                 transition={{
                   type: "spring",

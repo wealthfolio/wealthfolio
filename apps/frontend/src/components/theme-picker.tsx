@@ -50,10 +50,10 @@ export function ThemePreview({
       <div className="bg-sidebar border-sidebar-border flex w-1/6 flex-col items-center gap-1.5 border-e pt-2">
         <span className="bg-primary size-2 rounded-full" />
         <span className="bg-sidebar-accent flex size-3 items-center justify-center rounded-sm">
-          <span className="bg-sidebar-foreground/80 rounded-xs size-1.5" />
+          <span className="bg-sidebar-foreground/80 size-1.5 rounded-xs" />
         </span>
         {[0, 1, 2].map((item) => (
-          <span key={item} className="bg-sidebar-foreground/35 rounded-xs size-1.5" />
+          <span key={item} className="bg-sidebar-foreground/35 size-1.5 rounded-xs" />
         ))}
       </div>
 
@@ -83,7 +83,7 @@ export function ThemePreview({
 
         {/* Portfolio value in the theme's type, with its change below. */}
         <div className="flex flex-col gap-1">
-          <span className="text-sm font-semibold tabular-nums leading-none tracking-tight">
+          <span className="text-sm leading-none font-semibold tracking-tight tabular-nums">
             {formatDecimal(48250.12, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </span>
           <span className="flex gap-1">
