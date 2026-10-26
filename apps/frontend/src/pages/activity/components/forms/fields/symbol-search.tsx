@@ -83,7 +83,7 @@ export function SymbolSearch<TFieldValues extends FieldValues = FieldValues>({
       : []),
   ].filter((fieldName): fieldName is FieldPath<TFieldValues> => Boolean(fieldName));
   const clearSelectionHints = () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // oxlint-disable-next-line typescript/no-explicit-any
     selectionHintNames.forEach((fieldName) => setValue(fieldName, undefined as any));
   };
   const selectedExchangeMic = exchangeMicName
@@ -103,7 +103,7 @@ export function SymbolSearch<TFieldValues extends FieldValues = FieldValues>({
       : undefined;
 
     if (quoteModeName) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      // oxlint-disable-next-line typescript/no-explicit-any
       setValue(quoteModeName, selectedQuoteMode as any);
     }
 
@@ -116,7 +116,7 @@ export function SymbolSearch<TFieldValues extends FieldValues = FieldValues>({
       .trim()
       .toUpperCase();
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // oxlint-disable-next-line typescript/no-explicit-any
     setValue(name, canonicalSymbol as any, {
       shouldValidate: true,
       shouldDirty: true,
@@ -125,7 +125,7 @@ export function SymbolSearch<TFieldValues extends FieldValues = FieldValues>({
 
     // Capture exchangeMic for canonical asset ID generation
     if (exchangeMicName) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      // oxlint-disable-next-line typescript/no-explicit-any
       setValue(exchangeMicName, (canonicalMic ?? undefined) as any);
     }
 
@@ -134,7 +134,7 @@ export function SymbolSearch<TFieldValues extends FieldValues = FieldValues>({
     if (currencyName) {
       const rawCurrency = searchResult?.currency?.trim();
       if (rawCurrency) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        // oxlint-disable-next-line typescript/no-explicit-any
         setValue(currencyName, rawCurrency as any, {
           shouldDirty: true,
           shouldValidate: true,
@@ -143,7 +143,7 @@ export function SymbolSearch<TFieldValues extends FieldValues = FieldValues>({
     }
 
     if (assetMetadataName) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      // oxlint-disable-next-line typescript/no-explicit-any
       setValue(`${assetMetadataName}.providerId` as any, searchResult?.providerId as any, {
         shouldValidate: true,
         shouldDirty: true,
@@ -157,7 +157,7 @@ export function SymbolSearch<TFieldValues extends FieldValues = FieldValues>({
     }
 
     if (quoteCcyName) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      // oxlint-disable-next-line typescript/no-explicit-any
       setValue(quoteCcyName, (searchResult?.currency ?? undefined) as any);
     }
 
@@ -184,7 +184,7 @@ export function SymbolSearch<TFieldValues extends FieldValues = FieldValues>({
           const confirmedCurrency = resolved?.currency?.trim();
           if (confirmedCurrency && quoteCcyName && shouldUseResolvedCurrency) {
             // Resolver output is the source of truth for newly selected market assets.
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            // oxlint-disable-next-line typescript/no-explicit-any
             setValue(quoteCcyName, confirmedCurrency as any);
           }
 
@@ -196,7 +196,7 @@ export function SymbolSearch<TFieldValues extends FieldValues = FieldValues>({
               ? current === expectedCurrentCurrency
               : true;
             if (shouldUpdate) {
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              // oxlint-disable-next-line typescript/no-explicit-any
               setValue(currencyName!, confirmedCurrency as any, {
                 shouldDirty: true,
                 shouldValidate: true,
@@ -213,12 +213,12 @@ export function SymbolSearch<TFieldValues extends FieldValues = FieldValues>({
     }
 
     if (instrumentTypeName) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      // oxlint-disable-next-line typescript/no-explicit-any
       setValue(instrumentTypeName, (searchResult?.quoteType ?? undefined) as any);
     }
 
     if (existingAssetIdName) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      // oxlint-disable-next-line typescript/no-explicit-any
       setValue(existingAssetIdName, (searchResult?.existingAssetId ?? undefined) as any, {
         shouldDirty: true,
       });
@@ -228,7 +228,7 @@ export function SymbolSearch<TFieldValues extends FieldValues = FieldValues>({
     if (assetMetadataName) {
       const selectedName = searchResult?.longName?.trim() || searchResult?.shortName?.trim();
       if (selectedName) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        // oxlint-disable-next-line typescript/no-explicit-any
         setValue(`${assetMetadataName}.name` as any, selectedName as any, {
           shouldValidate: true,
           shouldDirty: true,
@@ -240,7 +240,7 @@ export function SymbolSearch<TFieldValues extends FieldValues = FieldValues>({
     // Capture asset kind only for manual/custom assets.
     if (isManualAsset && assetMetadataName) {
       if (searchResult?.assetKind) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        // oxlint-disable-next-line typescript/no-explicit-any
         setValue(`${assetMetadataName}.kind` as any, searchResult.assetKind as any, {
           shouldValidate: true,
           shouldDirty: true,
@@ -252,7 +252,7 @@ export function SymbolSearch<TFieldValues extends FieldValues = FieldValues>({
 
   const handleClear = () => {
     latestResolveRequestId.current += 1;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // oxlint-disable-next-line typescript/no-explicit-any
     setValue(name, "" as any, { shouldValidate: true, shouldDirty: true });
     if (currencyName) setValue(currencyName, "" as any);
     clearSelectionHints();

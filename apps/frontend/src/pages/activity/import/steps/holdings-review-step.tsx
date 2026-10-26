@@ -228,7 +228,7 @@ export function HoldingsReviewStep() {
       cancelled = true;
       dispatch(setIsValidating(false));
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // oxlint-disable-next-line react/exhaustive-deps
   }, [accountId, validationSnapshots, checkRetryRevision, dateColumn.needsExplicitFormat]);
 
   // Handle data changes from the grid (quantity, avgCost, currency edits)

@@ -45,7 +45,7 @@ export function SwipableRoutesPage({
 }: SwipableRoutesPageProps) {
   const location = useLocation();
   const navigate = useNavigate();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // oxlint-disable-next-line typescript/no-explicit-any
   const emblaApiRef = React.useRef<any>(null);
 
   const handleBackClick = React.useCallback(() => {
@@ -96,12 +96,12 @@ export function SwipableRoutesPage({
       navigate(fullPath, { replace: false });
 
       // Sync with SwipableView carousel
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+      // oxlint-disable-next-line typescript/no-unsafe-assignment
       const api = emblaApiRef.current;
       if (api) {
         const targetIndex = routes.findIndex((r) => r.path === path);
         if (targetIndex !== -1) {
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+          // oxlint-disable-next-line typescript/no-unsafe-call, typescript/no-unsafe-member-access
           api.scrollTo(targetIndex);
         }
       }
@@ -137,10 +137,10 @@ export function SwipableRoutesPage({
       return newSet;
     });
 
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+    // oxlint-disable-next-line typescript/no-unsafe-assignment
     const api = emblaApiRef.current;
     if (api) {
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+      // oxlint-disable-next-line typescript/no-unsafe-call, typescript/no-unsafe-member-access
       api.scrollTo(currentRouteIndex);
     }
   }, [currentRouteIndex]);

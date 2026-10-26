@@ -757,7 +757,7 @@ export function UploadStep() {
       .catch(() => {
         /* no saved mapping — ignore */
       });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // oxlint-disable-next-line react/exhaustive-deps
   }, [
     applyTemplate,
     baselineParseConfig,

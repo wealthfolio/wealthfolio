@@ -40,7 +40,7 @@ export function AssetTypeSelector<TFieldValues extends FieldValues = FieldValues
   const { field } = useController({
     name,
     control,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // oxlint-disable-next-line typescript/no-explicit-any
     defaultValue: defaultValue as any,
   });
 

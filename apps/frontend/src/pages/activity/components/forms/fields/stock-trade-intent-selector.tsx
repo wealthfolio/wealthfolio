@@ -29,7 +29,7 @@ export function StockTradeIntentSelector<TFieldValues extends FieldValues = Fiel
   const { field } = useController({
     name,
     control,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // oxlint-disable-next-line typescript/no-explicit-any
     defaultValue: null as any,
   });
 

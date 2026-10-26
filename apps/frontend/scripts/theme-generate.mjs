@@ -13,7 +13,7 @@ import { readdir, readFile, writeFile, mkdir } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import postcss from "postcss";
-import { format, resolveConfig } from "prettier";
+import { format } from "oxfmt";
 
 const frontend = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 export const definitionsDir = resolve(frontend, "src/themes/definitions");
@@ -22,6 +22,7 @@ const globalsPath = resolve(frontend, "src/globals.css");
 // The tokens the theme picker's miniature draws; theme-picker.test.tsx keeps the
 // list in step with the component.
 const previewTokensPath = resolve(frontend, "src/components/theme-preview-tokens.json");
+const formatOptions = JSON.parse(await readFile(resolve(frontend, "../../.oxfmtrc.json"), "utf8"));
 
 export const baseTheme = "classic";
 // The picker's order; themes not listed follow alphabetically.
@@ -357,7 +358,8 @@ export async function generate({
     ["registry.ts", renderRegistry(themes)],
   ]) {
     const path = resolve(out, name);
-    const content = await format(source, { ...(await resolveConfig(path)), filepath: path });
+    const { code: content, errors } = await format(path, source, formatOptions);
+    if (errors.length) throw new Error(`${path}: ${errors.map(({ message }) => message).join("; ")}`);
     const current = await readFile(path, "utf8").catch(() => undefined);
     if (current === content) continue;
     if (check) throw new Error(`${path} is stale: run pnpm themes:generate`);

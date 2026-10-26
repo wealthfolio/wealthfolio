@@ -256,7 +256,7 @@ export function CategoryItem({
             <CategoryItem
               key={child.id}
               category={child}
-              // eslint-disable-next-line react/no-children-prop
+              // oxlint-disable-next-line react/no-children-prop
               children={child.children}
               onEdit={onEdit}
               onDelete={onDelete}

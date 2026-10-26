@@ -24,6 +24,6 @@ export function useEffectOnChange(effect: () => undefined, deps: DependencyList)
     ranWith.current = deps;
     effect();
     // The dependencies are the caller's, checked at its call site (`additionalHooks`).
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // oxlint-disable-next-line react/exhaustive-deps
   }, deps);
 }

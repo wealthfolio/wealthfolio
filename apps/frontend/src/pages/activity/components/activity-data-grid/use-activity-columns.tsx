@@ -281,7 +281,7 @@ export function useActivityColumns({
           cell: {
             variant: "select",
             // Dynamic options based on activity type
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            // oxlint-disable-next-line typescript/no-explicit-any
             options: ((rowData: any) => {
               const activityType = rowData?.activityType?.toUpperCase();
               if (!activityType) return [];

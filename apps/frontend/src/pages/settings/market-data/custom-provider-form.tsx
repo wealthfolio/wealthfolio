@@ -319,7 +319,7 @@ function CustomProviderFormContent({
   const formSchema = useMemo(() => makeFormSchema(t), [t]);
 
   const form = useForm<FormValues>({
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // oxlint-disable-next-line typescript/no-explicit-any
     resolver: zodResolver(formSchema) as any,
     defaultValues: {
       name: provider?.name ?? "",

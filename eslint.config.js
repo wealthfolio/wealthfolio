@@ -33,7 +33,5 @@ export default [
   ...createBaseConfig({
     includeReact: false,
     includeTanstackQuery: false,
-    includeReactRefresh: false,
-    tsconfigPath: ["./tsconfig.json"],
   }),
 ];

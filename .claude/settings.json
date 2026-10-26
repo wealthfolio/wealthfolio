@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash -c 'file_path=$(jq -r \".tool_input.file_path // empty\" 2>/dev/null); if [[ -n \"$file_path\" && -f \"$file_path\" ]]; then if [[ \"$file_path\" == *.rs ]]; then rustfmt --edition 2021 \"$file_path\" 2>/dev/null || true; elif [[ \"$file_path\" =~ \\.(ts|tsx|js|jsx|css|md)$ ]]; then npx prettier --write \"$file_path\" 2>/dev/null || true; fi; fi'"
+            "command": "bash -c 'file_path=$(jq -r \".tool_input.file_path // empty\" 2>/dev/null); if [[ -n \"$file_path\" && -f \"$file_path\" ]]; then if [[ \"$file_path\" == *.rs ]]; then rustfmt --edition 2021 \"$file_path\" 2>/dev/null || true; elif [[ \"$file_path\" =~ \\.(ts|tsx|js|jsx|css|md)$ ]]; then pnpm exec oxfmt --write \"$file_path\" 2>/dev/null || true; fi; fi'"
           }
         ]
       }

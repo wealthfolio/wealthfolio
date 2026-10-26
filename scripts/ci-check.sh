@@ -83,7 +83,7 @@ while IFS= read -r file; do
     package.json|pnpm-lock.yaml|pnpm-workspace.yaml|tsconfig*.json)
       RUN_FRONTEND=true
       ;;
-    vite.config.*|eslint.config.*|prettier.config.*)
+    vite.config.*|eslint.config.*|oxlint.config.*|oxfmt.config.*|.oxlintrc.*|.oxfmtrc.*|oxlint.base.json)
       RUN_FRONTEND=true
       ;;
     postcss.config.*|tailwind.config.*)

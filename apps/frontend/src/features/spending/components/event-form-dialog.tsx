@@ -221,7 +221,7 @@ export function EventFormDialog({
 
   const selectedCandidateIds = useMemo(
     () => candidates.filter(isCandidateSelected).map((c) => c.id),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // oxlint-disable-next-line react/exhaustive-deps
     [candidates, activeOverrides],
   );
   // Selected candidates that are currently tagged to another event. Tagging
@@ -229,7 +229,7 @@ export function EventFormDialog({
   // activity row — surface the count so the user is aware before submit.
   const replacedTagCount = useMemo(
     () => candidates.filter((c) => isCandidateSelected(c) && !!c.eventId).length,
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // oxlint-disable-next-line react/exhaustive-deps
     [candidates, activeOverrides],
   );
 

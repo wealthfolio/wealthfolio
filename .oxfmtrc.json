@@ -1,0 +1,93 @@
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  "printWidth": 100,
+  "tabWidth": 2,
+  "useTabs": false,
+  "semi": true,
+  "singleQuote": false,
+  "quoteProps": "as-needed",
+  "trailingComma": "all",
+  "jsxSingleQuote": false,
+  "bracketSpacing": true,
+  "bracketSameLine": false,
+  "singleAttributePerLine": false,
+  "arrowParens": "always",
+  "endOfLine": "lf",
+  "proseWrap": "always",
+  "htmlWhitespaceSensitivity": "css",
+  "embeddedLanguageFormatting": "auto",
+  "sortPackageJson": false,
+  "sortTailwindcss": {},
+  "overrides": [
+    {
+      "files": ["packages/addon-sdk/**"],
+      "options": {
+        "printWidth": 90,
+        "singleQuote": true
+      }
+    },
+    {
+      "files": ["**/*.json", "**/*.jsonc"],
+      "options": {
+        "tabWidth": 2,
+        "useTabs": false
+      }
+    },
+    {
+      "files": ["**/*.md", "**/*.mdx"],
+      "options": {
+        "proseWrap": "always",
+        "printWidth": 80
+      }
+    },
+    {
+      "files": ["**/*.yml", "**/*.yaml"],
+      "options": {
+        "tabWidth": 2,
+        "singleQuote": false
+      }
+    },
+    {
+      "files": ["packages/ui/src/components/**/*.tsx"],
+      "options": {
+        "printWidth": 120
+      }
+    }
+  ],
+  "ignorePatterns": [
+    ".claude/worktrees/",
+    ".agents/",
+    ".codex/",
+    ".conductor/",
+    ".kiro/",
+    ".ralph-tui/",
+    "dist/",
+    "coverage/",
+    "node_modules/",
+    "apps/tauri/gen/",
+    "**/*.d.ts",
+    "apps/frontend/public/",
+    "apps/tauri/",
+    "apps/server/",
+    "crates/",
+    "*.png",
+    "*.jpg",
+    "*.jpeg",
+    "*.gif",
+    "*.svg",
+    "*.ico",
+    "*.woff",
+    "*.woff2",
+    "*.ttf",
+    "*.eot",
+    "pnpm-lock.yaml",
+    "package-lock.json",
+    "yarn.lock",
+    "*.a",
+    "*.so",
+    "*.dylib",
+    "*.dll",
+    "**/*.toml",
+    "packages/addon-sdk/docs/api/"
+  ]
+}

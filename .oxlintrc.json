@@ -1,0 +1,32 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "extends": ["./oxlint.base.json"],
+  "options": {
+    "typeAware": true,
+    "reportUnusedDisableDirectives": "warn",
+    "respectEslintDisableDirectives": false
+  },
+  "ignorePatterns": [
+    "dist/**",
+    "node_modules/**",
+    "apps/tauri/**",
+    "apps/server/**",
+    "*.config.js",
+    "*.config.ts",
+    "*.config.d.ts",
+    "coverage/**",
+    "**/*.d.ts",
+    "db/**",
+    "playwright-report/**",
+    "test-results/**",
+    "scripts/**",
+    "e2e/**",
+    "target/**",
+    "crates/**"
+  ],
+  "env": {
+    "browser": true,
+    "node": true,
+    "es2020": true
+  }
+}

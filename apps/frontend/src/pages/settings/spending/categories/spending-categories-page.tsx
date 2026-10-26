@@ -261,7 +261,7 @@ export default function SpendingCategoriesPage() {
           <CategoryItem
             key={category.id}
             category={category}
-            // eslint-disable-next-line react/no-children-prop
+            // oxlint-disable-next-line react/no-children-prop
             children={category.children}
             onEdit={handleEditCategory}
             onDelete={handleDeleteCategory}

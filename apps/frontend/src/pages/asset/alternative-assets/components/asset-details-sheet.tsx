@@ -164,7 +164,7 @@ export function AssetDetailsSheet({
     if (open && asset) {
       form.reset(getDefaultDetailsFormValues(asset.kind, asset.name, asset.metadata, asset.notes));
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // oxlint-disable-next-line react/exhaustive-deps
   }, [open, assetId, form]);
 
   // Build linkable assets options for liability linking

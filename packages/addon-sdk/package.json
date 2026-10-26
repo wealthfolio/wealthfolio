@@ -72,11 +72,12 @@
     "build": "tsup && pnpm run build:types",
     "dev": "tsup --watch",
     "clean": "rm -rf dist",
-    "lint": "eslint .",
-    "lint:fix": "eslint . --fix",
-    "lint:quiet": "eslint . --quiet",
-    "format": "prettier --write .",
-    "format:check": "prettier --check .",
+    "lint": "oxlint --type-aware . && pnpm lint:eslint",
+    "lint:fix": "oxlint --type-aware --fix . && pnpm lint:eslint --fix",
+    "lint:quiet": "oxlint --type-aware --quiet . && pnpm lint:eslint --quiet",
+    "lint:eslint": "eslint .",
+    "format": "oxfmt --write .",
+    "format:check": "oxfmt --check .",
     "type-check": "tsc --noEmit",
     "build:types": "tsc -p tsconfig.json",
     "prepack": "npm run build"
@@ -89,8 +90,9 @@
     "@tanstack/react-query": "^5.104.5",
     "@types/react": "^19.2.13",
     "@types/react-dom": "^19.2.3",
+    "@typescript/native": "npm:typescript@^7.0.2",
     "tsup": "^8.5.1",
-    "typescript": "^5.9.3"
+    "typescript": "npm:@typescript/typescript6@^6.0.2"
   },
   "engines": {
     "node": ">=20.0.0"

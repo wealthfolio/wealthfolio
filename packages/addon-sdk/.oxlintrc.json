@@ -1,0 +1,32 @@
+{
+  "$schema": "../../node_modules/oxlint/configuration_schema.json",
+  "extends": ["../../oxlint.base.json"],
+  "ignorePatterns": ["dist/**", "node_modules/**", "tsup.config.ts"],
+  "overrides": [
+    {
+      "files": ["**/*.{ts,tsx}"],
+      "rules": {
+        "no-restricted-exports": [
+          "error",
+          {
+            "restrictDefaultExports": {
+              "direct": false,
+              "named": false,
+              "defaultFrom": false,
+              "namedFrom": false,
+              "namespaceFrom": false
+            }
+          }
+        ],
+        "typescript/no-explicit-any": "error",
+        "typescript/prefer-readonly": "error"
+      },
+      "plugins": ["typescript"]
+    }
+  ],
+  "env": {
+    "browser": true,
+    "node": true,
+    "es2020": true
+  }
+}

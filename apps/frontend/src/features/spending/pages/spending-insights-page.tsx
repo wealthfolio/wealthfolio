@@ -286,7 +286,7 @@ export default function SpendingInsightsPage() {
       { replace: true },
     );
     // Runs only when the URL changes; the setters read the state it produced.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // oxlint-disable-next-line react/exhaustive-deps
   }, [searchParams]);
 
   const selectionKey = customRange

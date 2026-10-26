@@ -1811,7 +1811,7 @@ export const invoke = async <T>(command: string, payload?: Record<string, unknow
     case "get_broker_sync_states":
     case "get_broker_ingest_states":
     // Device Sync / Enrollment (falls through)
-    // eslint-disable-next-line no-fallthrough
+    // oxlint-disable-next-line no-fallthrough
     case "get_device_sync_state":
     case "enable_device_sync":
     case "clear_device_sync_data":

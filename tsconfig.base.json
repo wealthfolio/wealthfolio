@@ -34,7 +34,6 @@
     "alwaysStrict": true,
 
     // Path mapping (will be overridden in workspace configs)
-    "baseUrl": ".",
     "paths": {},
 
     // Enable composite builds for project references

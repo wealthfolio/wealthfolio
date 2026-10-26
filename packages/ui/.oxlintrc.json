@@ -1,0 +1,10 @@
+{
+  "$schema": "../../node_modules/oxlint/configuration_schema.json",
+  "extends": ["../../oxlint.base.json"],
+  "ignorePatterns": ["dist/**", "node_modules/**", "*.config.ts", "*.config.js"],
+  "env": {
+    "browser": true,
+    "node": true,
+    "es2020": true
+  }
+}

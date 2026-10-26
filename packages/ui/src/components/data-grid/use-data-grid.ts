@@ -613,7 +613,7 @@ function useDataGrid<TData>({
           } else if (value instanceof Date) {
             serializedValue = value.toISOString();
           } else {
-            // eslint-disable-next-line @typescript-eslint/no-base-to-string
+            // oxlint-disable-next-line typescript/no-base-to-string
             serializedValue = String(value ?? "");
           }
 
@@ -707,7 +707,7 @@ function useDataGrid<TData>({
           } else if (value instanceof Date) {
             serializedValue = value.toISOString();
           } else {
-            // eslint-disable-next-line @typescript-eslint/no-base-to-string
+            // oxlint-disable-next-line typescript/no-base-to-string
             serializedValue = String(value ?? "");
           }
 
@@ -1714,7 +1714,7 @@ function useDataGrid<TData>({
           if (!cell) continue;
 
           const value = cell.getValue();
-          // eslint-disable-next-line @typescript-eslint/no-base-to-string
+          // oxlint-disable-next-line typescript/no-base-to-string
           const stringValue = String(value ?? "").toLowerCase();
 
           if (stringValue.includes(lowerQuery)) {

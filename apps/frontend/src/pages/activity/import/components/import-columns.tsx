@@ -228,11 +228,11 @@ export function useImportColumns<T extends ImportRowData>({
       meta: {
         cell: {
           variant: "select",
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          // oxlint-disable-next-line typescript/no-explicit-any
           options: getSubtypeOptions as any,
           allowEmpty: true,
           emptyLabel: t("activity:import.columns.none"),
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          // oxlint-disable-next-line typescript/no-explicit-any
         } as any,
       },
     });
@@ -252,7 +252,7 @@ export function useImportColumns<T extends ImportRowData>({
             const row = rowData as ImportRowData;
             return !supportsPerformanceBoundary(row.activityType);
           },
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          // oxlint-disable-next-line typescript/no-explicit-any
         } as any,
       },
     });

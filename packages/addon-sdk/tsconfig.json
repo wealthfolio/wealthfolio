@@ -2,6 +2,8 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     // SDK-specific settings
+    "rootDir": ".",
+    "types": ["react", "react-dom"],
     "declaration": true,
     "emitDeclarationOnly": true,
     "outDir": "dist",
@@ -12,7 +14,6 @@
     "noImplicitOverride": true,
 
     // Path mapping for SDK package
-    "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"]
     }

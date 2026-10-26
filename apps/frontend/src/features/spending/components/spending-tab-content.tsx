@@ -649,7 +649,7 @@ export default function SpendingTabContent() {
       { replace: true },
     );
     // Runs only when the URL changes; the handlers read the selection it produced.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // oxlint-disable-next-line react/exhaustive-deps
   }, [searchParams]);
 
   const granularity: "day" | "week" | "month" = useMemo(() => {

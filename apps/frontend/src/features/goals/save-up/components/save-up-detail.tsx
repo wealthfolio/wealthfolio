@@ -144,7 +144,7 @@ export default function SaveUpDetailPage({ goal, plan, overview }: Props) {
     setMonthlyContribution(initialMonthlyContribution);
     setAnnualReturn(initialAnnualReturn);
     // Only sync when persisted values change. Toggling edit mode should not snap drafts back.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // oxlint-disable-next-line react/exhaustive-deps
   }, [persistedPlanKey]);
 
   const previewInput = useMemo<SaveUpPreviewInputDTO | null>(
