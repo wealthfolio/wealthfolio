@@ -23,3 +23,10 @@ it("follows a new system font scale until a size is picked", () => {
   act(() => setSystemTextScale(19 / 17));
   expect(pressed("small")).toHaveAttribute("aria-pressed", "true");
 });
+
+it("names each size beside its letter, shown when the row is wide enough", () => {
+  render(<TextSizeSelector value="large" onChange={vi.fn()} />);
+  const name = screen.getByText("settings:appearance_text_size_large");
+  expect(pressed("large")).toContainElement(name);
+  expect(name).toHaveClass("hidden", "@lg:inline");
+});

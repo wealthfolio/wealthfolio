@@ -18,8 +18,11 @@ interface TextSizeSelectorProps {
   "aria-label"?: string;
 }
 
-// Each option is a letter at its own relative size, so the control stays narrow
-// in every language and at every size; its name is the accessible name and tooltip.
+// Each option is a letter at its own relative size, followed by its name when the
+// row is at least 32rem wide (an `@container` ancestor), like the font control.
+// The threshold is in rem, so it grows with the text size: on phones, narrow panes
+// and longer languages the letter shows alone rather than the control scrolling.
+// The name stays the accessible name and tooltip everywhere.
 const glyphClasses: Record<TextSize, string> = {
   small: "text-xs",
   default: "text-sm",
@@ -50,8 +53,11 @@ export function TextSizeSelector({
         "aria-label": t(textSizeLabelKeys[size]),
         title: t(textSizeLabelKeys[size]),
         label: (
-          <span aria-hidden className={cn("font-semibold leading-none", glyphClasses[size])}>
-            A
+          <span className="flex items-center gap-1.5">
+            <span aria-hidden className={cn("font-semibold leading-none", glyphClasses[size])}>
+              A
+            </span>
+            <span className="hidden @lg:inline">{t(textSizeLabelKeys[size])}</span>
           </span>
         ),
       }))}

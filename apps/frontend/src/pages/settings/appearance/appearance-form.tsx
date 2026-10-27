@@ -118,7 +118,8 @@ export function AppearanceForm() {
           )}
         />
 
-        <Item variant="outline" size="sm">
+        {/* A container: the size names show when this row has room for them. */}
+        <Item variant="outline" size="sm" className="@container">
           <ItemContent className={controlRowContentClassName}>
             <ItemTitle>{t("settings:appearance_text_size_title")}</ItemTitle>
             <ItemDescription>{t("settings:appearance_text_size_description")}</ItemDescription>
