@@ -197,11 +197,14 @@ export function AppearanceForm() {
               )}
             />
             <ItemSeparator />
-            {/* A container: the size names show when this row has room for them. */}
+            {/* A container: the size names show when this row has room for them. The
+                description wraps: at the larger sizes two lines can't hold it in some languages. */}
             <Item size="sm" className="@container">
               <ItemContent className={controlRowContentClassName}>
                 <ItemTitle>{t("settings:appearance_text_size_title")}</ItemTitle>
-                <ItemDescription>{t("settings:appearance_text_size_description")}</ItemDescription>
+                <ItemDescription className="line-clamp-none">
+                  {t("settings:appearance_text_size_description")}
+                </ItemDescription>
               </ItemContent>
               <ItemActions>
                 <TextSizeSelector
