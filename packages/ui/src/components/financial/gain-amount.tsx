@@ -18,7 +18,7 @@ interface GainAmountProps extends React.HTMLAttributes<HTMLDivElement> {
   currency: string;
   displayDecimal?: boolean;
   showSign?: boolean;
-  /** Swap success/destructive coloring — useful for spending where "up" is bad. */
+  /** Swap gain/loss coloring — useful for spending where "up" is bad. */
   invertColor?: boolean;
 }
 
@@ -67,12 +67,12 @@ export function GainAmount({
           "flex items-center",
           displayValue > 0
             ? invertColor
-              ? "text-destructive"
-              : "text-success"
+              ? "text-loss"
+              : "text-gain"
             : displayValue < 0
               ? invertColor
-                ? "text-success"
-                : "text-destructive"
+                ? "text-gain"
+                : "text-loss"
               : "text-foreground",
         )}
       >

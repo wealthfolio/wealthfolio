@@ -66,24 +66,24 @@ export function GainPercent({
   const { locale } = useLocalizationSettings();
   const { formatPercent } = useNumberFormatting();
   const displayValue = normalizeDisplayPercent(value);
-  const successColor = invertColor ? "text-destructive" : "text-success";
-  const destructiveColor = invertColor ? "text-success" : "text-destructive";
-  // The badge sits on the status's subtle surface with its text colour; status text on
-  // a 10% tint of itself stays under 4.5:1.
-  const successBadge = invertColor
-    ? "bg-destructive-subtle text-destructive-subtle-foreground"
-    : "bg-success-subtle text-success-subtle-foreground";
-  const destructiveBadge = invertColor
-    ? "bg-success-subtle text-success-subtle-foreground"
-    : "bg-destructive-subtle text-destructive-subtle-foreground";
+  const gainColor = invertColor ? "text-loss" : "text-gain";
+  const lossColor = invertColor ? "text-gain" : "text-loss";
+  // The badge sits on the gain or loss subtle surface with its text colour; text on a
+  // 10% tint of itself stays under 4.5:1.
+  const gainBadge = invertColor
+    ? "bg-loss-subtle text-loss-subtle-foreground"
+    : "bg-gain-subtle text-gain-subtle-foreground";
+  const lossBadge = invertColor
+    ? "bg-gain-subtle text-gain-subtle-foreground"
+    : "bg-loss-subtle text-loss-subtle-foreground";
   return (
     <div
       className={cn(
         "amount inline-flex items-center justify-end text-end text-sm",
-        displayValue > 0 ? successColor : displayValue < 0 ? destructiveColor : "text-foreground",
+        displayValue > 0 ? gainColor : displayValue < 0 ? lossColor : "text-foreground",
         variant === "badge" && [
           "ps-2.25 rounded-md py-px pe-3 font-light",
-          displayValue > 0 ? successBadge : displayValue < 0 ? destructiveBadge : "bg-foreground/10",
+          displayValue > 0 ? gainBadge : displayValue < 0 ? lossBadge : "bg-foreground/10",
         ],
         className,
       )}

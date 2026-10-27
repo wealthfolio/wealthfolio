@@ -102,7 +102,7 @@ describe("AssetLotsTable", () => {
       expect(gains).toHaveLength(4);
       gains.forEach((gain) =>
         expect(gain.parentElement).toHaveClass(
-          expected.startsWith("+") ? "text-success" : "text-destructive",
+          expected.startsWith("+") ? "text-gain" : "text-loss",
         ),
       );
     },
@@ -134,9 +134,7 @@ describe("AssetLotsTable", () => {
     const gains = screen.getAllByText(expected);
     expect(gains).toHaveLength(4);
     gains.forEach((gain) =>
-      expect(gain.parentElement).toHaveClass(
-        expected.startsWith("+") ? "text-success" : "text-destructive",
-      ),
+      expect(gain.parentElement).toHaveClass(expected.startsWith("+") ? "text-gain" : "text-loss"),
     );
   });
 
