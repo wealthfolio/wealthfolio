@@ -151,7 +151,9 @@ export function RetirementSnapshotTable({
                   </div>
                 </div>
 
-                <div className="text-2xs mt-1.5 grid grid-cols-4 gap-2 ps-[2.75rem]">
+                {/* At least 3rem a column: four on a phone at the default text size,
+                    fewer once larger text would cut the amounts. */}
+                <div className="text-2xs mt-1.5 grid grid-cols-[repeat(auto-fit,minmax(3rem,1fr))] gap-2 ps-[2.75rem]">
                   {mobileMetrics.map((metric) => (
                     <div key={metric.label} className="min-w-0">
                       <div className="text-muted-foreground leading-3">{metric.label}</div>
@@ -167,7 +169,7 @@ export function RetirementSnapshotTable({
                     </div>
                   ))}
                   {hasPensionFunds && (
-                    <div className="col-span-4 min-w-0">
+                    <div className="col-span-full min-w-0">
                       <span className="text-muted-foreground me-1">{t("goals:snapshot.fund")}</span>
                       <span className="font-medium tabular-nums">
                         <SnapshotAmount
