@@ -26,9 +26,22 @@ and this project adheres to
   `--net-worth`, and `--spending-accent`, `--spending-deep` and
   `--spending-mid`. The treemap ramps gain `--heatmap-positive-mid` and
   `--heatmap-negative-mid`.
+- `Settings.gainColors`: the user's gain and loss colours, `green-up` (the
+  default), `red-up` or `red-up-blue-down`, synced across their devices; absent
+  on older hosts. The host sets it on `<html>` as `data-gain-colors`, and addon
+  pages get the same attribute.
+- Gain and loss tokens that follow that setting: `--gain` and `--loss`, each
+  with `-subtle`, `-subtle-foreground` and `-subtle-border`, and the treemap's
+  `--heatmap-gain-*` and `--heatmap-loss-*` (`-low`, `-mid`, `-high`). Use them,
+  not `--success` and `--destructive`, for a price or value going up or down.
+  `--loss-blue` and its subtle surface are the true blue that losses take with
+  `red-up-blue-down`, and `--heatmap-blue-*` its treemap ramp.
 
 ### Changed
 
+- `GainAmount`, `GainPercent` and `AmountDisplay` (with `colorFormat`) draw with
+  the gain and loss tokens, so they follow the user's gain and loss colours;
+  with the default they look as before.
 - The component theme tokens (`--button-*`, `--control-*`, `--field-*`,
   `--switch-*`, `--card-*`, `--popup-*`, `--overlay-*`, `--dialog-radius`,
   `--sheet-bg`, `--badge-radius`, `--segmented-*`) follow the host's theme;
