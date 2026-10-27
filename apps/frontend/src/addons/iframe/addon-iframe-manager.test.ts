@@ -276,6 +276,31 @@ describe("AddonIframeManager", () => {
     await cancelled;
   });
 
+  it("broadcasts a theme update when the gain and loss colours change", async () => {
+    const manager = new AddonIframeManager();
+    const starting = manager.startAddon(input);
+    const cancelled = expect(starting).rejects.toMatchObject({ name: "AddonLoadCancelled" });
+    await vi.waitFor(() => expect(document.querySelector("iframe")).not.toBeNull());
+
+    const iframe = getSandboxFrame();
+    const postMessage = vi.spyOn(iframe.contentWindow!, "postMessage").mockImplementation(() => {});
+    document.documentElement.setAttribute("data-gain-colors", "red-up");
+
+    await vi.waitFor(() =>
+      expect(postMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          theme: expect.objectContaining({ gainColors: "red-up" }),
+          type: "themeUpdate",
+        }),
+        "*",
+      ),
+    );
+
+    document.documentElement.removeAttribute("data-gain-colors");
+    await manager.stopAllAddons();
+    await cancelled;
+  });
+
   it("allows a longer bootstrap window before applying the execution timeout", async () => {
     vi.useFakeTimers();
     const manager = new AddonIframeManager();
