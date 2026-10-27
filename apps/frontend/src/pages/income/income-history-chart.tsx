@@ -169,7 +169,7 @@ export const IncomeHistoryChart: React.FC<IncomeHistoryChartProps> = ({
     axisLine: false,
     ticks: xTicks,
     interval: 0 as const,
-    tick: { fontSize: isMobile ? 11 : 12 },
+    tick: { fontSize: isMobile ? "0.6875rem" : "0.75rem" },
     tickFormatter: (value: string) => {
       return dateFormatting.formatCalendarDate(`${value}-01`, {
         calendar: "gregory",
@@ -200,7 +200,7 @@ export const IncomeHistoryChart: React.FC<IncomeHistoryChartProps> = ({
   const yAxisProps = {
     tickLine: false,
     axisLine: false,
-    tick: { fontSize: isMobile ? 10 : 12 },
+    tick: { fontSize: isMobile ? "0.6875rem" : "0.75rem" },
     width: isMobile ? 45 : 60,
     ticks: yTicks,
     domain: [0, yTicks[yTicks.length - 1] || 0] as [number, number],
