@@ -106,7 +106,10 @@ services:
 ```
 
 Add the overlay to your normal Compose command, keeping your existing
-environment file and any reverse-proxy overlays. For the base configuration:
+environment file and **all existing `-f` files**. Explicit `-f` arguments
+disable automatic loading of `compose.override.yml`; include that file
+explicitly if your installation uses it, along with any reverse-proxy overlays.
+For an installation using only the base configuration:
 
 ```bash
 docker compose --env-file .env.docker -f compose.yml -f compose.oidc-ca.yml up -d

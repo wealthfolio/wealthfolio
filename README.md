@@ -386,11 +386,11 @@ All configuration is done via environment variables in `.env.web`.
   - `WF_OIDC_RP_LOGOUT` - **Optional**, default `true`. Set to `false` to force
     local-only logout even when the IdP supports RP-Initiated Logout.
   - `WF_OIDC_CA_FILE` - **Optional** path to a PEM bundle of extra root
-    certificates trusted for OIDC requests only (discovery, token exchange).
-    Use it when the IdP's certificate comes from a private CA (e.g. step-ca);
-    the OIDC client otherwise trusts only the bundled Mozilla roots and ignores
-    the system store and `SSL_CERT_FILE`. The bundled roots stay trusted. The
-    server refuses to start if the file is unreadable or holds no certificate.
+    certificates trusted for OIDC requests only (discovery, token exchange). Use
+    it when the IdP's certificate comes from a private CA (e.g. step-ca); the
+    OIDC client otherwise trusts only the bundled Mozilla roots and ignores the
+    system store and `SSL_CERT_FILE`. The bundled roots stay trusted. The server
+    refuses to start if the file is unreadable or holds no certificate.
 - `WF_COOKIE_SECURE` - Controls the `Secure` attribute on session cookies
   (default: `auto`)
   - `auto` - set `Secure` only when `X-Forwarded-Proto: https` is present
