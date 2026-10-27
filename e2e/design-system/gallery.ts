@@ -6,6 +6,8 @@ export const modes = ["light", "dark"] as const;
 export const themes = readdirSync("apps/frontend/src/themes/definitions")
   .filter((file) => file.endsWith(".css"))
   .map((file) => file.slice(0, -4));
+/** The Gain and loss colours options (data-gain-colors); green-up is the default. */
+export const gainColorOptions = ["green-up", "red-up", "red-up-blue-down"] as const;
 export const widths = [390, 1440] as const;
 export const directions = ["ltr", "rtl"] as const;
 
@@ -18,7 +20,15 @@ export async function openGallery(
     height = 900,
     dir = "ltr",
     theme = "classic",
-  }: { mode?: string; width?: number; height?: number; dir?: string; theme?: string } = {},
+    gainColors = "green-up",
+  }: {
+    mode?: string;
+    width?: number;
+    height?: number;
+    dir?: string;
+    theme?: string;
+    gainColors?: string;
+  } = {},
 ) {
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
@@ -26,7 +36,8 @@ export async function openGallery(
   // `dir=rtl` is the development-only direction override (i18n/direction.tsx).
   await page.goto(
     `/e2e/design-system/?mode=${mode}${dir === "rtl" ? "&dir=rtl" : ""}` +
-      (theme === "classic" ? "" : `&theme=${theme}`),
+      (theme === "classic" ? "" : `&theme=${theme}`) +
+      (gainColors === "green-up" ? "" : `&gainColors=${gainColors}`),
   );
   await expect(page.getByRole("heading", { name: "UI primitives" })).toBeVisible();
   await page.evaluate(() => document.fonts.ready);
