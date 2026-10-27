@@ -560,7 +560,8 @@ function GroupBudgetSection({
           className="min-w-0 flex-1 text-start"
         >
           <div className="text-foreground truncate text-sm font-semibold">{row.group.name}</div>
-          <div className="mt-0.5 flex items-center gap-1.5">
+          {/* Spent of planned wraps under the bar rather than ending in an ellipsis. */}
+          <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
             <div className="bg-muted/40 h-1 w-16 shrink-0 overflow-hidden rounded-full sm:w-20">
               <div
                 className="h-full rounded-full transition-all"
@@ -570,7 +571,7 @@ function GroupBudgetSection({
                 }}
               />
             </div>
-            <span className="text-muted-foreground text-2xs truncate tabular-nums">
+            <span className="text-muted-foreground text-2xs tabular-nums">
               <PrivacyAmount value={row.actual} currency={currency} /> /{" "}
               <PrivacyAmount value={row.plannedTotal} currency={currency} />
             </span>
