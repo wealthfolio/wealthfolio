@@ -949,6 +949,9 @@ export interface Settings {
   restoreReconnectRequired?: boolean;
   /** Theme ID (palette and shape); absent on older backends, which show Classic. */
   themeId?: string;
+  /** Gain and loss colours (green-up, red-up, red-up-blue-down), synced across devices;
+   * absent on older backends, which show green up. */
+  gainColors?: string;
   /** Appearance mode: light, dark or system. */
   theme: string;
   font: string;

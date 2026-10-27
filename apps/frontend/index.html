@@ -45,6 +45,9 @@
           // Likewise the default text size for a name it doesn't know.
           var textSize = localStorage.getItem("wealthfolio-text-size");
           if (textSize) document.documentElement.setAttribute("data-text-size", textSize);
+          // The CSS shows green up for gain and loss colours it doesn't know.
+          var gainColors = localStorage.getItem("wealthfolio-gain-colors");
+          if (gainColors) document.documentElement.setAttribute("data-gain-colors", gainColors);
         } catch (e) {}
         // Presentation hint only; profile access is still checked by the app.
         try {

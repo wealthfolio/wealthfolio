@@ -978,6 +978,11 @@ export interface QuoteUpdate {
 export interface Settings {
   /** Theme ID (palette and shape). Absent on hosts without themes. */
   themeId?: string;
+  /**
+   * Gain and loss colours: 'green-up', 'red-up' or 'red-up-blue-down'; synced across
+   * the user's devices. Absent on older hosts, which show green up.
+   */
+  gainColors?: string;
   theme: string;
   font: string;
   /** Text size name (small, default, large, extra-large). Absent on hosts without it. */

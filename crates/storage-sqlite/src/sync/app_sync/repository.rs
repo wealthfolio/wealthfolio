@@ -36,7 +36,7 @@ use super::model::{
     SyncOutboxEventDB, SyncTableStateDB,
 };
 use super::outbox_models::{is_syncable_app_preference_key, is_syncable_spending_setting_key};
-use wealthfolio_core::settings::INSIGHTS_OVERVIEW_LAYOUT_KEY;
+use wealthfolio_core::settings::{GAIN_COLORS_KEY, INSIGHTS_OVERVIEW_LAYOUT_KEY};
 
 fn enum_to_db<T: serde::Serialize>(value: &T) -> Result<String> {
     Ok(serde_json::to_string(value)?.trim_matches('"').to_string())
@@ -191,7 +191,7 @@ impl SyncRowFilter {
                 )"
             }
             Self::SyncableSettings => {
-                static FILTER: std::sync::LazyLock<String> = std::sync::LazyLock::new(|| format!("setting_key IN ('spending.enabled', 'spending.account_ids', 'spending.excluded_category_ids', '{}')", INSIGHTS_OVERVIEW_LAYOUT_KEY));
+                static FILTER: std::sync::LazyLock<String> = std::sync::LazyLock::new(|| format!("setting_key IN ('spending.enabled', 'spending.account_ids', 'spending.excluded_category_ids', '{}', '{}')", INSIGHTS_OVERVIEW_LAYOUT_KEY, GAIN_COLORS_KEY));
                 FILTER.as_str()
             },
             Self::UserTaxonomies => "is_system = 0",
@@ -8897,6 +8897,10 @@ mod tests {
                     app_settings::setting_value.eq("[\"cat-1\"]"),
                 ),
                 (
+                    app_settings::setting_key.eq(GAIN_COLORS_KEY),
+                    app_settings::setting_value.eq("red-up"),
+                ),
+                (
                     app_settings::setting_key.eq("theme"),
                     app_settings::setting_value.eq("dark"),
                 ),
@@ -8919,7 +8923,7 @@ mod tests {
         let settings_count: CountRow = diesel::sql_query("SELECT COUNT(*) AS c FROM app_settings")
             .get_result(&mut exported_conn)
             .expect("count settings");
-        assert_eq!(settings_count.c, 4);
+        assert_eq!(settings_count.c, 5);
 
         let theme_count: CountRow =
             diesel::sql_query("SELECT COUNT(*) AS c FROM app_settings WHERE setting_key = 'theme'")
@@ -8940,6 +8944,10 @@ mod tests {
         .set(app_settings::setting_value.eq(r#"{"version":6,"hiddenWidgets":[]}"#))
         .execute(&mut conn)
         .unwrap();
+        diesel::update(app_settings::table.filter(app_settings::setting_key.eq(GAIN_COLORS_KEY)))
+            .set(app_settings::setting_value.eq("green-up"))
+            .execute(&mut conn)
+            .unwrap();
         repo.restore_snapshot_tables_from_file(
             exported_path.to_string_lossy().to_string(),
             vec!["app_settings".to_string()],
@@ -8955,6 +8963,12 @@ mod tests {
             .first(&mut conn)
             .unwrap();
         assert_eq!(restored, r#"{"version":6,"hiddenWidgets":["regions"]}"#);
+        let gain_colors: String = app_settings::table
+            .filter(app_settings::setting_key.eq(GAIN_COLORS_KEY))
+            .select(app_settings::setting_value)
+            .first(&mut conn)
+            .unwrap();
+        assert_eq!(gain_colors, "red-up");
         let excluded_categories: String = app_settings::table
             .filter(app_settings::setting_key.eq("spending.excluded_category_ids"))
             .select(app_settings::setting_value)
@@ -9027,7 +9041,19 @@ mod tests {
         assert!(applied);
         let stale = repo.apply_remote_event_lww(SyncEntity::AppPreference, INSIGHTS_OVERVIEW_LAYOUT_KEY.to_string(), SyncOperation::Update, "pref-stale".to_string(), "2026-09-17T00:00:01Z".to_string(), 3, serde_json::json!({"settingKey": INSIGHTS_OVERVIEW_LAYOUT_KEY, "settingValue": "{}"})).await.unwrap();
         assert!(!stale);
-        for key in ["theme", "sync_enabled", "spending.enabled"] {
+        assert!(repo
+            .apply_remote_event_lww(
+                SyncEntity::AppPreference,
+                GAIN_COLORS_KEY.to_string(),
+                SyncOperation::Update,
+                "pref-gain-colors".to_string(),
+                "2026-09-17T00:00:03Z".to_string(),
+                3,
+                serde_json::json!({"settingKey": GAIN_COLORS_KEY, "settingValue": "red-up"})
+            )
+            .await
+            .unwrap());
+        for key in ["theme", "theme_id", "sync_enabled", "spending.enabled"] {
             assert!(!repo
                 .apply_remote_event_lww(
                     SyncEntity::AppPreference,

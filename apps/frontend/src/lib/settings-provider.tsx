@@ -13,6 +13,7 @@ import { setLanguageDirection, useDocumentDirection } from "@/i18n/direction";
 import i18n, { LANGUAGE_STORAGE_KEY } from "@/i18n/i18n";
 import { DEFAULT_LOCALE } from "@/i18n/locales";
 import { Settings, SettingsContextType } from "@/lib/types";
+import { isGainColors, resolveGainColors } from "@/themes/gain-colors";
 import {
   isTextSize,
   measureDynamicTypeScale,
@@ -29,6 +30,7 @@ interface ExtendedSettingsContextType extends SettingsContextType {
       Pick<
         Settings,
         | "themeId"
+        | "gainColors"
         | "theme"
         | "font"
         | "textSize"
@@ -73,6 +75,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       Pick<
         Settings,
         | "themeId"
+        | "gainColors"
         | "theme"
         | "font"
         | "textSize"
@@ -95,6 +98,9 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     }
     if (updates.textSize !== undefined && !isTextSize(updates.textSize)) {
       throw new Error(`Unknown text size: ${updates.textSize}`);
+    }
+    if (updates.gainColors !== undefined && !isGainColors(updates.gainColors)) {
+      throw new Error(`Unknown gain and loss colours: ${updates.gainColors}`);
     }
     await updateMutation.mutateAsync(updates);
   };
@@ -317,6 +323,9 @@ const applySettingsToDocument = async (newSettings: Settings) => {
   // Theme (palette and shape); an ID this version doesn't know shows Classic.
   const themeId = resolveThemeId(newSettings.themeId);
   document.documentElement.dataset.theme = themeId;
+  // Gain and loss colours; a value this version doesn't know shows green up.
+  const gainColors = resolveGainColors(newSettings.gainColors);
+  document.documentElement.dataset.gainColors = gainColors;
 
   // Font classes
   document.body.classList.remove("font-mono", "font-sans", "font-serif");
@@ -334,6 +343,7 @@ const applySettingsToDocument = async (newSettings: Settings) => {
   try {
     localStorage.setItem("wealthfolio-theme", newSettings.theme);
     localStorage.setItem("wealthfolio-theme-id", themeId);
+    localStorage.setItem("wealthfolio-gain-colors", gainColors);
     localStorage.setItem(LANGUAGE_STORAGE_KEY, language);
   } catch {
     // noop – localStorage may be unavailable

@@ -15,12 +15,21 @@ pub const DEFAULT_THEME_ID: &str = "classic";
 /// Unset until the user picks one, so the frontend can start from the device's
 /// own font size.
 pub const TEXT_SIZE_KEY: &str = "text_size";
+/// Gain and loss colours: green up (the default), red up, or red up and blue down.
+/// Synced with the Insights layout: it is about what a colour means, not one
+/// screen's look. A stored value this version doesn't know reads as green up and
+/// stays stored, so a value saved by a newer version survives an older one.
+pub const GAIN_COLORS_KEY: &str = "gain_colors";
+pub const GAIN_COLORS: [&str; 3] = ["green-up", "red-up", "red-up-blue-down"];
+pub const DEFAULT_GAIN_COLORS: &str = "green-up";
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct Settings {
     #[serde(default = "default_theme_id")]
     pub theme_id: String,
+    #[serde(default = "default_gain_colors")]
+    pub gain_colors: String,
     /// Appearance mode: light, dark or system.
     pub theme: String,
     pub font: String,
@@ -51,10 +60,15 @@ fn default_theme_id() -> String {
     DEFAULT_THEME_ID.to_string()
 }
 
+fn default_gain_colors() -> String {
+    DEFAULT_GAIN_COLORS.to_string()
+}
+
 impl Default for Settings {
     fn default() -> Self {
         Self {
             theme_id: default_theme_id(),
+            gain_colors: default_gain_colors(),
             theme: "light".to_string(),
             font: "font-mono".to_string(),
             text_size: None,
@@ -78,6 +92,7 @@ impl Default for Settings {
 #[serde(rename_all = "camelCase")]
 pub struct SettingsUpdate {
     pub theme_id: Option<String>,
+    pub gain_colors: Option<String>,
     pub theme: Option<String>,
     pub font: Option<String>,
     pub text_size: Option<String>,

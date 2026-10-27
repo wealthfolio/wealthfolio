@@ -2,7 +2,7 @@ use super::SettingsRepositoryTrait;
 use crate::errors::{DatabaseError, Error, Result};
 use crate::fx::currency::get_normalization_rule;
 use crate::fx::FxServiceTrait;
-use crate::settings::{Settings, SettingsUpdate};
+use crate::settings::{Settings, SettingsUpdate, GAIN_COLORS};
 use crate::utils::time_utils::canonicalize_timezone;
 use async_trait::async_trait;
 use log::{debug, error};
@@ -99,6 +99,16 @@ fn validate_formatting_region(region: &str) -> Result<()> {
     } else {
         Err(Error::InvalidConfigValue(format!(
             "Unsupported formatting region: {region}"
+        )))
+    }
+}
+
+fn validate_gain_colors(gain_colors: &str) -> Result<()> {
+    if GAIN_COLORS.contains(&gain_colors) {
+        Ok(())
+    } else {
+        Err(Error::InvalidConfigValue(format!(
+            "Unsupported gain and loss colours: {gain_colors}"
         )))
     }
 }
@@ -245,6 +255,9 @@ impl SettingsServiceTrait for SettingsService {
         if let Some(ref text_size) = normalized_settings.text_size {
             validate_text_size(text_size)?;
         }
+        if let Some(ref gain_colors) = normalized_settings.gain_colors {
+            validate_gain_colors(gain_colors)?;
+        }
         if let Some(ref region) = normalized_settings.formatting_region {
             validate_formatting_region(region)?;
         }
@@ -356,8 +369,8 @@ impl SettingsService {
 mod tests {
     use super::{
         normalize_currency_formatting_regions, normalize_formatting_region, normalize_ui_language,
-        validate_currency_formatting_regions, validate_formatting_region, validate_text_size,
-        validate_theme_id, validate_ui_language,
+        validate_currency_formatting_regions, validate_formatting_region, validate_gain_colors,
+        validate_text_size, validate_theme_id, validate_ui_language,
     };
     use crate::settings::Settings;
     use std::collections::BTreeMap;
@@ -401,6 +414,16 @@ mod tests {
     }
 
     #[test]
+    fn accepts_the_three_gain_and_loss_colours_only() {
+        for value in ["green-up", "red-up", "red-up-blue-down"] {
+            assert!(validate_gain_colors(value).is_ok(), "{value}");
+        }
+        for value in ["", "Red-up", "blue-up", "red-up-green-down", "red-up "] {
+            assert!(validate_gain_colors(value).is_err(), "{value}");
+        }
+    }
+
+    #[test]
     fn text_size_stays_unset_until_picked() {
         let value = serde_json::to_value(Settings::default()).unwrap();
         assert!(
@@ -409,6 +432,14 @@ mod tests {
         );
         let settings: Settings = serde_json::from_value(value).unwrap();
         assert_eq!(settings.text_size, None);
+    }
+
+    #[test]
+    fn settings_saved_before_gain_colors_read_as_green_up() {
+        let mut value = serde_json::to_value(Settings::default()).unwrap();
+        value.as_object_mut().unwrap().remove("gainColors");
+        let settings: Settings = serde_json::from_value(value).unwrap();
+        assert_eq!(settings.gain_colors, "green-up");
     }
 
     #[test]

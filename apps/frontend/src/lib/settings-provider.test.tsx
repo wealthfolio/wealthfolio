@@ -61,9 +61,11 @@ beforeEach(() => {
   settings.theme = "system";
   settings.themeId = undefined;
   settings.textSize = undefined;
+  settings.gainColors = undefined;
   document.documentElement.className = "";
   document.documentElement.removeAttribute("data-theme");
   document.documentElement.removeAttribute("data-text-size");
+  document.documentElement.removeAttribute("data-gain-colors");
   delete (window as unknown as { wealthfolioSystemTextScale?: number }).wealthfolioSystemTextScale;
   mocks.dynamicType.mockReturnValue(undefined);
   localStorage.clear();
@@ -138,6 +140,31 @@ it("shows Classic for a missing or unknown theme", async () => {
     await waitFor(() => expect(document.documentElement).toHaveAttribute("data-theme", "classic"));
     unmount();
     document.documentElement.removeAttribute("data-theme");
+  }
+});
+
+it("applies the saved gain and loss colours and caches them for the next start", async () => {
+  settings.gainColors = "red-up-blue-down";
+  mocks.platform.mockResolvedValue({ os: "linux", is_mobile: false, is_desktop: true });
+
+  render(<SettingsProvider>content</SettingsProvider>);
+
+  await waitFor(() =>
+    expect(document.documentElement).toHaveAttribute("data-gain-colors", "red-up-blue-down"),
+  );
+  expect(localStorage.getItem("wealthfolio-gain-colors")).toBe("red-up-blue-down");
+});
+
+it("shows green up for missing or unknown gain and loss colours", async () => {
+  mocks.platform.mockResolvedValue({ os: "linux", is_mobile: false, is_desktop: true });
+  for (const gainColors of [undefined, "blue-up-orange-down"]) {
+    settings.gainColors = gainColors;
+    const { unmount } = render(<SettingsProvider>content</SettingsProvider>);
+    await waitFor(() =>
+      expect(document.documentElement).toHaveAttribute("data-gain-colors", "green-up"),
+    );
+    unmount();
+    document.documentElement.removeAttribute("data-gain-colors");
   }
 });
 
