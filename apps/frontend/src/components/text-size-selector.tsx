@@ -1,6 +1,14 @@
 import { cn } from "@/lib/utils";
-import { resolveTextSize, textSizeLabelKeys, textSizes, type TextSize } from "@/themes/text-size";
+import {
+  resolveTextSize,
+  subscribeSystemTextScale,
+  systemTextScale,
+  textSizeLabelKeys,
+  textSizes,
+  type TextSize,
+} from "@/themes/text-size";
 import { AnimatedToggleGroup } from "@wealthfolio/ui";
+import { useSyncExternalStore } from "react";
 import { useTranslation } from "react-i18next";
 
 interface TextSizeSelectorProps {
@@ -27,6 +35,9 @@ export function TextSizeSelector({
   "aria-label": ariaLabel,
 }: TextSizeSelectorProps) {
   const { t } = useTranslation();
+  // Until a size is picked, the size in effect follows the system's, which iOS
+  // re-reads on returning to the foreground: re-render when it changes.
+  useSyncExternalStore(subscribeSystemTextScale, systemTextScale, () => undefined);
   return (
     <AnimatedToggleGroup<TextSize>
       size="sm"

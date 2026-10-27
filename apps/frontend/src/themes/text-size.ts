@@ -63,15 +63,31 @@ export function measureDynamicTypeScale(): number | undefined {
 export function setSystemTextScale(scale: number | undefined) {
   if (typeof window === "undefined") return;
   const scope = window as unknown as Record<string, unknown>;
+  if (scope[SYSTEM_TEXT_SCALE_GLOBAL] === scale) return;
   if (scale === undefined) delete scope[SYSTEM_TEXT_SCALE_GLOBAL];
   else scope[SYSTEM_TEXT_SCALE_GLOBAL] = scale;
+  for (const listener of systemTextScaleListeners) listener();
+}
+
+const systemTextScaleListeners = new Set<() => void>();
+
+/**
+ * Notifies when the app records a new system font scale (iOS re-measures it on
+ * returning to the foreground), for `useSyncExternalStore`, so what shows the
+ * size in effect re-renders with it.
+ */
+export function subscribeSystemTextScale(listener: () => void) {
+  systemTextScaleListeners.add(listener);
+  return () => {
+    systemTextScaleListeners.delete(listener);
+  };
 }
 
 export function isTextSize(value: unknown): value is TextSize {
   return typeof value === "string" && (textSizes as readonly string[]).includes(value);
 }
 
-function systemTextScale(): number | undefined {
+export function systemTextScale(): number | undefined {
   if (typeof window === "undefined") return undefined;
   const scale = (window as unknown as Record<string, unknown>)[SYSTEM_TEXT_SCALE_GLOBAL];
   return typeof scale === "number" && Number.isFinite(scale) && scale > 0 ? scale : undefined;
