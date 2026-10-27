@@ -63,6 +63,77 @@ does not provide this. See the
 [reverse proxy guide](https://wealthfolio.app/docs/guide/self-hosting/reverse-proxy/)
 for examples.
 
+## OIDC providers using a private CA
+
+If your identity provider uses a private certificate authority (for example,
+step-ca or an internal PKI), set `WF_OIDC_CA_FILE` to a PEM bundle of trusted CA
+certificates. This option requires a server build containing
+[#2253](https://github.com/wealthfolio/wealthfolio/pull/2253); upgrade older
+pinned images or binaries before using it.
+
+The certificates are added to the OIDC client's bundled Mozilla roots for
+discovery, signing-key retrieval, token exchange, and metadata refresh. Other
+outbound clients are unaffected. Certificate and hostname validation remain
+enabled. The OIDC client does not read the system trust store or
+`SSL_CERT_FILE`. Leaving the setting unset or empty preserves the existing trust
+policy.
+
+Use only CA certificates you trust. The bundle contains public certificates, not
+private keys; protect it and its parent directory against unauthorized changes.
+Make it readable by the server's actual runtime user (see
+[Permissions](#permissions-and-existing-deployments)). Browser trust is
+separate: the browser must also trust the IdP certificate when following the SSO
+redirect.
+
+### Docker Compose
+
+Create the CA bundle on the host first. Save this optional overlay as
+`compose.oidc-ca.yml` alongside `compose.yml`, replacing the source with the
+existing host file's absolute path:
+
+```yaml
+services:
+  wealthfolio:
+    environment:
+      WF_OIDC_CA_FILE: /certs/internal-ca.pem
+    volumes:
+      - type: bind
+        source: /protected/internal-ca.pem
+        target: /certs/internal-ca.pem
+        read_only: true
+        bind:
+          create_host_path: false
+```
+
+Add the overlay to your normal Compose command, keeping your existing
+environment file and any reverse-proxy overlays. For the base configuration:
+
+```bash
+docker compose --env-file .env.docker -f compose.yml -f compose.oidc-ca.yml up -d
+```
+
+The setting names the path **inside the container**. Setting the variable alone
+does not mount the file. Keep this overlay opt-in; existing installations need
+neither a CA file nor a new volume mapping. The read-only mount preserves the
+existing `/data` volume.
+
+For plain `docker run`, add these options to your existing command:
+
+```bash
+--mount type=bind,source=/protected/internal-ca.pem,target=/certs/internal-ca.pem,readonly \
+-e WF_OIDC_CA_FILE=/certs/internal-ca.pem
+```
+
+### Native servers and troubleshooting
+
+Set `WF_OIDC_CA_FILE` to the absolute host path in the service's environment
+file. Restart the server after changing the setting or replacing the bundle;
+certificates are loaded once at startup. An unreadable file, invalid
+certificate, or bundle without certificates prevents startup when OIDC is
+enabled. If discovery still fails, check that the bundle contains the CA that
+issued the IdP's certificate and that the certificate matches the configured
+issuer hostname.
+
 ## Installation directory
 
 Existing deployments can keep their current configuration. `WF_DB_PATH` remains
