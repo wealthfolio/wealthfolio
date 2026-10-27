@@ -1,15 +1,14 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
 import { AppearanceForm } from "./appearance-form";
 
 const platform = vi.hoisted(() => ({ isMobile: false, isMacOS: false, isTauri: true }));
-vi.mock("@/hooks/use-platform", () => ({ usePlatform: () => platform }));
-vi.mock("@/lib/settings-provider", () => ({
-  useSettingsContext: () => ({
-    settings: { theme: "light", font: "font-mono", menuBarVisible: true },
-    updateSettings: vi.fn(() => Promise.resolve()),
-  }),
+const context = vi.hoisted(() => ({
+  settings: { theme: "light", font: "font-mono", menuBarVisible: true } as Record<string, unknown>,
+  updateSettings: vi.fn(() => Promise.resolve()),
 }));
+vi.mock("@/hooks/use-platform", () => ({ usePlatform: () => platform }));
+vi.mock("@/lib/settings-provider", () => ({ useSettingsContext: () => context }));
 vi.mock("@/pages/layouts/navigation/navigation-mode-context", () => ({
   useNavigationMode: () => ({ mode: "sidebar", setMode: vi.fn() }),
 }));
@@ -19,6 +18,31 @@ beforeEach(() => {
   platform.isMobile = false;
   platform.isMacOS = false;
   platform.isTauri = true;
+  context.settings = { theme: "light", font: "font-mono", menuBarVisible: true };
+  context.updateSettings.mockClear();
+});
+
+it("offers the text size on phones too and saves the picked size", () => {
+  platform.isMobile = true;
+  context.settings.textSize = "large";
+  render(<AppearanceForm />);
+
+  const group = screen.getByRole("group", { name: "settings:appearance_text_size_title" });
+  const large = screen.getByRole("button", { name: "settings:appearance_text_size_large" });
+  expect(group).toContainElement(large);
+  expect(large).toHaveAttribute("aria-pressed", "true");
+
+  fireEvent.click(
+    screen.getByRole("button", { name: "settings:appearance_text_size_extra_large" }),
+  );
+  expect(context.updateSettings).toHaveBeenCalledWith({ textSize: "extra-large" });
+});
+
+it("shows the default text size when none is saved", () => {
+  render(<AppearanceForm />);
+  expect(
+    screen.getByRole("button", { name: "settings:appearance_text_size_default" }),
+  ).toHaveAttribute("aria-pressed", "true");
 });
 
 it("offers the menu bar setting in the Windows and Linux app", () => {

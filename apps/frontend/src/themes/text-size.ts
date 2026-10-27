@@ -13,6 +13,13 @@ export const DEFAULT_TEXT_SIZE: TextSize = "default";
 /** Caches the size for index.html, which applies it before the app loads. */
 export const TEXT_SIZE_STORAGE_KEY = "wealthfolio-text-size";
 
+export const textSizeLabelKeys = {
+  small: "settings:appearance_text_size_small",
+  default: "settings:appearance_text_size_default",
+  large: "settings:appearance_text_size_large",
+  "extra-large": "settings:appearance_text_size_extra_large",
+} as const satisfies Record<TextSize, string>;
+
 export function isTextSize(value: unknown): value is TextSize {
   return typeof value === "string" && (textSizes as readonly string[]).includes(value);
 }

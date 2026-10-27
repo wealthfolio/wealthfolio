@@ -5,6 +5,7 @@ import * as z from "zod";
 
 import { FontSelector } from "@/components/font-selector";
 import { NavigationStyleSelector } from "@/components/navigation-style-selector";
+import { TextSizeSelector } from "@/components/text-size-selector";
 import { ThemePicker } from "@/components/theme-picker";
 import { ThemeSelector } from "@/components/theme-selector";
 import { Button, Icons } from "@wealthfolio/ui";
@@ -116,6 +117,20 @@ export function AppearanceForm() {
             </Item>
           )}
         />
+
+        <Item variant="outline" size="sm">
+          <ItemContent className={controlRowContentClassName}>
+            <ItemTitle>{t("settings:appearance_text_size_title")}</ItemTitle>
+            <ItemDescription>{t("settings:appearance_text_size_description")}</ItemDescription>
+          </ItemContent>
+          <ItemActions>
+            <TextSizeSelector
+              aria-label={t("settings:appearance_text_size_title")}
+              value={settings?.textSize}
+              onChange={(textSize) => handlePartialUpdate({ textSize })}
+            />
+          </ItemActions>
+        </Item>
 
         <section className="space-y-3">
           <div className="space-y-1">
