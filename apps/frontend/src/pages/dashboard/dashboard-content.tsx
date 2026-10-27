@@ -240,8 +240,8 @@ export function DashboardContent({
         className="flex grow flex-col"
         style={{
           backgroundImage: isNegative
-            ? `linear-gradient(to top, color-mix(in srgb, var(--destructive) 30%, transparent), color-mix(in srgb, var(--destructive) 15%, transparent) 50%, transparent 100%)`
-            : `linear-gradient(to top, color-mix(in srgb, var(--success) 30%, transparent), color-mix(in srgb, var(--success) 15%, transparent) 50%, transparent 100%)`,
+            ? `linear-gradient(to top, color-mix(in srgb, var(--loss) 30%, transparent), color-mix(in srgb, var(--loss) 15%, transparent) 50%, transparent 100%)`
+            : `linear-gradient(to top, color-mix(in srgb, var(--gain) 30%, transparent), color-mix(in srgb, var(--gain) 15%, transparent) 50%, transparent 100%)`,
         }}
       >
         <div className="h-70">

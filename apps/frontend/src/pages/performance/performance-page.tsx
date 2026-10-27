@@ -628,8 +628,8 @@ const PLOTTED_ITEM_STATE: SelectedItemPlotState = { isPlotted: true };
 const PERFORMANCE_HIDDEN_DATE_RANGES = ["1D"] as const;
 
 function amountTone(value: number): string {
-  if (value < 0) return "text-destructive";
-  if (value > 0) return "text-success";
+  if (value < 0) return "text-loss";
+  if (value > 0) return "text-gain";
   return "text-muted-foreground";
 }
 

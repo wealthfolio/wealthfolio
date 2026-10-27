@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { fallbackPalette, getTreemapColor } from "./treemap-palette";
+import { describe, expect, it, vi } from "vitest";
+import { fallbackPalette, getTreemapColor, subscribeToTreemapTheme } from "./treemap-palette";
 
 describe("treemap palette", () => {
   it("draws Classic's ramp: soft sage and rose through their midpoints", () => {
@@ -57,5 +57,25 @@ describe("treemap palette", () => {
       negativeHigh: tile,
     };
     expect(getTreemapColor(-0.015, "daily", palette).isLightTile).toBe(true);
+  });
+
+  it("re-reads the palette when the mode, theme or gain and loss colours change", async () => {
+    const onChange = vi.fn();
+    const unsubscribe = subscribeToTreemapTheme(onChange);
+    const root = document.documentElement;
+    for (const change of [
+      () => root.setAttribute("data-gain-colors", "red-up"),
+      () => root.setAttribute("data-theme", "ember"),
+      () => root.classList.add("dark"),
+    ]) {
+      onChange.mockClear();
+      change();
+      await Promise.resolve();
+      expect(onChange).toHaveBeenCalled();
+    }
+    unsubscribe();
+    root.removeAttribute("data-gain-colors");
+    root.removeAttribute("data-theme");
+    root.classList.remove("dark");
   });
 });

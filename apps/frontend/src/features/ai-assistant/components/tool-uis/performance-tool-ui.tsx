@@ -103,11 +103,7 @@ interface MetricCardProps {
 
 function MetricCard({ label, value, subValue, isPositive, isPrivate }: MetricCardProps) {
   const colorClass =
-    isPositive === true
-      ? "text-success"
-      : isPositive === false
-        ? "text-destructive"
-        : "text-foreground";
+    isPositive === true ? "text-gain" : isPositive === false ? "text-loss" : "text-foreground";
 
   return (
     <div className="bg-background/60 flex flex-col gap-1 rounded-lg border p-3">
@@ -246,9 +242,7 @@ function PerformanceToolUIContentImpl({ args, result, status }: PerformanceToolU
         <div className="flex flex-wrap items-baseline gap-3">
           <div className="flex items-center gap-2">
             {summaryReturnValue != null && (
-              <TrendIcon
-                className={cn("size-6", isPositiveReturn ? "text-success" : "text-destructive")}
-              />
+              <TrendIcon className={cn("size-6", isPositiveReturn ? "text-gain" : "text-loss")} />
             )}
             <span
               className={cn(
@@ -256,8 +250,8 @@ function PerformanceToolUIContentImpl({ args, result, status }: PerformanceToolU
                 summaryReturnValue == null
                   ? "text-muted-foreground"
                   : isPositiveReturn
-                    ? "text-success"
-                    : "text-destructive",
+                    ? "text-gain"
+                    : "text-loss",
               )}
             >
               {summaryReturnValue == null
@@ -272,8 +266,8 @@ function PerformanceToolUIContentImpl({ args, result, status }: PerformanceToolU
                 isBalanceHidden
                   ? "text-muted-foreground"
                   : isPositiveReturn
-                    ? "text-success"
-                    : "text-destructive",
+                    ? "text-gain"
+                    : "text-loss",
               )}
             >
               {formatCurrency(periodPnlAmount)}

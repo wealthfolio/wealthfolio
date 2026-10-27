@@ -285,7 +285,7 @@ function LinkedAssetBlock({
             <span className="bg-muted-foreground/30 flex-1 rounded-full" />
           </div>
           <div className="text-muted-foreground mt-1.5 flex flex-wrap justify-between gap-x-3 text-xs tabular-nums">
-            <span className={cn(equity < 0 && "text-destructive")}>
+            <span className={cn(equity < 0 && "text-loss")}>
               {t("asset:loanOverview.equity_amount", { amount: moneyText(equity) })}
             </span>
             <span>

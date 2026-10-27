@@ -206,7 +206,7 @@ const AssetHistoryCard: React.FC<AssetHistoryProps> = ({
                     isHidden={isBalanceHidden}
                   />
                 </p>
-                <p className={`text-sm ${ganAmount > 0 ? "text-success" : "text-destructive"}`}>
+                <p className={`text-sm ${ganAmount > 0 ? "text-gain" : "text-loss"}`}>
                   <AmountDisplay value={ganAmount} currency={currency} isHidden={isBalanceHidden} />{" "}
                   (
                   {percentage == null

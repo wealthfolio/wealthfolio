@@ -90,7 +90,7 @@ const CustomTooltip = ({
   }
 
   const netContributionPayload = ncPayload ?? tvPayload;
-  const tooltipColor = tvPayload.totalValue >= 0 ? "var(--success)" : "var(--destructive)";
+  const tooltipColor = tvPayload.totalValue >= 0 ? "var(--gain)" : "var(--loss)";
 
   return (
     <div className="bg-popover pointer-events-none grid grid-cols-1 gap-1.5 rounded-md border p-2 shadow-md">
@@ -317,34 +317,34 @@ export function HistoryChart({
           <linearGradient id={fillGradientId} x1="0" y1="0" x2="0" y2="1">
             {allNegative ? (
               <>
-                <stop offset="5%" stopColor="var(--destructive)" stopOpacity={0.2} />
-                <stop offset="70%" stopColor="var(--destructive)" stopOpacity={0.12} />
-                <stop offset="100%" stopColor="var(--destructive)" stopOpacity={0} />
+                <stop offset="5%" stopColor="var(--loss)" stopOpacity={0.2} />
+                <stop offset="70%" stopColor="var(--loss)" stopOpacity={0.12} />
+                <stop offset="100%" stopColor="var(--loss)" stopOpacity={0} />
               </>
             ) : allPositive ? (
               <>
-                <stop offset="5%" stopColor="var(--success)" stopOpacity={0.2} />
-                <stop offset="70%" stopColor="var(--success)" stopOpacity={0.12} />
-                <stop offset="100%" stopColor="var(--success)" stopOpacity={0} />
+                <stop offset="5%" stopColor="var(--gain)" stopOpacity={0.2} />
+                <stop offset="70%" stopColor="var(--gain)" stopOpacity={0.12} />
+                <stop offset="100%" stopColor="var(--gain)" stopOpacity={0} />
               </>
             ) : (
               <>
-                <stop offset="0%" stopColor="var(--success)" stopOpacity={0.2} />
-                <stop offset={zeroPercent} stopColor="var(--success)" stopOpacity={0.05} />
-                <stop offset={zeroPercent} stopColor="var(--destructive)" stopOpacity={0.05} />
-                <stop offset="100%" stopColor="var(--destructive)" stopOpacity={0.2} />
+                <stop offset="0%" stopColor="var(--gain)" stopOpacity={0.2} />
+                <stop offset={zeroPercent} stopColor="var(--gain)" stopOpacity={0.05} />
+                <stop offset={zeroPercent} stopColor="var(--loss)" stopOpacity={0.05} />
+                <stop offset="100%" stopColor="var(--loss)" stopOpacity={0.2} />
               </>
             )}
           </linearGradient>
           <linearGradient id={strokeGradientId} x1="0" y1="0" x2="0" y2="1">
             {allNegative ? (
-              <stop offset="0%" stopColor="var(--destructive)" />
+              <stop offset="0%" stopColor="var(--loss)" />
             ) : allPositive ? (
-              <stop offset="0%" stopColor="var(--success)" />
+              <stop offset="0%" stopColor="var(--gain)" />
             ) : (
               <>
-                <stop offset={zeroPercent} stopColor="var(--success)" />
-                <stop offset={zeroPercent} stopColor="var(--destructive)" />
+                <stop offset={zeroPercent} stopColor="var(--gain)" />
+                <stop offset={zeroPercent} stopColor="var(--loss)" />
               </>
             )}
           </linearGradient>
@@ -378,7 +378,7 @@ export function HistoryChart({
           stroke={`url(#${strokeGradientId})`}
           activeDot={(props: RechartsActiveDotProps & { payload?: HistoryChartData }) =>
             showMarkers && props.payload?.date && markerDateSet.has(props.payload.date) ? null : (
-              <HistoryChartActiveDot {...props} stroke="var(--success)" />
+              <HistoryChartActiveDot {...props} stroke="var(--gain)" />
             )
           }
           fillOpacity={1}
@@ -422,7 +422,7 @@ export function HistoryChart({
             x={singleDataPoint.date}
             y={singleDataPoint.totalValue}
             r={4}
-            fill={singleDataPoint.totalValue >= 0 ? "var(--success)" : "var(--destructive)"}
+            fill={singleDataPoint.totalValue >= 0 ? "var(--gain)" : "var(--loss)"}
             stroke="var(--background)"
             strokeWidth={2}
           />

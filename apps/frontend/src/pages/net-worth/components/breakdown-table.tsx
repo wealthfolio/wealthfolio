@@ -37,11 +37,7 @@ function ChangeCell({ change, currency }: { change: Change; currency: string }) 
   const formatting = useNumberFormatting();
   const { t } = useTranslation();
   const isZero = Math.abs(change.amount) < 0.005;
-  const color = isZero
-    ? "text-muted-foreground/60"
-    : change.amount > 0
-      ? "text-success"
-      : "text-destructive";
+  const color = isZero ? "text-muted-foreground/60" : change.amount > 0 ? "text-gain" : "text-loss";
   const sign = isZero ? "" : change.amount > 0 ? "+" : "-";
   return (
     <div className="flex min-w-0 flex-col items-end gap-x-2 gap-y-0.5 text-end @min-[48rem]/breakdown:flex-row @min-[48rem]/breakdown:flex-wrap @min-[48rem]/breakdown:items-baseline @min-[48rem]/breakdown:justify-end">

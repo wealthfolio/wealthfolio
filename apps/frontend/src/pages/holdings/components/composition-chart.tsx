@@ -256,7 +256,7 @@ const CompositionTooltip = ({ active, payload, settings }: TooltipProps) => {
               <span
                 className={cn(
                   "flex items-center gap-1 text-sm font-semibold",
-                  isPositive ? "text-success" : "text-destructive",
+                  isPositive ? "text-gain" : "text-loss",
                 )}
               >
                 {isPositive ? "+" : ""}

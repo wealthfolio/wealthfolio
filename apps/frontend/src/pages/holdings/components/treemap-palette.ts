@@ -5,9 +5,10 @@ function noop() {
 }
 
 // Treemap heatmap palette, from the theme's --heatmap-* roles: gains blend from
-// --heatmap-positive-low through -mid to -high, losses from --heatmap-negative-low
-// through -mid to -high, and labels use --heatmap-label-dark or -light. The fallback
-// is Classic's (classic.css).
+// --heatmap-gain-low through -mid to -high, losses from --heatmap-loss-low through
+// -mid to -high (the theme's positive and negative ramps, swapped by the Gain and
+// loss colours setting in globals.css), and labels use --heatmap-label-dark or
+// -light. The fallback is Classic's (classic.css).
 export interface TreemapPalette {
   positiveLow: number[];
   positiveMid: number[];
@@ -21,12 +22,12 @@ export interface TreemapPalette {
 }
 
 const paletteTokens = {
-  positiveLow: "heatmap-positive-low",
-  positiveMid: "heatmap-positive-mid",
-  positiveHigh: "heatmap-positive-high",
-  negativeLow: "heatmap-negative-low",
-  negativeMid: "heatmap-negative-mid",
-  negativeHigh: "heatmap-negative-high",
+  positiveLow: "heatmap-gain-low",
+  positiveMid: "heatmap-gain-mid",
+  positiveHigh: "heatmap-gain-high",
+  negativeLow: "heatmap-loss-low",
+  negativeMid: "heatmap-loss-mid",
+  negativeHigh: "heatmap-loss-high",
   labelDark: "heatmap-label-dark",
   labelLight: "heatmap-label-light",
 } as const;
@@ -74,7 +75,8 @@ export function getTreemapPaletteSnapshot(): TreemapPalette {
   return paletteSnapshot;
 }
 
-// The palette follows the mode (class) and the theme (data-theme).
+// The palette follows the mode (class), the theme (data-theme) and the gain and loss
+// colours (data-gain-colors).
 export function subscribeToTreemapTheme(onStoreChange: () => void): () => void {
   if (typeof document === "undefined" || typeof MutationObserver === "undefined") {
     return noop;
@@ -83,7 +85,7 @@ export function subscribeToTreemapTheme(onStoreChange: () => void): () => void {
   const observer = new MutationObserver(onStoreChange);
   observer.observe(document.documentElement, {
     attributes: true,
-    attributeFilter: ["class", "data-theme"],
+    attributeFilter: ["class", "data-theme", "data-gain-colors"],
   });
   return () => observer.disconnect();
 }

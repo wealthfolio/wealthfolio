@@ -114,7 +114,7 @@ const AssetDetailCard: React.FC<AssetDetailProps> = ({ assetData, className }) =
 
   const amountTone = (amount: number | null) => {
     if (amount == null || amount === 0) return "";
-    return amount < 0 ? "text-destructive" : "text-success";
+    return amount < 0 ? "text-loss" : "text-gain";
   };
 
   const positionRows = [
@@ -306,7 +306,7 @@ const AssetDetailCard: React.FC<AssetDetailProps> = ({ assetData, className }) =
                   <span className="text-muted-foreground text-xs">
                     {t("asset:detailCard.high")}
                   </span>
-                  <div className="text-success text-sm font-medium">
+                  <div className="text-gain text-sm font-medium">
                     <PriceDisplay
                       value={quote.high}
                       currency={quoteCurrency ?? currency}
@@ -316,7 +316,7 @@ const AssetDetailCard: React.FC<AssetDetailProps> = ({ assetData, className }) =
                 </div>
                 <div className="flex flex-col items-end">
                   <span className="text-muted-foreground text-xs">{t("asset:detailCard.low")}</span>
-                  <div className="text-destructive text-sm font-medium">
+                  <div className="text-loss text-sm font-medium">
                     <PriceDisplay
                       value={quote.low}
                       currency={quoteCurrency ?? currency}
