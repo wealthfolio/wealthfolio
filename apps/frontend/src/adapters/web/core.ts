@@ -439,14 +439,14 @@ export const logger: Logger = {
  */
 export function toBase64(data: Uint8Array | number[]): string {
   const bytes = Array.isArray(data) ? new Uint8Array(data) : data;
-  // Fast base64 encoding without TextEncoder for binary
-  let binary = "";
-  const len = bytes.byteLength;
-  for (let i = 0; i < len; i++) {
-    binary += String.fromCharCode(bytes[i]);
+  // Bound each call to avoid argument limits and per-byte string concatenation.
+  const chunkSize = 32 * 1024;
+  const chunks: string[] = [];
+  for (let i = 0; i < bytes.byteLength; i += chunkSize) {
+    chunks.push(String.fromCharCode(...bytes.subarray(i, i + chunkSize)));
   }
   // btoa expects binary string
-  return btoa(binary);
+  return btoa(chunks.join(""));
 }
 
 /**

@@ -12,7 +12,7 @@ import { notifyUnauthorized } from "@/lib/auth-token";
 // ============================================================================
 
 export const extractAddonZip = async (zipData: Uint8Array): Promise<ExtractedAddon> => {
-  return await invoke<ExtractedAddon>("extract_addon_zip", { zipData: Array.from(zipData) });
+  return await invoke<ExtractedAddon>("extract_addon_zip", { zipData });
 };
 
 export const installAddonZip = async (
@@ -21,7 +21,7 @@ export const installAddonZip = async (
   approvedNetworkHosts?: string[],
 ): Promise<AddonManifest> => {
   return await invoke<AddonManifest>("install_addon_zip", {
-    zipData: Array.from(zipData),
+    zipData,
     enableAfterInstall,
     approvedNetworkHosts,
   });
