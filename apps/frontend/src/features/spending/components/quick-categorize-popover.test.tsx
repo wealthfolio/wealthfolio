@@ -2,7 +2,10 @@ import { render, screen } from "@/test/render";
 import userEvent from "@testing-library/user-event";
 import { expect, it, vi } from "vitest";
 
-import { QuickCategorizePopover } from "./quick-categorize-popover";
+import {
+  QuickCategorizePopover,
+  type QuickCategorizePopoverProps,
+} from "./quick-categorize-popover";
 
 vi.mock("@/hooks/use-taxonomies", () => {
   const categories = {
@@ -34,13 +37,14 @@ if (!HTMLElement.prototype.scrollIntoView) {
   HTMLElement.prototype.scrollIntoView = () => undefined;
 }
 
-function renderPicker() {
+function renderPicker(props: Partial<QuickCategorizePopoverProps> = {}) {
   render(
     <QuickCategorizePopover
       scope="expense"
       selectedCategoryId={null}
       onSelect={vi.fn()}
       trigger={<button type="button">Pick</button>}
+      {...props}
     />,
   );
 }
@@ -76,4 +80,19 @@ it("keeps the parent above a matching child and highlights the match", async () 
     "true",
   );
   expect(screen.getByRole("option", { name: "Coffee" })).toHaveAttribute("aria-selected", "true");
+});
+
+it("keeps the category when a search matches nothing and Enter is pressed", async () => {
+  const user = userEvent.setup();
+  const onClear = vi.fn();
+  renderPicker({ selectedCategoryId: "coffee", onClear });
+
+  await user.click(screen.getByRole("button", { name: "Pick" }));
+  expect(screen.getByRole("option", { name: "Clear category" })).toBeInTheDocument();
+
+  await user.type(screen.getByRole("combobox"), "grocceries{Enter}");
+
+  expect(onClear).not.toHaveBeenCalled();
+  expect(screen.queryByRole("option")).not.toBeInTheDocument();
+  expect(screen.getByText("No categories found.")).toBeInTheDocument();
 });

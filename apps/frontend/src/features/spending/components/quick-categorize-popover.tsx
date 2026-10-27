@@ -195,7 +195,9 @@ export function QuickCategorizePopover({
                 </CommandGroup>
               );
             })}
-            {selectedCategoryId && onClear && (
+            {/* Hidden while searching: with no match it would be the only row, and
+                Enter would clear the category. */}
+            {selectedCategoryId && onClear && !search.trim() && (
               <>
                 <CommandSeparator />
                 <CommandGroup>
