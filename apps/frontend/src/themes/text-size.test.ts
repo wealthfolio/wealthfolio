@@ -2,7 +2,9 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  measureDynamicTypeScale,
   resolveTextSize,
+  setSystemTextScale,
   SYSTEM_TEXT_SCALE_GLOBAL,
   textSizeForScale,
   textSizeScales,
@@ -60,5 +62,17 @@ describe("text size", () => {
       setSystemScale(scale);
       expect(resolveTextSize(undefined), String(scale)).toBe("default");
     }
+  });
+
+  it("measures nothing where the engine doesn't know Dynamic Type's font", () => {
+    // jsdom, like Chromium and Firefox, rejects -apple-system-body.
+    expect(measureDynamicTypeScale()).toBeUndefined();
+  });
+
+  it("records and clears a measured scale", () => {
+    setSystemTextScale(19 / 17);
+    expect(resolveTextSize(undefined)).toBe("large");
+    setSystemTextScale(undefined);
+    expect(resolveTextSize(undefined)).toBe("default");
   });
 });

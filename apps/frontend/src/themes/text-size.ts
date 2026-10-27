@@ -29,11 +29,43 @@ export const textSizeScales = {
 } as const satisfies Record<TextSize, number>;
 
 /**
- * The operating system's font scale, where the app's native side provides one:
- * Android's MainActivity sets this global before the page loads and turns off
- * the WebView's own text zoom, so the size reaches the app only through here.
+ * The operating system's font scale, where the app knows one. Android's
+ * MainActivity sets this global before the page loads and turns off the
+ * WebView's own text zoom, so the size reaches the app only through here. On
+ * iOS the app measures Dynamic Type itself (`measureDynamicTypeScale`) and sets
+ * it with `setSystemTextScale`.
  */
 export const SYSTEM_TEXT_SCALE_GLOBAL = "wealthfolioSystemTextScale";
+
+/** Dynamic Type's body text size at iOS's default text size ("Large"). */
+const DYNAMIC_TYPE_DEFAULT_BODY_PX = 17;
+
+/**
+ * iOS's text size (Dynamic Type) as a scale. WKWebView doesn't apply it to page
+ * text, but the `-apple-system-body` font follows it: 17 px at the default size,
+ * up to 53 px at the largest accessibility size. Undefined in engines that don't
+ * know the keyword.
+ */
+export function measureDynamicTypeScale(): number | undefined {
+  if (typeof document === "undefined" || !document.body) return undefined;
+  const probe = document.createElement("span");
+  probe.style.font = "-apple-system-body";
+  if (!probe.style.font) return undefined;
+  probe.style.position = "absolute";
+  probe.style.visibility = "hidden";
+  document.body.appendChild(probe);
+  const size = Number.parseFloat(getComputedStyle(probe).fontSize);
+  probe.remove();
+  return Number.isFinite(size) && size > 0 ? size / DYNAMIC_TYPE_DEFAULT_BODY_PX : undefined;
+}
+
+/** Records a font scale the app measured itself (iOS); undefined clears it. */
+export function setSystemTextScale(scale: number | undefined) {
+  if (typeof window === "undefined") return;
+  const scope = window as unknown as Record<string, unknown>;
+  if (scale === undefined) delete scope[SYSTEM_TEXT_SCALE_GLOBAL];
+  else scope[SYSTEM_TEXT_SCALE_GLOBAL] = scale;
+}
 
 export function isTextSize(value: unknown): value is TextSize {
   return typeof value === "string" && (textSizes as readonly string[]).includes(value);
@@ -58,7 +90,7 @@ export function textSizeForScale(scale: number): TextSize {
 
 /**
  * The size in effect: the saved one; until one is saved, the size nearest to the
- * system's font scale (Android), else the default. A name unknown to this version
+ * system's font scale (Android, iOS), else the default. A name unknown to this version
  * shows the default.
  */
 export function resolveTextSize(value: unknown): TextSize {

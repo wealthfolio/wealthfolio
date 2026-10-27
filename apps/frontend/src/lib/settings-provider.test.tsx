@@ -4,6 +4,7 @@ import { SettingsProvider } from "@/lib/settings-provider";
 import type { Settings } from "@/lib/types";
 
 const mocks = vi.hoisted(() => ({
+  dynamicType: vi.fn<() => number | undefined>(),
   platform: vi.fn(),
   setTheme: vi.fn(),
   windowTheme: vi.fn(),
@@ -21,6 +22,11 @@ vi.mock("@tauri-apps/api/window", () => ({
   }),
 }));
 vi.mock("@/features/profiles/profile-context", () => ({ useProfile: () => null }));
+// jsdom has no Dynamic Type: the iOS tests set the measured scale.
+vi.mock("@/themes/text-size", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/themes/text-size")>()),
+  measureDynamicTypeScale: () => mocks.dynamicType(),
+}));
 vi.mock("@/hooks/use-settings-mutation", () => ({
   useSettingsMutation: () => ({ mutateAsync: vi.fn() }),
 }));
@@ -58,6 +64,8 @@ beforeEach(() => {
   document.documentElement.className = "";
   document.documentElement.removeAttribute("data-theme");
   document.documentElement.removeAttribute("data-text-size");
+  delete (window as unknown as { wealthfolioSystemTextScale?: number }).wealthfolioSystemTextScale;
+  mocks.dynamicType.mockReturnValue(undefined);
   localStorage.clear();
   // The OS prefers dark; native window themes report light, as tao does on mobile.
   vi.mocked(window.matchMedia).mockImplementation(
@@ -180,5 +188,65 @@ it("starts from the system's font scale until a text size is picked", async () =
     );
   } finally {
     delete scaleGlobal.wealthfolioSystemTextScale;
+  }
+});
+
+it("starts from iOS's Dynamic Type until a text size is picked", async () => {
+  mocks.platform.mockResolvedValue({ os: "ios", is_mobile: true, is_desktop: false });
+  mocks.dynamicType.mockReturnValue(21 / 17); // the "Extra Extra Large" text size
+  settings.textSize = undefined;
+  const { unmount } = render(<SettingsProvider>content</SettingsProvider>);
+  await waitFor(() =>
+    expect(document.documentElement).toHaveAttribute("data-text-size", "extra-large"),
+  );
+  unmount();
+
+  // A picked size wins: one scaling, never Dynamic Type's on top.
+  settings.textSize = "large";
+  render(<SettingsProvider>content</SettingsProvider>);
+  await waitFor(() => expect(document.documentElement).toHaveAttribute("data-text-size", "large"));
+});
+
+it("measures Dynamic Type only in the iOS app", async () => {
+  mocks.platform.mockResolvedValue({ os: "macos", is_mobile: false, is_desktop: true });
+  mocks.dynamicType.mockReturnValue(21 / 17);
+  settings.textSize = undefined;
+  render(<SettingsProvider>content</SettingsProvider>);
+  await waitFor(() =>
+    expect(document.documentElement).toHaveAttribute("data-text-size", "default"),
+  );
+  expect(mocks.dynamicType).not.toHaveBeenCalled();
+});
+
+it("applies a Dynamic Type change when the app comes back to the foreground", async () => {
+  mocks.platform.mockResolvedValue({ os: "ios", is_mobile: true, is_desktop: false });
+  mocks.dynamicType.mockReturnValue(1);
+  settings.textSize = undefined;
+  render(<SettingsProvider>content</SettingsProvider>);
+  await waitFor(() =>
+    expect(document.documentElement).toHaveAttribute("data-text-size", "default"),
+  );
+
+  mocks.dynamicType.mockReturnValue(19 / 17); // "Extra Large" in iOS Settings
+  const visibility = vi.spyOn(document, "visibilityState", "get");
+  try {
+    // Going to the background changes nothing; coming back re-reads the size.
+    visibility.mockReturnValue("hidden");
+    act(() => {
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    await settle();
+    expect(document.documentElement).toHaveAttribute("data-text-size", "default");
+
+    visibility.mockReturnValue("visible");
+    act(() => {
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    await waitFor(() =>
+      expect(document.documentElement).toHaveAttribute("data-text-size", "large"),
+    );
+    expect(localStorage.getItem("wealthfolio-text-size")).toBe("large");
+  } finally {
+    visibility.mockRestore();
   }
 });

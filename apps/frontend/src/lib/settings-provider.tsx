@@ -13,7 +13,13 @@ import { setLanguageDirection, useDocumentDirection } from "@/i18n/direction";
 import i18n, { LANGUAGE_STORAGE_KEY } from "@/i18n/i18n";
 import { DEFAULT_LOCALE } from "@/i18n/locales";
 import { Settings, SettingsContextType } from "@/lib/types";
-import { isTextSize, resolveTextSize, TEXT_SIZE_STORAGE_KEY } from "@/themes/text-size";
+import {
+  isTextSize,
+  measureDynamicTypeScale,
+  resolveTextSize,
+  setSystemTextScale,
+  TEXT_SIZE_STORAGE_KEY,
+} from "@/themes/text-size";
 import { isThemeId, resolveThemeId } from "@/themes/themes";
 import { FormattingProvider, resolveFormattingLocale } from "@wealthfolio/ui";
 
@@ -129,6 +135,19 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       }
     };
   }, []);
+
+  // Until a size is picked, a text size changed in iOS Settings applies when the
+  // app comes back to the foreground.
+  const followsSystemTextSize = settings !== null && settings.textSize === undefined;
+  useEffect(() => {
+    if (!followsSystemTextSize) return;
+    const onVisible = () => {
+      if (document.visibilityState !== "visible") return;
+      void refreshIosTextScale().then(() => applyTextSize(undefined));
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [followsSystemTextSize]);
 
   const contextValue: ExtendedSettingsContextType = {
     settings,
@@ -261,6 +280,27 @@ async function getDesktopWindow() {
   return getCurrentWindow();
 }
 
+// iOS: WKWebView neither scales page text by Dynamic Type nor reports its size,
+// so the app measures it. Android's native side sets the scale before load, and
+// the web and desktop builds have none.
+async function refreshIosTextScale() {
+  if (!isTauri) return;
+  const platform = await getPlatform();
+  if (platform.os === "ios") setSystemTextScale(measureDynamicTypeScale());
+}
+
+// Sets <html data-text-size> and caches it for index.html's next start.
+function applyTextSize(saved: Settings["textSize"]) {
+  const textSize = resolveTextSize(saved);
+  document.documentElement.dataset.textSize = textSize;
+  try {
+    localStorage.setItem(TEXT_SIZE_STORAGE_KEY, textSize);
+  } catch {
+    // noop – localStorage may be unavailable
+  }
+  return textSize;
+}
+
 // Helper function to apply settings to the document
 const applySettingsToDocument = async (newSettings: Settings) => {
   const application = ++appearanceGeneration;
@@ -283,17 +323,17 @@ const applySettingsToDocument = async (newSettings: Settings) => {
   document.body.classList.add(newSettings.font);
 
   // Text size scales the root font size. Until one is picked it follows the
-  // system's font scale where the app provides one (Android); an unknown name
+  // system's font scale where the app knows one (Android, iOS); an unknown name
   // shows the default.
-  const textSize = resolveTextSize(newSettings.textSize);
-  document.documentElement.dataset.textSize = textSize;
+  await refreshIosTextScale();
+  if (application !== appearanceGeneration) return;
+  applyTextSize(newSettings.textSize);
 
   // Cache pre-auth presentation settings so bootstrap UI does not flash defaults.
   // index.html reads these keys before the app loads.
   try {
     localStorage.setItem("wealthfolio-theme", newSettings.theme);
     localStorage.setItem("wealthfolio-theme-id", themeId);
-    localStorage.setItem(TEXT_SIZE_STORAGE_KEY, textSize);
     localStorage.setItem(LANGUAGE_STORAGE_KEY, language);
   } catch {
     // noop – localStorage may be unavailable
