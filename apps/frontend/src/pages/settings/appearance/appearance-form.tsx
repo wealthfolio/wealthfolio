@@ -38,6 +38,10 @@ interface AppearanceFormValues {
   menuBarVisible: boolean;
 }
 
+// A row's text keeps this width, so on a phone its control wraps below it
+// rather than squeezing the title.
+const controlRowContentClassName = "min-w-48";
+
 const switchModeKeys = {
   dark: "settings:appearance_switch_to_dark",
   light: "settings:appearance_switch_to_light",
@@ -95,7 +99,7 @@ export function AppearanceForm() {
           name="theme"
           render={({ field }) => (
             <Item variant="outline" size="sm">
-              <ItemContent>
+              <ItemContent className={controlRowContentClassName}>
                 <ItemTitle>{t("settings:appearance_mode_title")}</ItemTitle>
                 <ItemDescription>{t("settings:appearance_mode_description")}</ItemDescription>
               </ItemContent>
@@ -154,7 +158,7 @@ export function AppearanceForm() {
           name="font"
           render={({ field }) => (
             <Item variant="outline" size="sm">
-              <ItemContent>
+              <ItemContent className={controlRowContentClassName}>
                 <ItemTitle>{t("settings:appearance_font_title")}</ItemTitle>
                 <ItemDescription>
                   {activeTheme?.font
