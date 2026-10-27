@@ -60,9 +60,9 @@ export function AccountItem({
 
   return (
     <div className="flex items-center justify-between p-4">
-      <div className="flex items-center gap-3">
+      <div className="flex min-w-0 items-center gap-3">
         {/* Avatar with platform logo or account type icon */}
-        <Avatar className="h-10 w-10 rounded-lg">
+        <Avatar className="h-10 w-10 shrink-0 rounded-lg">
           {isSynced && platform?.logoUrl ? (
             <AvatarImage
               src={platform.logoUrl}
@@ -75,7 +75,7 @@ export function AccountItem({
           </AvatarFallback>
         </Avatar>
 
-        <div className="grid gap-1">
+        <div className="grid min-w-0 gap-1">
           <div className="flex items-center gap-2">
             <Link
               to={`/accounts/${account.id}`}
@@ -87,7 +87,7 @@ export function AccountItem({
             </Link>
             {isSynced && <Icons.CloudSync2 className="text-muted-foreground h-3.5 w-3.5" />}
           </div>
-          <div className="text-muted-foreground flex items-center gap-1.5 text-sm">
+          <div className="text-muted-foreground flex flex-wrap items-center gap-x-1.5 text-sm">
             <span>{account.currency}</span>
             {account.group && (
               <>
@@ -133,7 +133,7 @@ export function AccountItem({
           </div>
         </div>
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex shrink-0 items-center gap-2">
         {account.isArchived && (
           <span className="border-destructive-subtle-border bg-destructive-subtle text-destructive-subtle-foreground inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs font-medium">
             <Icons.FileArchive className="h-3 w-3" />
