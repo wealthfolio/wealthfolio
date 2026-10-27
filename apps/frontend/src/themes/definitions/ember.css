@@ -72,6 +72,8 @@
   --heatmap-positive-high: #8a9c57;
   --heatmap-negative-low: #fae2da;
   --heatmap-negative-high: #bd6f60;
+  --heatmap-blue-low: #dbe9fb;
+  --heatmap-blue-high: #5b8ac4;
   /* Treemap middle stops halfway between low and high, so the ramp stays a straight
      blend. Dark mode mixes its own low and high. */
   --heatmap-positive-mid: color-mix(
@@ -84,6 +86,7 @@
     var(--heatmap-negative-low),
     var(--heatmap-negative-high)
   );
+  --heatmap-blue-mid: color-mix(in srgb, var(--heatmap-blue-low), var(--heatmap-blue-high));
   --heatmap-label-dark: #1b1a0c;
   --heatmap-label-light: #fdf8ec;
 }
@@ -153,6 +156,8 @@
   --heatmap-positive-high: #536907;
   --heatmap-negative-low: #fdb2a2;
   --heatmap-negative-high: #942822;
+  --heatmap-blue-low: #90d0fd;
+  --heatmap-blue-high: #015a86;
   --heatmap-label-dark: #1b1a0c;
   --heatmap-label-light: #fdf8ec;
 }

@@ -108,6 +108,11 @@
   --info-subtle: #e7f0fc;
   --info-subtle-foreground: #0058b3;
   --info-subtle-border: #bcd6f5;
+  /* Blue losses (red up, blue down) in iOS system blue, as info is, in both modes. */
+  --loss-blue: var(--info);
+  --loss-blue-subtle: var(--info-subtle);
+  --loss-blue-subtle-foreground: var(--info-subtle-foreground);
+  --loss-blue-subtle-border: var(--info-subtle-border);
   --status-warn: #c93400;
   --fi-stream-1: #007aff;
   --fi-stream-2: #5856d6;
@@ -154,6 +159,8 @@
   --heatmap-positive-high: #6cbf83;
   --heatmap-negative-low: #fdeceb;
   --heatmap-negative-high: #ec7c74;
+  --heatmap-blue-low: #e9f1fd;
+  --heatmap-blue-high: #64a3f7;
   /* Treemap middle stops halfway between low and high, so the ramp stays a straight
      blend. Dark mode mixes its own low and high. */
   --heatmap-positive-mid: color-mix(
@@ -166,6 +173,7 @@
     var(--heatmap-negative-low),
     var(--heatmap-negative-high)
   );
+  --heatmap-blue-mid: color-mix(in srgb, var(--heatmap-blue-low), var(--heatmap-blue-high));
   --heatmap-label-dark: #1c1c1e;
   --heatmap-label-light: #ffffff;
 }
@@ -270,6 +278,8 @@
   --heatmap-positive-high: #30d158;
   --heatmap-negative-low: #3a1f1d;
   --heatmap-negative-high: #ff453a;
+  --heatmap-blue-low: #19283c;
+  --heatmap-blue-high: #3a93fe;
   --heatmap-label-dark: #1c1c1e;
   --heatmap-label-light: #ffffff;
 }

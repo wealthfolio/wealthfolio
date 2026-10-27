@@ -324,6 +324,15 @@
   --color-info-subtle: var(--info-subtle);
   --color-info-subtle-foreground: var(--info-subtle-foreground);
   --color-info-subtle-border: var(--info-subtle-border);
+  --color-gain: var(--gain);
+  --color-gain-subtle: var(--gain-subtle);
+  --color-gain-subtle-foreground: var(--gain-subtle-foreground);
+  --color-gain-subtle-border: var(--gain-subtle-border);
+  --color-loss: var(--loss);
+  --color-loss-subtle: var(--loss-subtle);
+  --color-loss-subtle-foreground: var(--loss-subtle-foreground);
+  --color-loss-subtle-border: var(--loss-subtle-border);
+  --color-loss-blue: var(--loss-blue);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-input-bg: var(--input-bg);
@@ -467,6 +476,59 @@
 
 .dark {
   --connect-brand: #9ca88a;
+}
+
+/* Gains and losses of a price or value (holdings, performance, accounts, net worth,
+   the holdings treemap), in the theme's success and destructive colours. The Gain and
+   loss colours setting sets data-gain-colors on <html> for markets where red means up:
+   red-up swaps the two, red-up-blue-down draws losses in the theme's --loss-blue.
+   Errors, confirmations and other statuses keep success and destructive. */
+:root {
+  --gain: var(--success);
+  --gain-subtle: var(--success-subtle);
+  --gain-subtle-foreground: var(--success-subtle-foreground);
+  --gain-subtle-border: var(--success-subtle-border);
+  --loss: var(--destructive);
+  --loss-subtle: var(--destructive-subtle);
+  --loss-subtle-foreground: var(--destructive-subtle-foreground);
+  --loss-subtle-border: var(--destructive-subtle-border);
+  --heatmap-gain-low: var(--heatmap-positive-low);
+  --heatmap-gain-mid: var(--heatmap-positive-mid);
+  --heatmap-gain-high: var(--heatmap-positive-high);
+  --heatmap-loss-low: var(--heatmap-negative-low);
+  --heatmap-loss-mid: var(--heatmap-negative-mid);
+  --heatmap-loss-high: var(--heatmap-negative-high);
+}
+
+:root[data-gain-colors="red-up"],
+:root[data-gain-colors="red-up-blue-down"] {
+  --gain: var(--destructive);
+  --gain-subtle: var(--destructive-subtle);
+  --gain-subtle-foreground: var(--destructive-subtle-foreground);
+  --gain-subtle-border: var(--destructive-subtle-border);
+  --heatmap-gain-low: var(--heatmap-negative-low);
+  --heatmap-gain-mid: var(--heatmap-negative-mid);
+  --heatmap-gain-high: var(--heatmap-negative-high);
+}
+
+:root[data-gain-colors="red-up"] {
+  --loss: var(--success);
+  --loss-subtle: var(--success-subtle);
+  --loss-subtle-foreground: var(--success-subtle-foreground);
+  --loss-subtle-border: var(--success-subtle-border);
+  --heatmap-loss-low: var(--heatmap-positive-low);
+  --heatmap-loss-mid: var(--heatmap-positive-mid);
+  --heatmap-loss-high: var(--heatmap-positive-high);
+}
+
+:root[data-gain-colors="red-up-blue-down"] {
+  --loss: var(--loss-blue);
+  --loss-subtle: var(--loss-blue-subtle);
+  --loss-subtle-foreground: var(--loss-blue-subtle-foreground);
+  --loss-subtle-border: var(--loss-blue-subtle-border);
+  --heatmap-loss-low: var(--heatmap-blue-low);
+  --heatmap-loss-mid: var(--heatmap-blue-mid);
+  --heatmap-loss-high: var(--heatmap-blue-high);
 }
 
 @media (pointer: coarse) {

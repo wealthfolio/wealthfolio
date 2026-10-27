@@ -138,6 +138,10 @@
   --info-subtle: var(--color-blue-50);
   --info-subtle-foreground: var(--color-blue-700);
   --info-subtle-border: var(--color-blue-200);
+  --loss-blue: var(--color-blue-600);
+  --loss-blue-subtle: var(--color-blue-50);
+  --loss-blue-subtle-foreground: var(--color-blue-700);
+  --loss-blue-subtle-border: var(--color-blue-200);
   --surface-highlight: rgb(255 255 255 / 0.35);
   --toast-bg: var(--popover);
   --toast-fg: var(--popover-foreground);
@@ -168,6 +172,9 @@
   --heatmap-negative-low: #fae2da;
   --heatmap-negative-mid: #dca89d;
   --heatmap-negative-high: #bd6f60;
+  --heatmap-blue-low: #dbe9fb;
+  --heatmap-blue-mid: #9bb9df;
+  --heatmap-blue-high: #5b8ac4;
   --heatmap-label-dark: #100f0f;
   --heatmap-label-light: #fffcf0;
   --status-warn: oklch(0.66 0.11 60);
@@ -206,6 +213,9 @@
   --heatmap-negative-low: #ffe1d5;
   --heatmap-negative-mid: #f89a8a;
   --heatmap-negative-high: #d14d41;
+  --heatmap-blue-low: var(--color-blue-50);
+  --heatmap-blue-mid: var(--color-blue-200);
+  --heatmap-blue-high: var(--color-blue-400);
   --chart-8: #9f9d96;
   --chart-9: #878580;
   --chart-stone: hsl(49 8% 60%);
@@ -233,6 +243,10 @@
   --info-subtle: var(--color-blue-950);
   --info-subtle-foreground: var(--color-blue-200);
   --info-subtle-border: var(--color-blue-800);
+  --loss-blue: var(--color-blue-300);
+  --loss-blue-subtle: var(--color-blue-950);
+  --loss-blue-subtle-foreground: var(--color-blue-200);
+  --loss-blue-subtle-border: var(--color-blue-800);
   --surface-highlight: rgb(255 255 255 / 0.03);
   --toast-warning-bg: var(--color-orange-950);
   --toast-warning-fg: var(--color-orange-200);
@@ -389,6 +403,8 @@
   --heatmap-positive-high: #98b3a2;
   --heatmap-negative-low: #f5e3e0;
   --heatmap-negative-high: #d19a92;
+  --heatmap-blue-low: #dfe9f5;
+  --heatmap-blue-high: #8dacd4;
   --heatmap-positive-mid: color-mix(
     in srgb,
     var(--heatmap-positive-low),
@@ -399,6 +415,7 @@
     var(--heatmap-negative-low),
     var(--heatmap-negative-high)
   );
+  --heatmap-blue-mid: color-mix(in srgb, var(--heatmap-blue-low), var(--heatmap-blue-high));
   --heatmap-label-dark: #121212;
   --heatmap-label-light: #ffffff;
   --heatmap-accent: #357941;
@@ -509,6 +526,8 @@
   --heatmap-positive-high: #86bf9c;
   --heatmap-negative-low: #44272a;
   --heatmap-negative-high: #ec8a7e;
+  --heatmap-blue-low: #1a3344;
+  --heatmap-blue-high: #58b3ee;
   --heatmap-label-dark: #121212;
   --heatmap-label-light: #f4f4f5;
   --heatmap-accent: #86c09c;
@@ -650,6 +669,8 @@
   --heatmap-positive-high: #8a9c57;
   --heatmap-negative-low: #fae2da;
   --heatmap-negative-high: #bd6f60;
+  --heatmap-blue-low: #dbe9fb;
+  --heatmap-blue-high: #5b8ac4;
   --heatmap-positive-mid: color-mix(
     in srgb,
     var(--heatmap-positive-low),
@@ -660,6 +681,7 @@
     var(--heatmap-negative-low),
     var(--heatmap-negative-high)
   );
+  --heatmap-blue-mid: color-mix(in srgb, var(--heatmap-blue-low), var(--heatmap-blue-high));
   --heatmap-label-dark: #1b1a0c;
   --heatmap-label-light: #fdf8ec;
 }
@@ -725,6 +747,8 @@
   --heatmap-positive-high: #536907;
   --heatmap-negative-low: #fdb2a2;
   --heatmap-negative-high: #942822;
+  --heatmap-blue-low: #90d0fd;
+  --heatmap-blue-high: #015a86;
   --heatmap-label-dark: #1b1a0c;
   --heatmap-label-light: #fdf8ec;
 }
@@ -871,6 +895,10 @@
   --info-subtle: #e7f0fc;
   --info-subtle-foreground: #0058b3;
   --info-subtle-border: #bcd6f5;
+  --loss-blue: var(--info);
+  --loss-blue-subtle: var(--info-subtle);
+  --loss-blue-subtle-foreground: var(--info-subtle-foreground);
+  --loss-blue-subtle-border: var(--info-subtle-border);
   --status-warn: #c93400;
   --fi-stream-1: #007aff;
   --fi-stream-2: #5856d6;
@@ -912,6 +940,8 @@
   --heatmap-positive-high: #6cbf83;
   --heatmap-negative-low: #fdeceb;
   --heatmap-negative-high: #ec7c74;
+  --heatmap-blue-low: #e9f1fd;
+  --heatmap-blue-high: #64a3f7;
   --heatmap-positive-mid: color-mix(
     in srgb,
     var(--heatmap-positive-low),
@@ -922,6 +952,7 @@
     var(--heatmap-negative-low),
     var(--heatmap-negative-high)
   );
+  --heatmap-blue-mid: color-mix(in srgb, var(--heatmap-blue-low), var(--heatmap-blue-high));
   --heatmap-label-dark: #1c1c1e;
   --heatmap-label-light: #ffffff;
 }
@@ -1017,6 +1048,8 @@
   --heatmap-positive-high: #30d158;
   --heatmap-negative-low: #3a1f1d;
   --heatmap-negative-high: #ff453a;
+  --heatmap-blue-low: #19283c;
+  --heatmap-blue-high: #3a93fe;
   --heatmap-label-dark: #1c1c1e;
   --heatmap-label-light: #ffffff;
 }

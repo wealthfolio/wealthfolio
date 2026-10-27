@@ -195,6 +195,13 @@
   --info-subtle: var(--color-blue-50);
   --info-subtle-foreground: var(--color-blue-700);
   --info-subtle-border: var(--color-blue-200);
+  /* Losses when the Gain and loss colours setting draws them in blue (red up, blue
+     down): a true blue, text on the page and cards, with a subtle surface for
+     badges. Flexoki blue; themes keep it unless they set their own. */
+  --loss-blue: var(--color-blue-600);
+  --loss-blue-subtle: var(--color-blue-50);
+  --loss-blue-subtle-foreground: var(--color-blue-700);
+  --loss-blue-subtle-border: var(--color-blue-200);
   /* Light caught by the top edge of glass surfaces (status alerts); a theme
      can set it to transparent. */
   --surface-highlight: rgb(255 255 255 / 0.35);
@@ -241,13 +248,19 @@
      draws the tiles at 0.45 over the card. Soft sage and rose, so the treemap
      tells gains from losses without dominating the page; the middle stop is the
      midpoint, so each ramp is one straight blend. Labels in Flexoki's ink and
-     paper. A theme that sets low and high sets mid too, or it gets these. */
+     paper. A theme that sets low and high sets mid too, or it gets these. The blue
+     ramp draws losses when the Gain and loss colours setting shows them in blue: in
+     light mode the negative ramp turned to --loss-blue's hue in OKLCH, same lightness
+     and chroma; in dark mode Flexoki blue at 50/200/400, as the other two. */
   --heatmap-positive-low: #e6ecd5;
   --heatmap-positive-mid: #b8c496;
   --heatmap-positive-high: #8a9c57;
   --heatmap-negative-low: #fae2da;
   --heatmap-negative-mid: #dca89d;
   --heatmap-negative-high: #bd6f60;
+  --heatmap-blue-low: #dbe9fb;
+  --heatmap-blue-mid: #9bb9df;
+  --heatmap-blue-high: #5b8ac4;
   --heatmap-label-dark: #100f0f;
   --heatmap-label-light: #fffcf0;
 
@@ -301,6 +314,9 @@
   --heatmap-negative-low: #ffe1d5;
   --heatmap-negative-mid: #f89a8a;
   --heatmap-negative-high: #d14d41;
+  --heatmap-blue-low: var(--color-blue-50);
+  --heatmap-blue-mid: var(--color-blue-200);
+  --heatmap-blue-high: var(--color-blue-400);
   --chart-8: #9f9d96;
   --chart-9: #878580;
   --chart-stone: hsl(49 8% 60%);
@@ -331,6 +347,11 @@
   --info-subtle: var(--color-blue-950);
   --info-subtle-foreground: var(--color-blue-200);
   --info-subtle-border: var(--color-blue-800);
+  /* Blue 400 reads 4.1:1 on the dark card; 300 passes. */
+  --loss-blue: var(--color-blue-300);
+  --loss-blue-subtle: var(--color-blue-950);
+  --loss-blue-subtle-foreground: var(--color-blue-200);
+  --loss-blue-subtle-border: var(--color-blue-800);
   --surface-highlight: rgb(255 255 255 / 0.03);
 
   --toast-warning-bg: var(--color-orange-950);

@@ -102,11 +102,14 @@
   --sidebar-border: #ececec;
   --sidebar-ring: #6d50d8;
   --toast-border: #ececec;
-  /* Holdings treemap: sage gains and rose losses. */
+  /* Holdings treemap: sage gains and rose losses, blue losses when the Gain and loss
+     colours setting draws them in blue. */
   --heatmap-positive-low: #e5ece7;
   --heatmap-positive-high: #98b3a2;
   --heatmap-negative-low: #f5e3e0;
   --heatmap-negative-high: #d19a92;
+  --heatmap-blue-low: #dfe9f5;
+  --heatmap-blue-high: #8dacd4;
   /* Treemap middle stops halfway between low and high, so the ramp stays a straight
      blend. Dark mode mixes its own low and high. */
   --heatmap-positive-mid: color-mix(
@@ -119,6 +122,7 @@
     var(--heatmap-negative-low),
     var(--heatmap-negative-high)
   );
+  --heatmap-blue-mid: color-mix(in srgb, var(--heatmap-blue-low), var(--heatmap-blue-high));
   --heatmap-label-dark: #121212;
   --heatmap-label-light: #ffffff;
   --heatmap-accent: #357941;
@@ -246,6 +250,8 @@
   --heatmap-positive-high: #86bf9c;
   --heatmap-negative-low: #44272a;
   --heatmap-negative-high: #ec8a7e;
+  --heatmap-blue-low: #1a3344;
+  --heatmap-blue-high: #58b3ee;
   --heatmap-label-dark: #121212;
   --heatmap-label-light: #f4f4f5;
   --heatmap-accent: #86c09c;
