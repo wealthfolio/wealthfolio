@@ -23,6 +23,7 @@ import {
   ItemActions,
   ItemContent,
   ItemDescription,
+  ItemSeparator,
   ItemTitle,
 } from "@wealthfolio/ui/components/ui/item";
 import { usePlatform } from "@/hooks/use-platform";
@@ -118,21 +119,6 @@ export function AppearanceForm() {
           )}
         />
 
-        {/* A container: the size names show when this row has room for them. */}
-        <Item variant="outline" size="sm" className="@container">
-          <ItemContent className={controlRowContentClassName}>
-            <ItemTitle>{t("settings:appearance_text_size_title")}</ItemTitle>
-            <ItemDescription>{t("settings:appearance_text_size_description")}</ItemDescription>
-          </ItemContent>
-          <ItemActions>
-            <TextSizeSelector
-              aria-label={t("settings:appearance_text_size_title")}
-              value={settings?.textSize}
-              onChange={(textSize) => handlePartialUpdate({ textSize })}
-            />
-          </ItemActions>
-        </Item>
-
         <section className="space-y-3">
           <div className="space-y-1">
             <h2 className="text-base font-medium">{t("settings:appearance_theme_title")}</h2>
@@ -167,48 +153,64 @@ export function AppearanceForm() {
               </Button>
             </div>
           )}
-        </section>
-
-        <FormField
-          control={form.control}
-          name="font"
-          render={({ field }) => (
-            <Item variant="outline" size="sm">
+          <div className="rounded-md border">
+            <FormField
+              control={form.control}
+              name="font"
+              render={({ field }) => (
+                <Item size="sm">
+                  <ItemContent className={controlRowContentClassName}>
+                    <ItemTitle>{t("settings:appearance_font_title")}</ItemTitle>
+                    <ItemDescription>
+                      {activeTheme?.font
+                        ? t("settings:appearance_theme_suggests", {
+                            theme: activeTheme.name,
+                            value: t(fontLabelKeys[activeTheme.font]),
+                          })
+                        : t("settings:appearance_font_description")}
+                    </ItemDescription>
+                    {fontDiffersFromTheme && activeTheme && (
+                      <Button
+                        type="button"
+                        variant="link"
+                        size="sm"
+                        className="h-auto self-start px-0"
+                        onClick={() => handlePartialUpdate(themeSelectionUpdate(activeTheme.id))}
+                      >
+                        {t("settings:appearance_use_theme_defaults")}
+                      </Button>
+                    )}
+                  </ItemContent>
+                  <ItemActions>
+                    <FontSelector
+                      aria-label={t("settings:appearance_font_title")}
+                      value={field.value}
+                      onChange={(value) => {
+                        field.onChange(value);
+                        handlePartialUpdate({ font: value });
+                      }}
+                    />
+                  </ItemActions>
+                </Item>
+              )}
+            />
+            <ItemSeparator />
+            {/* A container: the size names show when this row has room for them. */}
+            <Item size="sm" className="@container">
               <ItemContent className={controlRowContentClassName}>
-                <ItemTitle>{t("settings:appearance_font_title")}</ItemTitle>
-                <ItemDescription>
-                  {activeTheme?.font
-                    ? t("settings:appearance_theme_suggests", {
-                        theme: activeTheme.name,
-                        value: t(fontLabelKeys[activeTheme.font]),
-                      })
-                    : t("settings:appearance_font_description")}
-                </ItemDescription>
-                {fontDiffersFromTheme && activeTheme && (
-                  <Button
-                    type="button"
-                    variant="link"
-                    size="sm"
-                    className="h-auto self-start px-0"
-                    onClick={() => handlePartialUpdate(themeSelectionUpdate(activeTheme.id))}
-                  >
-                    {t("settings:appearance_use_theme_defaults")}
-                  </Button>
-                )}
+                <ItemTitle>{t("settings:appearance_text_size_title")}</ItemTitle>
+                <ItemDescription>{t("settings:appearance_text_size_description")}</ItemDescription>
               </ItemContent>
               <ItemActions>
-                <FontSelector
-                  aria-label={t("settings:appearance_font_title")}
-                  value={field.value}
-                  onChange={(value) => {
-                    field.onChange(value);
-                    handlePartialUpdate({ font: value });
-                  }}
+                <TextSizeSelector
+                  aria-label={t("settings:appearance_text_size_title")}
+                  value={settings?.textSize}
+                  onChange={(textSize) => handlePartialUpdate({ textSize })}
                 />
               </ItemActions>
             </Item>
-          )}
-        />
+          </div>
+        </section>
 
         {!isMobile && (
           <div className="space-y-3">
