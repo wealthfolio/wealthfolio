@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import * as z from "zod";
 
 import { FontSelector } from "@/components/font-selector";
+import { gainColorLabelKeys, GainColorsSelector } from "@/components/gain-colors-selector";
 import { NavigationStyleSelector } from "@/components/navigation-style-selector";
 import { TextSizeSelector } from "@/components/text-size-selector";
 import { ThemePicker } from "@/components/theme-picker";
@@ -31,6 +32,7 @@ import { useSettingsContext } from "@/lib/settings-provider";
 import { cn } from "@/lib/utils";
 import { requiredError } from "@/lib/zod-errors";
 import { useNavigationMode } from "@/pages/layouts/navigation/navigation-mode-context";
+import { resolveGainColors } from "@/themes/gain-colors";
 import { designedForKeys, fontLabelKeys, themeSelectionUpdate } from "@/themes/selection";
 import { isThemeId, resolveThemeId, themes } from "@/themes/themes";
 
@@ -206,6 +208,27 @@ export function AppearanceForm() {
                   aria-label={t("settings:appearance_text_size_title")}
                   value={settings?.textSize}
                   onChange={(textSize) => handlePartialUpdate({ textSize })}
+                />
+              </ItemActions>
+            </Item>
+            <ItemSeparator />
+            {/* The control shows each option's arrows only, so the selected option's
+                name sits under the description, which wraps rather than clamps. */}
+            <Item size="sm">
+              <ItemContent className={controlRowContentClassName}>
+                <ItemTitle>{t("settings:appearance_gain_colors_title")}</ItemTitle>
+                <ItemDescription className="line-clamp-none">
+                  {t("settings:appearance_gain_colors_description")}
+                </ItemDescription>
+                <p className="text-sm font-medium">
+                  {t(gainColorLabelKeys[resolveGainColors(settings?.gainColors)])}
+                </p>
+              </ItemContent>
+              <ItemActions>
+                <GainColorsSelector
+                  aria-label={t("settings:appearance_gain_colors_title")}
+                  value={settings?.gainColors}
+                  onChange={(gainColors) => handlePartialUpdate({ gainColors })}
                 />
               </ItemActions>
             </Item>
