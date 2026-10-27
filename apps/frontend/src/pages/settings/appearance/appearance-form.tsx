@@ -45,6 +45,11 @@ interface AppearanceFormValues {
 // A row's text keeps this width, so on a phone its control wraps below it
 // rather than squeezing the title.
 const controlRowContentClassName = "min-w-48";
+// On a phone the segmented controls under their text span the row, each option an
+// equal share, so the page's controls line up and give larger targets.
+const controlRowActionsClassName = "max-sm:w-full";
+const controlRowControlClassName =
+  "max-sm:w-full max-sm:[&_button]:flex-1 max-sm:[&_button>span]:justify-center";
 
 const switchModeKeys = {
   dark: "settings:appearance_switch_to_dark",
@@ -107,9 +112,10 @@ export function AppearanceForm() {
                 <ItemTitle>{t("settings:appearance_mode_title")}</ItemTitle>
                 <ItemDescription>{t("settings:appearance_mode_description")}</ItemDescription>
               </ItemContent>
-              <ItemActions>
+              <ItemActions className={controlRowActionsClassName}>
                 <ThemeSelector
                   aria-label={t("settings:appearance_mode_title")}
+                  className={controlRowControlClassName}
                   value={field.value}
                   onChange={(value) => {
                     field.onChange(value);
@@ -183,9 +189,10 @@ export function AppearanceForm() {
                       </Button>
                     )}
                   </ItemContent>
-                  <ItemActions>
+                  <ItemActions className={controlRowActionsClassName}>
                     <FontSelector
                       aria-label={t("settings:appearance_font_title")}
+                      className={controlRowControlClassName}
                       value={field.value}
                       onChange={(value) => {
                         field.onChange(value);
@@ -206,9 +213,10 @@ export function AppearanceForm() {
                   {t("settings:appearance_text_size_description")}
                 </ItemDescription>
               </ItemContent>
-              <ItemActions>
+              <ItemActions className={controlRowActionsClassName}>
                 <TextSizeSelector
                   aria-label={t("settings:appearance_text_size_title")}
+                  className={controlRowControlClassName}
                   value={settings?.textSize}
                   onChange={(textSize) => handlePartialUpdate({ textSize })}
                 />
@@ -227,9 +235,10 @@ export function AppearanceForm() {
                   {t(gainColorLabelKeys[resolveGainColors(settings?.gainColors)])}
                 </p>
               </ItemContent>
-              <ItemActions>
+              <ItemActions className={controlRowActionsClassName}>
                 <GainColorsSelector
                   aria-label={t("settings:appearance_gain_colors_title")}
+                  className={controlRowControlClassName}
                   value={settings?.gainColors}
                   onChange={(gainColors) => handlePartialUpdate({ gainColors })}
                 />
