@@ -248,7 +248,7 @@ export function BudgetEditor({ mode, periodKey }: BudgetEditorProps) {
 
   if (mode === "monthly") {
     return (
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
         <div className="space-y-4">
           <BudgetSummary budget={budget} currency={currency} mode={mode} />
           <BudgetFxNote budget={budget} currency={currency} />
@@ -353,7 +353,9 @@ function BudgetSummary({
 
       <SegmentedGroupBar groupRows={groupRows} total={planned} hasPlan={hasPlan} />
 
-      <div className="mt-2.5 grid grid-cols-1 gap-x-4 gap-y-0.5 sm:grid-cols-2 lg:grid-cols-3">
+      {/* Up to three columns on large screens, but none under 10rem, so larger
+          text drops to two before the amounts are cut. */}
+      <div className="mt-2.5 grid grid-cols-1 gap-x-4 gap-y-0.5 sm:grid-cols-2 lg:grid-cols-[repeat(auto-fit,minmax(max(10rem,calc((100%-2rem)/3)),1fr))]">
         {groupRows.map((row) => (
           <GroupSummaryCell
             key={row.group.id}

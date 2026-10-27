@@ -120,7 +120,7 @@ function TransactionDayHeadingImpl({ group, appTimezone, isPartial }: Transactio
     // No per-day checkbox here: it sat left of the cards' own checkboxes rather
     // than in line with them, and selecting a whole day is already covered by
     // the list's select-all control.
-    <div className="flex items-baseline gap-2 px-1 pt-2">
+    <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 px-1 pt-2">
       <DayHeading
         label={label}
         count={group.items.length}

@@ -49,7 +49,7 @@ export default function SpendingBudgetPage() {
   }
 
   const headerActions = (
-    <div className="flex items-center gap-2">
+    <div className="flex flex-wrap items-center gap-2">
       <MonthSwitcher monthKey={monthKey} onChange={setMonthKey} />
       <Link
         to="/settings/spending/setup"
