@@ -8,6 +8,12 @@ and this project adheres to
 
 ### Added
 
+- `ActivityImport.sourceGroupId` and `ACTIVITY_SUBTYPES.CONVERSION_OUT` /
+  `CONVERSION_IN`: an import records an in-kind conversion (a fund switch
+  carried at cost) as two ADJUSTMENT rows, one of each subtype, sharing a
+  `sourceGroupId`. Both rows go in the same import; a conversion row without its
+  other row fails the import. Other rows ignore `sourceGroupId`.
+
 - `Settings.themeId`: the host's theme (Classic, Signature, Ember or Cupertino),
   absent on hosts without themes. Addon pages get the theme's colours through
   the host's CSS variables and its `data-theme` attribute on `<html>`, and
@@ -62,6 +68,9 @@ and this project adheres to
   Wealthfolio 3.11.0 returned numbers. The existing `string | number` SDK type
   accepts both; JavaScript consumers must use explicit decimal arithmetic for
   totals instead of adding raw values with `+`.
+- `activities.getTransferPair()` also returns a conversion's two rows:
+  `transferOut` is the CONVERSION_OUT row and `transferIn` the CONVERSION_IN
+  row. Code that expects a transfer should check `activityType`.
 - Activity updates sent through the addon bridge are projected onto the public
   SDK fields (including the legacy `notes` alias). Native-only controls such as
   `unlinkTransferPairId` are not forwarded by `update` or `saveMany`;

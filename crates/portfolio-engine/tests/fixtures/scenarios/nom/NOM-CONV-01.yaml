@@ -1,0 +1,50 @@
+id: NOM-CONV-01
+title: A conversion carries each lot's cost and date into the new fund
+intent: >
+  Rules R7.5. A Spanish traspaso (or a share-class conversion): an account
+  holds two lots of fund-a, bought at different prices with fees, and
+  switches all 25 units into 40 units of fund-b. Each lot opens in fund-b at
+  1.6 units per unit, keeping its cost, fee and purchase date, so the lots
+  keep different costs per unit. Nothing is realized, and cash, net
+  contribution and flows do not move. A later FIFO sale of 16 fund-b takes
+  the first lot whole. The rows share one instant and the arriving row was
+  created first, so it comes first in the ledger: the pair still folds as one
+  event.
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-03-05
+accounts:
+  - id: acc-1
+    name: Brokerage
+    currency: USD
+assets:
+  - { id: fund-a, quote_ccy: USD }
+  - { id: fund-b, quote_ccy: USD }
+activities:
+  - { id: dep-1, account: acc-1, type: DEPOSIT, date: 2025-01-02T10:00:00Z, amount: 5000 }
+  - { id: buy-1, account: acc-1, type: BUY, date: 2025-01-03T10:00:00Z, asset: fund-a, quantity: 10, unit_price: 100, amount: 1002, fee: 2 }
+  - { id: buy-2, account: acc-1, type: BUY, date: 2025-01-06T10:00:00Z, asset: fund-a, quantity: 15, unit_price: 200, amount: 3003, fee: 3 }
+  - { id: conv-out, account: acc-1, type: ADJUSTMENT, subtype: CONVERSION_OUT, date: 2025-02-03T10:00:00Z, created_at: 2025-02-03T10:00:01Z, asset: fund-a, quantity: 25, source_group_id: g1 }
+  - { id: conv-in, account: acc-1, type: ADJUSTMENT, subtype: CONVERSION_IN, date: 2025-02-03T10:00:00Z, created_at: 2025-02-03T10:00:00Z, asset: fund-b, quantity: 40, source_group_id: g1 }
+  - { id: sell-1, account: acc-1, type: SELL, date: 2025-03-03T10:00:00Z, asset: fund-b, quantity: 16, unit_price: 120, amount: 1920, fee: 0 }
+quotes:
+  - { asset: fund-a, day: 2025-01-03, close: 100 }
+  - { asset: fund-a, day: 2025-01-06, close: 200 }
+  - { asset: fund-a, day: 2025-02-03, close: 160 }
+  - { asset: fund-b, day: 2025-02-03, close: 100 }
+  - { asset: fund-b, day: 2025-03-03, close: 120 }
+  - { asset: fund-b, day: 2025-03-05, close: 120 }
+expected_notes: >
+  Before the conversion: fund-a lots buy-1 (10, cost 1002, fee 2, 2025-01-03)
+  and buy-2 (15, cost 3003, fee 3, 2025-01-06); cash 5000 - 1002 - 3003 = 995.
+  On 02-03 fund-a is worth 25 x 160 = 4000 and fund-b 40 x 100 = 4000.
+  The conversion relieves both fund-a lots at cost (realized 0) and opens
+  fund-b lots at r = 40 / 25 = 1.6: conv-in_lot0 16 units, cost 1002 (62.625
+  a unit), fee 2, acquired 2025-01-03; conv-in_lot1 24 units, cost 3003
+  (125.125 a unit), fee 3, acquired 2025-01-06. fund-a holds 0. Cash stays
+  995, net contribution 5000, no flow. sell-1 (FIFO) takes conv-in_lot0
+  whole: proceeds 1920, cost 1002, realized 918 (a cost-weighted split, 10
+  units at 100.2, would have realized 317.4). Left: 24 fund-b, cost 3003.
+  Cash 995 + 1920 = 2915. On 03-05: fund-b 24 x 120 = 2880, value 5795,
+  total gain 795 = realized 918 + unrealized 2880 - 3003 = -123.

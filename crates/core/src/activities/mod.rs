@@ -8,6 +8,7 @@ mod activities_traits;
 mod activity_cash_migration;
 mod cash_balances;
 mod compiler;
+mod conversion_pairs;
 mod csv_parser;
 mod idempotency;
 mod import_run_model;
@@ -51,9 +52,11 @@ pub use cash_balances::{
     ActivityCashBalance, CashLedgerActivity,
 };
 pub use compiler::{ActivityCompiler, DefaultActivityCompiler};
+pub use conversion_pairs::{is_conversion_row, ConversionPair, ConversionPairResolution};
 pub use csv_parser::{parse_csv, ParseConfig, ParseError, ParsedCsvResult};
 pub use idempotency::{
     compute_activity_idempotency_key, compute_idempotency_key, generate_manual_idempotency_key,
+    idempotency_activity_type,
 };
 pub use import_run_model::{
     ImportRun, ImportRunMode, ImportRunRepositoryTrait, ImportRunStatus, ImportRunSummary,

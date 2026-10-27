@@ -37,6 +37,9 @@ pub struct ActivityDto {
     pub id: String,
     pub date: String,
     pub activity_type: String,
+    /// The subtype, such as DRIP or CONVERSION_OUT, when the activity has one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub subtype: Option<String>,
     pub symbol: Option<String>,
     pub quantity: Option<f64>,
     pub unit_price: Option<f64>,
@@ -83,7 +86,7 @@ impl AgentTool for SearchActivities {
     }
 
     fn description(&self) -> &'static str {
-        "Search and get investment activities (transactions) such as buys, sells, dividends, deposits, and withdrawals. Supports filtering, date ranges, and pagination. Returns paginated results with totalPages so you can request more pages if needed. Activities carry cashBalance, the account's cash in cashBalanceCurrency: with cashBalanceScope ROW (cash and credit-card accounts), the cash right after that activity, useful for reconciling against a bank statement; with DAY (other accounts), the cash at the end of the activity's day in the account currency, the same on every activity of that day. Absent for holdings-tracked accounts and for days whose value could not be computed (such as cash in a currency with no exchange rate): treat it as unknown, not zero."
+        "Search and get investment activities (transactions) such as buys, sells, dividends, deposits, and withdrawals. Supports filtering, date ranges, and pagination. Returns paginated results with totalPages so you can request more pages if needed. Activities carry cashBalance, the account's cash in cashBalanceCurrency: with cashBalanceScope ROW (cash and credit-card accounts), the cash right after that activity, useful for reconciling against a bank statement; with DAY (other accounts), the cash at the end of the activity's day in the account currency, the same on every activity of that day. Absent for holdings-tracked accounts and for days whose value could not be computed (such as cash in a currency with no exchange rate): treat it as unknown, not zero. Two ADJUSTMENT activities with subtypes CONVERSION_OUT and CONVERSION_IN on one day are one in-kind conversion: the units of one asset become units of another at their cost, with no sale, gain or cash."
     }
 
     fn input_schema(&self) -> serde_json::Value {
@@ -265,6 +268,7 @@ impl AgentTool for SearchActivities {
                     id: a.id,
                     date: a.date.clone(),
                     activity_type: a.activity_type,
+                    subtype: a.subtype.filter(|subtype| !subtype.trim().is_empty()),
                     symbol: if a.asset_symbol.is_empty() {
                         None
                     } else {

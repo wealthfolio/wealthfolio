@@ -391,7 +391,8 @@ with adjustment details
 
 - Option expiring worthless
 - Return of capital basis adjustment
-- Merger/spinoff compiler input
+- Conversion of one asset into another at cost (fund switch, share-class
+  conversion)
 - Corporate action adjustments
 
 **Note**: This is a flexible type for non-standard corrections. Specific
@@ -566,13 +567,45 @@ a ROC reclassification or a reinvested distribution matching those effects.
   performance and holdings income.
 - Rules: `docs/architecture/portfolio-engine-rules.md` R7.4.
 
+A **conversion** exchanges units of one asset for units of another in the same
+account and keeps their cost: a fund switch where the gain is deferred (Spain's
+_traspaso_), a share-class or series switch (Vanguard Investor to Admiral
+shares, or a mutual fund to its ETF class), a fund merger, a token migration.
+The activity picker calls it **Fund conversion** (Spanish: _Traspaso_). Record
+it as two ADJUSTMENT rows on the same day, sharing a `sourceGroupId`:
+`CONVERSION_OUT` with the asset and quantity that leave, `CONVERSION_IN` with
+the asset and quantity that arrive.
+
+- The arriving units take over the leaving units' lots: each keeps its cost and
+  acquisition date, and its units scale by quantity in ÷ quantity out. Nothing
+  is realized, and no cash or net contribution moves.
+- Both rows apply or neither does. A conversion is rejected when the account
+  holds fewer units than leave, the two assets trade in different currencies,
+  either row has a fee, or the rows are on different days or in different
+  accounts.
+- If the switch was a taxable sale, record a SELL and a BUY instead. Whether it
+  is taxed depends on the country and the instrument: in Spain, a _traspaso_
+  between investment funds defers the gain, a switch between ETFs does not. A
+  switch between brokers is a transfer, then a conversion in the receiving
+  account.
+- A _traspaso_ takes days between the units leaving and arriving; record it on
+  the day the new units arrive, when their number is known. Spanish tax takes
+  the oldest units first, so a FIFO account keeps lots that match the tax
+  record.
+- A statement that splits one switch into several same-day pieces is recorded as
+  one conversion per pair of assets: two funds into one is two conversions, one
+  fund into two is two partial conversions.
+- Rules: `docs/architecture/portfolio-engine-rules.md` R7.5.
+
 ### Adjustment Subtypes
 
-| Subtype                 | Description                                                 | Effect                                          |
-| ----------------------- | ----------------------------------------------------------- | ----------------------------------------------- |
-| `OPTION_EXPIRY`         | Option contract expired worthless                           | Removes `quantity` lots, no cash                |
-| `RETURN_OF_CAPITAL`     | Dividends already recorded that were a return of capital    | Cost basis and income down by `amount`, no cash |
-| `NOTIONAL_DISTRIBUTION` | Taxable distribution reinvested without new units (phantom) | Cost basis and income up by `amount`, no cash   |
+| Subtype                 | Description                                                    | Effect                                          |
+| ----------------------- | -------------------------------------------------------------- | ----------------------------------------------- |
+| `OPTION_EXPIRY`         | Option contract expired worthless                              | Removes `quantity` lots, no cash                |
+| `RETURN_OF_CAPITAL`     | Dividends already recorded that were a return of capital       | Cost basis and income down by `amount`, no cash |
+| `NOTIONAL_DISTRIBUTION` | Taxable distribution reinvested without new units (phantom)    | Cost basis and income up by `amount`, no cash   |
+| `CONVERSION_OUT`        | Units leaving in a conversion, paired with a `CONVERSION_IN`   | Removes `quantity` lots at cost, no cash        |
+| `CONVERSION_IN`         | Units arriving in a conversion, paired with a `CONVERSION_OUT` | Opens the leaving lots as this asset, no cash   |
 
 ---
 

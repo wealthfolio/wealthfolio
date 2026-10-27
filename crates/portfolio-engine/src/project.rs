@@ -90,16 +90,15 @@ pub fn project_accounts(
         transfers_in: ledger
             .events
             .iter()
-            .filter(|e| {
-                matches!(
-                    e.action,
-                    Action::SecurityTransfer {
-                        direction: Direction::In,
-                        ..
-                    }
-                )
+            .filter_map(|e| match &e.action {
+                Action::SecurityTransfer {
+                    direction: Direction::In,
+                    ..
+                } => Some(e.id.clone()),
+                // The lots a conversion opens belong to its arriving row.
+                Action::Conversion { arriving, .. } => Some(EventId::new(arriving.as_str())),
+                _ => None,
             })
-            .map(|e| e.id.clone())
             .collect(),
     };
     let mut state = start.unwrap_or_else(|| ProjectionState {
@@ -370,7 +369,8 @@ struct Projector<'a> {
     event_dates: HashMap<&'a str, NaiveDate>,
     /// The days each account records a split of an asset (`pool_lots`).
     split_days: BTreeSet<(AccountId, AssetId, NaiveDate)>,
-    /// Incoming security transfer legs, whose lots never pool (`pool_lots`).
+    /// Incoming security transfer legs and conversions' arriving rows, whose
+    /// lots never pool (`pool_lots`).
     transfers_in: BTreeSet<EventId>,
 }
 
@@ -426,18 +426,25 @@ pub(crate) fn position_book_cost(
     })
 }
 
-/// The position an event may change besides cash and the account totals
-/// (checked in debug builds): the asset its action names.
-fn footprint(event: &EconomicEvent) -> Option<&AssetId> {
-    match &event.action {
-        Action::None => None,
+/// The positions an event may change besides cash and the account totals
+/// (checked in debug builds): the asset its action names, or a conversion's
+/// two.
+fn footprint(event: &EconomicEvent) -> impl Iterator<Item = &AssetId> {
+    let (first, second) = match &event.action {
+        Action::None => (None, None),
         Action::Trade { asset, .. }
         | Action::SecurityTransfer { asset, .. }
         | Action::Split { asset, .. }
         | Action::OptionExpiry { asset, .. }
         | Action::ReturnOfCapital { asset, .. }
-        | Action::NotionalDistribution { asset, .. } => Some(asset),
-    }
+        | Action::NotionalDistribution { asset, .. } => (Some(asset), None),
+        Action::Conversion {
+            from_asset,
+            to_asset,
+            ..
+        } => (Some(from_asset), Some(to_asset)),
+    };
+    first.into_iter().chain(second)
 }
 
 impl Savepoint {
@@ -454,7 +461,7 @@ impl Savepoint {
             cash_total_account,
             cash_total_base,
         } = account;
-        let mut assets: Vec<&AssetId> = legs.filter_map(footprint).collect();
+        let mut assets: Vec<&AssetId> = legs.flat_map(footprint).collect();
         assets.sort();
         assets.dedup();
         Self {
@@ -767,11 +774,23 @@ impl Projector<'_> {
                     let activity = &legs[0].source;
                     #[cfg(debug_assertions)]
                     debug_assert_eq!(account, before, "rejected {activity} left a trace");
+                    // A conversion's arriving row is rejected with it.
+                    let arriving = legs.iter().find_map(|leg| match &leg.action {
+                        Action::Conversion { arriving, .. } => Some(arriving),
+                        _ => None,
+                    });
                     run.diagnostics.push(Diagnostic::error(
                         DiagnosticCode::ActivityRejected,
                         activity.as_str(),
-                        message,
+                        message.clone(),
                     ));
+                    if let Some(arriving) = arriving {
+                        run.diagnostics.push(Diagnostic::error(
+                            DiagnosticCode::ActivityRejected,
+                            arriving.as_str(),
+                            message,
+                        ));
+                    }
                 }
             }
         }
@@ -790,7 +809,7 @@ impl Projector<'_> {
         // touched (the others keep theirs: acquisition FX does not move with
         // the day), then the account's total by the same rule as valuation,
         // then cash totals (once per day).
-        let touched: BTreeSet<&AssetId> = events.iter().filter_map(|e| footprint(e)).collect();
+        let touched: BTreeSet<&AssetId> = events.iter().flat_map(|e| footprint(e)).collect();
         let account_currency = account.currency.as_str().to_string();
         let base = self.base().to_string();
         for (asset, position) in account.positions.iter_mut() {
@@ -835,6 +854,15 @@ impl Projector<'_> {
         effects: &mut SideEffects,
         run: &mut RunLog,
     ) -> Result<(), String> {
+        // A conversion row that does not form a pair changes nothing (rules
+        // R7.5).
+        if let Some(invalid) = event
+            .diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == DiagnosticCode::InvalidConversion)
+        {
+            return Err(invalid.message.clone());
+        }
         match &event.action {
             Action::None => {
                 if event.kind == ActivityKind::Adjustment {
@@ -909,6 +937,23 @@ impl Projector<'_> {
             Action::NotionalDistribution { asset, amount } => {
                 self.notional_distribution(event, state, asset, *amount)
             }
+            Action::Conversion {
+                from_asset,
+                from_quantity,
+                to_asset,
+                to_quantity,
+                arriving,
+            } => self.convert(
+                event,
+                state,
+                from_asset,
+                *from_quantity,
+                to_asset,
+                *to_quantity,
+                arriving,
+                effects,
+                run,
+            ),
         }
     }
 
@@ -1876,6 +1921,157 @@ impl Projector<'_> {
     }
 
     // ----------------------------------------------------- corporate actions
+
+    /// A conversion (rules R7.5): relieves `from_quantity` of `from_asset` by
+    /// the account's method at cost, and opens each relieved lot as
+    /// `to_asset` at the ratio of the units, keeping its cost, charges,
+    /// acquisition and rates. No cash, contribution or flow. Rejected whole
+    /// unless the account holds the units long, does not hold `to_asset`
+    /// short, keeps both in one currency and records no split of either that
+    /// day.
+    #[allow(clippy::too_many_arguments)]
+    fn convert(
+        &self,
+        event: &EconomicEvent,
+        state: &mut AccountState,
+        from_asset: &AssetId,
+        from_quantity: Decimal,
+        to_asset: &AssetId,
+        to_quantity: Decimal,
+        arriving: &ActivityId,
+        effects: &mut SideEffects,
+        run: &mut RunLog,
+    ) -> Result<(), String> {
+        let account_id = state.account.clone();
+        let account_currency = state.currency.clone();
+        for asset in [from_asset, to_asset] {
+            if self
+                .split_days
+                .contains(&(account_id.clone(), asset.clone(), event.date))
+            {
+                return Err(format!(
+                    "the account records a split of {asset} on {}, the day of the conversion",
+                    event.date
+                ));
+            }
+        }
+        let Some(from_position) = state.positions.get(from_asset) else {
+            return Err(format!("the account holds no {from_asset} to convert"));
+        };
+        let from_currency = from_position.currency.clone();
+        if from_position.quantity < from_quantity - QUANTITY_THRESHOLD {
+            return Err(format!(
+                "the account holds {} {from_asset}, fewer than the {} that leave",
+                from_position.quantity.normalize(),
+                from_quantity.normalize()
+            ));
+        }
+        let info = self.asset_facts(to_asset, &from_currency);
+        let to_currency = match state.positions.get(to_asset) {
+            Some(position) if position.lots.iter().any(|lot| lot.quantity < Decimal::ZERO) => {
+                return Err(format!("the account holds {to_asset} short"));
+            }
+            Some(position) => position.currency.clone(),
+            None => info
+                .quote_currency
+                .clone()
+                .unwrap_or_else(|| from_currency.clone()),
+        };
+        if to_currency != from_currency {
+            return Err(format!(
+                "{from_asset} is held in {from_currency} and {to_asset} in {to_currency}; a conversion keeps one currency"
+            ));
+        }
+        // A position holds no fewer units: fewer leaving could relieve nothing,
+        // and fewer arriving would drop the lots' cost.
+        for (asset, units) in [(from_asset, from_quantity), (to_asset, to_quantity)] {
+            if !is_significant(units) {
+                return Err(format!(
+                    "{} {asset} is less than the smallest quantity a position holds",
+                    units.normalize()
+                ));
+            }
+        }
+
+        let from_position = state
+            .positions
+            .get_mut(from_asset)
+            .ok_or_else(|| format!("the account holds no {from_asset} to convert"))?;
+        let reduction = self.relieve_lots(
+            &account_id,
+            account_currency.as_str(),
+            event,
+            from_position,
+            from_quantity,
+            false,
+        )?;
+        if is_significant(from_quantity - reduction.quantity_reduced) {
+            return Err(format!(
+                "only {} of the {} {from_asset} could be relieved",
+                reduction.quantity_reduced.normalize(),
+                from_quantity.normalize()
+            ));
+        }
+        self.record_reduction(
+            &account_id,
+            from_asset,
+            event,
+            &reduction,
+            Proceeds::AtCost,
+            &from_currency,
+            effects,
+            run,
+        )?;
+
+        // Each relieved lot opens as the arriving asset: its units after
+        // splits times the ratio, its price per unit divided alike, the rest
+        // as it was. The last lot takes the rounding.
+        let ratio = checked(arith::div(to_quantity, from_quantity), "conversion ratio")?;
+        let count = reduction.removed_lots.len();
+        let mut opened = Decimal::ZERO;
+        let mut lots = Vec::with_capacity(count);
+        for (index, lot) in reduction.removed_lots.iter().enumerate() {
+            let factor = checked(arith::mul(lot.split_ratio, ratio), "conversion factor")?;
+            let units = if index + 1 == count {
+                to_quantity - opened
+            } else {
+                checked(arith::mul(lot.quantity, factor), "converted units")?
+            };
+            if units <= Decimal::ZERO {
+                return Err(format!(
+                    "the conversion of {from_asset} into {to_asset} opens no units for a lot"
+                ));
+            }
+            opened += units;
+            lots.push(Lot {
+                quantity: units,
+                original_quantity: units,
+                acquisition_price: checked(
+                    arith::div(lot.acquisition_price, factor),
+                    "converted price",
+                )?,
+                split_ratio: Decimal::ONE,
+                ..lot.clone()
+            });
+        }
+        let opening_base: Vec<_> = lots
+            .iter()
+            .map(|lot| self.lot_book_cost(lot, to_currency.as_str(), self.base()))
+            .collect();
+        let info = AssetFacts {
+            quote_currency: Some(to_currency),
+            ..info
+        };
+        let to_position = self.position_mut(state, to_asset, &info, event);
+        add_transferred_lots(
+            to_position,
+            arriving.as_str(),
+            &lots,
+            &opening_base,
+            info.allows_negative_lots,
+        )?;
+        Ok(())
+    }
 
     fn split(
         &self,

@@ -1,0 +1,46 @@
+id: EDGE-CONV-06
+title: A conversion folds at its first row, whichever row that is
+intent: >
+  Rules R7.5. A pair applies as one event at the place of its first row in the
+  ledger, after that day's earlier activities and before its later ones. On
+  02-03 the leaving row comes first (10:00) and the arriving row last (12:00):
+  a sale of the arriving asset at 11:00, between them, sells converted units.
+  On 02-04 the arriving row comes first (09:00): a sale at 10:00, before the
+  leaving row (11:00), again sells converted units. Folded at the later row,
+  either sale would find no position.
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-02-07
+accounts:
+  - id: acc-1
+    currency: USD
+assets:
+  - { id: fund-a, quote_ccy: USD }
+  - { id: fund-b, quote_ccy: USD }
+  - { id: fund-c, quote_ccy: USD }
+activities:
+  - { id: dep-1, account: acc-1, type: DEPOSIT, date: 2025-01-02T10:00:00Z, amount: 1000 }
+  - { id: buy-1, account: acc-1, type: BUY, date: 2025-01-03T10:00:00Z, asset: fund-a, quantity: 10, unit_price: 100, amount: 1000 }
+  # The leaving row first, a sale of the arriving asset between the rows.
+  - { id: ab-out, account: acc-1, type: ADJUSTMENT, subtype: CONVERSION_OUT, date: 2025-02-03T10:00:00Z, asset: fund-a, quantity: 10, source_group_id: g-ab }
+  - { id: sell-b, account: acc-1, type: SELL, date: 2025-02-03T11:00:00Z, asset: fund-b, quantity: 4, unit_price: 30, amount: 120 }
+  - { id: ab-in, account: acc-1, type: ADJUSTMENT, subtype: CONVERSION_IN, date: 2025-02-03T12:00:00Z, asset: fund-b, quantity: 20, source_group_id: g-ab }
+  # The arriving row first, a sale of the arriving asset between the rows.
+  - { id: bc-in, account: acc-1, type: ADJUSTMENT, subtype: CONVERSION_IN, date: 2025-02-04T09:00:00Z, asset: fund-c, quantity: 4, source_group_id: g-bc }
+  - { id: sell-c, account: acc-1, type: SELL, date: 2025-02-04T10:00:00Z, asset: fund-c, quantity: 1, unit_price: 250, amount: 250 }
+  - { id: bc-out, account: acc-1, type: ADJUSTMENT, subtype: CONVERSION_OUT, date: 2025-02-04T11:00:00Z, asset: fund-b, quantity: 16, source_group_id: g-bc }
+quotes:
+  - { asset: fund-a, day: 2025-01-03, close: 100 }
+  - { asset: fund-b, day: 2025-02-03, close: 30 }
+  - { asset: fund-c, day: 2025-02-04, close: 250 }
+expected_notes: >
+  02-03: g-ab folds at 10:00. ab-out relieves buy-1 whole (10 units, cost
+  1000, acquired 01-03) at cost, realizing 0; ab-in opens one lot of 20 fund-b
+  (r = 2), cost 1000, 50 a unit, acquired 01-03. sell-b at 11:00 sells 4 of
+  them: proceeds 120, cost 200, realized -80; fund-b keeps 16, cost 800.
+  02-04: g-bc folds at 09:00. bc-out relieves the 16 fund-b at cost (800);
+  bc-in opens one lot of 4 fund-c (r = 0.25), cost 800, 200 a unit, acquired
+  01-03. sell-c at 10:00 sells 1: proceeds 250, cost 200, realized 50; fund-c
+  keeps 3, cost 600. fund-a and fund-b hold 0. Cash 1000 - 1000 + 120 + 250 =
+  370, net contribution 1000, realized -30, no flow from either conversion.

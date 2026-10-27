@@ -466,6 +466,42 @@ omitted, `TRANSFER_IN` and `TRANSFER_OUT` default to internal at the portfolio
 boundary. For `CREDIT`, omission keeps the subtype default (`BONUS` is external;
 other credit subtypes are internal).
 
+An in-kind conversion (a fund switch carried at cost, such as a Spanish
+_traspaso_) is two `ADJUSTMENT` rows that share a `sourceGroupId`: the units
+that leave (`CONVERSION_OUT`) and the units that arrive (`CONVERSION_IN`), in
+one account on one day, without price, amount or fee. Import both rows together;
+a conversion row without its other row fails the import. Other rows ignore
+`sourceGroupId`.
+
+```typescript
+const conversion: ActivityImport[] = [
+  {
+    accountId: "account-123",
+    activityType: "ADJUSTMENT",
+    subtype: "CONVERSION_OUT",
+    date: "2026-09-04",
+    symbol: "FUNDA",
+    quantity: 25,
+    currency: "EUR",
+    sourceGroupId: "switch-2026-09-04",
+    isValid: true,
+    isDraft: false,
+  },
+  {
+    accountId: "account-123",
+    activityType: "ADJUSTMENT",
+    subtype: "CONVERSION_IN",
+    date: "2026-09-04",
+    symbol: "FUNDB",
+    quantity: 40,
+    currency: "EUR",
+    sourceGroupId: "switch-2026-09-04",
+    isValid: true,
+    isDraft: false,
+  },
+];
+```
+
 #### `checkImport(activities: ActivityImport[]): Promise<ActivityImport[]>`
 
 Validates and normalizes activities without importing them.
@@ -495,6 +531,8 @@ const savedMapping = await ctx.api.activities.saveImportMapping(mapping);
 
 Get the linked transfer pair for a given activity. Returns `null` when the
 activity has no pair; rejects only on failure, such as an unknown activity id.
+For a conversion row it returns the conversion: `transferOut` is the
+`CONVERSION_OUT` row and `transferIn` the `CONVERSION_IN` row.
 
 ```typescript
 const pair = await ctx.api.activities.getTransferPair("activity-123");

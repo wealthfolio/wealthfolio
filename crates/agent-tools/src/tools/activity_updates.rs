@@ -25,10 +25,10 @@ use rust_decimal::Decimal;
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::{json, Value};
 use wealthfolio_core::activities::{
-    is_securities_transfer, Activity, ActivityServiceTrait, ActivitySplitEffect, ActivityStatus,
-    ActivityUpdate, ActivityUpdatePreview, AssetResolutionInput, PreviewedActivityUpdate,
-    ACTIVITY_SUBTYPE_BONUS, ACTIVITY_SUBTYPE_DIVIDEND_IN_KIND, ACTIVITY_SUBTYPE_DRIP,
-    ACTIVITY_SUBTYPE_OPTION_EXPIRY, ACTIVITY_SUBTYPE_POSITION_CLOSE,
+    is_conversion_row, is_securities_transfer, Activity, ActivityServiceTrait, ActivitySplitEffect,
+    ActivityStatus, ActivityUpdate, ActivityUpdatePreview, AssetResolutionInput,
+    PreviewedActivityUpdate, ACTIVITY_SUBTYPE_BONUS, ACTIVITY_SUBTYPE_DIVIDEND_IN_KIND,
+    ACTIVITY_SUBTYPE_DRIP, ACTIVITY_SUBTYPE_OPTION_EXPIRY, ACTIVITY_SUBTYPE_POSITION_CLOSE,
     ACTIVITY_SUBTYPE_POSITION_OPEN, ACTIVITY_SUBTYPE_REBATE, ACTIVITY_SUBTYPE_REFUND,
     ACTIVITY_SUBTYPE_REIMBURSEMENT, ACTIVITY_SUBTYPE_STAKING_REWARD, ACTIVITY_TYPE_ADJUSTMENT,
     ACTIVITY_TYPE_BUY, ACTIVITY_TYPE_CREDIT, ACTIVITY_TYPE_DIVIDEND, ACTIVITY_TYPE_INTEREST,
@@ -463,6 +463,16 @@ fn check_guards(preview: &ActivityUpdatePreview, changes: &[FieldChange]) -> Res
         .collect();
     if blocked.is_empty() {
         return Ok(());
+    }
+    if is_conversion_row(existing) {
+        return Err(format!(
+            "Activity {} is one row of a conversion with activity {}; changing its {} here \
+             would break it. Ask the user to edit the conversion in the activity form, which \
+             saves both rows together.",
+            existing.id,
+            linked.existing.id,
+            blocked.join(", ")
+        ));
     }
     Err(format!(
         "Activity {} is one leg of a linked transfer with activity {}; changing its {} would \
@@ -1280,6 +1290,23 @@ mod tests {
             linked: None,
         };
         assert!(check_guards(&unlinked, &[change("accountId"), change("currency")]).is_ok());
+
+        // A conversion row is pointed to the form, not to transfer unlinking.
+        let conversion_row = |id: &str, subtype: &str| {
+            let mut row = btc_transfer_in();
+            row.id = id.to_string();
+            row.activity_type = "ADJUSTMENT".to_string();
+            row.subtype = Some(subtype.to_string());
+            row.source_group_id = Some("conv-1".to_string());
+            row
+        };
+        let conversion = preview(
+            conversion_row("conv-out", "CONVERSION_OUT"),
+            conversion_row("conv-in", "CONVERSION_IN"),
+        );
+        let error = check_guards(&conversion, &[change("assetId")]).unwrap_err();
+        assert!(error.contains("conversion"), "{error}");
+        assert!(!error.contains("unlink_transfer_activities"), "{error}");
     }
 
     #[test]

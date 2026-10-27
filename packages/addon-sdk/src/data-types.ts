@@ -95,6 +95,10 @@ export const ACTIVITY_SUBTYPES = {
   // Liability subtypes
   LIABILITY_INTEREST_ACCRUAL: 'LIABILITY_INTEREST_ACCRUAL',
   LIABILITY_PRINCIPAL_PAYMENT: 'LIABILITY_PRINCIPAL_PAYMENT',
+
+  // Adjustment subtypes: the two rows of an in-kind conversion
+  CONVERSION_OUT: 'CONVERSION_OUT',
+  CONVERSION_IN: 'CONVERSION_IN',
 } as const;
 
 export type ActivitySubtype = (typeof ACTIVITY_SUBTYPES)[keyof typeof ACTIVITY_SUBTYPES];
@@ -464,6 +468,12 @@ export interface ActivityImport {
    * `metadata.flow.is_external` because false is the default.
    */
   isExternal?: boolean;
+  /**
+   * Links the two rows of a conversion: ADJUSTMENT rows with subtype
+   * CONVERSION_OUT and CONVERSION_IN, imported together. Other rows ignore
+   * it; an import links a transfer's two legs itself.
+   */
+  sourceGroupId?: string;
   comment?: string;
 }
 

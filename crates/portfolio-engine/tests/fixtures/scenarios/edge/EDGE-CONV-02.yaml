@@ -1,0 +1,65 @@
+id: EDGE-CONV-02
+title: A malformed conversion group is rejected, every conversion row of it
+intent: >
+  Rules R7.5. A group with a conversion row must be exactly one
+  CONVERSION_OUT and one CONVERSION_IN adjustment, in one account on one
+  day, with two different assets, units and no fee or tax. Each group here
+  breaks one condition and every posted conversion row in it is rejected
+  before the fold. A row of another type sharing the group (here a split)
+  folds as it would alone, so the fold and the price history agree on it. A
+  conversion row without a group is rejected too, and so is a row whose other
+  row is a draft. No conversion moves anything.
+policy:
+  base_currency: USD
+  timezone: UTC
+  as_of: 2025-02-10
+accounts:
+  - { id: acc-1, currency: USD }
+  - { id: acc-2, currency: USD }
+assets:
+  - { id: fund-a, quote_ccy: USD }
+  - { id: fund-b, quote_ccy: USD }
+activities:
+  - { id: dep-1, account: acc-1, type: DEPOSIT, date: 2025-01-02T10:00:00Z, amount: 5000 }
+  - { id: buy-1, account: acc-1, type: BUY, date: 2025-01-03T10:00:00Z, asset: fund-a, quantity: 10, unit_price: 100, amount: 1000 }
+  # A fee on a row.
+  - { id: fee-out, account: acc-1, type: ADJUSTMENT, subtype: CONVERSION_OUT, date: 2025-01-10T10:00:00Z, asset: fund-a, quantity: 5, fee: 1, source_group_id: g-fee }
+  - { id: fee-in, account: acc-1, type: ADJUSTMENT, subtype: CONVERSION_IN, date: 2025-01-10T10:01:00Z, asset: fund-b, quantity: 5, source_group_id: g-fee }
+  # Two days.
+  - { id: days-out, account: acc-1, type: ADJUSTMENT, subtype: CONVERSION_OUT, date: 2025-01-11T10:00:00Z, asset: fund-a, quantity: 5, source_group_id: g-days }
+  - { id: days-in, account: acc-1, type: ADJUSTMENT, subtype: CONVERSION_IN, date: 2025-01-13T10:00:00Z, asset: fund-b, quantity: 5, source_group_id: g-days }
+  # A third row: a split of fund-a in the group.
+  - { id: three-out, account: acc-1, type: ADJUSTMENT, subtype: CONVERSION_OUT, date: 2025-01-14T10:00:00Z, asset: fund-a, quantity: 5, source_group_id: g-three }
+  - { id: three-in, account: acc-1, type: ADJUSTMENT, subtype: CONVERSION_IN, date: 2025-01-14T10:01:00Z, asset: fund-b, quantity: 5, source_group_id: g-three }
+  - { id: three-split, account: acc-1, type: SPLIT, date: 2025-01-14T10:02:00Z, asset: fund-a, amount: 2, source_group_id: g-three }
+  # Two leaving rows.
+  - { id: twice-out-1, account: acc-1, type: ADJUSTMENT, subtype: CONVERSION_OUT, date: 2025-01-15T10:00:00Z, asset: fund-a, quantity: 5, source_group_id: g-twice }
+  - { id: twice-out-2, account: acc-1, type: ADJUSTMENT, subtype: CONVERSION_OUT, date: 2025-01-15T10:01:00Z, asset: fund-b, quantity: 5, source_group_id: g-twice }
+  # Two accounts.
+  - { id: accts-out, account: acc-1, type: ADJUSTMENT, subtype: CONVERSION_OUT, date: 2025-01-16T10:00:00Z, asset: fund-a, quantity: 5, source_group_id: g-accts }
+  - { id: accts-in, account: acc-2, type: ADJUSTMENT, subtype: CONVERSION_IN, date: 2025-01-16T10:01:00Z, asset: fund-b, quantity: 5, source_group_id: g-accts }
+  # One asset on both rows.
+  - { id: same-out, account: acc-1, type: ADJUSTMENT, subtype: CONVERSION_OUT, date: 2025-01-17T10:00:00Z, asset: fund-a, quantity: 5, source_group_id: g-same }
+  - { id: same-in, account: acc-1, type: ADJUSTMENT, subtype: CONVERSION_IN, date: 2025-01-17T10:01:00Z, asset: fund-a, quantity: 6, source_group_id: g-same }
+  # No group.
+  - { id: lone-in, account: acc-1, type: ADJUSTMENT, subtype: CONVERSION_IN, date: 2025-01-18T10:00:00Z, asset: fund-b, quantity: 5 }
+  # The other row is a draft.
+  - { id: draft-out, account: acc-1, type: ADJUSTMENT, subtype: CONVERSION_OUT, date: 2025-01-19T10:00:00Z, asset: fund-a, quantity: 5, status: DRAFT, source_group_id: g-draft }
+  - { id: draft-in, account: acc-1, type: ADJUSTMENT, subtype: CONVERSION_IN, date: 2025-01-19T10:01:00Z, asset: fund-b, quantity: 5, source_group_id: g-draft }
+quotes:
+  # A split-adjusted history: the price the provider shows before the split is
+  # already halved.
+  - { asset: fund-a, day: 2025-01-03, close: 50 }
+  - { asset: fund-a, day: 2025-01-14, close: 50 }
+  - { asset: fund-b, day: 2025-01-03, close: 100 }
+expected_notes: >
+  Rejected before the fold, each reported: fee-out, fee-in (a fee);
+  days-out, days-in (two days); three-out, three-in (three rows);
+  twice-out-1, twice-out-2 (no arriving row); accts-out, accts-in (two
+  accounts); same-out, same-in (one asset); lone-in (no group); draft-in (its
+  other row is a draft, which never computes). three-split is not rejected: it
+  splits fund-a 2 for 1 on 01-14, and the fold and the split-adjusted history
+  agree on it. acc-1 holds 10 fund-a until 01-13 and 20 from 01-14, at cost
+  1000, and fund-a is worth 1000 throughout (the 50 closes are read as
+  adjusted). Cash 4000, no fund-b, net contribution 5000. acc-2 holds
+  nothing.

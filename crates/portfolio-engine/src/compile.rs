@@ -29,6 +29,13 @@ impl CompiledLedger {
 pub fn compile(facts: &CanonicalFacts) -> CompiledLedger {
     let mut events = Vec::with_capacity(facts.activities.len());
     let mut diagnostics = Vec::new();
+    let by_id: std::collections::HashMap<&ActivityId, &Activity> =
+        if facts.conversions.iter().next().is_some() {
+            facts.activities.iter().map(|a| (&a.id, a)).collect()
+        } else {
+            Default::default()
+        };
+    let mut converted: std::collections::HashSet<&str> = Default::default();
     for activity in &facts.activities {
         // `normalize` only admits activities of known accounts; facts built
         // any other way still compile without a panic.
@@ -40,6 +47,29 @@ pub fn compile(facts: &CanonicalFacts) -> CompiledLedger {
             ));
             continue;
         };
+        // A conversion row `normalize` could not pair changes nothing (rules
+        // R7.5): its event only carries why, and the projection rejects it,
+        // as it rejects any activity, so its account still folds.
+        if let Some(reason) = facts.conversions.rejection(&activity.id) {
+            let mut event = invalid_conversion_event(activity, reason);
+            event.sequence = events.len() as u32;
+            diagnostics.extend(event.diagnostics.iter().cloned());
+            events.push(event);
+            continue;
+        }
+        // A conversion's two rows fold as one event, at the first of them.
+        if let Some(pair) = facts.conversions.pair_for(&activity.id) {
+            if converted.insert(pair.group_id.as_str()) {
+                if let (Some(out_leg), Some(in_leg)) =
+                    (by_id.get(&pair.out_activity), by_id.get(&pair.in_activity))
+                {
+                    let mut event = conversion_event(out_leg, in_leg, activity);
+                    event.sequence = events.len() as u32;
+                    events.push(event);
+                }
+            }
+            continue;
+        }
         for leg in expand(activity) {
             let mut event = compile_leg(&leg, account, facts);
             event.sequence = events.len() as u32;
@@ -50,6 +80,64 @@ pub fn compile(facts: &CanonicalFacts) -> CompiledLedger {
     CompiledLedger {
         events,
         diagnostics,
+    }
+}
+
+/// A conversion's event (rules R7.5): the `CONVERSION_OUT` row's id and
+/// data, at the place of its pair's first row. No cash, charges,
+/// contribution, flow or attribution.
+fn conversion_event(out_leg: &Activity, in_leg: &Activity, first: &Activity) -> EconomicEvent {
+    let asset = |leg: &Activity| leg.asset.clone().unwrap_or_else(|| AssetId::new(""));
+    EconomicEvent {
+        id: EventId::new(out_leg.id.as_str()),
+        source: out_leg.id.clone(),
+        kind: ActivityKind::Adjustment,
+        account: out_leg.account.clone(),
+        date: out_leg.date,
+        timestamp: first.timestamp,
+        sequence: 0,
+        currency: out_leg.currency.clone(),
+        fx_rate: None,
+        cash: None,
+        charges: Charges::default(),
+        action: Action::Conversion {
+            from_asset: asset(out_leg),
+            from_quantity: out_leg.quantity,
+            to_asset: asset(in_leg),
+            to_quantity: in_leg.quantity,
+            arriving: in_leg.id.clone(),
+        },
+        contribution: Contribution::None,
+        flow: Flow::NONE,
+        attribution: Attributed::default(),
+        diagnostics: Vec::new(),
+    }
+}
+
+/// A conversion row that does not form a pair: no cash, action or flow, and
+/// an `InvalidConversion` diagnostic the projection rejects it with.
+fn invalid_conversion_event(activity: &Activity, reason: &str) -> EconomicEvent {
+    EconomicEvent {
+        id: EventId::new(activity.id.as_str()),
+        source: activity.id.clone(),
+        kind: activity.kind,
+        account: activity.account.clone(),
+        date: activity.date,
+        timestamp: activity.timestamp,
+        sequence: 0,
+        currency: activity.currency.clone(),
+        fx_rate: None,
+        cash: None,
+        charges: Charges::default(),
+        action: Action::None,
+        contribution: Contribution::None,
+        flow: Flow::NONE,
+        attribution: Attributed::default(),
+        diagnostics: vec![Diagnostic::error(
+            DiagnosticCode::InvalidConversion,
+            activity.id.as_str(),
+            format!("conversion row rejected: {reason}"),
+        )],
     }
 }
 

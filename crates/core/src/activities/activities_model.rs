@@ -1,7 +1,8 @@
 //! Activity domain models.
 
 use crate::activities::activities_constants::{
-    ACTIVITY_SUBTYPE_BONUS, ACTIVITY_SUBTYPE_DIVIDEND_IN_KIND, ACTIVITY_SUBTYPE_DRIP,
+    ACTIVITY_SUBTYPE_BONUS, ACTIVITY_SUBTYPE_CONVERSION_IN, ACTIVITY_SUBTYPE_CONVERSION_OUT,
+    ACTIVITY_SUBTYPE_DIVIDEND_IN_KIND, ACTIVITY_SUBTYPE_DRIP,
     ACTIVITY_SUBTYPE_NOTIONAL_DISTRIBUTION, ACTIVITY_SUBTYPE_OPTION_EXPIRY,
     ACTIVITY_SUBTYPE_POSITION_CLOSE, ACTIVITY_SUBTYPE_POSITION_OPEN, ACTIVITY_SUBTYPE_REBATE,
     ACTIVITY_SUBTYPE_REFUND, ACTIVITY_SUBTYPE_REIMBURSEMENT, ACTIVITY_SUBTYPE_RETURN_OF_CAPITAL,
@@ -439,6 +440,10 @@ impl NewActivity {
             ACTIVITY_SUBTYPE_RETURN_OF_CAPITAL
         } else if normalized.eq_ignore_ascii_case(ACTIVITY_SUBTYPE_NOTIONAL_DISTRIBUTION) {
             ACTIVITY_SUBTYPE_NOTIONAL_DISTRIBUTION
+        } else if normalized.eq_ignore_ascii_case(ACTIVITY_SUBTYPE_CONVERSION_OUT) {
+            ACTIVITY_SUBTYPE_CONVERSION_OUT
+        } else if normalized.eq_ignore_ascii_case(ACTIVITY_SUBTYPE_CONVERSION_IN) {
+            ACTIVITY_SUBTYPE_CONVERSION_IN
         } else {
             subtype
         };
@@ -1232,6 +1237,12 @@ pub struct ActivityImport {
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub is_external: Option<bool>,
+    /// Links this row to the others of one event, such as a conversion's two
+    /// rows (rules R7.5) or a transfer's two legs. Rows that carry one keep
+    /// it; the transfer linker never regroups them.
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source_group_id: Option<String>,
 }
 
 /// Model for sorting activities
@@ -2126,6 +2137,22 @@ impl From<ActivityImport> for NewActivity {
             Some(ActivityStatus::Posted)
         };
 
+        // Only a conversion row brings its group (rules R7.5); a transfer's is
+        // set when the import links its legs, so no imported row joins a
+        // group already stored.
+        let is_conversion_row = import
+            .activity_type
+            .eq_ignore_ascii_case(ACTIVITY_TYPE_ADJUSTMENT)
+            && matches!(
+                NewActivity::canonicalize_subtype(import.subtype.as_deref()).as_deref(),
+                Some(ACTIVITY_SUBTYPE_CONVERSION_OUT | ACTIVITY_SUBTYPE_CONVERSION_IN)
+            );
+        let source_group_id = import
+            .source_group_id
+            .filter(|_| is_conversion_row)
+            .map(|group| group.trim().to_string())
+            .filter(|group| !group.is_empty());
+
         // Persist boundary metadata so imported activities and manually entered activities
         // have the same net-contribution and flow-classification semantics.
         let is_transfer = import.activity_type == ACTIVITY_TYPE_TRANSFER_IN
@@ -2160,7 +2187,7 @@ impl From<ActivityImport> for NewActivity {
             needs_review: None,
             source_system: Some("CSV".to_string()),
             source_record_id: None,
-            source_group_id: None,
+            source_group_id,
             idempotency_key: None,
             import_run_id: None,
         }

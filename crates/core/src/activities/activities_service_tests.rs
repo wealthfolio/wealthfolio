@@ -1322,17 +1322,24 @@ pub(crate) mod tests {
     #[derive(Clone, Default)]
     pub(crate) struct MockActivityRepository {
         activities: Arc<Mutex<Vec<Activity>>>,
+        /// Accounts whose rows `get_activities` leaves out, as storage does.
+        archived_accounts: Arc<Mutex<HashSet<String>>>,
     }
 
     impl MockActivityRepository {
         fn new() -> Self {
-            Self {
-                activities: Arc::new(Mutex::new(Vec::new())),
-            }
+            Self::default()
         }
 
         fn add_activity(&self, activity: Activity) {
             self.activities.lock().unwrap().push(activity);
+        }
+
+        fn archive_account(&self, account_id: &str) {
+            self.archived_accounts
+                .lock()
+                .unwrap()
+                .insert(account_id.to_string());
         }
     }
 
@@ -1412,7 +1419,15 @@ pub(crate) mod tests {
         }
 
         fn get_activities(&self) -> Result<Vec<Activity>> {
-            Ok(self.activities.lock().unwrap().clone())
+            let archived = self.archived_accounts.lock().unwrap();
+            Ok(self
+                .activities
+                .lock()
+                .unwrap()
+                .iter()
+                .filter(|a| !archived.contains(&a.account_id))
+                .cloned()
+                .collect())
         }
 
         fn get_activities_including_archived_accounts(&self) -> Result<Vec<Activity>> {
@@ -4590,6 +4605,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: None,
+            source_group_id: None,
         }
     }
 
@@ -8633,6 +8649,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: None,
+            source_group_id: None,
         };
 
         let result = activity_service
@@ -8709,6 +8726,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: None,
+            source_group_id: None,
         };
 
         let result = activity_service
@@ -8784,6 +8802,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: None,
+            source_group_id: None,
         };
 
         let result = activity_service
@@ -8850,6 +8869,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: None,
+            source_group_id: None,
         };
 
         let result = activity_service
@@ -8923,6 +8943,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: None,
+            source_group_id: None,
         };
 
         let result = activity_service
@@ -8996,6 +9017,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: None,
+            source_group_id: None,
         };
 
         let result = activity_service
@@ -9079,6 +9101,7 @@ pub(crate) mod tests {
                 isin: None,
                 force_import: false,
                 is_external: None,
+                source_group_id: None,
             }])
             .await
             .expect("import check should succeed");
@@ -9179,6 +9202,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: None,
+            source_group_id: None,
         };
 
         let result = activity_service
@@ -9275,6 +9299,7 @@ pub(crate) mod tests {
                 isin: Some("ca82509l1076".to_string()),
                 force_import: false,
                 is_external: None,
+                source_group_id: None,
             },
             ActivityImport {
                 id: None,
@@ -9310,6 +9335,7 @@ pub(crate) mod tests {
                 isin: Some("CA82509L1077".to_string()),
                 force_import: false,
                 is_external: None,
+                source_group_id: None,
             },
         ];
 
@@ -9393,6 +9419,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: None,
+            source_group_id: None,
         };
         let mut tsx = nyse.clone();
         tsx.exchange_mic = Some("XTSE".to_string());
@@ -9463,6 +9490,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: None,
+            source_group_id: None,
         };
         let mut second = first.clone();
         second.provider_symbol = Some("XAU-OZ".to_string());
@@ -9711,6 +9739,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: None,
+            source_group_id: None,
         };
 
         let result = activity_service
@@ -9785,6 +9814,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: None,
+            source_group_id: None,
         };
 
         let result = activity_service
@@ -9852,6 +9882,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: None,
+            source_group_id: None,
         };
 
         let result = activity_service
@@ -9926,6 +9957,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: None,
+            source_group_id: None,
         };
 
         let result = activity_service
@@ -9997,6 +10029,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: None,
+            source_group_id: None,
         };
 
         let result = activity_service
@@ -10065,6 +10098,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: None,
+            source_group_id: None,
         };
 
         let result = activity_service
@@ -10139,6 +10173,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: None,
+            source_group_id: None,
         };
 
         let result = activity_service
@@ -10221,6 +10256,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: None,
+            source_group_id: None,
         };
 
         let result = activity_service
@@ -10293,6 +10329,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: None,
+            source_group_id: None,
         };
 
         let result = activity_service
@@ -10361,6 +10398,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: None,
+            source_group_id: None,
         };
 
         let result = activity_service
@@ -10480,6 +10518,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: None,
+            source_group_id: None,
         };
 
         let result = activity_service
@@ -10550,6 +10589,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: None,
+            source_group_id: None,
         };
 
         let result = activity_service
@@ -10620,6 +10660,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: None,
+            source_group_id: None,
         };
 
         let result = activity_service
@@ -10690,6 +10731,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: None,
+            source_group_id: None,
         };
 
         let result = activity_service
@@ -10757,6 +10799,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: None,
+            source_group_id: None,
         };
 
         let result = activity_service
@@ -10825,6 +10868,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: None,
+            source_group_id: None,
         };
 
         let result = activity_service
@@ -10895,6 +10939,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: None,
+            source_group_id: None,
         };
 
         let result = activity_service
@@ -10974,6 +11019,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: None,
+            source_group_id: None,
         };
 
         let result = activity_service
@@ -11048,6 +11094,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: None,
+            source_group_id: None,
         };
 
         let result = activity_service
@@ -11131,6 +11178,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: None,
+            source_group_id: None,
         };
 
         let result = activity_service
@@ -11206,6 +11254,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: None,
+            source_group_id: None,
         };
 
         let result = activity_service
@@ -11277,6 +11326,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: None,
+            source_group_id: None,
         };
 
         let result = activity_service
@@ -11356,6 +11406,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: Some(true),
+            source_group_id: None,
         };
 
         let transfer_in = ActivityImport {
@@ -11392,6 +11443,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: Some(true),
+            source_group_id: None,
         };
 
         let result = activity_service
@@ -11499,6 +11551,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: Some(true),
+            source_group_id: None,
         };
 
         let transfer_in = ActivityImport {
@@ -11535,6 +11588,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: Some(true),
+            source_group_id: None,
         };
 
         let result = activity_service
@@ -11621,6 +11675,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: Some(false),
+            source_group_id: None,
         };
 
         let transfer_out = ActivityImport {
@@ -11657,6 +11712,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: Some(false),
+            source_group_id: None,
         };
 
         let result = activity_service
@@ -11779,6 +11835,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: Some(false),
+            source_group_id: None,
         };
 
         let result = activity_service
@@ -11912,6 +11969,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: Some(true),
+            source_group_id: None,
         };
 
         let transfer_in_duplicate = ActivityImport {
@@ -11948,6 +12006,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: Some(true),
+            source_group_id: None,
         };
 
         let result = activity_service
@@ -13746,6 +13805,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: None,
+            source_group_id: None,
         };
         (activity_service, activity_repository, import)
     }
@@ -13997,6 +14057,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: None,
+            source_group_id: None,
         };
 
         let result = activity_service
@@ -14072,6 +14133,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: None,
+            source_group_id: None,
         };
 
         let result = activity_service
@@ -14211,6 +14273,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: true,
             is_external: None,
+            source_group_id: None,
         };
 
         let result = activity_service
@@ -14303,6 +14366,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: None,
+            source_group_id: None,
         };
 
         // First row: normal import. Second row: identical but force_import=true.
@@ -14313,6 +14377,7 @@ pub(crate) mod tests {
                     line_number: Some(2),
                     force_import: true,
                     is_external: None,
+                    source_group_id: None,
                     ..base
                 },
             ])
@@ -14401,6 +14466,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: true, // flag set but no duplicate exists
             is_external: None,
+            source_group_id: None,
         };
 
         let result = activity_service
@@ -14780,6 +14846,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: None,
+            source_group_id: None,
         };
 
         let result = activity_service
@@ -14849,6 +14916,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: None,
+            source_group_id: None,
         };
 
         let result = activity_service
@@ -14918,6 +14986,7 @@ pub(crate) mod tests {
                 isin: None,
                 force_import: false,
                 is_external: None,
+                source_group_id: None,
             };
 
             let result = activity_service
@@ -14999,6 +15068,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: None,
+            source_group_id: None,
         };
 
         let result = activity_service
@@ -15081,6 +15151,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: None,
+            source_group_id: None,
         };
 
         let result = activity_service
@@ -15151,6 +15222,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: None,
+            source_group_id: None,
         };
 
         let result = activity_service
@@ -15230,6 +15302,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: None,
+            source_group_id: None,
         };
 
         let result = activity_service
@@ -15829,6 +15902,7 @@ pub(crate) mod tests {
             isin: None,
             force_import: false,
             is_external: None,
+            source_group_id: None,
         }
     }
 
@@ -17933,5 +18007,612 @@ pub(crate) mod tests {
             .events()
             .iter()
             .any(|event| matches!(event, DomainEvent::ActivitiesChanged { .. })));
+    }
+
+    fn conversion_fixture() -> (ActivityService, Arc<MockActivityRepository>) {
+        let accounts = Arc::new(MockAccountService::new());
+        accounts.add_account(create_test_account("acc-1", "USD"));
+        accounts.add_account(create_test_account("acc-2", "USD"));
+        let assets = Arc::new(MockAssetService::new());
+        for id in ["fund-a", "fund-b", "fund-c"] {
+            assets.add_asset(create_test_asset(id, "USD"));
+        }
+        let repository = Arc::new(MockActivityRepository::new());
+        let service = ActivityService::new(
+            repository.clone(),
+            accounts,
+            assets,
+            Arc::new(MockFxService::new()),
+            Arc::new(MockQuoteService),
+        );
+        (service, repository)
+    }
+
+    fn conversion_row(id: &str, subtype: &str, asset: &str, quantity: Decimal) -> NewActivity {
+        NewActivity {
+            id: Some(id.into()),
+            account_id: "acc-1".into(),
+            asset: Some(AssetResolutionInput {
+                id: Some(asset.into()),
+                ..Default::default()
+            }),
+            activity_type: "ADJUSTMENT".into(),
+            subtype: Some(subtype.into()),
+            activity_date: "2026-02-03".into(),
+            quantity: Some(quantity),
+            unit_price: None,
+            currency: "USD".into(),
+            fee: None,
+            tax: None,
+            amount: None,
+            status: None,
+            notes: None,
+            fx_rate: None,
+            metadata: None,
+            needs_review: None,
+            source_system: None,
+            source_record_id: None,
+            source_group_id: Some("conv-1".into()),
+            idempotency_key: None,
+            import_run_id: None,
+        }
+    }
+
+    async fn create_conversion(service: &ActivityService) {
+        let created = service
+            .bulk_mutate_activities(ActivityBulkMutationRequest {
+                creates: vec![
+                    conversion_row("out", "CONVERSION_OUT", "fund-a", dec!(25)),
+                    conversion_row("in", "CONVERSION_IN", "fund-b", dec!(40)),
+                ],
+                updates: vec![],
+                delete_ids: vec![],
+            })
+            .await
+            .unwrap();
+        assert!(created.errors.is_empty(), "{:?}", created.errors);
+    }
+
+    fn conversion_update(id: &str, account_id: &str) -> ActivityUpdate {
+        let mut update = create_test_activity_update(id, account_id, None, "USD");
+        update.activity_type = "ADJUSTMENT".into();
+        update.activity_date = "2026-02-03".into();
+        update.quantity = None;
+        update.unit_price = None;
+        update.fee = None;
+        update.amount = None;
+        update
+    }
+
+    #[tokio::test]
+    async fn a_conversion_is_written_as_a_pair_and_looked_up_from_either_row() {
+        let (service, repository) = conversion_fixture();
+        let lone = service
+            .create_activity(conversion_row("out", "CONVERSION_OUT", "fund-a", dec!(25)))
+            .await
+            .unwrap_err();
+        assert!(lone.to_string().contains("written as a pair"), "{lone}");
+
+        let one_asset = service
+            .bulk_mutate_activities(ActivityBulkMutationRequest {
+                creates: vec![
+                    conversion_row("out", "CONVERSION_OUT", "fund-a", dec!(25)),
+                    conversion_row("in", "CONVERSION_IN", "fund-a", dec!(40)),
+                ],
+                updates: vec![],
+                delete_ids: vec![],
+            })
+            .await
+            .unwrap();
+        assert!(!one_asset.errors.is_empty());
+        assert!(repository.get_activities().unwrap().is_empty());
+
+        create_conversion(&service).await;
+        assert_eq!(repository.get_activities().unwrap().len(), 2);
+        for id in ["out", "in"] {
+            let pair = service
+                .get_transfer_pair_for_activity(id.into())
+                .unwrap()
+                .expect("the conversion is a pair");
+            assert_eq!(pair.transfer_out.id, "out");
+            assert_eq!(pair.transfer_in.id, "in");
+        }
+    }
+
+    #[tokio::test]
+    async fn a_conversion_row_edit_moves_the_other_row_and_keeps_the_pair() {
+        let (service, repository) = conversion_fixture();
+        create_conversion(&service).await;
+
+        let mut edit = conversion_update("out", "acc-2");
+        edit.activity_date = "2026-02-05".into();
+        edit.quantity = Some(Some(dec!(20)));
+        edit.notes = Some("switch".into());
+        service.update_activity(edit).await.unwrap();
+        let leaving = repository.get_activity("out").unwrap();
+        let arriving = repository.get_activity("in").unwrap();
+        assert_eq!(leaving.quantity, Some(dec!(20)));
+        assert_eq!(arriving.quantity, Some(dec!(40)));
+        assert_eq!(arriving.account_id, "acc-2");
+        assert_eq!(arriving.activity_date, leaving.activity_date);
+        assert_eq!(arriving.notes.as_deref(), Some("switch"));
+
+        let mut retype = conversion_update("in", "acc-2");
+        retype.activity_type = "BUY".into();
+        retype.quantity = Some(Some(dec!(1)));
+        retype.unit_price = Some(Some(dec!(10)));
+        retype.amount = Some(Some(dec!(10)));
+        let error = service.update_activity(retype).await.unwrap_err();
+        assert!(error.to_string().contains("keeps its type"), "{error}");
+
+        let mut one_asset = conversion_update("in", "acc-2");
+        one_asset.activity_date = "2026-02-05".into();
+        one_asset.asset = Some(AssetResolutionInput {
+            id: Some("fund-a".into()),
+            ..Default::default()
+        });
+        let error = service.update_activity(one_asset).await.unwrap_err();
+        assert!(error.to_string().contains("written as a pair"), "{error}");
+        assert_eq!(
+            repository.get_activity("in").unwrap().asset_id.as_deref(),
+            Some("fund-b")
+        );
+    }
+
+    #[tokio::test]
+    async fn deleting_either_conversion_row_deletes_both() {
+        let (service, repository) = conversion_fixture();
+        create_conversion(&service).await;
+        service.delete_activity("in".into()).await.unwrap();
+        assert!(repository.get_activities().unwrap().is_empty());
+
+        create_conversion(&service).await;
+        let deleted = service
+            .bulk_mutate_activities(ActivityBulkMutationRequest {
+                creates: vec![],
+                updates: vec![],
+                delete_ids: vec!["out".into()],
+            })
+            .await
+            .unwrap();
+        assert!(deleted.errors.is_empty(), "{:?}", deleted.errors);
+        assert!(repository.get_activities().unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn a_row_added_to_a_conversion_group_is_refused() {
+        let (service, repository) = conversion_fixture();
+        create_conversion(&service).await;
+        let mut extra = conversion_row("extra", "", "fund-a", dec!(1));
+        extra.activity_type = "BUY".into();
+        extra.subtype = None;
+        extra.unit_price = Some(dec!(10));
+        extra.amount = Some(dec!(10));
+        let error = service.create_activity(extra).await.unwrap_err();
+        assert!(error.to_string().contains("written as a pair"), "{error}");
+        assert_eq!(repository.get_activities().unwrap().len(), 2);
+    }
+
+    #[tokio::test]
+    async fn a_padded_conversion_group_is_the_same_group() {
+        let (service, repository) = conversion_fixture();
+        create_conversion(&service).await;
+
+        // The engine trims group ids: " conv-1 " would join the stored pair.
+        let padded = |id: &str, subtype: &str, asset: &str| {
+            let mut row = conversion_row(id, subtype, asset, dec!(1));
+            row.source_group_id = Some(" conv-1 ".into());
+            row
+        };
+        let joined = service
+            .bulk_mutate_activities(ActivityBulkMutationRequest {
+                creates: vec![
+                    padded("out-2", "CONVERSION_OUT", "fund-a"),
+                    padded("in-2", "CONVERSION_IN", "fund-b"),
+                ],
+                updates: vec![],
+                delete_ids: vec![],
+            })
+            .await
+            .unwrap();
+        assert!(!joined.errors.is_empty());
+        assert_eq!(repository.get_activities().unwrap().len(), 2);
+
+        // A new pair's group is stored trimmed, so the lookup finds it.
+        let mut leaving = padded("out-3", "CONVERSION_OUT", "fund-a");
+        leaving.source_group_id = Some(" conv-3 ".into());
+        let mut arriving = padded("in-3", "CONVERSION_IN", "fund-b");
+        arriving.source_group_id = Some("conv-3".into());
+        let created = service
+            .bulk_mutate_activities(ActivityBulkMutationRequest {
+                creates: vec![leaving, arriving],
+                updates: vec![],
+                delete_ids: vec![],
+            })
+            .await
+            .unwrap();
+        assert!(created.errors.is_empty(), "{:?}", created.errors);
+        let stored = repository.get_activity("out-3").unwrap();
+        assert_eq!(stored.source_group_id.as_deref(), Some("conv-3"));
+        let pair = service
+            .get_transfer_pair_for_activity("out-3".into())
+            .unwrap()
+            .expect("the padded pair is a pair");
+        assert_eq!(pair.transfer_in.id, "in-3");
+    }
+
+    #[tokio::test]
+    async fn a_conversion_group_holds_its_pair_only() {
+        let (service, repository) = conversion_fixture();
+        create_conversion(&service).await;
+
+        // A draft pair would pair on its own, but deleting it would delete the
+        // posted pair too: storage deletes a row's whole group.
+        let draft = |id: &str, subtype: &str, asset: &str| {
+            let mut row = conversion_row(id, subtype, asset, dec!(1));
+            row.status = Some(ActivityStatus::Draft);
+            row
+        };
+        let joined = service
+            .bulk_mutate_activities(ActivityBulkMutationRequest {
+                creates: vec![
+                    draft("out-2", "CONVERSION_OUT", "fund-a"),
+                    draft("in-2", "CONVERSION_IN", "fund-b"),
+                ],
+                updates: vec![],
+                delete_ids: vec![],
+            })
+            .await
+            .unwrap();
+        assert!(!joined.errors.is_empty());
+
+        let mut stray = conversion_row("stray", "", "fund-a", dec!(1));
+        stray.activity_type = "BUY".into();
+        stray.subtype = None;
+        stray.unit_price = Some(dec!(10));
+        stray.amount = Some(dec!(10));
+        stray.status = Some(ActivityStatus::Draft);
+        let error = service.create_activity(stray).await.unwrap_err();
+        assert!(error.to_string().contains("written as a pair"), "{error}");
+        assert_eq!(repository.get_activities().unwrap().len(), 2);
+    }
+
+    /// fund-b arrives by one conversion and leaves by the next, on one day and
+    /// with the same units: its two rows differ only by direction, which their
+    /// keys must carry (storage keeps keys unique).
+    #[tokio::test]
+    async fn a_chain_of_conversions_on_one_day_keeps_its_rows_apart() {
+        let (service, repository) = conversion_fixture();
+        let row = |id: &str, subtype: &str, asset: &str, quantity, group: &str| {
+            let mut row = conversion_row(id, subtype, asset, quantity);
+            row.source_group_id = Some(group.into());
+            row
+        };
+        let created = service
+            .bulk_mutate_activities(ActivityBulkMutationRequest {
+                creates: vec![
+                    row("ab-out", "CONVERSION_OUT", "fund-a", dec!(25), "g-ab"),
+                    row("ab-in", "CONVERSION_IN", "fund-b", dec!(40), "g-ab"),
+                    row("bc-out", "CONVERSION_OUT", "fund-b", dec!(40), "g-bc"),
+                    row("bc-in", "CONVERSION_IN", "fund-c", dec!(10), "g-bc"),
+                ],
+                updates: vec![],
+                delete_ids: vec![],
+            })
+            .await
+            .unwrap();
+        assert!(created.errors.is_empty(), "{:?}", created.errors);
+        let key = |id: &str| repository.get_activity(id).unwrap().idempotency_key;
+        assert!(key("ab-in").is_some());
+        assert_ne!(key("ab-in"), key("bc-out"));
+    }
+
+    /// A transfer pair saved with a group of its own cannot join a
+    /// conversion's: deleting either would then delete all four rows.
+    #[tokio::test]
+    async fn a_transfer_pair_cannot_join_a_conversion_group() {
+        let (service, repository) = conversion_fixture();
+        create_conversion(&service).await;
+        let error = service
+            .save_internal_transfer_pair(InternalTransferPairRequest {
+                split_review: None,
+                edited_activity_id: None,
+                transfer_out_id: None,
+                transfer_in_id: None,
+                source_group_id: Some("conv-1".to_string()),
+                from_account_id: "acc-1".to_string(),
+                to_account_id: "acc-2".to_string(),
+                activity_date: "2026-02-03T20:00:00Z".to_string(),
+                source_amount: Some(dec!(100)),
+                destination_amount: Some(dec!(100)),
+                source_currency: "USD".to_string(),
+                destination_currency: "USD".to_string(),
+                fx_rate: None,
+                notes: None,
+                transfer_mode: Some("cash".to_string()),
+            })
+            .await
+            .unwrap_err();
+        assert!(error.to_string().contains("written as a pair"), "{error}");
+        assert_eq!(repository.get_activities().unwrap().len(), 2);
+    }
+
+    /// A preview refuses what the save refuses.
+    #[tokio::test]
+    async fn an_update_preview_refuses_an_edit_that_breaks_a_conversion() {
+        let (service, _) = conversion_fixture();
+        create_conversion(&service).await;
+        let mut fee = conversion_update("out", "acc-1");
+        fee.fee = Some(Some(dec!(1)));
+        let error = service.preview_activity_update(fee).unwrap_err();
+        assert!(error.to_string().contains("written as a pair"), "{error}");
+    }
+
+    /// One fund converted into two others the same day, by the same units:
+    /// the two leaving rows differ only by their conversion.
+    #[tokio::test]
+    async fn one_fund_converted_into_two_on_one_day_keeps_its_rows_apart() {
+        let (service, repository) = conversion_fixture();
+        for (group, to) in [("g-ab", "fund-b"), ("g-ac", "fund-c")] {
+            let mut leaving =
+                conversion_row(&format!("{group}-out"), "CONVERSION_OUT", "fund-a", dec!(5));
+            leaving.source_group_id = Some(group.into());
+            let mut arriving = conversion_row(&format!("{group}-in"), "CONVERSION_IN", to, dec!(5));
+            arriving.source_group_id = Some(group.into());
+            let created = service
+                .bulk_mutate_activities(ActivityBulkMutationRequest {
+                    creates: vec![leaving, arriving],
+                    updates: vec![],
+                    delete_ids: vec![],
+                })
+                .await
+                .unwrap();
+            assert!(created.errors.is_empty(), "{:?}", created.errors);
+        }
+        let key = |id: &str| repository.get_activity(id).unwrap().idempotency_key;
+        assert_ne!(key("g-ab-out"), key("g-ac-out"));
+    }
+
+    /// An imported row other than a conversion row brings no group: it cannot
+    /// join a pair already stored.
+    #[test]
+    fn an_imported_row_brings_a_group_only_for_a_conversion() {
+        let row = |activity_type: &str, subtype: Option<&str>| -> ActivityImport {
+            serde_json::from_value(json!({
+                "date": "2026-02-03", "symbol": "fund-a", "activityType": activity_type,
+                "subtype": subtype, "quantity": "1", "currency": "USD", "accountId": "acc-1",
+                "sourceGroupId": " g-1 ", "isDraft": false, "isValid": true
+            }))
+            .unwrap()
+        };
+        let group = |import: ActivityImport| NewActivity::from(import).source_group_id;
+        assert_eq!(
+            group(row("ADJUSTMENT", Some("CONVERSION_OUT"))).as_deref(),
+            Some("g-1")
+        );
+        assert_eq!(group(row("TRANSFER_IN", None)), None);
+        assert_eq!(group(row("ADJUSTMENT", Some("RETURN_OF_CAPITAL"))), None);
+        assert_eq!(group(row("TRANSFER_OUT", Some("CONVERSION_OUT"))), None);
+    }
+
+    /// The import check flags a conversion row whose other row is not in the
+    /// batch, on its row, and leaves a whole pair alone.
+    #[tokio::test]
+    async fn the_import_check_flags_a_conversion_row_without_its_pair() {
+        let (service, _) = conversion_fixture();
+        let row = |subtype: &str, asset: &str, group: Option<&str>| -> ActivityImport {
+            serde_json::from_value(json!({
+                "date": "2026-02-03", "symbol": asset, "assetId": asset, "quoteCcy": "USD",
+                "activityType": "ADJUSTMENT", "subtype": subtype, "quantity": "5",
+                "currency": "USD", "accountId": "acc-1", "sourceGroupId": group,
+                "isDraft": false, "isValid": true
+            }))
+            .unwrap()
+        };
+        let checked = service
+            .check_activities_import(vec![
+                row("CONVERSION_OUT", "fund-a", None),
+                row("CONVERSION_IN", "fund-b", Some("g-lone")),
+                row("CONVERSION_OUT", "fund-a", Some("g-ab")),
+                row("CONVERSION_IN", "fund-b", Some("g-ab")),
+            ])
+            .await
+            .unwrap();
+        let flagged = |row: &ActivityImport| {
+            row.errors.as_ref().is_some_and(|errors| {
+                errors
+                    .values()
+                    .flatten()
+                    .any(|message| message.contains("two rows"))
+            })
+        };
+        assert!(flagged(&checked[0]) && !checked[0].is_valid);
+        assert!(flagged(&checked[1]));
+        assert!(!flagged(&checked[2]), "{:?}", checked[2].errors);
+        assert!(!flagged(&checked[3]), "{:?}", checked[3].errors);
+    }
+
+    /// The same chain imported: no row reads as another's duplicate, and a
+    /// second import of the file finds all four already there.
+    #[tokio::test]
+    async fn a_chain_of_conversions_imports_once() {
+        let (service, repository) = conversion_fixture();
+        let row = |subtype: &str, asset: &str, quantity: &str, group: &str| -> ActivityImport {
+            serde_json::from_value(json!({
+                "date": "2026-02-03", "symbol": asset, "assetId": asset, "quoteCcy": "USD",
+                "activityType": "ADJUSTMENT", "subtype": subtype, "quantity": quantity,
+                "currency": "USD", "accountId": "acc-1", "sourceGroupId": group,
+                "isDraft": false, "isValid": true
+            }))
+            .unwrap()
+        };
+        let rows = vec![
+            row("CONVERSION_OUT", "fund-a", "25", "g-ab"),
+            row("CONVERSION_IN", "fund-b", "40", "g-ab"),
+            row("CONVERSION_OUT", "fund-b", "40", "g-bc"),
+            row("CONVERSION_IN", "fund-c", "10", "g-bc"),
+        ];
+
+        let first = service.import_activities(rows.clone()).await.unwrap();
+        assert_eq!(first.summary.imported, 4, "{:?}", first.activities);
+        assert_eq!(repository.get_activities().unwrap().len(), 4);
+
+        let again = service.import_activities(rows).await.unwrap();
+        assert_eq!(again.summary.imported, 0, "{:?}", again.activities);
+        assert_eq!(repository.get_activities().unwrap().len(), 4);
+    }
+
+    #[tokio::test]
+    async fn an_edit_that_keeps_the_time_keeps_the_conversion_in_place() {
+        let (service, repository) = conversion_fixture();
+        let mut leaving = conversion_row("out", "CONVERSION_OUT", "fund-a", dec!(25));
+        leaving.activity_date = "2026-02-03T10:00:00Z".into();
+        let mut arriving = conversion_row("in", "CONVERSION_IN", "fund-b", dec!(40));
+        arriving.activity_date = "2026-02-03T12:00:00Z".into();
+        let created = service
+            .bulk_mutate_activities(ActivityBulkMutationRequest {
+                creates: vec![leaving, arriving],
+                updates: vec![],
+                delete_ids: vec![],
+            })
+            .await
+            .unwrap();
+        assert!(created.errors.is_empty(), "{:?}", created.errors);
+        let at = |id: &str| {
+            repository
+                .get_activity(id)
+                .unwrap()
+                .activity_date
+                .to_rfc3339()
+        };
+
+        // A sale at 11:00 would read the conversion as folded at 10:00.
+        let mut notes = conversion_update("in", "acc-1");
+        notes.activity_date = "2026-02-03T12:00:00Z".into();
+        notes.notes = Some("switch".into());
+        service.update_activity(notes).await.unwrap();
+        assert_eq!(at("out"), "2026-02-03T10:00:00+00:00");
+        assert_eq!(at("in"), "2026-02-03T12:00:00+00:00");
+        assert_eq!(
+            repository.get_activity("out").unwrap().notes.as_deref(),
+            Some("switch")
+        );
+
+        // Moving a row moves the other with it.
+        let mut moved = conversion_update("in", "acc-1");
+        moved.activity_date = "2026-02-03T09:00:00Z".into();
+        service.update_activity(moved).await.unwrap();
+        assert_eq!(at("out"), "2026-02-03T09:00:00+00:00");
+        assert_eq!(at("in"), "2026-02-03T09:00:00+00:00");
+    }
+
+    #[tokio::test]
+    async fn an_edit_cannot_make_a_conversion_in_a_larger_group() {
+        let (service, repository) = conversion_fixture();
+        for (id, asset) in [("adj-a", "fund-a"), ("adj-b", "fund-b")] {
+            let mut row = conversion_row(id, "", asset, dec!(5));
+            row.subtype = None;
+            row.source_group_id = Some("g-x".into());
+            service.create_activity(row).await.unwrap();
+        }
+        let mut stray = conversion_row("stray", "", "fund-a", dec!(1));
+        stray.activity_type = "BUY".into();
+        stray.subtype = None;
+        stray.unit_price = Some(dec!(10));
+        stray.amount = Some(dec!(10));
+        stray.status = Some(ActivityStatus::Draft);
+        stray.source_group_id = Some("g-x".into());
+        service.create_activity(stray).await.unwrap();
+
+        // The two posted rows would pair, but the draft shares their group.
+        let to_conversion = |id: &str, subtype: &str| {
+            let mut update = conversion_update(id, "acc-1");
+            update.subtype = Some(subtype.into());
+            update
+        };
+        let result = service
+            .bulk_mutate_activities(ActivityBulkMutationRequest {
+                creates: vec![],
+                updates: vec![
+                    to_conversion("adj-a", "CONVERSION_OUT"),
+                    to_conversion("adj-b", "CONVERSION_IN"),
+                ],
+                delete_ids: vec![],
+            })
+            .await
+            .unwrap();
+        assert!(!result.errors.is_empty());
+        assert_eq!(repository.get_activity("adj-a").unwrap().subtype, None);
+    }
+
+    #[tokio::test]
+    async fn a_conversion_row_with_a_padded_type_must_pair() {
+        let (service, repository) = conversion_fixture();
+        let mut lone = conversion_row("out", "CONVERSION_OUT", "fund-a", dec!(25));
+        lone.activity_type = " ADJUSTMENT ".into();
+        lone.source_group_id = None;
+        let error = service.create_activity(lone).await.unwrap_err();
+        assert!(error.to_string().contains("written as a pair"), "{error}");
+        assert!(repository.get_activities().unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn an_archived_account_conversion_edit_is_checked() {
+        let (service, repository) = conversion_fixture();
+        create_conversion(&service).await;
+        repository.archive_account("acc-1");
+
+        let one_asset = || {
+            let mut update = conversion_update("in", "acc-1");
+            update.asset = Some(AssetResolutionInput {
+                id: Some("fund-a".into()),
+                ..Default::default()
+            });
+            update
+        };
+        let error = service.update_activity(one_asset()).await.unwrap_err();
+        assert!(error.to_string().contains("written as a pair"), "{error}");
+
+        let bulk = service
+            .bulk_mutate_activities(ActivityBulkMutationRequest {
+                creates: vec![],
+                updates: vec![one_asset()],
+                delete_ids: vec![],
+            })
+            .await
+            .unwrap();
+        assert!(!bulk.errors.is_empty());
+        assert_eq!(
+            repository.get_activity("in").unwrap().asset_id.as_deref(),
+            Some("fund-b")
+        );
+    }
+
+    #[tokio::test]
+    async fn an_edit_that_makes_a_conversion_row_must_pair() {
+        let (service, repository) = conversion_fixture();
+        let mut adjustment = conversion_row("adj", "", "fund-a", dec!(5));
+        adjustment.subtype = None;
+        adjustment.source_group_id = None;
+        service.create_activity(adjustment).await.unwrap();
+
+        let to_conversion = || {
+            let mut update = conversion_update("adj", "acc-1");
+            update.subtype = Some("CONVERSION_OUT".into());
+            update
+        };
+        let error = service.update_activity(to_conversion()).await.unwrap_err();
+        assert!(error.to_string().contains("written as a pair"), "{error}");
+
+        let bulk = service
+            .bulk_mutate_activities(ActivityBulkMutationRequest {
+                creates: vec![],
+                updates: vec![to_conversion()],
+                delete_ids: vec![],
+            })
+            .await
+            .unwrap();
+        assert!(!bulk.errors.is_empty());
+        assert_eq!(repository.get_activity("adj").unwrap().subtype, None);
     }
 }

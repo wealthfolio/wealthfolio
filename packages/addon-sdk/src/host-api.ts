@@ -226,10 +226,12 @@ export interface ActivitiesAPI {
   saveImportMapping(mapping: ImportMappingData): Promise<ImportMappingData>;
 
   /**
-   * Get the linked transfer pair for a given activity
+   * Get the linked pair for a given activity: an internal transfer, or a
+   * conversion, whose CONVERSION_OUT row is `transferOut` and CONVERSION_IN
+   * row `transferIn`.
    * @param activityId Activity identifier
-   * @returns Promise resolving to the transfer pair, or null when the activity
-   * is not part of one. Rejects if the activity does not exist.
+   * @returns Promise resolving to the pair, or null when the activity is not
+   * part of one. Rejects if the activity does not exist.
    */
   getTransferPair(activityId: string): Promise<InternalTransferPairResponse | null>;
 
