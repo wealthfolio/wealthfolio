@@ -198,7 +198,7 @@ export function DashboardContent({
             </PortfolioUpdateTrigger>
             <PrivacyToggle className="hover:bg-muted/50 bg-transparent" />
           </div>
-          <div className="text-md flex min-h-5 items-center space-x-3">
+          <div className="text-md flex min-h-5 flex-wrap items-center gap-x-3">
             {isPortfolioPerformanceLoading ? (
               <div className="flex items-center gap-3">
                 <Skeleton className="h-4 w-24" />

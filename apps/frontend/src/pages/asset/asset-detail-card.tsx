@@ -244,9 +244,9 @@ const AssetDetailCard: React.FC<AssetDetailProps> = ({ assetData, className }) =
           <div className="space-y-2 text-sm">
             {performanceRows.map(
               ({ label, amount, currency: rowCurrency, percent, color }, idx) => (
-                <div key={idx} className="flex items-center justify-between">
+                <div key={idx} className="flex items-center justify-between gap-3">
                   <span className="text-muted-foreground">{label}</span>
-                  <span className="flex items-center gap-2">
+                  <span className="flex flex-wrap items-center justify-end gap-x-2 gap-y-1">
                     {amount == null && percent == null ? (
                       <span className="text-muted-foreground">{t("asset:detailCard.na")}</span>
                     ) : (

@@ -896,7 +896,9 @@ export const AssetProfilePage = () => {
                 <Badge
                   key={badge.id}
                   variant="secondary"
-                  className="gap-1.5"
+                  // A long category name ends in an ellipsis rather than past the screen.
+                  className="max-w-full gap-1.5"
+                  title={badge.categoryName}
                   style={{
                     backgroundColor: `${badge.categoryColor}20`,
                     color: badge.categoryColor,
@@ -904,10 +906,10 @@ export const AssetProfilePage = () => {
                   }}
                 >
                   <span
-                    className="h-2 w-2 rounded-full"
+                    className="h-2 w-2 shrink-0 rounded-full"
                     style={{ backgroundColor: badge.categoryColor }}
                   />
-                  {badge.categoryName}
+                  <span className="truncate">{badge.categoryName}</span>
                 </Badge>
               ))}
               <Button
