@@ -125,3 +125,17 @@ job's `pnpm install --frozen-lockfile --ignore-scripts` remains supported
 because the formatter uses prebuilt platform binaries. Keep optional
 dependencies and development dependencies enabled in jobs that run frontend
 checks.
+
+PR checks do not run the net-worth layout browser suite. Run
+`pnpm test:e2e:net-worth` locally for relevant layout changes; see
+[browser test setup](../e2e/README.md#ci-coverage-and-local-gates).
+
+The existing Frontend Check job installs Chromium, Firefox, and WebKit and runs
+the addon sandbox suite only when the `addon_sandbox` file filter is true. That
+filter covers addon code, shared UI/SDK/dev-tool packages, sandbox styles and
+localization, browser tests, build scripts/configuration, and dependencies. CI
+workflow/helper changes also run it. Ordinary application pages and docs do not
+require browsers. The exact paths live in
+[the CI classifier](../.github/scripts/ci_changes.py); unit tests cover both
+matching and unrelated paths. When requested, a failed sandbox suite still fails
+Frontend Check and the required Build Status gate.

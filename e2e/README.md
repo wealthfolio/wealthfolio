@@ -168,12 +168,39 @@ npx playwright test && npx playwright show-report
 
 ---
 
-## Not in CI (tracked follow-up)
+## CI coverage and local gates
 
-None of the specs in this directory run in CI. `pr-check.yml` installs
-Playwright only for `pnpm test:e2e:addon-sandbox`, a standalone frontend-only
-harness; the app suite needs a built Rust backend on :8088, a seeded database,
-and serial execution against shared state.
+The PR workflow keeps formatting, lint, type checks, unit tests, and the
+frontend build automatic for frontend changes. It installs browsers and runs
+`pnpm test:e2e:addon-sandbox` only for changes to the addon runtime or its
+shared inputs: UI/SDK/dev-tool packages, styles/localization, browser tests,
+build configuration/scripts, dependencies, and CI workflows/helpers. The
+[`addon_sandbox` classifier](../.github/scripts/ci_changes.py) defines the exact
+paths. Both installation and test execution use that filter, so unrelated page
+and documentation changes do not install browsers. The sandbox suite still runs
+in Chromium, Firefox, and WebKit and blocks the PR if it fails when requested.
+
+The standalone net-worth suite is a local gate for relevant layout changes,
+including RTL; it is not run in PR checks. It starts its own Vite harness and
+does not need the Rust backend or a seeded database:
+
+```bash
+pnpm build:types
+pnpm exec playwright install chromium
+pnpm test:e2e:net-worth
+```
+
+The standalone addon sandbox runner also needs no Rust backend or database. To
+run it locally, install its browsers, then let the runner build the frontend and
+start its preview server:
+
+```bash
+pnpm exec playwright install --with-deps chromium firefox webkit
+pnpm test:e2e:addon-sandbox
+```
+
+The top-level application specs do not run in CI. That suite needs a built Rust
+backend on :8088, a seeded database, and serial execution against shared state.
 
 Standing that up is its own change — it should add the whole suite as one job,
 not smuggle individual specs in. Until then these specs are a local gate only:
