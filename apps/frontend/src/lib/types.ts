@@ -952,6 +952,8 @@ export interface Settings {
   /** Appearance mode: light, dark or system. */
   theme: string;
   font: string;
+  /** Text size name; absent on older backends, which show the default size. */
+  textSize?: string;
   language: string;
   formattingRegion: string;
   /** Formatting regions for amounts in specific currencies, keyed by currency code. */

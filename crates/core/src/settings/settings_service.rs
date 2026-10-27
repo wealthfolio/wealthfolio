@@ -103,22 +103,37 @@ fn validate_formatting_region(region: &str) -> Result<()> {
     }
 }
 
-/// Theme IDs are the frontend's definition file names: lowercase words joined by
-/// hyphens. The frontend resolves an ID it doesn't know to Classic.
-fn validate_theme_id(theme_id: &str) -> Result<()> {
-    let valid = theme_id.len() <= 48
-        && theme_id.starts_with(|c: char| c.is_ascii_lowercase())
-        && theme_id.split('-').all(|word| {
+/// Names the frontend defines, such as theme IDs (its definition file names) and
+/// text sizes: lowercase words joined by hyphens. The frontend shows its default
+/// for a name it doesn't know, so a name saved by a newer version survives an
+/// older one.
+fn is_frontend_name(name: &str) -> bool {
+    name.len() <= 48
+        && name.starts_with(|c: char| c.is_ascii_lowercase())
+        && name.split('-').all(|word| {
             !word.is_empty()
                 && word
                     .bytes()
                     .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit())
-        });
-    if valid {
+        })
+}
+
+fn validate_theme_id(theme_id: &str) -> Result<()> {
+    if is_frontend_name(theme_id) {
         Ok(())
     } else {
         Err(Error::InvalidConfigValue(format!(
             "Invalid theme ID: {theme_id}"
+        )))
+    }
+}
+
+fn validate_text_size(text_size: &str) -> Result<()> {
+    if is_frontend_name(text_size) {
+        Ok(())
+    } else {
+        Err(Error::InvalidConfigValue(format!(
+            "Invalid text size: {text_size}"
         )))
     }
 }
@@ -226,6 +241,9 @@ impl SettingsServiceTrait for SettingsService {
 
         if let Some(ref theme_id) = normalized_settings.theme_id {
             validate_theme_id(theme_id)?;
+        }
+        if let Some(ref text_size) = normalized_settings.text_size {
+            validate_text_size(text_size)?;
         }
         if let Some(ref region) = normalized_settings.formatting_region {
             validate_formatting_region(region)?;
@@ -338,8 +356,8 @@ impl SettingsService {
 mod tests {
     use super::{
         normalize_currency_formatting_regions, normalize_formatting_region, normalize_ui_language,
-        validate_currency_formatting_regions, validate_formatting_region, validate_theme_id,
-        validate_ui_language,
+        validate_currency_formatting_regions, validate_formatting_region, validate_text_size,
+        validate_theme_id, validate_ui_language,
     };
     use crate::settings::Settings;
     use std::collections::BTreeMap;
@@ -370,6 +388,24 @@ mod tests {
         ] {
             assert!(validate_theme_id(id).is_err(), "{id}");
         }
+    }
+
+    #[test]
+    fn accepts_text_size_names_and_rejects_anything_else() {
+        for size in ["small", "default", "large", "extra-large"] {
+            assert!(validate_text_size(size).is_ok(), "{size}");
+        }
+        for size in ["", "Large", "130%", "1.3", "extra_large", "-large"] {
+            assert!(validate_text_size(size).is_err(), "{size}");
+        }
+    }
+
+    #[test]
+    fn settings_saved_before_text_size_read_as_default() {
+        let mut value = serde_json::to_value(Settings::default()).unwrap();
+        value.as_object_mut().unwrap().remove("textSize");
+        let settings: Settings = serde_json::from_value(value).unwrap();
+        assert_eq!(settings.text_size, "default");
     }
 
     #[test]

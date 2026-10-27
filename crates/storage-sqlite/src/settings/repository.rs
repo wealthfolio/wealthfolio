@@ -11,7 +11,7 @@ use wealthfolio_core::assets::AssetKind;
 use wealthfolio_core::errors::Result;
 use wealthfolio_core::settings::{
     Settings, SettingsRepositoryTrait, SettingsUpdate, CURRENCY_FORMATTING_REGIONS_KEY,
-    DEFAULT_THEME_ID, INSIGHTS_OVERVIEW_LAYOUT_KEY, THEME_ID_KEY,
+    DEFAULT_TEXT_SIZE, DEFAULT_THEME_ID, INSIGHTS_OVERVIEW_LAYOUT_KEY, TEXT_SIZE_KEY, THEME_ID_KEY,
 };
 
 pub struct SettingsRepository {
@@ -42,6 +42,7 @@ impl SettingsRepositoryTrait for SettingsRepository {
                 THEME_ID_KEY => settings.theme_id = value,
                 "theme" => settings.theme = value,
                 "font" => settings.font = value,
+                TEXT_SIZE_KEY => settings.text_size = value,
                 "language" => settings.language = value,
                 "formatting_region" => settings.formatting_region = value,
                 CURRENCY_FORMATTING_REGIONS_KEY => {
@@ -105,6 +106,16 @@ impl SettingsRepositoryTrait for SettingsRepository {
                         .values(&AppSettingDB {
                             setting_key: "font".to_string(),
                             setting_value: font.clone(),
+                        })
+                        .execute(tx.conn())
+                        .map_err(StorageError::from)?;
+                }
+
+                if let Some(ref text_size) = settings.text_size {
+                    diesel::replace_into(app_settings)
+                        .values(&AppSettingDB {
+                            setting_key: TEXT_SIZE_KEY.to_string(),
+                            setting_value: text_size.clone(),
                         })
                         .execute(tx.conn())
                         .map_err(StorageError::from)?;
@@ -248,6 +259,7 @@ impl SettingsRepositoryTrait for SettingsRepository {
                     THEME_ID_KEY => DEFAULT_THEME_ID,
                     "theme" => "light",
                     "font" => "font-mono",
+                    TEXT_SIZE_KEY => DEFAULT_TEXT_SIZE,
                     "language" => "en",
                     "timezone" => "",
                     "onboarding_completed" => "false",
@@ -429,6 +441,28 @@ mod tests {
         let mut conn = get_connection(&repo.pool).unwrap();
         let outbox: i64 = sync_outbox::table.count().get_result(&mut conn).unwrap();
         assert_eq!(outbox, 0, "The theme stays on this device");
+    }
+
+    #[tokio::test]
+    async fn text_size_defaults_and_stays_on_this_device() {
+        use crate::schema::sync_outbox;
+        let (repo, _dir) = setup().await;
+        assert_eq!(repo.get_settings().unwrap().text_size, DEFAULT_TEXT_SIZE);
+        assert_eq!(repo.get_setting(TEXT_SIZE_KEY).unwrap(), DEFAULT_TEXT_SIZE);
+
+        let update = serde_json::from_value(json!({"textSize": "extra-large"})).unwrap();
+        repo.update_settings(&update).await.unwrap();
+        let unrelated =
+            serde_json::from_value(json!({"theme": "dark", "themeId": "ember"})).unwrap();
+        repo.update_settings(&unrelated).await.unwrap();
+
+        let settings = repo.get_settings().unwrap();
+        assert_eq!(settings.text_size, "extra-large");
+        assert_eq!(settings.theme_id, "ember");
+
+        let mut conn = get_connection(&repo.pool).unwrap();
+        let outbox: i64 = sync_outbox::table.count().get_result(&mut conn).unwrap();
+        assert_eq!(outbox, 0, "The text size stays on this device");
     }
 
     #[tokio::test]

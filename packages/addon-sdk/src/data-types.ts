@@ -980,6 +980,8 @@ export interface Settings {
   themeId?: string;
   theme: string;
   font: string;
+  /** Text size name (small, default, large, extra-large). Absent on hosts without it. */
+  textSize?: string;
   baseCurrency: string;
   defaultReturnMetric: 'twr' | 'irr' | 'valueReturn';
   timezone?: string;

@@ -42,6 +42,9 @@
           // The CSS shows Classic for an ID it doesn't know.
           var themeId = localStorage.getItem("wealthfolio-theme-id");
           if (themeId) document.documentElement.setAttribute("data-theme", themeId);
+          // Likewise the default text size for a name it doesn't know.
+          var textSize = localStorage.getItem("wealthfolio-text-size");
+          if (textSize) document.documentElement.setAttribute("data-text-size", textSize);
         } catch (e) {}
         // Presentation hint only; profile access is still checked by the app.
         try {

@@ -12,6 +12,11 @@ and this project adheres to
   absent on hosts without themes. Addon pages get the theme's colours through
   the host's CSS variables and its `data-theme` attribute on `<html>`, and
   follow it when the user switches.
+- `Settings.textSize`: the host's text size on this device (`small`, `default`,
+  `large` or `extra-large`), absent on hosts without it. It scales the root font
+  size, so everything an addon sizes in `rem` grows with the host's text; addon
+  pages get it as the `data-text-size` attribute on `<html>` and follow it when
+  the user changes it. Sizes in `px` stay as they are.
 - `chartSliceColor(index)` in `@wealthfolio/ui`: the colour for the item at a
   position in a composition, the theme's first seven chart colours and then the
   same seven mixed halfway toward the card. The host's donuts, breakdown lists

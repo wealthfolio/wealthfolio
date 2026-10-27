@@ -54,8 +54,10 @@ beforeEach(() => {
   vi.clearAllMocks();
   settings.theme = "system";
   settings.themeId = undefined;
+  settings.textSize = undefined;
   document.documentElement.className = "";
   document.documentElement.removeAttribute("data-theme");
+  document.documentElement.removeAttribute("data-text-size");
   localStorage.clear();
   // The OS prefers dark; native window themes report light, as tao does on mobile.
   vi.mocked(window.matchMedia).mockImplementation(
@@ -128,5 +130,31 @@ it("shows Classic for a missing or unknown theme", async () => {
     await waitFor(() => expect(document.documentElement).toHaveAttribute("data-theme", "classic"));
     unmount();
     document.documentElement.removeAttribute("data-theme");
+  }
+});
+
+it("applies the saved text size and caches it for the next start", async () => {
+  settings.textSize = "extra-large";
+  mocks.platform.mockResolvedValue({ os: "linux", is_mobile: false, is_desktop: true });
+
+  render(<SettingsProvider>content</SettingsProvider>);
+
+  await waitFor(() =>
+    expect(document.documentElement).toHaveAttribute("data-text-size", "extra-large"),
+  );
+  expect(localStorage.getItem("wealthfolio-text-size")).toBe("extra-large");
+});
+
+it("shows the default text size for a missing or unknown size", async () => {
+  mocks.platform.mockResolvedValue({ os: "linux", is_mobile: false, is_desktop: true });
+  for (const textSize of [undefined, "from-a-newer-version"]) {
+    settings.textSize = textSize;
+    const { unmount } = render(<SettingsProvider>content</SettingsProvider>);
+    await waitFor(() =>
+      expect(document.documentElement).toHaveAttribute("data-text-size", "default"),
+    );
+    expect(localStorage.getItem("wealthfolio-text-size")).toBe("default");
+    unmount();
+    document.documentElement.removeAttribute("data-text-size");
   }
 });

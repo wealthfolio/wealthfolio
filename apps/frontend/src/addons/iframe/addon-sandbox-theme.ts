@@ -5,6 +5,7 @@ export interface AddonThemeSnapshot {
   fontClass?: string;
   fontFamily: string;
   foregroundColor: string;
+  textSize?: string;
   themeClass: "light" | "dark";
   themeId?: string;
 }
@@ -32,6 +33,7 @@ export function collectAddonThemeSnapshot(): AddonThemeSnapshot {
     fontClass: FONT_CLASSES.find((className) => document.body.classList.contains(className)),
     fontFamily: bodyStyle.fontFamily || rootStyle.fontFamily,
     foregroundColor: bodyStyle.color || rootStyle.color || "inherit",
+    textSize: document.documentElement.getAttribute("data-text-size") ?? undefined,
     themeClass,
     themeId: document.documentElement.getAttribute("data-theme") ?? undefined,
   };
@@ -45,6 +47,10 @@ export function applyHostTheme(theme?: Partial<AddonThemeSnapshot>) {
   const htmlElement = document.documentElement;
   if (theme.themeId) {
     htmlElement.setAttribute("data-theme", theme.themeId);
+  }
+  // The sandbox loads the host's globals.css, which sizes the root by this name.
+  if (theme.textSize) {
+    htmlElement.setAttribute("data-text-size", theme.textSize);
   }
   if (theme.themeClass) {
     htmlElement.classList.remove("light", "dark");

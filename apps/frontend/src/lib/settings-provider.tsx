@@ -13,6 +13,7 @@ import { setLanguageDirection, useDocumentDirection } from "@/i18n/direction";
 import i18n, { LANGUAGE_STORAGE_KEY } from "@/i18n/i18n";
 import { DEFAULT_LOCALE } from "@/i18n/locales";
 import { Settings, SettingsContextType } from "@/lib/types";
+import { isTextSize, resolveTextSize, TEXT_SIZE_STORAGE_KEY } from "@/themes/text-size";
 import { isThemeId, resolveThemeId } from "@/themes/themes";
 import { FormattingProvider, resolveFormattingLocale } from "@wealthfolio/ui";
 
@@ -24,6 +25,7 @@ interface ExtendedSettingsContextType extends SettingsContextType {
         | "themeId"
         | "theme"
         | "font"
+        | "textSize"
         | "language"
         | "formattingRegion"
         | "currencyFormattingRegions"
@@ -67,6 +69,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         | "themeId"
         | "theme"
         | "font"
+        | "textSize"
         | "language"
         | "formattingRegion"
         | "currencyFormattingRegions"
@@ -83,6 +86,9 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     if (!settings) throw new Error("Settings not loaded");
     if (updates.themeId !== undefined && !isThemeId(updates.themeId)) {
       throw new Error(`Unknown theme: ${updates.themeId}`);
+    }
+    if (updates.textSize !== undefined && !isTextSize(updates.textSize)) {
+      throw new Error(`Unknown text size: ${updates.textSize}`);
     }
     await updateMutation.mutateAsync(updates);
   };
@@ -276,11 +282,16 @@ const applySettingsToDocument = async (newSettings: Settings) => {
   document.body.classList.remove("font-mono", "font-sans", "font-serif");
   document.body.classList.add(newSettings.font);
 
+  // Text size scales the root font size; an unknown name shows the default.
+  const textSize = resolveTextSize(newSettings.textSize);
+  document.documentElement.dataset.textSize = textSize;
+
   // Cache pre-auth presentation settings so bootstrap UI does not flash defaults.
   // index.html reads these keys before the app loads.
   try {
     localStorage.setItem("wealthfolio-theme", newSettings.theme);
     localStorage.setItem("wealthfolio-theme-id", themeId);
+    localStorage.setItem(TEXT_SIZE_STORAGE_KEY, textSize);
     localStorage.setItem(LANGUAGE_STORAGE_KEY, language);
   } catch {
     // noop – localStorage may be unavailable

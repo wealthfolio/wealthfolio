@@ -475,6 +475,19 @@
   }
 }
 
+/* Text size (Settings → Appearance, src/themes/text-size.ts): scales the root font
+   size, so everything in rem grows together. Media queries keep their widths, as
+   their rem is the browser's default size. A name not listed here shows the default. */
+:root[data-text-size="small"] {
+  font-size: 87.5%;
+}
+:root[data-text-size="large"] {
+  font-size: 115%;
+}
+:root[data-text-size="extra-large"] {
+  font-size: 130%;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
