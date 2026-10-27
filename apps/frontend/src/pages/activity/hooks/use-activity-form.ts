@@ -1,7 +1,7 @@
 import { isActivityEditCancelled } from "@/features/spending/components/activity-split-review-provider";
 import { getTransferPairForActivity, logger } from "@/adapters";
 import { buildAssetResolutionInput } from "@/lib/asset-resolution-input";
-import { ActivityStatus, ActivityType } from "@/lib/constants";
+import { ACTIVITY_SUBTYPES, ActivityStatus, ActivityType } from "@/lib/constants";
 import { generateId } from "@/lib/id";
 import type { ActivityCreate, ActivityDetails, ActivityUpdate } from "@/lib/types";
 import { useCallback, useMemo } from "react";
@@ -10,15 +10,92 @@ import type { AccountSelectOption } from "../components/forms/fields";
 import type { NewActivityFormValues } from "../components/forms/schemas";
 import type { TransferFormValues } from "../components/forms/transfer-form";
 import type { AdjustmentFormValues } from "../components/forms/adjustment-form";
+import type { ConversionFormValues } from "../components/forms/conversion-form";
 import {
   ACTIVITY_FORM_CONFIG,
   type ActivityFormValues,
   type PickerActivityType,
 } from "../config/activity-form-config";
 import { useActivityMutations } from "./use-activity-mutations";
+import { conversionFirstDate } from "../utils/conversion-counterpart";
 
 function generateSourceGroupId(): string {
   return generateId("wf-transfer");
+}
+
+/**
+ * A conversion's two rows (engine rules R7.5): the leaving units as
+ * CONVERSION_OUT and the arriving units as CONVERSION_IN, in one account on
+ * one day, with no cash.
+ */
+function conversionRows(data: ConversionFormValues, accountCurrency: string | undefined) {
+  const side = (
+    subtype: string,
+    asset: {
+      id?: string | null;
+      symbol: string;
+      exchangeMic?: string | null;
+      quoteCcy?: string | null;
+      instrumentType?: string | null;
+      quoteMode?: string | null;
+      metadata?: ConversionFormValues["fromAssetMetadata"];
+    },
+    quantity: number,
+    currency: string | null | undefined,
+  ) => ({
+    accountId: data.accountId,
+    activityType: ActivityType.ADJUSTMENT,
+    subtype,
+    activityDate: data.activityDate,
+    quantity,
+    currency: currency?.trim() || asset.quoteCcy?.trim() || accountCurrency,
+    comment: data.comment ?? null,
+    // An existing asset is named by its id alone: with a symbol, its identity
+    // would be inferred again, which can drop the id (a bond read as equity).
+    asset: asset.id
+      ? buildAssetResolutionInput({ id: asset.id })
+      : buildAssetResolutionInput({
+          symbol: asset.symbol,
+          exchangeMic: asset.exchangeMic ?? asset.metadata?.exchangeMic,
+          quoteCcy: asset.quoteCcy,
+          instrumentType: asset.instrumentType,
+          quoteMode: asset.quoteMode,
+          name: asset.metadata?.name,
+          kind: asset.metadata?.kind,
+          providerId: asset.metadata?.providerId,
+          providerSymbol: asset.metadata?.providerSymbol,
+        }),
+  });
+  return {
+    leaving: side(
+      ACTIVITY_SUBTYPES.CONVERSION_OUT,
+      {
+        id: data.fromExistingAssetId,
+        symbol: data.fromAssetId,
+        exchangeMic: data.fromExchangeMic,
+        quoteCcy: data.fromSymbolQuoteCcy,
+        instrumentType: data.fromSymbolInstrumentType,
+        quoteMode: data.fromQuoteMode,
+        metadata: data.fromAssetMetadata,
+      },
+      data.fromQuantity,
+      data.fromCurrency,
+    ),
+    arriving: side(
+      ACTIVITY_SUBTYPES.CONVERSION_IN,
+      {
+        id: data.toExistingAssetId,
+        symbol: data.toAssetId,
+        exchangeMic: data.toExchangeMic,
+        quoteCcy: data.toSymbolQuoteCcy,
+        instrumentType: data.toSymbolInstrumentType,
+        quoteMode: data.toQuoteMode,
+        metadata: data.toAssetMetadata,
+      },
+      data.toQuantity,
+      data.toCurrency,
+    ),
+  };
 }
 
 function extractErrorMessage(error: unknown): string {
@@ -119,6 +196,49 @@ export function useActivityForm({
       if (!config) return;
 
       try {
+        // A conversion saves its two rows together, created or edited.
+        if (selectedType === "CONVERSION") {
+          const data = formData as ConversionFormValues;
+          const account = accounts.find((a) => a.value === data.accountId);
+          const { leaving, arriving } = conversionRows(data, account?.currency);
+          if (isEditing && activity?.id) {
+            const editsLeaving = activity.subtype === ACTIVITY_SUBTYPES.CONVERSION_OUT;
+            const leavingId = editsLeaving ? activity.id : activity.counterpartActivityId;
+            const arrivingId = editsLeaving ? activity.counterpartActivityId : activity.id;
+            if (!leavingId || !arrivingId) {
+              throw new Error("Editing a conversion requires both of its rows.");
+            }
+            // A date left as the form opened keeps each row's own time, so the
+            // pair keeps its place among activities at the same time; an
+            // edited date moves both rows to it.
+            const opened = conversionFirstDate(activity);
+            const keepsTimes =
+              !!opened && new Date(data.activityDate).getTime() === opened.getTime();
+            const ownTime = (date: Date | string | null | undefined) =>
+              keepsTimes && date ? { activityDate: date } : {};
+            const [leavingTime, arrivingTime] = editsLeaving
+              ? [activity.date, activity.counterpartDate]
+              : [activity.counterpartDate, activity.date];
+            const result = await saveActivitiesMutation.mutateAsync({
+              updates: [
+                { ...leaving, id: leavingId, ...ownTime(leavingTime) } as ActivityUpdate,
+                { ...arriving, id: arrivingId, ...ownTime(arrivingTime) } as ActivityUpdate,
+              ],
+            });
+            // The bulk save closes the sheet after a create; an edit closes it here.
+            if (!result.errors?.length) onSuccess?.();
+            return;
+          }
+          const sourceGroupId = generateId("wf-conversion");
+          await saveActivitiesMutation.mutateAsync({
+            creates: [
+              { ...leaving, sourceGroupId } as ActivityCreate,
+              { ...arriving, sourceGroupId } as ActivityCreate,
+            ],
+          });
+          return;
+        }
+
         // Handle internal transfers specially - need to create two activities
         if (selectedType === "TRANSFER") {
           const transferData = formData as TransferFormValues;
@@ -395,6 +515,7 @@ export function useActivityForm({
       updateActivityMutation,
       saveActivitiesMutation,
       saveInternalTransferPairMutation,
+      onSuccess,
     ],
   );
 

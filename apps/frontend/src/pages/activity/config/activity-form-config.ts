@@ -16,6 +16,7 @@ import { DepositForm, type DepositFormValues } from "../components/forms/deposit
 import { WithdrawalForm, type WithdrawalFormValues } from "../components/forms/withdrawal-form";
 import { DividendForm, type DividendFormValues } from "../components/forms/dividend-form";
 import { TransferForm, type TransferFormValues } from "../components/forms/transfer-form";
+import { ConversionForm, type ConversionFormValues } from "../components/forms/conversion-form";
 import { SplitForm, type SplitFormValues } from "../components/forms/split-form";
 import { FeeForm, type FeeFormValues } from "../components/forms/fee-form";
 import { InterestForm, type InterestFormValues } from "../components/forms/interest-form";
@@ -24,6 +25,7 @@ import { CreditForm, type CreditFormValues } from "../components/forms/credit-fo
 import { AdjustmentForm, type AdjustmentFormValues } from "../components/forms/adjustment-form";
 import type { AccountSelectOption } from "../components/forms/fields";
 import type { NewActivityFormValues } from "../components/forms/schemas";
+import { conversionFirstDate } from "../utils/conversion-counterpart";
 
 // Picker activity types (TRANSFER_IN/OUT merged into TRANSFER)
 export type PickerActivityType =
@@ -33,6 +35,7 @@ export type PickerActivityType =
   | typeof ActivityType.WITHDRAWAL
   | typeof ActivityType.DIVIDEND
   | "TRANSFER"
+  | "CONVERSION"
   | typeof ActivityType.SPLIT
   | typeof ActivityType.FEE
   | typeof ActivityType.INTEREST
@@ -48,6 +51,7 @@ export type ActivityFormValues =
   | WithdrawalFormValues
   | DividendFormValues
   | TransferFormValues
+  | ConversionFormValues
   | SplitFormValues
   | FeeFormValues
   | InterestFormValues
@@ -654,6 +658,63 @@ export const ACTIVITY_FORM_CONFIG: Record<
         currency: d.currency,
         fxRate: d.fxRate,
         subtype: d.subtype,
+      };
+    },
+  },
+
+  CONVERSION: {
+    component: ConversionForm as ComponentType<ActivityFormComponentProps<ActivityFormValues>>,
+    activityType: ActivityType.ADJUSTMENT,
+    getDefaults: (activity, accounts) => {
+      if (!activity?.id) {
+        return {
+          ...getBaseDefaults(activity, accounts),
+          fromAssetId: "",
+          toAssetId: "",
+        };
+      }
+      // The edited row is one side; attachConversionCounterpart added the
+      // other row's asset and units.
+      const own = {
+        assetId: activity.assetSymbol ?? activity.assetId ?? "",
+        existingAssetId: activity.assetId ?? null,
+        quantity: absNum(activity.quantity),
+        currency: activity.currency ?? null,
+      };
+      const other = {
+        assetId: activity.counterpartAssetSymbol ?? activity.counterpartAssetId ?? "",
+        existingAssetId: activity.counterpartAssetId ?? null,
+        quantity: absNum(activity.counterpartQuantity),
+        currency: activity.counterpartCurrency ?? null,
+      };
+      const leaving = activity.subtype === ACTIVITY_SUBTYPES.CONVERSION_OUT;
+      const [from, to] = leaving ? [own, other] : [other, own];
+      // The form shows when the pair folds: at its first row.
+      const base = getBaseDefaults(activity, accounts);
+      return {
+        ...base,
+        activityDate: conversionFirstDate(activity) ?? base.activityDate,
+        fromAssetId: from.assetId,
+        fromExistingAssetId: from.existingAssetId,
+        fromQuantity: from.quantity,
+        fromCurrency: from.currency,
+        toAssetId: to.assetId,
+        toExistingAssetId: to.existingAssetId,
+        toQuantity: to.quantity,
+        toCurrency: to.currency,
+      };
+    },
+    // Both rows are saved together by useActivityForm; this payload is the
+    // leaving row's, for the config's shape.
+    toPayload: (data) => {
+      const d = data as ConversionFormValues;
+      return {
+        accountId: d.accountId,
+        activityDate: d.activityDate,
+        assetId: d.fromAssetId,
+        quantity: d.fromQuantity,
+        subtype: ACTIVITY_SUBTYPES.CONVERSION_OUT,
+        comment: d.comment,
       };
     },
   },

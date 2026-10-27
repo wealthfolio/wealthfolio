@@ -48,6 +48,8 @@
   "subtype_position_close": "Cerrar posición",
   "subtype_return_of_capital": "Devolución de capital",
   "subtype_notional_distribution": "Distribución nocional",
+  "subtype_conversion_out": "Traspaso (salida)",
+  "subtype_conversion_in": "Traspaso (entrada)",
   "type_buy_desc": "Compra un activo. Esto aumenta la cantidad de tu posición y reduce tu saldo de efectivo.",
   "type_sell_desc": "Vende un activo. Esto reduce la cantidad de tu posición y aumenta tu saldo de efectivo.",
   "type_deposit_desc": "Aumenta el saldo de tu cuenta añadiendo fondos.",
@@ -200,6 +202,7 @@
   "mobile_type_fee_desc": "Comisión de cuenta o transacción",
   "mobile_type_tax_desc": "Pago de impuestos",
   "mobile_type_split_desc": "Ajuste por división de acciones",
+  "mobile_type_conversion_desc": "Traspasa un fondo o una clase a otro conservando su coste",
   "mobile_date_time": "Fecha y hora",
   "mobile_fee_optional": "Comisión (opcional)",
   "mobile_description_optional": "Descripción (opcional)",
@@ -316,7 +319,8 @@
   "delete_modal": {
     "title": "¿Eliminar actividad?",
     "description": "Esta actividad se eliminará de forma permanente. Esta acción no se puede deshacer.",
-    "linked_transfer_desc": "Esta actividad está vinculada a un par de transferencia. Ambas partes se eliminarán de forma permanente. Esta acción no se puede deshacer."
+    "linked_transfer_desc": "Esta actividad está vinculada a un par de transferencia. Ambas partes se eliminarán de forma permanente. Esta acción no se puede deshacer.",
+    "linked_conversion_desc": "Esta actividad es una de las dos partes de un traspaso. Ambas partes se eliminarán de forma permanente. Esta acción no se puede deshacer."
   },
   "form_renderer": {
     "select_type": "Selecciona un tipo de actividad arriba para continuar",
@@ -336,6 +340,7 @@
   },
   "picker": {
     "transfer": "Transferencia",
+    "conversion": "Traspaso",
     "split": "División",
     "all_types_group": "Todos los tipos de actividad",
     "expand_all_types": "Expandir para mostrar todos los tipos",
@@ -469,6 +474,13 @@
     "within_days_many": "Dentro de {{count}} días"
   },
   "form": {
+    "section_conversion": "Traspaso",
+    "section_conversion_from": "Desde",
+    "section_conversion_to": "Hacia",
+    "conversion_hint": "Las participaciones de un fondo o activo pasan a ser de otro y conservan su coste: un traspaso entre fondos, un cambio de clase o de serie, un fondo convertido en ETF o una migración de token. Si el cambio tributó, registra una venta y una compra.",
+    "button_add_conversion": "Añadir traspaso",
+    "warn_converting_more_than_held": "Vas a traspasar {{converting}} participaciones, pero esta cuenta tiene {{available}} hoy.",
+    "err_conversion_same_asset": "Elige otro activo de destino.",
     "section_asset_account": "Activo y cuenta",
     "section_account": "Cuenta",
     "section_amount": "Importe",

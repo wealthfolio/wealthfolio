@@ -72,6 +72,7 @@ import ActivityTableMobile from "@/pages/activity/components/activity-table/acti
 import { BulkHoldingsModal } from "@/pages/activity/components/forms/bulk-holdings-modal";
 import { MobileActivityForm } from "@/pages/activity/components/mobile-forms/mobile-activity-form";
 import { useActivityActionDialogs } from "@/pages/activity/hooks/use-activity-action-dialogs";
+import { isConversionActivity } from "@/pages/activity/utils/conversion-counterpart";
 import { useActivitySearch } from "@/pages/activity/hooks/use-activity-search";
 import { PortfolioUpdateTrigger } from "@/pages/dashboard/portfolio-update-trigger";
 import { HoldingsEditMode } from "@/pages/holdings/components/holdings-edit-mode";
@@ -1279,6 +1280,7 @@ const AccountPage = () => {
         isOpen={showActivityDeleteAlert}
         isDeleting={isActivityDeleting}
         linkedTransfer={!!selectedActivity?.sourceGroupId}
+        conversion={isConversionActivity(selectedActivity)}
         onConfirm={handleActivityDeleteConfirm}
         onCancel={handleActivityDeleteCancel}
       />

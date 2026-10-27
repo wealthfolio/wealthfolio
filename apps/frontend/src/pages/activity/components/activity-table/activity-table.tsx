@@ -7,6 +7,7 @@ import {
   isAssetBackedIncomeActivity,
   isCashActivity,
   isCashTransfer,
+  isConversionRow,
   isFeeActivity,
   isIncomeActivity,
   isSecuritiesTransfer,
@@ -488,7 +489,7 @@ export const ActivityTable = ({
             row.original.assetId,
           );
 
-          if (activityType === "FEE") {
+          if (activityType === "FEE" || isConversionRow(row.original)) {
             return <div className="pe-4 text-end">-</div>;
           }
           if (activityType === "SPLIT") {
@@ -613,7 +614,7 @@ export const ActivityTable = ({
           const activityType = activity.activityType;
           const currency = activity.currency || activity.accountCurrency || "USD";
 
-          if (activityType === "SPLIT") {
+          if (activityType === "SPLIT" || isConversionRow(activity)) {
             return <div className="pe-4 text-end">-</div>;
           }
 

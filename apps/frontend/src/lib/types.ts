@@ -268,6 +268,11 @@ export interface ActivityDetails {
   counterpartAmount?: string | null;
   counterpartCurrency?: string | null;
   counterpartFxRate?: string | null;
+  /** A conversion's other row: its asset and units (see conversion-counterpart). */
+  counterpartAssetId?: string | null;
+  counterpartAssetSymbol?: string | null;
+  counterpartQuantity?: string | null;
+  counterpartDate?: string | null;
   subRows?: ActivityDetails[];
   /**
    * The account's cash in `cashBalanceCurrency`, as `cashBalanceScope` says:

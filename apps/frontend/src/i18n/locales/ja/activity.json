@@ -46,6 +46,8 @@
   "subtype_position_close": "決済",
   "subtype_return_of_capital": "資本の払い戻し",
   "subtype_notional_distribution": "みなし分配",
+  "subtype_conversion_out": "スイッチング（払出）",
+  "subtype_conversion_in": "スイッチング（受入）",
   "type_buy_desc": "資産を購入します。保有数量が増加し、現金残高が減少します。",
   "type_sell_desc": "資産を売却します。保有数量が減少し、現金残高が増加します。",
   "type_deposit_desc": "資金を追加して口座残高を増やします。",
@@ -198,6 +200,7 @@
   "mobile_type_fee_desc": "口座または取引の手数料です",
   "mobile_type_tax_desc": "税金の支払いです",
   "mobile_type_split_desc": "株式分割の調整です",
+  "mobile_type_conversion_desc": "取得原価を引き継いでファンドを乗り換えます",
   "mobile_date_time": "日時",
   "mobile_fee_optional": "手数料(任意)",
   "mobile_description_optional": "説明(任意)",
@@ -314,7 +317,8 @@
   "delete_modal": {
     "title": "取引を削除しますか?",
     "description": "この取引は完全に削除されます。この操作は元に戻せません。",
-    "linked_transfer_desc": "この取引は振替ペアにリンクされています。両方の取引が完全に削除されます。この操作は元に戻せません。"
+    "linked_transfer_desc": "この取引は振替ペアにリンクされています。両方の取引が完全に削除されます。この操作は元に戻せません。",
+    "linked_conversion_desc": "この取引はスイッチングの片側です。両方の取引が完全に削除されます。この操作は元に戻せません。"
   },
   "form_renderer": {
     "select_type": "続行するには上から取引タイプを選択してください",
@@ -331,6 +335,7 @@
     "count_other": "この日付に記録された取引は{{count}}件です"
   },
   "picker": {
+    "conversion": "スイッチング",
     "transfer": "振替",
     "split": "株式分割",
     "all_types_group": "すべての取引タイプ",
@@ -461,6 +466,13 @@
     "within_days_other": "{{count}}日以内"
   },
   "form": {
+    "section_conversion": "スイッチング",
+    "section_conversion_from": "転換元",
+    "section_conversion_to": "転換先",
+    "conversion_hint": "ある資産の口数を別の資産の口数に替え、取得原価を引き継ぎます（ファンドのスイッチング、クラスやシリーズの変更、投資信託からETFへの転換、トークンの移行など）。課税対象の乗り換えは、売却と購入として記録してください。",
+    "button_add_conversion": "スイッチングを追加",
+    "warn_converting_more_than_held": "{{converting}} 口を転換しようとしていますが、この口座の現在の保有は {{available}} です。",
+    "err_conversion_same_asset": "転換先には別の資産を選んでください。",
     "section_asset_account": "資産と口座",
     "section_account": "口座",
     "section_amount": "金額",

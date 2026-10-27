@@ -214,6 +214,30 @@ describe("mapRecordActivitiesSubmission", () => {
       { rowIndex: 1, status: "error", error: "Invalid symbol" },
     ]);
   });
+
+  it("reports an error that refused the whole save on every row", () => {
+    const result: ActivityBulkMutationResult = {
+      created: [],
+      updated: [],
+      deleted: [],
+      createdMappings: [],
+      errors: [{ action: "save", message: "A conversion is written as a pair" }],
+    };
+
+    const mapped = mapRecordActivitiesSubmission(
+      result,
+      new Map([
+        ["record-activities-0", 0],
+        ["record-activities-1", 1],
+      ]),
+    );
+
+    expect(mapped.errorCount).toBe(2);
+    expect(mapped.rowStatuses).toEqual([
+      { rowIndex: 0, status: "error", error: "A conversion is written as a pair" },
+      { rowIndex: 1, status: "error", error: "A conversion is written as a pair" },
+    ]);
+  });
 });
 
 describe("hasValidRecordActivityRows", () => {

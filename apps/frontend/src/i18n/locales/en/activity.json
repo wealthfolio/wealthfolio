@@ -47,6 +47,8 @@
   "subtype_position_close": "Close Position",
   "subtype_return_of_capital": "Return of Capital",
   "subtype_notional_distribution": "Notional Distribution",
+  "subtype_conversion_out": "Conversion Out",
+  "subtype_conversion_in": "Conversion In",
   "type_buy_desc": "Purchase an asset. This increases your holding quantity and decreases your cash balance.",
   "type_sell_desc": "Sell an asset. This decreases your holding quantity and increases your cash balance.",
   "type_deposit_desc": "Increase your account balance by adding funds.",
@@ -199,6 +201,7 @@
   "mobile_type_fee_desc": "Account or transaction fee",
   "mobile_type_tax_desc": "Tax payment",
   "mobile_type_split_desc": "Stock split adjustment",
+  "mobile_type_conversion_desc": "Turn one fund or share class into another, keeping its cost",
   "mobile_date_time": "Date & Time",
   "mobile_fee_optional": "Fee (Optional)",
   "mobile_description_optional": "Description (Optional)",
@@ -315,7 +318,8 @@
   "delete_modal": {
     "title": "Delete activity?",
     "description": "This activity will be permanently deleted. This action cannot be undone.",
-    "linked_transfer_desc": "This activity is linked to a transfer pair. Both sides will be permanently deleted. This action cannot be undone."
+    "linked_transfer_desc": "This activity is linked to a transfer pair. Both sides will be permanently deleted. This action cannot be undone.",
+    "linked_conversion_desc": "This activity is one side of a conversion. Both sides will be permanently deleted. This action cannot be undone."
   },
   "form_renderer": {
     "select_type": "Select an activity type above to continue",
@@ -334,6 +338,7 @@
   },
   "picker": {
     "transfer": "Transfer",
+    "conversion": "Fund conversion",
     "split": "Split",
     "all_types_group": "All activity types",
     "expand_all_types": "Expand to show all types",
@@ -464,6 +469,13 @@
     "within_days_other": "Within {{count}} days"
   },
   "form": {
+    "section_conversion": "Fund conversion",
+    "section_conversion_from": "From",
+    "section_conversion_to": "To",
+    "conversion_hint": "Units of one fund or asset become units of another and keep their cost: a fund switch, a share-class or series switch, a mutual fund converted to an ETF, or a token migration. If the switch was taxed, record a sell and a buy.",
+    "button_add_conversion": "Add Fund Conversion",
+    "warn_converting_more_than_held": "You are converting {{converting}} units, but this account holds {{available}} today.",
+    "err_conversion_same_asset": "Choose a different asset to convert into.",
     "section_asset_account": "Asset & Account",
     "section_account": "Account",
     "section_amount": "Amount",

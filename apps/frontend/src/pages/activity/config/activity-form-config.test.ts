@@ -132,3 +132,71 @@ describe("hasActivityForm", () => {
     expect(hasActivityForm(mapActivityTypeToPicker(ActivityType.TRANSFER_OUT))).toBe(true);
   });
 });
+describe("conversion defaults", () => {
+  it.each(["CONVERSION_OUT", "CONVERSION_IN"])(
+    "maps an ADJUSTMENT %s row to the conversion form",
+    (subtype) => {
+      expect(mapActivityTypeToPicker(ActivityType.ADJUSTMENT, subtype)).toBe("CONVERSION");
+      expect(mapActivityTypeToPicker(ActivityType.ADJUSTMENT, subtype.toLowerCase())).toBe(
+        "CONVERSION",
+      );
+    },
+  );
+
+  it("keeps other adjustments on the adjustment form", () => {
+    expect(mapActivityTypeToPicker(ActivityType.ADJUSTMENT, "RETURN_OF_CAPITAL")).toBe(
+      ActivityType.ADJUSTMENT,
+    );
+    expect(mapActivityTypeToPicker(ActivityType.BUY, "CONVERSION_OUT")).toBe(ActivityType.BUY);
+  });
+
+  it.each([
+    ["CONVERSION_OUT", "FUNDA", "FUNDB"],
+    ["CONVERSION_IN", "FUNDB", "FUNDA"],
+  ])("puts each side in place when editing the %s row", (subtype, own, other) => {
+    const defaults = ACTIVITY_FORM_CONFIG.CONVERSION.getDefaults(
+      {
+        id: "row",
+        accountId: "acc-1",
+        activityType: ActivityType.ADJUSTMENT,
+        subtype,
+        assetId: `asset-${own}`,
+        assetSymbol: own,
+        quantity: own === "FUNDA" ? "25" : "40",
+        currency: "EUR",
+        counterpartAssetId: `asset-${other}`,
+        counterpartAssetSymbol: other,
+        counterpartQuantity: other === "FUNDA" ? "25" : "40",
+        counterpartCurrency: "EUR",
+      },
+      [],
+    );
+    expect(defaults).toMatchObject({
+      accountId: "acc-1",
+      fromAssetId: "FUNDA",
+      fromExistingAssetId: "asset-FUNDA",
+      fromQuantity: 25,
+      toAssetId: "FUNDB",
+      toExistingAssetId: "asset-FUNDB",
+      toQuantity: 40,
+    });
+  });
+
+  it.each([
+    ["2026-02-03T12:00:00Z", "2026-02-03T10:00:00Z", "2026-02-03T10:00:00Z"],
+    ["2026-02-03T10:00:00Z", "2026-02-03T12:00:00Z", "2026-02-03T10:00:00Z"],
+  ])("starts at the pair's first row (row %s, other row %s)", (own, other, first) => {
+    const defaults = ACTIVITY_FORM_CONFIG.CONVERSION.getDefaults(
+      {
+        id: "row",
+        accountId: "acc-1",
+        activityType: ActivityType.ADJUSTMENT,
+        subtype: "CONVERSION_IN",
+        date: new Date(own),
+        counterpartDate: other,
+      },
+      [],
+    ) as { activityDate: Date };
+    expect(defaults.activityDate.toISOString()).toBe(new Date(first).toISOString());
+  });
+});

@@ -46,6 +46,8 @@
   "subtype_position_close": "포지션 청산",
   "subtype_return_of_capital": "자본 환급",
   "subtype_notional_distribution": "명목 분배",
+  "subtype_conversion_out": "전환 (출고)",
+  "subtype_conversion_in": "전환 (입고)",
   "type_buy_desc": "자산을 매수합니다. 보유 수량이 늘어나고 현금 잔액이 줄어듭니다.",
   "type_sell_desc": "자산을 매도합니다. 보유 수량이 줄어들고 현금 잔액이 늘어납니다.",
   "type_deposit_desc": "자금을 추가하여 계좌 잔액을 늘립니다.",
@@ -198,6 +200,7 @@
   "mobile_type_fee_desc": "계좌 또는 거래 수수료",
   "mobile_type_tax_desc": "세금 납부",
   "mobile_type_split_desc": "주식분할 조정",
+  "mobile_type_conversion_desc": "취득원가를 유지한 채 다른 펀드로 전환",
   "mobile_date_time": "날짜 및 시간",
   "mobile_fee_optional": "수수료(선택 사항)",
   "mobile_description_optional": "설명(선택 사항)",
@@ -314,7 +317,8 @@
   "delete_modal": {
     "title": "활동을 삭제하시겠습니까?",
     "description": "이 활동은 영구적으로 삭제됩니다. 이 작업은 되돌릴 수 없습니다.",
-    "linked_transfer_desc": "이 활동은 이체 쌍과 연결되어 있습니다. 양쪽 모두 영구적으로 삭제됩니다. 이 작업은 되돌릴 수 없습니다."
+    "linked_transfer_desc": "이 활동은 이체 쌍과 연결되어 있습니다. 양쪽 모두 영구적으로 삭제됩니다. 이 작업은 되돌릴 수 없습니다.",
+    "linked_conversion_desc": "이 활동은 전환의 한쪽입니다. 양쪽 모두 영구적으로 삭제됩니다. 이 작업은 되돌릴 수 없습니다."
   },
   "form_renderer": {
     "select_type": "계속하려면 위에서 활동 유형을 선택하세요",
@@ -331,6 +335,7 @@
     "count_other": "이 날짜에 기록된 활동 {{count}}건"
   },
   "picker": {
+    "conversion": "펀드 전환",
     "transfer": "이체",
     "split": "주식분할",
     "all_types_group": "모든 활동 유형",
@@ -461,6 +466,13 @@
     "within_days_other": "{{count}}일 이내"
   },
   "form": {
+    "section_conversion": "펀드 전환",
+    "section_conversion_from": "전환 전",
+    "section_conversion_to": "전환 후",
+    "conversion_hint": "한 펀드나 자산의 좌수가 다른 자산의 좌수로 바뀌고 취득원가는 그대로 유지됩니다(펀드 전환, 클래스·시리즈 변경, 펀드의 ETF 전환, 토큰 마이그레이션 등). 과세되는 교체라면 매도와 매수로 기록하세요.",
+    "button_add_conversion": "펀드 전환 추가",
+    "warn_converting_more_than_held": "{{converting}}좌를 전환하려고 하지만, 현재 이 계좌의 보유량은 {{available}}입니다.",
+    "err_conversion_same_asset": "전환 대상으로 다른 자산을 선택하세요.",
     "section_asset_account": "자산 및 계좌",
     "section_account": "계좌",
     "section_amount": "금액",

@@ -17,6 +17,7 @@ import { TransferMatchDialog } from "../transfer-match-dialog";
 import { isSameAccountCashFxConversion, nonCashTransferAssetKey } from "../transfer-link-utils";
 import { ActivityDeleteModal } from "../activity-delete-modal";
 import { useActivityMutations } from "../../hooks/use-activity-mutations";
+import { isConversionActivity } from "../../utils/conversion-counterpart";
 import { buildSameAccountFxDuplicate } from "../../utils/duplicate-fx-transfer";
 import { ActivityDataGridPagination } from "./activity-data-grid-pagination";
 import { ActivityDataGridToolbar } from "./activity-data-grid-toolbar";
@@ -162,6 +163,12 @@ export function ActivityDataGrid({
     return lookup;
   }, [dirtyTransactionIds, fallbackCurrency, localTransactions, resolveTransactionCurrency]);
 
+  const {
+    duplicateActivityMutation,
+    linkTransferActivitiesMutation,
+    unlinkTransferActivitiesMutation,
+  } = useActivityMutations();
+
   // Row operations
   const handleDuplicate = useCallback(
     async (activity: ActivityDetails) => {
@@ -174,6 +181,12 @@ export function ActivityDataGrid({
         )
       ) {
         toast({ title: t("activity:datagrid.save_edits_first"), variant: "destructive" });
+        return;
+      }
+      // A conversion is duplicated whole and saved at once, as the list's
+      // Duplicate does: its two rows are written together.
+      if (isConversionActivity(activity)) {
+        duplicateActivityMutation.mutate(activity);
         return;
       }
       const now = new Date();
@@ -234,6 +247,7 @@ export function ActivityDataGrid({
       localTransactions,
       dirtyTransactionIds,
       pendingDeleteIds,
+      duplicateActivityMutation,
       t,
     ],
   );
@@ -489,6 +503,17 @@ export function ActivityDataGrid({
         });
         return;
       }
+      // The form saves both rows of a conversion: grid edits to either would
+      // be sent again over what the form saved.
+      if (
+        isConversionActivity(activity) &&
+        localTransactions.some(
+          (row) => row.sourceGroupId === activity.sourceGroupId && dirtyTransactionIds.has(row.id),
+        )
+      ) {
+        toast({ title: t("activity:datagrid.save_edits_first") });
+        return;
+      }
       onEditActivity(activity);
     },
     onDuplicate: handleDuplicate,
@@ -653,8 +678,6 @@ export function ActivityDataGrid({
   );
 
   // Link state: validate that the 2-row selection is a valid TRANSFER_IN/TRANSFER_OUT pair
-  const { linkTransferActivitiesMutation, unlinkTransferActivitiesMutation } =
-    useActivityMutations();
   const [transferDialogOpen, setTransferDialogOpen] = useState(false);
   const [transferDialogMode, setTransferDialogMode] = useState<"link" | "unlink">("link");
 
@@ -751,8 +774,13 @@ export function ActivityDataGrid({
     return { canUnlink: true, transferIn, transferOut } as const;
   }, [selectedRows, dirtyTransactionIds, t]);
 
+  // Two rows of a conversion share a group too, but are no transfer to unlink.
   const showUnlinkSelected = useMemo(
-    () => selectedRows.length === 2 && selectedRows.every((row) => !!row.original.sourceGroupId),
+    () =>
+      selectedRows.length === 2 &&
+      selectedRows.every(
+        (row) => !!row.original.sourceGroupId && !isConversionActivity(row.original),
+      ),
     [selectedRows],
   );
 
@@ -1022,6 +1050,7 @@ export function ActivityDataGrid({
       <ActivityDeleteModal
         isOpen={!!pendingDeleteActivity}
         linkedTransfer={true}
+        conversion={isConversionActivity(pendingDeleteActivity ?? undefined)}
         onConfirm={() => {
           if (pendingDeleteActivity) {
             executePairedDelete(pendingDeleteActivity);

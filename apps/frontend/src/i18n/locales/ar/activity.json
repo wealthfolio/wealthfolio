@@ -175,6 +175,7 @@
   "delete_modal": {
     "description": "سيتم حذف هذا النشاط نهائيًا. لا يمكن التراجع عن هذا الإجراء.",
     "linked_transfer_desc": "هذا النشاط مرتبط بزوج تحويل. سيتم حذف الطرفين نهائيًا. لا يمكن التراجع عن هذا الإجراء.",
+    "linked_conversion_desc": "هذا النشاط أحد طرفي عملية تبديل. سيتم حذف الطرفين نهائيًا. لا يمكن التراجع عن هذا الإجراء.",
     "title": "حذف النشاط؟"
   },
   "delete_selected": "حذف المحدد",
@@ -235,6 +236,13 @@
   "filter_type": "النوع",
   "fix_errors": "يرجى تصحيح الأخطاء التالية",
   "form": {
+    "section_conversion": "تبديل الصناديق",
+    "section_conversion_from": "من",
+    "section_conversion_to": "إلى",
+    "conversion_hint": "تصبح وحدات صندوق أو أصل ما وحدات أصل آخر وتحتفظ بتكلفتها: التبديل بين الصناديق، أو تغيير فئة الوحدات أو سلسلتها، أو تحويل صندوق إلى صندوق متداول، أو ترحيل رمز رقمي. إذا كان التبديل خاضعًا للضريبة، فسجّله كعملية بيع وعملية شراء.",
+    "button_add_conversion": "إضافة تبديل صناديق",
+    "warn_converting_more_than_held": "أنت تبدّل {{converting}} وحدة، لكن هذا الحساب يملك {{available}} اليوم.",
+    "err_conversion_same_asset": "اختر أصلًا مختلفًا للتبديل إليه.",
     "advanced_options": "خيارات متقدمة",
     "asset_type_bond": "سند",
     "asset_type_option": "خيار",
@@ -1288,6 +1296,7 @@
   "mobile_type_remove_holding_desc": "إزالة الحيازات من الحساب",
   "mobile_type_sell_desc": "بيع أصل",
   "mobile_type_split_desc": "تعديل تجزئة الأسهم",
+  "mobile_type_conversion_desc": "تبديل صندوق بآخر مع الاحتفاظ بتكلفته",
   "mobile_type_tax_desc": "دفع الضريبة",
   "mobile_type_transfer_desc": "نقل النقد أو الأوراق المالية بين الحسابات",
   "mobile_type_transfer_in_desc": "تحويل من حساب آخر",
@@ -1330,6 +1339,7 @@
   "pagination_count": "{{fetched}}/{{total}} نشاط",
   "parsing_error": "خطأ في تحليل ملف CSV",
   "picker": {
+    "conversion": "تبديل الصناديق",
     "all_types_group": "جميع أنواع الأنشطة",
     "collapse": "طي",
     "expand_all_types": "وسّع لعرض جميع الأنواع",
@@ -1363,6 +1373,8 @@
   "subtype_dividend_in_kind": "توزيعات أرباح عينية",
   "subtype_drip": "إعادة استثمار توزيعات الأرباح (DRIP)",
   "subtype_notional_distribution": "توزيع اسمي",
+  "subtype_conversion_out": "تبديل (خروج)",
+  "subtype_conversion_in": "تبديل (دخول)",
   "subtype_option_expiry": "انتهاء صلاحية الخيار",
   "subtype_position_close": "إغلاق المركز",
   "subtype_position_open": "فتح مركز",

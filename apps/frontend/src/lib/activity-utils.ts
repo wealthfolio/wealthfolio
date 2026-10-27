@@ -114,7 +114,9 @@ export const isAssetIdentityRequired = (activityType: string, subtype?: string |
     return (
       canonical === ACTIVITY_SUBTYPES.OPTION_EXPIRY ||
       canonical === ACTIVITY_SUBTYPES.RETURN_OF_CAPITAL ||
-      canonical === ACTIVITY_SUBTYPES.NOTIONAL_DISTRIBUTION
+      canonical === ACTIVITY_SUBTYPES.NOTIONAL_DISTRIBUTION ||
+      canonical === ACTIVITY_SUBTYPES.CONVERSION_OUT ||
+      canonical === ACTIVITY_SUBTYPES.CONVERSION_IN
     );
   }
   return isSymbolRequired(activityType) || isAssetBackedIncomeSubtype(activityType, subtype);
@@ -192,12 +194,37 @@ export const canonicalizeActivitySubtype = (
   if (
     knownSubtype === ACTIVITY_SUBTYPES.RETURN_OF_CAPITAL ||
     knownSubtype === ACTIVITY_SUBTYPES.NOTIONAL_DISTRIBUTION ||
-    knownSubtype === ACTIVITY_SUBTYPES.OPTION_EXPIRY
+    knownSubtype === ACTIVITY_SUBTYPES.OPTION_EXPIRY ||
+    knownSubtype === ACTIVITY_SUBTYPES.CONVERSION_OUT ||
+    knownSubtype === ACTIVITY_SUBTYPES.CONVERSION_IN
   ) {
     return knownSubtype;
   }
   return trimmedSubtype;
 };
+
+/**
+ * A row of an in-kind conversion (rules R7.5): units of one asset leave or
+ * arrive at cost, with no price and no cash, so lists show no amount for it.
+ */
+export const isConversionRow = (
+  activity: Pick<ActivityDetails, "activityType" | "subtype">,
+): boolean => {
+  const subtype = canonicalizeActivitySubtype(ActivityType.ADJUSTMENT, activity.subtype);
+  return (
+    activity.activityType === ActivityType.ADJUSTMENT &&
+    (subtype === ACTIVITY_SUBTYPES.CONVERSION_OUT || subtype === ACTIVITY_SUBTYPES.CONVERSION_IN)
+  );
+};
+
+/** A list's label for a row: a conversion row names its direction. */
+export const localizeActivityRowLabel = (
+  t: TFunction,
+  activity: Pick<ActivityDetails, "activityType" | "subtype">,
+): string =>
+  isConversionRow(activity) && activity.subtype
+    ? localizeActivitySubtypeName(t, activity.subtype)
+    : localizeActivityTypeName(t, activity.activityType);
 
 /**
  * Determines if an activity is a cash transfer based on its type and identifiers.

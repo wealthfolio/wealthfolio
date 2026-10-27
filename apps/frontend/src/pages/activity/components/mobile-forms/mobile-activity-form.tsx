@@ -36,6 +36,8 @@ import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { toast } from "sonner";
 import { useActivityMutations } from "../../hooks/use-activity-mutations";
+import { isConversionActivity } from "../../utils/conversion-counterpart";
+import { ActivityForm } from "../activity-form";
 import { showValidationToast, type AccountSelectOption } from "../forms/fields";
 import { createActivitySchemas, type NewActivityFormValues } from "../forms/schemas";
 import { MobileActivitySteps } from "./mobile-activity-steps";
@@ -345,6 +347,8 @@ export function MobileActivityForm({
   const shouldStartOnDetails = Boolean(activity?.id || startOnDetails) && !needsTypeSelection;
   const initialStep = shouldStartOnDetails ? 2 : 1;
   const [currentStep, setCurrentStep] = useState(initialStep);
+  // A conversion is two rows: the sheet form records and edits it.
+  const [recordsConversion, setRecordsConversion] = useState(false);
   // True when an existing stored total is custom or after the user types in
   // the amount field. Owned here so step navigation cannot reset it before
   // submit reads it.
@@ -488,6 +492,7 @@ export function MobileActivityForm({
     amountWasEdited.current = storedAmountIsCustom;
     reset(nextDefaultValues);
     setCurrentStep(shouldStartOnDetails ? 2 : 1);
+    setRecordsConversion(false);
   }, [activity?.date, defaultValues, open, reset, shouldStartOnDetails, storedAmountIsCustom]);
 
   // Transfers may target any account (incl. spending/saving accounts the Spending
@@ -962,6 +967,30 @@ export function MobileActivityForm({
     }
   };
 
+  if (recordsConversion || isConversionActivity(activity)) {
+    return (
+      <ActivityForm
+        accounts={accounts}
+        transferAccounts={transferAccounts}
+        activity={
+          recordsConversion
+            ? {
+                ...activity,
+                activityType: ActivityType.ADJUSTMENT,
+                subtype: ACTIVITY_SUBTYPES.CONVERSION_OUT,
+              }
+            : activity
+        }
+        open={open}
+        onClose={() => {
+          setRecordsConversion(false);
+          onClose?.();
+        }}
+        hidePicker={recordsConversion}
+      />
+    );
+  }
+
   return (
     <Sheet open={open} onOpenChange={handleOpenChange}>
       <SheetContent side="bottom" className="mx-1 flex h-[90vh] flex-col rounded-t-4xl p-0">
@@ -1010,6 +1039,7 @@ export function MobileActivityForm({
                   isEditing={!!activity?.id}
                   needsTypeSelection={needsTypeSelection}
                   amountWasEdited={amountWasEdited}
+                  onSelectConversion={() => setRecordsConversion(true)}
                 />
               </form>
             </Form>

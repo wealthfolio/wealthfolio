@@ -43,6 +43,8 @@
   "subtype_position_close": "Glattstellung",
   "subtype_return_of_capital": "Kapitalrückzahlung",
   "subtype_notional_distribution": "Fiktive Ausschüttung",
+  "subtype_conversion_out": "Umtausch (Abgang)",
+  "subtype_conversion_in": "Umtausch (Zugang)",
   "type_add_holding": "Bestand hinzufügen",
   "import_title": "Aktivitäten importieren",
   "import_complete": "Import abgeschlossen",
@@ -131,6 +133,7 @@
   "mobile_type_fee_desc": "Konto- oder Transaktionsgebühr",
   "mobile_type_tax_desc": "Steuerzahlung",
   "mobile_type_split_desc": "Aktiensplit-Anpassung",
+  "mobile_type_conversion_desc": "Einen Fonds in einen anderen tauschen und den Einstand behalten",
   "mobile_date_time": "Datum und Uhrzeit",
   "mobile_fee_optional": "Gebühr (optional)",
   "mobile_description_optional": "Beschreibung (optional)",
@@ -212,7 +215,8 @@
   "delete_modal": {
     "title": "Aktivität löschen?",
     "description": "Diese Aktivität wird dauerhaft gelöscht. Diese Aktion kann nicht rückgängig gemacht werden.",
-    "linked_transfer_desc": "Diese Aktivität ist mit einem Übertragungspaar verknüpft. Beide Seiten werden dauerhaft gelöscht. Diese Aktion kann nicht rückgängig gemacht werden."
+    "linked_transfer_desc": "Diese Aktivität ist mit einem Übertragungspaar verknüpft. Beide Seiten werden dauerhaft gelöscht. Diese Aktion kann nicht rückgängig gemacht werden.",
+    "linked_conversion_desc": "Diese Aktivität ist eine Seite eines Umtauschs. Beide Seiten werden dauerhaft gelöscht. Diese Aktion kann nicht rückgängig gemacht werden."
   },
   "form_renderer": {
     "select_type": "Wählen Sie oben einen Aktivitätstyp aus, um fortzufahren",
@@ -231,6 +235,7 @@
   },
   "picker": {
     "transfer": "Übertragung",
+    "conversion": "Fondsumtausch",
     "split": "Split",
     "all_types_group": "Alle Aktivitätstypen",
     "expand_all_types": "Erweitern, um alle Typen anzuzeigen",
@@ -361,6 +366,13 @@
     "within_days_other": "Innerhalb von {{count}} Tagen"
   },
   "form": {
+    "section_conversion": "Fondsumtausch",
+    "section_conversion_from": "Von",
+    "section_conversion_to": "In",
+    "conversion_hint": "Anteile eines Fonds oder Wertpapiers werden zu Anteilen eines anderen und behalten ihren Einstand: ein Fondswechsel, ein Wechsel der Anteilsklasse oder Serie, ein in einen ETF umgewandelter Fonds oder eine Token-Migration. Erfassen Sie einen steuerpflichtigen Wechsel als Verkauf und Kauf.",
+    "button_add_conversion": "Fondsumtausch hinzufügen",
+    "warn_converting_more_than_held": "Sie tauschen {{converting}} Anteile, dieses Konto hält heute aber {{available}}.",
+    "err_conversion_same_asset": "Wählen Sie ein anderes Zielwertpapier.",
     "section_asset_account": "Wertpapier & Konto",
     "section_account": "Konto",
     "section_amount": "Betrag",

@@ -46,6 +46,8 @@
   "subtype_position_close": "平仓",
   "subtype_return_of_capital": "资本返还",
   "subtype_notional_distribution": "名义分配",
+  "subtype_conversion_out": "转换（换出）",
+  "subtype_conversion_in": "转换（换入）",
   "type_buy_desc": "买入一项资产。这会增加您的持仓数量并减少您的现金余额。",
   "type_sell_desc": "卖出一项资产。这会减少您的持仓数量并增加您的现金余额。",
   "type_deposit_desc": "通过存入资金增加您的账户余额。",
@@ -198,6 +200,7 @@
   "mobile_type_fee_desc": "账户或交易费用",
   "mobile_type_tax_desc": "税款支付",
   "mobile_type_split_desc": "拆股调整",
+  "mobile_type_conversion_desc": "将一只基金转换为另一只，并保留成本",
   "mobile_date_time": "日期与时间",
   "mobile_fee_optional": "费用（选填）",
   "mobile_description_optional": "描述（选填）",
@@ -314,7 +317,8 @@
   "delete_modal": {
     "title": "删除活动？",
     "description": "此活动将被永久删除。此操作无法撤销。",
-    "linked_transfer_desc": "此活动关联到一对转账。双方都将被永久删除。此操作无法撤销。"
+    "linked_transfer_desc": "此活动关联到一对转账。双方都将被永久删除。此操作无法撤销。",
+    "linked_conversion_desc": "此活动是一笔转换的其中一方。双方都将被永久删除。此操作无法撤销。"
   },
   "form_renderer": {
     "select_type": "请在上方选择一种活动类型以继续",
@@ -331,6 +335,7 @@
     "count_other": "此日期记录了 {{count}} 条活动"
   },
   "picker": {
+    "conversion": "基金转换",
     "transfer": "转账",
     "split": "拆股",
     "all_types_group": "所有活动类型",
@@ -461,6 +466,13 @@
     "within_days_other": "{{count}} 天内"
   },
   "form": {
+    "section_conversion": "基金转换",
+    "section_conversion_from": "换出",
+    "section_conversion_to": "换入",
+    "conversion_hint": "一只基金或资产的份额转换为另一只的份额，并保留原有成本，例如基金转换、份额类别或系列变更、基金转为 ETF 或代币迁移。如果转换需要缴税，请记录为一笔卖出和一笔买入。",
+    "button_add_conversion": "添加基金转换",
+    "warn_converting_more_than_held": "您要转换 {{converting}} 份，但该账户当前持有 {{available}} 份。",
+    "err_conversion_same_asset": "请选择另一种目标资产。",
     "section_asset_account": "资产与账户",
     "section_account": "账户",
     "section_amount": "金额",

@@ -48,6 +48,8 @@
   "subtype_position_close": "Chiusura posizione",
   "subtype_return_of_capital": "Rimborso di capitale",
   "subtype_notional_distribution": "Distribuzione nozionale",
+  "subtype_conversion_out": "Switch (uscita)",
+  "subtype_conversion_in": "Switch (entrata)",
   "type_buy_desc": "Acquista un asset. Questo aumenta la quantità della tua posizione e riduce il saldo disponibile.",
   "type_sell_desc": "Vendi un asset. Questo riduce la quantità della tua posizione e aumenta il saldo disponibile.",
   "type_deposit_desc": "Aumenta il saldo del tuo conto aggiungendo fondi.",
@@ -200,6 +202,7 @@
   "mobile_type_fee_desc": "Commissione di conto o transazione",
   "mobile_type_tax_desc": "Pagamento di imposta",
   "mobile_type_split_desc": "Rettifica per frazionamento azionario",
+  "mobile_type_conversion_desc": "Passa da un fondo o da una classe a un altro mantenendo il costo",
   "mobile_date_time": "Data e ora",
   "mobile_fee_optional": "Commissione (facoltativa)",
   "mobile_description_optional": "Descrizione (facoltativa)",
@@ -316,7 +319,8 @@
   "delete_modal": {
     "title": "Eliminare il movimento?",
     "description": "Questo movimento verrà eliminato definitivamente. Questa azione non può essere annullata.",
-    "linked_transfer_desc": "Questo movimento è collegato a una coppia di trasferimenti. Entrambe le corrispondenze verranno eliminate definitivamente. Questa azione non può essere annullata."
+    "linked_transfer_desc": "Questo movimento è collegato a una coppia di trasferimenti. Entrambe le corrispondenze verranno eliminate definitivamente. Questa azione non può essere annullata.",
+    "linked_conversion_desc": "Questo movimento è una delle due parti di uno switch. Entrambe le parti verranno eliminate definitivamente. Questa azione non può essere annullata."
   },
   "form_renderer": {
     "select_type": "Seleziona un tipo di movimento sopra per continuare",
@@ -336,6 +340,7 @@
   },
   "picker": {
     "transfer": "Trasferimento",
+    "conversion": "Switch",
     "split": "Frazionamento",
     "all_types_group": "Tutti i tipi di movimento",
     "expand_all_types": "Espandi per mostrare tutti i tipi",
@@ -469,6 +474,13 @@
     "within_days_other": "Entro {{count}} giorni"
   },
   "form": {
+    "section_conversion": "Switch",
+    "section_conversion_from": "Da",
+    "section_conversion_to": "A",
+    "conversion_hint": "Le quote di un fondo o di un titolo diventano quote di un altro e mantengono il loro costo: uno switch tra fondi, un cambio di classe o di serie, un fondo convertito in ETF o una migrazione di token. Se lo switch è stato tassato, registra una vendita e un acquisto.",
+    "button_add_conversion": "Aggiungi switch",
+    "warn_converting_more_than_held": "Stai convertendo {{converting}} quote, ma oggi questo conto ne detiene {{available}}.",
+    "err_conversion_same_asset": "Scegli un altro titolo di destinazione.",
     "section_asset_account": "Asset e conto",
     "section_account": "Conto",
     "section_amount": "Importo",

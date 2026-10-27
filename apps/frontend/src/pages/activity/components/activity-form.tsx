@@ -60,6 +60,7 @@ export function ActivityForm({
   const isEditing = !!activity?.id;
   const storedType: PickerActivityType | undefined = mapActivityTypeToPicker(
     activity?.activityType,
+    activity?.subtype,
   );
 
   // Not every persisted type has an editor. Sync stores a needs-review row as

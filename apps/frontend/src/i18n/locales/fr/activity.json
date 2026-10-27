@@ -48,6 +48,8 @@
   "subtype_position_close": "Clôture de position",
   "subtype_return_of_capital": "Remboursement de capital",
   "subtype_notional_distribution": "Distribution théorique",
+  "subtype_conversion_out": "Arbitrage (sortie)",
+  "subtype_conversion_in": "Arbitrage (entrée)",
   "type_buy_desc": "Achetez un actif. Cela augmente la quantité de vos positions et diminue votre solde de liquidités.",
   "type_sell_desc": "Vendez un actif. Cela diminue la quantité de vos positions et augmente votre solde de liquidités.",
   "type_deposit_desc": "Augmentez le solde de votre compte en ajoutant des fonds.",
@@ -200,6 +202,7 @@
   "mobile_type_fee_desc": "Frais de compte ou de transaction",
   "mobile_type_tax_desc": "Paiement de taxe",
   "mobile_type_split_desc": "Ajustement de division d'actions",
+  "mobile_type_conversion_desc": "Passer d'un fonds ou d'une catégorie de parts à un autre en gardant son coût",
   "mobile_date_time": "Date et heure",
   "mobile_fee_optional": "Frais (Optionnel)",
   "mobile_description_optional": "Description (Optionnel)",
@@ -316,7 +319,8 @@
   "delete_modal": {
     "title": "Supprimer l'activité ?",
     "description": "Cette activité sera définitivement supprimée. Cette action est irréversible.",
-    "linked_transfer_desc": "Cette activité est liée à une paire de transfert. Les deux côtés seront définitivement supprimés. Cette action est irréversible."
+    "linked_transfer_desc": "Cette activité est liée à une paire de transfert. Les deux côtés seront définitivement supprimés. Cette action est irréversible.",
+    "linked_conversion_desc": "Cette activité est l'un des deux côtés d'un arbitrage. Les deux côtés seront définitivement supprimés. Cette action est irréversible."
   },
   "form_renderer": {
     "select_type": "Sélectionnez un type d'activité ci-dessus pour continuer",
@@ -336,6 +340,7 @@
   },
   "picker": {
     "transfer": "Transfert",
+    "conversion": "Arbitrage",
     "split": "Fractionnement",
     "all_types_group": "Tous les types d'activité",
     "expand_all_types": "Développer pour afficher tous les types",
@@ -469,6 +474,13 @@
     "within_days_many": "Dans les {{count}} jours"
   },
   "form": {
+    "section_conversion": "Arbitrage",
+    "section_conversion_from": "De",
+    "section_conversion_to": "Vers",
+    "conversion_hint": "Les parts d'un fonds ou d'un actif deviennent des parts d'un autre et gardent leur coût : un arbitrage entre fonds, un changement de catégorie ou de série de parts, un fonds converti en ETF ou une migration de jeton. Si l'arbitrage a été imposé, enregistrez une vente et un achat.",
+    "button_add_conversion": "Ajouter un arbitrage",
+    "warn_converting_more_than_held": "Vous convertissez {{converting}} parts, mais ce compte en détient {{available}} aujourd'hui.",
+    "err_conversion_same_asset": "Choisissez un autre actif de destination.",
     "section_asset_account": "Actif et compte",
     "section_account": "Compte",
     "section_amount": "Montant",

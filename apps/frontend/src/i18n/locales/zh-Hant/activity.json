@@ -47,6 +47,8 @@
   "subtype_position_close": "平倉",
   "subtype_return_of_capital": "資本返還",
   "subtype_notional_distribution": "名義分配",
+  "subtype_conversion_out": "轉換（換出）",
+  "subtype_conversion_in": "轉換（換入）",
   "type_buy_desc": "買入一項資產。這會增加你的持有部位數量並減少你的現金餘額。",
   "type_sell_desc": "賣出一項資產。這會減少你的持有部位數量並增加你的現金餘額。",
   "type_deposit_desc": "存入資金會增加你的帳戶餘額。",
@@ -199,6 +201,7 @@
   "mobile_type_fee_desc": "帳戶或交易手續費",
   "mobile_type_tax_desc": "繳納稅款",
   "mobile_type_split_desc": "拆股調整",
+  "mobile_type_conversion_desc": "將一檔基金轉換為另一檔，並保留成本",
   "mobile_date_time": "日期與時間",
   "mobile_fee_optional": "手續費（選填）",
   "mobile_description_optional": "描述（選填）",
@@ -315,7 +318,8 @@
   "delete_modal": {
     "title": "刪除交易紀錄？",
     "description": "系統會永久刪除此交易紀錄。此操作無法復原。",
-    "linked_transfer_desc": "此交易紀錄已與另一筆轉帳配對。系統會永久刪除兩筆轉帳，此操作無法復原。"
+    "linked_transfer_desc": "此交易紀錄已與另一筆轉帳配對。系統會永久刪除兩筆轉帳，此操作無法復原。",
+    "linked_conversion_desc": "此交易紀錄是一筆轉換的其中一方。系統會永久刪除兩筆紀錄，此操作無法復原。"
   },
   "form_renderer": {
     "select_type": "請在上方選取一種交易類型以繼續",
@@ -333,6 +337,7 @@
     "count_one": "此日期記錄了 {{count}} 筆交易紀錄"
   },
   "picker": {
+    "conversion": "基金轉換",
     "transfer": "轉帳",
     "split": "拆股",
     "all_types_group": "所有交易類型",
@@ -464,6 +469,13 @@
     "within_days_one": "{{count}} 天內"
   },
   "form": {
+    "section_conversion": "基金轉換",
+    "section_conversion_from": "換出",
+    "section_conversion_to": "換入",
+    "conversion_hint": "一檔基金或資產的份額轉換為另一檔的份額，並保留原有成本，例如基金轉換、份額類別或系列變更、基金轉為 ETF 或代幣遷移。如果轉換需要繳稅，請記錄為一筆賣出和一筆買入。",
+    "button_add_conversion": "新增基金轉換",
+    "warn_converting_more_than_held": "你要轉換 {{converting}} 份，但此帳戶目前持有 {{available}} 份。",
+    "err_conversion_same_asset": "請選擇另一種目標資產。",
     "section_asset_account": "資產與帳戶",
     "section_account": "帳戶",
     "section_amount": "金額",

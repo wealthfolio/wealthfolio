@@ -7,11 +7,12 @@ import {
   isAssetBackedIncomeActivity,
   isCashActivity,
   isCashTransfer,
+  isConversionRow,
   isFeeActivity,
   isIncomeActivity,
   isSecuritiesTransfer,
   isSplitActivity,
-  localizeActivityTypeName,
+  localizeActivityRowLabel,
 } from "@/lib/activity-utils";
 import { ActivityType } from "@/lib/constants";
 import { formatOptionSubtitle, parseOccSymbol } from "@/lib/occ-symbol";
@@ -271,7 +272,7 @@ export const ActivityTableMobile = ({
 
     // Compact View
     if (isCompactView) {
-      const activityTypeLabel = localizeActivityTypeName(t, activity.activityType);
+      const activityTypeLabel = localizeActivityRowLabel(t, activity);
       return (
         <Card
           key={activity.id}
@@ -300,7 +301,7 @@ export const ActivityTableMobile = ({
                         )}
                         <span className="truncate">{displaySymbol}</span>
                       </p>
-                      {activity.activityType !== "SPLIT" && (
+                      {activity.activityType !== "SPLIT" && !isConversionRow(activity) && (
                         <AmountDisplay
                           value={displayValue}
                           currency={activity.currency}
@@ -486,7 +487,7 @@ export const ActivityTableMobile = ({
                       : t("activity:field_price")}
               </span>
               <span className="font-medium">
-                {activity.activityType === "FEE" ? (
+                {activity.activityType === "FEE" || isConversionRow(activity) ? (
                   "-"
                 ) : activity.activityType === "SPLIT" ? (
                   formatSplitRatio(Number(activity.amount))
@@ -535,7 +536,7 @@ export const ActivityTableMobile = ({
             )}
 
             {/* Total Value */}
-            {activity.activityType !== "SPLIT" && (
+            {activity.activityType !== "SPLIT" && !isConversionRow(activity) && (
               <div className="flex items-center justify-between border-t pt-1.5">
                 <span className="text-muted-foreground font-medium">
                   {t("activity:table.total_value")}

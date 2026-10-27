@@ -48,6 +48,8 @@
   "subtype_position_close": "Fechar posição",
   "subtype_return_of_capital": "Devolução de capital",
   "subtype_notional_distribution": "Distribuição nocional",
+  "subtype_conversion_out": "Conversão (saída)",
+  "subtype_conversion_in": "Conversão (entrada)",
   "type_buy_desc": "Compra um ativo. Isso aumenta a quantidade da sua posição e reduz seu saldo em caixa.",
   "type_sell_desc": "Vende um ativo. Isso reduz a quantidade da sua posição e aumenta seu saldo em caixa.",
   "type_deposit_desc": "Aumenta o saldo da sua conta adicionando fundos.",
@@ -200,6 +202,7 @@
   "mobile_type_fee_desc": "Taxa de conta ou transação",
   "mobile_type_tax_desc": "Pagamento de impostos",
   "mobile_type_split_desc": "Ajuste por desdobramento de ações",
+  "mobile_type_conversion_desc": "Trocar um fundo ou classe por outro mantendo o custo",
   "mobile_date_time": "Data e hora",
   "mobile_fee_optional": "Taxa (opcional)",
   "mobile_description_optional": "Descrição (opcional)",
@@ -316,7 +319,8 @@
   "delete_modal": {
     "title": "Excluir atividade?",
     "description": "Esta atividade será excluída permanentemente. Esta ação não pode ser desfeita.",
-    "linked_transfer_desc": "Esta atividade está vinculada a um par de transferência. Ambas as partes serão excluídas permanentemente. Esta ação não pode ser desfeita."
+    "linked_transfer_desc": "Esta atividade está vinculada a um par de transferência. Ambas as partes serão excluídas permanentemente. Esta ação não pode ser desfeita.",
+    "linked_conversion_desc": "Esta atividade é uma das duas partes de uma conversão. Ambas as partes serão excluídas permanentemente. Esta ação não pode ser desfeita."
   },
   "form_renderer": {
     "select_type": "Selecione um tipo de atividade acima para continuar",
@@ -336,6 +340,7 @@
   },
   "picker": {
     "transfer": "Transferência",
+    "conversion": "Conversão de fundos",
     "split": "Desdobramento",
     "all_types_group": "Todos os tipos de atividade",
     "expand_all_types": "Expandir para exibir todos os tipos",
@@ -469,6 +474,13 @@
     "within_days_many": "Dentro de {{count}} dias"
   },
   "form": {
+    "section_conversion": "Conversão de fundos",
+    "section_conversion_from": "De",
+    "section_conversion_to": "Para",
+    "conversion_hint": "As cotas de um fundo ou ativo passam a ser de outro e mantêm o seu custo: uma troca entre fundos, uma mudança de classe ou série, um fundo convertido em ETF ou uma migração de token. Se a troca foi tributada, registre uma venda e uma compra.",
+    "button_add_conversion": "Adicionar conversão de fundos",
+    "warn_converting_more_than_held": "Você está convertendo {{converting}} cotas, mas esta conta tem {{available}} hoje.",
+    "err_conversion_same_asset": "Escolha outro ativo de destino.",
     "section_asset_account": "Ativo e conta",
     "section_account": "Conta",
     "section_amount": "Valor",
