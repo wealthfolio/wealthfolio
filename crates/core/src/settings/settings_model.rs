@@ -12,8 +12,9 @@ pub const THEME_ID_KEY: &str = "theme_id";
 pub const DEFAULT_THEME_ID: &str = "classic";
 /// Text size: a name the frontend maps to a root font size. Device-local like the
 /// theme, and the frontend shows the default size for a name it does not know.
+/// Unset until the user picks one, so the frontend can start from the device's
+/// own font size.
 pub const TEXT_SIZE_KEY: &str = "text_size";
-pub const DEFAULT_TEXT_SIZE: &str = "default";
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -23,8 +24,8 @@ pub struct Settings {
     /// Appearance mode: light, dark or system.
     pub theme: String,
     pub font: String,
-    #[serde(default = "default_text_size")]
-    pub text_size: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub text_size: Option<String>,
     pub language: String,
     pub formatting_region: String,
     /// Formatting regions for amounts in specific currencies, keyed by currency
@@ -50,17 +51,13 @@ fn default_theme_id() -> String {
     DEFAULT_THEME_ID.to_string()
 }
 
-fn default_text_size() -> String {
-    DEFAULT_TEXT_SIZE.to_string()
-}
-
 impl Default for Settings {
     fn default() -> Self {
         Self {
             theme_id: default_theme_id(),
             theme: "light".to_string(),
             font: "font-mono".to_string(),
-            text_size: default_text_size(),
+            text_size: None,
             language: "en".to_string(),
             formatting_region: "system".to_string(),
             currency_formatting_regions: BTreeMap::new(),

@@ -282,7 +282,9 @@ const applySettingsToDocument = async (newSettings: Settings) => {
   document.body.classList.remove("font-mono", "font-sans", "font-serif");
   document.body.classList.add(newSettings.font);
 
-  // Text size scales the root font size; an unknown name shows the default.
+  // Text size scales the root font size. Until one is picked it follows the
+  // system's font scale where the app provides one (Android); an unknown name
+  // shows the default.
   const textSize = resolveTextSize(newSettings.textSize);
   document.documentElement.dataset.textSize = textSize;
 

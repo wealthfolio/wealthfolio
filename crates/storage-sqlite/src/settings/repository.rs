@@ -11,7 +11,7 @@ use wealthfolio_core::assets::AssetKind;
 use wealthfolio_core::errors::Result;
 use wealthfolio_core::settings::{
     Settings, SettingsRepositoryTrait, SettingsUpdate, CURRENCY_FORMATTING_REGIONS_KEY,
-    DEFAULT_TEXT_SIZE, DEFAULT_THEME_ID, INSIGHTS_OVERVIEW_LAYOUT_KEY, TEXT_SIZE_KEY, THEME_ID_KEY,
+    DEFAULT_THEME_ID, INSIGHTS_OVERVIEW_LAYOUT_KEY, TEXT_SIZE_KEY, THEME_ID_KEY,
 };
 
 pub struct SettingsRepository {
@@ -42,7 +42,7 @@ impl SettingsRepositoryTrait for SettingsRepository {
                 THEME_ID_KEY => settings.theme_id = value,
                 "theme" => settings.theme = value,
                 "font" => settings.font = value,
-                TEXT_SIZE_KEY => settings.text_size = value,
+                TEXT_SIZE_KEY => settings.text_size = Some(value),
                 "language" => settings.language = value,
                 "formatting_region" => settings.formatting_region = value,
                 CURRENCY_FORMATTING_REGIONS_KEY => {
@@ -259,7 +259,6 @@ impl SettingsRepositoryTrait for SettingsRepository {
                     THEME_ID_KEY => DEFAULT_THEME_ID,
                     "theme" => "light",
                     "font" => "font-mono",
-                    TEXT_SIZE_KEY => DEFAULT_TEXT_SIZE,
                     "language" => "en",
                     "timezone" => "",
                     "onboarding_completed" => "false",
@@ -444,11 +443,11 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn text_size_defaults_and_stays_on_this_device() {
+    async fn text_size_is_unset_until_picked_and_stays_on_this_device() {
         use crate::schema::sync_outbox;
         let (repo, _dir) = setup().await;
-        assert_eq!(repo.get_settings().unwrap().text_size, DEFAULT_TEXT_SIZE);
-        assert_eq!(repo.get_setting(TEXT_SIZE_KEY).unwrap(), DEFAULT_TEXT_SIZE);
+        assert_eq!(repo.get_settings().unwrap().text_size, None);
+        assert!(repo.get_setting(TEXT_SIZE_KEY).is_err());
 
         let update = serde_json::from_value(json!({"textSize": "extra-large"})).unwrap();
         repo.update_settings(&update).await.unwrap();
@@ -457,7 +456,7 @@ mod tests {
         repo.update_settings(&unrelated).await.unwrap();
 
         let settings = repo.get_settings().unwrap();
-        assert_eq!(settings.text_size, "extra-large");
+        assert_eq!(settings.text_size.as_deref(), Some("extra-large"));
         assert_eq!(settings.theme_id, "ember");
 
         let mut conn = get_connection(&repo.pool).unwrap();

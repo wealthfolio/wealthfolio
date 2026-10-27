@@ -401,11 +401,14 @@ mod tests {
     }
 
     #[test]
-    fn settings_saved_before_text_size_read_as_default() {
-        let mut value = serde_json::to_value(Settings::default()).unwrap();
-        value.as_object_mut().unwrap().remove("textSize");
+    fn text_size_stays_unset_until_picked() {
+        let value = serde_json::to_value(Settings::default()).unwrap();
+        assert!(
+            value.get("textSize").is_none(),
+            "an unpicked size is left out"
+        );
         let settings: Settings = serde_json::from_value(value).unwrap();
-        assert_eq!(settings.text_size, "default");
+        assert_eq!(settings.text_size, None);
     }
 
     #[test]

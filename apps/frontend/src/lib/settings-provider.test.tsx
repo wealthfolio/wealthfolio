@@ -158,3 +158,27 @@ it("shows the default text size for a missing or unknown size", async () => {
     document.documentElement.removeAttribute("data-text-size");
   }
 });
+
+it("starts from the system's font scale until a text size is picked", async () => {
+  mocks.platform.mockResolvedValue({ os: "android", is_mobile: true, is_desktop: false });
+  const scaleGlobal = window as unknown as { wealthfolioSystemTextScale?: number };
+  scaleGlobal.wealthfolioSystemTextScale = 1.3;
+  try {
+    settings.textSize = undefined;
+    const { unmount } = render(<SettingsProvider>content</SettingsProvider>);
+    await waitFor(() =>
+      expect(document.documentElement).toHaveAttribute("data-text-size", "extra-large"),
+    );
+    expect(localStorage.getItem("wealthfolio-text-size")).toBe("extra-large");
+    unmount();
+
+    // Once picked, the saved size wins over the system's.
+    settings.textSize = "default";
+    render(<SettingsProvider>content</SettingsProvider>);
+    await waitFor(() =>
+      expect(document.documentElement).toHaveAttribute("data-text-size", "default"),
+    );
+  } finally {
+    delete scaleGlobal.wealthfolioSystemTextScale;
+  }
+});
