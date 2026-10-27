@@ -21,7 +21,7 @@
     "preview": "pnpm --filter frontend preview",
     "tauri": "node scripts/tauri.mjs",
     "test": "pnpm test:scripts && pnpm --filter frontend test",
-    "test:scripts": "node --test scripts/tauri.test.mjs scripts/design-ratchet-direction.test.mjs apps/frontend/scripts/theme-generate.test.mjs scripts/frontend-tooling.test.mjs",
+    "test:scripts": "node --test scripts/tauri.test.mjs scripts/design-ratchet-direction.test.mjs scripts/design-ratchet-sign.test.mjs apps/frontend/scripts/theme-generate.test.mjs scripts/frontend-tooling.test.mjs",
     "test:watch": "pnpm --filter frontend test:watch",
     "test:ui": "pnpm --filter frontend test:ui",
     "test:coverage": "pnpm --filter frontend test:coverage",
