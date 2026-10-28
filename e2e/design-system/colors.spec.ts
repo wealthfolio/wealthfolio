@@ -158,6 +158,12 @@ function oklab([r, g, b]: number[]) {
   ];
 }
 
+// OKLCH chroma and hue (degrees) of an sRGB colour.
+function chromaHue(rgb: number[]) {
+  const [, a, b] = oklab(rgb);
+  return [Math.hypot(a, b), ((Math.atan2(b, a) * 180) / Math.PI + 360) % 360];
+}
+
 function luminance([r, g, b]: number[]) {
   const linear = (value: number) => {
     const channel = value / 255;
@@ -197,12 +203,35 @@ async function ratios(page: Page, pairs: { text: string; layers: string[] }[]) {
   return pixels.map(([below, above]) => contrast(above, below));
 }
 
+// Reads each token as treemap-palette.ts does, straight into a canvas: through a
+// computed color(srgb …) value, a color-mix() middle stop can land a step lower.
+async function tokenColors(page: Page, names: string[]) {
+  return page.evaluate((names) => {
+    const canvas = document.createElement("canvas");
+    canvas.width = canvas.height = 1;
+    const context = canvas.getContext("2d", { willReadFrequently: true })!;
+    const style = getComputedStyle(document.documentElement);
+    return names.map((name) => {
+      context.clearRect(0, 0, 1, 1);
+      context.fillStyle = style.getPropertyValue(`--${name}`).trim();
+      context.fillRect(0, 0, 1, 1);
+      return Array.from(context.getImageData(0, 0, 1, 1).data.slice(0, 3));
+    });
+  }, names);
+}
+
 // The roles each option draws gains and losses in.
 const gainColorRoles: Record<(typeof gainColorOptions)[number], [string, string]> = {
   "green-up": ["success", "destructive"],
   "red-up": ["destructive", "success"],
   "red-up-blue-down": ["destructive", "loss-blue"],
 };
+
+// Badges, alerts and toasts on a status draw its subtle foreground. That text keeps the
+// status colour's hue, so a theme that changes its success or destructive colour gives
+// its gain and loss badges the same colour instead of keeping Classic's. 15° allows a
+// lighter or darker shade; a near-grey colour (chroma under 0.03) has no hue to keep.
+const badgeHueTolerance = 15;
 
 // Treemap labels, 13px text on the tiles, keep what the green up ramps already reach:
 // 4.2:1 at their lowest (Classic dark's gain tiles), under the 4.5:1 for text. The
@@ -267,6 +296,30 @@ for (const theme of themes) {
           ? [`${name} on the banner: ${results[index].toFixed(2)} < ${minimum}`]
           : [],
       );
+      expect(failures).toEqual([]);
+    });
+
+    test(`status badges keep their colour's hue, ${theme}, ${mode}`, async ({ page }) => {
+      await openGallery(page, { mode, theme });
+      const badges = ["success", "destructive", "loss-blue"];
+      const colors = await tokenColors(
+        page,
+        badges.flatMap((status) => [status, `${status}-subtle-foreground`]),
+      );
+      const failures = badges.flatMap((status, index) => {
+        const [[statusChroma, statusHue], [textChroma, textHue]] = [
+          colors[index * 2],
+          colors[index * 2 + 1],
+        ].map(chromaHue);
+        if (statusChroma < 0.03 || textChroma < 0.03) return [];
+        const gap = Math.abs(statusHue - textHue);
+        const degrees = Math.min(gap, 360 - gap);
+        return degrees > badgeHueTolerance
+          ? [
+              `--${status}-subtle-foreground is ${degrees.toFixed(0)}° from --${status} (${textHue.toFixed(0)}° against ${statusHue.toFixed(0)}°)`,
+            ]
+          : [];
+      });
       expect(failures).toEqual([]);
     });
 
@@ -336,20 +389,7 @@ for (const theme of themes) {
           ["low", "mid", "high"].map((stop) => `heatmap-${ramp}-${stop}`),
         );
         const tokens = [...ramps, "heatmap-label-dark", "heatmap-label-light", "card"];
-        // Read each token as treemap-palette.ts does, straight into a canvas: through
-        // a computed color(srgb …) value, a color-mix() middle stop can land a step lower.
-        const colors = await page.evaluate((names) => {
-          const canvas = document.createElement("canvas");
-          canvas.width = canvas.height = 1;
-          const context = canvas.getContext("2d", { willReadFrequently: true })!;
-          const style = getComputedStyle(document.documentElement);
-          return names.map((name) => {
-            context.clearRect(0, 0, 1, 1);
-            context.fillStyle = style.getPropertyValue(`--${name}`).trim();
-            context.fillRect(0, 0, 1, 1);
-            return Array.from(context.getImageData(0, 0, 1, 1).data.slice(0, 3));
-          });
-        }, tokens);
+        const colors = await tokenColors(page, tokens);
         const [
           gainLow,
           gainMid,
@@ -367,10 +407,12 @@ for (const theme of themes) {
         const [positive, negative, surface] = [tile(gainMid), tile(lossMid), card].map(oklab);
         const distance = (a: number[], b: number[], from = 0) =>
           Math.hypot(...a.slice(from).map((value, i) => value - b[from + i]));
-        // Every 5% along low → mid → high, as getTreemapColor blends it.
+        // Every 0.1% along low → mid → high. getTreemapColor blends continuously, and
+        // where neither label clears the floor the dip is narrow: 5% steps missed
+        // Cyber's, which real tiles land on.
         const along = (low: number[], mid: number[], high: number[]) =>
-          Array.from({ length: 21 }, (_, step) => {
-            const t = step / 20;
+          Array.from({ length: 1001 }, (_, step) => {
+            const t = step / 1000;
             const [from, to, u] = t < 0.5 ? [low, mid, t * 2] : [mid, high, t * 2 - 1];
             return tile(from.map((value, i) => value + (to[i] - value) * u));
           });
