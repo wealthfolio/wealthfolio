@@ -237,6 +237,7 @@ export {
   listenFileDropCancelled,
   listenPortfolioUpdateStart,
   listenPortfolioUpdateComplete,
+  listenGoalSummariesUpdated,
   listenDatabaseRestored,
   listenDeviceSyncRestore,
   listenPortfolioUpdateError,

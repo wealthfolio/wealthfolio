@@ -449,6 +449,7 @@ export {
   listenMarketSyncStart,
   listenNavigateToRoute,
   listenPortfolioUpdateComplete,
+  listenGoalSummariesUpdated,
   listenPortfolioUpdateError,
   listenPortfolioUpdateStart,
 } from "./events";

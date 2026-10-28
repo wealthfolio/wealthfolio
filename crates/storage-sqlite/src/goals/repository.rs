@@ -186,27 +186,6 @@ impl GoalRepositoryTrait for GoalRepository {
     async fn update_goal(&self, goal_update: Goal) -> Result<Goal> {
         let goal_id_owned = goal_update.id.clone();
         let next_status_lifecycle = goal_update.status_lifecycle.clone();
-        let goal_db = GoalDB {
-            id: goal_update.id,
-            goal_type: goal_update.goal_type,
-            title: goal_update.title,
-            description: goal_update.description,
-            target_amount: goal_update.target_amount.unwrap_or(0.0),
-            status_lifecycle: goal_update.status_lifecycle,
-            status_health: goal_update.status_health,
-            priority: goal_update.priority,
-            cover_image_key: goal_update.cover_image_key,
-            currency: goal_update.currency,
-            start_date: goal_update.start_date,
-            target_date: goal_update.target_date,
-            summary_current_value: goal_update.summary_current_value,
-            summary_progress: goal_update.summary_progress,
-            projected_completion_date: goal_update.projected_completion_date,
-            projected_value_at_target_date: goal_update.projected_value_at_target_date,
-            created_at: goal_update.created_at,
-            updated_at: chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string(),
-            summary_target_amount: goal_update.summary_target_amount,
-        };
 
         self.writer
             .exec_tx(move |tx| -> Result<Goal> {
@@ -222,7 +201,30 @@ impl GoalRepositoryTrait for GoalRepository {
                 }
 
                 diesel::update(goals::table.find(goal_id_owned.clone()))
-                    .set(&goal_db)
+                    // Ordinary edits cannot overwrite a newer computed summary.
+                    .set((
+                        goals::title.eq(goal_update.title),
+                        goal_update
+                            .description
+                            .map(|value| goals::description.eq(Some(value))),
+                        goals::target_amount.eq(goal_update.target_amount.unwrap_or(0.0)),
+                        goals::status_lifecycle.eq(goal_update.status_lifecycle),
+                        goals::priority.eq(goal_update.priority),
+                        goal_update
+                            .cover_image_key
+                            .map(|value| goals::cover_image_key.eq(Some(value))),
+                        goal_update
+                            .currency
+                            .map(|value| goals::currency.eq(Some(value))),
+                        goal_update
+                            .start_date
+                            .map(|value| goals::start_date.eq(Some(value))),
+                        goal_update
+                            .target_date
+                            .map(|value| goals::target_date.eq(Some(value))),
+                        goals::updated_at
+                            .eq(chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string()),
+                    ))
                     .execute(tx.conn())
                     .map_err(StorageError::from)?;
                 let result_db = goals::table

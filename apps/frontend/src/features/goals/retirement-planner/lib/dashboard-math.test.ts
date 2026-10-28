@@ -300,4 +300,21 @@ describe("retirement dashboard math", () => {
       }),
     ).toBeNull();
   });
+  it.each([
+    ["on_track", "good"],
+    ["achieved", "good"],
+    ["at_risk", "watch"],
+    ["off_track", "bad"],
+  ] as const)("uses backend %s health even when local readiness disagrees", (status, tone) => {
+    const result = deriveRetirementReadiness({
+      overview: { status, requiredCapitalReachable: true },
+      plannerMode: "traditional",
+      isFinanciallyIndependent: false,
+      effectiveFiAge: null,
+      desiredAge: 65,
+      horizonAge: 90,
+    });
+    expect(result.tone).toBe(tone);
+    if (tone !== "good") expect(result.body).not.toBeNull();
+  });
 });

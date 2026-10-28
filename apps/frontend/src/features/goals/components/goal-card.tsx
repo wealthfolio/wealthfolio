@@ -99,32 +99,40 @@ export function GoalCard({ goal }: { goal: Goal }) {
   const isOffTrack = goal.statusHealth === "off_track";
   const isAchieved = goal.statusLifecycle === "achieved";
 
-  // Three health states drive the accent color:
+  // Health drives the accent color:
   //   positive  → success (green)
+  //   at risk   → warning (orange)
   //   negative  → destructive (red)
   //   unknown   → neutral (muted) — e.g. "not_applicable" from the backend
   //               (no target set, no projection yet, brand-new goal)
   const isPositive = isOnTrack || isAchieved;
-  const isNegative = isOffTrack || isAtRisk;
+  const isNegative = isOffTrack;
   const accentClass = isPositive
     ? "text-success"
-    : isNegative
-      ? "text-destructive"
-      : "text-muted-foreground";
+    : isAtRisk
+      ? "text-warning"
+      : isNegative
+        ? "text-destructive"
+        : "text-muted-foreground";
   const progressBarClass = isPositive
     ? "bg-success"
-    : isNegative
-      ? "bg-destructive"
-      : "bg-muted-foreground/50";
+    : isAtRisk
+      ? "bg-warning"
+      : isNegative
+        ? "bg-destructive"
+        : "bg-muted-foreground/50";
 
   // Only render the status badge for attention-worthy states.
-  let pill: { label: string; variant: "success-subtle" | "destructive-subtle" } | null = null;
+  let pill: {
+    label: string;
+    variant: "success-subtle" | "destructive-subtle" | "warning-subtle";
+  } | null = null;
   if (isAchieved) {
     pill = { label: t("goals:card.achieved"), variant: "success-subtle" };
   } else if (isOffTrack) {
     pill = { label: t("goals:card.off_track"), variant: "destructive-subtle" };
   } else if (isAtRisk) {
-    pill = { label: t("goals:card.at_risk"), variant: "destructive-subtle" };
+    pill = { label: t("goals:card.at_risk"), variant: "warning-subtle" };
   }
 
   const deadline = goal.targetDate ?? goal.projectedCompletionDate;

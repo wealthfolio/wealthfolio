@@ -68,11 +68,9 @@ pub trait GoalServiceTrait: Send + Sync {
     async fn delete_goal_plan(&self, goal_id: &str) -> Result<usize>;
 
     // Summary
-    async fn refresh_goal_summary(
-        &self,
-        goal_id: &str,
-        valuations: &AccountValuationMap,
-    ) -> Result<Goal>;
+    async fn current_valuation_map(&self) -> Result<AccountValuationMap>;
+    async fn refresh_goal_summary(&self, goal_id: &str) -> Result<Goal>;
+    async fn refresh_all_goal_summaries(&self) -> Result<Vec<Goal>>;
 
     // Retirement overview
     async fn compute_retirement_overview(

@@ -126,6 +126,7 @@ export default function SaveUpDetailPage({ goal, plan, overview }: Props) {
   const displayProgress = targetAmount > 0 ? Math.min(currentValue / targetAmount, 1) : progress;
   const remainingNow = Math.max(targetAmount - currentValue, 0);
   const isPlanDirty =
+    savePlanMutation.isError ||
     targetAmount !== initialTargetAmount ||
     targetDate !== initialTargetDate ||
     monthlyContribution !== initialMonthlyContribution ||
@@ -170,7 +171,7 @@ export default function SaveUpDetailPage({ goal, plan, overview }: Props) {
     ? (previewQuery.data ?? null)
     : (overview ?? null);
 
-  const savePending = savePlanMutation.isPending;
+  const savePending = savePlanMutation.isPending || updateMutation.isPending;
   const actionPending = savePending || previewPending || previewUnavailable;
   const actionPendingLabel = previewUnavailable
     ? t("goals:save_up.preview_failed")
@@ -191,52 +192,53 @@ export default function SaveUpDetailPage({ goal, plan, overview }: Props) {
     }));
   }, [projection, currentValue, targetAmount]);
 
-  const handleSave = useCallback(() => {
+  const handleSave = useCallback(async () => {
     const settings: SaveUpPlanSettings = {
       targetDate,
       targetAmount,
       monthlyContribution,
       expectedAnnualReturn: annualReturn,
     };
-
-    savePlanMutation.mutate({
-      goalId: goal.id,
-      planKind: "save_up",
-      settingsJson: JSON.stringify(settings),
-    });
-
-    const prog = targetAmount > 0 ? Math.min(currentValue / targetAmount, 1) : 0;
-    updateMutation.mutate({
-      ...goal,
-      targetAmount: targetAmount || undefined,
-      targetDate: targetDate || undefined,
-      summaryCurrentValue: currentValue,
-      summaryProgress: prog,
-      projectedValueAtTargetDate: projection?.projectedValueAtTargetDate,
-      projectedCompletionDate: projection?.projectedCompletionDate ?? undefined,
-      statusHealth: projection?.health ?? "not_applicable",
-    });
-
-    setIsEditingPlan(false);
+    try {
+      // The final plan-save refresh must see the new goal target as well as plan inputs.
+      await updateMutation.mutateAsync({
+        ...goal,
+        targetAmount: targetAmount || undefined,
+        targetDate: targetDate || undefined,
+      });
+      await savePlanMutation.mutateAsync({
+        goalId: goal.id,
+        planKind: "save_up",
+        settingsJson: JSON.stringify(settings),
+      });
+      setIsEditingPlan(false);
+    } catch {
+      // Mutation hooks report the error. Keep the draft open, including a partial save.
+    }
   }, [
     goal,
     targetAmount,
     targetDate,
     monthlyContribution,
     annualReturn,
-    currentValue,
-    projection,
     savePlanMutation,
     updateMutation,
   ]);
 
   const handleCancelEdit = useCallback(() => {
+    savePlanMutation.reset();
     setTargetAmount(initialTargetAmount);
     setTargetDate(initialTargetDate);
     setMonthlyContribution(initialMonthlyContribution);
     setAnnualReturn(initialAnnualReturn);
     setIsEditingPlan(false);
-  }, [initialTargetAmount, initialTargetDate, initialMonthlyContribution, initialAnnualReturn]);
+  }, [
+    initialTargetAmount,
+    initialTargetDate,
+    initialMonthlyContribution,
+    initialAnnualReturn,
+    savePlanMutation,
+  ]);
 
   const status = getSaveUpStatus(
     {

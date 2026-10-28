@@ -272,6 +272,7 @@ export function resolvePortfolioDrawRate({
 export type ReadinessTone = "good" | "watch" | "bad";
 
 interface RetirementOverviewLike {
+  status?: string;
   requiredCapitalReachable?: boolean;
   successStatus?: string;
   failureAge?: number | null;
@@ -314,7 +315,7 @@ function earliestFundExhaustion(overview: RetirementOverviewLike) {
   );
 }
 
-export function deriveRetirementReadiness(
+function deriveRetirementGuidance(
   {
     overview,
     plannerMode,
@@ -402,4 +403,24 @@ export function deriveRetirementReadiness(
     problem: "late",
     body: t("goals:dashboard.guidance.late", { count: yearsLate }),
   };
+}
+
+/** Overall health belongs to the backend; this module only formats its explanation. */
+export function deriveRetirementReadiness(
+  input: DeriveRetirementReadinessInput,
+  t: TFunction = i18next.t,
+): RetirementReadiness {
+  const guidance = deriveRetirementGuidance(input, t);
+  const status = input.overview?.status;
+  if (!status) return guidance;
+  const tone: ReadinessTone =
+    status === "achieved" || status === "on_track"
+      ? "good"
+      : status === "at_risk"
+        ? "watch"
+        : "bad";
+  if (tone !== guidance.tone) {
+    return { tone, problem: "unreachable-target", body: t("goals:dashboard.guidance.unavailable") };
+  }
+  return { ...guidance, tone };
 }

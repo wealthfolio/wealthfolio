@@ -459,10 +459,6 @@ async fn build_context(
         asset_service.as_ref(),
     )
     .await?;
-    let goal_service = Arc::new(
-        GoalService::new(goal_repo.clone(), account_service.clone())
-            .with_timezone(timezone.clone()),
-    );
     let limits_service = Arc::new(ContributionLimitService::new_with_timezone(
         fx_service.clone(),
         limit_repository.clone(),
@@ -487,6 +483,17 @@ async fn build_context(
         .with_event_sink(domain_event_sink.clone()),
     );
 
+    let goal_service = Arc::new(
+        GoalService::new(goal_repo.clone(), account_service.clone())
+            .with_timezone(timezone.clone())
+            .with_valuation_services(wealthfolio_core::goals::GoalValuationServices {
+                snapshots: snapshot_service.clone(),
+                assets: asset_service.clone(),
+                quotes: quote_service.clone(),
+                fx: fx_service.clone(),
+                base_currency: base_currency.clone(),
+            }),
+    );
     let holdings_valuation_service = Arc::new(HoldingsValuationService::new_with_timezone(
         fx_service.clone(),
         quote_service.clone(),

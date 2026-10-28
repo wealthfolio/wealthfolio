@@ -885,11 +885,15 @@ impl GoalServiceTrait for MockGoalService {
         unimplemented!("MockGoalService::delete_goal_plan")
     }
 
-    async fn refresh_goal_summary(
-        &self,
-        _goal_id: &str,
-        _valuations: &AccountValuationMap,
-    ) -> CoreResult<Goal> {
+    async fn current_valuation_map(&self) -> CoreResult<AccountValuationMap> {
+        unimplemented!("MockGoalService::current_valuation_map")
+    }
+
+    async fn refresh_all_goal_summaries(&self) -> CoreResult<Vec<Goal>> {
+        unimplemented!("MockGoalService::refresh_all_goal_summaries")
+    }
+
+    async fn refresh_goal_summary(&self, _goal_id: &str) -> CoreResult<Goal> {
         unimplemented!("MockGoalService::refresh_goal_summary")
     }
 

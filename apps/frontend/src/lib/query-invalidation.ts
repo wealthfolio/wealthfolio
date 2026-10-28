@@ -62,3 +62,16 @@ export function invalidateAfterAssetClassificationsChanged(
   queryClient.invalidateQueries({ queryKey: [QueryKeys.ALLOCATION_TARGET_DRIFT] });
   queryClient.invalidateQueries({ queryKey: [QueryKeys.HEALTH_STATUS] });
 }
+
+/** Portfolio completion precedes summary writes; refresh their caches after the writes too. */
+export function invalidateAfterGoalSummariesUpdated(queryClient: QueryClient, goalIds: string[]) {
+  if (!Array.isArray(goalIds) || goalIds.length === 0) return;
+  queryClient.invalidateQueries({ queryKey: [QueryKeys.GOALS] });
+  for (const goalId of goalIds) {
+    queryClient.invalidateQueries({ queryKey: QueryKeys.goal(goalId) });
+    queryClient.invalidateQueries({ queryKey: QueryKeys.goalPlan(goalId) });
+    queryClient.invalidateQueries({ queryKey: QueryKeys.goalFunding(goalId) });
+    queryClient.invalidateQueries({ queryKey: QueryKeys.saveUpOverview(goalId) });
+    queryClient.invalidateQueries({ queryKey: QueryKeys.retirementOverview(goalId) });
+  }
+}

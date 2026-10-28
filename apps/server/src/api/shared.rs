@@ -133,6 +133,7 @@ pub fn trigger_portfolio_recalc_with_asset_sync(state: Arc<AppState>, asset_ids:
 pub struct ServerJobObserver {
     event_bus: EventBus,
     health_service: Arc<dyn HealthServiceTrait + Send + Sync>,
+    goal_service: Arc<dyn wealthfolio_core::goals::GoalServiceTrait + Send + Sync>,
 }
 
 impl ServerJobObserver {
@@ -140,16 +141,19 @@ impl ServerJobObserver {
         Self {
             event_bus: state.event_bus.clone(),
             health_service: state.health_service.clone(),
+            goal_service: state.goal_service.clone(),
         }
     }
 
     pub fn with_parts(
         event_bus: EventBus,
         health_service: Arc<dyn HealthServiceTrait + Send + Sync>,
+        goal_service: Arc<dyn wealthfolio_core::goals::GoalServiceTrait + Send + Sync>,
     ) -> Self {
         Self {
             event_bus,
             health_service,
+            goal_service,
         }
     }
 
@@ -161,6 +165,7 @@ impl ServerJobObserver {
     }
 }
 
+#[async_trait::async_trait]
 impl JobObserver for ServerJobObserver {
     fn market_sync_started(&self) {
         self.event_bus.publish(ServerEvent::new(MARKET_SYNC_START));
@@ -206,11 +211,15 @@ impl JobObserver for ServerJobObserver {
             .publish(ServerEvent::with_payload(PORTFOLIO_UPDATE_ERROR, payload));
     }
 
-    fn update_completed(&self) {
+    async fn update_completed(&self) {
         // Freshness verdicts and stale-projection issues are cached.
         self.clear_health_cache();
         self.event_bus
             .publish(ServerEvent::new(PORTFOLIO_UPDATE_COMPLETE));
+        match self.goal_service.refresh_all_goal_summaries().await {
+            Ok(goals) => crate::api::goals::emit_goal_summaries_updated(&self.event_bus, &goals),
+            Err(_) => tracing::warn!("Goal summary batch refresh failed"),
+        }
     }
 }
 

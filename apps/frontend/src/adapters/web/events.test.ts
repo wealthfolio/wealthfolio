@@ -38,3 +38,29 @@ it("announces recovery after an interrupted event stream, without announcing the
     vi.unstubAllGlobals();
   }
 });
+
+it("forwards goal summary IDs through the existing SSE bridge", async () => {
+  const listeners = new Map<string, EventListener>();
+  class FakeEventSource {
+    addEventListener(name: string, handler: EventListener) {
+      listeners.set(name, handler);
+    }
+    removeEventListener(name: string) {
+      listeners.delete(name);
+    }
+    close() {}
+  }
+  vi.stubGlobal("EventSource", FakeEventSource);
+  try {
+    const { listenGoalSummariesUpdated } = await import("./events");
+    const handler = vi.fn();
+    const unlisten = await listenGoalSummariesUpdated(handler);
+    listeners.get("goal:summaries-updated")!(
+      new MessageEvent("goal:summaries-updated", { data: '["goal-1"]' }),
+    );
+    expect(handler).toHaveBeenCalledWith(expect.objectContaining({ payload: ["goal-1"] }));
+    await unlisten();
+  } finally {
+    vi.unstubAllGlobals();
+  }
+});

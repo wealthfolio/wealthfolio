@@ -3,7 +3,6 @@ use std::sync::Arc;
 
 use crate::context::ServiceContext;
 use log::{debug, warn};
-use rust_decimal::prelude::ToPrimitive;
 use wealthfolio_core::goals::{
     Goal, GoalFundingRule, GoalFundingRuleInput, GoalPlan, NewGoal, SaveGoalPlan,
 };
@@ -11,7 +10,6 @@ use wealthfolio_core::planning::{
     compute_save_up_overview, validate_save_up_input, SaveUpInput, SaveUpOverview,
 };
 use wealthfolio_core::portfolio::fire::RetirementOverview;
-use wealthfolio_core::portfolio::valuation::CurrentAccountValuationService;
 use wealthfolio_core::utils::time_utils::{parse_user_timezone_or_default, user_today};
 
 #[tauri::command]
@@ -47,15 +45,25 @@ pub async fn create_goal(mut goal: NewGoal, state: ProfileAccess) -> Result<Goal
 }
 
 #[tauri::command]
-pub async fn update_goal(mut goal: Goal, state: ProfileAccess) -> Result<Goal, String> {
+pub async fn update_goal(
+    app_handle: tauri::AppHandle,
+    mut goal: Goal,
+    state: ProfileAccess,
+) -> Result<Goal, String> {
     let context = state.context()?;
     debug!("Updating goal...");
     goal.currency = Some(context.get_base_currency());
-    context
+    let goal = context
         .goal_service()
         .update_goal(goal)
         .await
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string())?;
+    crate::portfolio_jobs::emit_goal_summaries_updated(
+        &app_handle,
+        &context,
+        std::slice::from_ref(&goal),
+    );
+    Ok(goal)
 }
 
 #[tauri::command]
@@ -84,6 +92,7 @@ pub async fn get_goal_funding(
 
 #[tauri::command]
 pub async fn save_goal_funding(
+    app_handle: tauri::AppHandle,
     goal_id: String,
     rules: Vec<GoalFundingRuleInput>,
     state: ProfileAccess,
@@ -97,7 +106,7 @@ pub async fn save_goal_funding(
         .map_err(|e| e.to_string())?;
 
     // Auto-refresh summary after funding change
-    refresh_summary_after_save(&context, &goal_id).await;
+    refresh_summary_after_save(&app_handle, &context, &goal_id).await;
 
     Ok(result)
 }
@@ -117,6 +126,7 @@ pub async fn get_goal_plan(
 
 #[tauri::command]
 pub async fn save_goal_plan(
+    app_handle: tauri::AppHandle,
     mut plan: SaveGoalPlan,
     state: ProfileAccess,
 ) -> Result<GoalPlan, String> {
@@ -131,14 +141,21 @@ pub async fn save_goal_plan(
         .map_err(|e| e.to_string())?;
 
     // Auto-refresh summary after plan change
-    refresh_summary_after_save(&context, &goal_id).await;
+    refresh_summary_after_save(&app_handle, &context, &goal_id).await;
 
     Ok(result)
 }
 
-async fn refresh_summary_after_save(state: &Arc<ServiceContext>, goal_id: &str) {
-    if let Err(err) = refresh_summary_internal(state, goal_id).await {
-        warn!("Failed to refresh goal summary after save for {goal_id}: {err}");
+async fn refresh_summary_after_save(
+    app_handle: &tauri::AppHandle,
+    state: &Arc<ServiceContext>,
+    goal_id: &str,
+) {
+    if refresh_summary_internal(app_handle, state, goal_id)
+        .await
+        .is_err()
+    {
+        warn!("Failed to refresh goal summary after save for {goal_id}");
     }
 }
 
@@ -160,49 +177,47 @@ fn normalize_plan_currency_to_base(plan: &mut SaveGoalPlan, base_currency: &str)
 }
 
 #[tauri::command]
-pub async fn delete_goal_plan(goal_id: String, state: ProfileAccess) -> Result<usize, String> {
+pub async fn delete_goal_plan(
+    app_handle: tauri::AppHandle,
+    goal_id: String,
+    state: ProfileAccess,
+) -> Result<usize, String> {
     let context = state.context()?;
     debug!("Deleting goal plan for {}...", goal_id);
-    context
+    let deleted = context
         .goal_service()
         .delete_goal_plan(&goal_id)
         .await
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string())?;
+    refresh_summary_after_save(&app_handle, &context, &goal_id).await;
+    Ok(deleted)
 }
 
 #[tauri::command]
-pub async fn refresh_goal_summary(goal_id: String, state: ProfileAccess) -> Result<Goal, String> {
+pub async fn refresh_goal_summary(
+    app_handle: tauri::AppHandle,
+    goal_id: String,
+    state: ProfileAccess,
+) -> Result<Goal, String> {
     let context = state.context()?;
     debug!("Refreshing goal summary for {}...", goal_id);
-    refresh_summary_internal(&context, &goal_id).await
+    refresh_summary_internal(&app_handle, &context, &goal_id).await
 }
 
 #[tauri::command]
-pub async fn refresh_all_goal_summaries(state: ProfileAccess) -> Result<Vec<Goal>, String> {
+pub async fn refresh_all_goal_summaries(
+    app_handle: tauri::AppHandle,
+    state: ProfileAccess,
+) -> Result<Vec<Goal>, String> {
     let context = state.context()?;
     debug!("Refreshing all goal summaries...");
     let goals = context
         .goal_service()
-        .get_goals()
+        .refresh_all_goal_summaries()
+        .await
         .map_err(|e| e.to_string())?;
-
-    let valuation_map = build_valuation_map(&context).await?;
-
-    let mut results = Vec::new();
-    for goal in &goals {
-        if goal.status_lifecycle != "active" {
-            continue;
-        }
-        match context
-            .goal_service()
-            .refresh_goal_summary(&goal.id, &valuation_map)
-            .await
-        {
-            Ok(g) => results.push(g),
-            Err(e) => debug!("Failed to refresh goal {}: {}", goal.id, e),
-        }
-    }
-    Ok(results)
+    crate::portfolio_jobs::emit_goal_summaries_updated(&app_handle, &context, &goals);
+    Ok(goals)
 }
 
 #[tauri::command]
@@ -212,7 +227,11 @@ pub async fn get_retirement_overview(
 ) -> Result<RetirementOverview, String> {
     let context = state.context()?;
     debug!("Computing retirement overview for goal {}...", goal_id);
-    let valuation_map = build_valuation_map(&context).await?;
+    let valuation_map = context
+        .goal_service()
+        .current_valuation_map()
+        .await
+        .map_err(|e| e.to_string())?;
     context
         .goal_service()
         .compute_retirement_overview(&goal_id, &valuation_map)
@@ -227,7 +246,11 @@ pub async fn get_save_up_overview(
 ) -> Result<SaveUpOverview, String> {
     let context = state.context()?;
     debug!("Computing save-up overview for goal {}...", goal_id);
-    let valuation_map = build_valuation_map(&context).await?;
+    let valuation_map = context
+        .goal_service()
+        .current_valuation_map()
+        .await
+        .map_err(|e| e.to_string())?;
     context
         .goal_service()
         .compute_save_up_overview(&goal_id, &valuation_map)
@@ -246,61 +269,20 @@ pub async fn preview_save_up_overview(
     Ok(compute_save_up_overview(&input, as_of))
 }
 
-/// Internal helper: fetch valuations and refresh goal summary.
 async fn refresh_summary_internal(
+    app_handle: &tauri::AppHandle,
     state: &Arc<ServiceContext>,
     goal_id: &str,
 ) -> Result<Goal, String> {
-    let valuation_map = build_valuation_map(state).await?;
-    state
+    let goal = state
         .goal_service()
-        .refresh_goal_summary(goal_id, &valuation_map)
+        .refresh_goal_summary(goal_id)
         .await
-        .map_err(|e| e.to_string())
-}
-
-/// Build account_id → base-currency value map from live current valuations.
-async fn build_valuation_map(
-    state: &Arc<ServiceContext>,
-) -> Result<std::collections::HashMap<String, f64>, String> {
-    let accounts = state
-        .account_service()
-        .get_active_non_archived_accounts()
         .map_err(|e| e.to_string())?;
-    let account_ids: Vec<String> = accounts.into_iter().map(|a| a.id).collect();
-    let base_currency = state.get_base_currency();
-    let timezone = state.get_timezone();
-    let latest_snapshot_cutoff = user_today(parse_user_timezone_or_default(&timezone));
-    let account_service = state.account_service();
-    let snapshot_service = state.snapshot_service();
-    let asset_service = state.asset_service();
-    let quote_service = state.quote_service();
-    let fx_service = state.fx_service();
-    let service = CurrentAccountValuationService::new(
-        account_service.as_ref(),
-        snapshot_service.as_ref(),
-        asset_service.as_ref(),
-        quote_service.as_ref(),
-        fx_service.as_ref(),
+    crate::portfolio_jobs::emit_goal_summaries_updated(
+        app_handle,
+        state,
+        std::slice::from_ref(&goal),
     );
-    let response = service
-        .get_current_valuation_for_scope(
-            "all",
-            &account_ids,
-            &base_currency,
-            latest_snapshot_cutoff,
-            true,
-        )
-        .await
-        .map_err(|e| e.to_string())?;
-
-    let mut map = std::collections::HashMap::new();
-    for v in &response.accounts {
-        let value_in_base = v
-            .total_value_base
-            .to_f64()
-            .ok_or_else(|| format!("Invalid base valuation total for account {}", v.account_id))?;
-        map.insert(v.account_id.clone(), value_in_base);
-    }
-    Ok(map)
+    Ok(goal)
 }

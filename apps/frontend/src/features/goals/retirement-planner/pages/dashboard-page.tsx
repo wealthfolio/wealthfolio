@@ -469,7 +469,9 @@ export default function DashboardPage({
     t,
   );
   const heroHealth =
-    readiness.tone === "good" ? "on_track" : readiness.tone === "watch" ? "at_risk" : "off_track";
+    retirementOverview?.status === "achieved"
+      ? "on_track"
+      : (retirementOverview?.status ?? "not_applicable");
   const heroGuidance = readiness.body;
 
   if (!retirementOverview) {

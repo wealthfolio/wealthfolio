@@ -772,7 +772,12 @@ async fn initialize_profile_state(
 
     let goal_repository = Arc::new(GoalRepository::new(pool.clone(), writer.clone()));
     let goal_service = Arc::new(
-        GoalService::new(goal_repository, account_service.clone()).with_timezone(timezone.clone()),
+        GoalService::new(goal_repository, account_service.clone()).with_timezone(timezone.clone())
+            .with_valuation_services(wealthfolio_core::goals::GoalValuationServices {
+                snapshots: snapshot_service.clone(), assets: asset_service.clone(),
+                quotes: quote_service.clone(), fx: fx_service.clone(),
+                base_currency: base_currency.clone(),
+            }),
     );
 
     let limits_repository = Arc::new(ContributionLimitRepository::new(
@@ -1107,14 +1112,9 @@ async fn initialize_profile_state(
         event_bus.clone(),
         broker_sync_running.clone(),
         health_service.clone(),
-        snapshot_service.clone(),
-        quote_service.clone(),
         portfolio_coordinator.clone(),
-        account_service.clone(),
         goal_service.clone(),
         fx_service.clone(),
-        base_currency.clone(),
-        timezone.clone(),
         secret_store.clone(),
         token_lifecycle.clone(),
         profile_binding.clone(),

@@ -3023,3 +3023,29 @@ quotes:
         assert_eq!(value, expected, "{kind:?}");
     }
 }
+
+#[tokio::test]
+async fn all_job_entry_points_await_completion_before_returning() {
+    struct Observer(std::sync::atomic::AtomicUsize);
+    #[async_trait::async_trait]
+    impl JobObserver for Observer {
+        async fn update_completed(&self) {
+            tokio::task::yield_now().await;
+            self.0.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        }
+    }
+    let h = harness(scenario("NOM-TRADE-01").facts()).await;
+    let observer = Observer(std::sync::atomic::AtomicUsize::new(0));
+    h.coordinator.run_job(request(), &observer).await.unwrap();
+    assert_eq!(observer.0.load(std::sync::atomic::Ordering::SeqCst), 1);
+    h.coordinator
+        .run_job_with_retry(request(), &observer, RetryPolicy::default())
+        .await
+        .unwrap();
+    assert_eq!(observer.0.load(std::sync::atomic::Ordering::SeqCst), 2);
+    // The periodic/startup paths both use update_all, including when no account is stale.
+    h.coordinator
+        .update_all(MarketSyncMode::None, &observer)
+        .await;
+    assert_eq!(observer.0.load(std::sync::atomic::Ordering::SeqCst), 3);
+}

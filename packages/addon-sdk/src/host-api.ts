@@ -624,7 +624,8 @@ export interface GoalsAPI {
   create(goal: unknown): Promise<Goal>;
 
   /**
-   * Update an existing goal
+   * Update an existing goal's editable inputs. Health, progress and projection
+   * summary fields are calculated by the host; values supplied for them are ignored.
    * @param goal Updated goal data
    * @returns Promise resolving to updated goal
    */
