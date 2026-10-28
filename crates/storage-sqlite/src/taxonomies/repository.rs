@@ -766,21 +766,17 @@ impl TaxonomyRepositoryTrait for TaxonomyRepository {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db::{create_pool, init, run_migrations, write_actor::spawn_writer};
-    use tempfile::tempdir;
+    use crate::db::{create_pool, init, run_migrations, write_actor::spawn_writer, TestDir};
 
-    fn setup_repo() -> TaxonomyRepository {
+    fn setup_repo() -> (TaxonomyRepository, TestDir) {
         std::env::set_var("CONNECT_API_URL", "http://test.local");
-        let app_data = tempdir()
-            .expect("tempdir")
-            .keep()
-            .to_string_lossy()
-            .to_string();
+        let dir = TestDir::new();
+        let app_data = dir.path().to_string_lossy().to_string();
         let db_path = init(&app_data).expect("init db");
         run_migrations(&db_path).expect("migrate db");
         let pool = create_pool(&db_path).expect("create pool");
         let writer = spawn_writer(pool.as_ref().clone()).expect("spawn writer");
-        TaxonomyRepository::new(pool, writer)
+        (TaxonomyRepository::new(pool, writer), dir)
     }
 
     async fn create(repo: &TaxonomyRepository, key: &str, parent_id: Option<String>) -> Category {
@@ -798,7 +794,7 @@ mod tests {
 
     #[tokio::test]
     async fn update_category_moves_a_child_to_the_top_level() {
-        let repo = setup_repo();
+        let (repo, _dir) = setup_repo();
         let parent = create(&repo, "test_parent", None).await;
         let child = create(&repo, "test_child", Some(parent.id.clone())).await;
 

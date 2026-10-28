@@ -1,6 +1,7 @@
 //! Category deletion must preserve real financial references while allowing
 //! removal of untouched automatic budget links, through the shared writer.
 #![allow(clippy::unwrap_used, clippy::panic, reason = "test code")]
+mod common;
 
 use diesel::connection::SimpleConnection;
 use std::sync::Arc;
@@ -10,7 +11,7 @@ use wealthfolio_core::taxonomies::{
 use wealthfolio_storage_sqlite::{db, taxonomies::TaxonomyRepository};
 
 struct Fixture {
-    _dir: tempfile::TempDir,
+    _dir: common::TestDir,
     pool: Arc<db::DbPool>,
     repo: Arc<TaxonomyRepository>,
     service: TaxonomyService,
@@ -18,7 +19,7 @@ struct Fixture {
 }
 impl Fixture {
     async fn new() -> Self {
-        let dir = tempfile::tempdir().unwrap();
+        let dir = common::TestDir::new();
         let access = db::DbAccess::plaintext(dir.path().join("app.db").to_str().unwrap());
         access.prepare().unwrap();
         access.run_migrations().unwrap();
