@@ -56,9 +56,13 @@ it("forwards goal summary IDs through the existing SSE bridge", async () => {
     const handler = vi.fn();
     const unlisten = await listenGoalSummariesUpdated(handler);
     listeners.get("goal:summaries-updated")!(
-      new MessageEvent("goal:summaries-updated", { data: '["goal-1"]' }),
+      new MessageEvent("goal:summaries-updated", {
+        data: '{"goalIds":["goal-1"],"inputsChanged":false}',
+      }),
     );
-    expect(handler).toHaveBeenCalledWith(expect.objectContaining({ payload: ["goal-1"] }));
+    expect(handler).toHaveBeenCalledWith(
+      expect.objectContaining({ payload: { goalIds: ["goal-1"], inputsChanged: false } }),
+    );
     await unlisten();
   } finally {
     vi.unstubAllGlobals();

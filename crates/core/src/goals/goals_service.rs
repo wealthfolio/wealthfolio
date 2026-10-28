@@ -1,8 +1,9 @@
 use crate::accounts::{account_supports_purpose, Account, AccountPurpose, AccountServiceTrait};
 use crate::errors::Result;
 use crate::goals::goals_model::{
-    AccountValuationMap, Goal, GoalFundingRule, GoalFundingRuleInput, GoalPlan, GoalSummaryUpdate,
-    NewGoal, PreparedRetirementSimulationInput, SaveGoalPlan,
+    AccountValuationMap, Goal, GoalFundingRule, GoalFundingRuleInput, GoalPlan,
+    GoalSummariesUpdated, GoalSummaryUpdate, NewGoal, PreparedRetirementSimulationInput,
+    SaveGoalPlan,
 };
 use crate::goals::goals_traits::{GoalRepositoryTrait, GoalServiceTrait};
 use crate::planning::retirement::{
@@ -35,6 +36,34 @@ const RETIREMENT_MAX_ANNUAL_RETURN: f64 = 0.50;
 const RETIREMENT_MAX_ANNUAL_INVESTMENT_FEE: f64 = 0.10;
 const RETIREMENT_MAX_DC_PAYOUT_RATE: f64 = 0.25;
 const RETIREMENT_MAX_ANNUAL_VOLATILITY: f64 = 1.0;
+
+impl GoalSummariesUpdated {
+    pub fn from_goals(goals: &[Goal], inputs_changed: bool) -> Option<Self> {
+        let goal_ids: Vec<_> = goals
+            .iter()
+            .filter(|goal| inputs_changed || goal.status_lifecycle != GOAL_LIFECYCLE_ARCHIVED)
+            .map(|goal| goal.id.clone())
+            .collect();
+        (!goal_ids.is_empty()).then_some(Self {
+            goal_ids,
+            inputs_changed,
+        })
+    }
+}
+
+/// Diagnostic categories contain no goal settings, amounts, or provider error text.
+pub fn summary_refresh_error_kind(error: &crate::errors::Error) -> &'static str {
+    use crate::errors::Error;
+    match error {
+        Error::Database(_) => "database",
+        Error::Validation(_) => "validation",
+        Error::CurrencyConversionFailed(_)
+        | Error::UnsupportedCurrency(_)
+        | Error::InvalidExchangeRate(_) => "valuation",
+        Error::MarketData(_) => "market_data",
+        _ => "service",
+    }
+}
 
 // ─── Shared helpers ──────────────────────────────────────────────────────────
 
@@ -720,7 +749,11 @@ impl<T: GoalRepositoryTrait + Send + Sync> GoalServiceTrait for GoalService<T> {
             .await;
             match refreshed {
                 Ok(goal) => return Ok(goal),
-                Err(_) => log::warn!("Goal summary refresh failed after updating {}", saved.id),
+                Err(error) => log::warn!(
+                    "Goal summary refresh failed after updating {} ({})",
+                    saved.id,
+                    summary_refresh_error_kind(&error)
+                ),
             }
         }
         Ok(saved)
@@ -966,7 +999,11 @@ impl<T: GoalRepositoryTrait + Send + Sync> GoalServiceTrait for GoalService<T> {
                 .await
             {
                 Ok(goal) => refreshed.push(goal),
-                Err(_) => log::warn!("Goal summary refresh failed for {}", goal.id),
+                Err(error) => log::warn!(
+                    "Goal summary refresh failed for {} ({})",
+                    goal.id,
+                    summary_refresh_error_kind(&error)
+                ),
             }
         }
         Ok(refreshed)
@@ -2080,6 +2117,37 @@ mod tests {
             .unwrap();
         assert_eq!(summary.status_health, "not_applicable");
         assert_eq!(summary.projected_value_at_target_date, None);
+        repo.set_funding_rules("goal-1", vec![share_rule("goal-1", "acct-1", 100.0)]);
+        repo.save_goal_plan(SaveGoalPlan {
+            goal_id: "goal-1".into(),
+            plan_kind: "save_up".into(),
+            planner_mode: None,
+            settings_json: "{".into(),
+            summary_json: None,
+        })
+        .await
+        .unwrap();
+        let summary = service
+            .refresh_summary_with_valuations(
+                "goal-1",
+                &HashMap::from([("acct-1".into(), 80_000.0)]),
+            )
+            .await
+            .unwrap();
+        assert_eq!(summary.summary_current_value, Some(80_000.0));
+        assert_eq!(summary.summary_progress, Some(0.8));
+        assert_eq!(summary.status_health, "not_applicable");
+    }
+
+    #[test]
+    fn summary_notifications_share_lifecycle_policy_and_preserve_input_changes() {
+        assert!(GoalSummariesUpdated::from_goals(&[], false).is_none());
+        let goal = test_goal("archived", None);
+        assert!(GoalSummariesUpdated::from_goals(std::slice::from_ref(&goal), false).is_none());
+        // Archiving is an input edit that other clients still need to see.
+        let payload = GoalSummariesUpdated::from_goals(&[goal], true).unwrap();
+        assert_eq!(payload.goal_ids, vec!["goal-1"]);
+        assert!(payload.inputs_changed);
     }
     fn local_service(repo: Arc<MockGoalRepository>) -> GoalService<MockGoalRepository> {
         use crate::test_support::in_memory::*;

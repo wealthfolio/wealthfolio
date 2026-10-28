@@ -67,7 +67,7 @@ async fn update_goal(
             .clone(),
     );
     let goal = state.goal_service.update_goal(goal).await?;
-    emit_goal_summaries_updated(&state.event_bus, std::slice::from_ref(&goal));
+    emit_goal_summaries_updated(&state.event_bus, std::slice::from_ref(&goal), true);
     Ok(Json(goal))
 }
 
@@ -124,26 +124,30 @@ async fn save_goal_plan(
 async fn refresh_goal_summary_after_save(state: &Arc<AppState>, goal_id: &str) -> Option<Goal> {
     match state.goal_service.refresh_goal_summary(goal_id).await {
         Ok(goal) => {
-            emit_goal_summaries_updated(&state.event_bus, std::slice::from_ref(&goal));
+            emit_goal_summaries_updated(&state.event_bus, std::slice::from_ref(&goal), true);
             Some(goal)
         }
-        Err(_) => {
-            tracing::warn!("Failed to refresh goal summary after save for {goal_id}");
+        Err(error) => {
+            tracing::warn!(
+                "Failed to refresh goal summary after save for {goal_id} ({})",
+                wealthfolio_core::goals::summary_refresh_error_kind(&error)
+            );
             None
         }
     }
 }
 
-pub(crate) fn emit_goal_summaries_updated(bus: &crate::events::EventBus, goals: &[Goal]) {
-    let ids: Vec<_> = goals
-        .iter()
-        .filter(|g| g.status_lifecycle != "archived")
-        .map(|g| &g.id)
-        .collect();
-    if !ids.is_empty() {
+pub(crate) fn emit_goal_summaries_updated(
+    bus: &crate::events::EventBus,
+    goals: &[Goal],
+    inputs_changed: bool,
+) {
+    if let Some(payload) =
+        wealthfolio_core::goals::GoalSummariesUpdated::from_goals(goals, inputs_changed)
+    {
         bus.publish(crate::events::ServerEvent::with_payload(
             crate::events::GOAL_SUMMARIES_UPDATED,
-            serde_json::json!(ids),
+            serde_json::json!(payload),
         ));
     }
 }
@@ -179,7 +183,7 @@ async fn refresh_goal_summary(
     axum::Extension(state): axum::Extension<Arc<AppState>>,
 ) -> ApiResult<Json<Goal>> {
     let goal = state.goal_service.refresh_goal_summary(&id).await?;
-    emit_goal_summaries_updated(&state.event_bus, std::slice::from_ref(&goal));
+    emit_goal_summaries_updated(&state.event_bus, std::slice::from_ref(&goal), false);
     Ok(Json(goal))
 }
 
@@ -187,7 +191,7 @@ async fn refresh_all_goal_summaries(
     axum::Extension(state): axum::Extension<Arc<AppState>>,
 ) -> ApiResult<Json<Vec<Goal>>> {
     let goals = state.goal_service.refresh_all_goal_summaries().await?;
-    emit_goal_summaries_updated(&state.event_bus, &goals);
+    emit_goal_summaries_updated(&state.event_bus, &goals, false);
     Ok(Json(goals))
 }
 

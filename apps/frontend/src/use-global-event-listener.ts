@@ -23,6 +23,7 @@ import {
   invalidateAfterGoalSummariesUpdated,
   shouldInvalidateAfterPortfolioUpdate,
   type AssetClassificationsChangedPayload,
+  type GoalSummariesUpdatedPayload,
 } from "@/lib/query-invalidation";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
@@ -401,7 +402,7 @@ const useGlobalEventListener = () => {
         ],
         [
           "goal-summaries-updated",
-          listenGoalSummariesUpdated<string[]>((event) => {
+          listenGoalSummariesUpdated<GoalSummariesUpdatedPayload>((event) => {
             invalidateAfterGoalSummariesUpdated(queryClientRef.current, event.payload);
           }),
         ],

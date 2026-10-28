@@ -26,7 +26,7 @@ it("reads cached summaries on mount and updates after the post-write event", asy
   mocks.getGoals.mockResolvedValue([
     { id: "g", statusLifecycle: "active", statusHealth: "at_risk" },
   ]);
-  act(() => invalidateAfterGoalSummariesUpdated(client, ["g"]));
+  act(() => invalidateAfterGoalSummariesUpdated(client, { goalIds: ["g"], inputsChanged: false }));
   await waitFor(() => expect(result.current.atRisk).toHaveLength(1));
   expect(result.current.active).toHaveLength(0);
   client.clear();

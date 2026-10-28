@@ -100,8 +100,13 @@ impl JobObserver for TauriJobObserver {
             .refresh_all_goal_summaries()
             .await
         {
-            Ok(goals) => emit_goal_summaries_updated(&self.app_handle, &self.context, &goals),
-            Err(_) => log::warn!("Goal summary batch refresh failed"),
+            Ok(goals) => {
+                emit_goal_summaries_updated(&self.app_handle, &self.context, &goals, false)
+            }
+            Err(error) => log::warn!(
+                "Goal summary batch refresh failed ({})",
+                wealthfolio_core::goals::summary_refresh_error_kind(&error)
+            ),
         }
     }
 }
@@ -151,20 +156,18 @@ pub fn emit_goal_summaries_updated(
     app_handle: &AppHandle,
     context: &ServiceContext,
     goals: &[wealthfolio_core::goals::Goal],
+    inputs_changed: bool,
 ) {
-    let ids: Vec<_> = goals
-        .iter()
-        .filter(|g| g.status_lifecycle != "archived")
-        .map(|g| &g.id)
-        .collect();
-    if ids.is_empty() {
+    let Some(payload) =
+        wealthfolio_core::goals::GoalSummariesUpdated::from_goals(goals, inputs_changed)
+    else {
         return;
-    }
+    };
     if crate::events::emit_for_profile(
         app_handle,
         context,
         crate::events::GOAL_SUMMARIES_UPDATED,
-        &ids,
+        payload,
     )
     .is_err()
     {

@@ -82,6 +82,15 @@ pub struct GoalSummaryUpdate {
     pub status_health: String,
 }
 
+/// Scoped notification after summary writes or goal-input edits. Portfolio-only
+/// refreshes don't require clients to reload unchanged plans and funding rules.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GoalSummariesUpdated {
+    pub goal_ids: Vec<String>,
+    pub inputs_changed: bool,
+}
+
 /// Domain model for a goal plan (1:1 with goal for complex goal types)
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]

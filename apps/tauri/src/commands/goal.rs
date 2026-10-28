@@ -62,6 +62,7 @@ pub async fn update_goal(
         &app_handle,
         &context,
         std::slice::from_ref(&goal),
+        true,
     );
     Ok(goal)
 }
@@ -151,11 +152,11 @@ async fn refresh_summary_after_save(
     state: &Arc<ServiceContext>,
     goal_id: &str,
 ) {
-    if refresh_summary_internal(app_handle, state, goal_id)
-        .await
-        .is_err()
-    {
-        warn!("Failed to refresh goal summary after save for {goal_id}");
+    if let Err(error) = refresh_summary_internal(app_handle, state, goal_id, true).await {
+        warn!(
+            "Failed to refresh goal summary after save for {goal_id} ({})",
+            wealthfolio_core::goals::summary_refresh_error_kind(&error)
+        );
     }
 }
 
@@ -201,7 +202,9 @@ pub async fn refresh_goal_summary(
 ) -> Result<Goal, String> {
     let context = state.context()?;
     debug!("Refreshing goal summary for {}...", goal_id);
-    refresh_summary_internal(&app_handle, &context, &goal_id).await
+    refresh_summary_internal(&app_handle, &context, &goal_id, false)
+        .await
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -216,7 +219,7 @@ pub async fn refresh_all_goal_summaries(
         .refresh_all_goal_summaries()
         .await
         .map_err(|e| e.to_string())?;
-    crate::portfolio_jobs::emit_goal_summaries_updated(&app_handle, &context, &goals);
+    crate::portfolio_jobs::emit_goal_summaries_updated(&app_handle, &context, &goals, false);
     Ok(goals)
 }
 
@@ -273,16 +276,14 @@ async fn refresh_summary_internal(
     app_handle: &tauri::AppHandle,
     state: &Arc<ServiceContext>,
     goal_id: &str,
-) -> Result<Goal, String> {
-    let goal = state
-        .goal_service()
-        .refresh_goal_summary(goal_id)
-        .await
-        .map_err(|e| e.to_string())?;
+    inputs_changed: bool,
+) -> wealthfolio_core::Result<Goal> {
+    let goal = state.goal_service().refresh_goal_summary(goal_id).await?;
     crate::portfolio_jobs::emit_goal_summaries_updated(
         app_handle,
         state,
         std::slice::from_ref(&goal),
+        inputs_changed,
     );
     Ok(goal)
 }

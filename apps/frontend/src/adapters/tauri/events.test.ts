@@ -45,13 +45,15 @@ it("delivers goal summary events only for the current profile scope", async () =
   const deliver = (scopeId: string) =>
     listeners.get("goal:summaries-updated")!({
       event: "goal:summaries-updated",
-      payload: { scopeId, data: ["goal-1"] },
+      payload: { scopeId, data: { goalIds: ["goal-1"], inputsChanged: false } },
       id: 1,
     });
   deliver("scope-a");
   expect(handler).not.toHaveBeenCalled();
   deliver("scope-b");
-  expect(handler).toHaveBeenCalledWith(expect.objectContaining({ payload: ["goal-1"] }));
+  expect(handler).toHaveBeenCalledWith(
+    expect.objectContaining({ payload: { goalIds: ["goal-1"], inputsChanged: false } }),
+  );
   session.revokeProfileSession();
   deliver("scope-b");
   expect(handler).toHaveBeenCalledTimes(1);

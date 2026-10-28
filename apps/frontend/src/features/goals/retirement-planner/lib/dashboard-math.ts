@@ -293,6 +293,7 @@ export interface RetirementReadiness {
   tone: ReadinessTone;
   problem:
     | "loading"
+    | "status-only"
     | "unreachable-target"
     | "spending-gap"
     | "portfolio-depletion"
@@ -420,7 +421,8 @@ export function deriveRetirementReadiness(
         ? "watch"
         : "bad";
   if (tone !== guidance.tone) {
-    return { tone, problem: "unreachable-target", body: t("goals:dashboard.guidance.unavailable") };
+    // An incompatible local explanation isn't evidence of an unavailable target.
+    return { tone, problem: "status-only", body: null };
   }
   return { ...guidance, tone };
 }
