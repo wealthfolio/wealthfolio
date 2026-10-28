@@ -2165,19 +2165,27 @@ describe("AllocationWorksheetTab Setup cash (§6)", () => {
 
     await goTo(user, "Setup");
     previewMock.mockClear();
-    previewMock.mockResolvedValue({
+    // Only a preview that selects Joint reads its cash, as the core does. A
+    // preview the edits before the tick still sent must not show it.
+    previewMock.mockImplementation(async (request) => ({
       ...twoAccounts,
-      recordedCashByAccount: { ...twoAccounts.recordedCashByAccount, "acc-3": 400 },
-    });
+      recordedCashByAccount: request.selectedAccountIds.includes("acc-3")
+        ? { ...twoAccounts.recordedCashByAccount, "acc-3": 400 }
+        : twoAccounts.recordedCashByAccount,
+    }));
     await user.click(screen.getByRole("checkbox", { name: /^Joint\b/ }));
 
     // The same preview, without lines or cash, reads what Joint records.
-    await waitFor(() => expect(fromAccount("Joint")).toHaveValue("400.00"), { timeout: 2000 });
-    expect(previewMock.mock.lastCall?.[0]).toMatchObject({
-      lines: [],
-      cash: { trackedCashToUse: 0, externalContribution: {} },
-      selectedAccountIds: ["acc-1", "acc-2", "acc-3"],
-    });
+    await waitFor(
+      () =>
+        expect(previewMock.mock.lastCall?.[0]).toMatchObject({
+          lines: [],
+          cash: { trackedCashToUse: 0, externalContribution: {} },
+          selectedAccountIds: ["acc-1", "acc-2", "acc-3"],
+        }),
+      { timeout: 2000 },
+    );
+    await waitFor(() => expect(fromAccount("Joint")).toHaveValue("400.00"));
   });
 });
 
