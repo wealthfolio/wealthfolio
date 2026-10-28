@@ -100,6 +100,14 @@ export const newAccountSchema = z
         message: "Name must not be longer than 50 characters.",
       }),
     group: z.string().optional(),
+    // Blank clears the stored number; left out, the stored number stays.
+    accountNumber: z
+      .string()
+      .trim()
+      .max(64, {
+        message: "Account number must not be longer than 64 characters.",
+      })
+      .optional(),
     isDefault: z.boolean().optional(),
     isActive: z.boolean().optional(),
     isArchived: z.boolean().optional().default(false),

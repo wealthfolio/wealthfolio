@@ -39,6 +39,7 @@ import {
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -46,6 +47,7 @@ import {
 } from "@wealthfolio/ui/components/ui/form";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { Input } from "@wealthfolio/ui/components/ui/input";
+import { Label } from "@wealthfolio/ui/components/ui/label";
 
 import { useAccountMutations } from "./use-account-mutations";
 
@@ -149,10 +151,16 @@ type AccountFormOutput = z.output<typeof newAccountSchema>;
 
 interface AccountFormlProps {
   defaultValues?: AccountFormInput;
+  /** A broker-synced account: its number comes from the broker and is only shown. */
+  isSynced?: boolean;
   onSuccess?: () => void;
 }
 
-export function AccountForm({ defaultValues, onSuccess = () => undefined }: AccountFormlProps) {
+export function AccountForm({
+  defaultValues,
+  isSynced = false,
+  onSuccess = () => undefined,
+}: AccountFormlProps) {
   const { t } = useTranslation();
   const { createAccountMutation, updateAccountMutation } = useAccountMutations({ onSuccess });
 
@@ -181,6 +189,8 @@ export function AccountForm({ defaultValues, onSuccess = () => undefined }: Acco
       ...defaultValues,
       // Don't default to any mode if account needs setup (must come after spread)
       trackingMode: needsSetup ? undefined : defaultValues?.trackingMode,
+      // A synced account's number is never sent, so the backend keeps the broker's.
+      accountNumber: isSynced ? undefined : defaultValues?.accountNumber,
     },
   });
 
@@ -386,6 +396,47 @@ export function AccountForm({ defaultValues, onSuccess = () => undefined }: Acco
                     </FormItem>
                   )}
                 />
+                {isSynced ? (
+                  <div className="grid gap-2">
+                    <Label htmlFor="account-number-synced">
+                      {t("settings:accounts.form_account_number_label")}
+                    </Label>
+                    <Input
+                      id="account-number-synced"
+                      data-testid="account-number-input"
+                      value={defaultValues?.accountNumber ?? ""}
+                      readOnly
+                      disabled
+                      aria-describedby="account-number-synced-hint"
+                    />
+                    <p id="account-number-synced-hint" className="text-muted-foreground text-sm">
+                      {t("settings:accounts.form_account_number_synced")}
+                    </p>
+                  </div>
+                ) : (
+                  <FormField
+                    control={form.control}
+                    name="accountNumber"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t("settings:accounts.form_account_number_label")}</FormLabel>
+                        <FormControl>
+                          <Input
+                            data-testid="account-number-input"
+                            autoComplete="off"
+                            spellCheck={false}
+                            {...field}
+                            value={field.value ?? ""}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          {t("settings:accounts.form_account_number_hint")}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
 
                 <FormField
                   control={form.control}
