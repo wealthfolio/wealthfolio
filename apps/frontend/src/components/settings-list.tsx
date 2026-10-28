@@ -83,7 +83,8 @@ export function SettingsListRow({
                 inactive && "text-muted-foreground",
               )}
             >
-              {title}
+              {/* Names keep their own direction in right-to-left text. */}
+              <bdi>{title}</bdi>
             </span>
             {badges}
           </div>

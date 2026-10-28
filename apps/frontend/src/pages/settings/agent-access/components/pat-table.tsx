@@ -168,8 +168,9 @@ export function PatTable({ serverUrl }: { serverUrl?: string } = {}) {
                   <div className="min-w-0 space-y-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <span
+                        dir="auto"
                         className={cn(
-                          "truncate text-sm font-medium",
+                          "truncate text-sm font-medium rtl:text-right",
                           inactive && "text-muted-foreground",
                         )}
                       >
