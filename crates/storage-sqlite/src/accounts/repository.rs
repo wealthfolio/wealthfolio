@@ -91,11 +91,15 @@ impl AccountRepositoryTrait for AccountRepository {
                 account_db.provider_account_id = existing.provider_account_id;
                 account_db.platform_id = existing.platform_id;
                 account_db.provider = existing.provider;
-                // A manual account takes the number entered (blank clears it).
-                // A broker-synced account keeps its broker's number, and an
-                // update without a number keeps the stored one.
+                // A manual account takes a changed number (blank clears it).
+                // A broker-synced account keeps its broker's number. An update
+                // without a number, or with the stored one unchanged (Archive
+                // and Hide send the whole account back), keeps it as stored.
                 account_db.account_number = match account_db.account_number.take() {
-                    Some(entered) if account_db.provider_account_id.is_none() => {
+                    Some(entered)
+                        if account_db.provider_account_id.is_none()
+                            && existing.account_number.as_deref() != Some(entered.as_str()) =>
+                    {
                         normalize_account_number(&entered)?
                     }
                     _ => existing.account_number,
@@ -426,6 +430,39 @@ mod tests {
         assert_eq!(
             stored_account_number(&pool, &account.id).as_deref(),
             Some("1234")
+        );
+    }
+
+    #[tokio::test]
+    async fn unchanged_legacy_number_does_not_block_a_status_update() {
+        let (repo, pool, _dir) = setup().await;
+        let account = repo.create(new_account("Checking")).await.unwrap();
+        // Before the cap, the API and add-ons could store any length.
+        let legacy = "9".repeat(80);
+        diesel::update(accounts_dsl::accounts.find(&account.id))
+            .set(accounts_dsl::account_number.eq(&legacy))
+            .execute(&mut get_connection(&pool).unwrap())
+            .unwrap();
+
+        // Archive and Hide send the whole account back, number unchanged.
+        let mut archive = update_with_number(&account, Some(&legacy));
+        archive.is_archived = Some(true);
+        let archived = repo.update(archive).await.unwrap();
+        assert!(archived.is_archived);
+        assert_eq!(
+            stored_account_number(&pool, &account.id).as_deref(),
+            Some(legacy.as_str())
+        );
+
+        // A changed number still has to fit.
+        let changed = "8".repeat(80);
+        assert!(repo
+            .update(update_with_number(&account, Some(&changed)))
+            .await
+            .is_err());
+        assert_eq!(
+            stored_account_number(&pool, &account.id).as_deref(),
+            Some(legacy.as_str())
         );
     }
 
