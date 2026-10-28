@@ -444,6 +444,8 @@ describe("AllocationWorksheetTab regeneration (§5)", () => {
     await waitFor(() =>
       expect(draftKeys()).toEqual([expect.stringMatching(/^profile:worksheet-test-profile:/)]),
     );
+    // The draft saves on a debounce; wait for the typed value, not just the key.
+    await waitFor(() => expect(localStorage.getItem(draftKeys()[0])).toContain('"500"'));
     cleanup();
 
     selectedProfileRef.current = "another-profile";
