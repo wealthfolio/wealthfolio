@@ -10,6 +10,7 @@ import { QRCodeSVG } from "qrcode.react";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FlowScreen, PairingCodeText } from "../flow-layout";
+import { copyText } from "@wealthfolio/ui/lib/clipboard";
 
 /** Fills the hero area with its padding (112 + 2 × 8 = 128px). */
 const QR_SIZE = 112;
@@ -82,7 +83,7 @@ export function DisplayCode({
   const handleCopy = async () => {
     if (!code) return;
     try {
-      await navigator.clipboard.writeText(code);
+      await copyText(code);
     } catch {
       return; // Clipboard access denied; the code stays readable on screen.
     }

@@ -32,6 +32,7 @@ import {
   revokeProfileSession,
   type ProfileSession,
 } from "./session";
+import { copyText } from "@wealthfolio/ui/lib/clipboard";
 
 const PROFILE_SELECTION_MS = 180;
 const PROFILE_ACTIVITY_INTERVAL_MS = 30_000;
@@ -924,7 +925,7 @@ export function ProfileShell({ children }: { children: ReactNode }) {
                   }
                   onClick={async () => {
                     try {
-                      await navigator.clipboard.writeText(recovery);
+                      await copyText(recovery);
                       setCopiedRecovery(recovery);
                       setError("");
                     } catch {

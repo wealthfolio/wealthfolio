@@ -72,6 +72,7 @@ import { QuoteHistoryDataGrid } from "./quote-history-data-grid";
 import { ResetProviderHistoryDialog } from "./reset-provider-history-dialog";
 import { RefreshQuotesConfirmDialog } from "./refresh-quotes-confirm-dialog";
 import { statusSurfaceVariants } from "@wealthfolio/ui/components/ui/status-surface";
+import { copyText } from "@wealthfolio/ui/lib/clipboard";
 
 // Alternative asset kinds that should use ValueHistoryDataGrid
 const ALTERNATIVE_ASSET_KINDS: AssetKind[] = [
@@ -1076,7 +1077,7 @@ export const AssetProfilePage = () => {
 
   const handleCopySymbol = useCallback(async () => {
     try {
-      await navigator.clipboard.writeText(displayedSymbol);
+      await copyText(displayedSymbol);
       setSymbolCopied(true);
       window.setTimeout(() => setSymbolCopied(false), 1500);
     } catch (error) {

@@ -22,6 +22,7 @@ import { PasswordInput } from "@wealthfolio/ui/components/ui/password-input";
 import { Label } from "@wealthfolio/ui/components/ui/label";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { Spinner } from "@wealthfolio/ui";
+import { copyText } from "@wealthfolio/ui/lib/clipboard";
 
 /** Native startup must succeed before database-dependent providers mount. */
 export function NativeDatabaseGate({ children }: { children: ReactNode }) {
@@ -205,7 +206,7 @@ function NativeStartup({ children }: { children: ReactNode }) {
   const copied = copiedDetails === startupError;
   const copyDetails = async () => {
     try {
-      await navigator.clipboard.writeText(startupError);
+      await copyText(startupError);
       setCopiedDetails(startupError);
     } catch {
       setCopiedDetails(null);

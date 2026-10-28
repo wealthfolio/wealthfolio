@@ -13,6 +13,7 @@ import {
 } from "@wealthfolio/ui/components/ui/select";
 import { toast } from "@wealthfolio/ui/components/ui/use-toast";
 import { buildClientConfig, DEFAULT_PRESET_ID, TOKEN_ENV_VAR } from "../mcp-client-config";
+import { copyText } from "@wealthfolio/ui/lib/clipboard";
 
 /** Icon button that copies `value` and briefly shows a check. */
 export function CopyIconButton({
@@ -29,7 +30,7 @@ export function CopyIconButton({
   const handleCopy = async () => {
     if (!value) return;
     try {
-      await navigator.clipboard.writeText(value);
+      await copyText(value);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (error) {

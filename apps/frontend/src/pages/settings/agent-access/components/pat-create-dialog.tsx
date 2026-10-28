@@ -16,6 +16,7 @@ import { toast } from "@wealthfolio/ui/components/ui/use-toast";
 import { applyScopeDependencies, READ_SCOPES, scopeDescription, type ScopeKey } from "../scopes";
 import { ScopeSelector } from "./scope-selector";
 import { ClientSetup } from "./client-setup";
+import { copyText } from "@wealthfolio/ui/lib/clipboard";
 
 const EXPIRY_OPTIONS = [
   {
@@ -116,7 +117,7 @@ export function PatCreateDialog({
 
   const handleCopy = async (value: string, label: string) => {
     try {
-      await navigator.clipboard.writeText(value);
+      await copyText(value);
       toast({
         title: t("settings:agentAccess.copied_title"),
         description: t("settings:agentAccess.copied_generic", { label }),

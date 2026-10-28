@@ -52,6 +52,7 @@ import {
 import { formatBackupSize } from "./backup-size";
 import { backupDate, backupState, useCloudBackups } from "./use-cloud-backups";
 import { Alert, AlertDescription } from "@wealthfolio/ui/components/ui/alert";
+import { copyText } from "@wealthfolio/ui/lib/clipboard";
 
 type Flow = "setup" | "resume" | "unlock" | "replace" | "pause" | "help";
 /** The one operation in progress: `restore:<id>` and `download:<id>` name their row. */
@@ -955,8 +956,7 @@ function CloudBackupPanel({ backup }: { backup: ReturnType<typeof useCloudBackup
                   size="sm"
                   className="mt-3 pointer-coarse:h-11"
                   onClick={() => {
-                    void navigator.clipboard
-                      .writeText(recoveryCode)
+                    void copyText(recoveryCode)
                       .then(() => {
                         setCopied(true);
                       })

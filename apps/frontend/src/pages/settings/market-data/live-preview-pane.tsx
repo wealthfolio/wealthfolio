@@ -26,6 +26,7 @@ import {
 } from "./template-placeholders";
 import type { MappingField, SourceRuntime } from "./use-source-runtime";
 import { Alert, AlertDescription } from "@wealthfolio/ui/components/ui/alert";
+import { copyText } from "@wealthfolio/ui/lib/clipboard";
 
 interface LivePreviewPaneProps {
   form: UseFormReturn<FormValues>;
@@ -516,7 +517,7 @@ function CopyButton({ text, disabled }: { text: string; disabled?: boolean }) {
   const handleCopy = async () => {
     if (disabled || !text) return;
     try {
-      await navigator.clipboard.writeText(text);
+      await copyText(text);
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch {

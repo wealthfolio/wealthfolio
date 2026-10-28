@@ -24,6 +24,7 @@ import { useWealthfolioConnect } from "../providers/wealthfolio-connect-provider
 import { getSubscriptionPlans } from "../services/broker-service";
 import type { BillingPeriod, SubscriptionPlan } from "../types";
 import { statusSurfaceVariants } from "@wealthfolio/ui/components/ui/status-surface";
+import { copyText } from "@wealthfolio/ui/lib/clipboard";
 
 // Helper to detect if error is an auth/token issue
 function isAuthError(error: Error | null): boolean {
@@ -234,7 +235,7 @@ export function SubscriptionPlans({
                       className="size-11 sm:size-7"
                       aria-label={t("connect:subscription.copySupportEmail")}
                       onClick={() => {
-                        navigator.clipboard.writeText("support@wealthfolio.app");
+                        copyText("support@wealthfolio.app");
                         toast.success(t("connect:subscription.emailCopied"));
                       }}
                     >
@@ -300,7 +301,7 @@ export function SubscriptionPlans({
                       className="size-11 sm:size-7"
                       aria-label={t("connect:subscription.copySupportEmail")}
                       onClick={() => {
-                        navigator.clipboard.writeText("support@wealthfolio.app");
+                        copyText("support@wealthfolio.app");
                         toast.success(t("connect:subscription.emailCopied"));
                       }}
                     >

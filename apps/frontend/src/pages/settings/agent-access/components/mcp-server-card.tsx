@@ -27,6 +27,7 @@ import { toast } from "@wealthfolio/ui/components/ui/use-toast";
 import { buildClientConfig, DEFAULT_PRESET_ID, TOKEN_PLACEHOLDER } from "../mcp-client-config";
 import { useMcpServer } from "../hooks/use-mcp-server";
 import { ClientSetup, CopyIconButton } from "./client-setup";
+import { copyText } from "@wealthfolio/ui/lib/clipboard";
 
 /** Labeled button that copies the default client setup (token placeholder). */
 function CopyConfigButton({ serverUrl }: { serverUrl: string }) {
@@ -34,7 +35,7 @@ function CopyConfigButton({ serverUrl }: { serverUrl: string }) {
   const [copied, setCopied] = useState(false);
   const handleCopy = async () => {
     try {
-      await navigator.clipboard.writeText(buildClientConfig(DEFAULT_PRESET_ID, serverUrl));
+      await copyText(buildClientConfig(DEFAULT_PRESET_ID, serverUrl));
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
       toast({

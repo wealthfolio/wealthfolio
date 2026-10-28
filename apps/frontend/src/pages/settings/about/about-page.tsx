@@ -19,6 +19,7 @@ import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { Separator } from "@wealthfolio/ui/components/ui/separator";
 import { toast } from "@wealthfolio/ui/components/ui/use-toast";
 import { SettingsHeader } from "../settings-header";
+import { copyText } from "@wealthfolio/ui/lib/clipboard";
 
 export default function AboutSettingsPage() {
   const { t } = useTranslation();
@@ -53,7 +54,7 @@ export default function AboutSettingsPage() {
 
   const handleCopy = async (value: string, label: string) => {
     try {
-      await navigator.clipboard.writeText(value);
+      await copyText(value);
       toast({
         title: t("settings:about_copied"),
         description: t("settings:about_copied_description", { label }),
