@@ -86,4 +86,16 @@ describe("DrillableAccountChart", () => {
     expect(screen.getByRole("button", { name: "Brokerage" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Retirement" })).toBeNull();
   });
+
+  // A scope not fetched yet has no valuations while it loads; that is not an empty group.
+  it("stays drilled while the new scope's valuations load", async () => {
+    const { rerender } = renderChart();
+    fireEvent.click(await screen.findByRole("button", { name: "Taxable" }));
+
+    rerender(<DrillableAccountChart accountIds={["a1", "a2"]} isLoading />);
+    rerender(<DrillableAccountChart accountIds={["a1", "a2"]} accountValuations={VALUATIONS} />);
+
+    expect(screen.getByRole("button", { name: "Brokerage" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Joint" })).toBeTruthy();
+  });
 });

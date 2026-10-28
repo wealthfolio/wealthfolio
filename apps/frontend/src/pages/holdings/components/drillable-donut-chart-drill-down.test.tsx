@@ -87,4 +87,18 @@ describe("DrillableDonutChart drill-down", () => {
     expect(screen.getByRole("button", { name: "United States" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Canada" })).toBeNull();
   });
+
+  // A scope not fetched yet has no allocation while it loads; that is not an empty category.
+  it("stays drilled while the new scope's allocation loads", () => {
+    const { rerender } = render(
+      <DrillableDonutChart title="Regions" allocation={regions([AMERICAS, EUROPE])} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Americas" }));
+
+    rerender(<DrillableDonutChart title="Regions" isLoading />);
+    const narrowed = category("R20", "Americas", 200, [category("R21", "United States", 200)]);
+    rerender(<DrillableDonutChart title="Regions" allocation={regions([narrowed])} />);
+
+    expect(screen.getByRole("button", { name: "United States" })).toBeTruthy();
+  });
 });
