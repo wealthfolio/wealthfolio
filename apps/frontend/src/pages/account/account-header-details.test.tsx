@@ -64,6 +64,31 @@ describe("AccountHeaderDetails", () => {
     );
   });
 
+  it("copies on a plain-HTTP page, without the Clipboard API", async () => {
+    // A self-hosted server opened at http://<network address>: no Clipboard API.
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: undefined });
+    let copied = "";
+    Object.defineProperty(document, "execCommand", {
+      configurable: true,
+      value: vi.fn(() => {
+        copied = (document.activeElement as HTMLTextAreaElement).value;
+        return true;
+      }),
+    });
+    try {
+      render(<AccountHeaderDetails account={{ currency: "EUR", accountNumber: ` ${IBAN} ` }} />);
+      fireEvent.click(copyButton()!);
+      await waitFor(() =>
+        expect(toastMock).toHaveBeenCalledWith(
+          expect.objectContaining({ title: "account:account_number_copied" }),
+        ),
+      );
+      expect(copied).toBe(IBAN);
+    } finally {
+      Reflect.deleteProperty(document, "execCommand");
+    }
+  });
+
   it("says when the number could not be copied", async () => {
     writeText.mockRejectedValue(new Error("denied"));
     render(<AccountHeaderDetails account={{ currency: "EUR", accountNumber: IBAN }} />);

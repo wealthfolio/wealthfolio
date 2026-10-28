@@ -1,6 +1,7 @@
 import { Button } from "@wealthfolio/ui/components/ui/button";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { toast } from "@wealthfolio/ui/components/ui/use-toast";
+import { copyText } from "@wealthfolio/ui/lib/clipboard";
 import { useTranslation } from "react-i18next";
 
 import { maskAccountNumber } from "@/lib/account-number";
@@ -24,7 +25,7 @@ export function AccountHeaderDetails({
   const copyNumber = async () => {
     if (!account?.accountNumber) return;
     try {
-      await navigator.clipboard.writeText(account.accountNumber.trim());
+      await copyText(account.accountNumber.trim());
       toast({ title: t("account:account_number_copied"), variant: "success" });
     } catch {
       toast({ title: t("account:account_number_copy_failed"), variant: "destructive" });
