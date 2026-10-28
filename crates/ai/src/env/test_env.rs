@@ -32,7 +32,7 @@ use wealthfolio_core::{
     health::{
         checks::{
             AssetHoldingInfo, ConsistencyIssueInfo, FxConflictInfo, FxPairInfo,
-            InvalidTransferGroupInfo, LegacyMigrationInfo, QuoteSyncErrorInfo,
+            InvalidTransferGroupInfo, LegacyMigrationInfo, QuoteSyncErrorInfo, SplitAssetPair,
             UnclassifiedAssetInfo, UnconfiguredAccountInfo,
         },
         FixAction, HealthConfig, HealthServiceTrait, HealthStatus,
@@ -1933,6 +1933,7 @@ impl HealthServiceTrait for MockHealthService {
         _configured_timezone: Option<&str>,
         _client_timezone: Option<&str>,
         _invalid_transfer_groups: &[InvalidTransferGroupInfo],
+        _split_asset_pairs: &[SplitAssetPair],
     ) -> CoreResult<HealthStatus> {
         Ok(HealthStatus::healthy())
     }

@@ -16,7 +16,35 @@ const diagnosticMeta = {
 
 vi.mock("@wealthfolio/ui", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@wealthfolio/ui")>()),
-  ActionConfirm: ({ button }: { button: React.ReactNode }) => <>{button}</>,
+  // Opens a minimal confirm dialog when its trigger is clicked.
+  ActionConfirm: function MockActionConfirm({
+    button,
+    confirmTitle,
+    confirmMessage,
+    confirmButtonText,
+    handleConfirm,
+  }: {
+    button: React.ReactNode;
+    confirmTitle: string;
+    confirmMessage: React.ReactNode;
+    confirmButtonText?: string;
+    handleConfirm: () => void;
+  }) {
+    const [open, setOpen] = React.useState(false);
+    return (
+      <>
+        <span onClickCapture={() => setOpen(true)}>{button}</span>
+        {open && (
+          <div role="dialog" aria-label={confirmTitle}>
+            {confirmMessage}
+            <button type="button" onClick={handleConfirm}>
+              {confirmButtonText}
+            </button>
+          </div>
+        )}
+      </>
+    );
+  },
   Badge: ({ children }: { children: React.ReactNode }) => <span>{children}</span>,
   Button: ({
     children,
@@ -694,5 +722,96 @@ describe("IssueDetailSheet", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("ALT — Private Fund")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Rebuild History/i })).toBeInTheDocument();
+  });
+
+  const mergeDiagnostic = (symbol: string) => ({
+    ...diagnosticMeta,
+    fingerprint: `split-${symbol}`,
+    domain: "ledger" as const,
+    code: "SPLIT_ASSET_IDENTITY",
+    title: `${symbol} is recorded on both NEOE and XNEO`,
+    explanation: "XNEO is the old code for NEOE.",
+    evidence: [{ label: "Old record", value: `${symbol} on XNEO · 3 transactions` }],
+    actions: [
+      {
+        primary: true,
+        kind: "fix" as const,
+        id: "merge_split_asset",
+        label: `Merge ${symbol}`,
+        payload: {
+          pairs: [{ survivorAssetId: `${symbol}-neoe`, duplicateAssetId: `${symbol}-xneo` }],
+        },
+        confirm: "Price history: 12 overlapping days: 11 kept from NEOE, 1 kept from XNEO.",
+      },
+    ],
+  });
+
+  function renderWithFixHandler(issue: HealthIssue, onRunFixAction: (action: unknown) => void) {
+    render(
+      <MemoryRouter>
+        <IssueDetailSheet
+          issue={issue}
+          open={true}
+          onOpenChange={noop}
+          onDismiss={noop}
+          onFix={noop}
+          onRunFixAction={onRunFixAction}
+          isDismissing={false}
+          isFixing={false}
+        />
+      </MemoryRouter>,
+    );
+  }
+
+  it("asks for confirmation before running a fix action that carries a confirm message", async () => {
+    const user = userEvent.setup();
+    const onRunFixAction = vi.fn();
+    renderWithFixHandler(
+      {
+        ...diagnosticIssue,
+        id: "split_asset_identity:abc",
+        category: "DATA_CONSISTENCY",
+        diagnostics: [mergeDiagnostic("VBG")],
+      },
+      onRunFixAction,
+    );
+
+    await user.click(screen.getByRole("button", { name: /Merge VBG/i }));
+    expect(onRunFixAction).not.toHaveBeenCalled();
+    const dialog = screen.getByRole("dialog", { name: "Merge VBG" });
+    expect(dialog).toHaveTextContent("11 kept from NEOE, 1 kept from XNEO");
+
+    await user.click(screen.getByRole("button", { name: /^Confirm$/i }));
+    expect(onRunFixAction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: "merge_split_asset",
+        payload: { pairs: [{ survivorAssetId: "VBG-neoe", duplicateAssetId: "VBG-xneo" }] },
+      }),
+    );
+  });
+
+  it("runs a fix action without a confirm message immediately", async () => {
+    const user = userEvent.setup();
+    const onRunFixAction = vi.fn();
+    renderWithFixHandler(diagnosticIssue, onRunFixAction);
+
+    await user.click(screen.getByRole("button", { name: /Rebuild History/i }));
+    expect(onRunFixAction).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("dialog", { name: /Rebuild History/i })).not.toBeInTheDocument();
+  });
+
+  it("renders a merge button for each split asset pair", () => {
+    renderWithFixHandler(
+      {
+        ...diagnosticIssue,
+        id: "split_asset_identity:abc",
+        category: "DATA_CONSISTENCY",
+        diagnostics: [mergeDiagnostic("EACC"), mergeDiagnostic("VBG")],
+      },
+      vi.fn(),
+    );
+
+    expect(screen.getByRole("button", { name: /Merge EACC/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Merge VBG/i })).toBeInTheDocument();
   });
 });

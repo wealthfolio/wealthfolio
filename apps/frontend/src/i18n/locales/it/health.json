@@ -66,6 +66,12 @@
       "title_other": "{{count}} transazioni fanno riferimento ad asset inesistenti",
       "message": "Alcune transazioni puntano ad asset che non esistono più. Questo può causare errori di calcolo."
     },
+    "data_split_asset_identity": {
+      "title_one": "{{symbol}} è suddiviso in due record di asset",
+      "title_many": "{{count}} investimenti sono suddivisi in due record di asset",
+      "title_other": "{{count}} investimenti sono suddivisi in due record di asset",
+      "message": "Un codice di borsa è stato rinominato, ma questi investimenti avevano già un record con il nuovo codice. Le loro transazioni e lo storico dei prezzi sono suddivisi tra i due record. Unisci ogni coppia in un unico record."
+    },
     "data_negative_position": {
       "title_one": "Una posizione ha quantità negativa",
       "title_many": "{{count}} posizioni hanno quantità negative",
@@ -300,6 +306,9 @@
       "title": "Ignorare questo problema?",
       "message": "Questo nasconderà il problema dal tuo Centro salute. Riapparirà se i dati sottostanti cambiano.",
       "pendingText": "Rimozione in corso..."
+    },
+    "fixConfirm": {
+      "pendingText": "Applicazione in corso..."
     },
     "affectedItems_one": "Elemento interessato ({{count}})",
     "affectedItems_many": "Elementi interessati ({{count}})",

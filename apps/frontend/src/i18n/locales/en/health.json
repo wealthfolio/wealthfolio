@@ -55,6 +55,11 @@
       "title_other": "{{count}} transactions reference missing assets",
       "message": "Some transactions point to assets that no longer exist. This may cause calculation errors."
     },
+    "data_split_asset_identity": {
+      "title_one": "{{symbol}} is split across two asset records",
+      "title_other": "{{count}} investments are split across two asset records",
+      "message": "An exchange code was renamed, but these investments already had a record under the new code. Their transactions and price history are split between the two records. Merge each pair into one."
+    },
     "data_negative_position": {
       "title_one": "Holding has negative quantity",
       "title_other": "{{count}} holdings have negative quantities",
@@ -267,6 +272,9 @@
       "title": "Dismiss this issue?",
       "message": "This will hide the issue from your health center. It will reappear if the underlying data changes.",
       "pendingText": "Dismissing..."
+    },
+    "fixConfirm": {
+      "pendingText": "Applying fix..."
     },
     "affectedItems_one": "Affected Item ({{count}})",
     "affectedItems_other": "Affected Items ({{count}})"

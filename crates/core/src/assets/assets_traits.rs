@@ -2,8 +2,8 @@ use super::assets_model::{
     normalize_quote_ccy_code, Asset, AssetMetadata, AssetProfile, AssetSpec, EnsureAssetsResult,
     InstrumentType, NewAsset, QuoteMode, UpdateAssetProfile,
 };
-use super::{AssetResolutionInput, AssetResolutionOutput};
-use crate::errors::Result;
+use super::{AssetMergePreview, AssetMergeReport, AssetResolutionInput, AssetResolutionOutput};
+use crate::errors::{Error, Result};
 
 /// Trait defining the contract for Asset service operations.
 #[async_trait::async_trait]
@@ -85,6 +85,31 @@ pub trait AssetServiceTrait: Send + Sync {
         unknown_asset_id: &str,
         activity_repository: &dyn crate::activities::ActivityRepositoryTrait,
     ) -> Result<u32>;
+
+    /// Describes, without writing, what merging a legacy-MIC duplicate into its
+    /// canonical survivor would do with price history.
+    fn preview_split_asset_merge(
+        &self,
+        _survivor_id: &str,
+        _duplicate_id: &str,
+    ) -> Result<AssetMergePreview> {
+        Err(Error::Asset(
+            "Split asset merge preview is not supported".to_string(),
+        ))
+    }
+
+    /// Merges a legacy-MIC duplicate into its canonical survivor in one
+    /// transaction, deactivates the duplicate, and emits the events that rebuild
+    /// the affected accounts.
+    async fn merge_split_asset(
+        &self,
+        _survivor_id: &str,
+        _duplicate_id: &str,
+    ) -> Result<AssetMergeReport> {
+        Err(Error::Asset(
+            "Split asset merge is not supported".to_string(),
+        ))
+    }
 
     /// Ensures multiple assets exist, creating any that are missing.
     /// Returns existing + created assets, plus any UNKNOWN→resolved merge candidates.
@@ -242,6 +267,26 @@ pub trait AssetRepositoryTrait: Send + Sync {
     /// Finds INVESTMENT assets with no remaining activities and deactivates them.
     /// Returns the IDs of deactivated assets.
     async fn deactivate_orphaned_investments(&self) -> Result<Vec<String>>;
+
+    /// Read-only preview of [`AssetRepositoryTrait::merge_into`].
+    fn preview_merge(&self, _survivor_id: &str, _duplicate_id: &str) -> Result<AssetMergePreview> {
+        Err(Error::Asset(
+            "Split asset merge preview is not supported".to_string(),
+        ))
+    }
+
+    /// Moves every reference to `duplicate_id` onto `survivor_id` and
+    /// deactivates the duplicate, all in one transaction. Never deletes the
+    /// duplicate row.
+    async fn merge_into(
+        &self,
+        _survivor_id: &str,
+        _duplicate_id: &str,
+    ) -> Result<AssetMergeReport> {
+        Err(Error::Asset(
+            "Split asset merge is not supported".to_string(),
+        ))
+    }
 }
 
 #[cfg(test)]
