@@ -86,10 +86,10 @@ fn setup_db() -> (
 
 /// One profile database with its writer and sync repository.
 struct Device {
-    _dir: common::TestDir,
     pool: Arc<db::DbPool>,
     writer: db::WriteHandle,
     sync: AppSyncRepository,
+    _dir: common::TestDir,
 }
 
 impl Device {
@@ -97,10 +97,10 @@ impl Device {
         let (dir, pool, writer, _sync_state) = setup_db();
         let sync = AppSyncRepository::new(pool.clone(), writer.clone());
         Self {
-            _dir: dir,
             pool,
             writer,
             sync,
+            _dir: dir,
         }
     }
 
