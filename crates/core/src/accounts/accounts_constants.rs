@@ -1,6 +1,10 @@
 /// Default account type for new accounts
 pub const DEFAULT_ACCOUNT_TYPE: &str = "SECURITIES";
 
+/// The longest account number a user can enter for a manual account, in
+/// characters. Room for an IBAN (at most 34) with spaces.
+pub const ACCOUNT_NUMBER_MAX_CHARS: usize = 64;
+
 /// Account type constants
 pub mod account_types {
     pub const SECURITIES: &str = "SECURITIES";

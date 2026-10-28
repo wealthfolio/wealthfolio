@@ -6,7 +6,7 @@ use serde_json::{Map, Value};
 
 use crate::{errors::ValidationError, Error, Result};
 
-use super::accounts_constants::account_types;
+use super::accounts_constants::{account_types, ACCOUNT_NUMBER_MAX_CHARS};
 
 /// Tracking mode for an account - determines how holdings are tracked.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
@@ -409,6 +409,19 @@ impl Account {
             })?
             .into_settings(self.id.clone())
     }
+}
+
+/// The account number a user entered for a manual account, as stored: trimmed,
+/// and `None` when blank. Broker-synced accounts keep the number their broker
+/// sends and never go through this.
+pub fn normalize_account_number(value: &str) -> Result<Option<String>> {
+    let value = value.trim();
+    if value.chars().count() > ACCOUNT_NUMBER_MAX_CHARS {
+        return Err(Error::Validation(ValidationError::InvalidInput(format!(
+            "Account number must not be longer than {ACCOUNT_NUMBER_MAX_CHARS} characters"
+        ))));
+    }
+    Ok((!value.is_empty()).then(|| value.to_string()))
 }
 
 /// Input model for creating a new account.
