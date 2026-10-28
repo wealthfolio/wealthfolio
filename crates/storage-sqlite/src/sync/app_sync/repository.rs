@@ -6653,7 +6653,7 @@ mod tests {
 
     #[tokio::test]
     async fn next_outbox_retry_at_only_considers_unsent_pending_rows() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = AppSyncRepository::new(pool, writer.clone());
         assert_eq!(repo.next_outbox_retry_at().expect("empty outbox"), None);
 

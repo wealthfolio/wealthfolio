@@ -747,7 +747,7 @@ mod tests {
     #[tokio::test]
     async fn rule_reruns_preserve_split_allocations_in_both_modes() {
         for only_uncategorized in [true, false] {
-            let (pool, writer) = setup_db();
+            let (pool, writer, _dir) = setup_db();
             {
                 let mut conn = get_connection(&pool).expect("conn");
                 insert_account_and_activity(&mut conn, "split-activity", "MANUAL");
@@ -787,7 +787,7 @@ mod tests {
 
     #[tokio::test]
     async fn ordinary_bulk_assignment_rejects_split_rows_atomically() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         {
             let mut conn = get_connection(&pool).expect("conn");
             insert_account_and_activity(&mut conn, "ordinary", "MANUAL");
@@ -827,7 +827,7 @@ mod tests {
 
     #[tokio::test]
     async fn stale_split_content_rejects_the_whole_replacement() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let expected = {
             let mut conn = get_connection(&pool).expect("conn");
             insert_account_and_activity(&mut conn, "ordinary", "MANUAL");

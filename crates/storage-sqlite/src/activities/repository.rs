@@ -4991,7 +4991,7 @@ mod tests {
 
     #[tokio::test]
     async fn reviewed_financial_edits_disclose_splits_and_reject_stale_state_atomically() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = ActivityRepository::new(pool.clone(), writer);
         {
             let mut conn = get_connection(&pool).expect("conn");
@@ -5413,7 +5413,7 @@ mod tests {
     #[tokio::test]
     async fn income_report_reads_when_each_income_was_received() {
         // The income page converts each row at the rate on that day.
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         let repo = ActivityRepository::new(pool.clone(), writer);
         let mut conn = get_connection(&pool).expect("conn");
         insert_account(&mut conn, "acc-income");

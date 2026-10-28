@@ -461,7 +461,7 @@ mod tests {
     }
     #[tokio::test]
     async fn reviewed_split_commit_rejects_financial_assignment_and_same_id_split_changes() {
-        let (pool, writer) = setup_db();
+        let (pool, writer, _dir) = setup_db();
         {
             let mut conn = get_connection(&pool).expect("conn");
             insert_account_and_activity(&mut conn);
