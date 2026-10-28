@@ -44,7 +44,10 @@ export function AppSidebar({ navigation }: AppSidebarProps) {
       <div className="z-20 w-full rounded-xl md:flex">
         <div className="flex w-full flex-col">
           <div className="flex min-h-0 w-full flex-1 flex-col">
-            <div data-tauri-drag-region="true" className="min-h-0 flex-1 overflow-y-auto">
+            <div
+              data-tauri-drag-region="true"
+              className="scrollbar-hide min-h-0 flex-1 overflow-y-auto"
+            >
               <nav
                 data-tauri-drag-region="true"
                 aria-label={t("common:layout.sidebar")}
