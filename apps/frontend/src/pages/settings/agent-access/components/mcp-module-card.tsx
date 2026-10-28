@@ -1,10 +1,8 @@
 import { useTranslation } from "react-i18next";
-import { cn } from "@/lib/utils";
-import { Switch } from "@wealthfolio/ui/components/ui/switch";
+import { FeatureStatusBanner } from "../../feature-status-banner";
 import { useMcpServer } from "../hooks/use-mcp-server";
-import { McpHero } from "./mcp-hero";
 
-/** Master feature toggle for AI Agent Access — gates the rest of the page. */
+/** Master feature toggle for AI agent access — gates the rest of the page. */
 export function McpModuleCard() {
   const { t } = useTranslation();
   const { status, isLoading, setEnabledMutation } = useMcpServer();
@@ -12,40 +10,31 @@ export function McpModuleCard() {
   const running = status?.running ?? false;
 
   return (
-    <McpHero
+    <FeatureStatusBanner
+      label={t("settings:agentAccess.hero_aria")}
       active={enabled}
-      title={
+      status={
         enabled
           ? running
             ? t("settings:agentAccess.desktop_title_running")
             : t("settings:agentAccess.desktop_title_enabled")
           : t("settings:agentAccess.desktop_title_off")
       }
-      description={
+      headline={
         enabled
           ? t("settings:agentAccess.desktop_description_enabled")
           : t("settings:agentAccess.desktop_description_off")
       }
-      hint={t("settings:agentAccess.desktop_hint")}
-      action={
-        <label className="flex shrink-0 cursor-pointer items-center gap-2 select-none">
-          <span className="text-background/55 hidden text-xs font-medium tracking-widest uppercase sm:inline">
-            {enabled
-              ? t("settings:agentAccess.enabled_label")
-              : t("settings:agentAccess.disabled_label")}
-          </span>
-          <Switch
-            checked={enabled}
-            onCheckedChange={(next) => setEnabledMutation.mutate(next)}
-            disabled={isLoading || setEnabledMutation.isPending}
-            className={cn(
-              "data-checked:bg-warning data-unchecked:bg-background/15",
-              "[&_[data-slot=switch-thumb]]:data-checked:bg-foreground",
-              "[&_[data-slot=switch-thumb]]:data-unchecked:bg-background/40",
-            )}
-          />
-        </label>
-      }
+      note={t("settings:agentAccess.desktop_hint")}
+      toggle={{
+        checked: enabled,
+        onCheckedChange: (next) => setEnabledMutation.mutate(next),
+        disabled: isLoading || setEnabledMutation.isPending,
+        label: t("settings:nav.items.agent_access"),
+        stateLabel: enabled
+          ? t("settings:agentAccess.enabled_label")
+          : t("settings:agentAccess.disabled_label"),
+      }}
     />
   );
 }

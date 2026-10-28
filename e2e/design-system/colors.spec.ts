@@ -244,6 +244,32 @@ for (const theme of themes) {
       expect(failures).toEqual([]);
     });
 
+    test(`feature status banner stays readable, ${theme}, ${mode}`, async ({ page }) => {
+      // FeatureStatusBanner (Settings → AI agent access, Spending) draws on the text colour
+      // with background-coloured text: its headline, its secondary lines at 75%, and the
+      // switch's focus ring and thumb in the background colour.
+      await openGallery(page, { mode, theme });
+      const checks = [
+        { name: "headline", text: "var(--background)", minimum: 4.5 },
+        {
+          name: "secondary text at 75%",
+          text: "color-mix(in oklab, var(--background) 75%, transparent)",
+          minimum: 4.5,
+        },
+        { name: "focus ring and switch", text: "var(--background)", minimum: 3 },
+      ];
+      const results = await ratios(
+        page,
+        checks.map(({ text }) => ({ text, layers: ["var(--foreground)"] })),
+      );
+      const failures = checks.flatMap(({ name, minimum }, index) =>
+        results[index] < minimum
+          ? [`${name} on the banner: ${results[index].toFixed(2)} < ${minimum}`]
+          : [],
+      );
+      expect(failures).toEqual([]);
+    });
+
     for (const gainColors of gainColorOptions) {
       test(`gain and loss colours, ${gainColors}, ${theme}, ${mode}`, async ({ page }) => {
         // data-gain-colors picks the roles (globals.css), and every option stays readable:
