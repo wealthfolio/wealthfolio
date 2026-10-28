@@ -50,7 +50,7 @@ const startOverButton = () => screen.getByRole("button", { name: /Start over/ })
 // 0.3-second Motion exit changes the DOM, so on shared CI runners the wait can
 // exceed 1s.
 const findImportButton = () =>
-  screen.findByRole("button", { name: /Import 1 Quote/ }, { timeout: 5_000 });
+  screen.findByRole("button", { name: /Import 1 quote/ }, { timeout: 5_000 });
 
 // Those waits can push a whole test past the default 5s.
 describe("MarketDataImportPage", { timeout: 15_000 }, () => {
