@@ -68,7 +68,7 @@
       "currency_required": "La divisa es obligatoria"
     },
     "instrumentType": {
-      "equity": "Renta variable (Acción, ETF, Fondo)",
+      "equity": "Renta variable (acción, ETF, fondo)",
       "crypto": "Criptomoneda",
       "bond": "Bono",
       "option": "Opción",
@@ -307,7 +307,7 @@
     "data_provider_sheet_description": "Selecciona el proveedor de datos para esta correspondencia de símbolo",
     "invalid_mappings_warning": "Algunas correspondencias de símbolo no se pudieron validar. Es posible que los precios no se actualicen para esas entradas.",
     "instrumentType": {
-      "equity": "Renta variable (Acción, ETF, Fondo)",
+      "equity": "Renta variable (acción, ETF, fondo)",
       "crypto": "Criptomoneda",
       "bond": "Bono",
       "option": "Opción",

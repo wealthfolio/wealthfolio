@@ -70,7 +70,7 @@ async function touchDrag(page: Page, from: { x: number; y: number }, to: { x: nu
   await cdp.detach();
 }
 
-// Exact: "Back" alone would also match the list's "Backup & Export" row.
+// Exact: "Back" alone would also match the list's "Backup & export" row.
 const backButton = (page: Page) =>
   page.getByRole("button", { name: "Back", exact: true }).locator("visible=true").first();
 

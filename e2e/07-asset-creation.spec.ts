@@ -27,11 +27,11 @@ test.describe("Asset Creation", () => {
     await page.goto(`${BASE_URL}/settings/securities`, { waitUntil: "domcontentloaded" });
     await expect(page.getByRole("heading", { name: "Securities" })).toBeVisible({ timeout: 10000 });
 
-    await page.getByRole("button", { name: "Add Security" }).click();
-    await expect(page.getByRole("dialog", { name: "Add Security", exact: true })).toBeVisible({
+    await page.getByRole("button", { name: "Add security" }).click();
+    await expect(page.getByRole("dialog", { name: "Add security", exact: true })).toBeVisible({
       timeout: 5000,
     });
-    await expect(page.getByRole("heading", { name: "Add Security" })).toBeVisible({
+    await expect(page.getByRole("heading", { name: "Add security" })).toBeVisible({
       timeout: 3000,
     });
   });
@@ -46,8 +46,8 @@ test.describe("Asset Creation", () => {
       return;
     }
 
-    await page.getByRole("button", { name: "Add Security" }).click();
-    await expect(page.getByRole("dialog", { name: "Add Security", exact: true })).toBeVisible({
+    await page.getByRole("button", { name: "Add security" }).click();
+    await expect(page.getByRole("dialog", { name: "Add security", exact: true })).toBeVisible({
       timeout: 5000,
     });
 
@@ -63,10 +63,10 @@ test.describe("Asset Creation", () => {
     // Currency should already have a default
 
     // Click Create Security
-    await page.getByRole("button", { name: "Create Security" }).click();
+    await page.getByRole("button", { name: "Create security" }).click();
 
     // Dialog should close
-    await expect(page.getByRole("dialog", { name: "Add Security", exact: true })).not.toBeVisible({
+    await expect(page.getByRole("dialog", { name: "Add security", exact: true })).not.toBeVisible({
       timeout: 10000,
     });
 
@@ -96,8 +96,8 @@ test.describe("Asset Creation", () => {
     const existingStock = page.getByTestId("security-EQUITY-AAPL");
     test.skip((await existingStock.count()) > 0, "AAPL already exists");
 
-    const dialog = page.getByRole("dialog", { name: "Add Security", exact: true });
-    await page.getByRole("button", { name: "Add Security" }).click();
+    const dialog = page.getByRole("dialog", { name: "Add security", exact: true });
+    await page.getByRole("button", { name: "Add security" }).click();
     await expect(dialog).toBeVisible({ timeout: 5000 });
 
     // Click the search combobox trigger to open the search popover
@@ -129,7 +129,7 @@ test.describe("Asset Creation", () => {
     await expect(symbolInput).toHaveValue(/AAPL/i);
 
     // Click Create Security
-    await dialog.getByRole("button", { name: "Create Security", exact: true }).click();
+    await dialog.getByRole("button", { name: "Create security", exact: true }).click();
     await expect(dialog).not.toBeVisible({ timeout: 10000 });
 
     await page.waitForTimeout(1000);
@@ -204,13 +204,13 @@ test.describe("Asset Creation", () => {
     await page.goto(`${BASE_URL}/settings/securities`, { waitUntil: "domcontentloaded" });
     await expect(page.getByRole("heading", { name: "Securities" })).toBeVisible({ timeout: 10000 });
 
-    await page.getByRole("button", { name: "Add Security" }).click();
-    await expect(page.getByRole("dialog", { name: "Add Security", exact: true })).toBeVisible({
+    await page.getByRole("button", { name: "Add security" }).click();
+    await expect(page.getByRole("dialog", { name: "Add security", exact: true })).toBeVisible({
       timeout: 5000,
     });
 
     // Click Create without filling anything
-    await page.getByRole("button", { name: "Create Security" }).click();
+    await page.getByRole("button", { name: "Create security" }).click();
     await page.waitForTimeout(500);
 
     // Should show symbol and name errors
@@ -219,7 +219,7 @@ test.describe("Asset Creation", () => {
 
     // Close dialog
     await page.getByRole("button", { name: "Cancel" }).click();
-    await expect(page.getByRole("dialog", { name: "Add Security", exact: true })).not.toBeVisible({
+    await expect(page.getByRole("dialog", { name: "Add security", exact: true })).not.toBeVisible({
       timeout: 5000,
     });
   });

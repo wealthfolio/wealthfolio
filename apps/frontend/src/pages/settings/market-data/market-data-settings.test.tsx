@@ -130,7 +130,7 @@ async function openProviderSettings(): Promise<HTMLInputElement> {
   }
 
   await user.click(within(providerRow).getAllByRole("button")[0]);
-  return screen.findByLabelText<HTMLInputElement>("API Key");
+  return screen.findByLabelText<HTMLInputElement>("API key");
 }
 
 describe("MarketDataSettingsPage", () => {

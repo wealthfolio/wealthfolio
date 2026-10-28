@@ -68,7 +68,7 @@
       "currency_required": "La valuta è obbligatoria"
     },
     "instrumentType": {
-      "equity": "Azionario (Azioni, ETF, Fondo)",
+      "equity": "Azionario (azioni, ETF, fondo)",
       "crypto": "Criptovaluta",
       "bond": "Obbligazione",
       "option": "Opzione",
@@ -307,7 +307,7 @@
     "data_provider_sheet_description": "Seleziona il provider di dati per questa associazione di simbolo",
     "invalid_mappings_warning": "Alcune associazioni di simbolo non sono state convalidate. I prezzi potrebbero non aggiornarsi per queste voci.",
     "instrumentType": {
-      "equity": "Azionario (Azioni, ETF, Fondo)",
+      "equity": "Azionario (azioni, ETF, fondo)",
       "crypto": "Criptovaluta",
       "bond": "Obbligazione",
       "option": "Opzione",

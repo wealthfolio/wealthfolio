@@ -22,7 +22,7 @@
   "empty": {
     "noProviderTitle": "No AI provider configured",
     "noProviderDescription": "Connect an AI provider to start chatting with your personal finance assistant. Your data stays private and secure.",
-    "configureProviders": "Configure AI Providers"
+    "configureProviders": "Configure AI providers"
   },
   "model": {
     "noModel": "No model",
@@ -555,8 +555,8 @@
       "historyDescription": "Portfolio value over time"
     },
     "default": "Default",
-    "apiKeyRequired": "API Key Required",
-    "apiKey": "API Key",
+    "apiKeyRequired": "API key required",
+    "apiKey": "API key",
     "getApiKey": "Get API key",
     "enterApiKey": "Enter API key",
     "hideApiKey": "Hide API key",
@@ -568,18 +568,18 @@
     "loading": "Loading...",
     "noModelsFound": "No models found.",
     "recommended": "Recommended",
-    "otherAvailable": "Other Available",
+    "otherAvailable": "Other available",
     "noModelsSelected": "No models selected. Click \"Add\" to add models.",
     "config": "Config",
     "tools": "Tools",
     "vision": "Vision",
     "thinking": "Thinking",
     "capabilitiesPreset": "Capabilities are preset for recommended models.",
-    "dataAccessTitle": "Data Access",
+    "dataAccessTitle": "Data access",
     "dataAccessSubtitle": "What data the AI can access",
     "aiDataSharing": "AI data sharing",
     "aiDataSharingDescription": "Enabled AI tools may share relevant portfolio data and attachments with your selected AI provider when used in chat.",
-    "advancedOptions": "Advanced Options",
+    "advancedOptions": "Advanced options",
     "customized": "Customized",
     "resetToDefaults": "Reset to defaults",
     "structuredOptions": "Structured options",
