@@ -102,6 +102,7 @@ import { format } from "date-fns";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useBackNavigation } from "@/pages/layouts/mobile-stack/use-mobile-stack";
 import { AccountContributionLimit } from "./account-contribution-limit";
+import { AccountHeaderDetails } from "./account-header-details";
 import AccountHoldings from "./account-holdings";
 import AccountMetrics from "./account-metrics";
 import {
@@ -1043,11 +1044,7 @@ const AccountPage = () => {
                 </Sheet>
               </div>
             </div>
-            {!account?.group && account?.currency && (
-              <p className="text-muted-foreground text-xs leading-tight md:text-sm">
-                {account?.currency}
-              </p>
-            )}
+            <AccountHeaderDetails account={account} />
           </div>
         </div>
       </PageHeader>

@@ -2,6 +2,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@wealthfolio/ui/components/
 import { Icons, type Icon } from "@wealthfolio/ui/components/ui/icons";
 import { Skeleton } from "@wealthfolio/ui/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@wealthfolio/ui";
+import { maskAccountNumber } from "@/lib/account-number";
 import type { Account, AccountType, Platform } from "@/lib/types";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -57,6 +58,7 @@ export function AccountItem({
     iconClass: "text-muted-foreground",
   };
   const IconComponent = typeConfig.icon;
+  const maskedNumber = maskAccountNumber(account.accountNumber);
 
   return (
     <div className="flex items-center justify-between p-4">
@@ -93,6 +95,14 @@ export function AccountItem({
               <>
                 <span>·</span>
                 <span>{account.group}</span>
+              </>
+            )}
+            {maskedNumber && (
+              <>
+                <span>·</span>
+                <span dir="ltr" data-testid="account-item-number">
+                  {maskedNumber}
+                </span>
               </>
             )}
             <span>·</span>
