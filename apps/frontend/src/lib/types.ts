@@ -1007,6 +1007,11 @@ export interface Goal {
   summaryTargetAmount?: number;
 }
 
+/** Omission keeps the existing deadline; explicit null removes it. */
+export interface GoalUpdate extends Omit<Goal, "targetDate"> {
+  targetDate?: string | null;
+}
+
 export interface NewGoal {
   id?: string;
   goalType: GoalType;

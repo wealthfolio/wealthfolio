@@ -29,6 +29,32 @@ pub struct Goal {
     pub summary_target_amount: Option<f64>,
 }
 
+/// Same goal object on the wire; an omitted deadline preserves it while explicit
+/// null clears it. Presence information is not persisted in Goal records.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GoalUpdate {
+    #[serde(default, deserialize_with = "deserialize_target_date")]
+    pub target_date: Option<Option<String>>,
+    #[serde(flatten)]
+    pub goal: Goal,
+}
+
+fn deserialize_target_date<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> std::result::Result<Option<Option<String>>, D::Error> {
+    Option::<String>::deserialize(deserializer).map(Some)
+}
+
+impl From<Goal> for GoalUpdate {
+    fn from(goal: Goal) -> Self {
+        Self {
+            target_date: goal.target_date.clone().map(Some),
+            goal,
+        }
+    }
+}
+
 /// Input model for creating a new goal
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]

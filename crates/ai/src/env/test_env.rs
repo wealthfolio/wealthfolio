@@ -27,7 +27,7 @@ use wealthfolio_core::{
     errors::DatabaseError,
     goals::{
         AccountValuationMap, Goal, GoalFundingRule, GoalFundingRuleInput, GoalPlan,
-        GoalServiceTrait, NewGoal, PreparedRetirementSimulationInput, SaveGoalPlan,
+        GoalServiceTrait, GoalUpdate, NewGoal, PreparedRetirementSimulationInput, SaveGoalPlan,
     },
     health::{
         checks::{
@@ -853,7 +853,7 @@ impl GoalServiceTrait for MockGoalService {
         unimplemented!("MockGoalService::create_goal")
     }
 
-    async fn update_goal(&self, _goal: Goal) -> CoreResult<Goal> {
+    async fn update_goal(&self, _goal: GoalUpdate) -> CoreResult<Goal> {
         unimplemented!("MockGoalService::update_goal")
     }
 

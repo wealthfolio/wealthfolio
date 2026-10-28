@@ -13,8 +13,8 @@ use axum::{
 use serde::Deserialize;
 use wealthfolio_core::{
     goals::{
-        validate_retirement_plan, Goal, GoalFundingRule, GoalFundingRuleInput, GoalPlan, NewGoal,
-        SaveGoalPlan,
+        validate_retirement_plan, Goal, GoalFundingRule, GoalFundingRuleInput, GoalPlan,
+        GoalUpdate, NewGoal, SaveGoalPlan,
     },
     planning::retirement::{normalize_retirement_plan_ages, RetirementPlan, RetirementTimingMode},
     planning::{compute_save_up_overview, validate_save_up_input, SaveUpInput, SaveUpOverview},
@@ -57,9 +57,9 @@ async fn create_goal(
 
 async fn update_goal(
     axum::Extension(state): axum::Extension<Arc<AppState>>,
-    Json(mut goal): Json<Goal>,
+    Json(mut goal): Json<GoalUpdate>,
 ) -> ApiResult<Json<Goal>> {
-    goal.currency = Some(
+    goal.goal.currency = Some(
         state
             .base_currency
             .read()

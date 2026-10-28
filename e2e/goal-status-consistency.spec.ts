@@ -70,6 +70,20 @@ test("saved goal health reaches a mounted list and agrees with detail in both di
     });
     const saved = await page.request.get(`${api}/goals/${goal.id}`, { headers });
     expect((await saved.json()).statusHealth).toBe((await overview.json()).health);
+    const current = await (await page.request.get(`${api}/goals/${goal.id}`, { headers })).json();
+    const { targetDate, ...withoutDeadline } = current;
+    const preserved = await page.request.put(`${api}/goals`, { headers, data: withoutDeadline });
+    expect(preserved.ok()).toBeTruthy();
+    expect((await preserved.json()).targetDate).toBe(targetDate);
+    const cleared = await page.request.put(`${api}/goals`, {
+      headers,
+      data: { ...current, targetDate: null },
+    });
+    expect(cleared.ok()).toBeTruthy();
+    expect(await cleared.json()).toMatchObject({
+      targetDate: null,
+      statusHealth: "not_applicable",
+    });
   } finally {
     await page.request.delete(`${api}/goals/${goal.id}`, { headers });
   }

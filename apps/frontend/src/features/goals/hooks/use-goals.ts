@@ -1,6 +1,6 @@
 import { createGoal, deleteGoal, getGoals, updateGoal } from "@/adapters";
 import { QueryKeys } from "@/lib/query-keys";
-import type { Goal, NewGoal } from "@/lib/types";
+import type { Goal, GoalUpdate, NewGoal } from "@/lib/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -51,7 +51,7 @@ export function useGoalMutations() {
 
   // Callers toast success: the save-up plan save also syncs the goal summary through it.
   const updateMutation = useMutation({
-    mutationFn: (goal: Goal) => updateGoal(goal),
+    mutationFn: (goal: GoalUpdate) => updateGoal(goal),
     onSuccess: (_, goal) => {
       invalidate();
       queryClient.invalidateQueries({ queryKey: QueryKeys.goal(goal.id) });

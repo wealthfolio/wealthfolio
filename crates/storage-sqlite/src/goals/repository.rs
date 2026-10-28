@@ -219,9 +219,8 @@ impl GoalRepositoryTrait for GoalRepository {
                         goal_update
                             .start_date
                             .map(|value| goals::start_date.eq(Some(value))),
-                        goal_update
-                            .target_date
-                            .map(|value| goals::target_date.eq(Some(value))),
+                        // Core resolved omission vs explicit null before persisting.
+                        goals::target_date.eq(goal_update.target_date),
                         goals::updated_at
                             .eq(chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string()),
                     ))

@@ -4,7 +4,7 @@ use std::sync::Arc;
 use crate::context::ServiceContext;
 use log::{debug, warn};
 use wealthfolio_core::goals::{
-    Goal, GoalFundingRule, GoalFundingRuleInput, GoalPlan, NewGoal, SaveGoalPlan,
+    Goal, GoalFundingRule, GoalFundingRuleInput, GoalPlan, GoalUpdate, NewGoal, SaveGoalPlan,
 };
 use wealthfolio_core::planning::{
     compute_save_up_overview, validate_save_up_input, SaveUpInput, SaveUpOverview,
@@ -47,12 +47,12 @@ pub async fn create_goal(mut goal: NewGoal, state: ProfileAccess) -> Result<Goal
 #[tauri::command]
 pub async fn update_goal(
     app_handle: tauri::AppHandle,
-    mut goal: Goal,
+    mut goal: GoalUpdate,
     state: ProfileAccess,
 ) -> Result<Goal, String> {
     let context = state.context()?;
     debug!("Updating goal...");
-    goal.currency = Some(context.get_base_currency());
+    goal.goal.currency = Some(context.get_base_currency());
     let goal = context
         .goal_service()
         .update_goal(goal)

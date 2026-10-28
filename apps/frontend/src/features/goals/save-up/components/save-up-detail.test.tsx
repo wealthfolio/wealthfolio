@@ -93,6 +93,7 @@ describe("SaveUpDetailPage plan save", () => {
     expect(mocks.updateGoal).toHaveBeenCalledWith(
       expect.objectContaining({
         targetAmount: 20000,
+        targetDate: null,
         statusHealth: "on_track",
       }),
     );

@@ -2,8 +2,8 @@ use crate::accounts::{account_supports_purpose, Account, AccountPurpose, Account
 use crate::errors::Result;
 use crate::goals::goals_model::{
     AccountValuationMap, Goal, GoalFundingRule, GoalFundingRuleInput, GoalPlan,
-    GoalSummariesUpdated, GoalSummaryUpdate, NewGoal, PreparedRetirementSimulationInput,
-    SaveGoalPlan,
+    GoalSummariesUpdated, GoalSummaryUpdate, GoalUpdate, NewGoal,
+    PreparedRetirementSimulationInput, SaveGoalPlan,
 };
 use crate::goals::goals_traits::{GoalRepositoryTrait, GoalServiceTrait};
 use crate::planning::retirement::{
@@ -699,9 +699,14 @@ impl<T: GoalRepositoryTrait + Send + Sync> GoalServiceTrait for GoalService<T> {
         }
     }
 
-    async fn update_goal(&self, updated_goal_data: Goal) -> Result<Goal> {
+    async fn update_goal(&self, update: GoalUpdate) -> Result<Goal> {
         let _guard = self.summary_refresh.lock().await;
+        let GoalUpdate {
+            goal: mut updated_goal_data,
+            target_date,
+        } = update;
         let existing = self.goal_repo.load_goal(&updated_goal_data.id)?;
+        updated_goal_data.target_date = target_date.unwrap_or_else(|| existing.target_date.clone());
         if existing.goal_type != updated_goal_data.goal_type {
             return Err(crate::errors::ValidationError::InvalidInput(
                 "Goal type cannot be changed after creation".to_string(),
@@ -1917,7 +1922,7 @@ mod tests {
         updated.status_lifecycle = GOAL_LIFECYCLE_ACTIVE.to_string();
 
         let err = service
-            .update_goal(updated)
+            .update_goal(updated.into())
             .await
             .expect_err("unarchiving a second retirement goal should fail");
 
@@ -1950,7 +1955,7 @@ mod tests {
         updated.status_lifecycle = GOAL_LIFECYCLE_ACTIVE.to_string();
 
         let err = service
-            .update_goal(updated)
+            .update_goal(updated.into())
             .await
             .expect_err("reactivating overallocated funding should fail");
 
@@ -2148,6 +2153,34 @@ mod tests {
         let payload = GoalSummariesUpdated::from_goals(&[goal], true).unwrap();
         assert_eq!(payload.goal_ids, vec!["goal-1"]);
         assert!(payload.inputs_changed);
+    }
+
+    #[tokio::test]
+    async fn omitted_deadline_is_preserved_but_explicit_null_clears_it_and_its_health() {
+        let mut goal = test_goal("active", None);
+        goal.target_date = Some("2030-12-31".into());
+        goal.status_health = "on_track".into();
+        let repo = Arc::new(MockGoalRepository::new(vec![goal.clone()]));
+        let service = local_service(repo.clone());
+        let mut wire = serde_json::to_value(&goal).unwrap();
+        wire.as_object_mut().unwrap().remove("targetDate");
+        let omitted: GoalUpdate = serde_json::from_value(wire.clone()).unwrap();
+        assert_eq!(omitted.target_date, None);
+        let preserved = service.update_goal(omitted).await.unwrap();
+        assert_eq!(preserved.target_date.as_deref(), Some("2030-12-31"));
+        wire["targetDate"] = serde_json::Value::Null;
+        let clear: GoalUpdate = serde_json::from_value(wire.clone()).unwrap();
+        assert_eq!(clear.target_date, Some(None));
+        let cleared = service.update_goal(clear).await.unwrap();
+        assert_eq!(cleared.target_date, None);
+        assert_eq!(cleared.status_health, "not_applicable");
+        assert_eq!(cleared.projected_value_at_target_date, None);
+        wire["targetDate"] = serde_json::json!("2031-01-01");
+        let dated = service
+            .update_goal(serde_json::from_value(wire).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(dated.target_date.as_deref(), Some("2031-01-01"));
     }
     fn local_service(repo: Arc<MockGoalRepository>) -> GoalService<MockGoalRepository> {
         use crate::test_support::in_memory::*;

@@ -20,8 +20,8 @@ async fn stale_goal_edit_preserves_newer_computed_summary() {
     let mut cached = repo
         .insert_new_goal(
             serde_json::from_value::<NewGoal>(serde_json::json!({
-                "goalType":"home", "title":"House", "targetAmount":100000
-            }))
+            "goalType":"home", "title":"House", "targetAmount":100000, "targetDate":"2030-12-31"
+                }))
             .unwrap(),
         )
         .await
@@ -47,4 +47,8 @@ async fn stale_goal_edit_preserves_newer_computed_summary() {
     assert_eq!(saved.summary_current_value, Some(10000.0));
     assert_eq!(saved.summary_progress, Some(0.1));
     assert_eq!(saved.projected_value_at_target_date, Some(95000.0));
+    assert_eq!(saved.target_date.as_deref(), Some("2030-12-31"));
+    let mut clear = saved;
+    clear.target_date = None;
+    assert_eq!(repo.update_goal(clear).await.unwrap().target_date, None);
 }

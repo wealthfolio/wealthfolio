@@ -8,8 +8,8 @@ mod goals_traits;
 
 pub use goals_model::{
     AccountValuationMap, Goal, GoalFundingRule, GoalFundingRuleInput, GoalPlan,
-    GoalSummariesUpdated, GoalSummaryUpdate, NewGoal, PreparedRetirementSimulationInput,
-    SaveGoalPlan,
+    GoalSummariesUpdated, GoalSummaryUpdate, GoalUpdate, NewGoal,
+    PreparedRetirementSimulationInput, SaveGoalPlan,
 };
 pub use goals_service::{
     summary_refresh_error_kind, validate_retirement_plan, GoalService, GoalValuationServices,

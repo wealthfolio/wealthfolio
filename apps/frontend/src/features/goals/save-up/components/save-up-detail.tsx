@@ -204,7 +204,7 @@ export default function SaveUpDetailPage({ goal, plan, overview }: Props) {
       await updateMutation.mutateAsync({
         ...goal,
         targetAmount: targetAmount || undefined,
-        targetDate: targetDate || undefined,
+        targetDate: targetDate || null,
       });
       await savePlanMutation.mutateAsync({
         goalId: goal.id,
