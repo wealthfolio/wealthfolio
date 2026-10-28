@@ -26,7 +26,8 @@ const labels: MoneyFlowLabels = {
   total: "Total",
   shortfall: "Shortfall",
   refunds: "Net refunds",
-  saved: "Set aside",
+  fromSavings: "From savings",
+  saved: "To savings",
   surplus: "Left over",
   uncategorized: "Uncategorized",
   uncategorizedIncome: "Uncategorized income",
@@ -161,7 +162,7 @@ describe("buildMoneyFlowGraph", () => {
     const graph = buildMoneyFlowGraph(finaryInput());
 
     expectBalanced(graph);
-    expect(graph.totals).toEqual({ income: 2500, total: 2500 });
+    expect(graph.totals).toEqual({ income: 2500, fromSavings: 0, total: 2500 });
     expect(ids(graph)).toEqual([
       "income:salary",
       "total",
@@ -783,6 +784,102 @@ describe("subcategories", () => {
   });
 });
 
+describe("money brought back from savings", () => {
+  /** One month funded by income and by money brought back from savings. */
+  function savingsInput(
+    income: number,
+    fromSavings: number,
+    spent: number,
+    toSavings: number,
+    overrides: Partial<MoneyFlowInput> = {},
+  ): MoneyFlowInput {
+    return finaryInput({
+      incomeBreakdown: income ? [row("salary", income)] : [],
+      savingsBreakdown: toSavings ? [row("stocks", toSavings)] : [],
+      groupRows: [group("needs", [spend("rent", spent)])],
+      fromSavings,
+      ...overrides,
+    });
+  }
+
+  it("shows it as a source beside income, separate from money going to savings", () => {
+    // The direction agreed in #2257: $2,000 income + $400 from savings
+    // → $1,400 spending + $1,000 to savings, i.e. $600 net saved.
+    const graph = buildMoneyFlowGraph(savingsInput(2000, 400, 1400, 1000));
+
+    expectBalanced(graph);
+    expect(graph.totals).toEqual({ income: 2000, fromSavings: 400, total: 2400 });
+    expect(ids(graph).slice(0, 3)).toEqual(["income:salary", "from-savings", "total"]);
+    expect(node(graph, "from-savings")).toMatchObject({
+      kind: "from-savings",
+      name: "From savings",
+      value: 400,
+      column: 0,
+    });
+    expect(node(graph, "saved")).toMatchObject({ name: "To savings", value: 1000 });
+    expect(node(graph, "surplus")).toBeUndefined();
+    expect(node(graph, "shortfall")).toBeUndefined();
+  });
+
+  it("turns the false shortfall of a savings buffer into what was really left over", () => {
+    // #2308: 40k in, 19k spent, 31k moved to savings and 11k brought back.
+    const graph = buildMoneyFlowGraph(savingsInput(40000, 11000, 19000, 31000));
+
+    expectBalanced(graph);
+    expect(node(graph, "shortfall")).toBeUndefined();
+    expect(node(graph, "surplus")?.value).toBe(1000);
+  });
+
+  it("still draws a shortfall for spending beyond income and savings brought back", () => {
+    const graph = buildMoneyFlowGraph(
+      savingsInput(1000, 200, 1500, 0, {
+        groupRows: [group("needs", [spend("rent", 1500), spend("deposit", -100, "Deposit")])],
+      }),
+    );
+
+    expectBalanced(graph);
+    expect(ids(graph).slice(0, 5)).toEqual([
+      "income:salary",
+      "from-savings",
+      "refunds",
+      "shortfall",
+      "total",
+    ]);
+    expect(node(graph, "shortfall")?.value).toBe(200);
+  });
+
+  it("gives a month funded only from savings a sources column", () => {
+    const covered = buildMoneyFlowGraph(savingsInput(0, 500, 300, 0));
+
+    expectBalanced(covered);
+    expect(covered.totals).toEqual({ income: 0, fromSavings: 500, total: 500 });
+    expect(node(covered, "total")?.column).toBe(1);
+    expect(node(covered, "surplus")?.value).toBe(200);
+
+    const short = buildMoneyFlowGraph(savingsInput(0, 500, 800, 0));
+    expectBalanced(short);
+    expect(ids(short).slice(0, 3)).toEqual(["from-savings", "shortfall", "total"]);
+    expect(node(short, "shortfall")?.value).toBe(300);
+  });
+
+  it("ignores sub-cent noise", () => {
+    const graph = buildMoneyFlowGraph(savingsInput(2000, 0.004, 1400, 600));
+
+    expect(node(graph, "from-savings")).toBeUndefined();
+    expect(graph.totals.fromSavings).toBe(0);
+    expect(graph).toEqual(buildMoneyFlowGraph(savingsInput(2000, 0, 1400, 600)));
+  });
+
+  it("is listed when zooming into the total but has nothing to zoom into itself", () => {
+    const graph = buildMoneyFlowGraph(savingsInput(2000, 400, 1400, 1000));
+    const focused = focusMoneyFlowGraph(graph, "total", labels);
+
+    expectBalanced(focused);
+    expect(ids(focused)).toEqual(["income:salary", "from-savings", "total"]);
+    expect(isFocusable(node(graph, "from-savings")!)).toBe(false);
+  });
+});
+
 /**
  * The chart and the headline must agree on the period's net: Left over (or
  * Shortfall) equals the backend's `netCashflow`, read through the same
@@ -829,7 +926,7 @@ describe("money flow against the spending insight", () => {
     categories,
   });
 
-  function insight(income: number): SpendingInsight {
+  function insight(income: number, fromSavings = 0): SpendingInsight {
     const groups = [
       insightGroup("needs", [insightCategory("rent", 1500), insightCategory("deposit", -300)]),
       insightGroup("wants", [insightCategory("dining", 420.55)]),
@@ -856,7 +953,8 @@ describe("money flow against the spending insight", () => {
         spent,
         income,
         saved,
-        netCashflow: income - spent - saved,
+        fromSavings,
+        netCashflow: income - spent - saved + fromSavings,
         budget: 0,
         remaining: 0,
         priorSpent: 0,
@@ -947,5 +1045,18 @@ describe("money flow against the spending insight", () => {
     expectBalanced(graph);
     expect(source.headline.netCashflow).toBeLessThan(0);
     expect(node(graph, "shortfall")?.value).toBeCloseTo(-source.headline.netCashflow, 6);
+  });
+
+  it("leaves over the headline net cashflow when savings funded the gap", () => {
+    // Same month as the shortfall above, but money came back from savings.
+    const source = insight(1000, 2000);
+    const graph = graphFor(source);
+
+    expectBalanced(graph);
+    expect(source.headline.netCashflow).toBeGreaterThan(0);
+    expect(node(graph, "shortfall")).toBeUndefined();
+    expect(node(graph, "from-savings")?.value).toBeCloseTo(2000, 6);
+    expect(node(graph, "surplus")?.value).toBeCloseTo(source.headline.netCashflow, 6);
+    expect(graph.totals.fromSavings).toBeCloseTo(2000, 6);
   });
 });

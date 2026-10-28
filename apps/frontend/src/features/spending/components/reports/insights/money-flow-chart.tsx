@@ -49,6 +49,7 @@ const HINT_KEYS: Partial<Record<MoneyFlowNodeKind, string>> = {
   total: "spending:moneyFlow.hint.total",
   shortfall: "spending:moneyFlow.hint.shortfall",
   refunds: "spending:moneyFlow.hint.refunds",
+  "from-savings": "spending:moneyFlow.hint.fromSavings",
   saved: "spending:moneyFlow.hint.saved",
   surplus: "spending:moneyFlow.hint.surplus",
   uncategorized: "spending:moneyFlow.hint.uncategorized",
@@ -76,7 +77,7 @@ interface MoneyFlowChartProps {
   currency: string;
   isMobile: boolean;
   onCategoryClick?: (categoryId: string) => void;
-  /** Zoom into a destination (a group or Set aside) or a category with subcategories. */
+  /** Zoom into a destination (a group or To savings) or a category with subcategories. */
   onFocusNode?: (nodeId: string) => void;
   /** Node to take keyboard focus once rendered — where a zoom was left from. */
   autoFocusNodeId?: string | null;
@@ -534,11 +535,14 @@ function MoneyFlowTooltip({
     anchor < chartHeight / 2
       ? { top: Math.max(TOOLTIP_EDGE, anchor - TOOLTIP_ANCHOR_OFFSET) }
       : { bottom: Math.max(TOOLTIP_EDGE, chartHeight - anchor - TOOLTIP_ANCHOR_OFFSET) };
-  const base = totals.income > 0 ? totals.income : totals.total;
+  // Shares are of income, unless money from savings also came in: then no
+  // node should read as a share of income it wasn't part of.
+  const shareOfIncome = totals.income > 0 && totals.fromSavings === 0;
+  const base = shareOfIncome ? totals.income : totals.total;
   const share = base > 0 ? (node.value / base) * 100 : 0;
-  // Without income the total is simply money out, before any refunds.
+  // With nothing coming in, the total is simply money out, before any refunds.
   const hintKey =
-    node.kind === "total" && totals.income === 0
+    node.kind === "total" && totals.income === 0 && totals.fromSavings === 0
       ? "spending:moneyFlow.hint.totalOut"
       : HINT_KEYS[node.kind];
   const members = node.members ?? [];
@@ -564,7 +568,7 @@ function MoneyFlowTooltip({
         {node.kind !== "total" && (
           <span className="text-muted-foreground tabular-nums">
             {t(
-              totals.income > 0
+              shareOfIncome
                 ? "spending:moneyFlow.shareOfIncome"
                 : "spending:moneyFlow.shareOfTotal",
               { pct: formatPercentValue(share, numberFormatting, { digits: 0 }) },

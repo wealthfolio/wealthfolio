@@ -974,6 +974,7 @@ export default function SpendingTabContent() {
             income={report?.current.income ?? 0}
             spending={report?.current.outflow ?? 0}
             saving={report?.current.saved ?? 0}
+            fromSavings={report?.current.fromSavings ?? 0}
             currency={currency}
             isLoading={isLoading}
             incomeHref={dashboardInsightHref.cashflow}

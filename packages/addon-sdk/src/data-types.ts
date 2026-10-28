@@ -768,6 +768,8 @@ export interface SpendingPeriodSummary {
   income: number;
   outflow: number;
   saved: number;
+  /** Money brought back from savings; `net = income - outflow - saved + fromSavings`. */
+  fromSavings?: number;
   net: number;
   count: number;
 }

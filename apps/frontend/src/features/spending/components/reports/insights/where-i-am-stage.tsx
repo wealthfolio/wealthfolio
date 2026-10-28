@@ -740,7 +740,9 @@ const NetCashflowCard: FC<NetCashflowCardProps> = ({ months, currency, isLoading
     for (const m of months) {
       income += m.report?.current.income ?? 0;
       spent += m.report?.current.outflow ?? 0;
-      saved += m.report?.current.saved ?? 0;
+      // Net saving: money brought back from savings offsets what went in. A
+      // negative net hides the bar, and Net carries the difference.
+      saved += (m.report?.current.saved ?? 0) - (m.report?.current.fromSavings ?? 0);
     }
     const net = income - spent - saved;
     const surplusRate = income > 0 ? net / income : 0;
