@@ -110,7 +110,8 @@
     monospace;
 
   /* Type scale. 11px is the floor, and every step is rem so text follows the
-     root font size. Steps outside the scale (text-4xl and up) don't exist. */
+     root font size. Steps outside the scale (text-4xl and up) don't exist;
+     text-display is the one larger step, for the page's hero figure. */
   --text-*: initial;
   --text-2xs: 0.6875rem;
   --text-2xs--line-height: calc(1 / 0.6875);
@@ -128,6 +129,11 @@
   --text-2xl--line-height: calc(2 / 1.5);
   --text-3xl: 1.875rem;
   --text-3xl--line-height: calc(2.25 / 1.875);
+  /* Display: the hero figure, meant for regular weight. Phones use a smaller value
+     (below). */
+  --text-display: 2rem;
+  --text-display--line-height: 1.1;
+  --text-display--letter-spacing: -0.03em;
 
   /* Disable default colors to prevent their use; feel free to re-enable as needed. */
   --color-amber-50: #fef3c7;
@@ -534,6 +540,15 @@
 @media (pointer: coarse) {
   :root {
     --control-size: max(var(--control-height), 2.75rem);
+  }
+}
+
+/* The display step below md: 1.875rem, and never wider than 10.5vw (34px at 320px),
+   so a hero figure and the privacy toggle beside it stay on one line at every Text
+   size. */
+@media (width < 48rem) {
+  :root {
+    --text-display: min(1.875rem, 10.5vw);
   }
 }
 

@@ -63,13 +63,14 @@ const Balance: React.FC<BalanceProps> = ({
   ]);
 
   if (isLoading) {
-    return <Skeleton className="h-9 w-48" />;
+    // The height of one display line (line height 1.1).
+    return <Skeleton className="h-8 w-48 md:h-9" />;
   }
 
   if (isUnavailable) {
     return (
       <h1
-        className="font-heading text-muted-foreground text-3xl font-bold tracking-tight"
+        className="font-heading text-muted-foreground text-display font-normal"
         data-testid="portfolio-balance"
       >
         N/A
@@ -77,8 +78,10 @@ const Balance: React.FC<BalanceProps> = ({
     );
   }
 
+  // The hero figure: the type scale's display step at regular weight, so the number
+  // reads large but quiet.
   return (
-    <h1 className="font-heading text-3xl font-bold tracking-tight" data-testid="portfolio-balance">
+    <h1 className="font-heading text-display font-normal" data-testid="portfolio-balance">
       {isBalanceHidden ? (
         <span className="text-4x">
           {displayCurrency ? currencySymbol : ""}

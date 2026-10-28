@@ -7,6 +7,7 @@ import { formatDateISO, parseLocalDate } from "@/lib/utils";
 import Balance from "@/pages/dashboard/balance";
 import { AllocationDetailSheet } from "@/pages/holdings/components/allocation-detail-sheet";
 import { DashboardCard } from "@/components/dashboard-card";
+import { PrivacyToggle } from "@/components/privacy-toggle";
 import {
   GainAmount,
   GainPercent,
@@ -218,7 +219,7 @@ export function NetWorthContent() {
       <div className="px-4 pt-2 pb-1 md:px-6 md:pb-2 lg:px-8">
         <div className="flex items-start gap-2">
           <div>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-2">
               <Balance
                 isLoading={isLoading}
                 targetValue={parsedData?.netWorth ?? 0}
@@ -227,6 +228,7 @@ export function NetWorthContent() {
                 displayDecimal={false}
                 compact={isMobile}
               />
+              <PrivacyToggle className="hover:bg-muted/50 bg-transparent" />
               {hasStaleValuations && (
                 <TooltipProvider>
                   <Tooltip>

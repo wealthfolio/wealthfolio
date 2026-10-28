@@ -13,6 +13,7 @@ import {
 } from "recharts";
 
 import { DashboardCard } from "@/components/dashboard-card";
+import { PrivacyToggle } from "@/components/privacy-toggle";
 import { useAccounts } from "@/hooks/use-accounts";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import { useTaxonomy } from "@/hooks/use-taxonomies";
@@ -948,12 +949,15 @@ export default function SpendingTabContent() {
                 </>
               )}
             </div>
-            <Balance
-              isLoading={isLoading}
-              targetValue={totalSpending}
-              currency={currency}
-              displayCurrency={true}
-            />
+            <div className="flex flex-wrap items-center gap-2">
+              <Balance
+                isLoading={isLoading}
+                targetValue={totalSpending}
+                currency={currency}
+                displayCurrency={true}
+              />
+              <PrivacyToggle className="hover:bg-muted/50 bg-transparent" />
+            </div>
             <div className="text-md flex items-center">
               {isPriorLoading ? (
                 <Skeleton className="mt-1 h-4 w-56" />
