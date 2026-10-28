@@ -9,6 +9,7 @@ import {
 import { useCallback, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
+import { maskAccountNumber } from "@/lib/account-number";
 import { AccountType } from "@/lib/constants";
 import type { Account, AllocationTarget, DriftReport, WorksheetMode } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -212,10 +213,9 @@ function accountDetails(
       other.name.trim().toLowerCase() === account.name.trim().toLowerCase() &&
       other.currency === account.currency,
   );
-  const number = account.accountNumber?.trim();
   return [
     account.currency,
-    twins.length > 0 && number ? `··${number.slice(-4)}` : null,
+    twins.length > 0 ? maskAccountNumber(account.accountNumber) : null,
     account.accountType === AccountType.CRYPTOCURRENCY ? notes.cryptoOnly : null,
     notes.neverReduced,
   ]

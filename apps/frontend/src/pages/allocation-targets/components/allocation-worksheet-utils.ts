@@ -1,5 +1,6 @@
 import type { useAmountFormatting } from "@wealthfolio/ui";
 
+import { maskAccountNumber } from "@/lib/account-number";
 import type {
   Account,
   AllocationRule,
@@ -463,8 +464,8 @@ export function accountLabels(
   return new Map(
     accounts.map((account) => {
       if ((byName.get(key(account.name)) ?? 0) < 2) return [account.id, account.name];
-      const number = account.accountNumber?.trim();
-      if (number) return [account.id, `${account.name} ··${number.slice(-4)}`];
+      const maskedNumber = maskAccountNumber(account.accountNumber);
+      if (maskedNumber) return [account.id, `${account.name} ${maskedNumber}`];
       const sharesCurrency = accounts.some(
         (other) =>
           other.id !== account.id &&

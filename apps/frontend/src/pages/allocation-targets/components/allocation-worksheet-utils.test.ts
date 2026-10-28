@@ -334,6 +334,15 @@ describe("account labels", () => {
     expect(labels.get("b")).toBe("INDIVIDUAL ··8002");
   });
 
+  it("ends a number typed with spaces in its last four characters", () => {
+    const labels = accountLabels([
+      account("a", "Checking", { accountNumber: "DE89 3704 0044 0532 0130 00" }),
+      account("b", "Checking", { accountNumber: "NL91 ABNA 0417 1643 00" }),
+    ]);
+    expect(labels.get("a")).toBe("Checking ··3000");
+    expect(labels.get("b")).toBe("Checking ··4300");
+  });
+
   it("falls back on the currency when there is no number to tell them apart", () => {
     const labels = accountLabels([
       account("a", "Individual"),
