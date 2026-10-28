@@ -62,12 +62,14 @@ export function AppSidebar({ navigation }: AppSidebarProps) {
                     aria-label={t("common:app_name")}
                     className="group/logo block shrink-0 [perspective:400px]"
                   >
+                    {/* Collapsing flips the logo; hovering turns it a quarter clockwise, as on
+                        the website (mirrored while collapsed, hence -90deg). */}
                     <img
                       className={cn(
-                        "h-10 w-10 rounded-full bg-transparent shadow-lg transition-transform duration-1000 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none",
+                        "h-10 w-10 rounded-full bg-transparent shadow-lg transition-transform duration-1000 ease-in-out motion-reduce:transition-none",
                         collapsed
-                          ? "motion-safe:[transform:rotateY(180deg)] motion-safe:group-hover/logo:[transform:rotateY(360deg)]"
-                          : "motion-safe:[transform:rotateY(0deg)] motion-safe:group-hover/logo:[transform:rotateY(180deg)]",
+                          ? "motion-safe:[transform:rotateY(180deg)] motion-safe:group-hover/logo:[transform:rotateY(180deg)_rotate(-90deg)]"
+                          : "motion-safe:[transform:rotateY(0deg)] motion-safe:group-hover/logo:[transform:rotateY(0deg)_rotate(90deg)]",
                       )}
                       aria-hidden="true"
                       src="/logo.png"
