@@ -309,7 +309,7 @@ function NativeStartup({ children }: { children: ReactNode }) {
                       disabled={busy === "restore"}
                       onClick={() => void cancel()}
                     >
-                      {t("settings:recovery_back")}
+                      {t("common:back")}
                     </Button>
                     <Button
                       className="flex-1"
@@ -380,7 +380,7 @@ function NativeStartup({ children }: { children: ReactNode }) {
                     </Button>
                     {busy === "inspect" && (
                       <Button type="button" variant="outline" onClick={() => void cancel()}>
-                        {t("settings:recovery_cancel")}
+                        {t("common:cancel")}
                       </Button>
                     )}
                   </div>

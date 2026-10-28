@@ -53,7 +53,7 @@ const MAPPING_META: {
   },
   {
     field: "currencyPath",
-    labelKey: "settings:market_data_page.field_currency",
+    labelKey: "common:currency",
     color: "bg-amber-500",
     required: false,
   },
@@ -167,7 +167,7 @@ function StatusPill({
     return (
       <span className="text-destructive-subtle-foreground bg-destructive-subtle inline-flex shrink-0 items-center gap-1.5 rounded-full border border-transparent px-3 py-1 text-xs whitespace-nowrap">
         <span className="bg-destructive h-1.5 w-1.5 rounded-full" />
-        {t("settings:market_data_page.status_error")}
+        {t("common:error")}
       </span>
     );
   }

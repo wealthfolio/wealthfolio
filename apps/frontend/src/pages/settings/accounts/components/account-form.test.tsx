@@ -207,7 +207,7 @@ describe("AccountForm archive", () => {
     fireEvent.click(screen.getByTestId("account-submit-button"));
     await screen.findByText("settings:accounts.archive_title");
 
-    fireEvent.click(screen.getByRole("button", { name: "settings:accounts_cancel_button" }));
+    fireEvent.click(screen.getByRole("button", { name: "common:cancel" }));
     await waitFor(() => expect(archiveSwitch()).not.toBeChecked());
     expect(mutations.update).not.toHaveBeenCalled();
   });

@@ -27,7 +27,7 @@ export function AutoUpdateSettings() {
     },
     onError: (error) => {
       toast({
-        title: t("settings:auto_update_error_title"),
+        title: t("common:error"),
         description: t("settings:auto_update_error_description"),
         variant: "destructive",
       });

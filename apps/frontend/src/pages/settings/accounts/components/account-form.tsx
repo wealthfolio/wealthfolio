@@ -414,7 +414,7 @@ export function AccountForm({ defaultValues, onSuccess = () => undefined }: Acco
                     name="currency"
                     render={({ field }) => (
                       <FormItem className="flex flex-col">
-                        <FormLabel>{t("settings:accounts_form_currency_label")}</FormLabel>
+                        <FormLabel>{t("common:currency")}</FormLabel>
                         <FormControl>
                           <CurrencyInput
                             data-testid="account-currency-select"
@@ -675,7 +675,7 @@ export function AccountForm({ defaultValues, onSuccess = () => undefined }: Acco
           <DialogClose
             render={<Button data-testid="account-cancel-button" type="button" variant="outline" />}
           >
-            {t("settings:accounts_cancel_button")}
+            {t("common:cancel")}
           </DialogClose>
           <Button
             data-testid="account-submit-button"
@@ -771,7 +771,7 @@ export function AccountForm({ defaultValues, onSuccess = () => undefined }: Acco
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>{t("settings:accounts_cancel_button")}</AlertDialogCancel>
+            <AlertDialogCancel>{t("common:cancel")}</AlertDialogCancel>
             <Button onClick={handleConfirmArchive}>
               {t("settings:accounts.operations_archive")}
             </Button>

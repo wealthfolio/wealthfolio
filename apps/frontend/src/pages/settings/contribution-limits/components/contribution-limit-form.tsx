@@ -285,9 +285,7 @@ export function ContributionLimitForm({
               ) : (
                 <>
                   <Icons.Check className="me-2 h-4 w-4" />
-                  {defaultValues?.id
-                    ? t("settings:limits_form_update_button")
-                    : t("settings:limits_form_save_button")}
+                  {defaultValues?.id ? t("settings:limits_form_update_button") : t("common:save")}
                 </>
               )}
             </Button>

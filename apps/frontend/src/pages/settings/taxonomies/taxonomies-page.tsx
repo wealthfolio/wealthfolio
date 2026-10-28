@@ -117,7 +117,7 @@ export default function TaxonomiesPage() {
               )
             }
           >
-            {t("settings:health_banner_clear")}
+            {t("common:clear")}
           </Button>
         </div>
       )}
@@ -187,7 +187,7 @@ export default function TaxonomiesPage() {
               )}
               <Button variant="outline" size="sm" onClick={handleExport}>
                 <Icons.Download className="me-2 h-4 w-4" />
-                {t("settings:tax_export")}
+                {t("common:export")}
               </Button>
             </div>
           </div>

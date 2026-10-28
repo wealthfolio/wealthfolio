@@ -59,7 +59,7 @@ export function ContributionLimitOperations({
             className="text-destructive focus:text-destructive flex cursor-pointer items-center"
             onClick={() => setShowDeleteAlert(true)}
           >
-            {t("settings:limits_operations_delete")}
+            {t("common:delete")}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -85,7 +85,7 @@ export function ContributionLimitOperations({
               ) : (
                 <Icons.Trash className="me-2 h-4 w-4" />
               )}
-              <span>{t("settings:limits_operations_delete")}</span>
+              <span>{t("common:delete")}</span>
             </Button>
           </AlertDialogFooter>
         </AlertDialogContent>

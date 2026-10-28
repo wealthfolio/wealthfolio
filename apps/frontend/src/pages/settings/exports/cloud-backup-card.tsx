@@ -811,7 +811,7 @@ function CloudBackupPanel({ backup }: { backup: ReturnType<typeof useCloudBackup
                   : t("settings:backup_unknown_date");
                 const download = {
                   icon: Icons.Download,
-                  label: t("settings:cloud_backup_download"),
+                  label: t("common:download"),
                   onSelect: () =>
                     void perform(`download:${point.backupId}`, () =>
                       downloadCloudBackup(point.backupId),
@@ -819,7 +819,7 @@ function CloudBackupPanel({ backup }: { backup: ReturnType<typeof useCloudBackup
                 };
                 const remove = {
                   icon: Icons.Trash2,
-                  label: t("settings:cloud_backup_delete"),
+                  label: t("common:delete"),
                   onSelect: () => showDelete(point.backupId),
                   destructive: true,
                 };

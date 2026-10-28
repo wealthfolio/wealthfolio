@@ -131,9 +131,7 @@ const SettingsContributionLimitPage = () => {
                   className="mx-4 shrink-0 rounded-full"
                   onClick={() => setShowPreviousYears(!showPreviousYears)}
                 >
-                  {showPreviousYears
-                    ? t("settings:limits_hide_previous")
-                    : t("settings:limits_show_previous")}{" "}
+                  {showPreviousYears ? t("common:hide") : t("settings:limits_show_previous")}{" "}
                   {t("settings:limits_previous_years")}
                 </Button>
                 <Separator className="flex-1" />

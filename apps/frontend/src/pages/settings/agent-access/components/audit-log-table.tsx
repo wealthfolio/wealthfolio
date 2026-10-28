@@ -61,7 +61,7 @@ export function AuditLogTable({ disabledNotice }: { disabledNotice?: string }) {
     () => [
       { label: t("settings:agentAccess.audit_outcome_success"), value: "success" },
       { label: t("settings:agentAccess.audit_outcome_denied"), value: "denied" },
-      { label: t("settings:agentAccess.audit_outcome_error"), value: "error" },
+      { label: t("common:error"), value: "error" },
     ],
     [t],
   );
@@ -171,7 +171,7 @@ export function AuditLogTable({ disabledNotice }: { disabledNotice?: string }) {
                   setPage(1);
                 }}
               >
-                {t("settings:agentAccess.audit_reset")}
+                {t("common:reset")}
               </Button>
             )}
           </div>

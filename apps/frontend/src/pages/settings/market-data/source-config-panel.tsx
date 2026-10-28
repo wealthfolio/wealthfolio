@@ -153,7 +153,7 @@ function mapChipLabel(
       };
     case "currencyPath":
       return {
-        label: t("settings:market_data_page.field_currency"),
+        label: t("common:currency"),
         color: "bg-amber-500",
         required: false,
       };

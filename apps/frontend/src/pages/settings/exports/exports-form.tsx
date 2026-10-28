@@ -30,7 +30,7 @@ export const ExportForm = () => {
   const csvJsonTypes = [
     {
       key: "accounts",
-      name: t("settings:accounts_title"),
+      name: t("common:accounts"),
       icon: Icons.Holdings,
       description: t("settings:export_type_accounts_description"),
     },
@@ -48,7 +48,7 @@ export const ExportForm = () => {
     },
     {
       key: "goals",
-      name: t("settings:goals_title"),
+      name: t("common:goals"),
       icon: Icons.Goals,
       description: t("settings:export_type_goals_description"),
     },

@@ -85,7 +85,7 @@ export function AccountOperations({
             className="text-destructive focus:text-destructive flex cursor-pointer items-center"
             onClick={() => setShowDeleteAlert(true)}
           >
-            {t("settings:accounts_operations_delete")}
+            {t("common:delete")}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -99,10 +99,10 @@ export function AccountOperations({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>{t("settings:accounts_cancel_button")}</AlertDialogCancel>
+            <AlertDialogCancel>{t("common:cancel")}</AlertDialogCancel>
             <Button onClick={handleDelete} className="bg-destructive focus:ring-destructive">
               <Icons.Trash className="me-2 h-4 w-4" />
-              <span>{t("settings:accounts_operations_delete")}</span>
+              <span>{t("common:delete")}</span>
             </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -121,7 +121,7 @@ export function AccountOperations({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>{t("settings:accounts_cancel_button")}</AlertDialogCancel>
+            <AlertDialogCancel>{t("common:cancel")}</AlertDialogCancel>
             <Button onClick={handleArchive}>{t("settings:accounts.operations_archive")}</Button>
           </AlertDialogFooter>
         </AlertDialogContent>
