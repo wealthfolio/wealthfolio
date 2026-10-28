@@ -18432,6 +18432,47 @@ pub(crate) mod tests {
         assert!(!flagged(&checked[3]), "{:?}", checked[3].errors);
     }
 
+    /// An imported conversion the write check refuses fails the import as a
+    /// validation error does, on its own rows; another conversion in the
+    /// file is not blamed.
+    #[tokio::test]
+    async fn an_import_refused_by_the_conversion_check_reports_its_rows() {
+        let (service, repository) = conversion_fixture();
+        create_conversion(&service).await;
+        let row = |subtype: &str, asset: &str, group: &str| -> ActivityImport {
+            serde_json::from_value(json!({
+                "date": "2026-02-04", "symbol": asset, "assetId": asset, "quoteCcy": "USD",
+                "activityType": "ADJUSTMENT", "subtype": subtype, "quantity": "5",
+                "currency": "USD", "accountId": "acc-1", "sourceGroupId": group,
+                "isDraft": false, "isValid": true
+            }))
+            .unwrap()
+        };
+        // "conv-1" is the stored conversion's group: these two would join it.
+        let result = service
+            .import_activities(vec![
+                row("CONVERSION_OUT", "fund-a", "g-ok"),
+                row("CONVERSION_IN", "fund-c", "g-ok"),
+                row("CONVERSION_OUT", "fund-b", "conv-1"),
+                row("CONVERSION_IN", "fund-c", "conv-1"),
+            ])
+            .await
+            .expect("a refusal is a result, not an error");
+        assert!(!result.summary.success);
+        assert_eq!(result.summary.imported, 0);
+        let refused = |row: &ActivityImport| {
+            row.errors.as_ref().is_some_and(|errors| {
+                errors
+                    .values()
+                    .flatten()
+                    .any(|message| message.contains("written as a pair"))
+            })
+        };
+        let flags: Vec<bool> = result.activities.iter().map(refused).collect();
+        assert_eq!(flags, vec![false, false, true, true]);
+        assert_eq!(repository.get_activities().unwrap().len(), 2);
+    }
+
     /// The same chain imported: no row reads as another's duplicate, and a
     /// second import of the file finds all four already there.
     #[tokio::test]

@@ -2081,6 +2081,65 @@ impl ActivityService {
         Ok(())
     }
 
+    /// The import's conversion check (rules R7.5), one conversion at a time:
+    /// each refused row's offset in `rows`, with why. A conversion row without
+    /// a group is a conversion of its own. Errors other than a refusal pass.
+    fn refused_conversion_imports(&self, rows: &[NewActivity]) -> Result<Vec<(usize, String)>> {
+        let is_refusal =
+            |err: &Error| matches!(err, Error::Activity(ActivityError::InvalidData(_)));
+        match self.check_conversion_writes(rows, &[], &[]) {
+            Ok(()) => return Ok(Vec::new()),
+            Err(err) if !is_refusal(&err) => return Err(err),
+            Err(_) => {}
+        }
+        let timezone = self.configured_timezone();
+        let mut conversions: std::collections::BTreeMap<String, Vec<usize>> =
+            std::collections::BTreeMap::new();
+        for (offset, row) in rows.iter().enumerate() {
+            if !is_conversion_row(&Self::prospective_new_activity(row, offset, timezone)) {
+                continue;
+            }
+            let key = row
+                .source_group_id
+                .as_deref()
+                .map(str::trim)
+                .filter(|group| !group.is_empty())
+                .map(|group| format!("group:{group}"))
+                .unwrap_or_else(|| format!("row:{offset}"));
+            conversions.entry(key).or_default().push(offset);
+        }
+        let mut refused = Vec::new();
+        for offsets in conversions.values() {
+            let conversion: Vec<NewActivity> =
+                offsets.iter().map(|&offset| rows[offset].clone()).collect();
+            match self.check_conversion_writes(&conversion, &[], &[]) {
+                Ok(()) => {}
+                Err(err) if is_refusal(&err) => {
+                    let message = err.to_string();
+                    refused.extend(offsets.iter().map(|&offset| (offset, message.clone())));
+                }
+                Err(err) => return Err(err),
+            }
+        }
+        if refused.is_empty() {
+            // Refused only together: every conversion row carries the refusal.
+            if let Err(err) = self.check_conversion_writes(rows, &[], &[]) {
+                let message = err.to_string();
+                refused.extend(
+                    conversions
+                        .values()
+                        .flatten()
+                        .map(|&offset| (offset, message.clone())),
+                );
+                if refused.is_empty() {
+                    return Err(err);
+                }
+            }
+        }
+        refused.sort_by_key(|(offset, _)| *offset);
+        Ok(refused)
+    }
+
     /// A prepared create as the row it will store, for the conversion check.
     fn prospective_new_activity(create: &NewActivity, index: usize, timezone: Tz) -> Activity {
         let activity_date = Self::prospective_activity_date(&create.activity_date, timezone);
@@ -7308,6 +7367,9 @@ impl ActivityServiceTrait for ActivityService {
             Vec::with_capacity(insertable_positions.len());
         let mut insertable_new_activities: Vec<NewActivity> =
             Vec::with_capacity(insertable_positions.len());
+        // Where each insertable row sits in `import_activities_indexed`.
+        let mut insertable_new_positions: Vec<usize> =
+            Vec::with_capacity(insertable_positions.len());
 
         for position in insertable_positions {
             if let Some(indexed_activity) = import_activities_indexed.get(position).cloned() {
@@ -7315,6 +7377,7 @@ impl ActivityServiceTrait for ActivityService {
             }
             if let Some(new_activity) = new_activities.get(position).cloned() {
                 insertable_new_activities.push(new_activity);
+                insertable_new_positions.push(position);
             }
         }
 
@@ -7325,8 +7388,42 @@ impl ActivityServiceTrait for ActivityService {
         // Link only rows that will be inserted so a duplicate-skipped leg cannot
         // leave its counterpart with an orphan source_group_id.
         self.link_imported_transfer_pairs(&insertable_source_slice, &mut insertable_new_activities);
-        // A conversion's two rows are imported together (rules R7.5).
-        self.check_conversion_writes(&insertable_new_activities, &[], &[])?;
+        // A conversion's two rows are imported together (rules R7.5). A
+        // refusal fails the import as validation errors do, on the rows of
+        // the conversion it concerns.
+        let refused = self.refused_conversion_imports(&insertable_new_activities)?;
+        if !refused.is_empty() {
+            for (offset, message) in &refused {
+                if let Some((_, import_activity)) = insertable_new_positions
+                    .get(*offset)
+                    .and_then(|&position| import_activities_indexed.get_mut(position))
+                {
+                    Self::add_activity_error(import_activity, "general", message);
+                }
+            }
+            let error_message = refused.first().map(|(_, message)| message.clone());
+            let skipped = import_activities_indexed
+                .iter()
+                .filter(|(_, a)| !a.is_valid)
+                .count() as u32;
+            for (idx, activity) in import_activities_indexed {
+                ordered[idx] = Some(activity);
+            }
+            return Ok(ImportActivitiesResult {
+                persisted_rows: Vec::new(),
+                activities: ordered.into_iter().flatten().collect(),
+                import_run_id: String::new(),
+                summary: ImportActivitiesSummary {
+                    total: total as u32,
+                    imported: 0,
+                    skipped,
+                    duplicates: duplicate_count,
+                    assets_created: assets_created_count,
+                    success: false,
+                    error_message,
+                },
+            });
+        }
 
         // ── 6. Ensure FX pairs (one batch call) ──────────────────────────────
         let mut fx_pairs: HashSet<(String, String)> = HashSet::new();
