@@ -172,6 +172,7 @@
     "income": "收入",
     "spending": "支出",
     "saving": "儲蓄",
+    "netSaved": "淨儲蓄",
     "net": "淨額"
   },
   "insights": {
@@ -726,7 +727,6 @@
     "overspentBy": "超支 {{pct}}",
     "noIncome": "此週期內所選帳戶沒有收入。",
     "spent": "已花費",
-    "saved": "已儲蓄",
     "sortSpent": "支出",
     "sortChange": "變化",
     "sortName": "名稱",

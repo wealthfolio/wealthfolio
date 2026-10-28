@@ -177,6 +177,7 @@
     "income": "Entrate",
     "spending": "Spese",
     "saving": "Risparmio",
+    "netSaved": "Risparmio netto",
     "net": "Netto"
   },
   "insights": {
@@ -766,7 +767,6 @@
     "overspentBy": "Speso in eccesso del {{pct}}",
     "noIncome": "Nessuna entrata nei conti selezionati per questo periodo.",
     "spent": "Speso",
-    "saved": "Risparmiato",
     "sortSpent": "speso",
     "sortChange": "variazione",
     "sortName": "nome",

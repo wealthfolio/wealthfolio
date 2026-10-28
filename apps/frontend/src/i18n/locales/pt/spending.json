@@ -177,6 +177,7 @@
     "income": "Receitas",
     "spending": "Gastos",
     "saving": "Poupança",
+    "netSaved": "Poupança líquida",
     "net": "Líquido"
   },
   "insights": {
@@ -766,7 +767,6 @@
     "overspentBy": "Sobregastado em {{pct}}",
     "noIncome": "Não há receitas nas contas selecionadas para este período.",
     "spent": "Gasto",
-    "saved": "Economizado",
     "sortSpent": "gasto",
     "sortChange": "variação",
     "sortName": "nome",

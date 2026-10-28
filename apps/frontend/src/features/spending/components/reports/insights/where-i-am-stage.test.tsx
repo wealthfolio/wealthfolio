@@ -312,18 +312,18 @@ describe("Net cashflow with money brought back from savings", () => {
     return screen.getByText("NET CASHFLOW").parentElement!.parentElement!;
   }
 
-  it("adds back what was drawn from savings, with no Saved bar for a net withdrawal", () => {
+  it("adds back what was drawn from savings, with no Net saved bar for a net withdrawal", () => {
     const card = renderMonth(200, 900);
 
     expect(card).toHaveTextContent(/\+\$200/);
-    expect(within(card).queryByText("Saved")).not.toBeInTheDocument();
+    expect(within(card).queryByText("Net saved")).not.toBeInTheDocument();
   });
 
   it("shows only what stayed in savings as saved", () => {
     const card = renderMonth(900, 200);
 
     expect(card).toHaveTextContent(/−\$1,200/);
-    const saved = within(card).getByText("Saved").parentElement!;
+    const saved = within(card).getByText("Net saved").parentElement!;
     expect(saved).toHaveTextContent(/\$700/);
   });
 });

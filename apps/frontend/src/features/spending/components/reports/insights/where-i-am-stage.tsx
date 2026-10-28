@@ -812,7 +812,7 @@ const NetCashflowCard: FC<NetCashflowCardProps> = ({ months, currency, isLoading
 
       <div className="mt-4 space-y-2">
         <div className="text-2xs flex items-center gap-2">
-          <span className="text-muted-foreground w-12 shrink-0">
+          <span className="text-muted-foreground w-16 shrink-0">
             {t("spending:cashFlow.income")}
           </span>
           <div className="bg-foreground/5 h-1.5 flex-1 overflow-hidden rounded-full">
@@ -831,7 +831,7 @@ const NetCashflowCard: FC<NetCashflowCardProps> = ({ months, currency, isLoading
           </p>
         )}
         <div className="text-2xs flex items-center gap-2">
-          <span className="text-muted-foreground w-12 shrink-0">
+          <span className="text-muted-foreground w-16 shrink-0">
             {t("spending:whereIAm.spent")}
           </span>
           <div className="bg-foreground/5 h-1.5 flex-1 overflow-hidden rounded-full">
@@ -846,8 +846,8 @@ const NetCashflowCard: FC<NetCashflowCardProps> = ({ months, currency, isLoading
         </div>
         {totals.saved > 0 && (
           <div className="text-2xs flex items-center gap-2">
-            <span className="text-muted-foreground w-12 shrink-0">
-              {t("spending:whereIAm.saved")}
+            <span className="text-muted-foreground w-16 shrink-0">
+              {t("spending:cashFlow.netSaved")}
             </span>
             <div className="bg-foreground/5 h-1.5 flex-1 overflow-hidden rounded-full">
               <div

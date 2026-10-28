@@ -72,7 +72,7 @@ export function CashFlowStrip({
       />
       {showSaving && (
         <KpiStat
-          label={t("spending:cashFlow.saving")}
+          label={t("spending:cashFlow.netSaved")}
           value={Math.abs(netSaving)}
           sign={netSaving < 0 ? "−" : undefined}
           currency={currency}

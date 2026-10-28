@@ -177,6 +177,7 @@
     "income": "Revenus",
     "spending": "Dépenses",
     "saving": "Épargne",
+    "netSaved": "Épargne nette",
     "net": "Net"
   },
   "insights": {
@@ -766,7 +767,6 @@
     "overspentBy": "Dépassement de {{pct}}",
     "noIncome": "Aucun revenu dans les comptes sélectionnés pour cette période.",
     "spent": "Dépensé",
-    "saved": "Épargné",
     "sortSpent": "dépensé",
     "sortChange": "évolution",
     "sortName": "nom",

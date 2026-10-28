@@ -171,6 +171,7 @@
     "income": "収入",
     "spending": "支出",
     "saving": "貯蓄",
+    "netSaved": "純貯蓄",
     "net": "収支"
   },
   "insights": {
@@ -719,7 +720,6 @@
     "overspentBy": "{{pct}}の使いすぎ",
     "noIncome": "この期間、選択中の口座に収入はありません。",
     "spent": "支出",
-    "saved": "貯蓄",
     "sortSpent": "支出額",
     "sortChange": "変化",
     "sortName": "名前",

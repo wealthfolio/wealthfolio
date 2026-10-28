@@ -171,6 +171,7 @@
     "income": "收入",
     "spending": "支出",
     "saving": "储蓄",
+    "netSaved": "净储蓄",
     "net": "净额"
   },
   "insights": {
@@ -719,7 +720,6 @@
     "overspentBy": "超支 {{pct}}",
     "noIncome": "此周期内所选账户没有收入。",
     "spent": "已花费",
-    "saved": "已储蓄",
     "sortSpent": "支出",
     "sortChange": "变化",
     "sortName": "名称",

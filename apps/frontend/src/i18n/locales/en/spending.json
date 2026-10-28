@@ -172,6 +172,7 @@
     "income": "Income",
     "spending": "Spending",
     "saving": "Saving",
+    "netSaved": "Net saved",
     "net": "Net"
   },
   "insights": {
@@ -727,7 +728,6 @@
     "overspentBy": "Overspent by {{pct}}",
     "noIncome": "No income in selected accounts for this period.",
     "spent": "Spent",
-    "saved": "Saved",
     "sortSpent": "spent",
     "sortChange": "change",
     "sortName": "name",

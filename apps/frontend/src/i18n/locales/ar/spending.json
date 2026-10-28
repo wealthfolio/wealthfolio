@@ -168,6 +168,7 @@
     "income": "الدخل",
     "net": "الصافي",
     "saving": "الادخار",
+    "netSaved": "صافي المدخر",
     "spending": "الإنفاق"
   },
   "cashForm": {
@@ -1242,7 +1243,6 @@
     "periodClosed_two": "يومان · الفترة مغلقة",
     "periodClosed_zero": "{{count}} أيام · الفترة مغلقة",
     "projectedPrefix": "المتوقع",
-    "saved": "المدخر",
     "sortBy": "ترتيب حسب",
     "sortByLabel": "الترتيب حسب {{label}}",
     "sortChange": "التغير",

@@ -171,6 +171,7 @@
     "income": "수입",
     "spending": "지출",
     "saving": "저축",
+    "netSaved": "순저축",
     "net": "순액"
   },
   "insights": {
@@ -719,7 +720,6 @@
     "overspentBy": "{{pct}} 초과 지출",
     "noIncome": "이 기간에 선택한 계좌에 수입이 없습니다.",
     "spent": "지출",
-    "saved": "저축",
     "sortSpent": "지출액",
     "sortChange": "변동",
     "sortName": "이름",
