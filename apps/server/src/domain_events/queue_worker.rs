@@ -119,6 +119,7 @@ pub async fn event_queue_worker(
     }
 }
 
+/// Processes a batch of domain events.
 async fn process_event_batch(events: &[DomainEvent], deps: Arc<QueueWorkerDeps>) {
     tracing::info!("Processing batch of {} domain event(s)", events.len());
 
