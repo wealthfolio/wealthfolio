@@ -15,9 +15,9 @@ and this project adheres to
   other row fails the import. Other rows ignore `sourceGroupId`.
 
 - `Settings.themeId`: the host's theme (Classic, Signature, Ember, Cupertino,
-  Newspaper, Cyber or Terminal), absent on hosts without themes. Addon pages get
-  the theme's colours through the host's CSS variables and its `data-theme`
-  attribute on `<html>`, and follow it when the user switches.
+  Newspaper, Cyber, Terminal or Poster), absent on hosts without themes. Addon
+  pages get the theme's colours through the host's CSS variables and its
+  `data-theme` attribute on `<html>`, and follow it when the user switches.
 - `Settings.textSize`: the host's text size on this device (`small`, `default`,
   `large` or `extra-large`), absent on hosts without it. It scales the root font
   size, so everything an addon sizes in `rem` grows with the host's text; addon

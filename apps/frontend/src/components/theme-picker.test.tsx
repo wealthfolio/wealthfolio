@@ -106,6 +106,7 @@ describe("ThemePicker", () => {
       newspaper: "font-serif",
       cyber: "font-serif",
       terminal: "font-mono",
+      poster: "font-sans",
     });
   });
 });

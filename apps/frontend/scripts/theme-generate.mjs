@@ -34,6 +34,7 @@ export const themeOrder = [
   "newspaper",
   "cyber",
   "terminal",
+  "poster",
 ];
 
 // Roles every theme sets itself, in both modes, rather than inheriting Classic's.
