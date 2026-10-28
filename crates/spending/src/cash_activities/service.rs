@@ -1321,9 +1321,12 @@ fn cash_flow_bucket_from_classification(classification: SpendingClassification) 
             CashFlowBucket::Spending
         }
         SpendingClassification::Saving => CashFlowBucket::Saving,
-        SpendingClassification::InternalTransfer | SpendingClassification::Ignored => {
-            CashFlowBucket::Neutral
-        }
+        // Money brought back from savings offsets the saving total, but it takes
+        // no category: the report shows it as one "From savings" figure. As a
+        // neutral row it can't be categorized or split.
+        SpendingClassification::FromSavings
+        | SpendingClassification::InternalTransfer
+        | SpendingClassification::Ignored => CashFlowBucket::Neutral,
     }
 }
 
@@ -3110,6 +3113,166 @@ mod tests {
         assert_eq!(page.base_currency.as_deref(), Some("CAD"));
         assert_eq!(page.items[0].net_amount, -60.0);
         assert_eq!(page.items[0].net_amount_base, Some(-120.0));
+    }
+
+    fn dated_leg(
+        id: &str,
+        activity_type: &str,
+        amount: i64,
+        group: Option<&str>,
+        account_id: &str,
+        date: &str,
+    ) -> Activity {
+        Activity {
+            account_id: account_id.to_string(),
+            source_group_id: group.map(str::to_string),
+            activity_date: DateTime::parse_from_rfc3339(date).unwrap().into(),
+            ..cash_row(id, activity_type, amount, "USD")
+        }
+    }
+
+    /// Money moved to an account outside spending and brought back: the
+    /// outbound leg is saving, the inbound leg offsets it, and a transfer
+    /// with both legs inside spending stays neutral — across windows too.
+    #[tokio::test]
+    async fn monthly_report_offsets_saving_with_money_brought_back() {
+        let march = "2024-03-15T12:00:00Z";
+        let rows = vec![
+            dated_leg("salary", "DEPOSIT", 2000, None, "account-1", march),
+            dated_leg("rent", "WITHDRAWAL", 1400, None, "account-1", march),
+            // To savings this month, categorized, and its brokerage leg.
+            dated_leg(
+                "out-now",
+                "TRANSFER_OUT",
+                1000,
+                Some("g-now"),
+                "account-1",
+                march,
+            ),
+            dated_leg(
+                "out-now-b",
+                "TRANSFER_IN",
+                1000,
+                Some("g-now"),
+                "brokerage",
+                march,
+            ),
+            // Brought back this month from money saved last month.
+            dated_leg(
+                "out-prior",
+                "TRANSFER_OUT",
+                700,
+                Some("g-prior"),
+                "account-1",
+                "2024-02-20T12:00:00Z",
+            ),
+            dated_leg(
+                "back",
+                "TRANSFER_IN",
+                400,
+                Some("g-back"),
+                "account-1",
+                march,
+            ),
+            dated_leg(
+                "back-b",
+                "TRANSFER_OUT",
+                400,
+                Some("g-back"),
+                "brokerage",
+                march,
+            ),
+            // Both legs inside spending, split across the window boundary.
+            dated_leg(
+                "fx-out",
+                "TRANSFER_OUT",
+                300,
+                Some("g-internal"),
+                "account-1",
+                "2024-02-29T23:00:00Z",
+            ),
+            dated_leg(
+                "fx-in",
+                "TRANSFER_IN",
+                300,
+                Some("g-internal"),
+                "account-1",
+                "2024-03-01T01:00:00Z",
+            ),
+        ];
+        let (cash, assignments, _) = make_service_with_fx(rows, MockFx::none());
+        assignments
+            .assignments
+            .lock()
+            .unwrap()
+            .push(ActivityTaxonomyAssignment {
+                taxonomy_id: SAVINGS_TAXONOMY.to_string(),
+                ..spending_assignment("out-now", "retirement")
+            });
+        let analytics = crate::analytics::AnalyticsService::new(
+            cash.activity_repo.clone(),
+            cash.account_repo.clone(),
+            assignments,
+            cash.splits.clone(),
+            cash.settings.clone(),
+            cash.taxonomy_service.clone(),
+            cash.events.clone(),
+            cash.fx.clone(),
+            cash.activity_events.clone(),
+        );
+
+        let report = analytics
+            .monthly_report(
+                crate::analytics::ReportRequest {
+                    start_date: "2024-03-01T00:00:00Z".to_string(),
+                    end_date: "2024-03-31T23:59:59Z".to_string(),
+                    account_ids: None,
+                },
+                "UTC",
+                "USD",
+            )
+            .await
+            .unwrap();
+
+        let current = &report.current;
+        assert_eq!(current.income, 2000.0);
+        assert_eq!(current.outflow, 1400.0);
+        assert_eq!(current.saved, 1000.0);
+        assert_eq!(current.from_savings, 400.0);
+        // Equals the change in cash: +2000 − 1400 − 1000 + 400 (+300 moved
+        // within spending, which nets out with its other leg).
+        assert_eq!(current.net, 0.0);
+        assert_eq!(current.count, 4);
+        // The breakdown stays gross: only money moved to savings is in it.
+        let breakdown: f64 = report.savings_breakdown.iter().map(|row| row.amount).sum();
+        assert_eq!(breakdown, current.saved);
+        assert_eq!(report.savings_breakdown[0].category_id, "retirement");
+
+        assert_eq!(report.prior.saved, 700.0);
+        assert_eq!(report.prior.from_savings, 0.0);
+        assert_eq!(report.prior.net, -700.0);
+    }
+
+    #[tokio::test]
+    async fn money_brought_back_from_savings_stays_neutral_and_uncategorizable() {
+        let mut transfer = activity("TRANSFER_IN");
+        transfer.source_group_id = Some("group-1".to_string());
+        let (service, assignment_repo, _) = make_service(transfer);
+
+        let rows = service
+            .get_by_activity_ids(&["activity-1".to_string()])
+            .await
+            .unwrap();
+        assert_eq!(rows[0].cash_flow_bucket, CashFlowBucket::Neutral);
+
+        let err = service
+            .assign_category("activity-1", SAVINGS_TAXONOMY, "retirement")
+            .await
+            .unwrap_err();
+        assert!(err
+            .to_string()
+            .contains("Neutral transfers cannot be categorized"));
+        assert!(assignment_repo.assignments.lock().unwrap().is_empty());
     }
 
     #[tokio::test]

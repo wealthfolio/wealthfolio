@@ -26,7 +26,12 @@ pub struct PeriodSummary {
     /// investing accounts). Its own bucket, parallel to `income`.
     #[serde(default)]
     pub saved: f64,
-    /// income - outflow - saved
+    /// Money brought back from savings (cross-boundary linked transfer-ins
+    /// from investing accounts). Gross, like `saved`: net saving is
+    /// `saved - from_savings`.
+    #[serde(default)]
+    pub from_savings: f64,
+    /// income - outflow - saved + from_savings
     pub net: f64,
     /// Count of activities included
     pub count: usize,

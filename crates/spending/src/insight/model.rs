@@ -105,9 +105,13 @@ pub struct Headline {
     pub income: f64,
     /// Money classified as Saving (transfers from cash accounts into investing
     /// accounts). Its own bucket, parallel to `income` — excluded from `spent`.
-    /// `net_cashflow = income - spent - saved`.
+    /// `net_cashflow = income - spent - saved + from_savings`.
     #[serde(default)]
     pub saved: f64,
+    /// Money brought back from investing accounts into cash or card accounts.
+    /// Gross, like `saved`: net saving is `saved - from_savings`.
+    #[serde(default)]
+    pub from_savings: f64,
     pub net_cashflow: f64,
     /// Total budget for the window: Σ groups[i].budget.total + Σ groups[i].buffer.total.
     pub budget: f64,
@@ -206,6 +210,8 @@ pub struct MonthBucket {
     pub income: f64,
     #[serde(default)]
     pub saved: f64,
+    #[serde(default)]
+    pub from_savings: f64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
