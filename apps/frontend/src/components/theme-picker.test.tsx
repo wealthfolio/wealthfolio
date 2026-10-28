@@ -8,18 +8,6 @@ import previewTokens from "@/components/theme-preview-tokens.json";
 import { fontLabelKeys, themeSelectionUpdate, type FontRole } from "@/themes/selection";
 import { themes } from "@/themes/themes";
 
-// None of this batch's themes is designed for dark; Ember carries the flag here so
-// the picker's moon and its description stay tested.
-vi.mock("@/themes/themes", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/themes/themes")>();
-  return {
-    ...actual,
-    themes: actual.themes.map((theme) =>
-      theme.id === "ember" ? { ...theme, mode: "dark" as const } : theme,
-    ),
-  };
-});
-
 const source = (path: string) => readFileSync(new URL(path, import.meta.url), "utf8");
 
 /**
@@ -85,10 +73,10 @@ describe("ThemePicker", () => {
   it("reports the picked theme and describes the mode a theme is designed for", () => {
     const onChange = vi.fn();
     render(<ThemePicker value="classic" onChange={onChange} />);
-    const ember = screen.getByRole("radio", { name: /Ember/ });
-    expect(ember).toHaveAccessibleDescription("Ember is designed for dark mode.");
-    fireEvent.click(ember);
-    expect(onChange).toHaveBeenCalledWith("ember");
+    const terminal = screen.getByRole("radio", { name: /Terminal/ });
+    expect(terminal).toHaveAccessibleDescription("Terminal is designed for dark mode.");
+    fireEvent.click(terminal);
+    expect(onChange).toHaveBeenCalledWith("terminal");
   });
 
   it("draws each miniature in its own theme", () => {
@@ -115,6 +103,9 @@ describe("ThemePicker", () => {
       ember: "font-serif",
       signature: "font-sans",
       cupertino: "font-sans",
+      newspaper: "font-serif",
+      cyber: "font-serif",
+      terminal: "font-mono",
     });
   });
 });
