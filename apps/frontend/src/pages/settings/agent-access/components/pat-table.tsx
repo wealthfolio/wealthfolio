@@ -146,7 +146,7 @@ export function PatTable({ serverUrl }: { serverUrl?: string } = {}) {
             {t("settings:agentAccess.pat_empty")}
           </p>
         ) : (
-          <ul className="divide-y" aria-label={t("settings:agentAccess.pat_title")}>
+          <ul className="settings-list divide-y" aria-label={t("settings:agentAccess.pat_title")}>
             {tokens.map((token) => {
               const status = tokenStatus(token);
               const inactive = status !== "active";
@@ -155,15 +155,26 @@ export function PatTable({ serverUrl }: { serverUrl?: string } = {}) {
                   key={token.id}
                   className={cn(
                     "grid grid-cols-[auto_minmax(0,1fr)] items-center gap-3 py-3 first:pt-0 last:pb-0 sm:grid-cols-[auto_minmax(0,1fr)_auto]",
-                    inactive && "opacity-70",
                   )}
                 >
-                  <div className="bg-muted text-muted-foreground flex size-9 shrink-0 items-center justify-center rounded-lg">
+                  <div
+                    className={cn(
+                      "bg-muted text-muted-foreground flex size-9 shrink-0 items-center justify-center rounded-lg",
+                      inactive && "opacity-60",
+                    )}
+                  >
                     <Icons.ShieldCheck className="size-5" weight="duotone" />
                   </div>
                   <div className="min-w-0 space-y-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="truncate text-sm font-medium">{token.name}</span>
+                      <span
+                        className={cn(
+                          "truncate text-sm font-medium",
+                          inactive && "text-muted-foreground",
+                        )}
+                      >
+                        {token.name}
+                      </span>
                       <Badge variant="secondary" className="font-normal">
                         {t(STATUS_LABEL_KEY[status])}
                       </Badge>

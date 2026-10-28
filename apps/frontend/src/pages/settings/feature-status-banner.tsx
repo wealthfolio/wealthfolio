@@ -51,7 +51,7 @@ export function FeatureStatusBanner({
   return (
     <section
       aria-label={label}
-      className="bg-foreground text-background relative overflow-hidden rounded-lg shadow-lg"
+      className="feature-status-banner bg-foreground text-background relative overflow-hidden rounded-lg shadow-lg"
     >
       <div className="p-5 sm:px-7 sm:py-6">
         {/* Status and switch share the top row, so the headline gets the full width on phones. */}

@@ -63,7 +63,7 @@ test.describe("Cost basis methods in the account form", () => {
     await gotoAppPath(page, "/settings/accounts");
     const accountsPage = page.getByTestId("settings-accounts-page").filter({ visible: true });
     const row = accountsPage
-      .locator("div.justify-between")
+      .getByRole("listitem")
       .filter({ has: page.getByRole("link", { name: account.name, exact: true }) })
       .last();
     await row.getByRole("button", { name: "Open" }).click();

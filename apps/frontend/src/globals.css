@@ -889,6 +889,16 @@ body.qr-scan-active > .qr-overlay {
     overflow-x: visible;
   }
 
+  /* Settings lists and the feature banner put a switch or button at the very edge of
+     an unpadded row, so clipping that row would cut off the control's focus ring and
+     its enlarged touch area. Their rows wrap their text instead of overflowing. */
+  .settings-list .flex,
+  .settings-list .grid,
+  .feature-status-banner .flex,
+  .feature-status-banner .grid {
+    overflow-x: visible;
+  }
+
   .aui-thread-viewport {
     overflow-x: auto;
   }

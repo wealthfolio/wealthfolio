@@ -1,4 +1,5 @@
 import { Avatar, AvatarFallback, AvatarImage } from "@wealthfolio/ui/components/ui/avatar";
+import { Badge } from "@wealthfolio/ui/components/ui/badge";
 import { Icons, type Icon } from "@wealthfolio/ui/components/ui/icons";
 import { Skeleton } from "@wealthfolio/ui/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@wealthfolio/ui";
@@ -6,30 +7,15 @@ import { maskAccountNumber } from "@/lib/account-number";
 import type { Account, AccountType, Platform } from "@/lib/types";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import { SettingsListMedia, SettingsListRow } from "@/components/settings-list";
 import { AccountOperations } from "./account-operations";
 
-// Map account types to icons and colors for visual distinction
-const accountTypeConfig: Record<AccountType, { icon: Icon; bgClass: string; iconClass: string }> = {
-  SECURITIES: {
-    icon: Icons.Briefcase,
-    bgClass: "bg-blue-500/10",
-    iconClass: "text-blue-500",
-  },
-  CASH: {
-    icon: Icons.DollarSign,
-    bgClass: "bg-green-500/10",
-    iconClass: "text-green-500",
-  },
-  CREDIT_CARD: {
-    icon: Icons.CreditCard,
-    bgClass: "bg-rose-500/10",
-    iconClass: "text-rose-500",
-  },
-  CRYPTOCURRENCY: {
-    icon: Icons.Bitcoin,
-    bgClass: "bg-orange-500/10",
-    iconClass: "text-orange-500",
-  },
+// Each account type's icon, shown when the account has no platform logo.
+const accountTypeIcon: Record<AccountType, Icon> = {
+  SECURITIES: Icons.Briefcase,
+  CASH: Icons.DollarSign,
+  CREDIT_CARD: Icons.CreditCard,
+  CRYPTOCURRENCY: Icons.Bitcoin,
 };
 
 export interface AccountItemProps {
@@ -52,110 +38,110 @@ export function AccountItem({
   const { t } = useTranslation();
   // Check if account is synced from broker (has provider_account_id set)
   const isSynced = !!account.providerAccountId;
-  const typeConfig = accountTypeConfig[account.accountType] ?? {
-    icon: Icons.Wallet,
-    bgClass: "bg-muted",
-    iconClass: "text-muted-foreground",
-  };
-  const IconComponent = typeConfig.icon;
+  const IconComponent = accountTypeIcon[account.accountType] ?? Icons.Wallet;
   const maskedNumber = maskAccountNumber(account.accountNumber);
 
   return (
-    <div className="flex items-center justify-between p-4">
-      <div className="flex min-w-0 items-center gap-3">
-        {/* Avatar with platform logo or account type icon */}
-        <Avatar className="h-10 w-10 shrink-0 rounded-lg">
-          {isSynced && platform?.logoUrl ? (
+    <SettingsListRow
+      inactive={!account.isActive}
+      media={
+        isSynced && platform?.logoUrl ? (
+          // The avatar falls back to the type icon when the logo fails to load.
+          <Avatar className="size-9 shrink-0 rounded-lg">
             <AvatarImage
               src={platform.logoUrl}
               alt={platform.name || t("settings:accounts.platform_alt")}
               className="bg-white object-contain p-1"
             />
-          ) : null}
-          <AvatarFallback className={`rounded-lg ${typeConfig.bgClass}`}>
-            <IconComponent className={`h-5 w-5 ${typeConfig.iconClass}`} />
-          </AvatarFallback>
-        </Avatar>
-
-        <div className="grid min-w-0 gap-1">
-          <div className="flex items-center gap-2">
-            <Link
-              to={`/accounts/${account.id}`}
-              className={`font-semibold hover:underline ${
-                !account.isActive ? "text-muted-foreground" : ""
-              }`}
-            >
-              {account.name}
-            </Link>
-            {isSynced && <Icons.CloudSync2 className="text-muted-foreground h-3.5 w-3.5" />}
-          </div>
-          <div className="text-muted-foreground flex flex-wrap items-center gap-x-1.5 text-sm">
-            <span>{account.currency}</span>
-            {account.group && (
-              <>
-                <span>·</span>
-                <span>{account.group}</span>
-              </>
-            )}
-            {maskedNumber && (
-              <>
-                <span>·</span>
-                <span dir="ltr" data-testid="account-item-number">
-                  {maskedNumber}
-                </span>
-              </>
-            )}
-            <span>·</span>
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger
-                  delay={300}
-                  render={
-                    account.trackingMode === "HOLDINGS" ? (
-                      <span className="text-success flex cursor-help items-center gap-1">
-                        <Icons.Holdings className="h-3 w-3" />
-                        {t("settings:accounts.tracking_holdings")}
-                      </span>
-                    ) : account.trackingMode === "NOT_SET" ? (
-                      <span className="text-warning flex cursor-help items-center gap-1">
-                        <Icons.AlertTriangle className="h-3 w-3" />
-                        {t("settings:accounts.tracking_needs_setup")}
-                      </span>
-                    ) : (
-                      <span className="flex cursor-help items-center gap-1">
-                        <Icons.Receipt className="h-3 w-3" />
-                        {t("settings:accounts.tracking_transactions")}
-                      </span>
-                    )
-                  }
-                />
-                <TooltipContent side="bottom">
-                  <p className="text-xs">
-                    {account.trackingMode === "HOLDINGS"
-                      ? t("settings:accounts.tracking_tooltip_holdings")
-                      : account.trackingMode === "NOT_SET"
-                        ? t("settings:accounts.tracking_tooltip_needs_setup")
-                        : t("settings:accounts.tracking_tooltip_transactions")}
-                  </p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          </div>
-        </div>
-      </div>
-      <div className="flex shrink-0 items-center gap-2">
-        {account.isArchived && (
-          <span className="border-destructive-subtle-border bg-destructive-subtle text-destructive-subtle-foreground inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs font-medium">
-            <Icons.FileArchive className="h-3 w-3" />
-            {t("settings:accounts.badge_archived")}
-          </span>
-        )}
-        {!account.isActive && !account.isArchived && (
-          <span className="border-warning-subtle-border bg-warning-subtle text-warning-subtle-foreground inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs font-medium">
-            <Icons.EyeOff className="h-3 w-3" />
-            {t("settings:accounts.badge_hidden")}
-          </span>
-        )}
+            <AvatarFallback className="bg-muted text-muted-foreground rounded-lg">
+              <IconComponent className="size-5" />
+            </AvatarFallback>
+          </Avatar>
+        ) : (
+          <SettingsListMedia>
+            <IconComponent />
+          </SettingsListMedia>
+        )
+      }
+      title={
+        <span className="inline-flex items-center gap-1.5">
+          <Link to={`/accounts/${account.id}`} className="hover:underline">
+            {account.name}
+          </Link>
+          {isSynced && <Icons.CloudSync2 className="text-muted-foreground h-3.5 w-3.5" />}
+        </span>
+      }
+      badges={
+        <>
+          {account.isArchived && (
+            <Badge variant="destructive-subtle">
+              <Icons.FileArchive className="me-1 h-3 w-3" />
+              {t("settings:accounts.badge_archived")}
+            </Badge>
+          )}
+          {!account.isActive && !account.isArchived && (
+            <Badge variant="warning-subtle">
+              <Icons.EyeOff className="me-1 h-3 w-3" />
+              {t("settings:accounts.badge_hidden")}
+            </Badge>
+          )}
+        </>
+      }
+      meta={
+        <span className="flex flex-wrap items-center gap-x-1.5">
+          <span>{account.currency}</span>
+          {account.group && (
+            <>
+              <span>·</span>
+              <span>{account.group}</span>
+            </>
+          )}
+          {maskedNumber && (
+            <>
+              <span>·</span>
+              <span dir="ltr" data-testid="account-item-number">
+                {maskedNumber}
+              </span>
+            </>
+          )}
+          <span>·</span>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger
+                delay={300}
+                render={
+                  account.trackingMode === "HOLDINGS" ? (
+                    <span className="text-success flex cursor-help items-center gap-1">
+                      <Icons.Holdings className="h-3 w-3" />
+                      {t("settings:accounts.tracking_holdings")}
+                    </span>
+                  ) : account.trackingMode === "NOT_SET" ? (
+                    <span className="text-warning flex cursor-help items-center gap-1">
+                      <Icons.AlertTriangle className="h-3 w-3" />
+                      {t("settings:accounts.tracking_needs_setup")}
+                    </span>
+                  ) : (
+                    <span className="flex cursor-help items-center gap-1">
+                      <Icons.Receipt className="h-3 w-3" />
+                      {t("settings:accounts.tracking_transactions")}
+                    </span>
+                  )
+                }
+              />
+              <TooltipContent side="bottom">
+                <p className="text-xs">
+                  {account.trackingMode === "HOLDINGS"
+                    ? t("settings:accounts.tracking_tooltip_holdings")
+                    : account.trackingMode === "NOT_SET"
+                      ? t("settings:accounts.tracking_tooltip_needs_setup")
+                      : t("settings:accounts.tracking_tooltip_transactions")}
+                </p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </span>
+      }
+      actions={
         <AccountOperations
           account={account}
           onEdit={onEdit}
@@ -163,14 +149,14 @@ export function AccountItem({
           onArchive={onArchive}
           onHide={onHide}
         />
-      </div>
-    </div>
+      }
+    />
   );
 }
 
 AccountItem.Skeleton = function AccountItemSkeleton() {
   return (
-    <div className="p-4">
+    <div>
       <div className="space-y-3">
         <Skeleton className="h-5 w-2/5" />
         <Skeleton className="h-4 w-4/5" />

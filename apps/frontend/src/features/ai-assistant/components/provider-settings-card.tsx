@@ -11,6 +11,7 @@ import {
   Spinner,
 } from "@wealthfolio/ui";
 import { Badge } from "@wealthfolio/ui/components/ui/badge";
+import { SettingsListMedia, SettingsListRow } from "@/components/settings-list";
 import { Button } from "@wealthfolio/ui/components/ui/button";
 import { Checkbox } from "@wealthfolio/ui/components/ui/checkbox";
 import {
@@ -67,7 +68,6 @@ interface ProviderSettingsCardProps {
    * or a partial object to set/update individual fields.
    */
   onTuningOverridesChange?: (overrides: ProviderTuningOverrides | null) => void;
-  isLast?: boolean;
   // Model fetching props (controlled by parent via React Query)
   modelComboboxOpen?: boolean;
   onModelComboboxOpenChange?: (open: boolean) => void;
@@ -158,7 +158,6 @@ export function ProviderSettingsCard({
   onSetCapabilityOverride,
   onToolsAllowlistChange,
   onTuningOverridesChange,
-  isLast = false,
   // Model fetching props
   modelComboboxOpen: controlledComboboxOpen,
   onModelComboboxOpenChange,
@@ -364,22 +363,18 @@ export function ProviderSettingsCard({
 
   return (
     <Collapsible open={isOpen} onOpenChange={setIsOpen}>
-      <div className={cn("hover:bg-accent/30 transition-colors", !isLast && "border-b")}>
-        {/* Main row */}
-        <div className="flex items-center gap-4 px-4 py-3">
-          {/* Icon */}
-          <div className="bg-muted flex h-9 w-9 shrink-0 items-center justify-center rounded-lg">
-            <ProviderIcon name={provider.icon} size={20} className="text-muted-foreground" />
-          </div>
-
-          {/* Name and description */}
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="font-medium">{provider.name}</span>
+      <div>
+        <SettingsListRow
+          media={
+            <SettingsListMedia>
+              <ProviderIcon name={provider.icon} size={20} />
+            </SettingsListMedia>
+          }
+          title={provider.name}
+          badges={
+            <>
               {provider.isDefault && (
-                <Badge variant="secondary" className="text-2xs h-5 px-1.5 font-normal">
-                  {t("ai:providerSettings.default")}
-                </Badge>
+                <Badge variant="secondary">{t("ai:providerSettings.default")}</Badge>
               )}
               {provider.enabled && !provider.hasApiKey && provider.type === "api" && (
                 <Badge variant="warning-subtle" className="shrink-0">
@@ -387,37 +382,36 @@ export function ProviderSettingsCard({
                   {t("ai:providerSettings.apiKeyRequired")}
                 </Badge>
               )}
-            </div>
-            <p className="text-muted-foreground mt-0.5 text-xs">{provider.description}</p>
-          </div>
-
-          {/* Controls */}
-          <div className="flex shrink-0 items-center gap-2">
-            <CollapsibleTrigger
-              render={
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="text-muted-foreground hover:text-foreground h-8 w-8"
-                  aria-label={t("common:settings_for", { name: provider.name })}
-                />
-              }
-            >
-              <Icons.Settings className="h-4 w-4" />
-            </CollapsibleTrigger>
-            <Switch
-              id={`${provider.id}-enabled`}
-              aria-label={provider.name}
-              checked={provider.enabled}
-              onCheckedChange={onToggleEnabled}
-              className="data-checked:bg-success"
-            />
-          </div>
-        </div>
+            </>
+          }
+          meta={provider.description}
+          actions={
+            <>
+              <CollapsibleTrigger
+                render={
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="text-muted-foreground hover:text-foreground h-8 w-8"
+                    aria-label={t("common:settings_for", { name: provider.name })}
+                  />
+                }
+              >
+                <Icons.Settings className="h-4 w-4" />
+              </CollapsibleTrigger>
+              <Switch
+                id={`${provider.id}-enabled`}
+                aria-label={provider.name}
+                checked={provider.enabled}
+                onCheckedChange={onToggleEnabled}
+              />
+            </>
+          }
+        />
 
         {/* Expandable settings */}
         <CollapsibleContent>
-          <div className="border-t px-4 py-5">
+          <div className="mt-3 border-t pt-5">
             <div className="space-y-5">
               {/* API Key Section (only for API providers) */}
               {provider.type === "api" && (

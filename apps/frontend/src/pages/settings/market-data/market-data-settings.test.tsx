@@ -122,9 +122,7 @@ async function openProviderSettings(): Promise<HTMLInputElement> {
   const user = userEvent.setup();
   renderPage();
 
-  const providerRow = screen
-    .getByText("Alpha Vantage")
-    .closest<HTMLElement>(".flex.items-center.gap-4.px-4.py-3");
+  const providerRow = screen.getByText("Alpha Vantage").closest<HTMLElement>("li");
   if (!providerRow) {
     throw new Error("Provider row not found");
   }
@@ -227,8 +225,7 @@ describe("MarketDataSettingsPage", () => {
     const user = userEvent.setup();
     renderPage();
     await user.click(screen.getByRole("tab", { name: /custom providers/i }));
-    const row = (name: string) =>
-      screen.getByText(name).closest<HTMLElement>(".flex.items-center.gap-4.px-4.py-3")!;
+    const row = (name: string) => screen.getByText(name).closest<HTMLElement>("li")!;
     return { user, row };
   }
 
