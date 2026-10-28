@@ -26,6 +26,7 @@ import {
 import type { TFunction } from "i18next";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { cardSurfaceClassName } from "@wealthfolio/ui/components/ui/card";
 
 const ALLOCATION_COLORS = [
   "var(--color-chart-1)",
@@ -551,7 +552,7 @@ function AccountLotGroup({
 
       {expanded && (
         <div className="px-2 pb-2 md:px-3 md:pb-3">
-          <div className="bg-card overflow-hidden rounded-lg border">
+          <div className={cn(cardSurfaceClassName, "overflow-hidden")}>
             <div className="hidden overflow-x-auto md:block">
               <Table className="table-fixed">
                 <colgroup>

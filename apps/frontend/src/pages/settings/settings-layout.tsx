@@ -6,6 +6,8 @@ import { useTranslation } from "react-i18next";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useIsCompactTableViewport, usePlatform } from "@/hooks/use-platform";
 import { SidebarNav } from "./sidebar-nav";
+import { cardSurfaceClassName } from "@wealthfolio/ui/components/ui/card";
+import { cn } from "@/lib/utils";
 
 export default function SettingsLayout() {
   const { t } = useTranslation();
@@ -171,7 +173,7 @@ export default function SettingsLayout() {
                 <div className="text-muted-foreground px-2 text-xs font-semibold tracking-widest uppercase">
                   {section.title}
                 </div>
-                <div className="divide-border bg-card divide-y overflow-hidden rounded-2xl border shadow-sm">
+                <div className={cn(cardSurfaceClassName, "divide-border divide-y overflow-hidden")}>
                   {section.items.map((item) => (
                     <button
                       key={item.href}

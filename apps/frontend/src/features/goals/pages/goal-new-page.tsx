@@ -36,6 +36,8 @@ import {
   inferBirthYearMonthFromAge,
   normalizeRetirementPlan,
 } from "@/features/goals/retirement-planner/lib/plan-adapter";
+import { cardSurfaceClassName } from "@wealthfolio/ui/components/ui/card";
+import { cn } from "@/lib/utils";
 
 const DEFAULT_RETIREMENT_CURRENT_AGE = 30;
 const DEFAULT_TRADITIONAL_RETIREMENT_AGE = 65;
@@ -247,11 +249,13 @@ export default function GoalNewPage() {
               return (
                 <div
                   key={tmpl.type}
-                  className={`border-border/60 bg-card group overflow-hidden rounded-xl border shadow-xs transition-all ${
+                  className={cn(
+                    cardSurfaceClassName,
+                    "group overflow-hidden transition-all",
                     disabled
                       ? "cursor-not-allowed opacity-50"
-                      : "hover:border-border cursor-pointer hover:shadow-md"
-                  }`}
+                      : "hover:border-border cursor-pointer hover:shadow-md",
+                  )}
                   onClick={() => handleSelectType(tmpl.type)}
                 >
                   <div className="relative h-36 overflow-hidden sm:h-40">

@@ -2,6 +2,7 @@ import type React from "react";
 
 import { PrivacyAmount } from "../financial/privacy-amount";
 import { cn } from "../../lib/utils";
+import { cardSurfaceClassName } from "./card";
 
 interface BudgetProgressRingProps {
   value: number;
@@ -122,7 +123,7 @@ export const BudgetGaugeCard: React.FC<BudgetGaugeCardProps> = ({
 
   return (
     <div
-      className={cn("bg-card hover:bg-muted/50 rounded-lg border p-4 transition-colors", onClick && "cursor-pointer")}
+      className={cn(cardSurfaceClassName, "hover:bg-muted/50 p-4 transition-colors", onClick && "cursor-pointer")}
       onClick={onClick}
     >
       <div className="mb-3 flex items-center gap-2">

@@ -51,6 +51,7 @@ import { TargetWeightEditor, type WeightDraft } from "./target-weight-editor";
 import { DriftBandSlider } from "./drift-band-slider";
 import { useTargetConstraints } from "../hooks/use-target-constraints";
 import { accountScopeFromTarget, accountScopeKey } from "./target-scope";
+import { cardSurfaceClassName } from "@wealthfolio/ui/components/ui/card";
 
 type EditorMode =
   | { kind: "guided" }
@@ -305,7 +306,7 @@ function SellProtectionSection({
   const protectedAccounts = accounts.filter((a) => protectedAccountIds.has(a.id));
 
   return (
-    <section className="bg-card/80 rounded-lg border p-5 shadow-sm">
+    <section className={cn(cardSurfaceClassName, "p-5")}>
       <div className="mb-1">
         <h3 className="text-foreground text-sm font-semibold">
           {t("allocation:sellProtection.title")}
@@ -919,7 +920,7 @@ function TargetEditor({
 
       <div className="grid gap-4 lg:grid-cols-[20rem_minmax(0,1fr)]">
         <div className="space-y-4">
-          <section className="bg-card/80 rounded-lg border p-5 shadow-sm">
+          <section className={cn(cardSurfaceClassName, "p-5")}>
             <StepHeader number={1} className="mb-3">
               {t("allocation:editor.step1")}
             </StepHeader>
@@ -973,7 +974,7 @@ function TargetEditor({
             )}
           </section>
 
-          <section className="bg-card/80 rounded-lg border p-5 shadow-sm">
+          <section className={cn(cardSurfaceClassName, "p-5")}>
             <StepHeader number={2} className="mb-3">
               {t("allocation:editor.step2")}
             </StepHeader>
@@ -1012,7 +1013,7 @@ function TargetEditor({
             </div>
           </section>
 
-          <section className="bg-card/80 rounded-lg border p-5 shadow-sm">
+          <section className={cn(cardSurfaceClassName, "p-5")}>
             <StepHeader number={3} className="mb-3">
               {t("allocation:editor.step3")}
             </StepHeader>
@@ -1035,7 +1036,7 @@ function TargetEditor({
             />
           </section>
 
-          <section className="bg-card/80 rounded-lg border p-5 shadow-sm">
+          <section className={cn(cardSurfaceClassName, "p-5")}>
             <div className="text-muted-foreground text-2xs mb-4 font-medium tracking-wider uppercase">
               {t("allocation:editor.rebalanceSettings")}
             </div>
@@ -1141,7 +1142,7 @@ function TargetEditor({
         </div>
 
         <div className="space-y-4">
-          <section className="bg-card/80 rounded-lg border p-5 shadow-sm">
+          <section className={cn(cardSurfaceClassName, "p-5")}>
             <div className="mb-3">
               <StepHeader number={4}>{t("allocation:editor.step4")}</StepHeader>
             </div>
@@ -1161,7 +1162,7 @@ function TargetEditor({
             />
           </section>
 
-          <section className="bg-card/80 rounded-lg border p-5 shadow-sm">
+          <section className={cn(cardSurfaceClassName, "p-5")}>
             <div className="mb-7">
               <h3 className="text-foreground text-base font-semibold">
                 {t("allocation:editor.targetWeightsTitle", { start: selectedStartName })}

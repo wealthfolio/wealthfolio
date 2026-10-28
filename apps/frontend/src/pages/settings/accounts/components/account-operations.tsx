@@ -58,7 +58,7 @@ export function AccountOperations({
   return (
     <>
       <DropdownMenu>
-        <DropdownMenuTrigger className="hover:bg-muted flex h-8 w-8 items-center justify-center rounded-md border transition-colors">
+        <DropdownMenuTrigger render={<Button variant="outline" size="icon-xs" />}>
           <Icons.MoreVertical className="h-4 w-4" />
           <span className="sr-only">{t("settings:accounts_operations_open")}</span>
         </DropdownMenuTrigger>

@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 import { activationCoordinator } from "@/addons/activation-coordinator";
 import { addonIframeManager, type AddonRouteRenderStatus } from "./addon-iframe-manager";
 import { useTranslation } from "react-i18next";
+import { cardSurfaceClassName } from "@wealthfolio/ui/components/ui/card";
 
 interface AddonIframeRouteProps {
   addonId: string;
@@ -177,7 +178,7 @@ function AddonRouteError({
   const { t } = useTranslation();
   return (
     <div className="bg-background/95 text-foreground absolute inset-0 px-6 py-5">
-      <div className="border-border bg-card max-w-xl rounded-md border p-4 shadow-sm">
+      <div className={cn(cardSurfaceClassName, "max-w-xl p-4")}>
         <h2 className="text-lg font-semibold">{t("common:addon_load_failed")}</h2>
         <p className="text-muted-foreground mt-1 text-xs">{addonId}</p>
         <p className="text-muted-foreground mt-2 text-sm whitespace-pre-line">{error}</p>

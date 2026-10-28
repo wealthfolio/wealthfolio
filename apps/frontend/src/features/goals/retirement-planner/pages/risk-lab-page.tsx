@@ -53,6 +53,7 @@ import type {
 } from "../types";
 
 import { SimulationPercentage } from "../components/simulation-percentage";
+import { cardSurfaceClassName } from "@wealthfolio/ui/components/ui/card";
 
 type PlannerMode = "fire" | "traditional";
 
@@ -667,10 +668,7 @@ function StressTestsSection({
       {!loading && sorted.length > 0 && (
         <div className="grid gap-3 lg:grid-cols-2">
           {sorted.map((stress) => (
-            <div
-              key={stress.id}
-              className="bg-card relative overflow-hidden rounded-xl border shadow-sm"
-            >
+            <div key={stress.id} className={cn(cardSurfaceClassName, "relative overflow-hidden")}>
               <div className="p-5">
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0">
@@ -1807,7 +1805,7 @@ function AdvancedSection({
   const survivingPaths = sorrResult?.filter((scenario) => scenario.survived).length ?? 0;
 
   return (
-    <details className="bg-card group overflow-hidden rounded-xl border">
+    <details className={cn(cardSurfaceClassName, "group overflow-hidden")}>
       <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4">
         <div className="flex min-w-0 items-start gap-3">
           <Icons.ChevronDown className="text-muted-foreground mt-3 size-3.5 transition-transform group-open:rotate-180" />

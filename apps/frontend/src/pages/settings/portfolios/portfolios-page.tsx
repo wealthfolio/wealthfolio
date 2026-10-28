@@ -46,6 +46,8 @@ import {
 } from "@wealthfolio/ui";
 import { SettingsHeader } from "../settings-header";
 import { Alert, AlertDescription, AlertTitle } from "@wealthfolio/ui/components/ui/alert";
+import { cardSurfaceClassName } from "@wealthfolio/ui/components/ui/card";
+import { cn } from "@/lib/utils";
 
 export default function PortfoliosPage() {
   const { t } = useTranslation();
@@ -145,7 +147,7 @@ export default function PortfoliosPage() {
             </EmptyContent>
           </Empty>
         ) : (
-          <div className="divide-border bg-card divide-y rounded-md border">
+          <div className={cn(cardSurfaceClassName, "divide-border divide-y")}>
             {portfolios.map((p) => {
               const missingAccountCount = p.accountIds.filter(
                 (id) => !existingAccountIds.has(id),
@@ -199,7 +201,7 @@ export default function PortfoliosPage() {
 
                   <div className="flex items-center space-x-2">
                     <DropdownMenu>
-                      <DropdownMenuTrigger className="hover:bg-muted flex h-8 w-8 items-center justify-center rounded-md border transition-colors">
+                      <DropdownMenuTrigger render={<Button variant="outline" size="icon-xs" />}>
                         <Icons.MoreVertical className="h-4 w-4" />
                         <span className="sr-only">{t("settings:portfolios.operations_open")}</span>
                       </DropdownMenuTrigger>

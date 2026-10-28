@@ -1,6 +1,8 @@
 import { Card, CardContent, CardHeader, Skeleton, Spinner } from "@wealthfolio/ui";
 
 import { useTranslation } from "react-i18next";
+import { cardSurfaceClassName } from "@wealthfolio/ui/components/ui/card";
+import { cn } from "@/lib/utils";
 
 export function RiskLabSkeleton() {
   return (
@@ -134,7 +136,7 @@ function SimMetricSkeleton() {
 
 export function StressCardSkeleton() {
   return (
-    <div className="bg-card relative overflow-hidden rounded-xl border shadow-sm">
+    <div className={cn(cardSurfaceClassName, "relative overflow-hidden")}>
       <div className="bg-muted/60 absolute inset-y-5 start-0 w-0.5 rounded-e-full" />
       <div className="space-y-5 p-5">
         <div className="flex items-start justify-between gap-4">

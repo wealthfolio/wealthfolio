@@ -9,6 +9,8 @@ import {
   useRulePresets,
 } from "@/features/spending/hooks/use-categorization-rules";
 import { PRESET_FLAGS } from "@/features/spending/components/rule-preset-constants";
+import { cardSurfaceClassName } from "@wealthfolio/ui/components/ui/card";
+import { cn } from "@/lib/utils";
 
 export function RulesOverviewCard() {
   const { t } = useTranslation();
@@ -49,7 +51,7 @@ export function RulesOverviewCard() {
 
   if (rulesErrored || presetsErrored) {
     return (
-      <div className="bg-card rounded-lg border p-6">
+      <div className={cn(cardSurfaceClassName, "p-6")}>
         <div className="flex items-start gap-3">
           <Icons.AlertTriangle className="text-destructive mt-0.5 h-4 w-4 shrink-0" />
           <div>
@@ -67,7 +69,7 @@ export function RulesOverviewCard() {
 
   if (total === 0) {
     return (
-      <div className="bg-card rounded-lg border p-6">
+      <div className={cn(cardSurfaceClassName, "p-6")}>
         <div className="space-y-3">
           <div>
             <h3 className="text-base font-semibold">
@@ -90,7 +92,10 @@ export function RulesOverviewCard() {
     <Link
       to="/settings/spending/rules"
       aria-label={t("settings:spending.rules_overview.open_aria")}
-      className="bg-card hover:border-foreground/20 group flex flex-col items-stretch overflow-hidden rounded-lg border transition-all hover:shadow-md sm:flex-row"
+      className={cn(
+        cardSurfaceClassName,
+        "hover:border-foreground/20 group flex flex-col items-stretch overflow-hidden transition-all hover:shadow-md sm:flex-row",
+      )}
     >
       <div className="min-w-0 flex-1 p-6">
         <div className="mb-4">

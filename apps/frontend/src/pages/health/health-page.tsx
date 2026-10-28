@@ -24,6 +24,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { IssueDetailSheet } from "./components/issue-detail-sheet";
 import { translateIssueText } from "./translate-issue";
+import { cardSurfaceClassName } from "@wealthfolio/ui/components/ui/card";
 
 const SEVERITY_LABEL_KEYS: Record<HealthSeverity, string> = {
   INFO: "severity.info",
@@ -372,7 +373,7 @@ export default function HealthPage() {
             </div>
 
             {/* Issues List */}
-            <div className="bg-card rounded-lg border">
+            <div className={cardSurfaceClassName}>
               {filteredIssues && filteredIssues.length > 0 ? (
                 <div className="divide-y">
                   {filteredIssues.map((issue) => (
