@@ -404,6 +404,7 @@
     "form_account_number_label": "Numero conto",
     "form_account_number_hint": "Un IBAN o numero di conto. Per una carta, solo le ultime 4 cifre.",
     "form_account_number_synced": "Sincronizzato dal tuo broker, quindi non si può modificare qui.",
+    "form_optional": "(facoltativo)",
     "form_cash_classification_label": "Classificazione della liquidità",
     "form_cash_classification_description": "Come viene conteggiata questa liquidità nei report di allocazione",
     "form_cash_classification_aria": "Classificazione della liquidità",

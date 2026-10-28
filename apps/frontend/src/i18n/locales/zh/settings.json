@@ -402,6 +402,7 @@
     "form_account_number_label": "账户号码",
     "form_account_number_hint": "IBAN 或账户号码。银行卡只需填写后 4 位。",
     "form_account_number_synced": "由您的券商同步，因此无法在此更改。",
+    "form_optional": "（可选）",
     "form_cash_classification_label": "现金分类",
     "form_cash_classification_description": "此现金在配置报告中如何计入",
     "form_cash_classification_aria": "现金分类",

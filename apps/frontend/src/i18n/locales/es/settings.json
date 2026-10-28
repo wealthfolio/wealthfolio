@@ -404,6 +404,7 @@
     "form_account_number_label": "Número de cuenta",
     "form_account_number_hint": "Un IBAN o número de cuenta. Para una tarjeta, solo los últimos 4 dígitos.",
     "form_account_number_synced": "Se sincroniza desde tu bróker, así que no se puede cambiar aquí.",
+    "form_optional": "(opcional)",
     "form_cash_classification_label": "Clasificación del efectivo",
     "form_cash_classification_description": "Cómo se contabiliza este efectivo en los informes de asignación",
     "form_cash_classification_aria": "Clasificación del efectivo",

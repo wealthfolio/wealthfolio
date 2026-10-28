@@ -404,6 +404,7 @@
     "form_account_number_label": "Número da conta",
     "form_account_number_hint": "Um IBAN ou número da conta. Para um cartão, apenas os últimos 4 dígitos.",
     "form_account_number_synced": "Sincronizado a partir da sua corretora, por isso não pode ser alterado aqui.",
+    "form_optional": "(opcional)",
     "form_cash_classification_label": "Classificação do dinheiro",
     "form_cash_classification_description": "Como este dinheiro é contabilizado nos relatórios de alocação",
     "form_cash_classification_aria": "Classificação do dinheiro",

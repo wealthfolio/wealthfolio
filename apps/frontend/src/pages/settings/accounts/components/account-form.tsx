@@ -359,7 +359,7 @@ export function AccountForm({
 
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(20rem,0.9fr)]">
           <input type="hidden" name="id" />
-          <div className="contents lg:grid lg:content-start lg:gap-4">
+          <div className="grid content-start gap-4">
             <section className={formCardClassName}>
               <h3 className={formSectionLabelClassName}>{t("settings:accounts.form_identity")}</h3>
               <div className="mt-4 grid gap-4">
@@ -385,7 +385,12 @@ export function AccountForm({
                   name="group"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>{t("settings:accounts_form_group_label")}</FormLabel>
+                      <FormLabel>
+                        {t("settings:accounts_form_group_label")}
+                        <span className="text-muted-foreground ms-1 text-xs font-normal">
+                          {t("settings:accounts.form_optional")}
+                        </span>
+                      </FormLabel>
                       <FormControl>
                         <Input
                           placeholder={t("settings:accounts_form_group_placeholder")}
@@ -419,7 +424,12 @@ export function AccountForm({
                     name="accountNumber"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>{t("settings:accounts.form_account_number_label")}</FormLabel>
+                        <FormLabel>
+                          {t("settings:accounts.form_account_number_label")}
+                          <span className="text-muted-foreground ms-1 text-xs font-normal">
+                            {t("settings:accounts.form_optional")}
+                          </span>
+                        </FormLabel>
                         <FormControl>
                           <Input
                             data-testid="account-number-input"
@@ -511,59 +521,6 @@ export function AccountForm({
                       ]}
                     />
                   </div>
-                )}
-              </div>
-            </section>
-            <section className={cn(formCardClassName, "order-last lg:order-none")}>
-              <h3 className={formSectionLabelClassName}>
-                {t("settings:accounts.form_visibility")}
-              </h3>
-              <div className="mt-4 grid gap-4">
-                <FormField
-                  control={form.control}
-                  name="isActive"
-                  render={({ field }) => (
-                    <FormItem className="flex items-center justify-between gap-4">
-                      <div className="min-w-0">
-                        <FormLabel className="text-sm font-normal">
-                          {t("settings:accounts.form_hide_label")}
-                          <span className="text-muted-foreground ms-1 text-xs font-normal">
-                            {t("settings:accounts.form_hide_hint")}
-                          </span>
-                        </FormLabel>
-                        <FormMessage />
-                      </div>
-                      <FormControl>
-                        <Switch
-                          checked={!field.value}
-                          onCheckedChange={(checked) => field.onChange(!checked)}
-                        />
-                      </FormControl>
-                    </FormItem>
-                  )}
-                />
-
-                {defaultValues?.id && (
-                  <FormField
-                    control={form.control}
-                    name="isArchived"
-                    render={({ field }) => (
-                      <FormItem className="flex items-center justify-between gap-4">
-                        <div className="min-w-0">
-                          <FormLabel className="text-sm font-normal">
-                            {t("settings:accounts.form_archive_label")}
-                            <span className="text-muted-foreground ms-1 text-xs font-normal">
-                              {t("settings:accounts.form_archive_hint")}
-                            </span>
-                          </FormLabel>
-                          <FormMessage />
-                        </div>
-                        <FormControl>
-                          <Switch checked={field.value} onCheckedChange={field.onChange} />
-                        </FormControl>
-                      </FormItem>
-                    )}
-                  />
                 )}
               </div>
             </section>
@@ -720,6 +677,59 @@ export function AccountForm({
                 </FormItem>
               )}
             />
+            <section className={formCardClassName}>
+              <h3 className={formSectionLabelClassName}>
+                {t("settings:accounts.form_visibility")}
+              </h3>
+              <div className="mt-4 grid gap-4">
+                <FormField
+                  control={form.control}
+                  name="isActive"
+                  render={({ field }) => (
+                    <FormItem className="flex items-center justify-between gap-4">
+                      <div className="min-w-0">
+                        <FormLabel className="text-sm font-normal">
+                          {t("settings:accounts.form_hide_label")}
+                          <span className="text-muted-foreground ms-1 text-xs font-normal">
+                            {t("settings:accounts.form_hide_hint")}
+                          </span>
+                        </FormLabel>
+                        <FormMessage />
+                      </div>
+                      <FormControl>
+                        <Switch
+                          checked={!field.value}
+                          onCheckedChange={(checked) => field.onChange(!checked)}
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+
+                {defaultValues?.id && (
+                  <FormField
+                    control={form.control}
+                    name="isArchived"
+                    render={({ field }) => (
+                      <FormItem className="flex items-center justify-between gap-4">
+                        <div className="min-w-0">
+                          <FormLabel className="text-sm font-normal">
+                            {t("settings:accounts.form_archive_label")}
+                            <span className="text-muted-foreground ms-1 text-xs font-normal">
+                              {t("settings:accounts.form_archive_hint")}
+                            </span>
+                          </FormLabel>
+                          <FormMessage />
+                        </div>
+                        <FormControl>
+                          <Switch checked={field.value} onCheckedChange={field.onChange} />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                )}
+              </div>
+            </section>
           </div>
         </div>
         <DialogFooter className="gap-2">

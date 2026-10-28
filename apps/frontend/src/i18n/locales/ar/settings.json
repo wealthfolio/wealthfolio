@@ -51,6 +51,7 @@
     "form_account_number_label": "رقم الحساب",
     "form_account_number_hint": "رقم IBAN أو رقم الحساب. للبطاقة، آخر 4 أرقام فقط.",
     "form_account_number_synced": "تتم مزامنته من وسيطك، لذا لا يمكن تغييره هنا.",
+    "form_optional": "(اختياري)",
     "form_learn_more": "معرفة المزيد",
     "form_tracking_holdings_description": "أضف الحيازات مباشرةً كلقطات",
     "form_tracking_holdings_title": "الحيازات",

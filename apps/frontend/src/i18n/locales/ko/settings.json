@@ -402,6 +402,7 @@
     "form_account_number_label": "계좌 번호",
     "form_account_number_hint": "IBAN 또는 계좌 번호. 카드는 마지막 4자리만 입력하세요.",
     "form_account_number_synced": "증권사에서 동기화되므로 여기서 변경할 수 없습니다.",
+    "form_optional": "(선택 사항)",
     "form_cash_classification_label": "현금 분류",
     "form_cash_classification_description": "배분 보고서에서 이 현금이 집계되는 방식",
     "form_cash_classification_aria": "현금 분류",

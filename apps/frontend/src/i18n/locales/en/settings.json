@@ -361,6 +361,7 @@
     "form_account_number_label": "Account number",
     "form_account_number_hint": "An IBAN or account number. For a card, only the last 4 digits.",
     "form_account_number_synced": "Synced from your broker, so it can't be changed here.",
+    "form_optional": "(optional)",
     "form_cash_classification_label": "Cash classification",
     "form_cash_classification_description": "How this cash is counted in allocation reports",
     "form_cash_classification_aria": "Cash classification",

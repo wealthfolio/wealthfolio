@@ -368,6 +368,7 @@
     "form_account_number_label": "Kontonummer",
     "form_account_number_hint": "Eine IBAN oder Kontonummer. Bei einer Karte nur die letzten 4 Ziffern.",
     "form_account_number_synced": "Wird von Ihrem Broker synchronisiert und kann hier nicht geändert werden.",
+    "form_optional": "(optional)",
     "form_cash_classification_label": "Bargeld-Klassifizierung",
     "form_cash_classification_description": "Wie dieses Bargeld in Allokationsberichten gezählt wird",
     "form_cash_classification_aria": "Bargeld-Klassifizierung",

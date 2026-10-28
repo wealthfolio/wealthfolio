@@ -402,6 +402,7 @@
     "form_account_number_label": "口座番号",
     "form_account_number_hint": "IBAN または口座番号。カードの場合は下 4 桁のみ。",
     "form_account_number_synced": "証券会社から同期されるため、ここでは変更できません。",
+    "form_optional": "(任意)",
     "form_cash_classification_label": "現金の分類",
     "form_cash_classification_description": "資産配分レポートでこの現金をどのように集計するか",
     "form_cash_classification_aria": "現金の分類",

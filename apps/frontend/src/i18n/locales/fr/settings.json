@@ -406,6 +406,7 @@
     "form_account_number_label": "Numéro de compte",
     "form_account_number_hint": "Un IBAN ou un numéro de compte. Pour une carte, uniquement les 4 derniers chiffres.",
     "form_account_number_synced": "Synchronisé depuis votre courtier, il ne peut donc pas être modifié ici.",
+    "form_optional": "(facultatif)",
     "form_cash_classification_label": "Classification des espèces",
     "form_cash_classification_description": "Comment ces espèces sont comptabilisées dans les rapports d'allocation",
     "form_cash_classification_aria": "Classification des espèces",

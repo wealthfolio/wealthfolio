@@ -402,6 +402,7 @@
     "form_account_number_label": "帳號",
     "form_account_number_hint": "IBAN 或帳號。卡片只需填寫末 4 碼。",
     "form_account_number_synced": "由您的券商同步，因此無法在此變更。",
+    "form_optional": "（選填）",
     "form_cash_classification_label": "現金分類",
     "form_cash_classification_description": "這筆現金在報表中的計算方式",
     "form_cash_classification_aria": "現金分類",

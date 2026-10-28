@@ -230,7 +230,8 @@ describe("AccountForm account number", () => {
   });
 
   const NUMBER_LABEL = "settings:accounts.form_account_number_label";
-  const numberInput = () => screen.getByLabelText(NUMBER_LABEL);
+  const numberInput = () => screen.getByLabelText(new RegExp(NUMBER_LABEL));
+  const OPTIONAL = "settings:accounts.form_optional";
   const submit = () => fireEvent.click(screen.getByTestId("account-submit-button"));
 
   it("sends the number typed for a manual account, trimmed", async () => {
@@ -238,6 +239,11 @@ describe("AccountForm account number", () => {
     expect(numberInput()).toHaveValue("NL91ABNA0417164300");
     expect(numberInput()).toBeEnabled();
     expect(screen.getByText("settings:accounts.form_account_number_hint")).toBeInTheDocument();
+    // Group and number are the identity fields an account can leave out.
+    expect(numberInput()).toHaveAccessibleName(`${NUMBER_LABEL}${OPTIONAL}`);
+    expect(screen.getByLabelText(/settings:accounts_form_group_label/)).toHaveAccessibleName(
+      `settings:accounts_form_group_label${OPTIONAL}`,
+    );
 
     fireEvent.change(numberInput(), { target: { value: "  DE89 3704 0044 0532 0130 00 " } });
     submit();
@@ -283,6 +289,7 @@ describe("AccountForm account number", () => {
     renderForm({ accountNumber: brokerNumber }, { isSynced: true });
     expect(numberInput()).toHaveValue(brokerNumber);
     expect(numberInput()).toBeDisabled();
+    expect(numberInput()).toHaveAccessibleName(NUMBER_LABEL);
     expect(screen.getByText("settings:accounts.form_account_number_synced")).toBeInTheDocument();
 
     submit();
@@ -290,5 +297,16 @@ describe("AccountForm account number", () => {
     // Both runtimes send JSON, which leaves an undefined number out.
     const submitted = mutations.update.mock.calls[0][0] as Record<string, unknown>;
     expect(JSON.parse(JSON.stringify(submitted))).not.toHaveProperty("accountNumber");
+  });
+});
+
+describe("AccountForm layout", () => {
+  it("puts Visibility after Tracking mode, so it stays last on phones", () => {
+    renderForm();
+    const trackingMode = screen.getByText("settings:accounts.form_tracking_mode_label");
+    const visibility = screen.getByText("settings:accounts.form_visibility");
+    expect(
+      trackingMode.compareDocumentPosition(visibility) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
   });
 });
