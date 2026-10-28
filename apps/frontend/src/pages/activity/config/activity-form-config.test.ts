@@ -153,6 +153,8 @@ describe("conversion defaults", () => {
   it.each([
     ["CONVERSION_OUT", "FUNDA", "FUNDB"],
     ["CONVERSION_IN", "FUNDB", "FUNDA"],
+    // Any accepted spelling of the subtype.
+    ["conversion-out", "FUNDA", "FUNDB"],
   ])("puts each side in place when editing the %s row", (subtype, own, other) => {
     const defaults = ACTIVITY_FORM_CONFIG.CONVERSION.getDefaults(
       {

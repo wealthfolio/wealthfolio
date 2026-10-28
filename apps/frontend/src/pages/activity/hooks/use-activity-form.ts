@@ -17,7 +17,7 @@ import {
   type PickerActivityType,
 } from "../config/activity-form-config";
 import { useActivityMutations } from "./use-activity-mutations";
-import { conversionFirstDate } from "../utils/conversion-counterpart";
+import { conversionFirstDate, isLeavingConversionRow } from "../utils/conversion-counterpart";
 
 function generateSourceGroupId(): string {
   return generateId("wf-transfer");
@@ -202,7 +202,7 @@ export function useActivityForm({
           const account = accounts.find((a) => a.value === data.accountId);
           const { leaving, arriving } = conversionRows(data, account?.currency);
           if (isEditing && activity?.id) {
-            const editsLeaving = activity.subtype === ACTIVITY_SUBTYPES.CONVERSION_OUT;
+            const editsLeaving = isLeavingConversionRow(activity);
             const leavingId = editsLeaving ? activity.id : activity.counterpartActivityId;
             const arrivingId = editsLeaving ? activity.counterpartActivityId : activity.id;
             if (!leavingId || !arrivingId) {

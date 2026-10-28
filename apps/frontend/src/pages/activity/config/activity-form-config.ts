@@ -25,7 +25,7 @@ import { CreditForm, type CreditFormValues } from "../components/forms/credit-fo
 import { AdjustmentForm, type AdjustmentFormValues } from "../components/forms/adjustment-form";
 import type { AccountSelectOption } from "../components/forms/fields";
 import type { NewActivityFormValues } from "../components/forms/schemas";
-import { conversionFirstDate } from "../utils/conversion-counterpart";
+import { conversionFirstDate, isLeavingConversionRow } from "../utils/conversion-counterpart";
 
 // Picker activity types (TRANSFER_IN/OUT merged into TRANSFER)
 export type PickerActivityType =
@@ -687,7 +687,7 @@ export const ACTIVITY_FORM_CONFIG: Record<
         quantity: absNum(activity.counterpartQuantity),
         currency: activity.counterpartCurrency ?? null,
       };
-      const leaving = activity.subtype === ACTIVITY_SUBTYPES.CONVERSION_OUT;
+      const leaving = isLeavingConversionRow(activity);
       const [from, to] = leaving ? [own, other] : [other, own];
       // The form shows when the pair folds: at its first row.
       const base = getBaseDefaults(activity, accounts);
