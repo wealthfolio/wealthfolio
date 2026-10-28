@@ -138,7 +138,7 @@ export default function AddonSettingsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <SettingsHeader
-          heading={t("settings:addons_full_title")}
+          heading={t("settings:nav.items.addons")}
           text={t("settings:addons_description")}
         />
 

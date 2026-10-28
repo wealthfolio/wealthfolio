@@ -70,7 +70,10 @@ export default function AboutSettingsPage() {
 
   return (
     <div className="space-y-6">
-      <SettingsHeader heading={t("settings:about_title")} text={t("settings:about_description")} />
+      <SettingsHeader
+        heading={t("settings:nav.items.about")}
+        text={t("settings:about_description")}
+      />
       <Separator />
 
       <Card>

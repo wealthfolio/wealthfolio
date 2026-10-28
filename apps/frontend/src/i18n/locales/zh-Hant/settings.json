@@ -1,7 +1,5 @@
 {
   "title": "設定",
-  "general": "一般",
-  "appearance": "外觀",
   "privacy": "隱私",
   "advanced": "進階",
   "language": "語言",
@@ -189,7 +187,6 @@
   "goals_form_target_placeholder": "目標金額",
   "goals_form_achieved_label": "目標已達成",
   "limits_title": "限額",
-  "limits_full_title": "投入上限",
   "limits_description": "管理投入上限。",
   "limits_add_button": "新增限額",
   "limits_add_aria": "新增投入上限",
@@ -270,7 +267,6 @@
   "market_data_import_description": "上傳 CSV 檔案以回填你投資組合的市場資料。",
   "market_data_import_back_button": "回到資料來源",
   "addons_title": "擴充功能",
-  "addons_full_title": "擴充功能管理",
   "addons_info_title": "擴充 Wealthfolio",
   "addons_info_description": "擴充功能可以為 Wealthfolio 加入新功能與自訂分析。",
   "addons_security_notice": "安全提醒：",
@@ -304,7 +300,6 @@
   "addons_install_cancelled": "安裝已取消",
   "addons_install_cancelled_description": "使用者已取消安裝擴充功能。",
   "export_title": "資料匯出",
-  "export_full_title": "備份與匯出",
   "export_description": "保留投資組合的備份，或匯出資料以便在其他地方使用。",
   "export_tab_backup": "備份",
   "export_tab_export": "資料匯出",
@@ -372,7 +367,6 @@
   "recovery_inspect": "檢查備份",
   "recovery_cancel": "取消",
   "backup_restore_title": "還原備份",
-  "about_title": "關於",
   "about_description": "應用程式資訊",
   "about_app_name": "Wealthfolio",
   "about_version": "版本 {{version}}",
@@ -684,7 +678,6 @@
     "day_left": "剩餘 {{days}} 天"
   },
   "portfolios": {
-    "title": "投資組合",
     "description": "建立跨帳戶的命名報表範圍。",
     "add_aria": "新增投資組合",
     "add_button": "新增投資組合",
@@ -759,7 +752,6 @@
   "tax_reset": "重設",
   "tax_delete_confirm_desc": "確定要刪除「{{name}}」嗎？這會移除所有歸入此類別的資產。此操作無法復原。",
   "market_data_page": {
-    "heading": "市場資料",
     "subtitle": "設定市場資料來源。",
     "rebuild_history": "重新整理全部歷史",
     "history_menu": "歷史",
@@ -1083,7 +1075,6 @@
   "addon_store_filter_placeholder": "篩選方式…",
   "addon_card_addon_page": "擴充功能頁面",
   "spending": {
-    "title": "支出追蹤器",
     "page_description": "追蹤現金帳戶的支出，包括類別、事件、自動化規則與預算。",
     "back_to_settings": "回到設定",
     "back_to_tracker": "回到支出追蹤器",
@@ -1330,7 +1321,6 @@
   "fx_rate_label": "匯率",
   "fx_rate_placeholder": "輸入匯率",
   "agentAccess": {
-    "page_heading": "AI 代理存取",
     "page_text": "允許 AI 代理透過 MCP 存取你的投資組合。每個權杖的範圍會限制代理可執行的操作。",
     "mobile_unavailable_title": "行動版不支援",
     "mobile_unavailable_description": "請在桌面版或網頁版管理 AI 代理存取。",

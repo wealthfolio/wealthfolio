@@ -1,7 +1,5 @@
 {
   "title": "Einstellungen",
-  "general": "Allgemein",
-  "appearance": "Erscheinungsbild",
   "language": "Sprache",
   "theme_light": "Hell",
   "theme_dark": "Dunkel",
@@ -150,7 +148,6 @@
   "goals_form_target_label": "Zielbetrag",
   "goals_form_target_placeholder": "Zielbetrag",
   "goals_form_achieved_label": "Ziel erreicht",
-  "limits_full_title": "Einzahlungsgrenzen",
   "limits_description": "Ihre Einzahlungsgrenzen verwalten.",
   "limits_add_button": "Grenze hinzufügen",
   "limits_add_aria": "Einzahlungsgrenze hinzufügen",
@@ -209,7 +206,6 @@
   "market_data_provider_priority": "Priorität",
   "market_data_import_title": "Historische Kurse importieren",
   "addons_title": "Erweiterungen",
-  "addons_full_title": "Add-on-Manager",
   "addons_info_description": "Add-ons erweitern Wealthfolio um neue Funktionen, eigene Analysen und weitere Möglichkeiten für dein Finanzmanagement.",
   "addons_security_notice": "Sicherheitshinweis:",
   "addons_security_message": "Installiere Add-ons nur aus vertrauenswürdigen Quellen. Add-ons haben Zugriff auf deine Anwendungsdaten.",
@@ -238,7 +234,6 @@
   "addons_install_cancelled": "Installation abgebrochen",
   "addons_install_cancelled_description": "Die Add-on-Installation wurde vom Benutzer abgebrochen.",
   "export_title": "Datenexport",
-  "export_full_title": "Sicherungen und Exporte",
   "export_description": "Bewahren Sie eine Sicherung Ihres Portfolios auf oder exportieren Sie Ihre Daten zur weiteren Verwendung.",
   "export_tab_backup": "Sicherungen",
   "export_tab_export": "Datenexport",
@@ -302,7 +297,6 @@
   "recovery_inspect": "Sicherung prüfen",
   "recovery_cancel": "Abbrechen",
   "backup_restore_title": "Sicherung wiederherstellen",
-  "about_title": "Info",
   "about_description": "Informationen zur Anwendung",
   "about_tagline": "Ein schöner, einfacher und sicherer Finanz- und Investment-Tracker, der dir hilft, dein Vermögen im Griff zu behalten.",
   "about_check_update_button": "Nach Updates suchen",
@@ -573,7 +567,6 @@
     "day_left": "Noch {{days}} T"
   },
   "portfolios": {
-    "title": "Portfolios",
     "description": "Erstellen Sie benannte Reporting-Bereiche über Konten hinweg.",
     "add_aria": "Portfolio hinzufügen",
     "add_button": "Portfolio hinzufügen",
@@ -649,7 +642,6 @@
   "tax_reset": "Zurücksetzen",
   "tax_delete_confirm_desc": "Möchten Sie „{{name}}“ wirklich löschen? Dadurch werden alle Vermögenszuordnungen zu dieser Kategorie entfernt. Diese Aktion kann nicht rückgängig gemacht werden.",
   "market_data_page": {
-    "heading": "Marktdaten",
     "subtitle": "Konfigurieren Sie Ihre Marktdatenanbieter.",
     "rebuild_history": "Gesamten Verlauf aktualisieren",
     "history_menu": "Verlauf",
@@ -997,7 +989,6 @@
   "addon_card_downloads": "Downloads",
   "addon_card_changelog": "Änderungsprotokoll",
   "spending": {
-    "title": "Ausgaben-Tracker",
     "page_description": "Verfolgen Sie Ausgaben auf Ihren Bargeldkonten — Kategorien, Ereignisse, Automatisierungsregeln und Budgets.",
     "back_to_settings": "Zurück zu den Einstellungen",
     "back_to_tracker": "Zurück zum Ausgaben-Tracker",
@@ -1330,7 +1321,6 @@
   "fx_rate_label": "Wechselkurs",
   "fx_rate_placeholder": "Wechselkurs eingeben",
   "agentAccess": {
-    "page_heading": "KI-Agenten-Zugriff",
     "page_text": "Erlauben Sie KI-Agenten den Zugriff auf Ihr Portfolio über MCP. Die Berechtigungen jedes Tokens legen fest, was er tun darf.",
     "mobile_unavailable_title": "Auf Mobilgeräten nicht verfügbar",
     "mobile_unavailable_description": "Der KI-Agenten-Zugriff wird auf dem Desktop oder im Web verwaltet.",

@@ -1,7 +1,5 @@
 {
   "title": "Settings",
-  "general": "General",
-  "appearance": "Appearance",
   "privacy": "Privacy",
   "advanced": "Advanced",
   "language": "Language",
@@ -189,7 +187,6 @@
   "goals_form_target_placeholder": "Target amount",
   "goals_form_achieved_label": "Goal Achieved",
   "limits_title": "Limits",
-  "limits_full_title": "Contribution Limits",
   "limits_description": "Manage your contribution limits.",
   "limits_add_button": "Add limit",
   "limits_add_aria": "Add contribution limit",
@@ -270,7 +267,6 @@
   "market_data_import_description": "Upload CSV files to backfill market data for your portfolio.",
   "market_data_import_back_button": "Back to providers",
   "addons_title": "Add-ons",
-  "addons_full_title": "Addon Manager",
   "addons_info_title": "🔌 Add-ons & Extensions",
   "addons_info_description": "Add-ons let you extend Wealthfolio with new features, custom analytics, and additional functionality to enhance your financial management experience.",
   "addons_security_notice": "Security Notice:",
@@ -304,7 +300,6 @@
   "addons_install_cancelled": "Installation cancelled",
   "addons_install_cancelled_description": "Addon installation was cancelled by user.",
   "export_title": "Data Export",
-  "export_full_title": "Backups and exports",
   "export_description": "Keep a backup of your portfolio or export your data to use elsewhere.",
   "export_tab_backup": "Backups",
   "export_tab_export": "Data Export",
@@ -329,7 +324,6 @@
   "backup_title": "Local backups",
   "backup_creating": "Creating Backup...",
   "backup_restore_title": "Restore backup",
-  "about_title": "About",
   "about_description": "Application information",
   "about_app_name": "Wealthfolio",
   "about_version": "Version {{version}}",
@@ -641,7 +635,6 @@
     "day_left": "{{days}}d left"
   },
   "portfolios": {
-    "title": "Portfolios",
     "description": "Create named reporting scopes across accounts.",
     "add_aria": "Add portfolio",
     "add_button": "Add portfolio",
@@ -716,7 +709,6 @@
   "tax_reset": "Reset",
   "tax_delete_confirm_desc": "Are you sure you want to delete “{{name}}”? This will remove all asset assignments to this category. This action cannot be undone.",
   "market_data_page": {
-    "heading": "Market Data",
     "subtitle": "Configure your market data providers.",
     "rebuild_history": "Refresh full history",
     "history_menu": "History",
@@ -1040,7 +1032,6 @@
   "addon_store_filter_placeholder": "Filter by...",
   "addon_card_addon_page": "Add-on Page",
   "spending": {
-    "title": "Spending Tracker",
     "page_description": "Track expenses on your cash accounts — categories, events, automation rules, and budgets.",
     "back_to_settings": "Back to Settings",
     "back_to_tracker": "Back to Spending Tracker",
@@ -1287,7 +1278,6 @@
   "fx_rate_label": "Exchange Rate",
   "fx_rate_placeholder": "Enter exchange rate",
   "agentAccess": {
-    "page_heading": "AI Agent Access",
     "page_text": "Let AI agents access your portfolio over MCP. Each token's scopes control what it can do.",
     "mobile_unavailable_title": "Not available on mobile",
     "mobile_unavailable_description": "AI Agent Access is managed on desktop or web.",

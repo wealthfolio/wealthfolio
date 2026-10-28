@@ -834,7 +834,7 @@ export default function MarketDataSettingsPage() {
     return (
       <div className="text-foreground space-y-6">
         <SettingsHeader
-          heading={t("settings:market_data_page.heading")}
+          heading={t("settings:nav.items.market_data")}
           text={t("settings:market_data_page.subtitle")}
         />
         <Separator />
@@ -869,7 +869,7 @@ export default function MarketDataSettingsPage() {
     return (
       <div className="text-foreground space-y-6">
         <SettingsHeader
-          heading={t("settings:market_data_page.heading")}
+          heading={t("settings:nav.items.market_data")}
           text={t("settings:market_data_page.subtitle")}
         />
         <Separator />
@@ -900,7 +900,7 @@ export default function MarketDataSettingsPage() {
   return (
     <div className="text-foreground space-y-6">
       <SettingsHeader
-        heading={t("settings:market_data_page.heading")}
+        heading={t("settings:nav.items.market_data")}
         text={t("settings:market_data_page.subtitle")}
         actionsInline
       >

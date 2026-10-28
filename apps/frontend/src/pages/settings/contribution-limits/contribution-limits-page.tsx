@@ -68,7 +68,7 @@ const SettingsContributionLimitPage = () => {
     <>
       <div className="space-y-6">
         <SettingsHeader
-          heading={t("settings:limits_full_title")}
+          heading={t("settings:nav.items.contribution_limits")}
           text={t("settings:limits_description")}
           actionsInline
         >

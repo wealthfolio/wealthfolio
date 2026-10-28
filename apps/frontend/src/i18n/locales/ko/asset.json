@@ -12,7 +12,6 @@
     "more": "더 보기"
   },
   "securities": {
-    "heading": "종목",
     "subtitle": "포트폴리오에 있는 종목을 조회하고 관리하세요.",
     "add_security": "종목 추가",
     "delete_title": "종목 삭제",

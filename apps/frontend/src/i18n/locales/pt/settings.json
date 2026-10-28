@@ -1,7 +1,5 @@
 {
   "title": "Configurações",
-  "general": "Geral",
-  "appearance": "Aparência",
   "privacy": "Privacidade",
   "advanced": "Avançado",
   "language": "Idioma",
@@ -189,7 +187,6 @@
   "goals_form_target_placeholder": "Valor alvo",
   "goals_form_achieved_label": "Meta alcançada",
   "limits_title": "Limites",
-  "limits_full_title": "Limites de aporte",
   "limits_description": "Gerencie seus limites de aporte.",
   "limits_add_button": "Adicionar limite",
   "limits_add_aria": "Adicionar limite de aporte",
@@ -270,7 +267,6 @@
   "market_data_import_description": "Envie arquivos CSV para completar os dados de mercado da sua carteira.",
   "market_data_import_back_button": "Voltar aos provedores",
   "addons_title": "Extensões",
-  "addons_full_title": "Gerenciador de extensões",
   "addons_info_title": "🔌 Extensões e complementos",
   "addons_info_description": "As extensões permitem ampliar o Wealthfolio com novas funções, análises personalizadas e funcionalidades adicionais para melhorar sua experiência de gestão financeira.",
   "addons_security_notice": "Aviso de segurança:",
@@ -306,7 +302,6 @@
   "addons_install_cancelled": "Instalação cancelada",
   "addons_install_cancelled_description": "O usuário cancelou a instalação da extensão.",
   "export_title": "Exportação de dados",
-  "export_full_title": "Backups e exportações",
   "export_description": "Guarde um backup da sua carteira ou exporte seus dados para usar em outro lugar.",
   "export_tab_backup": "Backups",
   "export_tab_export": "Exportação de dados",
@@ -374,7 +369,6 @@
   "recovery_inspect": "Verificar backup",
   "recovery_cancel": "Cancelar",
   "backup_restore_title": "Restaurar backup",
-  "about_title": "Sobre",
   "about_description": "Informações do aplicativo",
   "about_app_name": "Wealthfolio",
   "about_version": "Versão {{version}}",
@@ -686,7 +680,6 @@
     "day_left": "{{days}} d restantes"
   },
   "portfolios": {
-    "title": "Carteiras",
     "description": "Crie escopos de relatórios com nome entre as contas.",
     "add_aria": "Adicionar carteira",
     "add_button": "Adicionar carteira",
@@ -764,7 +757,6 @@
   "tax_reset": "Redefinir",
   "tax_delete_confirm_desc": "Tem certeza que deseja excluir \"{{name}}\"? Isso removerá todas as atribuições de ativos a esta categoria. Esta ação não pode ser desfeita.",
   "market_data_page": {
-    "heading": "Dados de mercado",
     "subtitle": "Configure seus provedores de dados de mercado.",
     "rebuild_history": "Atualizar todo o histórico",
     "history_menu": "Histórico",
@@ -1110,7 +1102,6 @@
   "addon_store_filter_placeholder": "Filtrar por...",
   "addon_card_addon_page": "Página da extensão",
   "spending": {
-    "title": "Controle de gastos",
     "page_description": "Controle os gastos das suas contas de dinheiro: categorias, eventos, regras de automação e orçamentos.",
     "back_to_settings": "Voltar às Configurações",
     "back_to_tracker": "Voltar ao controle de gastos",
@@ -1369,7 +1360,6 @@
   "fx_rate_label": "Taxa de câmbio",
   "fx_rate_placeholder": "Insira a taxa de câmbio",
   "agentAccess": {
-    "page_heading": "Acesso de agentes de IA",
     "page_text": "Permita que agentes de IA acessem sua carteira via MCP. Os escopos de cada token controlam o que pode ser feito.",
     "mobile_unavailable_title": "Indisponível no celular",
     "mobile_unavailable_description": "O acesso de agentes de IA é gerenciado no desktop ou web.",

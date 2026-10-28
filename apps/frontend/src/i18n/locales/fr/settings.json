@@ -1,7 +1,5 @@
 {
   "title": "Paramètres",
-  "general": "Général",
-  "appearance": "Apparence",
   "privacy": "Confidentialité",
   "advanced": "Avancé",
   "language": "Langue",
@@ -189,7 +187,6 @@
   "goals_form_target_placeholder": "Montant cible",
   "goals_form_achieved_label": "Objectif atteint",
   "limits_title": "Limites",
-  "limits_full_title": "Limites de cotisation",
   "limits_description": "Gérer vos limites de cotisation.",
   "limits_add_button": "Ajouter une limite",
   "limits_add_aria": "Ajouter une limite de cotisation",
@@ -270,7 +267,6 @@
   "market_data_import_description": "Téléchargez des fichiers CSV pour compléter les données de marché de votre portefeuille.",
   "market_data_import_back_button": "Retour aux fournisseurs",
   "addons_title": "Extensions",
-  "addons_full_title": "Gestionnaire d'extensions",
   "addons_info_title": "🔌 Extensions et modules complémentaires",
   "addons_info_description": "Les extensions vous permettent d'étendre Wealthfolio avec de nouvelles fonctionnalités, des analyses personnalisées et des fonctionnalités supplémentaires pour améliorer votre expérience de gestion financière.",
   "addons_security_notice": "Avis de sécurité :",
@@ -308,7 +304,6 @@
   "addons_install_cancelled": "Installation annulée",
   "addons_install_cancelled_description": "L'installation de l'extension a été annulée par l'utilisateur.",
   "export_title": "Exportation des données",
-  "export_full_title": "Sauvegardes et exports",
   "export_description": "Conservez une sauvegarde de votre portefeuille ou exportez vos données pour les utiliser ailleurs.",
   "export_tab_backup": "Sauvegardes",
   "export_tab_export": "Exportation des données",
@@ -376,7 +371,6 @@
   "recovery_inspect": "Vérifier la sauvegarde",
   "recovery_cancel": "Annuler",
   "backup_restore_title": "Restaurer une sauvegarde",
-  "about_title": "À propos",
   "about_description": "Informations sur l'application",
   "about_app_name": "Wealthfolio",
   "about_version": "Version {{version}}",
@@ -688,7 +682,6 @@
     "day_left": "{{days}}j restants"
   },
   "portfolios": {
-    "title": "Portefeuilles",
     "description": "Créez des périmètres de reporting nommés à travers les comptes.",
     "add_aria": "Ajouter un portefeuille",
     "add_button": "Ajouter un portefeuille",
@@ -766,7 +759,6 @@
   "tax_reset": "Réinitialiser",
   "tax_delete_confirm_desc": "Voulez-vous vraiment supprimer « {{name}} » ? Cela supprimera toutes les affectations d’actifs à cette catégorie. Cette action est irréversible.",
   "market_data_page": {
-    "heading": "Données de marché",
     "subtitle": "Configurez vos fournisseurs de données de marché.",
     "rebuild_history": "Actualiser tout l’historique",
     "history_menu": "Historique",
@@ -1113,7 +1105,6 @@
   "addon_card_addon_page": "Page de l’extension",
   "addons_updates_critical": "({{count}} critique)",
   "spending": {
-    "title": "Suivi des dépenses",
     "page_description": "Suivez les dépenses de vos comptes de trésorerie — catégories, événements, règles d’automatisation et budgets.",
     "back_to_settings": "Retour aux paramètres",
     "back_to_tracker": "Retour au suivi des dépenses",
@@ -1369,7 +1360,6 @@
   "fx_rate_label": "Taux de change",
   "fx_rate_placeholder": "Saisir le taux de change",
   "agentAccess": {
-    "page_heading": "Accès des agents IA",
     "page_text": "Autorisez les agents IA à accéder à votre portefeuille via MCP. Les portées de chaque jeton déterminent ce qu'il peut faire.",
     "mobile_unavailable_title": "Non disponible sur mobile",
     "mobile_unavailable_description": "L'accès des agents IA se gère sur ordinateur ou sur le web.",

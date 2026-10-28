@@ -12,7 +12,6 @@
     "more": "Altro"
   },
   "securities": {
-    "heading": "Titoli",
     "subtitle": "Esplora e gestisci i titoli disponibili nel tuo portafoglio.",
     "add_security": "Aggiungi titolo",
     "delete_title": "Elimina titolo",

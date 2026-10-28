@@ -12,7 +12,6 @@
     "more": "Mehr"
   },
   "securities": {
-    "heading": "Wertpapiere",
     "subtitle": "Durchsuchen und verwalten Sie die in Ihrem Portfolio verfügbaren Wertpapiere.",
     "add_security": "Wertpapier hinzufügen",
     "delete_title": "Wertpapier löschen",

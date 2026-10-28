@@ -123,7 +123,7 @@ export default function AgentAccessPage() {
   return (
     <div className="space-y-6">
       <SettingsHeader
-        heading={t("settings:agentAccess.page_heading")}
+        heading={t("settings:nav.items.agent_access")}
         text={t("settings:agentAccess.page_text")}
       />
       <Separator />

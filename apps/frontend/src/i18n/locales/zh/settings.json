@@ -1,7 +1,5 @@
 {
   "title": "设置",
-  "general": "常规",
-  "appearance": "外观",
   "privacy": "隐私",
   "advanced": "高级",
   "language": "语言",
@@ -189,7 +187,6 @@
   "goals_form_target_placeholder": "目标金额",
   "goals_form_achieved_label": "目标已达成",
   "limits_title": "限额",
-  "limits_full_title": "供款限额",
   "limits_description": "管理您的供款限额。",
   "limits_add_button": "添加限额",
   "limits_add_aria": "添加供款限额",
@@ -270,7 +267,6 @@
   "market_data_import_description": "上传 CSV 文件以回填您投资组合的市场数据。",
   "market_data_import_back_button": "返回提供商",
   "addons_title": "插件",
-  "addons_full_title": "插件管理器",
   "addons_info_title": "🔌 插件与扩展",
   "addons_info_description": "插件让您能够为 Wealthfolio 扩展新功能、自定义分析以及额外功能，从而提升您的财务管理体验。",
   "addons_security_notice": "安全提示：",
@@ -304,7 +300,6 @@
   "addons_install_cancelled": "安装已取消",
   "addons_install_cancelled_description": "插件安装已被用户取消。",
   "export_title": "数据导出",
-  "export_full_title": "备份与导出",
   "export_description": "保存投资组合的备份，或导出数据以便在其他地方使用。",
   "export_tab_backup": "备份",
   "export_tab_export": "数据导出",
@@ -372,7 +367,6 @@
   "recovery_inspect": "检查备份",
   "recovery_cancel": "取消",
   "backup_restore_title": "恢复备份",
-  "about_title": "关于",
   "about_description": "应用信息",
   "about_app_name": "Wealthfolio",
   "about_version": "版本 {{version}}",
@@ -684,7 +678,6 @@
     "day_left": "剩余 {{days}} 天"
   },
   "portfolios": {
-    "title": "投资组合",
     "description": "跨账户创建命名的报告范围。",
     "add_aria": "添加投资组合",
     "add_button": "添加投资组合",
@@ -759,7 +752,6 @@
   "tax_reset": "重置",
   "tax_delete_confirm_desc": "确定要删除“{{name}}”吗？这将移除所有分配到此类别的资产。此操作无法撤销。",
   "market_data_page": {
-    "heading": "市场数据",
     "subtitle": "配置您的市场数据提供商。",
     "rebuild_history": "刷新全部历史",
     "history_menu": "历史",
@@ -1071,7 +1063,6 @@
   "addon_store_filter_placeholder": "筛选方式...",
   "addon_card_addon_page": "插件页面",
   "spending": {
-    "title": "支出跟踪器",
     "page_description": "跟踪您现金账户上的开支——类别、事件、自动化规则和预算。",
     "back_to_settings": "返回设置",
     "back_to_tracker": "返回支出跟踪器",
@@ -1313,7 +1304,6 @@
   "fx_rate_label": "汇率",
   "fx_rate_placeholder": "输入汇率",
   "agentAccess": {
-    "page_heading": "AI 代理访问",
     "page_text": "让 AI 代理通过 MCP 访问您的投资组合。每个令牌的作用域控制其可执行的操作。",
     "mobile_unavailable_title": "移动端不可用",
     "mobile_unavailable_description": "AI 代理访问在桌面端或网页端进行管理。",

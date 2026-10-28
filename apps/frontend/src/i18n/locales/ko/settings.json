@@ -1,7 +1,5 @@
 {
   "title": "설정",
-  "general": "일반",
-  "appearance": "테마",
   "privacy": "개인정보 보호",
   "advanced": "고급",
   "language": "언어",
@@ -189,7 +187,6 @@
   "goals_form_target_placeholder": "목표 금액",
   "goals_form_achieved_label": "목표 달성됨",
   "limits_title": "한도",
-  "limits_full_title": "납입 한도",
   "limits_description": "납입 한도를 관리하세요.",
   "limits_add_button": "한도 추가",
   "limits_add_aria": "납입 한도 추가",
@@ -270,7 +267,6 @@
   "market_data_import_description": "CSV 파일을 업로드하여 포트폴리오의 시세 데이터를 채우세요.",
   "market_data_import_back_button": "제공자로 돌아가기",
   "addons_title": "애드온",
-  "addons_full_title": "애드온 관리자",
   "addons_info_title": "🔌 애드온 및 확장 기능",
   "addons_info_description": "애드온을 사용하면 새로운 기능, 맞춤형 분석, 추가 기능으로 Wealthfolio를 확장하여 자산 관리 경험을 향상시킬 수 있습니다.",
   "addons_security_notice": "보안 안내:",
@@ -304,7 +300,6 @@
   "addons_install_cancelled": "설치가 취소되었습니다",
   "addons_install_cancelled_description": "사용자에 의해 애드온 설치가 취소되었습니다.",
   "export_title": "데이터 내보내기",
-  "export_full_title": "백업 및 내보내기",
   "export_description": "포트폴리오를 백업하거나 데이터를 내보내 다른 곳에서 사용하세요.",
   "export_tab_backup": "백업",
   "export_tab_export": "데이터 내보내기",
@@ -372,7 +367,6 @@
   "recovery_inspect": "백업 확인",
   "recovery_cancel": "취소",
   "backup_restore_title": "백업 복원",
-  "about_title": "정보",
   "about_description": "애플리케이션 정보",
   "about_app_name": "Wealthfolio",
   "about_version": "버전 {{version}}",
@@ -684,7 +678,6 @@
     "day_left": "{{days}}일 남음"
   },
   "portfolios": {
-    "title": "포트폴리오",
     "description": "여러 계좌에 걸친 이름이 지정된 리포팅 범위를 만드세요.",
     "add_aria": "포트폴리오 추가",
     "add_button": "포트폴리오 추가",
@@ -759,7 +752,6 @@
   "tax_reset": "초기화",
   "tax_delete_confirm_desc": "\"{{name}}\"을(를) 삭제하시겠습니까? 이 카테고리에 대한 모든 자산 배정이 제거됩니다. 이 작업은 되돌릴 수 없습니다.",
   "market_data_page": {
-    "heading": "시세 데이터",
     "subtitle": "시세 데이터 제공자를 구성하세요.",
     "rebuild_history": "전체 기록 새로고침",
     "history_menu": "기록",
@@ -1071,7 +1063,6 @@
   "addon_store_filter_placeholder": "필터 기준...",
   "addon_card_addon_page": "애드온 페이지",
   "spending": {
-    "title": "지출 트래커",
     "page_description": "현금 계좌의 지출을 추적하세요 — 카테고리, 이벤트, 자동화 규칙, 예산.",
     "back_to_settings": "설정으로 돌아가기",
     "back_to_tracker": "지출 트래커로 돌아가기",
@@ -1313,7 +1304,6 @@
   "fx_rate_label": "환율",
   "fx_rate_placeholder": "환율을 입력하세요",
   "agentAccess": {
-    "page_heading": "AI 에이전트 접근",
     "page_text": "AI 에이전트가 MCP를 통해 포트폴리오에 접근하도록 허용하세요. 각 토큰의 범위가 수행 가능한 작업을 제어합니다.",
     "mobile_unavailable_title": "모바일에서는 사용할 수 없음",
     "mobile_unavailable_description": "AI 에이전트 접근은 데스크톱이나 웹에서 관리됩니다.",

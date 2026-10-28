@@ -107,7 +107,7 @@ export default function PortfoliosPage() {
     <>
       <div className="space-y-6">
         <SettingsHeader
-          heading={t("settings:portfolios.title")}
+          heading={t("settings:nav.items.portfolios")}
           text={t("settings:portfolios.description")}
           actionsInline
         >

@@ -1,7 +1,5 @@
 {
   "title": "Impostazioni",
-  "general": "Generale",
-  "appearance": "Aspetto",
   "privacy": "Privacy",
   "advanced": "Avanzate",
   "language": "Lingua",
@@ -189,7 +187,6 @@
   "goals_form_target_placeholder": "Importo obiettivo",
   "goals_form_achieved_label": "Obiettivo raggiunto",
   "limits_title": "Limiti",
-  "limits_full_title": "Limiti di contributo",
   "limits_description": "Gestisci i tuoi limiti di contributo.",
   "limits_add_button": "Aggiungi limite",
   "limits_add_aria": "Aggiungi limite di contributo",
@@ -270,7 +267,6 @@
   "market_data_import_description": "Carica file CSV per completare i dati di mercato del tuo portafoglio.",
   "market_data_import_back_button": "Torna ai provider",
   "addons_title": "Add-on",
-  "addons_full_title": "Gestione add-on",
   "addons_info_title": "🔌 Add-on ed estensioni",
   "addons_info_description": "Gli add-on ti permettono di estendere Wealthfolio con nuove funzionalità, analisi personalizzate e funzioni aggiuntive per migliorare la tua gestione finanziaria.",
   "addons_security_notice": "Avviso di sicurezza:",
@@ -306,7 +302,6 @@
   "addons_install_cancelled": "Installazione annullata",
   "addons_install_cancelled_description": "L'installazione dell'add-on è stata annullata dall'utente.",
   "export_title": "Esportazione dati",
-  "export_full_title": "Backup ed esportazioni",
   "export_description": "Conserva un backup del portafoglio o esporta i dati per usarli altrove.",
   "export_tab_backup": "Backup",
   "export_tab_export": "Esportazione dati",
@@ -374,7 +369,6 @@
   "recovery_inspect": "Verifica backup",
   "recovery_cancel": "Annulla",
   "backup_restore_title": "Ripristina backup",
-  "about_title": "Informazioni",
   "about_description": "Informazioni sull'applicazione",
   "about_app_name": "Wealthfolio",
   "about_version": "Versione {{version}}",
@@ -686,7 +680,6 @@
     "day_left": "{{days}}g rimanenti"
   },
   "portfolios": {
-    "title": "Portafogli",
     "description": "Crea ambiti di reportistica con nome tra i conti.",
     "add_aria": "Aggiungi portafoglio",
     "add_button": "Aggiungi portafoglio",
@@ -764,7 +757,6 @@
   "tax_reset": "Reimposta",
   "tax_delete_confirm_desc": "Sei sicuro di voler eliminare \"{{name}}\"? Questo rimuoverà tutte le assegnazioni di asset a questa categoria. Questa azione non può essere annullata.",
   "market_data_page": {
-    "heading": "Dati di mercato",
     "subtitle": "Configura i tuoi provider di dati di mercato.",
     "rebuild_history": "Aggiorna tutta la cronologia",
     "history_menu": "Cronologia",
@@ -1110,7 +1102,6 @@
   "addon_store_filter_placeholder": "Filtra per...",
   "addon_card_addon_page": "Pagina dell'add-on",
   "spending": {
-    "title": "Controllo spese",
     "page_description": "Monitora le spese sui tuoi conti in contanti — categorie, eventi, regole di automazione e budget.",
     "back_to_settings": "Torna alle Impostazioni",
     "back_to_tracker": "Torna al controllo spese",
@@ -1369,7 +1360,6 @@
   "fx_rate_label": "Tasso di cambio",
   "fx_rate_placeholder": "Inserisci il tasso di cambio",
   "agentAccess": {
-    "page_heading": "Accesso agenti IA",
     "page_text": "Consenti agli agenti IA di accedere al tuo portafoglio tramite MCP. Gli ambiti di ciascun token controllano cosa può fare.",
     "mobile_unavailable_title": "Non disponibile su mobile",
     "mobile_unavailable_description": "L'accesso agenti IA si gestisce da desktop o web.",

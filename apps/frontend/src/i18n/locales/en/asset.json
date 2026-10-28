@@ -12,7 +12,6 @@
     "more": "More"
   },
   "securities": {
-    "heading": "Securities",
     "subtitle": "Browse and manage the securities available in your portfolio.",
     "add_security": "Add Security",
     "delete_title": "Delete security",

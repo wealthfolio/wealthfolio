@@ -12,7 +12,6 @@
     "more": "Plus"
   },
   "securities": {
-    "heading": "Titres",
     "subtitle": "Parcourez et gérez les titres disponibles dans votre portefeuille.",
     "add_security": "Ajouter un titre",
     "delete_title": "Supprimer le titre",

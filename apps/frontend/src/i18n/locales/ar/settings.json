@@ -213,7 +213,6 @@
   "addons_disabled_badge": "معطّلة",
   "addons_empty_description": "ابدأ بتثبيت أول إضافة لتوسيع وظائف Wealthfolio.",
   "addons_empty_title": "لا توجد إضافات مثبتة",
-  "addons_full_title": "مدير الإضافات",
   "addons_info_description": "تتيح لك الإضافات توسيع Wealthfolio بميزات جديدة وتحليلات مخصصة ووظائف إضافية لتحسين تجربة إدارتك المالية.",
   "addons_info_title": "🔌 الإضافات والملحقات",
   "addons_install_cancelled": "تم إلغاء التثبيت",
@@ -357,7 +356,6 @@
     "hero_aria": "حالة وصول وكلاء الذكاء الاصطناعي",
     "mobile_unavailable_description": "تتم إدارة وصول وكلاء الذكاء الاصطناعي من سطح المكتب أو الويب.",
     "mobile_unavailable_title": "غير متاح على الجوال",
-    "page_heading": "وصول وكلاء الذكاء الاصطناعي",
     "page_text": "اسمح لوكلاء الذكاء الاصطناعي بالوصول إلى محفظتك عبر MCP. تتحكم نطاقات كل رمز فيما يمكنه فعله.",
     "pat_create": "إنشاء رمز",
     "pat_created": "أُنشئ في {{date}}",
@@ -487,7 +485,6 @@
   "ai_providers_empty_title": "لا يتوفر مزودو ذكاء اصطناعي",
   "ai_providers_load_error": "تعذّر تحميل مزودي الذكاء الاصطناعي",
   "api_keys": "مفاتيح API",
-  "appearance": "المظهر",
   "appearance_description": "خصّص مظهر التطبيق.",
   "appearance_font_description": "اختر عائلة الخط المستخدمة في الواجهة بأكملها.",
   "appearance_font_error": "اختر خطًا",
@@ -788,7 +785,6 @@
   "export_format_json": "JSON",
   "export_format_json_description": "بيانات منظمة لسهولة الوصول البرمجي",
   "export_format_title": "اختر التنسيق المفضل لديك",
-  "export_full_title": "النسخ الاحتياطية والتصدير",
   "export_section_description": "صدّر أنواعًا محددة من البيانات بتنسيقات متعددة للتحليل أو الاستخدام الخارجي.",
   "export_section_title": "تصدير البيانات",
   "export_tab_backup": "النسخ الاحتياطية",
@@ -867,7 +863,6 @@
   "fx_title": "أسعار الصرف",
   "fx_to_currency": "إلى العملة",
   "fx_view_history": "عرض السجل",
-  "general": "عام",
   "general_page_description": "إدارة الإعدادات والتفضيلات العامة للتطبيق.",
   "goals_add_aria": "إضافة هدف",
   "goals_add_button": "إضافة هدف",
@@ -948,7 +943,6 @@
   "limits_form_year_label": "السنة",
   "limits_form_year_placeholder": "مثال: 2024",
   "limits_form_year_invalid": "سنة غير صالحة",
-  "limits_full_title": "حدود المساهمة",
   "limits_hide_previous": "إخفاء",
   "limits_limit_reached": "تم بلوغ الحد",
   "limits_loading": "جارٍ التحميل...",
@@ -1150,7 +1144,6 @@
     "from": "من",
     "headers_auth": "الترويسات والمصادقة (اختياري)",
     "headers_secret_help": "أضف البادئة __SECRET__ إلى القيم السرية لتشفيرها.",
-    "heading": "بيانات السوق",
     "hide_api_key": "إخفاء مفتاح API",
     "historical": "تاريخي",
     "history_menu": "السجل",
@@ -1491,8 +1484,7 @@
     "operations_open": "فتح",
     "remove_deleted_links": "سيؤدي الحفظ إلى إزالة روابط الحسابات المحذوفة.",
     "saving": "جارٍ الحفظ…",
-    "select_one_account": "اختر حسابًا واحدًا على الأقل.",
-    "title": "المحافظ"
+    "select_one_account": "اختر حسابًا واحدًا على الأقل."
   },
   "privacy": "الخصوصية",
   "quote_help_auto_text": "يتم دعم تنسيقات تاريخ متعددة (YYYY-MM-DD، DD/MM/YYYY، MM/DD/YYYY). وتتم معالجة رموز العملات تلقائيًا.",
@@ -1847,8 +1839,7 @@
     "setup": {
       "description": "حدّد المجموعات والأهداف الشهرية الافتراضية وسلوك ترحيل الرصيد. تُستخدم كأساس لكل شهر.",
       "title": "خطة الميزانية الشهرية الافتراضية"
-    },
-    "title": "متتبع الإنفاق"
+    }
   },
   "tax_add_category": "إضافة فئة",
   "tax_categories_count": "{{count}} فئات",
@@ -1945,7 +1936,6 @@
   "about_support_message": "هل لديك أسئلة أو وجدت خطأً؟ يُرجى مراسلتنا عبر البريد الإلكتروني على",
   "about_tagline": "أداة جميلة وبسيطة وآمنة لتتبع الأموال الشخصية والاستثمارات تساعدك على التحكم في ثروتك.",
   "about_terms_of_use": "شروط الاستخدام",
-  "about_title": "حول",
   "about_unavailable": "غير متاح",
   "about_up_to_date": "محدَّث",
   "about_up_to_date_description": "لديك أحدث إصدار.",

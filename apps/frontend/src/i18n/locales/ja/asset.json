@@ -12,7 +12,6 @@
     "more": "その他"
   },
   "securities": {
-    "heading": "銘柄",
     "subtitle": "ポートフォリオで利用できる銘柄を閲覧・管理します。",
     "add_security": "銘柄を追加",
     "delete_title": "銘柄を削除",

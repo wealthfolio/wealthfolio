@@ -1,7 +1,5 @@
 {
   "title": "設定",
-  "general": "一般",
-  "appearance": "外観",
   "privacy": "プライバシー",
   "advanced": "詳細設定",
   "language": "言語",
@@ -189,7 +187,6 @@
   "goals_form_target_placeholder": "目標金額",
   "goals_form_achieved_label": "達成済み",
   "limits_title": "上限",
-  "limits_full_title": "拠出上限",
   "limits_description": "拠出上限を管理します。",
   "limits_add_button": "上限を追加",
   "limits_add_aria": "拠出上限を追加",
@@ -270,7 +267,6 @@
   "market_data_import_description": "CSVファイルをアップロードして、ポートフォリオの市場データを補完します。",
   "market_data_import_back_button": "プロバイダー一覧に戻る",
   "addons_title": "アドオン",
-  "addons_full_title": "アドオン管理",
   "addons_info_title": "🔌 アドオンと拡張機能",
   "addons_info_description": "アドオンを使うと、新しい機能やカスタム分析などをWealthfolioに追加して、資産管理をより便利にできます。",
   "addons_security_notice": "セキュリティに関する注意:",
@@ -304,7 +300,6 @@
   "addons_install_cancelled": "インストールを中止しました",
   "addons_install_cancelled_description": "アドオンのインストールがユーザーによって中止されました。",
   "export_title": "データエクスポート",
-  "export_full_title": "バックアップとエクスポート",
   "export_description": "ポートフォリオのバックアップを保存したり、データをエクスポートして別の場所で使ったりできます。",
   "export_tab_backup": "バックアップ",
   "export_tab_export": "データエクスポート",
@@ -372,7 +367,6 @@
   "recovery_inspect": "バックアップを確認",
   "recovery_cancel": "キャンセル",
   "backup_restore_title": "バックアップを復元",
-  "about_title": "このアプリについて",
   "about_description": "アプリケーション情報",
   "about_app_name": "Wealthfolio",
   "about_version": "バージョン {{version}}",
@@ -684,7 +678,6 @@
     "day_left": "残り{{days}}日"
   },
   "portfolios": {
-    "title": "ポートフォリオ",
     "description": "複数の口座をまたぐ名前付きの集計範囲を作成します。",
     "add_aria": "ポートフォリオを追加",
     "add_button": "ポートフォリオを追加",
@@ -759,7 +752,6 @@
   "tax_reset": "リセット",
   "tax_delete_confirm_desc": "「{{name}}」を削除してもよろしいですか?このカテゴリへの資産の割り当てもすべて解除されます。この操作は取り消せません。",
   "market_data_page": {
-    "heading": "市場データ",
     "subtitle": "市場データプロバイダーを設定します。",
     "rebuild_history": "全履歴を更新",
     "history_menu": "履歴",
@@ -1071,7 +1063,6 @@
   "addon_store_filter_placeholder": "絞り込み...",
   "addon_card_addon_page": "アドオンのページ",
   "spending": {
-    "title": "支出管理",
     "page_description": "現金口座の支出を管理します — カテゴリ、イベント、自動化ルール、予算。",
     "back_to_settings": "設定に戻る",
     "back_to_tracker": "支出管理に戻る",
@@ -1313,7 +1304,6 @@
   "fx_rate_label": "為替レート",
   "fx_rate_placeholder": "為替レートを入力",
   "agentAccess": {
-    "page_heading": "AIエージェントアクセス",
     "page_text": "AIエージェントがMCP経由でポートフォリオにアクセスできるようにします。各トークンのスコープで実行できる操作を制御します。",
     "mobile_unavailable_title": "モバイルでは利用できません",
     "mobile_unavailable_description": "AIエージェントアクセスはデスクトップ版またはWeb版で管理します。",
