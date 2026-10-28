@@ -607,10 +607,7 @@ function CloudBackupPanel({ backup }: { backup: ReturnType<typeof useCloudBackup
   };
   const locked = !!data?.hasKey && !data.keyReady;
   return (
-    <Card
-      className="overflow-hidden rounded-2xl shadow-none"
-      aria-label={t("settings:cloud_backup_title")}
-    >
+    <Card className="overflow-hidden" aria-label={t("settings:cloud_backup_title")}>
       <CardHeader className="space-y-4 p-5 sm:p-6">
         <BackupCardHeader
           brand

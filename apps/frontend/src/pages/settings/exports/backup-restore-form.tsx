@@ -59,7 +59,7 @@ export function BackupRestoreForm() {
     return !Number.isNaN(date.getTime()) && (!newest || date > newest) ? date : newest;
   }, null);
   return (
-    <Card className="overflow-hidden rounded-2xl shadow-none">
+    <Card className="overflow-hidden">
       <CardHeader className="space-y-4 p-5 sm:p-6">
         <BackupCardHeader
           icon={<DatabaseIcon weight="duotone" aria-hidden />}

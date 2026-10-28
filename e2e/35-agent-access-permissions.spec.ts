@@ -42,9 +42,9 @@ for (const direction of ["ltr", "rtl"]) {
     await expect(create.getByRole("heading", { name: "Token created", exact: true })).toBeVisible();
     await create.getByRole("button", { name: "Done", exact: true }).click();
     const row = page
-      .locator("div.grid")
+      .getByRole("list", { name: "Personal access tokens", exact: true })
+      .getByRole("listitem")
       .filter({ has: page.getByText(name, { exact: true }) })
-      .filter({ has: page.getByRole("button", { name: "Edit permissions", exact: true }) })
       .last();
     await row.getByRole("button", { name: "Edit permissions", exact: true }).click();
     const edit = page.getByRole("dialog");

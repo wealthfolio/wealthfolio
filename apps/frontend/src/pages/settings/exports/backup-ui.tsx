@@ -87,7 +87,7 @@ export function BackupCardHeader({
         {icon}
       </div>
       <div className="col-start-1 row-start-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 md:col-start-2">
-        <h2 className="text-base leading-6 font-semibold tracking-tight">{title}</h2>
+        <h2 className="text-lg leading-6 font-semibold tracking-tight">{title}</h2>
         {info}
         {badge}
       </div>
@@ -353,7 +353,7 @@ export function BackupActions({
 
 export function BackupEmpty({ title, description }: { title: string; description: string }) {
   return (
-    <div className="flex items-start gap-3 rounded-lg border border-dashed p-4">
+    <div className="flex items-start gap-3">
       <Icons.History className="text-muted-foreground mt-0.5 size-5 shrink-0" aria-hidden />
       <div className="space-y-0.5">
         <p className="text-sm leading-5 font-medium">{title}</p>
