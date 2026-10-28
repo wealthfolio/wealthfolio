@@ -132,6 +132,12 @@ export function DrillableAccountChart({
       .sort((a, b) => b.value - a.value);
   }, [path, accountsWithValues]);
 
+  // The drilled group can vanish while the chart stays mounted (account scope changed,
+  // account regrouped) — return to the groups instead of showing an empty level.
+  if (!isAtRoot && !isLoading && drilledData.length === 0) {
+    navigateTo(0);
+  }
+
   const data = isAtRoot ? groupedData : drilledData;
 
   // The selection points at an account/group, not at a position — reset it when the set

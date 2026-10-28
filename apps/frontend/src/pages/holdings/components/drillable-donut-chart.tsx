@@ -85,6 +85,12 @@ export function DrillableDonutChart({
       .sort((a, b) => b.value - a.value);
   }, [path, allocation, baseCurrency, t]);
 
+  // The drilled category can empty out while the chart stays mounted (account scope
+  // changed, re-classification) — return to the categories instead of an empty level.
+  if (!isAtRoot && !isLoading && drilledData.length === 0) {
+    navigateTo(0);
+  }
+
   const data = isAtRoot ? rootData : drilledData;
 
   // The selection points at a category, not at a position — reset it when the categories
