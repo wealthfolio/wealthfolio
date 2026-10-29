@@ -6,7 +6,7 @@ use chrono::{DateTime, Utc};
 use chrono_tz::Tz;
 use rust_decimal::{prelude::ToPrimitive, Decimal};
 use wealthfolio_core::accounts::{
-    account_supports_purpose, AccountPurpose, AccountRepositoryTrait,
+    account_supports_purpose, account_types, AccountPurpose, AccountRepositoryTrait,
 };
 use wealthfolio_core::activities::{
     application_order, running_cash_balances, shows_running_cash_balance, Activity,
@@ -1155,7 +1155,7 @@ impl CashActivityService {
         ));
         let Some(expected_taxonomy) = bucket.taxonomy_id() else {
             return Err(SpendingError::InvalidInput {
-                message: "Neutral transfers cannot be categorized. Change or unlink the transfer if it should count as spending.".to_string(),
+                message: "Neutral activities cannot be categorized. Change the type or subtype, or unlink a transfer, if it should count as spending.".to_string(),
             }
             .into());
         };
@@ -1203,7 +1203,7 @@ impl CashActivityService {
         ));
         let Some(expected_taxonomy) = bucket.taxonomy_id() else {
             return Err(SpendingError::InvalidInput {
-                message: "Neutral transfers cannot be split. Change or unlink the transfer if it should count as spending.".to_string(),
+                message: "Neutral activities cannot be split. Change the type or subtype, or unlink a transfer, if it should count as spending.".to_string(),
             }
             .into());
         };
@@ -1384,6 +1384,12 @@ fn is_visible_cash_activity(activity: &Activity, account_type: &str) -> bool {
 }
 
 fn is_neutral_visible_cash_activity(activity: &Activity, account_type: &str) -> bool {
+    // Cash credits affect the balance even when their subtype gives them no
+    // income/spending classification. Keep them accessible in the ledger.
+    if account_type == account_types::CASH && activity.effective_type() == "CREDIT" {
+        return true;
+    }
+
     // Transfers on a spending account — card payments, balance transfers and
     // cash advances, savings moves to investing accounts, internal moves.
     // Always shown in the ledger (we never hide an account's transactions);
@@ -3271,7 +3277,7 @@ mod tests {
             .unwrap_err();
         assert!(err
             .to_string()
-            .contains("Neutral transfers cannot be categorized"));
+            .contains("Neutral activities cannot be categorized"));
         assert!(assignment_repo.assignments.lock().unwrap().is_empty());
     }
 
@@ -3489,6 +3495,122 @@ mod tests {
         assert!(!activity_date_in_range(&after_end, None, Some(&same_end)));
     }
 
+    #[tokio::test]
+    async fn cash_credits_without_reporting_subtypes_remain_visible() {
+        for subtype in [
+            None,
+            Some(""),
+            Some(" "),
+            Some("ADJUSTMENT"),
+            Some("refund"),
+        ] {
+            let mut credit = activity("CREDIT");
+            credit.subtype = subtype.map(str::to_string);
+            credit.metadata = Some(serde_json::json!({"flow": {"is_external": false}}));
+            let (service, _, _) = make_service(credit.clone());
+
+            let listed = service.list(CashActivityFilter::default()).await.unwrap();
+            assert_eq!(listed.len(), 1, "subtype {subtype:?}");
+            let searched = service
+                .search(
+                    CashActivitySearchRequest {
+                        activity_types: Some(vec!["CREDIT".to_string()]),
+                        include_cash_balances: true,
+                        limit: 50,
+                        ..Default::default()
+                    },
+                    None,
+                    "UTC",
+                )
+                .await
+                .unwrap();
+            assert_eq!(searched.total_count, 1);
+            assert_eq!(searched.items[0].cash_balance.as_deref(), Some("100"));
+            assert_eq!(searched.net.unwrap().by_currency[0].amount, 100.0);
+            let explicit = service
+                .get_by_activity_ids(std::slice::from_ref(&credit.id))
+                .await
+                .unwrap();
+            assert_eq!(explicit.len(), 1);
+            for row in listed.iter().chain(&searched.items).chain(&explicit) {
+                assert_eq!(row.cash_flow_bucket, CashFlowBucket::Neutral);
+                assert_eq!(row.net_amount, 100.0);
+                assert_eq!(row.visible_spending_amount, 0.0);
+                assert_eq!(row.activity.subtype, credit.subtype);
+                assert_eq!(row.activity.metadata, credit.metadata);
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn neutral_cash_credits_follow_neutral_status_filters() {
+        let mut credit = activity("CREDIT");
+        credit.needs_review = true;
+        let (service, _, _) = make_service(credit);
+        for (status, expected_count) in [
+            (CashActivityStatusFilter::All, 1),
+            (CashActivityStatusFilter::Categorized, 1),
+            (CashActivityStatusFilter::Uncategorized, 0),
+            (CashActivityStatusFilter::NeedsReview, 1),
+        ] {
+            let response = service
+                .search(
+                    CashActivitySearchRequest {
+                        status,
+                        ..Default::default()
+                    },
+                    None,
+                    "UTC",
+                )
+                .await
+                .unwrap();
+            assert_eq!(response.total_count, expected_count);
+        }
+    }
+
+    #[tokio::test]
+    async fn neutral_cash_credits_allow_cleanup_but_reject_new_allocations() {
+        let (service, assignments, splits) = make_service(activity("CREDIT"));
+        let error = service
+            .assign_category("activity-1", SPENDING_TAXONOMY, "groceries")
+            .await
+            .unwrap_err();
+        assert!(error.to_string().contains("cannot be categorized"));
+        let error = service
+            .replace_splits(
+                "activity-1",
+                vec![split("groceries", 100, SPENDING_TAXONOMY)],
+            )
+            .await
+            .unwrap_err();
+        assert!(error.to_string().contains("cannot be split"));
+        assert!(splits.replaced.lock().unwrap().is_empty());
+
+        service
+            .unassign_category("activity-1", SPENDING_TAXONOMY)
+            .await
+            .unwrap();
+        assert_eq!(assignments.cleared.lock().unwrap().len(), 1);
+        service.clear_splits("activity-1").await.unwrap();
+        assert_eq!(splits.cleared.lock().unwrap().as_slice(), &["activity-1"]);
+        service.set_event("activity-1", None).await.unwrap();
+    }
+
+    #[test]
+    fn cash_credit_visibility_respects_type_overrides_and_account_scope() {
+        let mut overridden = activity("DEPOSIT");
+        overridden.activity_type_override = Some("CREDIT".to_string());
+        assert!(is_visible_cash_activity(&overridden, account_types::CASH));
+        assert!(!is_visible_cash_activity(
+            &overridden,
+            account_types::SECURITIES
+        ));
+
+        overridden.activity_type = "CREDIT".to_string();
+        overridden.activity_type_override = Some("BUY".to_string());
+        assert!(!is_visible_cash_activity(&overridden, account_types::CASH));
+    }
+
     #[test]
     fn credit_card_payment_is_visible_as_neutral_cash_activity() {
         let mut linked_payment = activity("TRANSFER_IN");
@@ -3618,7 +3740,7 @@ mod tests {
 
         assert!(err
             .to_string()
-            .contains("Neutral transfers cannot be split"));
+            .contains("Neutral activities cannot be split"));
         assert!(assignment_repo.cleared.lock().unwrap().is_empty());
         assert!(split_repo.replaced.lock().unwrap().is_empty());
     }

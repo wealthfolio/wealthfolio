@@ -707,6 +707,24 @@ describe("createDraftActivities explicit activity mapping", () => {
     ).toBeUndefined();
   });
 
+  it("imports an untyped cash credit without assigning refund or external-flow semantics", () => {
+    const [draft] = createDraftActivities(
+      [["2024-03-15", "CREDIT", "100.00", "USD"]],
+      headers,
+      { ...baseMapping, activityMappings: { [ActivityType.CREDIT]: ["CREDIT"] } },
+      parseConfig,
+      "account-1",
+      undefined,
+      new Map([["account-1", AccountType.CASH]]),
+    );
+    expect(draft.activityType).toBe(ActivityType.CREDIT);
+    expect(draft.subtype).toBeUndefined();
+    const imported = draftToActivityImport(draft);
+    expect(imported.activityType).toBe(ActivityType.CREDIT);
+    expect(imported.subtype).toBeUndefined();
+    expect(imported.isExternal).toBeUndefined();
+  });
+
   it("infers external boundaries from unambiguous cash-account reversal labels", () => {
     const labels = ["MERCHANT REFUND", "CASH BACK", "REIMBURSEMENT"];
     const drafts = createDraftActivities(

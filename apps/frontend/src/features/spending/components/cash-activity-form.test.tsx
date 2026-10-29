@@ -103,6 +103,43 @@ describe("CashActivityForm currency", () => {
 
   beforeEach(() => vi.clearAllMocks());
 
+  it.each([null, "ADJUSTMENT", "BONUS"])(
+    "labels an existing CREDIT/%s accurately and preserves its meaning on save",
+    async (subtype) => {
+      const user = userEvent.setup();
+      render(
+        <CashActivityForm
+          open
+          onOpenChange={vi.fn()}
+          activity={
+            {
+              ...foreignCharge,
+              accountId: "chequing",
+              activityType: "CREDIT",
+              subtype,
+              cashFlowBucket: subtype === "BONUS" ? "income" : "neutral",
+              metadata: { flow: { is_external: false } },
+            } as Activity
+          }
+        />,
+        { wrapper },
+      );
+
+      expect(screen.getByRole("combobox", { name: "Type" })).toHaveTextContent("Credit");
+      expect(screen.queryByText("Reimbursement / refund")).not.toBeInTheDocument();
+      expect(screen.queryByText("Neutral transfer")).not.toBeInTheDocument();
+      if (subtype !== "BONUS") expect(screen.getByText("Neutral")).toBeInTheDocument();
+
+      await user.click(screen.getByRole("button", { name: /update/i }));
+      await waitFor(() => expect(updateActivity).toHaveBeenCalled());
+      expect(vi.mocked(updateActivity).mock.calls[0][0]).toMatchObject({
+        activityType: "CREDIT",
+        subtype,
+        metadata: { flow: { is_external: false } },
+      });
+    },
+  );
+
   /**
    * The currency used to be recomputed from the account on every save. Saving
    * an untouched foreign charge therefore rewrote it to the account's own

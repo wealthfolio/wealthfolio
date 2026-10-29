@@ -306,14 +306,23 @@ export function CashActivityForm({
           t,
           type,
           selectedAccount?.accountType,
-          type === "CREDIT" && !isCreditCardAccountType(selectedAccount?.accountType)
-            ? "REIMBURSEMENT"
-            : undefined,
+          resolveCashActivitySubtype({
+            activityType: type,
+            accountType: selectedAccount?.accountType,
+            existingActivityType: activity?.activityType,
+            existingSubtype: activity?.subtype,
+          }),
         ),
         description: getMobileTypeDescription(type, t),
         Icon: getMobileTypeIcon(type),
       })),
-    [activityTypeOptions, selectedAccount?.accountType, t],
+    [
+      activityTypeOptions,
+      selectedAccount?.accountType,
+      activity?.activityType,
+      activity?.subtype,
+      t,
+    ],
   );
   const isIncomeType = isCashActivityIncome(
     watchType,
@@ -614,17 +623,9 @@ export function CashActivityForm({
                                   </SelectTrigger>
                                 </FormControl>
                                 <SelectContent>
-                                  {activityTypeOptions.map((type) => (
+                                  {mobileTypeOptions.map(({ type, label }) => (
                                     <SelectItem key={type} value={type}>
-                                      {getCashActivityLabel(
-                                        t,
-                                        type,
-                                        selectedAccount?.accountType,
-                                        type === "CREDIT" &&
-                                          !isCreditCardAccountType(selectedAccount?.accountType)
-                                          ? "REIMBURSEMENT"
-                                          : undefined,
-                                      )}
+                                      {label}
                                     </SelectItem>
                                   ))}
                                 </SelectContent>
@@ -760,7 +761,7 @@ export function CashActivityForm({
                               </p>
                             ) : isNeutralBucket ? (
                               <div className="border-input bg-muted/40 text-muted-foreground h-input-height flex items-center rounded-md border px-3 py-2 text-sm">
-                                {t("spending:cashForm.neutralTransfer")}
+                                {t("spending:transactions.neutral")}
                               </div>
                             ) : (
                               <QuickCategorizePopover
