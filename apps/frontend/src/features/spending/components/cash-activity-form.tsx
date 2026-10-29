@@ -761,7 +761,9 @@ export function CashActivityForm({
                               </p>
                             ) : isNeutralBucket ? (
                               <div className="border-input bg-muted/40 text-muted-foreground h-input-height flex items-center rounded-md border px-3 py-2 text-sm">
-                                {t("spending:transactions.neutral")}
+                                {watchType === "TRANSFER_IN" || watchType === "TRANSFER_OUT"
+                                  ? t("spending:cashForm.neutralTransfer")
+                                  : t("spending:transactions.neutral")}
                               </div>
                             ) : (
                               <QuickCategorizePopover

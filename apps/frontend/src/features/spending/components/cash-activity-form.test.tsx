@@ -103,6 +103,26 @@ describe("CashActivityForm currency", () => {
 
   beforeEach(() => vi.clearAllMocks());
 
+  it("keeps the neutral-transfer label for an existing transfer", () => {
+    render(
+      <CashActivityForm
+        open
+        onOpenChange={vi.fn()}
+        activity={
+          {
+            ...foreignCharge,
+            accountId: "chequing",
+            activityType: "TRANSFER_IN",
+            sourceGroupId: "linked-transfer",
+            cashFlowBucket: "neutral",
+          } as Activity
+        }
+      />,
+      { wrapper },
+    );
+    expect(screen.getByText("Neutral transfer")).toBeInTheDocument();
+  });
+
   it.each([null, "ADJUSTMENT", "BONUS"])(
     "labels an existing CREDIT/%s accurately and preserves its meaning on save",
     async (subtype) => {

@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 import { BASE_URL } from "./helpers";
 
 for (const direction of ["ltr", "rtl"]) {
-  test(`an imported untyped credit can be edited and deleted in Spending (${direction})`, async ({
+  test(`an imported untyped credit can be edited and deleted in Spending (${direction === "rtl" ? "mobile RTL" : "desktop LTR"})`, async ({
     page,
   }) => {
     test.setTimeout(120_000);
