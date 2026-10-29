@@ -117,6 +117,13 @@ describe("shared display localization", () => {
     expect(getCurrencyDisplayName("EUR", "en", i18n.t)).toBe("European Euro");
   });
 
+  it("starts a currency label with a capital where the language writes names in lowercase", () => {
+    const franc = { value: "CHF", label: "Swiss franc (CHF)" };
+    expect(getCurrencyDisplayLabel(franc, "fr")).toBe("Franc suisse (CHF)");
+    expect(getCurrencyDisplayName("CHF", "fr")).toBe("franc suisse");
+    expect(getCurrencyDisplayLabel(franc, "zh")).toBe("瑞士法郎 (CHF)");
+  });
+
   it("localizes shared select defaults and progress details", async () => {
     const i18n = await language();
     render(
