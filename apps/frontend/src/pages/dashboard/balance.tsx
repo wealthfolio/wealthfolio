@@ -35,10 +35,26 @@ const Balance: React.FC<BalanceProps> = ({
   const displayValue =
     !compact && Math.abs(targetValue) < 0.5 * 10 ** -fractionDigits ? 0 : targetValue;
 
-  const currencySymbol = useMemo(() => {
-    if (!validCurrency) return currency;
-    return amountFormatting.formatCurrencySymbol(currency);
-  }, [currency, amountFormatting, validCurrency]);
+  // The hidden balance keeps the symbol and its place from the visible format, so "$"
+  // stays "$" (not "US$") and "€" stays after the number where the locale puts it there.
+  const hiddenValue = useMemo(() => {
+    const dots = "•••••••";
+    if (!displayCurrency || !validCurrency) return dots;
+    let placed = false;
+    return new Intl.NumberFormat(locale, {
+      style: "currency",
+      currency,
+      currencyDisplay: "narrowSymbol",
+    })
+      .formatToParts(0)
+      .map((part) => {
+        if (part.type === "currency" || part.type === "literal") return part.value;
+        if (placed) return "";
+        placed = true;
+        return dots;
+      })
+      .join("");
+  }, [currency, locale, validCurrency, displayCurrency]);
 
   const formattedValue = useMemo(() => {
     const useCurrencyStyle = displayCurrency && validCurrency;
@@ -83,10 +99,7 @@ const Balance: React.FC<BalanceProps> = ({
   return (
     <h1 className="font-heading text-display font-normal" data-testid="portfolio-balance">
       {isBalanceHidden ? (
-        <span className="text-4x">
-          {displayCurrency ? currencySymbol : ""}
-          •••••••
-        </span>
+        <span className="text-4x">{hiddenValue}</span>
       ) : (
         <>
           <NumberFlow
