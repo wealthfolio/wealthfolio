@@ -45,6 +45,7 @@ import {
   useNumberFormatting,
 } from "@wealthfolio/ui";
 import { Switch } from "@wealthfolio/ui/components/ui/switch";
+import { cardSurfaceClassName } from "@wealthfolio/ui/components/ui/card";
 
 import { cn } from "@/lib/utils";
 
@@ -66,7 +67,6 @@ import { IconPicker } from "./icon-picker";
 import { badgeVariants } from "@wealthfolio/ui";
 
 const SPENDING_TAXONOMY = "spending_categories";
-const CARD_CLASS = "border-border/60 bg-card/40 shadow-xs rounded-xl border backdrop-blur-xl";
 
 export type BudgetEditorMode = "setup" | "monthly";
 
@@ -310,7 +310,7 @@ function BudgetSummary({
       : t("spending:budgetEditor.monthlyPlan");
 
   return (
-    <section className={cn(CARD_CLASS, "overflow-hidden p-3 sm:p-4")}>
+    <section className={cn(cardSurfaceClassName, "overflow-hidden p-3 sm:p-4")}>
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
           <div className="text-muted-foreground text-2xs font-semibold tracking-[0.08em] uppercase">
@@ -507,7 +507,7 @@ function GroupBudgetSection({
       : t("spending:budgetEditor.perMonth");
 
   return (
-    <section className={cn(CARD_CLASS, "overflow-hidden")}>
+    <section className={cn(cardSurfaceClassName, "overflow-hidden")}>
       <div className="flex items-center gap-2 px-3 py-2 sm:gap-3 sm:px-4">
         <button
           type="button"
@@ -1371,7 +1371,7 @@ function IncomeSourcesPanel({
   const visibleRows = isMonthly && !showAll ? nonZeroRows : rows;
 
   return (
-    <section className={cn(CARD_CLASS, "p-3 sm:p-4")}>
+    <section className={cn(cardSurfaceClassName, "p-3 sm:p-4")}>
       <div className="flex items-center justify-between">
         <PanelHeader title={title} icon={<Icons.Wallet className="h-3.5 w-3.5" />} />
         {isMonthly && (
@@ -1548,7 +1548,7 @@ function OverridesSummary({
   if (overrides.length === 0) return null;
 
   return (
-    <section className={cn(CARD_CLASS, "p-3 sm:p-4")}>
+    <section className={cn(cardSurfaceClassName, "p-3 sm:p-4")}>
       <div className="flex items-center justify-between gap-2">
         <PanelHeader
           title={tr("spending:budgetEditor.overridesTitle", { count: overrides.length })}
@@ -1644,7 +1644,7 @@ function CopyFromMonthRow({
   const [overwrite, setOverwrite] = useState(false);
 
   return (
-    <section className={cn(CARD_CLASS, "p-3 sm:p-4")}>
+    <section className={cn(cardSurfaceClassName, "p-3 sm:p-4")}>
       <PanelHeader
         title={t("spending:budgetEditor.copyPlanTitle")}
         icon={<Icons.Copy className="h-3.5 w-3.5" />}
@@ -1699,7 +1699,7 @@ function BudgetTotalsPanel({
 }) {
   const { t } = useTranslation();
   return (
-    <section className={cn(CARD_CLASS, "p-3 sm:p-4")}>
+    <section className={cn(cardSurfaceClassName, "p-3 sm:p-4")}>
       <PanelHeader
         title={t("spending:budgetEditor.totals")}
         icon={<Icons.PieChart className="h-3.5 w-3.5" />}
@@ -1784,7 +1784,7 @@ function BudgetErrorState({ error, onRetry }: { error: unknown; onRetry: () => v
   const missingTables = message.includes("no such table: budget_groups");
 
   return (
-    <section className={cn(CARD_CLASS, "p-5")}>
+    <section className={cn(cardSurfaceClassName, "p-5")}>
       <div className="flex gap-3">
         <Icons.AlertCircle className="text-destructive mt-0.5 h-5 w-5 shrink-0" />
         <div className="min-w-0 space-y-3">
@@ -1807,15 +1807,15 @@ function BudgetErrorState({ error, onRetry }: { error: unknown; onRetry: () => v
 function BudgetSkeleton() {
   return (
     <div className="space-y-4">
-      <Skeleton className="h-40 rounded-xl" />
+      <Skeleton className="h-40 rounded-(--card-radius)" />
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_22.5rem]">
         <div className="space-y-4">
-          <Skeleton className="h-72 rounded-xl" />
-          <Skeleton className="h-56 rounded-xl" />
+          <Skeleton className="h-72 rounded-(--card-radius)" />
+          <Skeleton className="h-56 rounded-(--card-radius)" />
         </div>
         <div className="space-y-4">
-          <Skeleton className="h-52 rounded-xl" />
-          <Skeleton className="h-64 rounded-xl" />
+          <Skeleton className="h-52 rounded-(--card-radius)" />
+          <Skeleton className="h-64 rounded-(--card-radius)" />
         </div>
       </div>
     </div>
