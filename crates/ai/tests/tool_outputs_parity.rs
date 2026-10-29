@@ -273,6 +273,7 @@ async fn health_refresh_reuses_a_run_from_the_last_minute() {
         let mut env = MockEnvironment::new();
         env.health_service = Arc::new(MockHealthService {
             cached_status: Some(status),
+            ..Default::default()
         });
         Arc::new(env)
     };
@@ -289,6 +290,25 @@ async fn health_refresh_reuses_a_run_from_the_last_minute() {
     let old = Utc::now() - chrono::Duration::minutes(2);
     let rerun = call_json_dyn(GetHealthStatus, env_with_run_at(old), refresh).await;
     assert_eq!(rerun["ok"]["overallSeverity"], "INFO", "{rerun}");
+}
+
+/// Two refreshes at once run the checks once: the second waits for the first
+/// and returns its run.
+#[tokio::test]
+async fn concurrent_health_refreshes_run_the_checks_once() {
+    let health = Arc::new(MockHealthService::default());
+    let mut env = MockEnvironment::new();
+    env.health_service = health.clone();
+    let env = Arc::new(env);
+    let refresh = serde_json::json!({ "refresh": true });
+
+    let (first, second) = tokio::join!(
+        call_json_dyn(GetHealthStatus, env.clone(), refresh.clone()),
+        call_json_dyn(GetHealthStatus, env, refresh),
+    );
+    assert_eq!(first["ok"]["overallSeverity"], "INFO", "{first}");
+    assert_eq!(second["ok"]["overallSeverity"], "INFO", "{second}");
+    assert_eq!(health.runs.load(std::sync::atomic::Ordering::SeqCst), 1);
 }
 output_test_dyn!(output_list_asset_taxonomies, ListAssetTaxonomies, {});
 output_test_dyn!(

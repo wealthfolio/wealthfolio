@@ -460,7 +460,9 @@ get_contribution_limits
 `AgentEnvironment::run_health_checks`, which each host implements with the same
 `HealthServiceTrait::run_full_checks` call as its Health Center (local reads
 only, the configured timezone, no client timezone) and which refreshes the cache
-the Health Center shows.
+the Health Center shows. A refresh within a minute of the last run returns that
+run; refreshes take a lock while they check this and run, so concurrent calls
+run the checks once.
 
 ### Draft / Suggest Tools (assistant + MCP)
 

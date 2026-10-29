@@ -11,6 +11,11 @@ use crate::tool::{AgentTool, AgentToolAccess, AgentToolError, AgentToolResult};
 /// read-scoped caller cannot recompute every check back to back.
 const REFRESH_COOLDOWN_SECS: i64 = 60;
 
+/// Held while a refresh checks the cooldown and runs, so a concurrent refresh
+/// waits and then returns that run instead of starting its own.
+// ponytail: one lock for the process, not per profile; refreshes are rare.
+static REFRESH_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
 /// Arguments for the get_health_status tool (no required args).
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -104,6 +109,11 @@ impl AgentTool for GetHealthStatus {
     ) -> Result<AgentToolResult, AgentToolError> {
         let args: GetHealthStatusArgs = serde_json::from_value(args)?;
 
+        let _refresh = if args.refresh {
+            Some(REFRESH_LOCK.lock().await)
+        } else {
+            None
+        };
         let cached = env.health_service().get_cached_status().await;
         let recent = cached.as_ref().is_some_and(|status| {
             chrono::Utc::now() - status.checked_at
