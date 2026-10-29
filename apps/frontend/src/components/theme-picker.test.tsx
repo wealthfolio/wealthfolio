@@ -74,6 +74,8 @@ describe("ThemePicker", () => {
     const onChange = vi.fn();
     render(<ThemePicker value="classic" onChange={onChange} />);
     const terminal = screen.getByRole("radio", { name: /Terminal/ });
+    // The note describes the option; it isn't read a second time as part of its name.
+    expect(terminal).toHaveAccessibleName("Terminal");
     expect(terminal).toHaveAccessibleDescription("Terminal looks best in dark mode.");
     fireEvent.click(terminal);
     expect(onChange).toHaveBeenCalledWith("terminal");

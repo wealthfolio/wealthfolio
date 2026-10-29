@@ -172,7 +172,9 @@ export function ThemePicker({ value, font, onChange, className }: ThemePickerPro
   const name = useId();
   const selectedId = resolveThemeId(value);
   return (
-    <fieldset className={cn("grid grid-cols-2 gap-3 lg:grid-cols-4", className)}>
+    // `theme-picker` opts the grid out of globals.css's small-screen overflow clipping,
+    // which would cut off the selected ring and focus outline of the cards at its edges.
+    <fieldset className={cn("theme-picker grid grid-cols-2 gap-3 lg:grid-cols-4", className)}>
       <legend className="sr-only">{t("settings:appearance_theme_title")}</legend>
       {themes.map((theme) => {
         const selected = selectedId === theme.id;
@@ -180,50 +182,56 @@ export function ThemePicker({ value, font, onChange, className }: ThemePickerPro
         const designedFor = theme.mode && t(designedForKeys[theme.mode], { theme: theme.name });
         const descriptionId = `${name}-${theme.id}-mode`;
         return (
-          <label key={theme.id} className="relative min-w-0 cursor-pointer">
-            <input
-              type="radio"
-              name={name}
-              value={theme.id}
-              checked={selected}
-              aria-describedby={designedFor ? descriptionId : undefined}
-              onChange={(event) => {
-                if (isThemeId(event.target.value)) onChange(event.target.value);
-              }}
-              className="peer sr-only"
-            />
-            {/* The option is a card in the current theme: its border, shadow and corners. */}
-            <div
-              className={cn(
-                cardSurfaceClassName,
-                "peer-focus-visible:outline-ring peer-focus-visible:outline-solid overflow-hidden transition-shadow peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2",
-                selected ? "ring-primary ring-2" : "hover:ring-primary/40 hover:ring-2",
-              )}
-            >
-              <ThemePreview theme={theme} font={currentFont} />
-              <span
+          <div key={theme.id} className="min-w-0">
+            <label className="relative block cursor-pointer">
+              <input
+                type="radio"
+                name={name}
+                value={theme.id}
+                checked={selected}
+                aria-describedby={designedFor ? descriptionId : undefined}
+                onChange={(event) => {
+                  if (isThemeId(event.target.value)) onChange(event.target.value);
+                }}
+                className="peer sr-only"
+              />
+              {/* The option is a card in the current theme: its border, shadow and corners. */}
+              <div
                 className={cn(
-                  "relative flex items-center justify-center gap-1.5 py-2 text-sm font-medium",
-                  selected ? "bg-primary/10" : "bg-muted/50",
+                  cardSurfaceClassName,
+                  "peer-focus-visible:outline-ring peer-focus-visible:outline-solid overflow-hidden transition-shadow peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2",
+                  selected ? "ring-primary ring-2" : "hover:ring-primary/40 hover:ring-2",
                 )}
               >
-                {theme.name}
-                {designedFor && (
-                  <>
+                <ThemePreview theme={theme} font={currentFont} />
+                <span
+                  className={cn(
+                    "relative flex items-center justify-center gap-1.5 py-2 text-sm font-medium",
+                    selected ? "bg-primary/10" : "bg-muted/50",
+                  )}
+                >
+                  {theme.name}
+                  {designedFor && (
                     <ModeIcon aria-hidden="true" className="text-muted-foreground size-3.5" />
-                    <span id={descriptionId} className="sr-only">
-                      {designedFor}
+                  )}
+                  {selected && (
+                    <span
+                      aria-hidden="true"
+                      className="bg-primary absolute end-2 rounded-full p-0.5"
+                    >
+                      <Icons.Check className="text-primary-foreground size-3" />
                     </span>
-                  </>
-                )}
-                {selected && (
-                  <span aria-hidden="true" className="bg-primary absolute end-2 rounded-full p-0.5">
-                    <Icons.Check className="text-primary-foreground size-3" />
-                  </span>
-                )}
+                  )}
+                </span>
+              </div>
+            </label>
+            {/* Outside the label, so it describes the option without joining its name. */}
+            {designedFor && (
+              <span id={descriptionId} className="sr-only">
+                {designedFor}
               </span>
-            </div>
-          </label>
+            )}
+          </div>
         );
       })}
     </fieldset>

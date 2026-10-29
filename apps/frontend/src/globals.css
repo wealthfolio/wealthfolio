@@ -917,6 +917,15 @@ body.qr-scan-active > .qr-overlay {
   .aui-thread-viewport {
     overflow-x: auto;
   }
+
+  /* The theme picker keeps its own overflow: clipping its grid would cut off each
+     card's selected ring and focus outline at the edges, and the miniatures' rows,
+     made scroll containers, would each become a Tab stop. revert-layer restores the
+     utilities' value. */
+  .theme-picker,
+  .theme-picker :is(.flex, .grid) {
+    overflow-x: revert-layer;
+  }
 }
 
 number-flow-react::part(left),
