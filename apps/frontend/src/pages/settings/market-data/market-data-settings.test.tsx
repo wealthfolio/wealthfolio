@@ -6,7 +6,6 @@ import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { MarketDataProviderSetting } from "@/adapters";
-import { QueryKeys } from "@/lib/query-keys";
 import type { Asset } from "@/lib/types";
 import type { CustomProviderWithSources } from "@/lib/types/custom-provider";
 import MarketDataSettingsPage from "./market-data-settings";
@@ -485,37 +484,35 @@ describe("MarketDataSettingsPage", () => {
     await waitFor(() => expect(mutateAsync).toHaveBeenCalledTimes(3));
   });
 
-  it("keeps a switch flipped while a move is saving", async () => {
+  it("locks the order and switches while a move is saving", async () => {
     setProviders(yahoo, treasury);
     let finishFirst: () => void = () => undefined;
     mutateAsync.mockImplementationOnce(
       () => new Promise<void>((resolve) => (finishFirst = resolve)),
     );
-    const client = new QueryClient();
-    client.setQueryData([QueryKeys.MARKET_DATA_PROVIDER_SETTINGS], [yahoo, treasury]);
     const user = userEvent.setup();
-    render(
-      <QueryClientProvider client={client}>
-        <MemoryRouter>
-          <MarketDataSettingsPage />
-        </MemoryRouter>
-      </QueryClientProvider>,
-    );
+    renderPage();
+    const controls = () => [
+      screen.getByRole("button", { name: "Move Yahoo Finance down" }),
+      screen.getByRole("button", { name: "Move US Treasury (Calculated) up" }),
+      screen.getByRole("switch", { name: "Yahoo Finance" }),
+      screen.getByRole("switch", { name: "US Treasury (Calculated)" }),
+    ];
 
     await user.click(screen.getByRole("button", { name: "Move US Treasury (Calculated) up" }));
-    await waitFor(() => expect(mutateAsync).toHaveBeenCalledTimes(1));
-    // Yahoo is switched off while Treasury's write is still saving.
-    client.setQueryData(
-      [QueryKeys.MARKET_DATA_PROVIDER_SETTINGS],
-      [{ ...yahoo, enabled: false }, treasury],
-    );
-    act(() => finishFirst());
 
+    // A second move or a switch now could save on top of a half-saved order.
+    await waitFor(() => expect(mutateAsync).toHaveBeenCalledTimes(1));
+    for (const control of controls()) {
+      expect(control).toHaveAttribute("data-disabled");
+    }
+
+    act(() => finishFirst());
     await waitFor(() => expect(mutateAsync).toHaveBeenCalledTimes(2));
-    expect(mutateAsync.mock.calls[1][0]).toEqual({
-      providerId: "YAHOO",
-      priority: 10,
-      enabled: false,
+    await waitFor(() => {
+      for (const control of controls()) {
+        expect(control).not.toHaveAttribute("data-disabled");
+      }
     });
   });
 

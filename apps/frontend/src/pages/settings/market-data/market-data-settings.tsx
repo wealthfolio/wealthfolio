@@ -97,6 +97,8 @@ interface ProviderSettingsProps {
   canMoveDown: boolean;
   onMove: (step: -1 | 1) => void;
   onEnabledChange: (enabled: boolean) => void;
+  /** A move is saving: the order and switches wait until it's done. */
+  locked?: boolean;
   /** Opens the details on mount, e.g. for a provider just added that still needs a key. */
   defaultOpen?: boolean;
 }
@@ -108,6 +110,7 @@ function ProviderSettings({
   canMoveDown,
   onMove,
   onEnabledChange,
+  locked = false,
   defaultOpen = false,
 }: ProviderSettingsProps) {
   const formatting = useDateFormatting();
@@ -299,7 +302,7 @@ function ProviderSettings({
                     "text-muted-foreground hover:text-foreground h-8 w-8 max-sm:h-6",
                     !provider.enabled && "invisible",
                   )}
-                  disabled={!canMoveUp}
+                  disabled={!canMoveUp || locked}
                   onClick={() => onMove(-1)}
                   aria-label={t("settings:market_data_page.move_up", { name })}
                 >
@@ -312,7 +315,7 @@ function ProviderSettings({
                     "text-muted-foreground hover:text-foreground h-8 w-8 max-sm:h-6",
                     !provider.enabled && "invisible",
                   )}
-                  disabled={!canMoveDown}
+                  disabled={!canMoveDown || locked}
                   onClick={() => onMove(1)}
                   aria-label={t("settings:market_data_page.move_down", { name })}
                 >
@@ -336,6 +339,7 @@ function ProviderSettings({
                 aria-label={name}
                 checked={provider.enabled}
                 onCheckedChange={onEnabledChange}
+                disabled={locked}
               />
             </>
           }
@@ -744,7 +748,6 @@ export default function MarketDataSettingsPage() {
   const { t } = useTranslation();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
   const { data: providers, isLoading, error } = useMarketDataProviderSettings();
   const { mutate: updateSettings, mutateAsync: updateSettingsAsync } =
     useUpdateMarketDataProviderSettings();
@@ -773,6 +776,8 @@ export default function MarketDataSettingsPage() {
   const [expandProviderId, setExpandProviderId] = useState<string>();
   // Providers switched off on this visit stay listed, dimmed, so the switch can be flipped back.
   const [switchedOffIds, setSwitchedOffIds] = useState<string[]>([]);
+  // Like the custom provider switch while it saves, the order and switches wait for a move.
+  const [moving, setMoving] = useState(false);
   const [customFormOpen, setCustomFormOpen] = useState(false);
   const [editingProvider, setEditingProvider] = useState<CustomProviderWithSources | undefined>();
   const showHealthBanner = searchParams.get("healthContext") === "marketData";
@@ -822,25 +827,26 @@ export default function MarketDataSettingsPage() {
   const handleMove = async (index: number, step: -1 | 1) => {
     const original = new Map(activeProviders.map((p) => [p.id, p.priority]));
     const saved: string[] = [];
-    const write = (providerId: string, priority: number) => {
-      // Send the provider's on/off state as it is now: it can be switched mid-move.
-      const current = queryClient
-        .getQueryData<MarketDataProviderSetting[]>([QueryKeys.MARKET_DATA_PROVIDER_SETTINGS])
-        ?.find((p) => p.id === providerId);
-      return updateSettingsAsync({ providerId, priority, enabled: current?.enabled ?? true });
-    };
-    for (const change of moveProvider(activeProviders, index, step)) {
-      try {
-        await write(change.id, change.priority);
-        saved.push(change.id);
-      } catch {
-        // The failed write has already rolled back and shown its error.
-        for (const id of saved.reverse()) {
-          const priority = original.get(id);
-          if (priority !== undefined) await write(id, priority).catch(() => undefined);
+    // Arrows and switches are locked while this runs, so every listed provider stays on.
+    const write = (providerId: string, priority: number) =>
+      updateSettingsAsync({ providerId, priority, enabled: true });
+    setMoving(true);
+    try {
+      for (const change of moveProvider(activeProviders, index, step)) {
+        try {
+          await write(change.id, change.priority);
+          saved.push(change.id);
+        } catch {
+          // The failed write has already rolled back and shown its error.
+          for (const id of saved.reverse()) {
+            const priority = original.get(id);
+            if (priority !== undefined) await write(id, priority).catch(() => undefined);
+          }
+          return;
         }
-        return;
       }
+    } finally {
+      setMoving(false);
     }
   };
 
@@ -1100,6 +1106,7 @@ export default function MarketDataSettingsPage() {
                       canMoveDown={provider.enabled && index < activeProviders.length - 1}
                       onMove={(step) => void handleMove(index, step)}
                       onEnabledChange={(enabled) => handleEnabledChange(provider.id, enabled)}
+                      locked={moving}
                       defaultOpen={provider.id === expandProviderId}
                     />
                   </li>
