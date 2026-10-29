@@ -815,18 +815,23 @@ export default function MarketDataSettingsPage() {
     });
   };
 
-  // One write at a time: each one rebuilds the market data client, and when the first
-  // write fails the second must not be applied on its own.
+  // One write at a time, since each one rebuilds the market data client. If a write
+  // fails, the ones this move already saved are put back, so the order is unchanged.
   const handleMove = async (index: number, step: -1 | 1) => {
+    const original = new Map(activeProviders.map((p) => [p.id, p.priority]));
+    const saved: string[] = [];
+    const write = (providerId: string, priority: number) =>
+      updateSettingsAsync({ providerId, priority, enabled: true });
     for (const change of moveProvider(activeProviders, index, step)) {
       try {
-        await updateSettingsAsync({
-          providerId: change.id,
-          priority: change.priority,
-          enabled: true,
-        });
+        await write(change.id, change.priority);
+        saved.push(change.id);
       } catch {
-        // The mutation has already rolled back and shown the error.
+        // The failed write has already rolled back and shown its error.
+        for (const id of saved.reverse()) {
+          const priority = original.get(id);
+          if (priority !== undefined) await write(id, priority).catch(() => undefined);
+        }
         return;
       }
     }

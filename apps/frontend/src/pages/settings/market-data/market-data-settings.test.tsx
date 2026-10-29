@@ -452,6 +452,23 @@ describe("MarketDataSettingsPage", () => {
     );
   });
 
+  it("puts back what a move saved when its second write fails", async () => {
+    setProviders(yahoo, treasury);
+    mutateAsync.mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error("offline"));
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(screen.getByRole("button", { name: "Move US Treasury (Calculated) up" }));
+
+    // Treasury was saved at 1 before Yahoo's write failed; it goes back to 10.
+    await waitFor(() => expect(mutateAsync).toHaveBeenCalledTimes(3));
+    expect(mutateAsync.mock.calls.map(([change]) => change)).toEqual([
+      { providerId: "US_TREASURY_CALC", priority: 1, enabled: true },
+      { providerId: "YAHOO", priority: 10, enabled: true },
+      { providerId: "US_TREASURY_CALC", priority: 10, enabled: true },
+    ]);
+  });
+
   it("clears the catalog search after adding a provider", async () => {
     setProviders(yahoo, marketDataProvider(), amfi);
     const user = userEvent.setup();
