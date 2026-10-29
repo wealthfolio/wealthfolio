@@ -11,11 +11,11 @@ use wealthfolio_core::taxonomies::{
 use wealthfolio_storage_sqlite::{db, taxonomies::TaxonomyRepository};
 
 struct Fixture {
-    _dir: common::TestDir,
     pool: Arc<db::DbPool>,
     repo: Arc<TaxonomyRepository>,
     service: TaxonomyService,
     writer: db::WriteHandle,
+    _dir: common::TestDir,
 }
 impl Fixture {
     async fn new() -> Self {
@@ -38,11 +38,11 @@ impl Fixture {
             .await
             .unwrap();
         Self {
-            _dir: dir,
             pool,
             repo,
             service,
             writer,
+            _dir: dir,
         }
     }
     fn seed(&self, sql: &str) {
