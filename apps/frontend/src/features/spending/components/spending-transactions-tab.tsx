@@ -9,6 +9,7 @@ import {
   useState,
 } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import type { SortingState } from "@tanstack/react-table";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { toast } from "sonner";
 import { useSearchParams } from "react-router-dom";
@@ -19,7 +20,8 @@ import { createActivity, deleteActivity, saveActivities, updateActivity } from "
 import { localizeActivityTypeName } from "@/lib/activity-utils";
 import { generateId } from "@/lib/id";
 import { useAccounts } from "@/hooks/use-accounts";
-import { useIsMobileViewport } from "@/hooks/use-platform";
+import { useIsCompactTableViewport, useIsMobileViewport } from "@/hooks/use-platform";
+import { usePersistentState } from "@/hooks/use-persistent-state";
 import {
   observeCurrentScrollOffset,
   useVirtualScrollContainer,
@@ -57,6 +59,10 @@ import { isActivityEditCancelled, useActivitySplitReview } from "./activity-spli
 import { ActivityForm } from "@/pages/activity/components/activity-form";
 import { MobileActivityForm } from "@/pages/activity/components/mobile-forms/mobile-activity-form";
 import { TransferMatchDialog } from "@/pages/activity/components/transfer-match-dialog";
+import {
+  ActivityViewModeToggle,
+  type ActivityViewMode,
+} from "@/pages/activity/components/activity-view-controls";
 import { attachTransferCounterpart } from "@/pages/activity/utils/transfer-counterpart";
 import { buildSameAccountFxDuplicate } from "@/pages/activity/utils/duplicate-fx-transfer";
 import { ActivityLoanPaymentSheet } from "@/pages/asset/alternative-assets/components/activity-loan-payment-sheet";
@@ -69,6 +75,7 @@ import { SelectionToolbar } from "./selection-toolbar";
 import { flattenDayGroups } from "@/lib/day-groups";
 import { TransactionDayHeader, TransactionDayHeading } from "./transaction-day-header";
 import { TransactionRow } from "./transaction-row";
+import { SpendingActivityDataGrid } from "./spending-activity-data-grid";
 import { SplitTransactionSheet } from "./split-transaction-sheet";
 import { TransactionsBulkBar } from "./transactions-bulk-bar";
 import { TransactionsFilterBar, type FilterOption } from "./transactions-filter-bar";
@@ -90,7 +97,8 @@ import {
   type TransactionDayGroup,
   type TransactionRowVM,
 } from "../lib/transactions-helpers";
-import { useCashActivitySearch } from "../hooks/use-cash-activity-search";
+import { useCashActivityPage, useCashActivitySearch } from "../hooks/use-cash-activity-search";
+import { toActivityDetails } from "../lib/spending-grid";
 import {
   useAssignActivityCategory,
   useBulkAssignCategories,
@@ -189,40 +197,6 @@ const SEARCH_DEBOUNCE_MS = 300;
 
 export interface SpendingTransactionsTabHandle {
   openAddForm: () => void;
-}
-
-function toActivityDetails(row: TransactionRowVM, account?: Account): ActivityDetails {
-  const activity = row.activity;
-  const activityType = getEffectiveCashActivityType(activity);
-  return {
-    id: activity.id,
-    activityType: activityType as ActivityType,
-    subtype: activity.subtype ?? null,
-    status: activity.status,
-    date: new Date(activity.activityDate),
-    quantity: activity.quantity ?? null,
-    unitPrice: activity.unitPrice ?? null,
-    amount: activity.amount ?? null,
-    fee: activity.fee ?? null,
-    currency: activity.currency,
-    needsReview: activity.needsReview,
-    comment: activity.notes ?? undefined,
-    fxRate: activity.fxRate ?? null,
-    createdAt: new Date(activity.createdAt),
-    updatedAt: new Date(activity.updatedAt),
-    accountId: activity.accountId,
-    accountName: account?.name ?? activity.accountId,
-    accountCurrency: account?.currency ?? activity.currency,
-    assetId: activity.assetId ?? "",
-    assetSymbol: activity.assetId ?? "",
-    sourceSystem: activity.sourceSystem,
-    sourceRecordId: activity.sourceRecordId,
-    sourceGroupId: activity.sourceGroupId,
-    idempotencyKey: activity.idempotencyKey,
-    importRunId: activity.importRunId,
-    isUserModified: activity.isUserModified,
-    metadata: activity.metadata,
-  };
 }
 
 export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>(
@@ -523,21 +497,41 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
       amountRange,
     ]);
 
-    const {
-      items,
-      totalCount,
-      net,
-      baseCurrency,
-      isLoading,
-      isFetching,
-      isFetchingNextPage,
-      isFetchNextPageError,
-      isError,
-      error,
-      hasNextPage,
-      fetchNextPage,
-      refetch,
-    } = useCashActivitySearch(searchRequest);
+    const isMobile = useIsMobileViewport();
+    const isCompactTableViewport = useIsCompactTableViewport();
+    const [viewMode, setViewMode] = usePersistentState<ActivityViewMode>(
+      "spending-activity-view-mode",
+      "table",
+    );
+    // The grid needs the room of a desktop table; smaller screens keep the list.
+    const showGrid = viewMode === "datagrid" && !isCompactTableViewport;
+    const [gridSorting, setGridSorting] = usePersistentState<SortingState>(
+      "spending-datagrid-sorting",
+      [{ id: "date", desc: true }],
+    );
+    const [gridPageSize, setGridPageSize] = usePersistentState("spending-datagrid-page-size", 50);
+    const [gridPageIndex, setGridPageIndex] = useState(0);
+    // The server sorts by date or amount; the list always runs newest first.
+    const gridRequest = useMemo(() => {
+      const sort = gridSorting[0];
+      return {
+        ...searchRequest,
+        sortBy: sort?.id === "amount" ? ("amount" as const) : ("date" as const),
+        sortDir: sort?.desc === false ? ("asc" as const) : ("desc" as const),
+        includeCashBalances: false,
+      };
+    }, [gridSorting, searchRequest]);
+
+    const listSearch = useCashActivitySearch(searchRequest, { enabled: !showGrid });
+    const gridPage = useCashActivityPage(gridRequest, {
+      pageIndex: gridPageIndex,
+      pageSize: gridPageSize,
+      enabled: showGrid,
+    });
+    const { items, isFetchingNextPage, isFetchNextPageError, hasNextPage, fetchNextPage } =
+      listSearch;
+    const { totalCount, net, baseCurrency, isLoading, isFetching, isError, error, refetch } =
+      showGrid ? gridPage : listSearch;
     // Rows carry a balance only when the search covers one cash or
     // credit-card account, so their presence decides the column.
     const showBalance = useMemo(() => items.some((item) => item.cashBalance != null), [items]);
@@ -623,16 +617,17 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
       setDateRange(undefined);
     }, []);
 
-    const requestKey = useMemo(() => JSON.stringify(searchRequest), [searchRequest]);
+    const requestKey = useMemo(() => JSON.stringify(gridRequest), [gridRequest]);
     const [lastRequestKey, setLastRequestKey] = useState(requestKey);
     if (lastRequestKey !== requestKey) {
       setLastRequestKey(requestKey);
       setSelectedRowIds(new Set());
+      setGridPageIndex(0);
     }
 
     const { mutate: duplicateTransaction } = useMutation({
       mutationFn: async (row: TransactionRowVM) => {
-        const exchange = await buildSameAccountFxDuplicate(toActivityDetails(row));
+        const exchange = await buildSameAccountFxDuplicate(toActivityDetails(row.activity));
         if (exchange) {
           const result = await saveActivities({ creates: exchange });
           if (result.errors.length || result.created.length !== 2) {
@@ -849,7 +844,7 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
           // Load the paired leg so the form pre-fills "To Account" (#1563).
           setTransferFormActivity(
             await attachTransferCounterpart(
-              toActivityDetails(row, accountById.get(row.activity.accountId)),
+              toActivityDetails(row.activity, accountById.get(row.activity.accountId)),
             ),
           );
           setShowTransferForm(true);
@@ -990,7 +985,6 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
     useImperativeHandle(ref, () => ({ openAddForm }), [openAddForm]);
 
     const isRefreshing = isFetching && !isFetchingNextPage;
-    const isMobile = useIsMobileViewport();
 
     /**
      * Both layouts render the same day-grouped sequence, so they share one flat
@@ -1227,9 +1221,20 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
           filteredNet={filteredNet}
           isRefreshing={isRefreshing}
           isMobile={isMobile}
+          // The grid's pager shows its own count.
+          showCount={!showGrid}
+          viewToggle={
+            isCompactTableViewport ? undefined : (
+              <ActivityViewModeToggle
+                value={viewMode}
+                onChange={setViewMode}
+                testId="spending-edit-mode-toggle"
+              />
+            )
+          }
         />
 
-        {selectedRowIds.size > 0 && (
+        {!showGrid && selectedRowIds.size > 0 && (
           <TransactionsBulkBar
             selectedCount={selectedRowIds.size}
             categoryScope={bulkCategoryScope}
@@ -1263,6 +1268,32 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
               </Button>
             </EmptyContent>
           </Empty>
+        ) : showGrid ? (
+          <SpendingActivityDataGrid
+            items={gridPage.items}
+            accounts={spendingAccounts}
+            categories={allCategories}
+            sorting={gridSorting}
+            onSortingChange={setGridSorting}
+            pageIndex={gridPageIndex}
+            pageSize={gridPageSize}
+            pageCount={gridPage.pageCount}
+            totalRowCount={gridPage.totalCount}
+            isFetching={gridPage.isFetching}
+            onPageChange={setGridPageIndex}
+            onPageSizeChange={(size) => {
+              setGridPageSize(size);
+              setGridPageIndex(0);
+            }}
+            onRefetch={gridPage.refetch}
+            onEdit={handleEditRow}
+            onEditSplits={setSplittingActivity}
+            onMarkReimbursement={(row) => markReimbursementMutation.mutate(row)}
+            onDuplicateTransfer={handleDuplicate}
+            onLinkTransfer={handleLinkTransfer}
+            onUnlinkTransfer={handleUnlinkTransfer}
+            onLoanPayment={setLoanPaymentRow}
+          />
         ) : rows.length === 0 ? (
           <Empty>
             <EmptyHeader>

@@ -1070,5 +1070,13 @@
   "budgetErrors": {
     "deleteGroup": "Failed to delete budget group.",
     "copyPlan": "Failed to copy plan."
+  },
+  "grid": {
+    "transferInForm": "Change a transfer's type in the transfer form: use Edit.",
+    "noCategory": "This activity is neither spending, income nor saving, so it takes no category.",
+    "saveTypeFirst": "Save the new type or account first, then pick a category.",
+    "saveCategoryFirst": "Save the category first, then change the type or account.",
+    "typeNotForAccount": "This type isn't available for this account.",
+    "amountRequired": "Amount is required."
   }
 }

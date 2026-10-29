@@ -1129,5 +1129,13 @@
   "budgetErrors": {
     "deleteGroup": "Impossible de supprimer le groupe budgétaire.",
     "copyPlan": "Impossible de copier le plan."
+  },
+  "grid": {
+    "transferInForm": "Modifiez le type d’un transfert dans le formulaire de transfert, via Modifier.",
+    "noCategory": "Cette activité n’est ni une dépense, ni un revenu, ni une épargne, elle n’a donc pas de catégorie.",
+    "saveTypeFirst": "Enregistrez d’abord le nouveau type ou compte, puis choisissez une catégorie.",
+    "saveCategoryFirst": "Enregistrez d’abord la catégorie, puis changez le type ou le compte.",
+    "typeNotForAccount": "Ce type n’est pas disponible pour ce compte.",
+    "amountRequired": "Le montant est requis."
   }
 }

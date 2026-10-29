@@ -1058,5 +1058,13 @@
   "budgetErrors": {
     "deleteGroup": "予算グループを削除できませんでした。",
     "copyPlan": "計画をコピーできませんでした。"
+  },
+  "grid": {
+    "transferInForm": "振替のタイプは「編集」から振替フォームで変更してください。",
+    "noCategory": "この取引は支出・収入・貯蓄のいずれでもないため、カテゴリはありません。",
+    "saveTypeFirst": "先に新しいタイプまたは口座を保存してから、カテゴリを選択してください。",
+    "saveCategoryFirst": "先にカテゴリを保存してから、タイプまたは口座を変更してください。",
+    "typeNotForAccount": "このタイプはこの口座では使用できません。",
+    "amountRequired": "金額は必須です。"
   }
 }

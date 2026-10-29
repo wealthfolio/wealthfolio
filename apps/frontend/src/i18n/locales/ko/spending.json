@@ -1058,5 +1058,13 @@
   "budgetErrors": {
     "deleteGroup": "예산 그룹을 삭제하지 못했습니다.",
     "copyPlan": "계획을 복사하지 못했습니다."
+  },
+  "grid": {
+    "transferInForm": "이체 유형은 편집을 눌러 이체 양식에서 변경하세요.",
+    "noCategory": "이 거래는 지출, 수입, 저축 어디에도 속하지 않아 카테고리가 없습니다.",
+    "saveTypeFirst": "새 유형이나 계좌를 먼저 저장한 다음 카테고리를 선택하세요.",
+    "saveCategoryFirst": "카테고리를 먼저 저장한 다음 유형이나 계좌를 변경하세요.",
+    "typeNotForAccount": "이 유형은 이 계좌에서 사용할 수 없습니다.",
+    "amountRequired": "금액은 필수입니다."
   }
 }

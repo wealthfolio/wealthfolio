@@ -7,6 +7,8 @@ import { cn } from "@/lib/utils";
 interface ActivityTypeBadgeProps {
   type: ActivityType;
   subtype?: string | null;
+  /** Replaces the type's own name, e.g. a credit card's wording for it. */
+  label?: string;
   className?: string;
 }
 
@@ -34,7 +36,7 @@ function getActivityBadgeVariant(type: ActivityType) {
   }
 }
 
-export function ActivityTypeBadge({ type, subtype, className }: ActivityTypeBadgeProps) {
+export function ActivityTypeBadge({ type, subtype, label, className }: ActivityTypeBadgeProps) {
   const { t } = useTranslation();
   const variant = getActivityBadgeVariant(type);
   const subtypeLabel = subtype?.trim() ? localizeActivitySubtypeName(t, subtype) : undefined;
@@ -42,7 +44,7 @@ export function ActivityTypeBadge({ type, subtype, className }: ActivityTypeBadg
   return (
     <span className="inline-flex max-w-full min-w-0 items-center gap-1.5 overflow-hidden">
       <Badge variant={variant} className={cn("rounded-sm", className)}>
-        {localizeActivityTypeName(t, type)}
+        {label ?? localizeActivityTypeName(t, type)}
       </Badge>
       {subtypeLabel && (
         <span className="text-muted-foreground min-w-0 flex-1 truncate text-xs font-normal">

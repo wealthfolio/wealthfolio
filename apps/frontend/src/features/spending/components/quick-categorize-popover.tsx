@@ -38,7 +38,7 @@ export interface QuickCategorizePopoverProps {
   align?: "start" | "center" | "end";
 }
 
-interface FlatOption {
+export interface FlatOption {
   taxonomyId: string;
   category: TaxonomyCategory;
   parent: TaxonomyCategory | null;
@@ -47,7 +47,7 @@ interface FlatOption {
 
 // Children's sortOrder is relative to their siblings, so a flat sort interleaves
 // levels. Categories whose parent is missing are listed as top level.
-function flattenTaxonomy(
+export function flattenTaxonomy(
   taxonomyId: string,
   cats: TaxonomyCategory[],
   group: FlatOption["group"],

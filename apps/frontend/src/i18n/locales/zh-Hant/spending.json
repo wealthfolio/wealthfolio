@@ -1070,5 +1070,13 @@
   "budgetErrors": {
     "deleteGroup": "刪除預算群組失敗。",
     "copyPlan": "複製計畫失敗。"
+  },
+  "grid": {
+    "transferInForm": "請透過「編輯」在轉帳表單中修改轉帳類型。",
+    "noCategory": "此活動既不屬於支出、收入，也不屬於儲蓄，因此沒有類別。",
+    "saveTypeFirst": "請先儲存新的類型或帳戶，再選擇類別。",
+    "saveCategoryFirst": "請先儲存類別，再修改類型或帳戶。",
+    "typeNotForAccount": "此帳戶不支援該類型。",
+    "amountRequired": "金額為必填欄位。"
   }
 }

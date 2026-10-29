@@ -142,6 +142,10 @@ interface TransactionsFilterBarProps {
   filteredNet: NetSummary | null;
   isRefreshing: boolean;
   isMobile?: boolean;
+  /** Hides the loaded-of-total count, e.g. when a pager shows it instead. */
+  showCount?: boolean;
+  /** The list / grid switch, shown at the end of the desktop bar. */
+  viewToggle?: React.ReactNode;
 }
 
 export function TransactionsFilterBar({
@@ -177,6 +181,8 @@ export function TransactionsFilterBar({
   filteredNet,
   isRefreshing,
   isMobile = false,
+  showCount = true,
+  viewToggle,
 }: TransactionsFilterBarProps) {
   const { t } = useTranslation();
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
@@ -343,11 +349,12 @@ export function TransactionsFilterBar({
         )}
         {filteredNet && <NetReadout label={t("spending:filters.filteredNet")} net={filteredNet} />}
         <span className="text-muted-foreground inline-flex items-center gap-1.5 text-xs whitespace-nowrap tabular-nums">
-          {countLabel}
+          {showCount && countLabel}
           {isRefreshing && (
             <Spinner className="h-3 w-3" aria-label={t("spending:filters.refreshing")} />
           )}
         </span>
+        {viewToggle}
       </div>
     </div>
   );

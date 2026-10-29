@@ -73,6 +73,8 @@ export type CellOpts =
       allowEmpty?: boolean;
       /** Label for the empty option (default: "None") */
       emptyLabel?: string;
+      /** Function to determine if the select is disabled based on row data */
+      isDisabled?: (rowData: unknown) => boolean;
     }
   | {
       variant: "multi-select";

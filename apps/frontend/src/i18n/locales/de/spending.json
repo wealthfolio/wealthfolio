@@ -1070,5 +1070,13 @@
   "budgetErrors": {
     "deleteGroup": "Budgetgruppe konnte nicht gelöscht werden.",
     "copyPlan": "Plan konnte nicht kopiert werden."
+  },
+  "grid": {
+    "transferInForm": "Ändern Sie den Typ einer Überweisung über Bearbeiten im Überweisungsformular.",
+    "noCategory": "Diese Aktivität ist weder Ausgabe noch Einnahme noch Sparen und hat daher keine Kategorie.",
+    "saveTypeFirst": "Speichern Sie zuerst den neuen Typ oder das neue Konto und wählen Sie dann eine Kategorie.",
+    "saveCategoryFirst": "Speichern Sie zuerst die Kategorie und ändern Sie dann Typ oder Konto.",
+    "typeNotForAccount": "Dieser Typ ist für dieses Konto nicht verfügbar.",
+    "amountRequired": "Ein Betrag ist erforderlich."
   }
 }

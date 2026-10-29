@@ -22,13 +22,13 @@ interface UseActivityGridStateOptions {
   activities: ActivityDetails[];
 }
 
-interface UseActivityGridStateReturn {
+interface UseActivityGridStateReturn<TRow extends LocalTransaction> {
   /** Server-provided transactions normalized with IDs */
-  serverTransactions: ActivityDetails[];
+  serverTransactions: TRow[];
   /** Local state of transactions including drafts and modifications */
-  localTransactions: LocalTransaction[];
+  localTransactions: TRow[];
   /** Update local transactions state */
-  setLocalTransactions: React.Dispatch<React.SetStateAction<LocalTransaction[]>>;
+  setLocalTransactions: React.Dispatch<React.SetStateAction<TRow[]>>;
   /** Set of IDs for transactions that have been modified */
   dirtyTransactionIds: Set<string>;
   /** Update dirty transaction IDs */
@@ -59,11 +59,12 @@ interface UseActivityGridStateReturn {
 
 /**
  * Hook to manage activity grid state with optimistic updates
- * Provides reliable change tracking for creates, updates, and deletes
+ * Provides reliable change tracking for creates, updates, and deletes.
+ * Rows passed in already shaped as `TRow` (a LocalTransaction) are kept as they are.
  */
-export const useActivityGridState = ({
+export const useActivityGridState = <TRow extends LocalTransaction = LocalTransaction>({
   activities,
-}: UseActivityGridStateOptions): UseActivityGridStateReturn => {
+}: UseActivityGridStateOptions): UseActivityGridStateReturn<TRow> => {
   // Normalize server transactions to ensure all have valid IDs and extract derived fields
   const serverTransactions = useMemo(
     () =>
@@ -72,14 +73,13 @@ export const useActivityGridState = ({
         const activityWithId =
           trimmedId.length > 0 ? activity : { ...activity, id: generateTempActivityId() };
         // Convert to LocalTransaction to extract derived fields like isExternal from metadata
-        return toLocalTransaction(activityWithId);
+        return toLocalTransaction(activityWithId) as TRow;
       }),
     [activities],
   );
 
   // Local state for transactions displayed in the grid
-  const [localTransactions, setLocalTransactions] =
-    useState<LocalTransaction[]>(serverTransactions);
+  const [localTransactions, setLocalTransactions] = useState<TRow[]>(serverTransactions);
 
   // Track modified transaction IDs
   const [dirtyTransactionIds, setDirtyTransactionIds] = useState<Set<string>>(new Set());
@@ -117,7 +117,7 @@ export const useActivityGridState = ({
       }
 
       // Merge: preserve local changes, update non-dirty items from server
-      const merged: LocalTransaction[] = [];
+      const merged: TRow[] = [];
 
       // First, add all local transactions that need preserving (dirty, new, or pending delete)
       const preservedIds = new Set<string>();

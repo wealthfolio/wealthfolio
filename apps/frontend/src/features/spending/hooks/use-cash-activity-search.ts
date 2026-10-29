@@ -1,4 +1,4 @@
-import { useInfiniteQuery } from "@tanstack/react-query";
+import { keepPreviousData, useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 
 import { QueryKeys } from "@/lib/query-keys";
@@ -68,5 +68,47 @@ export function useCashActivitySearch(
     fetchNextPage: query.fetchNextPage,
     refetch: query.refetch,
     error: query.error,
+  };
+}
+
+const EMPTY_ITEMS: CashActivity[] = [];
+
+/**
+ * One page of the same server-side search, for the grid view: it pages with
+ * offset and limit instead of loading more, as the Investments grid does.
+ */
+export function useCashActivityPage(
+  request: Omit<CashActivitySearchRequest, "offset" | "limit">,
+  options: { pageIndex: number; pageSize: number; enabled?: boolean },
+) {
+  const { pageIndex, pageSize } = options;
+  const enabled = options.enabled ?? true;
+  const pageQuery = (index: number) => ({
+    queryKey: [QueryKeys.SPENDING_TRANSACTIONS, "page", request, index, pageSize],
+    queryFn: () => searchCashActivities({ ...request, offset: index * pageSize, limit: pageSize }),
+    enabled,
+  });
+  // The page on screen stays until the next one arrives, so turning a page
+  // never empties or unmounts the grid, and its unsaved edits stay put.
+  const query = useQuery<CashActivitySearchResponse, Error>({
+    ...pageQuery(pageIndex),
+    placeholderData: keepPreviousData,
+  });
+  // Only the first page carries the filter's net. On that page this is the same
+  // query; on a later one it is the first page already fetched for this filter.
+  const firstPage = useQuery<CashActivitySearchResponse, Error>(pageQuery(0));
+
+  const totalCount = query.data?.totalCount ?? 0;
+  return {
+    items: query.data?.items ?? EMPTY_ITEMS,
+    totalCount,
+    pageCount: Math.ceil(totalCount / pageSize),
+    net: firstPage.data?.net ?? null,
+    baseCurrency: firstPage.data?.baseCurrency ?? query.data?.baseCurrency ?? undefined,
+    isLoading: query.isLoading,
+    isFetching: query.isFetching,
+    isError: query.isError,
+    error: query.error,
+    refetch: query.refetch,
   };
 }

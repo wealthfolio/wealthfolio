@@ -33,7 +33,7 @@ const TOGGLEABLE_COLUMNS = [
   "comment",
 ];
 
-interface ActivityDataGridToolbarProps {
+interface ActivityDataGridToolbarProps<TRow extends LocalTransaction> {
   /** Number of rows currently selected */
   selectedRowCount: number;
   /** Number of selected rows that are pending review (synced/draft) */
@@ -45,7 +45,11 @@ interface ActivityDataGridToolbarProps {
   /** Whether a save operation is in progress */
   isSaving: boolean;
   /** Table instance for column visibility */
-  table: Table<LocalTransaction>;
+  table: Table<TRow>;
+  /** Column ids offered in the visibility menu (defaults to the investment columns) */
+  toggleableColumns?: readonly string[];
+  /** Menu labels for columns this toolbar does not name itself */
+  columnLabels?: Record<string, string>;
   /** Handler for adding a new row */
   onAddRow: () => void;
   /** Handler for deleting selected rows */
@@ -80,13 +84,15 @@ interface ActivityDataGridToolbarProps {
  * Toolbar component for the activity data grid
  * Displays status, selection info, and action buttons
  */
-export function ActivityDataGridToolbar({
+export function ActivityDataGridToolbar<TRow extends LocalTransaction = LocalTransaction>({
   selectedRowCount,
   selectedPendingCount,
   hasUnsavedChanges,
   changesSummary,
   isSaving,
   table,
+  toggleableColumns = TOGGLEABLE_COLUMNS,
+  columnLabels,
   onAddRow,
   onDeleteSelected,
   onApproveSelected,
@@ -101,7 +107,7 @@ export function ActivityDataGridToolbar({
   canUnlinkSelected,
   unlinkDisabledReason,
   isUnlinking,
-}: ActivityDataGridToolbarProps) {
+}: ActivityDataGridToolbarProps<TRow>) {
   const { t } = useTranslation();
 
   // Column display names for the visibility menu
@@ -121,6 +127,7 @@ export function ActivityDataGridToolbar({
     currency: t("activity:datagrid.column.currency"),
     instrumentType: t("activity:datagrid.column.instrument"),
     comment: t("activity:datagrid.column.comment"),
+    ...columnLabels,
   };
 
   // Prevent mousedown from bubbling to document, which would clear DataGrid selection
@@ -212,7 +219,7 @@ export function ActivityDataGridToolbar({
               <DropdownMenuSeparator />
               {table
                 .getAllColumns()
-                .filter((column) => TOGGLEABLE_COLUMNS.includes(column.id))
+                .filter((column) => toggleableColumns.includes(column.id))
                 .map((column) => (
                   <DropdownMenuCheckboxItem
                     key={column.id}

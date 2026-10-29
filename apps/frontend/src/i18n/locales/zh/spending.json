@@ -1058,5 +1058,13 @@
   "budgetErrors": {
     "deleteGroup": "删除预算分组失败。",
     "copyPlan": "复制计划失败。"
+  },
+  "grid": {
+    "transferInForm": "请通过“编辑”在转账表单中修改转账类型。",
+    "noCategory": "此活动既不属于支出、收入，也不属于储蓄，因此没有类别。",
+    "saveTypeFirst": "请先保存新的类型或账户，再选择类别。",
+    "saveCategoryFirst": "请先保存类别，再修改类型或账户。",
+    "typeNotForAccount": "此账户不支持该类型。",
+    "amountRequired": "金额为必填项。"
   }
 }

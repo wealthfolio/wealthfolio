@@ -3,7 +3,7 @@ import zhCommon from "@/i18n/locales/zh/common.json";
 import zhCommonTaxonomies from "@/i18n/locales/zh/taxonomies.json";
 import type { TaxonomyCategory } from "@/lib/types";
 import type { FilterOption } from "./transactions-filter-bar";
-import { act, fireEvent, render, screen, waitFor } from "@/test/render";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@/test/render";
 import { ActivityStatus, ActivityType } from "@/lib/constants";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ActivityUpdate } from "@/lib/types";
@@ -76,8 +76,13 @@ const mocks = vi.hoisted(() => {
     categories: [] as TaxonomyCategory[],
     translate: undefined as TFunction | undefined,
     filterProps: undefined as
-      | { categoryOptions: FilterOption[]; subcategoryOptions: FilterOption[] }
+      | {
+          categoryOptions: FilterOption[];
+          subcategoryOptions: FilterOption[];
+          viewToggle?: React.ReactNode;
+        }
       | undefined,
+    compactViewport: false,
     accounts,
     transferOut,
     mutation,
@@ -139,7 +144,10 @@ vi.mock("@tanstack/react-virtual", () => ({
 vi.mock("@/hooks/use-accounts", () => ({
   useAccounts: () => ({ accounts: mocks.accounts, isLoading: false }),
 }));
-vi.mock("@/hooks/use-platform", () => ({ useIsMobileViewport: () => false }));
+vi.mock("@/hooks/use-platform", () => ({
+  useIsMobileViewport: () => false,
+  useIsCompactTableViewport: () => mocks.compactViewport,
+}));
 vi.mock("@/hooks/use-virtual-scroll-container", () => ({
   observeCurrentScrollOffset: vi.fn(),
   useVirtualScrollContainer: () => ({
@@ -157,6 +165,18 @@ vi.mock("@/lib/settings-provider", () => ({
 }));
 
 vi.mock("../hooks/use-cash-activity-search", () => ({
+  useCashActivityPage: () => ({
+    items: [mocks.transferOut],
+    totalCount: 1,
+    pageCount: 1,
+    net: null,
+    baseCurrency: "EUR",
+    isLoading: false,
+    isFetching: false,
+    isError: false,
+    error: null,
+    refetch: vi.fn(),
+  }),
   useCashActivitySearch: () => ({
     items: [mocks.transferOut],
     totalCount: 1,
@@ -206,6 +226,9 @@ vi.mock("./transaction-card", () => ({ TransactionCard: () => null }));
 vi.mock("./selection-toolbar", () => ({ SelectionToolbar: () => null }));
 vi.mock("./split-transaction-sheet", () => ({ SplitTransactionSheet: () => null }));
 vi.mock("./transactions-bulk-bar", () => ({ TransactionsBulkBar: () => null }));
+vi.mock("./spending-activity-data-grid", () => ({
+  SpendingActivityDataGrid: () => <div data-testid="spending-grid" />,
+}));
 vi.mock("./transactions-filter-bar", () => ({
   TransactionsFilterBar: (props: NonNullable<typeof mocks.filterProps>) => {
     mocks.filterProps = props;
@@ -587,5 +610,43 @@ describe("SpendingTransactionsTab reimbursement split review", () => {
     options.onError(new Error("Review unavailable"));
     expect(mocks.updateActivity).not.toHaveBeenCalled();
     expect(mocks.toastError).toHaveBeenCalledWith("spending:txTab.markReimbursementFailed");
+  });
+});
+
+describe("SpendingTransactionsTab view switch", () => {
+  beforeEach(() => {
+    mocks.useMutation.mockReset().mockReturnValue(mocks.mutation);
+    mocks.compactViewport = false;
+    localStorage.clear();
+  });
+
+  it("switches a desktop list to the grid", async () => {
+    render(<SpendingTransactionsTab />);
+    expect(screen.queryByTestId("spending-grid")).not.toBeInTheDocument();
+
+    render(<>{mocks.filterProps?.viewToggle}</>);
+    fireEvent.click(screen.getByTestId("spending-edit-mode-toggle"));
+
+    expect(await screen.findByTestId("spending-grid")).toBeInTheDocument();
+  });
+
+  it("keeps the list, without the switch, on a compact screen", async () => {
+    render(<SpendingTransactionsTab />);
+    render(<>{mocks.filterProps?.viewToggle}</>);
+    fireEvent.click(screen.getByTestId("spending-edit-mode-toggle"));
+    await screen.findByTestId("spending-grid");
+
+    // The grid stays the stored choice...
+    cleanup();
+    render(<SpendingTransactionsTab />);
+    expect(await screen.findByTestId("spending-grid")).toBeInTheDocument();
+
+    // ...but a compact screen shows the list.
+    cleanup();
+    mocks.compactViewport = true;
+    render(<SpendingTransactionsTab />);
+    expect(mocks.filterProps?.viewToggle).toBeUndefined();
+    expect(screen.queryByTestId("spending-grid")).not.toBeInTheDocument();
+    expect(await screen.findByTestId("select-out-1")).toBeInTheDocument();
   });
 });

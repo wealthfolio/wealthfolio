@@ -1129,5 +1129,13 @@
   "budgetErrors": {
     "deleteGroup": "Falha ao excluir o grupo de orçamento.",
     "copyPlan": "Falha ao copiar o plano."
+  },
+  "grid": {
+    "transferInForm": "Altere o tipo de uma transferência no formulário de transferência, com Editar.",
+    "noCategory": "Esta atividade não é gasto, receita nem poupança, por isso não tem categoria.",
+    "saveTypeFirst": "Salve primeiro o novo tipo ou a nova conta e depois escolha uma categoria.",
+    "saveCategoryFirst": "Salve primeiro a categoria e depois altere o tipo ou a conta.",
+    "typeNotForAccount": "Este tipo não está disponível para esta conta.",
+    "amountRequired": "O valor é obrigatório."
   }
 }
