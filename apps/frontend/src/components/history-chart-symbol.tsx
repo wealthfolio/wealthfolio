@@ -129,7 +129,8 @@ export default function HistoryChart({
             </defs>
             <Tooltip
               content={(props) => <SymbolToolTip {...(props as unknown as SymbolTooltipProps)} />}
-              wrapperStyle={{ pointerEvents: "none" }}
+              // Callers overlay IntervalSelector (z-30) on the chart's bottom edge.
+              wrapperStyle={{ pointerEvents: "none", zIndex: 40 }}
             />
             {interval !== "ALL" && interval !== "1Y" ? (
               <YAxis hide={true} type="number" domain={["auto", "auto"]} />
