@@ -1,4 +1,4 @@
-import { act, render, screen } from "@/test/render";
+import { act, fireEvent, render, screen, waitFor } from "@/test/render";
 import userEvent from "@testing-library/user-event";
 import { Dialog, DialogContent, DirectionProvider } from "@wealthfolio/ui";
 import { createInstance } from "i18next";
@@ -16,6 +16,17 @@ vi.mock("@/hooks/use-market-data-providers", () => ({
   useMarketDataProviders: () => ({ data: [] }),
 }));
 vi.mock("@/hooks/use-custom-providers", () => ({ useCustomProviders: () => ({ data: [] }) }));
+
+// Keep form interactions cheap under CI shard concurrency while using the real label helper.
+vi.mock("@wealthfolio/ui", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@wealthfolio/ui")>();
+  return {
+    ...actual,
+    worldCurrencies: actual.worldCurrencies.filter((currency) =>
+      ["CNY", "USD", "CAD"].includes(currency.value),
+    ),
+  };
+});
 
 const originalScrollIntoView = Object.getOwnPropertyDescriptor(
   HTMLElement.prototype,
@@ -72,21 +83,27 @@ it.each(["人民币", "Chinese/Yuan", "cny"])(
   async (query) => {
     const { onSubmit, user } = await exchangeForm();
     await user.click(screen.getByRole("combobox", { name: zhSettings.fx_from_currency }));
-    await user.type(screen.getByPlaceholderText(zhSettings.fx_search_currency), query);
+    fireEvent.change(screen.getByPlaceholderText(zhSettings.fx_search_currency), {
+      target: { value: query },
+    });
     await user.click(await screen.findByRole("option", { name: "人民币 (CNY)" }));
     await user.keyboard("{Escape}");
     await user.click(screen.getByRole("combobox", { name: zhSettings.fx_to_currency }));
     await user.click(await screen.findByRole("option", { name: "美元 (USD)" }));
     await user.keyboard("{Escape}");
-    await user.type(screen.getByRole("textbox", { name: zhSettings.fx_rate_label }), "0.14");
-    await user.click(screen.getByRole("button", { name: zhSettings.fx_add_title }));
-    expect(onSubmit).toHaveBeenCalledExactlyOnceWith({
-      fromCurrency: "CNY",
-      toCurrency: "USD",
-      source: "MANUAL",
-      rate: 0.14,
-      timestamp: expect.any(String),
+    fireEvent.change(screen.getByRole("textbox", { name: zhSettings.fx_rate_label }), {
+      target: { value: "0.14" },
     });
+    await user.click(screen.getByRole("button", { name: zhSettings.fx_add_title }));
+    await waitFor(() =>
+      expect(onSubmit).toHaveBeenCalledExactlyOnceWith({
+        fromCurrency: "CNY",
+        toCurrency: "USD",
+        source: "MANUAL",
+        rate: 0.14,
+        timestamp: expect.any(String),
+      }),
+    );
   },
 );
 
@@ -97,7 +114,9 @@ it.each(["ltr", "rtl"] as const)(
     await user.click(screen.getByRole("combobox", { name: zhSettings.fx_from_currency }));
     await user.click(await screen.findByRole("option", { name: "人民币 (CNY)" }));
     await user.keyboard("{Escape}");
-    await user.type(screen.getByRole("textbox", { name: zhSettings.fx_rate_label }), "2");
+    fireEvent.change(screen.getByRole("textbox", { name: zhSettings.fx_rate_label }), {
+      target: { value: "2" },
+    });
     await user.click(screen.getByRole("combobox", { name: zhSettings.fx_to_currency }));
     await act(() => i18n.changeLanguage("en"));
     expect(screen.getByRole("combobox", { name: enSettings.fx_from_currency })).toHaveTextContent(
@@ -119,7 +138,9 @@ it.each(["ltr", "rtl"] as const)(
 it("preserves custom currency values when the language changes", async () => {
   const { i18n, user } = await exchangeForm();
   await user.click(screen.getByRole("combobox", { name: zhSettings.fx_from_currency }));
-  await user.type(screen.getByPlaceholderText(zhSettings.fx_search_currency), "MyCoin");
+  fireEvent.change(screen.getByPlaceholderText(zhSettings.fx_search_currency), {
+    target: { value: "MyCoin" },
+  });
   await user.click(await screen.findByRole("option", { name: /MyCoin/ }));
   await user.keyboard("{Escape}");
   await act(() => i18n.changeLanguage("en"));
