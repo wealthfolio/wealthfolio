@@ -3,13 +3,16 @@ import { useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import * as z from "zod";
 
-import { FontSelector } from "@/components/font-selector";
-import { gainColorLabelKeys, GainColorsSelector } from "@/components/gain-colors-selector";
+import {
+  controlRowControlClassName,
+  FontRow,
+  GainColorsRow,
+  TextSizeRow,
+} from "@/components/appearance-rows";
 import { NavigationStyleSelector } from "@/components/navigation-style-selector";
-import { TextSizeSelector } from "@/components/text-size-selector";
+import { ThemeModeNote } from "@/components/theme-mode-note";
 import { ThemePicker } from "@/components/theme-picker";
 import { ThemeSelector } from "@/components/theme-selector";
-import { Button, Icons } from "@wealthfolio/ui";
 import {
   Card,
   CardAction,
@@ -31,17 +34,14 @@ import {
   Item,
   ItemActions,
   ItemContent,
-  ItemDescription,
   ItemSeparator,
   ItemTitle,
 } from "@wealthfolio/ui/components/ui/item";
 import { usePlatform } from "@/hooks/use-platform";
 import { useSettingsContext } from "@/lib/settings-provider";
-import { cn } from "@/lib/utils";
 import { requiredError } from "@/lib/zod-errors";
 import { useNavigationMode } from "@/pages/layouts/navigation/navigation-mode-context";
-import { resolveGainColors } from "@/themes/gain-colors";
-import { designedForKeys, fontLabelKeys, themeSelectionUpdate } from "@/themes/selection";
+import { themeSelectionUpdate } from "@/themes/selection";
 import { isThemeId, resolveThemeId, themes } from "@/themes/themes";
 
 interface AppearanceFormValues {
@@ -49,20 +49,6 @@ interface AppearanceFormValues {
   font: "font-mono" | "font-sans" | "font-serif";
   menuBarVisible: boolean;
 }
-
-// A row's text keeps this width, so on a phone its control wraps below it
-// rather than squeezing the title.
-const controlRowContentClassName = "min-w-48";
-// On a phone the segmented controls under their text span the row, each option an
-// equal share, so the page's controls line up and give larger targets.
-const controlRowActionsClassName = "max-sm:w-full";
-const controlRowControlClassName =
-  "max-sm:w-full max-sm:[&_button]:flex-1 max-sm:[&_button>span]:justify-center";
-
-const switchModeKeys = {
-  dark: "settings:appearance_switch_to_dark",
-  light: "settings:appearance_switch_to_light",
-} as const;
 
 export function AppearanceForm() {
   const { t } = useTranslation();
@@ -94,8 +80,6 @@ export function AppearanceForm() {
     values: defaultValues as AppearanceFormValues,
   });
   const activeTheme = themes.find(({ id }) => id === resolveThemeId(settings?.themeId));
-  const ModeIcon = activeTheme?.mode === "dark" ? Icons.Moon : Icons.Sun;
-  const fontDiffersFromTheme = !!activeTheme?.font && settings?.font !== activeTheme.font;
 
   function handlePartialUpdate(data: Parameters<typeof updateSettings>[0]) {
     updateSettings(data).catch((error) => {
@@ -140,32 +124,10 @@ export function AppearanceForm() {
           </CardHeader>
           <CardContent className="space-y-3">
             <ThemePicker value={settings?.themeId} font={settings?.font} onChange={selectTheme} />
-            {activeTheme?.mode && (
-              // Shown only while the other mode is in effect, including through System.
-              <div
-                className={cn(
-                  "bg-muted/40 items-center gap-3 rounded-lg border px-4 py-3",
-                  activeTheme.mode === "dark" ? "flex dark:hidden" : "hidden dark:flex",
-                )}
-              >
-                <ModeIcon className="text-muted-foreground size-4 shrink-0" />
-                <p className="min-w-0 flex-1 text-sm">
-                  {t(designedForKeys[activeTheme.mode], { theme: activeTheme.name })}
-                </p>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="shrink-0"
-                  onClick={() => {
-                    const mode = activeTheme.mode;
-                    if (mode) handlePartialUpdate({ theme: mode });
-                  }}
-                >
-                  {t(switchModeKeys[activeTheme.mode])}
-                </Button>
-              </div>
-            )}
+            <ThemeModeNote
+              theme={activeTheme}
+              onSwitch={(mode) => handlePartialUpdate({ theme: mode })}
+            />
           </CardContent>
         </Card>
 
@@ -181,84 +143,29 @@ export function AppearanceForm() {
               control={form.control}
               name="font"
               render={({ field }) => (
-                <Item size="sm" className="px-0">
-                  <ItemContent className={controlRowContentClassName}>
-                    <ItemTitle>{t("settings:appearance_font_title")}</ItemTitle>
-                    <ItemDescription>
-                      {activeTheme?.font
-                        ? t("settings:appearance_theme_suggests", {
-                            theme: activeTheme.name,
-                            value: t(fontLabelKeys[activeTheme.font]),
-                          })
-                        : t("settings:appearance_font_description")}
-                    </ItemDescription>
-                    {fontDiffersFromTheme && activeTheme && (
-                      <Button
-                        type="button"
-                        variant="link"
-                        size="sm"
-                        className="h-auto self-start px-0"
-                        onClick={() => handlePartialUpdate(themeSelectionUpdate(activeTheme.id))}
-                      >
-                        {t("settings:appearance_use_theme_defaults")}
-                      </Button>
-                    )}
-                  </ItemContent>
-                  <ItemActions className={controlRowActionsClassName}>
-                    <FontSelector
-                      aria-label={t("settings:appearance_font_title")}
-                      className={controlRowControlClassName}
-                      value={field.value}
-                      onChange={(value) => {
-                        field.onChange(value);
-                        handlePartialUpdate({ font: value });
-                      }}
-                    />
-                  </ItemActions>
-                </Item>
+                <FontRow
+                  value={field.value}
+                  theme={activeTheme}
+                  onChange={(value) => {
+                    field.onChange(value);
+                    handlePartialUpdate({ font: value });
+                  }}
+                  onUseThemeDefaults={() => {
+                    if (activeTheme) handlePartialUpdate(themeSelectionUpdate(activeTheme.id));
+                  }}
+                />
               )}
             />
             <ItemSeparator />
-            {/* A container: the size names show when this row has room for them. The
-                description wraps: at the larger sizes two lines can't hold it in some languages. */}
-            <Item size="sm" className="@container px-0">
-              <ItemContent className={controlRowContentClassName}>
-                <ItemTitle>{t("settings:appearance_text_size_title")}</ItemTitle>
-                <ItemDescription className="line-clamp-none">
-                  {t("settings:appearance_text_size_description")}
-                </ItemDescription>
-              </ItemContent>
-              <ItemActions className={controlRowActionsClassName}>
-                <TextSizeSelector
-                  aria-label={t("settings:appearance_text_size_title")}
-                  className={controlRowControlClassName}
-                  value={settings?.textSize}
-                  onChange={(textSize) => handlePartialUpdate({ textSize })}
-                />
-              </ItemActions>
-            </Item>
+            <TextSizeRow
+              value={settings?.textSize}
+              onChange={(textSize) => handlePartialUpdate({ textSize })}
+            />
             <ItemSeparator />
-            {/* The control shows each option's arrows only, so the selected option's
-                name sits under the description, which wraps rather than clamps. */}
-            <Item size="sm" className="px-0">
-              <ItemContent className={controlRowContentClassName}>
-                <ItemTitle>{t("settings:appearance_gain_colors_title")}</ItemTitle>
-                <ItemDescription className="line-clamp-none">
-                  {t("settings:appearance_gain_colors_description")}
-                </ItemDescription>
-                <p className="text-sm font-medium">
-                  {t(gainColorLabelKeys[resolveGainColors(settings?.gainColors)])}
-                </p>
-              </ItemContent>
-              <ItemActions className={controlRowActionsClassName}>
-                <GainColorsSelector
-                  aria-label={t("settings:appearance_gain_colors_title")}
-                  className={controlRowControlClassName}
-                  value={settings?.gainColors}
-                  onChange={(gainColors) => handlePartialUpdate({ gainColors })}
-                />
-              </ItemActions>
-            </Item>
+            <GainColorsRow
+              value={settings?.gainColors}
+              onChange={(gainColors) => handlePartialUpdate({ gainColors })}
+            />
           </CardContent>
         </Card>
 
