@@ -6200,6 +6200,19 @@ impl ActivityServiceTrait for ActivityService {
         Ok(deleted)
     }
 
+    fn get_activity_deletion_ids(&self, activity_id: &str) -> Result<Vec<String>> {
+        let activity = self.activity_repository.get_activity(activity_id)?;
+        match activity.source_group_id {
+            Some(group_id) => Ok(self
+                .activity_repository
+                .get_activities_by_source_group_ids(&[group_id])?
+                .into_iter()
+                .map(|activity| activity.id)
+                .collect()),
+            None => Ok(vec![activity.id]),
+        }
+    }
+
     async fn delete_activities_checked(&self, activity_ids: Vec<String>) -> Result<Vec<Activity>> {
         let deleted = self
             .activity_repository

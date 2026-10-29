@@ -1,10 +1,10 @@
 //! Activity deletion tools (MCP-only).
 //!
 //! `prepare_activity_deletions` previews which activities a deletion removes
-//! and `commit_activity_deletions` deletes them, both through the core delete
-//! the activity grid uses: deleting one leg of a linked transfer deletes the
-//! other leg too, and the portfolio recalculates from the earliest date. The
-//! preview lists each activity as stored, so the user sees what goes before
+//! and `commit_activity_deletions` deletes them through core's checked delete:
+//! deleting one leg of a linked transfer deletes the other leg too, and the
+//! portfolio recalculates from the earliest date. Other grouped deletions are
+//! refused. The preview lists each activity as stored, so the user sees what goes before
 //! anything is written. Both legs of a linked transfer must be named, so a
 //! transfer linked after the preview cannot take an unreviewed leg with it.
 //!
@@ -101,6 +101,19 @@ fn plan_deletion(
             "Activity {activity_id} is a linked transfer leg; deleting it also deletes {}. \
              Preview and delete both ids together, or unlink them first",
             linked.id
+        ));
+    }
+    let additional_ids: Vec<String> = activity_service
+        .get_activity_deletion_ids(activity_id)
+        .map_err(|error| error.to_string())?
+        .into_iter()
+        .filter(|id| id != activity_id && linked.as_ref().is_none_or(|leg| &leg.id != id))
+        .collect();
+    if !additional_ids.is_empty() {
+        return Err(format!(
+            "Activity {activity_id} shares a deletion group with {}. Grouped deletions other \
+             than linked pairs are unsupported; void it with prepare_activity_updates instead",
+            additional_ids.join(", ")
         ));
     }
     Ok(PlannedDeletion { activity, linked })
@@ -256,7 +269,7 @@ impl AgentTool for PrepareActivityDeletions {
     }
 
     fn description(&self) -> &'static str {
-        "Preview deleting existing activities without writing anything. Pass activityIds (find them with search_activities). Each ready row shows the activity as stored and, for one leg of a linked transfer, linkedActivity: the other leg, which the delete also removes. Name both legs of a linked transfer; the row for the second leg gives deletedWith, the row that removes it. A warning marks an activity from a broker sync, which may add it back; to keep such an activity out of the portfolio for good, void it with prepare_activity_updates (void: true) instead. Voiding also keeps the record, so prefer it when the user wants an activity to stop counting rather than to disappear. An invalid row gives its error: a missing activity, one an earlier row already deletes, or a linked transfer leg whose other leg is not named. Up to 100 ids. Show the preview to the user, then delete the confirmed ids with commit_activity_deletions."
+        "Preview deleting existing activities without writing anything. Pass activityIds (find them with search_activities). Each ready row shows the activity as stored and, for one leg of a linked transfer, linkedActivity: the other leg, which the delete also removes. Name both legs of a linked transfer; the row for the second leg gives deletedWith, the row that removes it. A warning marks an activity from a broker sync, which may add it back; to keep such an activity out of the portfolio for good, void it with prepare_activity_updates (void: true) instead. Voiding also keeps the record, so prefer it when the user wants an activity to stop counting rather than to disappear. An invalid row gives its error: a missing activity, one an earlier row already deletes, a linked transfer leg whose other leg is not named, or an unsupported group other than a linked pair. Void unsupported grouped activities instead. Up to 100 ids. Show the preview to the user, then delete the confirmed ids with commit_activity_deletions."
     }
 
     fn input_schema(&self) -> Value {
@@ -399,7 +412,7 @@ impl AgentTool for CommitActivityDeletions {
     }
 
     fn description(&self) -> &'static str {
-        "Delete existing activities: the activityIds prepare_activity_deletions previewed. This DELETES data and cannot be undone: only call it after the user reviewed the preview and confirmed. Each id is checked again and deleted on its own through the app's activity delete: one leg of a linked transfer takes the other leg with it, and the portfolio is recalculated. A linked transfer leg is refused unless its other leg is also named, so a link made after the preview cannot delete an unreviewed activity. Up to 100 ids; deleted lists each removed activity as it was stored (and linkedActivity for the other leg of a linked transfer), deletedWithPair lists the named second legs that went with them, and errors lists the ids that failed."
+        "Delete existing activities: the activityIds prepare_activity_deletions previewed. This DELETES data and cannot be undone: only call it after the user reviewed the preview and confirmed. Each id is checked again through core's checked delete: one leg of a linked transfer takes the other leg with it, and the portfolio is recalculated. A linked transfer leg is refused unless its other leg is also named. The write transaction refuses any additional grouped rows, including a link made after validation. Grouped deletions other than linked pairs are unsupported; use prepare_activity_updates to void those activities instead. Up to 100 ids; deleted lists each removed activity as it was stored (and linkedActivity for the other leg of a linked transfer), deletedWithPair lists the named second legs that went with them, and errors lists the ids that failed."
     }
 
     fn input_schema(&self) -> Value {

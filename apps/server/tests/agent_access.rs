@@ -2128,6 +2128,80 @@ async fn mcp_health_status_runs_checks_on_refresh() {
     assert_eq!(cached["issues"], refreshed["issues"], "{cached}");
 }
 
+#[tokio::test]
+async fn deletion_previews_refuse_unsupported_groups_and_commit_ready_rows() {
+    let server = spawn_server(true, false).await;
+    let cookie = login(&server).await;
+    disable_market_data_providers(&server, &cookie).await;
+    let (pat, session) = activity_writer_session(&server, &cookie).await;
+    let account = create_eur_account(&server, &cookie, "Grouped charges").await;
+    let mut grouped_ids = Vec::new();
+    for activity_type in ["DEPOSIT", "FEE", "TAX"] {
+        let activity = api_post(
+            &server,
+            &cookie,
+            "activities",
+            serde_json::json!({
+                "accountId": account["id"], "activityType": activity_type,
+                "activityDate": "2026-04-01T12:00:00Z", "currency": "EUR", "amount": "5",
+                "sourceGroupId": "provider-group"
+            }),
+        )
+        .await;
+        grouped_ids.push(activity["id"].clone());
+    }
+    // Naming either one row or every grouped row must not promise a deletion
+    // that the checked commit cannot perform.
+    for ids in [vec![grouped_ids[0].clone()], grouped_ids.clone()] {
+        let args = serde_json::json!({"activityIds": ids});
+        let preview = mcp_call_tool(
+            &server,
+            &pat,
+            &session,
+            "prepare_activity_deletions",
+            args.clone(),
+        )
+        .await;
+        assert_eq!(preview["summary"]["ready"], 0, "{preview}");
+        for row in preview["rows"].as_array().unwrap() {
+            assert_eq!(row["status"], "invalid", "{row}");
+            assert!(row["error"].as_str().unwrap().contains("void it"), "{row}");
+        }
+        let committed =
+            mcp_call_tool(&server, &pat, &session, "commit_activity_deletions", args).await;
+        assert_eq!(committed["deleted"], serde_json::json!([]), "{committed}");
+    }
+    assert_eq!(stored_activities(&server, &cookie, &account).await.len(), 3);
+
+    let single = api_post(
+        &server,
+        &cookie,
+        "activities",
+        serde_json::json!({
+            "accountId": account["id"], "activityType": "FEE",
+            "activityDate": "2026-04-02T12:00:00Z", "currency": "EUR", "amount": "5"
+        }),
+    )
+    .await;
+    let args = serde_json::json!({"activityIds": [single["id"]]});
+    let preview = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "prepare_activity_deletions",
+        args.clone(),
+    )
+    .await;
+    assert_eq!(preview["rows"][0]["status"], "ready", "{preview}");
+    let committed = mcp_call_tool(&server, &pat, &session, "commit_activity_deletions", args).await;
+    assert_eq!(
+        committed["deleted"][0]["activityId"], single["id"],
+        "{committed}"
+    );
+    assert_eq!(committed["errors"], serde_json::json!([]), "{committed}");
+    assert_eq!(stored_activities(&server, &cookie, &account).await.len(), 3);
+}
+
 /// A deletion is previewed first and removes both legs of a linked transfer,
 /// which must both be named, so a link made after the preview cannot delete
 /// an unreviewed leg;

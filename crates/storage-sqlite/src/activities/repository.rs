@@ -93,7 +93,7 @@ fn delete_activity_rows_tx(
             .map_err(StorageError::from)?;
         if grouped_ids.iter().any(|id| !expected.contains(id.as_str())) {
             return Err(ActivityError::InvalidData(
-                "Activity group changed; prepare deletion again and review every grouped row"
+                "Activity group contains unreviewed rows; prepare deletion again or void the activity instead"
                     .into(),
             )
             .into());

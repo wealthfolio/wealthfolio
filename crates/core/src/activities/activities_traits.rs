@@ -496,6 +496,12 @@ pub trait ActivityServiceTrait: Send + Sync {
             "Checked activity deletion is unavailable".into(),
         ))
     }
+    /// Every id the stored source-group deletion cascade would remove.
+    fn get_activity_deletion_ids(&self, _activity_id: &str) -> Result<Vec<String>> {
+        Err(crate::Error::Unexpected(
+            "Activity deletion preview is unavailable".into(),
+        ))
+    }
     /// Returns the internal transfer pair for the activity, or `None` when the
     /// activity exists but is not part of a valid internal transfer pair.
     fn get_transfer_pair_for_activity(
