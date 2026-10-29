@@ -9,7 +9,10 @@ import {
   getTransferPairForActivity,
   searchActivities,
 } from "@/adapters";
-import { unassignActivityCategory } from "@/features/spending/adapters/cash-activities";
+import {
+  getActivityAssignments,
+  unassignActivityCategory,
+} from "@/features/spending/adapters/cash-activities";
 import { localizeActivityTypeName } from "@/lib/activity-utils";
 import { ActivityStatus, ActivityType } from "@/lib/constants";
 import type { Account, Activity, ActivityDetails, TransferMatchCandidate } from "@/lib/types";
@@ -504,14 +507,19 @@ function ConvertToTransferDialog({
               counterpartAmount: needsAmount ? amount : undefined,
             }),
       });
-      // A transfer is not spending or income: drop the category the row carried
-      // as a deposit or withdrawal. Only Spending rows carry their assignments.
-      const assignments =
-        (sourceActivity as { assignments?: { taxonomyId: string }[] }).assignments ?? [];
+      // A transfer is not spending or income: drop the categories both rows
+      // carried as a deposit or withdrawal. The pair is already saved and Spending
+      // ignores the category of a linked transfer, so a failed cleanup must not
+      // report the conversion as failed.
+      const legIds = [sourceActivity.id];
+      if (choice.kind === "existing") legIds.push(choice.candidate.activity.id);
       await Promise.allSettled(
-        assignments.map((assignment) =>
-          unassignActivityCategory(sourceActivity.id, assignment.taxonomyId),
-        ),
+        legIds.map(async (legId) => {
+          const assignments = await getActivityAssignments(legId);
+          await Promise.all(
+            assignments.map((assignment) => unassignActivityCategory(legId, assignment.taxonomyId)),
+          );
+        }),
       );
       await queryClient.invalidateQueries();
       toast.success(t("activity:transfer_match.convert_success"));

@@ -474,7 +474,7 @@
     "within_days_many": "Entro {{count}} giorni",
     "within_days_other": "Entro {{count}} giorni",
     "convert_title": "Converti in trasferimento",
-    "convert_desc": "Trasforma questa attività in un trasferimento tra i tuoi conti. Scegli l’attività corrispondente nell’altro conto o creala lì.",
+    "convert_desc": "Trasforma questa attività in un trasferimento tra i tuoi conti. Scegli l'attività corrispondente nell'altro conto o creala lì.",
     "convert_no_matches": "Nessuna attività corrispondente entro 7 giorni.",
     "convert_new": "Creala in un altro conto",
     "convert_account": "Altro conto",
