@@ -258,9 +258,12 @@ fn to_import_rows(rows: &[ActivityImportRow]) -> Result<Vec<ActivityImport>, Age
         .enumerate()
         .map(|(index, row)| {
             // Core stores the rate as given and checks it only for transfer pairs.
-            if let Some(rate) = row.fx_rate.filter(|rate| !rate.is_finite() || *rate <= 0.0) {
+            if row
+                .fx_rate
+                .is_some_and(|rate| !rate.is_finite() || rate <= 0.0)
+            {
                 return Err(AgentToolError::InvalidInput(format!(
-                    "Row {}: fxRate must be a positive number, got {rate}.",
+                    "Row {}: fxRate must be a positive number.",
                     index + 1
                 )));
             }
@@ -725,10 +728,10 @@ mod tests {
         for rate in [0.0, -1.2] {
             let mut input = row(false);
             input.fx_rate = Some(rate);
-            assert!(matches!(
-                to_import_rows(&[input]),
-                Err(AgentToolError::InvalidInput(_))
-            ));
+            let error = to_import_rows(&[input]).unwrap_err();
+            assert!(matches!(error, AgentToolError::InvalidInput(_)));
+            // The error reaches the audit log, which keeps no row values.
+            assert!(!error.to_string().contains("1.2"), "{error}");
         }
     }
 

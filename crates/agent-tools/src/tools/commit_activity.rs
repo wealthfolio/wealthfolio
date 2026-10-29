@@ -138,7 +138,7 @@ fn draft_to_new_activity(draft: &ActivityDraft) -> Result<NewActivity, AgentTool
         match value {
             None => Ok(None),
             Some(v) => Decimal::from_f64(v).map(Some).ok_or_else(|| {
-                AgentToolError::InvalidInput(format!("Invalid numeric value for {field}: {v}"))
+                AgentToolError::InvalidInput(format!("Invalid numeric value for {field}"))
             }),
         }
     };
@@ -450,6 +450,16 @@ mod tests {
         assert_eq!(asset.provider_symbol.as_deref(), Some("AAPL"));
         // Never minted on commit — the service assigns it.
         assert!(new.id.is_none());
+    }
+
+    #[test]
+    fn rejected_values_stay_out_of_the_error() {
+        // The error reaches the audit log, which keeps no draft values.
+        let mut draft = security_draft();
+        draft.fx_rate = Some(9.87e30);
+        let error = draft_to_new_activity(&draft).unwrap_err().to_string();
+        assert!(error.contains("fxRate"), "{error}");
+        assert!(!error.contains("987"), "{error}");
     }
 
     #[test]
