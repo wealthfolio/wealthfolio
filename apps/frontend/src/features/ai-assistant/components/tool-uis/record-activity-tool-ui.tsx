@@ -859,6 +859,11 @@ function DraftForm({
       if (!config) return;
       try {
         const basePayload = config.toPayload(formData);
+        // Charge forms omit untouched rates when editing stored activities.
+        // This editor creates an activity, so retain the draft's rate; null clears win.
+        if ((pickerType === "FEE" || pickerType === "TAX") && basePayload.fxRate === undefined) {
+          basePayload.fxRate = draft.fxRate;
+        }
         let activityType = config.activityType as NewActivityFormValues["activityType"];
         // TransferForm uses "in"/"out" direction; map it back to the actual
         // ActivityType for the create payload.
@@ -901,7 +906,7 @@ function DraftForm({
         // Error already surfaced via the mutation hook's toast handler.
       }
     },
-    [config, pickerType, threadId, toolCallId, onSuccess, addActivityMutation],
+    [config, pickerType, draft.fxRate, threadId, toolCallId, onSuccess, addActivityMutation],
   );
 
   const handleConfirm = useCallback(() => {
