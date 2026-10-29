@@ -49,6 +49,7 @@ import {
   type PlannerMode,
 } from "../lib/dashboard-math";
 import { expenseAgeRangeLabel, expenseItems, isExpenseActiveAtAge } from "../lib/expense-items";
+import type { GoalMilestone } from "../lib/goal-milestones";
 import type { RetirementPlan } from "../types";
 import { Alert, AlertDescription, AlertTitle } from "@wealthfolio/ui/components/ui/alert";
 
@@ -69,6 +70,8 @@ interface Props {
   retirementOverviewIsFetching?: boolean;
   goalId?: string;
   dcLinkedAccountIds?: string[];
+  goalMilestones?: GoalMilestone[];
+  onOpenGoal?: (goalId: string) => void;
 }
 
 type CoverageView = "at-retirement" | "over-time";
@@ -187,6 +190,8 @@ export default function DashboardPage({
   retirementOverviewIsFetching,
   goalId,
   dcLinkedAccountIds,
+  goalMilestones = [],
+  onOpenGoal,
 }: Props) {
   const formatting = useAmountFormatting();
   const numberFormatting = useNumberFormatting();
@@ -1014,6 +1019,25 @@ export default function DashboardPage({
                           : t("goals:dashboard.chart.required_tip_fire")}
                       </TooltipContent>
                     </Tooltip>
+                    {goalMilestones.length > 0 && (
+                      <Tooltip>
+                        <TooltipTrigger
+                          render={
+                            <span className="flex cursor-help items-center gap-1.5 underline decoration-dotted underline-offset-2" />
+                          }
+                        >
+                          <span
+                            aria-hidden="true"
+                            className="block h-3 w-3 rounded-full border-[1.5px] border-dashed"
+                            style={{ borderColor: CHART_COLORS.muted }}
+                          />
+                          {t("goals:portfolio_chart.goal_milestones")}
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-xs text-xs">
+                          {t("goals:portfolio_chart.goal_milestones_tip")}
+                        </TooltipContent>
+                      </Tooltip>
+                    )}
                   </div>
                 </div>
               </CardHeader>
@@ -1026,6 +1050,8 @@ export default function DashboardPage({
                   valueMode={chartValueMode}
                   plannerMode={plannerMode}
                   projectedIsOnTrack={readiness.tone === "good"}
+                  goalMilestones={goalMilestones}
+                  onOpenGoal={onOpenGoal}
                 />
               </CardContent>
             </Card>

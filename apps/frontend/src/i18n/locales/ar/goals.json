@@ -441,6 +441,12 @@
   "plan_error": "خطأ في حفظ الخطة",
   "plan_saved": "تم حفظ الخطة بنجاح",
   "portfolio_chart": {
+    "goal_milestones": "أهداف الادخار",
+    "goal_milestones_tip": "يظهر كل هدف ادخار نشط في تاريخه المستهدف، ملوّنًا حسب حالته. لا يُنفق هذا التوقّع ذلك المال بعد.",
+    "goal_milestone_target": "{{amount}} بحلول {{date}}",
+    "goal_milestone_aria": "{{name}}، {{target}}، {{status}}",
+    "goal_milestone_aria_no_status": "{{name}}، {{target}}",
+    "goal_milestone_not_projected": "لم يُحتسب إنفاقه في هذا التوقّع بعد",
     "contribution_yr": "المساهمة/سنة:",
     "end_portfolio": "المحفظة النهائية:",
     "event_goal": "الهدف",

@@ -616,6 +616,12 @@
     "spending_covered": "Spending covered:"
   },
   "portfolio_chart": {
+    "goal_milestones": "Savings goals",
+    "goal_milestones_tip": "Each active savings goal sits at its target date, colored by its status. The projection doesn't spend that money yet.",
+    "goal_milestone_target": "{{amount}} by {{date}}",
+    "goal_milestone_aria": "{{name}}, {{target}}, {{status}}",
+    "goal_milestone_aria_no_status": "{{name}}, {{target}}",
+    "goal_milestone_not_projected": "Not spent in this projection yet",
     "phase_retirement": "Retirement",
     "phase_accumulation": "Accumulation",
     "tooltip_header": "Age {{age}} · {{phase}} · {{valueLabel}}",

@@ -616,6 +616,12 @@
     "spending_covered": "支出覆盖："
   },
   "portfolio_chart": {
+    "goal_milestones": "储蓄目标",
+    "goal_milestones_tip": "每个活跃的储蓄目标显示在其目标日期，并按状态着色。此预测尚未支出这笔钱。",
+    "goal_milestone_target": "{{date}}前达到{{amount}}",
+    "goal_milestone_aria": "{{name}}，{{target}}，{{status}}",
+    "goal_milestone_aria_no_status": "{{name}}，{{target}}",
+    "goal_milestone_not_projected": "此预测尚未计入这笔支出",
     "phase_retirement": "退休",
     "phase_accumulation": "积累",
     "tooltip_header": "{{age}} 岁 · {{phase}} · {{valueLabel}}",

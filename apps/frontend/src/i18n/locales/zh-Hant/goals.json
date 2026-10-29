@@ -616,6 +616,12 @@
     "spending_covered": "支出支應比例："
   },
   "portfolio_chart": {
+    "goal_milestones": "儲蓄目標",
+    "goal_milestones_tip": "每個進行中的儲蓄目標會顯示在其目標日期，並依狀態著色。此預測尚未支出這筆錢。",
+    "goal_milestone_target": "{{date}}前達到{{amount}}",
+    "goal_milestone_aria": "{{name}}，{{target}}，{{status}}",
+    "goal_milestone_aria_no_status": "{{name}}，{{target}}",
+    "goal_milestone_not_projected": "此預測尚未計入這筆支出",
     "phase_retirement": "退休",
     "phase_accumulation": "累積",
     "tooltip_header": "{{age}} 歲 · {{phase}} · {{valueLabel}}",
