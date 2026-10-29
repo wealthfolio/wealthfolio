@@ -6200,6 +6200,32 @@ impl ActivityServiceTrait for ActivityService {
         Ok(deleted)
     }
 
+    async fn delete_activities_checked(&self, activity_ids: Vec<String>) -> Result<Vec<Activity>> {
+        let deleted = self
+            .activity_repository
+            .delete_activities_checked(activity_ids)
+            .await?;
+        let mut account_ids = HashSet::new();
+        let mut asset_ids = HashSet::new();
+        let mut currencies = HashSet::new();
+        for activity in &deleted {
+            Self::add_activity_to_event_sets(
+                activity,
+                &mut account_ids,
+                &mut asset_ids,
+                &mut currencies,
+            );
+        }
+        self.emit_activities_changed(
+            account_ids.into_iter().collect(),
+            asset_ids.into_iter().collect(),
+            currencies.into_iter().collect(),
+            Self::earliest_activity_at_utc(deleted.iter()),
+        );
+        self.emit_asset_split_activities_changed(deleted.iter());
+        Ok(deleted)
+    }
+
     fn get_transfer_pair_for_activity(
         &self,
         activity_id: String,

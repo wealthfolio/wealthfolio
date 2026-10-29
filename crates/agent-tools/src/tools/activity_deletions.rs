@@ -453,11 +453,28 @@ impl AgentTool for CommitActivityDeletions {
                 .clone()
                 .and_then(|id| plan_deletion(activity_service.as_ref(), &id, &covered, &named));
             let result = match planned {
-                Ok(planned) => activity_service
-                    .delete_activity(planned.activity.id.clone())
-                    .await
-                    .map(|_| planned)
-                    .map_err(|error| error.to_string()),
+                Ok(planned) => {
+                    let activity_id = planned.activity.id.clone();
+                    let ids = std::iter::once(&planned.activity)
+                        .chain(planned.linked.as_ref())
+                        .map(|activity| activity.id.clone())
+                        .collect();
+                    activity_service
+                        .delete_activities_checked(ids)
+                        .await
+                        .map_err(|error| error.to_string())
+                        .and_then(|mut deleted| {
+                            let index = deleted
+                                .iter()
+                                .position(|activity| activity.id == activity_id)
+                                .ok_or_else(|| "Deleted activity was not returned".to_string())?;
+                            let activity = deleted.remove(index);
+                            Ok(PlannedDeletion {
+                                activity,
+                                linked: deleted.pop(),
+                            })
+                        })
+                }
                 Err(message) => Err(message),
             };
             match result {

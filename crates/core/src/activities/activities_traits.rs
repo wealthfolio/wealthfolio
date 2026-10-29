@@ -219,6 +219,13 @@ pub trait ActivityRepositoryTrait: Send + Sync {
     async fn create_activity(&self, new_activity: NewActivity) -> Result<Activity>;
     async fn update_activity(&self, activity_update: ActivityUpdate) -> Result<Activity>;
     async fn delete_activity(&self, activity_id: String) -> Result<Activity>;
+    /// Deletes the reviewed rows only if their stored groups contain no other
+    /// rows. The check and deletion must share the writer transaction.
+    async fn delete_activities_checked(&self, _activity_ids: Vec<String>) -> Result<Vec<Activity>> {
+        Err(crate::Error::Unexpected(
+            "Checked activity deletion is unavailable".into(),
+        ))
+    }
     /// Pairs two existing transfer activities by writing a shared `source_group_id`
     /// and clearing `metadata.flow.is_external` on both. Order of `activity_a_id` /
     /// `activity_b_id` is irrelevant; the impl resolves which is IN vs OUT.
@@ -482,6 +489,13 @@ pub trait ActivityServiceTrait: Send + Sync {
         Err(crate::activities::ActivityError::InvalidData("Split review unavailable".into()).into())
     }
     async fn delete_activity(&self, activity_id: String) -> Result<Activity>;
+    /// Deletes exactly the reviewed rows, rejecting newly linked/grouped rows
+    /// atomically, and returns every deleted record.
+    async fn delete_activities_checked(&self, _activity_ids: Vec<String>) -> Result<Vec<Activity>> {
+        Err(crate::Error::Unexpected(
+            "Checked activity deletion is unavailable".into(),
+        ))
+    }
     /// Returns the internal transfer pair for the activity, or `None` when the
     /// activity exists but is not part of a valid internal transfer pair.
     fn get_transfer_pair_for_activity(

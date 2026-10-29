@@ -689,15 +689,19 @@ The tools refuse, per row:
 The deletion tools take a list of activity ids. The preview reads each activity
 and, through `get_transfer_pair_for_activity`, the other leg of a linked
 transfer, and lists both as stored; the commit checks each id again and calls
-`delete_activity`, which deletes both legs of a linked transfer and recalculates
-the portfolio. Both legs of a linked transfer must be named: a leg whose other
-leg is missing from the call is refused, so a transfer linked after the preview
-cannot delete an activity the user never reviewed. The row naming the second leg
-reports the row that deletes it (`deletedWith`); a repeated id is refused. A row
-warns when an activity came from a broker sync, which may add a deleted activity
-back; voiding keeps it out of calculations and, because the update marks it
-user-modified, broker syncs keep it void. The commit reports each deleted
-activity as it was stored. The audit log keeps only the ids.
+`delete_activities_checked`, which returns all deleted rows and recalculates the
+portfolio. The existing SQLite writer transaction refuses the whole row if its
+source-group cascade would remove an id outside that reviewed deletion set. This
+also covers a link created between tool validation and the write, without adding
+a lock or changing the native grid's deletion policy. Both legs of a linked
+transfer must be named: a leg whose other leg is missing from the call is
+refused, so a transfer linked after the preview cannot delete an activity the
+user never reviewed. The row naming the second leg reports the row that deletes
+it (`deletedWith`); a repeated id is refused. A row warns when an activity came
+from a broker sync, which may add a deleted activity back; voiding keeps it out
+of calculations and, because the update marks it user-modified, broker syncs
+keep it void. The commit reports each deleted activity as it was stored. The
+audit log keeps only the ids.
 
 Each row in a batch (up to 100) succeeds or fails on its own. The audit log
 keeps only each row's activity id and the names of the fields it sets, never

@@ -56,6 +56,105 @@ pub struct ActivityRepository {
     writer: WriteHandle,
 }
 
+/// Shared physical deletion and outbox policy. Reviewed callers must name every
+/// row the existing source-group cascade would remove; validate before any write.
+fn delete_activity_rows_tx(
+    tx: &mut crate::db::write_actor::DbWriteTx<'_>,
+    delete_ids: &[String],
+    checked: bool,
+) -> Result<Vec<Activity>> {
+    if checked {
+        let expected: HashSet<&str> = delete_ids.iter().map(String::as_str).collect();
+        if expected.is_empty() || expected.len() != delete_ids.len() {
+            return Err(ActivityError::InvalidData(
+                "Deletion requires distinct activity ids".into(),
+            )
+            .into());
+        }
+        let rows = activities::table
+            .filter(activities::id.eq_any(delete_ids))
+            .select(ActivityDB::as_select())
+            .load::<ActivityDB>(tx.conn())
+            .map_err(StorageError::from)?;
+        if rows.len() != expected.len() {
+            return Err(ActivityError::InvalidData(
+                "Activity changed; prepare deletion again".into(),
+            )
+            .into());
+        }
+        let groups: HashSet<&str> = rows
+            .iter()
+            .filter_map(|row| row.source_group_id.as_deref())
+            .collect();
+        let grouped_ids = activities::table
+            .filter(activities::source_group_id.eq_any(groups))
+            .select(activities::id)
+            .load::<String>(tx.conn())
+            .map_err(StorageError::from)?;
+        if grouped_ids.iter().any(|id| !expected.contains(id.as_str())) {
+            return Err(ActivityError::InvalidData(
+                "Activity group changed; prepare deletion again and review every grouped row"
+                    .into(),
+            )
+            .into());
+        }
+    }
+    let mut deleted = Vec::new();
+    let delete_id_set: std::collections::HashSet<&str> =
+        delete_ids.iter().map(|s| s.as_str()).collect();
+    let mut already_deleted: std::collections::HashSet<String> = std::collections::HashSet::new();
+
+    for delete_id in delete_ids {
+        if already_deleted.contains(delete_id) {
+            continue;
+        }
+        let activity_db = activities::table
+            .select(ActivityDB::as_select())
+            .find(delete_id)
+            .first::<ActivityDB>(tx.conn())
+            .map_err(StorageError::from)?;
+        if let Some(ref group_id) = activity_db.source_group_id.clone() {
+            let counterpart_ids: Vec<String> = activities::table
+                .filter(activities::source_group_id.eq(group_id))
+                .filter(activities::id.ne(delete_id))
+                .select(activities::id)
+                .load::<String>(tx.conn())
+                .map_err(StorageError::from)?;
+            for cid in counterpart_ids {
+                if already_deleted.contains(&cid) {
+                    continue;
+                }
+                if delete_id_set.contains(cid.as_str()) {
+                    // Explicitly in delete list — main loop will handle it
+                    continue;
+                }
+                let cp_db = activities::table
+                    .select(ActivityDB::as_select())
+                    .find(&cid)
+                    .first::<ActivityDB>(tx.conn())
+                    .map_err(StorageError::from)?;
+                diesel::delete(activities::table.filter(activities::id.eq(&cid)))
+                    .execute(tx.conn())
+                    .map_err(StorageError::from)?;
+                if should_sync_raw_activity_outbox(&cp_db) {
+                    tx.delete::<ActivityDB>(cid.clone());
+                }
+                deleted.push(Activity::from(cp_db));
+                already_deleted.insert(cid);
+            }
+        }
+        diesel::delete(activities::table.filter(activities::id.eq(delete_id)))
+            .execute(tx.conn())
+            .map_err(StorageError::from)?;
+        if should_sync_raw_activity_outbox(&activity_db) {
+            tx.delete::<ActivityDB>(delete_id.clone());
+        }
+        deleted.push(Activity::from(activity_db));
+        already_deleted.insert(delete_id.clone());
+    }
+    Ok(deleted)
+}
+
 fn apply_decimal_patch(existing: Option<String>, patch: Option<Option<Decimal>>) -> Option<String> {
     match patch {
         None => existing,
@@ -1224,6 +1323,12 @@ impl ActivityRepositoryTrait for ActivityRepository {
             .await
     }
 
+    async fn delete_activities_checked(&self, activity_ids: Vec<String>) -> Result<Vec<Activity>> {
+        self.writer
+            .exec_tx(move |tx| delete_activity_rows_tx(tx, &activity_ids, true))
+            .await
+    }
+
     async fn link_transfer_activities(
         &self,
         activity_a_id: String,
@@ -1398,61 +1503,10 @@ impl ActivityRepositoryTrait for ActivityRepository {
                         unlink_pairs.push(pair);
                     }
                 }
-                let mut outcome = ActivityBulkMutationResult::default();
-
-                let delete_id_set: std::collections::HashSet<&str> =
-                    delete_ids.iter().map(|s| s.as_str()).collect();
-                let mut already_deleted: std::collections::HashSet<String> =
-                    std::collections::HashSet::new();
-
-                for delete_id in &delete_ids {
-                    if already_deleted.contains(delete_id) {
-                        continue;
-                    }
-                    let activity_db = activities::table
-                        .select(ActivityDB::as_select())
-                        .find(delete_id)
-                        .first::<ActivityDB>(tx.conn())
-                        .map_err(StorageError::from)?;
-                    if let Some(ref group_id) = activity_db.source_group_id.clone() {
-                        let counterpart_ids: Vec<String> = activities::table
-                            .filter(activities::source_group_id.eq(group_id))
-                            .filter(activities::id.ne(delete_id))
-                            .select(activities::id)
-                            .load::<String>(tx.conn())
-                            .map_err(StorageError::from)?;
-                        for cid in counterpart_ids {
-                            if already_deleted.contains(&cid) {
-                                continue;
-                            }
-                            if delete_id_set.contains(cid.as_str()) {
-                                // Explicitly in delete list — main loop will handle it
-                                continue;
-                            }
-                            let cp_db = activities::table
-                                .select(ActivityDB::as_select())
-                                .find(&cid)
-                                .first::<ActivityDB>(tx.conn())
-                                .map_err(StorageError::from)?;
-                            diesel::delete(activities::table.filter(activities::id.eq(&cid)))
-                                .execute(tx.conn())
-                                .map_err(StorageError::from)?;
-                            if should_sync_raw_activity_outbox(&cp_db) {
-                                tx.delete::<ActivityDB>(cid.clone());
-                            }
-                            outcome.deleted.push(Activity::from(cp_db));
-                            already_deleted.insert(cid);
-                        }
-                    }
-                    diesel::delete(activities::table.filter(activities::id.eq(delete_id)))
-                        .execute(tx.conn())
-                        .map_err(StorageError::from)?;
-                    if should_sync_raw_activity_outbox(&activity_db) {
-                        tx.delete::<ActivityDB>(delete_id.clone());
-                    }
-                    outcome.deleted.push(Activity::from(activity_db));
-                    already_deleted.insert(delete_id.clone());
-                }
+                let mut outcome = ActivityBulkMutationResult {
+                    deleted: delete_activity_rows_tx(tx, &delete_ids, false)?,
+                    ..Default::default()
+                };
 
                 for update in updates {
                     update.validate()?;
@@ -4423,6 +4477,119 @@ mod tests {
         assert_eq!(row.0.as_deref(), Some("60.00"));
         assert_eq!(row.1, "2026-01-02T00:00:00+00:00");
         assert_eq!(sync_outbox_count(&mut conn), 0);
+    }
+
+    #[tokio::test]
+    async fn checked_deletion_rejects_a_link_created_after_planning_without_writes() {
+        let (pool, writer, _dir) = setup_db();
+        let repo = ActivityRepository::new(pool.clone(), writer);
+        {
+            let mut conn = get_connection(&pool).expect("conn");
+            insert_account(&mut conn, "acc-out");
+            insert_account(&mut conn, "acc-in");
+            insert_transfer_activity(&mut conn, "out", "acc-out", "TRANSFER_OUT", None, None);
+            insert_transfer_activity(&mut conn, "in", "acc-in", "TRANSFER_IN", None, None);
+        }
+        let reviewed_ids = vec!["out".to_string()];
+        repo.link_transfer_activities("out".into(), "in".into())
+            .await
+            .expect("concurrent link");
+        let before_outbox = {
+            let mut conn = get_connection(&pool).expect("conn");
+            sync_outbox_count(&mut conn)
+        };
+
+        let error = repo
+            .delete_activities_checked(reviewed_ids)
+            .await
+            .expect_err("stale deletion");
+        assert!(error.to_string().contains("prepare deletion again"));
+        assert!(repo.get_activity("out").is_ok());
+        assert!(repo.get_activity("in").is_ok());
+        let mut conn = get_connection(&pool).expect("conn");
+        assert_eq!(sync_outbox_count(&mut conn), before_outbox);
+    }
+
+    #[tokio::test]
+    async fn checked_deletion_returns_all_rows_and_preserves_broker_outbox_policy() {
+        for broker in [false, true] {
+            let (pool, writer, _dir) = setup_db();
+            let repo = ActivityRepository::new(pool.clone(), writer);
+            {
+                let mut conn = get_connection(&pool).expect("conn");
+                insert_account(&mut conn, "acc-out");
+                insert_account(&mut conn, "acc-in");
+                insert_transfer_activity(
+                    &mut conn,
+                    "out",
+                    "acc-out",
+                    "TRANSFER_OUT",
+                    Some("pair"),
+                    None,
+                );
+                insert_transfer_activity(
+                    &mut conn,
+                    "in",
+                    "acc-in",
+                    "TRANSFER_IN",
+                    Some("pair"),
+                    None,
+                );
+                if broker {
+                    diesel::update(activities::table)
+                        .set((
+                            activities::source_system.eq("SNAPTRADE"),
+                            activities::source_record_id.eq("broker-record"),
+                        ))
+                        .execute(&mut conn)
+                        .expect("broker provenance");
+                }
+            }
+            let deleted = repo
+                .delete_activities_checked(vec!["out".into(), "in".into()])
+                .await
+                .expect("reviewed pair");
+            let ids: HashSet<&str> = deleted
+                .iter()
+                .map(|activity| activity.id.as_str())
+                .collect();
+            assert_eq!(ids, HashSet::from(["out", "in"]));
+            assert!(repo.get_activity("out").is_err());
+            assert!(repo.get_activity("in").is_err());
+            let mut conn = get_connection(&pool).expect("conn");
+            assert_eq!(sync_outbox_count(&mut conn), if broker { 0 } else { 2 });
+        }
+    }
+
+    #[tokio::test]
+    async fn checked_deletion_rejects_incomplete_or_missing_groups_atomically() {
+        let (pool, writer, _dir) = setup_db();
+        let repo = ActivityRepository::new(pool.clone(), writer);
+        {
+            let mut conn = get_connection(&pool).expect("conn");
+            insert_account(&mut conn, "acc");
+            for id in ["one", "two", "fee"] {
+                insert_transfer_activity(
+                    &mut conn,
+                    id,
+                    "acc",
+                    "DEPOSIT",
+                    Some("broker-group"),
+                    None,
+                );
+            }
+        }
+        for ids in [vec!["one", "two"], vec!["one", "two", "fee", "missing"]] {
+            assert!(repo
+                .delete_activities_checked(ids.into_iter().map(str::to_string).collect())
+                .await
+                .is_err());
+            for id in ["one", "two", "fee"] {
+                assert!(repo.get_activity(id).is_ok());
+            }
+            let mut conn = get_connection(&pool).expect("conn");
+            assert_eq!(sync_outbox_count(&mut conn), 0);
+        }
     }
 
     fn insert_activity_with_subtype(
