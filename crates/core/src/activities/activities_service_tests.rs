@@ -15750,6 +15750,78 @@ pub(crate) mod tests {
     }
 
     #[tokio::test]
+    async fn voiding_unflagged_leg_clears_flagged_counterpart_review() {
+        // A voided activity counts toward nothing, so it leaves the review
+        // queue, even when only the counterpart was waiting for review.
+        let account_service = Arc::new(MockAccountService::new());
+        let activity_repository = Arc::new(MockActivityRepository::new());
+        account_service.add_account(create_test_account("acc-out", "USD"));
+        account_service.add_account(create_test_account("acc-in", "USD"));
+        let activity_service = ActivityService::new(
+            activity_repository.clone(),
+            account_service,
+            Arc::new(MockAssetService::new()),
+            Arc::new(MockFxService::new()),
+            Arc::new(MockQuoteService),
+        );
+
+        let date = DateTime::parse_from_rfc3339("2024-01-15T00:00:00Z")
+            .unwrap()
+            .with_timezone(&Utc);
+        let mut transfer_out = create_stored_activity("transfer-out", "acc-out", None);
+        transfer_out.activity_type = "TRANSFER_OUT".to_string();
+        transfer_out.quantity = None;
+        transfer_out.unit_price = None;
+        transfer_out.amount = Some(dec!(500));
+        transfer_out.source_group_id = Some("grp-void".to_string());
+        transfer_out.activity_date = date;
+        transfer_out.metadata = Some(json!({ "flow": { "is_external": false } }));
+        let mut transfer_in = transfer_out.clone();
+        transfer_in.id = "transfer-in".to_string();
+        transfer_in.account_id = "acc-in".to_string();
+        transfer_in.activity_type = "TRANSFER_IN".to_string();
+        transfer_in.needs_review = true;
+        activity_repository
+            .activities
+            .lock()
+            .unwrap()
+            .extend([transfer_out, transfer_in]);
+
+        activity_service
+            .update_activity(crate::activities::ActivityUpdate {
+                unlink_transfer_pair_id: None,
+                split_review: None,
+                id: "transfer-out".to_string(),
+                account_id: "acc-out".to_string(),
+                asset: None,
+                activity_type: "TRANSFER_OUT".to_string(),
+                subtype: None,
+                activity_date: date.to_rfc3339(),
+                quantity: None,
+                unit_price: None,
+                currency: "USD".to_string(),
+                fee: None,
+                tax: None,
+                amount: None,
+                status: Some(ActivityStatus::Void),
+                needs_review: Some(false),
+                notes: None,
+                fx_rate: None,
+                metadata: None,
+            })
+            .await
+            .expect("voiding one leg voids the pair");
+
+        let stored = activity_repository.activities.lock().unwrap().clone();
+        let counterpart = stored
+            .iter()
+            .find(|a| a.id == "transfer-in")
+            .expect("counterpart exists");
+        assert_eq!(counterpart.status, ActivityStatus::Void);
+        assert!(!counterpart.needs_review);
+    }
+
+    #[tokio::test]
     async fn test_delete_activity_cascades_transfer_pair() {
         let account_service = Arc::new(MockAccountService::new());
         let asset_service = Arc::new(MockAssetService::new());

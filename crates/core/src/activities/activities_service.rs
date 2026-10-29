@@ -1930,9 +1930,15 @@ impl ActivityService {
             .status
             .clone()
             .filter(|status| *status != existing.status);
+        // A voided counterpart counts toward nothing, so it leaves the review
+        // queue even when the primary was not in it.
         let review_transition = update
             .needs_review
-            .filter(|review| *review != existing.needs_review);
+            .filter(|review| *review != existing.needs_review)
+            .or_else(|| {
+                (status_transition == Some(ActivityStatus::Void) && counterpart.needs_review)
+                    .then_some(false)
+            });
         let counterpart_status = status_transition.or_else(|| {
             (review_transition == Some(false) && counterpart.status == ActivityStatus::Draft)
                 .then_some(ActivityStatus::Posted)
@@ -2584,9 +2590,15 @@ impl ActivityService {
             .status
             .clone()
             .filter(|status| *status != existing.status);
+        // A voided counterpart counts toward nothing, so it leaves the review
+        // queue even when the primary was not in it.
         let review_transition = update
             .needs_review
-            .filter(|review| *review != existing.needs_review);
+            .filter(|review| *review != existing.needs_review)
+            .or_else(|| {
+                (status_transition == Some(ActivityStatus::Void) && counterpart.needs_review)
+                    .then_some(false)
+            });
         // Approving a pair must also post a Draft counterpart, or its
         // lifecycle guard would reject clearing the review flag alone.
         let counterpart_status = status_transition.or_else(|| {
