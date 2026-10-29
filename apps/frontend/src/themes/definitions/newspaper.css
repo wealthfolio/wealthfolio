@@ -58,6 +58,8 @@
   --spending-accent: #35332d;
   --spending-deep: #35332d;
   --spending-mid: #857f70;
+  /* The Investments value chart (and an account's); below zero it is always --loss. */
+  --investments: #35332d;
   --net-worth: #35332d;
   --sidebar: #edeae1;
   --sidebar-foreground: #171614;
@@ -154,6 +156,7 @@
   --spending-accent: #c4bfb1;
   --spending-deep: #c4bfb1;
   --spending-mid: #7d7768;
+  --investments: #c4bfb1;
   --net-worth: #c4bfb1;
   --sidebar: #100f0d;
   --sidebar-foreground: #e8e4d9;

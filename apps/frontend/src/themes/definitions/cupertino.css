@@ -83,6 +83,8 @@
   --spending-accent: #007aff;
   --spending-deep: #0060c0;
   --spending-mid: #5ac8fa;
+  /* The Investments value chart (and an account's); below zero it is always --loss. */
+  --investments: var(--gain);
   --net-worth: #c97502;
   --bar-stripe: rgba(255, 255, 255, 0.3);
   --sidebar: #ebebf0;
@@ -230,6 +232,7 @@
   --spending-accent: #0a84ff;
   --spending-deep: #409cff;
   --spending-mid: #64d2ff;
+  --investments: var(--gain);
   --net-worth: #ff9f0a;
   --bar-stripe: rgba(0, 0, 0, 0.25);
   --sidebar: #161618;

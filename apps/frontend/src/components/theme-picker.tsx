@@ -40,6 +40,10 @@ export function ThemePreview({
       data-theme-preview={theme.id}
       className={cn(
         "bg-background text-foreground flex h-28 w-full min-w-0 overflow-hidden",
+        // A theme's --investments may read --gain, which globals.css sets on <html> from the
+        // selected theme: point it at this theme's success colour, as the miniature's
+        // change bars are.
+        "[--gain:var(--success)]",
         // Always a role class, so the family resolves from this miniature's own
         // stacks; an inherited font-family is already the selected theme's.
         theme.font ?? font,
@@ -94,7 +98,7 @@ export function ThemePreview({
         </div>
 
         <svg
-          className="text-success -mx-2 min-h-4 w-[calc(100%+1rem)] flex-1"
+          className="-mx-2 min-h-4 w-[calc(100%+1rem)] flex-1 text-(--investments)"
           viewBox="0 0 120 30"
           preserveAspectRatio="none"
         >

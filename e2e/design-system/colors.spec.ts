@@ -43,6 +43,7 @@ const roles = [
   "ring",
   ...Array.from({ length: 9 }, (_, index) => `chart-${index + 1}`),
   ...Array.from({ length: 8 }, (_, index) => `series-${index + 1}`),
+  "investments",
   "net-worth",
   "spending-accent",
   "spending-deep",
@@ -129,13 +130,14 @@ const exceptions: {
 ];
 
 // Non-text graphics at 3:1 (WCAG 1.4.11): the focus ring; the series colours that
-// tell compared lines and markers apart; the Net Worth line; Spending's icons,
-// labels and bars; each on the page and on cards.
+// tell compared lines and markers apart; the Investments and Net Worth lines;
+// Spending's icons, labels and bars; each on the page and on cards.
 const indicatorPairs = [
   ["ring", "background"],
   ["ring", "card"],
   ...[
     ...Array.from({ length: 8 }, (_, index) => `series-${index + 1}`),
+    "investments",
     "net-worth",
     "spending-deep",
   ].flatMap((role) => ["background", "card"].map((surface) => [role, surface] as const)),

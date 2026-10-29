@@ -104,6 +104,7 @@
   --spending-accent: hsl(155 32% 26%);
   --spending-deep: #2a573f;
   --spending-mid: #71a290;
+  --investments: var(--gain);
   --net-worth: #ad8301;
   --sidebar: hsl(var(--flexoki-bg));
   --sidebar-foreground: hsl(var(--flexoki-tx));
@@ -230,6 +231,7 @@
   --spending-accent: hsl(156 28% 44%);
   --spending-deep: hsl(156 28% 44%);
   --spending-mid: #2a573f;
+  --investments: var(--gain);
   --net-worth: #d0a215;
   --success-subtle: var(--color-green-950);
   --success-subtle-foreground: var(--color-green-200);
@@ -292,6 +294,7 @@
   --chart-3: #b99f64;
   --chart-4: #bb7b5b;
   --chart-5: #688daf;
+  --investments: var(--gain);
   --sidebar: hsl(var(--flexoki-bg));
   --sidebar-foreground: hsl(var(--flexoki-tx));
   --sidebar-accent: hsl(var(--flexoki-ui));
@@ -312,6 +315,7 @@
   --chart-3: #c5a556;
   --chart-4: #c87c51;
   --chart-5: #769ebb;
+  --investments: var(--gain);
   --success-subtle: var(--color-green-950);
   --destructive-subtle: var(--color-red-950);
 }
@@ -389,6 +393,7 @@
   --spending-accent: var(--chart-1);
   --spending-deep: var(--chart-1);
   --spending-mid: var(--chart-4);
+  --investments: var(--gain);
   --net-worth: #aa8c3e;
   --sidebar: #f8f8f8;
   --sidebar-foreground: #262626;
@@ -513,6 +518,7 @@
   --series-4: var(--chart-4);
   --series-7: var(--chart-7);
   --series-8: var(--chart-8);
+  --investments: var(--gain);
   --net-worth: #d4b66a;
   --sidebar: #0f0f10;
   --sidebar-foreground: #d4d4d8;
@@ -579,6 +585,7 @@
   --chart-3: #8e7cb3;
   --chart-4: #7b96c9;
   --chart-5: #b74583;
+  --investments: var(--gain);
   --sidebar: #f8f8f8;
   --sidebar-foreground: #262626;
   --sidebar-accent: #e6e6e6;
@@ -603,6 +610,7 @@
   --chart-3: #b2a3d9;
   --chart-4: #a8bee8;
   --chart-5: #db7fae;
+  --investments: var(--gain);
   --sidebar: #0f0f10;
   --sidebar-foreground: #d4d4d8;
   --sidebar-accent: #202022;
@@ -656,6 +664,7 @@
   --spending-accent: #43675d;
   --spending-deep: #43675d;
   --spending-mid: #8aa597;
+  --investments: #3d3a35;
   --net-worth: #bc5215;
   --sidebar: oklch(0.993 0 0);
   --sidebar-foreground: oklch(0.359 0.0051 106.6524);
@@ -725,6 +734,7 @@
   --spending-accent: hsl(22 80% 46%);
   --spending-deep: hsl(22 80% 46%);
   --spending-mid: hsl(24 84% 62%);
+  --investments: #e8e4dc;
   --net-worth: #da702c;
   --sidebar: #211f1d;
   --sidebar-foreground: #e8e0d0;
@@ -775,6 +785,7 @@
   --chart-3: hsl(50 3% 42%);
   --chart-4: hsl(43 3% 52%);
   --chart-5: hsl(47 4% 61%);
+  --investments: #3d3a35;
   --sidebar: oklch(0.993 0 0);
   --sidebar-foreground: oklch(0.359 0.0051 106.6524);
   --sidebar-accent: oklch(0.9245 0.0138 92.9892);
@@ -799,6 +810,7 @@
   --chart-3: hsl(23 70% 51%);
   --chart-4: hsl(23 73% 46%);
   --chart-5: hsl(22 80% 41%);
+  --investments: #e8e4dc;
   --sidebar: #211f1d;
   --sidebar-foreground: #e8e0d0;
   --sidebar-accent: #33291d;
@@ -871,6 +883,7 @@
   --spending-accent: #007aff;
   --spending-deep: #0060c0;
   --spending-mid: #5ac8fa;
+  --investments: var(--gain);
   --net-worth: #c97502;
   --bar-stripe: rgba(255, 255, 255, 0.3);
   --sidebar: #ebebf0;
@@ -1002,6 +1015,7 @@
   --spending-accent: #0a84ff;
   --spending-deep: #409cff;
   --spending-mid: #64d2ff;
+  --investments: var(--gain);
   --net-worth: #ff9f0a;
   --bar-stripe: rgba(0, 0, 0, 0.25);
   --sidebar: #161618;
@@ -1075,6 +1089,7 @@
   --chart-3: #30b0c7;
   --chart-4: #ff9500;
   --chart-5: #af52de;
+  --investments: var(--gain);
   --sidebar: #ebebf0;
   --sidebar-foreground: #000000;
   --sidebar-accent: #dfdfe4;
@@ -1097,6 +1112,7 @@
   --chart-3: #40c8e0;
   --chart-4: #ff9f0a;
   --chart-5: #bf5af2;
+  --investments: var(--gain);
   --sidebar: #161618;
   --sidebar-foreground: #ffffff;
   --sidebar-accent: #2c2c2e;
@@ -1159,6 +1175,7 @@
   --spending-accent: #35332d;
   --spending-deep: #35332d;
   --spending-mid: #857f70;
+  --investments: #35332d;
   --net-worth: #35332d;
   --sidebar: #edeae1;
   --sidebar-foreground: #171614;
@@ -1245,6 +1262,7 @@
   --spending-accent: #c4bfb1;
   --spending-deep: #c4bfb1;
   --spending-mid: #7d7768;
+  --investments: #c4bfb1;
   --net-worth: #c4bfb1;
   --sidebar: #100f0d;
   --sidebar-foreground: #e8e4d9;
@@ -1295,6 +1313,7 @@
   --chart-3: hsl(50 3% 42%);
   --chart-4: hsl(43 3% 52%);
   --chart-5: hsl(47 4% 61%);
+  --investments: #35332d;
   --sidebar: #edeae1;
   --sidebar-foreground: #171614;
   --sidebar-accent: #dcd8cd;
@@ -1319,6 +1338,7 @@
   --chart-3: hsl(51 6% 68%);
   --chart-4: hsl(48 5% 58%);
   --chart-5: hsl(46 4% 48%);
+  --investments: #c4bfb1;
   --sidebar: #100f0d;
   --sidebar-foreground: #e8e4d9;
   --sidebar-accent: #2a2721;
@@ -1389,6 +1409,7 @@
   --spending-accent: #1c6c66;
   --spending-deep: #1c6c66;
   --spending-mid: #205ea6;
+  --investments: var(--gain);
   --net-worth: #b74583;
   --sidebar: #e9f3f5;
   --sidebar-foreground: #0d2129;
@@ -1473,6 +1494,7 @@
   --spending-accent: #3aa99f;
   --spending-deep: #3aa99f;
   --spending-mid: #66a0c8;
+  --investments: var(--gain);
   --net-worth: #ce5d97;
   --series-5: var(--chart-5);
   --sidebar: #080c11;
@@ -1516,6 +1538,7 @@
   --chart-3: #735eb5;
   --chart-4: #b74583;
   --chart-5: #3aa99f;
+  --investments: var(--gain);
   --sidebar: #e9f3f5;
   --sidebar-foreground: #0d2129;
   --sidebar-accent: #d5eae8;
@@ -1540,6 +1563,7 @@
   --chart-3: #a699d0;
   --chart-4: #ce5d97;
   --chart-5: #87d3c3;
+  --investments: var(--gain);
   --sidebar: #080c11;
   --sidebar-foreground: #d3e3e8;
   --sidebar-accent: #17222d;
@@ -1613,6 +1637,7 @@
   --spending-accent: var(--chart-1);
   --spending-deep: var(--chart-3);
   --spending-mid: var(--chart-2);
+  --investments: var(--gain);
   --net-worth: #9a6700;
   --fi-stream-1: var(--chart-1);
   --fi-stream-2: var(--chart-2);
@@ -1692,6 +1717,7 @@
   --chart-8: #43824c;
   --chart-9: #628768;
   --chart-stone: var(--chart-9);
+  --investments: var(--gain);
   --net-worth: #ffb000;
   --fi-stream-1: var(--chart-1);
   --fi-stream-2: var(--chart-2);
@@ -1734,6 +1760,7 @@
   --chart-3: #245d30;
   --chart-4: #568a60;
   --chart-5: #317541;
+  --investments: var(--gain);
   --sidebar: #e8f2e8;
   --sidebar-foreground: #12391d;
   --sidebar-accent: #c9e8ce;
@@ -1762,6 +1789,7 @@
   --sidebar-accent: oklch(0.3053 0.1039 142.4953);
   --sidebar-border: oklch(0.3053 0.1039 142.4953);
   --success: #63b871;
+  --investments: var(--gain);
 }
 
 :root[data-theme="poster"] {
@@ -1833,6 +1861,7 @@
   --spending-accent: #5b2cff;
   --spending-deep: #5b2cff;
   --spending-mid: #00a396;
+  --investments: #5b2cff;
   --net-worth: #5b2cff;
   --sidebar: #ece6ff;
   --sidebar-foreground: #111111;
@@ -1958,6 +1987,7 @@
   --spending-accent: #9a7bff;
   --spending-deep: #9a7bff;
   --spending-mid: #2fd3c4;
+  --investments: #9a7bff;
   --net-worth: #9a7bff;
   --sidebar: #0f0f0f;
   --sidebar-foreground: #f2f2f2;
@@ -2030,6 +2060,7 @@
   --chart-3: #00a396;
   --chart-4: #b38f00;
   --chart-5: #e8358b;
+  --investments: #5b2cff;
   --sidebar: #ece6ff;
   --sidebar-foreground: #111111;
   --sidebar-accent: #ffffff;
@@ -2054,6 +2085,7 @@
   --chart-3: #2fd3c4;
   --chart-4: #ffd84d;
   --chart-5: #ff7fbd;
+  --investments: #9a7bff;
   --sidebar: #0f0f0f;
   --sidebar-foreground: #f2f2f2;
   --sidebar-accent: #1b1b1b;

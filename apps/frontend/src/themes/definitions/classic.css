@@ -152,6 +152,8 @@
   --spending-accent: hsl(155 32% 26%);
   --spending-deep: #2a573f;
   --spending-mid: #71a290;
+  /* The Investments value chart (and an account's); below zero it is always --loss. */
+  --investments: var(--gain);
   --net-worth: #ad8301;
 
   /* Sidebar (full hsl colors) */
@@ -333,6 +335,7 @@
   --spending-accent: hsl(156 28% 44%);
   --spending-deep: hsl(156 28% 44%);
   --spending-mid: #2a573f;
+  --investments: var(--gain);
   --net-worth: #d0a215;
 
   --success-subtle: var(--color-green-950);

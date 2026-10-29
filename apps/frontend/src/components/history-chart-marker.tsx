@@ -22,6 +22,13 @@ interface HistoryChartMarkerShapeProps extends RechartsMarkerShapeProps {
   value?: number;
   label?: string;
   tone?: HistoryChartMarkerTone;
+  /** A snapshot dot's colour at or above zero, the chart line's; below zero it is --loss. */
+  color?: string;
+}
+
+/** A value line's colour at one value: its own at or above zero, --loss below. */
+export function lineColorAt(value: number, color = "var(--gain)") {
+  return value >= 0 ? color : "var(--loss)";
 }
 
 export function HistoryChartActiveDot({ cx, cy, stroke = "var(--gain)" }: RechartsActiveDotProps) {
@@ -40,13 +47,13 @@ export function HistoryChartMarkerShape({
   value = 0,
   label,
   tone,
+  color = "var(--gain)",
 }: HistoryChartMarkerShapeProps) {
   if (variant === "snapshot") {
     return (
       <g
-        className={value >= 0 ? "text-gain" : "text-loss"}
         transform={`translate(${cx ?? 0}, ${cy ?? 0})`}
-        style={{ pointerEvents: "none" }}
+        style={{ pointerEvents: "none", color: lineColorAt(value, color) }}
       >
         <circle r={10} fill="currentColor" opacity={0.14} />
         <circle r={6} fill="currentColor" stroke="var(--background)" strokeWidth={1.5} />

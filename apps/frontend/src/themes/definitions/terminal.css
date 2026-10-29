@@ -73,6 +73,8 @@
   --spending-accent: var(--chart-1);
   --spending-deep: var(--chart-3);
   --spending-mid: var(--chart-2);
+  /* The Investments value chart (and an account's); below zero it is always --loss. */
+  --investments: var(--gain);
   --net-worth: #9a6700;
   --fi-stream-1: var(--chart-1);
   --fi-stream-2: var(--chart-2);
@@ -160,6 +162,7 @@
   --chart-8: #43824c;
   --chart-9: #628768;
   --chart-stone: var(--chart-9);
+  --investments: var(--gain);
   --net-worth: #ffb000;
   --fi-stream-1: var(--chart-1);
   --fi-stream-2: var(--chart-2);

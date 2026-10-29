@@ -91,6 +91,8 @@
   --spending-accent: var(--chart-1);
   --spending-deep: var(--chart-1);
   --spending-mid: var(--chart-4);
+  /* The Investments value chart (and an account's); below zero it is always --loss. */
+  --investments: var(--gain);
   --net-worth: #aa8c3e;
   /* The sidebar is the page itself. */
   --sidebar: #f8f8f8;
@@ -239,6 +241,7 @@
   --series-4: var(--chart-4);
   --series-7: var(--chart-7);
   --series-8: var(--chart-8);
+  --investments: var(--gain);
   --net-worth: #d4b66a;
   --sidebar: #0f0f10;
   --sidebar-foreground: #d4d4d8;

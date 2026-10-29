@@ -72,6 +72,8 @@
   --spending-accent: #1c6c66;
   --spending-deep: #1c6c66;
   --spending-mid: #205ea6;
+  /* The Investments value chart (and an account's); below zero it is always --loss. */
+  --investments: var(--gain);
   --net-worth: #b74583;
   --sidebar: #e9f3f5;
   --sidebar-foreground: #0d2129;
@@ -167,6 +169,7 @@
   --spending-accent: #3aa99f;
   --spending-deep: #3aa99f;
   --spending-mid: #66a0c8;
+  --investments: var(--gain);
   --net-worth: #ce5d97;
   /* In dark mode every chart colour reaches 3:1 as it is. */
   --series-5: var(--chart-5);

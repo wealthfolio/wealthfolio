@@ -1149,6 +1149,7 @@ const AccountPage = () => {
                         <HistoryChart
                           data={chartData}
                           isLoading={false}
+                          color="var(--investments)"
                           showMarkers={showSnapshotMarkers}
                           snapshotDates={markerDates}
                           markerLabels={markerLabels}

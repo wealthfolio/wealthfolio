@@ -29,9 +29,9 @@ and this project adheres to
   and allocation strips use it, so an addon chart that does matches them.
 - Chart colours as theme tokens: `--series-1` to `--series-8` for lines and
   markers compared on one axis (each reaches 3:1 on the page and on cards),
-  `--net-worth`, and `--spending-accent`, `--spending-deep` and
-  `--spending-mid`. The treemap ramps gain `--heatmap-positive-mid` and
-  `--heatmap-negative-mid`.
+  `--investments` (the portfolio value line at or above zero), `--net-worth`,
+  and `--spending-accent`, `--spending-deep` and `--spending-mid`. The treemap
+  ramps gain `--heatmap-positive-mid` and `--heatmap-negative-mid`.
 - `Settings.gainColors`: the user's gain and loss colours, `green-up` (the
   default), `red-up` or `red-up-blue-down`, synced across their devices; absent
   on older hosts. The host sets it on `<html>` as `data-gain-colors`, and addon

@@ -58,6 +58,8 @@
   --spending-accent: #43675d;
   --spending-deep: #43675d;
   --spending-mid: #8aa597;
+  /* The Investments value chart (and an account's) in warm charcoal, apart from the gain green; below zero it is always --loss. */
+  --investments: #3d3a35;
   --net-worth: #bc5215;
   --sidebar: oklch(0.993 0 0);
   --sidebar-foreground: oklch(0.359 0.0051 106.6524);
@@ -133,6 +135,7 @@
   --spending-accent: hsl(22 80% 46%);
   --spending-deep: hsl(22 80% 46%);
   --spending-mid: hsl(24 84% 62%);
+  --investments: #e8e4dc;
   --net-worth: #da702c;
   --sidebar: #211f1d;
   --sidebar-foreground: #e8e0d0;
