@@ -436,6 +436,7 @@ export function computeFieldMappings(
     if (header) result[field] = header;
   }
 
+  // Canonical amount columns are authoritative, even when a row's cell is empty.
   const amountHeader = autoDetected[ImportFormat.AMOUNT];
   if (
     isTransactionImportProfile(profile) &&

@@ -129,6 +129,15 @@ describe("CSV column auto-mapping", () => {
   });
 
   it.each([CASH_TRANSACTION_IMPORT_PROFILE, CREDIT_CARD_TRANSACTION_IMPORT_PROFILE])(
+    "treats a bank's Amount column as canonical alongside Debit and Credit ($label)",
+    (profile) => {
+      expect(
+        computeFieldMappings(["Date", "Amount", "Debit", "Credit"], undefined, profile),
+      ).toEqual({ date: "Date", amount: "Amount" });
+    },
+  );
+
+  it.each([CASH_TRANSACTION_IMPORT_PROFILE, CREDIT_CARD_TRANSACTION_IMPORT_PROFILE])(
     "preserves debit/credit fallbacks when there is no canonical amount ($label)",
     (profile) => {
       expect(
