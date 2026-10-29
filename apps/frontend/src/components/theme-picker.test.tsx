@@ -63,11 +63,11 @@ describe("ThemePicker", () => {
     expect(screen.getByRole("radio", { name: /Ember/ })).toBeChecked();
   });
 
-  it("checks Classic for a missing or unknown theme", () => {
+  it("checks the default theme, Signature, for a missing or unknown theme", () => {
     const { rerender } = render(<ThemePicker onChange={vi.fn()} />);
-    expect(screen.getByRole("radio", { name: "Classic" })).toBeChecked();
+    expect(screen.getByRole("radio", { name: "Signature" })).toBeChecked();
     rerender(<ThemePicker value="from-a-newer-version" onChange={vi.fn()} />);
-    expect(screen.getByRole("radio", { name: "Classic" })).toBeChecked();
+    expect(screen.getByRole("radio", { name: "Signature" })).toBeChecked();
   });
 
   it("reports the picked theme and describes the mode a theme is designed for", () => {

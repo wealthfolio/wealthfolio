@@ -11,7 +11,7 @@ use wealthfolio_core::assets::AssetKind;
 use wealthfolio_core::errors::Result;
 use wealthfolio_core::settings::{
     Settings, SettingsRepositoryTrait, SettingsUpdate, CURRENCY_FORMATTING_REGIONS_KEY,
-    DEFAULT_GAIN_COLORS, DEFAULT_THEME_ID, GAIN_COLORS, GAIN_COLORS_KEY,
+    DEFAULT_FONT, DEFAULT_GAIN_COLORS, DEFAULT_THEME_ID, GAIN_COLORS, GAIN_COLORS_KEY,
     INSIGHTS_OVERVIEW_LAYOUT_KEY, TEXT_SIZE_KEY, THEME_ID_KEY,
 };
 
@@ -277,7 +277,7 @@ impl SettingsRepositoryTrait for SettingsRepository {
                     THEME_ID_KEY => DEFAULT_THEME_ID,
                     GAIN_COLORS_KEY => DEFAULT_GAIN_COLORS,
                     "theme" => "light",
-                    "font" => "font-mono",
+                    "font" => DEFAULT_FONT,
                     "language" => "en",
                     "timezone" => "",
                     "onboarding_completed" => "false",

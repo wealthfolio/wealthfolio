@@ -2005,3 +2005,6 @@ mod migration_backup_tests;
 
 #[cfg(test)]
 mod account_delete_cleanup_tests;
+
+#[cfg(test)]
+mod signature_default_theme_tests;

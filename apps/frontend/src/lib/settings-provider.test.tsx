@@ -132,12 +132,14 @@ it("applies the saved theme and caches it for the next start", async () => {
   expect(localStorage.getItem("wealthfolio-theme-id")).toBe("ember");
 });
 
-it("shows Classic for a missing or unknown theme", async () => {
+it("shows the default theme, Signature, for a missing or unknown theme", async () => {
   mocks.platform.mockResolvedValue({ os: "linux", is_mobile: false, is_desktop: true });
   for (const themeId of [undefined, "from-a-newer-version"]) {
     settings.themeId = themeId;
     const { unmount } = render(<SettingsProvider>content</SettingsProvider>);
-    await waitFor(() => expect(document.documentElement).toHaveAttribute("data-theme", "classic"));
+    await waitFor(() =>
+      expect(document.documentElement).toHaveAttribute("data-theme", "signature"),
+    );
     unmount();
     document.documentElement.removeAttribute("data-theme");
   }
