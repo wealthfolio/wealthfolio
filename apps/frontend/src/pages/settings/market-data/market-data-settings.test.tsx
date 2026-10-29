@@ -6,6 +6,7 @@ import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { MarketDataProviderSetting } from "@/adapters";
+import { QueryKeys } from "@/lib/query-keys";
 import type { Asset } from "@/lib/types";
 import type { CustomProviderWithSources } from "@/lib/types/custom-provider";
 import MarketDataSettingsPage from "./market-data-settings";
@@ -467,6 +468,55 @@ describe("MarketDataSettingsPage", () => {
       { providerId: "YAHOO", priority: 10, enabled: true },
       { providerId: "US_TREASURY_CALC", priority: 10, enabled: true },
     ]);
+  });
+
+  it("handles a failed undo without throwing", async () => {
+    setProviders(yahoo, treasury);
+    mutateAsync
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error("offline"))
+      .mockRejectedValueOnce(new Error("still offline"));
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(screen.getByRole("button", { name: "Move US Treasury (Calculated) up" }));
+
+    // The mutation hook reports each failure; the move only has to finish cleanly.
+    await waitFor(() => expect(mutateAsync).toHaveBeenCalledTimes(3));
+  });
+
+  it("keeps a switch flipped while a move is saving", async () => {
+    setProviders(yahoo, treasury);
+    let finishFirst: () => void = () => undefined;
+    mutateAsync.mockImplementationOnce(
+      () => new Promise<void>((resolve) => (finishFirst = resolve)),
+    );
+    const client = new QueryClient();
+    client.setQueryData([QueryKeys.MARKET_DATA_PROVIDER_SETTINGS], [yahoo, treasury]);
+    const user = userEvent.setup();
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <MarketDataSettingsPage />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Move US Treasury (Calculated) up" }));
+    await waitFor(() => expect(mutateAsync).toHaveBeenCalledTimes(1));
+    // Yahoo is switched off while Treasury's write is still saving.
+    client.setQueryData(
+      [QueryKeys.MARKET_DATA_PROVIDER_SETTINGS],
+      [{ ...yahoo, enabled: false }, treasury],
+    );
+    act(() => finishFirst());
+
+    await waitFor(() => expect(mutateAsync).toHaveBeenCalledTimes(2));
+    expect(mutateAsync.mock.calls[1][0]).toEqual({
+      providerId: "YAHOO",
+      priority: 10,
+      enabled: false,
+    });
   });
 
   it("clears the catalog search after adding a provider", async () => {

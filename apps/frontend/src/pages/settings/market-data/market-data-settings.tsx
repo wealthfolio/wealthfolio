@@ -744,6 +744,7 @@ export default function MarketDataSettingsPage() {
   const { t } = useTranslation();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { data: providers, isLoading, error } = useMarketDataProviderSettings();
   const { mutate: updateSettings, mutateAsync: updateSettingsAsync } =
     useUpdateMarketDataProviderSettings();
@@ -816,12 +817,18 @@ export default function MarketDataSettingsPage() {
   };
 
   // One write at a time, since each one rebuilds the market data client. If a write
-  // fails, the ones this move already saved are put back, so the order is unchanged.
+  // fails, the ones this move already saved are put back. A failed write, the undo
+  // included, shows its error and reloads the saved settings (see the mutation hook).
   const handleMove = async (index: number, step: -1 | 1) => {
     const original = new Map(activeProviders.map((p) => [p.id, p.priority]));
     const saved: string[] = [];
-    const write = (providerId: string, priority: number) =>
-      updateSettingsAsync({ providerId, priority, enabled: true });
+    const write = (providerId: string, priority: number) => {
+      // Send the provider's on/off state as it is now: it can be switched mid-move.
+      const current = queryClient
+        .getQueryData<MarketDataProviderSetting[]>([QueryKeys.MARKET_DATA_PROVIDER_SETTINGS])
+        ?.find((p) => p.id === providerId);
+      return updateSettingsAsync({ providerId, priority, enabled: current?.enabled ?? true });
+    };
     for (const change of moveProvider(activeProviders, index, step)) {
       try {
         await write(change.id, change.priority);
