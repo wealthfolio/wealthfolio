@@ -172,9 +172,7 @@ pub(crate) fn parse_currency(value: &Option<String>) -> Result<Option<String>, S
         return Ok(None);
     };
     if code.len() != 3 || !code.chars().all(|c| c.is_ascii_alphabetic()) {
-        return Err(format!(
-            "currency must be a three-letter code, got '{code}'"
-        ));
+        return Err("currency must be a three-letter code".to_string());
     }
     Ok(Some(if get_normalization_rule(&code).is_some() {
         code

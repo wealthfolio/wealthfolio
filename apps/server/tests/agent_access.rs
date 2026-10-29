@@ -22,6 +22,35 @@ use wealthfolio_server::{api::app_router_from_config, config::Config};
 
 const PASSWORD: &str = "super-secret";
 
+#[tokio::test]
+async fn invalid_draft_currency_stays_out_of_audit_errors() {
+    let server = spawn_server(true, true).await;
+    let cookie = login(&server).await;
+    let (pat, session) = activity_writer_session(&server, &cookie).await;
+    let private_input = "synthetic private transaction note";
+    mcp_call_tool_error(&server, &pat, &session, "commit_activity_draft", serde_json::json!({
+        "draft": {"accountId":"synthetic", "activityType":"DEPOSIT", "activityDate":"2026-04-01",
+        "currency":private_input, "priceSource":"none", "pricingMode":"MARKET", "isCustomAsset":false}
+    })).await;
+    let audit: serde_json::Value = server
+        .client
+        .get(format!("{}/api/v1/agent-access/audit", server.base))
+        .header(header::COOKIE, format!("wf_session={cookie}"))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert!(!audit.to_string().contains(private_input), "{audit}");
+    let entry = &audit["items"][0];
+    assert_eq!(entry["tool"], "commit_activity_draft");
+    assert_eq!(
+        entry["errorMessage"],
+        "currency must be a three-letter code"
+    );
+}
+
 /// The canonical read-only scope set, used when minting test tokens.
 const READ_ONLY_SCOPES: &[&str] = &[
     "accounts:read",
