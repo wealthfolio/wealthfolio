@@ -741,8 +741,66 @@ impl ProviderRegistry {
 
     /// Search for symbols matching the query.
     ///
-    /// Tries providers that support search until one succeeds.
+    /// Tries providers that support search until one succeeds, and adds the
+    /// results of providers that look the query up as one of their own
+    /// identifiers. Those exact matches come first, so unscored text matches
+    /// don't bury them.
     pub async fn search(&self, query: &str) -> Result<Vec<SearchResult>, MarketDataError> {
+        let searched = self.search_providers(query).await;
+        let mut looked_up = self.look_up_identifier(query).await;
+        match searched {
+            Ok(results) => {
+                looked_up.extend(results);
+                Ok(looked_up)
+            }
+            Err(_) if !looked_up.is_empty() => Ok(looked_up),
+            Err(e) => Err(e),
+        }
+    }
+
+    /// Results of providers that look `query` up as one of their own identifiers.
+    ///
+    /// These calls take no rate-limit token: such a provider meters its own
+    /// requests, and a token per lookup would make an import that searches many
+    /// rows skip lookups or wait for them.
+    async fn look_up_identifier(&self, query: &str) -> Vec<SearchResult> {
+        let mut results = Vec::new();
+        for provider in self
+            .providers
+            .iter()
+            .filter(|p| p.looks_up_identifier(query))
+        {
+            let provider_id: ProviderId = Cow::Borrowed(provider.id());
+
+            if !self.circuit_breaker.is_allowed(&provider_id) {
+                warn!("Search: skipping '{}' — circuit breaker open", provider_id);
+                continue;
+            }
+
+            match provider.search(query).await {
+                Ok(found) => {
+                    self.circuit_breaker.record_success(&provider_id);
+                    results.extend(found);
+                }
+                Err(e) => {
+                    warn!(
+                        "Search: provider '{}' failed to look up '{}': {}",
+                        provider_id, query, e
+                    );
+                    if matches!(
+                        e.retry_class(),
+                        RetryClass::FailoverWithPenalty | RetryClass::CircuitOpen
+                    ) {
+                        self.circuit_breaker.record_failure(&provider_id);
+                    }
+                }
+            }
+        }
+        results
+    }
+
+    /// Try providers that support search until one succeeds.
+    async fn search_providers(&self, query: &str) -> Result<Vec<SearchResult>, MarketDataError> {
         let mut providers: Vec<_> = self
             .providers
             .iter()
@@ -2709,5 +2767,247 @@ mod tests {
                 "timestamp {timestamp}"
             );
         }
+    }
+
+    /// A free-text search provider, or one that looks up only ISIN-shaped
+    /// queries (starting with "INF") as its own identifiers.
+    struct SearchProvider {
+        id: &'static str,
+        priority: u8,
+        identifier_lookup: bool,
+        results: Vec<SearchResult>,
+        fails: bool,
+        times_out: bool,
+        searches: AtomicUsize,
+    }
+
+    impl SearchProvider {
+        fn new(id: &'static str, priority: u8, identifier_lookup: bool, symbols: &[&str]) -> Self {
+            Self {
+                id,
+                priority,
+                identifier_lookup,
+                results: symbols
+                    .iter()
+                    .map(|symbol| {
+                        let result = SearchResult::new(*symbol, *symbol, "", "MUTUALFUND")
+                            .with_data_source(id);
+                        // Free-text results come from an exchange, as Yahoo's do.
+                        if identifier_lookup {
+                            result
+                        } else {
+                            result.with_exchange_mic("XBOM")
+                        }
+                    })
+                    .collect(),
+                fails: false,
+                times_out: false,
+                searches: AtomicUsize::new(0),
+            }
+        }
+
+        fn failing(mut self) -> Self {
+            self.fails = true;
+            self
+        }
+
+        fn searches(&self) -> usize {
+            self.searches.load(Ordering::SeqCst)
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl MarketDataProvider for SearchProvider {
+        fn id(&self) -> &'static str {
+            self.id
+        }
+
+        fn priority(&self) -> u8 {
+            self.priority
+        }
+
+        fn capabilities(&self) -> ProviderCapabilities {
+            ProviderCapabilities {
+                instrument_kinds: &[InstrumentKind::Equity],
+                coverage: Coverage::global_best_effort(),
+                supports_latest: true,
+                supports_historical: true,
+                supports_search: !self.identifier_lookup,
+                supports_profile: false,
+                supports_dividends: false,
+            }
+        }
+
+        fn rate_limit(&self) -> RateLimit {
+            // One request a minute: a call that took a token would wait.
+            RateLimit {
+                requests_per_minute: 1,
+                max_concurrency: 1,
+                min_delay: Duration::ZERO,
+            }
+        }
+
+        fn looks_up_identifier(&self, query: &str) -> bool {
+            self.identifier_lookup && query.starts_with("INF")
+        }
+
+        async fn search(&self, _query: &str) -> Result<Vec<SearchResult>, MarketDataError> {
+            self.searches.fetch_add(1, Ordering::SeqCst);
+            if self.times_out {
+                return Err(MarketDataError::Timeout {
+                    provider: self.id.to_string(),
+                });
+            }
+            if self.fails {
+                return Err(MarketDataError::ProviderError {
+                    provider: self.id.to_string(),
+                    message: "Mock failure".to_string(),
+                });
+            }
+            Ok(self.results.clone())
+        }
+
+        async fn get_latest_quote(
+            &self,
+            _context: &QuoteContext,
+            _instrument: ProviderInstrument,
+        ) -> Result<Quote, MarketDataError> {
+            Err(MarketDataError::NoDataForRange)
+        }
+
+        async fn get_historical_quotes(
+            &self,
+            _context: &QuoteContext,
+            _instrument: ProviderInstrument,
+            _start: DateTime<Utc>,
+            _end: DateTime<Utc>,
+        ) -> Result<Vec<Quote>, MarketDataError> {
+            Err(MarketDataError::NoDataForRange)
+        }
+    }
+
+    fn symbols(results: &[SearchResult]) -> Vec<&str> {
+        results
+            .iter()
+            .map(|result| result.symbol.as_str())
+            .collect()
+    }
+
+    #[tokio::test]
+    async fn search_puts_identifier_lookups_before_listed_results() {
+        let yahoo = Arc::new(SearchProvider::new("YAHOO", 1, false, &["0P0000YWL1.BO"]));
+        let amfi = Arc::new(SearchProvider::new("AMFI", 15, true, &["122639"]));
+        let providers: Vec<Arc<dyn MarketDataProvider>> = vec![yahoo.clone(), amfi.clone()];
+        let registry = ProviderRegistry::new(providers, Arc::new(MockResolver));
+
+        let results = registry.search("INF879O01027").await.unwrap();
+
+        // Yahoo's result has an exchange, which used to end the search.
+        assert_eq!(symbols(&results), vec!["122639", "0P0000YWL1.BO"]);
+        assert_eq!(results[0].data_source.as_deref(), Some("AMFI"));
+        assert_eq!((yahoo.searches(), amfi.searches()), (1, 1));
+    }
+
+    #[tokio::test]
+    async fn search_does_not_call_lookups_for_other_queries() {
+        let yahoo = Arc::new(SearchProvider::new("YAHOO", 1, false, &["0P0000YWL1.BO"]));
+        let amfi = Arc::new(SearchProvider::new("AMFI", 15, true, &["122639"]));
+        let providers: Vec<Arc<dyn MarketDataProvider>> = vec![yahoo.clone(), amfi.clone()];
+        let registry = ProviderRegistry::new(providers, Arc::new(MockResolver));
+
+        let results = registry.search("Parag Parikh").await.unwrap();
+
+        assert_eq!(symbols(&results), vec!["0P0000YWL1.BO"]);
+        // Not a search provider either, so free text never reaches it.
+        assert_eq!(amfi.searches(), 0);
+    }
+
+    #[tokio::test]
+    async fn search_returns_lookups_when_search_providers_find_nothing() {
+        let empty = Arc::new(SearchProvider::new("YAHOO", 1, false, &[]));
+        let amfi = Arc::new(SearchProvider::new("AMFI", 15, true, &["142916", "143451"]));
+        let providers: Vec<Arc<dyn MarketDataProvider>> = vec![empty, amfi];
+        let registry = ProviderRegistry::new(providers, Arc::new(MockResolver));
+        assert_eq!(
+            symbols(&registry.search("INF204KB1XN0").await.unwrap()),
+            vec!["142916", "143451"]
+        );
+
+        // Without any search provider, a lookup still answers.
+        let amfi = Arc::new(SearchProvider::new("AMFI", 15, true, &["122639"]));
+        let registry = ProviderRegistry::new(vec![amfi], Arc::new(MockResolver));
+        assert_eq!(
+            symbols(&registry.search("INF879O01027").await.unwrap()),
+            vec!["122639"]
+        );
+    }
+
+    #[tokio::test]
+    async fn search_survives_a_failed_lookup() {
+        let yahoo = Arc::new(SearchProvider::new("YAHOO", 1, false, &["0P0000YWL1.BO"]));
+        let amfi = Arc::new(SearchProvider::new("AMFI", 15, true, &[]).failing());
+        let providers: Vec<Arc<dyn MarketDataProvider>> = vec![yahoo, amfi.clone()];
+        let registry = ProviderRegistry::new(providers, Arc::new(MockResolver));
+
+        let results = registry.search("INF879O01027").await.unwrap();
+
+        assert_eq!(symbols(&results), vec!["0P0000YWL1.BO"]);
+        assert_eq!(amfi.searches(), 1);
+
+        // With nothing found anywhere, the search still fails.
+        let empty = Arc::new(SearchProvider::new("YAHOO", 1, false, &[]));
+        let amfi = Arc::new(SearchProvider::new("AMFI", 15, true, &[]).failing());
+        let providers: Vec<Arc<dyn MarketDataProvider>> = vec![empty, amfi];
+        let registry = ProviderRegistry::new(providers, Arc::new(MockResolver));
+        assert!(registry.search("INF879O01027").await.is_err());
+    }
+
+    #[tokio::test]
+    async fn search_lookup_circuit_breaks_only_for_penalizing_errors() {
+        for times_out in [false, true] {
+            let yahoo = Arc::new(SearchProvider::new("YAHOO", 1, false, &["0P0000YWL1.BO"]));
+            let mut amfi = SearchProvider::new("AMFI", 15, true, &[]).failing();
+            amfi.times_out = times_out;
+            let amfi = Arc::new(amfi);
+            let providers: Vec<Arc<dyn MarketDataProvider>> = vec![yahoo, amfi.clone()];
+            let registry = ProviderRegistry::new(providers, Arc::new(MockResolver));
+            // Keep Yahoo's token waits out of this circuit-breaker check.
+            registry.rate_limiter.configure(
+                &Cow::Borrowed("YAHOO"),
+                RateLimitConfig {
+                    burst_capacity: 6.0,
+                    ..Default::default()
+                },
+            );
+
+            for attempt in 1..=6 {
+                let results = registry.search("INF879O01027").await.unwrap();
+                assert_eq!(symbols(&results), vec!["0P0000YWL1.BO"]);
+                let expected_calls = if times_out { attempt.min(5) } else { attempt };
+                assert_eq!(amfi.searches(), expected_calls);
+                assert_eq!(
+                    registry.is_circuit_open(&Cow::Borrowed("AMFI")),
+                    times_out && attempt >= 5
+                );
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn lookups_take_no_rate_limit_token() {
+        // An import searches row after row; a lookup waiting for its provider's
+        // one token a minute would stall it.
+        let amfi = Arc::new(SearchProvider::new("AMFI", 15, true, &["122639"]));
+        let registry = ProviderRegistry::new(vec![amfi.clone()], Arc::new(MockResolver));
+
+        let searches = async {
+            for _ in 0..5 {
+                registry.search("INF879O01027").await.unwrap();
+            }
+        };
+        tokio::time::timeout(Duration::from_secs(5), searches)
+            .await
+            .expect("lookups should not wait for rate-limit tokens");
+        assert_eq!(amfi.searches(), 5);
     }
 }

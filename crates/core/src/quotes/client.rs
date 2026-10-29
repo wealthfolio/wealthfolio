@@ -1101,6 +1101,38 @@ mod tests {
     }
 
     #[test]
+    fn test_convert_search_result_keeps_amfi_scheme_off_exchanges() {
+        // As the AMFI provider returns a scheme: "AMFI" names the source and
+        // must not read as an exchange.
+        let provider_result = MarketSearchResult::new(
+            "122639",
+            "Parag Parikh Flexi Cap Fund - Direct Plan - Growth",
+            "AMFI",
+            "MUTUALFUND",
+        )
+        .with_currency("INR")
+        .with_data_source("AMFI");
+
+        let result = MarketDataClient::convert_search_result(provider_result);
+
+        assert_eq!(result.symbol, "122639");
+        assert_eq!(result.canonical_symbol.as_deref(), Some("122639"));
+        assert_eq!(result.exchange_mic, None);
+        assert_eq!(result.canonical_exchange_mic, None);
+        assert_eq!(result.exchange_name, None);
+        assert_eq!(result.provider_id.as_deref(), Some("AMFI"));
+        assert_eq!(result.data_source.as_deref(), Some("AMFI"));
+        assert_eq!(result.provider_symbol.as_deref(), Some("122639"));
+        assert_eq!(result.currency.as_deref(), Some("INR"));
+        assert_eq!(result.currency_source.as_deref(), Some("provider"));
+        assert_eq!(result.quote_type, "MUTUALFUND");
+        assert_eq!(
+            result.long_name,
+            "Parag Parikh Flexi Cap Fund - Direct Plan - Growth"
+        );
+    }
+
+    #[test]
     fn test_convert_search_result_treats_exchange_traded_commodity_as_equity() {
         let provider_result = MarketSearchResult::new("4GLD.DE", "Xetra-Gold", "GER", "COMMODITY")
             .with_currency("EUR")

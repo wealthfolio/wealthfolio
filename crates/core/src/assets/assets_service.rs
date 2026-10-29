@@ -4031,6 +4031,32 @@ mod tests {
         }
     }
 
+    /// An AMFI scheme as `MarketDataClient` converts the provider's result.
+    fn amfi_search_result(code: &str, name: &str) -> SymbolSearchResult {
+        SymbolSearchResult {
+            symbol: code.to_string(),
+            canonical_symbol: Some(code.to_string()),
+            canonical_exchange_mic: None,
+            provider_id: Some("AMFI".to_string()),
+            provider_symbol: Some(code.to_string()),
+            short_name: name.to_string(),
+            long_name: name.to_string(),
+            exchange: "AMFI".to_string(),
+            exchange_mic: None,
+            exchange_name: None,
+            quote_type: "MUTUALFUND".to_string(),
+            type_display: String::new(),
+            currency: Some("INR".to_string()),
+            currency_source: Some("provider".to_string()),
+            data_source: Some("AMFI".to_string()),
+            quote_mode: Some("MARKET".to_string()),
+            is_existing: false,
+            existing_asset_id: None,
+            index: String::new(),
+            score: 0.0,
+        }
+    }
+
     fn test_asset_service(assets: Vec<Asset>, quote_service: TestQuoteService) -> AssetService {
         AssetService::new(
             Arc::new(TestAssetRepository::with_assets(assets)),
@@ -5032,6 +5058,98 @@ mod tests {
         assert_eq!(output.quote_ccy.as_deref(), Some("EUR"));
         assert_eq!(output.provider_symbol.as_deref(), Some("APC.DE"));
         assert_eq!(output.review_symbol.as_deref(), Some("APC.DE"));
+    }
+
+    #[tokio::test]
+    async fn test_resolve_import_asset_inputs_prefers_listed_fund_to_amfi_scheme() {
+        // With AMFI enabled, an ISIN search lists Yahoo's BSE fund and AMFI's
+        // scheme. The listed fund keeps winning, as before AMFI searched.
+        let mut listed = yahoo_search_result(
+            "0P0000YWL1.BO",
+            "0P0000YWL1",
+            "XBOM",
+            "Parag Parikh Flexi Cap Dir Gr",
+            "INR",
+            "0P0000YWL1.BO",
+        );
+        listed.quote_type = "MUTUALFUND".to_string();
+        let scheme = amfi_search_result(
+            "122639",
+            "Parag Parikh Flexi Cap Fund - Direct Plan - Growth",
+        );
+        // The registry lists AMFI's exact match first; order must not decide.
+        for results in [
+            vec![scheme.clone(), listed.clone()],
+            vec![listed.clone(), scheme.clone()],
+        ] {
+            let service = test_asset_service(
+                Vec::new(),
+                TestQuoteService::default().with_result("INF879O01027", results),
+            );
+
+            let output = service
+                .resolve_import_asset_inputs(vec![import_input("INF879O01027", "INR")])
+                .await
+                .unwrap()
+                .pop()
+                .unwrap();
+
+            assert_eq!(output.provider_id.as_deref(), Some("YAHOO"));
+            assert_eq!(output.provider_symbol.as_deref(), Some("0P0000YWL1.BO"));
+            assert_eq!(output.exchange_mic.as_deref(), Some("XBOM"));
+        }
+    }
+
+    #[tokio::test]
+    async fn test_resolve_import_asset_inputs_uses_amfi_scheme_when_no_listing_matches() {
+        let name = "Parag Parikh Flexi Cap Fund - Direct Plan - Growth";
+        // OpenFIGI's text search answers a scheme code with unrelated bonds
+        // that share the number; they sit on both sides of AMFI's scheme.
+        let bond = SymbolSearchResult {
+            provider_id: Some("OPENFIGI".to_string()),
+            data_source: Some("OPENFIGI".to_string()),
+            exchange: "EUWAX STUTTGART".to_string(),
+            quote_type: "BOND".to_string(),
+            currency: None,
+            currency_source: None,
+            long_name: "DEUTSCHE BANK AG - DB 0 01/21/13 000A".to_string(),
+            ..amfi_search_result("122639", "")
+        };
+        let service = test_asset_service(
+            Vec::new(),
+            TestQuoteService::default()
+                .with_result("INF879O01027", vec![amfi_search_result("122639", name)])
+                .with_result(
+                    "122639",
+                    vec![bond.clone(), amfi_search_result("122639", name), bond],
+                ),
+        );
+
+        for symbol in ["INF879O01027", "122639"] {
+            let output = service
+                .resolve_import_asset_inputs(vec![import_input(symbol, "INR")])
+                .await
+                .unwrap()
+                .pop()
+                .unwrap();
+
+            assert_eq!(output.provider_id.as_deref(), Some("AMFI"), "{symbol}");
+            assert_eq!(
+                output.canonical_symbol.as_deref(),
+                Some("122639"),
+                "{symbol}"
+            );
+            assert_eq!(output.exchange_mic, None, "{symbol}");
+            assert_eq!(output.quote_ccy.as_deref(), Some("INR"), "{symbol}");
+            assert_eq!(output.name.as_deref(), Some(name), "{symbol}");
+            let draft = output.draft.expect("new fund draft");
+            assert_eq!(draft.instrument_symbol.as_deref(), Some("122639"));
+            assert_eq!(
+                draft.provider_config,
+                Some(serde_json::json!({ "preferred_provider": "AMFI" })),
+                "{symbol}"
+            );
+        }
     }
 
     #[tokio::test]

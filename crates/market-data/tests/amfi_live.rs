@@ -106,3 +106,30 @@ async fn amfi_history_of_a_fund_missing_from_nav_all() {
     .await
     .unwrap();
 }
+
+#[tokio::test]
+#[ignore = "requires live AMFI HTTPS access; run explicitly to check AMFI's formats"]
+async fn amfi_search_and_profile_by_isin_or_scheme_code() {
+    tokio::time::timeout(std::time::Duration::from_secs(60), async {
+        let provider = AmfiProvider::new();
+        let name = "Parag Parikh Flexi Cap Fund - Direct Plan - Growth";
+
+        for query in ["INF879O01027", "122639"] {
+            let results = provider.search(query).await.unwrap();
+            assert_eq!(results.len(), 1, "{query}");
+            assert_eq!(results[0].symbol, "122639");
+            assert_eq!(results[0].name, name);
+        }
+        // Two schemes with the same name, plan and option stay apart by code.
+        let first = provider.search("135762").await.unwrap();
+        let second = provider.search("135764").await.unwrap();
+        assert_eq!(first[0].name, second[0].name);
+        assert_ne!(first[0].symbol, second[0].symbol);
+
+        let profile = provider.get_profile("122639").await.unwrap();
+        assert_eq!(profile.quote_type.as_deref(), Some("MUTUALFUND"));
+        assert_eq!(profile.name, None);
+    })
+    .await
+    .unwrap();
+}

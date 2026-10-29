@@ -2,9 +2,10 @@
 //!
 //! Prices Indian mutual funds from AMFI's public data. No API key required.
 //!
-//! - `NAVAll.txt` lists published scheme codes, ISINs and latest NAVs. It supplies
-//!   latest NAVs and maps a fund's ISIN to its scheme code, and one download is
-//!   shared by every fund until it expires.
+//! - `NAVAll.txt` lists published scheme codes, ISINs, names and latest NAVs. It
+//!   supplies latest NAVs, maps a fund's ISIN to its scheme code and answers
+//!   searches for a scheme code or ISIN, and one download is shared until it
+//!   expires.
 //! - History comes from the endpoint behind AMFI's NAV history page. It is not
 //!   documented as an API and rejects spans of 1,825 days or more, so a long
 //!   range is fetched in yearly windows, up to the first window without NAVs
@@ -14,7 +15,8 @@
 //!   a day, for days in the requested range. The codes in every report read are
 //!   kept, so later lookups can reuse them.
 //!
-//! The resolver routes a fund here only when the user has chosen AMFI for it.
+//! The resolver routes a fund here only when the user has chosen AMFI for it,
+//! for example by picking an AMFI search result.
 
 use std::borrow::Cow;
 use std::collections::{BTreeMap, HashMap, HashSet};
@@ -32,7 +34,8 @@ use tokio::sync::Mutex;
 
 use crate::errors::MarketDataError;
 use crate::models::{
-    Coverage, InstrumentKind, ProviderId, ProviderInstrument, Quote, QuoteContext,
+    AssetProfile, Coverage, InstrumentKind, ProviderId, ProviderInstrument, Quote, QuoteContext,
+    SearchResult,
 };
 use crate::provider::{MarketDataProvider, ProviderCapabilities, RateLimit};
 use crate::registry::{RateLimitConfig, RateLimiter};
@@ -40,6 +43,8 @@ use crate::resolver::looks_like_isin;
 
 const PROVIDER_ID: &str = "AMFI";
 const CURRENCY: &str = "INR";
+/// Quote type of AMFI's schemes, as other providers report mutual funds.
+const QUOTE_TYPE: &str = "MUTUALFUND";
 const NAV_ALL_URL: &str = "https://portal.amfiindia.com/spages/NAVAll.txt";
 const HISTORY_URL: &str = "https://www.amfiindia.com/api/nav-history";
 const REPORT_URL: &str = "https://portal.amfiindia.com/DownloadNAVHistoryReport_Po.aspx";
@@ -120,6 +125,9 @@ impl SchemeRef {
 #[derive(Debug)]
 struct NavRow {
     code: String,
+    /// Scheme name, plan and option, as in "Parag Parikh Flexi Cap Fund - Direct
+    /// Plan - Growth". Not unique: several schemes can share a name.
+    name: String,
     /// The row's NAV and its own date, when both are usable.
     latest: Option<(NaiveDate, Decimal)>,
 }
@@ -141,7 +149,8 @@ impl NavIndex {
         let mut index = Self::default();
         for line in text.lines() {
             let fields: Vec<&str> = line.split(';').map(str::trim).collect();
-            let &[code, payout_isin, reinvestment_isin, _, _, _, nav, date] = fields.as_slice()
+            let &[code, payout_isin, reinvestment_isin, name, plan, option, nav, date] =
+                fields.as_slice()
             else {
                 continue;
             };
@@ -155,6 +164,12 @@ impl NavIndex {
             let row = index.rows.len();
             index.rows.push(NavRow {
                 code: code.to_string(),
+                // Older schemes leave plan and option empty.
+                name: [name, plan, option]
+                    .into_iter()
+                    .filter(|part| !part.is_empty())
+                    .collect::<Vec<_>>()
+                    .join(" - "),
                 latest: date.zip(nav),
             });
             index.by_code.insert(code.to_string(), row);
@@ -572,6 +587,23 @@ fn nav_quote(date: NaiveDate, nav: Decimal) -> Quote {
     )
 }
 
+/// A search query `NAVAll.txt` can answer: a scheme code, or an ISIN of an
+/// Indian fund, the only kind it lists.
+fn searched_scheme(query: &str) -> Option<SchemeRef> {
+    SchemeRef::parse(query).filter(|scheme| match scheme {
+        SchemeRef::Code(_) => true,
+        SchemeRef::Isin(isin) => isin.starts_with("INF"),
+    })
+}
+
+/// A search result whose symbol is the scheme code, since names aren't unique.
+/// "AMFI" fills the exchange slot to show the source; it isn't an exchange.
+fn search_result(row: &NavRow) -> SearchResult {
+    SearchResult::new(&row.code, &row.name, PROVIDER_ID, QUOTE_TYPE)
+        .with_currency(CURRENCY)
+        .with_data_source(PROVIDER_ID)
+}
+
 // ---------------------------------------------------------------------------
 // MarketDataProvider impl
 // ---------------------------------------------------------------------------
@@ -594,8 +626,10 @@ impl MarketDataProvider for AmfiProvider {
             coverage: Coverage::global_best_effort(),
             supports_latest: true,
             supports_historical: true,
+            // Not a free-text search: only scheme codes and ISINs are looked
+            // up, through `looks_up_identifier`.
             supports_search: false,
-            supports_profile: false,
+            supports_profile: true,
             supports_dividends: false,
         }
     }
@@ -606,6 +640,37 @@ impl MarketDataProvider for AmfiProvider {
             max_concurrency: 2,
             min_delay: Duration::from_millis(500),
         }
+    }
+
+    fn looks_up_identifier(&self, query: &str) -> bool {
+        searched_scheme(query).is_some()
+    }
+
+    /// Look a scheme code or ISIN up in `NAVAll.txt`. Like prices, search
+    /// skips an ISIN listed under more than one scheme code.
+    async fn search(&self, query: &str) -> Result<Vec<SearchResult>, MarketDataError> {
+        let Some(scheme) = searched_scheme(query) else {
+            return Ok(Vec::new());
+        };
+        let index = self.nav_index().await?;
+        Ok(index.find(&scheme).map(search_result).into_iter().collect())
+    }
+
+    /// The fund's type and currency, without a name: enrichment would replace
+    /// the fund's stored name with it. A picked search result names the fund.
+    async fn get_profile(&self, symbol: &str) -> Result<AssetProfile, MarketDataError> {
+        let not_found = || MarketDataError::SymbolNotFound(symbol.to_string());
+        let scheme = SchemeRef::parse(symbol).ok_or_else(not_found)?;
+        self.nav_index()
+            .await?
+            .find(&scheme)
+            .ok_or_else(not_found)?;
+        Ok(AssetProfile {
+            source: Some(PROVIDER_ID.to_string()),
+            quote_type: Some(QUOTE_TYPE.to_string()),
+            currency: Some(CURRENCY.to_string()),
+            ..Default::default()
+        })
     }
 
     async fn get_latest_quote(
@@ -667,8 +732,9 @@ mod tests {
         NaiveDate::parse_from_str(value, "%Y-%m-%d").expect("valid test date")
     }
 
-    /// Lines from `NAVAll.txt` (29 October 2026), including its headings,
-    /// placeholder ISIN cells, an old NAV and an ISIN listed under two codes.
+    /// Lines from `NAVAll.txt` (29 and 30 October 2026), including its
+    /// headings, placeholder ISIN cells, an old NAV, an ISIN listed under two
+    /// codes and two schemes with the same name, plan and option.
     const NAV_ALL: &str = "Scheme Code;ISIN Div Payout/ ISIN Growth;ISIN Div Reinvestment;Scheme Name;Plan;Option;Net Asset Value;Date\r
  \r
 Open Ended Schemes(Equity Scheme - Flexi Cap Fund)\r
@@ -677,6 +743,8 @@ PPFAS Mutual Fund\r
  \r
 122639;INF879O01027;-;Parag Parikh Flexi Cap Fund;Direct Plan;Growth;88.8018;28-Oct-2026\r
 135763;INF846K01WS2;INF846K01WQ6;Axis Children's Fund;Direct Plan;IDCW Option;26.7364;28-Oct-2026\r
+135762;INF846K01WO1;-;Axis Children's Fund;Direct Plan;Growth Option;29.1954;29-Oct-2026\r
+135764;INF846K01WR4;-;Axis Children's Fund;Direct Plan;Growth Option;29.7538;29-Oct-2026\r
 152713;INF179KC1IM3;HDFCNIVODG;HDFC NIFTY100 Low Volatility 30 Index Fund;Direct Plan;Growth Option;9.7019;28-Oct-2026\r
 130565;INF613Q01025;Redeemed;IL&FS Infrastructure Debt Fund Series 1A;;;1680494.0463;31-Dec-2018\r
 142916;INF204KB1XN0;-;Nippon India Fixed Horizon Fund XXXVI- Series 9;;;10.0000;10-May-2021\r
@@ -734,7 +802,7 @@ PPFAS Mutual Fund\r
         assert!(index.find(&SchemeRef::Code("100001".to_string())).is_some());
         assert_eq!(latest("100001"), None);
         // Headings and fund-house names aren't schemes.
-        assert_eq!(index.rows.len(), 7);
+        assert_eq!(index.rows.len(), 9);
     }
 
     #[test]
@@ -749,6 +817,26 @@ PPFAS Mutual Fund\r
         );
         assert_eq!(SchemeRef::parse("0P0000YWL1"), None);
         assert_eq!(SchemeRef::parse(""), None);
+    }
+
+    #[test]
+    fn nav_all_names_join_scheme_plan_and_option() {
+        let index = NavIndex::parse(NAV_ALL);
+
+        let name = |code: &str| {
+            index
+                .find(&SchemeRef::Code(code.to_string()))
+                .map(|row| row.name.as_str())
+        };
+        assert_eq!(
+            name("122639"),
+            Some("Parag Parikh Flexi Cap Fund - Direct Plan - Growth")
+        );
+        // Older schemes leave plan and option empty.
+        assert_eq!(
+            name("130565"),
+            Some("IL&FS Infrastructure Debt Fund Series 1A")
+        );
     }
 
     #[test]
@@ -1262,5 +1350,118 @@ Tata Mutual Fund\r
             requested(&requests, "/history", "from_date"),
             vec!["2015-01-01", "2016-01-01", "2016-12-31"]
         );
+    }
+
+    /// A local provider that serves `NAV_ALL` and nothing else.
+    async fn nav_all_provider() -> (AmfiProvider, Requests) {
+        local_provider(|target| {
+            if target.starts_with("/NAVAll.txt") {
+                (200, NAV_ALL.to_string())
+            } else {
+                (404, String::new())
+            }
+        })
+        .await
+    }
+
+    async fn searched_codes(provider: &AmfiProvider, query: &str) -> Vec<String> {
+        provider
+            .search(query)
+            .await
+            .expect("search succeeds")
+            .into_iter()
+            .map(|result| result.symbol)
+            .collect()
+    }
+
+    #[tokio::test]
+    async fn search_finds_a_scheme_by_code_or_isin() {
+        let (provider, _) = nav_all_provider().await;
+
+        for query in ["122639", " inf879o01027 "] {
+            let results = provider.search(query).await.expect("search succeeds");
+            assert_eq!(results.len(), 1, "{query}");
+            let result = &results[0];
+            assert_eq!(result.symbol, "122639");
+            assert_eq!(
+                result.name,
+                "Parag Parikh Flexi Cap Fund - Direct Plan - Growth"
+            );
+            assert_eq!(result.exchange, "AMFI");
+            assert_eq!(result.exchange_mic, None);
+            assert_eq!(result.asset_type, "MUTUALFUND");
+            assert_eq!(result.currency.as_deref(), Some("INR"));
+            assert_eq!(result.data_source.as_deref(), Some("AMFI"));
+        }
+        // Either ISIN column finds the scheme.
+        assert_eq!(searched_codes(&provider, "INF846K01WQ6").await, ["135763"]);
+        // Two schemes with the same name, plan and option stay apart by code.
+        let first = provider.search("135762").await.expect("search succeeds");
+        let second = provider.search("135764").await.expect("search succeeds");
+        assert_eq!(first[0].name, second[0].name);
+        assert_eq!(first[0].symbol, "135762");
+        assert_eq!(second[0].symbol, "135764");
+    }
+
+    #[tokio::test]
+    async fn search_reads_only_nav_all() {
+        let (provider, requests) = nav_all_provider().await;
+
+        // An unlisted code, an ISIN under two codes, and the ISIN of a closed
+        // fund missing from NAVAll.txt: no result and no report lookup.
+        for query in ["999999", "INF204KB1XN0", "INF277K01DP6"] {
+            assert!(searched_codes(&provider, query).await.is_empty(), "{query}");
+        }
+        assert_eq!(*requests.lock().expect("request log"), ["/NAVAll.txt"]);
+    }
+
+    #[tokio::test]
+    async fn search_requests_nothing_for_other_queries() {
+        let (provider, requests) = nav_all_provider().await;
+
+        // Free text, a Yahoo symbol, a partial ISIN, and ISINs of a US share
+        // and a non-fund Indian security, which `NAVAll.txt` doesn't list.
+        for query in [
+            "Parag Parikh",
+            "0P0000YWL1.BO",
+            "INF879O",
+            "US0378331005",
+            "INE002A01018",
+            "",
+        ] {
+            assert!(!provider.looks_up_identifier(query), "{query}");
+            let results = provider.search(query).await.expect("not an error");
+            assert!(results.is_empty(), "{query}");
+        }
+        assert!(requests.lock().expect("request log").is_empty());
+
+        assert!(provider.looks_up_identifier("122639"));
+        assert!(provider.looks_up_identifier("INF879O01027"));
+    }
+
+    #[tokio::test]
+    async fn profile_gives_the_fund_type_without_a_name() {
+        let (provider, requests) = nav_all_provider().await;
+
+        let profile = provider
+            .get_profile("122639")
+            .await
+            .expect("a listed scheme has a profile");
+        assert_eq!(profile.source.as_deref(), Some("AMFI"));
+        assert_eq!(profile.quote_type.as_deref(), Some("MUTUALFUND"));
+        assert_eq!(profile.currency.as_deref(), Some("INR"));
+        // Enrichment replaces the fund's stored name with a profile's name.
+        assert_eq!(profile.name, None);
+
+        for symbol in ["999999", "INF204KB1XN0", "INF277K01DP6", "Parag Parikh"] {
+            assert!(
+                matches!(
+                    provider.get_profile(symbol).await,
+                    Err(MarketDataError::SymbolNotFound(_))
+                ),
+                "{symbol}"
+            );
+        }
+        assert_eq!(*requests.lock().expect("request log"), ["/NAVAll.txt"]);
     }
 }
