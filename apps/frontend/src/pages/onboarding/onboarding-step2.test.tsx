@@ -1,7 +1,12 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { createInstance } from "i18next";
+import { I18nextProvider } from "react-i18next";
 import { describe, expect, it, vi } from "vitest";
 
+import deCommon from "@/i18n/locales/de/common.json";
+import deOnboarding from "@/i18n/locales/de/onboarding.json";
+import deUi from "@/i18n/locales/de/ui.json";
 import { SUPPORTED_LOCALES } from "@/i18n/locales";
 import { OnboardingStep2 } from "./onboarding-step2";
 
@@ -70,5 +75,29 @@ describe("OnboardingStep2 language picker", () => {
     // It takes the last popular slot rather than growing the row.
     expect(screen.queryByTestId("language-ko-button")).not.toBeInTheDocument();
     expect(screen.getByTestId("language-en-button")).toBeInTheDocument();
+  });
+});
+
+describe("OnboardingStep2 currency picker", () => {
+  it("names and finds currencies in the app language", async () => {
+    const user = userEvent.setup();
+    const i18n = createInstance();
+    await i18n.init({
+      lng: "de",
+      resources: { de: { common: deCommon, onboarding: deOnboarding, ui: deUi } },
+      interpolation: { escapeValue: false },
+    });
+    mocks.settings = { language: "de" };
+    render(
+      <I18nextProvider i18n={i18n}>
+        <OnboardingStep2 onNext={vi.fn()} onValidityChange={vi.fn()} />
+      </I18nextProvider>,
+    );
+
+    const currencyChips = screen.getByTestId("currency-usd-button").parentElement!;
+    await user.click(within(currencyChips).getByRole("button", { name: /Andere/ }));
+    await user.type(screen.getByPlaceholderText("Währungen suchen..."), "Franken");
+
+    expect(screen.getByRole("button", { name: /Schweizer Franken \(CHF\)/ })).toBeInTheDocument();
   });
 });

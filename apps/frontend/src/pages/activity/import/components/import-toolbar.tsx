@@ -10,6 +10,7 @@ import {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
+  getCurrencyDisplayName,
   Icons,
   quoteCurrencies,
   quoteUnitCurrencies,
@@ -47,7 +48,9 @@ export function ImportToolbar({
   onSetAccount,
   onClearSelection,
 }: ImportToolbarProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const currencyName = (currency: (typeof quoteCurrencies)[number]) =>
+    getCurrencyDisplayName(currency.value, i18n.resolvedLanguage ?? i18n.language, t);
   const { accounts } = useAccounts({ filterActive: true, includeArchived: false });
   const [currencySearch, setCurrencySearch] = useState("");
 
@@ -61,7 +64,8 @@ export function ImportToolbar({
     ? quoteCurrencies.filter(
         (c) =>
           c.value.toLowerCase().includes(currencySearch.toLowerCase()) ||
-          c.label.toLowerCase().includes(currencySearch.toLowerCase()),
+          c.label.toLowerCase().includes(currencySearch.toLowerCase()) ||
+          currencyName(c).toLowerCase().includes(currencySearch.toLowerCase()),
       )
     : worldCurrencies;
 
@@ -184,7 +188,7 @@ export function ImportToolbar({
                   >
                     <span className="font-mono">{currency.value}</span>
                     <span className="text-muted-foreground ms-2 truncate text-xs">
-                      {currency.label.replace(` (${currency.value})`, "")}
+                      {currencyName(currency)}
                     </span>
                   </DropdownMenuItem>
                 ))}
@@ -206,7 +210,7 @@ export function ImportToolbar({
                 >
                   <span className="font-mono">{currency.value}</span>
                   <span className="text-muted-foreground ms-2 truncate text-xs">
-                    {currency.label.replace(` (${currency.value})`, "")}
+                    {currencyName(currency)}
                   </span>
                 </DropdownMenuItem>
               ))}
