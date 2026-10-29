@@ -1667,6 +1667,40 @@ mod tests {
         }
     }
 
+    #[tokio::test]
+    async fn enabled_amfi_only_prices_funds_that_chose_it() {
+        let amfi = Arc::new(MockProvider::new("AMFI", 1, false));
+        let yahoo = Arc::new(MockProvider::new("YAHOO", 5, false));
+        let providers: Vec<Arc<dyn MarketDataProvider>> = vec![amfi.clone(), yahoo.clone()];
+        let registry = ProviderRegistry::new(providers, Arc::new(ResolverChain::new()));
+        let mut fund = QuoteContext {
+            instrument: InstrumentId::Equity {
+                ticker: Arc::from("0P0000YWL1"),
+                mic: Some(Cow::Borrowed("XBOM")),
+            },
+            identifiers: Default::default(),
+            overrides: None,
+            currency_hint: Some(Cow::Borrowed("INR")),
+            preferred_provider: None,
+            bond_metadata: None,
+            custom_provider_code: None,
+        };
+        fund.identifiers.isin = Some(Cow::Borrowed("INF879O01027"));
+        let now = Utc::now();
+
+        // AMFI ranks first, but an INR fund with an INF ISIN didn't choose it.
+        registry.fetch_quotes(&fund, now, now).await.unwrap();
+        registry.fetch_latest_quote(&fund).await.unwrap();
+        assert_eq!(amfi.call_count.load(Ordering::SeqCst), 0);
+        assert_eq!(yahoo.call_count.load(Ordering::SeqCst), 2);
+
+        fund.preferred_provider = Some(Cow::Borrowed("AMFI"));
+        registry.fetch_quotes(&fund, now, now).await.unwrap();
+        registry.fetch_latest_quote(&fund).await.unwrap();
+        assert_eq!(amfi.call_count.load(Ordering::SeqCst), 2);
+        assert_eq!(yahoo.call_count.load(Ordering::SeqCst), 2);
+    }
+
     struct EmptyHistoricalProvider {
         call_count: Arc<AtomicUsize>,
     }

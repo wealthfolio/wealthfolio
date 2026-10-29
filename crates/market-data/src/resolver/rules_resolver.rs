@@ -32,7 +32,7 @@ pub struct RulesResolver {
     exchange_map: ExchangeMap,
 }
 
-fn looks_like_isin(value: &str) -> bool {
+pub(crate) fn looks_like_isin(value: &str) -> bool {
     let bytes = value.trim().as_bytes();
     bytes.len() == 12
         && bytes[0].is_ascii_alphabetic()
@@ -218,6 +218,35 @@ impl RulesResolver {
         Some(ProviderInstrument::BondIsin { isin: isin.clone() })
     }
 
+    /// Resolve an Indian mutual fund for AMFI.
+    ///
+    /// Only a fund whose preferred provider is AMFI resolves, so enabling AMFI
+    /// never reprices other assets. The fund's ISIN is used, else a symbol that
+    /// is an ISIN or a numeric AMFI scheme code.
+    /// Explicit AMFI symbol mappings are handled first by `AssetResolver`.
+    fn resolve_amfi(&self, context: &QuoteContext) -> Option<ProviderInstrument> {
+        if context.preferred_provider.as_deref() != Some("AMFI") {
+            return None;
+        }
+        let InstrumentId::Equity { ticker, .. } = &context.instrument else {
+            return None;
+        };
+        let ticker = ticker.trim();
+        let symbol = context
+            .identifiers
+            .isin
+            .as_deref()
+            .map(str::trim)
+            .filter(|isin| looks_like_isin(isin))
+            .or_else(|| {
+                let scheme_code = !ticker.is_empty() && ticker.bytes().all(|b| b.is_ascii_digit());
+                (looks_like_isin(ticker) || scheme_code).then_some(ticker)
+            })?;
+        Some(ProviderInstrument::EquitySymbol {
+            symbol: Arc::from(symbol),
+        })
+    }
+
     /// Resolve an option instrument.
     /// Yahoo and Alpha Vantage accept OCC symbols as equity-like symbols.
     /// Alpha Vantage internally routes to the REALTIME_OPTIONS endpoint.
@@ -292,6 +321,15 @@ impl Resolver for RulesResolver {
                 instrument: ProviderInstrument::EquitySymbol { symbol },
                 source: ResolutionSource::Rules,
             }));
+        }
+
+        if provider.as_ref() == "AMFI" {
+            return self.resolve_amfi(context).map(|instrument| {
+                Ok(ResolvedInstrument {
+                    instrument,
+                    source: ResolutionSource::Rules,
+                })
+            });
         }
 
         let (instrument, source) = match &context.instrument {
@@ -871,6 +909,39 @@ mod tests {
             identified.instrument.to_symbol_string(),
             "XETR:US0378331005"
         );
+    }
+
+    #[test]
+    fn test_amfi_only_resolves_funds_that_chose_it() {
+        let resolver = RulesResolver::new();
+        let mut fund = make_equity_context("0P0000YWL1", Some("XBOM"));
+        fund.identifiers.isin = Some("INF879O01027".into());
+        fund.currency_hint = Some("INR".into());
+
+        // An INR fund with an INF ISIN still isn't AMFI's unless chosen.
+        assert!(resolver.resolve(&"AMFI".into(), &fund).is_none());
+
+        fund.preferred_provider = Some("AMFI".into());
+        let resolved = resolver.resolve(&"AMFI".into(), &fund).unwrap().unwrap();
+        assert_eq!(resolved.source, ResolutionSource::Rules);
+        assert_eq!(resolved.instrument.to_symbol_string(), "INF879O01027");
+    }
+
+    #[test]
+    fn test_amfi_takes_an_isin_or_scheme_code_symbol() {
+        let resolver = RulesResolver::new();
+        let chosen = |ticker: &str| {
+            let mut context = make_equity_context(ticker, None);
+            context.preferred_provider = Some("AMFI".into());
+            resolver
+                .resolve(&"AMFI".into(), &context)
+                .map(|resolved| resolved.unwrap().instrument.to_symbol_string())
+        };
+
+        assert_eq!(chosen("122639").as_deref(), Some("122639"));
+        assert_eq!(chosen("INF879O01027").as_deref(), Some("INF879O01027"));
+        // Without an ISIN, a ticker from another provider identifies nothing.
+        assert_eq!(chosen("0P0000YWL1"), None);
     }
 
     #[test]

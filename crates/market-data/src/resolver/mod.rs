@@ -103,5 +103,6 @@ pub use exchange_suffixes::{
     yahoo_suffix_to_mic, ExchangeMap, ExchangeSuffix,
 };
 pub use profile_check::{check_profile, ProfileMismatch};
+pub(crate) use rules_resolver::looks_like_isin;
 pub use rules_resolver::RulesResolver;
 pub use traits::{ResolutionSource, ResolvedInstrument, Resolver, SymbolResolver};

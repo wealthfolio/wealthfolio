@@ -121,6 +121,7 @@ const normalizeMic = (mic?: string | null): string => mic?.trim().toUpperCase() 
 
 const PROVIDER_SYMBOL_HINTS: Record<string, string> = {
   YAHOO: "e.g. AAPL, LYMS.DE",
+  AMFI: "e.g. 122639, INF879O01027",
   COINGECKO: "e.g. bitcoin, ethereum",
   TWELVEDATA: "e.g. AAPL, EUR/USD",
 };
