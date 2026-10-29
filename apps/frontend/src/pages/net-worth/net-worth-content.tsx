@@ -228,7 +228,7 @@ export function NetWorthContent() {
                 displayDecimal={false}
                 compact={isMobile}
               />
-              <PrivacyToggle className="hover:bg-muted/50 bg-transparent" />
+              <PrivacyToggle variant="ghost" />
               {hasStaleValuations && (
                 <TooltipProvider>
                   <Tooltip>

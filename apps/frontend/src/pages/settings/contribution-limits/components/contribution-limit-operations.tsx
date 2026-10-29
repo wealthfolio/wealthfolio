@@ -46,7 +46,7 @@ export function ContributionLimitOperations({
   return (
     <>
       <DropdownMenu>
-        <DropdownMenuTrigger render={<Button variant="outline" size="icon-xs" />}>
+        <DropdownMenuTrigger render={<Button variant="ghost" size="icon-xs" />}>
           <Icons.MoreVertical className="h-4 w-4" />
           <span className="sr-only">{t("settings:limits_operations_open")}</span>
         </DropdownMenuTrigger>

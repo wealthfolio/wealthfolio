@@ -956,7 +956,7 @@ export default function SpendingTabContent() {
                 currency={currency}
                 displayCurrency={true}
               />
-              <PrivacyToggle className="hover:bg-muted/50 bg-transparent" />
+              <PrivacyToggle variant="ghost" />
             </div>
             <div className="text-md flex items-center">
               {isPriorLoading ? (

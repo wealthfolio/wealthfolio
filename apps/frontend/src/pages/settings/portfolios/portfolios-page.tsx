@@ -201,7 +201,7 @@ export default function PortfoliosPage() {
 
                   <div className="flex items-center space-x-2">
                     <DropdownMenu>
-                      <DropdownMenuTrigger render={<Button variant="outline" size="icon-xs" />}>
+                      <DropdownMenuTrigger render={<Button variant="ghost" size="icon-xs" />}>
                         <Icons.MoreVertical className="h-4 w-4" />
                         <span className="sr-only">{t("settings:portfolios.operations_open")}</span>
                       </DropdownMenuTrigger>

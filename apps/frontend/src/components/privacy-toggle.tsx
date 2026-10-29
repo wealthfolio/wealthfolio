@@ -6,20 +6,22 @@ import { cn } from "@/lib/utils";
 
 interface PrivacyToggleProps {
   className?: string;
+  /** `ghost` beside a hero figure: no fill or outline in any theme, and a muted icon. */
+  variant?: "secondary" | "ghost";
 }
 
-export function PrivacyToggle({ className }: PrivacyToggleProps) {
+export function PrivacyToggle({ className, variant = "secondary" }: PrivacyToggleProps) {
   const { t } = useTranslation();
   const { isBalanceHidden, toggleBalanceVisibility } = useBalancePrivacy();
 
   return (
     <Button
-      variant="secondary"
+      variant={variant}
       size="icon-xs"
       aria-label={t(
         isBalanceHidden ? "common:component.show_balance" : "common:component.hide_balance",
       )}
-      className={cn("rounded-full", className)}
+      className={cn("rounded-full", variant === "ghost" && "text-muted-foreground", className)}
       onClick={(e) => {
         e.stopPropagation();
         toggleBalanceVisibility();
