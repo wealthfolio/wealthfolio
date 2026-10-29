@@ -190,6 +190,15 @@ const DEFAULT_ASSIGNMENTS: [DefaultAssignment; 15] = [
 
 type MonthActuals = HashMap<(String, String), Decimal>;
 
+/// Category metadata bundled for a single `actuals_by_month` call.
+/// Groups the three taxonomy maps so the method stays under Clippy's
+/// `too_many_arguments` limit.
+struct ActualsMeta<'a> {
+    spending: &'a HashMap<String, Category>,
+    income: &'a HashMap<String, Category>,
+    savings: &'a HashMap<String, Category>,
+}
+
 pub struct BudgetService {
     repo: Arc<dyn BudgetRepositoryTrait>,
     activity_repo: Arc<dyn ActivityRepositoryTrait>,
@@ -293,9 +302,11 @@ impl BudgetService {
             self.actuals_by_month(
                 &earliest_rollover_month,
                 &period_key,
-                &spending_category_meta,
-                &income_meta,
-                &savings_meta,
+                &ActualsMeta {
+                    spending: &spending_category_meta,
+                    income: &income_meta,
+                    savings: &savings_meta,
+                },
                 currency,
                 timezone,
             )
@@ -890,9 +901,9 @@ impl BudgetService {
         use super::model::BudgetOperation::*;
         let has_group = |id: &str| state.groups.iter().any(|g| g.id == id);
         let category = |taxonomy: &str, id: &str| -> Result<()> {
-            if ![SPENDING_TAXONOMY, INCOME_TAXONOMY].contains(&taxonomy) {
+            if ![SPENDING_TAXONOMY, INCOME_TAXONOMY, SAVINGS_TAXONOMY].contains(&taxonomy) {
                 return Err(invalid_budget_input(
-                    "Budget targets currently support expense and income categories",
+                    "Budget targets currently support expense, savings, and income categories",
                 ));
             }
             if !self
@@ -997,7 +1008,20 @@ impl BudgetService {
                 category_id,
                 group_id,
             } => {
-                category(SPENDING_TAXONOMY, category_id)?;
+                // Accept categories from either spending or savings taxonomy.
+                let in_spending = self
+                    .taxonomy_categories(SPENDING_TAXONOMY)?
+                    .iter()
+                    .any(|c| c.id == *category_id && c.parent_id.is_none());
+                let in_savings = self
+                    .taxonomy_categories(SAVINGS_TAXONOMY)?
+                    .iter()
+                    .any(|c| c.id == *category_id && c.parent_id.is_none());
+                if !in_spending && !in_savings {
+                    return Err(invalid_budget_input(
+                        "Select a top-level spending or savings category",
+                    ));
+                }
                 if !has_group(group_id) {
                     return Err(invalid_budget_input("Budget group not found"));
                 }
@@ -1007,19 +1031,21 @@ impl BudgetService {
                 validate_rollover_setting(setting)?;
                 match setting.target_type {
                     BudgetRolloverTargetType::Category => {
+                        // validate_rollover_setting already enforces that
+                        // taxonomy_id is SPENDING_TAXONOMY; savings categories
+                        // also live within that boundary check via the shared
+                        // `category` closure which now accepts both taxonomies.
                         category(
-                            SPENDING_TAXONOMY,
+                            setting.taxonomy_id.as_deref().unwrap_or(""),
                             setting.category_id.as_deref().unwrap_or(""),
                         )?;
                         if setting.enabled {
+                            let cat_id = setting.category_id.as_deref().unwrap_or("");
+                            let tax_id = setting.taxonomy_id.as_deref().unwrap_or("");
                             let group_id = state
                                 .group_assignments
                                 .iter()
-                                .find(|a| {
-                                    a.taxonomy_id == SPENDING_TAXONOMY
-                                        && a.category_id
-                                            == setting.category_id.as_deref().unwrap_or("")
-                                })
+                                .find(|a| a.taxonomy_id == tax_id && a.category_id == cat_id)
                                 .map(|a| a.group_id.clone())
                                 .or_else(|| {
                                     state
@@ -1091,27 +1117,37 @@ impl BudgetService {
 
     async fn categories_for_group(&self, group_id: &str) -> Result<Vec<String>> {
         let assignments = self.repo.list_group_assignments().await?;
-        let categories = self.taxonomy_categories(SPENDING_TAXONOMY)?;
-        let meta = category_meta(&categories);
+        let spending_categories = self.taxonomy_categories(SPENDING_TAXONOMY)?;
+        let savings_categories = self.taxonomy_categories(SAVINGS_TAXONOMY)?;
         let groups = self.repo.list_groups().await?;
         let other_group_id = groups
             .into_iter()
             .find(|g| g.key == OTHER_GROUP_KEY)
             .map(|g| g.id)
             .ok_or_else(|| anyhow!("Missing Other budget group"))?;
-        let assignment_by_category = assignments
+        let assignment_by_category: HashMap<String, String> = assignments
             .into_iter()
-            .filter(|a| a.taxonomy_id == SPENDING_TAXONOMY)
+            .filter(|a| a.taxonomy_id == SPENDING_TAXONOMY || a.taxonomy_id == SAVINGS_TAXONOMY)
             .map(|a| (a.category_id, a.group_id))
-            .collect::<HashMap<_, _>>();
+            .collect();
 
-        Ok(top_level_categories(&categories)
+        // Collect top-level categories from both taxonomies that resolve to this group.
+        let all_categories = top_level_categories(&spending_categories)
             .into_iter()
+            .chain(top_level_categories(&savings_categories));
+        let spending_meta = category_meta(&spending_categories);
+        let savings_meta = category_meta(&savings_categories);
+        Ok(all_categories
             .filter(|category| {
+                let meta = if spending_meta.contains_key(&category.id) {
+                    &spending_meta
+                } else {
+                    &savings_meta
+                };
                 resolve_group_for_category(
                     &category.id,
                     &assignment_by_category,
-                    &meta,
+                    meta,
                     &other_group_id,
                 ) == group_id
             })
@@ -1152,9 +1188,7 @@ impl BudgetService {
         &self,
         start_period: &str,
         end_period: &str,
-        spending_meta: &HashMap<String, Category>,
-        income_meta: &HashMap<String, Category>,
-        savings_meta: &HashMap<String, Category>,
+        meta: &ActualsMeta<'_>,
         currency: &str,
         timezone: &str,
     ) -> Result<(HashMap<String, MonthActuals>, crate::CalculationQuality)> {
@@ -1177,12 +1211,22 @@ impl BudgetService {
         let account_ids = account_types.keys().cloned().collect::<Vec<_>>();
         let (start, _) = local_month_bounds_utc(start_period, timezone)?;
         let (_, end) = local_month_bounds_utc(end_period, timezone)?;
-        let activities = self
+
+        // Fetch the full per-account history first so that `within_spending_groups`
+        // sees both legs of every transfer — even when they land in different
+        // months. Without this a cross-month internal transfer would have only
+        // one leg in the date window and be wrongly treated as a saving.
+        let all_account_activities = self
             .activity_repo
-            .get_activities_by_account_ids_in_date_range(&account_ids, start, end)
-            .map_err(|e| anyhow!(e.to_string()))?
+            .get_activities_by_account_ids(&account_ids)
+            .map_err(|e| anyhow!(e.to_string()))?;
+        let all_refs: Vec<&Activity> = all_account_activities.iter().collect();
+        let within_spending_groups = within_spending_transfer_groups(&all_refs);
+
+        let activities: Vec<_> = all_account_activities
             .into_iter()
-            .collect::<Vec<_>>();
+            .filter(|a| a.activity_date >= start && a.activity_date <= end)
+            .collect();
         let activity_ids = activities.iter().map(|a| a.id.clone()).collect::<Vec<_>>();
         let assignments = self
             .assignment_repo
@@ -1199,16 +1243,9 @@ impl BudgetService {
         let fx = self.fx_service.as_ref();
         // Excluded spending categories leave budget actuals (and, via the
         // filter in `get`, the snapshot rows); income actuals never filter.
-        let exclusions = ExclusionIndex::new(&settings.excluded_category_ids, spending_meta);
+        let exclusions = ExclusionIndex::new(&settings.excluded_category_ids, meta.spending);
         let no_exclusions = ExclusionIndex::empty();
         let mut calculation_quality = crate::CalculationQuality::default();
-        // Identify transfers whose both legs land inside the spending-account
-        // set — those are internal moves (e.g. checking → savings within the
-        // same bank) and must not be counted as a saving.
-        // classify_activity_for_aggregation uses this set to distinguish a
-        // cross-boundary TRANSFER_OUT (→ Saving) from an internal one.
-        let activity_refs: Vec<&Activity> = activities.iter().collect();
-        let within_spending_groups = within_spending_transfer_groups(&activity_refs);
         let mut actuals: HashMap<String, MonthActuals> = HashMap::new();
         for activity in activities {
             let Some(account_type) = account_types.get(&activity.account_id) else {
@@ -1236,7 +1273,7 @@ impl BudgetService {
                 &activity.id,
                 SPENDING_TAXONOMY,
                 spending_native,
-                spending_meta,
+                meta.spending,
                 &assignments_by_activity,
                 &splits_by_activity,
                 &exclusions,
@@ -1250,7 +1287,7 @@ impl BudgetService {
                 &activity.id,
                 INCOME_TAXONOMY,
                 income_native,
-                income_meta,
+                meta.income,
                 &assignments_by_activity,
                 &splits_by_activity,
                 &no_exclusions,
@@ -1259,12 +1296,12 @@ impl BudgetService {
                 currency,
                 fx_as_of,
             );
-            add_allocated_actuals(
+            let savings_missing = add_allocated_actuals(
                 month_actuals,
                 &activity.id,
                 SAVINGS_TAXONOMY,
                 saving_native,
-                savings_meta,
+                meta.savings,
                 &assignments_by_activity,
                 &splits_by_activity,
                 &no_exclusions,
@@ -1654,7 +1691,11 @@ fn validate_rollover_setting(setting: &NewBudgetRolloverSetting) -> Result<()> {
 
     match setting.target_type {
         BudgetRolloverTargetType::Category => {
-            if setting.taxonomy_id.as_deref() != Some(SPENDING_TAXONOMY)
+            let valid_taxonomy = matches!(
+                setting.taxonomy_id.as_deref(),
+                Some(SPENDING_TAXONOMY) | Some(SAVINGS_TAXONOMY)
+            );
+            if !valid_taxonomy
                 || setting
                     .category_id
                     .as_deref()
@@ -1663,7 +1704,7 @@ fn validate_rollover_setting(setting: &NewBudgetRolloverSetting) -> Result<()> {
                 || setting.group_id.is_some()
             {
                 return Err(invalid_budget_input(
-                    "Category rollover requires spending taxonomyId and categoryId only",
+                    "Category rollover requires a spending or savings taxonomyId and categoryId only",
                 ));
             }
         }
@@ -2041,6 +2082,200 @@ mod tests {
         };
 
         assert!(validate_rollover_setting(&setting).is_err());
+    }
+
+    // -----------------------------------------------------------------------
+    // Savings actuals regression
+    // -----------------------------------------------------------------------
+
+    /// Build a minimal Activity with the fields relevant to classification.
+    fn make_transfer(
+        id: &str,
+        account_id: &str,
+        activity_type: &str,
+        source_group_id: Option<&str>,
+        date: chrono::DateTime<chrono::Utc>,
+    ) -> wealthfolio_core::activities::Activity {
+        use wealthfolio_core::activities::{Activity, ActivityStatus};
+        Activity {
+            id: id.to_string(),
+            account_id: account_id.to_string(),
+            asset_id: None,
+            activity_type: activity_type.to_string(),
+            activity_type_override: None,
+            source_type: None,
+            subtype: None,
+            status: ActivityStatus::Posted,
+            activity_date: date,
+            settlement_date: None,
+            quantity: None,
+            unit_price: None,
+            amount: Some(Decimal::new(500, 0)),
+            fee: None,
+            tax: None,
+            currency: "USD".to_string(),
+            fx_rate: None,
+            notes: None,
+            metadata: None::<serde_json::Value>,
+            source_system: None,
+            source_record_id: None,
+            source_group_id: source_group_id.map(str::to_string),
+            idempotency_key: None,
+            import_run_id: None,
+            is_user_modified: false,
+            needs_review: false,
+            created_at: chrono::Utc::now(),
+            updated_at: chrono::Utc::now(),
+        }
+    }
+
+    fn utc(year: i32, month: u32, day: u32) -> chrono::DateTime<chrono::Utc> {
+        chrono::DateTime::from_naive_utc_and_offset(
+            NaiveDate::from_ymd_opt(year, month, day)
+                .unwrap()
+                .and_hms_opt(12, 0, 0)
+                .unwrap(),
+            chrono::Utc,
+        )
+    }
+
+    fn savings_meta() -> HashMap<String, wealthfolio_core::taxonomies::Category> {
+        let make = |id: &str| wealthfolio_core::taxonomies::Category {
+            id: id.to_string(),
+            taxonomy_id: SAVINGS_TAXONOMY.to_string(),
+            parent_id: None,
+            name: id.to_string(),
+            key: id.to_string(),
+            color: "#000".to_string(),
+            icon: None,
+            description: None,
+            sort_order: 0,
+            created_at: ts(),
+            updated_at: ts(),
+        };
+        [make("cat_savings")]
+            .into_iter()
+            .map(|c| (c.id.clone(), c))
+            .collect()
+    }
+
+    /// A TRANSFER_OUT from a cash account to an investing account (only one
+    /// leg in the spending context) must accumulate as a savings actual.
+    #[test]
+    fn cross_boundary_transfer_out_accumulates_as_savings_actual() {
+        use crate::activity_assignments::ActivityTaxonomyAssignment;
+
+        let out = make_transfer(
+            "t-out",
+            "acc-cash",
+            "TRANSFER_OUT",
+            Some("pair-invest"),
+            utc(2026, 5, 15),
+        );
+        let meta = savings_meta();
+        // Only the OUT leg is in the spending context — not an internal transfer.
+        let all = vec![&out];
+        let within = within_spending_transfer_groups(&all);
+        assert!(
+            within.is_empty(),
+            "single-leg transfer should not be internal"
+        );
+
+        let classification = classify_activity_for_aggregation(
+            &out,
+            wealthfolio_core::accounts::account_types::CASH,
+            &within,
+        );
+        assert_eq!(
+            classification,
+            crate::activity_classification::SpendingClassification::Saving,
+            "cross-boundary TRANSFER_OUT should classify as Saving"
+        );
+
+        // Assign the activity to cat_savings so it isn't uncategorized.
+        let mut assignments = crate::activity_allocations::AssignmentsByActivity::new();
+        assignments.insert(
+            "t-out".to_string(),
+            vec![ActivityTaxonomyAssignment {
+                id: "asg-savings".to_string(),
+                activity_id: "t-out".to_string(),
+                taxonomy_id: SAVINGS_TAXONOMY.to_string(),
+                category_id: "cat_savings".to_string(),
+                weight: 10_000,
+                source: "manual".to_string(),
+                created_at: ts(),
+                updated_at: ts(),
+            }],
+        );
+
+        let mut month_actuals = MonthActuals::new();
+        add_allocated_actuals(
+            &mut month_actuals,
+            &out.id,
+            SAVINGS_TAXONOMY,
+            classification.saving_amount(Decimal::new(500, 0)),
+            &meta,
+            &assignments,
+            &SplitsByActivity::new(),
+            &ExclusionIndex::empty(),
+            &PassthroughFx,
+            "USD",
+            "USD",
+            NaiveDate::from_ymd_opt(2026, 5, 31).unwrap(),
+        );
+
+        let actual = month_actuals
+            .get(&(SAVINGS_TAXONOMY.to_string(), "cat_savings".to_string()))
+            .copied()
+            .unwrap_or(Decimal::ZERO);
+        assert_eq!(actual, Decimal::new(500, 0), "savings actual should be 500");
+    }
+
+    /// When both legs of a transfer are in the spending account set — even
+    /// when they fall in different calendar months — the transfer is internal
+    /// and must produce zero savings actuals.
+    #[test]
+    fn cross_month_internal_transfer_is_not_classified_as_saving() {
+        // OUT leg in January, IN leg in February — both spending accounts.
+        let out = make_transfer(
+            "t-out",
+            "acc-checking",
+            "TRANSFER_OUT",
+            Some("pair-internal"),
+            utc(2026, 1, 31),
+        );
+        let inn = make_transfer(
+            "t-in",
+            "acc-savings-cash",
+            "TRANSFER_IN",
+            Some("pair-internal"),
+            utc(2026, 2, 1),
+        );
+
+        // Pass the FULL account history (both months) so within_spending_groups sees both legs.
+        let all = vec![&out, &inn];
+        let within = within_spending_transfer_groups(&all);
+        assert!(
+            within.contains("pair-internal"),
+            "both legs present; transfer should be internal"
+        );
+
+        let classification = classify_activity_for_aggregation(
+            &out,
+            wealthfolio_core::accounts::account_types::CASH,
+            &within,
+        );
+
+        assert_eq!(
+            classification.saving_amount(Decimal::new(500, 0)),
+            Decimal::ZERO,
+            "cross-month internal transfer must not count as saving"
+        );
+        assert_eq!(
+            classification.spending_amount(Decimal::new(500, 0)),
+            Decimal::ZERO,
+            "cross-month internal transfer must not count as spending either"
+        );
     }
 
     #[test]
