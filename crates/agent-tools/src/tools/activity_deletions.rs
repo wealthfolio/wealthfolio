@@ -5,13 +5,14 @@
 //! the activity grid uses: deleting one leg of a linked transfer deletes the
 //! other leg too, and the portfolio recalculates from the earliest date. The
 //! preview lists each activity as stored, so the user sees what goes before
-//! anything is written.
+//! anything is written. Both legs of a linked transfer must be named, so a
+//! transfer linked after the preview cannot take an unreviewed leg with it.
 //!
 //! A deleted activity is gone. To keep one but leave it out of every
 //! calculation, void it with `prepare_activity_updates` instead. A broker sync
 //! may add a deleted synced activity back, but it keeps a voided one void.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use serde::Serialize;
@@ -62,14 +63,22 @@ impl PlannedDeletion {
     }
 }
 
+/// An id an earlier row deletes: that row's index, and whether the id is the
+/// other leg of the transfer that row deletes.
+struct Covered {
+    index: usize,
+    linked_leg: bool,
+}
+
 /// Validates one activity id as core would delete it, without writing.
-/// `covered` maps each id an earlier row deletes to that row's index.
+/// `named` holds every id in the call; a linked leg must be among them.
 fn plan_deletion(
     activity_service: &dyn ActivityServiceTrait,
     activity_id: &str,
-    covered: &HashMap<String, usize>,
+    covered: &HashMap<String, Covered>,
+    named: &HashSet<String>,
 ) -> Result<PlannedDeletion, String> {
-    if let Some(index) = covered.get(activity_id) {
+    if let Some(Covered { index, .. }) = covered.get(activity_id) {
         return Err(format!(
             "Activity {activity_id} is already deleted by row {index}"
         ));
@@ -87,7 +96,24 @@ fn plan_deletion(
                 pair.transfer_out
             }
         });
+    if let Some(linked) = linked.as_ref().filter(|linked| !named.contains(&linked.id)) {
+        return Err(format!(
+            "Activity {activity_id} is a linked transfer leg; deleting it also deletes {}. \
+             Preview and delete both ids together, or unlink them first",
+            linked.id
+        ));
+    }
     Ok(PlannedDeletion { activity, linked })
+}
+
+/// The row of the pair an earlier row deletes as its linked leg; any other
+/// repeat stays a duplicate.
+fn linked_leg_row(covered: &mut HashMap<String, Covered>, activity_id: &str) -> Option<usize> {
+    let entry = covered
+        .get_mut(activity_id)
+        .filter(|entry| entry.linked_leg)?;
+    entry.linked_leg = false;
+    Some(entry.index)
 }
 
 /// Rejects an oversized or empty batch, then reads each id on its own so one
@@ -120,12 +146,29 @@ fn parse_ids(args: &Value) -> Result<Vec<Result<String, String>>, AgentToolError
         .collect())
 }
 
-/// Records the ids `planned` deletes, so a later row naming one is refused.
-fn cover(covered: &mut HashMap<String, usize>, index: usize, planned: &PlannedDeletion) {
-    covered.insert(planned.activity.id.clone(), index);
+/// Records the ids `planned` deletes, so a later row naming one is refused,
+/// except once for the linked leg.
+fn cover(covered: &mut HashMap<String, Covered>, index: usize, planned: &PlannedDeletion) {
+    covered.insert(
+        planned.activity.id.clone(),
+        Covered {
+            index,
+            linked_leg: false,
+        },
+    );
     if let Some(linked) = &planned.linked {
-        covered.insert(linked.id.clone(), index);
+        covered.insert(
+            linked.id.clone(),
+            Covered {
+                index,
+                linked_leg: true,
+            },
+        );
     }
+}
+
+fn named_ids(ids: &[Result<String, String>]) -> HashSet<String> {
+    ids.iter().filter_map(|id| id.clone().ok()).collect()
 }
 
 /// Keeps only the ids, never the stored values.
@@ -152,7 +195,7 @@ fn ids_schema(action: &str) -> Value {
                 "minItems": 1,
                 "maxItems": MAX_DELETIONS,
                 "items": { "type": "string" },
-                "description": format!("Ids of the activities to {action} (find them with search_activities). Deleting one leg of a linked transfer also deletes the other leg.")
+                "description": format!("Ids of the activities to {action} (find them with search_activities). Deleting one leg of a linked transfer also deletes the other leg, so name both legs.")
             }
         },
         "required": ["activityIds"],
@@ -175,6 +218,10 @@ pub struct ActivityDeletionPreviewRow {
     /// The other leg of a linked transfer, which the delete also removes.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub linked_activity: Option<Value>,
+    /// For the other leg of a linked transfer, the row whose delete removes
+    /// it too.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub deleted_with: Option<usize>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub warning: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -209,7 +256,7 @@ impl AgentTool for PrepareActivityDeletions {
     }
 
     fn description(&self) -> &'static str {
-        "Preview deleting existing activities without writing anything. Pass activityIds (find them with search_activities). Each ready row shows the activity as stored and, for one leg of a linked transfer, linkedActivity: the other leg, which the delete also removes. A warning marks an activity from a broker sync, which may add it back; to keep such an activity out of the portfolio for good, void it with prepare_activity_updates (void: true) instead. Voiding also keeps the record, so prefer it when the user wants an activity to stop counting rather than to disappear. An invalid row gives its error: a missing activity, or one an earlier row already deletes. Up to 100 ids. Show the preview to the user, then delete the confirmed ids with commit_activity_deletions."
+        "Preview deleting existing activities without writing anything. Pass activityIds (find them with search_activities). Each ready row shows the activity as stored and, for one leg of a linked transfer, linkedActivity: the other leg, which the delete also removes. Name both legs of a linked transfer; the row for the second leg gives deletedWith, the row that removes it. A warning marks an activity from a broker sync, which may add it back; to keep such an activity out of the portfolio for good, void it with prepare_activity_updates (void: true) instead. Voiding also keeps the record, so prefer it when the user wants an activity to stop counting rather than to disappear. An invalid row gives its error: a missing activity, one an earlier row already deletes, or a linked transfer leg whose other leg is not named. Up to 100 ids. Show the preview to the user, then delete the confirmed ids with commit_activity_deletions."
     }
 
     fn input_schema(&self) -> Value {
@@ -234,13 +281,31 @@ impl AgentTool for PrepareActivityDeletions {
         args: Value,
     ) -> Result<AgentToolResult, AgentToolError> {
         let ids = parse_ids(&args)?;
+        let named = named_ids(&ids);
         let activity_service = env.activity_service();
         let mut covered = HashMap::new();
         let mut rows = Vec::with_capacity(ids.len());
         for (index, id) in ids.into_iter().enumerate() {
+            if let Some(row) = id
+                .as_ref()
+                .ok()
+                .and_then(|id| linked_leg_row(&mut covered, id))
+            {
+                rows.push(ActivityDeletionPreviewRow {
+                    index,
+                    activity_id: id.ok(),
+                    status: "ready",
+                    activity: None,
+                    linked_activity: None,
+                    deleted_with: Some(row),
+                    warning: None,
+                    error: None,
+                });
+                continue;
+            }
             let planned = id
                 .clone()
-                .and_then(|id| plan_deletion(activity_service.as_ref(), &id, &covered));
+                .and_then(|id| plan_deletion(activity_service.as_ref(), &id, &covered, &named));
             rows.push(match planned {
                 Ok(planned) => {
                     cover(&mut covered, index, &planned);
@@ -250,6 +315,7 @@ impl AgentTool for PrepareActivityDeletions {
                         status: "ready",
                         activity: Some(activity_value(&planned.activity)),
                         linked_activity: planned.linked.as_ref().map(activity_value),
+                        deleted_with: None,
                         warning: planned.warning(),
                         error: None,
                     }
@@ -260,6 +326,7 @@ impl AgentTool for PrepareActivityDeletions {
                     status: "invalid",
                     activity: None,
                     linked_activity: None,
+                    deleted_with: None,
                     warning: None,
                     error: Some(message),
                 },
@@ -293,6 +360,16 @@ pub struct DeletedActivity {
     pub linked_activity: Option<Value>,
 }
 
+/// A row naming the other leg of a transfer an earlier row deleted.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DeletedLinkedLeg {
+    pub index: usize,
+    pub activity_id: String,
+    /// The row whose delete removed this leg.
+    pub deleted_with: usize,
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ActivityDeletionError {
@@ -307,6 +384,8 @@ pub struct ActivityDeletionError {
 #[serde(rename_all = "camelCase")]
 pub struct CommitActivityDeletionsOutput {
     pub deleted: Vec<DeletedActivity>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub deleted_with_pair: Vec<DeletedLinkedLeg>,
     pub errors: Vec<ActivityDeletionError>,
 }
 
@@ -320,7 +399,7 @@ impl AgentTool for CommitActivityDeletions {
     }
 
     fn description(&self) -> &'static str {
-        "Delete existing activities: the activityIds prepare_activity_deletions previewed. This DELETES data and cannot be undone: only call it after the user reviewed the preview and confirmed. Each id is checked again and deleted on its own through the app's activity delete: one leg of a linked transfer takes the other leg with it, and the portfolio is recalculated. Up to 100 ids; deleted lists each removed activity as it was stored (and linkedActivity for the other leg of a linked transfer), and errors lists the ids that failed."
+        "Delete existing activities: the activityIds prepare_activity_deletions previewed. This DELETES data and cannot be undone: only call it after the user reviewed the preview and confirmed. Each id is checked again and deleted on its own through the app's activity delete: one leg of a linked transfer takes the other leg with it, and the portfolio is recalculated. A linked transfer leg is refused unless its other leg is also named, so a link made after the preview cannot delete an unreviewed activity. Up to 100 ids; deleted lists each removed activity as it was stored (and linkedActivity for the other leg of a linked transfer), deletedWithPair lists the named second legs that went with them, and errors lists the ids that failed."
     }
 
     fn input_schema(&self) -> Value {
@@ -351,14 +430,28 @@ impl AgentTool for CommitActivityDeletions {
         args: Value,
     ) -> Result<AgentToolResult, AgentToolError> {
         let ids = parse_ids(&args)?;
+        let named = named_ids(&ids);
         let activity_service = env.activity_service();
         let mut covered = HashMap::new();
         let mut deleted = Vec::new();
+        let mut deleted_with_pair = Vec::new();
         let mut errors = Vec::new();
         for (index, id) in ids.into_iter().enumerate() {
+            if let Some(row) = id
+                .as_ref()
+                .ok()
+                .and_then(|id| linked_leg_row(&mut covered, id))
+            {
+                deleted_with_pair.push(DeletedLinkedLeg {
+                    index,
+                    activity_id: id.unwrap_or_default(),
+                    deleted_with: row,
+                });
+                continue;
+            }
             let planned = id
                 .clone()
-                .and_then(|id| plan_deletion(activity_service.as_ref(), &id, &covered));
+                .and_then(|id| plan_deletion(activity_service.as_ref(), &id, &covered, &named));
             let result = match planned {
                 Ok(planned) => activity_service
                     .delete_activity(planned.activity.id.clone())
@@ -388,7 +481,11 @@ impl AgentTool for CommitActivityDeletions {
             env.health_service().clear_cache().await;
         }
         Ok(AgentToolResult {
-            content: serde_json::to_value(CommitActivityDeletionsOutput { deleted, errors })?,
+            content: serde_json::to_value(CommitActivityDeletionsOutput {
+                deleted,
+                deleted_with_pair,
+                errors,
+            })?,
         })
     }
 }

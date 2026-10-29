@@ -2099,7 +2099,9 @@ async fn mcp_health_status_runs_checks_on_refresh() {
     assert_eq!(cached["issues"], refreshed["issues"], "{cached}");
 }
 
-/// A deletion is previewed first and removes both legs of a linked transfer;
+/// A deletion is previewed first and removes both legs of a linked transfer,
+/// which must both be named, so a link made after the preview cannot delete
+/// an unreviewed leg;
 /// a void keeps the activity, mirrors onto the other leg, marks it
 /// user-modified so broker syncs keep it, and can be undone.
 #[tokio::test]
@@ -2132,10 +2134,33 @@ async fn mcp_deletes_and_voids_activities_after_a_preview() {
     };
     let out_id = cash(&chequing, "TRANSFER_OUT", "2026-04-01T12:00:00Z").await["id"].clone();
     let in_id = cash(&savings, "TRANSFER_IN", "2026-04-01T12:00:00Z").await["id"].clone();
+
+    // Previewed while unlinked, then linked: the commit refuses the delete
+    // instead of taking the unreviewed leg with it.
+    let stale = serde_json::json!({ "activityIds": [out_id] });
+    let preview = mcp_call_tool(
+        &server,
+        &pat,
+        &session,
+        "prepare_activity_deletions",
+        stale.clone(),
+    )
+    .await;
+    assert_eq!(preview["rows"][0]["status"], "ready", "{preview}");
+    assert!(
+        preview["rows"][0].get("linkedActivity").is_none(),
+        "{preview}"
+    );
     let linked = link(out_id.clone(), in_id.clone()).await;
     assert_eq!(linked["errors"], serde_json::json!([]), "{linked}");
+    let committed =
+        mcp_call_tool(&server, &pat, &session, "commit_activity_deletions", stale).await;
+    assert_eq!(committed["deleted"], serde_json::json!([]), "{committed}");
+    let refused = committed["errors"][0]["message"].as_str().unwrap();
+    assert!(refused.contains(in_id.as_str().unwrap()), "{refused}");
+    assert_eq!(stored_activities(&server, &cookie, &savings).await.len(), 1);
 
-    // Naming both legs: the second is already covered by the first.
+    // Naming both legs: the second row goes with the first.
     let ids = serde_json::json!({ "activityIds": [out_id, in_id, "missing"] });
     let preview = mcp_call_tool(
         &server,
@@ -2145,15 +2170,14 @@ async fn mcp_deletes_and_voids_activities_after_a_preview() {
         ids.clone(),
     )
     .await;
-    assert_eq!(preview["summary"]["ready"], 1, "{preview}");
+    assert_eq!(preview["summary"]["ready"], 2, "{preview}");
     assert_eq!(preview["summary"]["activitiesDeleted"], 2, "{preview}");
     assert_eq!(preview["rows"][0]["activity"]["amount"], "100", "{preview}");
     assert_eq!(
         preview["rows"][0]["linkedActivity"]["accountId"], savings["id"],
         "{preview}"
     );
-    let covered = preview["rows"][1]["error"].as_str().unwrap();
-    assert!(covered.contains("row 0"), "{covered}");
+    assert_eq!(preview["rows"][1]["deletedWith"], 0, "{preview}");
     let missing = preview["rows"][2]["error"].as_str().unwrap();
     assert!(missing.contains("not found"), "{missing}");
     // The preview wrote nothing.
@@ -2165,8 +2189,13 @@ async fn mcp_deletes_and_voids_activities_after_a_preview() {
     let committed = mcp_call_tool(&server, &pat, &session, "commit_activity_deletions", ids).await;
     assert_eq!(committed["deleted"][0]["activityId"], out_id, "{committed}");
     assert_eq!(
+        committed["deletedWithPair"][0],
+        serde_json::json!({ "index": 1, "activityId": in_id, "deletedWith": 0 }),
+        "{committed}"
+    );
+    assert_eq!(
         committed["errors"].as_array().unwrap().len(),
-        2,
+        1,
         "{committed}"
     );
     assert!(stored_activities(&server, &cookie, &chequing)
