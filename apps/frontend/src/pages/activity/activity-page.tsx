@@ -1,6 +1,7 @@
 import { getAccounts } from "@/adapters";
 import { ActionPalette, type ActionPaletteGroup } from "@/components/action-palette";
 import { SwipablePage, type SwipablePageView } from "@/components/page";
+import { PrivacyToggle } from "@/components/privacy-toggle";
 import {
   SpendingTransactionsTab,
   type SpendingTransactionsTabHandle,
@@ -913,7 +914,14 @@ const ActivityPage = () => {
   if (!isSpendingEnabled) {
     return (
       <Page>
-        <PageHeader actions={investmentActions} />
+        <PageHeader
+          actions={
+            <>
+              <PrivacyToggle />
+              {investmentActions}
+            </>
+          }
+        />
         <PageContent className="pb-2 md:pb-4 lg:pb-5">{investmentContent}</PageContent>
         {sharedModals}
       </Page>
@@ -944,6 +952,7 @@ const ActivityPage = () => {
         defaultView="investments"
         persistKey="activity-page-tab"
         desktopContentClassName="overflow-y-visible"
+        showPrivacyToggle
       />
       {sharedModals}
     </>

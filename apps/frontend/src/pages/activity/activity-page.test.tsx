@@ -8,6 +8,7 @@ import ActivityPage from "./activity-page";
 const mocks = vi.hoisted(() => ({ searches: [] as string[] }));
 
 vi.mock("@/adapters", () => ({ getAccounts: vi.fn().mockResolvedValue([]) }));
+vi.mock("@/components/privacy-toggle", () => ({ PrivacyToggle: () => null }));
 vi.mock("@/features/spending/hooks/use-spending-settings", () => ({
   useSpendingSettings: () => ({ isEnabled: false, accountIds: [], isLoading: false }),
 }));

@@ -118,5 +118,5 @@ export default function PortfolioInsightsPage() {
     return items;
   }, [accountFilter, holdingsActions, setAccountScope, spendingEnabled, spendingToolbarActions, t]);
 
-  return <SwipablePage views={views} defaultView="overview" withPadding={true} />;
+  return <SwipablePage views={views} defaultView="overview" withPadding={true} showPrivacyToggle />;
 }

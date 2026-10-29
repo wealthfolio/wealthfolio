@@ -17,7 +17,6 @@ import { SpendingDatePicker } from "@/features/spending/components/spending-date
 import { Skeleton } from "@wealthfolio/ui/components/ui/skeleton";
 import { format } from "date-fns";
 import { useMemo } from "react";
-import { PrivacyToggle } from "@/components/privacy-toggle";
 import type { AccountScope } from "@/lib/types";
 import { accountScopeKey } from "@/pages/allocation-targets/components/target-scope";
 import { AccountsSummary } from "./accounts-summary";
@@ -196,7 +195,6 @@ export function DashboardContent({
                 displayCurrency={true}
               />
             </PortfolioUpdateTrigger>
-            <PrivacyToggle className="hover:bg-muted/50 bg-transparent" />
           </div>
           <div className="text-md flex min-h-5 flex-wrap items-center gap-x-3">
             {isPortfolioPerformanceLoading ? (
