@@ -42,16 +42,17 @@ interface UseSaveActivitiesParams<TRow extends LocalTransaction> {
   assetCurrencyLookup: Map<string, string>;
   fallbackCurrency: string;
   setLocalTransactions: React.Dispatch<React.SetStateAction<TRow[]>>;
-  resetChangeState: () => void;
+  resetChangeState: (keepDirtyIds?: ReadonlySet<string>) => void;
   resetRowSelection: () => void;
   onRefetch: () => Promise<unknown>;
   /** Adjusts the activity payload before it is sent, e.g. to drop rows with no activity change. */
   preparePayload?: (payload: SavePayloadResult) => SavePayloadResult;
   /**
    * Runs after the activity write and before the grid resets and refetches.
-   * Reports its own failures; resolves false when any part failed.
+   * Reports its own failures and resolves the rows it could not save, which
+   * stay marked as changed so Save can retry them.
    */
-  afterActivitiesSaved?: (outcome: ActivitySaveOutcome) => Promise<boolean>;
+  afterActivitiesSaved?: (outcome: ActivitySaveOutcome) => Promise<ReadonlySet<string>>;
 }
 
 interface SaveResult {
@@ -181,13 +182,13 @@ export function useSaveActivities<TRow extends LocalTransaction = LocalTransacti
       // All IDs deleted by backend (includes cascade-deleted counterparts)
       const allDeletedIds = new Set(result.deleted.map((a) => a.id));
 
-      const followUpSucceeded = afterActivitiesSaved
+      const unsavedIds = afterActivitiesSaved
         ? await afterActivitiesSaved({
             createdIds: createdMappings,
             failedIds: new Set([...failedTempIds].filter((id): id is string => !!id)),
             deletedIds: allDeletedIds,
           })
-        : true;
+        : new Set<string>();
 
       // Update local state with persisted IDs, keep failed items
       setLocalTransactions((prev) =>
@@ -211,10 +212,10 @@ export function useSaveActivities<TRow extends LocalTransaction = LocalTransacti
           }),
       );
 
-      resetChangeState();
+      resetChangeState(unsavedIds);
       resetRowSelection();
 
-      if (!hasErrors && followUpSucceeded) {
+      if (!hasErrors && unsavedIds.size === 0) {
         toast({
           title: i18n.t("activity:datagrid_activities_saved"),
           description: i18n.t("common:notifications.pending_changes_saved"),
@@ -227,7 +228,7 @@ export function useSaveActivities<TRow extends LocalTransaction = LocalTransacti
       logger.info(
         `Activities save completed: ${result.created.length} created, ${result.updated.length} updated, ${result.deleted.length} deleted, ${result.errors?.length ?? 0} errors`,
       );
-      return { success: (!hasErrors || hasSuccesses) && followUpSucceeded };
+      return { success: (!hasErrors || hasSuccesses) && unsavedIds.size === 0 };
     } catch (error) {
       logger.error(
         `Failed to save activities: ${error instanceof Error ? error.message : String(error)}`,

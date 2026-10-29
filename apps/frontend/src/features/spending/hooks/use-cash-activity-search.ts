@@ -107,7 +107,9 @@ export function useCashActivityPage(
     baseCurrency: firstPage.data?.baseCurrency ?? query.data?.baseCurrency ?? undefined,
     isLoading: query.isLoading,
     isFetching: query.isFetching,
-    isError: query.isError,
+    // A failed refetch keeps the page it had: only a page with nothing to show
+    // is an error, so the grid and its unsaved edits stay mounted.
+    isError: query.isError && query.data === undefined,
     error: query.error,
     refetch: query.refetch,
   };

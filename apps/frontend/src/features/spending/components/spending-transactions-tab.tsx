@@ -624,6 +624,12 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
       setSelectedRowIds(new Set());
       setGridPageIndex(0);
     }
+    // Deleting the last rows of the last page leaves fewer pages: step back to
+    // the new last page instead of showing an empty one.
+    const lastGridPage = Math.max(0, gridPage.pageCount - 1);
+    if (showGrid && !gridPage.isFetching && gridPageIndex > lastGridPage) {
+      setGridPageIndex(lastGridPage);
+    }
 
     const { mutate: duplicateTransaction } = useMutation({
       mutationFn: async (row: TransactionRowVM) => {
@@ -1227,7 +1233,12 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
             isCompactTableViewport ? undefined : (
               <ActivityViewModeToggle
                 value={viewMode}
-                onChange={setViewMode}
+                onChange={(mode) => {
+                  setViewMode(mode);
+                  // The list's checked rows mean nothing in the grid, which has
+                  // its own selection.
+                  setSelectedRowIds(new Set());
+                }}
                 testId="spending-edit-mode-toggle"
               />
             )

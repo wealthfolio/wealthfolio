@@ -937,6 +937,11 @@ export function SelectCell<TData>({
     prevInitialValueRef.current = initialValue;
     setValue(initialValue || "");
   }
+  // A pick the grid refused leaves the row unchanged; drop it once editing
+  // ends, so the editor opens on the row's value again.
+  if (!isOpen && value !== (initialValue || "")) {
+    setValue(initialValue || "");
+  }
 
   const onValueChange = React.useCallback(
     (newValue: string | null) => {
@@ -2854,6 +2859,11 @@ export function CurrencyCell<TData>({
   const prevInitialValueRef = React.useRef(initialValue);
   if (initialValue !== prevInitialValueRef.current) {
     prevInitialValueRef.current = initialValue;
+    setValue(initialValue ?? "");
+  }
+  // A pick the grid refused leaves the row unchanged; drop it once editing
+  // ends, so the editor opens on the row's value again.
+  if (!isEditing && value !== (initialValue ?? "")) {
     setValue(initialValue ?? "");
   }
   // Out of edit mode the cell shows the row's value: an edit the grid refused

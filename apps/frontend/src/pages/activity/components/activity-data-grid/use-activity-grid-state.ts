@@ -51,8 +51,8 @@ interface UseActivityGridStateReturn<TRow extends LocalTransaction> {
   markForDeletionBatch: (transactions: { id: string; isNew: boolean }[]) => void;
   /** Clear a transaction from dirty state */
   clearDirty: (id: string) => void;
-  /** Reset all change tracking state */
-  resetChangeState: () => void;
+  /** Reset all change tracking state, keeping the given rows marked as changed */
+  resetChangeState: (keepDirtyIds?: Iterable<string>) => void;
   /** Get current change state snapshot */
   getChangeState: () => TransactionChangeState;
 }
@@ -246,8 +246,8 @@ export const useActivityGridState = <TRow extends LocalTransaction = LocalTransa
   }, []);
 
   // Reset all change tracking state
-  const resetChangeState = useCallback(() => {
-    setDirtyTransactionIds(new Set());
+  const resetChangeState = useCallback((keepDirtyIds?: Iterable<string>) => {
+    setDirtyTransactionIds(new Set(keepDirtyIds));
     setPendingDeleteIds(new Set());
   }, []);
 

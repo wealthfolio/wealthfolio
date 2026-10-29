@@ -80,9 +80,13 @@ const mocks = vi.hoisted(() => {
           categoryOptions: FilterOption[];
           subcategoryOptions: FilterOption[];
           viewToggle?: React.ReactNode;
+          selectedNet: { byCurrency: unknown[] };
         }
       | undefined,
     compactViewport: false,
+    gridProps: undefined as
+      | undefined
+      | { pageIndex: number; onPageChange: (index: number) => void },
     accounts,
     transferOut,
     mutation,
@@ -227,7 +231,10 @@ vi.mock("./selection-toolbar", () => ({ SelectionToolbar: () => null }));
 vi.mock("./split-transaction-sheet", () => ({ SplitTransactionSheet: () => null }));
 vi.mock("./transactions-bulk-bar", () => ({ TransactionsBulkBar: () => null }));
 vi.mock("./spending-activity-data-grid", () => ({
-  SpendingActivityDataGrid: () => <div data-testid="spending-grid" />,
+  SpendingActivityDataGrid: (props: NonNullable<typeof mocks.gridProps>) => {
+    mocks.gridProps = props;
+    return <div data-testid="spending-grid" />;
+  },
 }));
 vi.mock("./transactions-filter-bar", () => ({
   TransactionsFilterBar: (props: NonNullable<typeof mocks.filterProps>) => {
@@ -648,5 +655,28 @@ describe("SpendingTransactionsTab view switch", () => {
     expect(mocks.filterProps?.viewToggle).toBeUndefined();
     expect(screen.queryByTestId("spending-grid")).not.toBeInTheDocument();
     expect(await screen.findByTestId("select-out-1")).toBeInTheDocument();
+  });
+
+  it("drops the list's checked rows when switching to the grid", async () => {
+    render(<SpendingTransactionsTab />);
+    fireEvent.click(await screen.findByTestId("select-out-1"));
+    await waitFor(() => expect(mocks.filterProps?.selectedNet.byCurrency).toHaveLength(1));
+
+    render(<>{mocks.filterProps?.viewToggle}</>);
+    fireEvent.click(screen.getByTestId("spending-edit-mode-toggle"));
+
+    await screen.findByTestId("spending-grid");
+    expect(mocks.filterProps?.selectedNet.byCurrency).toHaveLength(0);
+  });
+
+  it("steps back to the last page when the grid has fewer pages", async () => {
+    render(<SpendingTransactionsTab />);
+    render(<>{mocks.filterProps?.viewToggle}</>);
+    fireEvent.click(screen.getByTestId("spending-edit-mode-toggle"));
+    await screen.findByTestId("spending-grid");
+
+    // The mocked search has one page.
+    act(() => mocks.gridProps?.onPageChange(3));
+    await waitFor(() => expect(mocks.gridProps?.pageIndex).toBe(0));
   });
 });

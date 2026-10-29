@@ -104,5 +104,10 @@ describe("DataGrid select cell", () => {
     rerender(<DataGridCell {...cellProps(row, { isFocused: true }, tableMeta)} />);
     expect(screen.getByText("Food")).toBeInTheDocument();
     expect(screen.queryByText("Rent")).not.toBeInTheDocument();
+
+    // Reopened, the editor starts from the row's value, not the refused pick.
+    rerender(<DataGridCell {...cellProps(row, { isFocused: true, isEditing: true }, tableMeta)} />);
+    expect(await screen.findByRole("option", { name: "Food", selected: true })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Rent", selected: false })).toBeInTheDocument();
   });
 });

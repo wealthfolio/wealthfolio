@@ -724,16 +724,17 @@ export function SpendingActivityDataGrid({
   const writeCategories = useCallback(
     async (outcome: ActivitySaveOutcome) => {
       const writes = planCategoryWrites(rows, dirtyTransactionIds, outcome, accountTypeOf);
-      if (writes.assign.length === 0 && writes.clear.length === 0) return true;
+      const unsaved = new Set<string>();
+      if (writes.assign.length === 0 && writes.clear.length === 0) return unsaved;
       setIsWritingCategories(true);
       try {
-        let succeeded = true;
         if (writes.assign.length > 0) {
           try {
             // One batch: the server applies all of it or none.
             await bulkAssignCategories.mutateAsync(writes.assign);
           } catch {
-            succeeded = false; // The mutation reports the failure.
+            // The mutation reports the failure.
+            writes.assign.forEach((item) => unsaved.add(item.activityId));
           }
         }
         if (writes.clear.length > 0) {
@@ -741,16 +742,22 @@ export function SpendingActivityDataGrid({
             writes.clear.map((item) => unassignActivityCategory(item.activityId, item.taxonomyId)),
           );
           invalidateSpendingCaches(queryClient);
+          results.forEach((result, index) => {
+            if (result.status === "rejected") unsaved.add(writes.clear[index].activityId);
+          });
           const failed = results.filter((result) => result.status === "rejected").length;
           if (failed > 0) {
-            succeeded = false;
             toast({
               title: t("spending:txTab.failedOnCount", { count: failed }),
               variant: "destructive",
             });
           }
         }
-        return succeeded;
+        // A saved row keeps its failed pick for Save to retry. A row created in
+        // this save comes back from the server on the refetch, so its pick is
+        // only reported.
+        const created = new Set(outcome.createdIds.values());
+        return new Set([...unsaved].filter((id) => !created.has(id)));
       } finally {
         setIsWritingCategories(false);
       }
@@ -799,14 +806,16 @@ export function SpendingActivityDataGrid({
   const handleCancel = useCallback(() => {
     resetChangeState();
     dataGrid.table.resetRowSelection();
-    setRows((prev) => prev.filter((row) => !row.isNew));
+    // Back to the saved rows: a refetch that returns the same data would not
+    // replace the edited and deleted ones.
+    setRows(serverTransactions);
     void onRefetch();
     toast({
       title: t("activity:datagrid_changes_discarded"),
       description: t("activity:datagrid_unsaved_cleared"),
       variant: "default",
     });
-  }, [dataGrid.table, onRefetch, resetChangeState, setRows, t]);
+  }, [dataGrid.table, onRefetch, resetChangeState, serverTransactions, setRows, t]);
 
   const columnLabels = useMemo(() => ({ categoryId: t("spending:filters.category") }), [t]);
 

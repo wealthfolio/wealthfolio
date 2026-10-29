@@ -12,7 +12,11 @@ type GridOptions = Parameters<typeof useDataGrid<SpendingGridRow>>[0];
 
 const harness = vi.hoisted(() => ({
   options: undefined as unknown as GridOptions,
-  toolbar: undefined as unknown as { onSave: () => Promise<void> },
+  toolbar: undefined as unknown as {
+    onSave: () => Promise<void>;
+    onCancel: () => void;
+    hasUnsavedChanges: boolean;
+  },
   saveActivities: vi.fn(),
   bulkAssign: vi.fn(),
   unassign: vi.fn(),
@@ -218,5 +222,37 @@ describe("SpendingActivityDataGrid", () => {
 
     expect(harness.saveActivities).toHaveBeenCalledTimes(1);
     expect(harness.bulkAssign).not.toHaveBeenCalled();
+  });
+
+  it("keeps a failed category pick staged so Save can retry it", async () => {
+    harness.bulkAssign.mockRejectedValueOnce(new Error("conflict"));
+    renderGrid([activity()]);
+    edit("a1", { categoryId: "rent" });
+    await save();
+
+    expect(rows()[0].categoryId).toBe("rent");
+    expect(harness.toolbar.hasUnsavedChanges).toBe(true);
+
+    await save();
+    expect(harness.bulkAssign).toHaveBeenCalledTimes(2);
+    expect(harness.toolbar.hasUnsavedChanges).toBe(false);
+  });
+
+  it("restores the saved rows on Cancel even when the data does not change", () => {
+    const items = [activity(), activity({ id: "a2", notes: "second" })];
+    renderGrid(items);
+    edit("a1", { amount: "99" });
+    act(() => {
+      harness.options.onRowsDelete?.([rows()[1]], [1]);
+    });
+    expect(rows()).toHaveLength(1);
+
+    act(() => harness.toolbar.onCancel());
+
+    expect(rows().map((row) => [row.id, row.amount])).toEqual([
+      ["a1", "25"],
+      ["a2", "25"],
+    ]);
+    expect(harness.toolbar.hasUnsavedChanges).toBe(false);
   });
 });
