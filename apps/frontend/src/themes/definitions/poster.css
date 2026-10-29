@@ -29,7 +29,9 @@
   /* Segmented tracks and quiet fills: a deeper lilac. */
   --muted: #d4c8ff;
   --muted-foreground: #4a4a4a;
-  --accent: #eee8ff;
+  /* Hover and highlight fill (ghost buttons, menu items): a step darker than the page,
+     as Signature's is, so it shows on the lilac. */
+  --accent: #e0d7ff;
   --accent-foreground: #111111;
   /* Gains and losses darkened from the brief to reach 4.5:1 on the lilac page. */
   --destructive: #b92a25;
