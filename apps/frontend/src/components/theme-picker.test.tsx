@@ -90,6 +90,19 @@ describe("ThemePicker", () => {
     ).toEqual(themes.map(({ id }) => id));
   });
 
+  it("draws the themes designed for dark in dark when asked", () => {
+    const darkThemes = (container: HTMLElement) =>
+      [...container.querySelectorAll(".dark [data-theme-preview]")].map((preview) =>
+        preview.getAttribute("data-theme-preview"),
+      );
+    const { container, rerender } = render(<ThemePicker value="classic" onChange={vi.fn()} />);
+    expect(darkThemes(container)).toEqual([]);
+    rerender(<ThemePicker value="classic" onChange={vi.fn()} drawDesignedMode />);
+    expect(darkThemes(container)).toEqual(
+      themes.filter(({ mode }) => mode === "dark").map(({ id }) => id),
+    );
+  });
+
   it("draws each miniature in a font role, the theme's or the user's", () => {
     const { container } = render(
       <ThemePicker value="cupertino" font="font-serif" onChange={vi.fn()} />,

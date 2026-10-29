@@ -163,10 +163,22 @@ interface ThemePickerProps {
   font?: string;
   onChange: (value: string) => void;
   className?: string;
+  /**
+   * Draws a theme designed for dark in dark even while the page is light, so it shows
+   * at its best before a mode is chosen (onboarding). Otherwise each miniature is drawn
+   * in the current mode. Only dark: no theme is designed for light.
+   */
+  drawDesignedMode?: boolean;
 }
 
 /** The themes as radio cards, each with a miniature drawn in that theme. */
-export function ThemePicker({ value, font, onChange, className }: ThemePickerProps) {
+export function ThemePicker({
+  value,
+  font,
+  onChange,
+  className,
+  drawDesignedMode = false,
+}: ThemePickerProps) {
   const currentFont: FontRole = font && font in fontLabelKeys ? (font as FontRole) : "font-mono";
   const { t } = useTranslation();
   const name = useId();
@@ -203,7 +215,10 @@ export function ThemePicker({ value, font, onChange, className }: ThemePickerPro
                   selected ? "ring-primary ring-2" : "hover:ring-primary/40 hover:ring-2",
                 )}
               >
-                <ThemePreview theme={theme} font={currentFont} />
+                {/* The theme CSS draws a miniature in dark under a .dark ancestor. */}
+                <div className={drawDesignedMode && theme.mode === "dark" ? "dark" : undefined}>
+                  <ThemePreview theme={theme} font={currentFont} />
+                </div>
                 <span
                   className={cn(
                     "relative flex items-center justify-center gap-1.5 py-2 text-sm font-medium",

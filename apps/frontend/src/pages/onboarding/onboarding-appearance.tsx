@@ -1,15 +1,22 @@
-import { NavigationStyleSelector } from "@/components/navigation-style-selector";
-import { usePersistentState } from "@/hooks/use-persistent-state";
+import {
+  controlRowControlClassName,
+  FontRow,
+  GainColorsRow,
+  TextSizeRow,
+} from "@/components/appearance-rows";
+import { ThemeModeNote } from "@/components/theme-mode-note";
+import { ThemePicker } from "@/components/theme-picker";
+import { ThemeSelector } from "@/components/theme-selector";
 import { usePlatform } from "@/hooks/use-platform";
 import { useSettingsContext } from "@/lib/settings-provider";
 import { cn } from "@/lib/utils";
-import {
-  NAVIGATION_MODE_STORAGE_KEY,
-  type NavigationMode,
-} from "@/pages/layouts/navigation/navigation-mode-context";
+import { mayUseRedForGains } from "@/themes/gain-colors";
+import { themeSelectionUpdate } from "@/themes/selection";
+import { isThemeId, resolveThemeId, themes } from "@/themes/themes";
 import { Icons } from "@wealthfolio/ui";
-import { Card, CardContent } from "@wealthfolio/ui/components/ui/card";
-import { forwardRef, useEffect, useImperativeHandle, useMemo, useState } from "react";
+import { cardSurfaceClassName } from "@wealthfolio/ui/components/ui/card";
+import { ItemSeparator } from "@wealthfolio/ui/components/ui/item";
+import { forwardRef, useEffect, useId, useImperativeHandle } from "react";
 import { useTranslation } from "react-i18next";
 
 export interface OnboardingAppearanceHandle {
@@ -21,298 +28,104 @@ interface OnboardingAppearanceProps {
   onValidityChange: (isValid: boolean) => void;
 }
 
+/**
+ * The theme and how text and numbers look, from Settings → Appearance's own parts.
+ * Each choice is saved, and restyles the page, as it is made.
+ */
 export const OnboardingAppearance = forwardRef<
   OnboardingAppearanceHandle,
   OnboardingAppearanceProps
 >(({ onNext, onValidityChange }, ref) => {
   const { t } = useTranslation();
+  const headingId = useId();
   const { settings, updateSettings } = useSettingsContext();
-  const fonts = useMemo(
-    () => [
-      {
-        value: "font-mono",
-        label: t("onboarding:appearance.fonts.monoLabel"),
-        description: t("onboarding:appearance.fonts.monoDescription"),
-      },
-      {
-        value: "font-sans",
-        label: t("onboarding:appearance.fonts.sansLabel"),
-        description: t("onboarding:appearance.fonts.sansDescription"),
-      },
-      {
-        value: "font-serif",
-        label: t("onboarding:appearance.fonts.serifLabel"),
-        description: t("onboarding:appearance.fonts.serifDescription"),
-      },
-    ],
-    [t],
-  );
-  const [theme, setTheme] = useState<string>(settings?.theme ?? "system");
-  const [font, setFont] = useState<string>(settings?.font ?? "font-mono");
   const { isMobile } = usePlatform();
-  // Navigation style lives in localStorage (read by NavigationModeProvider on app
-  // load); it only applies on large screens, so the picker is desktop-only.
-  const [navMode, setNavMode] = usePersistentState<NavigationMode>(
-    NAVIGATION_MODE_STORAGE_KEY,
-    "sidebar",
-  );
+  const activeTheme = themes.find(({ id }) => id === resolveThemeId(settings?.themeId));
 
   useEffect(() => {
-    // Always valid since we have defaults
     onValidityChange(true);
   }, [onValidityChange]);
 
-  useImperativeHandle(ref, () => ({
-    submitForm() {
-      updateSettings({ theme, font })
-        .then(() => onNext())
-        .catch((error) => console.error("Failed to save appearance settings:", error));
-    },
-  }));
+  // Every choice is already saved, so continuing has nothing left to save.
+  useImperativeHandle(ref, () => ({ submitForm: onNext }));
 
-  // Apply theme/font preview when user selects them
-  const handleThemeChange = (newTheme: string) => {
-    setTheme(newTheme);
-    updateSettings({ theme: newTheme }).catch(console.error);
-  };
+  function save(data: Parameters<typeof updateSettings>[0]) {
+    updateSettings(data).catch((error) => {
+      console.error("Failed to save appearance settings:", error);
+    });
+  }
 
-  const handleFontChange = (newFont: string) => {
-    setFont(newFont);
-    updateSettings({ font: newFont }).catch(console.error);
-  };
+  // Picking a theme also applies the font it suggests; the mode stays the user's.
+  function selectTheme(themeId: string) {
+    if (isThemeId(themeId)) save(themeSelectionUpdate(themeId));
+  }
 
   return (
-    <div className="w-full max-w-2xl space-y-4">
-      <div className="text-center">
-        <p className="text-muted-foreground">{t("onboarding:appearance.subtitle")}</p>
+    <div className="w-full max-w-4xl space-y-4">
+      <p className="text-muted-foreground text-center">{t("onboarding:appearance.subtitle")}</p>
+
+      <section aria-labelledby={headingId} className="space-y-3">
+        {/* The mode sits beside the heading, as in Settings; on a phone it spans the
+            row under it. The row is the container the mode names check. */}
+        <div className="@container flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="bg-muted rounded-md p-1.5">
+              <Icons.Palette className="text-muted-foreground size-4" />
+            </div>
+            <h2 id={headingId} className="text-base font-semibold">
+              {t("settings:appearance_theme_title")}
+            </h2>
+          </div>
+          <ThemeSelector
+            aria-label={t("settings:appearance_mode_title")}
+            className={controlRowControlClassName}
+            value={settings?.theme}
+            testIdPrefix="theme"
+            onChange={(theme) => save({ theme })}
+          />
+        </div>
+        {/* A new user hasn't settled on a mode yet: show the themes designed for dark
+            at their best, and the note offers dark once one is picked. */}
+        <ThemePicker
+          value={settings?.themeId}
+          font={settings?.font}
+          onChange={selectTheme}
+          drawDesignedMode
+        />
+        <ThemeModeNote theme={activeTheme} onSwitch={(theme) => save({ theme })} />
+      </section>
+
+      <div className={cn(cardSurfaceClassName, "px-4 py-1")}>
+        <FontRow
+          value={settings?.font}
+          theme={activeTheme}
+          onChange={(font) => save({ font })}
+          onUseThemeDefaults={() => {
+            if (activeTheme) save(themeSelectionUpdate(activeTheme.id));
+          }}
+        />
+        {/* iOS and Android start from the system's text size. */}
+        {!isMobile && (
+          <>
+            <ItemSeparator />
+            <TextSizeRow value={settings?.textSize} onChange={(textSize) => save({ textSize })} />
+          </>
+        )}
+        {/* Asked only where red may mean up, from the previous step's choices. */}
+        {mayUseRedForGains(settings) && (
+          <>
+            <ItemSeparator />
+            <GainColorsRow
+              value={settings?.gainColors}
+              onChange={(gainColors) => save({ gainColors })}
+            />
+          </>
+        )}
       </div>
 
-      <Card className="border-none bg-transparent shadow-none">
-        <CardContent className="space-y-3 p-0 sm:p-4">
-          {/* Theme Selection */}
-          <div>
-            <div className="mb-3 flex items-center gap-2.5">
-              <div className="bg-muted rounded-md p-1.5">
-                <Icons.Palette className="text-muted-foreground size-4" />
-              </div>
-              <span className="text-base font-semibold">
-                {t("onboarding:appearance.themeLabel")}
-              </span>
-            </div>
-
-            <div className="grid grid-cols-3 gap-3 sm:gap-4">
-              {/* Light Theme */}
-              <button
-                type="button"
-                data-testid="theme-light-button"
-                onClick={() => handleThemeChange("light")}
-                className={cn(
-                  "group relative overflow-hidden rounded-xl border-2 transition-all duration-200",
-                  theme === "light"
-                    ? "border-primary ring-primary/20 ring-2"
-                    : "border-border hover:border-primary/50",
-                )}
-              >
-                <div className="h-20 overflow-hidden rounded-t-lg sm:h-24">
-                  <img
-                    src="/themes/theme-light.webp"
-                    srcSet="/themes/theme-light.webp 1x, /themes/theme-light@2x.webp 2x"
-                    alt={t("onboarding:appearance.themeLightPreviewAlt")}
-                    className="h-full w-full object-cover object-top"
-                  />
-                </div>
-                <div
-                  className={cn(
-                    "flex items-center justify-center gap-2 py-2.5",
-                    theme === "light" ? "bg-primary/10" : "bg-muted/50",
-                  )}
-                >
-                  <Icons.Sun
-                    className={cn(
-                      "h-4 w-4",
-                      theme === "light" ? "text-primary" : "text-muted-foreground",
-                    )}
-                  />
-                  <span className="text-sm font-medium">
-                    {t("onboarding:appearance.themeLight")}
-                  </span>
-                </div>
-                {theme === "light" && (
-                  <div className="bg-primary absolute end-2 top-2 rounded-full p-0.5">
-                    <Icons.Check className="h-3 w-3 text-white" />
-                  </div>
-                )}
-              </button>
-
-              {/* Dark Theme */}
-              <button
-                type="button"
-                onClick={() => handleThemeChange("dark")}
-                className={cn(
-                  "group relative overflow-hidden rounded-xl border-2 transition-all duration-200",
-                  theme === "dark"
-                    ? "border-primary ring-primary/20 ring-2"
-                    : "border-border hover:border-primary/50",
-                )}
-              >
-                <div className="h-20 overflow-hidden rounded-t-lg sm:h-24">
-                  <img
-                    src="/themes/theme-dark.webp"
-                    srcSet="/themes/theme-dark.webp 1x, /themes/theme-dark@2x.webp 2x"
-                    alt={t("onboarding:appearance.themeDarkPreviewAlt")}
-                    className="h-full w-full object-cover object-top"
-                  />
-                </div>
-                <div
-                  className={cn(
-                    "flex items-center justify-center gap-2 py-2.5",
-                    theme === "dark" ? "bg-primary/10" : "bg-muted/50",
-                  )}
-                >
-                  <Icons.Moon
-                    className={cn(
-                      "h-4 w-4",
-                      theme === "dark" ? "text-primary" : "text-muted-foreground",
-                    )}
-                  />
-                  <span className="text-sm font-medium">
-                    {t("onboarding:appearance.themeDark")}
-                  </span>
-                </div>
-                {theme === "dark" && (
-                  <div className="bg-primary absolute end-2 top-2 rounded-full p-0.5">
-                    <Icons.Check className="h-3 w-3 text-white" />
-                  </div>
-                )}
-              </button>
-
-              {/* System Theme */}
-              <button
-                type="button"
-                onClick={() => handleThemeChange("system")}
-                className={cn(
-                  "group relative overflow-hidden rounded-xl border-2 transition-all duration-200",
-                  theme === "system"
-                    ? "border-primary ring-primary/20 ring-2"
-                    : "border-border hover:border-primary/50",
-                )}
-              >
-                <div className="h-20 overflow-hidden rounded-t-lg sm:h-24">
-                  <img
-                    src="/themes/theme-system.webp"
-                    srcSet="/themes/theme-system.webp 1x, /themes/theme-system@2x.webp 2x"
-                    alt={t("onboarding:appearance.themeSystemPreviewAlt")}
-                    className="h-full w-full object-cover object-top"
-                  />
-                </div>
-                <div
-                  className={cn(
-                    "flex items-center justify-center gap-2 py-2.5",
-                    theme === "system" ? "bg-primary/10" : "bg-muted/50",
-                  )}
-                >
-                  <Icons.Monitor
-                    className={cn(
-                      "h-4 w-4",
-                      theme === "system" ? "text-primary" : "text-muted-foreground",
-                    )}
-                  />
-                  <span className="text-sm font-medium">
-                    {t("onboarding:appearance.themeSystem")}
-                  </span>
-                </div>
-                {theme === "system" && (
-                  <div className="bg-primary absolute end-2 top-2 rounded-full p-0.5">
-                    <Icons.Check className="h-3 w-3 text-white" />
-                  </div>
-                )}
-              </button>
-            </div>
-          </div>
-
-          {/* Font Selection */}
-          <div>
-            <div className="mb-3 flex items-center gap-2.5">
-              <div className="bg-muted rounded-md p-1.5">
-                <Icons.Type className="text-muted-foreground size-4" />
-              </div>
-              <span className="text-base font-semibold">
-                {t("onboarding:appearance.fontLabel")}
-              </span>
-            </div>
-
-            <div className="grid grid-cols-3 gap-3 sm:gap-4">
-              {fonts.map((f) => (
-                <button
-                  key={f.value}
-                  type="button"
-                  onClick={() => handleFontChange(f.value)}
-                  className={cn(
-                    "group relative flex flex-col overflow-hidden rounded-xl border-2 transition-all duration-200",
-                    font === f.value
-                      ? "border-primary ring-primary/20 ring-2"
-                      : "border-border hover:border-primary/50",
-                    f.value,
-                  )}
-                >
-                  {/* Font preview area */}
-                  <div className="bg-muted/30 flex flex-1 flex-col items-center justify-center px-3 py-3 text-center">
-                    <div className="w-full space-y-1.5">
-                      {/* Font name as hero */}
-                      <div className="text-lg font-medium tracking-tight sm:text-xl">{f.label}</div>
-                      {/* Sample text paragraph */}
-                      <div className="text-muted-foreground text-2xs leading-snug sm:text-xs">
-                        {t("onboarding:appearance.fontSample")}
-                      </div>
-                      {/* Secondary: numbers sample */}
-                      <div className="text-muted-foreground/60 text-2xs whitespace-nowrap sm:text-xs">
-                        12345 · $1,234
-                      </div>
-                    </div>
-                  </div>
-                  {/* Label area */}
-                  <div
-                    className={cn(
-                      "flex min-h-10 w-full items-center justify-center px-3 py-2.5 text-center",
-                      font === f.value ? "bg-primary/10" : "bg-muted/50",
-                    )}
-                  >
-                    <div className="text-muted-foreground text-xs leading-tight">
-                      {f.description}
-                    </div>
-                  </div>
-                  {font === f.value && (
-                    <div className="bg-primary absolute end-2 top-2 rounded-full p-0.5">
-                      <Icons.Check className="h-3 w-3 text-white" />
-                    </div>
-                  )}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Navigation Style — desktop only (mobile always uses the mobile nav) */}
-          {!isMobile && (
-            <div>
-              <div className="mb-3 flex items-center gap-2.5">
-                <div className="bg-muted rounded-md p-1.5">
-                  <Icons.PanelLeft className="text-muted-foreground size-4" />
-                </div>
-                <span className="text-base font-semibold">
-                  {t("onboarding:appearance.navigationLabel")}
-                </span>
-              </div>
-
-              <NavigationStyleSelector
-                value={navMode}
-                onChange={setNavMode}
-                className="grid-cols-3 gap-3 sm:gap-4"
-                compact
-              />
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      <p className="text-muted-foreground text-center text-xs">
+        {t("onboarding:appearance.changeLater")}
+      </p>
     </div>
   );
 });

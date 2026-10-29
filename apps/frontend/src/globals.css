@@ -921,11 +921,19 @@ body.qr-scan-active > .qr-overlay {
   /* The theme picker keeps its own overflow: clipping its grid would cut off each
      card's selected ring and focus outline at the edges, and the miniatures' rows,
      made scroll containers, would each become a Tab stop. revert-layer restores the
-     utilities' value. */
+     utilities' value. Onboarding's page must not be a scroll container of its own,
+     or its footer has nothing to stick to. */
   .theme-picker,
-  .theme-picker :is(.flex, .grid) {
+  .theme-picker :is(.flex, .grid),
+  .onboarding-page {
     overflow-x: revert-layer;
   }
+}
+
+/* Onboarding's footer sticks to the bottom of the view the page scrolls in: keep a
+   control that takes focus clear of it. */
+:has(> .onboarding-page) {
+  scroll-padding-bottom: 8rem;
 }
 
 number-flow-react::part(left),

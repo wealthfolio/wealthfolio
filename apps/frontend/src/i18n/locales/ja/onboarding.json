@@ -59,24 +59,7 @@
   },
   "appearance": {
     "subtitle": "表示をカスタマイズ",
-    "themeLabel": "テーマ",
-    "fontLabel": "フォント",
-    "themeLight": "ライト",
-    "themeDark": "ダーク",
-    "themeSystem": "システム",
-    "themeLightPreviewAlt": "ライトテーマのプレビュー",
-    "themeDarkPreviewAlt": "ダークテーマのプレビュー",
-    "themeSystemPreviewAlt": "システムテーマのプレビュー",
-    "fontSample": "明快な投資を。",
-    "fonts": {
-      "monoLabel": "等幅",
-      "monoDescription": "技術的で正確",
-      "sansLabel": "ゴシック",
-      "sansDescription": "すっきりとモダン",
-      "serifLabel": "明朝",
-      "serifDescription": "上品でクラシック"
-    },
-    "navigationLabel": "ナビゲーション"
+    "changeLater": "設定からいつでも変更できます。"
   },
   "connect": {
     "optional": "任意",
