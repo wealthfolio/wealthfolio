@@ -11,6 +11,7 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
   Icons,
+  getCurrencyDisplayLabel,
   quoteCurrencies,
   quoteUnitCurrencies,
   worldCurrencies,
@@ -47,7 +48,9 @@ export function ImportToolbar({
   onSetAccount,
   onClearSelection,
 }: ImportToolbarProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const currencyLabel = (currency: (typeof quoteCurrencies)[number]) =>
+    getCurrencyDisplayLabel(currency, i18n.resolvedLanguage ?? i18n.language, t);
   const { accounts } = useAccounts({ filterActive: true, includeArchived: false });
   const [currencySearch, setCurrencySearch] = useState("");
 
@@ -61,7 +64,8 @@ export function ImportToolbar({
     ? quoteCurrencies.filter(
         (c) =>
           c.value.toLowerCase().includes(currencySearch.toLowerCase()) ||
-          c.label.toLowerCase().includes(currencySearch.toLowerCase()),
+          c.label.toLowerCase().includes(currencySearch.toLowerCase()) ||
+          currencyLabel(c).toLowerCase().includes(currencySearch.toLowerCase()),
       )
     : worldCurrencies;
 
@@ -184,7 +188,7 @@ export function ImportToolbar({
                   >
                     <span className="font-mono">{currency.value}</span>
                     <span className="text-muted-foreground ms-2 truncate text-xs">
-                      {currency.label.replace(` (${currency.value})`, "")}
+                      {currencyLabel(currency).replace(` (${currency.value})`, "")}
                     </span>
                   </DropdownMenuItem>
                 ))}
@@ -206,7 +210,7 @@ export function ImportToolbar({
                 >
                   <span className="font-mono">{currency.value}</span>
                   <span className="text-muted-foreground ms-2 truncate text-xs">
-                    {currency.label.replace(` (${currency.value})`, "")}
+                    {currencyLabel(currency).replace(` (${currency.value})`, "")}
                   </span>
                 </DropdownMenuItem>
               ))}
