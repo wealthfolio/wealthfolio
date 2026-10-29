@@ -126,7 +126,12 @@ export function TaxForm({
   const accountCurrency = selectedAccount?.currency;
 
   const handleSubmit = createValidatedSubmit(form, async (data) => {
-    await onSubmit(data);
+    // An untouched numeric default may be less precise than the stored decimal.
+    // Currency changes explicitly mark rate resets dirty in useActivityCurrency.
+    await onSubmit({
+      ...data,
+      fxRate: isEditing && !form.getFieldState("fxRate").isDirty ? undefined : data.fxRate,
+    });
   });
 
   return (
