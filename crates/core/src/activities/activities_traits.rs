@@ -247,10 +247,11 @@ pub trait ActivityRepositoryTrait: Send + Sync {
         updates: Vec<ActivityUpdate>,
         delete_ids: Vec<String>,
     ) -> Result<ActivityBulkMutationResult>;
-    /// Applies `creates` and `updates`, then links `activity_id` with
-    /// `counterpart_id` (the first created activity when `None`), in one
-    /// transaction: a failed link leaves none of the writes behind. Returns
-    /// `(transfer_in, transfer_out)` like `link_transfer_activities`.
+    /// Applies `creates` and `updates`, drops the spending and income
+    /// categories of both legs, then links `activity_id` with `counterpart_id`
+    /// (the first created activity when `None`), in one transaction: a failed
+    /// link leaves none of the writes behind. Returns `(transfer_in,
+    /// transfer_out)` like `link_transfer_activities`.
     async fn mutate_and_link_transfer(
         &self,
         _creates: Vec<NewActivity>,

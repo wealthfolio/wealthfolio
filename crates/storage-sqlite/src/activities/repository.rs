@@ -453,6 +453,40 @@ fn clear_spending_splits_for_activity_tx(
     Ok(())
 }
 
+/// A linked transfer is neither spending nor income, so its legs drop those
+/// categories. Savings categories stay: they label a transfer out of Spending.
+fn clear_cash_flow_categories_tx(
+    tx: &mut crate::db::write_actor::DbWriteTx<'_>,
+    activity_id: &str,
+) -> Result<()> {
+    const TAXONOMIES: [&str; 2] = ["spending_categories", "income_sources"];
+    let existing_ids = activity_taxonomy_assignments::table
+        .filter(activity_taxonomy_assignments::activity_id.eq(activity_id))
+        .filter(activity_taxonomy_assignments::taxonomy_id.eq_any(TAXONOMIES))
+        .select(activity_taxonomy_assignments::id)
+        .load::<String>(tx.conn())
+        .map_err(StorageError::from)?;
+    if existing_ids.is_empty() {
+        return Ok(());
+    }
+
+    let should_sync = should_sync_activity_local_id_outbox(tx.conn(), activity_id)?;
+    diesel::delete(
+        activity_taxonomy_assignments::table
+            .filter(activity_taxonomy_assignments::id.eq_any(&existing_ids)),
+    )
+    .execute(tx.conn())
+    .map_err(StorageError::from)?;
+
+    if should_sync {
+        for id in existing_ids {
+            tx.delete::<ActivityTaxonomyAssignmentDB>(id);
+        }
+    }
+
+    Ok(())
+}
+
 fn preserve_source_classification(
     activity: &mut ActivityDB,
     existing_activity_type: &str,
@@ -1621,6 +1655,8 @@ impl ActivityRepositoryTrait for ActivityRepository {
                             ))
                         })?,
                 };
+                clear_cash_flow_categories_tx(tx, &activity_id)?;
+                clear_cash_flow_categories_tx(tx, &counterpart_id)?;
                 link_transfer_activities_tx(tx, &activity_id, &counterpart_id)
             })
             .await
@@ -6307,6 +6343,44 @@ mod tests {
             in_acc_c, 0,
             "the new leg must roll back with the failed link"
         );
+    }
+
+    #[tokio::test]
+    async fn mutate_and_link_transfer_drops_spending_and_income_categories_only() {
+        let (pool, writer, _dir) = setup_db();
+        let repo = ActivityRepository::new(pool.clone(), writer);
+        let mut conn = get_connection(&pool).expect("conn");
+
+        insert_account(&mut conn, "acc-a");
+        insert_account(&mut conn, "acc-b");
+        insert_transfer_activity(&mut conn, "out", "acc-a", "TRANSFER_OUT", None, None);
+        insert_transfer_activity(&mut conn, "in", "acc-b", "TRANSFER_IN", None, None);
+        for (id, activity_id, taxonomy_id, category_id) in [
+            ("spending", "out", "spending_categories", "cat_food"),
+            ("savings", "out", "savings_categories", "cat_savings"),
+            ("income", "in", "income_sources", "cat_income_employment"),
+        ] {
+            diesel::sql_query(format!(
+                "INSERT INTO activity_taxonomy_assignments (id,activity_id,taxonomy_id,category_id,weight,source,created_at,updated_at) VALUES ('{id}','{activity_id}','{taxonomy_id}','{category_id}',10000,'manual','2026-01-01','2026-01-01')"
+            ))
+            .execute(&mut conn)
+            .expect("assignment");
+        }
+
+        repo.mutate_and_link_transfer(
+            Vec::new(),
+            Vec::new(),
+            "out".to_string(),
+            Some("in".to_string()),
+        )
+        .await
+        .expect("link");
+
+        let remaining: Vec<String> = activity_taxonomy_assignments::table
+            .select(activity_taxonomy_assignments::id)
+            .load(&mut conn)
+            .expect("assignments");
+        assert_eq!(remaining, vec!["savings".to_string()]);
     }
 
     #[tokio::test]

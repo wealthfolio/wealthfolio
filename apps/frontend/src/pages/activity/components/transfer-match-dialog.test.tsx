@@ -2,10 +2,6 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { convertToInternalTransfer, findTransferMatchCandidates } from "@/adapters";
-import {
-  getActivityAssignments,
-  unassignActivityCategory,
-} from "@/features/spending/adapters/cash-activities";
 import { ActivityStatus } from "@/lib/constants";
 import type { Account, Activity } from "@/lib/types";
 import { fireEvent, render, screen, waitFor, within } from "@/test/render";
@@ -17,10 +13,6 @@ vi.mock("@/adapters", () => ({
   getTransferPairForActivity: vi.fn(),
   searchActivities: vi.fn(),
   logger: { warn: vi.fn() },
-}));
-vi.mock("@/features/spending/adapters/cash-activities", () => ({
-  getActivityAssignments: vi.fn(),
-  unassignActivityCategory: vi.fn(),
 }));
 vi.mock("../hooks/use-activity-mutations", () => ({
   useActivityMutations: () => ({
@@ -129,19 +121,9 @@ describe("converting a deposit or withdrawal into a transfer", () => {
 
   beforeEach(() => {
     vi.mocked(convertToInternalTransfer).mockReset();
-    vi.mocked(unassignActivityCategory).mockReset();
-    vi.mocked(getActivityAssignments).mockImplementation(
-      async (activityId) =>
-        [
-          {
-            taxonomyId:
-              activityId === "synthetic-withdrawal" ? "spending_categories" : "income_sources",
-          },
-        ] as Awaited<ReturnType<typeof getActivityAssignments>>,
-    );
   });
 
-  it("pairs the withdrawal with the chosen deposit and drops both categories", async () => {
+  it("pairs the withdrawal with the chosen deposit", async () => {
     vi.mocked(findTransferMatchCandidates).mockResolvedValue([
       {
         activity: deposit,
@@ -172,11 +154,6 @@ describe("converting a deposit or withdrawal into a transfer", () => {
       activityId: "synthetic-withdrawal",
       counterpartActivityId: "synthetic-deposit",
     });
-    expect(unassignActivityCategory).toHaveBeenCalledWith(
-      "synthetic-withdrawal",
-      "spending_categories",
-    );
-    expect(unassignActivityCategory).toHaveBeenCalledWith("synthetic-deposit", "income_sources");
   });
 
   it("asks for an account when no matching activity exists", async () => {
