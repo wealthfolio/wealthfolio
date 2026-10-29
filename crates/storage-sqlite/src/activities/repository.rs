@@ -49,6 +49,7 @@ use async_trait::async_trait;
 use diesel::dsl::{max, min, sql};
 use num_traits::Zero;
 use sha2::{Digest, Sha256};
+use wealthfolio_spending::cash_activities::model::CashFlowBucket;
 
 /// Repository for managing activity data in the database
 pub struct ActivityRepository {
@@ -459,10 +460,13 @@ fn clear_cash_flow_categories_tx(
     tx: &mut crate::db::write_actor::DbWriteTx<'_>,
     activity_id: &str,
 ) -> Result<()> {
-    const TAXONOMIES: [&str; 2] = ["spending_categories", "income_sources"];
+    let taxonomies: Vec<&str> = [CashFlowBucket::Spending, CashFlowBucket::Income]
+        .into_iter()
+        .filter_map(CashFlowBucket::taxonomy_id)
+        .collect();
     let existing_ids = activity_taxonomy_assignments::table
         .filter(activity_taxonomy_assignments::activity_id.eq(activity_id))
-        .filter(activity_taxonomy_assignments::taxonomy_id.eq_any(TAXONOMIES))
+        .filter(activity_taxonomy_assignments::taxonomy_id.eq_any(taxonomies))
         .select(activity_taxonomy_assignments::id)
         .load::<String>(tx.conn())
         .map_err(StorageError::from)?;
