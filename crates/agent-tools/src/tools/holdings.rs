@@ -184,7 +184,7 @@ impl AgentTool for GetHoldings {
     }
 
     fn description(&self) -> &'static str {
-        "Get portfolio holdings for an account or all accounts. Returns symbol, quantity, market value, cost basis, and gain/loss for each holding. Gain/loss amounts and percentages are expressed in the portfolio base currency and include FX effects. Excludes cash, so totalValue is securities only; use get_cash_balances for cash. Omit accountId for aggregate holdings across all accounts. Use viewMode to control display: 'treemap' for visual composition chart with daily performance, 'table' for detailed list, or 'both' to show both views."
+        "Get portfolio holdings for an account or all accounts. Returns symbol, quantity, market value, cost basis, and gain/loss for each holding. Gain/loss amounts and percentages are expressed in the portfolio base currency and include FX effects. Excludes cash, so totalValue covers securities and alternative assets; use get_cash_balances for cash. Omit accountId for aggregate holdings across all accounts. Use viewMode to control display: 'treemap' for visual composition chart with daily performance, 'table' for detailed list, or 'both' to show both views."
     }
 
     fn input_schema(&self) -> serde_json::Value {

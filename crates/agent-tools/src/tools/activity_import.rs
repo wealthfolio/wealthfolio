@@ -654,7 +654,7 @@ fn activity_row_schema() -> serde_json::Value {
             "fee": { "type": "number" },
             "tax": { "type": "number", "description": "Tax withheld, such as dividend withholding tax." },
             "fxRate": { "type": "number", "description": "Rate from the statement converting the activity currency into the account currency. Omit to use the market rate." },
-            "subtype": { "type": "string", "description": "Variation of the activity type, e.g. DRIP or STAKING_REWARD for DIVIDEND." },
+            "subtype": { "type": "string", "description": "Variation of the activity type, e.g. DRIP for DIVIDEND or STAKING_REWARD for INTEREST." },
             "accountId": { "type": "string" },
             "comment": { "type": "string" },
             "lineNumber": { "type": "integer", "description": "1-based source row, for duplicate messages." },
