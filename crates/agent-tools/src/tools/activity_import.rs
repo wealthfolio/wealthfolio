@@ -13,6 +13,8 @@
 
 use std::sync::Arc;
 
+use rust_decimal::prelude::FromPrimitive;
+use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use wealthfolio_core::activities::{ActivityImport, ImportActivitiesSummary};
@@ -258,10 +260,10 @@ fn to_import_rows(rows: &[ActivityImportRow]) -> Result<Vec<ActivityImport>, Age
         .enumerate()
         .map(|(index, row)| {
             // Core stores the rate as given and checks it only for transfer pairs.
-            if row
-                .fx_rate
-                .is_some_and(|rate| !rate.is_finite() || rate <= 0.0)
-            {
+            // A rate Decimal cannot hold would fail deserialization with its value.
+            if row.fx_rate.is_some_and(|rate| {
+                Decimal::from_f64(rate).is_none_or(|rate| rate <= Decimal::ZERO)
+            }) {
                 return Err(AgentToolError::InvalidInput(format!(
                     "Row {}: fxRate must be a positive number.",
                     index + 1
@@ -667,7 +669,6 @@ fn activity_row_schema() -> serde_json::Value {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rust_decimal::Decimal;
 
     fn row(force: bool) -> ActivityImportRow {
         ActivityImportRow {
@@ -725,13 +726,14 @@ mod tests {
         assert_eq!(mapped[0].tax, Some(Decimal::new(15, 1)));
         assert_eq!(mapped[0].fx_rate, Some(Decimal::new(135, 2)));
 
-        for rate in [0.0, -1.2] {
+        for rate in [0.0, -1.2, 9.87e30, 1e-30] {
             let mut input = row(false);
             input.fx_rate = Some(rate);
             let error = to_import_rows(&[input]).unwrap_err();
             assert!(matches!(error, AgentToolError::InvalidInput(_)));
             // The error reaches the audit log, which keeps no row values.
             assert!(!error.to_string().contains("1.2"), "{error}");
+            assert!(!error.to_string().contains("9.87"), "{error}");
         }
     }
 
