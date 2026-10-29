@@ -47,6 +47,9 @@ beforeAll(async () => {
 // Korean warrants: https://open.krx.co.kr/contents/OPN/01/01030401/OPN01030401.jsp
 // Spanish warrants/rights: https://www.cnmv.es/portal/gPage?id=SolISIN&lang=es
 // Brazilian Portuguese warrants: https://www.b3.com.br/pt_br/produtos-e-servicos/negociacao/renda-variavel/bonus-de-subscricao.htm
+// Fiat backing: https://www.dnb.nl/en/payments/cryptos-and-supervision-what-you-need-to-know/what-is-a-stablecoin/
+// Power: https://www.cre.fr/electricite/marche-de-gros-de-lelectricite/presentation.html
+// Secondaries: https://www.blackrock.com/institutions/en-us/investment-capabilities/strategies/secondaries
 describe("financial taxonomy terminology", () => {
   it.each([
     [
@@ -95,6 +98,22 @@ describe("financial taxonomy terminology", () => {
       "EQUITY_WARRANT_RIGHT",
       "Warrant / Right",
       "Bônus de subscrição / Direito de subscrição",
+    ],
+    ["ar", "asset_classes", "DA_STABLECOIN_FIAT", "Fiat-Backed", "مدعومة بالعملات الورقية"],
+    ["it", "asset_classes", "DA_STABLECOIN_FIAT", "Fiat-Backed", "Garantite da valuta fiat"],
+    ["pt", "asset_classes", "DA_STABLECOIN_FIAT", "Fiat-Backed", "Lastreadas em moeda fiduciária"],
+    ["fr", "asset_classes", "COMM_ENERGY_POWER", "Power", "Électricité"],
+    ["es", "asset_classes", "COMM_ENERGY_POWER", "Power", "Electricidad"],
+    ["pt", "asset_classes", "COMM_ENERGY_POWER", "Power", "Eletricidade"],
+    ["ar", "asset_classes", "COMM_ENERGY_POWER", "Power", "الكهرباء"],
+    ["ja", "asset_classes", "COMM_ENERGY_POWER", "Power", "電力"],
+    ["ko", "asset_classes", "COMM_ENERGY_POWER", "Power", "전력"],
+    [
+      "ar",
+      "asset_classes",
+      "EQUITY_PRIVATE_SECONDARIES",
+      "Secondaries",
+      "استثمارات السوق الثانوية",
     ],
   ] as const)(
     "uses the financial meaning in %s for %s/%s",

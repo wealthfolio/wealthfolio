@@ -119,7 +119,7 @@
       "COMM_ENERGY_CRUDE_OIL": "Petróleo bruto",
       "COMM_ENERGY_NATURAL_GAS": "Gás natural",
       "COMM_ENERGY_REFINED": "Produtos Refinados",
-      "COMM_ENERGY_POWER": "Poder",
+      "COMM_ENERGY_POWER": "Eletricidade",
       "COMM_INDUSTRIAL_COPPER": "Cobre",
       "COMM_INDUSTRIAL_ALUMINUM": "Alumínio",
       "COMM_INDUSTRIAL_NICKEL": "Níquel",
@@ -145,7 +145,7 @@
       "DA_CRYPTO_PAYMENTS": "Pagamentos/reserva de valor",
       "DA_CRYPTO_LAYER1": "Camada 1",
       "DA_CRYPTO_LAYER2": "Camada 2",
-      "DA_STABLECOIN_FIAT": "Apoiado pela Fiat",
+      "DA_STABLECOIN_FIAT": "Lastreadas em moeda fiduciária",
       "DA_STABLECOIN_CRYPTO": "Apoiado em criptografia",
       "DA_STABLECOIN_ALGO": "Algorítmico"
     },

@@ -145,7 +145,7 @@
       "DA_CRYPTO_PAYMENTS": "Pagamenti/Riserva di valore",
       "DA_CRYPTO_LAYER1": "Strato 1",
       "DA_CRYPTO_LAYER2": "Strato 2",
-      "DA_STABLECOIN_FIAT": "Sostenuto dalla Fiat",
+      "DA_STABLECOIN_FIAT": "Garantite da valuta fiat",
       "DA_STABLECOIN_CRYPTO": "Supportato da criptovaluta",
       "DA_STABLECOIN_ALGO": "Algoritmico"
     },
