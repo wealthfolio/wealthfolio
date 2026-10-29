@@ -516,6 +516,22 @@ describe("MarketDataSettingsPage", () => {
     });
   });
 
+  it("locks the order and switches while another provider save is pending", () => {
+    setProviders(yahoo, treasury);
+    hookMocks.useUpdateMarketDataProviderSettings.mockReturnValue({
+      mutate,
+      mutateAsync,
+      isPending: true,
+    });
+    renderPage();
+
+    // A provider just switched on is still saving; a move now could race it.
+    expect(
+      screen.getByRole("button", { name: "Move US Treasury (Calculated) up" }),
+    ).toHaveAttribute("data-disabled");
+    expect(screen.getByRole("switch", { name: "Yahoo Finance" })).toHaveAttribute("data-disabled");
+  });
+
   it("clears the catalog search after adding a provider", async () => {
     setProviders(yahoo, marketDataProvider(), amfi);
     const user = userEvent.setup();

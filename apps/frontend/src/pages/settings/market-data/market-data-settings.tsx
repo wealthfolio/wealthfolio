@@ -749,8 +749,11 @@ export default function MarketDataSettingsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const { data: providers, isLoading, error } = useMarketDataProviderSettings();
-  const { mutate: updateSettings, mutateAsync: updateSettingsAsync } =
-    useUpdateMarketDataProviderSettings();
+  const {
+    mutate: updateSettings,
+    mutateAsync: updateSettingsAsync,
+    isPending: isSavingProvider,
+  } = useUpdateMarketDataProviderSettings();
   const { mutate: updatePortfolio, isPending: isUpdating } = useUpdatePortfolioMutation();
   const { mutate: recalculatePortfolio, isPending: isRecalculating } =
     useRecalculatePortfolioMutation();
@@ -776,7 +779,8 @@ export default function MarketDataSettingsPage() {
   const [expandProviderId, setExpandProviderId] = useState<string>();
   // Providers switched off on this visit stay listed, dimmed, so the switch can be flipped back.
   const [switchedOffIds, setSwitchedOffIds] = useState<string[]>([]);
-  // Like the custom provider switch while it saves, the order and switches wait for a move.
+  // Like the custom provider switch while it saves, the order and switches wait for a move
+  // or any other provider save: a move must not race a provider being switched on.
   const [moving, setMoving] = useState(false);
   const [customFormOpen, setCustomFormOpen] = useState(false);
   const [editingProvider, setEditingProvider] = useState<CustomProviderWithSources | undefined>();
@@ -1106,7 +1110,7 @@ export default function MarketDataSettingsPage() {
                       canMoveDown={provider.enabled && index < activeProviders.length - 1}
                       onMove={(step) => void handleMove(index, step)}
                       onEnabledChange={(enabled) => handleEnabledChange(provider.id, enabled)}
-                      locked={moving}
+                      locked={moving || isSavingProvider}
                       defaultOpen={provider.id === expandProviderId}
                     />
                   </li>
