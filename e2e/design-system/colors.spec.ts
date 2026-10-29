@@ -461,3 +461,31 @@ for (const theme of themes) {
     });
   }
 }
+
+// Spending up or down is a status, so its change line keeps success and destructive in
+// every Gain and loss colours option, though it draws with GainAmount and GainPercent.
+for (const gainColors of gainColorOptions) {
+  test(`spending change line keeps status colours, ${gainColors}`, async ({ page }) => {
+    await openGallery(page, { gainColors });
+    const colours = await page.evaluate(() => {
+      const probe = document.createElement("span");
+      document.body.append(probe);
+      const resolve = (value: string) => {
+        probe.style.color = value;
+        return getComputedStyle(probe).color;
+      };
+      const success = resolve("var(--success)");
+      const destructive = resolve("var(--destructive)");
+      probe.remove();
+      const parts = (direction: string) =>
+        [
+          ...document.querySelectorAll(
+            `[data-testid="spending-change-${direction}"] :is(.text-gain, .text-loss)`,
+          ),
+        ].map((element) => getComputedStyle(element).color);
+      return { success, destructive, up: parts("up"), down: parts("down") };
+    });
+    expect(colours.up).toEqual([colours.destructive, colours.destructive]);
+    expect(colours.down).toEqual([colours.success, colours.success]);
+  });
+}

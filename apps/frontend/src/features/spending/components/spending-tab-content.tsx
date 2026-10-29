@@ -86,6 +86,7 @@ import { BudgetLineChartCard } from "./budget-line-chart-card";
 import { CashFlowStrip } from "./cash-flow-strip";
 import { EventsCard } from "./events-card";
 import { RecentActivityCard } from "./recent-activity-card";
+import { SpendingDeltaLine } from "./spending-delta-line";
 import { SpendingPeriodSelector } from "./spending-period-toggle";
 
 const FUTURE_BAR = "var(--muted)";
@@ -958,7 +959,7 @@ export default function SpendingTabContent() {
               />
               <PrivacyToggle variant="ghost" />
             </div>
-            <div className="text-md flex items-center">
+            <div className="text-md flex min-h-5 flex-wrap items-center gap-x-3">
               {isPriorLoading ? (
                 <Skeleton className="mt-1 h-4 w-56" />
               ) : priorSpending > 0 ? (
@@ -1945,43 +1946,4 @@ function truncateForBox(text: string, boxWidth: number, fontSize: number): strin
   const charW = fontSize * 0.62;
   const max = Math.max(2, Math.floor(boxWidth / charW));
   return text.length > max ? text.slice(0, Math.max(1, max - 1)) + "…" : text;
-}
-
-function SpendingDeltaLine({
-  delta,
-  currency,
-  deltaPct,
-}: {
-  delta: number;
-  currency: string;
-  deltaPct: number | null;
-}) {
-  const { t } = useTranslation();
-  const numberFormatting = useNumberFormatting();
-  const isFlat = Math.abs(delta) < 1;
-  const direction = delta < 0 ? t("spending:tabContent.down") : t("spending:tabContent.up");
-  const tone = isFlat ? "text-muted-foreground" : delta < 0 ? "text-success" : "text-destructive";
-
-  if (isFlat) {
-    return (
-      <span className="text-muted-foreground lg:text-md text-sm font-light">
-        {t("spending:tabContent.aboutSame")}
-      </span>
-    );
-  }
-
-  const pctSuffix =
-    deltaPct !== null
-      ? ` (${numberFormatting.formatPercent(Math.abs(deltaPct), { digits: 1 })})`
-      : "";
-
-  return (
-    <span className="lg:text-md text-sm font-light">
-      <span className={cn("font-medium", tone)}>
-        {direction} <PrivacyAmount value={Math.abs(delta)} currency={currency} />
-        {pctSuffix}
-      </span>{" "}
-      <span className="text-muted-foreground">{t("spending:tabContent.fromPriorPeriod")}</span>
-    </span>
-  );
 }

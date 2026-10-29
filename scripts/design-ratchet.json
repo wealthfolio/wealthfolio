@@ -92,7 +92,6 @@
     "apps/frontend/src/features/spending/components/reports/insights/what-changed-stage.tsx": 6,
     "apps/frontend/src/features/spending/components/reports/insights/where-i-am-stage.tsx": 8,
     "apps/frontend/src/features/spending/components/reports/period-comparison-card.tsx": 2,
-    "apps/frontend/src/features/spending/components/spending-tab-content.tsx": 2,
     "apps/frontend/src/features/spending/components/split-transaction-sheet.tsx": 2,
     "apps/frontend/src/features/spending/components/transactions-filter-bar.tsx": 4,
     "apps/frontend/src/pages/account/account-contribution-limit.tsx": 2,

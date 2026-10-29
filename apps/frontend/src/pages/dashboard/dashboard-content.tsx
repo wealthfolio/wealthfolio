@@ -217,7 +217,8 @@ export function DashboardContent({
                     displayCurrency={false}
                   />
                 )}
-                <div className="border-secondary my-1 border-e pe-2" />
+                {/* Stretch: the row centres its items, so an empty divider has no height. */}
+                <div className="border-secondary my-1 self-stretch border-e pe-2" />
                 {simpleReturn == null ? (
                   <span className="text-muted-foreground lg:text-md text-sm font-light">N/A</span>
                 ) : (

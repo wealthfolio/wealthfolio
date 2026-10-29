@@ -940,8 +940,6 @@
     "uncategorizedReview": "미분류 — 검토",
     "uncategorizedImprove": "미분류 — 검토하여 분석 개선",
     "plusMore": "+ {{count}} 더보기",
-    "down": "감소",
-    "up": "증가",
     "aboutSame": "이전 기간과 비슷함",
     "fromPriorPeriod": "이전 기간 대비",
     "intervalMtd": "이번 달",

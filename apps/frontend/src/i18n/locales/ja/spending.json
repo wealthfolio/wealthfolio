@@ -940,8 +940,6 @@
     "uncategorizedReview": "未分類 — 要確認",
     "uncategorizedImprove": "未分類 — 確認すると内訳の精度が上がります",
     "plusMore": "+ 他{{count}}件",
-    "down": "減少",
-    "up": "増加",
     "aboutSame": "前期間とほぼ同水準",
     "fromPriorPeriod": "前期間から",
     "intervalMtd": "今月",

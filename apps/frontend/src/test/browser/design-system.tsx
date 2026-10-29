@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { createRoot } from "react-dom/client";
 import { Toaster, toast } from "sonner";
 import "sonner/dist/styles.css";
+import { SpendingDeltaLine } from "@/features/spending/components/spending-delta-line";
 import { AppDirectionProvider } from "@/i18n/direction";
 import i18next from "@/i18n/i18n";
 import {
@@ -416,6 +417,27 @@ function Fixture() {
                 <AlertTitle>{title}</AlertTitle>
                 <AlertDescription>{description}</AlertDescription>
               </Alert>
+            ))}
+          </div>
+        </Section>
+
+        <Section title="Change lines">
+          {/* Spending's line under its hero number, up and down: it keeps success and
+              destructive in every Gain and loss colours option (colors.spec.ts). */}
+          <div className="grid gap-2">
+            {(
+              [
+                ["up", 320.5, 0.12],
+                ["down", -210.25, -0.08],
+              ] as const
+            ).map(([direction, delta, ratio]) => (
+              <div
+                key={direction}
+                data-testid={`spending-change-${direction}`}
+                className="text-md flex flex-wrap items-center gap-x-3"
+              >
+                <SpendingDeltaLine delta={delta} currency="USD" deltaPct={ratio} />
+              </div>
             ))}
           </div>
         </Section>
