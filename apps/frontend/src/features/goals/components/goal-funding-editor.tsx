@@ -22,6 +22,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { Alert, AlertDescription } from "@wealthfolio/ui/components/ui/alert";
+import { computeAccountShares, SHARE_EPSILON, type AccountShares } from "./goal-funding-shares";
 
 const TAX_BUCKET_COLORS: Record<string, string> = {
   taxable: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300",
@@ -42,21 +43,14 @@ const INDICATOR_COLORS = [
   "var(--series-8)",
 ];
 
-const SHARE_EPSILON = 0.01;
-
 interface OtherGoalFundingRule extends GoalFundingRule {
   goalTitle: string;
 }
 
-interface AccountAllocationRow {
+interface AccountAllocationRow extends AccountShares {
   account: Account;
   thisShare: number;
   otherAllocations: OtherGoalFundingRule[];
-  otherTotal: number;
-  total: number;
-  maxForThisGoal: number;
-  left: number;
-  overBy: number;
 }
 
 interface Props {
@@ -145,10 +139,6 @@ function formatShare(value: number): string {
   return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1).replace(/\.0$/, "");
 }
 
-function sumShares(rules: { sharePercent: number }[]): number {
-  return rules.reduce((sum, rule) => sum + rule.sharePercent, 0);
-}
-
 function allocationLabel(row: AccountAllocationRow, t: TFunction): string {
   if (row.overBy > SHARE_EPSILON)
     return t("goals:funding.over", { percent: formatShare(row.overBy) });
@@ -215,6 +205,10 @@ export function GoalFundingEditor({
     [goals],
   );
   const currentGoal = useMemo(() => goals.find((goal) => goal.id === goalId), [goalId, goals]);
+  const retirementGoalIds = useMemo(
+    () => new Set(goals.filter((goal) => goal.goalType === "retirement").map((goal) => goal.id)),
+    [goals],
+  );
   const otherGoals = useMemo(
     () => participatingGoals.filter((goal) => goal.id !== goalId),
     [goalId, participatingGoals],
@@ -236,11 +230,13 @@ export function GoalFundingEditor({
     }));
   });
 
-  const otherShareByAccount = new Map<string, number>();
+  // Only savings goals set shares aside; the retirement plan's shares never block them.
+  const otherReservedByAccount = new Map<string, number>();
   for (const rule of otherFundingRules) {
-    otherShareByAccount.set(
+    if (retirementGoalIds.has(rule.goalId)) continue;
+    otherReservedByAccount.set(
       rule.accountId,
-      (otherShareByAccount.get(rule.accountId) ?? 0) + rule.sharePercent,
+      (otherReservedByAccount.get(rule.accountId) ?? 0) + rule.sharePercent,
     );
   }
 
@@ -248,25 +244,21 @@ export function GoalFundingEditor({
     return activeAccounts
       .map((account) => {
         const otherAllocations = otherFundingRules.filter((rule) => rule.accountId === account.id);
-        const otherTotal = sumShares(otherAllocations);
         const thisShare = sharePercents.get(account.id) ?? 0;
-        const total = otherTotal + thisShare;
-        const maxForThisGoal = Math.max(0, 100 - otherTotal);
-        const left = Math.max(0, 100 - total);
-        const overBy = Math.max(0, total - 100);
         return {
           account,
           thisShare,
           otherAllocations,
-          otherTotal,
-          total,
-          maxForThisGoal,
-          left,
-          overBy,
+          ...computeAccountShares({
+            thisShare,
+            isRetirement,
+            otherRules: otherAllocations,
+            retirementGoalIds,
+          }),
         };
       })
       .filter((row) => sharePercents.has(row.account.id) || row.total > SHARE_EPSILON);
-  }, [activeAccounts, otherFundingRules, sharePercents]);
+  }, [activeAccounts, isRetirement, otherFundingRules, retirementGoalIds, sharePercents]);
 
   const allocationByAccountId = useMemo(
     () => new Map(allocationRows.map((row) => [row.account.id, row])),
@@ -283,7 +275,9 @@ export function GoalFundingEditor({
   const hasInvalidAllocations = invalidAllocationRows.length > 0;
 
   const addAccount = (accountId: string) => {
-    const maxForThisGoal = Math.max(0, 100 - (otherShareByAccount.get(accountId) ?? 0));
+    const maxForThisGoal = isRetirement
+      ? 100
+      : Math.max(0, 100 - (otherReservedByAccount.get(accountId) ?? 0));
     setSharePercents((prev) => new Map(prev).set(accountId, Math.min(100, maxForThisGoal)));
     setDirty(true);
   };
@@ -357,7 +351,7 @@ export function GoalFundingEditor({
     (a) =>
       !sharePercents.has(a.id) &&
       !dcLinkedSet.has(a.id) &&
-      (otherShareByAccount.get(a.id) ?? 0) < 100 - SHARE_EPSILON,
+      (isRetirement || (otherReservedByAccount.get(a.id) ?? 0) < 100 - SHARE_EPSILON),
   );
 
   const allocationGoalColumns = useMemo(() => {
@@ -430,11 +424,11 @@ export function GoalFundingEditor({
           {isEditing ? (
             /* ── Edit mode ── */
             <div className="space-y-3">
-              {!isRetirement && (
-                <p className="text-muted-foreground text-2xs">
-                  {t("goals:funding.reserved_share_note")}
-                </p>
-              )}
+              <p className="text-muted-foreground text-2xs">
+                {isRetirement
+                  ? t("goals:funding.retirement_share_note")
+                  : t("goals:funding.reserved_share_note")}
+              </p>
 
               {includedAccounts.length > 0 && (
                 <div className="space-y-1">
@@ -445,8 +439,16 @@ export function GoalFundingEditor({
                     const allocation = allocationByAccountId.get(a.id);
                     const overBy = allocation?.overBy ?? 0;
                     const maxForThisGoal = allocation?.maxForThisGoal ?? 100;
-                    const otherTotal = allocation?.otherTotal ?? 0;
+                    const otherTotal = allocation?.otherReserved ?? 0;
                     const hasOverage = overBy > SHARE_EPSILON;
+                    // The retirement plan counts less than its share when savings goals set
+                    // part of the account aside, and nothing counts a share it leaves unused.
+                    const counted = allocation?.retirementCounted ?? percent;
+                    const countsLess = isRetirement && counted < percent - SHARE_EPSILON;
+                    const unassigned = isRetirement
+                      ? (allocation?.free ?? 0)
+                      : (allocation?.left ?? 0);
+                    const offerMax = isRetirement ? unassigned > SHARE_EPSILON : hasOverage;
 
                     return (
                       <div
@@ -477,7 +479,7 @@ export function GoalFundingEditor({
                             </button>
                           )}
 
-                          {!isDcLinked && allocation && (
+                          {!isDcLinked && allocation && !isRetirement && (
                             <span
                               className={`text-2xs w-16 shrink-0 text-end font-medium tabular-nums ${allocationLabelClass(allocation)}`}
                             >
@@ -523,7 +525,7 @@ export function GoalFundingEditor({
 
                         {allocation && !isDcLinked && (
                           <div className="mt-2">
-                            {(otherTotal > SHARE_EPSILON || hasOverage) && (
+                            {(otherTotal > SHARE_EPSILON || hasOverage || offerMax) && (
                               <div className="text-muted-foreground text-2xs flex items-center justify-between gap-3">
                                 <span className="truncate">
                                   {otherTotal > SHARE_EPSILON
@@ -531,13 +533,22 @@ export function GoalFundingEditor({
                                         percent: formatShare(otherTotal),
                                       })
                                     : t("goals:funding.still_unassigned", {
-                                        percent: formatShare(allocation.left),
+                                        percent: formatShare(unassigned),
                                       })}
                                 </span>
-                                {hasOverage && (
+                                {countsLess && (
+                                  <span className="text-foreground shrink-0 font-medium tabular-nums">
+                                    {t("goals:funding.counting", {
+                                      percent: formatShare(counted),
+                                    })}
+                                  </span>
+                                )}
+                                {offerMax && (
                                   <button
                                     type="button"
-                                    className="text-destructive shrink-0 font-medium underline underline-offset-2"
+                                    className={`shrink-0 font-medium underline underline-offset-2 ${
+                                      isRetirement ? "text-foreground" : "text-destructive"
+                                    }`}
                                     onClick={() => updateSharePercent(a.id, maxForThisGoal)}
                                   >
                                     {t("goals:funding.use_max", {
@@ -615,6 +626,7 @@ export function GoalFundingEditor({
                 <div className="divide-border divide-y">
                   {includedAccounts.map((a, i) => {
                     const percent = sharePercents.get(a.id) ?? 0;
+                    const counted = allocationByAccountId.get(a.id)?.retirementCounted ?? percent;
                     const tb = taxBuckets.get(a.id);
                     const tbLabel = tb ? t(`goals:funding.tax_bucket.${tb}`) : null;
                     return (
@@ -636,6 +648,11 @@ export function GoalFundingEditor({
                             {tbLabel}
                           </span>
                         )}
+                        {isRetirement && counted < percent - SHARE_EPSILON && (
+                          <span className="text-muted-foreground text-2xs shrink-0 tabular-nums">
+                            {t("goals:funding.counting", { percent: formatShare(counted) })}
+                          </span>
+                        )}
                         <span className="text-sm font-semibold tabular-nums">{percent}%</span>
                       </div>
                     );
@@ -652,6 +669,7 @@ export function GoalFundingEditor({
         rows={allocationRows}
         goalColumns={allocationGoalColumns}
         currentGoalId={goalId}
+        retirementGoalIds={retirementGoalIds}
       />
     </>
   );
@@ -663,12 +681,14 @@ function AllocationDetailsSheet({
   rows,
   goalColumns,
   currentGoalId,
+  retirementGoalIds,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   rows: AccountAllocationRow[];
   goalColumns: { id: string; title: string }[];
   currentGoalId: string;
+  retirementGoalIds: ReadonlySet<string>;
 }) {
   const { t } = useTranslation();
   return (
@@ -722,11 +742,14 @@ function AllocationDetailsSheet({
                             key={goal.id}
                             className="border-border border-b px-3 py-3 text-end tabular-nums"
                           >
-                            {formatShare(shareForGoal(row, goal.id, currentGoalId))}%
+                            {formatShare(
+                              shareForGoal(row, goal.id, currentGoalId, retirementGoalIds),
+                            )}
+                            %
                           </td>
                         ))}
                         <td className="border-border border-b px-3 py-3 text-end tabular-nums">
-                          {formatShare(row.left)}%
+                          {formatShare(row.free)}%
                         </td>
                         <td
                           className={`border-border border-b py-3 ps-3 text-end font-semibold tabular-nums ${
@@ -748,7 +771,14 @@ function AllocationDetailsSheet({
   );
 }
 
-function shareForGoal(row: AccountAllocationRow, goalId: string, currentGoalId: string): number {
+function shareForGoal(
+  row: AccountAllocationRow,
+  goalId: string,
+  currentGoalId: string,
+  retirementGoalIds: ReadonlySet<string>,
+): number {
+  // The retirement plan's column shows what it counts, so each row adds up to 100%.
+  if (retirementGoalIds.has(goalId)) return row.retirementCounted;
   if (goalId === currentGoalId) return row.thisShare;
   return row.otherAllocations
     .filter((allocation) => allocation.goalId === goalId)
