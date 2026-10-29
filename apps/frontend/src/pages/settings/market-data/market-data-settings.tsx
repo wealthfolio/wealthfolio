@@ -83,6 +83,7 @@ import {
 } from "./custom-provider-usage";
 import {
   useDeleteApiKey,
+  useIsSavingProviderSettings,
   useMarketDataProviderSettings,
   useSetApiKey,
   useUpdateMarketDataProviderSettings,
@@ -749,11 +750,9 @@ export default function MarketDataSettingsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const { data: providers, isLoading, error } = useMarketDataProviderSettings();
-  const {
-    mutate: updateSettings,
-    mutateAsync: updateSettingsAsync,
-    isPending: isSavingProvider,
-  } = useUpdateMarketDataProviderSettings();
+  const { mutate: updateSettings, mutateAsync: updateSettingsAsync } =
+    useUpdateMarketDataProviderSettings();
+  const isSavingProvider = useIsSavingProviderSettings();
   const { mutate: updatePortfolio, isPending: isUpdating } = useUpdatePortfolioMutation();
   const { mutate: recalculatePortfolio, isPending: isRecalculating } =
     useRecalculatePortfolioMutation();

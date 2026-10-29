@@ -16,6 +16,7 @@ const hookMocks = vi.hoisted(() => ({
   useCustomProviders: vi.fn(),
   useDeleteApiKey: vi.fn(),
   useDeleteCustomProvider: vi.fn(),
+  useIsSavingProviderSettings: vi.fn(),
   useMarketDataProviderSettings: vi.fn(),
   useRecalculatePortfolioMutation: vi.fn(),
   useSetApiKey: vi.fn(),
@@ -67,6 +68,7 @@ vi.mock("./custom-provider-form", () => ({
 
 vi.mock("./use-market-data-settings", () => ({
   useDeleteApiKey: hookMocks.useDeleteApiKey,
+  useIsSavingProviderSettings: hookMocks.useIsSavingProviderSettings,
   useMarketDataProviderSettings: hookMocks.useMarketDataProviderSettings,
   useSetApiKey: hookMocks.useSetApiKey,
   useUpdateMarketDataProviderSettings: hookMocks.useUpdateMarketDataProviderSettings,
@@ -143,6 +145,7 @@ describe("MarketDataSettingsPage", () => {
     });
     mutateAsync.mockResolvedValue(undefined);
     hookMocks.useUpdateMarketDataProviderSettings.mockReturnValue({ mutate, mutateAsync });
+    hookMocks.useIsSavingProviderSettings.mockReturnValue(false);
     hookMocks.useUpdatePortfolioMutation.mockReturnValue({ mutate, isPending: false });
     hookMocks.useRecalculatePortfolioMutation.mockReturnValue({ mutate, isPending: false });
     hookMocks.getAssets.mockResolvedValue([]);
@@ -518,11 +521,7 @@ describe("MarketDataSettingsPage", () => {
 
   it("locks the order and switches while another provider save is pending", () => {
     setProviders(yahoo, treasury);
-    hookMocks.useUpdateMarketDataProviderSettings.mockReturnValue({
-      mutate,
-      mutateAsync,
-      isPending: true,
-    });
+    hookMocks.useIsSavingProviderSettings.mockReturnValue(true);
     renderPage();
 
     // A provider just switched on is still saving; a move now could race it.

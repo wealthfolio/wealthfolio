@@ -1,5 +1,5 @@
 import i18n from "i18next";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useIsMutating, useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   setSecret,
   deleteSecret,
@@ -17,9 +17,17 @@ export function useMarketDataProviderSettings() {
   });
 }
 
+const UPDATE_PROVIDER_SETTINGS_KEY = [QueryKeys.MARKET_DATA_PROVIDER_SETTINGS, "update"];
+
+/** True while any provider settings save is pending, however many overlap. */
+export function useIsSavingProviderSettings() {
+  return useIsMutating({ mutationKey: UPDATE_PROVIDER_SETTINGS_KEY }) > 0;
+}
+
 export function useUpdateMarketDataProviderSettings() {
   const queryClient = useQueryClient();
   return useMutation({
+    mutationKey: UPDATE_PROVIDER_SETTINGS_KEY,
     mutationFn: async (variables: { providerId: string; priority: number; enabled: boolean }) =>
       updateMarketDataProviderSettings(variables),
     onMutate: async (variables) => {
