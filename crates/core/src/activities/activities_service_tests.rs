@@ -1674,19 +1674,28 @@ pub(crate) mod tests {
             activity_id: String,
             counterpart_id: Option<String>,
         ) -> Result<(Activity, Activity)> {
-            let persisted = self
-                .bulk_mutate_activities(creates, updates, Vec::new())
-                .await?;
-            let counterpart_id = counterpart_id
-                .or_else(|| {
-                    persisted
-                        .created
-                        .first()
-                        .map(|activity| activity.id.clone())
-                })
-                .ok_or_else(|| Error::Unexpected("New transfer leg was not returned".into()))?;
-            self.link_transfer_activities(activity_id, counterpart_id)
-                .await
+            // Restore the snapshot on failure, like the SQLite transaction.
+            let snapshot = self.activities.lock().unwrap().clone();
+            let result = async {
+                let persisted = self
+                    .bulk_mutate_activities(creates, updates, Vec::new())
+                    .await?;
+                let counterpart_id = counterpart_id
+                    .or_else(|| {
+                        persisted
+                            .created
+                            .first()
+                            .map(|activity| activity.id.clone())
+                    })
+                    .ok_or_else(|| Error::Unexpected("New transfer leg was not returned".into()))?;
+                self.link_transfer_activities(activity_id, counterpart_id)
+                    .await
+            }
+            .await;
+            if result.is_err() {
+                *self.activities.lock().unwrap() = snapshot;
+            }
+            result
         }
 
         async fn bulk_mutate_activities(
