@@ -474,7 +474,7 @@
     "within_days_other": "Dans les {{count}} jours",
     "within_days_many": "Dans les {{count}} jours",
     "convert_title": "Convertir en virement",
-    "convert_desc": "Transformez cette activité en virement entre vos comptes. Choisissez l’activité correspondante dans l’autre compte ou créez-la.",
+    "convert_desc": "Transformez cette activité en virement entre vos comptes. Choisissez l'activité correspondante dans l'autre compte ou créez-la.",
     "convert_no_matches": "Aucune activité correspondante dans les 7 jours.",
     "convert_new": "La créer dans un autre compte",
     "convert_account": "Autre compte",

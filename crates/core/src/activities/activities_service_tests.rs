@@ -1667,6 +1667,28 @@ pub(crate) mod tests {
             Ok((transfer_in, transfer_out))
         }
 
+        async fn mutate_and_link_transfer(
+            &self,
+            creates: Vec<NewActivity>,
+            updates: Vec<ActivityUpdate>,
+            activity_id: String,
+            counterpart_id: Option<String>,
+        ) -> Result<(Activity, Activity)> {
+            let persisted = self
+                .bulk_mutate_activities(creates, updates, Vec::new())
+                .await?;
+            let counterpart_id = counterpart_id
+                .or_else(|| {
+                    persisted
+                        .created
+                        .first()
+                        .map(|activity| activity.id.clone())
+                })
+                .ok_or_else(|| Error::Unexpected("New transfer leg was not returned".into()))?;
+            self.link_transfer_activities(activity_id, counterpart_id)
+                .await
+        }
+
         async fn bulk_mutate_activities(
             &self,
             creates: Vec<NewActivity>,
@@ -13582,6 +13604,24 @@ pub(crate) mod tests {
             "CAD",
         );
         linked_out.source_group_id = Some("group-1".to_string());
+        let mut draft_deposit = create_cash_transfer_activity(
+            "draft-deposit",
+            "acc-cibc",
+            ACTIVITY_TYPE_DEPOSIT,
+            "2026-10-23T00:00:00Z",
+            dec!(500),
+            "CAD",
+        );
+        draft_deposit.status = crate::activities::ActivityStatus::Draft;
+        let mut void_withdrawal = create_cash_transfer_activity(
+            "void-withdrawal",
+            "acc-join",
+            ACTIVITY_TYPE_WITHDRAWAL,
+            "2026-10-23T00:00:00Z",
+            dec!(500),
+            "CAD",
+        );
+        void_withdrawal.status = crate::activities::ActivityStatus::Void;
         let (service, repository) = convert_test_service(
             vec![
                 create_cash_transfer_activity(
@@ -13602,6 +13642,8 @@ pub(crate) mod tests {
                 ),
                 linked,
                 linked_out,
+                draft_deposit,
+                void_withdrawal,
             ],
             &[("acc-join", "CAD"), ("acc-cibc", "CAD"), ("acc-usd", "USD")],
         );
@@ -13632,8 +13674,24 @@ pub(crate) mod tests {
             "already linked"
         );
         assert!(convert(None, None).await.is_err(), "no other side");
+        assert!(
+            convert(Some("draft-deposit"), None).await.is_err(),
+            "other side not posted"
+        );
+        assert!(
+            service
+                .convert_to_internal_transfer(ConvertToTransferRequest {
+                    activity_id: "void-withdrawal".to_string(),
+                    counterpart_activity_id: None,
+                    counterpart_account_id: Some("acc-cibc".to_string()),
+                    counterpart_amount: None,
+                })
+                .await
+                .is_err(),
+            "voided source"
+        );
         let activities = repository.activities.lock().unwrap();
-        assert_eq!(activities.len(), 4);
+        assert_eq!(activities.len(), 6);
         assert!(activities.iter().any(|activity| activity.id == "withdrawal"
             && activity.activity_type == ACTIVITY_TYPE_WITHDRAWAL));
     }

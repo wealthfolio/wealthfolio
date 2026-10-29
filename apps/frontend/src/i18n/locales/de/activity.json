@@ -366,7 +366,7 @@
     "within_days_one": "Innerhalb von {{count}} Tag",
     "within_days_other": "Innerhalb von {{count}} Tagen",
     "convert_title": "In Überweisung umwandeln",
-    "convert_desc": "Mache aus dieser Aktivität eine Überweisung zwischen deinen Konten. Wähle die passende Aktivität im anderen Konto oder lege sie dort an.",
+    "convert_desc": "Machen Sie aus dieser Aktivität eine Überweisung zwischen Ihren Konten. Wählen Sie die passende Aktivität im anderen Konto oder legen Sie sie dort an.",
     "convert_no_matches": "Keine passende Aktivität innerhalb von 7 Tagen.",
     "convert_new": "Im anderen Konto anlegen",
     "convert_account": "Anderes Konto",

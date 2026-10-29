@@ -6664,6 +6664,11 @@ impl ActivityServiceTrait for ActivityService {
                 "Only cash deposits, withdrawals and transfers can become a transfer",
             )
         })?;
+        if source.status == ActivityStatus::Void {
+            return Err(Self::invalid_activity_data(
+                "A voided activity cannot become a transfer",
+            ));
+        }
         if self.is_in_transfer_pair(&source)? {
             return Err(Self::invalid_activity_data(
                 "Activity is already linked to a transfer",
@@ -6689,6 +6694,11 @@ impl ActivityServiceTrait for ActivityService {
                 if Self::cash_flow_transfer_type(&counterpart) != Some(counterpart_type) {
                     return Err(Self::invalid_activity_data(
                         "The other side must be a cash flow in the opposite direction",
+                    ));
+                }
+                if !counterpart.is_posted() {
+                    return Err(Self::invalid_activity_data(
+                        "The other side must be a posted activity",
                     ));
                 }
                 if counterpart.account_id == source.account_id {
@@ -6773,26 +6783,14 @@ impl ActivityServiceTrait for ActivityService {
         for create in creates {
             prepared_creates.push(self.prepare_new_activity(create).await?);
         }
-        let persisted = self
-            .activity_repository
-            .bulk_mutate_activities(prepared_creates, prepared_updates, Vec::new())
-            .await?;
-
-        let counterpart_id = match counterpart {
-            Some(counterpart) => counterpart.id,
-            None => persisted
-                .created
-                .first()
-                .map(|activity| activity.id.clone())
-                .ok_or_else(|| Self::invalid_activity_data("New transfer leg was not returned"))?,
-        };
-        // ponytail: retyping and linking are two writes. The checks above cover
-        // every link rule, so a failure here leaves unlinked transfers that
-        // "Link transfer..." can still pair. Move both into one repository
-        // transaction if that ever happens in practice.
         let (transfer_in, transfer_out) = self
             .activity_repository
-            .link_transfer_activities(source.id.clone(), counterpart_id)
+            .mutate_and_link_transfer(
+                prepared_creates,
+                prepared_updates,
+                source.id.clone(),
+                counterpart.map(|counterpart| counterpart.id),
+            )
             .await?;
 
         let mut account_ids: HashSet<String> = HashSet::new();
