@@ -174,7 +174,12 @@ Ensure you have the following installed on your machine:
 - [Tauri](https://tauri.app/)
 
 If you use [mise](https://mise.jdx.dev), run `mise trust` and then
-`mise install` in the repository to get those Node.js and pnpm versions.
+`mise install` in the repository to install those Node.js and pnpm versions.
+`node` and `pnpm` use them once mise is activated in your shell or its shims are
+on `PATH`. The repository's `mise.toml` normally replaces your global
+`idiomatic_version_file_enable_tools` list: if yours includes `rust` and your
+global mise config sets a Rust version, mise can use that version here instead
+of the one in `rust-toolchain.toml`.
 
 ### Building from Source
 
