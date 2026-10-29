@@ -122,6 +122,8 @@ describe("shared display localization", () => {
     expect(getCurrencyDisplayLabel(franc, "fr")).toBe("Franc suisse (CHF)");
     expect(getCurrencyDisplayName("CHF", "fr")).toBe("franc suisse");
     expect(getCurrencyDisplayLabel(franc, "zh")).toBe("瑞士法郎 (CHF)");
+    // A malformed language tag falls back to the English name instead of throwing.
+    expect(getCurrencyDisplayLabel(franc, "fr_FR")).toBe("Swiss franc (CHF)");
   });
 
   it("localizes shared select defaults and progress details", async () => {

@@ -233,6 +233,13 @@ export function getCurrencyDisplayLabel(
     currency.label.replace(/ \(.*\)$/, ""),
   );
   // French, Spanish and Italian names are lowercase ("franc suisse"), but a label
-  // starts a list item.
-  return `${name.charAt(0).toLocaleUpperCase(language) + name.slice(1)} (${currency.value})`;
+  // starts a list item. A malformed language tag ("fr_FR") gets the fallback name,
+  // and plain capitalization rather than a RangeError.
+  let initial: string;
+  try {
+    initial = name.charAt(0).toLocaleUpperCase(language);
+  } catch {
+    initial = name.charAt(0).toUpperCase();
+  }
+  return `${initial + name.slice(1)} (${currency.value})`;
 }
