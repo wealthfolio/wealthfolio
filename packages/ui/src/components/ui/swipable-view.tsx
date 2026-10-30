@@ -32,7 +32,15 @@ export interface SwipableViewProps {
   className?: string;
   dotClassName?: string;
   labelClassName?: string;
+  /** Called when a swipe lands on another view. */
   onViewChange?: (index: number, name: string) => void;
+  /** Called once per drag, when the slide first moves under the finger. */
+  onSwipeStart?: () => void;
+  /**
+   * Called on release, as soon as a swipe picks a view, while the slide still moves.
+   * Keep it light (a highlight): heavy work here stalls the slide.
+   */
+  onSelectView?: (index: number, name: string) => void;
   onInit?: (api: CarouselApi) => void;
   /**
    * The index to start on. Crucial for syncing with URL on first load.
@@ -45,6 +53,15 @@ export interface SwipableViewProps {
   selectedIndex?: number;
 }
 
+// Embla's `settle` waits for an easing tail far below a pixel, long after the slide looks
+// still. A slide counts as landed once it is within 1% of a slide's width of its snap.
+function isNearSelectedSnap(api: NonNullable<CarouselApi>) {
+  const snaps = api.scrollSnapList();
+  if (snaps.length < 2) return true;
+  const target = snaps[api.selectedScrollSnap()] ?? 0;
+  return Math.abs(api.scrollProgress() - target) * (snaps.length - 1) < 0.01;
+}
+
 export function SwipableView({
   items,
   displayToggle = false,
@@ -53,51 +70,63 @@ export function SwipableView({
   dotClassName,
   labelClassName,
   onViewChange,
+  onSwipeStart,
+  onSelectView,
   onInit: onInitProp,
   initialIndex = 0,
   selectedIndex: controlledIndex,
 }: SwipableViewProps) {
   const { t } = useTranslation();
   const direction = useDirection();
+  // Embla re-initialises whenever its options change, and a re-init jumps straight to
+  // startIndex, cutting a swipe's settle animation short. Keep the first index: later
+  // changes arrive through selectedIndex.
+  const [startIndex] = React.useState(initialIndex);
   const [emblaRef, emblaApi] = useEmblaCarousel({
     direction,
     loop: false,
     align: "start",
     skipSnaps: false,
     dragFree: false,
-    startIndex: initialIndex, // OPTIMIZATION: Start at correct slide instantly
+    startIndex, // OPTIMIZATION: Start at correct slide instantly
     watchDrag: (_api, evt) => !hasSwipeDragBlocker(evt),
   });
 
   const [selectedIndex, setSelectedIndex] = React.useState(initialIndex);
+  // The slide the carousel has landed on; it and its neighbours stay mounted.
+  const [landedIndex, setLandedIndex] = React.useState(initialIndex);
   const [scrollSnaps, setScrollSnaps] = React.useState<number[]>([]);
   const previousIndexRef = React.useRef<number>(initialIndex);
 
   const scrollTo = React.useCallback((index: number) => emblaApi?.scrollTo(index), [emblaApi]);
 
-  const onSelect = React.useCallback(
-    (api: CarouselApi) => {
-      if (!api) return;
-      const index = api.selectedScrollSnap();
-      setSelectedIndex(index);
+  // A swipe selects its slide on release, while the slide still moves. Mounting the next
+  // neighbours and reporting the view change wait until it lands: the page re-renders
+  // for the new view, and doing that mid-slide froze it. Effect events
+  // read the latest props, so a re-render mid-swipe doesn't re-run the subscription.
+  const handleSelect = React.useEffectEvent((api: NonNullable<CarouselApi>) => {
+    const index = api.selectedScrollSnap();
+    setSelectedIndex(index);
+    onSelectView?.(index, items[index]?.name || "");
+  });
 
-      // Only call onViewChange if the index actually changed
-      if (index !== previousIndexRef.current) {
-        previousIndexRef.current = index;
-        onViewChange?.(index, items[index]?.name || "");
-      }
-    },
-    [items, onViewChange],
-  );
+  const handleLanded = React.useEffectEvent((api: NonNullable<CarouselApi>) => {
+    const index = api.selectedScrollSnap();
+    setLandedIndex(index);
 
-  const onInit = React.useCallback(
-    (api: CarouselApi) => {
-      if (!api) return;
-      setScrollSnaps(api.scrollSnapList());
-      onInitProp?.(api);
-    },
-    [onInitProp],
-  );
+    // Only call onViewChange if the index actually changed
+    if (index !== previousIndexRef.current) {
+      previousIndexRef.current = index;
+      onViewChange?.(index, items[index]?.name || "");
+    }
+  });
+
+  const handleSwipeStart = React.useEffectEvent(() => onSwipeStart?.());
+
+  const handleInit = React.useEffectEvent((api: NonNullable<CarouselApi>) => {
+    setScrollSnaps(api.scrollSnapList());
+    onInitProp?.(api);
+  });
 
   // A screen shown again (React <Activity>) builds its carousel anew, on
   // initialIndex. It goes back to the view it showed without reporting a change,
@@ -112,18 +141,50 @@ export function SwipableView({
         emblaApi.scrollTo(previousIndexRef.current, true);
       }
     }
-    onInit(emblaApi);
-    onSelect(emblaApi);
+    const onInit = () => handleInit(emblaApi);
+    const onSelect = () => handleSelect(emblaApi);
+    const onLanded = () => handleLanded(emblaApi);
+    // A drag starts a swipe when it first moves the slide; a tap or a vertical scroll
+    // never does.
+    let dragStarted: boolean | null = null;
+    const onPointerDown = () => {
+      dragStarted = false;
+    };
+    const onPointerUp = () => {
+      dragStarted = null;
+    };
+    const onScroll = () => {
+      if (dragStarted === false) {
+        dragStarted = true;
+        handleSwipeStart();
+      }
+      if (emblaApi.selectedScrollSnap() !== previousIndexRef.current && isNearSelectedSnap(emblaApi)) {
+        onLanded();
+      }
+    };
+    onInit();
+    onSelect();
+    onLanded();
     emblaApi.on("reInit", onInit);
     emblaApi.on("reInit", onSelect);
+    emblaApi.on("reInit", onLanded);
     emblaApi.on("select", onSelect);
+    emblaApi.on("pointerDown", onPointerDown);
+    emblaApi.on("pointerUp", onPointerUp);
+    emblaApi.on("scroll", onScroll);
+    emblaApi.on("settle", onLanded);
 
     return () => {
       emblaApi.off("reInit", onInit);
       emblaApi.off("reInit", onSelect);
+      emblaApi.off("reInit", onLanded);
       emblaApi.off("select", onSelect);
+      emblaApi.off("pointerDown", onPointerDown);
+      emblaApi.off("pointerUp", onPointerUp);
+      emblaApi.off("scroll", onScroll);
+      emblaApi.off("settle", onLanded);
     };
-  }, [emblaApi, onInit, onSelect]);
+  }, [emblaApi]);
 
   // Controlled mode: scroll to controlledIndex when it changes
   React.useEffect(() => {
@@ -137,7 +198,7 @@ export function SwipableView({
   // MEMORY OPTIMIZATION:
   // Only render the Active Slide and its immediate neighbors (±1).
   // Distant slides are kept as empty divs to maintain scroll width but free up DOM nodes/RAM.
-  const shouldRender = (index: number) => Math.abs(selectedIndex - index) <= 1;
+  const shouldRender = (index: number) => index === selectedIndex || Math.abs(landedIndex - index) <= 1;
 
   return (
     <div className={cn("relative flex h-full w-full flex-col", className)}>

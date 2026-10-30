@@ -171,6 +171,7 @@ export function usePullToRefresh({
 
       const target = containerRef.current;
       const deltaY = currentYRef.current - startYRef.current;
+      const pulled = gestureRef.current === "PULL";
 
       // Reset any container styles (defensive)
       target.style.transform = "";
@@ -193,7 +194,11 @@ export function usePullToRefresh({
       containerRef.current = null;
       hasTriggeredHapticRef.current = false;
 
-      const content = target.querySelector<HTMLElement>("[data-ptr-content]") ?? null;
+      // Only a pull moved the content. Easing it back after a swipe or a scroll restyled
+      // the whole page as the finger lifted, which stalled a sideways swipe.
+      const content = pulled
+        ? (target.querySelector<HTMLElement>("[data-ptr-content]") ?? null)
+        : null;
       if (content) {
         content.style.transition = "transform 180ms ease-out";
         content.style.transform = "translateY(0px)";

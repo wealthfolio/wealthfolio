@@ -197,16 +197,21 @@ export function SwipablePage({
     const idx = views.findIndex((v) => v.value === currentView);
     return idx === -1 ? 0 : idx;
   }, [currentView, views]);
-  const currentActions = views.find((v) => v.value === currentView)?.actions;
+  // The view a swipe has picked, shown in the header from release until the slide
+  // lands and the page follows.
+  const [swipedView, setSwipedView] = React.useState<string | null>(null);
+  const shownView = swipedView ?? currentView;
+  const currentActions = views.find((v) => v.value === shownView)?.actions;
   const mobileActionsInHeader = mobileActionsPlacement === "header";
 
   const handleViewChange = React.useCallback(
-    (nextView: string) => {
+    (nextView: string, haptic = true) => {
+      setSwipedView(null);
       if (nextView === currentView) {
         return;
       }
 
-      if (isMobile) {
+      if (isMobile && haptic) {
         triggerHaptic();
       }
 
@@ -246,7 +251,7 @@ export function SwipablePage({
                 <div className={cn("min-w-0", mobileActionsInHeader && "flex justify-center")}>
                   <MobileNavigation
                     views={views}
-                    currentView={currentView}
+                    currentView={shownView}
                     onViewChange={handleViewChange}
                     compact={mobileActionsInHeader}
                   />
@@ -285,10 +290,16 @@ export function SwipablePage({
                   ),
                 }))}
                 displayToggle={false}
+                onSwipeStart={triggerHaptic}
+                onSelectView={(_index: number, name: string) => {
+                  const view = views.find((v) => v.label === name)?.value;
+                  setSwipedView(view && view !== currentView ? view : null);
+                }}
                 onViewChange={(_index: number, name: string) => {
                   const matchedView = views.find((v) => v.label === name);
                   if (matchedView) {
-                    handleViewChange(matchedView.value);
+                    // The haptic fired when the swipe started.
+                    handleViewChange(matchedView.value, false);
                   }
                 }}
               />
