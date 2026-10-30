@@ -1,4 +1,4 @@
-import { act, render, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import { SwipableView } from "@wealthfolio/ui";
 import { Activity, useState } from "react";
 import { beforeEach, expect, it, vi } from "vitest";
@@ -201,4 +201,23 @@ it("reports a swipe back after the page jumped to another view", async () => {
     carousels[0].arrive();
   });
   expect(onViewChange).toHaveBeenCalledExactlyOnceWith(0, "About");
+});
+
+it("keeps mounted neighbours out of reach until their slide is selected", async () => {
+  // The phone dashboard keeps the tabs beside the one on screen mounted, each with its
+  // own Hide Balance button. Only the slide on screen may offer its controls.
+  const views = ["About", "Holdings", "Activities"].map((name) => ({
+    name,
+    content: <button type="button">{`Hide ${name}`}</button>,
+  }));
+  render(<SwipableView items={views} />);
+  await waitFor(() => expect(carousels).toHaveLength(1));
+  const reachable = () =>
+    screen.getAllByRole("button", { name: /^Hide / }).map((button) => button.textContent);
+  expect(reachable()).toEqual(["Hide About"]);
+  expect(screen.getByText("Hide Holdings").closest("[inert]")).not.toBeNull();
+
+  act(() => carousels[0].select(1));
+  expect(reachable()).toEqual(["Hide Holdings"]);
+  expect(screen.getByText("Hide About").closest("[inert]")).not.toBeNull();
 });

@@ -260,7 +260,15 @@ export function SwipableView({
           }}
         >
           {items.map((item, index) => (
-            <div key={index} className="relative h-full min-w-0 shrink-0 grow-0 basis-full">
+            <div
+              key={index}
+              className="relative h-full min-w-0 shrink-0 grow-0 basis-full"
+              // Neighbours stay mounted off screen; keep their controls out of reach of
+              // the keyboard and screen readers until their slide is selected. aria-hidden
+              // says the same to tools that ignore inert, such as Playwright's role queries.
+              inert={index !== selectedIndex}
+              aria-hidden={index !== selectedIndex || undefined}
+            >
               {/*
                  SCROLL ARCHITECTURE:
                  1. We use a nested div for scrolling.
