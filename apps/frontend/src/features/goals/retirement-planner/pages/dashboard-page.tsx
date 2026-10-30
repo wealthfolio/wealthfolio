@@ -203,6 +203,7 @@ export default function DashboardPage({
   const currency = plan.currency;
   const [chartValueMode, setChartValueMode] = useState<ChartValueMode>("real");
   const [coverageView, setCoverageView] = useState<CoverageView>("at-retirement");
+  const [showGoalMilestones, setShowGoalMilestones] = useState(true);
   const sidebarKey = useMemo(() => `${plannerMode}:${JSON.stringify(plan)}`, [plan, plannerMode]);
   const valueModeLabel =
     chartValueMode === "real"
@@ -1023,7 +1024,14 @@ export default function DashboardPage({
                       <Tooltip>
                         <TooltipTrigger
                           render={
-                            <span className="flex cursor-help items-center gap-1.5 underline decoration-dotted underline-offset-2" />
+                            <button
+                              type="button"
+                              aria-pressed={showGoalMilestones}
+                              onClick={() => setShowGoalMilestones((shown) => !shown)}
+                              className={`flex items-center gap-1.5 underline decoration-dotted underline-offset-2 transition-opacity ${
+                                showGoalMilestones ? "" : "opacity-50"
+                              }`}
+                            />
                           }
                         >
                           <span
@@ -1034,7 +1042,8 @@ export default function DashboardPage({
                           {t("goals:portfolio_chart.goal_milestones")}
                         </TooltipTrigger>
                         <TooltipContent className="max-w-xs text-xs">
-                          {t("goals:portfolio_chart.goal_milestones_tip")}
+                          {t("goals:portfolio_chart.goal_milestones_tip")}{" "}
+                          {t("goals:portfolio_chart.goal_milestones_toggle")}
                         </TooltipContent>
                       </Tooltip>
                     )}
@@ -1050,7 +1059,7 @@ export default function DashboardPage({
                   valueMode={chartValueMode}
                   plannerMode={plannerMode}
                   projectedIsOnTrack={readiness.tone === "good"}
-                  goalMilestones={goalMilestones}
+                  goalMilestones={showGoalMilestones ? goalMilestones : []}
                   onOpenGoal={onOpenGoal}
                 />
               </CardContent>

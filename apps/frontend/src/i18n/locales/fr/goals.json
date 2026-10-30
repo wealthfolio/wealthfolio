@@ -624,6 +624,7 @@
   "portfolio_chart": {
     "goal_milestones": "Objectifs d'épargne",
     "goal_milestones_tip": "Chaque objectif d'épargne actif apparaît à sa date cible, coloré selon son statut. La projection ne dépense pas encore cet argent.",
+    "goal_milestones_toggle": "Cliquez pour les afficher ou les masquer.",
     "goal_milestone_target": "{{amount}} d'ici {{date}}",
     "goal_milestone_aria": "{{name}}, {{target}}, {{status}}",
     "goal_milestone_aria_no_status": "{{name}}, {{target}}",

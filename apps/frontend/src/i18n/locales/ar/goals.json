@@ -443,6 +443,7 @@
   "portfolio_chart": {
     "goal_milestones": "أهداف الادخار",
     "goal_milestones_tip": "يظهر كل هدف ادخار نشط في تاريخه المستهدف، ملوّنًا حسب حالته. لا يُنفق هذا التوقّع ذلك المال بعد.",
+    "goal_milestones_toggle": "انقر لإظهارها أو إخفائها.",
     "goal_milestone_target": "{{amount}} بحلول {{date}}",
     "goal_milestone_aria": "{{name}}، {{target}}، {{status}}",
     "goal_milestone_aria_no_status": "{{name}}، {{target}}",

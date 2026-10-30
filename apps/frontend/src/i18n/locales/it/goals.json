@@ -624,6 +624,7 @@
   "portfolio_chart": {
     "goal_milestones": "Obiettivi di risparmio",
     "goal_milestones_tip": "Ogni obiettivo di risparmio attivo compare alla sua data obiettivo, colorato in base al suo stato. La proiezione non spende ancora quel denaro.",
+    "goal_milestones_toggle": "Fai clic per mostrarli o nasconderli.",
     "goal_milestone_target": "{{amount}} entro {{date}}",
     "goal_milestone_aria": "{{name}}, {{target}}, {{status}}",
     "goal_milestone_aria_no_status": "{{name}}, {{target}}",

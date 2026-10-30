@@ -618,6 +618,7 @@
   "portfolio_chart": {
     "goal_milestones": "저축 목표",
     "goal_milestones_tip": "활성 저축 목표는 각각 목표 날짜에 표시되며 상태에 따라 색이 다릅니다. 이 예측은 아직 그 돈을 지출하지 않습니다.",
+    "goal_milestones_toggle": "클릭하여 표시하거나 숨깁니다.",
     "goal_milestone_target": "{{date}}까지 {{amount}}",
     "goal_milestone_aria": "{{name}}, {{target}}, {{status}}",
     "goal_milestone_aria_no_status": "{{name}}, {{target}}",

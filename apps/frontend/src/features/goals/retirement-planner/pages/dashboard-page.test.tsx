@@ -47,6 +47,58 @@ function renderOverview(lean: number | null, fat: number | null) {
     </FormattingProvider>,
   );
 }
+function renderWithGoalMilestones() {
+  const trajectory = [34, 35, 36, 37].map((age) => ({
+    age,
+    year: 2026 + age - 34,
+    phase: "accumulation",
+    portfolioStart: 400_000 + (age - 34) * 40_000,
+    portfolioEnd: 440_000 + (age - 34) * 40_000,
+    requiredCapital: 800_000,
+    netWithdrawalFromPortfolio: 0,
+    annualContribution: 38_400,
+    annualIncome: 0,
+    annualExpenses: 0,
+  }));
+  const overview = {
+    analysisMode: "fire",
+    status: "on_track",
+    successStatus: "on_track",
+    fiAge: 50,
+    retirementStartAge: 50,
+    portfolioNow: 400_000,
+    portfolioAtGoalAge: 400_000,
+    requiredCapitalAtGoalAge: 800_000,
+    requiredCapitalReachable: true,
+    coastAmountToday: 50_000,
+    trajectory,
+  } as unknown as RetirementOverview;
+  render(
+    <FormattingProvider locale="en-US">
+      <TooltipProvider>
+        <DashboardPage
+          plan={DEFAULT_RETIREMENT_PLAN}
+          plannerMode="fire"
+          isLoading={false}
+          portfolioData={{ totalValue: 400_000, holdings: [], isLoading: false, error: null }}
+          retirementOverview={overview}
+          goalMilestones={[
+            {
+              id: "home",
+              title: "Home Down Payment",
+              goalType: "home",
+              targetAmount: 80_000,
+              targetDate: "2029-01-23",
+              statusHealth: "on_track",
+              age: 36,
+            },
+          ]}
+        />
+      </TooltipProvider>
+    </FormattingProvider>,
+  );
+}
+
 function milestone(name: string) {
   return within(screen.getByText(name, { exact: true }).closest<HTMLElement>(".p-4")!);
 }
@@ -79,5 +131,17 @@ describe("retirement spending milestones", () => {
     expect(milestone("Lean FIRE").getByText("DONE")).toBeInTheDocument();
     expect(milestone("Fat FIRE").getByText("—")).toBeInTheDocument();
     expect(milestone("Fat FIRE").queryByText("DONE")).not.toBeInTheDocument();
+  });
+});
+
+describe("savings goal milestones on the trajectory chart", () => {
+  it("lets the legend entry show and hide them", () => {
+    renderWithGoalMilestones();
+    const toggle = screen.getByRole("button", { name: "Savings goals" });
+    expect(toggle).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-pressed", "true");
   });
 });

@@ -618,6 +618,7 @@
   "portfolio_chart": {
     "goal_milestones": "儲蓄目標",
     "goal_milestones_tip": "每個進行中的儲蓄目標會顯示在其目標日期，並依狀態著色。此預測尚未支出這筆錢。",
+    "goal_milestones_toggle": "點擊以顯示或隱藏。",
     "goal_milestone_target": "{{date}}前達到{{amount}}",
     "goal_milestone_aria": "{{name}}，{{target}}，{{status}}",
     "goal_milestone_aria_no_status": "{{name}}，{{target}}",

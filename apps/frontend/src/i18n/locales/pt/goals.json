@@ -624,6 +624,7 @@
   "portfolio_chart": {
     "goal_milestones": "Metas de poupança",
     "goal_milestones_tip": "Cada meta de poupança ativa aparece na sua data-alvo, colorida conforme o status. A projeção ainda não gasta esse dinheiro.",
+    "goal_milestones_toggle": "Clique para mostrar ou ocultar.",
     "goal_milestone_target": "{{amount}} até {{date}}",
     "goal_milestone_aria": "{{name}}, {{target}}, {{status}}",
     "goal_milestone_aria_no_status": "{{name}}, {{target}}",
