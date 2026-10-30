@@ -143,7 +143,7 @@ function GoalMilestoneMarker({
           strokeOpacity={0.35}
         />
       )}
-      {/* Dashed: the projection doesn't spend this money yet. */}
+      {/* Dashed: savings goals keep this money apart from the projection. */}
       <circle
         cx={cx}
         cy={cy}
