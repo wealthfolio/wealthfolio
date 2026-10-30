@@ -718,6 +718,24 @@ body.qr-scan-active > .qr-overlay {
   }
 }
 
+/* Android's Material navigation bar sits flush with the bottom edge: content clears its
+   height plus the gesture area, without the floating bar's gap. */
+.app-shell[data-mobile-navigation="true"][data-nav-style="material"] {
+  --mobile-nav-ui-height: 5rem;
+  --mobile-nav-bottom-offset: max(
+    var(--mobile-safe-area-bottom),
+    var(--android-navigation-bar-inset, 0px)
+  );
+  --mobile-nav-total-offset: calc(var(--mobile-nav-ui-height) + var(--mobile-nav-bottom-offset));
+}
+
+@media (orientation: landscape) {
+  .app-shell[data-mobile-navigation="true"][data-nav-style="material"] {
+    --mobile-nav-ui-height: 3.5rem;
+    --mobile-nav-total-offset: calc(var(--mobile-nav-ui-height) + var(--mobile-nav-bottom-offset));
+  }
+}
+
 /* Mobile optimizations for native feel */
 @layer utilities {
   .scroll-touch {

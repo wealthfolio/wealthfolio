@@ -5,6 +5,7 @@ import { MobileProfileMenu } from "@/features/profiles/mobile-profile-menu";
 import { SyncStatusIcon } from "@/features/wealthfolio-connect/components/sync-status-icon";
 import { useAggregatedSyncStatus } from "@/features/wealthfolio-connect/hooks";
 import { useHapticFeedback } from "@/hooks/use-haptic-feedback";
+import { usePlatform } from "@/hooks/use-platform";
 import { cn } from "@/lib/utils";
 import { Icons, Sheet, SheetContent, SheetTitle } from "@wealthfolio/ui";
 import { motion } from "motion/react";
@@ -64,10 +65,46 @@ export function MobileNavBar({ navigation }: MobileNavBarProps) {
   const uniqueId = useId();
   const { status: syncStatus } = useAggregatedSyncStatus();
   const stack = useMobileStack();
+  // Android gets a Material navigation bar; iOS keeps the floating glass bar.
+  const { isAndroid } = usePlatform();
+
+  // The Android app reports its navigation bar's height (MainActivity.kt): its WebView
+  // gives no bottom safe area under edge-to-edge. The Material bar pads itself by it.
+  useEffect(() => {
+    const bridge = (window as { WealthfolioAndroid?: { navigationBarInset?: () => number } })
+      .WealthfolioAndroid;
+    if (!isAndroid || typeof bridge?.navigationBarInset !== "function") return;
+    const apply = () =>
+      document.documentElement.style.setProperty(
+        "--android-navigation-bar-inset",
+        `${bridge.navigationBarInset?.() ?? 0}px`,
+      );
+    apply();
+    window.addEventListener("resize", apply);
+    document.addEventListener("visibilitychange", apply);
+    return () => {
+      window.removeEventListener("resize", apply);
+      document.removeEventListener("visibilitychange", apply);
+    };
+  }, [isAndroid]);
 
   const containerClassName = "pointer-events-none fixed inset-x-0 bottom-0 z-50";
   const buttonClassName =
     "text-foreground relative z-10 flex h-14 w-full items-center justify-center rounded-full transition-colors landscape:size-11";
+  const materialItemClassName =
+    "group flex min-w-0 flex-1 flex-col items-center justify-center gap-1 outline-none";
+  const materialIndicatorClassName = (isActive: boolean) =>
+    cn(
+      "flex h-8 w-16 items-center justify-center rounded-full transition-colors duration-200 group-focus-visible:ring-2 group-focus-visible:ring-ring",
+      isActive
+        ? "bg-sidebar-accent text-sidebar-accent-foreground"
+        : "text-muted-foreground group-active:bg-muted",
+    );
+  const materialLabelClassName = (isActive: boolean) =>
+    cn(
+      "max-w-full truncate px-1 text-xs landscape:hidden",
+      isActive ? "font-semibold" : "text-muted-foreground font-medium",
+    );
 
   const handleNavigation = useCallback(
     (event: MouseEvent, href: string, isActive: boolean) => {
@@ -99,6 +136,33 @@ export function MobileNavBar({ navigation }: MobileNavBarProps) {
   };
 
   const renderIcon = useCallback((icon?: ReactNode) => resolveNavigationIcon(icon, "size-6"), []);
+
+  const handleBarItemClick = (event: MouseEvent, href: string, isActive: boolean) => {
+    if (href !== "#search") {
+      handleNavigation(event, href, isActive);
+      return;
+    }
+    event.preventDefault();
+    triggerHaptic();
+    document.dispatchEvent(
+      new KeyboardEvent("keydown", {
+        key: "k",
+        code: "KeyK",
+        keyCode: 75,
+        which: 75,
+        metaKey: true,
+        ctrlKey: true,
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
+  };
+
+  const openMenu = () => {
+    triggerHaptic();
+    setProfileView(false);
+    setMobileMenuOpen(true);
+  };
 
   const primaryItems = navigation?.primary ?? [];
   const secondaryItems = navigation?.secondary ?? [];
@@ -139,52 +203,119 @@ export function MobileNavBar({ navigation }: MobileNavBarProps) {
 
   return (
     <div className={containerClassName}>
-      {/* Lift off bottom by the design gap while respecting safe area */}
-      <div className="flex justify-center px-4 pb-[var(--mobile-nav-bottom-offset)]">
-        <LiquidGlass
-          variant="floating"
-          intensity="subtle"
-          className={cn(
-            "pointer-events-auto w-full px-1 py-1 landscape:w-fit landscape:py-1.5",
-            "h-[var(--mobile-nav-ui-height)]",
-          )}
-        >
+      {isAndroid ? (
+        // Material 3 navigation bar: flush with the bottom edge and running under the
+        // gesture area, labelled destinations, a pill behind the current one.
+        // The hairline is drawn over the bar, so the bar is exactly as tall as the
+        // content's clearance.
+        <div className="bg-sidebar text-sidebar-foreground before:bg-sidebar-border pointer-events-auto relative pb-[var(--mobile-nav-bottom-offset)] before:absolute before:inset-x-0 before:top-0 before:h-px">
           <nav
             aria-label={t("common:layout.primary_navigation")}
-            className="grid auto-cols-fr grid-flow-col place-items-center gap-2 landscape:auto-cols-[2.75rem]"
+            className="flex h-[var(--mobile-nav-ui-height)] items-stretch"
           >
             {visibleItems.map((item) => {
               const isActive = isItemActive(item.href);
-              const isSearch = item.href === "#search";
-
               return (
                 <Link
-                  to={item.href}
-                  onClick={(e) => {
-                    if (isSearch) {
-                      e.preventDefault();
-                      triggerHaptic();
-                      const event = new KeyboardEvent("keydown", {
-                        key: "k",
-                        code: "KeyK",
-                        keyCode: 75,
-                        which: 75,
-                        metaKey: true,
-                        ctrlKey: true,
-                        bubbles: true,
-                        cancelable: true,
-                      });
-                      document.dispatchEvent(event);
-                    } else {
-                      handleNavigation(e, item.href, isActive);
-                    }
-                  }}
-                  aria-label={item.title}
-                  className={buttonClassName}
                   key={item.href}
+                  to={item.href}
+                  onClick={(e) => handleBarItemClick(e, item.href, isActive)}
+                  aria-label={item.title}
                   aria-current={isActive ? "page" : undefined}
+                  className={materialItemClassName}
                 >
-                  {isActive && (
+                  <span className={materialIndicatorClassName(isActive)} aria-hidden="true">
+                    {renderIcon(item.icon)}
+                  </span>
+                  <span className={materialLabelClassName(isActive)} aria-hidden="true">
+                    {item.title}
+                  </span>
+                </Link>
+              );
+            })}
+            {hasMenu && (
+              <button
+                type="button"
+                onClick={openMenu}
+                aria-label={t("common:layout.more_options")}
+                className={materialItemClassName}
+              >
+                <span
+                  className={materialIndicatorClassName(
+                    moreItems.some((item) => isItemActive(item.href)),
+                  )}
+                  aria-hidden="true"
+                >
+                  <Icons.CirclesFour className="size-6" />
+                </span>
+                <span
+                  className={materialLabelClassName(
+                    moreItems.some((item) => isItemActive(item.href)),
+                  )}
+                  aria-hidden="true"
+                >
+                  {t("common:layout.more")}
+                </span>
+              </button>
+            )}
+          </nav>
+        </div>
+      ) : (
+        /* Lift off bottom by the design gap while respecting safe area */
+        <div className="flex justify-center px-4 pb-[var(--mobile-nav-bottom-offset)]">
+          <LiquidGlass
+            variant="floating"
+            intensity="subtle"
+            className={cn(
+              "pointer-events-auto w-full px-1 py-1 landscape:w-fit landscape:py-1.5",
+              "h-[var(--mobile-nav-ui-height)]",
+            )}
+          >
+            <nav
+              aria-label={t("common:layout.primary_navigation")}
+              className="grid auto-cols-fr grid-flow-col place-items-center gap-2 landscape:auto-cols-[2.75rem]"
+            >
+              {visibleItems.map((item) => {
+                const isActive = isItemActive(item.href);
+
+                return (
+                  <Link
+                    to={item.href}
+                    onClick={(e) => handleBarItemClick(e, item.href, isActive)}
+                    aria-label={item.title}
+                    className={buttonClassName}
+                    key={item.href}
+                    aria-current={isActive ? "page" : undefined}
+                  >
+                    {isActive && (
+                      <motion.div
+                        layoutId={`mobile-nav-indicator-${uniqueId}`}
+                        className="absolute inset-0 -z-10 rounded-full border border-black/10 bg-black/5 shadow-sm dark:border-white/10 dark:bg-white/10"
+                        initial={false}
+                        transition={{
+                          type: "spring",
+                          stiffness: 400,
+                          damping: 30,
+                        }}
+                      />
+                    )}
+                    <span
+                      className="relative flex size-7 shrink-0 items-center justify-center outline-none"
+                      aria-hidden="true"
+                    >
+                      {renderIcon(item.icon)}
+                    </span>
+                  </Link>
+                );
+              })}
+
+              {hasMenu && (
+                <button
+                  onClick={openMenu}
+                  aria-label={t("common:layout.more_options")}
+                  className={buttonClassName}
+                >
+                  {moreItems.some((item) => isItemActive(item.href)) && (
                     <motion.div
                       layoutId={`mobile-nav-indicator-${uniqueId}`}
                       className="absolute inset-0 -z-10 rounded-full border border-black/10 bg-black/5 shadow-sm dark:border-white/10 dark:bg-white/10"
@@ -200,45 +331,14 @@ export function MobileNavBar({ navigation }: MobileNavBarProps) {
                     className="relative flex size-7 shrink-0 items-center justify-center outline-none"
                     aria-hidden="true"
                   >
-                    {renderIcon(item.icon)}
+                    <Icons.CirclesFour className="size-6" />
                   </span>
-                </Link>
-              );
-            })}
-
-            {hasMenu && (
-              <button
-                onClick={() => {
-                  triggerHaptic();
-                  setProfileView(false);
-                  setMobileMenuOpen(true);
-                }}
-                aria-label={t("common:layout.more_options")}
-                className={buttonClassName}
-              >
-                {moreItems.some((item) => isItemActive(item.href)) && (
-                  <motion.div
-                    layoutId={`mobile-nav-indicator-${uniqueId}`}
-                    className="absolute inset-0 -z-10 rounded-full border border-black/10 bg-black/5 shadow-sm dark:border-white/10 dark:bg-white/10"
-                    initial={false}
-                    transition={{
-                      type: "spring",
-                      stiffness: 400,
-                      damping: 30,
-                    }}
-                  />
-                )}
-                <span
-                  className="relative flex size-7 shrink-0 items-center justify-center outline-none"
-                  aria-hidden="true"
-                >
-                  <Icons.CirclesFour className="size-6" />
-                </span>
-              </button>
-            )}
-          </nav>
-        </LiquidGlass>
-      </div>
+                </button>
+              )}
+            </nav>
+          </LiquidGlass>
+        </div>
+      )}
 
       <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
         <SheetContent
