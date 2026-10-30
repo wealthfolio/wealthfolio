@@ -1,3 +1,4 @@
+import { AccountType, DECIMAL_PRECISION, InstrumentType } from "@/lib/constants";
 import { getQuoteUnitCurrency } from "@wealthfolio/ui/lib/currencies";
 
 /**
@@ -86,4 +87,26 @@ export function currencyFractionDigits(currency: string | undefined): number {
 /** One minor unit of the currency. Mirrors `currency_minor_unit` in core. */
 export function currencyMinorUnit(currency: string | undefined): number {
   return 10 ** -currencyFractionDigits(currency);
+}
+
+/** Whether an instrument type names crypto ("CRYPTO", or a provider's "CRYPTOCURRENCY"). */
+export function isCryptoInstrument(instrumentType: unknown): boolean {
+  const normalizedType =
+    typeof instrumentType === "string" ? instrumentType.trim().toUpperCase() : "";
+  return normalizedType === InstrumentType.CRYPTO || normalizedType === "CRYPTOCURRENCY";
+}
+
+/**
+ * Decimals a money field takes in a crypto account, or for a crypto asset's
+ * trade or income: exchanges keep cash past the cent (Kraken keeps USD to 4
+ * places, Binance USDT to 8). `undefined` otherwise, so the field follows its
+ * currency.
+ */
+export function cryptoMoneyDecimals(
+  accountType: string | undefined,
+  instrumentType?: unknown,
+): number | undefined {
+  return accountType === AccountType.CRYPTOCURRENCY || isCryptoInstrument(instrumentType)
+    ? DECIMAL_PRECISION
+    : undefined;
 }

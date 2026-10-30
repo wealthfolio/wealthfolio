@@ -6,6 +6,7 @@ import {
   isLiabilityAccountType,
   QuoteMode,
 } from "@/lib/constants";
+import { cryptoMoneyDecimals } from "@/lib/currency-decimals";
 import { normalizeCurrency } from "@/lib/utils";
 import { invalidTypeError, requiredError } from "@/lib/zod-errors";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -502,6 +503,7 @@ export function TransferForm({
     [accounts, fromAccountId, accountId, isExternal],
   );
   const accountCurrency = selectedAccount?.currency;
+  const moneyDecimals = cryptoMoneyDecimals(selectedAccount?.accountType);
   const destinationAccount = useMemo(
     () => accounts.find((a) => a.value === toAccountId),
     [accounts, toAccountId],
@@ -965,6 +967,7 @@ export function TransferForm({
                 name="amount"
                 label={t("activity:form.label_amount")}
                 currency={currency}
+                maxDecimalPlaces={moneyDecimals}
               />
             ))}
         </FormSection>

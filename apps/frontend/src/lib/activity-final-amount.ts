@@ -1,5 +1,9 @@
 import { ActivityType, InstrumentType } from "@/lib/constants";
-import { currencyFractionDigits, currencyMinorUnit } from "@/lib/currency-decimals";
+import {
+  currencyFractionDigits,
+  currencyMinorUnit,
+  isCryptoInstrument,
+} from "@/lib/currency-decimals";
 import { roundDecimal } from "@/lib/utils";
 
 // Mirrors Asset::contract_multiplier in assets_model.rs - the app-wide
@@ -17,12 +21,6 @@ export function resolveActivityCashMultiplier(
   const normalizedType =
     typeof instrumentType === "string" ? instrumentType.trim().toUpperCase() : "";
   return normalizedType === InstrumentType.OPTION ? 100 : 1;
-}
-
-function isCryptoInstrument(instrumentType: unknown): boolean {
-  const normalizedType =
-    typeof instrumentType === "string" ? instrumentType.trim().toUpperCase() : "";
-  return normalizedType === InstrumentType.CRYPTO || normalizedType === "CRYPTOCURRENCY";
 }
 
 /**

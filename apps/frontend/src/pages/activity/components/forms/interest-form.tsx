@@ -1,5 +1,6 @@
 import { useSettings } from "@/hooks/use-settings";
 import { ACTIVITY_SUBTYPES, ActivityType, DECIMAL_PRECISION } from "@/lib/constants";
+import { cryptoMoneyDecimals } from "@/lib/currency-decimals";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@wealthfolio/ui/components/ui/button";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
@@ -281,6 +282,10 @@ export function InterestForm({
     [accounts, accountId],
   );
   const accountCurrency = selectedAccount?.currency;
+  const moneyDecimals = cryptoMoneyDecimals(
+    selectedAccount?.accountType,
+    watch("symbolInstrumentType"),
+  );
 
   const handleSubmit = createValidatedSubmit(form, async (data) => {
     await onSubmit(data);
@@ -375,11 +380,13 @@ export function InterestForm({
               onValueChange={() => {
                 amountWasEdited.current = true;
               }}
+              maxDecimalPlaces={moneyDecimals}
             />
             <AmountInput
               name="tax"
               label={t("activity:form.label_withholding_tax")}
               currency={currency}
+              maxDecimalPlaces={moneyDecimals}
             />
           </div>
         </FormSection>
