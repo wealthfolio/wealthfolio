@@ -192,13 +192,15 @@ function EnabledWealthfolioConnectProvider({ children }: { children: ReactNode }
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
 
   const setSession = useCallback((next: Session | null) => {
-    if (sessionRef.current?.user.id !== next?.user.id) setUserInfo(null);
+    if (sessionRef.current?.user.id !== next?.user.id) {
+      setUserInfo(null);
+      userInfoRetryAtRef.current = 0;
+    }
     sessionRef.current = next;
     setIsSessionUnavailable(false);
     syncAccessRef.current = null;
     sessionGenerationRef.current += 1;
     userInfoRequestRef.current += 1;
-    userInfoRetryAtRef.current = 0;
     setSessionState(next);
   }, []);
 
@@ -829,12 +831,14 @@ function EnabledWealthfolioConnectProvider({ children }: { children: ReactNode }
       generation === sessionGenerationRef.current && request === userInfoRequestRef.current;
     if (!sessionRef.current) return;
     setIsLoadingUserInfo(true);
+    let requestedUserInfo = false;
     try {
       await reconcileSession();
       if (!isCurrent()) return;
       // Still reconcile local sign-out while suppressing cloud retries during a rate limit.
       if (Date.now() < userInfoRetryAtRef.current) return;
       setError(null);
+      requestedUserInfo = true;
       const info = await getUserInfo();
       if (!isCurrent()) return;
       userInfoRetryAtRef.current = 0;
@@ -852,7 +856,7 @@ function EnabledWealthfolioConnectProvider({ children }: { children: ReactNode }
       if (!isCurrent()) return;
       logger.error("Failed to fetch user info from API.");
       const message = err instanceof Error ? err.message : typeof err === "string" ? err : "";
-      const rateLimited = /\bAPI error 429\b/.test(message);
+      const rateLimited = requestedUserInfo && /\bAPI error 429\b/.test(message);
       if (rateLimited) {
         userInfoRetryAtRef.current = Date.now() + USER_INFO_RATE_LIMIT_BACKOFF_MS;
       } else {

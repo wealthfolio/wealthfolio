@@ -398,6 +398,35 @@ describe("Cloud session lifecycle", () => {
     expect(result.current.isConnected).toBe(true);
   });
 
+  it("keeps the cooldown when the same account establishes a new session", async () => {
+    const { result } = await setup();
+    await act(() => result.current.signInWithEmail("A", "password"));
+    await waitFor(() => expect(result.current.userInfo?.id).toBe("A"));
+    mocks.getUserInfo.mockRejectedValueOnce(new Error("API error 429: Too many requests"));
+    await act(() => result.current.refetchUserInfo());
+    const calls = mocks.getUserInfo.mock.calls.length;
+
+    await act(() => result.current.signInWithEmail("A", "password"));
+    expect(mocks.getUserInfo).toHaveBeenCalledTimes(calls);
+    expect(result.current.userInfo?.id).toBe("A");
+    expect(result.current.isConnected).toBe(true);
+  });
+
+  it("does not mistake a local session-check failure for a cloud profile rate limit", async () => {
+    const { result } = await setup();
+    await act(() => result.current.signInWithEmail("A", "password"));
+    await waitFor(() => expect(result.current.userInfo?.id).toBe("A"));
+    const calls = mocks.getUserInfo.mock.calls.length;
+    mocks.getStatus.mockRejectedValueOnce(new Error("API error 429: Local session lookup failed"));
+    await act(() => result.current.refetchUserInfo());
+    expect(result.current.userInfo).toBeNull();
+    expect(mocks.getUserInfo).toHaveBeenCalledTimes(calls);
+
+    await act(() => result.current.refetchUserInfo());
+    expect(mocks.getUserInfo).toHaveBeenCalledTimes(calls + 1);
+    expect(result.current.userInfo?.id).toBe("A");
+  });
+
   it("still reconciles a missing backend session during the rate-limit cooldown", async () => {
     const { result } = await setup();
     await act(() => result.current.signInWithEmail("A", "password"));
