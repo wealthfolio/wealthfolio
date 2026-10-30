@@ -100,6 +100,35 @@ describe("calculated totals round like the backend writer", () => {
     expect(buy(1, 10.005, "USD")).toBe(10.01);
   });
 
+  it("rounds the exact product once, as the writer does", () => {
+    // 0.3 × 3.34999999 is exactly 1.004999997: rounding it to 8 places first
+    // would make it a tie and round it up to 1.01.
+    expect(buy(0.3, 3.34999999, "USD")).toBe(1);
+  });
+
+  it("rounds a pence total to whole pence, a penny being GBP's minor unit", () => {
+    // 3 × 1,234.5678 GBp is 3,703.7034p; the writer stores £37.04.
+    expect(buy(3, 1234.5678, "GBp")).toBe(3_704);
+  });
+
+  it("keeps a sell's exact value when rounding would flip its direction", () => {
+    const sell = (unitPrice: number, fee: number) =>
+      calculateTradeFinalCash({
+        activityType: ActivityType.SELL,
+        instrumentType: "EQUITY",
+        quantity: 1,
+        unitPrice,
+        fee,
+        tax: 0,
+        currency: "USD",
+      });
+    // 10.004 rounds to 10.00, which would turn 0.003 of proceeds into a debit.
+    expect(sell(10.004, 10.001)).toBe(0.003);
+    // 10.006 rounds to 10.01, which would turn a 0.003 debit into proceeds.
+    expect(sell(10.006, 10.009)).toBe(-0.003);
+    expect(sell(10.006, 5)).toBe(5.01);
+  });
+
   it("adds charges after rounding the trade value", () => {
     expect(buy(2282, 22.526204, "USD", { fee: 1.0034 })).toBe(51_405.8034);
   });

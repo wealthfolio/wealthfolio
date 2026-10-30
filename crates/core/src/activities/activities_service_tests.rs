@@ -4499,6 +4499,140 @@ pub(crate) mod tests {
     }
 
     #[tokio::test]
+    async fn sell_rounding_never_flips_its_direction() {
+        // (price, fee, stored total, booked cash). Rounding 10.004 to 10.00
+        // would turn 0.003 of proceeds into a 0.001 debit, and 10.006 to 10.01
+        // a 0.003 debit into proceeds. Readers take the direction from the
+        // exact value, so the exact value is kept whenever rounding would
+        // flip it.
+        let cases = [
+            (dec!(10.004), dec!(10.001), dec!(0.003), dec!(0.003)),
+            (dec!(10.006), dec!(10.009), dec!(0.003), dec!(-0.003)),
+            (dec!(10.006), dec!(5), dec!(5.01), dec!(5.01)),
+        ];
+        for (price, fee, stored, booked) in cases {
+            let activity_service =
+                final_total_service("USD", vec![create_test_asset("FUND", "USD")], None);
+            let mut sell = statement_buy("sell-near-zero", None, fee);
+            sell.activity_type = "SELL".to_string();
+            sell.quantity = Some(dec!(1));
+            sell.unit_price = Some(price);
+
+            let created = activity_service
+                .create_activity(sell)
+                .await
+                .expect("sell should be created");
+
+            assert_eq!(created.amount, Some(stored), "{price} - {fee}");
+            let cash = crate::portfolio::economic_events::ActivityEconomicsResolver::resolve_cash(
+                &created,
+                Decimal::ONE,
+            );
+            assert_eq!(cash.signed_cash_effect, Some(booked), "{price} - {fee}");
+        }
+    }
+
+    #[tokio::test]
+    async fn pence_totals_round_the_same_on_create_and_edit() {
+        // 3 × 1,234.5678 GBp is £37.037034. A create normalizes to GBP before
+        // deriving; an edit derives in pence first. Both store £37.04, and
+        // the edit's whole-pence total is not flagged for review.
+        let activity_service =
+            final_total_service("GBP", vec![create_test_asset("FUND", "GBP")], None);
+        let mut buy = statement_buy("buy-pence", None, dec!(0));
+        buy.currency = "GBp".to_string();
+        buy.quantity = Some(dec!(3));
+        buy.unit_price = Some(dec!(1234.5678));
+
+        let created = activity_service
+            .create_activity(buy)
+            .await
+            .expect("pence trade should be created");
+        assert_eq!(created.currency, "GBP");
+        assert_eq!(created.amount, Some(dec!(37.04)));
+
+        let updated = activity_service
+            .update_activity(ActivityUpdate {
+                unlink_transfer_pair_id: None,
+                split_review: None,
+                id: created.id.clone(),
+                account_id: "acc-final".to_string(),
+                asset: Some(AssetResolutionInput {
+                    id: Some("FUND".to_string()),
+                    ..Default::default()
+                }),
+                activity_type: "BUY".to_string(),
+                subtype: None,
+                activity_date: "2024-01-15".to_string(),
+                quantity: Some(Some(dec!(3))),
+                unit_price: Some(Some(dec!(1234.5678))),
+                currency: "GBp".to_string(),
+                fee: Some(Some(dec!(0))),
+                tax: None,
+                amount: Some(None),
+                status: None,
+                needs_review: None,
+                notes: None,
+                fx_rate: None,
+                metadata: None,
+            })
+            .await
+            .expect("pence edit should succeed");
+
+        assert_eq!(updated.currency, "GBP");
+        assert_eq!(updated.amount, Some(dec!(37.04)));
+        assert!(!updated.needs_review);
+    }
+
+    #[tokio::test]
+    async fn editing_to_a_bare_crypto_symbol_keeps_the_total_exact() {
+        // The patch names BTC-USD with no instrument type; the save path
+        // infers crypto from the pair, so the recalculated total must not be
+        // rounded to cents first.
+        let mut existing = create_stored_activity("buy-to-crypto", "acc-final", Some("FUND"));
+        existing.quantity = Some(dec!(10));
+        existing.unit_price = Some(dec!(20));
+        existing.fee = Some(dec!(0));
+        existing.amount = Some(dec!(200));
+        let activity_service = final_total_service(
+            "USD",
+            vec![create_test_asset("FUND", "USD")],
+            Some(existing),
+        );
+
+        let updated = activity_service
+            .update_activity(ActivityUpdate {
+                unlink_transfer_pair_id: None,
+                split_review: None,
+                id: "buy-to-crypto".to_string(),
+                account_id: "acc-final".to_string(),
+                asset: Some(AssetResolutionInput {
+                    symbol: Some("BTC-USD".to_string()),
+                    quote_ccy: Some("USD".to_string()),
+                    ..Default::default()
+                }),
+                activity_type: "BUY".to_string(),
+                subtype: None,
+                activity_date: "2024-01-15".to_string(),
+                quantity: Some(Some(dec!(0.00123))),
+                unit_price: Some(Some(dec!(61234.56))),
+                currency: "USD".to_string(),
+                fee: Some(Some(dec!(0))),
+                tax: None,
+                amount: Some(None),
+                status: None,
+                needs_review: None,
+                notes: None,
+                fx_rate: None,
+                metadata: None,
+            })
+            .await
+            .expect("edit to a crypto pair should succeed");
+
+        assert_eq!(updated.amount, Some(dec!(75.3185088)));
+    }
+
+    #[tokio::test]
     async fn editing_trade_to_unresolved_option_symbol_uses_patch_multiplier() {
         // Replacing an equity trade's asset with a not-yet-resolved option
         // symbol must derive the total from the patch's instrument facts, not

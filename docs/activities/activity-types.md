@@ -28,13 +28,14 @@ trade details prove charges exceed proceeds. Explicit zero remains zero.
 Writers can derive missing trade totals from quantity × unit price × asset
 multiplier, rounded half away from zero to the activity currency's minor unit,
 plus charges for BUY or minus charges for SELL. Crypto trades keep the exact
-value, since exchanges settle past the cent, and a non-zero value never rounds
-to zero. A supplied total is stored as given: one within half a minor unit of
-the calculation is consistent with it and is not flagged. Import can convert a
-matching gross total to final by adding the charges to it; a conflicting total
-is preserved for review. Plain cash and income require an explicit amount.
-Standalone charges and recognized asset-income composites have their own
-missing-amount derivation; composites round their value the same way.
+value, since exchanges settle past the cent; a non-zero value never rounds to
+zero; and a SELL whose rounding would flip proceeds into a debit, or back, keeps
+the exact value. A supplied total is stored as given: one within half a minor
+unit of the calculation is consistent with it and is not flagged. Import can
+convert a matching gross total to final by adding the charges to it; a
+conflicting total is preserved for review. Plain cash and income require an
+explicit amount. Standalone charges and recognized asset-income composites have
+their own missing-amount derivation; composites round their value the same way.
 
 All monetary inputs use activity currency. `fx_rate` converts activity currency
 to account currency. A positive supplied rate settles BUY/SELL cash in account

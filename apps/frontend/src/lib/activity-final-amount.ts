@@ -1,9 +1,5 @@
-import { ActivityType, InstrumentType } from "@/lib/constants";
-import {
-  currencyFractionDigits,
-  currencyMinorUnit,
-  isCryptoInstrument,
-} from "@/lib/currency-decimals";
+import { ActivityType, DECIMAL_PRECISION, InstrumentType } from "@/lib/constants";
+import { currencyCashDigits, currencyMinorUnit, isCryptoInstrument } from "@/lib/currency-decimals";
 import { roundDecimal } from "@/lib/utils";
 
 // Mirrors Asset::contract_multiplier in assets_model.rs - the app-wide
@@ -23,34 +19,61 @@ export function resolveActivityCashMultiplier(
   return normalizedType === InstrumentType.OPTION ? 100 : 1;
 }
 
-/**
- * Rounds half away from zero. The shift goes through the decimal string so a
- * tie such as 10.005 survives binary floating point (10.005 * 100 is
- * 1000.4999...).
- */
-function roundHalfAwayFromZero(value: number, places: number): number {
-  const shifted = Number(`${Math.abs(value)}e${places}`);
-  if (!Number.isFinite(shifted)) return value;
-  const rounded = Number(`${Math.round(shifted)}e-${places}`);
-  return value < 0 ? -rounded : rounded;
+/** An exact decimal: `digits` × 10^-`scale`. */
+interface ScaledDecimal {
+  digits: bigint;
+  scale: number;
+}
+
+/** A finite number's shortest decimal form, which is how it was entered. */
+function toScaledDecimal(value: number): ScaledDecimal {
+  const [mantissa, exponent = "0"] = String(Math.abs(value)).split("e");
+  const [whole, fraction = ""] = mantissa.split(".");
+  const scale = fraction.length - Number(exponent);
+  const magnitude = BigInt(whole + fraction);
+  const digits = value < 0 ? -magnitude : magnitude;
+  return scale < 0 ? { digits: digits * 10n ** BigInt(-scale), scale: 0 } : { digits, scale };
+}
+
+/** Rounds an exact decimal half away from zero to `places`. */
+function roundScaled({ digits, scale }: ScaledDecimal, places: number): number {
+  if (scale <= places) return Number(`${digits}e-${scale}`);
+  const divisor = 10n ** BigInt(scale - places);
+  const magnitude = digits < 0n ? -digits : digits;
+  const quotient = magnitude / divisor + (2n * (magnitude % divisor) >= divisor ? 1n : 0n);
+  const rounded = Number(`${quotient}e-${places}`);
+  return digits < 0n ? -rounded : rounded;
 }
 
 /**
- * Mirrors `derived_cash_scale` and `round_derived_cash` in
- * activities_service.rs: a calculated value rounds to the currency's minor
- * unit; a crypto trade's stays exact, since exchanges settle past the cent; a
- * non-zero value never rounds to zero, since a zero total means units received
- * for free.
+ * The product of `operands` (quantity, price, multiplier), exact to 8 places
+ * and rounded the way `round_derived_cash` in activities_service.rs rounds a
+ * calculated value. It multiplies the decimals as entered, not binary floats,
+ * so a tie such as 10.005 survives and 0.3 × 3.34999999 (1.004999997) is not
+ * rounded twice. A value rounds half away from zero to the currency's minor
+ * unit; a crypto value stays exact, since exchanges settle past the cent; a
+ * non-zero value never rounds to zero, since a zero total means units
+ * received for free.
  */
-function roundDerivedCash(value: number, currency: unknown, instrumentType: unknown): number {
-  // Eight places first clears float noise from the multiplication.
-  const exact = roundDecimal(value);
-  if (isCryptoInstrument(instrumentType)) return exact;
-  const rounded = roundHalfAwayFromZero(
-    exact,
-    currencyFractionDigits(typeof currency === "string" ? currency : undefined),
+function derivedValue(
+  operands: number[],
+  currency: unknown,
+  instrumentType: unknown,
+): { exact: number; rounded: number } {
+  const product = operands.map(toScaledDecimal).reduce(
+    (total, factor) => ({
+      digits: total.digits * factor.digits,
+      scale: total.scale + factor.scale,
+    }),
+    { digits: 1n, scale: 0 },
   );
-  return rounded === 0 && exact !== 0 ? exact : rounded;
+  const exact = roundScaled(product, DECIMAL_PRECISION);
+  if (isCryptoInstrument(instrumentType)) return { exact, rounded: exact };
+  const rounded = roundScaled(
+    product,
+    currencyCashDigits(typeof currency === "string" ? currency : undefined),
+  );
+  return { exact, rounded: rounded === 0 && exact !== 0 ? exact : rounded };
 }
 
 interface TradeCashInputs {
@@ -88,15 +111,25 @@ export function calculateTradeFinalCash({
 }: TradeCashInputs): number | undefined {
   const q = Number(quantity);
   const price = Number(unitPrice);
-  if (!(q > 0) || !(price > 0)) return undefined;
+  if (!(q > 0) || !(price > 0) || !Number.isFinite(q) || !Number.isFinite(price)) {
+    return undefined;
+  }
 
-  const gross = roundDerivedCash(
-    q * price * resolveActivityCashMultiplier(instrumentType, contractMultiplier),
+  const gross = derivedValue(
+    [q, price, resolveActivityCashMultiplier(instrumentType, contractMultiplier)],
     currency,
     instrumentType,
   );
   const charges = Math.abs(Number(fee) || 0) + Math.abs(Number(tax) || 0);
-  const signed = activityType === ActivityType.BUY ? -(gross + charges) : gross - charges;
+  const cashFrom = (value: number) =>
+    activityType === ActivityType.BUY ? -(value + charges) : value - charges;
+  const exactCash = cashFrom(gross.exact);
+  const roundedCash = cashFrom(gross.rounded);
+  // Readers take a SELL's direction from the exact value (isProvenNegativeSell),
+  // so, as the writer does, a rounding that would turn proceeds into a debit or
+  // a debit into proceeds keeps the exact value.
+  const flipsDirection = roundedCash !== 0 && roundedCash < 0 !== exactCash < 0;
+  const signed = flipsDirection ? exactCash : roundedCash;
   // Round the magnitude, then re-apply the sign: roundDecimal breaks ties
   // upward, so rounding the signed value would round a debit and a credit of
   // the same size to different magnitudes.
@@ -159,13 +192,15 @@ export function calculateIncomeFinalAmount({
 }: IncomeCashInputs): number | undefined {
   const q = Number(quantity);
   const price = Number(unitPrice);
-  if (!(q > 0) || !(price > 0)) return undefined;
+  if (!(q > 0) || !(price > 0) || !Number.isFinite(q) || !Number.isFinite(price)) {
+    return undefined;
+  }
   // Mirrors calculate_composite_final_cash (economic_events.rs) with the
   // multiplier defaults from Asset::contract_multiplier (assets_model.rs), which
   // includes the asset's unit multiplier, rounded as the writer rounds it.
-  return roundDerivedCash(
-    q * price * resolveActivityCashMultiplier(instrumentType, contractMultiplier),
+  return derivedValue(
+    [q, price, resolveActivityCashMultiplier(instrumentType, contractMultiplier)],
     currency,
     instrumentType,
-  );
+  ).rounded;
 }

@@ -78,8 +78,7 @@ use crate::assets::{
 use crate::errors::{DatabaseError, Error};
 use crate::events::{DomainEvent, DomainEventSink, NoOpDomainEventSink};
 use crate::fx::currency::{
-    currency_fraction_digits, currency_minor_unit, get_normalization_rule, normalize_amount,
-    resolve_currency,
+    currency_fraction_digits, get_normalization_rule, normalize_amount, resolve_currency,
 };
 use crate::fx::FxServiceTrait;
 use crate::portfolio::economic_events::{ActivityCashInputs, ActivityEconomicsResolver};
@@ -282,7 +281,26 @@ impl ActivityService {
     /// exchanges settle at their own precision (Kraken keeps USD to 4 places,
     /// Binance USDT to 8), so a derived crypto total stays exact.
     fn derived_cash_scale(currency: &str, is_crypto: bool) -> Option<u32> {
-        (!is_crypto).then(|| currency_fraction_digits(currency))
+        (!is_crypto).then(|| Self::currency_cash_scale(currency))
+    }
+
+    /// Decimal places of one minor unit in `currency`'s own units. A
+    /// minor-unit quote such as GBp (pence) is itself one minor unit of its
+    /// major currency, so it counts in whole units: an edit derives and checks
+    /// its total before the currency is normalized, and this keeps both equal
+    /// to a create's, which works in GBP.
+    fn currency_cash_scale(currency: &str) -> u32 {
+        let digits = currency_fraction_digits(currency);
+        match get_normalization_rule(currency) {
+            Some(rule) => digits.saturating_sub(rule.factor.scale()),
+            None => digits,
+        }
+    }
+
+    /// Half a minor unit of `currency`: how far a total may sit from the
+    /// calculation and still be consistent with it.
+    fn half_minor_unit(currency: &str) -> Decimal {
+        Decimal::new(5, Self::currency_cash_scale(currency) + 1)
     }
 
     /// Rounds a derived value half away from zero. A non-zero value that would
@@ -303,7 +321,10 @@ impl ActivityService {
     /// Final cash for a row that carries none. A trade rounds its value
     /// (quantity × price) to `cash_scale` before adding charges as entered,
     /// the way a statement builds it; a recognized income composite rounds
-    /// its value the same way.
+    /// its value the same way. Readers take a SELL's direction from the exact
+    /// value (`ActivityEconomicsResolver`, `isProvenNegativeSell`), so a
+    /// rounding that would turn proceeds into a debit, or a debit into
+    /// proceeds, keeps the exact value.
     // Same shape as `activity_cash_inputs`: a list of the row's economics.
     #[allow(clippy::too_many_arguments)]
     fn calculated_missing_final_amount(
@@ -329,12 +350,21 @@ impl ActivityService {
         );
         if Self::is_trade_type(activity_type) {
             let gross = ActivityEconomicsResolver::derived_positive_gross(inputs)?;
-            ActivityEconomicsResolver::trade_final_cash_from_gross(
+            let exact = ActivityEconomicsResolver::trade_cash_effect_from_gross(
+                activity_type,
+                gross,
+                fee,
+                tax,
+            )?;
+            let rounded = ActivityEconomicsResolver::trade_cash_effect_from_gross(
                 activity_type,
                 Self::round_derived_cash(gross, cash_scale),
                 fee,
                 tax,
-            )
+            )?;
+            let flips_direction =
+                !rounded.is_zero() && rounded.is_sign_negative() != exact.is_sign_negative();
+            Some(if flips_direction { exact } else { rounded }.abs())
         } else if matches!(activity_type, ACTIVITY_TYPE_FEE | ACTIVITY_TYPE_TAX) {
             ActivityEconomicsResolver::calculate_standalone_charge_amount(inputs)
         } else {
@@ -368,7 +398,7 @@ impl ActivityService {
             // Half a minor unit: a statement rounds the trade this calculation
             // prices exactly, so a total that close is consistent and stays
             // as given. A deliberate one-cent difference stays too, and flags.
-            let tolerance = currency_minor_unit(currency) / Decimal::TWO;
+            let tolerance = Self::half_minor_unit(currency);
             if (amount.abs() - expected).abs() <= tolerance {
                 return (amount.abs(), false);
             }
@@ -379,13 +409,13 @@ impl ActivityService {
                 && ActivityEconomicsResolver::derived_positive_gross(inputs)
                     .is_some_and(|gross| (amount.abs() - gross).abs() <= tolerance)
             {
-                if let Some(final_cash) = ActivityEconomicsResolver::trade_final_cash_from_gross(
+                if let Some(final_cash) = ActivityEconomicsResolver::trade_cash_effect_from_gross(
                     inputs.activity_type,
                     amount.abs(),
                     inputs.fee,
                     inputs.tax,
                 ) {
-                    return (final_cash, false);
+                    return (final_cash.abs(), false);
                 }
             }
             return (amount.abs(), true);
@@ -557,11 +587,21 @@ impl ActivityService {
                     instrument_type.eq_ignore_ascii_case("OPTION"),
                     false,
                 );
+                // Same inference `prepare_update_activity` applies when it
+                // resolves the bare symbol later (e.g. BTC-USD is crypto).
+                let replacement_type =
+                    Self::parse_instrument_type(Some(instrument_type)).or_else(|| {
+                        self.infer_asset_kind(
+                            symbol,
+                            activity.get_exchange_mic(),
+                            activity.get_kind(),
+                        )
+                        .1
+                    });
                 return UpdateTradeFacts {
                     unit_multiplier,
                     existing_unit_multiplier,
-                    is_crypto: Self::parse_instrument_type(Some(instrument_type))
-                        == Some(InstrumentType::Crypto),
+                    is_crypto: replacement_type == Some(InstrumentType::Crypto),
                     existing_is_crypto,
                     replaces_asset: true,
                 };
@@ -749,7 +789,7 @@ impl ActivityService {
                             )
                             .is_none_or(|expected| {
                                 (stored - expected).abs()
-                                    > currency_minor_unit(&activity.currency) / Decimal::TWO
+                                    > Self::half_minor_unit(&activity.currency)
                             })
                         });
                     if replaces_custom_total && activity.needs_review != Some(false) {

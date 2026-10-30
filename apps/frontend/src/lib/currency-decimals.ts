@@ -84,6 +84,16 @@ export function currencyFractionDigits(currency: string | undefined): number {
   }
 }
 
+/**
+ * Decimal places of one minor unit in the currency's own units, for rounding
+ * a calculated total. A minor-unit quote such as GBp (pence) is itself one
+ * minor unit of its major currency, so it rounds to whole units. Mirrors
+ * `currency_cash_scale` in activities_service.rs.
+ */
+export function currencyCashDigits(currency: string | undefined): number {
+  return getQuoteUnitCurrency(currency) ? 0 : currencyFractionDigits(currency);
+}
+
 /** One minor unit of the currency. Mirrors `currency_minor_unit` in core. */
 export function currencyMinorUnit(currency: string | undefined): number {
   return 10 ** -currencyFractionDigits(currency);
