@@ -1309,6 +1309,7 @@ export function SidebarConfigurator({
                             />
                             <LeverRow
                               label={t("goals:sidebar.income.fund_return_before_payout")}
+                              hint={t("goals:sidebar.income.fund_return_hint")}
                               value={s.accumulationReturn ?? planAccumulationReturn(draft)}
                               onChange={(v) => updateStream(s.id, { accumulationReturn: v })}
                               min={MIN_RETIREMENT_RETURN}
@@ -1366,6 +1367,7 @@ export function SidebarConfigurator({
                             {s.payoutMode === "drawdown" && (
                               <LeverRow
                                 label={t("goals:sidebar.income.fund_return_during_payout")}
+                                hint={t("goals:sidebar.income.fund_return_hint")}
                                 value={payoutPhaseReturn(s, draft)}
                                 onChange={(v) => updateStream(s.id, { postPayoutReturn: v })}
                                 min={MIN_RETIREMENT_RETURN}
@@ -1553,6 +1555,7 @@ export function SidebarConfigurator({
           <div className="divide-border -my-1 divide-y">
             <LeverRow
               label={t("goals:sidebar.assumptions.return_before_retirement")}
+              hint={t("goals:sidebar.plan.return_before_hint")}
               value={draft.investment.preRetirementAnnualReturn}
               onChange={(v) => setInvestment("preRetirementAnnualReturn", v)}
               min={0}
@@ -1570,6 +1573,7 @@ export function SidebarConfigurator({
             />
             <LeverRow
               label={t("goals:sidebar.assumptions.return_during_retirement")}
+              hint={t("goals:sidebar.plan.return_during_hint")}
               value={draft.investment.retirementAnnualReturn}
               onChange={(v) => setInvestment("retirementAnnualReturn", v)}
               min={0}

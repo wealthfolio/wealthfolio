@@ -274,8 +274,8 @@
       "monthly_contribution_hint": "Cuánto añades cada mes hasta la jubilación.",
       "savings_goals_contribution": "Los objetivos de ahorro también prevén {{amount}}/mes",
       "savings_goals_contribution_hint": "Tus objetivos de ahorro también prevén {{amount}}/mes. Introduce solo lo que va a la jubilación.",
-      "return_before_hint": "Rentabilidad anual supuesta durante el ahorro, antes de comisiones.",
-      "return_during_hint": "Rentabilidad anual supuesta tras comenzar los retiros, antes de comisiones.",
+      "return_before_hint": "Rentabilidad anual compuesta supuesta a largo plazo (TCAC) durante el ahorro, antes de comisiones.",
+      "return_during_hint": "Rentabilidad anual compuesta supuesta a largo plazo (TCAC) tras comenzar los retiros, antes de comisiones.",
       "annual_fee_hint": "Comisiones anuales estimadas de la cartera.",
       "inflation_hint": "Aumento anual supuesto de los precios."
     },
@@ -336,6 +336,7 @@
       "current_fund_balance": "Saldo actual del fondo",
       "monthly_fund_contribution": "Aportación mensual al fondo",
       "fund_return_before_payout": "Rentabilidad del fondo antes del pago",
+      "fund_return_hint": "Rentabilidad anual compuesta después de las comisiones del propio fondo. No se descuenta la comisión de inversión del plan.",
       "fund_payout_rate": "Tasa de pago",
       "fund_payout_mode": "Modo de pago",
       "fund_payout_mode_help": "La renta vitalicia modela pagos hasta el horizonte del plan; los retiros usan el saldo del fondo hasta agotarlo.",
@@ -366,7 +367,7 @@
       "effective_before_return": "Rentabilidad efectiva antes de la jubilación",
       "effective_retirement_return": "Rentabilidad efectiva de la jubilación",
       "annual_volatility": "Volatilidad anual",
-      "annual_volatility_tip": "Cuánto pueden variar las rentabilidades anuales en torno a la rentabilidad esperada. Una mayor volatilidad amplía el rango de resultados de las trayectorias de mercado.",
+      "annual_volatility_tip": "Cuánto varían las rentabilidades anuales. Solo se usa en las comprobaciones de trayectorias de mercado: amplía el rango de resultados, pero no cambia la proyección principal.",
       "inflation": "Inflación",
       "contribution_growth_per_year": "Crecimiento de la aportación por año"
     },
@@ -530,7 +531,7 @@
       "inflation_title": "Tasa de inflación",
       "inflation_desc": "El supuesto de inflación aumenta los gastos y los ingresos indexados con el tiempo. Cada partida puede usar su propia tasa.",
       "returns_title": "Rentabilidades, comisiones y volatilidad",
-      "returns_desc": "La rentabilidad antes de la jubilación impulsa la acumulación. La rentabilidad durante la jubilación impulsa la fase de retirada y el capital requerido. Las comisiones de inversión anuales se restan de ambas. La volatilidad solo se usa en las comprobaciones de trayectorias de mercado: valores más altos producen un abanico de resultados más amplio.",
+      "returns_desc": "La rentabilidad antes de la jubilación impulsa la acumulación. La rentabilidad durante la jubilación impulsa la fase de retirada y el capital requerido. Introduce ambas como tasas anuales compuestas a largo plazo (TCAC): la tasa a la que tu dinero crece realmente cada año, no la media simple de las rentabilidades anuales. Las comisiones de inversión anuales se restan de ambas. La volatilidad solo se usa en las comprobaciones de trayectorias de mercado: valores más altos producen un abanico de resultados más amplio.",
       "horizon_title": "Edad del horizonte de planificación",
       "horizon_desc": "Edad hasta la que se modelan los gastos de jubilación y los resultados de Qué pasaría si. Es un supuesto del periodo de planificación, no una predicción de longevidad."
     },

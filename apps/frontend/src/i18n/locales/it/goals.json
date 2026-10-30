@@ -274,8 +274,8 @@
       "monthly_contribution_hint": "Quanto aggiungi ogni mese fino alla pensione.",
       "savings_goals_contribution": "Gli obiettivi di risparmio prevedono anche {{amount}}/mese",
       "savings_goals_contribution_hint": "I tuoi obiettivi di risparmio prevedono anche {{amount}}/mese. Inserisci solo ciò che va alla pensione.",
-      "return_before_hint": "Rendimento annuo ipotizzato durante il risparmio, prima delle commissioni.",
-      "return_during_hint": "Rendimento annuo ipotizzato dopo l’inizio dei prelievi, prima delle commissioni.",
+      "return_before_hint": "Rendimento annuo composto ipotizzato a lungo termine (CAGR) durante il risparmio, prima delle commissioni.",
+      "return_during_hint": "Rendimento annuo composto ipotizzato a lungo termine (CAGR) dopo l’inizio dei prelievi, prima delle commissioni.",
       "annual_fee_hint": "Commissioni annue stimate del portafoglio.",
       "inflation_hint": "Aumento annuo ipotizzato dei prezzi."
     },
@@ -336,6 +336,7 @@
       "current_fund_balance": "Saldo attuale del fondo",
       "monthly_fund_contribution": "Contributo mensile al fondo",
       "fund_return_before_payout": "Rendimento del fondo prima dell'erogazione",
+      "fund_return_hint": "Rendimento annuo composto al netto delle commissioni del fondo. La commissione di investimento del piano non viene detratta.",
       "fund_payout_rate": "Tasso di erogazione",
       "fund_payout_mode": "Modalità di erogazione",
       "fund_payout_mode_help": "La rendita modella pagamenti fino all’orizzonte del piano; i prelievi utilizzano il saldo del fondo fino all’esaurimento.",
@@ -366,7 +367,7 @@
       "effective_before_return": "Rendimento effettivo prima della pensione",
       "effective_retirement_return": "Rendimento effettivo in pensione",
       "annual_volatility": "Volatilità annua",
-      "annual_volatility_tip": "Quanto possono variare i rendimenti annuali attorno al rendimento atteso. Una volatilità maggiore amplia l'intervallo dei risultati delle traiettorie di mercato.",
+      "annual_volatility_tip": "Quanto variano i rendimenti annuali. Usata solo nelle verifiche sulle traiettorie di mercato: amplia l'intervallo dei risultati ma non cambia la proiezione principale.",
       "inflation": "Inflazione",
       "contribution_growth_per_year": "Crescita del contributo per anno"
     },
@@ -530,7 +531,7 @@
       "inflation_title": "Tasso di inflazione",
       "inflation_desc": "L’ipotesi di inflazione aumenta nel tempo spese e redditi indicizzati. Le singole voci possono usare tassi propri.",
       "returns_title": "Rendimenti, commissioni e volatilità",
-      "returns_desc": "Il rendimento prima della pensione guida l'accumulo. Il rendimento durante la pensione guida la fase di prelievo e il capitale richiesto. Le commissioni di investimento annue vengono sottratte da entrambi. La volatilità viene usata solo nelle verifiche sulle traiettorie di mercato: valori più alti producono un ventaglio di risultati più ampio.",
+      "returns_desc": "Il rendimento prima della pensione guida l'accumulo. Il rendimento durante la pensione guida la fase di prelievo e il capitale richiesto. Inserisci entrambi come tassi annui composti di lungo periodo (CAGR): il tasso a cui il tuo denaro cresce davvero ogni anno, non la media semplice dei rendimenti annuali. Le commissioni di investimento annue vengono sottratte da entrambi. La volatilità viene usata solo nelle verifiche sulle traiettorie di mercato: valori più alti producono un ventaglio di risultati più ampio.",
       "horizon_title": "Età dell'orizzonte di pianificazione",
       "horizon_desc": "L’età fino alla quale vengono modellati spese pensionistiche e risultati Simulazioni. È un’ipotesi sul periodo di pianificazione, non una previsione della durata della vita."
     },

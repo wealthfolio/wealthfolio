@@ -269,8 +269,8 @@
       "monthly_contribution_hint": "退休前您每月增加的金额。",
       "savings_goals_contribution": "储蓄目标另计划每月 {{amount}}",
       "savings_goals_contribution_hint": "你的储蓄目标另计划每月 {{amount}}。这里只填写用于退休的金额。",
-      "return_before_hint": "储蓄期间的假设年收益率，未扣除投资费用。",
-      "return_during_hint": "开始提款后的假设年收益率，未扣除投资费用。",
+      "return_before_hint": "储蓄期间的假设长期年复合增长率（CAGR），未扣除投资费用。",
+      "return_during_hint": "开始提款后的假设长期年复合增长率（CAGR），未扣除投资费用。",
       "annual_fee_hint": "估算的年度投资组合费用。",
       "inflation_hint": "假设的年度物价涨幅。"
     },
@@ -331,6 +331,7 @@
       "current_fund_balance": "当前基金余额",
       "monthly_fund_contribution": "每月基金供款",
       "fund_return_before_payout": "支付前基金收益率",
+      "fund_return_hint": "扣除基金自身费用后的年复合增长率。不扣除计划的投资费用。",
       "fund_payout_rate": "支付比率",
       "fund_payout_mode": "支付方式",
       "fund_payout_mode_help": "年金模式假设付款持续至规划期末；提款模式使用基金余额直至耗尽。",
@@ -361,7 +362,7 @@
       "effective_before_return": "有效退休前收益率",
       "effective_retirement_return": "有效退休期收益率",
       "annual_volatility": "年度波动率",
-      "annual_volatility_tip": "年度收益率围绕预期收益率的波动幅度。波动率越高，市场路径的结果区间越宽。",
+      "annual_volatility_tip": "年度收益率的波动幅度。仅用于市场路径检查：会扩大结果区间，但不改变主要预测。",
       "inflation": "通胀",
       "contribution_growth_per_year": "每年供款增长"
     },
@@ -525,7 +526,7 @@
       "inflation_title": "通胀率",
       "inflation_desc": "通胀假设使支出及与通胀挂钩的收入随时间增长。各个项目可以使用各自的增长率。",
       "returns_title": "收益率、费用和波动率",
-      "returns_desc": "退休前收益率驱动积累。退休期收益率驱动提取阶段和所需资本。年度投资费用从两者中扣除。波动率仅用于市场路径检查——数值越高，产生的结果分布越宽。",
+      "returns_desc": "退休前收益率驱动积累。退休期收益率驱动提取阶段和所需资本。两者都请按长期年复合增长率（CAGR）填写，即资金每年实际增长的速度，而不是年度收益率的简单平均值。年度投资费用从两者中扣除。波动率仅用于市场路径检查——数值越高，产生的结果分布越宽。",
       "horizon_title": "规划期限年龄",
       "horizon_desc": "退休支出及假设分析结果建模到的年龄。这是规划期间的假设，不是寿命预测。"
     },

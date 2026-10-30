@@ -269,8 +269,8 @@
       "monthly_contribution_hint": "退職まで毎月積み立てる金額です。",
       "savings_goals_contribution": "貯蓄目標でも月{{amount}}を予定",
       "savings_goals_contribution_hint": "貯蓄目標でも月{{amount}}を予定しています。老後資金に回す分だけを入力してください。",
-      "return_before_hint": "積立期間中の想定年間利回り。運用手数料控除前です。",
-      "return_during_hint": "取り崩し開始後の想定年間利回り。運用手数料控除前です。",
+      "return_before_hint": "積立期間中の想定長期年平均成長率（CAGR）。運用手数料控除前です。",
+      "return_during_hint": "取り崩し開始後の想定長期年平均成長率（CAGR）。運用手数料控除前です。",
       "annual_fee_hint": "推定の年間ポートフォリオ手数料です。",
       "inflation_hint": "想定される年間の物価上昇率。"
     },
@@ -331,6 +331,7 @@
       "current_fund_balance": "現在のファンド残高",
       "monthly_fund_contribution": "毎月のファンド拠出額",
       "fund_return_before_payout": "受取開始前のファンドリターン",
+      "fund_return_hint": "ファンド自体の手数料控除後の年平均成長率です。プランの運用手数料は差し引かれません。",
       "fund_payout_rate": "受取率",
       "fund_payout_mode": "受取方法",
       "fund_payout_mode_help": "年金方式は計画期間の終了まで継続する支払いをモデル化し、取り崩し方式は残高がなくなるまで基金を使います。",
@@ -361,7 +362,7 @@
       "effective_before_return": "実効退職前リターン",
       "effective_retirement_return": "実効退職後リターン",
       "annual_volatility": "年間ボラティリティ",
-      "annual_volatility_tip": "年間リターンが期待リターンの周りでどの程度変動しうるかを示します。ボラティリティが高いほど、市場パスの結果範囲が広がります。",
+      "annual_volatility_tip": "年間リターンの変動の大きさです。市場パスのチェックでのみ使用され、結果の幅を広げますが、メインの予測は変わりません。",
       "inflation": "インフレ率",
       "contribution_growth_per_year": "年間の積立増加率"
     },
@@ -525,7 +526,7 @@
       "inflation_title": "インフレ率",
       "inflation_desc": "インフレの前提により、支出と物価連動収入が経年で増加します。個々の項目には独自の率を設定できます。",
       "returns_title": "リターン・手数料・ボラティリティ",
-      "returns_desc": "退職前リターンは資産形成を左右します。退職後リターンは取り崩し期と必要資本を左右します。年間投資手数料は両方から差し引かれます。ボラティリティは市場パスのチェックでのみ使用され、値が大きいほど結果の幅が広がります。",
+      "returns_desc": "退職前リターンは資産形成を左右します。退職後リターンは取り崩し期と必要資本を左右します。どちらも長期の年平均成長率（CAGR）、つまり資金が実際に毎年増える率として入力してください。年間リターンの単純平均ではありません。年間投資手数料は両方から差し引かれます。ボラティリティは市場パスのチェックでのみ使用され、値が大きいほど結果の幅が広がります。",
       "horizon_title": "計画終了年齢",
       "horizon_desc": "退職後の支出とシミュレーションの結果をモデル化する上限年齢です。計画期間の前提であり、寿命の予測ではありません。"
     },
