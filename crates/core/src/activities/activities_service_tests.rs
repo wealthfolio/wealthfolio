@@ -4629,6 +4629,64 @@ pub(crate) mod tests {
     }
 
     #[tokio::test]
+    async fn blank_currency_edit_to_a_bare_symbol_rounds_in_that_assets_currency() {
+        // The patch names an existing JPY asset by symbol with no quote
+        // currency and a blank activity currency. The save fills JPY in from
+        // that asset, so the total rounds to whole yen, not the old row's
+        // cents.
+        let mut existing = create_stored_activity("buy-to-jpy", "acc-final", Some("FUND"));
+        existing.quantity = Some(dec!(10));
+        existing.unit_price = Some(dec!(20));
+        existing.fee = Some(dec!(0));
+        existing.amount = Some(dec!(200));
+        let activity_service = final_total_service(
+            "USD",
+            vec![
+                create_test_asset("FUND", "USD"),
+                create_test_asset_with_instrument(
+                    "asset-jfund",
+                    "JFUND",
+                    None,
+                    Some(InstrumentType::Equity),
+                    "JPY",
+                ),
+            ],
+            Some(existing),
+        );
+
+        let updated = activity_service
+            .update_activity(ActivityUpdate {
+                unlink_transfer_pair_id: None,
+                split_review: None,
+                id: "buy-to-jpy".to_string(),
+                account_id: "acc-final".to_string(),
+                asset: Some(AssetResolutionInput {
+                    symbol: Some("JFUND".to_string()),
+                    ..Default::default()
+                }),
+                activity_type: "BUY".to_string(),
+                subtype: None,
+                activity_date: "2024-01-15".to_string(),
+                quantity: Some(Some(dec!(3))),
+                unit_price: Some(Some(dec!(1234.5678))),
+                currency: String::new(),
+                fee: Some(Some(dec!(0))),
+                tax: None,
+                amount: Some(None),
+                status: None,
+                needs_review: None,
+                notes: None,
+                fx_rate: None,
+                metadata: None,
+            })
+            .await
+            .expect("edit to a JPY asset should succeed");
+
+        assert_eq!(updated.currency, "JPY");
+        assert_eq!(updated.amount, Some(dec!(3704)));
+    }
+
+    #[tokio::test]
     async fn pence_totals_round_the_same_on_create_and_edit() {
         // 3 × 1,234.5678 GBp is £37.037034. A create normalizes to GBP before
         // deriving; an edit derives in pence first. Both store £37.04, and

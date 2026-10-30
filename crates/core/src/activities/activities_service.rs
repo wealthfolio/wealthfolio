@@ -621,12 +621,28 @@ impl ActivityService {
                         )
                         .1
                     });
+                // A blank currency is filled from the replacement asset when
+                // the update is prepared; find an existing asset's quote
+                // currency with the same local lookup the save uses.
+                let quote_ccy = Self::normalize_quote_ccy(activity.get_quote_ccy()).or_else(|| {
+                    if !activity.currency.trim().is_empty() {
+                        return None;
+                    }
+                    let (base_symbol, suffix_mic) =
+                        parse_symbol_with_known_exchange(symbol, activity.get_exchange_mic());
+                    let exchange_mic = activity.get_exchange_mic().or(suffix_mic);
+                    self.asset_service.existing_quote_ccy_by_symbol(
+                        base_symbol,
+                        exchange_mic,
+                        replacement_type.as_ref(),
+                    )
+                });
                 return UpdateTradeFacts {
                     unit_multiplier,
                     existing_unit_multiplier,
                     is_crypto: replacement_type == Some(InstrumentType::Crypto),
                     existing_is_crypto,
-                    quote_ccy: Self::normalize_quote_ccy(activity.get_quote_ccy()),
+                    quote_ccy,
                     replaces_asset: true,
                 };
             }
