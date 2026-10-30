@@ -239,21 +239,11 @@ export function SwipablePage({
           <div className="flex h-full flex-col md:hidden">
             {/* Mobile Navigation at top */}
             <div className="pt-safe flex shrink-0 flex-col gap-2 px-3 pb-2">
-              <div
-                className={cn(
-                  "grid w-full items-center gap-2",
-                  mobileActionsInHeader
-                    ? "xs:grid-cols-[2.5rem_minmax(0,1fr)_auto] grid-cols-[minmax(0,1fr)_auto]"
-                    : "grid-cols-[1fr_auto_1fr]",
-                )}
-              >
-                <div className={mobileActionsInHeader ? "xs:block hidden w-10" : "w-10"} />
-                <div
-                  className={cn(
-                    "min-w-0",
-                    mobileActionsInHeader && "xs:justify-center flex justify-end",
-                  )}
-                >
+              {/* Equal side columns centre the pills, whatever each view's actions are;
+                  wider actions push them aside instead of overlapping. */}
+              <div className="grid w-full grid-cols-[1fr_auto_1fr] items-center gap-2">
+                <div />
+                <div className={cn("min-w-0", mobileActionsInHeader && "flex justify-center")}>
                   <MobileNavigation
                     views={views}
                     currentView={currentView}
