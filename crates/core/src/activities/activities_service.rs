@@ -306,9 +306,11 @@ impl ActivityService {
         }
     }
 
-    /// Canonicalizes a supplied trade total and reports whether it needs
-    /// review. `amount` is passed separately from `inputs` so the caller's
-    /// "an explicit amount exists" guarantee is carried by the type.
+    /// Settles a supplied trade total and reports whether it needs review.
+    /// The supplied total is the cash that moved, so it is stored as given;
+    /// the calculation only decides whether it needs review. `amount` is
+    /// passed separately from `inputs` so the caller's "an explicit amount
+    /// exists" guarantee is carried by the type.
     /// `allow_gross_conversion` is false when the caller honors an explicit
     /// attestation: an attested total is the user's number and must never be
     /// rewritten, even when it happens to equal the derived gross (fee
@@ -320,20 +322,28 @@ impl ActivityService {
         allow_gross_conversion: bool,
     ) -> (Decimal, bool) {
         if let Some(expected) = ActivityEconomicsResolver::calculate_trade_final_cash(inputs) {
-            // Half a minor unit: absorbs genuine rounding artifacts while a
-            // deliberate one-cent difference stays the user's value and flags.
+            // Half a minor unit: a statement rounds the trade this calculation
+            // prices exactly, so a total that close is consistent and stays
+            // as given. A deliberate one-cent difference stays too, and flags.
             let tolerance = currency_minor_unit(currency) / Decimal::TWO;
             if (amount.abs() - expected).abs() <= tolerance {
-                return (expected, false);
+                return (amount.abs(), false);
             }
             // A total matching the derived gross is the pre-fee number from a
-            // gross-reporting source; convert it to final exactly like the
-            // migration does instead of storing it short by the charges.
+            // gross-reporting source; add the charges to that number instead
+            // of storing it short by the charges.
             if allow_gross_conversion
                 && ActivityEconomicsResolver::derived_positive_gross(inputs)
                     .is_some_and(|gross| (amount.abs() - gross).abs() <= tolerance)
             {
-                return (expected, false);
+                if let Some(final_cash) = ActivityEconomicsResolver::trade_final_cash_from_gross(
+                    inputs.activity_type,
+                    amount.abs(),
+                    inputs.fee,
+                    inputs.tax,
+                ) {
+                    return (final_cash, false);
+                }
             }
             return (amount.abs(), true);
         }

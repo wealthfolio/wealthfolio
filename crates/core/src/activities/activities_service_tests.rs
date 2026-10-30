@@ -4117,6 +4117,151 @@ pub(crate) mod tests {
         assert_eq!(updated.amount, Some(dec!(25)));
     }
 
+    /// A service with one account ("acc-final") and the given assets, for
+    /// final-total tests.
+    fn final_total_service(
+        account_currency: &str,
+        assets: Vec<Asset>,
+        existing: Option<Activity>,
+    ) -> ActivityService {
+        let account_service = Arc::new(MockAccountService::new());
+        let asset_service = Arc::new(MockAssetService::new());
+        let activity_repository = Arc::new(MockActivityRepository::new());
+        account_service.add_account(create_test_account("acc-final", account_currency));
+        for asset in assets {
+            asset_service.add_asset(asset);
+        }
+        if let Some(existing) = existing {
+            activity_repository.add_activity(existing);
+        }
+        ActivityService::new(
+            activity_repository,
+            account_service,
+            asset_service,
+            Arc::new(MockFxService::new()),
+            Arc::new(MockQuoteService),
+        )
+    }
+
+    /// A BUY of a fund priced to six decimals: 2,282 × 22.526204 is
+    /// 51,404.797528, which the broker's statement books as 51,404.80.
+    fn statement_buy(id: &str, amount: Option<Decimal>, fee: Decimal) -> NewActivity {
+        NewActivity {
+            id: Some(id.to_string()),
+            account_id: "acc-final".to_string(),
+            asset: Some(AssetResolutionInput {
+                id: Some("FUND".to_string()),
+                ..Default::default()
+            }),
+            activity_type: "BUY".to_string(),
+            subtype: None,
+            activity_date: "2024-01-15".to_string(),
+            quantity: Some(dec!(2282)),
+            unit_price: Some(dec!(22.526204)),
+            currency: "USD".to_string(),
+            fee: Some(fee),
+            tax: None,
+            amount,
+            status: None,
+            notes: None,
+            fx_rate: None,
+            metadata: None,
+            needs_review: None,
+            source_system: None,
+            source_record_id: None,
+            source_group_id: None,
+            idempotency_key: Some(format!("{id}-key")),
+            import_run_id: None,
+        }
+    }
+
+    #[tokio::test]
+    async fn supplied_total_within_half_a_cent_is_stored_as_given() {
+        // The statement's 51,404.80 is the cash that moved. Replacing it with
+        // the exact 51,404.797528 left accounts cents off after enough trades
+        // (#889), whether the total was typed (attested) or imported.
+        let activity_service =
+            final_total_service("USD", vec![create_test_asset("FUND", "USD")], None);
+
+        let mut typed = statement_buy("buy-typed", Some(dec!(51404.80)), dec!(0));
+        typed.needs_review = Some(false);
+        let created = activity_service
+            .create_activity(typed)
+            .await
+            .expect("typed total should be created");
+        assert_eq!(created.amount, Some(dec!(51404.80)));
+        assert!(!created.needs_review);
+
+        let created = activity_service
+            .create_activity(statement_buy("buy-imported", Some(dec!(51404.80)), dec!(0)))
+            .await
+            .expect("imported total should be created");
+        assert_eq!(created.amount, Some(dec!(51404.80)));
+        assert!(!created.needs_review);
+    }
+
+    #[tokio::test]
+    async fn gross_matching_total_adds_charges_to_the_supplied_gross() {
+        // A source that reports the pre-fee 51,404.80 gets the 9.99 fee added
+        // to that number, not to the exact 51,404.797528.
+        let activity_service =
+            final_total_service("USD", vec![create_test_asset("FUND", "USD")], None);
+
+        let created = activity_service
+            .create_activity(statement_buy("buy-gross", Some(dec!(51404.80)), dec!(9.99)))
+            .await
+            .expect("gross total should be created");
+
+        assert_eq!(created.amount, Some(dec!(51414.79)));
+        assert!(!created.needs_review);
+    }
+
+    #[tokio::test]
+    async fn editing_to_a_supplied_total_within_half_a_cent_stores_it_as_given() {
+        let mut existing = create_stored_activity("buy-edit", "acc-final", Some("FUND"));
+        existing.quantity = Some(dec!(2282));
+        existing.unit_price = Some(dec!(22.526204));
+        existing.fee = Some(dec!(0));
+        existing.amount = Some(dec!(51404.797528));
+        existing.needs_review = false;
+        let activity_service = final_total_service(
+            "USD",
+            vec![create_test_asset("FUND", "USD")],
+            Some(existing),
+        );
+
+        let updated = activity_service
+            .update_activity(ActivityUpdate {
+                unlink_transfer_pair_id: None,
+                split_review: None,
+                id: "buy-edit".to_string(),
+                account_id: "acc-final".to_string(),
+                asset: Some(AssetResolutionInput {
+                    id: Some("FUND".to_string()),
+                    ..Default::default()
+                }),
+                activity_type: "BUY".to_string(),
+                subtype: None,
+                activity_date: "2024-01-15".to_string(),
+                quantity: Some(Some(dec!(2282))),
+                unit_price: Some(Some(dec!(22.526204))),
+                currency: "USD".to_string(),
+                fee: Some(Some(dec!(0))),
+                tax: None,
+                amount: Some(Some(dec!(51404.80))),
+                status: None,
+                needs_review: Some(false),
+                notes: None,
+                fx_rate: None,
+                metadata: None,
+            })
+            .await
+            .expect("edit with a statement total should succeed");
+
+        assert_eq!(updated.amount, Some(dec!(51404.80)));
+        assert!(!updated.needs_review);
+    }
+
     #[tokio::test]
     async fn editing_trade_to_unresolved_option_symbol_uses_patch_multiplier() {
         // Replacing an equity trade's asset with a not-yet-resolved option
