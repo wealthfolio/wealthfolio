@@ -186,13 +186,18 @@ export function SwipableView({
     };
   }, [emblaApi]);
 
-  // Controlled mode: scroll to controlledIndex when it changes
+  // Controlled mode: scroll to controlledIndex when it changes. The jump is instant, and
+  // Embla reports it settled before it selects the new snap, so mark it landed here
+  // (without reporting it: the page made the change). Otherwise a swipe back to the view
+  // it left would look like no change.
   React.useEffect(() => {
     if (controlledIndex === undefined || !emblaApi) return;
     const currentIndex = emblaApi.selectedScrollSnap();
     if (currentIndex !== controlledIndex) {
       emblaApi.scrollTo(controlledIndex, true); // instant scroll for external changes
     }
+    previousIndexRef.current = controlledIndex;
+    setLandedIndex(controlledIndex);
   }, [controlledIndex, emblaApi]);
 
   // MEMORY OPTIMIZATION:

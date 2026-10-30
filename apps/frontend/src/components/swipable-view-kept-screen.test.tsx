@@ -6,14 +6,15 @@ import { beforeEach, expect, it, vi } from "vitest";
 // jsdom has no layout, so Embla finds no slides to snap to. This stand-in keeps
 // what matters here: like Embla's React hook, it builds the carousel in an
 // effect, on `startIndex`, and destroys it in the effect's cleanup. Like Embla,
-// a scroll selects its snap first (a swipe's release), then scrolls there and settles.
+// a scroll selects its snap first (a swipe's release), then scrolls there and settles;
+// a jump settles before it selects.
 interface FakeCarousel {
   selectedScrollSnap: () => number;
   scrollSnapList: () => number[];
   scrollProgress: () => number;
   select: (index: number) => void;
   arrive: () => void;
-  scrollTo: (index: number) => void;
+  scrollTo: (index: number, jump?: boolean) => void;
   emit: (event: string) => void;
   on: (event: string, listener: (api: FakeCarousel) => void) => FakeCarousel;
   off: (event: string, listener: (api: FakeCarousel) => void) => FakeCarousel;
@@ -41,9 +42,17 @@ vi.mock("../../../../packages/ui/node_modules/embla-carousel-react", async () =>
         emit("scroll");
         emit("settle");
       },
-      scrollTo: (index) => {
-        carousel.select(index);
-        carousel.arrive();
+      scrollTo: (index, jump) => {
+        if (!jump) {
+          carousel.select(index);
+          carousel.arrive();
+          return;
+        }
+        // Like Embla, a jump settles before it selects the new snap.
+        position = index;
+        emit("settle");
+        selected = index;
+        emit("select");
       },
       emit,
       on: (event, listener) => {
@@ -172,4 +181,24 @@ it("reports the start of a swipe once, when a drag first moves the slide", async
     carousel.emit("scroll");
   });
   expect(onSwipeStart).toHaveBeenCalledOnce();
+});
+
+it("reports a swipe back after the page jumped to another view", async () => {
+  // A tap on another view's pill jumps the carousel there. Unless that jump counts as
+  // landed, swiping back to the first view looks like no change.
+  const onViewChange = vi.fn();
+  const { rerender } = render(
+    <SwipableView items={items} selectedIndex={0} onViewChange={onViewChange} />,
+  );
+  await waitFor(() => expect(carousels).toHaveLength(1));
+
+  rerender(<SwipableView items={items} selectedIndex={1} onViewChange={onViewChange} />);
+  expect(carousels[0].selectedScrollSnap()).toBe(1);
+  expect(onViewChange).not.toHaveBeenCalled();
+
+  act(() => {
+    carousels[0].select(0);
+    carousels[0].arrive();
+  });
+  expect(onViewChange).toHaveBeenCalledExactlyOnceWith(0, "About");
 });
