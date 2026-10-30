@@ -17,6 +17,15 @@ it("refreshes plans and funding only when inputs changed, not on portfolio-only 
   client.clear();
 });
 
+it("refreshes the retirement goal when a savings goal's summary changes", () => {
+  const client = new QueryClient();
+  const keys = [QueryKeys.goal("fire"), QueryKeys.retirementOverview("fire")];
+  for (const key of keys) client.setQueryData(key, {});
+  invalidateAfterGoalSummariesUpdated(client, { goalIds: ["house"], inputsChanged: true });
+  for (const key of keys) expect(client.getQueryState(key)?.isInvalidated).toBe(true);
+  client.clear();
+});
+
 describe("device sync settings refresh", () => {
   it("refetches settings after the portfolio update triggered by a device sync pull", () => {
     expect(shouldInvalidateAfterPortfolioUpdate([QueryKeys.SETTINGS])).toBe(true);

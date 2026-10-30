@@ -68,14 +68,30 @@ pub async fn update_goal(
 }
 
 #[tauri::command]
-pub async fn delete_goal(goal_id: String, state: ProfileAccess) -> Result<usize, String> {
+pub async fn delete_goal(
+    app_handle: tauri::AppHandle,
+    goal_id: String,
+    state: ProfileAccess,
+) -> Result<usize, String> {
     let context = state.context()?;
     debug!("Deleting goal...");
-    context
+    let goal = context.goal_service().get_goal(&goal_id).ok();
+    let deleted = context
         .goal_service()
         .delete_goal(goal_id)
         .await
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string())?;
+    // A deleted savings goal releases its shares, which changes what retirement
+    // counts; other windows refresh their goal caches from this event.
+    if let Some(goal) = goal.filter(|_| deleted > 0) {
+        crate::portfolio_jobs::emit_goal_summaries_updated(
+            &app_handle,
+            &context,
+            std::slice::from_ref(&goal),
+            true,
+        );
+    }
+    Ok(deleted)
 }
 
 #[tauri::command]
