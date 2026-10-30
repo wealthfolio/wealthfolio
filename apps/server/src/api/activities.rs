@@ -223,6 +223,18 @@ async fn save_internal_transfer_pair(
     Ok(Json(pair))
 }
 
+async fn review_convert_to_transfer_split_effects(
+    axum::Extension(state): axum::Extension<Arc<AppState>>,
+    Json(request): Json<ConvertToTransferRequest>,
+) -> ApiResult<Json<Vec<ActivitySplitEffect>>> {
+    Ok(Json(
+        state
+            .activity_service
+            .review_convert_to_transfer_split_effects(request)
+            .await?,
+    ))
+}
+
 async fn convert_to_internal_transfer(
     axum::Extension(state): axum::Extension<Arc<AppState>>,
     Json(request): Json<ConvertToTransferRequest>,
@@ -515,6 +527,10 @@ pub fn router<S: Clone + Send + Sync + 'static>() -> Router<S> {
         .route(
             "/activities/convert-to-transfer",
             post(convert_to_internal_transfer),
+        )
+        .route(
+            "/activities/convert-to-transfer/split-effects",
+            post(review_convert_to_transfer_split_effects),
         )
         .route(
             "/activities/transfer-match-candidates",

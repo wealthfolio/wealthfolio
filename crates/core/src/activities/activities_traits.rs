@@ -504,6 +504,13 @@ pub trait ActivityServiceTrait: Send + Sync {
     ) -> Result<Vec<ActivitySplitEffect>> {
         Err(crate::activities::ActivityError::InvalidData("Split review unavailable".into()).into())
     }
+    /// Split effects of the rows `convert_to_internal_transfer` would retype.
+    async fn review_convert_to_transfer_split_effects(
+        &self,
+        _request: ConvertToTransferRequest,
+    ) -> Result<Vec<ActivitySplitEffect>> {
+        Err(crate::activities::ActivityError::InvalidData("Split review unavailable".into()).into())
+    }
     async fn delete_activity(&self, activity_id: String) -> Result<Activity>;
     /// Deletes exactly the reviewed rows, rejecting newly linked/grouped rows
     /// atomically, and returns every deleted record.

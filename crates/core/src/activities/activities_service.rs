@@ -185,6 +185,15 @@ struct InternalPairValues {
     destination_currency: String,
 }
 
+/// What converting a deposit or withdrawal writes: rows to retype and, when the
+/// other side is new, the leg to create.
+struct ConversionPlan {
+    source: Activity,
+    counterpart: Option<Activity>,
+    updates: Vec<ActivityUpdate>,
+    creates: Vec<NewActivity>,
+}
+
 /// Service for managing activities
 pub struct ActivityService {
     activity_repository: Arc<dyn ActivityRepositoryTrait>,
@@ -1748,6 +1757,133 @@ impl ActivityService {
 
     /// Changes only the type, keeping every other stored field. Broker-synced
     /// rows keep their base type and store the change as a type override.
+    /// Validates a conversion request and lists the rows it retypes and creates.
+    fn plan_conversion(&self, request: &ConvertToTransferRequest) -> Result<ConversionPlan> {
+        let source = self
+            .activity_repository
+            .get_activity(&request.activity_id)?;
+        let source_type = Self::cash_flow_transfer_type(&source).ok_or_else(|| {
+            Self::invalid_activity_data(
+                "Only cash deposits, withdrawals and transfers can become a transfer",
+            )
+        })?;
+        if source.status == ActivityStatus::Void {
+            return Err(Self::invalid_activity_data(
+                "A voided activity cannot become a transfer",
+            ));
+        }
+        if self.is_in_transfer_pair(&source)? {
+            return Err(Self::invalid_activity_data(
+                "Activity is already linked to a transfer",
+            ));
+        }
+        let counterpart_type = match source_type {
+            ACTIVITY_TYPE_TRANSFER_OUT => ACTIVITY_TYPE_TRANSFER_IN,
+            _ => ACTIVITY_TYPE_TRANSFER_OUT,
+        };
+
+        let mut updates = Vec::new();
+        let mut creates = Vec::new();
+        if source.effective_type() != source_type {
+            updates.push(Self::transfer_retype_update(&source, source_type));
+        }
+
+        let counterpart = match (
+            request.counterpart_activity_id.as_deref(),
+            request.counterpart_account_id.as_deref(),
+        ) {
+            (Some(counterpart_id), None) => {
+                let counterpart = self.activity_repository.get_activity(counterpart_id)?;
+                if Self::cash_flow_transfer_type(&counterpart) != Some(counterpart_type) {
+                    return Err(Self::invalid_activity_data(
+                        "The other side must be a cash flow in the opposite direction",
+                    ));
+                }
+                if !counterpart.is_posted() {
+                    return Err(Self::invalid_activity_data(
+                        "The other side must be a posted activity",
+                    ));
+                }
+                if counterpart.account_id == source.account_id {
+                    return Err(Self::invalid_activity_data(
+                        "The other side must be in a different account",
+                    ));
+                }
+                if self.is_in_transfer_pair(&counterpart)? {
+                    return Err(Self::invalid_activity_data(
+                        "The other side is already linked to a transfer",
+                    ));
+                }
+                if counterpart.effective_type() != counterpart_type {
+                    updates.push(Self::transfer_retype_update(&counterpart, counterpart_type));
+                }
+                Some(counterpart)
+            }
+            (None, Some(account_id)) => {
+                if account_id == source.account_id {
+                    return Err(Self::invalid_activity_data(
+                        "The other side must be in a different account",
+                    ));
+                }
+                let account = self.account_service.get_account(account_id)?;
+                let source_amount = source
+                    .amount
+                    .map(|amount| amount.abs())
+                    .filter(|amount| !amount.is_zero())
+                    .ok_or_else(|| Self::invalid_activity_data("Activity has no amount"))?;
+                let amount = if account.currency.eq_ignore_ascii_case(&source.currency) {
+                    source_amount
+                } else {
+                    request
+                        .counterpart_amount
+                        .filter(|amount| amount.is_sign_positive() && !amount.is_zero())
+                        .ok_or_else(|| {
+                            Self::invalid_activity_data(
+                                "Amount in the other account's currency is required",
+                            )
+                        })?
+                };
+                creates.push(NewActivity {
+                    id: None,
+                    account_id: account.id.clone(),
+                    asset: None,
+                    activity_type: counterpart_type.to_string(),
+                    subtype: None,
+                    activity_date: source.activity_date.to_rfc3339(),
+                    quantity: None,
+                    unit_price: None,
+                    currency: account.currency.clone(),
+                    fee: None,
+                    tax: None,
+                    amount: Some(amount),
+                    status: None,
+                    notes: source.notes.clone(),
+                    fx_rate: None,
+                    metadata: Self::internal_transfer_metadata(),
+                    needs_review: None,
+                    source_system: Some("MANUAL".to_string()),
+                    source_record_id: None,
+                    source_group_id: None,
+                    idempotency_key: None,
+                    import_run_id: None,
+                });
+                None
+            }
+            _ => {
+                return Err(Self::invalid_activity_data(
+                    "Choose either an existing activity or an account for the other side",
+                ));
+            }
+        };
+
+        Ok(ConversionPlan {
+            source,
+            counterpart,
+            updates,
+            creates,
+        })
+    }
+
     fn transfer_retype_update(activity: &Activity, activity_type: &str) -> ActivityUpdate {
         ActivityUpdate {
             unlink_transfer_pair_id: None,
@@ -6652,129 +6788,37 @@ impl ActivityServiceTrait for ActivityService {
         })
     }
 
+    async fn review_convert_to_transfer_split_effects(
+        &self,
+        request: ConvertToTransferRequest,
+    ) -> Result<Vec<ActivitySplitEffect>> {
+        self.plan_conversion(&request)?
+            .updates
+            .into_iter()
+            .map(|mut update| {
+                let existing = self.activity_repository.get_activity(&update.id)?;
+                self.hydrate_and_validate_update_against_existing(&mut update, &existing)?;
+                let preview = self.preview_prepared_update(update, existing)?;
+                self.activity_repository
+                    .preview_split_effect(&preview.update)
+            })
+            .collect()
+    }
+
     async fn convert_to_internal_transfer(
         &self,
         request: ConvertToTransferRequest,
     ) -> Result<InternalTransferPairResponse> {
-        let source = self
-            .activity_repository
-            .get_activity(&request.activity_id)?;
-        let source_type = Self::cash_flow_transfer_type(&source).ok_or_else(|| {
-            Self::invalid_activity_data(
-                "Only cash deposits, withdrawals and transfers can become a transfer",
-            )
-        })?;
-        if source.status == ActivityStatus::Void {
-            return Err(Self::invalid_activity_data(
-                "A voided activity cannot become a transfer",
-            ));
-        }
-        if self.is_in_transfer_pair(&source)? {
-            return Err(Self::invalid_activity_data(
-                "Activity is already linked to a transfer",
-            ));
-        }
-        let counterpart_type = match source_type {
-            ACTIVITY_TYPE_TRANSFER_OUT => ACTIVITY_TYPE_TRANSFER_IN,
-            _ => ACTIVITY_TYPE_TRANSFER_OUT,
-        };
-
-        let mut updates = Vec::new();
-        let mut creates = Vec::new();
-        if source.effective_type() != source_type {
-            updates.push(Self::transfer_retype_update(&source, source_type));
-        }
-
-        let counterpart = match (
-            request.counterpart_activity_id.as_deref(),
-            request.counterpart_account_id.as_deref(),
-        ) {
-            (Some(counterpart_id), None) => {
-                let counterpart = self.activity_repository.get_activity(counterpart_id)?;
-                if Self::cash_flow_transfer_type(&counterpart) != Some(counterpart_type) {
-                    return Err(Self::invalid_activity_data(
-                        "The other side must be a cash flow in the opposite direction",
-                    ));
-                }
-                if !counterpart.is_posted() {
-                    return Err(Self::invalid_activity_data(
-                        "The other side must be a posted activity",
-                    ));
-                }
-                if counterpart.account_id == source.account_id {
-                    return Err(Self::invalid_activity_data(
-                        "The other side must be in a different account",
-                    ));
-                }
-                if self.is_in_transfer_pair(&counterpart)? {
-                    return Err(Self::invalid_activity_data(
-                        "The other side is already linked to a transfer",
-                    ));
-                }
-                if counterpart.effective_type() != counterpart_type {
-                    updates.push(Self::transfer_retype_update(&counterpart, counterpart_type));
-                }
-                Some(counterpart)
-            }
-            (None, Some(account_id)) => {
-                if account_id == source.account_id {
-                    return Err(Self::invalid_activity_data(
-                        "The other side must be in a different account",
-                    ));
-                }
-                let account = self.account_service.get_account(account_id)?;
-                let source_amount = source
-                    .amount
-                    .map(|amount| amount.abs())
-                    .filter(|amount| !amount.is_zero())
-                    .ok_or_else(|| Self::invalid_activity_data("Activity has no amount"))?;
-                let amount = if account.currency.eq_ignore_ascii_case(&source.currency) {
-                    source_amount
-                } else {
-                    request
-                        .counterpart_amount
-                        .filter(|amount| amount.is_sign_positive() && !amount.is_zero())
-                        .ok_or_else(|| {
-                            Self::invalid_activity_data(
-                                "Amount in the other account's currency is required",
-                            )
-                        })?
-                };
-                creates.push(NewActivity {
-                    id: None,
-                    account_id: account.id.clone(),
-                    asset: None,
-                    activity_type: counterpart_type.to_string(),
-                    subtype: None,
-                    activity_date: source.activity_date.to_rfc3339(),
-                    quantity: None,
-                    unit_price: None,
-                    currency: account.currency.clone(),
-                    fee: None,
-                    tax: None,
-                    amount: Some(amount),
-                    status: None,
-                    notes: source.notes.clone(),
-                    fx_rate: None,
-                    metadata: Self::internal_transfer_metadata(),
-                    needs_review: None,
-                    source_system: Some("MANUAL".to_string()),
-                    source_record_id: None,
-                    source_group_id: None,
-                    idempotency_key: None,
-                    import_run_id: None,
-                });
-                None
-            }
-            _ => {
-                return Err(Self::invalid_activity_data(
-                    "Choose either an existing activity or an account for the other side",
-                ));
-            }
-        };
+        let ConversionPlan {
+            source,
+            counterpart,
+            updates,
+            creates,
+        } = self.plan_conversion(&request)?;
 
         let mut prepared_updates = Vec::new();
         for mut update in updates {
+            update.split_review = request.split_review.clone();
             let existing = self.activity_repository.get_activity(&update.id)?;
             self.hydrate_and_validate_update_against_existing(&mut update, &existing)?;
             prepared_updates.push(self.prepare_update_activity(update).await?);

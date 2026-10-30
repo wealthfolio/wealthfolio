@@ -188,6 +188,19 @@ pub async fn save_internal_transfer_pair(
 }
 
 #[tauri::command]
+pub async fn review_convert_to_transfer_split_effects(
+    request: ConvertToTransferRequest,
+    state: ProfileAccess,
+) -> Result<Vec<ActivitySplitEffect>, String> {
+    state
+        .context()?
+        .activity_service()
+        .review_convert_to_transfer_split_effects(request)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 pub async fn convert_to_internal_transfer(
     request: ConvertToTransferRequest,
     state: ProfileAccess,
