@@ -402,6 +402,7 @@ describe("Cloud session lifecycle", () => {
     await act(() => result.current.refetchUserInfo());
     expect(mocks.getUserInfo).toHaveBeenCalledTimes(calls);
     expect(result.current.userInfo).toBe(profile);
+    expect(result.current.error).toContain("API error 429");
     expect(mocks.clear).not.toHaveBeenCalled();
     expect(mocks.signOut).not.toHaveBeenCalled();
   });

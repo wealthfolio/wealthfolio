@@ -190,6 +190,7 @@ function EnabledWealthfolioConnectProvider({ children }: { children: ReactNode }
   const syncAccessRef = useRef<string | null>(null);
   const userInfoRequestRef = useRef(0);
   const userInfoRetryAtRef = useRef(0);
+  const userInfoRateLimitMessageRef = useRef<string | null>(null);
   const [userInfoRetryAt, setUserInfoRetryAt] = useState(0);
   const authTransitionRef = useRef<Promise<unknown>>(Promise.resolve());
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
@@ -198,6 +199,7 @@ function EnabledWealthfolioConnectProvider({ children }: { children: ReactNode }
     if (sessionRef.current?.user.id !== next?.user.id) {
       setUserInfo(null);
       userInfoRetryAtRef.current = 0;
+      userInfoRateLimitMessageRef.current = null;
       setUserInfoRetryAt(0);
     }
     sessionRef.current = next;
@@ -840,8 +842,12 @@ function EnabledWealthfolioConnectProvider({ children }: { children: ReactNode }
       await reconcileSession();
       if (!isCurrent()) return;
       // Still reconcile local sign-out while suppressing cloud retries during a rate limit.
-      if (performance.now() < userInfoRetryAtRef.current) return;
+      if (performance.now() < userInfoRetryAtRef.current) {
+        setError(userInfoRateLimitMessageRef.current);
+        return;
+      }
       userInfoRetryAtRef.current = 0;
+      userInfoRateLimitMessageRef.current = null;
       setUserInfoRetryAt(0);
       setError(null);
       requestedUserInfo = true;
@@ -866,9 +872,11 @@ function EnabledWealthfolioConnectProvider({ children }: { children: ReactNode }
       if (rateLimited) {
         const retryAt = performance.now() + USER_INFO_RATE_LIMIT_BACKOFF_MS;
         userInfoRetryAtRef.current = retryAt;
+        userInfoRateLimitMessageRef.current = message;
         setUserInfoRetryAt(retryAt);
       } else if (requestedUserInfo || performance.now() >= userInfoRetryAtRef.current) {
         userInfoRetryAtRef.current = 0;
+        userInfoRateLimitMessageRef.current = null;
         setUserInfoRetryAt(0);
         setUserInfo(null);
       }
