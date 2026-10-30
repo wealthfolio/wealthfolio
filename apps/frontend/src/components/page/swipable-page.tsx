@@ -283,7 +283,10 @@ export function SwipablePage({
                   content: (
                     <div
                       className={cn(
-                        withPadding ? "p-2" : "pb-safe",
+                        // Without padding, a view paints its own background (the dashboard's
+                        // wash) and keeps its own nav clearance: stretch it to fill the pane,
+                        // so no plain band shows below it.
+                        withPadding ? "p-2" : "flex min-h-full flex-col [&>*]:grow",
                         withMobileNavOffset && "pb-[var(--mobile-nav-total-offset)]",
                       )}
                     >
