@@ -549,6 +549,36 @@ impl<T: GoalRepositoryTrait> GoalService<T> {
             .collect())
     }
 
+    /// What active savings goals plan to add each month, read from their own plans.
+    /// A goal past its target date has stopped saving; one without a plan adds nothing.
+    fn savings_goals_monthly_contribution(&self, as_of: NaiveDate) -> Result<f64> {
+        let mut total = 0.0;
+        for goal in self.goal_repo.load_goals()? {
+            if goal.goal_type == "retirement" || goal.status_lifecycle != GOAL_LIFECYCLE_ACTIVE {
+                continue;
+            }
+            let target_passed = goal
+                .target_date
+                .as_deref()
+                .and_then(|date| date.get(..10))
+                .and_then(|date| NaiveDate::parse_from_str(date, "%Y-%m-%d").ok())
+                .is_some_and(|date| date < as_of);
+            if target_passed {
+                continue;
+            }
+            let Some(plan) = self.goal_repo.load_goal_plan(&goal.id)? else {
+                continue;
+            };
+            let monthly = serde_json::from_str::<serde_json::Value>(&plan.settings_json)
+                .ok()
+                .and_then(|settings| settings.get("monthlyContribution").and_then(|v| v.as_f64()))
+                .filter(|amount| amount.is_finite() && *amount > 0.0)
+                .unwrap_or(0.0);
+            total += monthly;
+        }
+        Ok(total)
+    }
+
     /// The shares a goal's value is computed from.
     fn load_counted_funding_rules(&self, goal: &Goal) -> Result<Vec<GoalFundingRule>> {
         let rules = self.goal_repo.load_funding_rules(&goal.id)?;
@@ -1121,6 +1151,8 @@ impl<T: GoalRepositoryTrait + Send + Sync> GoalServiceTrait for GoalService<T> {
             overview.fat_required_capital_at_goal_age =
                 spending_scenario_target(&prepared.plan, 1.5);
         }
+        overview.savings_goals_monthly_contribution =
+            self.savings_goals_monthly_contribution(as_of)?;
         Ok(overview)
     }
 
@@ -2143,6 +2175,46 @@ mod tests {
             .update_goal(reactivated.into())
             .await
             .expect("retirement's share does not block reactivation");
+    }
+
+    #[tokio::test]
+    async fn savings_goals_monthly_contribution_sums_active_plans_still_saving() {
+        let mut past_due = savings_goal("past-due", GOAL_LIFECYCLE_ACTIVE);
+        past_due.target_date = Some("2020-01-01".into());
+        let mut home = savings_goal("home", GOAL_LIFECYCLE_ACTIVE);
+        home.target_date = Some("2029-01-23".into());
+        let repo = Arc::new(MockGoalRepository::new(vec![
+            retirement_goal("fire", GOAL_LIFECYCLE_ACTIVE),
+            home,
+            savings_goal("car", GOAL_LIFECYCLE_ACTIVE),
+            savings_goal("achieved", GOAL_LIFECYCLE_ACHIEVED),
+            past_due,
+            savings_goal("no-plan", GOAL_LIFECYCLE_ACTIVE),
+        ]));
+        for (goal_id, kind, monthly) in [
+            ("fire", "retirement", 3_200.0),
+            ("home", "save_up", 500.0),
+            ("car", "save_up", 300.0),
+            ("achieved", "save_up", 200.0),
+            ("past-due", "save_up", 400.0),
+        ] {
+            repo.save_goal_plan(SaveGoalPlan {
+                goal_id: goal_id.into(),
+                plan_kind: kind.into(),
+                planner_mode: None,
+                settings_json: serde_json::json!({ "monthlyContribution": monthly }).to_string(),
+                summary_json: None,
+            })
+            .await
+            .unwrap();
+        }
+        let service = GoalService::new(repo, Arc::new(MockAccountService::default()));
+        let as_of = NaiveDate::from_ymd_opt(2026, 10, 30).unwrap();
+
+        assert_eq!(
+            service.savings_goals_monthly_contribution(as_of).unwrap(),
+            800.0
+        );
     }
 
     #[tokio::test]

@@ -267,6 +267,8 @@
       "horizon_hint": "计划应覆盖至的年龄。",
       "monthly_contribution": "每月供款",
       "monthly_contribution_hint": "退休前您每月增加的金额。",
+      "savings_goals_contribution": "储蓄目标另计划每月 {{amount}}",
+      "savings_goals_contribution_hint": "你的储蓄目标另计划每月 {{amount}}。这里只填写用于退休的金额。",
       "return_before_hint": "储蓄期间的假设年收益率，未扣除投资费用。",
       "return_during_hint": "开始提款后的假设年收益率，未扣除投资费用。",
       "annual_fee_hint": "估算的年度投资组合费用。",

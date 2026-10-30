@@ -272,6 +272,8 @@
       "horizon_hint": "Âge que le plan doit couvrir.",
       "monthly_contribution": "Cotisation mensuelle",
       "monthly_contribution_hint": "Combien vous ajoutez chaque mois jusqu’à la retraite.",
+      "savings_goals_contribution": "Les objectifs d'épargne prévoient aussi {{amount}}/mois",
+      "savings_goals_contribution_hint": "Vos objectifs d'épargne prévoient aussi {{amount}}/mois. Saisissez seulement ce qui va à la retraite.",
       "return_before_hint": "Rendement annuel supposé pendant l’épargne, avant frais de placement.",
       "return_during_hint": "Rendement annuel supposé après le début des retraits, avant frais de placement.",
       "annual_fee_hint": "Frais annuels estimés du portefeuille.",

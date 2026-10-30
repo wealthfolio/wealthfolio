@@ -838,6 +838,8 @@
       "mode_change_traditional": "يصبح سن التقاعد المرغوب سنًا ثابتًا لبدء التقاعد.",
       "monthly_contribution": "المساهمة الشهرية",
       "monthly_contribution_hint": "المبلغ الذي تضيفه كل شهر حتى التقاعد.",
+      "savings_goals_contribution": "تخطط أهداف الادخار أيضًا لـ {{amount}} شهريًا",
+      "savings_goals_contribution_hint": "تخطط أهداف الادخار لديك أيضًا لـ {{amount}} شهريًا. أدخل فقط ما يذهب إلى التقاعد.",
       "monthly_contribution_until_retirement": "المساهمة الشهرية حتى التقاعد",
       "plan_type": "نوع الخطة",
       "plan_type_help": "اختر ما إذا كان السن المستهدف هو موعد تقاعد تقليدي أم السن الذي تريد أن تحقق فيه الاستقلال المالي.",

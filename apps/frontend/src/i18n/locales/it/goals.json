@@ -272,6 +272,8 @@
       "horizon_hint": "Età fino alla quale il piano deve coprire.",
       "monthly_contribution": "Contributo mensile",
       "monthly_contribution_hint": "Quanto aggiungi ogni mese fino alla pensione.",
+      "savings_goals_contribution": "Gli obiettivi di risparmio prevedono anche {{amount}}/mese",
+      "savings_goals_contribution_hint": "I tuoi obiettivi di risparmio prevedono anche {{amount}}/mese. Inserisci solo ciò che va alla pensione.",
       "return_before_hint": "Rendimento annuo ipotizzato durante il risparmio, prima delle commissioni.",
       "return_during_hint": "Rendimento annuo ipotizzato dopo l’inizio dei prelievi, prima delle commissioni.",
       "annual_fee_hint": "Commissioni annue stimate del portafoglio.",

@@ -272,6 +272,8 @@
       "horizon_hint": "Edad hasta la que debe cubrir el plan.",
       "monthly_contribution": "Aportación mensual",
       "monthly_contribution_hint": "Cuánto añades cada mes hasta la jubilación.",
+      "savings_goals_contribution": "Los objetivos de ahorro también prevén {{amount}}/mes",
+      "savings_goals_contribution_hint": "Tus objetivos de ahorro también prevén {{amount}}/mes. Introduce solo lo que va a la jubilación.",
       "return_before_hint": "Rentabilidad anual supuesta durante el ahorro, antes de comisiones.",
       "return_during_hint": "Rentabilidad anual supuesta tras comenzar los retiros, antes de comisiones.",
       "annual_fee_hint": "Comisiones anuales estimadas de la cartera.",

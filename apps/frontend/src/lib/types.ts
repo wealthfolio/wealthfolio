@@ -2598,6 +2598,8 @@ export interface RetirementOverview {
   requiredCapitalAtGoalAge: number;
   leanRequiredCapitalAtGoalAge?: number | null;
   fatRequiredCapitalAtGoalAge?: number | null;
+  /** What active savings goals plan to add each month, from their own plans. */
+  savingsGoalsMonthlyContribution?: number;
   shortfallAtGoalAge: number;
   surplusAtGoalAge: number;
   fundedThroughAge: number | null;

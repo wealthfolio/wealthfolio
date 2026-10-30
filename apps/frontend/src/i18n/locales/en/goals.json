@@ -267,6 +267,8 @@
       "horizon_hint": "Age the plan should cover through.",
       "monthly_contribution": "Monthly contribution",
       "monthly_contribution_hint": "How much you add each month until retirement.",
+      "savings_goals_contribution": "Savings goals also plan {{amount}}/mo",
+      "savings_goals_contribution_hint": "Your savings goals also plan {{amount}}/mo. Enter only what goes to retirement.",
       "return_before_hint": "Assumed annual return while saving, before investment fees.",
       "return_during_hint": "Assumed annual return after withdrawals begin, before investment fees.",
       "annual_fee_hint": "Estimated yearly portfolio fees.",

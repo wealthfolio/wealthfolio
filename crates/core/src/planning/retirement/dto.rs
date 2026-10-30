@@ -300,6 +300,10 @@ pub struct RetirementOverview {
     pub lean_required_capital_at_goal_age: Option<f64>,
     #[serde(default)]
     pub fat_required_capital_at_goal_age: Option<f64>,
+    /// What active savings goals plan to add each month, from their own plans.
+    /// Shown beside the retirement contribution so the same money isn't entered twice.
+    #[serde(default)]
+    pub savings_goals_monthly_contribution: f64,
     pub shortfall_at_goal_age: f64,
     pub surplus_at_goal_age: f64,
     pub funded_through_age: Option<u32>,
@@ -907,6 +911,7 @@ pub fn compute_retirement_overview_with_mode(
         required_capital_at_goal_age: required_capital_value,
         lean_required_capital_at_goal_age: None,
         fat_required_capital_at_goal_age: None,
+        savings_goals_monthly_contribution: 0.0,
         shortfall_at_goal_age: shortfall,
         surplus_at_goal_age: surplus,
         funded_through_age,

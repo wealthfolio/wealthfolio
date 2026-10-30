@@ -267,6 +267,8 @@
       "horizon_hint": "プランがカバーする最終年齢です。",
       "monthly_contribution": "毎月の積立額",
       "monthly_contribution_hint": "退職まで毎月積み立てる金額です。",
+      "savings_goals_contribution": "貯蓄目標でも月{{amount}}を予定",
+      "savings_goals_contribution_hint": "貯蓄目標でも月{{amount}}を予定しています。老後資金に回す分だけを入力してください。",
       "return_before_hint": "積立期間中の想定年間利回り。運用手数料控除前です。",
       "return_during_hint": "取り崩し開始後の想定年間利回り。運用手数料控除前です。",
       "annual_fee_hint": "推定の年間ポートフォリオ手数料です。",

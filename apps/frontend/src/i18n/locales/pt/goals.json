@@ -272,6 +272,8 @@
       "horizon_hint": "Idade até a qual o plano deve cobrir.",
       "monthly_contribution": "Aporte mensal",
       "monthly_contribution_hint": "Quanto você adiciona por mês até a aposentadoria.",
+      "savings_goals_contribution": "As metas de poupança também preveem {{amount}}/mês",
+      "savings_goals_contribution_hint": "Suas metas de poupança também preveem {{amount}}/mês. Informe apenas o que vai para a aposentadoria.",
       "return_before_hint": "Retorno anual suposto durante a acumulação, antes das taxas de investimento.",
       "return_during_hint": "Retorno anual suposto após o início dos saques, antes das taxas de investimento.",
       "annual_fee_hint": "Taxas anuais estimadas da carteira.",

@@ -423,6 +423,11 @@ export function SidebarConfigurator({
   const [expandedExpenseId, setExpandedExpenseId] = useState<string | null>(null);
   const [expandedIncomeId, setExpandedIncomeId] = useState<string | null>(null);
   const moneyPrefix = amountFormatting.formatCurrencySymbol(currency);
+  // Savings goals plan their own monthly amounts; say so where the retirement
+  // contribution is entered, so the same money isn't counted twice.
+  const goalsMonthly = retirementOverview?.savingsGoalsMonthlyContribution ?? 0;
+  const goalsMonthlyAmount =
+    goalsMonthly > 0 ? amountFormatting.formatAmount(goalsMonthly, currency) : null;
 
   const update = useCallback((updater: (d: RetirementPlan) => RetirementPlan) => {
     setDraft((prev) => updater(prev));
@@ -616,7 +621,20 @@ export function SidebarConfigurator({
             >
               {draft.personal.planningHorizonAge}
             </ConfigRow>
-            <ConfigRow label={t("goals:sidebar.plan.monthly_contribution_until_retirement")}>
+            <ConfigRow
+              label={
+                <>
+                  {t("goals:sidebar.plan.monthly_contribution_until_retirement")}
+                  {goalsMonthlyAmount && (
+                    <span className="text-muted-foreground mt-0.5 block text-xs">
+                      {t("goals:sidebar.plan.savings_goals_contribution", {
+                        amount: goalsMonthlyAmount,
+                      })}
+                    </span>
+                  )}
+                </>
+              }
+            >
               {amountFormatting.formatAmount(draft.investment.monthlyContribution, currency)}
             </ConfigRow>
           </div>
@@ -728,7 +746,14 @@ export function SidebarConfigurator({
             />
             <LeverRow
               label={t("goals:sidebar.plan.monthly_contribution")}
-              hint={t("goals:sidebar.plan.monthly_contribution_hint")}
+              hint={
+                goalsMonthlyAmount
+                  ? `${t("goals:sidebar.plan.monthly_contribution_hint")} ${t(
+                      "goals:sidebar.plan.savings_goals_contribution_hint",
+                      { amount: goalsMonthlyAmount },
+                    )}`
+                  : t("goals:sidebar.plan.monthly_contribution_hint")
+              }
               kind="money"
               value={draft.investment.monthlyContribution}
               onChange={(v) => setInvestment("monthlyContribution", v)}

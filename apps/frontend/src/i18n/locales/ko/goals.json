@@ -267,6 +267,8 @@
       "horizon_hint": "계획이 대상으로 하는 최대 연령입니다.",
       "monthly_contribution": "월 납입액",
       "monthly_contribution_hint": "은퇴 전까지 매달 추가로 납입할 금액입니다.",
+      "savings_goals_contribution": "저축 목표에서도 월 {{amount}} 계획",
+      "savings_goals_contribution_hint": "저축 목표에서도 월 {{amount}}을(를) 계획하고 있습니다. 은퇴에 들어가는 금액만 입력하세요.",
       "return_before_hint": "저축 기간의 연간 가정 수익률이며 투자 수수료 차감 전입니다.",
       "return_during_hint": "인출 시작 후의 연간 가정 수익률이며 투자 수수료 차감 전입니다.",
       "annual_fee_hint": "예상 연간 포트폴리오 수수료입니다.",

@@ -267,6 +267,8 @@
       "horizon_hint": "計畫應涵蓋至此年齡。",
       "monthly_contribution": "每月投入",
       "monthly_contribution_hint": "退休前每月投入的金額。",
+      "savings_goals_contribution": "儲蓄目標另計畫每月 {{amount}}",
+      "savings_goals_contribution_hint": "你的儲蓄目標另計畫每月 {{amount}}。這裡只填寫用於退休的金額。",
       "return_before_hint": "儲蓄期間的假設年報酬率，未扣除投資費用。",
       "return_during_hint": "開始提領後的假設年報酬率，未扣除投資費用。",
       "annual_fee_hint": "預估的年度投資費用。",
