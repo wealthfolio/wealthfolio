@@ -1,7 +1,12 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { convertToInternalTransfer, findTransferMatchCandidates } from "@/adapters";
+import {
+  convertToInternalTransfer,
+  findTransferMatchCandidates,
+  reviewConvertToTransferSplitEffects,
+} from "@/adapters";
+import { ActivitySplitReviewProvider } from "@/features/spending/components/activity-split-review-provider";
 import { ActivityStatus } from "@/lib/constants";
 import type { Account, Activity } from "@/lib/types";
 import { fireEvent, render, screen, waitFor, within } from "@/test/render";
@@ -10,6 +15,9 @@ import { TransferMatchDialog } from "./transfer-match-dialog";
 vi.mock("@/adapters", () => ({
   convertToInternalTransfer: vi.fn(),
   findTransferMatchCandidates: vi.fn(),
+  reviewActivitiesSplitEffects: vi.fn(),
+  reviewConvertToTransferSplitEffects: vi.fn(),
+  reviewInternalTransferPairSplitEffects: vi.fn(),
   getTransferPairForActivity: vi.fn(),
   searchActivities: vi.fn(),
   logger: { warn: vi.fn() },
@@ -103,7 +111,9 @@ describe("transfer activity summary", () => {
 
 describe("converting a deposit or withdrawal into a transfer", () => {
   const withQueryClient = ({ children }: { children: ReactNode }) => (
-    <QueryClientProvider client={new QueryClient()}>{children}</QueryClientProvider>
+    <QueryClientProvider client={new QueryClient()}>
+      <ActivitySplitReviewProvider>{children}</ActivitySplitReviewProvider>
+    </QueryClientProvider>
   );
   const withdrawal = {
     ...activity,
@@ -119,22 +129,15 @@ describe("converting a deposit or withdrawal into a transfer", () => {
     currency: "USD",
   };
 
-  beforeEach(() => {
-    vi.mocked(convertToInternalTransfer).mockReset();
-  });
-
-  it("pairs the withdrawal with the chosen deposit", async () => {
-    vi.mocked(findTransferMatchCandidates).mockResolvedValue([
-      {
-        activity: deposit,
-        matchKind: "cash",
-        confidence: "high",
-        score: 100,
-        reasons: ["Same amount"],
-        warnings: [],
-      },
-    ]);
-    const onOpenChange = vi.fn();
+  const depositMatch = {
+    activity: deposit,
+    matchKind: "cash",
+    confidence: "high",
+    score: 100,
+    reasons: ["Same amount"],
+    warnings: [],
+  };
+  const renderConversion = (onOpenChange = vi.fn()) =>
     render(
       <TransferMatchDialog
         open
@@ -146,6 +149,16 @@ describe("converting a deposit or withdrawal into a transfer", () => {
       { wrapper: withQueryClient },
     );
 
+  beforeEach(() => {
+    vi.mocked(convertToInternalTransfer).mockReset();
+    vi.mocked(reviewConvertToTransferSplitEffects).mockReset().mockResolvedValue([]);
+  });
+
+  it("pairs the withdrawal with the chosen deposit", async () => {
+    vi.mocked(findTransferMatchCandidates).mockResolvedValue([depositMatch]);
+    const onOpenChange = vi.fn();
+    renderConversion(onOpenChange);
+
     fireEvent.click((await screen.findByText("Same amount")).closest("button")!);
     fireEvent.click(screen.getByRole("button", { name: "Convert to transfer" }));
 
@@ -153,7 +166,37 @@ describe("converting a deposit or withdrawal into a transfer", () => {
     expect(convertToInternalTransfer).toHaveBeenCalledWith({
       activityId: "synthetic-withdrawal",
       counterpartActivityId: "synthetic-deposit",
+      splitReview: [],
     });
+  });
+
+  it("asks before removing splits and sends the reviewed state", async () => {
+    const effect = {
+      activityId: "synthetic-withdrawal",
+      removedSplits: 2,
+      hasRetainedCategoryAssignment: false,
+      fingerprint: "state",
+    };
+    vi.mocked(reviewConvertToTransferSplitEffects).mockResolvedValue([effect]);
+    vi.mocked(findTransferMatchCandidates).mockResolvedValue([depositMatch]);
+    renderConversion();
+
+    fireEvent.click((await screen.findByText("Same amount")).closest("button")!);
+    fireEvent.click(screen.getByRole("button", { name: "Convert to transfer" }));
+
+    expect(
+      await screen.findByText("This edit will remove 2 split allocations."),
+    ).toBeInTheDocument();
+    expect(convertToInternalTransfer).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Save and remove splits" }));
+
+    await waitFor(() =>
+      expect(convertToInternalTransfer).toHaveBeenCalledWith({
+        activityId: "synthetic-withdrawal",
+        counterpartActivityId: "synthetic-deposit",
+        splitReview: [effect],
+      }),
+    );
   });
 
   it("asks for an account when no matching activity exists", async () => {

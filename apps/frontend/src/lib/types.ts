@@ -430,6 +430,7 @@ export interface ConvertToTransferRequest {
   counterpartAccountId?: string;
   /** Required when the other account's currency differs from the activity's. */
   counterpartAmount?: string | number;
+  splitReview?: ActivitySplitEffect[];
 }
 
 export interface InternalTransferPairResponse {

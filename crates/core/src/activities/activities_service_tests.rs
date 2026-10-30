@@ -13503,6 +13503,7 @@ pub(crate) mod tests {
                 counterpart_activity_id: None,
                 counterpart_account_id: Some("acc-cibc".to_string()),
                 counterpart_amount: None,
+                split_review: None,
             })
             .await
             .expect("conversion should succeed");
@@ -13579,6 +13580,7 @@ pub(crate) mod tests {
                 counterpart_activity_id: Some("deposit".to_string()),
                 counterpart_account_id: None,
                 counterpart_amount: None,
+                split_review: None,
             })
             .await
             .expect("conversion should succeed");
@@ -13663,6 +13665,7 @@ pub(crate) mod tests {
                 counterpart_activity_id: counterpart_activity_id.map(str::to_string),
                 counterpart_account_id: counterpart_account_id.map(str::to_string),
                 counterpart_amount: None,
+                split_review: None,
             })
         };
 
@@ -13694,6 +13697,7 @@ pub(crate) mod tests {
                     counterpart_activity_id: None,
                     counterpart_account_id: Some("acc-cibc".to_string()),
                     counterpart_amount: None,
+                    split_review: None,
                 })
                 .await
                 .is_err(),

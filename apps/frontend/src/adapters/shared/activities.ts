@@ -250,6 +250,11 @@ export const saveInternalTransferPair = async (
   }
 };
 
+export const reviewConvertToTransferSplitEffects = (
+  request: ConvertToTransferRequest,
+): Promise<ActivitySplitEffect[]> =>
+  invoke("review_convert_to_transfer_split_effects", { request });
+
 export const convertToInternalTransfer = async (
   request: ConvertToTransferRequest,
 ): Promise<InternalTransferPairResponse> => {

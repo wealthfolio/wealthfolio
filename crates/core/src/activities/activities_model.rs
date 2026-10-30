@@ -966,6 +966,9 @@ pub struct ConvertToTransferRequest {
         deserialize_with = "decimal_input_format::deserialize_option_decimal"
     )]
     pub counterpart_amount: Option<Decimal>,
+    /// Native review of the rows the conversion retypes; validated by the shared writer.
+    #[serde(default)]
+    pub split_review: Option<Vec<ActivitySplitEffect>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

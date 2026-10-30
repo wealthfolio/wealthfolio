@@ -2,6 +2,10 @@ import type { TFunction } from "i18next";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import {
+  isActivityEditCancelled,
+  useConvertToTransferSplitReview,
+} from "@/features/spending/components/activity-split-review-provider";
 import { useEffectOnChange } from "@/hooks/use-effect-on-change";
 import {
   convertToInternalTransfer,
@@ -432,6 +436,7 @@ function ConvertToTransferDialog({
 }: TransferMatchDialogProps & { sourceActivity: TransferDialogActivity }) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
+  const reviewConversion = useConvertToTransferSplitReview();
   const accountMap = useMemo(
     () => new Map(accounts.map((account) => [account.id, account])),
     [accounts],
@@ -494,7 +499,7 @@ function ConvertToTransferDialog({
     if (!choice) return;
     setSaving(true);
     try {
-      await convertToInternalTransfer({
+      const request = await reviewConversion({
         activityId: sourceActivity.id,
         ...(choice.kind === "existing"
           ? { counterpartActivityId: choice.candidate.activity.id }
@@ -503,11 +508,13 @@ function ConvertToTransferDialog({
               counterpartAmount: needsAmount ? amount : undefined,
             }),
       });
+      await convertToInternalTransfer(request);
       await queryClient.invalidateQueries();
       toast.success(t("activity:transfer_match.convert_success"));
       onOpenChange(false);
       await onComplete?.();
     } catch (error) {
+      if (isActivityEditCancelled(error)) return;
       toast.error(t("activity:transfer_match.convert_error"), {
         description: error instanceof Error ? error.message : String(error),
       });
