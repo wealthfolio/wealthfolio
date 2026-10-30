@@ -1,9 +1,10 @@
 import { getGoalFunding } from "@/adapters";
 import { useAccounts } from "@/hooks/use-accounts";
+import { useCurrentValuation } from "@/hooks/use-current-account-valuations";
 import { AccountPurpose } from "@/lib/constants";
 import { QueryKeys } from "@/lib/query-keys";
 import type { Account, GoalFundingRule, GoalFundingRuleInput } from "@/lib/types";
-import { Button } from "@wealthfolio/ui";
+import { Button, useAmountFormatting } from "@wealthfolio/ui";
 import { Card, CardContent, CardHeader, CardTitle } from "@wealthfolio/ui/components/ui/card";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import {
@@ -166,6 +167,24 @@ export function GoalFundingEditor({
   const isRetirement = goalType === "retirement";
 
   const activeAccounts = useMemo(() => accounts ?? [], [accounts]);
+  const amountFormatting = useAmountFormatting();
+  const accountIds = useMemo(() => activeAccounts.map((account) => account.id), [activeAccounts]);
+  // The same current values core computes goal values from, in base currency.
+  const { currentValuation } = useCurrentValuation(
+    { type: "accounts", accountIds },
+    { includeAccounts: true },
+  );
+  const amountForShare = useCallback(
+    (accountId: string, percent: number): string | null => {
+      const valuation = currentValuation?.accounts.find((v) => v.accountId === accountId);
+      if (!valuation || !Number.isFinite(valuation.totalValueBase)) return null;
+      return amountFormatting.formatCompactAmount(
+        (valuation.totalValueBase * percent) / 100,
+        valuation.baseCurrency,
+      );
+    },
+    [amountFormatting, currentValuation],
+  );
 
   const [sharePercents, setSharePercents] = useState<Map<string, number>>(new Map());
   const [taxBuckets, setTaxBuckets] = useState<Map<string, string>>(new Map());
@@ -458,9 +477,15 @@ export function GoalFundingEditor({
                         }`}
                       >
                         <div className="flex items-center gap-3">
-                          <span className="min-w-0 flex-1 truncate text-sm font-semibold">
-                            {a.name}
-                          </span>
+                          <div className="min-w-0 flex-1">
+                            <span className="block truncate text-sm font-semibold">{a.name}</span>
+                            {!isDcLinked &&
+                              amountForShare(a.id, isRetirement ? counted : percent) && (
+                                <span className="text-muted-foreground text-2xs block tabular-nums">
+                                  {amountForShare(a.id, isRetirement ? counted : percent)}
+                                </span>
+                              )}
+                          </div>
 
                           {/* Tax bucket pill (retirement only) */}
                           {isRetirement && !isDcLinked && (
@@ -651,6 +676,11 @@ export function GoalFundingEditor({
                         {isRetirement && counted < percent - SHARE_EPSILON && (
                           <span className="text-muted-foreground text-2xs shrink-0 tabular-nums">
                             {t("goals:funding.counting", { percent: formatShare(counted) })}
+                          </span>
+                        )}
+                        {amountForShare(a.id, isRetirement ? counted : percent) && (
+                          <span className="text-muted-foreground shrink-0 text-xs tabular-nums">
+                            {amountForShare(a.id, isRetirement ? counted : percent)}
                           </span>
                         )}
                         <span className="text-sm font-semibold tabular-nums">{percent}%</span>
