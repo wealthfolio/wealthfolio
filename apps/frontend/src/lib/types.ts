@@ -2705,7 +2705,10 @@ export interface SaveUpTrajectoryPointDTO {
   optimistic: number;
   pessimistic: number;
   target: number;
-  /** Balance needed on this date to still reach the target on time with the planned contribution. */
+  /**
+   * Balance needed on this date to still reach the target on time with the planned
+   * contribution. Not below zero, or below `nominal` when that is negative.
+   */
   needed: number;
 }
 

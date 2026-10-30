@@ -30,6 +30,8 @@ const SCENARIO_RETURN_SPREAD: f64 = 0.02;
 const UNDATED_COMPLETION_SEARCH_MONTHS: i32 = 600;
 /// The shortest completion date search for a goal with a target date.
 const MIN_DATED_COMPLETION_SEARCH_MONTHS: i32 = 120;
+/// Most whole-unit steps used to correct float rounding in the required contribution.
+const REQUIRED_MONTHLY_CORRECTION_STEPS: u32 = 4;
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -71,7 +73,8 @@ pub struct SaveUpTrajectoryPoint {
     pub pessimistic: f64,
     pub target: f64,
     /// Balance needed on this date to still reach the target by the target date
-    /// with the planned monthly contribution. Never below zero.
+    /// with the planned monthly contribution. Not below zero, or below `nominal`
+    /// when that is negative, so `nominal >= needed` exactly when on track.
     pub needed: f64,
 }
 
@@ -278,23 +281,32 @@ fn required_monthly(
     if without >= target {
         return 0.0;
     }
-    // The final balance grows linearly with the contribution.
-    let per_unit = final_balance(1.0) - without;
+    // The final balance grows linearly with the contribution. Simulate one unit
+    // on its own: subtracting two large balances would lose its precision.
+    let per_unit = simulate(0.0, 1.0, annual_rate, start, points)
+        .last()
+        .copied()
+        .unwrap_or(0.0);
     if per_unit <= 0.0 {
         return (target - without).ceil();
     }
     let mut monthly = ((target - without) / per_unit).ceil().max(0.0);
-    // Correct float rounding so the amount is exact for this simulation.
-    if final_balance(monthly) < target {
-        monthly += 1.0;
-    } else if monthly >= 1.0 && final_balance(monthly - 1.0) >= target {
-        monthly -= 1.0;
+    // Float rounding can leave the estimate a unit off this simulation's result.
+    for _ in 0..REQUIRED_MONTHLY_CORRECTION_STEPS {
+        if final_balance(monthly) < target {
+            monthly += 1.0;
+        } else if monthly >= 1.0 && final_balance(monthly - 1.0) >= target {
+            monthly -= 1.0;
+        } else {
+            break;
+        }
     }
     monthly
 }
 
 /// Balance needed on `start` and at each checkpoint to still reach `target` at
-/// the last checkpoint with the planned contribution. Never below zero.
+/// the last checkpoint with the planned contribution. Negative when the
+/// contributions alone more than cover the target.
 fn needed_path(
     target: f64,
     monthly_contribution: f64,
@@ -314,7 +326,7 @@ fn needed_path(
         next = before_contribution / growth(annual_rate, (point.date - previous).num_days());
         needed[i] = next;
     }
-    needed.into_iter().map(|value| value.max(0.0)).collect()
+    needed
 }
 
 /// Chart points: `as_of`, then each checkpoint through the target date.
@@ -358,7 +370,9 @@ fn trajectory(
             optimistic: optimistic[i],
             pessimistic: pessimistic[i],
             target: input.target_amount,
-            needed: needed[i],
+            // Plot no lower than zero, or than the projection when it is below
+            // zero. The projection still sits above the line exactly when on track.
+            needed: needed[i].max(nominal[i].min(0.0)),
         })
         .collect()
 }
@@ -659,6 +673,40 @@ mod tests {
     }
 
     #[test]
+    fn required_monthly_contribution_holds_for_large_balances() {
+        let base = input(
+            10_000_000_000.0,
+            11_000_000_000.0,
+            Some("2026-03-31"),
+            0.0,
+            0.05,
+        );
+        let required = compute_save_up_overview(&base, AS_OF).required_monthly_contribution;
+        let health_with = |monthly: f64| {
+            compute_save_up_overview(
+                &SaveUpInput {
+                    monthly_contribution: monthly,
+                    ..base.clone()
+                },
+                AS_OF,
+            )
+            .health
+        };
+        assert_eq!(health_with(required), "on_track", "required was {required}");
+        assert_ne!(health_with(required - 1.0), "on_track");
+    }
+
+    #[test]
+    fn needed_line_matches_status_for_a_negative_balance() {
+        let overview = compute_save_up_overview(
+            &input(-1_000.0, 1_000.0, Some("2026-03-31"), 1_000.0, 0.0),
+            AS_OF,
+        );
+        assert_eq!(overview.health, "on_track");
+        assert!(overview.trajectory.iter().all(|p| p.nominal >= p.needed));
+    }
+
+    #[test]
     fn test_compute_overview_on_track() {
         let overview = compute_save_up_overview(
             &input(80_000.0, 100_000.0, Some("2030-01-01"), 500.0, 0.07),
@@ -761,9 +809,10 @@ mod tests {
         fn every_output_agrees_with_the_status(
             start_offset in 0i64..730,
             horizon_days in 1i64..3650,
-            current in 0.0f64..1_000_000.0,
-            target in 1.0f64..2_000_000.0,
-            monthly in 0.0f64..10_000.0,
+            // Negative balances happen (overdrawn accounts); large ones test float precision.
+            current in prop_oneof![-1_000_000.0f64..1_000_000.0, -1e9f64..1e11],
+            target in prop_oneof![1.0f64..2_000_000.0, 1.0f64..2e11],
+            monthly in prop_oneof![0.0f64..10_000.0, 0.0f64..1e9],
             rate in 0.0f64..0.5,
         ) {
             let as_of = AS_OF + chrono::Duration::days(start_offset);
