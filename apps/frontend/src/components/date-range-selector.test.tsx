@@ -72,6 +72,44 @@ describe("DateRangeSelector all-time display", () => {
     expect(getPerformanceDateRangeForRequest(onChange.mock.calls[0][0])).toBeUndefined();
   });
 
+  it.each([false, true])(
+    "recognizes the UTC ALL sentinel west of UTC (mobile: %s)",
+    async (mobile) => {
+      vi.stubEnv("TZ", "America/Toronto");
+      try {
+        mocks.mobile = mobile;
+        const value = { from: new Date("1970-01-01"), to: new Date(2026, 2, 10) };
+        const onChange = vi.fn();
+        // This UTC sentinel is December 31 locally, so local-day comparison
+        // alone must not determine whether the selection is ALL.
+        expect(value.from.getFullYear()).toBe(1969);
+        expect(getPerformanceDateRangeForRequest(value)).toBeUndefined();
+        render(
+          <DateRangeSelector
+            value={value}
+            onChange={onChange}
+            asOf={value.to}
+            allTimeFrom={new Date(2020, 3, 6)}
+          />,
+        );
+        expect(screen.getByRole("button", { name: /^ALL$/ })).toHaveAttribute(
+          "aria-pressed",
+          "true",
+        );
+        const dialog = await openPicker();
+        expect(within(dialog).getByText("April 2020")).toBeInTheDocument();
+        expect(calendarDay("2020-04-06")).toHaveAttribute("data-range-start", "true");
+        if (mobile) {
+          fireEvent.click(within(dialog).getByRole("button", { name: "Done" }));
+          expect(onChange).toHaveBeenCalledWith(value);
+          expect(getPerformanceDateRangeForRequest(onChange.mock.calls[0][0])).toBeUndefined();
+        }
+      } finally {
+        vi.unstubAllEnvs();
+      }
+    },
+  );
+
   it.each([undefined, { from: allTimeRange.from, to: new Date(2026, 2, 9) }])(
     "recognizes an all-time selection independently of its stored end date: %s",
     async (value) => {

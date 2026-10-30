@@ -109,8 +109,19 @@ export function DateRangeSelector({
     return isSameDay(date1, date2);
   };
 
-  const isAllTimeRange = (range: DateRange | undefined) =>
-    !!allTimeRange && (!range || compareDates(range.from, allTimeRange.from));
+  const isAllTimeRange = (range: DateRange | undefined) => {
+    if (!allTimeRange) return false;
+    if (!range) return true;
+    const from = range.from;
+    // Match the local and ISO/UTC sentinel constructors used by callers.
+    return (
+      !!from &&
+      (compareDates(from, allTimeRange.from) ||
+        (from.getUTCFullYear() === allTimeRange.from.getFullYear() &&
+          from.getUTCMonth() === allTimeRange.from.getMonth() &&
+          from.getUTCDate() === allTimeRange.from.getDate()))
+    );
+  };
 
   // Check if current range matches any predefined range and get the selected label
   const getSelectedRange = () => {
