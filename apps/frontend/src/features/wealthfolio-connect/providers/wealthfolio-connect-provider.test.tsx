@@ -442,15 +442,22 @@ describe("Cloud session lifecycle", () => {
     expect(mocks.getUserInfo).toHaveBeenCalledTimes(calls);
   });
 
-  it("does not retain profile data after an authentication error", async () => {
-    const { result } = await setup();
-    await act(() => result.current.signInWithEmail("A", "password"));
-    await waitFor(() => expect(result.current.userInfo?.id).toBe("A"));
-    mocks.getUserInfo.mockRejectedValueOnce(new Error("API error 401: Unauthorized"));
-    await act(() => result.current.refetchUserInfo());
-    expect(result.current.userInfo).toBeNull();
-    expect(result.current.error).toContain("API error 401");
-  });
+  it.each(["API error 401: Unauthorized", "API error 502: Upstream returned API error 429"])(
+    "does not retain profile data or back off after another API failure: %s",
+    async (message) => {
+      const { result } = await setup();
+      await act(() => result.current.signInWithEmail("A", "password"));
+      await waitFor(() => expect(result.current.userInfo?.id).toBe("A"));
+      const calls = mocks.getUserInfo.mock.calls.length;
+      mocks.getUserInfo.mockRejectedValueOnce(new Error(message));
+      await act(() => result.current.refetchUserInfo());
+      expect(result.current.userInfo).toBeNull();
+      expect(result.current.error).toBe(message);
+      await act(() => result.current.refetchUserInfo());
+      expect(mocks.getUserInfo).toHaveBeenCalledTimes(calls + 2);
+      expect(result.current.userInfo?.id).toBe("A");
+    },
+  );
 
   it("signs out only when the backend auth session is missing on mobile resume", async () => {
     mocks.platform = "ios";
