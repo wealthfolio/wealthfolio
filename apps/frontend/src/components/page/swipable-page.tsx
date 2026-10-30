@@ -201,13 +201,19 @@ export function SwipablePage({
   // lands and the page follows.
   const [swipedView, setSwipedView] = React.useState<string | null>(null);
   const shownView = swipedView ?? currentView;
+  // Scrolls the phone carousel; set once it is built.
+  const scrollCarouselRef = React.useRef<((index: number) => void) | null>(null);
   const currentActions = views.find((v) => v.value === shownView)?.actions;
   const mobileActionsInHeader = mobileActionsPlacement === "header";
 
   const handleViewChange = React.useCallback(
     (nextView: string, haptic = true) => {
+      const swipeIsPending = swipedView !== null;
       setSwipedView(null);
       if (nextView === currentView) {
+        // A tap on the current view while a swipe still heads to another one sends the
+        // slide back; otherwise it would land and switch to the other view.
+        if (swipeIsPending) scrollCarouselRef.current?.(currentIndex);
         return;
       }
 
@@ -229,7 +235,16 @@ export function SwipablePage({
         }
       }
     },
-    [currentView, setSearchParams, onViewChange, isMobile, triggerHaptic, persistKey],
+    [
+      swipedView,
+      currentView,
+      currentIndex,
+      setSearchParams,
+      onViewChange,
+      isMobile,
+      triggerHaptic,
+      persistKey,
+    ],
   );
 
   return (
@@ -292,17 +307,18 @@ export function SwipablePage({
                   ),
                 }))}
                 displayToggle={false}
+                onInit={(api) => {
+                  scrollCarouselRef.current = api ? (index) => api.scrollTo(index) : null;
+                }}
                 onSwipeStart={triggerHaptic}
-                onSelectView={(_index: number, name: string) => {
-                  const view = views.find((v) => v.label === name)?.value;
+                onSelectView={(index: number) => {
+                  const view = views[index]?.value;
                   setSwipedView(view && view !== currentView ? view : null);
                 }}
-                onViewChange={(_index: number, name: string) => {
-                  const matchedView = views.find((v) => v.label === name);
-                  if (matchedView) {
-                    // The haptic fired when the swipe started.
-                    handleViewChange(matchedView.value, false);
-                  }
+                onViewChange={(index: number) => {
+                  const view = views[index]?.value;
+                  // The haptic fired when the swipe started.
+                  if (view) handleViewChange(view, false);
                 }}
               />
             </div>
