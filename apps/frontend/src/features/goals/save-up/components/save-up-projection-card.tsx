@@ -172,8 +172,9 @@ function ProjectionChart({
             />
           }
         />
+        {/* Straight segments, like the needed line: smooth curves can cross it between points. */}
         <Area
-          type="monotone"
+          type="linear"
           dataKey="range"
           stroke="none"
           fill="url(#projRange)"
@@ -182,7 +183,7 @@ function ProjectionChart({
           activeDot={false}
         />
         <Area
-          type="monotone"
+          type="linear"
           dataKey="nominal"
           stroke={COLORS.nominal.stroke}
           strokeWidth={2.25}

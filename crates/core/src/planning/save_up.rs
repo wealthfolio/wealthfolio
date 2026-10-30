@@ -706,6 +706,31 @@ mod tests {
         assert!(overview.trajectory.iter().all(|p| p.nominal >= p.needed));
     }
 
+    // save-up-projection-card.test.tsx draws these points.
+    #[test]
+    fn partial_month_target_keeps_an_at_risk_goal_below_the_needed_line() {
+        let overview = compute_save_up_overview(
+            &input(0.0, 3_001.0, Some("2026-04-01"), 1_000.0, 0.0),
+            AS_OF,
+        );
+        assert_eq!(overview.health, "at_risk");
+        let points: Vec<(&str, f64, f64)> = overview
+            .trajectory
+            .iter()
+            .map(|p| (p.date.as_str(), p.nominal, p.needed))
+            .collect();
+        assert_eq!(
+            points,
+            [
+                ("2026-01-01", 0.0, 1.0),
+                ("2026-01-31", 1_000.0, 1_001.0),
+                ("2026-02-28", 2_000.0, 2_001.0),
+                ("2026-03-31", 3_000.0, 3_001.0),
+                ("2026-04-01", 3_000.0, 3_001.0),
+            ]
+        );
+    }
+
     #[test]
     fn test_compute_overview_on_track() {
         let overview = compute_save_up_overview(
