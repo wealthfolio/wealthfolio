@@ -1,5 +1,6 @@
 import { getGoalFunding } from "@/adapters";
 import { useAccounts } from "@/hooks/use-accounts";
+import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import { useCurrentValuation } from "@/hooks/use-current-account-valuations";
 import { AccountPurpose } from "@/lib/constants";
 import { QueryKeys } from "@/lib/query-keys";
@@ -168,6 +169,7 @@ export function GoalFundingEditor({
 
   const activeAccounts = useMemo(() => accounts ?? [], [accounts]);
   const amountFormatting = useAmountFormatting();
+  const { isBalanceHidden } = useBalancePrivacy();
   const accountIds = useMemo(() => activeAccounts.map((account) => account.id), [activeAccounts]);
   // The same current values core computes goal values from, in base currency.
   const { currentValuation } = useCurrentValuation(
@@ -176,6 +178,7 @@ export function GoalFundingEditor({
   );
   const amountForShare = useCallback(
     (accountId: string, percent: number): string | null => {
+      if (isBalanceHidden) return null;
       const valuation = currentValuation?.accounts.find((v) => v.accountId === accountId);
       if (!valuation || !Number.isFinite(valuation.totalValueBase)) return null;
       return amountFormatting.formatCompactAmount(
@@ -183,7 +186,7 @@ export function GoalFundingEditor({
         valuation.baseCurrency,
       );
     },
-    [amountFormatting, currentValuation],
+    [amountFormatting, currentValuation, isBalanceHidden],
   );
 
   const [sharePercents, setSharePercents] = useState<Map<string, number>>(new Map());
