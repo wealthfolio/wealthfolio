@@ -1,5 +1,5 @@
 import type { GoalHealth, GoalType } from "@/lib/types";
-import { useAmountFormatting, useDateFormatting } from "@wealthfolio/ui";
+import { useDateFormatting } from "@wealthfolio/ui";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import type { TFunction } from "i18next";
 import { useMemo, useState } from "react";
@@ -16,6 +16,7 @@ import {
 } from "recharts";
 import type { GoalMilestone } from "../lib/goal-milestones";
 import type { ChartValueMode } from "./value-mode-toggle";
+import { usePrivateAmountFormatting } from "../hooks/use-private-amount-formatting";
 
 export type PlannerMode = "fire" | "traditional";
 
@@ -243,7 +244,7 @@ function RetirementChartTooltip({
   valueMode: ChartValueMode;
   projectedStroke: string;
 }) {
-  const formatting = useAmountFormatting();
+  const formatting = usePrivateAmountFormatting();
   const { t } = useTranslation();
   if (!active || !payload?.length) return null;
   const point = payload[0]?.payload as ChartPoint | undefined;
@@ -378,7 +379,7 @@ export function RetirementChart({
   goalMilestones?: GoalMilestone[];
   onOpenGoal?: (goalId: string) => void;
 }) {
-  const formatting = useAmountFormatting();
+  const formatting = usePrivateAmountFormatting();
   const dateFormatting = useDateFormatting();
   const { t } = useTranslation();
   const [activeMilestone, setActiveMilestone] = useState<ActiveMilestone | null>(null);

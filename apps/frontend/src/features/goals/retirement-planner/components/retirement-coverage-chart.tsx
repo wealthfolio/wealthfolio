@@ -1,4 +1,4 @@
-import { useAmountFormatting, useNumberFormatting } from "@wealthfolio/ui";
+import { useNumberFormatting } from "@wealthfolio/ui";
 import { useTranslation } from "react-i18next";
 import {
   Area,
@@ -12,6 +12,7 @@ import {
 } from "recharts";
 import { PROJECTED_CHART_COLORS } from "./retirement-portfolio-chart";
 import type { ChartValueMode } from "./value-mode-toggle";
+import { usePrivateAmountFormatting } from "../hooks/use-private-amount-formatting";
 
 export const COVERAGE_COLORS = {
   income: "var(--fi-stream-1)",
@@ -42,7 +43,7 @@ function CoverageProjectionTooltip({
   currency: string;
   valueMode: ChartValueMode;
 }) {
-  const formatting = useAmountFormatting();
+  const formatting = usePrivateAmountFormatting();
   const numberFormatting = useNumberFormatting();
   const { t } = useTranslation();
   if (!active || !payload?.length) return null;
@@ -159,7 +160,7 @@ export function RetirementCoverageChart({
   fireAgeForBudget: number;
   referenceLabelPrefix: string;
 }) {
-  const formatting = useAmountFormatting();
+  const formatting = usePrivateAmountFormatting();
   return (
     <ResponsiveContainer width="100%" height={280}>
       <AreaChart data={data} margin={{ top: 16, right: 28, left: 0, bottom: 0 }}>

@@ -7,7 +7,6 @@ import {
   CardHeader,
   CardTitle,
   Skeleton,
-  useAmountFormatting,
   useNumberFormatting,
   Spinner,
 } from "@wealthfolio/ui";
@@ -52,6 +51,7 @@ import { expenseAgeRangeLabel, expenseItems, isExpenseActiveAtAge } from "../lib
 import type { GoalMilestone } from "../lib/goal-milestones";
 import type { RetirementPlan } from "../types";
 import { Alert, AlertDescription, AlertTitle } from "@wealthfolio/ui/components/ui/alert";
+import { usePrivateAmountFormatting } from "../hooks/use-private-amount-formatting";
 
 interface Props {
   plan: RetirementPlan;
@@ -193,7 +193,7 @@ export default function DashboardPage({
   goalMilestones = [],
   onOpenGoal,
 }: Props) {
-  const formatting = useAmountFormatting();
+  const formatting = usePrivateAmountFormatting();
   const numberFormatting = useNumberFormatting();
   const { t } = useTranslation();
   const L = modeLabel(plannerMode, t);

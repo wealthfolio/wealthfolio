@@ -1,16 +1,9 @@
 import type { RetirementTrajectoryPoint } from "@/lib/types";
-import {
-  Badge,
-  Button,
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  useAmountFormatting,
-} from "@wealthfolio/ui";
+import { Badge, Button, Card, CardContent, CardHeader, CardTitle } from "@wealthfolio/ui";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { usePrivateAmountFormatting } from "../hooks/use-private-amount-formatting";
 
 const PAGE_SIZE = 10;
 
@@ -29,7 +22,7 @@ function SnapshotAmount({
   compact?: boolean;
   empty?: string;
 }) {
-  const formatting = useAmountFormatting();
+  const formatting = usePrivateAmountFormatting();
   if (value <= 0) return empty;
   const scaledValue = scaleForModeAtAge(value, age);
   return compact
@@ -54,7 +47,7 @@ export function RetirementSnapshotTable({
   currency: string;
   scaleForModeAtAge: (value: number, age: number) => number;
 }) {
-  const formatting = useAmountFormatting();
+  const formatting = usePrivateAmountFormatting();
   const { t } = useTranslation();
   const [tablePage, setTablePage] = useState(0);
   const totalPages = Math.ceil(snapshots.length / PAGE_SIZE);

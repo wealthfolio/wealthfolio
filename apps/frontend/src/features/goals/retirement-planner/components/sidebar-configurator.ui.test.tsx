@@ -7,6 +7,11 @@ import { DEFAULT_RETIREMENT_PLAN } from "../lib/plan-adapter";
 import type { RetirementPlan } from "../types";
 import { SidebarConfigurator } from "./sidebar-configurator";
 
+const privacy = vi.hoisted(() => ({ hidden: false }));
+vi.mock("@/hooks/use-balance-privacy", () => ({
+  useBalancePrivacy: () => ({ isBalanceHidden: privacy.hidden }),
+}));
+
 function renderConfigurator(plan: RetirementPlan, onSavePlan: (plan: RetirementPlan) => void) {
   render(
     <FormattingProvider locale="en-US">
@@ -29,6 +34,7 @@ function saveIncomeSection() {
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
+  privacy.hidden = false;
 });
 
 it.each([undefined, {}])("adds distinct income streams without crypto APIs (%j)", (crypto) => {
@@ -146,6 +152,13 @@ describe("SidebarConfigurator savings goals contribution note", () => {
   it("shows what savings goals plan beside the retirement contribution", () => {
     renderWithGoalsMonthly(1500);
     expect(screen.getByText("Savings goals also plan $1,500.00/mo")).toBeInTheDocument();
+  });
+
+  it("masks the amounts while balances are hidden", () => {
+    privacy.hidden = true;
+    renderWithGoalsMonthly(1500);
+    expect(screen.getByText("Savings goals also plan ••••/mo")).toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/\$\s?\d/);
   });
 
   it("stays hidden when no savings goal plans a contribution", () => {

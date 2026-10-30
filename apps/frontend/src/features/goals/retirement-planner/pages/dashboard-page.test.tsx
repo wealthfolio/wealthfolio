@@ -1,13 +1,18 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { createAmountFormatting, FormattingProvider } from "@wealthfolio/ui";
 import { TooltipProvider } from "@wealthfolio/ui/components/ui/tooltip";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { RetirementOverview } from "@/lib/types";
 import { DEFAULT_RETIREMENT_PLAN } from "../lib/plan-adapter";
 import DashboardPage from "./dashboard-page";
 
 vi.mock("../components/sidebar-configurator", () => ({ SidebarConfigurator: () => null }));
 vi.mock("../components/retirement-snapshot-table", () => ({ RetirementSnapshotTable: () => null }));
+
+const privacy = vi.hoisted(() => ({ hidden: false }));
+vi.mock("@/hooks/use-balance-privacy", () => ({
+  useBalancePrivacy: () => ({ isBalanceHidden: privacy.hidden }),
+}));
 
 function renderOverview(lean: number | null, fat: number | null) {
   const overview = {
@@ -143,5 +148,19 @@ describe("savings goal milestones on the trajectory chart", () => {
     expect(toggle).toHaveAttribute("aria-pressed", "false");
     fireEvent.click(toggle);
     expect(toggle).toHaveAttribute("aria-pressed", "true");
+  });
+});
+
+describe("hidden balances", () => {
+  afterEach(() => {
+    privacy.hidden = false;
+  });
+
+  it("masks every amount and keeps the ages", () => {
+    privacy.hidden = true;
+    renderOverview(120_000, 800_000);
+    expect(milestone("Lean FIRE").getByText("••••")).toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/\$\s?\d/);
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("age 50");
   });
 });

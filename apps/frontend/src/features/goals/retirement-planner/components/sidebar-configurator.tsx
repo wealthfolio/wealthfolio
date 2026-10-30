@@ -22,7 +22,6 @@ import {
   CardHeader,
   CardTitle,
   Input,
-  useAmountFormatting,
   useNumberFormatting,
 } from "@wealthfolio/ui";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
@@ -56,6 +55,7 @@ import type {
   RetirementPlan,
   TaxProfile,
 } from "../types";
+import { usePrivateAmountFormatting } from "../hooks/use-private-amount-formatting";
 
 const DEFAULT_INFLATION_SLIDER_MAX = 0.06;
 const DEFAULT_FEE_SLIDER_MAX = 0.03;
@@ -124,7 +124,7 @@ function SidebarMonthlyRow({
   amount: number;
   currency: string;
 }) {
-  const formatting = useAmountFormatting();
+  const formatting = usePrivateAmountFormatting();
   const { t } = useTranslation();
   return (
     <div className="flex items-center justify-between gap-3 py-3 first:pt-1 last:pb-1">
@@ -144,7 +144,7 @@ function SidebarMonthlyRow({
 
 /** Sidebar totals row: uppercase tracked label on the left, amount + /mo on the right. */
 function SidebarTotalRow({ amount, currency }: { amount: number; currency: string }) {
-  const formatting = useAmountFormatting();
+  const formatting = usePrivateAmountFormatting();
   const { t } = useTranslation();
   return (
     <div className="flex items-center justify-between gap-3 py-3">
@@ -412,7 +412,7 @@ export function SidebarConfigurator({
   const { settings } = useSettingsContext();
   const todayISO = formatZonedDateKey(new Date(), settings?.timezone);
   const today = useMemo(() => parseLocalDate(todayISO), [todayISO]);
-  const amountFormatting = useAmountFormatting();
+  const amountFormatting = usePrivateAmountFormatting();
   const numberFormatting = useNumberFormatting();
 
   const { t } = useTranslation();
