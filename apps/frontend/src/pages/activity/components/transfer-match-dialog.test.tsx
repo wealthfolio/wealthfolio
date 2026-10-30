@@ -5,10 +5,11 @@ import {
   convertToInternalTransfer,
   findTransferMatchCandidates,
   reviewConvertToTransferSplitEffects,
+  searchActivities,
 } from "@/adapters";
 import { ActivitySplitReviewProvider } from "@/features/spending/components/activity-split-review-provider";
 import { ActivityStatus } from "@/lib/constants";
-import type { Account, Activity } from "@/lib/types";
+import type { Account, Activity, TransferMatchCandidate } from "@/lib/types";
 import { fireEvent, render, screen, waitFor, within } from "@/test/render";
 import { TransferMatchDialog } from "./transfer-match-dialog";
 
@@ -129,7 +130,7 @@ describe("converting a deposit or withdrawal into a transfer", () => {
     currency: "USD",
   };
 
-  const depositMatch = {
+  const depositMatch: TransferMatchCandidate = {
     activity: deposit,
     matchKind: "cash",
     confidence: "high",
@@ -214,6 +215,45 @@ describe("converting a deposit or withdrawal into a transfer", () => {
 
     await screen.findByText("No matching activity within 7 days.");
     expect(screen.getByRole("button", { name: "Convert to transfer" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Create it in another account" }));
     expect(screen.getByRole("combobox", { name: "Other account" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Convert to transfer" })).toBeDisabled();
+  });
+
+  it("finds a deposit outside the suggestions and pairs with it", async () => {
+    vi.mocked(findTransferMatchCandidates).mockResolvedValue([]);
+    const lateDeposit = {
+      ...deposit,
+      id: "late-deposit",
+      date: "2026-04-20T00:00:00+00:00",
+      accountName: "Candidate account",
+      accountCurrency: "USD",
+      comment: "Late deposit",
+    };
+    vi.mocked(searchActivities).mockResolvedValue({
+      data: [lateDeposit],
+      meta: { totalRowCount: 1 },
+    } as unknown as Awaited<ReturnType<typeof searchActivities>>);
+    renderConversion();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Search within 30 days" }));
+
+    fireEvent.click((await screen.findByText("Late deposit")).closest("button")!);
+    expect(searchActivities).toHaveBeenCalledWith(
+      0,
+      250,
+      expect.objectContaining({ activityTypes: ["DEPOSIT", "TRANSFER_IN"] }),
+      "",
+      { id: "date", desc: true },
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Convert to transfer" }));
+
+    await waitFor(() =>
+      expect(convertToInternalTransfer).toHaveBeenCalledWith({
+        activityId: "synthetic-withdrawal",
+        counterpartActivityId: "late-deposit",
+        splitReview: [],
+      }),
+    );
   });
 });

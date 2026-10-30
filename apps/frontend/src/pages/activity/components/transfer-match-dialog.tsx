@@ -15,7 +15,13 @@ import {
 } from "@/adapters";
 import { localizeActivityTypeName } from "@/lib/activity-utils";
 import { ActivityStatus, ActivityType } from "@/lib/constants";
-import type { Account, Activity, ActivityDetails, TransferMatchCandidate } from "@/lib/types";
+import {
+  getEffectiveType,
+  type Account,
+  type Activity,
+  type ActivityDetails,
+  type TransferMatchCandidate,
+} from "@/lib/types";
 import { cn, formatDateISO, formatDateTime } from "@/lib/utils";
 import {
   Badge,
@@ -441,11 +447,27 @@ function ConvertToTransferDialog({
     () => new Map(accounts.map((account) => [account.id, account])),
     [accounts],
   );
-  const otherAccounts = useMemo(
-    () =>
-      accounts.filter((account) => !account.isArchived && account.id !== sourceActivity.accountId),
-    [accounts, sourceActivity.accountId],
+  const activeAccounts = useMemo(
+    () => accounts.filter((account) => !account.isArchived),
+    [accounts],
   );
+  const otherAccounts = useMemo(
+    () => activeAccounts.filter((account) => account.id !== sourceActivity.accountId),
+    [activeAccounts, sourceActivity.accountId],
+  );
+  const source = useMemo(
+    () => normalizeActivity(sourceActivity, accountMap),
+    [accountMap, sourceActivity],
+  );
+  const sourceType = getEffectiveType(sourceActivity);
+  const counterpartTypes = useMemo(
+    () =>
+      sourceType === ActivityType.WITHDRAWAL
+        ? [ActivityType.DEPOSIT, ActivityType.TRANSFER_IN]
+        : [ActivityType.WITHDRAWAL, ActivityType.TRANSFER_OUT],
+    [sourceType],
+  );
+  const search = useManualTransferSearch({ open, source, counterpartTypes, accountMap });
   const [candidates, setCandidates] = useState<SelectedCandidate[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -468,12 +490,10 @@ function ConvertToTransferDialog({
         setCandidates(
           result.map(({ activity, reasons, warnings }) => ({ activity, reasons, warnings })),
         );
-        if (result.length === 0) setChoice({ kind: "new" });
       })
       .catch((error: unknown) => {
         if (cancelled) return;
         setCandidates([]);
-        setChoice({ kind: "new" });
         setLoadError(
           error instanceof Error
             ? error.message
@@ -563,11 +583,30 @@ function ConvertToTransferDialog({
                 />
               ))
             ) : (
-              <div className="text-muted-foreground rounded-md border border-dashed px-3 py-2.5 text-sm">
-                {loadError ?? t("activity:transfer_match.convert_no_matches")}
+              <div className="text-muted-foreground flex items-center justify-between gap-3 rounded-md border border-dashed px-3 py-2.5 text-sm">
+                <span>{loadError ?? t("activity:transfer_match.convert_no_matches")}</span>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={search.widenSearch}
+                  disabled={search.manualLoading}
+                >
+                  {t("activity:transfer_match.search_30_days")}
+                </Button>
               </div>
             )}
           </div>
+
+          <ManualTransferSearch
+            search={search}
+            source={source}
+            counterpartTypes={counterpartTypes}
+            accounts={activeAccounts}
+            accountMap={accountMap}
+            selectedId={choice?.kind === "existing" ? choice.candidate.activity.id : undefined}
+            onSelect={(candidate) => setChoice({ kind: "existing", candidate })}
+          />
 
           <div
             className={cn(
@@ -644,51 +683,23 @@ function ConvertToTransferDialog({
   );
 }
 
-function TransferLinkDialog({
+/**
+ * The "Search eligible transfers" panel's state. `counterpartTypes` lists the
+ * activity types the other side may have: the opposite transfer when linking,
+ * plus the opposite deposit or withdrawal when converting.
+ */
+function useManualTransferSearch({
   open,
-  mode,
-  sourceActivity,
-  accounts,
-  onOpenChange,
-  onComplete,
-}: TransferMatchDialogProps) {
+  source,
+  counterpartTypes,
+  accountMap,
+}: {
+  open: boolean;
+  source: NormalizedTransferActivity | null;
+  counterpartTypes: string[];
+  accountMap: Map<string, Account>;
+}) {
   const { t } = useTranslation();
-  const accountMap = useMemo(
-    () => new Map(accounts.map((account) => [account.id, account])),
-    [accounts],
-  );
-  const activeAccounts = useMemo(
-    () => accounts.filter((account) => !account.isArchived),
-    [accounts],
-  );
-  const accountTypeOptions = useMemo(
-    () => Array.from(new Set(activeAccounts.map((account) => account.accountType))).sort(),
-    [activeAccounts],
-  );
-  const currencyOptions = useMemo(
-    () => Array.from(new Set(activeAccounts.map((account) => account.currency))).sort(),
-    [activeAccounts],
-  );
-
-  const source = useMemo(
-    () => (sourceActivity ? normalizeActivity(sourceActivity, accountMap) : null),
-    [accountMap, sourceActivity],
-  );
-  const oppositeType = oppositeTransferType(source?.activityType);
-
-  const {
-    linkTransferActivitiesMutation,
-    unlinkTransferActivitiesMutation,
-    updateActivityMutation,
-  } = useActivityMutations();
-  const isProcessing =
-    mode === "link"
-      ? linkTransferActivitiesMutation.isPending
-      : unlinkTransferActivitiesMutation.isPending || updateActivityMutation.isPending;
-
-  const [suggestions, setSuggestions] = useState<TransferMatchCandidate[]>([]);
-  const [suggestionsLoading, setSuggestionsLoading] = useState(false);
-  const [suggestionsError, setSuggestionsError] = useState<string | null>(null);
   const [manualResults, setManualResults] = useState<ActivityDetails[]>([]);
   const [manualSearched, setManualSearched] = useState(false);
   const [manualLoading, setManualLoading] = useState(false);
@@ -697,11 +708,6 @@ function TransferLinkDialog({
   const [manualGroupCheckPendingIds, setManualGroupCheckPendingIds] = useState<Set<string>>(
     new Set(),
   );
-  const [selectedCandidate, setSelectedCandidate] = useState<SelectedCandidate | null>(null);
-  const [counterpart, setCounterpart] = useState<TransferDialogActivity | null>(null);
-  const [counterpartError, setCounterpartError] = useState<string | null>(null);
-  const [counterpartLoading, setCounterpartLoading] = useState(false);
-
   const [searchText, setSearchText] = useState("");
   const [accountId, setAccountId] = useState(ALL);
   const [accountType, setAccountType] = useState(ALL);
@@ -726,14 +732,544 @@ function TransferLinkDialog({
 
   useEffectOnChange(() => {
     if (!open) return;
-    setSelectedCandidate(null);
-    setSuggestions([]);
-    setSuggestionsError(null);
     setManualResults([]);
     setManualSearched(false);
     setManualError(null);
+  }, [open, source?.id]);
+
+  useEffect(() => {
+    if (!open) {
+      setManualLinkedCandidateIds(new Set());
+      setManualGroupCheckPendingIds(new Set());
+      return;
+    }
+
+    const groupedCandidates = manualResults.filter((activity) => activity.sourceGroupId);
+    if (groupedCandidates.length === 0) {
+      setManualLinkedCandidateIds(new Set());
+      setManualGroupCheckPendingIds(new Set());
+      return;
+    }
+
+    let cancelled = false;
     setManualLinkedCandidateIds(new Set());
-    setManualGroupCheckPendingIds(new Set());
+    setManualGroupCheckPendingIds(new Set(groupedCandidates.map((activity) => activity.id)));
+
+    void Promise.all(
+      groupedCandidates.map(async (activity) => {
+        try {
+          const pair = await getTransferPairForActivity(activity.id);
+          return pair ? activity.id : null;
+        } catch {
+          return null;
+        }
+      }),
+    ).then((linkedIds) => {
+      if (cancelled) return;
+      setManualLinkedCandidateIds(new Set(linkedIds.filter((id): id is string => Boolean(id))));
+      setManualGroupCheckPendingIds(new Set());
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [manualResults, open]);
+
+  const filteredManualResults = useMemo<SelectedCandidate[]>(() => {
+    if (!source || counterpartTypes.length === 0) return [];
+    return manualResults
+      .filter((activity) => {
+        const candidate = normalizeActivity(activity, accountMap);
+        const candidateAccount = accountMap.get(candidate.accountId);
+        if (candidate.id === source.id) return false;
+        if (manualLinkedCandidateIds.has(candidate.id)) return false;
+        if (manualGroupCheckPendingIds.has(candidate.id)) return false;
+        if (!counterpartTypes.includes(candidate.activityType)) return false;
+        if (candidate.status && candidate.status !== ActivityStatus.POSTED) return false;
+        if (accountId !== ALL && candidate.accountId !== accountId) return false;
+        if (accountType !== ALL && candidateAccount?.accountType !== accountType) return false;
+        if (currency !== ALL && candidate.currency !== currency) return false;
+        if (assetFilter === SAME_ASSET && assetKey(candidate) !== assetKey(source)) return false;
+        if (assetFilter === CASH_ASSET && assetKey(candidate)) return false;
+        if (!canLinkCandidate(source, candidate)) return false;
+        if (matchMode === STRICT && !sameExactShape(source, candidate)) return false;
+        return activityMatchesText(candidate, searchText);
+      })
+      .sort((left, right) => activitySortKey(right).localeCompare(activitySortKey(left)))
+      .map((activity) => {
+        const candidate = normalizeActivity(activity, accountMap);
+        const reasons = isSameAccountCashFxConversion(source, candidate)
+          ? [t("activity:transfer_match.reason_fx_conversion")]
+          : sameExactShape(source, candidate)
+            ? [
+                isSecurityTransfer(source)
+                  ? t("activity:transfer_match.reason_same_asset_quantity")
+                  : t("activity:transfer_match.reason_same_amount_currency"),
+              ]
+            : [t("activity:transfer_match.reason_eligible_opposite")];
+        const warnings = manualWarnings(source, candidate, t);
+        // A deposit or withdrawal can carry an import group that is not a link.
+        if (candidate.sourceGroupId && isTransferType(candidate.activityType)) {
+          warnings.push(t("activity:transfer_match.warning_stale_link"));
+        }
+        return {
+          activity,
+          reasons,
+          warnings,
+        };
+      });
+  }, [
+    accountId,
+    accountMap,
+    accountType,
+    assetFilter,
+    counterpartTypes,
+    currency,
+    manualResults,
+    manualGroupCheckPendingIds,
+    manualLinkedCandidateIds,
+    matchMode,
+    searchText,
+    source,
+    t,
+  ]);
+
+  const runManualSearch = useCallback(
+    async (windowDaysOverride?: number) => {
+      if (!source || counterpartTypes.length === 0) return;
+      const days = windowDaysOverride ?? Number(windowDays);
+      const safeWindowDays = Number.isFinite(days) ? days : 7;
+      const { from, to } = dateWindow(source.date, safeWindowDays);
+      setManualLoading(true);
+      setManualError(null);
+      try {
+        const response = await searchActivities(
+          0,
+          250,
+          {
+            activityTypes: counterpartTypes,
+            accountIds: accountId === ALL ? undefined : [accountId],
+            dateFrom: from,
+            dateTo: to,
+          },
+          "",
+          { id: "date", desc: true },
+        );
+        setManualResults(response.data);
+        setManualSearched(true);
+      } catch (error) {
+        setManualError(
+          error instanceof Error ? error.message : t("activity:transfer_match.error_search"),
+        );
+      } finally {
+        setManualLoading(false);
+      }
+    },
+    [accountId, counterpartTypes, source, windowDays, t],
+  );
+
+  const widenSearch = useCallback(() => {
+    setWindowDays("30");
+    void runManualSearch(30);
+  }, [runManualSearch]);
+
+  const advancedFilterCount = [
+    accountType !== ALL,
+    currency !== ALL,
+    assetFilter !== ALL,
+    matchMode !== STRICT,
+  ].filter(Boolean).length;
+
+  return {
+    searchText,
+    setSearchText,
+    accountId,
+    setAccountId,
+    accountType,
+    setAccountType,
+    windowDays,
+    setWindowDays,
+    currency,
+    setCurrency,
+    assetFilter,
+    setAssetFilter,
+    matchMode,
+    setMatchMode,
+    filtersOpen,
+    setFiltersOpen,
+    advancedFilterCount,
+    manualLoading,
+    manualError,
+    manualSearched,
+    filteredManualResults,
+    resetFilters,
+    runManualSearch,
+    widenSearch,
+  };
+}
+
+function ManualTransferSearch({
+  search,
+  source,
+  counterpartTypes,
+  accounts,
+  accountMap,
+  selectedId,
+  onSelect,
+}: {
+  search: ReturnType<typeof useManualTransferSearch>;
+  source: NormalizedTransferActivity;
+  counterpartTypes: string[];
+  accounts: Account[];
+  accountMap: Map<string, Account>;
+  selectedId: string | undefined;
+  onSelect: (candidate: SelectedCandidate) => void;
+}) {
+  const { t } = useTranslation();
+  const accountTypeOptions = useMemo(
+    () => Array.from(new Set(accounts.map((account) => account.accountType))).sort(),
+    [accounts],
+  );
+  const currencyOptions = useMemo(
+    () => Array.from(new Set(accounts.map((account) => account.currency))).sort(),
+    [accounts],
+  );
+  const {
+    searchText,
+    setSearchText,
+    accountId,
+    setAccountId,
+    accountType,
+    setAccountType,
+    windowDays,
+    setWindowDays,
+    currency,
+    setCurrency,
+    assetFilter,
+    setAssetFilter,
+    matchMode,
+    setMatchMode,
+    filtersOpen,
+    setFiltersOpen,
+    advancedFilterCount,
+    manualLoading,
+    manualError,
+    manualSearched,
+    filteredManualResults,
+    resetFilters,
+    runManualSearch,
+  } = search;
+
+  return (
+    <div className="space-y-3 rounded-md border p-3">
+      <div className="flex items-center justify-between gap-2">
+        <div className="min-w-0">
+          <div className="text-sm font-medium">{t("activity:transfer_match.search_eligible")}</div>
+          <div className="text-muted-foreground text-xs">
+            {t("activity:transfer_match.only_type_searched", {
+              type: counterpartTypes.length
+                ? counterpartTypes.map((type) => localizeActivityTypeName(t, type)).join(" / ")
+                : t("activity:transfer_match.opposite_transfer"),
+            })}
+          </div>
+        </div>
+        <Button type="button" variant="ghost" size="sm" onClick={resetFilters}>
+          {t("activity:transfer_match.reset_filters")}
+        </Button>
+      </div>
+
+      <form
+        className="space-y-2"
+        onSubmit={(event) => {
+          event.preventDefault();
+          void runManualSearch();
+        }}
+      >
+        <div className="flex gap-2">
+          <div className="relative flex-1">
+            <Icons.Search className="text-muted-foreground absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2" />
+            <Input
+              value={searchText}
+              onChange={(event) => setSearchText(event.target.value)}
+              placeholder={t("activity:transfer_match.search_placeholder")}
+              className="ps-9"
+            />
+          </div>
+          <Button type="submit" disabled={manualLoading}>
+            {manualLoading ? (
+              <Spinner className="me-2 h-4 w-4" />
+            ) : (
+              <Icons.Search className="me-2 h-4 w-4" />
+            )}
+            {t("common:search")}
+          </Button>
+        </div>
+
+        <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+          <Select
+            value={accountId}
+            items={[
+              { value: ALL, label: t("activity:all_accounts") },
+              ...accounts.map((account) => ({
+                value: account.id,
+                label: account.name,
+              })),
+            ]}
+            onValueChange={(value) => {
+              if (value !== null) setAccountId(value);
+            }}
+          >
+            <SelectTrigger aria-label={t("activity:filter_account")}>
+              <SelectValue placeholder={t("activity:filter_account")} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL}>{t("activity:all_accounts")}</SelectItem>
+              {accounts.map((account) => (
+                <SelectItem key={account.id} value={account.id}>
+                  {account.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select
+            value={windowDays}
+            items={[7, 30, 90, 180].map((count) => ({
+              value: `${count}`,
+              label: t("activity:transfer_match.within_days", { count }),
+            }))}
+            onValueChange={(value) => {
+              if (value !== null) setWindowDays(value);
+            }}
+          >
+            <SelectTrigger aria-label={t("activity:transfer_match.date_range")}>
+              <SelectValue placeholder={t("activity:transfer_match.date_range")} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="7">
+                {t("activity:transfer_match.within_days", { count: 7 })}
+              </SelectItem>
+              <SelectItem value="30">
+                {t("activity:transfer_match.within_days", { count: 30 })}
+              </SelectItem>
+              <SelectItem value="90">
+                {t("activity:transfer_match.within_days", { count: 90 })}
+              </SelectItem>
+              <SelectItem value="180">
+                {t("activity:transfer_match.within_days", { count: 180 })}
+              </SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen}>
+          <CollapsibleTrigger
+            render={
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="text-muted-foreground h-7 px-2 text-xs"
+              />
+            }
+          >
+            <Icons.ChevronDown
+              className={cn("me-1 h-3.5 w-3.5 transition-transform", filtersOpen && "rotate-180")}
+            />
+            {t("activity:transfer_match.more_filters")}
+            {advancedFilterCount > 0 ? (
+              <Badge variant="secondary" className="text-2xs ms-1.5 rounded-sm px-1.5 py-0">
+                {advancedFilterCount}
+              </Badge>
+            ) : null}
+          </CollapsibleTrigger>
+          <CollapsibleContent className="pt-2">
+            <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+              <Select
+                value={accountType}
+                items={[
+                  { value: ALL, label: t("activity:transfer_match.all_account_types") },
+                  ...accountTypeOptions.map((type) => ({ value: type, label: type })),
+                ]}
+                onValueChange={(value) => {
+                  if (value !== null) setAccountType(value);
+                }}
+              >
+                <SelectTrigger aria-label={t("activity:transfer_match.account_type")}>
+                  <SelectValue placeholder={t("activity:transfer_match.account_type")} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL}>
+                    {t("activity:transfer_match.all_account_types")}
+                  </SelectItem>
+                  {accountTypeOptions.map((type) => (
+                    <SelectItem key={type} value={type}>
+                      {type}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select
+                value={currency}
+                items={[
+                  { value: ALL, label: t("activity:transfer_match.all_currencies") },
+                  ...currencyOptions.map((option) => ({ value: option, label: option })),
+                ]}
+                onValueChange={(value) => {
+                  if (value !== null) setCurrency(value);
+                }}
+              >
+                <SelectTrigger aria-label={t("activity:table_currency")}>
+                  <SelectValue placeholder={t("activity:table_currency")} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL}>{t("activity:transfer_match.all_currencies")}</SelectItem>
+                  {currencyOptions.map((option) => (
+                    <SelectItem key={option} value={option}>
+                      {option}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select
+                value={assetFilter}
+                items={[
+                  { value: ALL, label: t("activity:transfer_match.all_assets") },
+                  { value: SAME_ASSET, label: t("activity:transfer_match.same_asset") },
+                  { value: CASH_ASSET, label: t("activity:transfer_match.cash_only") },
+                ]}
+                onValueChange={(value) => {
+                  if (value !== null) setAssetFilter(value);
+                }}
+              >
+                <SelectTrigger aria-label={t("activity:transfer_match.asset")}>
+                  <SelectValue placeholder={t("activity:transfer_match.asset")} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL}>{t("activity:transfer_match.all_assets")}</SelectItem>
+                  {isSecurityTransfer(source) ? (
+                    <SelectItem value={SAME_ASSET}>
+                      {t("activity:transfer_match.same_asset")}
+                    </SelectItem>
+                  ) : (
+                    <SelectItem value={CASH_ASSET}>
+                      {t("activity:transfer_match.cash_only")}
+                    </SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
+
+              <Select
+                value={matchMode}
+                items={[
+                  { value: STRICT, label: t("activity:transfer_match.exact_amount") },
+                  { value: ANY, label: t("activity:transfer_match.any_eligible") },
+                ]}
+                onValueChange={(value) => {
+                  if (value !== null) setMatchMode(value);
+                }}
+              >
+                <SelectTrigger aria-label={t("activity:transfer_match.match_mode")}>
+                  <SelectValue placeholder={t("activity:transfer_match.match_mode")} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={STRICT}>
+                    {t("activity:transfer_match.exact_amount")}
+                  </SelectItem>
+                  <SelectItem value={ANY}>{t("activity:transfer_match.any_eligible")}</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
+      </form>
+
+      {manualError ? (
+        <div className="text-destructive rounded-md border p-3 text-sm">{manualError}</div>
+      ) : null}
+
+      {manualSearched ? (
+        <div className="space-y-2">
+          <div className="text-muted-foreground text-xs">
+            {t("activity:transfer_match.eligible_count", {
+              count: filteredManualResults.length,
+            })}
+          </div>
+          <ScrollArea className="max-h-72">
+            <div className="space-y-2 pe-3">
+              {filteredManualResults.length > 0 ? (
+                filteredManualResults.map((candidate) => (
+                  <CandidateButton
+                    key={candidate.activity.id}
+                    candidate={candidate}
+                    accountMap={accountMap}
+                    selected={selectedId === candidate.activity.id}
+                    onSelect={() => onSelect(candidate)}
+                  />
+                ))
+              ) : (
+                <div className="text-muted-foreground rounded-md border border-dashed p-4 text-center text-sm">
+                  {t("activity:transfer_match.no_eligible_filters")}
+                </div>
+              )}
+            </div>
+          </ScrollArea>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function TransferLinkDialog({
+  open,
+  mode,
+  sourceActivity,
+  accounts,
+  onOpenChange,
+  onComplete,
+}: TransferMatchDialogProps) {
+  const { t } = useTranslation();
+  const accountMap = useMemo(
+    () => new Map(accounts.map((account) => [account.id, account])),
+    [accounts],
+  );
+  const activeAccounts = useMemo(
+    () => accounts.filter((account) => !account.isArchived),
+    [accounts],
+  );
+  const source = useMemo(
+    () => (sourceActivity ? normalizeActivity(sourceActivity, accountMap) : null),
+    [accountMap, sourceActivity],
+  );
+  const oppositeType = oppositeTransferType(source?.activityType);
+  const counterpartTypes = useMemo(() => (oppositeType ? [oppositeType] : []), [oppositeType]);
+  const search = useManualTransferSearch({ open, source, counterpartTypes, accountMap });
+
+  const {
+    linkTransferActivitiesMutation,
+    unlinkTransferActivitiesMutation,
+    updateActivityMutation,
+  } = useActivityMutations();
+  const isProcessing =
+    mode === "link"
+      ? linkTransferActivitiesMutation.isPending
+      : unlinkTransferActivitiesMutation.isPending || updateActivityMutation.isPending;
+
+  const [suggestions, setSuggestions] = useState<TransferMatchCandidate[]>([]);
+  const [suggestionsLoading, setSuggestionsLoading] = useState(false);
+  const [suggestionsError, setSuggestionsError] = useState<string | null>(null);
+  const [selectedCandidate, setSelectedCandidate] = useState<SelectedCandidate | null>(null);
+  const [counterpart, setCounterpart] = useState<TransferDialogActivity | null>(null);
+  const [counterpartError, setCounterpartError] = useState<string | null>(null);
+  const [counterpartLoading, setCounterpartLoading] = useState(false);
+
+  useEffectOnChange(() => {
+    if (!open) return;
+    setSelectedCandidate(null);
+    setSuggestions([]);
+    setSuggestionsError(null);
     setCounterpart(null);
     setCounterpartError(null);
 
@@ -772,44 +1308,6 @@ function TransferLinkDialog({
     }
   }, [mode, open, sourceActivity, t]);
 
-  useEffect(() => {
-    if (!open || mode !== "link") {
-      setManualLinkedCandidateIds(new Set());
-      setManualGroupCheckPendingIds(new Set());
-      return;
-    }
-
-    const groupedCandidates = manualResults.filter((activity) => activity.sourceGroupId);
-    if (groupedCandidates.length === 0) {
-      setManualLinkedCandidateIds(new Set());
-      setManualGroupCheckPendingIds(new Set());
-      return;
-    }
-
-    let cancelled = false;
-    setManualLinkedCandidateIds(new Set());
-    setManualGroupCheckPendingIds(new Set(groupedCandidates.map((activity) => activity.id)));
-
-    void Promise.all(
-      groupedCandidates.map(async (activity) => {
-        try {
-          const pair = await getTransferPairForActivity(activity.id);
-          return pair ? activity.id : null;
-        } catch {
-          return null;
-        }
-      }),
-    ).then((linkedIds) => {
-      if (cancelled) return;
-      setManualLinkedCandidateIds(new Set(linkedIds.filter((id): id is string => Boolean(id))));
-      setManualGroupCheckPendingIds(new Set());
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [manualResults, mode, open]);
-
   const suggestedCandidates = useMemo<SelectedCandidate[]>(
     () =>
       suggestions.map((candidate) => ({
@@ -819,110 +1317,6 @@ function TransferLinkDialog({
       })),
     [suggestions],
   );
-
-  const filteredManualResults = useMemo<SelectedCandidate[]>(() => {
-    if (!source || !oppositeType) return [];
-    return manualResults
-      .filter((activity) => {
-        const candidate = normalizeActivity(activity, accountMap);
-        const candidateAccount = accountMap.get(candidate.accountId);
-        if (candidate.id === source.id) return false;
-        if (manualLinkedCandidateIds.has(candidate.id)) return false;
-        if (manualGroupCheckPendingIds.has(candidate.id)) return false;
-        if (candidate.activityType !== oppositeType) return false;
-        if (candidate.status && candidate.status !== ActivityStatus.POSTED) return false;
-        if (accountId !== ALL && candidate.accountId !== accountId) return false;
-        if (accountType !== ALL && candidateAccount?.accountType !== accountType) return false;
-        if (currency !== ALL && candidate.currency !== currency) return false;
-        if (assetFilter === SAME_ASSET && assetKey(candidate) !== assetKey(source)) return false;
-        if (assetFilter === CASH_ASSET && assetKey(candidate)) return false;
-        if (!canLinkCandidate(source, candidate)) return false;
-        if (matchMode === STRICT && !sameExactShape(source, candidate)) return false;
-        return activityMatchesText(candidate, searchText);
-      })
-      .sort((left, right) => activitySortKey(right).localeCompare(activitySortKey(left)))
-      .map((activity) => {
-        const candidate = normalizeActivity(activity, accountMap);
-        const reasons = isSameAccountCashFxConversion(source, candidate)
-          ? [t("activity:transfer_match.reason_fx_conversion")]
-          : sameExactShape(source, candidate)
-            ? [
-                isSecurityTransfer(source)
-                  ? t("activity:transfer_match.reason_same_asset_quantity")
-                  : t("activity:transfer_match.reason_same_amount_currency"),
-              ]
-            : [t("activity:transfer_match.reason_eligible_opposite")];
-        const warnings = manualWarnings(source, candidate, t);
-        if (candidate.sourceGroupId) {
-          warnings.push(t("activity:transfer_match.warning_stale_link"));
-        }
-        return {
-          activity,
-          reasons,
-          warnings,
-        };
-      });
-  }, [
-    accountId,
-    accountMap,
-    accountType,
-    assetFilter,
-    currency,
-    manualResults,
-    manualGroupCheckPendingIds,
-    manualLinkedCandidateIds,
-    matchMode,
-    oppositeType,
-    searchText,
-    source,
-    t,
-  ]);
-
-  const runManualSearch = useCallback(
-    async (windowDaysOverride?: number) => {
-      if (!source || !oppositeType) return;
-      const days = windowDaysOverride ?? Number(windowDays);
-      const safeWindowDays = Number.isFinite(days) ? days : 7;
-      const { from, to } = dateWindow(source.date, safeWindowDays);
-      setManualLoading(true);
-      setManualError(null);
-      try {
-        const response = await searchActivities(
-          0,
-          250,
-          {
-            activityTypes: [oppositeType],
-            accountIds: accountId === ALL ? undefined : [accountId],
-            dateFrom: from,
-            dateTo: to,
-          },
-          "",
-          { id: "date", desc: true },
-        );
-        setManualResults(response.data);
-        setManualSearched(true);
-      } catch (error) {
-        setManualError(
-          error instanceof Error ? error.message : t("activity:transfer_match.error_search"),
-        );
-      } finally {
-        setManualLoading(false);
-      }
-    },
-    [accountId, oppositeType, source, windowDays, t],
-  );
-
-  const widenSearch = useCallback(() => {
-    setWindowDays("30");
-    void runManualSearch(30);
-  }, [runManualSearch]);
-
-  const advancedFilterCount = [
-    accountType !== ALL,
-    currency !== ALL,
-    assetFilter !== ALL,
-    matchMode !== STRICT,
-  ].filter(Boolean).length;
 
   const confirmLink = useCallback(async () => {
     if (!sourceActivity?.id || !selectedCandidate?.activity.id) return;
@@ -1079,8 +1473,8 @@ function TransferLinkDialog({
                       type="button"
                       variant="outline"
                       size="sm"
-                      onClick={widenSearch}
-                      disabled={manualLoading}
+                      onClick={search.widenSearch}
+                      disabled={search.manualLoading}
                     >
                       {t("activity:transfer_match.search_30_days")}
                     </Button>
@@ -1088,280 +1482,15 @@ function TransferLinkDialog({
                 )}
               </div>
 
-              <div className="space-y-3 rounded-md border p-3">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="min-w-0">
-                    <div className="text-sm font-medium">
-                      {t("activity:transfer_match.search_eligible")}
-                    </div>
-                    <div className="text-muted-foreground text-xs">
-                      {t("activity:transfer_match.only_type_searched", {
-                        type: oppositeType
-                          ? localizeActivityTypeName(t, oppositeType)
-                          : t("activity:transfer_match.opposite_transfer"),
-                      })}
-                    </div>
-                  </div>
-                  <Button type="button" variant="ghost" size="sm" onClick={resetFilters}>
-                    {t("activity:transfer_match.reset_filters")}
-                  </Button>
-                </div>
-
-                <form
-                  className="space-y-2"
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    void runManualSearch();
-                  }}
-                >
-                  <div className="flex gap-2">
-                    <div className="relative flex-1">
-                      <Icons.Search className="text-muted-foreground absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2" />
-                      <Input
-                        value={searchText}
-                        onChange={(event) => setSearchText(event.target.value)}
-                        placeholder={t("activity:transfer_match.search_placeholder")}
-                        className="ps-9"
-                      />
-                    </div>
-                    <Button type="submit" disabled={manualLoading}>
-                      {manualLoading ? (
-                        <Spinner className="me-2 h-4 w-4" />
-                      ) : (
-                        <Icons.Search className="me-2 h-4 w-4" />
-                      )}
-                      {t("common:search")}
-                    </Button>
-                  </div>
-
-                  <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-                    <Select
-                      value={accountId}
-                      items={[
-                        { value: ALL, label: t("activity:all_accounts") },
-                        ...activeAccounts.map((account) => ({
-                          value: account.id,
-                          label: account.name,
-                        })),
-                      ]}
-                      onValueChange={(value) => {
-                        if (value !== null) setAccountId(value);
-                      }}
-                    >
-                      <SelectTrigger aria-label={t("activity:filter_account")}>
-                        <SelectValue placeholder={t("activity:filter_account")} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value={ALL}>{t("activity:all_accounts")}</SelectItem>
-                        {activeAccounts.map((account) => (
-                          <SelectItem key={account.id} value={account.id}>
-                            {account.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-
-                    <Select
-                      value={windowDays}
-                      items={[7, 30, 90, 180].map((count) => ({
-                        value: `${count}`,
-                        label: t("activity:transfer_match.within_days", { count }),
-                      }))}
-                      onValueChange={(value) => {
-                        if (value !== null) setWindowDays(value);
-                      }}
-                    >
-                      <SelectTrigger aria-label={t("activity:transfer_match.date_range")}>
-                        <SelectValue placeholder={t("activity:transfer_match.date_range")} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="7">
-                          {t("activity:transfer_match.within_days", { count: 7 })}
-                        </SelectItem>
-                        <SelectItem value="30">
-                          {t("activity:transfer_match.within_days", { count: 30 })}
-                        </SelectItem>
-                        <SelectItem value="90">
-                          {t("activity:transfer_match.within_days", { count: 90 })}
-                        </SelectItem>
-                        <SelectItem value="180">
-                          {t("activity:transfer_match.within_days", { count: 180 })}
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen}>
-                    <CollapsibleTrigger
-                      render={
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="text-muted-foreground h-7 px-2 text-xs"
-                        />
-                      }
-                    >
-                      <Icons.ChevronDown
-                        className={cn(
-                          "me-1 h-3.5 w-3.5 transition-transform",
-                          filtersOpen && "rotate-180",
-                        )}
-                      />
-                      {t("activity:transfer_match.more_filters")}
-                      {advancedFilterCount > 0 ? (
-                        <Badge
-                          variant="secondary"
-                          className="text-2xs ms-1.5 rounded-sm px-1.5 py-0"
-                        >
-                          {advancedFilterCount}
-                        </Badge>
-                      ) : null}
-                    </CollapsibleTrigger>
-                    <CollapsibleContent className="pt-2">
-                      <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-                        <Select
-                          value={accountType}
-                          items={[
-                            { value: ALL, label: t("activity:transfer_match.all_account_types") },
-                            ...accountTypeOptions.map((type) => ({ value: type, label: type })),
-                          ]}
-                          onValueChange={(value) => {
-                            if (value !== null) setAccountType(value);
-                          }}
-                        >
-                          <SelectTrigger aria-label={t("activity:transfer_match.account_type")}>
-                            <SelectValue placeholder={t("activity:transfer_match.account_type")} />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value={ALL}>
-                              {t("activity:transfer_match.all_account_types")}
-                            </SelectItem>
-                            {accountTypeOptions.map((type) => (
-                              <SelectItem key={type} value={type}>
-                                {type}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-
-                        <Select
-                          value={currency}
-                          items={[
-                            { value: ALL, label: t("activity:transfer_match.all_currencies") },
-                            ...currencyOptions.map((option) => ({ value: option, label: option })),
-                          ]}
-                          onValueChange={(value) => {
-                            if (value !== null) setCurrency(value);
-                          }}
-                        >
-                          <SelectTrigger aria-label={t("activity:table_currency")}>
-                            <SelectValue placeholder={t("activity:table_currency")} />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value={ALL}>
-                              {t("activity:transfer_match.all_currencies")}
-                            </SelectItem>
-                            {currencyOptions.map((option) => (
-                              <SelectItem key={option} value={option}>
-                                {option}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-
-                        <Select
-                          value={assetFilter}
-                          items={[
-                            { value: ALL, label: t("activity:transfer_match.all_assets") },
-                            { value: SAME_ASSET, label: t("activity:transfer_match.same_asset") },
-                            { value: CASH_ASSET, label: t("activity:transfer_match.cash_only") },
-                          ]}
-                          onValueChange={(value) => {
-                            if (value !== null) setAssetFilter(value);
-                          }}
-                        >
-                          <SelectTrigger aria-label={t("activity:transfer_match.asset")}>
-                            <SelectValue placeholder={t("activity:transfer_match.asset")} />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value={ALL}>
-                              {t("activity:transfer_match.all_assets")}
-                            </SelectItem>
-                            {isSecurityTransfer(source) ? (
-                              <SelectItem value={SAME_ASSET}>
-                                {t("activity:transfer_match.same_asset")}
-                              </SelectItem>
-                            ) : (
-                              <SelectItem value={CASH_ASSET}>
-                                {t("activity:transfer_match.cash_only")}
-                              </SelectItem>
-                            )}
-                          </SelectContent>
-                        </Select>
-
-                        <Select
-                          value={matchMode}
-                          items={[
-                            { value: STRICT, label: t("activity:transfer_match.exact_amount") },
-                            { value: ANY, label: t("activity:transfer_match.any_eligible") },
-                          ]}
-                          onValueChange={(value) => {
-                            if (value !== null) setMatchMode(value);
-                          }}
-                        >
-                          <SelectTrigger aria-label={t("activity:transfer_match.match_mode")}>
-                            <SelectValue placeholder={t("activity:transfer_match.match_mode")} />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value={STRICT}>
-                              {t("activity:transfer_match.exact_amount")}
-                            </SelectItem>
-                            <SelectItem value={ANY}>
-                              {t("activity:transfer_match.any_eligible")}
-                            </SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </CollapsibleContent>
-                  </Collapsible>
-                </form>
-
-                {manualError ? (
-                  <div className="text-destructive rounded-md border p-3 text-sm">
-                    {manualError}
-                  </div>
-                ) : null}
-
-                {manualSearched ? (
-                  <div className="space-y-2">
-                    <div className="text-muted-foreground text-xs">
-                      {t("activity:transfer_match.eligible_count", {
-                        count: filteredManualResults.length,
-                      })}
-                    </div>
-                    <ScrollArea className="max-h-72">
-                      <div className="space-y-2 pe-3">
-                        {filteredManualResults.length > 0 ? (
-                          filteredManualResults.map((candidate) => (
-                            <CandidateButton
-                              key={candidate.activity.id}
-                              candidate={candidate}
-                              accountMap={accountMap}
-                              selected={selectedCandidate?.activity.id === candidate.activity.id}
-                              onSelect={() => setSelectedCandidate(candidate)}
-                            />
-                          ))
-                        ) : (
-                          <div className="text-muted-foreground rounded-md border border-dashed p-4 text-center text-sm">
-                            {t("activity:transfer_match.no_eligible_filters")}
-                          </div>
-                        )}
-                      </div>
-                    </ScrollArea>
-                  </div>
-                ) : null}
-              </div>
+              <ManualTransferSearch
+                search={search}
+                source={source}
+                counterpartTypes={counterpartTypes}
+                accounts={activeAccounts}
+                accountMap={accountMap}
+                selectedId={selectedCandidate?.activity.id}
+                onSelect={setSelectedCandidate}
+              />
             </>
           )}
         </div>
