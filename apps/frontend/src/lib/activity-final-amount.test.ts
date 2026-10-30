@@ -210,6 +210,25 @@ describe("isStoredTradeAmountCustom", () => {
     ).toBe(false);
   });
 
+  it("treats a calculated total on an exact half-unit tie as the calculation", () => {
+    const tie = (unitPrice: number, currency: string, storedAmount: number) =>
+      isStoredTradeAmountCustom({
+        ...trade,
+        fee: 0,
+        tax: 0,
+        quantity: 1,
+        unitPrice,
+        currency,
+        storedAmount,
+      });
+    // Saved unrounded before rounding existed; now calculated as 10.08 and
+    // 1.001, exactly half a unit away.
+    expect(tie(10.075, "USD", 10.075)).toBe(false);
+    expect(tie(1.0005, "KWD", 1.0005)).toBe(false);
+    // A cent away is the user's.
+    expect(tie(10.075, "USD", 10.07)).toBe(true);
+  });
+
   it("keeps a crypto exchange's total that differs by less than a cent", () => {
     const crypto = {
       ...trade,

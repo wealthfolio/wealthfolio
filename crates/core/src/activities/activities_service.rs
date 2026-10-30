@@ -215,6 +215,9 @@ struct UpdateTradeFacts {
     is_crypto: bool,
     /// The row's current asset is crypto, for judging the stored amount.
     existing_is_crypto: bool,
+    /// Quote currency of the effective asset, which fills a blank activity
+    /// currency when the update is prepared.
+    quote_ccy: Option<String>,
     /// The patch swaps the instrument - by a different resolved id, or by a
     /// bare symbol that names something other than the current asset. An
     /// economics change even though `get_symbol_id()` may be empty (bare
@@ -566,6 +569,7 @@ impl ActivityService {
                     existing_unit_multiplier,
                     is_crypto: existing_is_crypto,
                     existing_is_crypto,
+                    quote_ccy: existing_asset.as_ref().map(|asset| asset.quote_ccy.clone()),
                     replaces_asset: false,
                 };
             }
@@ -578,6 +582,7 @@ impl ActivityService {
                 existing_unit_multiplier,
                 is_crypto: is_crypto_asset(asset.as_ref()),
                 existing_is_crypto,
+                quote_ccy: asset.as_ref().map(|asset| asset.quote_ccy.clone()),
                 replaces_asset: true,
             };
         }
@@ -621,6 +626,7 @@ impl ActivityService {
                     existing_unit_multiplier,
                     is_crypto: replacement_type == Some(InstrumentType::Crypto),
                     existing_is_crypto,
+                    quote_ccy: Self::normalize_quote_ccy(activity.get_quote_ccy()),
                     replaces_asset: true,
                 };
             }
@@ -630,8 +636,26 @@ impl ActivityService {
             existing_unit_multiplier,
             is_crypto: existing_is_crypto,
             existing_is_crypto,
+            quote_ccy: existing_asset.as_ref().map(|asset| asset.quote_ccy.clone()),
             replaces_asset: false,
         }
+    }
+
+    /// The currency an update's cash is in. A blank currency is filled from
+    /// the asset when the update is prepared, so a total is derived and
+    /// checked in that currency, as a create does.
+    fn update_cash_currency(
+        activity: &ActivityUpdate,
+        existing: &Activity,
+        facts: &UpdateTradeFacts,
+    ) -> String {
+        if !activity.currency.trim().is_empty() {
+            return activity.currency.clone();
+        }
+        facts
+            .quote_ccy
+            .clone()
+            .unwrap_or_else(|| existing.currency.clone())
     }
 
     fn missing_final_cash_error(activity_type: &str) -> crate::errors::Error {
@@ -756,7 +780,8 @@ impl ActivityService {
         } else if Self::is_trade_type(&activity.activity_type) {
             let trade_facts = self.update_trade_facts(activity, existing);
             let unit_multiplier = trade_facts.unit_multiplier;
-            let cash_scale = Self::derived_cash_scale(&activity.currency, trade_facts.is_crypto);
+            let cash_currency = Self::update_cash_currency(activity, existing, &trade_facts);
+            let cash_scale = Self::derived_cash_scale(&cash_currency, trade_facts.is_crypto);
             // The activity currency is deliberately absent from this list: a
             // currency-only edit is a label correction on real data, and
             // treating it as an economics change would re-derive a total
@@ -806,8 +831,7 @@ impl ActivityService {
                                 ),
                             )
                             .is_none_or(|expected| {
-                                (stored - expected).abs()
-                                    > Self::half_minor_unit(&activity.currency)
+                                (stored - expected).abs() > Self::half_minor_unit(&cash_currency)
                             })
                         });
                     if replaces_custom_total && activity.needs_review != Some(false) {
@@ -821,7 +845,7 @@ impl ActivityService {
             if let Some(current_amount) = explicit_amount.or(amount) {
                 let inputs = Self::activity_cash_inputs(
                     &activity.activity_type,
-                    &activity.currency,
+                    &cash_currency,
                     quantity,
                     unit_price,
                     Some(current_amount),
@@ -830,7 +854,7 @@ impl ActivityService {
                     unit_multiplier,
                 );
                 let (canonical, needs_review) = Self::mark_trade_amount_confidence(
-                    &activity.currency,
+                    &cash_currency,
                     current_amount,
                     inputs,
                     activity.needs_review != Some(false),
@@ -863,7 +887,10 @@ impl ActivityService {
                 fee,
                 tax,
                 trade_facts.unit_multiplier,
-                Self::derived_cash_scale(&activity.currency, trade_facts.is_crypto),
+                Self::derived_cash_scale(
+                    &Self::update_cash_currency(activity, existing, &trade_facts),
+                    trade_facts.is_crypto,
+                ),
             ) {
                 activity.amount = Some(Some(calculated));
                 amount = Some(calculated);

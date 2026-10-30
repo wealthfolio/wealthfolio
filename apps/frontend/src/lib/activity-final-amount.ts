@@ -1,5 +1,9 @@
 import { ActivityType, DECIMAL_PRECISION, InstrumentType } from "@/lib/constants";
-import { currencyCashDigits, currencyMinorUnit, isCryptoInstrument } from "@/lib/currency-decimals";
+import {
+  currencyCashDigits,
+  currencyFractionDigits,
+  isCryptoInstrument,
+} from "@/lib/currency-decimals";
 
 // Mirrors Asset::contract_multiplier in assets_model.rs - the app-wide
 // multiplier defaults (option 100, everything else 1). Bonds deliberately
@@ -50,6 +54,13 @@ function addScaled(a: ScaledDecimal, b: ScaledDecimal): ScaledDecimal {
 
 function negateScaled({ digits, scale }: ScaledDecimal): ScaledDecimal {
   return { digits: -digits, scale };
+}
+
+/** Whether |a - b| is at most `tolerance`, compared exactly. */
+function withinScaled(a: ScaledDecimal, b: ScaledDecimal, tolerance: ScaledDecimal): boolean {
+  const difference = addScaled(a, negateScaled(b));
+  const magnitude = difference.digits < 0n ? negateScaled(difference) : difference;
+  return addScaled(tolerance, negateScaled(magnitude)).digits >= 0n;
 }
 
 /** Rounds an exact decimal half away from zero to `places`. */
@@ -187,11 +198,13 @@ export function isStoredTradeAmountCustom({
   // other within half a minor unit, which also covers totals saved unrounded
   // before calculated totals were rounded. A crypto exchange's total that
   // differs by less than a cent stays the user's.
+  // Compared exactly: in floats, 10.08 - 10.075 is 0.005000000000000782, which
+  // would call a calculated total on a half-unit tie custom.
   const currency = typeof cashInputs.currency === "string" ? cashInputs.currency : undefined;
-  const tolerance = isCryptoInstrument(cashInputs.instrumentType)
-    ? 1e-8
-    : currencyMinorUnit(currency) / 2;
-  return Math.abs(stored - calculated) > tolerance;
+  const tolerance: ScaledDecimal = isCryptoInstrument(cashInputs.instrumentType)
+    ? { digits: 1n, scale: DECIMAL_PRECISION }
+    : { digits: 5n, scale: currencyFractionDigits(currency) + 1 };
+  return !withinScaled(toScaledDecimal(stored), toScaledDecimal(calculated), tolerance);
 }
 
 interface IncomeCashInputs {

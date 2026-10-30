@@ -4577,6 +4577,58 @@ pub(crate) mod tests {
     }
 
     #[tokio::test]
+    async fn blank_currency_rounds_in_the_assets_currency_on_create_and_edit() {
+        // A blank activity currency is filled from the asset (JPY here), so
+        // 3 × 1,234.5678 rounds to whole yen on both paths, and the edit is
+        // not flagged for review.
+        let activity_service =
+            final_total_service("JPY", vec![create_test_asset("FUND", "JPY")], None);
+        let mut buy = statement_buy("buy-blank-currency", None, dec!(0));
+        buy.currency = String::new();
+        buy.quantity = Some(dec!(3));
+        buy.unit_price = Some(dec!(1234.5678));
+
+        let created = activity_service
+            .create_activity(buy)
+            .await
+            .expect("trade with a blank currency should be created");
+        assert_eq!(created.currency, "JPY");
+        assert_eq!(created.amount, Some(dec!(3704)));
+
+        let updated = activity_service
+            .update_activity(ActivityUpdate {
+                unlink_transfer_pair_id: None,
+                split_review: None,
+                id: created.id.clone(),
+                account_id: "acc-final".to_string(),
+                asset: Some(AssetResolutionInput {
+                    id: Some("FUND".to_string()),
+                    ..Default::default()
+                }),
+                activity_type: "BUY".to_string(),
+                subtype: None,
+                activity_date: "2024-01-15".to_string(),
+                quantity: Some(Some(dec!(3))),
+                unit_price: Some(Some(dec!(1234.5678))),
+                currency: String::new(),
+                fee: Some(Some(dec!(0))),
+                tax: None,
+                amount: Some(None),
+                status: None,
+                needs_review: None,
+                notes: None,
+                fx_rate: None,
+                metadata: None,
+            })
+            .await
+            .expect("edit with a blank currency should succeed");
+
+        assert_eq!(updated.currency, "JPY");
+        assert_eq!(updated.amount, Some(dec!(3704)));
+        assert!(!updated.needs_review);
+    }
+
+    #[tokio::test]
     async fn pence_totals_round_the_same_on_create_and_edit() {
         // 3 × 1,234.5678 GBp is £37.037034. A create normalizes to GBP before
         // deriving; an edit derives in pence first. Both store £37.04, and
