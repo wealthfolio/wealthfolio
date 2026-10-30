@@ -94,6 +94,7 @@ interface WealthfolioConnectContextValue {
   retrySession: () => Promise<void>;
   isLoading: boolean;
   isLoadingUserInfo: boolean;
+  isUserInfoRateLimited: boolean;
   user: User | null;
   session: Session | null;
   teamId: string | null;
@@ -125,6 +126,7 @@ const disabledContextValue: WealthfolioConnectContextValue = {
   retrySession: async () => {},
   isLoading: false,
   isLoadingUserInfo: false,
+  isUserInfoRateLimited: false,
   user: null,
   session: null,
   teamId: null,
@@ -188,6 +190,7 @@ function EnabledWealthfolioConnectProvider({ children }: { children: ReactNode }
   const syncAccessRef = useRef<string | null>(null);
   const userInfoRequestRef = useRef(0);
   const userInfoRetryAtRef = useRef(0);
+  const [userInfoRetryAt, setUserInfoRetryAt] = useState(0);
   const authTransitionRef = useRef<Promise<unknown>>(Promise.resolve());
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
 
@@ -195,6 +198,7 @@ function EnabledWealthfolioConnectProvider({ children }: { children: ReactNode }
     if (sessionRef.current?.user.id !== next?.user.id) {
       setUserInfo(null);
       userInfoRetryAtRef.current = 0;
+      setUserInfoRetryAt(0);
     }
     sessionRef.current = next;
     setIsSessionUnavailable(false);
@@ -836,7 +840,9 @@ function EnabledWealthfolioConnectProvider({ children }: { children: ReactNode }
       await reconcileSession();
       if (!isCurrent()) return;
       // Still reconcile local sign-out while suppressing cloud retries during a rate limit.
-      if (Date.now() < userInfoRetryAtRef.current) return;
+      if (performance.now() < userInfoRetryAtRef.current) return;
+      userInfoRetryAtRef.current = 0;
+      setUserInfoRetryAt(0);
       setError(null);
       requestedUserInfo = true;
       const info = await getUserInfo();
@@ -858,8 +864,12 @@ function EnabledWealthfolioConnectProvider({ children }: { children: ReactNode }
       const message = err instanceof Error ? err.message : typeof err === "string" ? err : "";
       const rateLimited = requestedUserInfo && /\bAPI error (\d{3})\b/.exec(message)?.[1] === "429";
       if (rateLimited) {
-        userInfoRetryAtRef.current = Date.now() + USER_INFO_RATE_LIMIT_BACKOFF_MS;
-      } else {
+        const retryAt = performance.now() + USER_INFO_RATE_LIMIT_BACKOFF_MS;
+        userInfoRetryAtRef.current = retryAt;
+        setUserInfoRetryAt(retryAt);
+      } else if (requestedUserInfo || performance.now() >= userInfoRetryAtRef.current) {
+        userInfoRetryAtRef.current = 0;
+        setUserInfoRetryAt(0);
         setUserInfo(null);
       }
       setError(
@@ -869,6 +879,25 @@ function EnabledWealthfolioConnectProvider({ children }: { children: ReactNode }
       if (isCurrent()) setIsLoadingUserInfo(false);
     }
   }, [reconcileSession, requestPostLoginSync, t]);
+
+  // The regular poll can run just before the cooldown expires. Retry at its own deadline.
+  useEffect(() => {
+    if (!userInfoRetryAt) return;
+    let timeout: number;
+    const retryWhenReady = () => {
+      const remaining = userInfoRetryAtRef.current - performance.now();
+      if (remaining > 0) {
+        timeout = window.setTimeout(retryWhenReady, Math.ceil(remaining));
+      } else if (userInfoRetryAtRef.current) {
+        void refetchUserInfo();
+      }
+    };
+    timeout = window.setTimeout(
+      retryWhenReady,
+      Math.ceil(Math.max(0, userInfoRetryAt - performance.now())),
+    );
+    return () => window.clearTimeout(timeout);
+  }, [userInfoRetryAt, refetchUserInfo]);
 
   useEffect(() => {
     if (session) void refetchUserInfo();
@@ -908,6 +937,7 @@ function EnabledWealthfolioConnectProvider({ children }: { children: ReactNode }
       retrySession,
       isLoading,
       isLoadingUserInfo,
+      isUserInfoRateLimited: userInfoRetryAt > 0,
       user,
       session,
       teamId,
@@ -931,6 +961,7 @@ function EnabledWealthfolioConnectProvider({ children }: { children: ReactNode }
       retrySession,
       isLoading,
       isLoadingUserInfo,
+      userInfoRetryAt,
       user,
       teamId,
       userInfo,

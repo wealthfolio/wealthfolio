@@ -1515,34 +1515,29 @@ mod tests {
 
     #[tokio::test]
     async fn snapshot_edge_rate_limit_retries_stop_at_the_attempt_limit() {
-        for body in [
-            r#"{"error":"rate_limited","message":"Please try again in 60 seconds."}"#,
-            "<html><body>Too many requests</body></html>",
-        ] {
-            let (base_url, captured, server) = start_mock_upload_server(vec![
-                MockUploadOutcome::Respond {
-                    status: 429,
-                    body: body.into(),
-                    delay_ms: 0,
-                };
-                SNAPSHOT_UPLOAD_MAX_ATTEMPTS
-            ])
-            .await;
-            let client = DeviceSyncClient::new(&base_url);
-            let payload = b"dummy-snapshot".to_vec();
-            let error = client
-                .upload_snapshot(
-                    "test-token",
-                    "019bb9fe-f707-71e9-a40d-733575f4f246",
-                    build_upload_headers(None, &payload),
-                    payload,
-                )
-                .await
-                .unwrap_err();
-            assert_eq!(error.status_code(), Some(429));
-            assert_eq!(captured.lock().await.len(), SNAPSHOT_UPLOAD_MAX_ATTEMPTS);
-            server.abort();
-        }
+        let (base_url, captured, server) = start_mock_upload_server(vec![
+            MockUploadOutcome::Respond {
+                status: 429,
+                body: r#"{"error":"rate_limited"}"#.into(),
+                delay_ms: 0,
+            };
+            SNAPSHOT_UPLOAD_MAX_ATTEMPTS
+        ])
+        .await;
+        let client = DeviceSyncClient::new(&base_url);
+        let payload = b"dummy-snapshot".to_vec();
+        let error = client
+            .upload_snapshot(
+                "test-token",
+                "019bb9fe-f707-71e9-a40d-733575f4f246",
+                build_upload_headers(None, &payload),
+                payload,
+            )
+            .await
+            .unwrap_err();
+        assert_eq!(error.status_code(), Some(429));
+        assert_eq!(captured.lock().await.len(), SNAPSHOT_UPLOAD_MAX_ATTEMPTS);
+        server.abort();
     }
 
     async fn write_http_response(

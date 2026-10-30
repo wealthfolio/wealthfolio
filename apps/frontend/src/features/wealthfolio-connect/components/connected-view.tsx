@@ -343,6 +343,7 @@ export function ConnectedView() {
     signOut,
     isLoading,
     isLoadingUserInfo,
+    isUserInfoRateLimited,
     error,
     clearError,
     refetchUserInfo,
@@ -354,7 +355,7 @@ export function ConnectedView() {
   const isConnected = !!session;
 
   // Check if there's a service unavailable error (failed to fetch user info)
-  const isServiceUnavailable = !!error && !isLoadingUserInfo && !userInfo;
+  const isServiceUnavailable = !!error && !userInfo;
 
   // Check if user has an active subscription
   const hasSubscription = isSubscriptionStatusActive(userInfo?.team?.subscription_status);
@@ -369,13 +370,12 @@ export function ConnectedView() {
   // Retry handler for service unavailable state
   const handleRetry = useCallback(async () => {
     setIsRetrying(true);
-    clearError();
     try {
       await refetchUserInfo();
     } finally {
       setIsRetrying(false);
     }
-  }, [clearError, refetchUserInfo]);
+  }, [refetchUserInfo]);
 
   // Sync accounts to local database
   // Sync runs in background, global event listener handles toasts and query invalidation
@@ -492,7 +492,10 @@ export function ConnectedView() {
 
       {/* Show Service Unavailable card when API is down */}
       {isServiceUnavailable && (
-        <ServiceUnavailableCard onRetry={handleRetry} isRetrying={isRetrying} />
+        <ServiceUnavailableCard
+          onRetry={handleRetry}
+          isRetrying={isRetrying || isLoadingUserInfo || isUserInfoRateLimited}
+        />
       )}
 
       {/* Show Subscription Plans if user has no active subscription (keep mounted during refresh) */}
@@ -506,7 +509,7 @@ export function ConnectedView() {
           <SubscriptionPlans
             enabled={isConnected && !hasSubscription}
             onRefresh={refetchUserInfo}
-            isRefreshing={isLoadingUserInfo}
+            isRefreshing={isLoadingUserInfo || isUserInfoRateLimited}
           />
         </>
       )}
