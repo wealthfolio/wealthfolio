@@ -1,6 +1,6 @@
 import { act, fireEvent, render, renderHook, screen, waitFor } from "@testing-library/react";
 import { useEffect, type ReactNode } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { QueryKeys } from "@/lib/query-keys";
 import { usePostLoginConnectSync } from "../hooks/use-post-login-connect-sync";
@@ -141,6 +141,8 @@ beforeEach(() => {
   mocks.getUserInfo.mockImplementation(async () => info(mocks.account));
 });
 
+afterEach(() => vi.restoreAllMocks());
+
 describe("Cloud session lifecycle", () => {
   it.each([
     [
@@ -276,21 +278,27 @@ describe("Cloud session lifecycle", () => {
     },
   );
 
-  it("ignores errors from an obsolete request", async () => {
-    const old = deferred<ReturnType<typeof info>>();
-    mocks.getUserInfo.mockImplementationOnce(() => old.promise);
-    const { result } = await setup();
-    await act(() => result.current.signInWithEmail("A", "password"));
-    await waitFor(() => expect(mocks.getUserInfo).toHaveBeenCalledTimes(1));
-    await act(() => result.current.signInWithEmail("B", "password"));
-    await waitFor(() => expect(result.current.userInfo?.id).toBe("B"));
-    await act(async () => {
-      old.reject(new Error("Old account request failed"));
-    });
-    expect(result.current.error).toBeNull();
-    expect(result.current.userInfo?.id).toBe("B");
-    expect(result.current.isLoadingUserInfo).toBe(false);
-  });
+  it.each(["Old account request failed", "API error 429: Too many requests"])(
+    "ignores errors from an obsolete request: %s",
+    async (message) => {
+      const old = deferred<ReturnType<typeof info>>();
+      mocks.getUserInfo.mockImplementationOnce(() => old.promise);
+      const { result } = await setup();
+      await act(() => result.current.signInWithEmail("A", "password"));
+      await waitFor(() => expect(mocks.getUserInfo).toHaveBeenCalledTimes(1));
+      await act(() => result.current.signInWithEmail("B", "password"));
+      await waitFor(() => expect(result.current.userInfo?.id).toBe("B"));
+      await act(async () => {
+        old.reject(new Error(message));
+      });
+      expect(result.current.error).toBeNull();
+      expect(result.current.userInfo?.id).toBe("B");
+      expect(result.current.isLoadingUserInfo).toBe(false);
+      const calls = mocks.getUserInfo.mock.calls.length;
+      await act(() => result.current.refetchUserInfo());
+      expect(mocks.getUserInfo).toHaveBeenCalledTimes(calls + 1);
+    },
+  );
 
   it.each([null, "canceled", "unpaid", "incomplete", "incomplete_expired", "paused", "unknown"])(
     "keeps authentication and exposes inactive status %s for pricing",
@@ -335,6 +343,84 @@ describe("Cloud session lifecycle", () => {
     await act(() => result.current.refetchUserInfo());
     expect(result.current.postLoginSyncRequest?.source).toBe("email-sign-in");
     expect(mocks.signOut).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    new Error("API error 429: Too many requests. Please try again in 60 seconds."),
+    "API error 429: Too many requests. Please try again in 60 seconds.",
+  ])("preserves the profile and backs off after a rate limit: %s", async (failure) => {
+    const now = Date.now();
+    const clock = vi.spyOn(Date, "now").mockReturnValue(now);
+    const { result } = await setup();
+    await act(() => result.current.signInWithEmail("A", "password"));
+    await waitFor(() => expect(result.current.userInfo?.id).toBe("A"));
+
+    const profile = result.current.userInfo;
+    mocks.getUserInfo.mockRejectedValueOnce(failure);
+    await act(() => result.current.refetchUserInfo());
+    expect(result.current.userInfo).toBe(profile);
+    expect(result.current.error).toContain("API error 429");
+    expect(result.current.isConnected).toBe(true);
+    expect(mocks.signOut).not.toHaveBeenCalled();
+    expect(mocks.clear).not.toHaveBeenCalled();
+
+    const calls = mocks.getUserInfo.mock.calls.length;
+    clock.mockReturnValue(now + 59_999);
+    await act(async () => {
+      window.dispatchEvent(new Event("focus"));
+      document.dispatchEvent(new Event("visibilitychange"));
+      await result.current.refetchUserInfo();
+    });
+    expect(mocks.getUserInfo).toHaveBeenCalledTimes(calls);
+    expect(result.current.error).toContain("API error 429");
+
+    clock.mockReturnValue(now + 60_000);
+    mocks.getUserInfo.mockResolvedValue(info("A", "canceled"));
+    await act(() => result.current.refetchUserInfo());
+    expect(mocks.getUserInfo).toHaveBeenCalledTimes(calls + 1);
+    expect(result.current.userInfo?.team?.subscription_status).toBe("canceled");
+    expect(result.current.error).toBeNull();
+    expect(result.current.isConnected).toBe(true);
+  });
+
+  it("does not preserve another account's profile or cooldown after an account change", async () => {
+    const { result } = await setup();
+    await act(() => result.current.signInWithEmail("A", "password"));
+    await waitFor(() => expect(result.current.userInfo?.id).toBe("A"));
+
+    mocks.getUserInfo.mockRejectedValue(new Error("API error 429: Too many requests"));
+    await act(() => result.current.refetchUserInfo());
+    const calls = mocks.getUserInfo.mock.calls.length;
+    await act(() => result.current.signInWithEmail("B", "password"));
+    await waitFor(() => expect(mocks.getUserInfo).toHaveBeenCalledTimes(calls + 1));
+    expect(result.current.user?.id).toBe("B");
+    expect(result.current.userInfo).toBeNull();
+    expect(result.current.isConnected).toBe(true);
+  });
+
+  it("still reconciles a missing backend session during the rate-limit cooldown", async () => {
+    const { result } = await setup();
+    await act(() => result.current.signInWithEmail("A", "password"));
+    await waitFor(() => expect(result.current.userInfo?.id).toBe("A"));
+    mocks.getUserInfo.mockRejectedValue(new Error("API error 429: Too many requests"));
+    await act(() => result.current.refetchUserInfo());
+    const calls = mocks.getUserInfo.mock.calls.length;
+
+    mocks.configured = false;
+    await act(() => result.current.refetchUserInfo());
+    expect(result.current.isConnected).toBe(false);
+    expect(result.current.userInfo).toBeNull();
+    expect(mocks.getUserInfo).toHaveBeenCalledTimes(calls);
+  });
+
+  it("does not retain profile data after an authentication error", async () => {
+    const { result } = await setup();
+    await act(() => result.current.signInWithEmail("A", "password"));
+    await waitFor(() => expect(result.current.userInfo?.id).toBe("A"));
+    mocks.getUserInfo.mockRejectedValueOnce(new Error("API error 401: Unauthorized"));
+    await act(() => result.current.refetchUserInfo());
+    expect(result.current.userInfo).toBeNull();
+    expect(result.current.error).toContain("API error 401");
   });
 
   it("signs out only when the backend auth session is missing on mobile resume", async () => {

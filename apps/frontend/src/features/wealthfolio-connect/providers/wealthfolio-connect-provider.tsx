@@ -70,6 +70,7 @@ const parseConfiguredAuthCallbackUrl = (url: string) =>
 
 const PROCESSED_AUTH_CODE_TTL_MS = 10 * 60 * 1000;
 const MAX_PROCESSED_AUTH_CODES = 20;
+const USER_INFO_RATE_LIMIT_BACKOFF_MS = 60_000;
 
 type PostLoginSyncSource =
   | "auth-callback"
@@ -186,14 +187,18 @@ function EnabledWealthfolioConnectProvider({ children }: { children: ReactNode }
   const sessionGenerationRef = useRef(0);
   const syncAccessRef = useRef<string | null>(null);
   const userInfoRequestRef = useRef(0);
+  const userInfoRetryAtRef = useRef(0);
   const authTransitionRef = useRef<Promise<unknown>>(Promise.resolve());
+  const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
 
   const setSession = useCallback((next: Session | null) => {
+    if (sessionRef.current?.user.id !== next?.user.id) setUserInfo(null);
     sessionRef.current = next;
     setIsSessionUnavailable(false);
     syncAccessRef.current = null;
     sessionGenerationRef.current += 1;
     userInfoRequestRef.current += 1;
+    userInfoRetryAtRef.current = 0;
     setSessionState(next);
   }, []);
 
@@ -206,7 +211,6 @@ function EnabledWealthfolioConnectProvider({ children }: { children: ReactNode }
     );
     return next;
   }, []);
-  const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
   const [postLoginSyncRequest, setPostLoginSyncRequest] = useState<PostLoginSyncRequest | null>(
     null,
   );
@@ -825,12 +829,15 @@ function EnabledWealthfolioConnectProvider({ children }: { children: ReactNode }
       generation === sessionGenerationRef.current && request === userInfoRequestRef.current;
     if (!sessionRef.current) return;
     setIsLoadingUserInfo(true);
-    setError(null);
     try {
       await reconcileSession();
       if (!isCurrent()) return;
+      // Still reconcile local sign-out while suppressing cloud retries during a rate limit.
+      if (Date.now() < userInfoRetryAtRef.current) return;
+      setError(null);
       const info = await getUserInfo();
       if (!isCurrent()) return;
+      userInfoRetryAtRef.current = 0;
       const access = hasBrokerSync(info)
         ? "broker"
         : isSubscriptionStatusActive(info.team?.subscription_status)
@@ -844,8 +851,16 @@ function EnabledWealthfolioConnectProvider({ children }: { children: ReactNode }
     } catch (err) {
       if (!isCurrent()) return;
       logger.error("Failed to fetch user info from API.");
-      setUserInfo(null);
-      setError(err instanceof Error ? err.message : t("connect:authErrors.fetchUserInfoFailed"));
+      const message = err instanceof Error ? err.message : typeof err === "string" ? err : "";
+      const rateLimited = /\bAPI error 429\b/.test(message);
+      if (rateLimited) {
+        userInfoRetryAtRef.current = Date.now() + USER_INFO_RATE_LIMIT_BACKOFF_MS;
+      } else {
+        setUserInfo(null);
+      }
+      setError(
+        err instanceof Error || rateLimited ? message : t("connect:authErrors.fetchUserInfoFailed"),
+      );
     } finally {
       if (isCurrent()) setIsLoadingUserInfo(false);
     }
