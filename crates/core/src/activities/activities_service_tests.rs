@@ -4263,6 +4263,242 @@ pub(crate) mod tests {
     }
 
     #[tokio::test]
+    async fn calculated_total_rounds_the_trade_value_to_the_currency_unit() {
+        // (currency, quantity, price, fee, final total). The trade value is
+        // rounded half away from zero, then charges are added as entered.
+        let cases = [
+            ("USD", dec!(2282), dec!(22.526204), dec!(0), dec!(51404.80)),
+            (
+                "USD",
+                dec!(2282),
+                dec!(22.526204),
+                dec!(1.0034),
+                dec!(51405.8034),
+            ),
+            ("USD", dec!(1), dec!(10.005), dec!(0), dec!(10.01)),
+            ("JPY", dec!(3), dec!(1234.5678), dec!(0), dec!(3704)),
+            ("KWD", dec!(7), dec!(1.23456), dec!(0), dec!(8.642)),
+        ];
+        for (currency, quantity, price, fee, expected) in cases {
+            let activity_service =
+                final_total_service(currency, vec![create_test_asset("FUND", currency)], None);
+            let mut buy = statement_buy("buy-calculated", None, fee);
+            buy.currency = currency.to_string();
+            buy.quantity = Some(quantity);
+            buy.unit_price = Some(price);
+
+            let created = activity_service
+                .create_activity(buy)
+                .await
+                .expect("calculated total should be created");
+
+            assert_eq!(
+                created.amount,
+                Some(expected),
+                "{currency} {quantity} × {price} + {fee}"
+            );
+            assert!(!created.needs_review);
+        }
+    }
+
+    #[tokio::test]
+    async fn calculated_crypto_total_stays_exact() {
+        // Exchanges settle crypto trades past the cent (Binance USDT to 8
+        // places, Kraken USD to 4), so the derived total is not rounded.
+        let crypto = create_test_asset_with_instrument(
+            "FUND",
+            "BTC",
+            None,
+            Some(InstrumentType::Crypto),
+            "USD",
+        );
+        let activity_service = final_total_service("USD", vec![crypto], None);
+        let mut buy = statement_buy("buy-crypto", None, dec!(0));
+        buy.quantity = Some(dec!(0.00123));
+        buy.unit_price = Some(dec!(61234.56));
+
+        let created = activity_service
+            .create_activity(buy)
+            .await
+            .expect("crypto trade should be created");
+
+        assert_eq!(created.amount, Some(dec!(75.3185088)));
+    }
+
+    #[tokio::test]
+    async fn calculated_total_never_rounds_to_zero() {
+        // A zero total on a buy means units received for free, so a value
+        // smaller than half a cent stays exact instead.
+        let activity_service =
+            final_total_service("USD", vec![create_test_asset("FUND", "USD")], None);
+        let mut buy = statement_buy("buy-tiny", None, dec!(0));
+        buy.quantity = Some(dec!(0.001));
+        buy.unit_price = Some(dec!(4));
+
+        let created = activity_service
+            .create_activity(buy)
+            .await
+            .expect("tiny trade should be created");
+
+        assert_eq!(created.amount, Some(dec!(0.004)));
+    }
+
+    #[tokio::test]
+    async fn reinvested_dividend_rounds_its_calculated_value() {
+        let activity_service =
+            final_total_service("USD", vec![create_test_asset("FUND", "USD")], None);
+        let mut drip = statement_buy("drip-calculated", None, dec!(0));
+        drip.activity_type = "DIVIDEND".to_string();
+        drip.subtype = Some("DRIP".to_string());
+        drip.fee = None;
+        drip.quantity = Some(dec!(0.5));
+        drip.unit_price = Some(dec!(40.12345));
+
+        let created = activity_service
+            .create_activity(drip)
+            .await
+            .expect("reinvested dividend should be created");
+
+        assert_eq!(created.amount, Some(dec!(20.06)));
+    }
+
+    #[tokio::test]
+    async fn economics_edit_rounds_the_recalculated_total_without_flagging() {
+        // A total saved unrounded before this change is the app's own
+        // calculation, not a custom one: an edit that changes the quantity
+        // recalculates it, rounded, without asking for review.
+        let mut existing = create_stored_activity("buy-legacy", "acc-final", Some("FUND"));
+        existing.quantity = Some(dec!(2282));
+        existing.unit_price = Some(dec!(22.526204));
+        existing.fee = Some(dec!(0));
+        existing.amount = Some(dec!(51404.797528));
+        existing.needs_review = false;
+        let activity_service = final_total_service(
+            "USD",
+            vec![create_test_asset("FUND", "USD")],
+            Some(existing),
+        );
+
+        let updated = activity_service
+            .update_activity(ActivityUpdate {
+                unlink_transfer_pair_id: None,
+                split_review: None,
+                id: "buy-legacy".to_string(),
+                account_id: "acc-final".to_string(),
+                asset: Some(AssetResolutionInput {
+                    id: Some("FUND".to_string()),
+                    ..Default::default()
+                }),
+                activity_type: "BUY".to_string(),
+                subtype: None,
+                activity_date: "2024-01-15".to_string(),
+                quantity: Some(Some(dec!(2283))),
+                unit_price: Some(Some(dec!(22.526204))),
+                currency: "USD".to_string(),
+                fee: Some(Some(dec!(0))),
+                tax: None,
+                amount: None,
+                status: None,
+                needs_review: None,
+                notes: None,
+                fx_rate: None,
+                metadata: None,
+            })
+            .await
+            .expect("quantity edit should succeed");
+
+        // 2,283 × 22.526204 = 51,427.323732
+        assert_eq!(updated.amount, Some(dec!(51427.32)));
+        assert!(!updated.needs_review);
+    }
+
+    #[tokio::test]
+    async fn imported_trades_without_a_total_round_unless_crypto() {
+        let account_service = Arc::new(MockAccountService::new());
+        let asset_service = Arc::new(MockAssetService::new());
+        let activity_repository = Arc::new(MockActivityRepository::new());
+        account_service.add_account(create_test_account("acc-final", "USD"));
+        asset_service.add_asset(create_test_asset_with_instrument(
+            "asset-fund",
+            "FUND",
+            None,
+            Some(InstrumentType::Equity),
+            "USD",
+        ));
+        asset_service.add_asset(create_test_asset_with_instrument(
+            "asset-btc",
+            "BTC",
+            None,
+            Some(InstrumentType::Crypto),
+            "USD",
+        ));
+        let activity_service = ActivityService::new(
+            activity_repository.clone(),
+            account_service,
+            asset_service,
+            Arc::new(MockFxService::new()),
+            Arc::new(MockQuoteService),
+        );
+        let row = |line: i32, asset_id: &str, symbol: &str, quantity, unit_price| ActivityImport {
+            id: None,
+            date: "2026-07-15".to_string(),
+            symbol: symbol.to_string(),
+            activity_type: "BUY".to_string(),
+            quantity: Some(quantity),
+            unit_price: Some(unit_price),
+            currency: "USD".to_string(),
+            fee: Some(dec!(0)),
+            tax: None,
+            amount: None,
+            comment: None,
+            account_id: Some("acc-final".to_string()),
+            account_name: None,
+            symbol_name: None,
+            exchange_mic: None,
+            quote_ccy: None,
+            instrument_type: None,
+            quote_mode: None,
+            provider_id: None,
+            provider_symbol: None,
+            errors: None,
+            warnings: None,
+            duplicate_of_id: None,
+            duplicate_of_line_number: None,
+            is_draft: false,
+            is_valid: true,
+            line_number: Some(line),
+            fx_rate: None,
+            subtype: None,
+            asset_id: Some(asset_id.to_string()),
+            isin: None,
+            force_import: false,
+            is_external: None,
+            source_group_id: None,
+        };
+
+        let result = activity_service
+            .import_activities(vec![
+                row(1, "asset-fund", "FUND", dec!(2282), dec!(22.526204)),
+                row(2, "asset-btc", "BTC", dec!(0.00123), dec!(61234.56)),
+            ])
+            .await
+            .expect("import should succeed");
+        assert_eq!(result.summary.imported, 2);
+
+        let stored = activity_repository
+            .get_activities()
+            .expect("imported activities should be stored");
+        let amount_of = |asset_id: &str| {
+            stored
+                .iter()
+                .find(|activity| activity.asset_id.as_deref() == Some(asset_id))
+                .and_then(|activity| activity.amount)
+        };
+        assert_eq!(amount_of("asset-fund"), Some(dec!(51404.80)));
+        assert_eq!(amount_of("asset-btc"), Some(dec!(75.3185088)));
+    }
+
+    #[tokio::test]
     async fn editing_trade_to_unresolved_option_symbol_uses_patch_multiplier() {
         // Replacing an equity trade's asset with a not-yet-resolved option
         // symbol must derive the total from the patch's instrument facts, not

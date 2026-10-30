@@ -243,11 +243,12 @@ export function DividendForm({
     const q = Number(quantity);
     const p = Number(unitPrice);
     if (amountWasEdited.current) return;
-    const computedAmount = calculateIncomeFinalAmount(
+    const computedAmount = calculateIncomeFinalAmount({
       quantity,
       unitPrice,
-      getValues("symbolInstrumentType"),
-    );
+      instrumentType: getValues("symbolInstrumentType"),
+      currency,
+    });
     if (computedAmount === undefined) return;
     const currentAmount = Number(getValues("amount"));
     const quantityIsDirty = getFieldState("quantity").isDirty;
@@ -264,7 +265,7 @@ export function DividendForm({
         });
       }
     }
-  }, [getFieldState, getValues, isAssetBacked, quantity, setValue, unitPrice]);
+  }, [currency, getFieldState, getValues, isAssetBacked, quantity, setValue, unitPrice]);
 
   const handleDividendModeChange = (value: string) => {
     setValue("subtype", value === INCOME_MODE_CASH ? null : value, {

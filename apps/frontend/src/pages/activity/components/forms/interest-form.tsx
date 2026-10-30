@@ -240,11 +240,12 @@ export function InterestForm({
     const q = Number(quantity);
     const p = Number(unitPrice);
     if (amountWasEdited.current) return;
-    const computedAmount = calculateIncomeFinalAmount(
+    const computedAmount = calculateIncomeFinalAmount({
       quantity,
       unitPrice,
-      getValues("symbolInstrumentType"),
-    );
+      instrumentType: getValues("symbolInstrumentType"),
+      currency,
+    });
     if (computedAmount === undefined) return;
     const currentAmount = Number(getValues("amount"));
     const quantityIsDirty = getFieldState("quantity").isDirty;
@@ -261,7 +262,7 @@ export function InterestForm({
         });
       }
     }
-  }, [getFieldState, getValues, isStakingReward, quantity, setValue, unitPrice]);
+  }, [currency, getFieldState, getValues, isStakingReward, quantity, setValue, unitPrice]);
 
   const handleInterestModeChange = (value: string) => {
     setValue("subtype", value === INCOME_MODE_CASH ? null : value, {

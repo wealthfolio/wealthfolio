@@ -317,14 +317,16 @@ function applyAutomaticFinalAmount(transaction: LocalTransaction): LocalTransact
       fee: transaction.fee,
       tax: transaction.tax,
       contractMultiplier: transaction.metadata?.contract_multiplier,
+      currency: transaction.currency,
     });
   } else if (isAssetBackedIncomeSubtype(transaction.activityType, transaction.subtype)) {
-    finalAmount = calculateIncomeFinalAmount(
-      transaction.quantity,
-      transaction.unitPrice,
-      transaction.pendingInstrumentType ?? transaction.instrumentType,
-      transaction.metadata?.contract_multiplier,
-    );
+    finalAmount = calculateIncomeFinalAmount({
+      quantity: transaction.quantity,
+      unitPrice: transaction.unitPrice,
+      instrumentType: transaction.pendingInstrumentType ?? transaction.instrumentType,
+      contractMultiplier: transaction.metadata?.contract_multiplier,
+      currency: transaction.currency,
+    });
   }
 
   if (finalAmount === undefined) return transaction;

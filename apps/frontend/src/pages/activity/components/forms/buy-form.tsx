@@ -372,6 +372,7 @@ export function BuyForm({
     tax: watch("tax"),
     isOption,
     contractMultiplier: optMultiplier,
+    currency,
   });
 
   const handleAssetTypeChange = (value: AssetType) => {

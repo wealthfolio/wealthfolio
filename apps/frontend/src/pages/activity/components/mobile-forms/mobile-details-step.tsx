@@ -226,6 +226,7 @@ export function MobileDetailsStep({
             fee: optFee,
             tax: optTax,
             contractMultiplier: isOption ? optMultiplier : undefined,
+            currency,
           })
         : undefined,
     [
@@ -239,6 +240,7 @@ export function MobileDetailsStep({
       optTax,
       isOption,
       optMultiplier,
+      currency,
     ],
   );
   const calculatedTradeAmount =
@@ -468,7 +470,12 @@ export function MobileDetailsStep({
     if (isEditing && !shouldDirty) return;
     const computedAmount = isBuyOrSell
       ? calculatedTradeAmount
-      : calculateIncomeFinalAmount(quantity, unitPrice, symbolInstrumentType);
+      : calculateIncomeFinalAmount({
+          quantity,
+          unitPrice,
+          instrumentType: symbolInstrumentType,
+          currency,
+        });
     if (computedAmount === undefined || Number(getValues("amount")) === computedAmount) return;
     setValue("amount" as any, computedAmount, {
       shouldDirty,
@@ -476,6 +483,7 @@ export function MobileDetailsStep({
     });
   }, [
     calculatedTradeAmount,
+    currency,
     symbolInstrumentType,
     getFieldState,
     getValues,

@@ -36,7 +36,7 @@
 use chrono::{DateTime, NaiveDate, TimeZone, Utc};
 use chrono_tz::Tz;
 use log::debug;
-use rust_decimal::Decimal;
+use rust_decimal::{Decimal, RoundingStrategy};
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, RwLock};
 
@@ -78,7 +78,8 @@ use crate::assets::{
 use crate::errors::{DatabaseError, Error};
 use crate::events::{DomainEvent, DomainEventSink, NoOpDomainEventSink};
 use crate::fx::currency::{
-    currency_minor_unit, get_normalization_rule, normalize_amount, resolve_currency,
+    currency_fraction_digits, currency_minor_unit, get_normalization_rule, normalize_amount,
+    resolve_currency,
 };
 use crate::fx::FxServiceTrait;
 use crate::portfolio::economic_events::{ActivityCashInputs, ActivityEconomicsResolver};
@@ -211,6 +212,10 @@ struct UpdateTradeFacts {
     unit_multiplier: Decimal,
     /// Multiplier of the row's current asset, for judging the stored amount.
     existing_unit_multiplier: Decimal,
+    /// The effective asset is crypto, so a derived total stays exact.
+    is_crypto: bool,
+    /// The row's current asset is crypto, for judging the stored amount.
+    existing_is_crypto: bool,
     /// The patch swaps the instrument - by a different resolved id, or by a
     /// bare symbol that names something other than the current asset. An
     /// economics change even though `get_symbol_id()` may be empty (bare
@@ -271,6 +276,36 @@ impl ActivityService {
         }
     }
 
+    /// Decimal places a derived total is rounded to. Brokers settle stock,
+    /// fund, option and bond trades in the currency's minor unit, so a derived
+    /// total that keeps sub-unit digits drifts from the statement. Crypto
+    /// exchanges settle at their own precision (Kraken keeps USD to 4 places,
+    /// Binance USDT to 8), so a derived crypto total stays exact.
+    fn derived_cash_scale(currency: &str, is_crypto: bool) -> Option<u32> {
+        (!is_crypto).then(|| currency_fraction_digits(currency))
+    }
+
+    /// Rounds a derived value half away from zero. A non-zero value that would
+    /// round to zero stays exact: a zero trade total means units received for
+    /// free.
+    fn round_derived_cash(value: Decimal, scale: Option<u32>) -> Decimal {
+        let Some(scale) = scale else {
+            return value;
+        };
+        let rounded = value.round_dp_with_strategy(scale, RoundingStrategy::MidpointAwayFromZero);
+        if rounded.is_zero() && !value.is_zero() {
+            value
+        } else {
+            rounded
+        }
+    }
+
+    /// Final cash for a row that carries none. A trade rounds its value
+    /// (quantity × price) to `cash_scale` before adding charges as entered,
+    /// the way a statement builds it; a recognized income composite rounds
+    /// its value the same way.
+    // Same shape as `activity_cash_inputs`: a list of the row's economics.
+    #[allow(clippy::too_many_arguments)]
     fn calculated_missing_final_amount(
         activity_type: &str,
         subtype: Option<&str>,
@@ -279,6 +314,7 @@ impl ActivityService {
         fee: Option<Decimal>,
         tax: Option<Decimal>,
         unit_multiplier: Decimal,
+        cash_scale: Option<u32>,
     ) -> Option<Decimal> {
         // Derivation only - the currency-scaled tolerance is never consulted.
         let inputs = Self::activity_cash_inputs(
@@ -292,7 +328,13 @@ impl ActivityService {
             unit_multiplier,
         );
         if Self::is_trade_type(activity_type) {
-            ActivityEconomicsResolver::calculate_trade_final_cash(inputs)
+            let gross = ActivityEconomicsResolver::derived_positive_gross(inputs)?;
+            ActivityEconomicsResolver::trade_final_cash_from_gross(
+                activity_type,
+                Self::round_derived_cash(gross, cash_scale),
+                fee,
+                tax,
+            )
         } else if matches!(activity_type, ACTIVITY_TYPE_FEE | ACTIVITY_TYPE_TAX) {
             ActivityEconomicsResolver::calculate_standalone_charge_amount(inputs)
         } else {
@@ -303,6 +345,7 @@ impl ActivityService {
                 unit_price,
                 unit_multiplier,
             )
+            .map(|value| Self::round_derived_cash(value, cash_scale))
         }
     }
 
@@ -362,11 +405,13 @@ impl ActivityService {
     ///
     /// All monetary inputs are denominated in `activity.currency`; the asset
     /// quote currency is deliberately irrelevant here. The resolved asset is
-    /// consulted only for its contract multiplier.
+    /// consulted only for its contract multiplier and, through `cash_scale`
+    /// (see `derived_cash_scale`), for whether a derived total is rounded.
     fn ensure_new_activity_final_amount(
         activity: &mut NewActivity,
         resolved_asset_id: Option<&str>,
         unit_multiplier: Decimal,
+        cash_scale: Option<u32>,
         honor_explicit_review_clear: bool,
     ) {
         if activity.activity_type == ACTIVITY_TYPE_SPLIT {
@@ -417,6 +462,7 @@ impl ActivityService {
                     activity.fee,
                     activity.tax,
                     unit_multiplier,
+                    cash_scale,
                 )
                 .filter(|value| !value.is_zero())
                 {
@@ -434,6 +480,7 @@ impl ActivityService {
             activity.fee,
             activity.tax,
             unit_multiplier,
+            cash_scale,
         );
     }
 
@@ -459,12 +506,18 @@ impl ActivityService {
             .as_ref()
             .map(|asset| asset.contract_multiplier())
             .unwrap_or(Decimal::ONE);
+        let is_crypto_asset = |asset: Option<&crate::assets::Asset>| {
+            asset.is_some_and(|asset| asset.instrument_type == Some(InstrumentType::Crypto))
+        };
+        let existing_is_crypto = is_crypto_asset(existing_asset.as_ref());
 
         if let Some(asset_id) = activity.get_symbol_id() {
             if Some(asset_id) == existing.asset_id.as_deref() {
                 return UpdateTradeFacts {
                     unit_multiplier: existing_unit_multiplier,
                     existing_unit_multiplier,
+                    is_crypto: existing_is_crypto,
+                    existing_is_crypto,
                     replaces_asset: false,
                 };
             }
@@ -475,6 +528,8 @@ impl ActivityService {
                     .map(|asset| asset.contract_multiplier())
                     .unwrap_or(Decimal::ONE),
                 existing_unit_multiplier,
+                is_crypto: is_crypto_asset(asset.as_ref()),
+                existing_is_crypto,
                 replaces_asset: true,
             };
         }
@@ -505,6 +560,9 @@ impl ActivityService {
                 return UpdateTradeFacts {
                     unit_multiplier,
                     existing_unit_multiplier,
+                    is_crypto: Self::parse_instrument_type(Some(instrument_type))
+                        == Some(InstrumentType::Crypto),
+                    existing_is_crypto,
                     replaces_asset: true,
                 };
             }
@@ -512,6 +570,8 @@ impl ActivityService {
         UpdateTradeFacts {
             unit_multiplier: existing_unit_multiplier,
             existing_unit_multiplier,
+            is_crypto: existing_is_crypto,
+            existing_is_crypto,
             replaces_asset: false,
         }
     }
@@ -638,6 +698,7 @@ impl ActivityService {
         } else if Self::is_trade_type(&activity.activity_type) {
             let trade_facts = self.update_trade_facts(activity, existing);
             let unit_multiplier = trade_facts.unit_multiplier;
+            let cash_scale = Self::derived_cash_scale(&activity.currency, trade_facts.is_crypto);
             // The activity currency is deliberately absent from this list: a
             // currency-only edit is a label correction on real data, and
             // treating it as an economics change would re-derive a total
@@ -664,6 +725,7 @@ impl ActivityService {
                     fee,
                     tax,
                     unit_multiplier,
+                    cash_scale,
                 ) {
                     // An economics-only patch that never mentioned the
                     // amount may be replacing a deliberate custom total;
@@ -680,6 +742,10 @@ impl ActivityService {
                                 existing.fee,
                                 existing.tax,
                                 trade_facts.existing_unit_multiplier,
+                                Self::derived_cash_scale(
+                                    &existing.currency,
+                                    trade_facts.existing_is_crypto,
+                                ),
                             )
                             .is_none_or(|expected| {
                                 (stored - expected).abs()
@@ -730,7 +796,7 @@ impl ActivityService {
             // Non-trades read the asset facts only to fill a missing
             // composite amount; a patch that keeps its amount skips the
             // asset fetch entirely.
-            let unit_multiplier = self.update_trade_facts(activity, existing).unit_multiplier;
+            let trade_facts = self.update_trade_facts(activity, existing);
             if let Some(calculated) = Self::calculated_missing_final_amount(
                 &activity.activity_type,
                 effective_subtype,
@@ -738,7 +804,8 @@ impl ActivityService {
                 unit_price,
                 fee,
                 tax,
-                unit_multiplier,
+                trade_facts.unit_multiplier,
+                Self::derived_cash_scale(&activity.currency, trade_facts.is_crypto),
             ) {
                 activity.amount = Some(Some(calculated));
                 amount = Some(calculated);
@@ -3902,6 +3969,7 @@ impl ActivityService {
         // Facts the final-amount boundary needs from the resolved asset,
         // captured while it is in scope so it is fetched exactly once.
         let mut resolved_asset_multiplier: Option<Decimal> = None;
+        let mut resolved_asset_is_crypto = false;
 
         // Process asset if asset_id is resolved
         if let Some(ref asset_id) = resolved_asset_id {
@@ -3945,6 +4013,7 @@ impl ActivityService {
             }
 
             resolved_asset_multiplier = Some(asset.contract_multiplier());
+            resolved_asset_is_crypto = asset.instrument_type == Some(InstrumentType::Crypto);
 
             // Create a quote from the activity price as a fallback, but only
             // for MANUAL-mode assets. For MARKET-mode assets the unit price is
@@ -4038,10 +4107,12 @@ impl ActivityService {
         // that seed is already reflected here because the asset is resolved
         // or created before these facts are read.
         let unit_multiplier = resolved_asset_multiplier.unwrap_or(Decimal::ONE);
+        let cash_scale = Self::derived_cash_scale(&activity.currency, resolved_asset_is_crypto);
         Self::ensure_new_activity_final_amount(
             &mut activity,
             resolved_asset_id.as_deref(),
             unit_multiplier,
+            cash_scale,
             true,
         );
         Self::validate_new_activity_final_amount(&activity, resolved_asset_id.as_deref())?;
@@ -8491,10 +8562,16 @@ impl ActivityService {
             let unit_multiplier = prepared_asset
                 .map(|asset| asset.contract_multiplier())
                 .unwrap_or(Decimal::ONE);
+            let cash_scale = Self::derived_cash_scale(
+                &activity.currency,
+                prepared_asset
+                    .is_some_and(|asset| asset.instrument_type == Some(InstrumentType::Crypto)),
+            );
             Self::ensure_new_activity_final_amount(
                 &mut activity,
                 resolved_asset_id.as_deref(),
                 unit_multiplier,
+                cash_scale,
                 matches!(mode, PreparationMode::Save),
             );
             if let Err(error) =

@@ -17,6 +17,7 @@ export function estimateDraftAmount(
     fee?: number;
     tax?: number;
     amount?: number;
+    currency?: string;
   },
   instrumentType?: string,
 ): number | undefined {
@@ -31,6 +32,7 @@ export function estimateDraftAmount(
     unitPrice: draft.unitPrice,
     fee: draft.fee,
     tax: draft.tax,
+    currency: draft.currency,
   });
 }
 
