@@ -12,6 +12,7 @@ test("isolates the database, profile registry, vault, and addons between runs", 
     "WF_LISTEN_ADDR=127.0.0.1:8088",
     "WF_AUTH_REQUIRED=true",
     "WF_AUTH_PASSWORD_HASH=old-test-hash",
+    "WF_MCP_ENABLED=false",
   ].join("\n");
   const first = prepareE2eEnvContent(original, "/tmp/e2e-first");
   const second = prepareE2eEnvContent(first, "/tmp/e2e-second");
@@ -28,6 +29,7 @@ test("isolates the database, profile registry, vault, and addons between runs", 
   assert.equal(values.WF_LISTEN_ADDR, "127.0.0.1:8088");
   assert.equal(values.WF_AUTH_REQUIRED, "false");
   assert.equal(values.WF_AUTH_PASSWORD_HASH, "");
+  assert.equal(values.WF_MCP_ENABLED, "true");
   assert.ok(!second.includes("e2e-first"));
   assert.equal(second.match(/^WF_DB_PATH=/gm).length, 1);
   assert.equal(second.match(/^WF_DATA_DIR=/gm).length, 1);
