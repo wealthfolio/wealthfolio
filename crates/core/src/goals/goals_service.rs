@@ -146,6 +146,36 @@ fn cap_retirement_shares(
         .collect()
 }
 
+/// The accounts a goal sets a share of aside.
+fn accounts_with_shares(rules: &[GoalFundingRule]) -> HashSet<String> {
+    rules
+        .iter()
+        .filter(|rule| rule.share_percent > 0.0)
+        .map(|rule| rule.account_id.clone())
+        .collect()
+}
+
+/// The accounts whose share differs between a goal's saved rules and new ones.
+fn accounts_with_changed_shares(
+    saved: &[GoalFundingRule],
+    new: &[GoalFundingRuleInput],
+) -> HashSet<String> {
+    let saved: HashMap<&str, f64> = saved
+        .iter()
+        .map(|rule| (rule.account_id.as_str(), rule.share_percent))
+        .collect();
+    let new: HashMap<&str, f64> = new
+        .iter()
+        .map(|rule| (rule.account_id.as_str(), rule.share_percent))
+        .collect();
+    saved
+        .keys()
+        .chain(new.keys())
+        .filter(|account| saved.get(*account) != new.get(*account))
+        .map(|account| (*account).to_string())
+        .collect()
+}
+
 fn date_for_plan_age(plan: &RetirementPlan, age: u32, as_of: NaiveDate) -> Option<String> {
     let years = age.checked_sub(plan.personal.current_age)?;
     let today = as_of;
@@ -590,15 +620,29 @@ impl<T: GoalRepositoryTrait> GoalService<T> {
     }
 
     /// A savings goal's shares and lifecycle change what the retirement plan
-    /// counts. Best effort, like the refresh after an update: the next summary
-    /// refresh corrects a failure. Callers hold the summary refresh guard.
-    async fn refresh_retirement_summary(&self) {
+    /// counts, on the accounts where its reserved share changed. Best effort, like
+    /// the refresh after an update: the next summary refresh corrects a failure.
+    /// Callers hold the summary refresh guard.
+    async fn refresh_retirement_summary(&self, changed_accounts: &HashSet<String>) {
+        if changed_accounts.is_empty() {
+            return;
+        }
         let refreshed: Result<()> = async {
             let Some(goal) = self.goal_repo.load_goals()?.into_iter().find(|goal| {
                 goal.goal_type == "retirement" && goal.status_lifecycle == GOAL_LIFECYCLE_ACTIVE
             }) else {
                 return Ok(());
             };
+            // Recomputing the plan is most of a save's time. A change on accounts the
+            // plan has no share in leaves what it counts as it was.
+            let counts_a_changed_account = self
+                .goal_repo
+                .load_funding_rules(&goal.id)?
+                .iter()
+                .any(|rule| changed_accounts.contains(&rule.account_id));
+            if !counts_a_changed_account {
+                return Ok(());
+            }
             let valuations = self.current_valuation_map().await?;
             self.refresh_summary_with_valuations(&goal.id, &valuations)
                 .await?;
@@ -841,10 +885,15 @@ impl<T: GoalRepositoryTrait + Send + Sync> GoalServiceTrait for GoalService<T> {
             || existing.target_date != updated_goal_data.target_date
             || existing.status_lifecycle != updated_goal_data.status_lifecycle
             || existing.currency != updated_goal_data.currency;
+        // Becoming active sets the goal's shares aside; leaving active releases them.
+        let lifecycle_accounts =
+            if reserves_shares && existing.status_lifecycle != updated_goal_data.status_lifecycle {
+                accounts_with_shares(&self.goal_repo.load_funding_rules(&updated_goal_data.id)?)
+            } else {
+                HashSet::new()
+            };
         let saved = self.goal_repo.update_goal(updated_goal_data).await?;
-        if reserves_shares && existing.status_lifecycle != saved.status_lifecycle {
-            self.refresh_retirement_summary().await;
-        }
+        self.refresh_retirement_summary(&lifecycle_accounts).await;
         if needs_refresh && saved.status_lifecycle != GOAL_LIFECYCLE_ARCHIVED {
             let refreshed = async {
                 let valuations = self.current_valuation_map().await?;
@@ -866,16 +915,19 @@ impl<T: GoalRepositoryTrait + Send + Sync> GoalServiceTrait for GoalService<T> {
 
     async fn delete_goal(&self, goal_id_to_delete: String) -> Result<usize> {
         let _guard = self.summary_refresh.lock().await;
-        let releases_shares = self
-            .goal_repo
-            .load_goal(&goal_id_to_delete)
-            .map(|goal| {
-                goal.goal_type != "retirement" && goal.status_lifecycle == GOAL_LIFECYCLE_ACTIVE
-            })
-            .unwrap_or(false);
+        // Read before the delete removes them: the shares an active savings goal releases.
+        let released_accounts = match self.goal_repo.load_goal(&goal_id_to_delete) {
+            Ok(goal)
+                if goal.goal_type != "retirement"
+                    && goal.status_lifecycle == GOAL_LIFECYCLE_ACTIVE =>
+            {
+                accounts_with_shares(&self.goal_repo.load_funding_rules(&goal.id)?)
+            }
+            _ => HashSet::new(),
+        };
         let deleted = self.goal_repo.delete_goal(goal_id_to_delete).await?;
-        if releases_shares && deleted > 0 {
-            self.refresh_retirement_summary().await;
+        if deleted > 0 {
+            self.refresh_retirement_summary(&released_accounts).await;
         }
         Ok(deleted)
     }
@@ -969,10 +1021,13 @@ impl<T: GoalRepositoryTrait + Send + Sync> GoalServiceTrait for GoalService<T> {
             validate_goal_funding_capacity(goal_id, &rules, &reserved_rules)?;
         }
 
+        let changed_accounts = if !is_retirement && goal.status_lifecycle == GOAL_LIFECYCLE_ACTIVE {
+            accounts_with_changed_shares(&self.goal_repo.load_funding_rules(goal_id)?, &rules)
+        } else {
+            HashSet::new()
+        };
         let saved = self.goal_repo.save_goal_funding(goal_id, rules).await?;
-        if !is_retirement && goal.status_lifecycle == GOAL_LIFECYCLE_ACTIVE {
-            self.refresh_retirement_summary().await;
-        }
+        self.refresh_retirement_summary(&changed_accounts).await;
         Ok(saved)
     }
 
@@ -2218,15 +2273,22 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn savings_goal_changes_refresh_the_retirement_summary() {
+    async fn savings_goal_changes_refresh_retirement_only_on_accounts_it_counts() {
         let mut fire = retirement_goal("fire", GOAL_LIFECYCLE_ACTIVE);
         fire.summary_current_value = Some(1.0);
         let repo = Arc::new(MockGoalRepository::new(vec![
             fire,
             savings_goal("house", GOAL_LIFECYCLE_ACTIVE),
             savings_goal("car", GOAL_LIFECYCLE_ACTIVE),
+            savings_goal("boat", GOAL_LIFECYCLE_ACTIVE),
+            savings_goal("trip", GOAL_LIFECYCLE_ACTIVE),
         ]));
-        let service = local_service(repo.clone());
+        // FIRE counts acct-1 only; the trip saves in acct-2.
+        repo.set_funding_rules("fire", vec![share_rule("fire", "acct-1", 100.0)]);
+        repo.set_funding_rules("car", vec![share_rule("car", "acct-1", 10.0)]);
+        repo.set_funding_rules("boat", vec![share_rule("boat", "acct-1", 15.0)]);
+        repo.set_funding_rules("trip", vec![share_rule("trip", "acct-2", 50.0)]);
+        let service = local_service_with_accounts(repo.clone(), &["acct-1", "acct-2"]);
         let mark_stale = || {
             repo.goals
                 .lock()
@@ -2238,22 +2300,63 @@ mod tests {
         // No accounts are valued, so a refresh writes 0.
         let fire_value = || repo.load_goal("fire").unwrap().summary_current_value;
 
-        service.save_goal_funding("house", vec![]).await.unwrap();
-        assert_eq!(fire_value(), Some(0.0), "after a funding save");
+        service
+            .save_goal_funding("house", vec![funding_input("acct-1", 30.0)])
+            .await
+            .unwrap();
+        assert_eq!(fire_value(), Some(0.0), "a new share of acct-1");
 
         mark_stale();
-        let mut achieved = savings_goal("house", GOAL_LIFECYCLE_ACTIVE);
+        let mut achieved = repo.load_goal("house").unwrap();
         achieved.status_lifecycle = GOAL_LIFECYCLE_ACHIEVED.to_string();
         service.update_goal(achieved.into()).await.unwrap();
-        assert_eq!(fire_value(), Some(0.0), "after a lifecycle change");
+        assert_eq!(
+            fire_value(),
+            Some(0.0),
+            "releasing acct-1 on a lifecycle change"
+        );
 
         mark_stale();
         service.delete_goal("car".into()).await.unwrap();
-        assert_eq!(fire_value(), Some(0.0), "after deleting an active goal");
+        assert_eq!(
+            fire_value(),
+            Some(0.0),
+            "deleting a goal with a share of acct-1"
+        );
 
         mark_stale();
-        let mut renamed = repo.load_goal("house").unwrap();
-        renamed.title = "New home".into();
+        service
+            .save_goal_funding("boat", vec![funding_input("acct-1", 15.0)])
+            .await
+            .unwrap();
+        assert_eq!(
+            fire_value(),
+            Some(1.0),
+            "saving the same share leaves it alone"
+        );
+
+        service
+            .save_goal_funding("trip", vec![funding_input("acct-2", 70.0)])
+            .await
+            .unwrap();
+        assert_eq!(
+            fire_value(),
+            Some(1.0),
+            "a share of an account FIRE doesn't count"
+        );
+
+        let mut archived = repo.load_goal("trip").unwrap();
+        archived.status_lifecycle = GOAL_LIFECYCLE_ARCHIVED.to_string();
+        service.update_goal(archived.into()).await.unwrap();
+        service.delete_goal("trip".into()).await.unwrap();
+        assert_eq!(
+            fire_value(),
+            Some(1.0),
+            "lifecycle and delete outside acct-1"
+        );
+
+        let mut renamed = repo.load_goal("boat").unwrap();
+        renamed.title = "Sailboat".into();
         service.update_goal(renamed.into()).await.unwrap();
         assert_eq!(fire_value(), Some(1.0), "a title change leaves it alone");
     }
@@ -2533,6 +2636,13 @@ mod tests {
         assert_eq!(dated.target_date.as_deref(), Some("2031-01-01"));
     }
     fn local_service(repo: Arc<MockGoalRepository>) -> GoalService<MockGoalRepository> {
+        local_service_with_accounts(repo, &[])
+    }
+
+    fn local_service_with_accounts(
+        repo: Arc<MockGoalRepository>,
+        account_ids: &[&str],
+    ) -> GoalService<MockGoalRepository> {
         use crate::test_support::in_memory::*;
         let accounts = Arc::new(InMemoryAccountRepository::new(vec![]));
         let quotes = Arc::new(InMemoryQuoteService::new(vec![], vec![]));
@@ -2549,7 +2659,15 @@ mod tests {
             Arc::new(InMemorySnapshotRepository::new(HashSet::new())),
             Arc::new(InMemoryActivityRepository::new(vec![], HashSet::new())),
         ));
-        GoalService::new(repo, Arc::new(MockAccountService::default())).with_valuation_services(
+        let goal_accounts = MockAccountService {
+            accounts: Mutex::new(
+                account_ids
+                    .iter()
+                    .map(|id| test_account(id, "SECURITIES"))
+                    .collect(),
+            ),
+        };
+        GoalService::new(repo, Arc::new(goal_accounts)).with_valuation_services(
             GoalValuationServices {
                 snapshots,
                 assets,
