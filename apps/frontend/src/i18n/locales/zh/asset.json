@@ -63,7 +63,7 @@
       "symbol_required": "代码为必填项",
       "symbol_max": "代码不得超过 100 个字符",
       "name_required": "名称为必填项",
-      "name_max": "名称不得超过 100 个字符",
+      "name_max": "名称不得超过 200 个字符",
       "instrument_type_required": "工具类型为必填项",
       "currency_required": "货币为必填项"
     },

@@ -63,7 +63,7 @@
       "symbol_required": "Le symbole est requis",
       "symbol_max": "Le symbole doit comporter 100 caractères ou moins",
       "name_required": "Le nom est requis",
-      "name_max": "Le nom doit comporter 100 caractères ou moins",
+      "name_max": "Le nom doit comporter 200 caractères ou moins",
       "instrument_type_required": "Le type d'instrument est requis",
       "currency_required": "La devise est requise"
     },

@@ -133,7 +133,7 @@
     "errors": {
       "currency_required": "العملة مطلوبة",
       "instrument_type_required": "نوع الأداة مطلوب",
-      "name_max": "يجب ألا يتجاوز الاسم 100 حرف",
+      "name_max": "يجب ألا يتجاوز الاسم 200 حرف",
       "name_required": "الاسم مطلوب",
       "symbol_max": "يجب ألا يتجاوز الرمز 100 حرف",
       "symbol_required": "الرمز مطلوب"

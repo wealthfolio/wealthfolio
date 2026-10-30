@@ -63,7 +63,7 @@
       "symbol_required": "Symbol ist erforderlich",
       "symbol_max": "Symbol darf höchstens 100 Zeichen lang sein",
       "name_required": "Name ist erforderlich",
-      "name_max": "Name darf höchstens 100 Zeichen lang sein",
+      "name_max": "Name darf höchstens 200 Zeichen lang sein",
       "instrument_type_required": "Instrumententyp ist erforderlich",
       "currency_required": "Währung ist erforderlich"
     },

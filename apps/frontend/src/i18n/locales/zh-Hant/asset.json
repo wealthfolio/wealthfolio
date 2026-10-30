@@ -63,7 +63,7 @@
       "symbol_required": "代號為必填",
       "symbol_max": "代號不得超過 100 個字元",
       "name_required": "名稱為必填",
-      "name_max": "名稱不得超過 100 個字元",
+      "name_max": "名稱不得超過 200 個字元",
       "instrument_type_required": "金融商品類型為必填",
       "currency_required": "幣別為必填"
     },

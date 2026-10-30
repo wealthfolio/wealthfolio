@@ -72,7 +72,7 @@ const createSecuritySchema = (t: TFunction) =>
     name: z
       .string()
       .min(1, t("asset:createSecurity.errors.name_required"))
-      .max(100, t("asset:createSecurity.errors.name_max")),
+      .max(200, t("asset:createSecurity.errors.name_max")),
     instrumentType: z.string().min(1, t("asset:createSecurity.errors.instrument_type_required")),
     quoteCcy: z.string().min(1, t("asset:createSecurity.errors.currency_required")),
     quoteMode: z.enum(["MANUAL", "MARKET"]),

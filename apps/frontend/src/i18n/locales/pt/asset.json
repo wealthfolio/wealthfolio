@@ -63,7 +63,7 @@
       "symbol_required": "O símbolo é obrigatório",
       "symbol_max": "O símbolo deve ter no máximo 100 caracteres",
       "name_required": "O nome é obrigatório",
-      "name_max": "O nome deve ter no máximo 100 caracteres",
+      "name_max": "O nome deve ter no máximo 200 caracteres",
       "instrument_type_required": "O tipo de instrumento é obrigatório",
       "currency_required": "A moeda é obrigatória"
     },

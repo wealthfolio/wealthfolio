@@ -63,7 +63,7 @@
       "symbol_required": "銘柄コードは必須です",
       "symbol_max": "銘柄コードは100文字以内で入力してください",
       "name_required": "名称は必須です",
-      "name_max": "名称は100文字以内で入力してください",
+      "name_max": "名称は200文字以内で入力してください",
       "instrument_type_required": "商品タイプは必須です",
       "currency_required": "通貨は必須です"
     },

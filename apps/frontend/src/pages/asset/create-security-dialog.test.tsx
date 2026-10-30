@@ -14,6 +14,9 @@ const results = vi.hoisted(() => {
     score: 0,
     typeDisplay: "",
   };
+  // The longest scheme name in AMFI's NAVAll.txt of 31 October 2026 (166 characters).
+  const longAmfiName =
+    "Sundaram Dynamic Asset Allocation Fund (Formerly Known as Sundaram Balanced Advantage Fund) - Regular Plan - Monthly IDCW (Income Distribution CUM Capital Withdrawal)";
   return {
     yahoo: {
       ...common,
@@ -36,6 +39,16 @@ const results = vi.hoisted(() => {
       longName: "Parag Parikh Flexi Cap Fund - Direct Plan - Growth",
       providerId: "AMFI",
       providerSymbol: "122639",
+    },
+    amfiLongName: {
+      ...common,
+      symbol: "149716",
+      canonicalSymbol: "149716",
+      exchange: "AMFI",
+      shortName: longAmfiName,
+      longName: longAmfiName,
+      providerId: "AMFI",
+      providerSymbol: "149716",
     },
   } satisfies Record<string, SymbolSearchResult>;
 });
@@ -60,23 +73,34 @@ vi.mock("@/components/ticker-search", () => ({
       <button type="button" onClick={() => onSelectResult(results.amfi.symbol, results.amfi)}>
         Select AMFI
       </button>
+      <button
+        type="button"
+        onClick={() => onSelectResult(results.amfiLongName.symbol, results.amfiLongName)}
+      >
+        Select long AMFI name
+      </button>
     </>
   ),
 }));
 
 describe.each(["ltr", "rtl"] as const)("CreateSecurityDialog (%s)", (direction) => {
+  const renderDialog = () => {
+    const submit = vi.fn<(payload: NewAsset) => void>();
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <DirectionProvider direction={direction}>
+        <QueryClientProvider client={client}>
+          <CreateSecurityDialog open onOpenChange={vi.fn()} onSubmit={submit} />
+        </QueryClientProvider>
+      </DirectionProvider>,
+    );
+    return submit;
+  };
+
   it.each([false, true])(
     "preserves the AMFI provider without an exchange (previous Yahoo selection: %s)",
     async (selectYahooFirst) => {
-      const submit = vi.fn<(payload: NewAsset) => void>();
-      const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-      render(
-        <DirectionProvider direction={direction}>
-          <QueryClientProvider client={client}>
-            <CreateSecurityDialog open onOpenChange={vi.fn()} onSubmit={submit} />
-          </QueryClientProvider>
-        </DirectionProvider>,
-      );
+      const submit = renderDialog();
 
       if (selectYahooFirst) {
         fireEvent.click(screen.getByRole("button", { name: "Select Yahoo" }));
@@ -98,4 +122,32 @@ describe.each(["ltr", "rtl"] as const)("CreateSecurityDialog (%s)", (direction) 
       });
     },
   );
+
+  it("creates an AMFI fund with a 166-character name", async () => {
+    const submit = renderDialog();
+
+    fireEvent.click(screen.getByRole("button", { name: "Select long AMFI name" }));
+    await waitFor(() => expect(screen.getByLabelText("Symbol")).toHaveValue("149716"));
+    fireEvent.click(screen.getByRole("button", { name: "Create security" }));
+
+    await waitFor(() => expect(submit).toHaveBeenCalledTimes(1));
+    expect(submit.mock.calls[0][0]).toMatchObject({
+      instrumentSymbol: "149716",
+      providerId: "AMFI",
+      providerSymbol: "149716",
+      name: results.amfiLongName.longName,
+    });
+  });
+
+  it("rejects a name longer than 200 characters", async () => {
+    const submit = renderDialog();
+
+    fireEvent.click(screen.getByRole("button", { name: "Select long AMFI name" }));
+    await waitFor(() => expect(screen.getByLabelText("Symbol")).toHaveValue("149716"));
+    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "x".repeat(201) } });
+    fireEvent.click(screen.getByRole("button", { name: "Create security" }));
+
+    expect(await screen.findByText("Name must be 200 characters or less")).toBeInTheDocument();
+    expect(submit).not.toHaveBeenCalled();
+  });
 });

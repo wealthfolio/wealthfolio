@@ -63,7 +63,7 @@
       "symbol_required": "심볼을 입력해주세요",
       "symbol_max": "심볼은 100자 이하여야 합니다",
       "name_required": "이름을 입력해주세요",
-      "name_max": "이름은 100자 이하여야 합니다",
+      "name_max": "이름은 200자 이하여야 합니다",
       "instrument_type_required": "상품 유형을 선택해주세요",
       "currency_required": "통화를 선택해주세요"
     },
