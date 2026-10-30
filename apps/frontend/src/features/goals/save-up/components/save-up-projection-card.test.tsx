@@ -58,4 +58,28 @@ describe("SaveUpProjectionCard", () => {
       expect(curve.getAttribute("d")).toMatch(/^M[^C]*$/);
     }
   });
+
+  it("spaces points by date, so a one-day step to the target date stays short", () => {
+    const shortLastStep = [
+      point("2026-01-01", 0, 1),
+      point("2026-01-31", 1_000, 1_001),
+      point("2026-02-01", 1_000, 1_001),
+    ];
+    const { container } = render(
+      <FormattingProvider locale="en-US" timezone="UTC">
+        <SaveUpProjectionCard
+          data={shortLastStep}
+          currency="USD"
+          isHidden={false}
+          annualReturn={0}
+        />
+      </FormattingProvider>,
+    );
+
+    const path = container.querySelector(".recharts-line-curve")?.getAttribute("d") ?? "";
+    const xs = [...path.matchAll(/[ML](-?[\d.]+),/g)].map((match) => Number(match[1]));
+    expect(xs).toHaveLength(3);
+    // 30 days, then 1 day.
+    expect((xs[2] - xs[1]) / (xs[1] - xs[0])).toBeCloseTo(1 / 30, 2);
+  });
 });

@@ -127,10 +127,13 @@ function ProjectionChart({
 }) {
   const formatting = useAmountFormatting();
   const dateFormatting = useDateFormatting();
-  const last = data.length > 0 ? data[data.length - 1] : null;
+  // Place points by date: the steps from today and to the target date can be shorter than a month.
+  const points = data.map((p) => ({ ...p, time: Date.parse(p.date) }));
+  const last = points.length > 0 ? points[points.length - 1] : null;
   const finalTarget = last?.target ?? 0;
   const finalProjected = last?.nominal ?? 0;
-  const finalDate = last?.date;
+  const tickStep = Math.max(1, Math.floor(points.length / 7)) + 1;
+  const ticks = points.filter((_, i) => i % tickStep === 0).map((p) => p.time);
   const fmtCompact = (v: number) =>
     isHidden ? "***" : formatting.formatCompactAmount(v, currency);
   const formatDateLabel = (value: string) =>
@@ -139,10 +142,12 @@ function ProjectionChart({
       month: "short",
       year: "2-digit",
     });
+  const formatTimeLabel = (time: number) =>
+    formatDateLabel(new Date(time).toISOString().slice(0, 10));
 
   return (
     <ResponsiveContainer width="100%" height={300}>
-      <AreaChart data={data} margin={{ top: 10, right: 72, left: 0, bottom: 0 }}>
+      <AreaChart data={points} margin={{ top: 10, right: 72, left: 0, bottom: 0 }}>
         <defs>
           <linearGradient id="projNominal" x1="0" y1="0" x2="0" y2="1">
             <stop offset="5%" stopColor={COLORS.nominal.fill} stopOpacity={0.28} />
@@ -155,10 +160,12 @@ function ProjectionChart({
           </linearGradient>
         </defs>
         <XAxis
-          dataKey="date"
+          dataKey="time"
+          type="number"
+          domain={["dataMin", "dataMax"]}
+          ticks={ticks}
           tick={{ fontSize: "0.6875rem" }}
-          tickFormatter={formatDateLabel}
-          interval={Math.max(1, Math.floor(data.length / 7))}
+          tickFormatter={formatTimeLabel}
           axisLine={false}
           tickLine={false}
         />
@@ -206,10 +213,10 @@ function ProjectionChart({
             animationEasing="ease-out"
           />
         )}
-        {finalDate && finalTarget > 0 && (
+        {last && finalTarget > 0 && (
           <>
             <ReferenceLine
-              x={finalDate}
+              x={last.time}
               stroke={COLORS.target}
               strokeWidth={1}
               strokeDasharray="4 3"
@@ -233,13 +240,13 @@ function ProjectionChart({
                     fontWeight={600}
                     fill="var(--foreground)"
                   >
-                    {formatDateLabel(finalDate)}
+                    {formatDateLabel(last.date)}
                   </text>
                 );
               }}
             />
             <ReferenceDot
-              x={finalDate}
+              x={last.time}
               y={finalTarget}
               r={3}
               fill={COLORS.target}
@@ -254,7 +261,7 @@ function ProjectionChart({
               }}
             />
             <ReferenceDot
-              x={finalDate}
+              x={last.time}
               y={finalProjected}
               r={3}
               fill={COLORS.nominal.stroke}
