@@ -257,7 +257,9 @@ export function SwipablePage({
                   />
                 </div>
                 {mobileActionsInHeader ? (
-                  <div className="flex min-w-0 shrink-0 items-center justify-end gap-2">
+                  // min-w-max: as a mobile `.flex` it clips overflow, which would let its
+                  // column shrink and hide the first action behind the pills.
+                  <div className="flex min-w-max shrink-0 items-center justify-end gap-2">
                     {currentActions}
                   </div>
                 ) : (
