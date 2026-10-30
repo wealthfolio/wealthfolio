@@ -12,27 +12,26 @@ interface ActivityTypeBadgeProps {
   className?: string;
 }
 
+// Pale pills: the type labels a row, so it should not outweigh the numbers beside it.
 function getActivityBadgeVariant(type: ActivityType) {
   switch (type) {
     case ActivityType.DIVIDEND:
     case ActivityType.INTEREST:
-      return "info";
+      return "info-subtle";
     case ActivityType.BUY:
     case ActivityType.DEPOSIT:
     case ActivityType.TRANSFER_IN:
-      return "success";
+      return "success-subtle";
     case ActivityType.SELL:
     case ActivityType.WITHDRAWAL:
     case ActivityType.TRANSFER_OUT:
     case ActivityType.FEE:
     case ActivityType.TAX:
-      return "destructive";
+      return "destructive-subtle";
     case ActivityType.SPLIT:
-      return "warning";
-    case ActivityType.ADJUSTMENT:
-      return "secondary";
+      return "warning-subtle";
     default:
-      return "default";
+      return "secondary";
   }
 }
 
