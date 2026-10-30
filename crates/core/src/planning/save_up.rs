@@ -448,6 +448,8 @@ pub fn compute_save_up_overview(input: &SaveUpInput, as_of: chrono::NaiveDate) -
     // Completion date: search regardless of target date
     let projected_completion_date = if input.target_amount <= 0.0 {
         None
+    } else if input.current_value >= input.target_amount {
+        Some(as_of)
     } else if let Some(td) = target_date.filter(|_| projected_value < input.target_amount) {
         // A negative return can reach the target and then fall below it by the
         // target date. Count completion only after the missed date, as health does.
@@ -457,8 +459,6 @@ pub fn compute_save_up_overview(input: &SaveUpInput, as_of: chrono::NaiveDate) -
             .filter(|(point, _)| point.date > td)
             .find(|(_, balance)| **balance >= input.target_amount)
             .map(|(point, _)| point.date)
-    } else if input.current_value >= input.target_amount {
-        Some(as_of)
     } else {
         points
             .iter()
@@ -792,6 +792,16 @@ mod tests {
             overview.projected_completion_date.as_deref(),
             Some("2026-02-28")
         );
+
+        // A goal reached today stays complete today, even if the balance is projected to shrink.
+        let reached = compute_save_up_overview(
+            &input(1_000.0, 1_000.0, Some("2026-06-30"), 0.0, -0.20),
+            AS_OF,
+        );
+        assert_eq!(
+            reached.projected_completion_date.as_deref(),
+            Some("2026-01-01")
+        );
     }
 
     #[test]
@@ -869,12 +879,18 @@ mod tests {
             let goal = input(current, target, Some(&td), monthly, rate);
             let overview = compute_save_up_overview(&goal, as_of);
 
-            let done_on_time = overview
-                .projected_completion_date
-                .as_deref()
-                .and_then(parse_date)
-                .is_some_and(|completion| completion <= target_date);
-            prop_assert_eq!(overview.health == "on_track", done_on_time);
+            if current >= target {
+                // Already reached: complete today, whatever the projection does next.
+                let today = as_of.format("%Y-%m-%d").to_string();
+                prop_assert_eq!(overview.projected_completion_date.as_deref(), Some(today.as_str()));
+            } else {
+                let done_on_time = overview
+                    .projected_completion_date
+                    .as_deref()
+                    .and_then(parse_date)
+                    .is_some_and(|completion| completion <= target_date);
+                prop_assert_eq!(overview.health == "on_track", done_on_time);
+            }
 
             let last = final_point(&overview);
             prop_assert_eq!(last.date.as_str(), td.as_str());
