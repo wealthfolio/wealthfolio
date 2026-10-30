@@ -107,12 +107,8 @@ fn check(kind: &str, cash: Decimal, security: Decimal, bounded: bool) {
                 assert_eq!(result.attribution.fx_effect, expected);
                 assert_eq!(result.attribution.income, Decimal::ZERO);
                 let days = &pipeline.series[&account].days;
-                let delta = days.last().unwrap().total_value_base
-                    - if bounded {
-                        days[0].total_value_base
-                    } else {
-                        Decimal::ZERO
-                    };
+                // Both windows cover inception, including the opening flow.
+                let delta = days.last().unwrap().total_value_base;
                 assert_eq!(
                     result.attribution.contributions - result.attribution.distributions
                         + result.attribution.pnl(),
@@ -1271,6 +1267,8 @@ fn assert_bounded_cash_fx(p: &Pipeline, expected: Decimal) {
 
 #[test]
 fn small_cash_exposures_are_valued_before_combining_large_rates() {
+    // Open before the measured window to test period cash FX separately
+    // from inception contribution conversion at these extreme rates.
     let p = pipeline(
         r#"
 id: CASH-FX-SMALL-EXPOSURE
@@ -1278,10 +1276,12 @@ policy: { base_currency: CNY, timezone: UTC, as_of: 2026-01-02 }
 accounts:
   - { id: acc, currency: EUR, account_type: CASH }
 activities:
-  - { id: dep, account: acc, type: DEPOSIT, date: 2026-01-01T10:00:00Z, amount: 0.000001, currency: USD }
+  - { id: dep, account: acc, type: DEPOSIT, date: 2025-12-31T10:00:00Z, amount: 0.000001, currency: USD }
 fx_rates:
+  - { from: USD, to: EUR, day: 2025-12-31, rate: 100000000000 }
   - { from: USD, to: EUR, day: 2026-01-01, rate: 100000000000 }
   - { from: USD, to: EUR, day: 2026-01-02, rate: 100000000000 }
+  - { from: EUR, to: CNY, day: 2025-12-31, rate: 10000000000 }
   - { from: EUR, to: CNY, day: 2026-01-01, rate: 10000000000 }
   - { from: EUR, to: CNY, day: 2026-01-02, rate: 11000000000 }
 "#,
