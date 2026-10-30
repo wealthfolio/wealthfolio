@@ -771,9 +771,11 @@ impl BudgetService {
                     .as_ref()
                     .ok_or_else(|| invalid_budget_input("Group rollover requires groupId"))?;
                 let categories = self.categories_for_group(group_id).await?;
-                self.repo
-                    .disable_category_rollovers(SPENDING_TAXONOMY, &categories)
-                    .await?;
+                for taxonomy_id in [SPENDING_TAXONOMY, SAVINGS_TAXONOMY] {
+                    self.repo
+                        .disable_category_rollovers(taxonomy_id, &categories)
+                        .await?;
+                }
             }
             BudgetRolloverTargetType::Category if setting.enabled => {
                 let category_id = setting
@@ -1257,9 +1259,11 @@ impl BudgetService {
             let spending_native = classification.spending_amount(amount);
             let income_native = classification.income_amount(amount);
             let saving_native = classification.saving_amount(amount);
+            let savings_withdrawal_native = classification.savings_withdrawal_amount(amount);
             if spending_native == Decimal::ZERO
                 && income_native == Decimal::ZERO
                 && saving_native == Decimal::ZERO
+                && savings_withdrawal_native == Decimal::ZERO
             {
                 continue;
             }
@@ -1310,7 +1314,21 @@ impl BudgetService {
                 currency,
                 fx_as_of,
             );
-            if spending_missing || income_missing {
+            let savings_withdrawal_missing = add_allocated_actuals(
+                month_actuals,
+                &activity.id,
+                SAVINGS_TAXONOMY,
+                -savings_withdrawal_native,
+                meta.savings,
+                &assignments_by_activity,
+                &splits_by_activity,
+                &no_exclusions,
+                fx,
+                &activity.currency,
+                currency,
+                fx_as_of,
+            );
+            if spending_missing || income_missing || savings_missing || savings_withdrawal_missing {
                 calculation_quality.record_missing(&activity.currency);
             }
         }
