@@ -2699,11 +2699,14 @@ export interface SaveUpPreviewInputDTO {
 }
 
 export interface SaveUpTrajectoryPointDTO {
+  /** YYYY-MM-DD: today, then each month-end, then the target date. */
   date: string;
   nominal: number;
   optimistic: number;
   pessimistic: number;
   target: number;
+  /** Balance needed on this date to still reach the target on time with the planned contribution. */
+  needed: number;
 }
 
 export interface SaveUpProjectionPointDTO extends SaveUpTrajectoryPointDTO {

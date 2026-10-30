@@ -10,7 +10,9 @@ use crate::planning::retirement::{
     normalize_retirement_plan_ages, try_compute_required_capital, RetirementPlan,
     RetirementTimingMode, TaxBucketBalances, TaxProfile,
 };
-use crate::planning::{validate_save_up_input, SaveUpInput, SaveUpOverview};
+use crate::planning::{
+    validate_save_up_input, SaveUpInput, SaveUpOverview, DEFAULT_SAVE_UP_ANNUAL_RETURN,
+};
 use crate::portfolio::fire::{compute_retirement_overview_with_mode, RetirementOverview};
 use crate::utils::time_utils::{parse_user_timezone_or_default, user_today};
 use async_trait::async_trait;
@@ -1067,10 +1069,10 @@ impl<T: GoalRepositoryTrait + Send + Sync> GoalServiceTrait for GoalService<T> {
                 settings
                     .get("expectedAnnualReturn")
                     .and_then(|v| v.as_f64())
-                    .unwrap_or(0.07),
+                    .unwrap_or(DEFAULT_SAVE_UP_ANNUAL_RETURN),
             )
         } else {
-            (0.0, 0.07)
+            (0.0, DEFAULT_SAVE_UP_ANNUAL_RETURN)
         };
 
         let input = SaveUpInput {

@@ -47,8 +47,9 @@ function ProjectionTooltip({
   const point = payload[0]?.payload as ProjectionPoint | undefined;
   if (!point) return null;
 
-  const label = dateFormatting.formatCalendarDate(`${point.date}-01`, {
+  const label = dateFormatting.formatCalendarDate(point.date, {
     calendar: "gregory",
+    day: "numeric",
     month: "short",
     year: "numeric",
   });
@@ -126,7 +127,6 @@ function ProjectionChart({
 }) {
   const formatting = useAmountFormatting();
   const dateFormatting = useDateFormatting();
-  const target = data[0]?.target ?? 0;
   const last = data.length > 0 ? data[data.length - 1] : null;
   const finalTarget = last?.target ?? 0;
   const finalProjected = last?.nominal ?? 0;
@@ -134,7 +134,7 @@ function ProjectionChart({
   const fmtCompact = (v: number) =>
     isHidden ? "***" : formatting.formatCompactAmount(v, currency);
   const formatDateLabel = (value: string) =>
-    dateFormatting.formatCalendarDate(`${value}-01`, {
+    dateFormatting.formatCalendarDate(value, {
       calendar: "gregory",
       month: "short",
       year: "2-digit",
@@ -191,7 +191,7 @@ function ProjectionChart({
           animationDuration={300}
           animationEasing="ease-out"
         />
-        {target > 0 && (
+        {finalTarget > 0 && (
           <Line
             type="linear"
             dataKey="target"
@@ -205,7 +205,7 @@ function ProjectionChart({
             animationEasing="ease-out"
           />
         )}
-        {finalDate && target > 0 && (
+        {finalDate && finalTarget > 0 && (
           <>
             <ReferenceLine
               x={finalDate}
