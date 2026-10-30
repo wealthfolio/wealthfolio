@@ -15,6 +15,7 @@ import type {
   ImportActivitiesResult,
   ImportMappingData,
   ImportTemplateData,
+  ConvertToTransferRequest,
   InternalTransferPairRequest,
   InternalTransferPairResponse,
   TransferMatchCandidate,
@@ -245,6 +246,19 @@ export const saveInternalTransferPair = async (
     });
   } catch (err) {
     logger.error("Error saving internal transfer pair.");
+    throw err;
+  }
+};
+
+export const convertToInternalTransfer = async (
+  request: ConvertToTransferRequest,
+): Promise<InternalTransferPairResponse> => {
+  try {
+    return await invoke<InternalTransferPairResponse>("convert_to_internal_transfer", {
+      request,
+    });
+  } catch (err) {
+    logger.error("Error converting activity into a transfer.");
     throw err;
   }
 };

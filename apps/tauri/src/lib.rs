@@ -318,6 +318,7 @@ pub fn run() {
             commands::activity::get_transfer_pair_for_activity,
             commands::activity::find_transfer_match_candidates,
             commands::activity::save_internal_transfer_pair,
+            commands::activity::convert_to_internal_transfer,
             commands::activity::link_transfer_activities,
             commands::activity::unlink_transfer_activities,
             commands::activity::check_activities_import,

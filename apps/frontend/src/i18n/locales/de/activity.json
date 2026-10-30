@@ -225,7 +225,8 @@
   "operations": {
     "more_details": "Weitere Details",
     "unlink_transfer": "Übertragung trennen",
-    "link_transfer": "Übertragung verknüpfen..."
+    "link_transfer": "Übertragung verknüpfen...",
+    "convert_to_transfer": "In Überweisung umwandeln..."
   },
   "date_sheet": {
     "title": "Aktivitäten am {{date}}",
@@ -363,7 +364,16 @@
     "error_load_pair": "Das verknüpfte Übertragungspaar konnte nicht geladen werden.",
     "error_search": "Aktivitäten konnten nicht durchsucht werden.",
     "within_days_one": "Innerhalb von {{count}} Tag",
-    "within_days_other": "Innerhalb von {{count}} Tagen"
+    "within_days_other": "Innerhalb von {{count}} Tagen",
+    "convert_title": "In Überweisung umwandeln",
+    "convert_desc": "Machen Sie aus dieser Aktivität eine Überweisung zwischen Ihren Konten. Wählen Sie die passende Aktivität im anderen Konto oder legen Sie sie dort an.",
+    "convert_no_matches": "Keine passende Aktivität innerhalb von 7 Tagen.",
+    "convert_new": "Im anderen Konto anlegen",
+    "convert_account": "Anderes Konto",
+    "convert_amount": "Betrag in {{currency}}",
+    "convert_button": "In Überweisung umwandeln",
+    "convert_success": "In eine Überweisung umgewandelt",
+    "convert_error": "Umwandlung in eine Überweisung fehlgeschlagen"
   },
   "form": {
     "section_conversion": "Fondsumtausch",

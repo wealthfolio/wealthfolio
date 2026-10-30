@@ -329,7 +329,8 @@
   "operations": {
     "more_details": "Mais detalhes",
     "unlink_transfer": "Desvincular transferência",
-    "link_transfer": "Vincular transferência..."
+    "link_transfer": "Vincular transferência...",
+    "convert_to_transfer": "Converter em transferência..."
   },
   "date_sheet": {
     "title": "Atividades de {{date}}",
@@ -471,7 +472,16 @@
     "error_search": "Não foi possível buscar as atividades.",
     "within_days_one": "Dentro de {{count}} dia",
     "within_days_other": "Dentro de {{count}} dias",
-    "within_days_many": "Dentro de {{count}} dias"
+    "within_days_many": "Dentro de {{count}} dias",
+    "convert_title": "Converter em transferência",
+    "convert_desc": "Transforme esta atividade em uma transferência entre suas contas. Escolha a atividade correspondente na outra conta ou crie-a lá.",
+    "convert_no_matches": "Nenhuma atividade correspondente em 7 dias.",
+    "convert_new": "Criar em outra conta",
+    "convert_account": "Outra conta",
+    "convert_amount": "Valor em {{currency}}",
+    "convert_button": "Converter em transferência",
+    "convert_success": "Convertida em transferência",
+    "convert_error": "Não foi possível converter em transferência"
   },
   "form": {
     "section_conversion": "Conversão de fundos",

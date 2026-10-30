@@ -182,7 +182,8 @@
     "duplicate": "복제",
     "unlinkTransfer": "이체 연결 해제",
     "linkTransfer": "이체 연결...",
-    "deleteConfirmMany_other": "거래 {{count}}건을 삭제하시겠습니까?"
+    "deleteConfirmMany_other": "거래 {{count}}건을 삭제하시겠습니까?",
+    "convertToTransfer": "이체로 변환..."
   },
   "cashFlow": {
     "income": "수입",

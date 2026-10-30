@@ -47,9 +47,9 @@ use crate::activities::activities_constants::{
     ACTIVITY_SUBTYPE_CONVERSION_IN, ACTIVITY_SUBTYPE_CONVERSION_OUT,
     ACTIVITY_SUBTYPE_NOTIONAL_DISTRIBUTION, ACTIVITY_SUBTYPE_OPTION_EXPIRY,
     ACTIVITY_SUBTYPE_RETURN_OF_CAPITAL, ACTIVITY_TYPE_ADJUSTMENT, ACTIVITY_TYPE_BUY,
-    ACTIVITY_TYPE_CREDIT, ACTIVITY_TYPE_FEE, ACTIVITY_TYPE_INTEREST, ACTIVITY_TYPE_SELL,
-    ACTIVITY_TYPE_SPLIT, ACTIVITY_TYPE_TAX, ACTIVITY_TYPE_TRANSFER_IN, ACTIVITY_TYPE_TRANSFER_OUT,
-    ACTIVITY_TYPE_WITHDRAWAL, PRICE_BEARING_ACTIVITY_TYPES,
+    ACTIVITY_TYPE_CREDIT, ACTIVITY_TYPE_DEPOSIT, ACTIVITY_TYPE_FEE, ACTIVITY_TYPE_INTEREST,
+    ACTIVITY_TYPE_SELL, ACTIVITY_TYPE_SPLIT, ACTIVITY_TYPE_TAX, ACTIVITY_TYPE_TRANSFER_IN,
+    ACTIVITY_TYPE_TRANSFER_OUT, ACTIVITY_TYPE_WITHDRAWAL, PRICE_BEARING_ACTIVITY_TYPES,
 };
 use crate::activities::activities_errors::ActivityError;
 use crate::activities::activities_model::*;
@@ -1536,6 +1536,65 @@ impl ActivityService {
         }
     }
 
+    /// The transfer leg a cash flow becomes when converted into a transfer:
+    /// money leaving the account becomes TRANSFER_OUT, money arriving TRANSFER_IN.
+    fn cash_flow_transfer_type(activity: &Activity) -> Option<&'static str> {
+        if Self::non_cash_transfer_asset_key(activity).is_some() {
+            return None;
+        }
+        match activity.effective_type() {
+            ACTIVITY_TYPE_WITHDRAWAL | ACTIVITY_TYPE_TRANSFER_OUT => {
+                Some(ACTIVITY_TYPE_TRANSFER_OUT)
+            }
+            ACTIVITY_TYPE_DEPOSIT | ACTIVITY_TYPE_TRANSFER_IN => Some(ACTIVITY_TYPE_TRANSFER_IN),
+            _ => None,
+        }
+    }
+
+    fn is_in_transfer_pair(&self, activity: &Activity) -> Result<bool> {
+        let Some(group_id) = activity
+            .source_group_id
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+        else {
+            return Ok(false);
+        };
+        let group = self
+            .activity_repository
+            .get_activities_by_source_group_id(group_id)?;
+        Ok(TransferPairResolution::from_activities(&group)
+            .pair_for_activity(&activity.id)
+            .is_some())
+    }
+
+    /// Changes only the type, keeping every other stored field. Broker-synced
+    /// rows keep their base type and store the change as a type override.
+    fn transfer_retype_update(activity: &Activity, activity_type: &str) -> ActivityUpdate {
+        ActivityUpdate {
+            unlink_transfer_pair_id: None,
+            split_review: None,
+            id: activity.id.clone(),
+            account_id: activity.account_id.clone(),
+            asset: None,
+            activity_type: activity_type.to_string(),
+            // Deposit and withdrawal subtypes do not apply to transfers.
+            subtype: Some(String::new()),
+            activity_date: activity.activity_date.to_rfc3339(),
+            quantity: None,
+            unit_price: None,
+            currency: activity.currency.clone(),
+            fee: None,
+            tax: None,
+            amount: None,
+            status: None,
+            needs_review: None,
+            notes: activity.notes.clone(),
+            fx_rate: None,
+            metadata: Self::internal_transfer_metadata(),
+        }
+    }
+
     fn non_cash_transfer_asset_key(activity: &Activity) -> Option<String> {
         activity
             .asset_id
@@ -1588,7 +1647,7 @@ impl ActivityService {
     /// of the opposite direction, not already in a pair, within `window_days`.
     fn transfer_match_candidates<'a>(
         source: &Activity,
-        opposite_type: &str,
+        counterpart_types: &[&str],
         activities: impl IntoIterator<Item = &'a Activity>,
         transfer_resolution: &TransferPairResolution,
         window_days: i64,
@@ -1602,7 +1661,7 @@ impl ActivityService {
                     && transfer_resolution
                         .pair_for_activity(&candidate.id)
                         .is_none()
-                    && candidate.effective_type() == opposite_type
+                    && counterpart_types.contains(&candidate.effective_type())
             })
             .filter_map(|candidate| {
                 let day_diff = Self::transfer_date_diff_days(source, candidate);
@@ -1694,7 +1753,7 @@ impl ActivityService {
                 link_state,
                 candidates: Self::transfer_match_candidates(
                     source,
-                    opposite_type,
+                    &[opposite_type],
                     every_activity
                         .iter()
                         .filter(|candidate| open_account_ids.contains(&candidate.account_id)),
@@ -6263,10 +6322,22 @@ impl ActivityServiceTrait for ActivityService {
         let source = self
             .activity_repository
             .get_activity(&request.activity_id)?;
-        let Some(opposite_type) = Self::opposite_transfer_type(source.effective_type()) else {
-            return Err(Self::invalid_activity_data(
-                "Transfer match candidates require a transfer activity",
-            ));
+        // A deposit or withdrawal can be converted into a transfer, so its
+        // candidates include both plain cash flows and transfers.
+        let counterpart_types: &[&str] = match source.effective_type() {
+            ACTIVITY_TYPE_TRANSFER_IN => &[ACTIVITY_TYPE_TRANSFER_OUT],
+            ACTIVITY_TYPE_TRANSFER_OUT => &[ACTIVITY_TYPE_TRANSFER_IN],
+            ACTIVITY_TYPE_WITHDRAWAL if Self::cash_flow_transfer_type(&source).is_some() => {
+                &[ACTIVITY_TYPE_DEPOSIT, ACTIVITY_TYPE_TRANSFER_IN]
+            }
+            ACTIVITY_TYPE_DEPOSIT if Self::cash_flow_transfer_type(&source).is_some() => {
+                &[ACTIVITY_TYPE_WITHDRAWAL, ACTIVITY_TYPE_TRANSFER_OUT]
+            }
+            _ => {
+                return Err(Self::invalid_activity_data(
+                    "Transfer match candidates require a transfer, deposit or withdrawal",
+                ));
+            }
         };
         let all_activities = self.activity_repository.get_activities()?;
         let transfer_resolution = TransferPairResolution::from_activities(&all_activities);
@@ -6276,7 +6347,7 @@ impl ActivityServiceTrait for ActivityService {
 
         Ok(Self::transfer_match_candidates(
             &source,
-            opposite_type,
+            counterpart_types,
             &all_activities,
             &transfer_resolution,
             request.window_days.unwrap_or(7).clamp(0, 90),
@@ -6387,6 +6458,171 @@ impl ActivityServiceTrait for ActivityService {
                     .chain(std::iter::once(&transfer_out))
                     .chain(std::iter::once(&transfer_in)),
             ),
+        );
+
+        Ok(InternalTransferPairResponse {
+            transfer_out,
+            transfer_in,
+        })
+    }
+
+    async fn convert_to_internal_transfer(
+        &self,
+        request: ConvertToTransferRequest,
+    ) -> Result<InternalTransferPairResponse> {
+        let source = self
+            .activity_repository
+            .get_activity(&request.activity_id)?;
+        let source_type = Self::cash_flow_transfer_type(&source).ok_or_else(|| {
+            Self::invalid_activity_data(
+                "Only cash deposits, withdrawals and transfers can become a transfer",
+            )
+        })?;
+        if source.status == ActivityStatus::Void {
+            return Err(Self::invalid_activity_data(
+                "A voided activity cannot become a transfer",
+            ));
+        }
+        if self.is_in_transfer_pair(&source)? {
+            return Err(Self::invalid_activity_data(
+                "Activity is already linked to a transfer",
+            ));
+        }
+        let counterpart_type = match source_type {
+            ACTIVITY_TYPE_TRANSFER_OUT => ACTIVITY_TYPE_TRANSFER_IN,
+            _ => ACTIVITY_TYPE_TRANSFER_OUT,
+        };
+
+        let mut updates = Vec::new();
+        let mut creates = Vec::new();
+        if source.effective_type() != source_type {
+            updates.push(Self::transfer_retype_update(&source, source_type));
+        }
+
+        let counterpart = match (
+            request.counterpart_activity_id.as_deref(),
+            request.counterpart_account_id.as_deref(),
+        ) {
+            (Some(counterpart_id), None) => {
+                let counterpart = self.activity_repository.get_activity(counterpart_id)?;
+                if Self::cash_flow_transfer_type(&counterpart) != Some(counterpart_type) {
+                    return Err(Self::invalid_activity_data(
+                        "The other side must be a cash flow in the opposite direction",
+                    ));
+                }
+                if !counterpart.is_posted() {
+                    return Err(Self::invalid_activity_data(
+                        "The other side must be a posted activity",
+                    ));
+                }
+                if counterpart.account_id == source.account_id {
+                    return Err(Self::invalid_activity_data(
+                        "The other side must be in a different account",
+                    ));
+                }
+                if self.is_in_transfer_pair(&counterpart)? {
+                    return Err(Self::invalid_activity_data(
+                        "The other side is already linked to a transfer",
+                    ));
+                }
+                if counterpart.effective_type() != counterpart_type {
+                    updates.push(Self::transfer_retype_update(&counterpart, counterpart_type));
+                }
+                Some(counterpart)
+            }
+            (None, Some(account_id)) => {
+                if account_id == source.account_id {
+                    return Err(Self::invalid_activity_data(
+                        "The other side must be in a different account",
+                    ));
+                }
+                let account = self.account_service.get_account(account_id)?;
+                let source_amount = source
+                    .amount
+                    .map(|amount| amount.abs())
+                    .filter(|amount| !amount.is_zero())
+                    .ok_or_else(|| Self::invalid_activity_data("Activity has no amount"))?;
+                let amount = if account.currency.eq_ignore_ascii_case(&source.currency) {
+                    source_amount
+                } else {
+                    request
+                        .counterpart_amount
+                        .filter(|amount| amount.is_sign_positive() && !amount.is_zero())
+                        .ok_or_else(|| {
+                            Self::invalid_activity_data(
+                                "Amount in the other account's currency is required",
+                            )
+                        })?
+                };
+                creates.push(NewActivity {
+                    id: None,
+                    account_id: account.id.clone(),
+                    asset: None,
+                    activity_type: counterpart_type.to_string(),
+                    subtype: None,
+                    activity_date: source.activity_date.to_rfc3339(),
+                    quantity: None,
+                    unit_price: None,
+                    currency: account.currency.clone(),
+                    fee: None,
+                    tax: None,
+                    amount: Some(amount),
+                    status: None,
+                    notes: source.notes.clone(),
+                    fx_rate: None,
+                    metadata: Self::internal_transfer_metadata(),
+                    needs_review: None,
+                    source_system: Some("MANUAL".to_string()),
+                    source_record_id: None,
+                    source_group_id: None,
+                    idempotency_key: None,
+                    import_run_id: None,
+                });
+                None
+            }
+            _ => {
+                return Err(Self::invalid_activity_data(
+                    "Choose either an existing activity or an account for the other side",
+                ));
+            }
+        };
+
+        let mut prepared_updates = Vec::new();
+        for mut update in updates {
+            let existing = self.activity_repository.get_activity(&update.id)?;
+            self.hydrate_and_validate_update_against_existing(&mut update, &existing)?;
+            prepared_updates.push(self.prepare_update_activity(update).await?);
+        }
+        let mut prepared_creates = Vec::new();
+        for create in creates {
+            prepared_creates.push(self.prepare_new_activity(create).await?);
+        }
+        let (transfer_in, transfer_out) = self
+            .activity_repository
+            .mutate_and_link_transfer(
+                prepared_creates,
+                prepared_updates,
+                source.id.clone(),
+                counterpart.map(|counterpart| counterpart.id),
+            )
+            .await?;
+
+        let mut account_ids: HashSet<String> = HashSet::new();
+        let mut asset_ids: HashSet<String> = HashSet::new();
+        let mut currencies: HashSet<String> = HashSet::new();
+        for activity in [&transfer_in, &transfer_out] {
+            Self::add_activity_to_event_sets(
+                activity,
+                &mut account_ids,
+                &mut asset_ids,
+                &mut currencies,
+            );
+        }
+        self.emit_activities_changed(
+            account_ids.into_iter().collect(),
+            asset_ids.into_iter().collect(),
+            currencies.into_iter().collect(),
+            Some(transfer_in.activity_date.min(transfer_out.activity_date)),
         );
 
         Ok(InternalTransferPairResponse {

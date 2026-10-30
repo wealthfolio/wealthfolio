@@ -1419,6 +1419,7 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
           onOpenChange={setShowForm}
           activity={editingActivityForForm}
           onTransferClick={handleTransferClick}
+          onConvertToTransfer={() => editingActivity && handleLinkTransfer(editingActivity)}
         />
 
         <SplitTransactionSheet

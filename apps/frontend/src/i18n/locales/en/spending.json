@@ -183,7 +183,8 @@
     "unlinkTransfer": "Unlink transfer",
     "linkTransfer": "Link transfer...",
     "deleteConfirmMany_one": "Are you sure you want to delete {{count}} transaction?",
-    "deleteConfirmMany_other": "Are you sure you want to delete {{count}} transactions?"
+    "deleteConfirmMany_other": "Are you sure you want to delete {{count}} transactions?",
+    "convertToTransfer": "Make it a transfer..."
   },
   "cashFlow": {
     "income": "Income",

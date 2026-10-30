@@ -188,7 +188,8 @@
     "linkTransfer": "Vincular transferência...",
     "deleteConfirmMany_one": "Tem certeza que deseja excluir {{count}} transação?",
     "deleteConfirmMany_other": "Tem certeza que deseja excluir {{count}} transações?",
-    "deleteConfirmMany_many": "Tem certeza que deseja excluir {{count}} transações?"
+    "deleteConfirmMany_many": "Tem certeza que deseja excluir {{count}} transações?",
+    "convertToTransfer": "Converter em transferência..."
   },
   "cashFlow": {
     "income": "Receitas",

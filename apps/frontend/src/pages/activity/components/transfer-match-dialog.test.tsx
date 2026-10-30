@@ -1,11 +1,14 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { findTransferMatchCandidates } from "@/adapters";
+import { convertToInternalTransfer, findTransferMatchCandidates } from "@/adapters";
 import { ActivityStatus } from "@/lib/constants";
 import type { Account, Activity } from "@/lib/types";
-import { render, screen, within } from "@/test/render";
+import { fireEvent, render, screen, waitFor, within } from "@/test/render";
 import { TransferMatchDialog } from "./transfer-match-dialog";
 
 vi.mock("@/adapters", () => ({
+  convertToInternalTransfer: vi.fn(),
   findTransferMatchCandidates: vi.fn(),
   getTransferPairForActivity: vi.fn(),
   searchActivities: vi.fn(),
@@ -95,5 +98,79 @@ describe("transfer activity summary", () => {
     renderActivity({ assetId: "SYNTHETIC", quantity: "2" });
     expect(screen.getByText("2 SYNTHETIC")).toBeInTheDocument();
     await screen.findByText("No matches within 7 days of this activity.");
+  });
+});
+
+describe("converting a deposit or withdrawal into a transfer", () => {
+  const withQueryClient = ({ children }: { children: ReactNode }) => (
+    <QueryClientProvider client={new QueryClient()}>{children}</QueryClientProvider>
+  );
+  const withdrawal = {
+    ...activity,
+    id: "synthetic-withdrawal",
+    activityType: "WITHDRAWAL",
+    currency: "USD",
+  };
+  const deposit: Activity = {
+    ...activity,
+    id: "synthetic-deposit",
+    accountId: "candidate-account",
+    activityType: "DEPOSIT",
+    currency: "USD",
+  };
+
+  beforeEach(() => {
+    vi.mocked(convertToInternalTransfer).mockReset();
+  });
+
+  it("pairs the withdrawal with the chosen deposit", async () => {
+    vi.mocked(findTransferMatchCandidates).mockResolvedValue([
+      {
+        activity: deposit,
+        matchKind: "cash",
+        confidence: "high",
+        score: 100,
+        reasons: ["Same amount"],
+        warnings: [],
+      },
+    ]);
+    const onOpenChange = vi.fn();
+    render(
+      <TransferMatchDialog
+        open
+        mode="link"
+        sourceActivity={withdrawal}
+        accounts={[account, { ...account, id: "candidate-account", name: "Candidate account" }]}
+        onOpenChange={onOpenChange}
+      />,
+      { wrapper: withQueryClient },
+    );
+
+    fireEvent.click((await screen.findByText("Same amount")).closest("button")!);
+    fireEvent.click(screen.getByRole("button", { name: "Convert to transfer" }));
+
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
+    expect(convertToInternalTransfer).toHaveBeenCalledWith({
+      activityId: "synthetic-withdrawal",
+      counterpartActivityId: "synthetic-deposit",
+    });
+  });
+
+  it("asks for an account when no matching activity exists", async () => {
+    vi.mocked(findTransferMatchCandidates).mockResolvedValue([]);
+    render(
+      <TransferMatchDialog
+        open
+        mode="link"
+        sourceActivity={withdrawal}
+        accounts={[account, { ...account, id: "candidate-account", name: "Candidate account" }]}
+        onOpenChange={vi.fn()}
+      />,
+      { wrapper: withQueryClient },
+    );
+
+    await screen.findByText("No matching activity within 7 days.");
+    expect(screen.getByRole("button", { name: "Convert to transfer" })).toBeDisabled();
+    expect(screen.getByRole("combobox", { name: "Other account" })).toBeInTheDocument();
   });
 });

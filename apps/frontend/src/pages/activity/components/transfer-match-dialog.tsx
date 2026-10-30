@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 
 import { useEffectOnChange } from "@/hooks/use-effect-on-change";
 import {
+  convertToInternalTransfer,
   findTransferMatchCandidates,
   getTransferPairForActivity,
   searchActivities,
@@ -33,14 +34,21 @@ import {
   SheetHeader,
   SheetTitle,
   Skeleton,
+  MoneyInput,
   useAmountFormatting,
   useDateFormatting,
   Spinner,
 } from "@wealthfolio/ui";
+import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { useActivityMutations } from "../hooks/use-activity-mutations";
 import { ActivityTypeBadge } from "./activity-type-badge";
 import type { NewActivityFormValues } from "./forms/schemas";
-import { isSameAccountCashFxConversion, nonCashTransferAssetKey } from "./transfer-link-utils";
+import {
+  canConvertToTransfer,
+  isSameAccountCashFxConversion,
+  nonCashTransferAssetKey,
+} from "./transfer-link-utils";
 
 export type TransferDialogActivity = Activity | ActivityDetails;
 
@@ -400,7 +408,236 @@ function CandidateButton({
   );
 }
 
-export function TransferMatchDialog({
+/**
+ * Links a transfer with its other side. For a deposit or withdrawal, "link"
+ * converts it into a transfer instead, so every "Link transfer…" host also
+ * serves "Make it a transfer…".
+ */
+export function TransferMatchDialog(props: TransferMatchDialogProps) {
+  const { sourceActivity, mode } = props;
+  if (sourceActivity && mode === "link" && canConvertToTransfer(sourceActivity)) {
+    return <ConvertToTransferDialog {...props} sourceActivity={sourceActivity} />;
+  }
+  return <TransferLinkDialog {...props} />;
+}
+
+type ConvertChoice = { kind: "existing"; candidate: SelectedCandidate } | { kind: "new" };
+
+function ConvertToTransferDialog({
+  open,
+  sourceActivity,
+  accounts,
+  onOpenChange,
+  onComplete,
+}: TransferMatchDialogProps & { sourceActivity: TransferDialogActivity }) {
+  const { t } = useTranslation();
+  const queryClient = useQueryClient();
+  const accountMap = useMemo(
+    () => new Map(accounts.map((account) => [account.id, account])),
+    [accounts],
+  );
+  const otherAccounts = useMemo(
+    () =>
+      accounts.filter((account) => !account.isArchived && account.id !== sourceActivity.accountId),
+    [accounts, sourceActivity.accountId],
+  );
+  const [candidates, setCandidates] = useState<SelectedCandidate[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [choice, setChoice] = useState<ConvertChoice | null>(null);
+  const [accountId, setAccountId] = useState("");
+  const [amount, setAmount] = useState<number | undefined>();
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    setChoice(null);
+    setAccountId("");
+    setAmount(undefined);
+    setLoadError(null);
+    setLoading(true);
+    findTransferMatchCandidates({ activityId: sourceActivity.id, windowDays: 7, limit: 10 })
+      .then((result) => {
+        if (cancelled) return;
+        setCandidates(
+          result.map(({ activity, reasons, warnings }) => ({ activity, reasons, warnings })),
+        );
+        if (result.length === 0) setChoice({ kind: "new" });
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        setCandidates([]);
+        setChoice({ kind: "new" });
+        setLoadError(
+          error instanceof Error
+            ? error.message
+            : t("activity:transfer_match.error_load_suggestions"),
+        );
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, sourceActivity.id, t]);
+
+  const targetAccount = accountMap.get(accountId);
+  const needsAmount = !!targetAccount && targetAccount.currency !== sourceActivity.currency;
+  const canConfirm =
+    !saving &&
+    (choice?.kind === "existing" ||
+      (choice?.kind === "new" && !!targetAccount && (!needsAmount || (amount ?? 0) > 0)));
+
+  const confirm = async () => {
+    if (!choice) return;
+    setSaving(true);
+    try {
+      await convertToInternalTransfer({
+        activityId: sourceActivity.id,
+        ...(choice.kind === "existing"
+          ? { counterpartActivityId: choice.candidate.activity.id }
+          : {
+              counterpartAccountId: accountId,
+              counterpartAmount: needsAmount ? amount : undefined,
+            }),
+      });
+      await queryClient.invalidateQueries();
+      toast.success(t("activity:transfer_match.convert_success"));
+      onOpenChange(false);
+      await onComplete?.();
+    } catch (error) {
+      toast.error(t("activity:transfer_match.convert_error"), {
+        description: error instanceof Error ? error.message : String(error),
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent className="flex w-full flex-col overflow-hidden sm:max-w-190">
+        <SheetHeader>
+          <SheetTitle>{t("activity:transfer_match.convert_title")}</SheetTitle>
+          <SheetDescription>{t("activity:transfer_match.convert_desc")}</SheetDescription>
+        </SheetHeader>
+
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto py-4">
+          <div className="space-y-2">
+            <div className="text-muted-foreground text-xs font-medium uppercase">
+              {t("activity:transfer_match.selected_row")}
+            </div>
+            <ActivitySummaryRow
+              activity={sourceActivity}
+              accountMap={accountMap}
+              className="bg-muted/30 border"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <div className="text-muted-foreground text-xs font-medium uppercase">
+              {t("activity:transfer_match.suggested_matches")}
+            </div>
+            {loading ? (
+              <Skeleton className="h-20 w-full" />
+            ) : candidates.length > 0 ? (
+              candidates.map((candidate) => (
+                <CandidateButton
+                  key={candidate.activity.id}
+                  candidate={candidate}
+                  accountMap={accountMap}
+                  selected={
+                    choice?.kind === "existing" &&
+                    choice.candidate.activity.id === candidate.activity.id
+                  }
+                  onSelect={() => setChoice({ kind: "existing", candidate })}
+                />
+              ))
+            ) : (
+              <div className="text-muted-foreground rounded-md border border-dashed px-3 py-2.5 text-sm">
+                {loadError ?? t("activity:transfer_match.convert_no_matches")}
+              </div>
+            )}
+          </div>
+
+          <div
+            className={cn(
+              "space-y-3 rounded-md border p-3",
+              choice?.kind === "new" && "border-primary bg-primary/5",
+            )}
+          >
+            <button
+              type="button"
+              className="flex w-full items-center gap-3 text-start text-sm font-medium"
+              onClick={() => setChoice({ kind: "new" })}
+              aria-pressed={choice?.kind === "new"}
+            >
+              {choice?.kind === "new" ? (
+                <Icons.CheckCircle className="text-primary h-4 w-4" />
+              ) : (
+                <Icons.Circle className="text-muted-foreground/30 h-4 w-4" />
+              )}
+              {t("activity:transfer_match.convert_new")}
+            </button>
+            {choice?.kind === "new" ? (
+              <div className="grid gap-3 ps-7 sm:grid-cols-2">
+                <Select
+                  items={otherAccounts.map((account) => ({
+                    value: account.id,
+                    label: `${account.name} (${account.currency})`,
+                  }))}
+                  value={accountId}
+                  onValueChange={(value) => setAccountId(value ?? "")}
+                >
+                  <SelectTrigger aria-label={t("activity:transfer_match.convert_account")}>
+                    <SelectValue placeholder={t("activity:transfer_match.convert_account")} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {otherAccounts.map((account) => (
+                      <SelectItem key={account.id} value={account.id}>
+                        {account.name} ({account.currency})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {needsAmount ? (
+                  <MoneyInput
+                    value={amount ?? null}
+                    onValueChange={(value) => setAmount(value)}
+                    placeholder={t("activity:transfer_match.convert_amount", {
+                      currency: targetAccount.currency,
+                    })}
+                    aria-label={t("activity:transfer_match.convert_amount", {
+                      currency: targetAccount.currency,
+                    })}
+                  />
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+        </div>
+
+        <SheetFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
+            {t("common:cancel")}
+          </Button>
+          <Button onClick={() => void confirm()} disabled={!canConfirm}>
+            {saving ? (
+              <Spinner className="me-2 h-4 w-4" />
+            ) : (
+              <Icons.ArrowLeftRight className="me-2 h-4 w-4" />
+            )}
+            {t("activity:transfer_match.convert_button")}
+          </Button>
+        </SheetFooter>
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+function TransferLinkDialog({
   open,
   mode,
   sourceActivity,

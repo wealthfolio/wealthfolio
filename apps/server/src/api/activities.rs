@@ -9,10 +9,10 @@ use axum::{
 };
 use wealthfolio_core::activities::{
     import_type, Activity, ActivityBulkMutationRequest, ActivityBulkMutationResult, ActivityImport,
-    ActivitySearchResponse, ActivitySplitEffect, ActivityUpdate, ImportActivitiesResult,
-    ImportAssetCandidate, ImportAssetPreviewItem, ImportMappingData, ImportTemplateData,
-    InternalTransferPairRequest, InternalTransferPairResponse, NewActivity, ParseConfig,
-    ParsedCsvResult, TransferMatchCandidate, TransferMatchCandidateRequest,
+    ActivitySearchResponse, ActivitySplitEffect, ActivityUpdate, ConvertToTransferRequest,
+    ImportActivitiesResult, ImportAssetCandidate, ImportAssetPreviewItem, ImportMappingData,
+    ImportTemplateData, InternalTransferPairRequest, InternalTransferPairResponse, NewActivity,
+    ParseConfig, ParsedCsvResult, TransferMatchCandidate, TransferMatchCandidateRequest,
 };
 use wealthfolio_core::utils::time_utils::{
     local_date_range_utc_bounds, parse_user_timezone_or_default,
@@ -218,6 +218,18 @@ async fn save_internal_transfer_pair(
     let pair = state
         .activity_service
         .save_internal_transfer_pair(request)
+        .await?;
+    state.health_service.clear_cache().await;
+    Ok(Json(pair))
+}
+
+async fn convert_to_internal_transfer(
+    axum::Extension(state): axum::Extension<Arc<AppState>>,
+    Json(request): Json<ConvertToTransferRequest>,
+) -> ApiResult<Json<InternalTransferPairResponse>> {
+    let pair = state
+        .activity_service
+        .convert_to_internal_transfer(request)
         .await?;
     state.health_service.clear_cache().await;
     Ok(Json(pair))
@@ -499,6 +511,10 @@ pub fn router<S: Clone + Send + Sync + 'static>() -> Router<S> {
         .route(
             "/activities/transfer-pair",
             post(save_internal_transfer_pair),
+        )
+        .route(
+            "/activities/convert-to-transfer",
+            post(convert_to_internal_transfer),
         )
         .route(
             "/activities/transfer-match-candidates",

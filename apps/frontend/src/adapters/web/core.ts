@@ -115,6 +115,7 @@ export const COMMANDS: CommandMap = {
   get_transfer_pair_for_activity: { method: "GET", path: "/activities" },
   find_transfer_match_candidates: { method: "POST", path: "/activities/transfer-match-candidates" },
   save_internal_transfer_pair: { method: "POST", path: "/activities/transfer-pair" },
+  convert_to_internal_transfer: { method: "POST", path: "/activities/convert-to-transfer" },
   link_transfer_activities: { method: "POST", path: "/activities/link" },
   unlink_transfer_activities: { method: "POST", path: "/activities/unlink" },
   // Activity import
@@ -907,7 +908,8 @@ export const invoke = async <T>(command: string, payload?: Record<string, unknow
       break;
     }
     case "review_internal_transfer_pair_split_effects":
-    case "save_internal_transfer_pair": {
+    case "save_internal_transfer_pair":
+    case "convert_to_internal_transfer": {
       const { request } = payload as { request: Record<string, unknown> };
       body = JSON.stringify(request);
       break;

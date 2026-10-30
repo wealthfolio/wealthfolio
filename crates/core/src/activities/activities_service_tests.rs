@@ -5,6 +5,8 @@ pub(crate) mod tests {
     use crate::activities::{
         ActivityRepositoryTrait, ActivityService, ActivityServiceTrait, ImportRun,
         ImportRunRepositoryTrait, ImportRunStatus, TransferLinkState, ACTIVITY_TYPE_ADJUSTMENT,
+        ACTIVITY_TYPE_DEPOSIT, ACTIVITY_TYPE_TRANSFER_IN, ACTIVITY_TYPE_TRANSFER_OUT,
+        ACTIVITY_TYPE_WITHDRAWAL,
     };
     use crate::assets::{
         normalize_quote_ccy_code, parse_crypto_pair_symbol, parse_symbol_with_exchange_suffix,
@@ -1591,10 +1593,23 @@ pub(crate) mod tests {
 
         async fn link_transfer_activities(
             &self,
-            _activity_a_id: String,
-            _activity_b_id: String,
+            activity_a_id: String,
+            activity_b_id: String,
         ) -> Result<(Activity, Activity)> {
-            unimplemented!()
+            let mut activities = self.activities.lock().unwrap();
+            let mut linked = Vec::new();
+            for activity in activities
+                .iter_mut()
+                .filter(|activity| activity.id == activity_a_id || activity.id == activity_b_id)
+            {
+                activity.source_group_id = Some(format!("link-{activity_a_id}-{activity_b_id}"));
+                linked.push(activity.clone());
+            }
+            linked.sort_by_key(|activity| activity.effective_type() != ACTIVITY_TYPE_TRANSFER_IN);
+            match <[Activity; 2]>::try_from(linked) {
+                Ok([transfer_in, transfer_out]) => Ok((transfer_in, transfer_out)),
+                Err(_) => Err(Error::Unexpected("both activities must exist".to_string())),
+            }
         }
 
         async fn unlink_transfer_activities(
@@ -1650,6 +1665,37 @@ pub(crate) mod tests {
             activities[transfer_out_index] = transfer_out.clone();
 
             Ok((transfer_in, transfer_out))
+        }
+
+        async fn mutate_and_link_transfer(
+            &self,
+            creates: Vec<NewActivity>,
+            updates: Vec<ActivityUpdate>,
+            activity_id: String,
+            counterpart_id: Option<String>,
+        ) -> Result<(Activity, Activity)> {
+            // Restore the snapshot on failure, like the SQLite transaction.
+            let snapshot = self.activities.lock().unwrap().clone();
+            let result = async {
+                let persisted = self
+                    .bulk_mutate_activities(creates, updates, Vec::new())
+                    .await?;
+                let counterpart_id = counterpart_id
+                    .or_else(|| {
+                        persisted
+                            .created
+                            .first()
+                            .map(|activity| activity.id.clone())
+                    })
+                    .ok_or_else(|| Error::Unexpected("New transfer leg was not returned".into()))?;
+                self.link_transfer_activities(activity_id, counterpart_id)
+                    .await
+            }
+            .await;
+            if result.is_err() {
+                *self.activities.lock().unwrap() = snapshot;
+            }
+            result
         }
 
         async fn bulk_mutate_activities(
@@ -12742,6 +12788,252 @@ pub(crate) mod tests {
                 .and_then(|value| value.as_bool()),
             Some(false)
         );
+    }
+
+    fn convert_test_service(
+        activities: Vec<Activity>,
+        accounts: &[(&str, &str)],
+    ) -> (ActivityService, Arc<MockActivityRepository>) {
+        let account_service = Arc::new(MockAccountService::new());
+        for (id, currency) in accounts {
+            account_service.add_account(create_test_account(id, currency));
+        }
+        let activity_repository = Arc::new(MockActivityRepository::new());
+        for activity in activities {
+            activity_repository.add_activity(activity);
+        }
+        let service = ActivityService::new(
+            activity_repository.clone(),
+            account_service,
+            Arc::new(MockAssetService::new()),
+            Arc::new(MockFxService::new()),
+            Arc::new(MockQuoteService),
+        );
+        (service, activity_repository)
+    }
+
+    #[tokio::test]
+    async fn convert_to_internal_transfer_creates_the_other_leg() {
+        let mut withdrawal = create_cash_transfer_activity(
+            "withdrawal",
+            "acc-join",
+            ACTIVITY_TYPE_WITHDRAWAL,
+            "2026-10-23T00:00:00Z",
+            dec!(500),
+            "CAD",
+        );
+        withdrawal.notes = Some("e-Transfer: Me CIBC".to_string());
+        let (service, _) = convert_test_service(
+            vec![withdrawal],
+            &[("acc-join", "CAD"), ("acc-cibc", "CAD")],
+        );
+
+        let pair = service
+            .convert_to_internal_transfer(ConvertToTransferRequest {
+                activity_id: "withdrawal".to_string(),
+                counterpart_activity_id: None,
+                counterpart_account_id: Some("acc-cibc".to_string()),
+                counterpart_amount: None,
+            })
+            .await
+            .expect("conversion should succeed");
+
+        assert_eq!(pair.transfer_out.id, "withdrawal");
+        assert_eq!(
+            pair.transfer_out.effective_type(),
+            ACTIVITY_TYPE_TRANSFER_OUT
+        );
+        assert_eq!(
+            pair.transfer_out.notes.as_deref(),
+            Some("e-Transfer: Me CIBC")
+        );
+        assert_eq!(pair.transfer_in.account_id, "acc-cibc");
+        assert_eq!(pair.transfer_in.effective_type(), ACTIVITY_TYPE_TRANSFER_IN);
+        assert_eq!(pair.transfer_in.amount, Some(dec!(500)));
+        assert_eq!(pair.transfer_in.currency, "CAD");
+        assert_eq!(
+            pair.transfer_in.activity_date,
+            pair.transfer_out.activity_date
+        );
+        assert!(pair.transfer_in.source_group_id.is_some());
+        assert_eq!(
+            pair.transfer_in.source_group_id,
+            pair.transfer_out.source_group_id
+        );
+        assert_eq!(
+            pair.transfer_out
+                .metadata
+                .as_ref()
+                .and_then(|metadata| metadata.pointer("/flow/is_external"))
+                .and_then(|value| value.as_bool()),
+            Some(false)
+        );
+    }
+
+    #[tokio::test]
+    async fn convert_to_internal_transfer_retypes_an_existing_deposit() {
+        let (service, repository) = convert_test_service(
+            vec![
+                create_cash_transfer_activity(
+                    "withdrawal",
+                    "acc-join",
+                    ACTIVITY_TYPE_WITHDRAWAL,
+                    "2026-10-23T00:00:00Z",
+                    dec!(500),
+                    "CAD",
+                ),
+                create_cash_transfer_activity(
+                    "deposit",
+                    "acc-cibc",
+                    ACTIVITY_TYPE_DEPOSIT,
+                    "2026-10-24T00:00:00Z",
+                    dec!(500),
+                    "CAD",
+                ),
+            ],
+            &[("acc-join", "CAD"), ("acc-cibc", "CAD")],
+        );
+
+        let candidates = service
+            .find_transfer_match_candidates(TransferMatchCandidateRequest {
+                activity_id: "withdrawal".to_string(),
+                window_days: None,
+                limit: None,
+            })
+            .expect("a withdrawal has candidates");
+        assert_eq!(candidates.len(), 1);
+        assert_eq!(candidates[0].activity.id, "deposit");
+
+        let pair = service
+            .convert_to_internal_transfer(ConvertToTransferRequest {
+                activity_id: "withdrawal".to_string(),
+                counterpart_activity_id: Some("deposit".to_string()),
+                counterpart_account_id: None,
+                counterpart_amount: None,
+            })
+            .await
+            .expect("conversion should succeed");
+
+        assert_eq!(pair.transfer_in.id, "deposit");
+        assert_eq!(pair.transfer_in.effective_type(), ACTIVITY_TYPE_TRANSFER_IN);
+        // The deposit keeps its own posting date.
+        assert_eq!(
+            pair.transfer_in.activity_date,
+            parse_test_activity_datetime("2026-10-24T00:00:00Z")
+        );
+        assert_eq!(repository.activities.lock().unwrap().len(), 2);
+    }
+
+    #[tokio::test]
+    async fn convert_to_internal_transfer_rejects_invalid_other_sides() {
+        let mut linked = create_cash_transfer_activity(
+            "linked-in",
+            "acc-cibc",
+            ACTIVITY_TYPE_TRANSFER_IN,
+            "2026-10-23T00:00:00Z",
+            dec!(500),
+            "CAD",
+        );
+        linked.source_group_id = Some("group-1".to_string());
+        let mut linked_out = create_cash_transfer_activity(
+            "linked-out",
+            "acc-usd",
+            ACTIVITY_TYPE_TRANSFER_OUT,
+            "2026-10-23T00:00:00Z",
+            dec!(500),
+            "CAD",
+        );
+        linked_out.source_group_id = Some("group-1".to_string());
+        let mut draft_deposit = create_cash_transfer_activity(
+            "draft-deposit",
+            "acc-cibc",
+            ACTIVITY_TYPE_DEPOSIT,
+            "2026-10-23T00:00:00Z",
+            dec!(500),
+            "CAD",
+        );
+        draft_deposit.status = crate::activities::ActivityStatus::Draft;
+        let mut void_withdrawal = create_cash_transfer_activity(
+            "void-withdrawal",
+            "acc-join",
+            ACTIVITY_TYPE_WITHDRAWAL,
+            "2026-10-23T00:00:00Z",
+            dec!(500),
+            "CAD",
+        );
+        void_withdrawal.status = crate::activities::ActivityStatus::Void;
+        let (service, repository) = convert_test_service(
+            vec![
+                create_cash_transfer_activity(
+                    "withdrawal",
+                    "acc-join",
+                    ACTIVITY_TYPE_WITHDRAWAL,
+                    "2026-10-23T00:00:00Z",
+                    dec!(500),
+                    "CAD",
+                ),
+                create_cash_transfer_activity(
+                    "other-withdrawal",
+                    "acc-cibc",
+                    ACTIVITY_TYPE_WITHDRAWAL,
+                    "2026-10-23T00:00:00Z",
+                    dec!(500),
+                    "CAD",
+                ),
+                linked,
+                linked_out,
+                draft_deposit,
+                void_withdrawal,
+            ],
+            &[("acc-join", "CAD"), ("acc-cibc", "CAD"), ("acc-usd", "USD")],
+        );
+        let convert = |counterpart_activity_id: Option<&str>,
+                       counterpart_account_id: Option<&str>| {
+            service.convert_to_internal_transfer(ConvertToTransferRequest {
+                activity_id: "withdrawal".to_string(),
+                counterpart_activity_id: counterpart_activity_id.map(str::to_string),
+                counterpart_account_id: counterpart_account_id.map(str::to_string),
+                counterpart_amount: None,
+            })
+        };
+
+        assert!(
+            convert(None, Some("acc-join")).await.is_err(),
+            "same account"
+        );
+        assert!(
+            convert(None, Some("acc-usd")).await.is_err(),
+            "a different currency needs the other side's amount"
+        );
+        assert!(
+            convert(Some("other-withdrawal"), None).await.is_err(),
+            "same direction"
+        );
+        assert!(
+            convert(Some("linked-in"), None).await.is_err(),
+            "already linked"
+        );
+        assert!(convert(None, None).await.is_err(), "no other side");
+        assert!(
+            convert(Some("draft-deposit"), None).await.is_err(),
+            "other side not posted"
+        );
+        assert!(
+            service
+                .convert_to_internal_transfer(ConvertToTransferRequest {
+                    activity_id: "void-withdrawal".to_string(),
+                    counterpart_activity_id: None,
+                    counterpart_account_id: Some("acc-cibc".to_string()),
+                    counterpart_amount: None,
+                })
+                .await
+                .is_err(),
+            "voided source"
+        );
+        let activities = repository.activities.lock().unwrap();
+        assert_eq!(activities.len(), 6);
+        assert!(activities.iter().any(|activity| activity.id == "withdrawal"
+            && activity.activity_type == ACTIVITY_TYPE_WITHDRAWAL));
     }
 
     #[tokio::test]
