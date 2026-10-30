@@ -69,14 +69,23 @@ fn expected_bucket_fx(pipeline: &Pipeline) -> Decimal {
 }
 
 fn check(kind: &str, cash: Decimal, security: Decimal, bounded: bool) {
-    let pipeline = Pipeline::from_scenario(&scenario(kind, cash, security));
+    let mut fixture = scenario(kind, cash, security);
+    if bounded {
+        // Leave the opening day outside the window, and move the rate
+        // change to day three so cash and investment FX remain in-period.
+        let end = "2026-01-03".parse().unwrap();
+        fixture.policy.as_of = end;
+        fixture.fx_rates[1].day = end;
+        fixture.quotes[1].day = end;
+    }
+    let pipeline = Pipeline::from_scenario(&fixture);
     assert_eq!(expected_bucket_fx(&pipeline), -cash * dec!(0.1));
     let lots = pipeline.lots();
     let inputs = pipeline.measure_inputs(&lots);
     let account = AccountId::new("acc");
     let window = Window {
-        start: bounded.then(|| "2026-01-01".parse().unwrap()),
-        end: bounded.then(|| "2026-01-02".parse().unwrap()),
+        start: bounded.then(|| "2026-01-02".parse().unwrap()),
+        end: bounded.then(|| "2026-01-03".parse().unwrap()),
     };
     let expected = -(cash + security) * dec!(0.1);
     for profile in [
@@ -107,8 +116,19 @@ fn check(kind: &str, cash: Decimal, security: Decimal, bounded: bool) {
                 assert_eq!(result.attribution.fx_effect, expected);
                 assert_eq!(result.attribution.income, Decimal::ZERO);
                 let days = &pipeline.series[&account].days;
-                // Both windows cover inception, including the opening flow.
-                let delta = days.last().unwrap().total_value_base;
+                let opening = window
+                    .start
+                    .and_then(|start| days.iter().find(|day| day.date == start))
+                    .map_or(Decimal::ZERO, |day| day.total_value_base);
+                let delta = days.last().unwrap().total_value_base - opening;
+                assert_eq!(
+                    result.attribution.contributions,
+                    if bounded {
+                        Decimal::ZERO
+                    } else {
+                        (cash + security) * dec!(7)
+                    }
+                );
                 assert_eq!(
                     result.attribution.contributions - result.attribution.distributions
                         + result.attribution.pnl(),
