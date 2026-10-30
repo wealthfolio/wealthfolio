@@ -1,6 +1,11 @@
 import { useSettings } from "@/hooks/use-settings";
 import { isSecuritiesTransfer } from "@/lib/activity-utils";
-import { ActivityType, isLiabilityAccountType, QuoteMode } from "@/lib/constants";
+import {
+  ActivityType,
+  DECIMAL_PRECISION,
+  isLiabilityAccountType,
+  QuoteMode,
+} from "@/lib/constants";
 import { normalizeCurrency } from "@/lib/utils";
 import { invalidTypeError, requiredError } from "@/lib/zod-errors";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -836,7 +841,7 @@ export function TransferForm({
                   name="unitPrice"
                   label={t("activity:form.label_cost_basis")}
                   data-testid="cost-basis-input"
-                  maxDecimalPlaces={4}
+                  maxDecimalPlaces={DECIMAL_PRECISION}
                   currency={currency}
                 />
               )}

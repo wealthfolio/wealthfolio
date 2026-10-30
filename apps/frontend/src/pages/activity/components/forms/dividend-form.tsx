@@ -1,5 +1,5 @@
 import { useSettings } from "@/hooks/use-settings";
-import { ACTIVITY_SUBTYPES, ActivityType } from "@/lib/constants";
+import { ACTIVITY_SUBTYPES, ActivityType, DECIMAL_PRECISION } from "@/lib/constants";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@wealthfolio/ui/components/ui/button";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
@@ -381,7 +381,7 @@ export function DividendForm({
                     : t("activity:form.label_fmv_per_unit")
                 }
                 labelHelpText={subtype === ACTIVITY_SUBTYPES.DRIP ? undefined : fmvHelpText}
-                maxDecimalPlaces={4}
+                maxDecimalPlaces={DECIMAL_PRECISION}
                 currency={currency}
               />
             </div>

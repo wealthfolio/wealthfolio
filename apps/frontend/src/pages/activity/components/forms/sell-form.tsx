@@ -1,6 +1,6 @@
 import { useHoldings } from "@/hooks/use-holdings";
 import { useSettings } from "@/hooks/use-settings";
-import { ACTIVITY_SUBTYPES, ActivityType, QuoteMode } from "@/lib/constants";
+import { ACTIVITY_SUBTYPES, ActivityType, DECIMAL_PRECISION, QuoteMode } from "@/lib/constants";
 import { buildOccSymbol, isValidOptionExpiration } from "@/lib/occ-symbol";
 import { normalizeCurrency } from "@/lib/utils";
 import { invalidTypeError, requiredError } from "@/lib/zod-errors";
@@ -658,7 +658,7 @@ export function SellForm({
               name="unitPrice"
               label={priceLabel}
               data-testid="price-input"
-              maxDecimalPlaces={4}
+              maxDecimalPlaces={DECIMAL_PRECISION}
               currency={currency}
             />
             <AmountInput name="fee" label={t("activity:form.label_fee")} currency={currency} />

@@ -57,13 +57,22 @@ vi.mock("../fields", async () => {
     DatePicker: ({ name, label }: { name: string; label: string }) => (
       <div data-testid={`date-picker-${name}`}>{label}</div>
     ),
-    AmountInput: ({ name, label }: { name: string; label: string }) => {
+    AmountInput: ({
+      name,
+      label,
+      maxDecimalPlaces,
+    }: {
+      name: string;
+      label: string;
+      maxDecimalPlaces?: number;
+    }) => {
       const { register } = useFormContext();
       return (
         <div>
           <label htmlFor={name}>{label}</label>
           <input
             data-testid={`input-${name}`}
+            data-max-decimal-places={maxDecimalPlaces}
             type="number"
             id={name}
             {...register(name, { valueAsNumber: true })}
@@ -516,6 +525,12 @@ describe("BuyForm", () => {
       expect(screen.getByTestId("input-quantity")).toBeInTheDocument();
       expect(screen.getByTestId("input-unitPrice")).toBeInTheDocument();
       expect(screen.getByTestId("input-fee")).toBeInTheDocument();
+    });
+
+    it("lets the price take up to 8 decimals", () => {
+      render(<BuyForm accounts={mockAccounts} onSubmit={mockOnSubmit} />);
+
+      expect(screen.getByTestId("input-unitPrice")).toHaveAttribute("data-max-decimal-places", "8");
     });
   });
 
