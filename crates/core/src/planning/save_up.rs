@@ -448,6 +448,15 @@ pub fn compute_save_up_overview(input: &SaveUpInput, as_of: chrono::NaiveDate) -
     // Completion date: search regardless of target date
     let projected_completion_date = if input.target_amount <= 0.0 {
         None
+    } else if let Some(td) = target_date.filter(|_| projected_value < input.target_amount) {
+        // A negative return can reach the target and then fall below it by the
+        // target date. Count completion only after the missed date, as health does.
+        points
+            .iter()
+            .zip(&path)
+            .filter(|(point, _)| point.date > td)
+            .find(|(_, balance)| **balance >= input.target_amount)
+            .map(|(point, _)| point.date)
     } else if input.current_value >= input.target_amount {
         Some(as_of)
     } else {
@@ -772,6 +781,20 @@ mod tests {
     }
 
     #[test]
+    fn negative_return_completion_comes_after_a_missed_target_date() {
+        // The January contribution reaches the target, then -20% shrinks it below by mid-February.
+        let overview = compute_save_up_overview(
+            &input(0.0, 1_000.0, Some("2026-02-15"), 1_000.0, -0.20),
+            AS_OF,
+        );
+        assert_eq!(overview.health, "at_risk");
+        assert_eq!(
+            overview.projected_completion_date.as_deref(),
+            Some("2026-02-28")
+        );
+    }
+
+    #[test]
     fn past_target_date_uses_the_current_value() {
         let overview = compute_save_up_overview(
             &input(400.0, 1_000.0, Some("2025-06-01"), 100.0, 0.05),
@@ -838,7 +861,7 @@ mod tests {
             current in prop_oneof![-1_000_000.0f64..1_000_000.0, -1e9f64..1e11],
             target in prop_oneof![1.0f64..2_000_000.0, 1.0f64..2e11],
             monthly in prop_oneof![0.0f64..10_000.0, 0.0f64..1e9],
-            rate in 0.0f64..0.5,
+            rate in -0.2f64..0.5,
         ) {
             let as_of = AS_OF + chrono::Duration::days(start_offset);
             let target_date = as_of + chrono::Duration::days(horizon_days);
