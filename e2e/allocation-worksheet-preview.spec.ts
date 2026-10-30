@@ -269,7 +269,10 @@ test("whole-share edits update impact and require account placement, in LTR and 
     await expect(amount).toHaveValue(nextAmount);
     await expect(page.locator("html")).toHaveAttribute("dir", dir);
     await page.screenshot({ path: `test-results/worksheet-preview-${dir}.png`, fullPage: true });
-    await page.setViewportSize({ width: 1024, height: 768 });
+    // The steps move under the title when the heading area is narrower than 36rem. At
+    // 1024 px with the sidebar open it is within a few pixels of that under any font
+    // (586 px with Sans, 567 px with Mono), so check the narrow layout clearly below it.
+    await page.setViewportSize({ width: 960, height: 768 });
     const expandSidebar = page.getByRole("button", { name: "Expand Sidebar", exact: true });
     await expandSidebar.click();
     await expect(page.getByRole("button", { name: "Collapse Sidebar", exact: true })).toBeVisible();
