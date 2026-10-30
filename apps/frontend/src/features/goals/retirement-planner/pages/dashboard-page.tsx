@@ -576,8 +576,8 @@ export default function DashboardPage({
 
             return (
               <Card className="overflow-hidden">
-                <CardContent className="px-7 py-6">
-                  <div className="mb-3.5 flex flex-wrap items-center justify-between gap-3">
+                <CardContent className="px-7 py-5">
+                  <div className="mb-2.5 flex flex-wrap items-center justify-between gap-3">
                     <div className="flex flex-wrap items-center gap-3">
                       {heroHealth === "on_track" ? (
                         <Badge
@@ -759,7 +759,7 @@ export default function DashboardPage({
                     )}
                   </h1>
 
-                  <p className="text-muted-foreground mt-4 max-w-155 text-sm leading-relaxed xl:max-w-4xl">
+                  <p className="text-muted-foreground mt-2 max-w-155 text-sm leading-relaxed xl:max-w-4xl">
                     <Trans
                       t={t}
                       i18nKey={
@@ -838,9 +838,9 @@ export default function DashboardPage({
                   </p>
 
                   {/* Progress bar — portfolio vs. target with Coast FIRE marker */}
-                  <div className="mt-6">
-                    <div className="mb-2 flex items-end justify-between gap-3">
-                      <div className="flex flex-col gap-0.5">
+                  <div className="mt-4">
+                    <div className="mb-1.5 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                      <div className="flex items-baseline gap-2">
                         <span className="text-muted-foreground text-2xs tracking-wider uppercase">
                           {t("goals:dashboard.progress.portfolio_today")}
                         </span>
@@ -848,7 +848,7 @@ export default function DashboardPage({
                           {formatting.formatCompactAmount(portfolioNow, currency)}
                         </span>
                       </div>
-                      <div className="flex flex-col items-end gap-0.5">
+                      <div className="flex items-baseline gap-2">
                         <Tooltip>
                           <TooltipTrigger
                             render={
