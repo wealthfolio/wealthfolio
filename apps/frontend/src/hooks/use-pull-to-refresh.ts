@@ -15,6 +15,7 @@ interface PullToRefreshHandlers {
   onTouchStart: (e: React.TouchEvent) => void;
   onTouchMove: (e: React.TouchEvent) => void;
   onTouchEnd: (e: React.TouchEvent) => void;
+  onTouchCancel: (e: React.TouchEvent) => void;
 }
 
 interface PullToRefreshState {
@@ -165,8 +166,10 @@ export function usePullToRefresh({
     ],
   );
 
-  const onTouchEnd = useCallback(
-    (_e: React.TouchEvent) => {
+  // A touch ends with touchend, or with touchcancel when the system takes it over (a
+  // system gesture, a call): both put the content back, only touchend refreshes.
+  const endGesture = useCallback(
+    (refresh: boolean) => {
       if (disabled || !containerRef.current) return;
 
       const target = containerRef.current;
@@ -178,7 +181,7 @@ export function usePullToRefresh({
       target.style.transition = "";
 
       // Trigger refresh if pulled far enough
-      if (deltaY > activationDistance && isPulling) {
+      if (refresh && deltaY > activationDistance && isPulling) {
         handleRefresh();
       }
 
@@ -210,6 +213,8 @@ export function usePullToRefresh({
     },
     [activationDistance, disabled, handleRefresh, isPulling],
   );
+  const onTouchEnd = useCallback(() => endGesture(true), [endGesture]);
+  const onTouchCancel = useCallback(() => endGesture(false), [endGesture]);
 
   return [
     isRefreshing,
@@ -217,6 +222,7 @@ export function usePullToRefresh({
       onTouchStart,
       onTouchMove,
       onTouchEnd,
+      onTouchCancel,
     },
     {
       isPulling,
