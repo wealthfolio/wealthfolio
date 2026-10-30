@@ -4533,6 +4533,50 @@ pub(crate) mod tests {
     }
 
     #[tokio::test]
+    async fn gross_conversion_never_flips_a_sell() {
+        // (price, fee, supplied pre-fee total, stored total, booked cash). An
+        // import's rounded pre-fee 10.00 for an exact 10.004 would turn 0.003
+        // of proceeds into a 0.001 debit; 10.01 for 10.006 would turn a 0.003
+        // debit into proceeds. The exact value is kept instead.
+        let cases = [
+            (
+                dec!(10.004),
+                dec!(10.001),
+                dec!(10.00),
+                dec!(0.003),
+                dec!(0.003),
+            ),
+            (
+                dec!(10.006),
+                dec!(10.009),
+                dec!(10.01),
+                dec!(0.003),
+                dec!(-0.003),
+            ),
+        ];
+        for (price, fee, supplied, stored, booked) in cases {
+            let activity_service =
+                final_total_service("USD", vec![create_test_asset("FUND", "USD")], None);
+            let mut sell = statement_buy("sell-gross", Some(supplied), fee);
+            sell.activity_type = "SELL".to_string();
+            sell.quantity = Some(dec!(1));
+            sell.unit_price = Some(price);
+
+            let created = activity_service
+                .create_activity(sell)
+                .await
+                .expect("imported sell should be created");
+
+            assert_eq!(created.amount, Some(stored), "{supplied} - {fee}");
+            let cash = crate::portfolio::economic_events::ActivityEconomicsResolver::resolve_cash(
+                &created,
+                Decimal::ONE,
+            );
+            assert_eq!(cash.signed_cash_effect, Some(booked), "{supplied} - {fee}");
+        }
+    }
+
+    #[tokio::test]
     async fn pence_totals_round_the_same_on_create_and_edit() {
         // 3 × 1,234.5678 GBp is £37.037034. A create normalizes to GBP before
         // deriving; an edit derives in pence first. Both store £37.04, and

@@ -231,6 +231,7 @@ export function DividendForm({
   const { getFieldState, getValues, setValue } = form;
   const accountId = watch("accountId");
   const currency = watch("currency");
+  const symbolInstrumentType = watch("symbolInstrumentType");
   const subtype = watch("subtype");
   const quantity = watch("quantity");
   const unitPrice = watch("unitPrice");
@@ -247,7 +248,7 @@ export function DividendForm({
     const computedAmount = calculateIncomeFinalAmount({
       quantity,
       unitPrice,
-      instrumentType: getValues("symbolInstrumentType"),
+      instrumentType: symbolInstrumentType,
       currency,
     });
     if (computedAmount === undefined) return;
@@ -266,7 +267,16 @@ export function DividendForm({
         });
       }
     }
-  }, [currency, getFieldState, getValues, isAssetBacked, quantity, setValue, unitPrice]);
+  }, [
+    currency,
+    getFieldState,
+    getValues,
+    isAssetBacked,
+    quantity,
+    setValue,
+    symbolInstrumentType,
+    unitPrice,
+  ]);
 
   const handleDividendModeChange = (value: string) => {
     setValue("subtype", value === INCOME_MODE_CASH ? null : value, {
@@ -285,10 +295,7 @@ export function DividendForm({
     [accounts, accountId],
   );
   const accountCurrency = selectedAccount?.currency;
-  const moneyDecimals = cryptoMoneyDecimals(
-    selectedAccount?.accountType,
-    watch("symbolInstrumentType"),
-  );
+  const moneyDecimals = cryptoMoneyDecimals(selectedAccount?.accountType, symbolInstrumentType);
 
   const handleSubmit = createValidatedSubmit(form, async (data) => {
     await onSubmit(data);

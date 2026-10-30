@@ -1,6 +1,5 @@
 import { ActivityType, DECIMAL_PRECISION, InstrumentType } from "@/lib/constants";
 import { currencyCashDigits, currencyMinorUnit, isCryptoInstrument } from "@/lib/currency-decimals";
-import { roundDecimal } from "@/lib/utils";
 
 // Mirrors Asset::contract_multiplier in assets_model.rs - the app-wide
 // multiplier defaults (option 100, everything else 1). Bonds deliberately
@@ -35,45 +34,67 @@ function toScaledDecimal(value: number): ScaledDecimal {
   return scale < 0 ? { digits: digits * 10n ** BigInt(-scale), scale: 0 } : { digits, scale };
 }
 
+/** A form value as a non-negative exact decimal; anything else counts as zero. */
+function toScaledCharge(value: unknown): ScaledDecimal {
+  const number = Math.abs(Number(value));
+  return toScaledDecimal(Number.isFinite(number) ? number : 0);
+}
+
+function addScaled(a: ScaledDecimal, b: ScaledDecimal): ScaledDecimal {
+  const scale = Math.max(a.scale, b.scale);
+  return {
+    digits: a.digits * 10n ** BigInt(scale - a.scale) + b.digits * 10n ** BigInt(scale - b.scale),
+    scale,
+  };
+}
+
+function negateScaled({ digits, scale }: ScaledDecimal): ScaledDecimal {
+  return { digits: -digits, scale };
+}
+
 /** Rounds an exact decimal half away from zero to `places`. */
-function roundScaled({ digits, scale }: ScaledDecimal, places: number): number {
-  if (scale <= places) return Number(`${digits}e-${scale}`);
+function roundToScale({ digits, scale }: ScaledDecimal, places: number): ScaledDecimal {
+  if (scale <= places) return { digits, scale };
   const divisor = 10n ** BigInt(scale - places);
   const magnitude = digits < 0n ? -digits : digits;
   const quotient = magnitude / divisor + (2n * (magnitude % divisor) >= divisor ? 1n : 0n);
-  const rounded = Number(`${quotient}e-${places}`);
-  return digits < 0n ? -rounded : rounded;
+  return { digits: digits < 0n ? -quotient : quotient, scale: places };
+}
+
+/** An exact decimal as a number, at the stored precision of 8 places. */
+function toStoredNumber(value: ScaledDecimal): number {
+  const { digits, scale } = roundToScale(value, DECIMAL_PRECISION);
+  return Number(`${digits}e-${scale}`);
 }
 
 /**
- * The product of `operands` (quantity, price, multiplier), exact to 8 places
- * and rounded the way `round_derived_cash` in activities_service.rs rounds a
- * calculated value. It multiplies the decimals as entered, not binary floats,
- * so a tie such as 10.005 survives and 0.3 × 3.34999999 (1.004999997) is not
- * rounded twice. A value rounds half away from zero to the currency's minor
- * unit; a crypto value stays exact, since exchanges settle past the cent; a
- * non-zero value never rounds to zero, since a zero total means units
+ * The exact product of `operands` (quantity, price, multiplier) and that
+ * product rounded the way `round_derived_cash` in activities_service.rs rounds
+ * a calculated value. It multiplies the decimals as entered, not binary
+ * floats, so a tie such as 10.005 survives and 0.3 × 3.34999999 (1.004999997)
+ * is not rounded twice. A value rounds half away from zero to the currency's
+ * minor unit; a crypto value stays exact, since exchanges settle past the
+ * cent; a non-zero value never rounds to zero, since a zero total means units
  * received for free.
  */
 function derivedValue(
   operands: number[],
   currency: unknown,
   instrumentType: unknown,
-): { exact: number; rounded: number } {
-  const product = operands.map(toScaledDecimal).reduce(
+): { exact: ScaledDecimal; rounded: ScaledDecimal } {
+  const exact = operands.map(toScaledDecimal).reduce(
     (total, factor) => ({
       digits: total.digits * factor.digits,
       scale: total.scale + factor.scale,
     }),
     { digits: 1n, scale: 0 },
   );
-  const exact = roundScaled(product, DECIMAL_PRECISION);
   if (isCryptoInstrument(instrumentType)) return { exact, rounded: exact };
-  const rounded = roundScaled(
-    product,
+  const rounded = roundToScale(
+    exact,
     currencyCashDigits(typeof currency === "string" ? currency : undefined),
   );
-  return { exact, rounded: rounded === 0 && exact !== 0 ? exact : rounded };
+  return { exact, rounded: rounded.digits === 0n && exact.digits !== 0n ? exact : rounded };
 }
 
 interface TradeCashInputs {
@@ -120,21 +141,20 @@ export function calculateTradeFinalCash({
     currency,
     instrumentType,
   );
-  const charges = Math.abs(Number(fee) || 0) + Math.abs(Number(tax) || 0);
-  const cashFrom = (value: number) =>
-    activityType === ActivityType.BUY ? -(value + charges) : value - charges;
+  const charges = addScaled(toScaledCharge(fee), toScaledCharge(tax));
+  const cashFrom = (value: ScaledDecimal) =>
+    activityType === ActivityType.BUY
+      ? negateScaled(addScaled(value, charges))
+      : addScaled(value, negateScaled(charges));
   const exactCash = cashFrom(gross.exact);
   const roundedCash = cashFrom(gross.rounded);
   // Readers take a SELL's direction from the exact value (isProvenNegativeSell),
   // so, as the writer does, a rounding that would turn proceeds into a debit or
-  // a debit into proceeds keeps the exact value.
-  const flipsDirection = roundedCash !== 0 && roundedCash < 0 !== exactCash < 0;
-  const signed = flipsDirection ? exactCash : roundedCash;
-  // Round the magnitude, then re-apply the sign: roundDecimal breaks ties
-  // upward, so rounding the signed value would round a debit and a credit of
-  // the same size to different magnitudes.
-  const magnitude = roundDecimal(Math.abs(signed));
-  return signed < 0 ? -magnitude : magnitude;
+  // a debit into proceeds keeps the exact value. Both stay exact decimals until
+  // the direction is settled.
+  const flipsDirection =
+    roundedCash.digits !== 0n && roundedCash.digits < 0n !== exactCash.digits < 0n;
+  return toStoredNumber(flipsDirection ? exactCash : roundedCash);
 }
 
 /**
@@ -198,9 +218,11 @@ export function calculateIncomeFinalAmount({
   // Mirrors calculate_composite_final_cash (economic_events.rs) with the
   // multiplier defaults from Asset::contract_multiplier (assets_model.rs), which
   // includes the asset's unit multiplier, rounded as the writer rounds it.
-  return derivedValue(
-    [q, price, resolveActivityCashMultiplier(instrumentType, contractMultiplier)],
-    currency,
-    instrumentType,
-  ).rounded;
+  return toStoredNumber(
+    derivedValue(
+      [q, price, resolveActivityCashMultiplier(instrumentType, contractMultiplier)],
+      currency,
+      instrumentType,
+    ).rounded,
+  );
 }

@@ -318,13 +318,39 @@ impl ActivityService {
         }
     }
 
+    /// Final cash magnitude of a BUY or SELL from a trade value (`gross`) and
+    /// its charges. Readers take a SELL's direction from the exact value
+    /// (`ActivityEconomicsResolver`, `isProvenNegativeSell`), so a `gross`
+    /// that would turn proceeds into a debit, or a debit into proceeds, gives
+    /// way to `exact_gross`.
+    fn trade_final_cash(
+        activity_type: &str,
+        exact_gross: Decimal,
+        gross: Decimal,
+        fee: Option<Decimal>,
+        tax: Option<Decimal>,
+    ) -> Option<Decimal> {
+        let exact = ActivityEconomicsResolver::trade_cash_effect_from_gross(
+            activity_type,
+            exact_gross,
+            fee,
+            tax,
+        )?;
+        let cash = ActivityEconomicsResolver::trade_cash_effect_from_gross(
+            activity_type,
+            gross,
+            fee,
+            tax,
+        )?;
+        let flips_direction =
+            !cash.is_zero() && cash.is_sign_negative() != exact.is_sign_negative();
+        Some(if flips_direction { exact } else { cash }.abs())
+    }
+
     /// Final cash for a row that carries none. A trade rounds its value
     /// (quantity × price) to `cash_scale` before adding charges as entered,
     /// the way a statement builds it; a recognized income composite rounds
-    /// its value the same way. Readers take a SELL's direction from the exact
-    /// value (`ActivityEconomicsResolver`, `isProvenNegativeSell`), so a
-    /// rounding that would turn proceeds into a debit, or a debit into
-    /// proceeds, keeps the exact value.
+    /// its value the same way.
     // Same shape as `activity_cash_inputs`: a list of the row's economics.
     #[allow(clippy::too_many_arguments)]
     fn calculated_missing_final_amount(
@@ -350,21 +376,13 @@ impl ActivityService {
         );
         if Self::is_trade_type(activity_type) {
             let gross = ActivityEconomicsResolver::derived_positive_gross(inputs)?;
-            let exact = ActivityEconomicsResolver::trade_cash_effect_from_gross(
+            Self::trade_final_cash(
                 activity_type,
                 gross,
-                fee,
-                tax,
-            )?;
-            let rounded = ActivityEconomicsResolver::trade_cash_effect_from_gross(
-                activity_type,
                 Self::round_derived_cash(gross, cash_scale),
                 fee,
                 tax,
-            )?;
-            let flips_direction =
-                !rounded.is_zero() && rounded.is_sign_negative() != exact.is_sign_negative();
-            Some(if flips_direction { exact } else { rounded }.abs())
+            )
         } else if matches!(activity_type, ACTIVITY_TYPE_FEE | ACTIVITY_TYPE_TAX) {
             ActivityEconomicsResolver::calculate_standalone_charge_amount(inputs)
         } else {
@@ -405,17 +423,17 @@ impl ActivityService {
             // A total matching the derived gross is the pre-fee number from a
             // gross-reporting source; add the charges to that number instead
             // of storing it short by the charges.
-            if allow_gross_conversion
-                && ActivityEconomicsResolver::derived_positive_gross(inputs)
-                    .is_some_and(|gross| (amount.abs() - gross).abs() <= tolerance)
-            {
-                if let Some(final_cash) = ActivityEconomicsResolver::trade_cash_effect_from_gross(
+            let matching_gross = ActivityEconomicsResolver::derived_positive_gross(inputs)
+                .filter(|gross| (amount.abs() - gross).abs() <= tolerance);
+            if let Some(exact_gross) = matching_gross.filter(|_| allow_gross_conversion) {
+                if let Some(final_cash) = Self::trade_final_cash(
                     inputs.activity_type,
+                    exact_gross,
                     amount.abs(),
                     inputs.fee,
                     inputs.tax,
                 ) {
-                    return (final_cash.abs(), false);
+                    return (final_cash, false);
                 }
             }
             return (amount.abs(), true);

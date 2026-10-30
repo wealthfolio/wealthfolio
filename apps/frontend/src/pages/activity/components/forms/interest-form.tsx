@@ -229,6 +229,7 @@ export function InterestForm({
   const { getFieldState, getValues, setValue } = form;
   const accountId = watch("accountId");
   const currency = watch("currency");
+  const symbolInstrumentType = watch("symbolInstrumentType");
   const subtype = watch("subtype");
   const quantity = watch("quantity");
   const unitPrice = watch("unitPrice");
@@ -244,7 +245,7 @@ export function InterestForm({
     const computedAmount = calculateIncomeFinalAmount({
       quantity,
       unitPrice,
-      instrumentType: getValues("symbolInstrumentType"),
+      instrumentType: symbolInstrumentType,
       currency,
     });
     if (computedAmount === undefined) return;
@@ -263,7 +264,16 @@ export function InterestForm({
         });
       }
     }
-  }, [currency, getFieldState, getValues, isStakingReward, quantity, setValue, unitPrice]);
+  }, [
+    currency,
+    getFieldState,
+    getValues,
+    isStakingReward,
+    quantity,
+    setValue,
+    symbolInstrumentType,
+    unitPrice,
+  ]);
 
   const handleInterestModeChange = (value: string) => {
     setValue("subtype", value === INCOME_MODE_CASH ? null : value, {
@@ -282,10 +292,7 @@ export function InterestForm({
     [accounts, accountId],
   );
   const accountCurrency = selectedAccount?.currency;
-  const moneyDecimals = cryptoMoneyDecimals(
-    selectedAccount?.accountType,
-    watch("symbolInstrumentType"),
-  );
+  const moneyDecimals = cryptoMoneyDecimals(selectedAccount?.accountType, symbolInstrumentType);
 
   const handleSubmit = createValidatedSubmit(form, async (data) => {
     await onSubmit(data);

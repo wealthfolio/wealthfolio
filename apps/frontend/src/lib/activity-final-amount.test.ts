@@ -129,6 +129,22 @@ describe("calculated totals round like the backend writer", () => {
     expect(sell(10.006, 5)).toBe(5.01);
   });
 
+  it("settles a sell's direction from the exact value, not one rounded to 8 places", () => {
+    // 0.3 × 3.34999999 is 1.004999997, just under the 1.005 fee: the exact
+    // value is a debit, so the rounded 1.00 - 1.005 debit stands.
+    expect(
+      calculateTradeFinalCash({
+        activityType: ActivityType.SELL,
+        instrumentType: "EQUITY",
+        quantity: 0.3,
+        unitPrice: 3.34999999,
+        fee: 1.005,
+        tax: 0,
+        currency: "USD",
+      }),
+    ).toBe(-0.005);
+  });
+
   it("adds charges after rounding the trade value", () => {
     expect(buy(2282, 22.526204, "USD", { fee: 1.0034 })).toBe(51_405.8034);
   });
