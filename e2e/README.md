@@ -168,6 +168,7 @@ npx playwright test && npx playwright show-report
 | `33-import-mapping-layout.spec.ts`     | CSV import Mapping step: both previews fit the step area; on a phone, the step's blocks keep their height (#2002)           |
 | `39-text-size.spec.ts`                 | Appearance's text size saves, scales the root font size, and is applied by index.html before the app loads (#1734)          |
 | `37-import-skip-rows.spec.ts`          | CSV import Mapping step: skipping a row with an unmapped symbol lets the other rows import (#2262)                          |
+| `44-performance-date-range.spec.ts`    | ALL calendar inception, mobile Done/Clear persistence and unbounded requests, on desktop/phone in LTR and RTL               |
 
 ---
 

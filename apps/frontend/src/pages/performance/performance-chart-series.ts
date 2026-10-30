@@ -168,11 +168,9 @@ export function comparablePerformanceChartData(
 }
 
 /**
- * Earliest data date across the given results. For all-time queries the
- * backend returns series starting at each item's inception, so this resolves
- * the selected items' earliest start (e.g. an account's first data point).
- * Used to anchor the custom-range calendar when the ALL preset is active,
- * instead of the 1970-01-01 sentinel kept in state.
+ * Earliest start represented by the given results. Call with loaded all-time
+ * results to anchor the custom-range calendar without changing the ALL sentinel
+ * kept in selection state.
  */
 export function earliestPerformanceStartDate(
   results: (PerformanceResult | null | undefined)[] | null | undefined,

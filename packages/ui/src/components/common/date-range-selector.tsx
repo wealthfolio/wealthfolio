@@ -88,13 +88,20 @@ interface DateRangeSelectorProps {
   allTimeFrom?: Date;
 }
 
-export function DateRangeSelector({ value, onChange, hiddenRanges = [], asOf = new Date(), allTimeFrom }: DateRangeSelectorProps) {
+export function DateRangeSelector({
+  value,
+  onChange,
+  hiddenRanges = [],
+  asOf = new Date(),
+  allTimeFrom,
+}: DateRangeSelectorProps) {
   const { t } = useTranslation();
   const formatting = useDateFormatting();
   const isMobile = useIsMobile();
   const [isCustomPickerOpen, setIsCustomPickerOpen] = React.useState(false);
   const [draftRange, setDraftRange] = React.useState<DateRange | undefined>(value);
   const visibleRanges = ranges.filter((range) => !hiddenRanges.includes(range.label));
+  const allTimeRange = visibleRanges.find((range) => range.label === "ALL")?.getValue(asOf);
 
   // Helper function to compare dates ignoring time
   const compareDates = (date1: Date | undefined, date2: Date | undefined) => {
@@ -102,9 +109,12 @@ export function DateRangeSelector({ value, onChange, hiddenRanges = [], asOf = n
     return isSameDay(date1, date2);
   };
 
+  const isAllTimeRange = (range: DateRange | undefined) =>
+    !!allTimeRange && (!range || compareDates(range.from, allTimeRange.from));
+
   // Check if current range matches any predefined range and get the selected label
   const getSelectedRange = () => {
-    if (!value && visibleRanges.some((range) => range.label === "ALL")) {
+    if (isAllTimeRange(value)) {
       return "ALL";
     }
 
@@ -118,14 +128,17 @@ export function DateRangeSelector({ value, onChange, hiddenRanges = [], asOf = n
   const selectedLabel = getSelectedRange();
   const isCustomRange = !selectedLabel;
   const isDraftRangeComplete = !draftRange || (!!draftRange.from && !!draftRange.to);
-  const allTimeRange = visibleRanges.find((range) => range.label === "ALL")?.getValue(asOf);
-  const allTimeDisplayRange = allTimeFrom ? { from: allTimeFrom, to: asOf } : allTimeRange;
-  const calendarRange = selectedLabel === "ALL" ? allTimeDisplayRange : value;
-  const appliedDraftRange = draftRange ?? allTimeDisplayRange;
+  // Keep the sentinel in selections and drafts. Only the calendar and its date
+  // labels use the loaded start; without history, open at asOf instead of 1970.
+  const displayRange = (range: DateRange | undefined) =>
+    isAllTimeRange(range) ? { from: allTimeFrom, to: asOf } : range;
+  const calendarRange = displayRange(value);
+  const draftCalendarRange = displayRange(draftRange);
+  const appliedDraftRange = draftRange ?? allTimeRange;
 
   const handleCustomPickerOpenChange = (open: boolean) => {
     if (open) {
-      setDraftRange(calendarRange ?? allTimeRange);
+      setDraftRange(value ?? allTimeRange);
     }
     setIsCustomPickerOpen(open);
   };
@@ -197,22 +210,25 @@ export function DateRangeSelector({ value, onChange, hiddenRanges = [], asOf = n
                 <div className="border-border/70 bg-muted/30 rounded-lg border px-3 py-2">
                   <div className="text-muted-foreground text-xs font-medium">{t("ui:dateRange.start", "Start")}</div>
                   <div className="text-foreground mt-1 truncate text-sm font-medium">
-                    {formatRangeDate(draftRange?.from)}
+                    {formatRangeDate(draftCalendarRange?.from)}
                   </div>
                 </div>
                 <div className="border-border/70 bg-muted/30 rounded-lg border px-3 py-2">
                   <div className="text-muted-foreground text-xs font-medium">{t("ui:dateRange.end", "End")}</div>
                   <div className="text-foreground mt-1 truncate text-sm font-medium">
-                    {formatRangeDate(draftRange?.to)}
+                    {formatRangeDate(draftCalendarRange?.to)}
                   </div>
                 </div>
               </div>
 
               <div className="mt-5 flex justify-center">
                 <Calendar
+                  // defaultMonth is read on mount. Refresh an untouched ALL
+                  // calendar when its history loads, while preserving edits.
+                  key={isAllTimeRange(draftRange) ? allTimeFrom?.getTime() : undefined}
                   mode="range"
-                  defaultMonth={draftRange?.from}
-                  selected={draftRange as DayPickerDateRange | undefined}
+                  defaultMonth={draftCalendarRange?.from ?? asOf}
+                  selected={draftCalendarRange as DayPickerDateRange | undefined}
                   onSelect={(selectedRange: DayPickerDateRange | undefined) => {
                     setDraftRange(selectedRange as DateRange | undefined);
                   }}
@@ -227,8 +243,8 @@ export function DateRangeSelector({ value, onChange, hiddenRanges = [], asOf = n
                 type="button"
                 variant="ghost"
                 className="text-muted-foreground hover:text-foreground"
-                onClick={() => setDraftRange(allTimeDisplayRange)}
-                disabled={!draftRange && !allTimeDisplayRange}
+                onClick={() => setDraftRange(allTimeRange)}
+                disabled={!draftRange && !allTimeRange}
               >
                 {t("ui:dateRange.clear", "Clear")}
               </Button>
@@ -251,8 +267,9 @@ export function DateRangeSelector({ value, onChange, hiddenRanges = [], asOf = n
             align="end"
           >
             <Calendar
+              key={isAllTimeRange(value) ? allTimeFrom?.getTime() : undefined}
               mode="range"
-              defaultMonth={calendarRange?.from}
+              defaultMonth={calendarRange?.from ?? asOf}
               selected={calendarRange as DayPickerDateRange | undefined}
               onSelect={(selectedRange: DayPickerDateRange | undefined) => {
                 onChange(selectedRange as DateRange | undefined);

@@ -6,6 +6,7 @@ import { calendarDateFromLocalDate, useDateFormatting } from "@wealthfolio/ui";
 import { format } from "date-fns";
 import { DateRange } from "react-day-picker";
 import { useTranslation } from "react-i18next";
+import { earliestPerformanceStartDate } from "../performance-chart-series";
 
 /** The first date of the earliest series among the loaded results. */
 function earliestSeriesDate(queries: UseQueryResult<PerformanceResult>[]): string | undefined {
@@ -163,8 +164,19 @@ export function useCalculatePerformanceHistory({
         ? `${displayStartDate} - ${displayEndDate}`
         : t("performance:compare_over_time");
 
+  // Bounded and placeholder results do not describe the selected items'
+  // inception. Derive this display-only anchor without fetching more history.
+  const allTimeFrom = isAllTime
+    ? earliestPerformanceStartDate(
+        performanceQueries.flatMap((query, index) =>
+          !isWaiting(index) && query.isSuccess && !query.isPlaceholderData ? [query.data] : [],
+        ),
+      )
+    : undefined;
+
   return {
     data: chartData,
+    allTimeFrom,
     isLoading,
     hasErrors,
     errorMessages,

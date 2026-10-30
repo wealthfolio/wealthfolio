@@ -88,7 +88,6 @@ import { BenchmarkSymbolSelectorMobile } from "../../components/benchmark-symbol
 import { useCalculatePerformanceHistory } from "./hooks/use-performance-data";
 import {
   comparablePerformanceChartData,
-  earliestPerformanceStartDate,
   type ComparableChartDataItem as ChartDataItem,
   type PerformanceMetric,
 } from "./performance-chart-series";
@@ -1238,6 +1237,7 @@ export default function PerformancePage() {
   // Use the custom hook for parallel data fetching with effective date calculation
   const {
     data: performanceData,
+    allTimeFrom,
     isLoading: isLoadingPerformance,
     hasErrors,
     errorMessages,
@@ -1264,15 +1264,6 @@ export default function PerformancePage() {
 
   const selectedChartMetric = selectedPerformanceData?.chartMetric ?? "twr";
   const activeChartAnchorId = selectedPerformanceData?.result.id ?? selectedItemId;
-
-  // Earliest start across the selected items' loaded results. With the ALL
-  // preset active (all-time query) this is the portfolio's/account's first
-  // data point, used to anchor the custom-range calendar instead of the
-  // 1970-01-01 sentinel.
-  const allTimeFrom = useMemo(
-    () => earliestPerformanceStartDate(performanceData),
-    [performanceData],
-  );
 
   // Calculate derived chart data
   const chartData = useMemo(() => {
