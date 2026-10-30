@@ -417,7 +417,7 @@ export function BackupImportDialog({
                 {error && <BackupAlert error={error} />}
               </motion.div>
             </div>
-            <DialogFooter className="bg-background shrink-0 border-t px-6 pt-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] sm:pb-6">
+            <DialogFooter className="bg-background shrink-0 border-t px-6 pt-4 pb-[max(1.5rem,var(--inset-bottom))] sm:pb-6">
               <Button
                 type="button"
                 variant="ghost"

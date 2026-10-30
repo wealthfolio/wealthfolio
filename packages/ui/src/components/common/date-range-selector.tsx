@@ -249,7 +249,7 @@ export function DateRangeSelector({
               </div>
             </div>
 
-            <SheetFooter className="border-border flex-row gap-2 border-t px-6 py-4 pb-[calc(env(safe-area-inset-bottom,0px)+1rem)]">
+            <SheetFooter className="border-border flex-row gap-2 border-t px-6 py-4 pb-[calc(var(--inset-bottom,env(safe-area-inset-bottom,0px))+1rem)]">
               <Button
                 type="button"
                 variant="ghost"

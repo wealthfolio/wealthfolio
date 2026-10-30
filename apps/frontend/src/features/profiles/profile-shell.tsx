@@ -705,7 +705,7 @@ export function ProfileShell({ children }: { children: ReactNode }) {
       className={
         mode === "recover"
           ? "flex flex-col gap-2 pt-2"
-          : "bg-background/95 fixed inset-x-0 bottom-0 z-20 flex justify-center gap-2 border-t px-6 pt-3 pb-[calc(1rem+env(safe-area-inset-bottom,0px))] backdrop-blur-md sm:static sm:justify-start sm:border-0 sm:bg-transparent sm:px-0 sm:pt-2 sm:pb-0 sm:backdrop-blur-none"
+          : "bg-background/95 fixed inset-x-0 bottom-0 z-20 flex justify-center gap-2 border-t px-6 pt-3 pb-[calc(1rem+var(--inset-bottom))] backdrop-blur-md sm:static sm:justify-start sm:border-0 sm:bg-transparent sm:px-0 sm:pt-2 sm:pb-0 sm:backdrop-blur-none"
       }
     >
       <Button disabled={busy} type="submit">

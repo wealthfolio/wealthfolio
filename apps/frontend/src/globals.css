@@ -469,7 +469,9 @@
 
   --inset-top: env(safe-area-inset-top, 0px);
   --inset-right: env(safe-area-inset-right, 0px);
-  --inset-bottom: env(safe-area-inset-bottom, 0px);
+  /* The Android app's WebView reports no bottom safe area, so the app sends the
+     navigation bar's height (use-android-system-bars.ts). Use this, not env(). */
+  --inset-bottom: max(env(safe-area-inset-bottom, 0px), var(--android-navigation-bar-inset, 0px));
   --inset-left: env(safe-area-inset-left, 0px);
 
   --mobile-nav-ui-height: 4rem; /* nav bar height */
@@ -588,7 +590,7 @@
       padding-top: max(env(safe-area-inset-top), 0.75rem);
     }
     .pb-safe {
-      padding-bottom: max(env(safe-area-inset-bottom), 1.5rem);
+      padding-bottom: max(var(--inset-bottom), 1.5rem);
     }
   }
   /*
@@ -722,10 +724,7 @@ body.qr-scan-active > .qr-overlay {
    height plus the gesture area, without the floating bar's gap. */
 .app-shell[data-mobile-navigation="true"][data-nav-style="material"] {
   --mobile-nav-ui-height: 5rem;
-  --mobile-nav-bottom-offset: max(
-    var(--mobile-safe-area-bottom),
-    var(--android-navigation-bar-inset, 0px)
-  );
+  --mobile-nav-bottom-offset: var(--inset-bottom);
   --mobile-nav-total-offset: calc(var(--mobile-nav-ui-height) + var(--mobile-nav-bottom-offset));
 }
 
@@ -782,7 +781,7 @@ body.qr-scan-active > .qr-overlay {
 
   /* Safe area support for iOS */
   .safe-area-inset-bottom {
-    padding-bottom: env(safe-area-inset-bottom, 0);
+    padding-bottom: var(--inset-bottom);
   }
 
   .safe-area-inset-top {

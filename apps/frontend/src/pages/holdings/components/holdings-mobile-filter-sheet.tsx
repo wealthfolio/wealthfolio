@@ -77,7 +77,7 @@ export const HoldingsMobileFilterSheet = ({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="bottom"
-        className="flex h-[85vh] flex-col rounded-t-xl pb-[max(env(safe-area-inset-bottom),0.75rem)]"
+        className="flex h-[85vh] flex-col rounded-t-xl pb-[max(var(--inset-bottom),0.75rem)]"
       >
         <SheetHeader className="text-start">
           <SheetTitle>{t("holdings:display_options")}</SheetTitle>

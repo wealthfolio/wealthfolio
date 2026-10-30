@@ -68,26 +68,6 @@ export function MobileNavBar({ navigation }: MobileNavBarProps) {
   // Android gets a Material navigation bar; iOS keeps the floating glass bar.
   const { isAndroid } = usePlatform();
 
-  // The Android app reports its navigation bar's height (MainActivity.kt): its WebView
-  // gives no bottom safe area under edge-to-edge. The Material bar pads itself by it.
-  useEffect(() => {
-    const bridge = (window as { WealthfolioAndroid?: { navigationBarInset?: () => number } })
-      .WealthfolioAndroid;
-    if (!isAndroid || typeof bridge?.navigationBarInset !== "function") return;
-    const apply = () =>
-      document.documentElement.style.setProperty(
-        "--android-navigation-bar-inset",
-        `${bridge.navigationBarInset?.() ?? 0}px`,
-      );
-    apply();
-    window.addEventListener("resize", apply);
-    document.addEventListener("visibilitychange", apply);
-    return () => {
-      window.removeEventListener("resize", apply);
-      document.removeEventListener("visibilitychange", apply);
-    };
-  }, [isAndroid]);
-
   const containerClassName = "pointer-events-none fixed inset-x-0 bottom-0 z-50";
   const buttonClassName =
     "text-foreground relative z-10 flex h-14 w-full items-center justify-center rounded-full transition-colors landscape:size-11";
@@ -344,7 +324,7 @@ export function MobileNavBar({ navigation }: MobileNavBarProps) {
         <SheetContent
           side="bottom"
           showCloseButton={false}
-          className="bg-background inset-x-4 bottom-4 flex max-h-[min(82dvh,45rem)] flex-col gap-0 overflow-hidden rounded-[2rem] border-0 px-0 pt-0 pb-[calc(env(safe-area-inset-bottom,0px)+1.25rem)] shadow-2xl"
+          className="bg-background inset-x-4 bottom-4 flex max-h-[min(82dvh,45rem)] flex-col gap-0 overflow-hidden rounded-[2rem] border-0 px-0 pt-0 pb-[calc(var(--inset-bottom)+1.25rem)] shadow-2xl"
         >
           <div className="bg-muted mx-auto mt-4 h-1.5 w-14 shrink-0 rounded-full" />
           <div className="flex shrink-0 items-center justify-between px-8 pt-7 pb-4">

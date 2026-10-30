@@ -109,7 +109,7 @@ function MobileSidebar() {
       </SheetTrigger>
       <SheetContent
         side="inline-start"
-        className="flex w-70 flex-col gap-0 px-0 pt-[max(env(safe-area-inset-top),0.75rem)] pb-[max(env(safe-area-inset-bottom),0.75rem)]"
+        className="flex w-70 flex-col gap-0 px-0 pt-[max(env(safe-area-inset-top),0.75rem)] pb-[max(var(--inset-bottom),0.75rem)]"
       >
         <SheetHeader className="sr-only">
           <SheetTitle>{t("ai:shell.conversations")}</SheetTitle>

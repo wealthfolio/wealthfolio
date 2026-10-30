@@ -4,7 +4,7 @@
 
 .profile-lock-add {
   position: absolute;
-  bottom: calc(1.5rem + env(safe-area-inset-bottom, 0px));
+  bottom: calc(1.5rem + var(--inset-bottom));
   left: 50%;
   transform: translateX(-50%);
 }
@@ -51,7 +51,7 @@
 
 .profile-settings-screen {
   padding-top: calc(2rem + env(safe-area-inset-top, 0px));
-  padding-bottom: calc(7rem + env(safe-area-inset-bottom, 0px));
+  padding-bottom: calc(7rem + var(--inset-bottom));
 }
 
 /* React loading uses the same background and glow as the pre-React splash. */
