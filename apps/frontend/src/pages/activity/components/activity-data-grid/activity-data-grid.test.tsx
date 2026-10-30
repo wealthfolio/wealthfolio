@@ -189,6 +189,18 @@ describe("ActivityDataGrid symbol pick", () => {
     });
   });
 
+  it("recalculates an automatic income amount when a crypto symbol is picked", () => {
+    const id = renderGridWithNewRow();
+    pasteOnto(id, { activityType: "INTEREST" });
+    pasteOnto(id, { subtype: "STAKING_REWARD", quantity: "0.00123", unitPrice: "61234.56" });
+    expect(row(id)?.amount).toBe("75.32");
+
+    deferQuote();
+    pick(id, { ...AAPL, symbol: "BTC-USD", quoteType: "CRYPTOCURRENCY" });
+
+    expect(row(id)?.amount).toBe("75.3185088");
+  });
+
   it("prices the picked row, not a row added while the quote loads", async () => {
     const pickedId = renderGridWithNewRow();
     const resolveQuote = deferQuote();

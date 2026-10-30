@@ -47,6 +47,8 @@ export function requiresTransferPairEditor(previous: LocalTransaction, next: Loc
  * Set of numeric field names for value comparison
  */
 const NUMERIC_FIELDS = new Set(["quantity", "unitPrice", "amount", "fee", "tax", "fxRate"]);
+// The calculation's inputs, plus what decides its rounding: the currency, and
+// the account, which can change the currency.
 const FINAL_AMOUNT_INPUT_FIELDS = new Set([
   "activityType",
   "subtype",
@@ -55,6 +57,8 @@ const FINAL_AMOUNT_INPUT_FIELDS = new Set([
   "fee",
   "tax",
   "instrumentType",
+  "currency",
+  "accountId",
 ]);
 const FINAL_CASH_ACTIVITY_TYPES = new Set<string>([
   ActivityType.BUY,
@@ -301,7 +305,7 @@ function applySplitDefaults(transaction: LocalTransaction): LocalTransaction {
  * of the asset's, which the grid does not have. That is why a trade preview is
  * NOT submitted (see `sendsAmount`): the backend re-derives from the asset.
  */
-function applyAutomaticFinalAmount(transaction: LocalTransaction): LocalTransaction {
+export function applyAutomaticFinalAmount(transaction: LocalTransaction): LocalTransaction {
   if (transaction._amountEdited) return transaction;
 
   let finalAmount: number | undefined;
