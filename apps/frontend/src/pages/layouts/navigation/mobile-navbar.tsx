@@ -113,8 +113,11 @@ export function MobileNavBar({ navigation }: MobileNavBarProps) {
     icon: <Icons.Search2 className="size-6" />,
   };
 
-  // Landscape has room to keep Holdings directly accessible alongside Dashboard and Insights.
-  const visiblePrimaryCount = isLandscape ? 3 : 2;
+  // Portrait keeps Dashboard, Insights and Holdings one tap away, with Activities first in
+  // More. A pinned add-on takes Holdings' place, so the bar never holds more than five
+  // items. Landscape has room for one more.
+  const portraitPrimaryCount = directPinnedAddonItems.length > 0 ? 2 : 3;
+  const visiblePrimaryCount = isLandscape ? portraitPrimaryCount + 1 : portraitPrimaryCount;
   const visibleItems = [
     ...primaryItems.slice(0, visiblePrimaryCount),
     ...directPinnedAddonItems,
