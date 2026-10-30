@@ -1468,6 +1468,83 @@ mod tests {
         }
     }
 
+    #[tokio::test]
+    async fn edge_rate_limit_responses_remain_retryable() {
+        for (body, content_type) in [
+            (
+                r#"{"error":"rate_limited","message":"Please try again in 60 seconds."}"#,
+                "application/json",
+            ),
+            ("<html><body>Too many requests</body></html>", "text/html"),
+        ] {
+            for retry_after in [false, true] {
+                let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+                let address = listener.local_addr().unwrap();
+                let server = tokio::spawn(async move {
+                    let (mut stream, _) = listener.accept().await.unwrap();
+                    let (_, path, _) = read_http_request(&mut stream).await.unwrap();
+                    assert_eq!(path, "/api/v1/sync/cursor");
+                    let retry_header = if retry_after {
+                        "Retry-After: 60\r\n"
+                    } else {
+                        ""
+                    };
+                    let response = format!(
+                        "HTTP/1.1 429 Too Many Requests\r\nContent-Type: {content_type}\r\n{retry_header}Content-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                        body.len()
+                    );
+                    stream.write_all(response.as_bytes()).await.unwrap();
+                });
+                let client = DeviceSyncClient::new(&format!("http://{address}"));
+                let error = client
+                    .send_json_no_body::<serde_json::Value>(
+                        Method::GET,
+                        "/api/v1/sync/cursor".into(),
+                        "test-token",
+                        None,
+                    )
+                    .await
+                    .unwrap_err();
+                assert_eq!(error.status_code(), Some(429));
+                assert_eq!(error.retry_class(), crate::ApiRetryClass::Retryable);
+                assert!(!error.is_integrity_error());
+                server.await.unwrap();
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn snapshot_edge_rate_limit_retries_stop_at_the_attempt_limit() {
+        for body in [
+            r#"{"error":"rate_limited","message":"Please try again in 60 seconds."}"#,
+            "<html><body>Too many requests</body></html>",
+        ] {
+            let (base_url, captured, server) = start_mock_upload_server(vec![
+                MockUploadOutcome::Respond {
+                    status: 429,
+                    body: body.into(),
+                    delay_ms: 0,
+                };
+                SNAPSHOT_UPLOAD_MAX_ATTEMPTS
+            ])
+            .await;
+            let client = DeviceSyncClient::new(&base_url);
+            let payload = b"dummy-snapshot".to_vec();
+            let error = client
+                .upload_snapshot(
+                    "test-token",
+                    "019bb9fe-f707-71e9-a40d-733575f4f246",
+                    build_upload_headers(None, &payload),
+                    payload,
+                )
+                .await
+                .unwrap_err();
+            assert_eq!(error.status_code(), Some(429));
+            assert_eq!(captured.lock().await.len(), SNAPSHOT_UPLOAD_MAX_ATTEMPTS);
+            server.abort();
+        }
+    }
+
     async fn write_http_response(
         stream: &mut tokio::net::TcpStream,
         status: u16,
