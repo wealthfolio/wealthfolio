@@ -122,6 +122,25 @@ it("sends a pending swipe back when the current view's pill is tapped", async ()
   expect(screen.getByTestId("search")).toHaveTextContent("?tab=alpha");
 });
 
+it("keeps a tap on a third view while a swipe heads elsewhere", async () => {
+  render(
+    <MemoryRouter initialEntries={["/?tab=alpha"]}>
+      <SwipablePage views={views} />
+      <Search />
+    </MemoryRouter>,
+  );
+  await waitFor(() => expect(carousels).toHaveLength(1));
+  const carousel = carousels[0];
+
+  // A swipe released toward Beta, then a tap on Gamma before it lands.
+  act(() => carousel.select(1));
+  fireEvent.click(screen.getByRole("button", { name: "Gamma" }));
+  act(() => carousel.arrive());
+
+  expect(carousel.selectedScrollSnap()).toBe(2);
+  expect(screen.getByTestId("search")).toHaveTextContent("?tab=gamma");
+});
+
 it("switches the page once a swipe lands", async () => {
   render(
     <MemoryRouter initialEntries={["/?tab=alpha"]}>
