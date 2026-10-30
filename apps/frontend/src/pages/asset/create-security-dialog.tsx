@@ -208,9 +208,7 @@ export function CreateSecurityDialog({
       if (provisionalCurrency) {
         form.setValue("quoteCcy", provisionalCurrency, { shouldValidate: true });
       }
-      if (canonicalExchangeMic) {
-        form.setValue("instrumentExchangeMic", normalizeMic(canonicalExchangeMic));
-      }
+      form.setValue("instrumentExchangeMic", normalizeMic(canonicalExchangeMic));
 
       const selectedQuoteMode = mappedType ? quoteModeFromSearchResult(result) : "MANUAL";
 
