@@ -18,6 +18,11 @@ let profileToDelete: { id: string; name: string } | null = null;
 // so the specs that run after this one would fail. Delete it even when the test fails.
 test.afterEach(async ({ page }) => {
   if (!profileToDelete) return;
+  // Deleting needs the profile's scope, and the test may have failed before it unlocked.
+  const session = await post<{ scopeId: string }>(page, "/profiles/unlock_profile", {
+    profileId: profileToDelete.id,
+  });
+  requestHeaders = { "x-wf-profile-scope": session.scopeId };
   await post(page, "/profiles/delete_profile", {
     profileId: profileToDelete.id,
     confirmation: profileToDelete.name,
