@@ -2432,6 +2432,7 @@ fn mixed_scope_performance(
 
     let mut metrics = Vec::new();
     let mut skipped = Vec::new();
+    let mut series_unavailable = is_all_time;
     for component in &components {
         let history = &component.history;
         if history.len() < 2 {
@@ -2512,6 +2513,9 @@ fn mixed_scope_performance(
             if component_profile == MeasureProfile::Dashboard {
                 apply_dashboard_amount(&mut component_result, history, false);
             } else {
+                // The bounded series measures changes from the opening close;
+                // it cannot represent a gain measured from inception.
+                series_unavailable |= baseline == Baseline::Inception;
                 finalize_attribution(
                     inputs,
                     &mut component_result,
@@ -2551,6 +2555,7 @@ fn mixed_scope_performance(
         base,
         window.start,
         include_series,
+        series_unavailable,
     )
 }
 
@@ -2561,8 +2566,8 @@ fn build_mixed_result(
     currency: &Currency,
     start_opt: Option<NaiveDate>,
     include_series: bool,
+    series_unavailable: bool,
 ) -> PerformanceResult {
-    let is_all_time = start_opt.is_none();
     let mut attribution = Attribution::default();
     let mut summary_amount = Decimal::ZERO;
     let mut denominator = Decimal::ZERO;
@@ -2647,7 +2652,7 @@ fn build_mixed_result(
 
     let mut series = Vec::new();
     if include_series && value_return.is_some() {
-        if is_all_time {
+        if series_unavailable {
             warnings.push(QualityNote::MixedSeriesUnavailable);
         } else {
             series = mixed_bounded_series(components, actual_start);

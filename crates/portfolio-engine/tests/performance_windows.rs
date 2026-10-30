@@ -256,18 +256,64 @@ observed_snapshots:
     );
     let all = scope(&p, &["acc", "holdings"], window(None));
     assert_gain(&all, dec!(227.97)); // 107.97 transaction + 120 book gain.
-    for start in ["2021-10-30", "2026-01-30"] {
+                                     // Jan15 starts after holdings inception but before transaction inception.
+    for start in ["2021-10-30", "2026-01-15", "2026-01-30"] {
         let bounded = scope(&p, &["acc", "holdings"], window(Some(start)));
         assert_gain(&bounded, dec!(127.97)); // 107.97 + 20 period gain.
         assert_eq!(bounded.attribution.contributions, dec!(1000));
         assert_eq!(bounded.returns.twr, None);
         assert_eq!(bounded.returns.irr, None);
         assert_eq!(bounded.returns.value_return, Some(dec!(0.09878421)));
+        assert!(bounded.series.is_empty());
+        assert!(bounded
+            .data_quality
+            .warnings
+            .contains(&QualityNote::MixedSeriesUnavailable));
     }
-    assert_gain(
-        &scope(&p, &["acc", "holdings"], window(Some("2026-02-01"))),
-        dec!(32.52),
+    let within = scope(&p, &["acc", "holdings"], window(Some("2026-02-01")));
+    assert_gain(&within, dec!(32.52));
+    assert_eq!(
+        within.series.last().map(|point| point.value),
+        within.returns.value_return
     );
+    assert!(!within
+        .data_quality
+        .warnings
+        .contains(&QualityNote::MixedSeriesUnavailable));
+    let lots = p.lots();
+    let inputs = p.measure_inputs(&lots);
+    let ids = [AccountId::new("acc"), AccountId::new("holdings")];
+    for profile in [
+        MeasureProfile::Full,
+        MeasureProfile::Summary,
+        MeasureProfile::Dashboard,
+    ] {
+        // Summaries do not request a series. Dashboard still uses opening-close
+        // changes even when transactions begin inside the selected window.
+        let result = measure_scope(
+            &inputs,
+            "portfolio",
+            &ids,
+            window(Some("2026-01-15")),
+            profile,
+            profile == MeasureProfile::Dashboard,
+        )
+        .unwrap();
+        if profile == MeasureProfile::Dashboard {
+            assert_gain(&result, dec!(32.52));
+            assert_eq!(
+                result.series.last().map(|point| point.value),
+                result.returns.value_return
+            );
+        } else {
+            assert_gain(&result, dec!(127.97));
+            assert!(result.series.is_empty());
+        }
+        assert!(!result
+            .data_quality
+            .warnings
+            .contains(&QualityNote::MixedSeriesUnavailable));
+    }
     // Holdings-only retains the existing book-basis vs period distinction.
     assert_eq!(
         account(&p, "holdings", window(None)).summary.amount,

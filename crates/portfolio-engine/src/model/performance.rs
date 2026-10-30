@@ -367,7 +367,7 @@ impl fmt::Display for QualityNote {
             MixedCoverageDiffers => f.write_str("Value return unavailable for mixed scope because summary amount and denominator coverage differ."),
             MixedReturnOutOfRange => f.write_str("Value return unavailable for mixed scope because it is outside the supported range."),
             MixedNonPositiveDenominators => f.write_str("Value return unavailable for mixed scope because all account-level denominators are zero or negative."),
-            MixedSeriesUnavailable => f.write_str("Return series unavailable for all-time mixed scopes because transaction and holdings components use different baselines."),
+            MixedSeriesUnavailable => f.write_str("Return series unavailable for mixed scopes because transaction and holdings components use different baselines."),
             MixedAttributionUnreconciled { delta } => write!(f, "Mixed performance attribution did not reconcile to the summary amount; unreconciled delta is {delta}."),
         }
     }
