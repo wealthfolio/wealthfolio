@@ -12,6 +12,19 @@ async function post<T>(page: Page, path: string, data?: unknown): Promise<T> {
   return response.json() as Promise<T>;
 }
 
+let profileToDelete: { id: string; name: string } | null = null;
+
+// While a second profile exists, the server refuses requests that name no profile,
+// so the specs that run after this one would fail. Delete it even when the test fails.
+test.afterEach(async ({ page }) => {
+  if (!profileToDelete) return;
+  await post(page, "/profiles/delete_profile", {
+    profileId: profileToDelete.id,
+    confirmation: profileToDelete.name,
+  });
+  profileToDelete = null;
+});
+
 async function enterAmount(field: Locator, value: string) {
   await field.focus();
   await field.press("ControlOrMeta+A");
@@ -25,10 +38,12 @@ test("whole-share edits update impact and require account placement, in LTR and 
   test.setTimeout(180000);
   page.setDefaultTimeout(15000);
   // Give this spec its own profile so other specs' accounts and targets cannot leak in.
+  const profileName = "Worksheet preview";
   const profile = await post<{ id: string }>(page, "/profiles/create_profile", {
-    name: "Worksheet preview",
+    name: profileName,
     avatarId: "clay-bot-animated",
   });
+  profileToDelete = { id: profile.id, name: profileName };
   const session = await post<{ scopeId: string }>(page, "/profiles/unlock_profile", {
     profileId: profile.id,
   });
