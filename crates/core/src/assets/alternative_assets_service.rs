@@ -567,8 +567,18 @@ impl AlternativeAssetServiceTrait for AlternativeAssetService {
             ))));
         }
 
-        // Update liability metadata with linked_asset_id
-        let new_metadata = Self::set_linked_asset_id(liability.metadata, &request.target_asset_id);
+        // Update liability metadata with linked_asset_id. A liability without its
+        // own ownership percentage takes the linked asset's share.
+        let prefill_pct = liability
+            .ownership_pct()
+            .is_none()
+            .then(|| target.ownership_pct())
+            .flatten();
+        let mut new_metadata =
+            Self::set_linked_asset_id(liability.metadata, &request.target_asset_id);
+        if let (Some(pct), Some(obj)) = (prefill_pct, new_metadata.as_object_mut()) {
+            obj.insert("ownership_pct".to_string(), json!(pct.to_string()));
+        }
         self.alternative_asset_repository
             .update_asset_metadata(&request.liability_id, Some(new_metadata))
             .await?;
@@ -1582,6 +1592,58 @@ mod tests {
 
         let removed = AlternativeAssetService::remove_linked_asset_id(Some(metadata));
         assert!(removed.is_none()); // Only had linked_asset_id, so should be None when removed
+    }
+
+    #[tokio::test]
+    async fn link_liability_prefills_ownership_pct_from_target() {
+        // (liability's own ownership_pct, expected ownership_pct after linking)
+        for (own_pct, expected_pct) in [(None, "50"), (Some("25"), "25")] {
+            let mut metadata = json!({ "sub_type": "mortgage" });
+            if let Some(pct) = own_pct {
+                metadata["ownership_pct"] = json!(pct);
+            }
+            let alt_repo = Arc::new(MockAltAssetRepository::default());
+            let asset_repo = MockAssetRepository {
+                assets: vec![
+                    super::super::Asset {
+                        id: "mortgage".into(),
+                        kind: AssetKind::Liability,
+                        metadata: Some(metadata.clone()),
+                        ..Default::default()
+                    },
+                    super::super::Asset {
+                        id: "property".into(),
+                        kind: AssetKind::Property,
+                        metadata: Some(json!({ "ownership_pct": "50" })),
+                        ..Default::default()
+                    },
+                ],
+            };
+            let service = AlternativeAssetService::new(
+                alt_repo.clone(),
+                Arc::new(asset_repo),
+                Arc::new(MockQuoteService {
+                    cutoff: Arc::default(),
+                    as_of_quotes: HashMap::new(),
+                    latest_quotes: HashMap::new(),
+                }),
+            );
+            service
+                .link_liability(LinkLiabilityRequest {
+                    liability_id: "mortgage".into(),
+                    target_asset_id: "property".into(),
+                })
+                .await
+                .unwrap();
+
+            let mut expected = metadata;
+            expected["linked_asset_id"] = json!("property");
+            expected["ownership_pct"] = json!(expected_pct);
+            assert_eq!(
+                *alt_repo.metadata_writes.lock().unwrap(),
+                vec![("mortgage".into(), Some(expected))],
+            );
+        }
     }
 
     /// Regression test for: liability with a future-dated 0 quote must NOT appear
