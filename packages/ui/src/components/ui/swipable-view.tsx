@@ -128,6 +128,26 @@ export function SwipableView({
     onInitProp?.(api);
   });
 
+  // A page can add a view after the first render, as the dashboard adds Spending once
+  // settings load. Its selectedIndex may name that view before the carousel has the
+  // slide; the controlled effect below then leaves the jump pending, and the re-init that
+  // follows when the slide mounts makes it, as the controlled jump does, before the re-init
+  // is read as a swipe landing elsewhere. Other re-inits (a resize mid-swipe) leave the
+  // swipe alone.
+  const pendingIndexRef = React.useRef<number | null>(null);
+  const followPage = React.useEffectEvent((api: NonNullable<CarouselApi>) => {
+    const pendingIndex = pendingIndexRef.current;
+    if (pendingIndex === null || pendingIndex !== controlledIndex) return;
+    if (pendingIndex >= api.scrollSnapList().length) return;
+    pendingIndexRef.current = null;
+    const currentIndex = api.selectedScrollSnap();
+    if (currentIndex === pendingIndex) return;
+    previousIndexRef.current = currentIndex;
+    api.scrollTo(pendingIndex, true);
+    previousIndexRef.current = pendingIndex;
+    setLandedIndex(pendingIndex);
+  });
+
   // A screen shown again (React <Activity>) builds its carousel anew, on
   // initialIndex. It goes back to the view it showed without reporting a change,
   // which would switch the page's tab.
@@ -141,6 +161,7 @@ export function SwipableView({
         emblaApi.scrollTo(previousIndexRef.current, true);
       }
     }
+    const onFollowPage = () => followPage(emblaApi);
     const onInit = () => handleInit(emblaApi);
     const onSelect = () => handleSelect(emblaApi);
     const onLanded = () => handleLanded(emblaApi);
@@ -165,6 +186,8 @@ export function SwipableView({
     onInit();
     onSelect();
     onLanded();
+    // Registered first, so the re-init's select and landing read the page's view.
+    emblaApi.on("reInit", onFollowPage);
     emblaApi.on("reInit", onInit);
     emblaApi.on("reInit", onSelect);
     emblaApi.on("reInit", onLanded);
@@ -175,6 +198,7 @@ export function SwipableView({
     emblaApi.on("settle", onLanded);
 
     return () => {
+      emblaApi.off("reInit", onFollowPage);
       emblaApi.off("reInit", onInit);
       emblaApi.off("reInit", onSelect);
       emblaApi.off("reInit", onLanded);
@@ -194,7 +218,10 @@ export function SwipableView({
   React.useEffect(() => {
     if (controlledIndex === undefined || !emblaApi) return;
     const currentIndex = emblaApi.selectedScrollSnap();
-    if (currentIndex !== controlledIndex) {
+    // A view the carousel has no slide for yet is reached when the slide mounts (followPage).
+    const hasSlide = controlledIndex < emblaApi.scrollSnapList().length;
+    pendingIndexRef.current = hasSlide ? null : controlledIndex;
+    if (hasSlide && currentIndex !== controlledIndex) {
       previousIndexRef.current = currentIndex;
       emblaApi.scrollTo(controlledIndex, true); // instant scroll for external changes
     }

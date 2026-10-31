@@ -171,6 +171,7 @@ npx playwright test && npx playwright show-report
 | `43-phone-dashboard-wash.spec.ts`      | Phone: each dashboard tab's coloured wash reaches the bottom of the screen, scrolled to the end or shorter than the screen  |
 | `44-performance-date-range.spec.ts`    | ALL calendar inception, mobile Done/Clear persistence and unbounded requests, on desktop/phone in LTR and RTL               |
 | `45-moex-provider.spec.ts`             | MOEX fixtures, provider icon, symbol guidance in LTR/RTL, and disabling the provider                                        |
+| `46-phone-tab-links.spec.ts`           | Phone: links to the dashboard's and Insights' Spending tab open it, though the tab joins the page after settings load       |
 
 ---
 

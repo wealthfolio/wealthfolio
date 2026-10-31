@@ -12,21 +12,29 @@ interface FakeCarousel {
   select: (index: number) => void;
   arrive: () => void;
   scrollTo: (index: number, jump?: boolean) => void;
+  /** A slide was added or removed: Embla re-initialises on the snap it had. */
+  reInit: (slides: number) => void;
   on: (event: string, listener: (api: FakeCarousel) => void) => FakeCarousel;
   off: (event: string, listener: (api: FakeCarousel) => void) => FakeCarousel;
 }
 const carousels: FakeCarousel[] = [];
+// The number of slides the next carousel starts with.
+const carouselSlides = { initial: 3 };
 vi.mock("../../../../packages/ui/node_modules/embla-carousel-react", async () => {
   const { useEffect, useRef, useState } = await import("react");
   function makeCarousel(startIndex: number): FakeCarousel {
-    let selected = startIndex;
-    let position = startIndex;
+    let slides = carouselSlides.initial;
+    // Like Embla, a jump past the last slide it has stops on that slide.
+    const clamp = (index: number) => Math.min(index, slides - 1);
+    const snaps = () => Array.from({ length: slides }, (_, index) => index / (slides - 1));
+    let selected = clamp(startIndex);
+    let position = selected;
     const listeners = new Map<string, Set<(api: FakeCarousel) => void>>();
     const emit = (event: string) => listeners.get(event)?.forEach((listener) => listener(carousel));
     const carousel: FakeCarousel = {
       selectedScrollSnap: () => selected,
-      scrollSnapList: () => [0, 0.5, 1],
-      scrollProgress: () => [0, 0.5, 1][position] ?? 0,
+      scrollSnapList: snaps,
+      scrollProgress: () => snaps()[position] ?? 0,
       select: (index) => {
         selected = index;
         emit("select");
@@ -38,14 +46,21 @@ vi.mock("../../../../packages/ui/node_modules/embla-carousel-react", async () =>
       },
       scrollTo: (index, jump) => {
         if (jump) {
-          position = index;
+          position = clamp(index);
           emit("settle");
-          selected = index;
+          selected = clamp(index);
           emit("select");
           return;
         }
-        carousel.select(index);
+        carousel.select(clamp(index));
         carousel.arrive();
+      },
+      reInit: (count) => {
+        // Embla restarts on the snap it had selected, clamped to the slides it now has.
+        slides = count;
+        selected = clamp(selected);
+        position = selected;
+        emit("reInit");
       },
       on: (event, listener) => {
         const set = listeners.get(event) ?? new Set();
@@ -97,6 +112,51 @@ function Search() {
 
 beforeEach(() => {
   carousels.length = 0;
+  carouselSlides.initial = 3;
+});
+
+it("opens on the URL's view when that view joins the page after the first render", async () => {
+  // The dashboard's Spending tab appears once settings load, after the carousel is built.
+  carouselSlides.initial = 2;
+  const { rerender } = render(
+    <MemoryRouter initialEntries={["/?tab=gamma"]}>
+      <SwipablePage views={views.slice(0, 2)} />
+      <Search />
+    </MemoryRouter>,
+  );
+  await waitFor(() => expect(carousels).toHaveLength(1));
+  const carousel = carousels[0];
+
+  rerender(
+    <MemoryRouter initialEntries={["/?tab=gamma"]}>
+      <SwipablePage views={views} />
+      <Search />
+    </MemoryRouter>,
+  );
+  // Gamma's slide mounts: Embla re-initialises, still on the last slide it had.
+  act(() => carousel.reInit(3));
+
+  expect(carousel.selectedScrollSnap()).toBe(2);
+  expect(screen.getByTestId("search")).toHaveTextContent("?tab=gamma");
+  expect(screen.getByRole("button", { name: "Gamma" })).toHaveAttribute("aria-current", "page");
+});
+
+it("keeps a swipe when the carousel re-initialises before it lands", async () => {
+  render(
+    <MemoryRouter initialEntries={["/?tab=alpha"]}>
+      <SwipablePage views={views} />
+      <Search />
+    </MemoryRouter>,
+  );
+  await waitFor(() => expect(carousels).toHaveLength(1));
+  const carousel = carousels[0];
+
+  // A swipe released toward Beta, then a resize (a rotation) re-initialises Embla on Beta.
+  act(() => carousel.select(1));
+  act(() => carousel.reInit(3));
+
+  expect(carousel.selectedScrollSnap()).toBe(1);
+  expect(screen.getByTestId("search")).toHaveTextContent("?tab=beta");
 });
 
 it("sends a pending swipe back when the current view's pill is tapped", async () => {
