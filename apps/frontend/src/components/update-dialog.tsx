@@ -217,7 +217,10 @@ export function UpdateDialog() {
                         <img
                           src={screenshotUrl}
                           alt={t("common:component.screenshot_alt", { number: index + 1 })}
-                          className="object-cover"
+                          // Sized to the frame: at ≤1024px the global max-width: 100vw
+                          // otherwise sizes it to the window and the frame crops it.
+                          // Contain, so a slide that isn't 16:9 is never cropped either.
+                          className="h-full w-full object-contain"
                         />
                       </div>
                     </CarouselItem>
