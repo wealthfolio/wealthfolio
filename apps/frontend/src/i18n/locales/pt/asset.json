@@ -635,6 +635,8 @@
     "asset_description": "Editar nome, informações de compra e outros detalhes",
     "name": "Nome",
     "name_placeholder": "Insira o nome do ativo...",
+    "ownership_pct": "Percentual de propriedade",
+    "ownership_pct_description": "Sua participação neste ativo. Afeta apenas o total do seu patrimônio líquido — o valor exibido sempre mostra 100%.",
     "purchase_information": "Informações de compra",
     "purchase_information_description": "Detalhes de compra opcionais para rastreamento de ganhos/perdas",
     "purchase_price_per_unit": "Preço de compra (por unidade)",
@@ -713,7 +715,9 @@
       "name_must_be_less_than_100_characters": "O nome deve ter menos de 100 caracteres",
       "interest_rate_must_be_0_or_greater": "A taxa de juros deve ser 0 ou superior",
       "description_must_be_less_than_200_characters": "A descrição deve ter menos de 200 caracteres",
-      "original_amount_must_be_greater_than_0": "O valor original precisa ser maior que 0"
+      "original_amount_must_be_greater_than_0": "O valor original precisa ser maior que 0",
+      "ownership_must_be_greater_than_0": "A participação deve ser maior que 0",
+      "ownership_must_be_100_or_less": "A participação deve ser 100 ou menos"
     }
   },
   "updateValuation": {

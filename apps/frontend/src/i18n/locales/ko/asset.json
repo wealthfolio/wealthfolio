@@ -631,6 +631,8 @@
     "asset_description": "이름, 구매 정보 및 기타 세부정보 편집",
     "name": "이름",
     "name_placeholder": "자산 이름 입력...",
+    "ownership_pct": "소유 비율",
+    "ownership_pct_description": "이 자산에 대한 당신의 지분입니다. 순자산 합계에만 영향을 주며, 표시되는 값은 항상 100%입니다.",
     "purchase_information": "구매 정보",
     "purchase_information_description": "손익 추적을 위한 선택적 구매 세부정보",
     "purchase_price_per_unit": "구매 가격 (단위당)",
@@ -709,7 +711,9 @@
       "name_must_be_less_than_100_characters": "이름은 100자(영문 기준) 미만이어야 합니다.",
       "interest_rate_must_be_0_or_greater": "이자율은 0 이상이어야 합니다.",
       "description_must_be_less_than_200_characters": "설명은 200자(영문 기준) 미만이어야 합니다.",
-      "original_amount_must_be_greater_than_0": "원래 금액은 0보다 커야 합니다."
+      "original_amount_must_be_greater_than_0": "원래 금액은 0보다 커야 합니다.",
+      "ownership_must_be_greater_than_0": "소유 비율은 0보다 커야 합니다",
+      "ownership_must_be_100_or_less": "소유 비율은 100 이하여야 합니다"
     }
   },
   "updateValuation": {

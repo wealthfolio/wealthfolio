@@ -279,12 +279,20 @@ impl NetWorthService {
         // Aggregate by category, collecting individual items for drill-down.
         let mut category_totals: HashMap<AssetCategory, Decimal> = HashMap::new();
         let mut category_children: HashMap<AssetCategory, Vec<BreakdownItem>> = HashMap::new();
+        // Distinct ownership percentages seen per category (unset defaults to 100),
+        // used to label the category row itself when unambiguous (single asset, or
+        // multiple assets all sharing the same ownership split).
+        let mut category_ownership_pcts: HashMap<AssetCategory, HashSet<Decimal>> = HashMap::new();
 
         for val in valuations {
             if val.category == AssetCategory::Liability {
                 continue;
             }
             *category_totals.entry(val.category).or_insert(Decimal::ZERO) += val.market_value_base;
+            category_ownership_pcts
+                .entry(val.category)
+                .or_default()
+                .insert(val.ownership_pct.unwrap_or(Decimal::from(100)));
 
             // Skip per-item children for investments — they can be hundreds of
             // holdings, and the dedicated allocation view handles that drill-down.
@@ -310,9 +318,19 @@ impl NetWorthService {
             .map(|(category, value)| {
                 let mut children = category_children.remove(&category).unwrap_or_default();
                 children.sort_by_key(|c| std::cmp::Reverse(c.value));
+
+                let mut name = Self::category_display_name(category).to_string();
+                if let Some(pcts) = category_ownership_pcts.get(&category) {
+                    if let [pct] = pcts.iter().collect::<Vec<_>>()[..] {
+                        if *pct < Decimal::from(100) {
+                            name = format!("{} ({}%)", name, pct.normalize());
+                        }
+                    }
+                }
+
                 BreakdownItem {
                     category: Self::category_key(category).to_string(),
-                    name: Self::category_display_name(category).to_string(),
+                    name,
                     value,
                     asset_id: None,
                     first_value_date: None,
@@ -513,6 +531,7 @@ impl NetWorthServiceTrait for NetWorthService {
                         valuation_date: account_valuation.valuation_date,
                         category: AssetCategory::Investment,
                         is_cash_like: false,
+                        ownership_pct: None,
                     });
                 }
 
@@ -529,6 +548,7 @@ impl NetWorthServiceTrait for NetWorthService {
                         valuation_date: account_valuation.valuation_date,
                         category: AssetCategory::Cash,
                         is_cash_like: true,
+                        ownership_pct: None,
                     });
                 }
             }
@@ -622,13 +642,28 @@ impl NetWorthServiceTrait for NetWorthService {
                         }
                     };
 
+                    // Discount by ownership fraction for net worth purposes only.
+                    let ownership_fraction = asset
+                        .map(|a| a.ownership_fraction())
+                        .unwrap_or(Decimal::ONE);
+                    let market_value_base = market_value_base * ownership_fraction;
+
+                    let ownership_pct = asset.and_then(|a| a.ownership_pct());
+                    let name = match ownership_pct {
+                        Some(pct) if pct < Decimal::from(100) => {
+                            asset_name.map(|n| format!("{} ({}%)", n, pct.normalize()))
+                        }
+                        _ => asset_name,
+                    };
+
                     valuations.push(ValuationInfo {
                         asset_id: asset_id.clone(),
-                        name: asset_name,
+                        name,
                         market_value_base,
                         valuation_date,
                         category,
                         is_cash_like: false,
+                        ownership_pct,
                     });
                 }
             }
@@ -661,6 +696,7 @@ impl NetWorthServiceTrait for NetWorthService {
                         valuation_date: snapshot.snapshot_date,
                         category: AssetCategory::Liability,
                         is_cash_like: true,
+                        ownership_pct: None,
                     });
                 } else if cash_base_total > Decimal::ZERO {
                     valuations.push(ValuationInfo {
@@ -670,6 +706,7 @@ impl NetWorthServiceTrait for NetWorthService {
                         valuation_date: snapshot.snapshot_date,
                         category: AssetCategory::Cash,
                         is_cash_like: true,
+                        ownership_pct: None,
                     });
                 }
                 continue;
@@ -711,6 +748,7 @@ impl NetWorthServiceTrait for NetWorthService {
                     valuation_date: snapshot.snapshot_date,
                     category,
                     is_cash_like: true,
+                    ownership_pct: None,
                 });
             }
         }
@@ -803,17 +841,31 @@ impl NetWorthServiceTrait for NetWorthService {
 
             let category = Self::categorize_by_asset_kind(&asset.kind);
 
+            // Discount by ownership fraction for net worth purposes only (Holdings
+            // page / asset profile continue to show the full market value).
+            let market_value_base = market_value_base * asset.ownership_fraction();
+
+            let base_name = asset
+                .name
+                .clone()
+                .filter(|n| !n.is_empty())
+                .or_else(|| asset.display_code.clone());
+            let ownership_pct = asset.ownership_pct();
+            let name = match ownership_pct {
+                Some(pct) if pct < Decimal::from(100) => {
+                    base_name.map(|n| format!("{} ({}%)", n, pct.normalize()))
+                }
+                _ => base_name,
+            };
+
             valuations.push(ValuationInfo {
                 asset_id: asset.id.clone(),
-                name: asset
-                    .name
-                    .clone()
-                    .filter(|n| !n.is_empty())
-                    .or_else(|| asset.display_code.clone()),
+                name,
                 market_value_base,
                 valuation_date,
                 category,
                 is_cash_like: false,
+                ownership_pct,
             });
         }
 
@@ -947,6 +999,13 @@ impl NetWorthService {
         let asset_currency_map: HashMap<String, String> = alternative_assets
             .iter()
             .map(|a| (a.id.clone(), a.quote_ccy.clone()))
+            .collect();
+
+        // Ownership fraction per asset. Values are tracked at 100% and only the
+        // user's share is counted when totals and the breakdown are built.
+        let asset_ownership_map: HashMap<String, Decimal> = alternative_assets
+            .iter()
+            .map(|a| (a.id.clone(), a.ownership_fraction()))
             .collect();
 
         // =====================================================================
@@ -1269,14 +1328,26 @@ impl NetWorthService {
                 }
             }
 
+            // Only the user's share of jointly-owned assets and liabilities counts.
+            let owned_asset_values: Vec<(&String, Decimal)> = current_asset_values
+                .iter()
+                .map(|(symbol, value)| {
+                    let fraction = asset_ownership_map
+                        .get(symbol)
+                        .copied()
+                        .unwrap_or(Decimal::ONE);
+                    (symbol, *value * fraction)
+                })
+                .collect();
+
             // Calculate totals
             let mut alt_assets_value = Decimal::ZERO;
             let mut liabilities_value = Decimal::ZERO;
 
-            for (symbol, value) in &current_asset_values {
-                if liability_symbols.contains(symbol) {
+            for (symbol, value) in &owned_asset_values {
+                if liability_symbols.contains(*symbol) {
                     liabilities_value += *value;
-                } else if asset_symbols.contains(symbol) {
+                } else if asset_symbols.contains(*symbol) {
                     alt_assets_value += *value;
                 }
             }
@@ -1307,15 +1378,15 @@ impl NetWorthService {
                     current_portfolio.investments,
                 );
             }
-            for (symbol, value) in &current_asset_values {
-                if asset_symbols.contains(symbol) {
-                    if let Some(category) = alt_category_map.get(symbol) {
+            for (symbol, value) in &owned_asset_values {
+                if asset_symbols.contains(*symbol) {
+                    if let Some(category) = alt_category_map.get(*symbol) {
                         *breakdown
                             .entry(Self::category_key(*category).to_string())
                             .or_insert(Decimal::ZERO) += *value;
                     }
-                } else if liability_symbols.contains(symbol) {
-                    breakdown.insert(symbol.clone(), *value);
+                } else if liability_symbols.contains(*symbol) {
+                    breakdown.insert((*symbol).clone(), *value);
                 }
             }
             for (account_id, value) in &current_credit_card_liabilities {
