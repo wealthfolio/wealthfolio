@@ -734,11 +734,11 @@
     "kicker": "預測",
     "title": "儲蓄軌跡",
     "series_projected": "預計",
-    "series_target": "目標",
+    "series_target": "維持進度所需金額",
     "high_range": "高區間（{{rate}}）",
     "low_range": "低區間（{{rate}}）",
     "legend_projected": "預計",
-    "legend_target": "目標",
+    "legend_target": "維持進度所需金額",
     "legend_range": "區間（±{{pct}}）"
   },
   "milestones": {

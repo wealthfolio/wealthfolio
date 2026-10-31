@@ -740,11 +740,11 @@
     "kicker": "Proyección",
     "title": "Trayectoria de ahorro",
     "series_projected": "Proyectado",
-    "series_target": "Objetivo",
+    "series_target": "Necesario para seguir en camino",
     "high_range": "Rango alto ({{rate}})",
     "low_range": "Rango bajo ({{rate}})",
     "legend_projected": "Proyectado",
-    "legend_target": "Objetivo",
+    "legend_target": "Necesario para seguir en camino",
     "legend_range": "Rango (±{{pct}})"
   },
   "milestones": {

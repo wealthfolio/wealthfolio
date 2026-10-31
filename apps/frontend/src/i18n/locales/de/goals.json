@@ -734,11 +734,11 @@
     "kicker": "Projektion",
     "title": "Sparverlauf",
     "series_projected": "Projiziert",
-    "series_target": "Ziel",
+    "series_target": "Nötig, um auf Kurs zu bleiben",
     "high_range": "Oberer Bereich ({{rate}})",
     "low_range": "Unterer Bereich ({{rate}})",
     "legend_projected": "Projiziert",
-    "legend_target": "Ziel",
+    "legend_target": "Nötig, um auf Kurs zu bleiben",
     "legend_range": "Bereich (±{{pct}})"
   },
   "milestones": {

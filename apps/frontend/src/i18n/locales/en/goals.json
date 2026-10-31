@@ -734,11 +734,11 @@
     "kicker": "Projection",
     "title": "Savings trajectory",
     "series_projected": "Projected",
-    "series_target": "Target",
+    "series_target": "Needed to stay on track",
     "high_range": "High range ({{rate}})",
     "low_range": "Low range ({{rate}})",
     "legend_projected": "Projected",
-    "legend_target": "Target",
+    "legend_target": "Needed to stay on track",
     "legend_range": "Range (±{{pct}})"
   },
   "milestones": {

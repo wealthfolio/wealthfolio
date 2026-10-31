@@ -734,11 +734,11 @@
     "kicker": "予測",
     "title": "貯蓄の推移",
     "series_projected": "予測",
-    "series_target": "目標",
+    "series_target": "順調に進むための必要額",
     "high_range": "上振れレンジ({{rate}})",
     "low_range": "下振れレンジ({{rate}})",
     "legend_projected": "予測",
-    "legend_target": "目標",
+    "legend_target": "順調に進むための必要額",
     "legend_range": "レンジ(±{{pct}})"
   },
   "milestones": {

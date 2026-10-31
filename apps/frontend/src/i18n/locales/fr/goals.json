@@ -740,11 +740,11 @@
     "kicker": "Projection",
     "title": "Trajectoire d'épargne",
     "series_projected": "Projeté",
-    "series_target": "Objectif",
+    "series_target": "Requis pour rester sur la bonne voie",
     "high_range": "Fourchette haute ({{rate}})",
     "low_range": "Fourchette basse ({{rate}})",
     "legend_projected": "Projeté",
-    "legend_target": "Objectif",
+    "legend_target": "Requis pour rester sur la bonne voie",
     "legend_range": "Fourchette (±{{pct}})"
   },
   "milestones": {

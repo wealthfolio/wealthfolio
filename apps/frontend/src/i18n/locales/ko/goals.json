@@ -734,11 +734,11 @@
     "kicker": "예측",
     "title": "저축 추이",
     "series_projected": "예상",
-    "series_target": "목표",
+    "series_target": "정상 진행에 필요한 금액",
     "high_range": "상단 범위 ({{rate}})",
     "low_range": "하단 범위 ({{rate}})",
     "legend_projected": "예상",
-    "legend_target": "목표",
+    "legend_target": "정상 진행에 필요한 금액",
     "legend_range": "범위 (±{{pct}})"
   },
   "milestones": {

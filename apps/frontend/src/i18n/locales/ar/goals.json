@@ -472,10 +472,10 @@
     "kicker": "التوقعات",
     "legend_projected": "المتوقع",
     "legend_range": "النطاق (±{{pct}})",
-    "legend_target": "الهدف",
+    "legend_target": "المطلوب للبقاء على المسار",
     "low_range": "النطاق المنخفض ({{rate}})",
     "series_projected": "المتوقع",
-    "series_target": "الهدف",
+    "series_target": "المطلوب للبقاء على المسار",
     "title": "مسار المدخرات"
   },
   "required_monthly": "المطلوب شهريًا",

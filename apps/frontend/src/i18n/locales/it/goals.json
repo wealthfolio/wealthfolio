@@ -740,11 +740,11 @@
     "kicker": "Proiezione",
     "title": "Traiettoria di risparmio",
     "series_projected": "Proiettato",
-    "series_target": "Obiettivo",
+    "series_target": "Necessario per restare in linea",
     "high_range": "Intervallo alto ({{rate}})",
     "low_range": "Intervallo basso ({{rate}})",
     "legend_projected": "Proiettato",
-    "legend_target": "Obiettivo",
+    "legend_target": "Necessario per restare in linea",
     "legend_range": "Intervallo (±{{pct}})"
   },
   "milestones": {

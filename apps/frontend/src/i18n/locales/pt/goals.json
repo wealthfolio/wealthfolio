@@ -740,11 +740,11 @@
     "kicker": "Projeção",
     "title": "Trajetória de poupança",
     "series_projected": "Projetado",
-    "series_target": "Alvo",
+    "series_target": "Necessário para seguir no caminho certo",
     "high_range": "Intervalo alto ({{rate}})",
     "low_range": "Intervalo baixo ({{rate}})",
     "legend_projected": "Projetado",
-    "legend_target": "Alvo",
+    "legend_target": "Necessário para seguir no caminho certo",
     "legend_range": "Intervalo (±{{pct}})"
   },
   "milestones": {
