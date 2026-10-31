@@ -156,6 +156,19 @@ pub struct OptionSpec {
 /// Top-level asset metadata key for instruments whose value is scaled per contract.
 pub const CONTRACT_MULTIPLIER_METADATA_KEY: &str = "contractMultiplier";
 
+/// Asset metadata key for the user's ownership share (0-100) of an alternative asset.
+pub const OWNERSHIP_PCT_METADATA_KEY: &str = "ownership_pct";
+
+/// Reads the ownership percentage from asset metadata, stored as a JSON string
+/// (as the app writes it) or a number. Missing or unparseable values give None.
+pub fn ownership_pct_from_metadata(metadata: Option<&Value>) -> Option<Decimal> {
+    let value = metadata?.get(OWNERSHIP_PCT_METADATA_KEY)?;
+    value
+        .as_str()
+        .and_then(|raw| raw.trim().parse::<Decimal>().ok())
+        .or_else(|| value.as_f64().and_then(Decimal::from_f64))
+}
+
 /// Instrument-level default multiplier for assets without an explicit
 /// override. Bonds deliberately default to 1: market-data providers store
 /// bond quotes as a FRACTION of par (percent quotes are divided by 100 at
@@ -520,11 +533,7 @@ impl Asset {
     /// Ownership percentage (0-100) for alternative assets that are jointly owned
     /// (e.g. a property split with a spouse). Absence means full (100%) ownership.
     pub fn ownership_pct(&self) -> Option<Decimal> {
-        self.metadata
-            .as_ref()
-            .and_then(|m| m.get("ownership_pct"))
-            .and_then(|v| v.as_str())
-            .and_then(|s| s.parse::<Decimal>().ok())
+        ownership_pct_from_metadata(self.metadata.as_ref())
     }
 
     /// Fraction (0..=1) to apply to this asset's market value for net worth purposes.
@@ -1582,6 +1591,31 @@ mod tests {
         let asset = test_asset_with_metadata(Some(serde_json::json!({ "ownership_pct": "50" })));
         assert_eq!(asset.ownership_pct(), Some(dec!(50)));
         assert_eq!(asset.ownership_fraction(), dec!(0.5));
+    }
+
+    #[test]
+    fn test_ownership_fraction_parses_numeric_percentage() {
+        for value in [serde_json::json!(50), serde_json::json!(50.0)] {
+            let asset =
+                test_asset_with_metadata(Some(serde_json::json!({ "ownership_pct": value })));
+            assert_eq!(asset.ownership_pct(), Some(dec!(50)));
+            assert_eq!(asset.ownership_fraction(), dec!(0.5));
+        }
+    }
+
+    #[test]
+    fn test_ownership_fraction_defaults_to_full_when_invalid() {
+        for value in [
+            serde_json::json!("half"),
+            serde_json::json!(""),
+            serde_json::json!(true),
+            serde_json::Value::Null,
+        ] {
+            let asset =
+                test_asset_with_metadata(Some(serde_json::json!({ "ownership_pct": value })));
+            assert_eq!(asset.ownership_pct(), None);
+            assert_eq!(asset.ownership_fraction(), Decimal::ONE);
+        }
     }
 
     #[test]
