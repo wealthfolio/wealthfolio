@@ -1345,6 +1345,38 @@ describe("activity-utils", () => {
   });
 
   describe("applyTransactionUpdate", () => {
+    it("re-rounds an automatic income amount when the row's currency changes", () => {
+      // 0.5 × 40.12345 = 20.061725: 20.06 in USD, 20.062 in KWD.
+      const drip = createMockTransaction({
+        activityType: ActivityType.DIVIDEND,
+        subtype: "DRIP",
+        quantity: "0.5",
+        unitPrice: "40.12345",
+        amount: "20.06",
+        fee: null,
+        isNew: true,
+      });
+      const update = (field: "currency" | "accountId", value: string) =>
+        applyTransactionUpdate({
+          transaction: drip,
+          field,
+          value,
+          accountLookup: new Map([
+            ["account-kwd", createMockAccount({ id: "account-kwd", currency: "KWD" })],
+          ]),
+          assetCurrencyLookup: new Map(),
+          resolveTransactionCurrency: createCurrencyResolver(new Map(), "USD"),
+          fallbackCurrency: "USD",
+        });
+
+      expect(update("currency", "KWD").amount).toBe("20.062");
+      // A new row follows its account's currency.
+      expect(update("accountId", "account-kwd")).toMatchObject({
+        currency: "KWD",
+        amount: "20.062",
+      });
+    });
+
     it("should clear amount when value is null", () => {
       const accountLookup = new Map<string, { id: string; name: string; currency: string }>([
         ["account-1", { id: "account-1", name: "Test Account", currency: "USD" }],

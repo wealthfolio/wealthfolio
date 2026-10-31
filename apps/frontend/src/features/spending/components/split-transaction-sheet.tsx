@@ -1,3 +1,5 @@
+import { getCategoryLabel } from "@/lib/taxonomy-labels";
+import type { TFunction } from "i18next";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -90,12 +92,15 @@ function makeLine(taxonomyId: string, categoryId = "", amount?: number, note = "
 }
 
 function categoryLabel(
+  t: TFunction,
   category: TaxonomyCategory | undefined,
   categories: Map<string, TaxonomyCategory>,
 ) {
   if (!category) return null;
   const parent = category.parentId ? categories.get(category.parentId) : null;
-  return parent ? `${parent.name} / ${category.name}` : category.name;
+  return parent
+    ? `${getCategoryLabel(t, parent.taxonomyId, parent.id, parent.name)} / ${getCategoryLabel(t, category.taxonomyId, category.id, category.name)}`
+    : getCategoryLabel(t, category.taxonomyId, category.id, category.name);
 }
 
 function fallbackLineColor(index: number) {
@@ -319,7 +324,7 @@ export function SplitTransactionSheet({
               <ul className="mt-2 space-y-1">
                 {staleSplits.map((split) => (
                   <li key={split.id}>
-                    {categoryLabel(categories.get(split.categoryId), categories) ??
+                    {categoryLabel(t, categories.get(split.categoryId), categories) ??
                       split.categoryId}
                     {" · "}
                     {formatting.formatPrice(Number(split.amount), currency)} {currency}
@@ -383,7 +388,7 @@ export function SplitTransactionSheet({
               <div className="border-border divide-border divide-y border-y">
                 {lines.map((line, index) => {
                   const category = categories.get(line.categoryId);
-                  const label = categoryLabel(category, categories);
+                  const label = categoryLabel(t, category, categories);
                   const color = splitLineColor(category, index);
                   const amountUnits = toSplitUnits(line.amount, splitDecimals);
                   const showNoteInput =
@@ -524,9 +529,7 @@ export function SplitTransactionSheet({
         <SheetFooter
           className={cn(
             "border-t",
-            isMobile
-              ? "border-border px-4 py-4 pb-[calc(env(safe-area-inset-bottom,0px)+1rem)]"
-              : "gap-2 pt-4",
+            isMobile ? "border-border px-4 py-4 pb-[calc(var(--inset-bottom)+1rem)]" : "gap-2 pt-4",
           )}
         >
           {isMobile ? (
@@ -604,7 +607,7 @@ export function SplitTransactionSheet({
               {t("spending:split.replaceDescription", {
                 count: replacement?.expectedSplits.length ?? 0,
                 category: replacement
-                  ? (categoryLabel(categories.get(replacement.categoryId), categories) ??
+                  ? (categoryLabel(t, categories.get(replacement.categoryId), categories) ??
                     replacement.categoryId)
                   : "",
               })}

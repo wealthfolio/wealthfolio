@@ -16,7 +16,14 @@ import {
   AlertDialogTitle,
 } from "@wealthfolio/ui/components/ui/alert-dialog";
 import { Badge } from "@wealthfolio/ui/components/ui/badge";
-import { Card, CardContent } from "@wealthfolio/ui/components/ui/card";
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@wealthfolio/ui/components/ui/card";
 import { Button } from "@wealthfolio/ui/components/ui/button";
 import {
   DropdownMenu,
@@ -29,8 +36,7 @@ import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { Popover, PopoverContent, PopoverTrigger } from "@wealthfolio/ui/components/ui/popover";
 import { Separator } from "@wealthfolio/ui/components/ui/separator";
 import { Skeleton } from "@wealthfolio/ui/components/ui/skeleton";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@wealthfolio/ui/components/ui/tabs";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
@@ -50,6 +56,7 @@ import {
   useUpdateCustomProvider,
 } from "@/hooks/use-custom-providers";
 import { QueryKeys } from "@/lib/query-keys";
+import { cn } from "@/lib/utils";
 import type { Asset } from "@/lib/types";
 import type { CustomProviderWithSources } from "@/lib/types/custom-provider";
 import { ActionConfirm, useDateFormatting, Spinner } from "@wealthfolio/ui";
@@ -63,6 +70,9 @@ import { Label } from "@wealthfolio/ui/components/ui/label";
 import { Switch } from "@wealthfolio/ui/components/ui/switch";
 import { CustomProviderForm } from "./custom-provider-form";
 import { CustomProviderUsageChips } from "./custom-provider-usage-chips";
+import { ProviderCatalogDialog } from "./provider-catalog-dialog";
+import { ProviderLogo } from "./provider-logo";
+import { moveProvider } from "./provider-order";
 import {
   EMPTY_USAGE,
   getCustomProviderUsage,
@@ -73,6 +83,7 @@ import {
 } from "./custom-provider-usage";
 import {
   useDeleteApiKey,
+  useIsSavingProviderSettings,
   useMarketDataProviderSettings,
   useSetApiKey,
   useUpdateMarketDataProviderSettings,
@@ -81,23 +92,33 @@ import { Alert, AlertDescription, AlertTitle } from "@wealthfolio/ui/components/
 
 interface ProviderSettingsProps {
   provider: MarketDataProviderSetting;
-  priorityValue: number;
-  onUpdate: (settings: { priority?: number; enabled?: boolean }) => void;
-  onPriorityChange: (value: string) => void;
-  onPrioritySave: () => void;
+  /** Position in the fetch order, from 1; none while the provider is off. */
+  rank?: number;
+  canMoveUp: boolean;
+  canMoveDown: boolean;
+  onMove: (step: -1 | 1) => void;
+  onEnabledChange: (enabled: boolean) => void;
+  /** A move is saving: the order and switches wait until it's done. */
+  locked?: boolean;
+  /** Opens the details on mount, e.g. for a provider just added that still needs a key. */
+  defaultOpen?: boolean;
 }
 
 function ProviderSettings({
   provider,
-  priorityValue,
-  onUpdate,
-  onPriorityChange,
-  onPrioritySave,
+  rank,
+  canMoveUp,
+  canMoveDown,
+  onMove,
+  onEnabledChange,
+  locked = false,
+  defaultOpen = false,
 }: ProviderSettingsProps) {
   const formatting = useDateFormatting();
   const { t } = useTranslation();
   const queryClient = useQueryClient();
-  const [isOpen, setIsOpen] = useState(false);
+  const [isOpen, setIsOpen] = useState(defaultOpen);
+  const name = getProviderName(t, provider.id, provider.name);
   const [showApiKey, setShowApiKey] = useState(false);
   const [apiKeyValue, setApiKeyValue] = useState("");
   const [isLoadingKey, setIsLoadingKey] = useState(false);
@@ -187,15 +208,18 @@ function ProviderSettings({
       <div>
         <SettingsListRow
           media={
-            <SettingsListMedia>
-              {provider.logoFilename ? (
-                <img src={`/market-data/${provider.logoFilename}`} alt="" />
-              ) : (
-                <Icons.Globe />
-              )}
-            </SettingsListMedia>
+            <div className="flex items-center gap-2">
+              <span
+                aria-hidden
+                className="text-muted-foreground w-4 text-center text-xs tabular-nums max-sm:hidden"
+              >
+                {rank}
+              </span>
+              <ProviderLogo logoFilename={provider.logoFilename} />
+            </div>
           }
-          title={getProviderName(t, provider.id, provider.name)}
+          title={name}
+          inactive={!provider.enabled}
           badges={
             <>
               {provider.capabilities?.coverage && (
@@ -245,7 +269,7 @@ function ProviderSettings({
                           {provider.uniqueErrors.map((error, index) => (
                             <li
                               key={index}
-                              className="bg-destructive-subtle text-destructive-subtle-foreground rounded-md p-2 text-xs"
+                              className="bg-destructive-subtle text-destructive-subtle-foreground rounded-md p-2 text-xs break-words"
                             >
                               {error}
                             </li>
@@ -263,19 +287,49 @@ function ProviderSettings({
             </>
           }
           meta={
-            provider.description
-              ? getProviderDescription(t, provider.id, provider.description)
+            provider.capabilities?.instruments
+              ? getProviderInstruments(t, provider.capabilities.instruments)
               : undefined
           }
           actions={
             <>
+              {/* Phones stack the arrows so the name keeps room. */}
+              <div className="flex items-center gap-2 max-sm:flex-col max-sm:gap-0">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  // A provider that's off keeps its place but has no rank to move.
+                  className={cn(
+                    "text-muted-foreground hover:text-foreground h-8 w-8 max-sm:h-6",
+                    !provider.enabled && "invisible",
+                  )}
+                  disabled={!canMoveUp || locked}
+                  onClick={() => onMove(-1)}
+                  aria-label={t("settings:market_data_page.move_up", { name })}
+                >
+                  <Icons.ArrowUp className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className={cn(
+                    "text-muted-foreground hover:text-foreground h-8 w-8 max-sm:h-6",
+                    !provider.enabled && "invisible",
+                  )}
+                  disabled={!canMoveDown || locked}
+                  onClick={() => onMove(1)}
+                  aria-label={t("settings:market_data_page.move_down", { name })}
+                >
+                  <Icons.ArrowDown className="h-4 w-4" />
+                </Button>
+              </div>
               <CollapsibleTrigger
                 render={
                   <Button
                     variant="ghost"
                     size="icon"
                     className="text-muted-foreground hover:text-foreground h-8 w-8"
-                    aria-label={t("common:settings_for", { name: provider.name })}
+                    aria-label={t("common:settings_for", { name })}
                   />
                 }
               >
@@ -283,30 +337,14 @@ function ProviderSettings({
               </CollapsibleTrigger>
               <Switch
                 id={`${provider.id}-enabled`}
-                aria-label={provider.name}
+                aria-label={name}
                 checked={provider.enabled}
-                onCheckedChange={(checked) => onUpdate({ enabled: checked })}
+                onCheckedChange={onEnabledChange}
+                disabled={locked}
               />
             </>
           }
-        >
-          {provider.capabilities && provider.capabilities.features.length > 0 && (
-            <div className="mt-1.5 flex flex-wrap items-center gap-2">
-              {provider.capabilities.features.map((feature) => {
-                const { icon, label } = getFeatureDisplay(feature);
-                return (
-                  <span
-                    key={feature}
-                    className="text-muted-foreground text-2xs inline-flex items-center gap-1"
-                  >
-                    {icon}
-                    {label}
-                  </span>
-                );
-              })}
-            </div>
-          )}
-        </SettingsListRow>
+        />
 
         {/* Expandable settings */}
         <CollapsibleContent>
@@ -317,6 +355,11 @@ function ProviderSettings({
                 <h4 className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
                   {t("settings:market_data_page.capabilities")}
                 </h4>
+                {provider.description && (
+                  <p className="text-muted-foreground text-xs">
+                    {getProviderDescription(t, provider.id, provider.description)}
+                  </p>
+                )}
                 <div className="space-y-3">
                   {provider.capabilities?.instruments && (
                     <div className="flex items-start gap-3">
@@ -352,15 +395,19 @@ function ProviderSettings({
                           {t("settings:market_data_page.features")}
                         </p>
                         <div className="mt-1 flex flex-wrap gap-1">
-                          {provider.capabilities.features.map((feature) => (
-                            <Badge
-                              key={feature}
-                              variant="secondary"
-                              className="text-2xs h-5 px-1.5 font-normal"
-                            >
-                              {feature}
-                            </Badge>
-                          ))}
+                          {provider.capabilities.features.map((feature) => {
+                            const { icon, label } = getFeatureDisplay(feature);
+                            return (
+                              <Badge
+                                key={feature}
+                                variant="secondary"
+                                className="text-2xs h-5 gap-1 px-1.5 font-normal"
+                              >
+                                {icon}
+                                {label}
+                              </Badge>
+                            );
+                          })}
                         </div>
                       </div>
                     </div>
@@ -449,46 +496,6 @@ function ProviderSettings({
                     </div>
                   )}
 
-                  <div className="flex items-center gap-3">
-                    <Label className="text-xs font-medium">
-                      {t("settings:market_data_page.priority")}
-                    </Label>
-                    <div className="flex items-center">
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        className="h-7 w-7 rounded-e-none"
-                        aria-label={t("settings:market_data_page.priority_decrease")}
-                        onClick={() => {
-                          const newVal = Math.max(1, (priorityValue ?? 1) - 1);
-                          onPriorityChange(String(newVal));
-                          onPrioritySave();
-                        }}
-                      >
-                        <Icons.MinusCircle className="h-3 w-3" />
-                      </Button>
-                      <div className="bg-muted flex h-7 w-10 items-center justify-center border-y text-xs font-medium">
-                        {priorityValue ?? 1}
-                      </div>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        className="h-7 w-7 rounded-s-none"
-                        aria-label={t("settings:market_data_page.priority_increase")}
-                        onClick={() => {
-                          const newVal = (priorityValue ?? 1) + 1;
-                          onPriorityChange(String(newVal));
-                          onPrioritySave();
-                        }}
-                      >
-                        <Icons.PlusCircle className="h-3 w-3" />
-                      </Button>
-                    </div>
-                    <span className="text-muted-foreground text-2xs">
-                      {t("settings:market_data_page.priority_hint")}
-                    </span>
-                  </div>
-
                   {/* Sync Status */}
                   <div className="space-y-2">
                     <Label className="text-xs font-medium">
@@ -505,7 +512,7 @@ function ProviderSettings({
                           </span>
                         </div>
                         {provider.lastSyncError && (
-                          <p className="bg-destructive-subtle text-destructive-subtle-foreground rounded-md p-2 text-xs">
+                          <p className="bg-destructive-subtle text-destructive-subtle-foreground rounded-md p-2 text-xs break-words">
                             {provider.lastSyncError}
                           </p>
                         )}
@@ -743,7 +750,9 @@ export default function MarketDataSettingsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const { data: providers, isLoading, error } = useMarketDataProviderSettings();
-  const { mutate: updateSettings } = useUpdateMarketDataProviderSettings();
+  const { mutate: updateSettings, mutateAsync: updateSettingsAsync } =
+    useUpdateMarketDataProviderSettings();
+  const isSavingProvider = useIsSavingProviderSettings();
   const { mutate: updatePortfolio, isPending: isUpdating } = useUpdatePortfolioMutation();
   const { mutate: recalculatePortfolio, isPending: isRecalculating } =
     useRecalculatePortfolioMutation();
@@ -762,42 +771,44 @@ export default function MarketDataSettingsPage() {
   const deleteProvider = useDeleteCustomProvider();
   const toggleProvider = useUpdateCustomProvider();
 
-  const [priorityInputs, setPriorityInputs] = useState<Record<string, number>>({});
   const [resetHistoryOpen, setResetHistoryOpen] = useState(false);
   const [rebuildConfirmOpen, setRebuildConfirmOpen] = useState(false);
-  const [providersTab, setProvidersTab] = useState("builtin");
+  const [catalogOpen, setCatalogOpen] = useState(false);
+  // A provider just added that still needs an API key opens its settings.
+  const [expandProviderId, setExpandProviderId] = useState<string>();
+  // Providers switched off on this visit stay listed, dimmed, so the switch can be flipped back.
+  const [switchedOffIds, setSwitchedOffIds] = useState<string[]>([]);
+  // Like the custom provider switch while it saves, the order and switches wait for a move
+  // or any other provider save: a move must not race a provider being switched on.
+  const [moving, setMoving] = useState(false);
   const [customFormOpen, setCustomFormOpen] = useState(false);
   const [editingProvider, setEditingProvider] = useState<CustomProviderWithSources | undefined>();
   const showHealthBanner = searchParams.get("healthContext") === "marketData";
 
-  // Split providers into built-in providers and the CUSTOM_SCRAPER aggregate
-  const { builtinProviders, customScraperErrors } = useMemo(() => {
-    if (!providers) return { builtinProviders: [], customScraperErrors: undefined };
-    const builtin: MarketDataProviderSetting[] = [];
-    let scraperInfo: MarketDataProviderSetting | undefined;
-    for (const p of providers) {
-      if (p.id === "CUSTOM_SCRAPER") {
-        scraperInfo = p;
-      } else {
-        builtin.push(p);
+  // Providers that are on are listed in fetch order; the rest wait in the catalog.
+  // CUSTOM_SCRAPER only carries the custom providers' sync errors.
+  const { listedProviders, activeProviders, availableProviders, customScraperErrors } =
+    useMemo(() => {
+      const listed: MarketDataProviderSetting[] = [];
+      const available: MarketDataProviderSetting[] = [];
+      let scraperInfo: MarketDataProviderSetting | undefined;
+      for (const p of providers ?? []) {
+        if (p.id === "CUSTOM_SCRAPER") {
+          scraperInfo = p;
+        } else if (p.enabled || switchedOffIds.includes(p.id)) {
+          listed.push(p);
+        } else {
+          available.push(p);
+        }
       }
-    }
-    builtin.sort((a, b) => {
-      if (a.enabled === b.enabled) return a.priority - b.priority;
-      return a.enabled ? -1 : 1;
-    });
-    return { builtinProviders: builtin, customScraperErrors: scraperInfo };
-  }, [providers]);
-
-  useEffect(() => {
-    if (providers) {
-      const initialPriorityInputs: Record<string, number> = {};
-      providers.forEach((p: MarketDataProviderSetting) => {
-        initialPriorityInputs[p.id] = p.priority;
-      });
-      setPriorityInputs(initialPriorityInputs);
-    }
-  }, [providers]);
+      listed.sort((a, b) => a.priority - b.priority);
+      return {
+        listedProviders: listed,
+        activeProviders: listed.filter((p) => p.enabled),
+        availableProviders: available,
+        customScraperErrors: scraperInfo,
+      };
+    }, [providers, switchedOffIds]);
 
   const handleUpdateSetting = (
     providerId: string,
@@ -813,16 +824,47 @@ export default function MarketDataSettingsPage() {
     });
   };
 
-  const handlePriorityInputChange = (providerId: string, value: string) => {
-    const numValue = parseInt(value, 10);
-    setPriorityInputs((prev) => ({ ...prev, [providerId]: isNaN(numValue) ? 0 : numValue }));
+  // One write at a time, since each one rebuilds the market data client. If a write
+  // fails, the ones this move already saved are put back. A failed write, the undo
+  // included, shows its error and reloads the saved settings (see the mutation hook).
+  const handleMove = async (index: number, step: -1 | 1) => {
+    const original = new Map(activeProviders.map((p) => [p.id, p.priority]));
+    const saved: string[] = [];
+    // Arrows and switches are locked while this runs, so every listed provider stays on.
+    const write = (providerId: string, priority: number) =>
+      updateSettingsAsync({ providerId, priority, enabled: true });
+    setMoving(true);
+    try {
+      for (const change of moveProvider(activeProviders, index, step)) {
+        try {
+          await write(change.id, change.priority);
+          saved.push(change.id);
+        } catch {
+          // The failed write has already rolled back and shown its error.
+          for (const id of saved.reverse()) {
+            const priority = original.get(id);
+            if (priority !== undefined) await write(id, priority).catch(() => undefined);
+          }
+          return;
+        }
+      }
+    } finally {
+      setMoving(false);
+    }
   };
 
-  const handlePrioritySave = (providerId: string) => {
-    const newPriority = priorityInputs[providerId];
-    const provider = providers?.find((p) => p.id === providerId);
-    if (provider && newPriority !== provider.priority) {
-      handleUpdateSetting(providerId, { priority: newPriority });
+  const handleEnabledChange = (providerId: string, enabled: boolean) => {
+    handleUpdateSetting(providerId, { enabled });
+    setSwitchedOffIds((ids) =>
+      enabled ? ids.filter((id) => id !== providerId) : [...ids, providerId],
+    );
+  };
+
+  const handleAddProvider = (provider: MarketDataProviderSetting) => {
+    handleUpdateSetting(provider.id, { enabled: true });
+    setCatalogOpen(false);
+    if (provider.requiresApiKey && !provider.hasApiKey) {
+      setExpandProviderId(provider.id);
     }
   };
 
@@ -840,7 +882,7 @@ export default function MarketDataSettingsPage() {
               className="divide-y [&>li]:py-3 [&>li:first-child]:pt-0 [&>li:last-child]:pb-0"
               aria-hidden
             >
-              {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+              {[1, 2, 3, 4].map((i) => (
                 <li key={i} className="flex items-center gap-3">
                   <Skeleton className="h-9 w-9 rounded-lg" />
                   <div className="flex-1 space-y-2">
@@ -1031,69 +1073,74 @@ export default function MarketDataSettingsPage() {
         </div>
       )}
 
-      <Tabs value={providersTab} onValueChange={setProvidersTab} className="w-full">
-        {/* Narrow screens wrap the button below the tabs so their labels keep full width. */}
-        <div className="flex flex-wrap items-center justify-end gap-2">
-          <TabsList className="grid w-full grid-cols-2 sm:w-auto sm:flex-1">
-            <TabsTrigger value="builtin">
-              {t("settings:market_data_page.tab_builtin")}
-              {builtinProviders.filter((p) => p.enabled).length > 0 && (
-                <Badge variant="secondary" className="text-2xs ms-1.5 h-5 px-1.5 font-normal">
-                  {builtinProviders.filter((p) => p.enabled).length}
-                </Badge>
-              )}
-            </TabsTrigger>
-            <TabsTrigger value="custom">
-              {t("settings:market_data_page.tab_custom")}
-              {customProviders.filter((p) => p.enabled).length > 0 && (
-                <Badge variant="secondary" className="text-2xs ms-1.5 h-5 px-1.5 font-normal">
-                  {customProviders.filter((p) => p.enabled).length}
-                </Badge>
-              )}
-            </TabsTrigger>
-          </TabsList>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              // Show the custom list, where the new provider will appear.
-              setProvidersTab("custom");
-              setEditingProvider(undefined);
-              setCustomFormOpen(true);
-            }}
-          >
-            <Icons.Plus className="h-4 w-4" />
-            {t("settings:market_data_page.add_provider")}
-          </Button>
-        </div>
-
-        <TabsContent value="builtin" className="mt-4">
-          {builtinProviders.length === 0 ? (
+      <Card>
+        <CardHeader className="max-sm:has-data-[slot=card-action]:grid-cols-1">
+          <CardTitle role="heading" aria-level={2} className="text-lg">
+            {t("settings:market_data_page.tab_builtin")}
+          </CardTitle>
+          <CardDescription>{t("settings:market_data_page.sources_description")}</CardDescription>
+          <CardAction className="max-sm:col-start-1 max-sm:row-span-1 max-sm:row-start-3 max-sm:justify-self-stretch max-sm:pt-1.5">
+            <Button
+              variant="outline"
+              size="sm"
+              className="max-sm:w-full"
+              onClick={() => setCatalogOpen(true)}
+            >
+              <Icons.Plus className="h-4 w-4" />
+              {t("settings:market_data_page.add_provider")}
+            </Button>
+          </CardAction>
+        </CardHeader>
+        <CardContent>
+          {listedProviders.length === 0 ? (
             <p className="text-muted-foreground text-sm">
-              {t("settings:market_data_page.no_builtin")}
+              {t("settings:market_data_page.sources_empty")}
             </p>
           ) : (
-            <Card>
-              <CardContent className="pt-6">
-                <SettingsList label={t("settings:market_data_page.tab_builtin")}>
-                  {builtinProviders.map((provider) => (
-                    <li key={provider.id}>
-                      <ProviderSettings
-                        provider={provider}
-                        priorityValue={priorityInputs[provider.id]}
-                        onUpdate={(settings) => handleUpdateSetting(provider.id, settings)}
-                        onPriorityChange={(value) => handlePriorityInputChange(provider.id, value)}
-                        onPrioritySave={() => handlePrioritySave(provider.id)}
-                      />
-                    </li>
-                  ))}
-                </SettingsList>
-              </CardContent>
-            </Card>
+            <SettingsList label={t("settings:market_data_page.tab_builtin")}>
+              {listedProviders.map((provider) => {
+                const index = activeProviders.indexOf(provider);
+                return (
+                  <li key={provider.id}>
+                    <ProviderSettings
+                      provider={provider}
+                      rank={provider.enabled ? index + 1 : undefined}
+                      canMoveUp={provider.enabled && index > 0}
+                      canMoveDown={provider.enabled && index < activeProviders.length - 1}
+                      onMove={(step) => void handleMove(index, step)}
+                      onEnabledChange={(enabled) => handleEnabledChange(provider.id, enabled)}
+                      locked={moving || isSavingProvider}
+                      defaultOpen={provider.id === expandProviderId}
+                    />
+                  </li>
+                );
+              })}
+            </SettingsList>
           )}
-        </TabsContent>
+        </CardContent>
+      </Card>
 
-        <TabsContent value="custom" className="mt-4">
+      <Card>
+        <CardHeader className="max-sm:has-data-[slot=card-action]:grid-cols-1">
+          <CardTitle role="heading" aria-level={2} className="text-lg">
+            {t("settings:market_data_page.tab_custom")}
+          </CardTitle>
+          <CardAction className="max-sm:col-start-1 max-sm:row-span-1 max-sm:row-start-3 max-sm:justify-self-stretch max-sm:pt-1.5">
+            <Button
+              variant="outline"
+              size="sm"
+              className="max-sm:w-full"
+              onClick={() => {
+                setEditingProvider(undefined);
+                setCustomFormOpen(true);
+              }}
+            >
+              <Icons.Plus className="h-4 w-4" />
+              {t("settings:market_data_page.add_custom_provider")}
+            </Button>
+          </CardAction>
+        </CardHeader>
+        <CardContent>
           {customScraperErrors && customScraperErrors.errorCount > 0 && (
             <Alert variant="destructive" className="mb-3 p-3">
               <Icons.XCircle />
@@ -1128,45 +1175,42 @@ export default function MarketDataSettingsPage() {
             </Alert>
           )}
           {customProviders.length === 0 ? (
-            <div className="rounded-lg border border-dashed p-6 text-center">
-              <Icons.Globe className="text-muted-foreground/50 mx-auto h-8 w-8" />
-              <p className="text-muted-foreground mt-2 text-sm">
-                {t("settings:market_data_page.custom_empty_title")}
-              </p>
-              <p className="text-muted-foreground text-xs">
-                {t("settings:market_data_page.custom_empty_description")}
-              </p>
-            </div>
+            <p className="text-muted-foreground text-sm">
+              {t("settings:market_data_page.custom_empty_description")}
+            </p>
           ) : (
-            <Card>
-              <CardContent className="pt-6">
-                <SettingsList label={t("settings:market_data_page.tab_custom")}>
-                  {customProviders.map((cp) => (
-                    <li key={cp.id}>
-                      <CustomProviderCard
-                        provider={cp}
-                        usage={usageByProvider.get(cp.id) ?? EMPTY_USAGE}
-                        onEdit={() => {
-                          setEditingProvider(cp);
-                          setCustomFormOpen(true);
-                        }}
-                        onDelete={() => deleteProvider.mutate(cp.id)}
-                        onToggleEnabled={(enabled) =>
-                          toggleProvider.mutate({ providerId: cp.id, payload: { enabled } })
-                        }
-                        isDeleting={deleteProvider.isPending && deleteProvider.variables === cp.id}
-                        isToggling={
-                          toggleProvider.isPending && toggleProvider.variables?.providerId === cp.id
-                        }
-                      />
-                    </li>
-                  ))}
-                </SettingsList>
-              </CardContent>
-            </Card>
+            <SettingsList label={t("settings:market_data_page.tab_custom")}>
+              {customProviders.map((cp) => (
+                <li key={cp.id}>
+                  <CustomProviderCard
+                    provider={cp}
+                    usage={usageByProvider.get(cp.id) ?? EMPTY_USAGE}
+                    onEdit={() => {
+                      setEditingProvider(cp);
+                      setCustomFormOpen(true);
+                    }}
+                    onDelete={() => deleteProvider.mutate(cp.id)}
+                    onToggleEnabled={(enabled) =>
+                      toggleProvider.mutate({ providerId: cp.id, payload: { enabled } })
+                    }
+                    isDeleting={deleteProvider.isPending && deleteProvider.variables === cp.id}
+                    isToggling={
+                      toggleProvider.isPending && toggleProvider.variables?.providerId === cp.id
+                    }
+                  />
+                </li>
+              ))}
+            </SettingsList>
           )}
-        </TabsContent>
-      </Tabs>
+        </CardContent>
+      </Card>
+
+      <ProviderCatalogDialog
+        open={catalogOpen}
+        onOpenChange={setCatalogOpen}
+        providers={availableProviders}
+        onAdd={handleAddProvider}
+      />
 
       <CustomProviderForm
         open={customFormOpen}

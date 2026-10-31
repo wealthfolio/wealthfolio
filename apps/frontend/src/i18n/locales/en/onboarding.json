@@ -59,24 +59,7 @@
   },
   "appearance": {
     "subtitle": "Customize your experience",
-    "themeLabel": "Theme",
-    "fontLabel": "Font",
-    "themeLight": "Light",
-    "themeDark": "Dark",
-    "themeSystem": "System",
-    "themeLightPreviewAlt": "Light theme preview",
-    "themeDarkPreviewAlt": "Dark theme preview",
-    "themeSystemPreviewAlt": "System theme preview",
-    "fontSample": "Invest with clarity.",
-    "fonts": {
-      "monoLabel": "Mono",
-      "monoDescription": "Technical & precise",
-      "sansLabel": "Sans",
-      "sansDescription": "Clean & modern",
-      "serifLabel": "Serif",
-      "serifDescription": "Classic & elegant"
-    },
-    "navigationLabel": "Navigation"
+    "changeLater": "You can change these anytime in Settings."
   },
   "connect": {
     "optional": "Optional",

@@ -1,4 +1,21 @@
 {
+  "budgetGroupNames": {
+    "032ecb02-5912-42e8-9724-2cd566fc08d5": "Necesidades",
+    "a409e0d6-9152-49c8-a5b4-a147a8ac636e": "Deseos",
+    "1fb6f2a3-3245-4702-83e8-ab116458d13e": "Ahorros",
+    "8cbd26c8-e3b2-4176-8c61-e5c11e10b808": "Donaciones",
+    "3ff71753-5dd5-4372-9ca2-63d8d9a04851": "Personal",
+    "6e25d097-0c73-4521-9407-d47e8dfb73e2": "Otros"
+  },
+  "eventTypeNames": {
+    "255600dc-c2a3-47e0-979d-a602c21fc337": "Viajes",
+    "51e3eedb-5484-45ba-a525-6b88209c46ed": "Vacaciones",
+    "d9871ccb-5396-4c70-ac08-5b07ed90e64a": "Negocios",
+    "22442173-c794-45bf-97ee-9b3f9a7c8ba3": "Educación",
+    "94fc13ed-ac40-466b-8071-64f1e3c72204": "Salud",
+    "1aaab8fb-8fd9-4543-bd46-d9ee4a5a8564": "Ocasión especial",
+    "fa4812ee-e06e-4117-a819-e4d88b7acbaf": "Otros"
+  },
   "common": {
     "amount": "Importe",
     "min": "Mín.",
@@ -1115,5 +1132,13 @@
   "budgetErrors": {
     "deleteGroup": "No se pudo eliminar el grupo de presupuesto.",
     "copyPlan": "No se pudo copiar el plan."
+  },
+  "grid": {
+    "transferInForm": "Cambie el tipo de una transferencia en el formulario de transferencia con Editar.",
+    "noCategory": "Esta actividad no es gasto, ingreso ni ahorro, por lo que no lleva categoría.",
+    "saveTypeFirst": "Guarde primero el nuevo tipo o la nueva cuenta y luego elija una categoría.",
+    "saveCategoryFirst": "Guarde primero la categoría y luego cambie el tipo o la cuenta.",
+    "typeNotForAccount": "Este tipo no está disponible para esta cuenta.",
+    "amountRequired": "El importe es obligatorio."
   }
 }

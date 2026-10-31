@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { ActivityType, InstrumentType } from "@/lib/constants";
 import { mapActivityTypeToPicker } from "../utils/activity-form-utils";
+import { feeFormSchema } from "../components/forms/fee-form";
+import { taxFormSchema } from "../components/forms/tax-form";
 import { ACTIVITY_FORM_CONFIG, hasActivityForm } from "./activity-form-config";
 
 describe("trade asset identity defaults", () => {
@@ -59,6 +61,21 @@ describe("cash transfer defaults", () => {
       });
     },
   );
+});
+
+describe("charge FX rate", () => {
+  it.each([
+    ["FEE", feeFormSchema],
+    ["TAX", taxFormSchema],
+  ] as const)("carries a stated FX rate from defaults to the %s payload", (type, schema) => {
+    const config = ACTIVITY_FORM_CONFIG[type];
+    const defaults = config.getDefaults(
+      { activityType: type, accountId: "a", amount: "5", currency: "EUR", fxRate: "1.08" },
+      [],
+    );
+    const parsed = schema.parse({ ...defaults, activityDate: new Date() });
+    expect(config.toPayload(parsed)).toMatchObject({ fxRate: 1.08 });
+  });
 });
 
 describe("option defaults", () => {

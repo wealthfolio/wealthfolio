@@ -1,6 +1,7 @@
 import { useHoldings } from "@/hooks/use-holdings";
 import { useSettings } from "@/hooks/use-settings";
-import { ACTIVITY_SUBTYPES, ActivityType, QuoteMode } from "@/lib/constants";
+import { ACTIVITY_SUBTYPES, ActivityType, DECIMAL_PRECISION, QuoteMode } from "@/lib/constants";
+import { cryptoMoneyDecimals } from "@/lib/currency-decimals";
 import { buildOccSymbol, isValidOptionExpiration } from "@/lib/occ-symbol";
 import { normalizeCurrency } from "@/lib/utils";
 import { invalidTypeError, requiredError } from "@/lib/zod-errors";
@@ -373,6 +374,7 @@ export function SellForm({
       tax: watch("tax"),
       isOption,
       contractMultiplier: optMultiplier,
+      currency,
     });
 
   const handleAssetTypeChange = (value: AssetType) => {
@@ -413,6 +415,7 @@ export function SellForm({
     [accounts, accountId],
   );
   const accountCurrency = selectedAccount?.currency;
+  const moneyDecimals = cryptoMoneyDecimals(selectedAccount?.accountType, symbolInstrumentType);
   const assetCurrencyFromSymbol = normalizeCurrency(symbolQuoteCcy ?? undefined)?.toUpperCase();
 
   // Fetch holdings for the selected account to check available quantity
@@ -658,11 +661,21 @@ export function SellForm({
               name="unitPrice"
               label={priceLabel}
               data-testid="price-input"
-              maxDecimalPlaces={4}
+              maxDecimalPlaces={DECIMAL_PRECISION}
               currency={currency}
             />
-            <AmountInput name="fee" label={t("activity:form.label_fee")} currency={currency} />
-            <AmountInput name="tax" label={t("activity:form.label_tax")} currency={currency} />
+            <AmountInput
+              name="fee"
+              label={t("activity:form.label_fee")}
+              currency={currency}
+              maxDecimalPlaces={moneyDecimals}
+            />
+            <AmountInput
+              name="tax"
+              label={t("activity:form.label_tax")}
+              currency={currency}
+              maxDecimalPlaces={moneyDecimals}
+            />
           </div>
 
           <TradeTotalInput
@@ -672,6 +685,7 @@ export function SellForm({
             onCustomChange={onCustomChange}
             currency={currency}
             isDebit={isDebit}
+            maxDecimalPlaces={moneyDecimals}
           />
 
           {/* Warning for selling more than holdings */}

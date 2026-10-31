@@ -993,7 +993,16 @@
       "emptySymbol": "Simbolo vuoto",
       "accountAssignmentBlankRows_one": "Associa ogni riga del CSV a un conto. {{count}} riga è ancora vuota, quindi scegli un conto predefinito in Caricamento o compila la colonna del conto.",
       "accountAssignmentBlankRows_many": "Associa ogni riga del CSV a un conto. {{count}} righe sono ancora vuote, quindi scegli un conto predefinito in Caricamento o compila la colonna del conto.",
-      "accountAssignmentBlankRows_other": "Associa ogni riga del CSV a un conto. {{count}} righe sono ancora vuote, quindi scegli un conto predefinito in Caricamento o compila la colonna del conto."
+      "accountAssignmentBlankRows_other": "Associa ogni riga del CSV a un conto. {{count}} righe sono ancora vuote, quindi scegli un conto predefinito in Caricamento o compila la colonna del conto.",
+      "statusIncluded": "Inclusi",
+      "skippedCount_one": "{{count}} saltata",
+      "skippedCount_many": "{{count}} saltate",
+      "skippedCount_other": "{{count}} saltate",
+      "allRowsSkipped": "Tutte le righe sono saltate",
+      "allRowsSkippedDescription": "Includi almeno una riga per continuare.",
+      "includeRow": "Includi la riga {{line}}",
+      "includeAllRows": "Includi tutte le righe",
+      "includeMatchingRows": "Includi tutte le righe corrispondenti"
     },
     "csvViewer": {
       "status": "Stato",

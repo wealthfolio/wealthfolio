@@ -1,3 +1,6 @@
+import i18n from "i18next";
+import zhCommon from "@/i18n/locales/zh/common.json";
+import zhCommonTaxonomies from "@/i18n/locales/zh/taxonomies.json";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import userEvent from "@testing-library/user-event";
 import { chartSliceColor } from "@wealthfolio/ui";
@@ -339,6 +342,90 @@ describe("AllocationWorksheetTab regeneration (§5)", () => {
 
   afterEach(() => {
     vi.unstubAllGlobals();
+  });
+
+  it("updates worksheet category displays on language changes without rewriting domain names", async () => {
+    const categories = [
+      { categoryId: "EQUITY", categoryName: "Equity" },
+      { categoryId: "FIXED_INCOME", categoryName: "My bonds" },
+    ];
+    const report = {
+      ...driftReport,
+      rows: categories.map((category) => ({
+        ...category,
+        color: "",
+        currentBps: 4000,
+        targetBps: 5000,
+        driftBps: -1000,
+        currentValue: 400,
+        targetValue: 500,
+        valueDelta: -100,
+        effectiveBandBps: 500,
+        status: "in_band",
+        isRequired: false,
+        isZeroCurrent: false,
+        isCash: false,
+      })),
+      holdings: {
+        targetId: profile.id,
+        totalValue: 1000,
+        baseCurrency: "USD",
+        rows: categories.map((category) => ({
+          ...category,
+          id: category.categoryId,
+          holdingId: "vti",
+          assetId: "vti",
+          accountId: "acc-1",
+          symbol: "VTI",
+          name: "Total market",
+          value: 500,
+          currentPct: 50,
+          isUnknownCategory: false,
+          isCash: false,
+        })),
+      },
+    } as DriftReport;
+    previewMock.mockResolvedValue({
+      ...previewResult,
+      categories: report.rows.map((row) => ({
+        ...row,
+        projectedValue: row.currentValue,
+        projectedBps: row.currentBps,
+        currentDifferenceBps: row.driftBps,
+        projectedDifferenceBps: row.driftBps,
+        isUnclassified: false,
+      })),
+    });
+    const original = JSON.stringify(report);
+    i18n.addResourceBundle("zh", "common", zhCommon);
+    i18n.addResourceBundle("zh", "taxonomies", zhCommonTaxonomies);
+    const user = await renderWorksheet(report);
+    try {
+      expect(screen.getAllByText("Equity").length).toBeGreaterThan(0);
+      await act(() => i18n.changeLanguage("zh"));
+      expect(
+        screen.getAllByText(zhCommonTaxonomies.categoryNames.asset_classes.EQUITY).length,
+      ).toBeGreaterThan(0);
+      expect(screen.getAllByText("My bonds").length).toBeGreaterThan(0);
+      expect(screen.queryByText("Equity")).not.toBeInTheDocument();
+      await goTo(user, "Adjust positions");
+      // The amount row's accessible class summary and the impact rail both update.
+      expect(
+        screen.getByText(
+          `${zhCommonTaxonomies.categoryNames.asset_classes.EQUITY} 50%, My bonds 50%`,
+        ),
+      ).toBeInTheDocument();
+      expect(
+        screen.getAllByText(zhCommonTaxonomies.categoryNames.asset_classes.EQUITY).length,
+      ).toBeGreaterThan(0);
+      await act(() => i18n.changeLanguage("en"));
+      expect(screen.getByText("Equity 50%, My bonds 50%")).toBeInTheDocument();
+      expect(screen.getAllByText("My bonds").length).toBeGreaterThan(0);
+      expect(JSON.stringify(report)).toBe(original);
+    } finally {
+      await act(() => i18n.changeLanguage("en"));
+      i18n.removeResourceBundle("zh", "common");
+    }
   });
 
   it("states how amounts are split with the eligible securities rather than asking for it", async () => {

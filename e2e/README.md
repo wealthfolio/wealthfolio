@@ -167,6 +167,10 @@ npx playwright test && npx playwright show-report
 | `34-import-mapping-sticky.spec.ts`     | CSV import Mapping step: the Activity Preview's header row and # column stay pinned as it scrolls (#2010)                   |
 | `33-import-mapping-layout.spec.ts`     | CSV import Mapping step: both previews fit the step area; on a phone, the step's blocks keep their height (#2002)           |
 | `39-text-size.spec.ts`                 | Appearance's text size saves, scales the root font size, and is applied by index.html before the app loads (#1734)          |
+| `37-import-skip-rows.spec.ts`          | CSV import Mapping step: skipping a row with an unmapped symbol lets the other rows import (#2262)                          |
+| `43-phone-dashboard-wash.spec.ts`      | Phone: each dashboard tab's coloured wash reaches the bottom of the screen, scrolled to the end or shorter than the screen  |
+| `44-performance-date-range.spec.ts`    | ALL calendar inception, mobile Done/Clear persistence and unbounded requests, on desktop/phone in LTR and RTL               |
+| `45-moex-provider.spec.ts`             | MOEX fixtures, provider icon, symbol guidance in LTR/RTL, and disabling the provider                                        |
 
 ---
 

@@ -962,7 +962,15 @@
       "mapSymbol": "종목 코드 매핑",
       "missingAccount": "계좌 없음",
       "emptySymbol": "종목 코드 없음",
-      "accountAssignmentBlankRows_other": "모든 CSV 행을 계좌에 매핑하세요. {{count}}개 행이 아직 비어 있습니다. 업로드에서 기본 계좌를 선택하거나 계좌 열을 채워 주세요."
+      "accountAssignmentBlankRows_other": "모든 CSV 행을 계좌에 매핑하세요. {{count}}개 행이 아직 비어 있습니다. 업로드에서 기본 계좌를 선택하거나 계좌 열을 채워 주세요.",
+      "statusIncluded": "포함됨",
+      "skippedCount_one": "{{count}}행 건너뜀",
+      "skippedCount_other": "{{count}}행 건너뜀",
+      "allRowsSkipped": "모든 행을 건너뛰었습니다",
+      "allRowsSkippedDescription": "계속하려면 하나 이상의 행을 포함하세요.",
+      "includeRow": "{{line}}행 포함",
+      "includeAllRows": "모든 행 포함",
+      "includeMatchingRows": "일치하는 모든 행 포함"
     },
     "csvViewer": {
       "status": "상태",

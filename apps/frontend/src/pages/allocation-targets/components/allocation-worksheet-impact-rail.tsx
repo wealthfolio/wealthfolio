@@ -1,3 +1,4 @@
+import { worksheetCategoryLabel } from "./allocation-worksheet-labels";
 import { Button, Card, CardContent, Icons, useAmountFormatting } from "@wealthfolio/ui";
 import { useTranslation } from "react-i18next";
 
@@ -40,6 +41,7 @@ export interface ImpactRailRow {
 type UnresolvedAmount = CalculatedAdjustments["unresolved"][number];
 
 interface ImpactRailProps {
+  taxonomyId?: string;
   report: DriftReport;
   result: AllocationWorksheetResult | null;
   isStale: boolean;
@@ -93,6 +95,7 @@ function shareOfClass(
 }
 
 export function ImpactRail({
+  taxonomyId = "",
   report,
   result,
   isStale,
@@ -124,11 +127,22 @@ export function ImpactRail({
     pointedOrSelected?.kind === "row" ? rowById.get(pointedOrSelected.assetId) : undefined;
   // A row that left the worksheet lights nothing.
   const active = pointedOrSelected?.kind === "row" && !activeRow ? null : pointedOrSelected;
+  const selectedCategory =
+    selected?.kind === "category"
+      ? classes.find((item) => item.categoryId === selected.categoryId)
+      : undefined;
   const selectedLabel =
     selected?.kind === "row"
       ? rowById.get(selected.assetId)?.symbol
       : selected?.kind === "category"
-        ? classes.find((item) => item.categoryId === selected.categoryId)?.categoryName
+        ? selectedCategory
+          ? worksheetCategoryLabel(
+              t,
+              taxonomyId,
+              selectedCategory.categoryId,
+              selectedCategory.categoryName,
+            )
+          : undefined
         : undefined;
   const unclassifiedBps =
     activeRow?.shares.find((share) => share.categoryId === UNCLASSIFIED_CATEGORY_ID)?.weightBps ??
@@ -251,6 +265,7 @@ export function ImpactRail({
               <ImpactClassRow
                 key={item.categoryId}
                 item={item}
+                taxonomyId={taxonomyId}
                 halfWindow={halfWindow}
                 emphasis={categoryEmphasis(active, item.categoryId, activeRow?.shares)}
                 isSelected={
@@ -263,7 +278,12 @@ export function ImpactRail({
                     ? t("allocation:worksheet.rowShareOfClass", {
                         symbol: activeRow.symbol,
                         share: inClass,
-                        category: item.categoryName,
+                        category: worksheetCategoryLabel(
+                          t,
+                          taxonomyId,
+                          item.categoryId,
+                          item.categoryName,
+                        ),
                       })
                     : undefined;
                 })()}
@@ -386,6 +406,7 @@ export function ImpactRail({
 }
 
 interface ImpactClassRowProps {
+  taxonomyId: string;
   item: ImpactClass;
   /** Shared by every class, so distances to target compare across them. */
   halfWindow: number;
@@ -402,6 +423,7 @@ interface ImpactClassRowProps {
 }
 
 function ImpactClassRow({
+  taxonomyId,
   item,
   halfWindow,
   emphasis,
@@ -442,7 +464,9 @@ function ImpactClassRow({
       <span className="flex items-center justify-between gap-2 text-xs">
         <span className="flex min-w-0 items-center gap-2">
           <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: item.color }} />
-          <span className="truncate">{item.categoryName}</span>
+          <span className="truncate">
+            {worksheetCategoryLabel(t, taxonomyId, item.categoryId, item.categoryName)}
+          </span>
         </span>
         {/* Only the projected figure turns amber when it stays outside its range:
             the target is not the problem. */}

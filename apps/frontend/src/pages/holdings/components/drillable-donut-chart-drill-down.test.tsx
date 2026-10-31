@@ -3,7 +3,19 @@ import { fireEvent, render, screen } from "@/test/render";
 import { describe, expect, it, vi } from "vitest";
 import { DrillableDonutChart } from "./drillable-donut-chart";
 
-vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
+vi.mock("react-i18next", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("react-i18next")>();
+  const { default: i18n } = await import("i18next");
+  return {
+    ...actual,
+    useTranslation: () => ({
+      // Use the English taxonomy resources registered by test/setup. Keep other
+      // messages as keys so the original empty-state assertions stay meaningful.
+      t: (key: string, options?: Record<string, unknown>) =>
+        key.startsWith("taxonomies:") ? i18n.t(key, { ...options, lng: "en" }) : key,
+    }),
+  };
+});
 // Recharts draws no sectors in jsdom; expose each slice as a button instead.
 vi.mock("@wealthfolio/ui", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@wealthfolio/ui")>()),

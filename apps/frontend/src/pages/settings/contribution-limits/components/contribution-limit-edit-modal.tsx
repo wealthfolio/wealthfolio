@@ -22,8 +22,8 @@ export function ContributionLimitEditModal({
               groupName: "",
               contributionYear: new Date().getFullYear(),
               accountIds: "",
-              startDate: new Date(Date.UTC(new Date().getFullYear(), 0, 1, 12, 0, 0)),
-              endDate: new Date(Date.UTC(new Date().getFullYear(), 11, 31, 12, 0, 0)),
+              startDate: new Date(new Date().getFullYear(), 0, 1),
+              endDate: new Date(new Date().getFullYear(), 11, 31),
             }
           }
           onSuccess={() => {

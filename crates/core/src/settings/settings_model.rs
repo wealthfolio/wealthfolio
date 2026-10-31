@@ -6,10 +6,14 @@ use std::collections::BTreeMap;
 pub const INSIGHTS_OVERVIEW_LAYOUT_KEY: &str = "insights_overview_layout";
 pub const CURRENCY_FORMATTING_REGIONS_KEY: &str = "currency_formatting_regions";
 /// Selected theme (palette and shape). Device-local: sync shares only the keys it
-/// lists. The frontend owns the theme list and shows Classic for an ID it does
-/// not know, so an ID saved by a newer version survives an older one.
+/// lists. The frontend owns the theme list and shows the default theme for an ID
+/// it does not know, so an ID saved by a newer version survives an older one.
 pub const THEME_ID_KEY: &str = "theme_id";
-pub const DEFAULT_THEME_ID: &str = "classic";
+/// New profiles start on Signature with the font it suggests. Profiles that
+/// finished onboarding before Signature became the default kept Classic and Mono:
+/// migration `2026-10-29-000002_signature_default_theme` stored them.
+pub const DEFAULT_THEME_ID: &str = "signature";
+pub const DEFAULT_FONT: &str = "font-sans";
 /// Text size: a name the frontend maps to a root font size. Device-local like the
 /// theme, and the frontend shows the default size for a name it does not know.
 /// Unset until the user picks one, so the frontend can start from the device's
@@ -70,7 +74,7 @@ impl Default for Settings {
             theme_id: default_theme_id(),
             gain_colors: default_gain_colors(),
             theme: "light".to_string(),
-            font: "font-mono".to_string(),
+            font: DEFAULT_FONT.to_string(),
             text_size: None,
             language: "en".to_string(),
             formatting_region: "system".to_string(),

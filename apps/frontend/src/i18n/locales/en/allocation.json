@@ -296,6 +296,7 @@
     "title": "Rebalancing worksheet",
     "totalAdjusted": "{{amount}} adjusted",
     "unclassified": "Unclassified",
+    "unclassifiedExposure": "Unclassified exposure",
     "unitPrice": "Unit price",
     "unknownAccount": "Unknown account",
     "unresolvedHint": "Not placed on any security, and excluded from the projection until you act on them.",
@@ -508,5 +509,19 @@
     "useAmountIn": "Use {{amount}} in {{account}}",
     "useAsAdjustment": "Use {{amount}} as the adjustment",
     "calculationInterrupted": "The worksheet changed while calculating. Please try again."
+  },
+  "categoryNouns": {
+    "assetClass": "asset classes",
+    "region": "regions",
+    "industry": "industries",
+    "category": "categories",
+    "assetClass_one": "asset class",
+    "assetClass_other": "asset classes",
+    "region_one": "region",
+    "region_other": "regions",
+    "industry_one": "industry",
+    "industry_other": "industries",
+    "category_one": "category",
+    "category_other": "categories"
   }
 }

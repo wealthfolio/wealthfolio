@@ -1,3 +1,5 @@
+import { getTaxonomyLabel, getCategoryLabel } from "@/lib/taxonomy-labels";
+import { taxonomyTabLabel } from "./taxonomy-tab-label";
 import { useState, useMemo } from "react";
 import {
   Icons,
@@ -47,8 +49,13 @@ export default function TaxonomiesPage() {
   // Build tree from categories
   const categoryTree = useMemo(() => {
     if (!taxonomyWithCategories?.categories) return [];
-    return buildCategoryTree(taxonomyWithCategories.categories);
-  }, [taxonomyWithCategories?.categories]);
+    return buildCategoryTree(
+      taxonomyWithCategories.categories.map((c) => ({
+        ...c,
+        name: getCategoryLabel(t, c.taxonomyId, c.id, c.name),
+      })),
+    );
+  }, [taxonomyWithCategories?.categories, t]);
 
   // Find selected category
   const selectedCategory = useMemo(() => {
@@ -151,7 +158,7 @@ export default function TaxonomiesPage() {
                     className="h-2.5 w-2.5 shrink-0 rounded-full"
                     style={{ backgroundColor: taxonomy.color }}
                   />
-                  <span>{taxonomy.name.replace(" (GICS)", "")}</span>
+                  <span>{taxonomyTabLabel(t, taxonomy.id, taxonomy.name)}</span>
                 </TabsTrigger>
               ))}
             </TabsList>
@@ -170,7 +177,9 @@ export default function TaxonomiesPage() {
                 style={{ backgroundColor: activeTaxonomy?.color }}
               />
               <div>
-                <h3 className="font-semibold">{activeTaxonomy?.name}</h3>
+                <h3 className="font-semibold">
+                  {activeTaxonomy && getTaxonomyLabel(t, activeTaxonomy.id, activeTaxonomy.name)}
+                </h3>
                 <p className="text-muted-foreground text-xs">
                   {t("settings:tax_categories_count", {
                     count: taxonomyWithCategories.categories.length,

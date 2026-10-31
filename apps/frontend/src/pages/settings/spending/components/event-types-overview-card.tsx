@@ -1,3 +1,4 @@
+import { getEventTypeLabel } from "@/features/spending/lib/labels";
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -13,10 +14,10 @@ export function EventTypesOverviewCard() {
     () =>
       eventTypes.map((type) => ({
         id: type.id,
-        name: type.name,
+        name: getEventTypeLabel(t, type.id, type.name),
         color: type.color ?? null,
       })),
-    [eventTypes],
+    [eventTypes, t],
   );
 
   const total = eventTypes.length;

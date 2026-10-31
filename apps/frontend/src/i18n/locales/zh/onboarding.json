@@ -59,24 +59,7 @@
   },
   "appearance": {
     "subtitle": "自定义您的体验",
-    "themeLabel": "主题",
-    "fontLabel": "字体",
-    "themeLight": "浅色",
-    "themeDark": "深色",
-    "themeSystem": "跟随系统",
-    "themeLightPreviewAlt": "浅色主题预览",
-    "themeDarkPreviewAlt": "深色主题预览",
-    "themeSystemPreviewAlt": "系统主题预览",
-    "fontSample": "清晰地投资。",
-    "fonts": {
-      "monoLabel": "等宽",
-      "monoDescription": "技术感与精确",
-      "sansLabel": "无衬线",
-      "sansDescription": "简洁而现代",
-      "serifLabel": "衬线",
-      "serifDescription": "经典而优雅"
-    },
-    "navigationLabel": "导航"
+    "changeLater": "您可以随时在设置中更改。"
   },
   "connect": {
     "optional": "可选",

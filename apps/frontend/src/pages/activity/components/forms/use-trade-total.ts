@@ -17,6 +17,8 @@ interface UseTradeTotalOptions {
   tax: number | undefined;
   isOption: boolean;
   contractMultiplier: number | undefined;
+  /** The activity currency, whose minor unit the calculated total rounds to. */
+  currency: string | undefined;
 }
 
 /**
@@ -39,6 +41,7 @@ export function useTradeTotal({
   tax,
   isOption,
   contractMultiplier,
+  currency,
 }: UseTradeTotalOptions) {
   // Editing starts in custom mode only when the stored total actually
   // differs from the calculation - a total that equals it was never custom,
@@ -58,6 +61,7 @@ export function useTradeTotal({
         fee,
         tax,
         contractMultiplier: isOption ? contractMultiplier : undefined,
+        currency,
       }),
   );
 
@@ -74,8 +78,9 @@ export function useTradeTotal({
         // default for every asset type, so passing it unconditionally would
         // price a stock at 100x.
         contractMultiplier: isOption ? contractMultiplier : undefined,
+        currency,
       }),
-    [side, instrumentType, quantity, unitPrice, fee, tax, isOption, contractMultiplier],
+    [side, instrumentType, quantity, unitPrice, fee, tax, isOption, contractMultiplier, currency],
   );
   const calculatedAmount = calculatedCash === undefined ? undefined : Math.abs(calculatedCash);
   // A sell whose charges exceed its proceeds is cash OUT: the field is a

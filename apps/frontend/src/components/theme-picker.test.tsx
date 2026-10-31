@@ -63,17 +63,19 @@ describe("ThemePicker", () => {
     expect(screen.getByRole("radio", { name: /Ember/ })).toBeChecked();
   });
 
-  it("checks Classic for a missing or unknown theme", () => {
+  it("checks the default theme, Signature, for a missing or unknown theme", () => {
     const { rerender } = render(<ThemePicker onChange={vi.fn()} />);
-    expect(screen.getByRole("radio", { name: "Classic" })).toBeChecked();
+    expect(screen.getByRole("radio", { name: "Signature" })).toBeChecked();
     rerender(<ThemePicker value="from-a-newer-version" onChange={vi.fn()} />);
-    expect(screen.getByRole("radio", { name: "Classic" })).toBeChecked();
+    expect(screen.getByRole("radio", { name: "Signature" })).toBeChecked();
   });
 
   it("reports the picked theme and describes the mode a theme is designed for", () => {
     const onChange = vi.fn();
     render(<ThemePicker value="classic" onChange={onChange} />);
     const terminal = screen.getByRole("radio", { name: /Terminal/ });
+    // The note describes the option; it isn't read a second time as part of its name.
+    expect(terminal).toHaveAccessibleName("Terminal");
     expect(terminal).toHaveAccessibleDescription("Terminal looks best in dark mode.");
     fireEvent.click(terminal);
     expect(onChange).toHaveBeenCalledWith("terminal");
@@ -86,6 +88,19 @@ describe("ThemePicker", () => {
         preview.getAttribute("data-theme-preview"),
       ),
     ).toEqual(themes.map(({ id }) => id));
+  });
+
+  it("draws the themes designed for dark in dark when asked", () => {
+    const darkThemes = (container: HTMLElement) =>
+      [...container.querySelectorAll(".dark [data-theme-preview]")].map((preview) =>
+        preview.getAttribute("data-theme-preview"),
+      );
+    const { container, rerender } = render(<ThemePicker value="classic" onChange={vi.fn()} />);
+    expect(darkThemes(container)).toEqual([]);
+    rerender(<ThemePicker value="classic" onChange={vi.fn()} drawDesignedMode />);
+    expect(darkThemes(container)).toEqual(
+      themes.filter(({ mode }) => mode === "dark").map(({ id }) => id),
+    );
   });
 
   it("draws each miniature in a font role, the theme's or the user's", () => {

@@ -67,6 +67,8 @@ export interface WorksheetExportLabels {
 }
 
 export interface WorksheetExportInput {
+  /** Display only; domain records and saved drafts retain their original names. */
+  categoryLabel?: (categoryId: string, name: string) => string;
   result: AllocationWorksheetResult;
   /** The last calculation, for the amounts it could not place. */
   calculated: CalculatedAdjustments | null;
@@ -82,13 +84,19 @@ export interface WorksheetExportInput {
   describeWarning: (warning: WorksheetWarning) => string;
 }
 
-function lineCategory(line: AllocationWorksheetLineResult): string {
+function lineCategory(
+  line: AllocationWorksheetLineResult,
+  label: (id: string, name: string) => string,
+): string {
   const exposures = line.categoryExposures.filter((exposure) => exposure.weightBps > 0);
   if (exposures.length === 1 && exposures[0].weightBps >= 10_000) {
-    return exposures[0].categoryName;
+    return label(exposures[0].categoryId, exposures[0].categoryName);
   }
   return exposures
-    .map((exposure) => `${exposure.categoryName} ${Math.round(exposure.weightBps / 100)}%`)
+    .map(
+      (exposure) =>
+        `${label(exposure.categoryId, exposure.categoryName)} ${Math.round(exposure.weightBps / 100)}%`,
+    )
     .join(" · ");
 }
 
@@ -155,6 +163,7 @@ export function worksheetExportRows(
   labels: WorksheetExportLabels,
 ): ExportCell[][] {
   const { result, calculated } = input;
+  const categoryLabel = input.categoryLabel ?? ((_id: string, name: string) => name);
   if (result.lines.some((line) => !line.accountId)) {
     throw new Error("Place every adjustment in an account before exporting the worksheet.");
   }
@@ -213,7 +222,7 @@ export function worksheetExportRows(
       // An estimate, rounded as the screens show it; the amount is primary.
       displayUnits(line.direction === "increase" ? line.quantity : -line.quantity),
       storedPrice(line.unitPrice),
-      lineCategory(line),
+      lineCategory(line, categoryLabel),
       line.quoteSource.timestamp.slice(0, 10),
       (warningsByLine.get(line.lineId) ?? []).join("; "),
     ]);
@@ -229,7 +238,7 @@ export function worksheetExportRows(
       decimal(item.amount),
       "",
       "",
-      item.categoryName,
+      categoryLabel(item.categoryId, item.categoryName),
       "",
       "",
     ]);

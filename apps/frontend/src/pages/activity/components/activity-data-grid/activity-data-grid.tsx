@@ -22,6 +22,7 @@ import { buildSameAccountFxDuplicate } from "../../utils/duplicate-fx-transfer";
 import { ActivityDataGridPagination } from "./activity-data-grid-pagination";
 import { ActivityDataGridToolbar } from "./activity-data-grid-toolbar";
 import {
+  applyAutomaticFinalAmount,
   applyTransactionUpdate,
   createCurrencyResolver,
   createDraftTransaction,
@@ -351,7 +352,8 @@ export function ActivityDataGrid({
           const row = updated[rowIndex];
           dirtyId = row.id;
           const currency = provisionalCurrency ?? row.accountCurrency ?? fallbackCurrency;
-          updated[rowIndex] = {
+          // A pick sets the currency and instrument type the amount rounds by.
+          updated[rowIndex] = applyAutomaticFinalAmount({
             ...row,
             assetSymbol: canonicalSymbol,
             exchangeMic: canonicalExchangeMic,
@@ -367,7 +369,7 @@ export function ActivityDataGrid({
             pendingProviderId: result.providerId,
             pendingProviderSymbol: result.providerSymbol,
             _instrumentTypeFromPick: true,
-          };
+          });
         }
         return updated;
       });
@@ -423,7 +425,7 @@ export function ActivityDataGrid({
             didUpdate = true;
             updatedRowId = row.id;
             const updated = [...prev];
-            updated[index] = { ...row, ...changes };
+            updated[index] = applyAutomaticFinalAmount({ ...row, ...changes });
             return updated;
           });
 
@@ -457,7 +459,8 @@ export function ActivityDataGrid({
           const row = updated[rowIndex];
           dirtyId = row.id;
           const currency = result.currency ?? row.accountCurrency ?? fallbackCurrency;
-          updated[rowIndex] = {
+          // A pick sets the currency and instrument type the amount rounds by.
+          updated[rowIndex] = applyAutomaticFinalAmount({
             ...row,
             assetSymbol: canonicalSymbol,
             exchangeMic: canonicalExchangeMic,
@@ -472,7 +475,7 @@ export function ActivityDataGrid({
             pendingProviderId: result.providerId,
             pendingProviderSymbol: result.providerSymbol,
             _instrumentTypeFromPick: true,
-          };
+          });
         }
         return updated;
       });

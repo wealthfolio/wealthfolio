@@ -1,3 +1,6 @@
+import type { TFunction } from "i18next";
+import { getCategoryLabel } from "@/lib/taxonomy-labels";
+
 export interface ModelPreset {
   id: string;
   taxonomyId: string;
@@ -44,6 +47,7 @@ function formattedPct(value: number): string {
 export function modelPresetTitle(
   preset: ModelPreset,
   categories: { id: string; name: string; sortOrder?: number }[],
+  t?: TFunction,
 ): string {
   const categoryById = new Map(categories.map((category) => [category.id, category]));
   const entries = Object.entries(preset.weights)
@@ -58,7 +62,7 @@ export function modelPresetTitle(
     });
   const visible = entries.slice(0, 3).map(([categoryId, pct]) => {
     const label = categoryById.get(categoryId)?.name ?? CATEGORY_LABELS[categoryId] ?? categoryId;
-    return `${formattedPct(pct)} ${label}`;
+    return `${formattedPct(pct)} ${t ? getCategoryLabel(t, preset.taxonomyId, categoryId, label) : label}`;
   });
   if (entries.length > visible.length) visible.push(`+${entries.length - visible.length}`);
   return visible.join(" / ");

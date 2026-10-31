@@ -69,7 +69,7 @@ export function ModelPresetPicker({
   }
 
   const taxonomyPresets = BUILT_IN_PRESETS.filter((preset) => preset.taxonomyId === taxonomyId)
-    .map((preset) => ({ preset, title: modelPresetTitle(preset, categories) }))
+    .map((preset) => ({ preset, title: modelPresetTitle(preset, categories, t) }))
     .sort((left, right) => left.title.localeCompare(right.title));
   const primaryPresets = taxonomyPresets.slice(0, 3);
   const secondaryPresets = taxonomyPresets.slice(3);
@@ -151,7 +151,8 @@ export function ModelPresetPicker({
         <PresetCard
           preset={currentPreset}
           title={
-            modelPresetTitle(currentPreset, categories) || t("allocation:presets.noCurrentHoldings")
+            modelPresetTitle(currentPreset, categories, t) ||
+            t("allocation:presets.noCurrentHoldings")
           }
           current
         />

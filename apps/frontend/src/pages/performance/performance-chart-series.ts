@@ -166,3 +166,24 @@ export function comparablePerformanceChartData(
     };
   });
 }
+
+/**
+ * Earliest start represented by the given results. Call with loaded all-time
+ * results to anchor the custom-range calendar without changing the ALL sentinel
+ * kept in selection state.
+ */
+export function earliestPerformanceStartDate(
+  results: (PerformanceResult | null | undefined)[] | null | undefined,
+): Date | undefined {
+  let earliestMs: number | undefined;
+  for (const result of results ?? []) {
+    const iso = result?.period?.startDate ?? result?.series?.[0]?.date;
+    if (!iso) continue;
+    const ms = new Date(`${iso.slice(0, 10)}T00:00:00`).getTime();
+    if (Number.isNaN(ms)) continue;
+    if (earliestMs === undefined || ms < earliestMs) {
+      earliestMs = ms;
+    }
+  }
+  return earliestMs === undefined ? undefined : new Date(earliestMs);
+}

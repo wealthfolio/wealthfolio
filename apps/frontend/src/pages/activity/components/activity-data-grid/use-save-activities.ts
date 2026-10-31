@@ -2,7 +2,7 @@ import { formatActivityFieldName } from "../../utils/validation-labels";
 import i18n from "i18next";
 import { logger } from "@/adapters";
 import { toast } from "@wealthfolio/ui/components/ui/use-toast";
-import type { ActivityBulkMutationRequest } from "@/lib/types";
+import type { ActivityBulkMutationRequest, ActivityBulkMutationResult } from "@/lib/types";
 import { useCallback } from "react";
 import { useActivityMutations } from "../../hooks/use-activity-mutations";
 import {
@@ -10,10 +10,28 @@ import {
   validateTransactionsForSave,
   type ValidationResult,
 } from "./activity-utils";
-import type { CurrencyResolutionOptions, LocalTransaction } from "./types";
+import type { CurrencyResolutionOptions, LocalTransaction, SavePayloadResult } from "./types";
 
-interface UseSaveActivitiesParams {
-  localTransactions: LocalTransaction[];
+/** What the activity write did, for a write that depends on it. */
+export interface ActivitySaveOutcome {
+  /** Persisted ids of rows created in this save, by their temporary ids. */
+  createdIds: ReadonlyMap<string, string>;
+  /** Rows the backend rejected; they keep their local edits. */
+  failedIds: ReadonlySet<string>;
+  /** Rows deleted, including counterparts deleted with them. */
+  deletedIds: ReadonlySet<string>;
+}
+
+const NO_ACTIVITY_CHANGES: ActivityBulkMutationResult = {
+  created: [],
+  updated: [],
+  deleted: [],
+  createdMappings: [],
+  errors: [],
+};
+
+interface UseSaveActivitiesParams<TRow extends LocalTransaction> {
+  localTransactions: TRow[];
   dirtyTransactionIds: Set<string>;
   pendingDeleteIds: Set<string>;
   resolveTransactionCurrency: (
@@ -23,10 +41,18 @@ interface UseSaveActivitiesParams {
   dirtyCurrencyLookup: Map<string, string>;
   assetCurrencyLookup: Map<string, string>;
   fallbackCurrency: string;
-  setLocalTransactions: React.Dispatch<React.SetStateAction<LocalTransaction[]>>;
-  resetChangeState: () => void;
+  setLocalTransactions: React.Dispatch<React.SetStateAction<TRow[]>>;
+  resetChangeState: (keepDirtyIds?: ReadonlySet<string>) => void;
   resetRowSelection: () => void;
   onRefetch: () => Promise<unknown>;
+  /** Adjusts the activity payload before it is sent, e.g. to drop rows with no activity change. */
+  preparePayload?: (payload: SavePayloadResult) => SavePayloadResult;
+  /**
+   * Runs after the activity write and before the grid resets and refetches.
+   * Reports its own failures and resolves the rows it could not save, which
+   * stay marked as changed so Save can retry them.
+   */
+  afterActivitiesSaved?: (outcome: ActivitySaveOutcome) => Promise<ReadonlySet<string>>;
 }
 
 interface SaveResult {
@@ -37,7 +63,7 @@ interface SaveResult {
 /**
  * Hook for handling activity save operations with validation and error handling
  */
-export function useSaveActivities({
+export function useSaveActivities<TRow extends LocalTransaction = LocalTransaction>({
   localTransactions,
   dirtyTransactionIds,
   pendingDeleteIds,
@@ -49,7 +75,9 @@ export function useSaveActivities({
   resetChangeState,
   resetRowSelection,
   onRefetch,
-}: UseSaveActivitiesParams) {
+  preparePayload,
+  afterActivitiesSaved,
+}: UseSaveActivitiesParams<TRow>) {
   const { saveActivitiesMutation } = useActivityMutations();
 
   const saveActivities = useCallback(async (): Promise<SaveResult> => {
@@ -76,7 +104,7 @@ export function useSaveActivities({
       return { success: false, validation };
     }
 
-    const payload = buildSavePayload(
+    const builtPayload = buildSavePayload(
       localTransactions,
       dirtyTransactionIds,
       pendingDeleteIds,
@@ -85,6 +113,9 @@ export function useSaveActivities({
       assetCurrencyLookup,
       fallbackCurrency,
     );
+    const payload = preparePayload ? preparePayload(builtPayload) : builtPayload;
+    const hasActivityChanges =
+      payload.creates.length > 0 || payload.updates.length > 0 || payload.deleteIds.length > 0;
 
     // Note: payload uses string types for decimal fields to preserve precision
     // (e.g., 0.000000099). Rust's Decimal type can deserialize from strings.
@@ -99,7 +130,9 @@ export function useSaveActivities({
         `Saving activities: creates=${request.creates?.length ?? 0}, updates=${request.updates?.length ?? 0}, deletes=${request.deleteIds?.length ?? 0}`,
       );
 
-      const result = await saveActivitiesMutation.mutateAsync(request);
+      const result = hasActivityChanges
+        ? await saveActivitiesMutation.mutateAsync(request)
+        : NO_ACTIVITY_CHANGES;
 
       // Check for backend validation errors (partial failure)
       const hasErrors = result.errors && result.errors.length > 0;
@@ -149,6 +182,14 @@ export function useSaveActivities({
       // All IDs deleted by backend (includes cascade-deleted counterparts)
       const allDeletedIds = new Set(result.deleted.map((a) => a.id));
 
+      const unsavedIds = afterActivitiesSaved
+        ? await afterActivitiesSaved({
+            createdIds: createdMappings,
+            failedIds: new Set([...failedTempIds].filter((id): id is string => !!id)),
+            deletedIds: allDeletedIds,
+          })
+        : new Set<string>();
+
       // Update local state with persisted IDs, keep failed items
       setLocalTransactions((prev) =>
         prev
@@ -171,10 +212,10 @@ export function useSaveActivities({
           }),
       );
 
-      resetChangeState();
+      resetChangeState(unsavedIds);
       resetRowSelection();
 
-      if (!hasErrors) {
+      if (!hasErrors && unsavedIds.size === 0) {
         toast({
           title: i18n.t("activity:datagrid_activities_saved"),
           description: i18n.t("common:notifications.pending_changes_saved"),
@@ -187,7 +228,7 @@ export function useSaveActivities({
       logger.info(
         `Activities save completed: ${result.created.length} created, ${result.updated.length} updated, ${result.deleted.length} deleted, ${result.errors?.length ?? 0} errors`,
       );
-      return { success: !hasErrors || hasSuccesses };
+      return { success: (!hasErrors || hasSuccesses) && unsavedIds.size === 0 };
     } catch (error) {
       logger.error(
         `Failed to save activities: ${error instanceof Error ? error.message : String(error)}`,
@@ -196,6 +237,7 @@ export function useSaveActivities({
       return { success: false };
     }
   }, [
+    afterActivitiesSaved,
     assetCurrencyLookup,
     dirtyCurrencyLookup,
     dirtyTransactionIds,
@@ -203,6 +245,7 @@ export function useSaveActivities({
     localTransactions,
     onRefetch,
     pendingDeleteIds,
+    preparePayload,
     resetChangeState,
     resetRowSelection,
     resolveTransactionCurrency,

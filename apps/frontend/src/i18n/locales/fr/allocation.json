@@ -305,6 +305,7 @@
     "title": "Feuille de rééquilibrage",
     "totalAdjusted": "{{amount}} ajustés",
     "unclassified": "Non classé",
+    "unclassifiedExposure": "Exposition non classée",
     "unitPrice": "Prix unitaire",
     "unknownAccount": "Compte inconnu",
     "unresolvedHint": "Ces montants ne sont placés sur aucun titre et restent exclus de la projection tant que vous n'agissez pas.",
@@ -523,5 +524,23 @@
     "useAmountIn": "Utiliser {{amount}} dans {{account}}",
     "useAsAdjustment": "Utiliser {{amount}} comme ajustement",
     "calculationInterrupted": "La feuille a changé pendant le calcul. Veuillez réessayer."
+  },
+  "categoryNouns": {
+    "assetClass": "classes d'actifs",
+    "region": "régions",
+    "industry": "industries",
+    "category": "catégories",
+    "region_other": "régions",
+    "category_other": "catégories",
+    "assetClass_one": "classe d'actifs",
+    "assetClass_other": "classes d'actifs",
+    "assetClass_many": "classes d'actifs",
+    "region_one": "région",
+    "industry_one": "industrie",
+    "industry_other": "industries",
+    "industry_many": "industries",
+    "category_one": "catégorie",
+    "region_many": "régions",
+    "category_many": "catégories"
   }
 }

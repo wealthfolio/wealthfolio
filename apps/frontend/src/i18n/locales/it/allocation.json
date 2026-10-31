@@ -305,6 +305,7 @@
     "title": "Foglio di ribilanciamento",
     "totalAdjusted": "{{amount}} rettificati",
     "unclassified": "Non classificato",
+    "unclassifiedExposure": "Esposizione non classificata",
     "unitPrice": "Prezzo unitario",
     "unknownAccount": "Conto sconosciuto",
     "unresolvedHint": "Non assegnati a nessun titolo ed esclusi dalla previsione finché non intervieni.",
@@ -523,5 +524,23 @@
     "useAmountIn": "Usa {{amount}} in {{account}}",
     "useAsAdjustment": "Usa {{amount}} come rettifica",
     "calculationInterrupted": "Il foglio è cambiato durante il calcolo. Riprova."
+  },
+  "categoryNouns": {
+    "assetClass": "classi di attività",
+    "region": "regioni",
+    "industry": "industrie",
+    "category": "categorie",
+    "region_other": "regioni",
+    "category_other": "categorie",
+    "assetClass_one": "classe di attività",
+    "assetClass_other": "classi di attività",
+    "assetClass_many": "classi di attività",
+    "region_one": "regione",
+    "industry_one": "industria",
+    "industry_other": "industrie",
+    "industry_many": "industrie",
+    "category_one": "categoria",
+    "region_many": "regioni",
+    "category_many": "categorie"
   }
 }

@@ -13,6 +13,8 @@
 
 use std::sync::Arc;
 
+use rust_decimal::prelude::FromPrimitive;
+use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use wealthfolio_core::activities::{ActivityImport, ImportActivitiesSummary};
@@ -64,6 +66,13 @@ pub struct ActivityImportRow {
     pub amount: Option<f64>,
     #[serde(default)]
     pub fee: Option<f64>,
+    #[serde(default)]
+    pub tax: Option<f64>,
+    /// Rate converting the activity currency into the account currency.
+    #[serde(default)]
+    pub fx_rate: Option<f64>,
+    #[serde(default)]
+    pub subtype: Option<String>,
     #[serde(default)]
     pub account_id: Option<String>,
     #[serde(default)]
@@ -250,6 +259,16 @@ fn to_import_rows(rows: &[ActivityImportRow]) -> Result<Vec<ActivityImport>, Age
     rows.iter()
         .enumerate()
         .map(|(index, row)| {
+            // Core stores the rate as given and checks it only for transfer pairs.
+            // A rate Decimal cannot hold would fail deserialization with its value.
+            if row.fx_rate.is_some_and(|rate| {
+                Decimal::from_f64(rate).is_none_or(|rate| rate <= Decimal::ZERO)
+            }) {
+                return Err(AgentToolError::InvalidInput(format!(
+                    "Row {}: fxRate must be a positive number.",
+                    index + 1
+                )));
+            }
             // Serialize the input allowlist so identity fields survive both tools.
             // Validation status always belongs to the backend, never to the caller.
             let mut obj = serde_json::to_value(row)?;
@@ -635,6 +654,9 @@ fn activity_row_schema() -> serde_json::Value {
             "unitPrice": { "type": "number" },
             "amount": { "type": "number" },
             "fee": { "type": "number" },
+            "tax": { "type": "number", "description": "Tax withheld, such as dividend withholding tax." },
+            "fxRate": { "type": "number", "description": "Rate from the statement converting the activity currency into the account currency. Omit to use the market rate." },
+            "subtype": { "type": "string", "description": "Variation of the activity type, e.g. DRIP for DIVIDEND or STAKING_REWARD for INTEREST." },
             "accountId": { "type": "string" },
             "comment": { "type": "string" },
             "lineNumber": { "type": "integer", "description": "1-based source row, for duplicate messages." },
@@ -667,6 +689,9 @@ mod tests {
             unit_price: Some(150.25),
             amount: None,
             fee: None,
+            tax: None,
+            fx_rate: None,
+            subtype: None,
             account_id: Some("acct-1".to_string()),
             comment: None,
             line_number: None,
@@ -685,6 +710,31 @@ mod tests {
         assert_eq!(r.line_number, Some(1)); // defaulted from index
         assert!(r.force_import); // "import anyway" preserved
         assert!(!r.is_draft);
+    }
+
+    #[test]
+    fn maps_tax_subtype_and_fx_rate() {
+        let mut input = row(false);
+        input.activity_type = "DIVIDEND".to_string();
+        input.subtype = Some("DRIP".to_string());
+        input.tax = Some(1.5);
+        input.fx_rate = Some(1.35);
+
+        let mapped = to_import_rows(&[input]).unwrap();
+
+        assert_eq!(mapped[0].subtype.as_deref(), Some("DRIP"));
+        assert_eq!(mapped[0].tax, Some(Decimal::new(15, 1)));
+        assert_eq!(mapped[0].fx_rate, Some(Decimal::new(135, 2)));
+
+        for rate in [0.0, -1.2, 9.87e30, 1e-30] {
+            let mut input = row(false);
+            input.fx_rate = Some(rate);
+            let error = to_import_rows(&[input]).unwrap_err();
+            assert!(matches!(error, AgentToolError::InvalidInput(_)));
+            // The error reaches the audit log, which keeps no row values.
+            assert!(!error.to_string().contains("1.2"), "{error}");
+            assert!(!error.to_string().contains("9.87"), "{error}");
+        }
     }
 
     #[test]

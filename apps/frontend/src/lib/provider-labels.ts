@@ -30,6 +30,7 @@ export function getProviderInstruments(t: TFunction, value: string): string {
     Forex: "asset:createSecurity.instrumentType.fx",
     Metals: "asset:createSecurity.instrumentType.metal",
     ETFs: "settings:market_data_page.instrumentLabels.etfs",
+    DRs: "settings:market_data_page.instrumentLabels.depositary_receipts",
     Funds: "settings:market_data_page.instrumentLabels.funds",
     Bonds: "settings:market_data_page.instrumentLabels.bonds",
     "US Treasuries": "settings:market_data_page.coverageLabels.US Treasury",

@@ -289,6 +289,7 @@
     "title": "再平衡工作表",
     "totalAdjusted": "已调整 {{amount}}",
     "unclassified": "未分类",
+    "unclassifiedExposure": "未分类敞口",
     "unitPrice": "单价",
     "unknownAccount": "未知账户",
     "unresolvedHint": "未分配到任何证券，在您处理之前不计入预计。",
@@ -495,5 +496,15 @@
     "useAmountIn": "在 {{account}} 中使用 {{amount}}",
     "useAsAdjustment": "将 {{amount}} 用作调整额",
     "calculationInterrupted": "计算期间工作表已更改。请重试。"
+  },
+  "categoryNouns": {
+    "assetClass": "资产类别",
+    "region": "地区",
+    "industry": "行业",
+    "category": "类别",
+    "region_other": "地区",
+    "category_other": "类别",
+    "assetClass_other": "资产类别",
+    "industry_other": "行业"
   }
 }

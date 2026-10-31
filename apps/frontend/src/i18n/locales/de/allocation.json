@@ -296,6 +296,7 @@
     "title": "Rebalancing-Arbeitsblatt",
     "totalAdjusted": "{{amount}} angepasst",
     "unclassified": "Nicht klassifiziert",
+    "unclassifiedExposure": "Nicht klassifiziertes Engagement",
     "unitPrice": "Stückpreis",
     "unknownAccount": "Unbekanntes Konto",
     "unresolvedHint": "Keinem Wertpapier zugeordnet und aus der Prognose ausgeschlossen, bis Sie handeln.",
@@ -508,5 +509,19 @@
     "useAmountIn": "{{amount}} in {{account}} verwenden",
     "useAsAdjustment": "{{amount}} als Anpassung verwenden",
     "calculationInterrupted": "Das Arbeitsblatt hat sich während der Berechnung geändert. Bitte erneut versuchen."
+  },
+  "categoryNouns": {
+    "assetClass": "Anlageklassen",
+    "region": "Regionen",
+    "industry": "Branchen",
+    "category": "Kategorien",
+    "region_other": "Regionen",
+    "category_other": "Kategorien",
+    "region_one": "Region",
+    "category_one": "Kategorie",
+    "assetClass_one": "Anlageklasse",
+    "assetClass_other": "Anlageklassen",
+    "industry_one": "Branche",
+    "industry_other": "Branchen"
   }
 }

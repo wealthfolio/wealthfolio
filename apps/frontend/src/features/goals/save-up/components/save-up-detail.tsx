@@ -114,6 +114,7 @@ export default function SaveUpDetailPage({ goal, plan, overview }: Props) {
   const initialTargetDate = existingSettings.targetDate ?? goal.targetDate ?? "";
   const initialMonthlyContribution =
     existingSettings.monthlyContribution ?? existingSettings.plannedMonthlyContribution ?? 0;
+  // Keep in sync with DEFAULT_SAVE_UP_ANNUAL_RETURN in crates/core/src/planning/save_up.rs.
   const initialAnnualReturn = existingSettings.expectedAnnualReturn ?? 0.05;
 
   // Editable fields
@@ -183,14 +184,13 @@ export default function SaveUpDetailPage({ goal, plan, overview }: Props) {
     const raw = projection?.trajectory ?? [];
     if (raw.length === 0 || !targetAmount) return [];
 
-    const start = raw[0]?.nominal ?? currentValue;
-    const span = Math.max(1, raw.length - 1);
-    return raw.map((p, i) => ({
+    // The dashed line is the balance needed to stay on track: above it means on track.
+    return raw.map((p) => ({
       ...p,
-      target: start + (targetAmount - start) * (i / span),
+      target: p.needed,
       range: [p.pessimistic, p.optimistic] as [number, number],
     }));
-  }, [projection, currentValue, targetAmount]);
+  }, [projection, targetAmount]);
 
   const handleSave = useCallback(async () => {
     const settings: SaveUpPlanSettings = {

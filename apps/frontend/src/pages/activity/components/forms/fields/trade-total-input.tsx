@@ -20,6 +20,8 @@ interface TradeTotalInputProps {
    * debit, and the label must say so. Defaults to the side's usual
    * direction when not provided. */
   isDebit?: boolean;
+  /** Decimals the total accepts; defaults to the currency's minor unit. */
+  maxDecimalPlaces?: number;
 }
 
 /**
@@ -38,6 +40,7 @@ export function TradeTotalInput({
   onCustomChange,
   currency,
   isDebit,
+  maxDecimalPlaces,
 }: TradeTotalInputProps) {
   const { t } = useTranslation(["activity"]);
   const { formatAmount } = useAmountFormatting();
@@ -71,6 +74,7 @@ export function TradeTotalInput({
         label={t(label)}
         labelHelpText={t(helpText)}
         currency={currency}
+        maxDecimalPlaces={maxDecimalPlaces}
         placeholder={calculatedAmount?.toString()}
         onValueChange={(value) => {
           setIsClearing(value == null);

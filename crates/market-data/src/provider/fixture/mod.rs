@@ -552,6 +552,17 @@ impl MarketDataProvider for FixtureProvider {
     }
 
     fn capabilities(&self) -> ProviderCapabilities {
+        if self.provider_id == "MOEX" {
+            return ProviderCapabilities {
+                instrument_kinds: &[InstrumentKind::Equity],
+                coverage: Coverage::moex(),
+                supports_latest: true,
+                supports_historical: true,
+                supports_search: true,
+                supports_profile: true,
+                supports_dividends: false,
+            };
+        }
         if self.provider_id == "BOERSE_FRANKFURT" {
             return ProviderCapabilities {
                 instrument_kinds: &[InstrumentKind::Equity, InstrumentKind::Bond],
@@ -1101,5 +1112,32 @@ mod tests {
         assert_eq!(quotes[0].currency, "USD");
         assert!(quotes[0].close > "0.9".parse().unwrap());
         assert!(quotes[0].close < "1.1".parse().unwrap());
+    }
+
+    #[tokio::test]
+    async fn moex_fixture_keeps_search_profile_quotes_and_coverage_consistent() {
+        let provider = FixtureProvider::new_for_provider(
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("../../e2e/fixtures/quotes"),
+            "MOEX",
+        );
+        let results = provider.search("AFLT").await.unwrap();
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].data_source.as_deref(), Some("MOEX"));
+        assert_eq!(results[0].exchange_mic.as_deref(), Some("MISX"));
+        assert_eq!(
+            provider
+                .get_profile("AFLT")
+                .await
+                .unwrap()
+                .currency
+                .as_deref(),
+            Some("RUB")
+        );
+        assert!(!provider
+            .capabilities()
+            .supports_instrument(&InstrumentId::Equity {
+                ticker: Arc::from("AFLT"),
+                mic: Some(Cow::Borrowed("XNAS")),
+            }));
     }
 }

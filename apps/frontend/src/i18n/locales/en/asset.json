@@ -63,7 +63,7 @@
       "symbol_required": "Symbol is required",
       "symbol_max": "Symbol must be 100 characters or less",
       "name_required": "Name is required",
-      "name_max": "Name must be 100 characters or less",
+      "name_max": "Name must be 200 characters or less",
       "instrument_type_required": "Instrument type is required",
       "currency_required": "Currency is required"
     },
@@ -234,6 +234,8 @@
     }
   },
   "editSheet": {
+    "moex_symbol_placeholder": "e.g. SBER, AFLT",
+    "moex_symbol_hint": "Use a MOEX security code without a prefix or suffix. Set the exchange to Moscow Exchange (MISX).",
     "identity_conflict": "Another asset already has this identity. Your changes were not saved. Use the existing asset or choose a different exchange.",
     "general": "General",
     "classification": "Classification",

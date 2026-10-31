@@ -1,3 +1,4 @@
+import { worksheetCategoryLabel } from "./allocation-worksheet-labels";
 import { useQueries } from "@tanstack/react-query";
 import {
   AlertDialog,
@@ -524,6 +525,7 @@ function FundingSummary({
 }
 
 interface CalculatedSummaryProps {
+  taxonomyId: string;
   presentation?: "review" | "notice" | "details";
   calculated: CalculatedAdjustments;
   currency: string;
@@ -573,6 +575,7 @@ function calculationNotes(calculated: CalculatedAdjustments, t: TFunction): stri
 }
 
 function CalculatedSummary({
+  taxonomyId,
   calculated,
   currency,
   accountNames,
@@ -606,7 +609,9 @@ function CalculatedSummary({
           className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 py-1.5 text-xs"
         >
           <span className="min-w-0">
-            <span className="font-medium">{item.categoryName}</span>
+            <span className="font-medium">
+              {worksheetCategoryLabel(t, taxonomyId, item.categoryId, item.categoryName)}
+            </span>
             <span className="text-muted-foreground">
               {" · "}
               {t(UNRESOLVED_REASON_KEYS[item.reason])}
@@ -753,6 +758,8 @@ export function AllocationWorksheetTab({
   const exchangeRates = useExchangeRates();
   const { assets, isLoading: assetsLoading } = useAssets();
   const taxonomy = useTaxonomy(profile?.taxonomyId ?? null);
+  const categoryLabel = (categoryId: string, name: string) =>
+    worksheetCategoryLabel(t, profile?.taxonomyId ?? "", categoryId, name);
   const { accounts: holdingAccounts, isLoading: accountsLoading } = useAccounts({
     accountPurpose: AccountPurpose.HOLDINGS,
   });
@@ -2022,6 +2029,7 @@ export function AllocationWorksheetTab({
           depositsByAccount: externalContribution,
           editedAssetIds: calculated ? editedAssetIds(adjustments, calculated) : undefined,
           describeWarning: wordWarning,
+          categoryLabel: format === "copy" ? categoryLabel : undefined,
         },
         {
           title: t("allocation:worksheet.title"),
@@ -2138,7 +2146,7 @@ export function AllocationWorksheetTab({
           .filter((row) => !row.isCash)
           .map((row) => ({
             id: row.categoryId,
-            name: row.categoryName,
+            name: categoryLabel(row.categoryId, row.categoryName),
             // The allocation page's colours, so a category reads the same everywhere.
             color: allocationTargetColorForRow(row, colorByCategory),
             isBelowTarget: row.valueDelta < 0,
@@ -2510,6 +2518,7 @@ export function AllocationWorksheetTab({
                     the editable positions, with the full summary on Review. */}
                 {generated && (
                   <CalculatedSummary
+                    taxonomyId={profile.taxonomyId}
                     presentation={panel === "amounts" ? "notice" : "review"}
                     calculated={generated.calculated}
                     currency={currency}
@@ -2530,6 +2539,7 @@ export function AllocationWorksheetTab({
                       </div>
                     ) : (
                       <AmountsList
+                        taxonomyId={profile.taxonomyId}
                         rows={amountsRows}
                         flaggedAssetIds={flaggedAssetIds}
                         classColors={new Map(classes.map((item) => [item.categoryId, item.color]))}
@@ -2565,6 +2575,7 @@ export function AllocationWorksheetTab({
                     )}
                     {generated && (
                       <CalculatedSummary
+                        taxonomyId={profile.taxonomyId}
                         presentation="details"
                         calculated={generated.calculated}
                         currency={currency}
@@ -2619,6 +2630,7 @@ export function AllocationWorksheetTab({
 
             <div className="space-y-4 lg:sticky lg:top-4">
               <ImpactRail
+                taxonomyId={profile.taxonomyId}
                 describeWarning={wordWarning}
                 report={driftReport}
                 result={result}

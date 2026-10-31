@@ -65,9 +65,9 @@ export function ContributionLimitForm({
   const updateDatesBasedOnYear = (year: number) => {
     if (!year || isNaN(year)) return;
 
-    // Set time to noon to avoid timezone issues
-    const startDate = new Date(Date.UTC(year, 0, 1, 12, 0, 0));
-    const endDate = new Date(Date.UTC(year, 11, 31, 12, 0, 0));
+    // Local midnight, as the date picker gives for a picked day
+    const startDate = new Date(year, 0, 1);
+    const endDate = new Date(year, 11, 31);
 
     form.setValue("startDate", startDate);
     form.setValue("endDate", endDate);

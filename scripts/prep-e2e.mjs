@@ -37,6 +37,8 @@ export const prepareE2eEnvContent = (content, dataDirectory) => {
   updated = setEnvValue(updated, "WF_OIDC_ISSUER_URL", "");
   updated = setEnvValue(updated, "WF_OIDC_CLIENT_ID", "");
   updated = setEnvValue(updated, "WF_OIDC_CLIENT_SECRET", "");
+  // The agent access specs create tokens, which the server offers only with MCP on.
+  updated = setEnvValue(updated, "WF_MCP_ENABLED", "true");
 
   return updated;
 };

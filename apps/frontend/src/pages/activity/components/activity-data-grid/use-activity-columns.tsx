@@ -103,6 +103,57 @@ const getSubtypeDisplayLabel = (t: TFunction, subtype: string, optionLabel?: str
   return optionLabel ?? localizeActivitySubtypeName(t, subtype);
 };
 
+/**
+ * The row gutter: for a row pending review, the review icon (and the stripe on
+ * the leading edge), then the selection checkbox. The icon comes first so it
+ * lines up with the stripe and never moves when the checkbox appears on hover.
+ */
+export function createSelectColumn<TRow extends LocalTransaction>(t: TFunction): ColumnDef<TRow> {
+  return {
+    id: "select",
+    header: ({ table }) => {
+      const hasRowsToReview = table.getRowModel().rows.some((row) => isPendingReview(row.original));
+      return (
+        <div className="flex items-center gap-1.5">
+          {/* The icon's slot is kept on every row, so the checkboxes line up. */}
+          <span className="flex w-3.5 shrink-0">
+            <StatusHeaderIndicator hasRowsToReview={hasRowsToReview} />
+          </span>
+          <Checkbox
+            checked={table.getIsAllRowsSelected()}
+            indeterminate={table.getIsSomeRowsSelected()}
+            onCheckedChange={(checked) => table.toggleAllRowsSelected(Boolean(checked))}
+            aria-label={t("activity:datagrid.select_all_rows")}
+          />
+        </div>
+      );
+    },
+    cell: ({ row }) => (
+      <div className="flex items-center gap-1.5">
+        {isPendingReview(row.original) && <NeedsReviewStripe />}
+        <span className="flex w-3.5 shrink-0">
+          <StatusIndicator transaction={row.original} />
+        </span>
+        <Checkbox
+          checked={row.getIsSelected()}
+          onCheckedChange={(checked) => row.toggleSelected(Boolean(checked))}
+          aria-label={t("activity:datagrid.select_row")}
+          // Shown on hover or focus until a row is selected, as in the activity table.
+          className={SELECTION_SLOT}
+        />
+      </div>
+    ),
+    // px-3 either side, the 14px icon slot, the gap and the 16px checkbox.
+    size: 60,
+    minSize: 60,
+    maxSize: 60,
+    enableSorting: false,
+    enableResizing: false,
+    enableHiding: false,
+    enablePinning: false,
+  };
+}
+
 interface UseActivityColumnsOptions {
   accounts: Account[];
   onEditActivity: (activity: ActivityDetails) => void;
@@ -163,55 +214,8 @@ export function useActivityColumns({
   const columns = useMemo<ColumnDef<LocalTransaction>[]>(
     () => [
       // === Pinned left (always visible) ===
-      // 1. Row gutter: for a row pending review, the review icon (and the
-      // stripe on the leading edge), then the selection checkbox. The icon
-      // comes first so it lines up with the stripe and never moves when the
-      // checkbox appears on hover.
-      {
-        id: "select",
-        header: ({ table }) => {
-          const hasRowsToReview = table
-            .getRowModel()
-            .rows.some((row) => isPendingReview(row.original));
-          return (
-            <div className="flex items-center gap-1.5">
-              {/* The icon's slot is kept on every row, so the checkboxes line up. */}
-              <span className="flex w-3.5 shrink-0">
-                <StatusHeaderIndicator hasRowsToReview={hasRowsToReview} />
-              </span>
-              <Checkbox
-                checked={table.getIsAllRowsSelected()}
-                indeterminate={table.getIsSomeRowsSelected()}
-                onCheckedChange={(checked) => table.toggleAllRowsSelected(Boolean(checked))}
-                aria-label={t("activity:datagrid.select_all_rows")}
-              />
-            </div>
-          );
-        },
-        cell: ({ row }) => (
-          <div className="flex items-center gap-1.5">
-            {isPendingReview(row.original) && <NeedsReviewStripe />}
-            <span className="flex w-3.5 shrink-0">
-              <StatusIndicator transaction={row.original} />
-            </span>
-            <Checkbox
-              checked={row.getIsSelected()}
-              onCheckedChange={(checked) => row.toggleSelected(Boolean(checked))}
-              aria-label={t("activity:datagrid.select_row")}
-              // Shown on hover or focus until a row is selected, as in the activity table.
-              className={SELECTION_SLOT}
-            />
-          </div>
-        ),
-        // px-3 either side, the 14px icon slot, the gap and the 16px checkbox.
-        size: 60,
-        minSize: 60,
-        maxSize: 60,
-        enableSorting: false,
-        enableResizing: false,
-        enableHiding: false,
-        enablePinning: false,
-      },
+      // 1. Row gutter: review icon and selection checkbox.
+      createSelectColumn<LocalTransaction>(t),
       // 3. Date & Time (primary sort key)
       {
         id: "date",

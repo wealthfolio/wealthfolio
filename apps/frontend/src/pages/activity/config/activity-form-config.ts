@@ -571,6 +571,8 @@ export const ACTIVITY_FORM_CONFIG: Record<
       amount: absNum(activity?.fee) || absNum(activity?.amount),
       // Advanced options
       currency: activity?.currency,
+      // Seed only a valid rate: a legacy 0 stays out of the form, so saving leaves it untouched.
+      fxRate: Number(activity?.fxRate) > 0 ? Number(activity?.fxRate) : undefined,
       subtype: activity?.subtype ?? null,
     }),
     toPayload: (data) => {
@@ -785,6 +787,8 @@ export const ACTIVITY_FORM_CONFIG: Record<
       amount: absNum(activity?.tax) || absNum(activity?.fee) || absNum(activity?.amount),
       // Advanced options
       currency: activity?.currency,
+      // Seed only a valid rate: a legacy 0 stays out of the form, so saving leaves it untouched.
+      fxRate: Number(activity?.fxRate) > 0 ? Number(activity?.fxRate) : undefined,
       subtype: activity?.subtype ?? null,
     }),
     toPayload: (data) => {

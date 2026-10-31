@@ -927,34 +927,43 @@ export function SelectCell<TData>({
   const allowEmpty = cellOpts?.variant === "select" ? cellOpts.allowEmpty : false;
   const noneLabel = t("ui:dataGrid.none", "None");
   const emptyLabel = cellOpts?.variant === "select" ? (cellOpts.emptyLabel ?? noneLabel) : noneLabel;
+  const isDisabledFn = cellOpts?.variant === "select" ? cellOpts.isDisabled : undefined;
+  const isDisabled = isDisabledFn ? isDisabledFn(cell.row.original) : false;
+  const effectiveReadOnly = readOnly || isDisabled;
+  const isOpen = isEditing && !isDisabled;
 
   const prevInitialValueRef = React.useRef(initialValue);
   if (initialValue !== prevInitialValueRef.current) {
     prevInitialValueRef.current = initialValue;
     setValue(initialValue || "");
   }
+  // A pick the grid refused leaves the row unchanged; drop it once editing
+  // ends, so the editor opens on the row's value again.
+  if (!isOpen && value !== (initialValue || "")) {
+    setValue(initialValue || "");
+  }
 
   const onValueChange = React.useCallback(
     (newValue: string | null) => {
-      if (readOnly || newValue === null) return;
+      if (effectiveReadOnly || newValue === null) return;
       // Convert empty placeholder back to empty string
       const actualValue = newValue === EMPTY_SELECT_VALUE ? "" : newValue;
       setValue(actualValue);
       tableMeta?.onDataUpdate?.({ rowIndex, columnId, value: actualValue || undefined });
       tableMeta?.onCellEditingStop?.();
     },
-    [tableMeta, rowIndex, columnId, readOnly],
+    [tableMeta, rowIndex, columnId, effectiveReadOnly],
   );
 
   const onOpenChange = React.useCallback(
     (isOpen: boolean) => {
-      if (isOpen && !readOnly) {
+      if (isOpen && !effectiveReadOnly) {
         tableMeta?.onCellEditingStart?.(rowIndex, columnId);
       } else {
         tableMeta?.onCellEditingStop?.();
       }
     },
-    [tableMeta, rowIndex, columnId, readOnly],
+    [tableMeta, rowIndex, columnId, effectiveReadOnly],
   );
 
   const onWrapperKeyDown = React.useCallback(
@@ -973,8 +982,11 @@ export function SelectCell<TData>({
     [isEditing, isFocused, initialValue, tableMeta],
   );
 
-  const selectedOption = options.find((opt) => opt.value === value);
-  const displayLabel = selectedOption?.label ?? value;
+  // Out of edit mode the cell shows the row's value: an edit the grid refused
+  // leaves the row, and so the cell, unchanged.
+  const shownValue = isOpen ? value : initialValue || "";
+  const selectedOption = options.find((opt) => opt.value === shownValue);
+  const displayLabel = selectedOption?.label ?? shownValue;
 
   // Render the display content - use valueRenderer if provided, otherwise default Badge
   const renderDisplayContent = () => {
@@ -983,7 +995,7 @@ export function SelectCell<TData>({
     if (valueRenderer) {
       // Don't wrap in data-slot="grid-cell-content" - let valueRenderer control its own styling
       // This prevents line-clamp from truncating badges/custom renderers
-      return valueRenderer(value, selectedOption, cell.row.original);
+      return valueRenderer(shownValue, selectedOption, cell.row.original);
     }
 
     return (
@@ -1010,16 +1022,16 @@ export function SelectCell<TData>({
       isSelected={isSelected}
       isSearchMatch={isSearchMatch}
       isActiveSearchMatch={isActiveSearchMatch}
-      readOnly={readOnly}
+      readOnly={effectiveReadOnly}
       cellState={cellState}
       onKeyDown={onWrapperKeyDown}
     >
-      {isEditing ? (
+      {isOpen ? (
         <Select
           value={selectValue}
           items={selectItems}
           onValueChange={onValueChange}
-          open={isEditing}
+          open={isOpen}
           onOpenChange={onOpenChange}
         >
           <SelectTrigger className="size-full h-auto items-start border-none p-0 shadow-none focus-visible:outline-none dark:bg-transparent [&_svg]:hidden">
@@ -2849,6 +2861,14 @@ export function CurrencyCell<TData>({
     prevInitialValueRef.current = initialValue;
     setValue(initialValue ?? "");
   }
+  // A pick the grid refused leaves the row unchanged; drop it once editing
+  // ends, so the editor opens on the row's value again.
+  if (!isEditing && value !== (initialValue ?? "")) {
+    setValue(initialValue ?? "");
+  }
+  // Out of edit mode the cell shows the row's value: an edit the grid refused
+  // leaves the row, and so the cell, unchanged.
+  const shownValue = isEditing ? value : (initialValue ?? "");
 
   const filteredCurrencies = React.useMemo(() => {
     if (!searchQuery.trim()) {
@@ -2947,8 +2967,8 @@ export function CurrencyCell<TData>({
       onKeyDown={onWrapperKeyDown}
     >
       <Popover open={isEditing} onOpenChange={onOpenChange}>
-        <span ref={anchorRef} data-slot="grid-cell-content" className={cn(!value && "text-muted-foreground")}>
-          {value || t("ui:dataGrid.currency", "Currency")}
+        <span ref={anchorRef} data-slot="grid-cell-content" className={cn(!shownValue && "text-muted-foreground")}>
+          {shownValue || t("ui:dataGrid.currency", "Currency")}
         </span>
         {isEditing && (
           <PopoverContent

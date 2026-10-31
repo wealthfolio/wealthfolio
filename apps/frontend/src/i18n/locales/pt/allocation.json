@@ -305,6 +305,7 @@
     "title": "Planilha de rebalanceamento",
     "totalAdjusted": "{{amount}} ajustados",
     "unclassified": "Sem classificação",
+    "unclassifiedExposure": "Exposição não classificada",
     "unitPrice": "Preço unitário",
     "unknownAccount": "Conta desconhecida",
     "unresolvedHint": "Não alocados em nenhum ativo e excluídos da projeção até que você aja sobre eles.",
@@ -523,5 +524,23 @@
     "useAmountIn": "Usar {{amount}} em {{account}}",
     "useAsAdjustment": "Usar {{amount}} como ajuste",
     "calculationInterrupted": "A planilha mudou durante o cálculo. Tente novamente."
+  },
+  "categoryNouns": {
+    "assetClass": "classes de ativos",
+    "region": "regiões",
+    "industry": "indústrias",
+    "category": "categorias",
+    "region_other": "regiões",
+    "category_other": "categorias",
+    "assetClass_one": "classe de ativos",
+    "assetClass_other": "classes de ativos",
+    "assetClass_many": "classes de ativos",
+    "region_one": "região",
+    "industry_one": "indústria",
+    "industry_other": "indústrias",
+    "industry_many": "indústrias",
+    "category_one": "categoria",
+    "region_many": "regiões",
+    "category_many": "categorias"
   }
 }

@@ -2,23 +2,30 @@
 //!
 //! Prices Indian mutual funds from AMFI's public data. No API key required.
 //!
-//! - `NAVAll.txt` lists published scheme codes, ISINs and latest NAVs. It supplies
-//!   latest NAVs and maps a fund's ISIN to its scheme code, and one download is
-//!   shared by every fund until it expires.
+//! - `NAVAll.txt` lists published scheme codes, ISINs, names and latest NAVs. It
+//!   supplies latest NAVs, maps a fund's ISIN to its scheme code and answers
+//!   searches for a scheme code or ISIN, and one download is shared until it
+//!   expires.
 //! - History comes from the endpoint behind AMFI's NAV history page. It is not
 //!   documented as an API and rejects spans of 1,825 days or more, so a long
-//!   range is fetched in yearly windows.
+//!   range is fetched in yearly windows, up to the first window without NAVs
+//!   after earlier ones.
+//! - Many closed and merged funds are missing from `NAVAll.txt`. Their ISINs are
+//!   looked up in AMFI's NAV history report, which lists every NAV published on
+//!   a day, for days in the requested range. The codes in every report read are
+//!   kept, so later lookups can reuse them.
 //!
-//! The resolver routes a fund here only when the user has chosen AMFI for it.
+//! The resolver routes a fund here only when the user has chosen AMFI for it,
+//! for example by picking an AMFI search result.
 
 use std::borrow::Cow;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::str::FromStr;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use async_trait::async_trait;
-use chrono::{DateTime, Days, NaiveDate, NaiveTime, TimeZone, Utc};
+use chrono::{DateTime, Datelike, Days, NaiveDate, NaiveTime, TimeZone, Utc, Weekday};
 use log::debug;
 use reqwest::{Client, RequestBuilder, StatusCode};
 use rust_decimal::Decimal;
@@ -27,7 +34,8 @@ use tokio::sync::Mutex;
 
 use crate::errors::MarketDataError;
 use crate::models::{
-    Coverage, InstrumentKind, ProviderId, ProviderInstrument, Quote, QuoteContext,
+    AssetProfile, Coverage, InstrumentKind, ProviderId, ProviderInstrument, Quote, QuoteContext,
+    SearchResult,
 };
 use crate::provider::{MarketDataProvider, ProviderCapabilities, RateLimit};
 use crate::registry::{RateLimitConfig, RateLimiter};
@@ -35,14 +43,30 @@ use crate::resolver::looks_like_isin;
 
 const PROVIDER_ID: &str = "AMFI";
 const CURRENCY: &str = "INR";
+/// Quote type of AMFI's schemes, as other providers report mutual funds.
+const QUOTE_TYPE: &str = "MUTUALFUND";
 const NAV_ALL_URL: &str = "https://portal.amfiindia.com/spages/NAVAll.txt";
 const HISTORY_URL: &str = "https://www.amfiindia.com/api/nav-history";
+const REPORT_URL: &str = "https://portal.amfiindia.com/DownloadNAVHistoryReport_Po.aspx";
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 /// How long a downloaded `NAVAll.txt` is reused, so a sync's funds share one copy.
 const NAV_ALL_TTL: Duration = Duration::from_secs(60 * 60);
 /// Days per history request. AMFI rejects spans of 1,825 days or more, and a
 /// year of NAVs takes it about five seconds to serve.
 const HISTORY_WINDOW_DAYS: u64 = 365;
+/// Maximum report days per ISIN lookup, at about 1 MB a day. Quote sync
+/// requests a new fund's history from 45 days before its first activity;
+/// nine lookups reach about two months into the range.
+const REPORT_LOOKUPS: usize = 9;
+/// Weekdays between report lookups after the first two. Six, so consecutive
+/// lookups fall on different weekdays: some funds don't publish a NAV every
+/// weekday.
+const REPORT_LOOKUP_STEP_WEEKDAYS: usize = 6;
+/// The NAV history report's first line. Rows are read by position, so a report
+/// with other columns isn't read.
+const REPORT_HEADER: &str = "Scheme Code;NAV Name;Plan;Option;ISIN Div Payout/ISIN Growth;ISIN Div Reinvestment;Net Asset Value;Date";
+/// What AMFI's page says for a day without NAVs.
+const REPORT_NO_DATA: &str = "No data found on the basis of selected parameters for this report";
 
 // ---------------------------------------------------------------------------
 // Response structs
@@ -101,6 +125,9 @@ impl SchemeRef {
 #[derive(Debug)]
 struct NavRow {
     code: String,
+    /// Scheme name, plan and option, as in "Parag Parikh Flexi Cap Fund - Direct
+    /// Plan - Growth". Not unique: several schemes can share a name.
+    name: String,
     /// The row's NAV and its own date, when both are usable.
     latest: Option<(NaiveDate, Decimal)>,
 }
@@ -122,7 +149,8 @@ impl NavIndex {
         let mut index = Self::default();
         for line in text.lines() {
             let fields: Vec<&str> = line.split(';').map(str::trim).collect();
-            let &[code, payout_isin, reinvestment_isin, _, _, _, nav, date] = fields.as_slice()
+            let &[code, payout_isin, reinvestment_isin, name, plan, option, nav, date] =
+                fields.as_slice()
             else {
                 continue;
             };
@@ -136,21 +164,19 @@ impl NavIndex {
             let row = index.rows.len();
             index.rows.push(NavRow {
                 code: code.to_string(),
+                // Older schemes leave plan and option empty.
+                name: [name, plan, option]
+                    .into_iter()
+                    .filter(|part| !part.is_empty())
+                    .collect::<Vec<_>>()
+                    .join(" - "),
                 latest: date.zip(nav),
             });
             index.by_code.insert(code.to_string(), row);
             // Missing ISINs are written as "-", and a few cells hold other text.
             for isin in [payout_isin, reinvestment_isin] {
                 if looks_like_isin(isin) {
-                    index
-                        .by_isin
-                        .entry(isin.to_string())
-                        .and_modify(|existing| {
-                            if *existing != Some(row) {
-                                *existing = None;
-                            }
-                        })
-                        .or_insert(Some(row));
+                    add_isin(&mut index.by_isin, isin, row);
                 }
             }
         }
@@ -173,14 +199,68 @@ struct CachedIndex {
 }
 
 // ---------------------------------------------------------------------------
+// NAV history report
+// ---------------------------------------------------------------------------
+
+/// Scheme codes by ISIN from the NAV history reports read so far, kept for as
+/// long as the provider so later lookups don't download a day again.
+#[derive(Debug, Default)]
+struct ReportIndex {
+    /// Days whose report has been read.
+    dates: HashSet<NaiveDate>,
+    /// `None` marks an ISIN listed under more than one scheme code.
+    codes: HashMap<String, Option<String>>,
+}
+
+impl ReportIndex {
+    /// Add one day's semicolon-separated report. Scheme rows have eight fields:
+    /// scheme code, NAV name, plan, option, ISIN (payout or growth), ISIN
+    /// (reinvestment), NAV and date. Headings, fund-house names and blank lines
+    /// don't.
+    fn add(&mut self, date: NaiveDate, report: &str) {
+        for line in report.lines() {
+            let fields: Vec<&str> = line.split(';').map(str::trim).collect();
+            let &[code, _, _, _, payout_isin, reinvestment_isin, _, _] = fields.as_slice() else {
+                continue;
+            };
+            if !is_scheme_code(code) {
+                continue;
+            }
+            for isin in [payout_isin, reinvestment_isin] {
+                if looks_like_isin(isin) {
+                    add_isin(&mut self.codes, isin, code.to_string());
+                }
+            }
+        }
+        self.dates.insert(date);
+    }
+
+    /// The ISIN's scheme code; `None` when no report read lists it or it is
+    /// ambiguous.
+    fn code(&self, isin: &str) -> Option<&str> {
+        self.codes.get(isin)?.as_deref()
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Provider struct
 // ---------------------------------------------------------------------------
 
 pub struct AmfiProvider {
     client: Client,
+    urls: Urls,
     /// Held while downloading, so concurrent syncs wait for one download.
     nav_all: Mutex<Option<CachedIndex>>,
+    /// Held while downloading, so concurrent lookups share reports.
+    reports: Mutex<ReportIndex>,
     request_limiter: RateLimiter,
+}
+
+/// Where AMFI's files are downloaded from; tests use a local server.
+struct Urls {
+    nav_all: Cow<'static, str>,
+    history: Cow<'static, str>,
+    report: Cow<'static, str>,
 }
 
 impl Default for AmfiProvider {
@@ -191,6 +271,14 @@ impl Default for AmfiProvider {
 
 impl AmfiProvider {
     pub fn new() -> Self {
+        Self::with_urls(Urls {
+            nav_all: Cow::Borrowed(NAV_ALL_URL),
+            history: Cow::Borrowed(HISTORY_URL),
+            report: Cow::Borrowed(REPORT_URL),
+        })
+    }
+
+    fn with_urls(urls: Urls) -> Self {
         let client = wealthfolio_http::client_builder()
             .timeout(REQUEST_TIMEOUT)
             .build()
@@ -208,7 +296,9 @@ impl AmfiProvider {
 
         Self {
             client,
+            urls,
             nav_all: Mutex::new(None),
+            reports: Mutex::new(ReportIndex::default()),
             request_limiter,
         }
     }
@@ -238,7 +328,9 @@ impl AmfiProvider {
         }
 
         debug!("AMFI: downloading NAVAll.txt");
-        let (status, body) = self.send(self.client.get(NAV_ALL_URL)).await?;
+        let (status, body) = self
+            .send(self.client.get(self.urls.nav_all.as_ref()))
+            .await?;
         if !status.is_success() {
             return Err(provider_error(format!("NAVAll.txt returned HTTP {status}")));
         }
@@ -255,16 +347,58 @@ impl AmfiProvider {
         Ok(index)
     }
 
-    async fn scheme_code(&self, scheme: &SchemeRef) -> Result<String, MarketDataError> {
-        match scheme {
-            SchemeRef::Code(code) => Ok(code.clone()),
-            SchemeRef::Isin(isin) => self
-                .nav_index()
-                .await?
-                .find(scheme)
-                .map(|row| row.code.clone())
-                .ok_or_else(|| MarketDataError::SymbolNotFound(isin.clone())),
+    /// The scheme's code. An ISIN missing from `NAVAll.txt` is looked up in the
+    /// NAV history reports for days from `first` to `last`.
+    async fn scheme_code(
+        &self,
+        scheme: &SchemeRef,
+        first: NaiveDate,
+        last: NaiveDate,
+    ) -> Result<String, MarketDataError> {
+        let isin = match scheme {
+            SchemeRef::Code(code) => return Ok(code.clone()),
+            SchemeRef::Isin(isin) => isin,
+        };
+        let index = self.nav_index().await?;
+        if let Some(row) = index.find(scheme) {
+            return Ok(row.code.clone());
         }
+        // An ISIN listed under more than one code stays unresolved.
+        if index.by_isin.contains_key(isin) {
+            return Err(MarketDataError::SymbolNotFound(isin.clone()));
+        }
+        self.report_code(isin, first, last).await
+    }
+
+    /// Look an ISIN up in the NAV history reports for [`report_dates`], until
+    /// a report read lists it.
+    async fn report_code(
+        &self,
+        isin: &str,
+        first: NaiveDate,
+        last: NaiveDate,
+    ) -> Result<String, MarketDataError> {
+        let mut reports = self.reports.lock().await;
+        for date in report_dates(first, last) {
+            if reports.codes.contains_key(isin) {
+                break;
+            }
+            if reports.dates.contains(&date) {
+                continue;
+            }
+            let day = date.format("%d-%b-%Y").to_string();
+            debug!("AMFI: NAV history report for {day}");
+            let request = self
+                .client
+                .get(self.urls.report.as_ref())
+                .query(&[("frmdt", day.as_str()), ("todt", day.as_str())]);
+            let (status, body) = self.send(request).await?;
+            reports.add(date, report_text(status, &body)?.unwrap_or_default());
+        }
+        reports
+            .code(isin)
+            .map(str::to_string)
+            .ok_or_else(|| MarketDataError::SymbolNotFound(isin.to_string()))
     }
 
     /// Fetch one window of a scheme's NAVs; it must span fewer than 1,825 days.
@@ -277,7 +411,7 @@ impl AmfiProvider {
         let from_date = from.format("%Y-%m-%d").to_string();
         let to_date = to.format("%Y-%m-%d").to_string();
         debug!("AMFI: history for scheme {code} from {from_date} to {to_date}");
-        let request = self.client.get(HISTORY_URL).query(&[
+        let request = self.client.get(self.urls.history.as_ref()).query(&[
             ("query_type", "historical_period"),
             ("from_date", from_date.as_str()),
             ("to_date", to_date.as_str()),
@@ -295,6 +429,19 @@ impl AmfiProvider {
 /// AMFI scheme codes are plain numbers, such as 122639.
 fn is_scheme_code(value: &str) -> bool {
     !value.is_empty() && value.bytes().all(|byte| byte.is_ascii_digit())
+}
+
+/// Record that `isin` belongs to `scheme`, or mark it ambiguous (`None`) when
+/// it already belongs to another.
+fn add_isin<T: PartialEq>(by_isin: &mut HashMap<String, Option<T>>, isin: &str, scheme: T) {
+    by_isin
+        .entry(isin.to_string())
+        .and_modify(|existing| {
+            if existing.as_ref() != Some(&scheme) {
+                *existing = None;
+            }
+        })
+        .or_insert(Some(scheme));
 }
 
 fn provider_error(message: String) -> MarketDataError {
@@ -340,6 +487,23 @@ fn history_windows(first: NaiveDate, last: NaiveDate) -> Vec<(NaiveDate, NaiveDa
         }
     }
     windows
+}
+
+/// Days to look an ISIN up in the NAV history report: the range's first two
+/// weekdays, as the first may be a holiday, then every
+/// [`REPORT_LOOKUP_STEP_WEEKDAYS`]th. A closed fund that is still held is
+/// synced from a few days before its last NAV, so only the first lookups can
+/// find it. Weekends are skipped, as only a few funds publish NAVs on them.
+fn report_dates(first: NaiveDate, last: NaiveDate) -> Vec<NaiveDate> {
+    first
+        .iter_days()
+        .take_while(|day| *day <= last)
+        .filter(|day| !matches!(day.weekday(), Weekday::Sat | Weekday::Sun))
+        .enumerate()
+        .filter(|(weekday, _)| *weekday == 0 || weekday % REPORT_LOOKUP_STEP_WEEKDAYS == 1)
+        .map(|(_, day)| day)
+        .take(REPORT_LOOKUPS)
+        .collect()
 }
 
 /// Read one history response. Records without a usable date or a positive NAV
@@ -394,6 +558,25 @@ fn parse_history(
         .collect())
 }
 
+/// Read one day's NAV history report: its text, or `None` for a day without
+/// NAVs, which AMFI answers with an HTML page saying no data was found.
+fn report_text(status: StatusCode, body: &str) -> Result<Option<&str>, MarketDataError> {
+    if !status.is_success() {
+        return Err(provider_error(format!(
+            "NAV history report returned HTTP {status}"
+        )));
+    }
+    if body.trim_start().lines().next() == Some(REPORT_HEADER) {
+        Ok(Some(body))
+    } else if body.contains(REPORT_NO_DATA) {
+        Ok(None)
+    } else {
+        Err(provider_error(
+            "NAV history report: unexpected response".to_string(),
+        ))
+    }
+}
+
 /// A NAV dated midnight UTC, so its day is the same in every time zone's storage.
 fn nav_quote(date: NaiveDate, nav: Decimal) -> Quote {
     Quote::new(
@@ -402,6 +585,23 @@ fn nav_quote(date: NaiveDate, nav: Decimal) -> Quote {
         CURRENCY.to_string(),
         PROVIDER_ID.to_string(),
     )
+}
+
+/// A search query `NAVAll.txt` can answer: a scheme code, or an ISIN of an
+/// Indian fund, the only kind it lists.
+fn searched_scheme(query: &str) -> Option<SchemeRef> {
+    SchemeRef::parse(query).filter(|scheme| match scheme {
+        SchemeRef::Code(_) => true,
+        SchemeRef::Isin(isin) => isin.starts_with("INF"),
+    })
+}
+
+/// A search result whose symbol is the scheme code, since names aren't unique.
+/// "AMFI" fills the exchange slot to show the source; it isn't an exchange.
+fn search_result(row: &NavRow) -> SearchResult {
+    SearchResult::new(&row.code, &row.name, PROVIDER_ID, QUOTE_TYPE)
+        .with_currency(CURRENCY)
+        .with_data_source(PROVIDER_ID)
 }
 
 // ---------------------------------------------------------------------------
@@ -426,8 +626,10 @@ impl MarketDataProvider for AmfiProvider {
             coverage: Coverage::global_best_effort(),
             supports_latest: true,
             supports_historical: true,
+            // Not a free-text search: only scheme codes and ISINs are looked
+            // up, through `looks_up_identifier`.
             supports_search: false,
-            supports_profile: false,
+            supports_profile: true,
             supports_dividends: false,
         }
     }
@@ -438,6 +640,37 @@ impl MarketDataProvider for AmfiProvider {
             max_concurrency: 2,
             min_delay: Duration::from_millis(500),
         }
+    }
+
+    fn looks_up_identifier(&self, query: &str) -> bool {
+        searched_scheme(query).is_some()
+    }
+
+    /// Look a scheme code or ISIN up in `NAVAll.txt`. Like prices, search
+    /// skips an ISIN listed under more than one scheme code.
+    async fn search(&self, query: &str) -> Result<Vec<SearchResult>, MarketDataError> {
+        let Some(scheme) = searched_scheme(query) else {
+            return Ok(Vec::new());
+        };
+        let index = self.nav_index().await?;
+        Ok(index.find(&scheme).map(search_result).into_iter().collect())
+    }
+
+    /// The fund's type and currency, without a name: enrichment would replace
+    /// the fund's stored name with it. A picked search result names the fund.
+    async fn get_profile(&self, symbol: &str) -> Result<AssetProfile, MarketDataError> {
+        let not_found = || MarketDataError::SymbolNotFound(symbol.to_string());
+        let scheme = SchemeRef::parse(symbol).ok_or_else(not_found)?;
+        self.nav_index()
+            .await?
+            .find(&scheme)
+            .ok_or_else(not_found)?;
+        Ok(AssetProfile {
+            source: Some(PROVIDER_ID.to_string()),
+            quote_type: Some(QUOTE_TYPE.to_string()),
+            currency: Some(CURRENCY.to_string()),
+            ..Default::default()
+        })
     }
 
     async fn get_latest_quote(
@@ -462,12 +695,18 @@ impl MarketDataProvider for AmfiProvider {
         end: DateTime<Utc>,
     ) -> Result<Vec<Quote>, MarketDataError> {
         let scheme = scheme_ref(&instrument)?;
-        let code = self.scheme_code(&scheme).await?;
         let (first, last) = (start.date_naive(), end.date_naive());
+        let code = self.scheme_code(&scheme, first, last).await?;
 
         let mut navs = BTreeMap::new();
         for (from, to) in history_windows(first, last) {
-            for (date, nav) in self.fetch_history_window(&code, from, to).await? {
+            let window = self.fetch_history_window(&code, from, to).await?;
+            // Stop at the first empty window after NAVs, so the rest of a
+            // closed fund's range isn't requested.
+            if window.is_empty() && !navs.is_empty() {
+                break;
+            }
+            for (date, nav) in window {
                 if (first..=last).contains(&date) {
                     navs.entry(date).or_insert(nav);
                 }
@@ -493,8 +732,9 @@ mod tests {
         NaiveDate::parse_from_str(value, "%Y-%m-%d").expect("valid test date")
     }
 
-    /// Lines from `NAVAll.txt` (29 October 2026), including its headings,
-    /// placeholder ISIN cells, an old NAV and an ISIN listed under two codes.
+    /// Lines from `NAVAll.txt` (29 and 30 October 2026), including its
+    /// headings, placeholder ISIN cells, an old NAV, an ISIN listed under two
+    /// codes and two schemes with the same name, plan and option.
     const NAV_ALL: &str = "Scheme Code;ISIN Div Payout/ ISIN Growth;ISIN Div Reinvestment;Scheme Name;Plan;Option;Net Asset Value;Date\r
  \r
 Open Ended Schemes(Equity Scheme - Flexi Cap Fund)\r
@@ -503,6 +743,8 @@ PPFAS Mutual Fund\r
  \r
 122639;INF879O01027;-;Parag Parikh Flexi Cap Fund;Direct Plan;Growth;88.8018;28-Oct-2026\r
 135763;INF846K01WS2;INF846K01WQ6;Axis Children's Fund;Direct Plan;IDCW Option;26.7364;28-Oct-2026\r
+135762;INF846K01WO1;-;Axis Children's Fund;Direct Plan;Growth Option;29.1954;29-Oct-2026\r
+135764;INF846K01WR4;-;Axis Children's Fund;Direct Plan;Growth Option;29.7538;29-Oct-2026\r
 152713;INF179KC1IM3;HDFCNIVODG;HDFC NIFTY100 Low Volatility 30 Index Fund;Direct Plan;Growth Option;9.7019;28-Oct-2026\r
 130565;INF613Q01025;Redeemed;IL&FS Infrastructure Debt Fund Series 1A;;;1680494.0463;31-Dec-2018\r
 142916;INF204KB1XN0;-;Nippon India Fixed Horizon Fund XXXVI- Series 9;;;10.0000;10-May-2021\r
@@ -560,7 +802,7 @@ PPFAS Mutual Fund\r
         assert!(index.find(&SchemeRef::Code("100001".to_string())).is_some());
         assert_eq!(latest("100001"), None);
         // Headings and fund-house names aren't schemes.
-        assert_eq!(index.rows.len(), 7);
+        assert_eq!(index.rows.len(), 9);
     }
 
     #[test]
@@ -575,6 +817,26 @@ PPFAS Mutual Fund\r
         );
         assert_eq!(SchemeRef::parse("0P0000YWL1"), None);
         assert_eq!(SchemeRef::parse(""), None);
+    }
+
+    #[test]
+    fn nav_all_names_join_scheme_plan_and_option() {
+        let index = NavIndex::parse(NAV_ALL);
+
+        let name = |code: &str| {
+            index
+                .find(&SchemeRef::Code(code.to_string()))
+                .map(|row| row.name.as_str())
+        };
+        assert_eq!(
+            name("122639"),
+            Some("Parag Parikh Flexi Cap Fund - Direct Plan - Growth")
+        );
+        // Older schemes leave plan and option empty.
+        assert_eq!(
+            name("130565"),
+            Some("IL&FS Infrastructure Debt Fund Series 1A")
+        );
     }
 
     #[test]
@@ -676,5 +938,530 @@ PPFAS Mutual Fund\r
         assert_eq!(quote.currency, "INR");
         assert_eq!(quote.source, "AMFI");
         assert!(quote.open.is_none() && quote.volume.is_none());
+    }
+
+    /// Lines from AMFI's NAV history report for 17 March 2017, including its
+    /// headings, placeholder and malformed ISIN cells, and an ISIN listed under
+    /// two codes.
+    const REPORT: &str = "Scheme Code;NAV Name;Plan;Option;ISIN Div Payout/ISIN Growth;ISIN Div Reinvestment;Net Asset Value;Date\r
+\r
+Open Ended Schemes ( Income )\r
+\r
+\r
+Tata Mutual Fund\r
+101828;Tata Gilt Securities Short Maturity Fund -Regular Fund-Quarterly DIvidend;;;INF277K01DP6;INF277K01568;12.2900;17-Mar-2017\r
+121701;Reliance Yearly Interval Fund - Series 5 - Direct Plan - Growth Plan - Growth Option;Direct Plan;Growth Option;INF204K01T57;-;13.8528;17-Mar-2017\r
+123716;HSBC Fixed Term Series 94-Growth;;;NF336L01FZ2;;13.5315;17-Mar-2017\r
+139251;Reliance Dual Advantage Fixed Tenure Fund IX- Plan C- Direct Plan-Dividend Payout Option;;;INF204KB1304;;11.0903;17-Mar-2017\r
+139252;Reliance Dual Advantage Fixed Tenure Fund IX- Plan C- Dividend Payout Option;;;INF204KB1304;;10.9848;17-Mar-2017\r
+";
+
+    /// A report that lists only another fund (its line from 17 March 2017).
+    const OTHER_REPORT: &str = "Scheme Code;NAV Name;Plan;Option;ISIN Div Payout/ISIN Growth;ISIN Div Reinvestment;Net Asset Value;Date\r
+119661;Aditya Birla Sun Life Tax Plan - Direct Plan - Growth Option;;;INF209K01VV9;;32.63;17-Mar-2017\r
+";
+
+    /// AMFI's answer for a day without NAVs, abridged.
+    const NO_DATA: &str = r#"<html><head><title>View/Download NAV History</title></head><body><span id="ctl00_amfiHomeContent_lblErrMsg" class="labelRed">No data found on the basis of selected parameters for this report</span></body></html>"#;
+
+    #[test]
+    fn report_maps_either_isin_column_to_the_scheme_code() {
+        let mut reports = ReportIndex::default();
+        reports.add(date("2017-03-17"), REPORT);
+
+        assert_eq!(reports.code("INF277K01DP6"), Some("101828"));
+        assert_eq!(reports.code("INF277K01568"), Some("101828"));
+        assert_eq!(reports.code("INF204K01T57"), Some("121701"));
+        assert!(reports.dates.contains(&date("2017-03-17")));
+        // Text in an ISIN column isn't an ISIN.
+        assert!(!reports.codes.contains_key("NF336L01FZ2"));
+        assert!(!reports.codes.contains_key("-"));
+        assert!(!reports.codes.contains_key("ISIN Div Payout/ISIN Growth"));
+    }
+
+    #[test]
+    fn report_isin_under_two_codes_matches_neither() {
+        let mut reports = ReportIndex::default();
+        reports.add(date("2017-03-17"), REPORT);
+        // Listed under two codes in one report.
+        assert!(reports.codes.contains_key("INF204KB1304"));
+        assert_eq!(reports.code("INF204KB1304"), None);
+
+        // Listed under another code in a later report.
+        reports.add(
+            date("2017-03-20"),
+            "999999;Another fund;;;INF277K01DP6;;10.0000;20-Mar-2017",
+        );
+        assert_eq!(reports.code("INF277K01DP6"), None);
+    }
+
+    #[test]
+    fn report_responses_are_reports_days_without_navs_or_errors() {
+        assert_eq!(
+            report_text(StatusCode::OK, REPORT).expect("a report"),
+            Some(REPORT)
+        );
+        assert_eq!(
+            report_text(StatusCode::OK, NO_DATA).expect("a day without NAVs"),
+            None
+        );
+        // A page without the no-data message, such as the one an invalid date
+        // redirects to, isn't a report.
+        for body in [
+            "<html><head><title>View/Download NAV History</title></head></html>",
+            "Scheme Code;unrelated csv",
+            NAV_ALL,
+            r#"{"error":"No data found"}"#,
+            "<html>No data found</html>",
+        ] {
+            assert!(report_text(StatusCode::OK, body).is_err(), "{body}");
+        }
+        assert!(report_text(StatusCode::BAD_GATEWAY, REPORT).is_err());
+    }
+
+    #[test]
+    fn report_dates_are_weekdays_that_rotate_through_the_week() {
+        // A Saturday.
+        let first = date("2017-01-28");
+        let dates = report_dates(first, date("2017-12-31"));
+
+        assert_eq!(dates.len(), REPORT_LOOKUPS);
+        // The first two weekdays of the range.
+        assert_eq!(dates[..2], [date("2017-01-30"), date("2017-01-31")]);
+        for day in &dates {
+            assert!(!matches!(day.weekday(), Weekday::Sat | Weekday::Sun));
+        }
+        for pair in dates.windows(2) {
+            assert_ne!(pair[0].weekday(), pair[1].weekday());
+        }
+        // A new fund's range starts 45 days before its first activity; two
+        // lookups fall after it, in case one is a holiday.
+        let first_activity = first
+            .checked_add_days(Days::new(45))
+            .expect("valid test date");
+        assert_eq!(dates.iter().filter(|day| **day > first_activity).count(), 2);
+    }
+
+    #[test]
+    fn report_dates_stay_in_the_range() {
+        assert_eq!(
+            report_dates(date("2017-03-13"), date("2017-03-22")),
+            vec![date("2017-03-13"), date("2017-03-14"), date("2017-03-22")]
+        );
+        assert!(report_dates(date("2017-03-18"), date("2017-03-19")).is_empty());
+        assert!(report_dates(date("2017-03-20"), date("2017-03-19")).is_empty());
+    }
+
+    // -----------------------------------------------------------------------
+    // Requests, against a local server
+    // -----------------------------------------------------------------------
+
+    type Requests = Arc<std::sync::Mutex<Vec<String>>>;
+
+    /// A provider whose AMFI files come from a local server. The server answers
+    /// each request's path and query with `respond` and records it.
+    async fn local_provider(
+        respond: impl Fn(&str) -> (u16, String) + Send + Sync + 'static,
+    ) -> (AmfiProvider, Requests) {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind a local port");
+        let base = format!("http://{}", listener.local_addr().expect("local address"));
+        let requests = Requests::default();
+        let log = Arc::clone(&requests);
+        tokio::spawn(async move {
+            while let Ok((mut socket, _)) = listener.accept().await {
+                let mut head = Vec::new();
+                let mut buffer = [0; 1024];
+                while !head.ends_with(b"\r\n\r\n") {
+                    match socket.read(&mut buffer).await {
+                        Ok(0) | Err(_) => break,
+                        Ok(read) => head.extend_from_slice(&buffer[..read]),
+                    }
+                }
+                let head = String::from_utf8_lossy(&head);
+                let target = head.split_whitespace().nth(1).unwrap_or_default();
+                let (status, body) = respond(target);
+                log.lock().expect("request log").push(target.to_string());
+                let response = format!(
+                    "HTTP/1.1 {status} Canned\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                    body.len()
+                );
+                let _ = socket.write_all(response.as_bytes()).await;
+            }
+        });
+
+        let mut provider = AmfiProvider::with_urls(Urls {
+            nav_all: Cow::Owned(format!("{base}/NAVAll.txt")),
+            history: Cow::Owned(format!("{base}/history")),
+            report: Cow::Owned(format!("{base}/report")),
+        });
+        provider.client = wealthfolio_http::client_builder()
+            .no_proxy()
+            .build()
+            .expect("local client");
+        provider.request_limiter.configure(
+            &Cow::Borrowed(PROVIDER_ID),
+            RateLimitConfig {
+                requests_per_minute: 60_000,
+                burst_capacity: 1_000.0,
+            },
+        );
+        (provider, requests)
+    }
+
+    /// A query parameter of a recorded request.
+    fn param<'a>(target: &'a str, name: &str) -> Option<&'a str> {
+        target
+            .split_once('?')?
+            .1
+            .split('&')
+            .find_map(|pair| pair.strip_prefix(name)?.strip_prefix('='))
+    }
+
+    /// The recorded requests to `path`, by the value of their `name` parameter.
+    fn requested(requests: &Requests, path: &str, name: &str) -> Vec<String> {
+        requests
+            .lock()
+            .expect("request log")
+            .iter()
+            .filter(|target| target.starts_with(path))
+            .filter_map(|target| param(target, name).map(str::to_string))
+            .collect()
+    }
+
+    fn history_body(navs: &[(&str, &str)]) -> String {
+        if navs.is_empty() {
+            return r#"{"message":"No records to display"}"#.to_string();
+        }
+        let records: Vec<String> = navs
+            .iter()
+            .map(|(date, nav)| format!(r#"{{"date":"{date}","nav":{nav}}}"#))
+            .collect();
+        format!(
+            r#"{{"data":{{"nav_groups":[{{"historical_records":[{}]}}]}}}}"#,
+            records.join(",")
+        )
+    }
+
+    async fn history(
+        provider: &AmfiProvider,
+        symbol: &str,
+        first: &str,
+        last: &str,
+    ) -> Result<Vec<Quote>, MarketDataError> {
+        let context = QuoteContext {
+            instrument: crate::models::InstrumentId::Equity {
+                ticker: symbol.into(),
+                mic: None,
+            },
+            identifiers: crate::models::QuoteIdentifiers::default(),
+            overrides: None,
+            currency_hint: Some("INR".into()),
+            preferred_provider: Some(PROVIDER_ID.into()),
+            bond_metadata: None,
+            custom_provider_code: None,
+        };
+        let at = |day: &str| Utc.from_utc_datetime(&date(day).and_time(NaiveTime::MIN));
+        provider
+            .get_historical_quotes(
+                &context,
+                ProviderInstrument::EquitySymbol {
+                    symbol: symbol.into(),
+                },
+                at(first),
+                at(last),
+            )
+            .await
+    }
+
+    #[tokio::test]
+    async fn funds_nav_all_resolves_never_download_reports() {
+        let (provider, requests) = local_provider(|target| {
+            if target.starts_with("/NAVAll.txt") {
+                (200, NAV_ALL.to_string())
+            } else if target.starts_with("/history") {
+                (200, history_body(&[("2026-10-27", "89.2762")]))
+            } else {
+                (404, String::new())
+            }
+        })
+        .await;
+
+        for symbol in ["INF879O01027", "INF846K01WQ6", "122639", "999999"] {
+            let quotes = history(&provider, symbol, "2026-10-01", "2026-10-28")
+                .await
+                .expect("NAVs by ISIN or scheme code");
+            assert_eq!(quotes.len(), 1);
+        }
+        // Listed under two codes in NAVAll.txt: unresolved, without a report.
+        assert!(matches!(
+            history(&provider, "INF204KB1XN0", "2026-10-01", "2026-10-28").await,
+            Err(MarketDataError::SymbolNotFound(_))
+        ));
+
+        assert_eq!(
+            requested(&requests, "/history", "sd_id"),
+            vec!["122639", "135763", "122639", "999999"]
+        );
+        let requests = requests.lock().expect("request log");
+        assert!(requests.iter().all(|target| !target.starts_with("/report")));
+        assert_eq!(
+            requests
+                .iter()
+                .filter(|target| target.starts_with("/NAVAll.txt"))
+                .count(),
+            1
+        );
+    }
+
+    #[tokio::test]
+    async fn concurrent_missing_isins_share_reports_from_the_range_start() {
+        let (provider, requests) = local_provider(|target| {
+            if target.starts_with("/NAVAll.txt") {
+                return (200, NAV_ALL.to_string());
+            }
+            if target.starts_with("/history") {
+                return (200, history_body(&[("2017-03-17", "12.29")]));
+            }
+            match param(target, "frmdt") {
+                Some("01-Feb-2017") => (200, NO_DATA.to_string()),
+                Some("02-Feb-2017") => (200, OTHER_REPORT.to_string()),
+                Some("10-Feb-2017") => (200, REPORT.to_string()),
+                _ => (404, String::new()),
+            }
+        })
+        .await;
+
+        // Lookups on 1, 2 and 10 February, until a report lists the ISIN; its
+        // history is then requested by scheme code.
+        let (payout, reinvestment) = tokio::join!(
+            history(&provider, "INF277K01DP6", "2017-02-01", "2017-03-31"),
+            history(&provider, "INF277K01568", "2017-02-01", "2017-03-31")
+        );
+        let quotes = payout.expect("NAVs of a fund missing from NAVAll.txt");
+        assert_eq!(quotes.len(), 1);
+        assert_eq!(reinvestment.expect("the same fund's other ISIN").len(), 1);
+        assert_eq!(quotes[0].timestamp.date_naive(), date("2017-03-17"));
+        assert_eq!(
+            requested(&requests, "/report", "frmdt"),
+            vec!["01-Feb-2017", "02-Feb-2017", "10-Feb-2017"]
+        );
+        assert_eq!(
+            requested(&requests, "/history", "sd_id"),
+            vec!["101828", "101828"]
+        );
+
+        // ISINs in the reports already read are found without downloading
+        // another, whatever the range.
+        history(&provider, "INF277K01DP6", "2017-03-01", "2017-03-31")
+            .await
+            .expect("the same fund again");
+        history(&provider, "INF209K01VV9", "2017-03-01", "2017-03-31")
+            .await
+            .expect("a fund from another report");
+        assert_eq!(requested(&requests, "/report", "frmdt").len(), 3);
+        assert_eq!(
+            requested(&requests, "/history", "sd_id"),
+            vec!["101828", "101828", "101828", "119661"]
+        );
+    }
+
+    #[tokio::test]
+    async fn isin_listed_under_two_codes_in_a_report_stays_unresolved() {
+        let (provider, requests) = local_provider(|target| {
+            if target.starts_with("/NAVAll.txt") {
+                (200, NAV_ALL.to_string())
+            } else if target.starts_with("/report") {
+                (200, REPORT.to_string())
+            } else {
+                (404, String::new())
+            }
+        })
+        .await;
+
+        assert!(matches!(
+            history(&provider, "INF204KB1304", "2017-03-17", "2017-06-30").await,
+            Err(MarketDataError::SymbolNotFound(_))
+        ));
+        // Later reports can't make it unambiguous, so none is downloaded.
+        assert_eq!(
+            requested(&requests, "/report", "frmdt"),
+            vec!["17-Mar-2017"]
+        );
+        assert!(requested(&requests, "/history", "sd_id").is_empty());
+    }
+
+    #[tokio::test]
+    async fn report_that_failed_to_download_is_requested_again() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        let attempts = AtomicUsize::new(0);
+        let (provider, requests) = local_provider(move |target| {
+            if target.starts_with("/NAVAll.txt") {
+                (200, NAV_ALL.to_string())
+            } else if target.starts_with("/history") {
+                (200, history_body(&[("2017-03-17", "12.29")]))
+            } else {
+                match attempts.fetch_add(1, Ordering::SeqCst) {
+                    0 => (200, r#"{"error":"No data found"}"#.to_string()),
+                    1 => (502, String::new()),
+                    _ => (200, REPORT.to_string()),
+                }
+            }
+        })
+        .await;
+
+        for _ in 0..2 {
+            assert!(matches!(
+                history(&provider, "INF277K01DP6", "2017-03-17", "2017-03-31").await,
+                Err(MarketDataError::ProviderError { .. })
+            ));
+        }
+        history(&provider, "INF277K01DP6", "2017-03-17", "2017-03-31")
+            .await
+            .expect("the report downloads the third time");
+        assert_eq!(
+            requested(&requests, "/report", "frmdt"),
+            vec!["17-Mar-2017", "17-Mar-2017", "17-Mar-2017"]
+        );
+    }
+
+    #[tokio::test]
+    async fn history_stops_at_the_first_empty_window_after_navs() {
+        let (provider, requests) = local_provider(|target| {
+            // NAVs only in the window starting on 1 January 2016.
+            if param(target, "from_date") == Some("2016-01-01") {
+                (200, history_body(&[("2016-06-30", "11.92")]))
+            } else {
+                (200, history_body(&[]))
+            }
+        })
+        .await;
+
+        let quotes = history(&provider, "101828", "2015-01-01", "2020-12-31")
+            .await
+            .expect("NAVs of a closed fund");
+        assert_eq!(quotes.len(), 1);
+        // An empty window before the first NAVs doesn't stop the requests.
+        assert_eq!(
+            requested(&requests, "/history", "from_date"),
+            vec!["2015-01-01", "2016-01-01", "2016-12-31"]
+        );
+    }
+
+    /// A local provider that serves `NAV_ALL` and nothing else.
+    async fn nav_all_provider() -> (AmfiProvider, Requests) {
+        local_provider(|target| {
+            if target.starts_with("/NAVAll.txt") {
+                (200, NAV_ALL.to_string())
+            } else {
+                (404, String::new())
+            }
+        })
+        .await
+    }
+
+    async fn searched_codes(provider: &AmfiProvider, query: &str) -> Vec<String> {
+        provider
+            .search(query)
+            .await
+            .expect("search succeeds")
+            .into_iter()
+            .map(|result| result.symbol)
+            .collect()
+    }
+
+    #[tokio::test]
+    async fn search_finds_a_scheme_by_code_or_isin() {
+        let (provider, _) = nav_all_provider().await;
+
+        for query in ["122639", " inf879o01027 "] {
+            let results = provider.search(query).await.expect("search succeeds");
+            assert_eq!(results.len(), 1, "{query}");
+            let result = &results[0];
+            assert_eq!(result.symbol, "122639");
+            assert_eq!(
+                result.name,
+                "Parag Parikh Flexi Cap Fund - Direct Plan - Growth"
+            );
+            assert_eq!(result.exchange, "AMFI");
+            assert_eq!(result.exchange_mic, None);
+            assert_eq!(result.asset_type, "MUTUALFUND");
+            assert_eq!(result.currency.as_deref(), Some("INR"));
+            assert_eq!(result.data_source.as_deref(), Some("AMFI"));
+        }
+        // Either ISIN column finds the scheme.
+        assert_eq!(searched_codes(&provider, "INF846K01WQ6").await, ["135763"]);
+        // Two schemes with the same name, plan and option stay apart by code.
+        let first = provider.search("135762").await.expect("search succeeds");
+        let second = provider.search("135764").await.expect("search succeeds");
+        assert_eq!(first[0].name, second[0].name);
+        assert_eq!(first[0].symbol, "135762");
+        assert_eq!(second[0].symbol, "135764");
+    }
+
+    #[tokio::test]
+    async fn search_reads_only_nav_all() {
+        let (provider, requests) = nav_all_provider().await;
+
+        // An unlisted code, an ISIN under two codes, and the ISIN of a closed
+        // fund missing from NAVAll.txt: no result and no report lookup.
+        for query in ["999999", "INF204KB1XN0", "INF277K01DP6"] {
+            assert!(searched_codes(&provider, query).await.is_empty(), "{query}");
+        }
+        assert_eq!(*requests.lock().expect("request log"), ["/NAVAll.txt"]);
+    }
+
+    #[tokio::test]
+    async fn search_requests_nothing_for_other_queries() {
+        let (provider, requests) = nav_all_provider().await;
+
+        // Free text, a Yahoo symbol, a partial ISIN, and ISINs of a US share
+        // and a non-fund Indian security, which `NAVAll.txt` doesn't list.
+        for query in [
+            "Parag Parikh",
+            "0P0000YWL1.BO",
+            "INF879O",
+            "US0378331005",
+            "INE002A01018",
+            "",
+        ] {
+            assert!(!provider.looks_up_identifier(query), "{query}");
+            let results = provider.search(query).await.expect("not an error");
+            assert!(results.is_empty(), "{query}");
+        }
+        assert!(requests.lock().expect("request log").is_empty());
+
+        assert!(provider.looks_up_identifier("122639"));
+        assert!(provider.looks_up_identifier("INF879O01027"));
+    }
+
+    #[tokio::test]
+    async fn profile_gives_the_fund_type_without_a_name() {
+        let (provider, requests) = nav_all_provider().await;
+
+        let profile = provider
+            .get_profile("122639")
+            .await
+            .expect("a listed scheme has a profile");
+        assert_eq!(profile.source.as_deref(), Some("AMFI"));
+        assert_eq!(profile.quote_type.as_deref(), Some("MUTUALFUND"));
+        assert_eq!(profile.currency.as_deref(), Some("INR"));
+        // Enrichment replaces the fund's stored name with a profile's name.
+        assert_eq!(profile.name, None);
+
+        for symbol in ["999999", "INF204KB1XN0", "INF277K01DP6", "Parag Parikh"] {
+            assert!(
+                matches!(
+                    provider.get_profile(symbol).await,
+                    Err(MarketDataError::SymbolNotFound(_))
+                ),
+                "{symbol}"
+            );
+        }
+        assert_eq!(*requests.lock().expect("request log"), ["/NAVAll.txt"]);
     }
 }

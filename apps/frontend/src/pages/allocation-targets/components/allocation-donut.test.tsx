@@ -54,6 +54,7 @@ describe("AllocationDonut", () => {
     const colorByCategory = buildAllocationTargetColorMap(rows);
     const { container } = render(
       <AllocationDonut
+        taxonomyId="custom"
         rows={rows}
         colorByCategory={colorByCategory}
         totalValue={100_000}

@@ -1,3 +1,5 @@
+import { localizeAllocation } from "@/lib/taxonomy-labels";
+import type { TFunction } from "i18next";
 import { useAccountsSimplePerformance } from "@/hooks/use-accounts-simple-performance";
 import type {
   Account,
@@ -100,13 +102,18 @@ function taxonomyLens(
   label: string,
   unit: string,
   allocation: TaxonomyAllocation | undefined,
-  residualName: (categoryName: string) => string,
+  t: TFunction,
 ): Lens {
+  const displayAllocation = allocation ? localizeAllocation(t, allocation) : undefined;
   return {
     key,
     label,
     unit,
-    nodes: buildBreakdownTree(allocation?.categories, sumOfCategories(allocation), residualName),
+    nodes: buildBreakdownTree(
+      displayAllocation?.categories,
+      sumOfCategories(allocation),
+      (categoryName) => t("common:allocation_other_in_category", { category: categoryName }),
+    ),
     allocation,
   };
 }
@@ -147,15 +154,13 @@ export function PortfolioExplorer({
   const accountValues = accountValuations ?? performance;
 
   const lenses = useMemo<Lens[]>(() => {
-    const residualName = (categoryName: string) =>
-      t("common:allocation_other_in_category", { category: categoryName });
     const list: Lens[] = [
       taxonomyLens(
         "allocation",
         t("insights:insights.explorer.lens_allocation"),
         t("insights:insights.explorer.unit_categories"),
         allocations?.assetClasses,
-        residualName,
+        t,
       ),
       accountsLens(
         t("insights:insights.explorer.lens_accounts"),
@@ -167,28 +172,28 @@ export function PortfolioExplorer({
         t("insights:insights.explorer.lens_sectors"),
         t("insights:insights.explorer.unit_sectors"),
         allocations?.sectors,
-        residualName,
+        t,
       ),
       taxonomyLens(
         "regions",
         t("insights:insights.explorer.lens_regions"),
         t("insights:insights.explorer.unit_regions"),
         allocations?.regions,
-        residualName,
+        t,
       ),
       taxonomyLens(
         "risk",
         t("insights:insights.explorer.lens_risk"),
         t("insights:insights.explorer.unit_levels"),
         allocations?.riskCategory,
-        residualName,
+        t,
       ),
       taxonomyLens(
         "security",
         t("insights:insights.explorer.lens_security"),
         t("insights:insights.explorer.unit_types"),
         allocations?.securityTypes,
-        residualName,
+        t,
       ),
       {
         key: "currency",
@@ -206,7 +211,7 @@ export function PortfolioExplorer({
             taxonomy.taxonomyName,
             t("insights:insights.explorer.unit_groups"),
             taxonomy,
-            residualName,
+            t,
           ),
         );
       }

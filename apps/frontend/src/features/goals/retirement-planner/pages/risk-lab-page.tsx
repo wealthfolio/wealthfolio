@@ -14,7 +14,6 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
-  useAmountFormatting,
   useNumberFormatting,
   type FormattingApi,
   Spinner,
@@ -54,6 +53,7 @@ import type {
 
 import { SimulationPercentage } from "../components/simulation-percentage";
 import { cardSurfaceClassName } from "@wealthfolio/ui/components/ui/card";
+import { usePrivateAmountFormatting } from "../hooks/use-private-amount-formatting";
 
 type PlannerMode = "fire" | "traditional";
 
@@ -161,7 +161,7 @@ function InlineAmountTooltip({
   delta: number;
   tone?: "default" | "shortfall";
 }) {
-  const formatting = useAmountFormatting();
+  const formatting = usePrivateAmountFormatting();
   const { t } = useTranslation();
   return (
     <UiTooltip>
@@ -356,7 +356,7 @@ function PlanResilienceHero({
   mc?: MonteCarloResult;
   plannerMode?: PlannerMode;
 }) {
-  const amountFormatting = useAmountFormatting();
+  const amountFormatting = usePrivateAmountFormatting();
 
   const { t } = useTranslation();
   const currency = plan.currency;
@@ -617,7 +617,7 @@ function StressTestsSection({
   onRun: () => void;
   plannerMode?: PlannerMode;
 }) {
-  const formatting = useAmountFormatting();
+  const formatting = usePrivateAmountFormatting();
   const { t } = useTranslation();
   const isTraditional = plannerMode === "traditional";
   const sorted = useMemo(
@@ -770,7 +770,7 @@ function MonteCarloTooltip({
   label?: string | number;
   currency: string;
 }) {
-  const amountFormatting = useAmountFormatting();
+  const amountFormatting = usePrivateAmountFormatting();
 
   const { t } = useTranslation();
   const point = payload?.[0]?.payload;
@@ -847,7 +847,7 @@ function MonteCarloFanChart({
   showMedianFiLine?: boolean;
   goalLabel?: string;
 }) {
-  const formatting = useAmountFormatting();
+  const formatting = usePrivateAmountFormatting();
   const { t } = useTranslation();
   const chartData = useMemo(
     () =>
@@ -949,7 +949,7 @@ function MonteCarloDistributionSection({
   activeSims: number;
   plannerMode?: PlannerMode;
 }) {
-  const amountFormatting = useAmountFormatting();
+  const amountFormatting = usePrivateAmountFormatting();
   const numberFormatting = useNumberFormatting();
 
   const { t } = useTranslation();
@@ -1325,7 +1325,7 @@ function DecisionHeatmap({
   flatColumnHint?: string;
   ageMetricLabel: string;
 }) {
-  const amountFormatting = useAmountFormatting();
+  const amountFormatting = usePrivateAmountFormatting();
 
   const { t } = useTranslation();
   const range = useMemo(() => matrixDeltaRange(matrix), [matrix]);
@@ -1495,7 +1495,7 @@ function WhatMovesThePlanSection({
   plan: RetirementPlan;
   plannerMode?: PlannerMode;
 }) {
-  const amountFormatting = useAmountFormatting();
+  const amountFormatting = usePrivateAmountFormatting();
   const numberFormatting = useNumberFormatting();
 
   const { t } = useTranslation();
@@ -1648,7 +1648,7 @@ function SorrTooltip({
   label?: string | number;
   currency: string;
 }) {
-  const amountFormatting = useAmountFormatting();
+  const amountFormatting = usePrivateAmountFormatting();
 
   const { t } = useTranslation();
   const visiblePayload = payload?.filter((entry) => entry.value != null) ?? [];
@@ -1687,7 +1687,7 @@ function SorrChart({
   currency: string;
   retirementStartAge: number;
 }) {
-  const formatting = useAmountFormatting();
+  const formatting = usePrivateAmountFormatting();
   const { t } = useTranslation();
   const maxLen = Math.max(...scenarios.map((scenario) => scenario.portfolioPath.length));
   const data = Array.from({ length: maxLen }, (_, index) => {
@@ -1794,7 +1794,7 @@ function AdvancedSection({
   sorrError: unknown;
   onRunSorr: () => void;
 }) {
-  const amountFormatting = useAmountFormatting();
+  const amountFormatting = usePrivateAmountFormatting();
 
   const { t } = useTranslation();
   const retirementStartAge = overview?.retirementStartAge ?? plan.personal.targetRetirementAge;

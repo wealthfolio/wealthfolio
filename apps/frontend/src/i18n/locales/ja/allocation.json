@@ -289,6 +289,7 @@
     "title": "リバランス・ワークシート",
     "totalAdjusted": "調整額 {{amount}}",
     "unclassified": "未分類",
+    "unclassifiedExposure": "未分類のエクスポージャー",
     "unitPrice": "単価",
     "unknownAccount": "不明な口座",
     "unresolvedHint": "どの銘柄にも配置されておらず、対応するまで予測から除外されます。",
@@ -495,5 +496,15 @@
     "useAmountIn": "{{account}} で {{amount}} を使う",
     "useAsAdjustment": "{{amount}} を調整額にする",
     "calculationInterrupted": "計算中にワークシートが変更されました。もう一度お試しください。"
+  },
+  "categoryNouns": {
+    "assetClass": "資産クラス",
+    "region": "地域",
+    "industry": "産業",
+    "category": "カテゴリ",
+    "region_other": "地域",
+    "category_other": "カテゴリ",
+    "assetClass_other": "資産クラス",
+    "industry_other": "産業"
   }
 }

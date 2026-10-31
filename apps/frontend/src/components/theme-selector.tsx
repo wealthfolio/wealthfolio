@@ -9,6 +9,8 @@ interface ThemeSelectorProps {
   onChange: (value: AppearanceMode) => void;
   className?: string;
   "aria-label"?: string;
+  /** Gives each option `data-testid="<prefix>-<mode>-button"`. */
+  testIdPrefix?: string;
 }
 
 const modes: {
@@ -33,6 +35,7 @@ export function ThemeSelector({
   onChange,
   className,
   "aria-label": ariaLabel,
+  testIdPrefix,
 }: ThemeSelectorProps) {
   const { t } = useTranslation();
   return (
@@ -46,6 +49,7 @@ export function ThemeSelector({
         value: mode,
         "aria-label": t(labelKey),
         title: t(labelKey),
+        "data-testid": testIdPrefix ? `${testIdPrefix}-${mode}-button` : undefined,
         label: (
           <span className="flex items-center gap-1.5">
             <Icon aria-hidden className="size-3.5" />

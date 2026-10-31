@@ -1,3 +1,4 @@
+import { getCategoryLabel } from "@/lib/taxonomy-labels";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import { useTaxonomy } from "@/hooks/use-taxonomies";
 import type { AllocationTarget, DriftReport, DriftRow } from "@/lib/types";
@@ -176,7 +177,14 @@ export function TargetRailsCard({
                       className="h-2.5 w-2.5 shrink-0 rounded-sm"
                       style={{ background: color }}
                     />
-                    <span className="truncate">{row.categoryName}</span>
+                    <span className="truncate">
+                      {getCategoryLabel(
+                        t,
+                        selectedTarget?.taxonomyId ?? "",
+                        row.categoryId,
+                        row.categoryName,
+                      )}
+                    </span>
                   </span>
                   <span className="bg-muted relative h-2 rounded-full">
                     <span
@@ -216,7 +224,12 @@ export function TargetRailsCard({
                     <span className="flex min-w-0 items-center gap-2">
                       <span className="h-2 w-2 shrink-0 rounded-sm" style={{ background: color }} />
                       <span className="text-foreground truncate font-medium">
-                        {row.categoryName}
+                        {getCategoryLabel(
+                          t,
+                          selectedTarget?.taxonomyId ?? "",
+                          row.categoryId,
+                          row.categoryName,
+                        )}
                       </span>
                     </span>
                     <span className="text-muted-foreground shrink-0 tabular-nums">

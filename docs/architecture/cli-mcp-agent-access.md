@@ -455,6 +455,15 @@ get_net_worth
 get_contribution_limits
 ```
 
+`get_health_status` reads the Health Center's cached status. With
+`refresh: true` it first runs the full checks through
+`AgentEnvironment::run_health_checks`, which each host implements with the same
+`HealthServiceTrait::run_full_checks` call as its Health Center (local reads
+only, the configured timezone, no client timezone) and which refreshes the cache
+the Health Center shows. A refresh within a minute of the last run returns that
+run; refreshes take a lock while they check this and run, so concurrent calls
+run the checks once.
+
 ### Draft / Suggest Tools (assistant + MCP)
 
 ```text
@@ -630,15 +639,21 @@ assistant has no confirmation card for quotes and does not get these tools.
 ```text
 prepare_activity_updates           -- preview corrections to existing activities (batch)
 commit_activity_updates            -- apply confirmed corrections in place (batch)
+prepare_activity_deletions         -- preview deleting existing activities (batch)
+commit_activity_deletions          -- delete confirmed activities (batch)
 ```
 
 These correct an activity already stored, such as adding the acquisition cost
 and fee to a transfer in recorded before they were known, without re-importing
 it. A row names an `activityId` and only the fields to change, from those the
 activity grid edits: date, account, type, subtype, asset, quantity, unit price,
-amount, currency, fee, tax, FX rate, notes, and `approve` (the grid's Approve:
-clears the review flag and posts a draft). Omitted fields keep their stored
-value and `null` clears an optional one; unknown fields are refused.
+amount, currency, fee, tax, FX rate, notes, `approve` (the grid's Approve:
+clears the review flag and posts a draft), and `void`. `void: true` sets a
+posted activity's status to VOID and clears its review flag: it stays stored but
+no longer counts in holdings, cash or performance, and `void: false` posts it
+again. Only a posted activity is voided, so a restore always posts it. Omitted
+fields keep their stored value and `null` clears an optional one; unknown fields
+are refused.
 
 Both tools go through `ActivityServiceTrait`. The preview calls
 `preview_activity_update`, which runs `update_activity`'s validation and returns
@@ -664,7 +679,31 @@ The tools refuse, per row:
   cash transfer leg, since core mirrors the amount with the pair's stored rate),
   which would break the pair; the error says to unlink first with
   `unlink_transfer_activities`;
-- a missing activity, an invalid value, or a row that changes nothing.
+- a missing activity, an invalid value, or a row that changes nothing;
+- voiding a draft or a pending activity (which count toward nothing yet; delete
+  them instead), voiding an activity already void, restoring one that is not,
+  `void` together with `approve`, or voiding or restoring one leg of a linked
+  transfer whose legs differ in status (core mirrors the status onto the other
+  leg, so a draft leg would otherwise be posted without approval).
+
+The deletion tools take a list of activity ids. The preview reads each activity
+and, through `get_transfer_pair_for_activity`, the other leg of a linked
+transfer, and lists both as stored; the commit checks each id again and calls
+`delete_activities_checked`, which returns all deleted rows and recalculates the
+portfolio. The existing SQLite writer transaction refuses the whole row if its
+source-group cascade would remove an id outside that reviewed deletion set. This
+also covers a link created between tool validation and the write, without adding
+a lock or changing the native grid's deletion policy. The preview checks the
+same stored group and refuses groups other than a recognized linked pair, even
+when all group ids are named; those activities can be voided instead. Both legs
+of a linked transfer must be named: a leg whose other leg is missing from the
+call is refused, so a transfer linked after the preview cannot delete an
+activity the user never reviewed. The row naming the second leg reports the row
+that deletes it (`deletedWith`); a repeated id is refused. A row warns when an
+activity came from a broker sync, which may add a deleted activity back; voiding
+keeps it out of calculations and, because the update marks it user-modified,
+broker syncs keep it void. The commit reports each deleted activity as it was
+stored. The audit log keeps only the ids.
 
 Each row in a batch (up to 100) succeeds or fails on its own. The audit log
 keeps only each row's activity id and the names of the fields it sets, never
@@ -781,13 +820,15 @@ Write / draft / suggest scopes:
 ```text
 activities:draft         record_activity, record_activities,
                          prepare_activity_import,
-                         prepare_activity_updates (also requires
+                         prepare_activity_updates,
+                         prepare_activity_deletions (each also requires
                          activities:read)
 activities:write         commit_activity_draft / commit_activity_drafts,
                          commit_activity_import  (each also requires
                          activities:draft),
                          link_transfer_activities / unlink_transfer_activities,
-                         commit_activity_updates
+                         commit_activity_updates,
+                         commit_activity_deletions
                          (each also requires activities:read and
                          activities:draft)
 classification:suggest   prepare_asset_classification

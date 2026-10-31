@@ -11,7 +11,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { StrictMode, type ReactNode } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import PerformancePage from "./performance-page";
 import { ALL_PORTFOLIO_ITEM } from "./performance-selection";
 
@@ -165,6 +165,10 @@ function renderPage(seedAccounts = true, i18n?: i18n) {
 }
 
 describe("PerformancePage shared scope", () => {
+  afterEach(() => {
+    document.documentElement.removeAttribute("dir");
+  });
+
   beforeEach(() => {
     mocks.settings = { timezone: "Asia/Shanghai" };
     mocks.mobile = false;
@@ -549,18 +553,22 @@ describe("PerformancePage shared scope", () => {
   });
 
   it.each([
-    [false, false],
-    [true, false],
-    [false, true],
-    [true, true],
-  ])(
-    "separates mixed-scope return limitations from P&L warnings (mobile=%s, incomplete cash FX=%s)",
-    async (mobile, incompleteCashFx) => {
+    [false, false, "all-time mixed scopes", "ltr"],
+    [true, false, "all-time mixed scopes", "rtl"],
+    [false, true, "all-time mixed scopes", "rtl"],
+    [true, true, "all-time mixed scopes", "ltr"],
+    [false, false, "mixed scopes", "rtl"],
+    [true, false, "mixed scopes", "ltr"],
+    [false, true, "mixed scopes", "ltr"],
+    [true, true, "mixed scopes", "rtl"],
+  ] as const)(
+    "separates mixed-scope return limitations from P&L warnings (mobile=%s, incomplete cash FX=%s, scope=%s, dir=%s)",
+    async (mobile, incompleteCashFx, seriesScope, direction) => {
       mocks.mobile = mobile;
+      document.documentElement.dir = direction;
       const mixedScopeWarning =
         "This scope mixes transaction-mode and holdings-mode accounts, so TWR and IRR are unavailable. The return is a value return over account-level components.";
-      const seriesWarning =
-        "Return series unavailable for all-time mixed scopes because transaction and holdings components use different baselines.";
+      const seriesWarning = `Return series unavailable for ${seriesScope} because transaction and holdings components use different baselines.`;
       const cashFxWarning =
         "Cash FX attribution is incomplete for account a on 2026-02-01 because its exposure or valuation rate is unavailable.";
       const warnings = [

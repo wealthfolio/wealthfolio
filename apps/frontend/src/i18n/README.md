@@ -169,3 +169,27 @@ positives.
 
 Non-English catalogs are machine-drafted and community-corrected. Terminology
 reports are expected and welcome — file them as issues against the locale.
+
+## Built-in taxonomy and spending names
+
+`lib/taxonomy-labels.ts` translates built-in taxonomy and category names only
+when both the stable ID and the original English seed name match. The
+`taxonomies:taxonomyNames` and `taxonomies:categoryNames` catalogs therefore
+retain canonical seed names. `features/spending/lib/labels.ts` applies the same
+guard to `spending:budgetGroupNames` and `spending:eventTypeNames`; event names
+remain user data. Seed/catalog consistency tests execute the real database
+migrations and compare all IDs and English names.
+
+Call these helpers in the presentation layer. Keep query results, selection IDs,
+mutation inputs, editable name fields, CSV exports, and persisted data raw.
+Translate search labels while retaining the original name in search keywords.
+Derived chart data must depend on `t` so an already-open chart updates when the
+language changes. Calculate colors, weights, and other behavior from raw data.
+
+A saved name identical to a seed name cannot be distinguished from the default
+without edit history; it is translated for display, but never rewritten.
+
+The additional built-in catalogs are machine-drafted for all supported locales
+and remain subject to native-speaker review. Country labels use CLDR names.
+Translation preparation is development-only; the application uses local JSON
+resources and makes no translation-service requests.

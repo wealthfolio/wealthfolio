@@ -230,7 +230,7 @@ export function SpendingDatePicker({
       <SheetTrigger render={trigger} />
       <SheetContent
         side="bottom"
-        className="mx-1 max-h-[90dvh] overflow-y-auto rounded-t-4xl p-0 pb-[calc(env(safe-area-inset-bottom,0px)+0.5rem)]"
+        className="mx-1 max-h-[90dvh] overflow-y-auto rounded-t-4xl p-0 pb-[calc(var(--inset-bottom)+0.5rem)]"
       >
         <SheetHeader className="border-border border-b px-5 py-4">
           <SheetTitle>{t("spending:period.selectDates")}</SheetTitle>

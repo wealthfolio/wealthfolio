@@ -962,7 +962,15 @@
       "mapSymbol": "銘柄をマッピング",
       "missingAccount": "口座が未設定",
       "emptySymbol": "銘柄が空",
-      "accountAssignmentBlankRows_other": "すべてのCSV行を口座にマッピングしてください。{{count}}行がまだ未設定です。アップロードでデフォルト口座を選択するか、口座列を入力してください。"
+      "accountAssignmentBlankRows_other": "すべてのCSV行を口座にマッピングしてください。{{count}}行がまだ未設定です。アップロードでデフォルト口座を選択するか、口座列を入力してください。",
+      "statusIncluded": "インポート対象",
+      "skippedCount_one": "{{count}}行スキップ済み",
+      "skippedCount_other": "{{count}}行スキップ済み",
+      "allRowsSkipped": "すべての行がスキップされています",
+      "allRowsSkippedDescription": "続行するには、少なくとも1行を含めてください。",
+      "includeRow": "{{line}}行目を含める",
+      "includeAllRows": "すべての行を含める",
+      "includeMatchingRows": "一致するすべての行を含める"
     },
     "csvViewer": {
       "status": "ステータス",

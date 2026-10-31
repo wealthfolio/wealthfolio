@@ -972,7 +972,15 @@
       "missingAccount": "Missing account",
       "emptySymbol": "Empty symbol",
       "accountAssignmentBlankRows_one": "Map every CSV row to an account. {{count}} row is still blank, so choose a default account in Upload or fill the account column.",
-      "accountAssignmentBlankRows_other": "Map every CSV row to an account. {{count}} rows are still blank, so choose a default account in Upload or fill the account column."
+      "accountAssignmentBlankRows_other": "Map every CSV row to an account. {{count}} rows are still blank, so choose a default account in Upload or fill the account column.",
+      "statusIncluded": "Included",
+      "skippedCount_one": "{{count}} skipped",
+      "skippedCount_other": "{{count}} skipped",
+      "allRowsSkipped": "Every row is skipped",
+      "allRowsSkippedDescription": "Include at least one row to continue.",
+      "includeRow": "Include row {{line}}",
+      "includeAllRows": "Include all rows",
+      "includeMatchingRows": "Include all matching rows"
     },
     "csvViewer": {
       "status": "Status",

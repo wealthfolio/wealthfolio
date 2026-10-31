@@ -972,7 +972,15 @@
       "missingAccount": "缺少帳戶",
       "emptySymbol": "空代號",
       "accountAssignmentBlankRows_other": "請為每一列 CSV 資料指定帳戶。目前仍有 {{count}} 列空白，請在「上傳」步驟選取預設帳戶，或填寫 Account 欄位。",
-      "accountAssignmentBlankRows_one": "請為每一列 CSV 資料指定帳戶。目前仍有 {{count}} 列空白，請在「上傳」步驟選取預設帳戶，或填寫 Account 欄位。"
+      "accountAssignmentBlankRows_one": "請為每一列 CSV 資料指定帳戶。目前仍有 {{count}} 列空白，請在「上傳」步驟選取預設帳戶，或填寫 Account 欄位。",
+      "statusIncluded": "已包含",
+      "skippedCount_one": "已跳過 {{count}} 列",
+      "skippedCount_other": "已跳過 {{count}} 列",
+      "allRowsSkipped": "所有列均已跳過",
+      "allRowsSkippedDescription": "請至少包含一列以繼續。",
+      "includeRow": "包含第 {{line}} 列",
+      "includeAllRows": "包含所有列",
+      "includeMatchingRows": "包含所有符合的列"
     },
     "csvViewer": {
       "status": "狀態",

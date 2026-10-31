@@ -1,3 +1,4 @@
+import { worksheetCategoryLabel } from "./allocation-worksheet-labels";
 import { Button, Icons, useAmountFormatting, useNumberFormatting } from "@wealthfolio/ui";
 import { useEffect, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
@@ -81,6 +82,7 @@ export interface AmountsRowActions {
 }
 
 interface AmountsListProps {
+  taxonomyId?: string;
   rows: readonly AmountsRowModel[];
   /** Rows the worksheet or the preview has something to say about. */
   flaggedAssetIds: ReadonlySet<string>;
@@ -191,6 +193,7 @@ export function AmountsList({
     items.push(
       <CollapsedLine
         key="collapsed-rows"
+        taxonomyId={shared.taxonomyId}
         rows={collapsed}
         value={collapsedValue}
         currency={shared.currency}
@@ -223,6 +226,7 @@ export function AmountsList({
 }
 
 interface CollapsedLineProps {
+  taxonomyId?: string;
   rows: readonly WorksheetPosition[];
   value: number;
   currency: string;
@@ -230,7 +234,14 @@ interface CollapsedLineProps {
   onToggle: () => void;
 }
 
-function CollapsedLine({ rows, value, currency, isOpen, onToggle }: CollapsedLineProps) {
+function CollapsedLine({
+  rows,
+  value,
+  currency,
+  isOpen,
+  onToggle,
+  taxonomyId = "",
+}: CollapsedLineProps) {
   const { t } = useTranslation();
   const { formatAmount } = useAmountFormatting();
   const activeCategoryId = useHighlight((state) => {
@@ -274,7 +285,7 @@ function CollapsedLine({ rows, value, currency, isOpen, onToggle }: CollapsedLin
         {touching.length > 0 && categoryName
           ? t("allocation:worksheet.collapsedTouching", {
               count: touching.length,
-              category: categoryName,
+              category: worksheetCategoryLabel(t, taxonomyId, activeCategoryId ?? "", categoryName),
             })
           : isOpen
             ? t("allocation:worksheet.hideRows")
@@ -292,6 +303,7 @@ interface AmountRowProps extends Omit<
 }
 
 function AmountRow({
+  taxonomyId = "",
   model,
   actions,
   classColors,
@@ -355,7 +367,7 @@ function AmountRow({
   const classNames = position.categoryExposures.map((exposure) =>
     exposure.categoryId === UNCLASSIFIED_CATEGORY_ID
       ? t("allocation:worksheet.unclassified")
-      : exposure.categoryName,
+      : worksheetCategoryLabel(t, taxonomyId, exposure.categoryId, exposure.categoryName),
   );
   const classesText = position.categoryExposures
     .map((exposure, index) => `${classNames[index]} ${Math.round(exposure.weightBps / 100)}%`)

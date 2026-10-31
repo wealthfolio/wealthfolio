@@ -5,6 +5,8 @@ import { Icons, PrivacyAmount, Skeleton, useNumberFormatting } from "@wealthfoli
 import { useNameComparator } from "@/hooks/use-name-comparator";
 import { useIsMobileViewport } from "@/hooks/use-platform";
 import type { TaxonomyCategory } from "@/lib/types";
+import { getCategoryLabel } from "@/lib/taxonomy-labels";
+import { getBudgetGroupLabel } from "@/features/spending/lib/labels";
 import { cn } from "@/lib/utils";
 
 import { DIRECT_ROW_ID } from "../../lib/category-drilldown";
@@ -72,19 +74,24 @@ export function CategoryHierarchyTable({
   const numberFormatting = useNumberFormatting();
   const isMobile = useIsMobileViewport();
   const compareNames = useNameComparator();
-  const tree = useMemo(
-    () =>
-      buildTree({
-        breakdown,
-        priorBreakdown,
-        budgetRows,
-        taxonomyCategories,
-        sort,
-        compareNames,
-        directLabel: tr("spending:categorySheet.direct"),
-      }),
-    [breakdown, priorBreakdown, budgetRows, taxonomyCategories, sort, compareNames, tr],
-  );
+  const tree = useMemo(() => {
+    const rawTree = buildTree({
+      breakdown,
+      priorBreakdown,
+      budgetRows,
+      taxonomyCategories,
+      sort,
+      compareNames,
+      directLabel: tr("spending:categorySheet.direct"),
+    });
+    const localizeNode = (node: NodeRow): NodeRow => ({
+      ...node,
+      name: getCategoryLabel(tr, "spending_categories", node.id, node.name),
+      children: node.children.map(localizeNode),
+    });
+    // Calculate and sort raw rows first; only the rendered names change with language.
+    return rawTree.map(localizeNode);
+  }, [breakdown, priorBreakdown, budgetRows, taxonomyCategories, sort, compareNames, tr]);
 
   const totals = useMemo(() => {
     const t = { budgeted: 0, spent: 0, priorSpent: 0 };
@@ -98,8 +105,15 @@ export function CategoryHierarchyTable({
 
   const groups = useMemo(
     () =>
-      groupRows && groupRows.length > 0 ? buildGroupWeights({ tree, groupRows, budgetRows }) : null,
-    [tree, groupRows, budgetRows],
+      groupRows && groupRows.length > 0
+        ? buildGroupWeights({
+            tree,
+            groupRows,
+            budgetRows,
+            otherLabel: tr("spending:hero.other"),
+          }).map((group) => ({ ...group, name: getBudgetGroupLabel(tr, group.id, group.name) }))
+        : null,
+    [tree, groupRows, budgetRows, tr],
   );
 
   // Expand state for groups + categories lives here so the "Expand all /

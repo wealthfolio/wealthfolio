@@ -1,4 +1,12 @@
 import { describe, expect, it } from "vitest";
+import { createInstance } from "i18next";
+import { worksheetCategoryLabel } from "./allocation-worksheet-labels";
+import zhAllocation from "@/i18n/locales/zh/allocation.json";
+import enAllocation from "@/i18n/locales/en/allocation.json";
+import zhCommon from "@/i18n/locales/zh/common.json";
+import zhCommonTaxonomies from "@/i18n/locales/zh/taxonomies.json";
+import enCommon from "@/i18n/locales/en/common.json";
+import enCommonTaxonomies from "@/i18n/locales/en/taxonomies.json";
 
 import type { AllocationWorksheetResult, CalculatedAdjustments } from "@/lib/types";
 
@@ -154,6 +162,115 @@ function csvLines(overrides: Partial<WorksheetExportLabels> = {}) {
 }
 
 describe("worksheet export", () => {
+  it("localizes category displays without changing saved names or custom labels", async () => {
+    const i18n = createInstance();
+    await i18n.init({
+      lng: "zh-CN",
+      resources: {
+        "zh-CN": { common: zhCommon, taxonomies: zhCommonTaxonomies, allocation: zhAllocation },
+        en: { common: enCommon, taxonomies: enCommonTaxonomies, allocation: enAllocation },
+      },
+    });
+    const localizedResult: AllocationWorksheetResult = {
+      ...result,
+      lines: [
+        {
+          ...result.lines[0],
+          categoryExposures: [
+            {
+              categoryId: "EQUITY",
+              categoryName: "Equity",
+              weightBps: 6000,
+              valueDelta: 720,
+              isUnclassified: false,
+            },
+            {
+              categoryId: "FIXED_INCOME",
+              categoryName: "My bonds",
+              weightBps: 4000,
+              valueDelta: 480,
+              isUnclassified: false,
+            },
+          ],
+        },
+        {
+          ...result.lines[1],
+          categoryExposures: [
+            {
+              categoryId: "EQUITY",
+              categoryName: "Equity",
+              weightBps: 10000,
+              valueDelta: -300.004,
+              isUnclassified: false,
+            },
+          ],
+        },
+      ],
+    };
+    const localizedCalculated = {
+      ...calculated,
+      unresolved: [
+        { ...calculated.unresolved[0], categoryId: "EQUITY", categoryName: "Equity" },
+        ...["Unknown", "Unclassified", "Unclassified exposure"].map((categoryName) => ({
+          ...calculated.unresolved[0],
+          categoryId: "__UNKNOWN__",
+          categoryName,
+        })),
+        {
+          ...calculated.unresolved[0],
+          categoryId: "custom",
+          categoryName: "Unclassified exposure",
+        },
+      ],
+    };
+    const before = JSON.stringify([localizedResult, localizedCalculated]);
+    const exportRows = (localize = true) =>
+      worksheetExportRows(
+        {
+          result: localizedResult,
+          calculated: localizedCalculated,
+          accountNames: new Map(),
+          accountIds: [],
+          trackedCashToUse: 0,
+          externalCash: 0,
+          depositsByAccount: {},
+          editedAssetIds: undefined,
+          describeWarning: (warning) => warning.message,
+          categoryLabel: localize
+            ? (id, name) => worksheetCategoryLabel(i18n.t, "asset_classes", id, name)
+            : undefined,
+        },
+        labels,
+      );
+    const rows = exportRows();
+    const text = toTsv(rows);
+    expect(text).toContain(`${zhCommonTaxonomies.categoryNames.asset_classes.EQUITY} 60%`);
+    expect(text).toContain("My bonds 40%");
+    expect(
+      rows.filter((row) => row[8] === zhCommonTaxonomies.categoryNames.asset_classes.EQUITY),
+    ).toHaveLength(2);
+    expect(text).toContain(zhCommonTaxonomies.unknown);
+    expect(text).toContain(zhAllocation.worksheet.unclassified);
+    expect(text).toContain(zhAllocation.worksheet.unclassifiedExposure);
+    expect(text).toContain("Unclassified exposure"); // Same-name custom category stays verbatim.
+    const csv = toCsv(exportRows(false));
+    expect(csv).toContain("Unknown");
+    expect(csv).toContain("Unclassified exposure");
+    expect(csv).not.toContain(zhAllocation.worksheet.unclassifiedExposure);
+    expect(csv).toContain("Equity 60%");
+    expect(csv).toContain("My bonds 40%");
+    expect(csv).not.toContain(zhCommonTaxonomies.categoryNames.asset_classes.EQUITY);
+    await i18n.changeLanguage("en");
+    const englishText = toTsv(exportRows());
+    expect(englishText).toContain("Unknown");
+    expect(englishText).toContain("Unclassified exposure");
+    expect(englishText).not.toContain(zhAllocation.worksheet.unclassifiedExposure);
+    expect(englishText).toContain("Equity 60%");
+    expect(englishText).toContain("My bonds 40%");
+    expect(englishText).not.toContain(zhCommonTaxonomies.categoryNames.asset_classes.EQUITY);
+    expect(JSON.stringify([localizedResult, localizedCalculated])).toBe(before);
+  });
+
   it("rejects an indicative preview until its changes are placed in accounts", () => {
     expect(() =>
       worksheetExportRows(

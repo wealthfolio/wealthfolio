@@ -73,7 +73,7 @@ async function openMapping(page: Page, { withAccount = true, dir = "ltr" } = {})
     timeout: 15_000,
   });
   return {
-    table: activityPreview.locator(":scope > div").first(),
+    table: activityPreview.locator(':scope > [data-slot="card"]'),
     openFilePreview: async () => {
       await page.getByRole("tab", { name: "File Preview" }).click();
       const filePreview = page.getByRole("tabpanel", { name: "File Preview" });

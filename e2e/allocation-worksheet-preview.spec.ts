@@ -12,6 +12,24 @@ async function post<T>(page: Page, path: string, data?: unknown): Promise<T> {
   return response.json() as Promise<T>;
 }
 
+let profileToDelete: { id: string; name: string } | null = null;
+
+// While a second profile exists, the server refuses requests that name no profile,
+// so the specs that run after this one would fail. Delete it even when the test fails.
+test.afterEach(async ({ page }) => {
+  if (!profileToDelete) return;
+  // Deleting needs the profile's scope, and the test may have failed before it unlocked.
+  const session = await post<{ scopeId: string }>(page, "/profiles/unlock_profile", {
+    profileId: profileToDelete.id,
+  });
+  requestHeaders = { "x-wf-profile-scope": session.scopeId };
+  await post(page, "/profiles/delete_profile", {
+    profileId: profileToDelete.id,
+    confirmation: profileToDelete.name,
+  });
+  profileToDelete = null;
+});
+
 async function enterAmount(field: Locator, value: string) {
   await field.focus();
   await field.press("ControlOrMeta+A");
@@ -25,10 +43,12 @@ test("whole-share edits update impact and require account placement, in LTR and 
   test.setTimeout(180000);
   page.setDefaultTimeout(15000);
   // Give this spec its own profile so other specs' accounts and targets cannot leak in.
+  const profileName = "Worksheet preview";
   const profile = await post<{ id: string }>(page, "/profiles/create_profile", {
-    name: "Worksheet preview",
+    name: profileName,
     avatarId: "clay-bot-animated",
   });
+  profileToDelete = { id: profile.id, name: profileName };
   const session = await post<{ scopeId: string }>(page, "/profiles/unlock_profile", {
     profileId: profile.id,
   });
@@ -254,7 +274,10 @@ test("whole-share edits update impact and require account placement, in LTR and 
     await expect(amount).toHaveValue(nextAmount);
     await expect(page.locator("html")).toHaveAttribute("dir", dir);
     await page.screenshot({ path: `test-results/worksheet-preview-${dir}.png`, fullPage: true });
-    await page.setViewportSize({ width: 1024, height: 768 });
+    // The steps move under the title when the heading area is narrower than 36rem. At
+    // 1024 px with the sidebar open it is within a few pixels of that under any font
+    // (586 px with Sans, 567 px with Mono), so check the narrow layout clearly below it.
+    await page.setViewportSize({ width: 960, height: 768 });
     const expandSidebar = page.getByRole("button", { name: "Expand Sidebar", exact: true });
     await expandSidebar.click();
     await expect(page.getByRole("button", { name: "Collapse Sidebar", exact: true })).toBeVisible();

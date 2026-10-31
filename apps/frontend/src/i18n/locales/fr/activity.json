@@ -993,7 +993,16 @@
       "emptySymbol": "Symbole vide",
       "accountAssignmentBlankRows_one": "Associez chaque ligne du CSV à un compte. {{count}} ligne est encore vide, choisissez donc un compte par défaut à l'étape Téléversement ou remplissez la colonne du compte.",
       "accountAssignmentBlankRows_other": "Associez chaque ligne du CSV à un compte. {{count}} lignes sont encore vides, choisissez donc un compte par défaut à l'étape Téléversement ou remplissez la colonne du compte.",
-      "accountAssignmentBlankRows_many": "Associez chaque ligne du CSV à un compte. {{count}} lignes sont encore vides, choisissez donc un compte par défaut à l'étape Téléversement ou remplissez la colonne du compte."
+      "accountAssignmentBlankRows_many": "Associez chaque ligne du CSV à un compte. {{count}} lignes sont encore vides, choisissez donc un compte par défaut à l'étape Téléversement ou remplissez la colonne du compte.",
+      "statusIncluded": "Incluses",
+      "skippedCount_one": "{{count}} ignorée",
+      "skippedCount_many": "{{count}} ignorées",
+      "skippedCount_other": "{{count}} ignorées",
+      "allRowsSkipped": "Toutes les lignes sont ignorées",
+      "allRowsSkippedDescription": "Incluez au moins une ligne pour continuer.",
+      "includeRow": "Inclure la ligne {{line}}",
+      "includeAllRows": "Inclure toutes les lignes",
+      "includeMatchingRows": "Inclure toutes les lignes correspondantes"
     },
     "csvViewer": {
       "status": "Statut",

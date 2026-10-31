@@ -583,6 +583,8 @@ mod tests {
         assert!(!names.contains(&"commit_quote_import"));
         assert!(!names.contains(&"prepare_activity_updates"));
         assert!(!names.contains(&"commit_activity_updates"));
+        assert!(!names.contains(&"prepare_activity_deletions"));
+        assert!(!names.contains(&"commit_activity_deletions"));
     }
 
     #[tokio::test]
@@ -663,6 +665,8 @@ mod tests {
         assert!(names.contains(&"commit_quote_import"));
         assert!(names.contains(&"prepare_activity_updates"));
         assert!(names.contains(&"commit_activity_updates"));
+        assert!(names.contains(&"prepare_activity_deletions"));
+        assert!(names.contains(&"commit_activity_deletions"));
         // The shared v1 read catalog stays unchanged; category management is MCP-only.
         assert_eq!(crate::tools::v1_read_tools().len(), 16);
     }
@@ -686,6 +690,8 @@ mod tests {
             "commit_quote_import",
             "prepare_activity_updates",
             "commit_activity_updates",
+            "prepare_activity_deletions",
+            "commit_activity_deletions",
         ] {
             let err = catalog
                 .execute(
@@ -1062,7 +1068,40 @@ mod tests {
                 true,
             ),
         ];
-        for (name, scopes, allowed) in cases {
+        // An empty id list is refused before any service is reached.
+        let deletion_cases = [
+            ("prepare_activity_deletions", vec!["activities:read"], false),
+            (
+                "prepare_activity_deletions",
+                vec!["activities:draft"],
+                false,
+            ),
+            (
+                "prepare_activity_deletions",
+                vec!["activities:read", "activities:draft"],
+                true,
+            ),
+            (
+                "commit_activity_deletions",
+                vec!["activities:read", "activities:draft"],
+                false,
+            ),
+            (
+                "commit_activity_deletions",
+                vec!["activities:read", "activities:draft", "activities:write"],
+                true,
+            ),
+        ];
+        let deletion_args = serde_json::json!({ "activityIds": [] });
+        let all_cases = cases
+            .into_iter()
+            .map(|(name, scopes, allowed)| (name, scopes, allowed, &args))
+            .chain(
+                deletion_cases
+                    .into_iter()
+                    .map(|(name, scopes, allowed)| (name, scopes, allowed, &deletion_args)),
+            );
+        for (name, scopes, allowed, args) in all_cases {
             let result = catalog
                 .execute(
                     Arc::new(PanicEnv::default()),

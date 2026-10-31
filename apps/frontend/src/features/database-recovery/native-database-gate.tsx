@@ -222,7 +222,7 @@ function NativeStartup({ children }: { children: ReactNode }) {
   return (
     <div className="bg-background text-foreground relative min-h-dvh">
       <div data-tauri-drag-region className="absolute inset-x-0 top-0 h-8" />
-      <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center gap-6 px-6 pt-[calc(3rem+env(safe-area-inset-top,0px))] pb-[calc(3rem+env(safe-area-inset-bottom,0px))]">
+      <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center gap-6 px-6 pt-[calc(3rem+env(safe-area-inset-top,0px))] pb-[calc(3rem+var(--inset-bottom))]">
         <header className="flex flex-col items-center gap-5 text-center">
           <img src="/logo.png" alt="Wealthfolio" className="size-16 object-contain" />
           <div className="space-y-2">

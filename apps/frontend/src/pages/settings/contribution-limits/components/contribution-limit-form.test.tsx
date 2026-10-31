@@ -88,3 +88,26 @@ describe("ContributionLimitForm on a screen kept out of sight", () => {
     mocks.useAddLimit = null;
   });
 });
+
+describe("ContributionLimitForm dates", () => {
+  it("saves the year's first and last days as the date picker would", async () => {
+    const mutateAsync = vi.fn();
+    mocks.useAddLimit = () => ({ mutateAsync, isPending: false });
+    render(
+      <Dialog open>
+        <ContributionLimitForm
+          defaultValues={{ groupName: "TFSA", contributionYear: 2026, limitAmount: 7000 }}
+        />
+      </Dialog>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(mutateAsync).toHaveBeenCalledTimes(1));
+    expect(mutateAsync.mock.calls[0][0]).toMatchObject({
+      startDate: new Date(2026, 0, 1).toISOString(),
+      endDate: new Date(2026, 11, 31).toISOString(),
+    });
+    mocks.useAddLimit = null;
+  });
+});

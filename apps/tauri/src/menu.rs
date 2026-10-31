@@ -4,6 +4,19 @@ use tauri::menu::{Menu, MenuBuilder, MenuItemBuilder, SubmenuBuilder};
 use tauri::{AppHandle, Emitter, Manager, Runtime};
 use tauri_plugin_dialog::DialogExt;
 
+pub fn set_menu_visibility<R: Runtime>(
+    app: &AppHandle<R>,
+    menu_bar_visible: bool,
+) -> Result<(), tauri::Error> {
+    // macOS needs its menu for standard editing and application shortcuts.
+    if menu_bar_visible || cfg!(target_os = "macos") {
+        app.set_menu(create_menu(app)?)?;
+    } else {
+        app.remove_menu()?;
+    }
+    Ok(())
+}
+
 pub fn create_menu<R: Runtime>(app: &AppHandle<R>) -> Result<Menu<R>, tauri::Error> {
     let app_menu = SubmenuBuilder::new(app, "Wealthfolio")
         .item(&MenuItemBuilder::with_id("open_settings", "Settings...").build(app)?)

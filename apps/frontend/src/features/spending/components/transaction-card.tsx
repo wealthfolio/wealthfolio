@@ -1,3 +1,4 @@
+import { getCategoryLabel } from "@/lib/taxonomy-labels";
 import { memo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -183,7 +184,14 @@ function TransactionCardImpl({
                     type="button"
                     aria-label={
                       row.category
-                        ? t("spending:transactions.changeCategory", { name: row.category.name })
+                        ? t("spending:transactions.changeCategory", {
+                            name: getCategoryLabel(
+                              t,
+                              row.category.taxonomyId,
+                              row.category.id,
+                              row.category.name,
+                            ),
+                          })
                         : t("spending:transactions.assignCategory")
                     }
                     className={cn(INLINE, "max-w-[55%]")}
@@ -199,7 +207,14 @@ function TransactionCardImpl({
                         >
                           <CategoryIcon icon={row.category.icon} className="h-3.5 w-3.5" />
                         </span>
-                        <span className="truncate">{row.category.name}</span>
+                        <span className="truncate">
+                          {getCategoryLabel(
+                            t,
+                            row.category.taxonomyId,
+                            row.category.id,
+                            row.category.name,
+                          )}
+                        </span>
                       </>
                     ) : (
                       <span className="inline-flex min-w-0 items-center gap-0.5 italic">

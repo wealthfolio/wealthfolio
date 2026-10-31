@@ -1,3 +1,4 @@
+import { getTaxonomyLabel } from "@/lib/taxonomy-labels";
 import React, { useState, useEffect } from "react";
 import { useEffectOnChange } from "@/hooks/use-effect-on-change";
 import {
@@ -646,7 +647,11 @@ function TargetEditor({
           name: category.name,
           sortOrder: category.sortOrder,
         })),
+        t,
       )
+    : null;
+  const selectedPresetName = selectedPreset
+    ? modelPresetTitle(selectedPreset, targetCategories)
     : null;
   const scope = target
     ? { scopeType: target.scopeType, scopeId: target.scopeId ?? null }
@@ -661,7 +666,7 @@ function TargetEditor({
         })
       : t("allocation:editor.suggestedTargetName", {
           name:
-            selectedPresetTitle ?? selectedTaxonomy?.name ?? t("allocation:editor.customFallback"),
+            selectedPresetName ?? selectedTaxonomy?.name ?? t("allocation:editor.customFallback"),
         }),
   );
   const savedWeightDrafts = React.useMemo(
@@ -996,7 +1001,7 @@ function TargetEditor({
                   >
                     <span className="min-w-0">
                       <span className="text-foreground block truncate text-xs font-semibold">
-                        {taxonomy.name}
+                        {getTaxonomyLabel(t, taxonomy.id, taxonomy.name)}
                       </span>
                       <span className="text-muted-foreground text-2xs">
                         {t("allocation:editor.currentCategories", { count })}

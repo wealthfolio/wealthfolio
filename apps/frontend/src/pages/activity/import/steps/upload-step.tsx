@@ -83,7 +83,8 @@ function CsvPreviewTable({ headers, rows, maxRows = 50 }: CsvPreviewTableProps) 
 
   return (
     <>
-      <table className="w-full">
+      {/* `allow-select` keeps the CSV text selectable under the desktop app's lockdown */}
+      <table className="allow-select w-full">
         <thead className="bg-muted sticky top-0">
           <tr>
             <th className="text-muted-foreground bg-muted w-12 border-e px-2 py-1.5 text-end font-mono text-xs">

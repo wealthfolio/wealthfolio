@@ -296,6 +296,7 @@
     "title": "再平衡工作表",
     "totalAdjusted": "已調整 {{amount}}",
     "unclassified": "未分類",
+    "unclassifiedExposure": "未分類曝險",
     "unitPrice": "單價",
     "unknownAccount": "未知帳戶",
     "unresolvedHint": "未配置到任何證券，在您處理之前不計入預計。",
@@ -508,5 +509,19 @@
     "useAmountIn": "在 {{account}} 中使用 {{amount}}",
     "useAsAdjustment": "將 {{amount}} 用作調整額",
     "calculationInterrupted": "計算期間工作表已變更。請重試。"
+  },
+  "categoryNouns": {
+    "assetClass": "資產類別",
+    "region": "地區",
+    "industry": "行業",
+    "category": "類別",
+    "region_other": "地區",
+    "category_other": "類別",
+    "assetClass_one": "資產類別",
+    "assetClass_other": "資產類別",
+    "region_one": "地區",
+    "industry_one": "行業",
+    "industry_other": "行業",
+    "category_one": "類別"
   }
 }

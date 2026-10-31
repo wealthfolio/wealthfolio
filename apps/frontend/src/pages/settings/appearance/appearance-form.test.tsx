@@ -71,9 +71,12 @@ it("hides the menu bar setting in the macOS app, which always keeps its menu", (
   expect(screen.queryByText("settings:appearance_menu_bar")).not.toBeInTheDocument();
 });
 
-it("leaves the web app's menu bar setting alone on macOS", () => {
-  platform.isMacOS = true;
-  platform.isTauri = false;
-  render(<AppearanceForm />);
-  expect(screen.getByText("settings:appearance_menu_bar")).toBeInTheDocument();
-});
+it.each([false, true])(
+  "hides the menu bar setting in the web app, which has no menu bar (macOS: %s)",
+  (isMacOS) => {
+    platform.isMacOS = isMacOS;
+    platform.isTauri = false;
+    render(<AppearanceForm />);
+    expect(screen.queryByText("settings:appearance_menu_bar")).not.toBeInTheDocument();
+  },
+);

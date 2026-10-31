@@ -1,3 +1,5 @@
+import { getCategoryLabel } from "@/lib/taxonomy-labels";
+
 import { isActivityEditCancelled, useActivitySplitReview } from "./activity-split-review-provider";
 import { useEffect, useMemo, useState } from "react";
 import { useForm, type Resolver } from "react-hook-form";
@@ -304,14 +306,23 @@ export function CashActivityForm({
           t,
           type,
           selectedAccount?.accountType,
-          type === "CREDIT" && !isCreditCardAccountType(selectedAccount?.accountType)
-            ? "REIMBURSEMENT"
-            : undefined,
+          resolveCashActivitySubtype({
+            activityType: type,
+            accountType: selectedAccount?.accountType,
+            existingActivityType: activity?.activityType,
+            existingSubtype: activity?.subtype,
+          }),
         ),
         description: getMobileTypeDescription(type, t),
         Icon: getMobileTypeIcon(type),
       })),
-    [activityTypeOptions, selectedAccount?.accountType, t],
+    [
+      activityTypeOptions,
+      selectedAccount?.accountType,
+      activity?.activityType,
+      activity?.subtype,
+      t,
+    ],
   );
   const isIncomeType = isCashActivityIncome(
     watchType,
@@ -612,17 +623,9 @@ export function CashActivityForm({
                                   </SelectTrigger>
                                 </FormControl>
                                 <SelectContent>
-                                  {activityTypeOptions.map((type) => (
+                                  {mobileTypeOptions.map(({ type, label }) => (
                                     <SelectItem key={type} value={type}>
-                                      {getCashActivityLabel(
-                                        t,
-                                        type,
-                                        selectedAccount?.accountType,
-                                        type === "CREDIT" &&
-                                          !isCreditCardAccountType(selectedAccount?.accountType)
-                                          ? "REIMBURSEMENT"
-                                          : undefined,
-                                      )}
+                                      {label}
                                     </SelectItem>
                                   ))}
                                 </SelectContent>
@@ -731,6 +734,22 @@ export function CashActivityForm({
                         const currentParent = currentCat?.parentId
                           ? allCategoriesById.get(currentCat.parentId)
                           : null;
+                        const currentCatLabel = currentCat
+                          ? getCategoryLabel(
+                              t,
+                              currentCat.taxonomyId,
+                              currentCat.id,
+                              currentCat.name,
+                            )
+                          : "";
+                        const currentParentLabel = currentParent
+                          ? getCategoryLabel(
+                              t,
+                              currentParent.taxonomyId,
+                              currentParent.id,
+                              currentParent.name,
+                            )
+                          : "";
                         return (
                           <FormItem>
                             <FormLabel>
@@ -742,7 +761,9 @@ export function CashActivityForm({
                               </p>
                             ) : isNeutralBucket ? (
                               <div className="border-input bg-muted/40 text-muted-foreground h-input-height flex items-center rounded-md border px-3 py-2 text-sm">
-                                {t("spending:cashForm.neutralTransfer")}
+                                {watchType === "TRANSFER_IN" || watchType === "TRANSFER_OUT"
+                                  ? t("spending:cashForm.neutralTransfer")
+                                  : t("spending:transactions.neutral")}
                               </div>
                             ) : (
                               <QuickCategorizePopover
@@ -758,7 +779,7 @@ export function CashActivityForm({
                                       aria-label={
                                         currentCat
                                           ? t("spending:transactions.changeCategory", {
-                                              name: currentCat.name,
+                                              name: currentCatLabel,
                                             })
                                           : t("spending:cashForm.pickCategory")
                                       }
@@ -772,8 +793,8 @@ export function CashActivityForm({
                                             iconClassName="h-3 w-3"
                                           />
                                           <span className="truncate">
-                                            {currentParent ? `${currentParent.name} / ` : ""}
-                                            {currentCat.name}
+                                            {currentParent ? `${currentParentLabel} / ` : ""}
+                                            {currentCatLabel}
                                           </span>
                                         </span>
                                       ) : (

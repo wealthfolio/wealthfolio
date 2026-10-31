@@ -63,7 +63,7 @@
       "symbol_required": "O símbolo é obrigatório",
       "symbol_max": "O símbolo deve ter no máximo 100 caracteres",
       "name_required": "O nome é obrigatório",
-      "name_max": "O nome deve ter no máximo 100 caracteres",
+      "name_max": "O nome deve ter no máximo 200 caracteres",
       "instrument_type_required": "O tipo de instrumento é obrigatório",
       "currency_required": "A moeda é obrigatória"
     },
@@ -234,6 +234,8 @@
     }
   },
   "editSheet": {
+    "moex_symbol_placeholder": "ex.: SBER, AFLT",
+    "moex_symbol_hint": "Use um código de título da MOEX sem prefixo ou sufixo. Defina a bolsa como Moscow Exchange (MISX).",
     "identity_conflict": "Outro ativo já tem esta identidade. As alterações não foram guardadas. Utilize o ativo existente ou escolha outra bolsa.",
     "general": "Geral",
     "classification": "Classificação",

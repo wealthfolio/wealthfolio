@@ -159,7 +159,8 @@ function CsvPreviewTable({ headers, rows, mapping }: CsvPreviewProps) {
   // `isolate` stops WebKitGTK painting the sticky header over this scrollbar inside a scrolling parent
   return (
     <div className="isolate max-h-75 overflow-auto rounded-lg border">
-      <table className="w-full text-sm">
+      {/* `allow-select` keeps the CSV text selectable under the desktop app's lockdown */}
+      <table className="allow-select w-full text-sm">
         <thead className="bg-muted/50 sticky top-0">
           <tr>
             {headers.map((header, idx) => {

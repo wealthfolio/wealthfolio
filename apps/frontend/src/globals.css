@@ -469,7 +469,9 @@
 
   --inset-top: env(safe-area-inset-top, 0px);
   --inset-right: env(safe-area-inset-right, 0px);
-  --inset-bottom: env(safe-area-inset-bottom, 0px);
+  /* The Android app's WebView reports no bottom safe area, so the app sends the
+     navigation bar's height (use-android-system-bars.ts). Use this, not env(). */
+  --inset-bottom: max(env(safe-area-inset-bottom, 0px), var(--android-navigation-bar-inset, 0px));
   --inset-left: env(safe-area-inset-left, 0px);
 
   --mobile-nav-ui-height: 4rem; /* nav bar height */
@@ -588,7 +590,7 @@
       padding-top: max(env(safe-area-inset-top), 0.75rem);
     }
     .pb-safe {
-      padding-bottom: max(env(safe-area-inset-bottom), 1.5rem);
+      padding-bottom: max(var(--inset-bottom), 1.5rem);
     }
   }
   /*
@@ -718,6 +720,21 @@ body.qr-scan-active > .qr-overlay {
   }
 }
 
+/* Android's Material navigation bar sits flush with the bottom edge: content clears its
+   height plus the gesture area, without the floating bar's gap. */
+.app-shell[data-mobile-navigation="true"][data-nav-style="material"] {
+  --mobile-nav-ui-height: 5rem;
+  --mobile-nav-bottom-offset: var(--inset-bottom);
+  --mobile-nav-total-offset: calc(var(--mobile-nav-ui-height) + var(--mobile-nav-bottom-offset));
+}
+
+@media (orientation: landscape) {
+  .app-shell[data-mobile-navigation="true"][data-nav-style="material"] {
+    --mobile-nav-ui-height: 3.5rem;
+    --mobile-nav-total-offset: calc(var(--mobile-nav-ui-height) + var(--mobile-nav-bottom-offset));
+  }
+}
+
 /* Mobile optimizations for native feel */
 @layer utilities {
   .scroll-touch {
@@ -764,7 +781,7 @@ body.qr-scan-active > .qr-overlay {
 
   /* Safe area support for iOS */
   .safe-area-inset-bottom {
-    padding-bottom: env(safe-area-inset-bottom, 0);
+    padding-bottom: var(--inset-bottom);
   }
 
   .safe-area-inset-top {
@@ -917,6 +934,23 @@ body.qr-scan-active > .qr-overlay {
   .aui-thread-viewport {
     overflow-x: auto;
   }
+
+  /* The theme picker keeps its own overflow: clipping its grid would cut off each
+     card's selected ring and focus outline at the edges, and the miniatures' rows,
+     made scroll containers, would each become a Tab stop. revert-layer restores the
+     utilities' value. Onboarding's page must not be a scroll container of its own,
+     or its footer has nothing to stick to. */
+  .theme-picker,
+  .theme-picker :is(.flex, .grid),
+  .onboarding-page {
+    overflow-x: revert-layer;
+  }
+}
+
+/* Onboarding's footer sticks to the bottom of the view the page scrolls in: keep a
+   control that takes focus clear of it. */
+:has(> .onboarding-page) {
+  scroll-padding-bottom: 8rem;
 }
 
 number-flow-react::part(left),

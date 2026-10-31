@@ -2,22 +2,34 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { QueryClient, QueryClientProvider, useMutation } from "@tanstack/react-query";
 import { Activity } from "react";
 import { MemoryRouter } from "react-router-dom";
-import { beforeEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import i18n from "i18next";
+import zhCommon from "@/i18n/locales/zh/common.json";
+import zhTaxonomies from "@/i18n/locales/zh/taxonomies.json";
+import zhSettings from "@/i18n/locales/zh/settings.json";
 import type { CategoryNode } from "@/features/spending/components/category-item";
 import SpendingCategoriesPage from "./spending-categories-page";
 
 const mocks = vi.hoisted(() => ({
+  category: { id: "food", name: "Food" },
   create:
     vi.fn<(category: { key: string; name: string; parentId: string | null }) => Promise<void>>(),
   name: "Travel",
-  remove: vi.fn<() => Promise<void>>(),
+  remove: vi.fn<(input: { taxonomyId: string; categoryId: string }) => Promise<void>>(),
   toast: { success: vi.fn(), error: vi.fn() },
 }));
 
 vi.mock("sonner", () => ({ toast: mocks.toast }));
 vi.mock("@/features/spending/hooks/use-spending-settings", () => ({
-  useSpendingSettings: () => ({ isEnabled: true, isLoading: false, excludedCategoryIds: [] }),
-  useSpendingSettingsMutation: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useSpendingSettings: () => ({
+    isEnabled: true,
+    isLoading: false,
+    excludedCategoryIds: [],
+  }),
+  useSpendingSettingsMutation: () => ({
+    mutateAsync: vi.fn(),
+    isPending: false,
+  }),
 }));
 vi.mock("@/features/spending/hooks/use-budget", () => ({
   useBudget: () => ({ data: undefined }),
@@ -28,7 +40,13 @@ vi.mock("@/hooks/use-taxonomies", () => ({
       categories:
         taxonomyId === "spending_categories"
           ? [
-              { id: "food", taxonomyId, name: "Food", key: "food", parentId: null, sortOrder: 0 },
+              {
+                ...mocks.category,
+                taxonomyId,
+                key: "food",
+                parentId: null,
+                sortOrder: 0,
+              },
               {
                 id: "travel",
                 taxonomyId,
@@ -37,7 +55,14 @@ vi.mock("@/hooks/use-taxonomies", () => ({
                 parentId: null,
                 sortOrder: 1,
               },
-              { id: "misc", taxonomyId, name: "Misc", key: "misc", parentId: "food", sortOrder: 0 },
+              {
+                id: "misc",
+                taxonomyId,
+                name: "Misc",
+                key: "misc",
+                parentId: "food",
+                sortOrder: 0,
+              },
               {
                 id: "misc-two",
                 taxonomyId,
@@ -90,6 +115,10 @@ vi.mock("@/features/spending/components/category-item", () => ({
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.name = "Travel";
+  mocks.category = { id: "food", name: "Food" };
+});
+afterEach(async () => {
+  await i18n.changeLanguage("en");
 });
 
 // On a phone, a screen kept under another one is a hidden <Activity>.
@@ -192,5 +221,34 @@ it.each([
       expect.objectContaining({ name, key, parentId: "travel" }),
       expect.anything(),
     ),
+  );
+});
+
+it.each([
+  ["Food & Dining", "食品与餐饮"],
+  ["My dining", "My dining"],
+])("reports a hidden-screen delete with the display name for %s", async (name, label) => {
+  i18n.addResourceBundle("zh", "common", zhCommon);
+  i18n.addResourceBundle("zh", "taxonomies", zhTaxonomies);
+  i18n.addResourceBundle("zh", "settings", zhSettings);
+  await i18n.changeLanguage("zh");
+  mocks.category = { id: "cat_food", name };
+  let finish: () => void = () => undefined;
+  mocks.remove.mockReturnValue(new Promise<void>((resolve) => (finish = resolve)));
+  const kept = renderKept();
+  fireEvent.click(screen.getByRole("button", { name: `Delete ${name}` }));
+  await waitFor(() => expect(kept.status()).toBe("pending"));
+
+  kept.hide();
+  act(() => finish());
+  await waitFor(() => expect(kept.status()).toBe("success"));
+  kept.show();
+
+  expect(mocks.remove.mock.calls[0][0]).toEqual({
+    taxonomyId: "spending_categories",
+    categoryId: "cat_food",
+  });
+  expect(mocks.toast.success).toHaveBeenCalledWith(
+    i18n.t("settings:spending.categories.deleted", { name: label }),
   );
 });

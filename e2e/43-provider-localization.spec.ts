@@ -10,6 +10,8 @@ test("market-data metadata translates while provider brands stay unchanged", asy
     expect(saved.ok()).toBe(true);
     await page.goto(`${BASE_URL}/settings/market-data?dir=rtl`);
     await expect(page.getByText("Yahoo Finance", { exact: true })).toBeVisible();
+    // The description and features sit in the provider's settings.
+    await page.getByRole("button", { name: "Yahoo Finance 设置", exact: true }).click();
     await expect(
       page.getByText("Yahoo Finance 提供多个市场的历史及实时股票数据。", { exact: true }),
     ).toBeVisible();

@@ -22,7 +22,9 @@ expression: snapshot
           "INTEREST",
           "FEE",
           "SPLIT",
-          "TAX"
+          "TAX",
+          "CREDIT",
+          "ADJUSTMENT"
         ],
         "type": "string"
       },
@@ -31,6 +33,9 @@ expression: snapshot
       },
       "dateTo": {
         "type": "string"
+      },
+      "needsReview": {
+        "type": "boolean"
       },
       "page": {
         "default": 1,

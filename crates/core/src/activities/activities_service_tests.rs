@@ -4117,6 +4117,675 @@ pub(crate) mod tests {
         assert_eq!(updated.amount, Some(dec!(25)));
     }
 
+    /// A service with one account ("acc-final") and the given assets, for
+    /// final-total tests.
+    fn final_total_service(
+        account_currency: &str,
+        assets: Vec<Asset>,
+        existing: Option<Activity>,
+    ) -> ActivityService {
+        let account_service = Arc::new(MockAccountService::new());
+        let asset_service = Arc::new(MockAssetService::new());
+        let activity_repository = Arc::new(MockActivityRepository::new());
+        account_service.add_account(create_test_account("acc-final", account_currency));
+        for asset in assets {
+            asset_service.add_asset(asset);
+        }
+        if let Some(existing) = existing {
+            activity_repository.add_activity(existing);
+        }
+        ActivityService::new(
+            activity_repository,
+            account_service,
+            asset_service,
+            Arc::new(MockFxService::new()),
+            Arc::new(MockQuoteService),
+        )
+    }
+
+    /// A BUY of a fund priced to six decimals: 2,282 × 22.526204 is
+    /// 51,404.797528, which the broker's statement books as 51,404.80.
+    fn statement_buy(id: &str, amount: Option<Decimal>, fee: Decimal) -> NewActivity {
+        NewActivity {
+            id: Some(id.to_string()),
+            account_id: "acc-final".to_string(),
+            asset: Some(AssetResolutionInput {
+                id: Some("FUND".to_string()),
+                ..Default::default()
+            }),
+            activity_type: "BUY".to_string(),
+            subtype: None,
+            activity_date: "2024-01-15".to_string(),
+            quantity: Some(dec!(2282)),
+            unit_price: Some(dec!(22.526204)),
+            currency: "USD".to_string(),
+            fee: Some(fee),
+            tax: None,
+            amount,
+            status: None,
+            notes: None,
+            fx_rate: None,
+            metadata: None,
+            needs_review: None,
+            source_system: None,
+            source_record_id: None,
+            source_group_id: None,
+            idempotency_key: Some(format!("{id}-key")),
+            import_run_id: None,
+        }
+    }
+
+    #[tokio::test]
+    async fn supplied_total_within_half_a_cent_is_stored_as_given() {
+        // The statement's 51,404.80 is the cash that moved. Replacing it with
+        // the exact 51,404.797528 left accounts cents off after enough trades
+        // (#889), whether the total was typed (attested) or imported.
+        let activity_service =
+            final_total_service("USD", vec![create_test_asset("FUND", "USD")], None);
+
+        let mut typed = statement_buy("buy-typed", Some(dec!(51404.80)), dec!(0));
+        typed.needs_review = Some(false);
+        let created = activity_service
+            .create_activity(typed)
+            .await
+            .expect("typed total should be created");
+        assert_eq!(created.amount, Some(dec!(51404.80)));
+        assert!(!created.needs_review);
+
+        let created = activity_service
+            .create_activity(statement_buy("buy-imported", Some(dec!(51404.80)), dec!(0)))
+            .await
+            .expect("imported total should be created");
+        assert_eq!(created.amount, Some(dec!(51404.80)));
+        assert!(!created.needs_review);
+    }
+
+    #[tokio::test]
+    async fn gross_matching_total_adds_charges_to_the_supplied_gross() {
+        // A source that reports the pre-fee 51,404.80 gets the 9.99 fee added
+        // to that number, not to the exact 51,404.797528.
+        let activity_service =
+            final_total_service("USD", vec![create_test_asset("FUND", "USD")], None);
+
+        let created = activity_service
+            .create_activity(statement_buy("buy-gross", Some(dec!(51404.80)), dec!(9.99)))
+            .await
+            .expect("gross total should be created");
+
+        assert_eq!(created.amount, Some(dec!(51414.79)));
+        assert!(!created.needs_review);
+    }
+
+    #[tokio::test]
+    async fn editing_to_a_supplied_total_within_half_a_cent_stores_it_as_given() {
+        let mut existing = create_stored_activity("buy-edit", "acc-final", Some("FUND"));
+        existing.quantity = Some(dec!(2282));
+        existing.unit_price = Some(dec!(22.526204));
+        existing.fee = Some(dec!(0));
+        existing.amount = Some(dec!(51404.797528));
+        existing.needs_review = false;
+        let activity_service = final_total_service(
+            "USD",
+            vec![create_test_asset("FUND", "USD")],
+            Some(existing),
+        );
+
+        let updated = activity_service
+            .update_activity(ActivityUpdate {
+                unlink_transfer_pair_id: None,
+                split_review: None,
+                id: "buy-edit".to_string(),
+                account_id: "acc-final".to_string(),
+                asset: Some(AssetResolutionInput {
+                    id: Some("FUND".to_string()),
+                    ..Default::default()
+                }),
+                activity_type: "BUY".to_string(),
+                subtype: None,
+                activity_date: "2024-01-15".to_string(),
+                quantity: Some(Some(dec!(2282))),
+                unit_price: Some(Some(dec!(22.526204))),
+                currency: "USD".to_string(),
+                fee: Some(Some(dec!(0))),
+                tax: None,
+                amount: Some(Some(dec!(51404.80))),
+                status: None,
+                needs_review: Some(false),
+                notes: None,
+                fx_rate: None,
+                metadata: None,
+            })
+            .await
+            .expect("edit with a statement total should succeed");
+
+        assert_eq!(updated.amount, Some(dec!(51404.80)));
+        assert!(!updated.needs_review);
+    }
+
+    #[tokio::test]
+    async fn calculated_total_rounds_the_trade_value_to_the_currency_unit() {
+        // (currency, quantity, price, fee, final total). The trade value is
+        // rounded half away from zero, then charges are added as entered.
+        let cases = [
+            ("USD", dec!(2282), dec!(22.526204), dec!(0), dec!(51404.80)),
+            (
+                "USD",
+                dec!(2282),
+                dec!(22.526204),
+                dec!(1.0034),
+                dec!(51405.8034),
+            ),
+            ("USD", dec!(1), dec!(10.005), dec!(0), dec!(10.01)),
+            ("JPY", dec!(3), dec!(1234.5678), dec!(0), dec!(3704)),
+            ("KWD", dec!(7), dec!(1.23456), dec!(0), dec!(8.642)),
+        ];
+        for (currency, quantity, price, fee, expected) in cases {
+            let activity_service =
+                final_total_service(currency, vec![create_test_asset("FUND", currency)], None);
+            let mut buy = statement_buy("buy-calculated", None, fee);
+            buy.currency = currency.to_string();
+            buy.quantity = Some(quantity);
+            buy.unit_price = Some(price);
+
+            let created = activity_service
+                .create_activity(buy)
+                .await
+                .expect("calculated total should be created");
+
+            assert_eq!(
+                created.amount,
+                Some(expected),
+                "{currency} {quantity} × {price} + {fee}"
+            );
+            assert!(!created.needs_review);
+        }
+    }
+
+    #[tokio::test]
+    async fn calculated_crypto_total_stays_exact() {
+        // Exchanges settle crypto trades past the cent (Binance USDT to 8
+        // places, Kraken USD to 4), so the derived total is not rounded.
+        let crypto = create_test_asset_with_instrument(
+            "FUND",
+            "BTC",
+            None,
+            Some(InstrumentType::Crypto),
+            "USD",
+        );
+        let activity_service = final_total_service("USD", vec![crypto], None);
+        let mut buy = statement_buy("buy-crypto", None, dec!(0));
+        buy.quantity = Some(dec!(0.00123));
+        buy.unit_price = Some(dec!(61234.56));
+
+        let created = activity_service
+            .create_activity(buy)
+            .await
+            .expect("crypto trade should be created");
+
+        assert_eq!(created.amount, Some(dec!(75.3185088)));
+    }
+
+    #[tokio::test]
+    async fn calculated_total_never_rounds_to_zero() {
+        // A zero total on a buy means units received for free, so a value
+        // smaller than half a cent stays exact instead.
+        let activity_service =
+            final_total_service("USD", vec![create_test_asset("FUND", "USD")], None);
+        let mut buy = statement_buy("buy-tiny", None, dec!(0));
+        buy.quantity = Some(dec!(0.001));
+        buy.unit_price = Some(dec!(4));
+
+        let created = activity_service
+            .create_activity(buy)
+            .await
+            .expect("tiny trade should be created");
+
+        assert_eq!(created.amount, Some(dec!(0.004)));
+    }
+
+    #[tokio::test]
+    async fn reinvested_dividend_rounds_its_calculated_value() {
+        let activity_service =
+            final_total_service("USD", vec![create_test_asset("FUND", "USD")], None);
+        let mut drip = statement_buy("drip-calculated", None, dec!(0));
+        drip.activity_type = "DIVIDEND".to_string();
+        drip.subtype = Some("DRIP".to_string());
+        drip.fee = None;
+        drip.quantity = Some(dec!(0.5));
+        drip.unit_price = Some(dec!(40.12345));
+
+        let created = activity_service
+            .create_activity(drip)
+            .await
+            .expect("reinvested dividend should be created");
+
+        assert_eq!(created.amount, Some(dec!(20.06)));
+    }
+
+    #[tokio::test]
+    async fn economics_edit_rounds_the_recalculated_total_without_flagging() {
+        // A total saved unrounded before this change is the app's own
+        // calculation, not a custom one: an edit that changes the quantity
+        // recalculates it, rounded, without asking for review.
+        let mut existing = create_stored_activity("buy-legacy", "acc-final", Some("FUND"));
+        existing.quantity = Some(dec!(2282));
+        existing.unit_price = Some(dec!(22.526204));
+        existing.fee = Some(dec!(0));
+        existing.amount = Some(dec!(51404.797528));
+        existing.needs_review = false;
+        let activity_service = final_total_service(
+            "USD",
+            vec![create_test_asset("FUND", "USD")],
+            Some(existing),
+        );
+
+        let updated = activity_service
+            .update_activity(ActivityUpdate {
+                unlink_transfer_pair_id: None,
+                split_review: None,
+                id: "buy-legacy".to_string(),
+                account_id: "acc-final".to_string(),
+                asset: Some(AssetResolutionInput {
+                    id: Some("FUND".to_string()),
+                    ..Default::default()
+                }),
+                activity_type: "BUY".to_string(),
+                subtype: None,
+                activity_date: "2024-01-15".to_string(),
+                quantity: Some(Some(dec!(2283))),
+                unit_price: Some(Some(dec!(22.526204))),
+                currency: "USD".to_string(),
+                fee: Some(Some(dec!(0))),
+                tax: None,
+                amount: None,
+                status: None,
+                needs_review: None,
+                notes: None,
+                fx_rate: None,
+                metadata: None,
+            })
+            .await
+            .expect("quantity edit should succeed");
+
+        // 2,283 × 22.526204 = 51,427.323732
+        assert_eq!(updated.amount, Some(dec!(51427.32)));
+        assert!(!updated.needs_review);
+    }
+
+    #[tokio::test]
+    async fn imported_trades_without_a_total_round_unless_crypto() {
+        let account_service = Arc::new(MockAccountService::new());
+        let asset_service = Arc::new(MockAssetService::new());
+        let activity_repository = Arc::new(MockActivityRepository::new());
+        account_service.add_account(create_test_account("acc-final", "USD"));
+        asset_service.add_asset(create_test_asset_with_instrument(
+            "asset-fund",
+            "FUND",
+            None,
+            Some(InstrumentType::Equity),
+            "USD",
+        ));
+        asset_service.add_asset(create_test_asset_with_instrument(
+            "asset-btc",
+            "BTC",
+            None,
+            Some(InstrumentType::Crypto),
+            "USD",
+        ));
+        let activity_service = ActivityService::new(
+            activity_repository.clone(),
+            account_service,
+            asset_service,
+            Arc::new(MockFxService::new()),
+            Arc::new(MockQuoteService),
+        );
+        let row = |line: i32, asset_id: &str, symbol: &str, quantity, unit_price| ActivityImport {
+            id: None,
+            date: "2026-07-15".to_string(),
+            symbol: symbol.to_string(),
+            activity_type: "BUY".to_string(),
+            quantity: Some(quantity),
+            unit_price: Some(unit_price),
+            currency: "USD".to_string(),
+            fee: Some(dec!(0)),
+            tax: None,
+            amount: None,
+            comment: None,
+            account_id: Some("acc-final".to_string()),
+            account_name: None,
+            symbol_name: None,
+            exchange_mic: None,
+            quote_ccy: None,
+            instrument_type: None,
+            quote_mode: None,
+            provider_id: None,
+            provider_symbol: None,
+            errors: None,
+            warnings: None,
+            duplicate_of_id: None,
+            duplicate_of_line_number: None,
+            is_draft: false,
+            is_valid: true,
+            line_number: Some(line),
+            fx_rate: None,
+            subtype: None,
+            asset_id: Some(asset_id.to_string()),
+            isin: None,
+            force_import: false,
+            is_external: None,
+            source_group_id: None,
+        };
+
+        let result = activity_service
+            .import_activities(vec![
+                row(1, "asset-fund", "FUND", dec!(2282), dec!(22.526204)),
+                row(2, "asset-btc", "BTC", dec!(0.00123), dec!(61234.56)),
+            ])
+            .await
+            .expect("import should succeed");
+        assert_eq!(result.summary.imported, 2);
+
+        let stored = activity_repository
+            .get_activities()
+            .expect("imported activities should be stored");
+        let amount_of = |asset_id: &str| {
+            stored
+                .iter()
+                .find(|activity| activity.asset_id.as_deref() == Some(asset_id))
+                .and_then(|activity| activity.amount)
+        };
+        assert_eq!(amount_of("asset-fund"), Some(dec!(51404.80)));
+        assert_eq!(amount_of("asset-btc"), Some(dec!(75.3185088)));
+    }
+
+    #[tokio::test]
+    async fn sell_rounding_never_flips_its_direction() {
+        // (price, fee, stored total, booked cash). Rounding 10.004 to 10.00
+        // would turn 0.003 of proceeds into a 0.001 debit, and 10.006 to 10.01
+        // a 0.003 debit into proceeds. Readers take the direction from the
+        // exact value, so the exact value is kept whenever rounding would
+        // flip it.
+        let cases = [
+            (dec!(10.004), dec!(10.001), dec!(0.003), dec!(0.003)),
+            (dec!(10.006), dec!(10.009), dec!(0.003), dec!(-0.003)),
+            (dec!(10.006), dec!(5), dec!(5.01), dec!(5.01)),
+        ];
+        for (price, fee, stored, booked) in cases {
+            let activity_service =
+                final_total_service("USD", vec![create_test_asset("FUND", "USD")], None);
+            let mut sell = statement_buy("sell-near-zero", None, fee);
+            sell.activity_type = "SELL".to_string();
+            sell.quantity = Some(dec!(1));
+            sell.unit_price = Some(price);
+
+            let created = activity_service
+                .create_activity(sell)
+                .await
+                .expect("sell should be created");
+
+            assert_eq!(created.amount, Some(stored), "{price} - {fee}");
+            let cash = crate::portfolio::economic_events::ActivityEconomicsResolver::resolve_cash(
+                &created,
+                Decimal::ONE,
+            );
+            assert_eq!(cash.signed_cash_effect, Some(booked), "{price} - {fee}");
+        }
+    }
+
+    #[tokio::test]
+    async fn gross_conversion_never_flips_a_sell() {
+        // (price, fee, supplied pre-fee total, stored total, booked cash). An
+        // import's rounded pre-fee 10.00 for an exact 10.004 would turn 0.003
+        // of proceeds into a 0.001 debit; 10.01 for 10.006 would turn a 0.003
+        // debit into proceeds. The exact value is kept instead.
+        let cases = [
+            (
+                dec!(10.004),
+                dec!(10.001),
+                dec!(10.00),
+                dec!(0.003),
+                dec!(0.003),
+            ),
+            (
+                dec!(10.006),
+                dec!(10.009),
+                dec!(10.01),
+                dec!(0.003),
+                dec!(-0.003),
+            ),
+        ];
+        for (price, fee, supplied, stored, booked) in cases {
+            let activity_service =
+                final_total_service("USD", vec![create_test_asset("FUND", "USD")], None);
+            let mut sell = statement_buy("sell-gross", Some(supplied), fee);
+            sell.activity_type = "SELL".to_string();
+            sell.quantity = Some(dec!(1));
+            sell.unit_price = Some(price);
+
+            let created = activity_service
+                .create_activity(sell)
+                .await
+                .expect("imported sell should be created");
+
+            assert_eq!(created.amount, Some(stored), "{supplied} - {fee}");
+            let cash = crate::portfolio::economic_events::ActivityEconomicsResolver::resolve_cash(
+                &created,
+                Decimal::ONE,
+            );
+            assert_eq!(cash.signed_cash_effect, Some(booked), "{supplied} - {fee}");
+        }
+    }
+
+    #[tokio::test]
+    async fn blank_currency_rounds_in_the_assets_currency_on_create_and_edit() {
+        // A blank activity currency is filled from the asset (JPY here), so
+        // 3 × 1,234.5678 rounds to whole yen on both paths, and the edit is
+        // not flagged for review.
+        let activity_service =
+            final_total_service("JPY", vec![create_test_asset("FUND", "JPY")], None);
+        let mut buy = statement_buy("buy-blank-currency", None, dec!(0));
+        buy.currency = String::new();
+        buy.quantity = Some(dec!(3));
+        buy.unit_price = Some(dec!(1234.5678));
+
+        let created = activity_service
+            .create_activity(buy)
+            .await
+            .expect("trade with a blank currency should be created");
+        assert_eq!(created.currency, "JPY");
+        assert_eq!(created.amount, Some(dec!(3704)));
+
+        let updated = activity_service
+            .update_activity(ActivityUpdate {
+                unlink_transfer_pair_id: None,
+                split_review: None,
+                id: created.id.clone(),
+                account_id: "acc-final".to_string(),
+                asset: Some(AssetResolutionInput {
+                    id: Some("FUND".to_string()),
+                    ..Default::default()
+                }),
+                activity_type: "BUY".to_string(),
+                subtype: None,
+                activity_date: "2024-01-15".to_string(),
+                quantity: Some(Some(dec!(3))),
+                unit_price: Some(Some(dec!(1234.5678))),
+                currency: String::new(),
+                fee: Some(Some(dec!(0))),
+                tax: None,
+                amount: Some(None),
+                status: None,
+                needs_review: None,
+                notes: None,
+                fx_rate: None,
+                metadata: None,
+            })
+            .await
+            .expect("edit with a blank currency should succeed");
+
+        assert_eq!(updated.currency, "JPY");
+        assert_eq!(updated.amount, Some(dec!(3704)));
+        assert!(!updated.needs_review);
+    }
+
+    #[tokio::test]
+    async fn blank_currency_edit_to_a_bare_symbol_rounds_in_that_assets_currency() {
+        // The patch names an existing JPY asset by symbol with no quote
+        // currency and a blank activity currency. The save fills JPY in from
+        // that asset, so the total rounds to whole yen, not the old row's
+        // cents.
+        let mut existing = create_stored_activity("buy-to-jpy", "acc-final", Some("FUND"));
+        existing.quantity = Some(dec!(10));
+        existing.unit_price = Some(dec!(20));
+        existing.fee = Some(dec!(0));
+        existing.amount = Some(dec!(200));
+        let activity_service = final_total_service(
+            "USD",
+            vec![
+                create_test_asset("FUND", "USD"),
+                create_test_asset_with_instrument(
+                    "asset-jfund",
+                    "JFUND",
+                    None,
+                    Some(InstrumentType::Equity),
+                    "JPY",
+                ),
+            ],
+            Some(existing),
+        );
+
+        let updated = activity_service
+            .update_activity(ActivityUpdate {
+                unlink_transfer_pair_id: None,
+                split_review: None,
+                id: "buy-to-jpy".to_string(),
+                account_id: "acc-final".to_string(),
+                asset: Some(AssetResolutionInput {
+                    symbol: Some("JFUND".to_string()),
+                    ..Default::default()
+                }),
+                activity_type: "BUY".to_string(),
+                subtype: None,
+                activity_date: "2024-01-15".to_string(),
+                quantity: Some(Some(dec!(3))),
+                unit_price: Some(Some(dec!(1234.5678))),
+                currency: String::new(),
+                fee: Some(Some(dec!(0))),
+                tax: None,
+                amount: Some(None),
+                status: None,
+                needs_review: None,
+                notes: None,
+                fx_rate: None,
+                metadata: None,
+            })
+            .await
+            .expect("edit to a JPY asset should succeed");
+
+        assert_eq!(updated.currency, "JPY");
+        assert_eq!(updated.amount, Some(dec!(3704)));
+    }
+
+    #[tokio::test]
+    async fn pence_totals_round_the_same_on_create_and_edit() {
+        // 3 × 1,234.5678 GBp is £37.037034. A create normalizes to GBP before
+        // deriving; an edit derives in pence first. Both store £37.04, and
+        // the edit's whole-pence total is not flagged for review.
+        let activity_service =
+            final_total_service("GBP", vec![create_test_asset("FUND", "GBP")], None);
+        let mut buy = statement_buy("buy-pence", None, dec!(0));
+        buy.currency = "GBp".to_string();
+        buy.quantity = Some(dec!(3));
+        buy.unit_price = Some(dec!(1234.5678));
+
+        let created = activity_service
+            .create_activity(buy)
+            .await
+            .expect("pence trade should be created");
+        assert_eq!(created.currency, "GBP");
+        assert_eq!(created.amount, Some(dec!(37.04)));
+
+        let updated = activity_service
+            .update_activity(ActivityUpdate {
+                unlink_transfer_pair_id: None,
+                split_review: None,
+                id: created.id.clone(),
+                account_id: "acc-final".to_string(),
+                asset: Some(AssetResolutionInput {
+                    id: Some("FUND".to_string()),
+                    ..Default::default()
+                }),
+                activity_type: "BUY".to_string(),
+                subtype: None,
+                activity_date: "2024-01-15".to_string(),
+                quantity: Some(Some(dec!(3))),
+                unit_price: Some(Some(dec!(1234.5678))),
+                currency: "GBp".to_string(),
+                fee: Some(Some(dec!(0))),
+                tax: None,
+                amount: Some(None),
+                status: None,
+                needs_review: None,
+                notes: None,
+                fx_rate: None,
+                metadata: None,
+            })
+            .await
+            .expect("pence edit should succeed");
+
+        assert_eq!(updated.currency, "GBP");
+        assert_eq!(updated.amount, Some(dec!(37.04)));
+        assert!(!updated.needs_review);
+    }
+
+    #[tokio::test]
+    async fn editing_to_a_bare_crypto_symbol_keeps_the_total_exact() {
+        // The patch names BTC-USD with no instrument type; the save path
+        // infers crypto from the pair, so the recalculated total must not be
+        // rounded to cents first.
+        let mut existing = create_stored_activity("buy-to-crypto", "acc-final", Some("FUND"));
+        existing.quantity = Some(dec!(10));
+        existing.unit_price = Some(dec!(20));
+        existing.fee = Some(dec!(0));
+        existing.amount = Some(dec!(200));
+        let activity_service = final_total_service(
+            "USD",
+            vec![create_test_asset("FUND", "USD")],
+            Some(existing),
+        );
+
+        let updated = activity_service
+            .update_activity(ActivityUpdate {
+                unlink_transfer_pair_id: None,
+                split_review: None,
+                id: "buy-to-crypto".to_string(),
+                account_id: "acc-final".to_string(),
+                asset: Some(AssetResolutionInput {
+                    symbol: Some("BTC-USD".to_string()),
+                    quote_ccy: Some("USD".to_string()),
+                    ..Default::default()
+                }),
+                activity_type: "BUY".to_string(),
+                subtype: None,
+                activity_date: "2024-01-15".to_string(),
+                quantity: Some(Some(dec!(0.00123))),
+                unit_price: Some(Some(dec!(61234.56))),
+                currency: "USD".to_string(),
+                fee: Some(Some(dec!(0))),
+                tax: None,
+                amount: Some(None),
+                status: None,
+                needs_review: None,
+                notes: None,
+                fx_rate: None,
+                metadata: None,
+            })
+            .await
+            .expect("edit to a crypto pair should succeed");
+
+        assert_eq!(updated.amount, Some(dec!(75.3185088)));
+    }
+
     #[tokio::test]
     async fn editing_trade_to_unresolved_option_symbol_uses_patch_multiplier() {
         // Replacing an equity trade's asset with a not-yet-resolved option
@@ -15746,6 +16415,78 @@ pub(crate) mod tests {
             .find(|a| a.id == "transfer-in")
             .expect("counterpart exists");
         assert_eq!(counterpart.status, ActivityStatus::Posted);
+        assert!(!counterpart.needs_review);
+    }
+
+    #[tokio::test]
+    async fn voiding_unflagged_leg_clears_flagged_counterpart_review() {
+        // A voided activity counts toward nothing, so it leaves the review
+        // queue, even when only the counterpart was waiting for review.
+        let account_service = Arc::new(MockAccountService::new());
+        let activity_repository = Arc::new(MockActivityRepository::new());
+        account_service.add_account(create_test_account("acc-out", "USD"));
+        account_service.add_account(create_test_account("acc-in", "USD"));
+        let activity_service = ActivityService::new(
+            activity_repository.clone(),
+            account_service,
+            Arc::new(MockAssetService::new()),
+            Arc::new(MockFxService::new()),
+            Arc::new(MockQuoteService),
+        );
+
+        let date = DateTime::parse_from_rfc3339("2024-01-15T00:00:00Z")
+            .unwrap()
+            .with_timezone(&Utc);
+        let mut transfer_out = create_stored_activity("transfer-out", "acc-out", None);
+        transfer_out.activity_type = "TRANSFER_OUT".to_string();
+        transfer_out.quantity = None;
+        transfer_out.unit_price = None;
+        transfer_out.amount = Some(dec!(500));
+        transfer_out.source_group_id = Some("grp-void".to_string());
+        transfer_out.activity_date = date;
+        transfer_out.metadata = Some(json!({ "flow": { "is_external": false } }));
+        let mut transfer_in = transfer_out.clone();
+        transfer_in.id = "transfer-in".to_string();
+        transfer_in.account_id = "acc-in".to_string();
+        transfer_in.activity_type = "TRANSFER_IN".to_string();
+        transfer_in.needs_review = true;
+        activity_repository
+            .activities
+            .lock()
+            .unwrap()
+            .extend([transfer_out, transfer_in]);
+
+        activity_service
+            .update_activity(crate::activities::ActivityUpdate {
+                unlink_transfer_pair_id: None,
+                split_review: None,
+                id: "transfer-out".to_string(),
+                account_id: "acc-out".to_string(),
+                asset: None,
+                activity_type: "TRANSFER_OUT".to_string(),
+                subtype: None,
+                activity_date: date.to_rfc3339(),
+                quantity: None,
+                unit_price: None,
+                currency: "USD".to_string(),
+                fee: None,
+                tax: None,
+                amount: None,
+                status: Some(ActivityStatus::Void),
+                needs_review: Some(false),
+                notes: None,
+                fx_rate: None,
+                metadata: None,
+            })
+            .await
+            .expect("voiding one leg voids the pair");
+
+        let stored = activity_repository.activities.lock().unwrap().clone();
+        let counterpart = stored
+            .iter()
+            .find(|a| a.id == "transfer-in")
+            .expect("counterpart exists");
+        assert_eq!(counterpart.status, ActivityStatus::Void);
         assert!(!counterpart.needs_review);
     }
 

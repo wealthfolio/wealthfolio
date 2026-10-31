@@ -1,19 +1,14 @@
+import { getCategoryLabel } from "@/lib/taxonomy-labels";
 import { memo, type Ref } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { Account } from "@/lib/types";
-import { AccountType } from "@/lib/constants";
 import { TruncatedText } from "@/components/truncated-text";
 import { HOVER_SLOT, SELECTION_SLOT } from "@/lib/hover-slot";
 import { isRowBodyClick } from "@/lib/row-click";
 import { cn } from "@/lib/utils";
 import {
-  Button,
   Checkbox,
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
   Icons,
   PrivacyAmount,
   TableCell,
@@ -21,16 +16,11 @@ import {
   useDateFormatting,
 } from "@wealthfolio/ui";
 
-import { getEffectiveCashActivityType, isCreditCardAccountType } from "../lib/constants";
-import {
-  getTransactionDisplay,
-  getTransferLinkStatus,
-  isTransferCashActivity,
-  type TransactionRowVM,
-} from "../lib/transactions-helpers";
+import { getTransactionDisplay, type TransactionRowVM } from "../lib/transactions-helpers";
 import { CategoryIconTile } from "./category-chips";
 import { QuickCategorizePopover } from "./quick-categorize-popover";
 import { QuickEventPopover } from "./quick-event-popover";
+import { TransactionRowActions } from "./transaction-row-actions";
 import {
   NEEDS_REVIEW_ROW_CLASS,
   NeedsReviewIcon,
@@ -107,14 +97,6 @@ function TransactionRowImpl({
   const rowAriaLabel = isSelected
     ? t("spending:transactions.deselect")
     : t("spending:transactions.select");
-  const activityType = getEffectiveCashActivityType(a);
-  const isTransfer = isTransferCashActivity(a);
-  const transferLinkStatus = getTransferLinkStatus(a);
-  const canMarkReimbursement =
-    isIncome && !isCreditCardAccountType(account?.accountType) && activityType !== "CREDIT";
-  // Loans take payments only as withdrawals from a cash account.
-  const canPayLoan =
-    !!onLoanPayment && activityType === "WITHDRAWAL" && account?.accountType === AccountType.CASH;
   const time = formatTime(a.activityDate, {
     hour: "numeric",
     minute: "numeric",
@@ -222,7 +204,14 @@ function TransactionRowImpl({
                 type="button"
                 aria-label={
                   row.category
-                    ? t("spending:transactions.changeCategory", { name: row.category.name })
+                    ? t("spending:transactions.changeCategory", {
+                        name: getCategoryLabel(
+                          t,
+                          row.category.taxonomyId,
+                          row.category.id,
+                          row.category.name,
+                        ),
+                      })
                     : t("spending:transactions.assignCategory")
                 }
                 className="hover:bg-muted/60 -mx-1 inline-flex max-w-full items-center gap-1.5 rounded-md px-1.5 py-0.5 text-start transition-colors"
@@ -236,7 +225,14 @@ function TransactionRowImpl({
                       className="h-5 w-5"
                       iconClassName="h-3 w-3"
                     />
-                    <span className="truncate text-sm">{row.category.name}</span>
+                    <span className="truncate text-sm">
+                      {getCategoryLabel(
+                        t,
+                        row.category.taxonomyId,
+                        row.category.id,
+                        row.category.name,
+                      )}
+                    </span>
                   </>
                 ) : (
                   <span className="text-muted-foreground inline-flex items-center gap-1 text-xs italic">
@@ -272,67 +268,18 @@ function TransactionRowImpl({
         </TableCell>
       )}
       <TableCell className="w-10 px-3 py-2" data-row-click-ignore>
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            render={
-              <Button
-                variant="ghost"
-                size="icon"
-                className={cn("data-popup-open:opacity-100 h-7 w-7", HOVER_SLOT)}
-                aria-label={t("spending:transactions.rowActions")}
-              />
-            }
-          >
-            <Icons.MoreVertical className="h-4 w-4" aria-hidden="true" />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => onEdit(row)}>
-              <Icons.Pencil className="me-2 h-4 w-4" aria-hidden="true" />
-              {t("common:edit")}
-            </DropdownMenuItem>
-            {canMarkReimbursement && (
-              <DropdownMenuItem onClick={() => onMarkReimbursement(row)}>
-                <Icons.RefreshCw className="me-2 h-4 w-4" aria-hidden="true" />
-                {t("spending:transactions.markReimbursement")}
-              </DropdownMenuItem>
-            )}
-            {!isNeutral && (
-              <DropdownMenuItem onClick={() => onEditSplits(row)}>
-                <Icons.SplitHorizontal className="me-2 h-4 w-4" aria-hidden="true" />
-                {t("spending:transactions.splitTransaction")}
-              </DropdownMenuItem>
-            )}
-            <DropdownMenuItem onClick={() => onDuplicate(row)}>
-              <Icons.Copy className="me-2 h-4 w-4" aria-hidden="true" />
-              {t("spending:transactions.duplicate")}
-            </DropdownMenuItem>
-            {isTransfer && (onLinkTransfer || onUnlinkTransfer) ? (
-              transferLinkStatus === "linked" ? (
-                onUnlinkTransfer ? (
-                  <DropdownMenuItem onClick={() => onUnlinkTransfer(row)}>
-                    <Icons.Unlink className="me-2 h-4 w-4" aria-hidden="true" />
-                    {t("spending:transactions.unlinkTransfer")}
-                  </DropdownMenuItem>
-                ) : null
-              ) : onLinkTransfer ? (
-                <DropdownMenuItem onClick={() => onLinkTransfer(row)}>
-                  <Icons.Link className="me-2 h-4 w-4" aria-hidden="true" />
-                  {t("spending:transactions.linkTransfer")}
-                </DropdownMenuItem>
-              ) : null
-            ) : null}
-            {canPayLoan && (
-              <DropdownMenuItem onClick={() => onLoanPayment(row)}>
-                <Icons.Link className="me-2 h-4 w-4" aria-hidden="true" />
-                {t("asset:loanPayments.menu")}
-              </DropdownMenuItem>
-            )}
-            <DropdownMenuItem className="text-destructive" onClick={() => onDelete(row)}>
-              <Icons.Trash className="me-2 h-4 w-4" aria-hidden="true" />
-              {t("common:delete")}
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <TransactionRowActions
+          row={row}
+          account={account}
+          onMarkReimbursement={onMarkReimbursement}
+          onEditSplits={onEditSplits}
+          onEdit={onEdit}
+          onDuplicate={onDuplicate}
+          onDelete={onDelete}
+          onLinkTransfer={onLinkTransfer}
+          onUnlinkTransfer={onUnlinkTransfer}
+          onLoanPayment={onLoanPayment}
+        />
       </TableCell>
     </TableRow>
   );

@@ -7,6 +7,7 @@ import { Icons, useAmountFormatting, buttonVariants } from "@wealthfolio/ui";
 import { useBudget } from "@/features/spending/hooks/use-budget";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import { cn } from "@/lib/utils";
+import { getBudgetGroupLabel } from "@/features/spending/lib/labels";
 
 import { formatAmountWhole } from "./format";
 import { badgeVariants } from "@wealthfolio/ui";
@@ -140,7 +141,9 @@ export function BudgetOverviewCard() {
                 className="h-2 w-2 rounded-sm"
                 style={{ background: g.color ?? "var(--muted-foreground)" }}
               />
-              <span className="text-foreground font-medium">{g.name}</span>
+              <span className="text-foreground font-medium">
+                {getBudgetGroupLabel(t, g.id, g.name)}
+              </span>
               <span className="text-muted-foreground tabular-nums">{fmt(g.planned, currency)}</span>
             </span>
           ))}
@@ -153,7 +156,7 @@ export function BudgetOverviewCard() {
                 className="h-2 w-2 rounded-sm opacity-40"
                 style={{ background: g.color ?? "var(--muted-foreground)" }}
               />
-              <span>{g.name}</span>
+              <span>{getBudgetGroupLabel(t, g.id, g.name)}</span>
               <span>—</span>
             </span>
           ))}

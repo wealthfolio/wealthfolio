@@ -1,6 +1,7 @@
-import { AnimatedToggleGroup, useAmountFormatting } from "@wealthfolio/ui";
+import { AnimatedToggleGroup } from "@wealthfolio/ui";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@wealthfolio/ui/components/ui/tooltip";
 import { useTranslation } from "react-i18next";
+import { usePrivateAmountFormatting } from "../hooks/use-private-amount-formatting";
 
 export type ChartValueMode = "real" | "nominal";
 
@@ -40,7 +41,7 @@ export function ValueModeTooltip({
   nominalValue: number;
   children: React.ReactNode;
 }) {
-  const formatting = useAmountFormatting();
+  const formatting = usePrivateAmountFormatting();
   const { t } = useTranslation();
   const showingLabel =
     valueMode === "real" ? t("goals:value_mode.todays_value") : t("goals:value_mode.nominal");

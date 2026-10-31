@@ -1,3 +1,4 @@
+import { getCategoryLabel } from "@/lib/taxonomy-labels";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -106,7 +107,7 @@ export function CategoryItem({
               size="sm"
               className="h-6 w-6 shrink-0 p-0"
               onClick={() => setIsExpanded(!isExpanded)}
-              aria-label={category.name}
+              aria-label={getCategoryLabel(t, category.taxonomyId, category.id, category.name)}
               aria-expanded={isExpanded}
             >
               {isExpanded ? (
@@ -124,7 +125,7 @@ export function CategoryItem({
             iconClassName={isSubcategory ? "h-3 w-3" : undefined}
           />
           <span className={`min-w-0 truncate ${isSubcategory ? "text-sm" : "text-sm font-medium"}`}>
-            {category.name}
+            {getCategoryLabel(t, category.taxonomyId, category.id, category.name)}
           </span>
           {activityCount > 0 && (
             <TooltipProvider>
@@ -203,7 +204,7 @@ export function CategoryItem({
         <ActionPalette
           open={paletteOpen}
           onOpenChange={setPaletteOpen}
-          title={category.name}
+          title={getCategoryLabel(t, category.taxonomyId, category.id, category.name)}
           groups={paletteGroups}
           align="end"
           trigger={
@@ -223,7 +224,9 @@ export function CategoryItem({
             <AlertDialogHeader>
               <AlertDialogTitle>{t("spending:category.deleteTitle")}</AlertDialogTitle>
               <AlertDialogDescription>
-                {t("spending:category.deleteConfirm", { name: category.name })}
+                {t("spending:category.deleteConfirm", {
+                  name: getCategoryLabel(t, category.taxonomyId, category.id, category.name),
+                })}
                 {hasChildren && (
                   <span className="text-destructive mt-2 block font-medium">
                     {t("spending:category.deleteSubcategoriesWarning")}
@@ -256,7 +259,7 @@ export function CategoryItem({
               activityCounts={activityCounts}
               excludedIds={excludedIds}
               parentExcluded={isExcluded}
-              parentName={category.name}
+              parentName={getCategoryLabel(t, category.taxonomyId, category.id, category.name)}
             />
           ))}
         </div>

@@ -2,6 +2,8 @@ import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { TaxonomyCategory } from "@/lib/types";
+import { getCategoryLabel } from "@/lib/taxonomy-labels";
+import { getBudgetGroupLabel } from "@/features/spending/lib/labels";
 import { Button, Icons, Skeleton } from "@wealthfolio/ui";
 
 import {
@@ -79,6 +81,8 @@ export function MoneyFlowSection({
         more: (count) => t("spending:whereIAm.moreCount", { count }),
         direct: t("spending:categorySheet.direct"),
         netSpending: t("spending:moneyFlow.node.netSpending"),
+        category: (taxonomyId, id, name) => getCategoryLabel(t, taxonomyId, id, name),
+        group: (id, name) => getBudgetGroupLabel(t, id, name),
       },
     );
   }, [currentReport, budget, spendingCategories, incomeCategories, savingsCategories, t]);
