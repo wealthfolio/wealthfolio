@@ -1,5 +1,6 @@
 import { act, render, screen } from "@testing-library/react";
-import { createInstance } from "i18next";
+import { PERMISSION_CATEGORIES } from "@wealthfolio/addon-sdk";
+import { createInstance, type TFunction } from "i18next";
 import { I18nextProvider } from "react-i18next";
 import { describe, expect, it } from "vitest";
 import enSettings from "@/i18n/locales/en/settings.json";
@@ -51,5 +52,33 @@ describe("permission presentation localization", () => {
   it("preserves unknown function names and English callers without a translator", () => {
     expect(getFunctionDisplayName("accounts", "getAll")).toBe("View all accounts");
     expect(getFunctionDisplayName("custom", "myOperation")).toBe("myOperation");
+  });
+
+  it("has a translated display name for every permission category and function", () => {
+    const missing = PERMISSION_CATEGORIES.flatMap((category) =>
+      category.functions
+        .filter((name) => getFunctionDisplayName(category.id, name) === name)
+        .map((name) => `${category.id}.${name}`),
+    );
+    expect(missing).toEqual([]);
+
+    const keyOf = ((key: string) => key) as unknown as TFunction;
+    const untranslated = PERMISSION_CATEGORIES.flatMap((category) =>
+      category.functions
+        .map((name) => getFunctionDisplayName(category.id, name, keyOf))
+        .filter(
+          (key) =>
+            !(
+              key.replace("settings:addonPermissions.functions.", "") in
+              enSettings.addonPermissions.functions
+            ),
+        ),
+    );
+    expect(untranslated).toEqual([]);
+
+    const untranslatedCategories = PERMISSION_CATEGORIES.map((category) => category.id).filter(
+      (id) => !(id in enSettings.addonPermissions.categories),
+    );
+    expect(untranslatedCategories).toEqual([]);
   });
 });
